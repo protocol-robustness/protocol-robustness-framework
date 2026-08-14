@@ -17,6 +17,31 @@
                'allocate-pro-rata-with-redistribution-legacy)
    request))
 
+(deftest runtime-claimant-execution-settings-are-not-canonical-allocation-inputs
+  (let [rows (mapv (fn [i]
+                     {:row/id (keyword (str "row-" i))
+                      :obligation/id (keyword (str "obligation-" i))
+                      :requested 10 :weight 1 :cap 10})
+                   (range 16))
+        request {:schema-version "pro-rata-allocation-request.v1"
+                 :mechanism/version 1
+                 :allocation/id :parallelism-noncanonical
+                 :available 101
+                 :rows rows
+                 :rounding-policy :largest-remainder
+                 :tie-break-policy :canonical-row-id
+                 :redistribution-policy :redistribute-cap-excess}
+        serial (allocation/allocate (assoc request :parallelism 1))
+        parallel (binding [payoffs/*pro-rata-parallel-threshold* 1]
+                   (allocation/allocate (assoc request :parallelism 2)))
+        wider (binding [payoffs/*pro-rata-parallel-threshold* 99]
+                (allocation/allocate (assoc request :parallelism 8)))]
+    (is (= serial parallel))
+    (is (= serial wider))
+    (is (= (:canonical-request serial) (:canonical-request parallel)))
+    (is (= (:request/hash serial) (:request/hash parallel)))
+    (is (= (:allocation/hash serial) (:allocation/hash parallel)))))
+
 (deftest corrected-active-set-redistribution-intentionally-diverges-from-legacy
   (let [request {:amount 8
                  :items [{:id :a :weight 8 :cap 1}

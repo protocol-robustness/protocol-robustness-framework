@@ -4,6 +4,8 @@
             [resolver-sim.allocation.realized-statement :as rs]
             [resolver-sim.allocation.round-state :as round-state]
             [resolver-sim.benchmark.packs.partial-fill.evidence :as pfev]
+            [resolver-sim.yield.partial-fill :as partial-fill]
+            [resolver-sim.economics.payoffs :as payoffs]
             [resolver-sim.hash.canonical :as hc]))
 
 (def ^:const golden-context-hash
@@ -55,6 +57,33 @@
             :fail-action-policy {:mode :pro-rata-treatment
                                  :deferred-policy :same-ratio
                                  :haircut-policy :same-ratio}}})
+
+(deftest proof-supported-uncapped-partial-fill-has-identical-six-roots-under-parallelism
+  (let [policy {:mode :pro-rata :rounding-policy :largest-remainder
+                :fail-action-policy {:mode :pro-rata-treatment
+                                     :deferred-policy :same-ratio
+                                     :haircut-policy :same-ratio}}
+        requested {:A 50 :B 30 :C 20}
+        run (fn [parallelism]
+              (binding [payoffs/*pro-rata-parallel-threshold* 1]
+                (partial-fill/calculate-fulfillment-pro-rata
+                 50 requested policy
+                 {:execution/claimant-parallelism parallelism})))
+        serial-decision (run 1)
+        parallel-decision (run 2)
+        serial (rs/build-statement {:ctx @ctx :decision serial-decision
+                                    :round-lifecycle @lifecycle})
+        parallel (rs/build-statement {:ctx @ctx :decision parallel-decision
+                                      :round-lifecycle @lifecycle})]
+    (is (= serial-decision parallel-decision))
+    (is (= serial parallel))
+    (is (= (:statement/root serial) (:statement/root parallel)))
+    (is (= (select-keys serial [:allocation-context-root :request-set-root
+                                :allocation-policy-root :realized-results-root
+                                :fail-action-policy-root :round-lifecycle-root])
+           (select-keys parallel [:allocation-context-root :request-set-root
+                                  :allocation-policy-root :realized-results-root
+                                  :fail-action-policy-root :round-lifecycle-root])))))
 
 (deftest statement-binds-genuine-allocation-context-root
   (testing "the statement's allocation-context-root matches the PRF/native golden hash"

@@ -38,10 +38,10 @@ verify_completion_hashes() {
   local root="$1"
   local completion="$root/completion.json"
   local registry_ref validation_ref registry_hash validation_hash
-  registry_ref="$(sed -n 's/.*"artifact_registry_ref":"\([^"]*\)".*/\1/p' "$completion" | sed 's#\\/#/#g')"
-  validation_ref="$(sed -n 's/.*"registry_validation_ref":"\([^"]*\)".*/\1/p' "$completion" | sed 's#\\/#/#g')"
-  registry_hash="$(sed -n 's/.*"artifact_registry_sha256":"sha256:\([0-9a-f]*\)".*/\1/p' "$completion")"
-  validation_hash="$(sed -n 's/.*"registry_validation_sha256":"sha256:\([0-9a-f]*\)".*/\1/p' "$completion")"
+  registry_ref="$(sed -n 's/.*"artifact_registry_ref": *"\([^"]*\)".*/\1/p' "$completion" | sed 's#\\/#/#g')"
+  validation_ref="$(sed -n 's/.*"registry_validation_ref": *"\([^"]*\)".*/\1/p' "$completion" | sed 's#\\/#/#g')"
+  registry_hash="$(sed -n 's/.*"artifact_registry_sha256": *"sha256:\([0-9a-f]*\)".*/\1/p' "$completion")"
+  validation_hash="$(sed -n 's/.*"registry_validation_sha256": *"sha256:\([0-9a-f]*\)".*/\1/p' "$completion")"
 
   test -n "$registry_ref"
   test -n "$validation_ref"

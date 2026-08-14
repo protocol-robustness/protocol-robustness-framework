@@ -7,7 +7,6 @@
             [resolver-sim.core.phases :as phases]
             [resolver-sim.io.params :as params]
             [resolver-sim.protocols.registry :as preg]
-            [resolver-sim.server.grpc :as grpc]
             [resolver-sim.logging :as log]))
 
 (defn run
@@ -62,12 +61,14 @@
 
       (:serve options)
       (try
-        (let [port (:port options)]
-          (.addShutdownHook (Runtime/getRuntime) (Thread. ^Runnable grpc/stop!))
-          (grpc/start! port)
+        (let [port (:port options)
+              grpc (requiring-resolve 'resolver-sim.server.grpc/start!)]
+          (.addShutdownHook (Runtime/getRuntime)
+                            (Thread. ^Runnable (requiring-resolve 'resolver-sim.server.grpc/stop!)))
+          (grpc port)
           (log/info! "grpc/server-started" {:port port})
           (println "[grpc] Press Ctrl+C to stop.")
-          (grpc/await-termination)
+          ((requiring-resolve 'resolver-sim.server.grpc/await-termination))
           {:exit-code 0})
         (catch Throwable e
           (log/error! "grpc/server-error" {:error (.getMessage e)})

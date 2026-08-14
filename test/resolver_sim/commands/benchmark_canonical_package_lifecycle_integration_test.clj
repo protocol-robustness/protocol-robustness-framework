@@ -1,11 +1,14 @@
 (ns resolver-sim.commands.benchmark-canonical-package-lifecycle-integration-test
-  (:require [clojure.edn :as edn]
+  (:require [clojure.data.json :as json]
+            [clojure.edn :as edn]
             [clojure.java.io :as io]
             [clojure.test :refer [deftest is testing]]
             [resolver-sim.benchmark.cli :as benchmark-cli]
             [resolver-sim.benchmark.verify :as benchmark-verify]
             [resolver-sim.benchmark.runner :as runner]
-            [resolver-sim.commands.run-benchmark :as command]))
+            [resolver-sim.commands.run-benchmark :as command]
+            [resolver-sim.economics.payoffs :as payoffs])
+  (:import [java.util.concurrent CountDownLatch TimeUnit]))
 
 (defn- temp-dir []
   (.toFile (java.nio.file.Files/createTempDirectory
@@ -72,8 +75,114 @@
                 :when (.isFile file)]
             [relative (vec (java.nio.file.Files/readAllBytes (.toPath file)))]))))
 
+(defn- completion-bindings [root]
+  (select-keys (json/read-str (slurp (io/file root "completion.json")))
+               ["semantic_status" "bundle_root_hash" "artifact_set_root"
+                "closure_commitment" "final_ref" "input_set_root"]))
+
+(defn- redistribution-passes [root]
+  (mapv #(get-in % [:partial-fill-decisions 0 :evidence :allocation-passes])
+        (:results (evidence root))))
+
+(defn- nested-yield-scenario [id]
+  (let [owners (mapv #(format "0xOwner%02d" %) (range 18))
+        deposits (mapv (fn [seq owner]
+                         {:seq seq :time 1000000 :agent owner :action "yield_deposit"
+                          :params {:amount 100 :token "USDC" :owner-id owner}})
+                       (range 18) owners)
+        caps (into {} (map (fn [owner] [owner 20]) (take 6 owners)))]
+    {:scenario-id id
+     :id id
+     :schema-version "1.1"
+     :title "Nested claimant concurrency"
+     :purpose "integration-test"
+     :threat-tags ["shortfall" "pro-rata" "caps" "redistribution"]
+     :scenario-author "agent-c"
+     :protocol "yield-v1"
+     :initial-block-time 1000000
+     :protocol-params {:yield-profile "aave-v3" :token "USDC"
+                       :focus-owner-id (first owners)}
+     :agents (conj (mapv (fn [owner] {:id owner :address owner :role "provider"}) owners)
+                   {:id "governance" :address "governance" :role "governance"})
+     :events (conj deposits
+                   {:seq 18 :time 1100000 :agent "governance" :action "set-yield-risk"
+                    :params {:token "USDC" :shortfall {:available-ratio 0.6
+                                                         :reason "nested-concurrency-test"}}}
+                   {:seq 19 :time 1200000 :agent "governance" :action "yield_withdraw_shared"
+                    :params {:token "USDC" :module-id "aave-v3" :owner-ids owners
+                             :allocation-mode "pro-rata" :effective-caps caps}})}))
+
+(deftest nested-yield-claimant-concurrency-preserves-canonical-package
+  (let [fixture-root (clojure.java.io/file "/tmp/nested-root")
+        scenarios (doto (io/file fixture-root "scenarios") .mkdirs)
+        manifest (io/file fixture-root "nested-yield-benchmark.edn")
+        serial-root (io/file fixture-root "serial-package")
+        candidate-root (io/file fixture-root "candidate-package")
+        benchmark-id "benchmark/test-nested-yield-claimant-concurrency"
+        outer-ready (CountDownLatch. 2)
+        inner-ready (CountDownLatch. 2)
+        await-both! (fn [latch layer]
+                      (when-not (.await ^CountDownLatch latch 10 TimeUnit/SECONDS)
+                        (throw (ex-info "Timed out waiting for nested concurrency layer"
+                                        {:layer layer}))))]
+    (doseq [id ["nested-yield-alpha" "nested-yield-bravo"]]
+      (spit (io/file scenarios (str id ".edn")) (pr-str (nested-yield-scenario id))))
+    (spit manifest
+          (pr-str {:benchmark/id :benchmark/nested-yield-claimant-concurrency
+                   :scenario-suites [(.getPath scenarios)]
+                   :benchmark/claims []}))
+    (try
+      (with-redefs [benchmark-cli/resolve-benchmark-manifest
+                    (fn [id]
+                      (if (= benchmark-id id)
+                        (.getPath manifest)
+                        (throw (ex-info "unexpected benchmark ID" {:id id}))))]
+        (let [serial (command/run-with-root! benchmark-id (.getPath serial-root) nil :public
+                                             {:execution/parallelism 1
+                                              :execution/chunk-size 1
+                                              :execution/claimant-parallelism 1})
+              candidate
+              (with-redefs [runner/*outer-scenario-worker-hook*
+                            (fn [_]
+                              (.countDown outer-ready)
+                              (await-both! outer-ready :outer-scenario-workers))
+                            payoffs/*redistribution-claimant-hook*
+                            (fn [_]
+                              ;; This hook runs inside detached claimant fact
+                              ;; determination, not at scenario/round entry.
+                              ;; Two claimant tasks must be active before either
+                              ;; can continue into the serial round reduction.
+                              (.countDown inner-ready)
+                              (await-both! inner-ready :redistribution-claimants))]
+                (command/run-with-root! benchmark-id (.getPath candidate-root) nil :public
+                                        {:execution/parallelism 2
+                                         :execution/chunk-size 1
+                                         :execution/claimant-parallelism 2
+                                         :execution/claimant-parallel-threshold 16}))]
+          (testing "the 1x1 reference and 2x2 candidate both complete and verify"
+            (is (zero? (:exit-code serial)))
+            (is (zero? (:exit-code candidate)))
+            (is (= "passed" (get (benchmark-verify/verify! (.getPath serial-root)) "status")))
+            (is (= "passed" (get (benchmark-verify/verify! (.getPath candidate-root)) "status"))))
+          (testing "runtime latches prove simultaneous outer workers and inner active-set claimant determination"
+            (is (zero? (.getCount outer-ready)) "both scenario workers reached the outer latch")
+            (is (zero? (.getCount inner-ready)) "both 18-claimant redistribution passes reached the inner latch"))
+          (testing "nested parallelism does not change redistribution or canonical package output"
+            (is (= [[18 12] [18 12]]
+                   (mapv #(mapv (comp count :active-ids) %) (redistribution-passes serial-root))))
+            (is (= (redistribution-passes serial-root)
+                   (redistribution-passes candidate-root)))
+            (is (= (package-semantics serial-root)
+                   (package-semantics candidate-root)))
+            (is (= (execution-artifact-bytes serial-root)
+                   (execution-artifact-bytes candidate-root)))
+            (is (= (completion-bindings serial-root)
+                   (completion-bindings candidate-root))))))
+      (finally
+        (println "KEPT" (.getPath fixture-root))))))
+
 (deftest real-canonical-package-lifecycle-is-stable-across-serial-and-parallel-roots
-  (let [fixture-root (temp-dir)
+  (let [fixture-root (clojure.java.io/file "/tmp/nested-root")
         serial-root (io/file fixture-root "serial-package")
         parallel-root (io/file fixture-root "parallel-package")
         one-chunk-root (io/file fixture-root "one-chunk-package")

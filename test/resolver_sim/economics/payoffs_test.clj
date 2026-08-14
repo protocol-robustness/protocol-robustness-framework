@@ -2,7 +2,175 @@
   (:require [clojure.string :as str]
             [clojure.test :refer [deftest is testing]]
             [resolver-sim.economics.payoffs :as payoffs]
-            [resolver-sim.hash.canonical :as hc]))
+            [resolver-sim.hash.canonical :as hc])
+  (:import [java.util.concurrent CountDownLatch]))
+
+(deftest runtime-claimant-parallelism-is-captured-before-executor-submission
+  (let [items (mapv (fn [i] {:id (keyword (str "claim-" i)) :weight 1}) (range 16))
+        worker-threads (atom #{})
+        started (CountDownLatch. 2)
+        serial (payoffs/allocate-pro-rata {:amount 101 :items items
+                                            :ordering-policy :canonical-id
+                                            :rounding :floor-with-largest-remainder})
+        parallel (binding [payoffs/*pro-rata-parallelism* 2
+                           payoffs/*pro-rata-parallel-threshold* 1]
+                   (payoffs/allocate-pro-rata
+                    {:amount 101
+                     :items items
+                     :ordering-policy :canonical-id
+                     :rounding :floor-with-largest-remainder
+                     ;; This claimant-local accessor executes in the detached
+                     ;; worker, while the dynamic budget was captured before
+                     ;; executor submission.
+                     :weight-fn (fn [item]
+                                  (swap! worker-threads conj (.getName (Thread/currentThread)))
+                                  ;; The first two submitted rows cannot both
+                                  ;; reach this point on one worker.
+                                  (when (< (Long/parseLong (subs (name (:id item)) 6)) 2)
+                                    (.countDown started)
+                                    (.await started))
+                                  (:weight item))}))]
+    (is (= serial parallel))
+    (is (> (count @worker-threads) 1)
+        (str "Expected bounded detached workers, got " @worker-threads))
+    (is (= (hc/hash-with-intent {:hash/intent :projection-artifact} serial)
+           (hc/hash-with-intent {:hash/intent :projection-artifact} parallel)))))
+
+(deftest capped-redistribution-round-trace-is-identical-under-claimant-parallelism
+  (let [items [{:id :a :weight 100 :cap 10}
+               {:id :b :weight 100 :cap 10}
+               {:id :c :weight 100 :cap 35}
+               {:id :d :weight 100 :cap nil}]
+        request {:amount 100
+                 :items items
+                 :id-fn :id :weight-fn :weight :cap-fn :cap
+                 :rounding :floor-with-largest-remainder
+                 :ordering-policy :canonical-id}
+        serial (payoffs/allocate-pro-rata-with-redistribution request)
+        parallel (binding [payoffs/*pro-rata-parallelism* 2
+                           payoffs/*pro-rata-parallel-threshold* 1]
+                   (payoffs/allocate-pro-rata-with-redistribution request))]
+    ;; This compares allocations, every committed active-set pass, residual
+    ;; metadata, and canonical policy fields—not merely aggregate totals.
+    (is (= serial parallel))
+    (is (= (:redistribution serial) (:redistribution parallel)))
+    (is (= (hc/hash-with-intent {:hash/intent :projection-artifact} serial)
+           (hc/hash-with-intent {:hash/intent :projection-artifact} parallel)))))
+
+(deftest claimant-threshold-and-observer-fallback-preserve-allocation-semantics
+  (let [run (fn [n opts]
+              (let [threads (atom #{})
+                    items (mapv (fn [i] {:id i :weight 1}) (range n))
+                    result (binding [payoffs/*pro-rata-parallel-threshold* 16]
+                             (payoffs/allocate-pro-rata
+                              (merge {:amount (+ n 3)
+                                      :items items
+                                      :rounding :floor-with-largest-remainder
+                                      :ordering-policy :input-order
+                                      :weight-fn (fn [item]
+                                                   (swap! threads conj (.getName (Thread/currentThread)))
+                                                   (:weight item))}
+                                     opts)))]
+                {:result result :threads @threads}))
+        serial-15 (run 15 {:parallelism 2})
+        serial-16 (run 16 {:parallelism 1})
+        parallel-16 (run 16 {:parallelism 2})
+        parallel-17 (run 17 {:parallelism 2})
+        progress (payoffs/make-pro-rata-progress-atom)
+        with-observer (run 17 {:parallelism 2
+                               :progress-atom progress})]
+    ;; Below threshold and explicit p=1 both use one physical worker; the
+    ;; semantic result remains the same as the parallel-eligible branch.
+    (is (= 1 (count (:threads serial-15))))
+    (is (= 1 (count (:threads serial-16))))
+    (is (= (:result serial-16) (:result parallel-16)))
+    (is (= (:result parallel-16)
+           (:result (run 16 {:parallelism 8}))))
+    (is (= (:result parallel-17)
+           (:result (run 17 {:parallelism 1}))))
+    ;; Observers intentionally force compatibility/serial execution.
+    (is (= 1 (count (:threads with-observer))))
+    (is (= :completed (:status @progress)))
+    (is (= (:result parallel-17) (:result with-observer)))))
+
+(deftest forced-claimant-completion-order-cannot-affect-tie-break-policy
+  (let [run (fn [items ordering-policy release-order]
+              (let [ids (mapv :id items)
+                    started (CountDownLatch. (count items))
+                    gates (zipmap ids (repeatedly (count items) promise))
+                    completed-gates (zipmap ids (repeatedly (count items) promise))
+                    completed (atom [])
+                    releaser (doto (Thread.
+                                    (fn []
+                                      (.await started)
+                                      (doseq [id release-order]
+                                        (deliver (get gates id) true)
+                                        @(get completed-gates id))))
+                                   (.start))
+                    result (binding [payoffs/*pro-rata-parallelism* 4
+                                     payoffs/*pro-rata-parallel-threshold* 1]
+                             (payoffs/allocate-pro-rata
+                              {:amount 2
+                               :items items
+                               :id-fn :id
+                               :cap-fn (constantly nil)
+                               :weight-fn (fn [item]
+                                            (.countDown started)
+                                            (.await started)
+                                            @(get gates (:id item))
+                                            (swap! completed conj (:id item))
+                                            (deliver (get completed-gates (:id item)) true)
+                                            1)
+                               :rounding :floor-with-largest-remainder
+                               :ordering-policy ordering-policy}))]
+                (.join releaser 10000)
+                {:result result :completed @completed}))
+        canonical-items [{:id :a} {:id :b} {:id :c} {:id :d}]
+        input-items [{:id :d} {:id :c} {:id :b} {:id :a}]
+        canonical (run canonical-items :canonical-id [:d :c :b :a])
+        input-order (run input-items :input-order [:a :b :c :d])]
+    (testing "canonical ID tie-break ignores forced reverse completion"
+      (is (= [:d :c :b :a] (:completed canonical)))
+      (is (= [:a :b :c :d] (mapv :id (get-in canonical [:result :allocations]))))
+      (is (= [:a :b]
+             (mapv :id (filter #(pos? (:allocated %))
+                               (get-in canonical [:result :allocations]))))))
+    (testing "input-order tie-break preserves original ordinal, not completion order"
+      (is (= [:a :b :c :d] (:completed input-order)))
+      (is (= [:d :c :b :a] (mapv :id (get-in input-order [:result :allocations]))))
+      (is (= [:d :c]
+             (mapv :id (filter #(pos? (:allocated %))
+                               (get-in input-order [:result :allocations]))))))))
+
+(deftest callback-progress-observers-force-serial-claimant-execution
+  (let [items (mapv (fn [i] {:id i :weight 1}) (range 17))
+        run (fn [opts]
+              (let [threads (atom #{})
+                    result (binding [payoffs/*pro-rata-parallel-threshold* 1]
+                             (payoffs/allocate-pro-rata
+                              (merge {:amount 23
+                                      :items items
+                                      :rounding :floor-with-largest-remainder
+                                      :weight-fn (fn [item]
+                                                   (swap! threads conj (.getName (Thread/currentThread)))
+                                                   (:weight item))}
+                                     opts)))]
+                {:result result :threads @threads}))
+        callback-events (atom [])
+        callback-only (run {:parallelism 2
+                            :on-progress #(swap! callback-events conj %)})
+        atom-progress (payoffs/make-pro-rata-progress-atom)
+        both-events (atom [])
+        both (run {:parallelism 2
+                   :progress-atom atom-progress
+                   :on-progress #(swap! both-events conj %)})]
+    (is (= 1 (count (:threads callback-only))))
+    (is (= 1 (count (:threads both))))
+    (is (seq @callback-events))
+    ;; Existing observer precedence is :on-progress over :progress-atom.
+    (is (seq @both-events))
+    (is (= :pending (:status @atom-progress)))
+    (is (= (:result callback-only) (:result both)))))
 
 (deftest allocate-pro-rata-equal-weights
   (testing "equal weights split evenly"

@@ -17,8 +17,10 @@
             [resolver-sim.yield.registry :as reg]
             [resolver-sim.yield.invariants :as inv]
             [resolver-sim.yield.invariant-catalog :as cat]
+            [resolver-sim.economics.payoffs :as payoffs]
             [resolver-sim.util.attribution :as attr]
-            [resolver-sim.hash.canonical :as hc]))
+            [resolver-sim.hash.canonical :as hc])
+  (:import [java.util Arrays]))
 
 (def test-world
   {:yield/indices {:test-mod {"USDC" 1}}
@@ -87,6 +89,36 @@
        (sort-by :propagation-id)
        last
        val))
+
+(deftest shared-withdrawal-propagation-and-applied-effects-are-parallel-invariant
+  (let [owners (mapv #(str "owner-" %) (range 16))
+        caps (into {} (map-indexed (fn [i owner] [owner (if (< i 4) 10 100)]) owners))
+        world (shared-withdrawal-world owners 701)
+        op {:owner-ids owners :token "USDC" :allocation-mode :pro-rata
+            :effective-caps caps}
+        serial (binding [payoffs/*pro-rata-parallel-threshold* 1]
+                 (ll/withdraw-shared world test-mod
+                                     (assoc op :execution/claimant-parallelism 1)))
+        parallel (binding [payoffs/*pro-rata-parallel-threshold* 1]
+                   (ll/withdraw-shared world test-mod
+                                       (assoc op :execution/claimant-parallelism 2)))
+        serial-decision (first (vals (:yield/partial-fill-decisions serial)))
+        parallel-decision (first (vals (:yield/partial-fill-decisions parallel)))
+        serial-propagation (propagation-from serial)
+        parallel-propagation (propagation-from parallel)
+        serial-application (application-from serial)
+        parallel-application (application-from parallel)]
+    (is (= serial-decision parallel-decision))
+    (is (= serial-propagation parallel-propagation))
+    (is (= serial-application parallel-application))
+    ;; Decisions already carry their canonical evidence-record commitment; the
+    ;; raw runtime view contains a noncanonical diagnostic Double fill ratio.
+    (is (= (:decision/canonical-bytes serial-decision)
+           (:decision/canonical-bytes parallel-decision)))
+    (is (Arrays/equals ^bytes (hc/canonical-bytes serial-propagation)
+                        ^bytes (hc/canonical-bytes parallel-propagation)))
+    (is (:holds? (inv/check-shared-withdrawal-conservation-world parallel)))
+    (is (true? (:valid? (partial-fill/validate-pro-rata-propagation parallel-propagation))))))
 
 (deftest shared-withdrawal-effective-caps-are-bounded-and-deterministic
   (testing "a zero effective cap permits no allocation for that owner"

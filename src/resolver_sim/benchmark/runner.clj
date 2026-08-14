@@ -18,6 +18,7 @@
             [resolver-sim.io.input-source :as input-source]
             [resolver-sim.io.scenarios :as io-sc]
             [resolver-sim.logging :as log]
+            [resolver-sim.execution.context :as execution-context]
             [resolver-sim.contract-model.replay :as replay]
             [resolver-sim.protocols.registry :as protocols]
             [resolver-sim.protocols.protocol :as protocol-api]
@@ -37,6 +38,11 @@
            [java.security MessageDigest]))
 
 ;; ── Helpers ──────────────────────────────────────────────────────────────────
+
+(def ^:dynamic *scenario-worker-hook*
+  "Test/runtime-only hook at detached scenario worker entry. It is never
+   persisted or included in any canonical benchmark/package projection."
+  nil)
 
 (defn- report-operational-phase!
   "Emit noncanonical coordinator progress. These events deliberately omit worker
@@ -658,7 +664,7 @@
             :scenario/artifact-manifest (artifact-manifest-for-dir output-dir scenario-evidence)})))
 
 (defn- run-with-worker-context
-  [artifact-dir allow-dirty? frozen-protocol-adapters work]
+  [artifact-dir allow-dirty? frozen-protocol-adapters runtime-execution-context work]
   ;; Dynamic bindings are intentionally established inside every executor task;
   ;; they are not inherited implicitly across async boundaries.
   (evidence-node/with-fresh-registry
@@ -666,25 +672,39 @@
       #(binding [evidence-config/*artifact-dir* artifact-dir
                  chain/*allow-dirty* allow-dirty?
                  *frozen-protocol-adapters* frozen-protocol-adapters
-                 *canonical-worker?* (some? frozen-protocol-adapters)]
+                 *canonical-worker?* (some? frozen-protocol-adapters)
+                 execution-context/*context* runtime-execution-context]
          (work)))))
 
+(def ^:dynamic *outer-scenario-worker-hook*
+  "Runtime-only test instrumentation invoked inside an outer scenario worker
+   immediately before a scenario replay begins. It is never included in a
+   scenario, execution plan, evidence, or package projection."
+  nil)
+
 (defn- execute-chunk
-  [suite-kw source-by-id run-count staging-root allow-dirty? frozen-protocol-adapters chunk]
+  [suite-kw source-by-id run-count staging-root allow-dirty? frozen-protocol-adapters runtime-execution-context chunk]
   (mapv (fn [plan-entry]
           (let [source (get source-by-id (:execution/id plan-entry))
                 artifact-dir (staging-execution-dir staging-root plan-entry)]
             (when-not source
               (throw (ex-info "Frozen execution plan has no source"
                               {:execution/id (:execution/id plan-entry)})))
-            (run-with-worker-context artifact-dir allow-dirty? frozen-protocol-adapters
-                                     #(execute-scenario suite-kw source plan-entry run-count staging-root))))
+            (run-with-worker-context artifact-dir allow-dirty? frozen-protocol-adapters runtime-execution-context
+                                     #(do
+                                        (when *outer-scenario-worker-hook*
+                                          (*outer-scenario-worker-hook*
+                                           {:execution/id (:execution/id plan-entry)
+                                            :execution/ordinal (:execution/ordinal plan-entry)}))
+                                        (execute-scenario suite-kw source plan-entry run-count staging-root)))))
         (:chunk/work-items chunk)))
 
 (defn- execute-plan-bounded!
   ([suite-kw plan source-by-id run-count staging-root parallelism chunk-size]
    (execute-plan-bounded! suite-kw plan source-by-id run-count staging-root parallelism chunk-size nil))
   ([suite-kw plan source-by-id run-count staging-root parallelism chunk-size frozen-protocol-adapters]
+   (execute-plan-bounded! suite-kw plan source-by-id run-count staging-root parallelism chunk-size frozen-protocol-adapters nil))
+  ([suite-kw plan source-by-id run-count staging-root parallelism chunk-size frozen-protocol-adapters runtime-execution-context]
    (let [parallelism (long (or parallelism 1))
          _ (when-not (pos? parallelism)
              (throw (ex-info "Benchmark parallelism must be positive" {:parallelism parallelism})))
@@ -706,7 +726,7 @@
                                       ^Callable
                                       (reify Callable
                                         (call [_]
-                                          (execute-chunk suite-kw source-by-id run-count staging-root allow-dirty? frozen-protocol-adapters chunk)))))
+                                          (execute-chunk suite-kw source-by-id run-count staging-root allow-dirty? frozen-protocol-adapters runtime-execution-context chunk)))))
                            chunks)]
         ;; Dereference in deterministic chunk order. Completion timing has no
         ;; influence on the returned sequence or subsequent reconciliation.
@@ -787,7 +807,8 @@
 
   (execute-benchmark [_ benchmark scenarios]
     ;; Compatibility protocol entry point. Canonical callers use the frozen-plan
-    ;; path in run-benchmark below; direct adapter callers retain serial behavior.
+    ;; path in run-benchmark below. This adapter can use bounded execution, but
+    ;; direct calls do not by themselves establish canonical package authority.
     (let [plan (build-execution-plan benchmark scenarios)
           source-by-id (into {}
                              (map (fn [entry source] [(:execution/id entry) source])
@@ -948,7 +969,8 @@
   ([manifest-path] (run-benchmark manifest-path default-adapter {}))
   ([manifest-path adapter] (run-benchmark manifest-path adapter {}))
   ([manifest-path adapter {:keys [scenario-output-dir benchmark-index-path execution-plan-path
-                                  parallelism chunk-size]}]
+                                  parallelism chunk-size execution/claimant-parallelism
+                                  execution/claimant-parallel-threshold]}]
    (let [adapter (if scenario-output-dir
                    (->SewAdapter scenario-output-dir (or parallelism 1) (or chunk-size 1))
                    adapter)
@@ -970,6 +992,10 @@
          frozen-inputs (freeze-plan-inputs! initial-plan manifest scenarios staging-root)
          plan (:plan frozen-inputs)
          source-by-id (:source-by-id frozen-inputs)
+         runtime-execution-context
+         (execution-context/validate-context
+          {:execution/claimant-parallelism claimant-parallelism
+           :execution/claimant-parallel-threshold claimant-parallel-threshold})
          _ (report-operational-phase! :plan-frozen
                                       {:benchmark-id (:benchmark/id manifest)
                                        :scenario-count (count scenarios)
@@ -996,7 +1022,8 @@
                                                 1
                                                 (or parallelism 1))
                                               (or chunk-size 1)
-                                              (:preflight/protocol-adapters preflight))
+                                              (:preflight/protocol-adapters preflight)
+                                              runtime-execution-context)
                        (adapter/execute-benchmark adapter manifest scenarios))
          _ (reconcile-execution-plan! plan raw-results)
          _ (report-operational-phase! :exact-set-reconciled

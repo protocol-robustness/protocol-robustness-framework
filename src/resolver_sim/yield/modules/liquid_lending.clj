@@ -13,6 +13,7 @@
             [resolver-sim.yield.exact-math :as m]
             [resolver-sim.yield.accounting :as acct]
             [resolver-sim.yield.market-state :as market-state]
+            [resolver-sim.execution.context :as execution]
             [resolver-sim.util.attribution :as attr]
             [resolver-sim.util.evidence :as util-evidence]
             [resolver-sim.yield.evidence :as ye]
@@ -1833,18 +1834,22 @@
                       :allocation-ordering :original-priority-ascending
                       :rounding-tie-break :original-priority-ascending})
               settlement
-              (-> (partial-fill/calculate-fulfillment-pro-rata
-                   available
-                   {}
-                   policy
-                   {:rows rows})
-                  ((fn [result]
+              (execution/with-claimant-options
+                (-> (partial-fill/calculate-fulfillment-pro-rata
+                     available
+                     {}
+                     policy
+                     (merge {:rows rows}
+                            ;; Snapshot the ambient runtime context here, before
+                            ;; partial-fill creates claimant executor tasks.
+                            (execution/claimant-options)))
+                    ((fn [result]
                      (if (and (every? zero? (vals (:deferred result)))
                               (every? zero? (vals (:haircut result))))
                        (assoc result :settlement-mode :full-fill)
                        result)))
-                  (update-in
-                   [:evidence :allocation-rows]
+                    (update-in
+                     [:evidence :allocation-rows]
                    (fn [allocation-rows]
                      (mapv
                       (fn [row]
@@ -1854,7 +1859,7 @@
                                  :fill-ratio
                                  {:numerator filled
                                   :denominator owed})))
-                      allocation-rows))))
+                      allocation-rows)))))
               application-order (current-application-order accrued-world)
               invocation-context
               {:schema-version "pro-rata-invocation-context.v2"

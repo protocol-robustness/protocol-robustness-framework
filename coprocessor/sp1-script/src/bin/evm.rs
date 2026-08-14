@@ -59,7 +59,7 @@ fn main() {
     let args = Args::parse();
 
     let input_text = std::fs::read_to_string(&args.input)
-        .unwrap_or_else(|e| panic!("failed to read input {}: {}", &args.input, e));
+        .unwrap_or_else(|e| panic!("failed to read input {}: {}", args.input, e));
     let input: serde_json::Value = serde_json::from_str(&input_text)
         .unwrap_or_else(|e| panic!("failed to parse input: {}", e));
 

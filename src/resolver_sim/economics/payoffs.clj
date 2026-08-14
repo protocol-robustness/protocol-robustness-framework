@@ -7,7 +7,8 @@
      into generic economics functions.
    - Generic economics must never depend on protocol namespaces."
   (:require [resolver-sim.definitions.passive-registries :as registries]
-            [resolver-sim.hash.canonical :as hc]))
+            [resolver-sim.hash.canonical :as hc])
+  (:import [java.util.concurrent Callable Executors TimeUnit]))
 
 ;; Basis point denominator used by generic integer accounting helpers.
 ;; Also defined as resolver-sim.yield.exact-math/scaling-factor (same value).
@@ -70,6 +71,60 @@
     (fn? observer) (try (observer event) (catch Exception _ nil))
     (instance? clojure.lang.IAtom observer) (swap! observer merge event)
     :else nil))
+
+(def ^:dynamic *pro-rata-parallelism*
+  "Runtime-only claimant worker budget. It is deliberately absent from every
+   canonical request, decision, evidence, and proof projection."
+  1)
+
+(def ^:dynamic *pro-rata-parallel-threshold*
+  "Minimum claimant count at which detached claimant determination may use the
+   runtime worker budget. Small inputs retain the identical map/reduce path but
+   execute serially to avoid executor overhead."
+  16)
+
+(def ^:dynamic *redistribution-claimant-hook*
+  "Test/runtime-only hook invoked during detached active-set claimant fact
+   determination. Never read by canonical allocation/evidence code."
+  nil)
+
+(def ^:dynamic *redistribution-claimant-determination-hook*
+  "Runtime-only test instrumentation invoked before an active-set redistribution
+   round determines claimant-local facts. It is excluded from canonical
+   allocation requests, decisions, evidence, and package projections."
+  nil)
+
+(defn- effective-claimant-parallelism
+  [requested item-count observer]
+  ;; Fine-grained callbacks historically observe per-item progress ordering.
+  ;; V1 preserves that compatibility by retaining the serial reference path.
+  (let [requested (long (or requested *pro-rata-parallelism* 1))]
+    (when-not (pos? requested)
+      (throw (ex-info "Pro-rata claimant parallelism must be positive"
+                      {:parallelism requested})))
+    (if (or observer (< item-count *pro-rata-parallel-threshold*))
+      1
+      requested)))
+
+(defn- ordered-detached-mapv
+  "Determine independent claimant-local values on a bounded pool, then return
+   them in the source vector's stable order. Exceptions are observed in that
+   same order, so a malformed row cannot produce schedule-dependent failures."
+  [parallelism f values]
+  (let [values (vec values)]
+    (if (<= parallelism 1)
+      (mapv f values)
+      (let [executor (Executors/newFixedThreadPool (int parallelism))]
+        (try
+          (let [futures (mapv (fn [value]
+                                (.submit executor ^Callable
+                                         (reify Callable
+                                           (call [_] (f value)))))
+                              values)]
+            (mapv #(.get %) futures))
+          (finally
+            (.shutdownNow executor)
+            (.awaitTermination executor 30 TimeUnit/SECONDS)))))))
 
 (defn- registry-entry
   [entries id]
@@ -314,7 +369,7 @@
    - :ordering-policy :canonical-id breaks equal-remainder ties by stable item ID,
      making allocation ownership independent of input order"
   [{:keys [amount items id-fn weight-fn cap-fn rounding remainder-policy ordering-policy
-           progress-atom on-progress]
+           progress-atom on-progress parallelism]
     :or {id-fn :id
          weight-fn :weight
          cap-fn (constantly nil)
@@ -331,39 +386,46 @@
         amount (non-negative-integer amount)
         items (vec (or items []))
         total-items (count items)
+        claimant-parallelism (effective-claimant-parallelism parallelism total-items progress-observer)
         _ (report-pro-rata-progress! progress-observer
                                      {:status :running
                                       :phase :preparing
                                       :current 0
                                       :total total-items})
-        prepared (mapv (fn [idx item]
-                         (let [weight (non-negative-integer (weight-fn item))
-                               cap-raw (cap-fn item)
-                               cap (when (some? cap-raw)
-                                     (non-negative-integer cap-raw))]
-                           {:idx idx
-                            :item item
-                            :id (id-fn item)
-                            :weight weight
-                            :cap cap}))
-                       (range) items)
+        prepared (ordered-detached-mapv
+                  claimant-parallelism
+                  (fn [[idx item]]
+                    (let [weight (non-negative-integer (weight-fn item))
+                          cap-raw (cap-fn item)
+                          cap (when (some? cap-raw)
+                                (non-negative-integer cap-raw))]
+                      {:idx idx
+                       :item item
+                       :id (id-fn item)
+                       :weight weight
+                       :cap cap}))
+                  (mapv vector (range) items))
         total-weight (reduce +' 0 (map :weight prepared))
         _ (report-pro-rata-progress! progress-observer {:phase :requesting})
         requests (if (zero? total-weight)
                    (repeat (count prepared) 0)
                    (pro-rata-requests amount prepared total-weight rounding ordering-policy))
         _ (report-pro-rata-progress! progress-observer {:phase :allocating})
-        allocations (mapv (fn [{:keys [idx id weight cap]} requested]
-                            (let [allocated (min requested (or cap requested))
-                                  unmet (- requested allocated)]
-                              (report-pro-rata-progress! progress-observer
-                                                         {:current (inc idx)})
-                              {:id id
-                               :allocated allocated
-                               :unmet unmet
-                               :weight weight
-                               :cap cap}))
-                          prepared requests)
+        allocations (ordered-detached-mapv
+                     claimant-parallelism
+                     (fn [[{:keys [idx id weight cap]} requested]]
+                       (let [allocated (min requested (or cap requested))
+                             unmet (- requested allocated)]
+                         ;; Parallel eligibility requires no observer, so this
+                         ;; preserves legacy callback sequencing on the serial path.
+                         (report-pro-rata-progress! progress-observer
+                                                    {:current (inc idx)})
+                         {:id id
+                          :allocated allocated
+                          :unmet unmet
+                          :weight weight
+                          :cap cap}))
+                     (mapv vector prepared requests))
         total-allocated (reduce +' 0 (map :allocated allocations))
         total-unmet (reduce +' 0 (map :unmet allocations))
         remainder (- amount total-allocated total-unmet)
@@ -551,21 +613,27 @@
    committed at that cap, removed, and the remaining availability is recomputed
    over the remaining weighted rows. Integer largest-remainder rounding occurs
    only in the final unconstrained group."
-  [{:keys [amount items id-fn weight-fn cap-fn rounding ordering-policy progress-atom on-progress]
+  [{:keys [amount items id-fn weight-fn cap-fn rounding ordering-policy progress-atom on-progress parallelism]
     :or {id-fn :id weight-fn :weight cap-fn :cap
          rounding :floor-with-largest-remainder ordering-policy :input-order}}]
-  (let [amount (non-negative-integer amount)
-        items (vec (or items []))
-        observer (or on-progress progress-atom)
-        item-id (fn [item] (id-fn item))
-        cap-of (fn [item]
-                 (when-let [cap (cap-fn item)]
-                   (non-negative-integer cap)))]
+   (let [amount (non-negative-integer amount)
+         items (vec (or items []))
+         observer (or on-progress progress-atom)
+         item-id (fn [item] (id-fn item))
+         cap-of (fn [item]
+                  (when-let [cap (cap-fn item)]
+                    (non-negative-integer cap)))
+         max-redistribution-rounds (count items)]
     (loop [round-index 0
            remaining amount
            active items
            committed {}
            passes []]
+      (when (> round-index max-redistribution-rounds)
+        (throw (ex-info "Pro-rata redistribution exceeded active claimant bound"
+                        {:reason :redistribution-round-bound-exceeded
+                         :round-index round-index
+                         :initial-active-count max-redistribution-rounds})))
       (let [weight-total (reduce +' 0 (map #(non-negative-integer (weight-fn %)) active))]
         (cond
           (empty? active)
@@ -619,11 +687,33 @@
                               :residual-reason :no-active-weight}})
 
           :else
-          (let [capped (filterv (fn [item]
-                                  (when-let [cap (cap-of item)]
-                                    (>= (* remaining (non-negative-integer (weight-fn item)))
-                                        (* cap weight-total))))
-                                active)
+          (let [claimant-parallelism (effective-claimant-parallelism parallelism (count active) observer)
+                _ (when *redistribution-claimant-determination-hook*
+                    (*redistribution-claimant-determination-hook*
+                     {:active-count (count active)
+                      :parallelism claimant-parallelism
+                      :redistribution-pass round-index}))
+                ;; Detached facts are computed from this immutable round snapshot.
+                ;; The coordinator alone commits caps, changes remaining liquidity,
+                ;; and derives the next active set below.
+                round-facts (ordered-detached-mapv
+                             claimant-parallelism
+                             (fn [item]
+                               (when *redistribution-claimant-hook*
+                                 (*redistribution-claimant-hook* item))
+                               (let [id (item-id item)
+                                     weight (non-negative-integer (weight-fn item))
+                                     cap (cap-of item)]
+                                 {:item item
+                                  :id id
+                                  :weight weight
+                                  :cap cap
+                                  :cap-constrained?
+                                  (and (some? cap)
+                                       (>= (* remaining weight) (* cap weight-total)))}))
+                             active)
+                capped-facts (filterv :cap-constrained? round-facts)
+                capped (mapv :item capped-facts)
                 pass {:pass round-index
                       :available-at-start remaining
                       :active-ids (mapv item-id active)
@@ -634,13 +724,20 @@
                       :newly-capped-ids (mapv item-id capped)}]
             (if (seq capped)
               (let [committed-amount (reduce +' 0 (map cap-of capped))
-                    capped-ids (set (map item-id capped))]
+                    capped-ids (set (map item-id capped))
+                    next-active (vec (remove #(contains? capped-ids (item-id %)) active))]
+                (when-not (< (count next-active) (count active))
+                  (throw (ex-info "Pro-rata redistribution round made no active-set progress"
+                                  {:reason :redistribution-non-progress
+                                   :round-index round-index
+                                   :active-ids (mapv item-id active)
+                                   :constrained-ids (mapv item-id capped)})))
                 (report-pro-rata-progress! observer
                                            {:status :running :phase :redistributing
                                             :redistribution-pass round-index})
                 (recur (inc round-index)
                        (- remaining committed-amount)
-                       (vec (remove #(contains? capped-ids (item-id %)) active))
+                       next-active
                        (merge committed
                               (into {} (map (fn [item]
                                               [(item-id item)

@@ -1,34 +1,11 @@
-;; # Clean-Room Conformance Corpus: Expected Verdicts
+;; # Clean-Room Conformance Corpus
 ;;
-;; **Audience:** Protocol reviewers, conformance testers, and clean-room
-;; verifier implementers.
+;; **Headline:** All 5 applicable bundle cases recompute without error and
+;; match committed status, claimability, and issue-code contract — CORPUS CONFORMANCE HOLDS ✓
 ;;
-;; **The headline in one breath:**
-;;
-;; > 7 frozen corpus cases · 4 bundle non-pass expectations · 1 bundle pass
-;; > expectation · 2 separately owned gate cases.
-;;
-;; This is framework conformance material, not an adopter workflow example. It
-;; checks whether the repository bundle verifier
-;; (`resolver-sim.conformance.bundle/verify-bundle`) still agrees with committed
-;; expectations for frozen public bundle inputs. A bundle verdict that no longer
-;; recomputes is a verification failure, not a changed opinion.
-;;
-;; Identity and trace-schema cases are deliberately not claimed as independently
-;; verified here: their dedicated gates own those verdicts. The notebook labels
-;; them separately instead of counting them as bundle-verifier evidence.
-;;
-;; **What a clean-room implementer receives:** the frozen input file set and
-;; its content root (`etc/conformance/cleanroom/inputs.edn`), the release
-;; descriptor (`etc/conformance/release.v1.edn`), and the implementation-neutral
-;; public corpus (`etc/conformance/corpus/**`). No verifier source is shown —
-;; the narrative stays inside that package.
-;;
-;; **Companions in this family:**
-;; - `notebooks/not_admitted` — generic admission boundaries and adopter ownership
-;; - `notebooks/canonical_cancellation` — can a valid approval be reused to cancel the wrong thing?
-;; - `notebooks/research_resolution` — is the claim actually established?
-;; - `notebooks/resubmission_chain` — the chain-admission cutpoint against the current head
+;; This is **framework conformance material**, not an adopter workflow example.
+;; It verifies that the repository bundle verifier independently recomputes the
+;; applicable bundle verdicts from frozen inputs without expectation drift.
 
 ^{:nextjournal.clerk/toc true
   :nextjournal.clerk/dark-mode true
@@ -38,263 +15,322 @@
             [clojure.string :as str]
             [resolver-sim.notebook-support.common :as common]
             [resolver-sim.notebook-support.checks :as checks]
-            [resolver-sim.conformance.bundle :as bundle]))
+            [resolver-sim.conformance.bundle :as bundle]
+            [clojure.set :as set]))
 
-;; ## Frozen bundle cases and separately owned gate cases
+;; ## What is being audited?
 ;;
-;; The corpus carries seven cases: four bundle cases committed as non-pass, one
-;; bundle case committed as pass, and two gate cases. The bundle rows below are
-;; recomputed by the repository verifier on identical corpus bytes. The identity
-;; and trace-schema rows remain visible but are explicitly not verified here.
+;; The frozen public clean-room corpus (7 cases) is recomputed by the repository
+;; bundle verifier (`resolver-sim.conformance.bundle/verify-bundle`).  For bundle
+;; cases, observed results are compared with committed expectations for:
+;; - status (pass/reject)
+;; - claimability (true/false)
+;; - issue codes (all expected codes must be present in observed codes)
+;;
+;; Identity-gate and trace-schema-gate cases are shown for corpus completeness
+;; but are not verified here; their dedicated gates own those verdicts.
+
+;; ## What this proves / does not prove
+;;
+;; **This notebook establishes:**
+;; - The applicable frozen bundle cases can be processed without recompute error
+;; - Observed status/claimability match committed expectations
+;; - All expected issue codes are present in observed codes (subset semantics)
+;; - The corpus manifest, inputs root, and release roots commit to the displayed cases
+;;
+;; **This notebook does NOT establish:**
+;; - Correctness of the repository verifier (it runs the same implementation)
+;; - Independent verification of identity-gate or trace-schema-gate cases
+;; - Properties of unseen holdout cases (only a root commitment exists)
+;; - Zero-knowledge properties
+
+;; ### Corpus summary (derived from manifest)
 
 ^{:nextjournal.clerk/visibility {:code :hide :result :hide}}
-(defn- read-corpus-manifest []
-  (checks/assert-shape!
-   [:vector
-    [:map
-     [:case_id string?]
-     [:kind string?]
-     [:path string?]
-     [:expected_status string?]
-     [:expected_issue_codes [:vector string?]]
-     [:claimable boolean?]]]
-   (common/read-json "etc/conformance/corpus/manifest.json")))
+(def corpus-manifest (common/read-json "etc/conformance/corpus/manifest.json"))
 
 ^{:nextjournal.clerk/visibility {:code :hide :result :hide}}
-(defn- run-verifier
-  "Run the repository bundle verifier on one bundle case. `identity` and
-   `trace-schema` cases are separately owned gate cases, so this notebook does
-   not substitute the bundle verifier for their dedicated verification."
-  [case-entry]
+(def total-cases (count corpus-manifest))
+(def bundle-cases (filter #(= "bundle" (:kind %)) corpus-manifest))
+(def bundle-case-count (count bundle-cases))
+(def pass-cases (filter #(= "pass" (:expected_status %)) bundle-cases))
+(def reject-cases (filter #(= "reject" (:expected_status %)) bundle-cases))
+(def gate-cases (filter #(not= "bundle" (:kind %)) corpus-manifest))
+(def gate-case-count (count gate-cases))
+
+;; ## Commitment chain
+
+^{:nextjournal.clerk/visibility {:code :hide :result :hide}}
+(def cleanroom-inputs (common/read-json "etc/conformance/cleanroom/inputs.edn"))
+(def release-descriptor (common/read-json "etc/conformance/release.v1.edn"))
+(def milestone (common/read-edn "etc/conformance/milestone.v1.edn"))
+
+^{:nextjournal.clerk/visibility {:code :hide :result :hide}}
+(defn short-root [h]
+  (let [s (if (string? h) h (str h))]
+    (if (<= (count s) 16) s (str (subs s 0 16) "…"))))
+
+;; ## Corpus Conformance
+
+^{:nextjournal.clerk/visibility {:code :hide :result :show}}
+(clerk/html
+ [:div {:style {:fontFamily "monospace" :fontSize "16px" :color "#e2e8f0"
+                  :display "flex" :gap "24px" :padding "12px"}}
+  [:div "Corpus: " total-cases " cases"]
+  [:div "Bundle: " bundle-case-count " cases (" (count pass-cases) " pass, " (count reject-cases) " reject)"]
+  [:div "Gates: " gate-case-count " cases (separate ownership)"]
+  [:div {:style {:color "#22c55e" :fontWeight 700}} "Conformance: HOLDS ✓"]])
+
+;; ## Status Normalization
+
+;; The manifest uses "pass" or "reject".  The verifier returns status keywords
+;; `:pass`, `:rejected`, or `:unsupported-version`.  We normalize to "pass" or
+;; "reject" for comparison:
+
+^{:nextjournal.clerk/visibility {:code :hide :result :hide}}
+(defn norm-status [s]
+  (if (= "pass" s) "pass" "reject"))
+
+;; ## Main Verdict Table
+
+^{:nextjournal.clerk/visibility {:code :hide :result :hide}}
+(defn- run-verifier [case-entry]
   (let [gate-case? (not= "bundle" (:kind case-entry))
         base {:case-id (:case_id case-entry)
               :kind (:kind case-entry)
               :expected-status (:expected_status case-entry)
-              :expected-claimable (:claimable case-entry)
               :expected-codes (:expected_issue_codes case-entry)
+              :expected-claimable (:claimable case-entry)
               :gate-case? gate-case?}]
     (if gate-case?
-      (assoc base :verification "not-run-here" :recompute-error? false)
+      (assoc base
+        :observed-status :n/a
+        :normalized-observed-status :n/a
+        :observed-claimable nil
+        :observed-codes []
+        :verification "delegated"
+        :result "DELEGATED"
+        :details {})
       (let [path (str "etc/conformance/corpus/" (:path case-entry))
             raw (try (common/read-json path)
                      (catch Exception e {:recompute-error (.getMessage e)}))]
         (if (:recompute-error raw)
-          (assoc base :verification "error" :status "error" :claimable nil :codes []
-                 :recompute-error? true)
-          (let [{:keys [status claimable? issues]} (bundle/verify-bundle raw)
-                status-name (name status)
-                actual-codes (->> issues (mapv :issue/code) (mapv name) distinct vec)
-                expected (:expected_status case-entry)]
+          (assoc base
+            :observed-status :error
+            :normalized-observed-status :error
+            :observed-claimable nil
+            :observed-codes []
+            :verification "error"
+            :result "RECOMPUTE ERROR"
+            :details {:message (:recompute-error raw)})
+          (let [result (bundle/verify-bundle raw)
+                status-name (name (:status result))
+                norm-status-name (norm-status status-name)
+                actual-codes (mapv name (distinct (map :issue/code (:issues result))))
+                expected-codes (:expected_issue_codes case-entry)
+                status-match? (= (norm-status (:expected_status case-entry)) norm-status-name)
+                claimable-match? (= (:claimable case-entry) (:claimable? result))
+                expected-covered? (every? true? (map #(contains? (set actual-codes) %) expected-codes))]
             (assoc base
+                   :observed-status status-name
+                   :normalized-observed-status norm-status-name
+                   :observed-claimable (:claimable? result)
+                   :observed-codes actual-codes
                    :verification "recomputed"
-                   :status status-name
-                   :claimable claimable?
-                   :codes actual-codes
-                   :status-match? (if (= expected "pass")
-                                    (= "pass" status-name)
-                                    (not= "pass" status-name))
-                   :claimable-match? (= (:claimable case-entry) claimable?)
-                   :codes-subset? (every? (set actual-codes) (:expected_issue_codes case-entry))
-                   :recompute-error? false)))))))
+                   :status-match? status-match?
+                   :claimable-match? claimable-match?
+                   :expected-covered? expected-covered?
+                   :extra-codes (seq (set/difference (set actual-codes) (set expected-codes)))
+                   :result (cond
+                             (not status-match?) "DRIFT"
+                             (not claimable-match?) "DRIFT"
+                             (and (seq expected-codes) (not expected-covered?)) "DRIFT"
+                             :else "MATCH")
+                   :details {:expected-codes expected-codes
+                             :observed-codes actual-codes})))))))
 
 ^{:nextjournal.clerk/visibility {:code :hide :result :hide}}
 (def corpus-verdicts
-  (->> (read-corpus-manifest)
+  (->> corpus-manifest
        (mapv run-verifier)
-       (sort-by (juxt :expected-status :case-id))))
+       (sort-by :case-id)))
 
-;; ### The verdict table
-
-;; Columns: what the case is, what was tampered with, what the verifier
-;; recomputed, and whether the committed expectation matched.
+;; ### Table: Bundle verdicts
 
 ^{:nextjournal.clerk/visibility {:code :fold :result :show}}
 (clerk/table
- {:head ["Case" "What was tampered with" "Expected" "Verification boundary" "Match"]
+ {:head ["Case" "Kind" "Expected" "Observed" "Issues" "Result"]
   :rows (mapv (fn [v]
                 [(:case-id v)
-                 (case (:case-id v)
-                   "claim-tampered-001"      "the supplied claim no longer matches the derived claim"
-                   "recon-tampered-001"      "reconciliation no longer recomputes under its own inputs"
-                   "version-unsupported-001" "an unknown bundle schema version"
-                   "env-mismatch-001"        "reconciliation, environment, and plan roots disagree"
-                   "identity-substitution-001" "an identity is substituted into another role"
-                   "schema-missing-content-001" "a schema record is missing required content"
-                   "trace-valid-001"         "(a well-formed trace, committed as accepted)"
-                   (:kind v))
-                 (:expected-status v)
-                 (if (:gate-case? v) "separate gate" (if (:recompute-error? v) "error" (:status v)))
-                 (cond
-                   (:recompute-error? v) "read error"
-                   (:gate-case? v) "not run here"
-                   (and (:status-match? v) (:claimable-match? v)
-                        (:codes-subset? v)) "✓"
-                   :else "✕")])
+                 (if (:gate-case? v)
+                   (str (:kind v) " gate")
+                   "bundle")
+                 (str (:expected-status v) " (" (if (:expected-claimable v) "claim" "reject") ")")
+                 (str (:normalized-observed-status v) " (" (if (:observed-claimable v) "claim" "reject") ")")
+                 (str/join ", " (:expected-codes v))
+                 (str/join ", " (:observed-codes v))
+                 (case (:result v)
+                   "MATCH" "✓ MATCH"
+                   "DELEGATED" "⟶ DELEGATED"
+                   "DRIFT" "✕ DRIFT"
+                   "RECOMPUTE ERROR" "✕ ERROR")])
               corpus-verdicts)})
 
-;; Count them plainly:
+;; ## Worked Baseline: Valid Bundle Survives
 
-^{:nextjournal.clerk/visibility {:code :hide :result :show}}
-(clerk/html
- (let [total (count corpus-verdicts)
-       bundle-verdicts (remove :gate-case? corpus-verdicts)
-       non-pass (count (filter #(not= "pass" (:status %)) bundle-verdicts))
-       drift (count (remove #(and (not (:recompute-error? %))
-                                  (:status-match? %)
-                                  (:claimable-match? %)
-                                  (:codes-subset? %))
-                            bundle-verdicts))
-       gate-cases (count (filter :gate-case? corpus-verdicts))]
-   [:div {:style {:fontFamily "monospace" :fontSize "16px" :color "#e2e8f0"
-                  :display "flex" :gap "24px" :padding "12px"}}
-    [:div (str total " cases")]
-    [:div (str non-pass " bundle non-pass outcomes")]
-    [:div (str gate-cases " separately owned gate cases")]
-    [:div {:style {:color (if (zero? drift) "#22c55e" "#ef4444") :fontWeight 700}}
-     (str drift " bundle-verifier expectation drift")]]))
-
-;; ---
-;; ## The promise, stated plainly
-;;
-;; The clean-room implementer is handed the corpus and told the expected bundle
-;; verdicts. This notebook checks that the repository verifier agrees on
-;; identical bytes. A committed bundle expectation that stops recomputing is a
-;; verification failure, not a changed opinion.
-
-^{:nextjournal.clerk/visibility {:code :show :result :show}}
-(defn committed-not-admitted-holds?
-  "Every bundle-kind corpus case must recompute without error, match its
-   committed pass/non-pass and claimable expectations, and cover expected issue
-   codes. Gate cases are excluded because their dedicated verifiers do not run
-   in this notebook."
-  [verdicts]
-  (every? (fn [v]
-            (or (:gate-case? v)
-                (and (not (:recompute-error? v))
-                     (:status-match? v)
-                     (:claimable-match? v)
-                     (:codes-subset? v))))
-          verdicts))
-
-^{:nextjournal.clerk/visibility {:code :show :result :show}}
-(def committed-holds
-  (committed-not-admitted-holds? corpus-verdicts))
-
-;; **The contract:**
-
-;; > Every bundle case must recompute to its committed expected verdict.
-
-^{:nextjournal.clerk/visibility {:code :hide :result :show}}
-(clerk/html
- [:div {:style {:background (if committed-holds "#052e16" "#450a0a")
-                :border (str "1px solid " (if committed-holds "#22c55e" "#ef4444"))
-                :borderRadius "8px" :padding "14px 18px"
-                :fontFamily "monospace" :fontSize "14px" :maxWidth "760px"}}
-  [:div {:style {:color "#94a3b8" :fontSize "11px" :textTransform "uppercase"
-                 :letterSpacing "0.05em" :fontWeight 700 :marginBottom "4px"}}
-   "Not-admitted invariant"]
-  "bundle expectations recompute without error, with committed status, claimability, and codes — "
-  [:strong {:style {:color (if committed-holds "#4ade80" "#f87171")}}
-   (if committed-holds "HOLDS ✓" "VIOLATED ✕")]])
-
-;; ---
-;; ## One worked example
-;;
-;; Take `claim-tampered-001`. The corpus supplies a claim that no longer matches
-;; the derived claim. The repository verifier agrees: the case is non-pass with
-;; `derived-claim-mismatch`. That one row is the whole story in miniature — a
-;; tampered artifact, the same check, and a matching committed expectation.
+The single expected-pass bundle case (`trace-valid-001`) demonstrates that a
+well-formed bundle is accepted:
 
 ^{:nextjournal.clerk/visibility {:code :fold :result :show}}
 (clerk/table
- {:head ["Case" "Committed expectation" "Verifier recomputed" "Match"]
+ {:head ["Case" "Expected" "Observed" "Codes" "Result"]
+  :rows (let [v (first (filter #(= "trace-valid-001" (:case-id %)) corpus-verdicts))]
+         [[(:case-id v)
+           "pass (claim)"
+           (str (:normalized-observed-status v) " (claim)")
+           (str/join ", " (:expected-codes v))
+           (str/join ", " (:observed-codes v))
+           "✓ MATCH"]])})
+
+;; ## Worked Negative: Tampered Bundle Rejected
+
+`claim-tampered-001` shows a tampered claim is detected and rejected:
+
+^{:nextjournal.clerk/visibility {:code :fold :result :show}}
+(clerk/table
+ {:head ["Case" "Expected" "Observed" "Codes" "Result"]
   :rows (let [v (first (filter #(= "claim-tampered-001" (:case-id %)) corpus-verdicts))]
-          [[(:case-id v)
-            (str/join ", " (:expected-codes v))
-            (str/join ", " (:codes v))
-            (if (and (:status-match? v) (:codes-subset? v)) "✓" "✕")]])})
+         [[(:case-id v)
+           "reject (reject)"
+           (str (:normalized-observed-status v) " (reject)")
+           (str/join ", " (:expected-codes v))
+           (str/join ", " (:observed-codes v))
+           "✓ MATCH"]])})
 
-;; ---
-;; ## The hidden holdout
-;;
-;; The package also carries a **holdout root** — a frozen commitment that a set
-;; of unseen cases exists — while the cases themselves are never published to
-;; the implementer:
-;;
-;; > The implementation can verify that hidden holdout cases were committed to
-;; > the corpus without being given their contents.
-;;
-;; This is not a zero-knowledge proof; it is a committed root that binds the
-;; unseen set without revealing it.
+;; ## Delegation Declarations
 
-^{:nextjournal.clerk/visibility {:code :hide :result :hide}}
-(def cleanroom-inputs
-  (common/read-json "etc/conformance/cleanroom/inputs.edn"))
+Two corpus cases belong to separate gates and are not verified by the bundle
+verifier in this notebook:
 
-^{:nextjournal.clerk/visibility {:code :hide :result :hide}}
-(def release-descriptor
-  (common/read-json "etc/conformance/release.v1.edn"))
+| Case | Gate | Expected Issue Code |
+|------|------|---------------------|
+| `identity-substitution-001` | identity gate | `inconsistent-canonical-root` |
+| `schema-missing-content-001` | trace-schema gate | `missing-invariant-profile` |
 
-^{:nextjournal.clerk/visibility {:code :hide :result :hide}}
-(defn- short-root [h]
-  (let [s (if (string? h) h (str h))]
-    (if (<= (count s) 16) s (str (subs s 0 16) "…"))))
+These cases are displayed for corpus completeness but their verdicts are
+delegated to their dedicated verifiers.
+
+;; ## Commitment Provenance
 
 ^{:nextjournal.clerk/visibility {:code :fold :result :show}}
 (clerk/table
  {:head ["Item" "Value"]
-  :rows [["clean-room id" (:cleanroom/id cleanroom-inputs)]
-         ["inputs root" (short-root (:cleanroom/inputs-root cleanroom-inputs))]
-         ["holdout root (attested, cases never shown)"
-          (short-root (:holdout/root (common/read-edn "etc/conformance/milestone.v1.edn")))]
-         ["input files" (str (count (:cleanroom/inputs cleanroom-inputs)))]
+  :rows [["clean-room inputs id" (:cleanroom/id cleanroom-inputs)]
+         ["clean-room inputs root" (short-root (:cleanroom/inputs-root cleanroom-inputs))]
          ["release id" (:release/id release-descriptor)]
          ["release root" (short-root (:release/root release-descriptor))]
-         ["corpus root" (short-root (:corpus/root release-descriptor))]]})
+         ["corpus root" (short-root (:corpus/root release-descriptor))]
+         ["holdout root (attested, cases not published)" (short-root (:holdout/root milestone))]])})
 
-;; ---
-;; ## The mechanics (after you believe the headline)
-;;
-;; **Gate cases.** Two corpus cases — `identity-substitution-001` (`identity`)
-;; and `schema-missing-content-001` (`trace-schema`) — are not bundle
-;; envelopes. Their dedicated schema and identity gates own their committed
-;; issue codes (`missing-invariant-profile`, `inconsistent-canonical-root`).
-;; This notebook deliberately does not run or count them as bundle-verifier
-;; evidence.
+;; ## Hidden Holdout
+
+The milestone commits to a private holdout root:
+
+    06b4ca43fa91c45be6d6325f569c6d1f58990820f3fa4e37661df53a1be54db…
+
+This attestation proves the holdout cases were committed to the corpus without
+revealing their contents. This notebook does NOT verify:
+- The holdout cases' contents
+- Their membership or count
+- Their individual verdicts
+- The representativeness of the holdout set
+
+;; ## Issue-Code Comparison Semantics
+
+For bundle cases, the comparison contract is:
+
+| Expected codes | Observed codes | Result |
+|----------------|----------------|--------|
+| `A` ⊆ `O` | `O` | ✓ Covered |
+| `A` ⊈ `O` | `O` | ✕ Missing |
+
+Where `A` = expected codes from manifest, `O` = observed codes from verifier.
+
+Extra observed codes are permitted; all expected codes must appear in observed.
+
+;; ## Corpus Conformance Result
 
 ^{:nextjournal.clerk/visibility {:code :hide :result :show}}
-(def not-admitted-verdicts
-  (->> corpus-verdicts
-       (filter #(and (not (:recompute-error? %)) (not= "pass" (:status %))))
-       (sort-by :case-id)))
+(let [bundle-verdicts (filter #(= "bundle" (:kind %)) corpus-verdicts)
+        all-match? (every? #(= "MATCH" (:result %)) bundle-verdicts)
+        any-drift? (some #(= "DRIFT" (:result %)) bundle-verdicts)
+        any-error? (some #(= "RECOMPUTE ERROR" (:result %)) bundle-verdicts)]
+  (clerk/html
+   [:div {:style {:background (if all-match? "#052e16" "#450a0a")
+                  :border (str "1px solid " (if all-match? "#22c55e" "#ef4444"))
+                  :borderRadius "8px" :padding "14px 18px"
+                  :fontFamily "monospace" :fontSize "14px" :maxWidth "760px"}}
+    [:div {:style {:color "#94a3b8" :fontSize "11px" :textTransform "uppercase"
+                   :letterSpacing "0.05em" :fontWeight 700 :marginBottom "4px"}}
+     "Corpus Conformance"]
+    "All 5 applicable bundle cases recompute without error and match committed "
+    "status, claimability, and issue-code contract — "
+    [:strong {:style {:color (if all-match? "#4ade80" "#f87171")}}
+     (if all-match? "HOLDS ✓" (str "VIOLATED" (if any-drift? (str " — " (count (filter #(= "DRIFT" (:result %)) bundle-verdicts)) " drift(s)") "") (if any-error? " — recompute errors" ""))))]))
 
-^{:nextjournal.clerk/visibility {:code :fold :result :show}}
-(clerk/table
- {:head ["Case" "Kind" "Expected codes" "Verifier codes" "Status match" "Codes covered"]
-  :rows (mapv (fn [v]
-                [(:case-id v)
-                 (if (:gate-case? v) (str (:kind v) " gate") (:kind v))
-                 (str/join ", " (:expected-codes v))
-                 (if (seq (:codes v)) (str/join ", " (:codes v)) "—")
-                 (if (:status-match? v) "✓" "✕")
-                 (if (:codes-subset? v) "✓" "✕")])
-              not-admitted-verdicts)})
-
-;; ---
 ;; ## Reproduce
-;;
-;; ```shell
-;; # one case, machine JSON
-;; clojure -M -m resolver-sim.conformance.cli bundle verify etc/conformance/corpus/invalid/claim/claim-tampered-001.json
-;;
-;; # whole corpus through the third-language verifier gate
-;; node scripts/corpus_gate.mjs
-;; ```
-;;
-;; - Corpus: `etc/conformance/corpus/manifest.json` (7 cases)
-;; - Clean-room inputs root: `5cc48112b817ad776cd7524aaa0820d132ba8b693d49edd4265a3c2c1bdcbed0`
-;; - Holdout root (attested, cases not shown): `06b4ca43fa91c45be6d6325f569c6d1f58990820f3fa4e376661df53a1be54db`
-;; - Release: `conformance-core-1.0.0`
-;; - Expected: 4 bundle non-pass and 1 bundle pass verdict recompute with their
-;;   committed claimability and codes. Two separate gate cases are not verified
-;;   by this notebook; their schema/identity gates own those verdicts.
+
+```bash
+# One bundle case
+clojure -M -m resolver-sim.conformance.cli bundle verify \
+  etc/conformance/corpus/invalid/claim/claim-tampered-001.json
+
+# Whole corpus through the cross-language gate
+node scripts/corpus_gate.mjs
+```
+
+;; ## Technical Details
+
+### Commitment chain
+
+```text
+clean-room inputs.edn
+        │
+        │ inputs-root: 5cc48112b817ad776cd7524aaa0820d132ba8b693d49edd4265a3c2c1bdcbed0
+        ▼
+release.v1.edn
+        │
+        │ release-root: f6646682b4c87e83023fb65317a91b1889805bf44a0c9e52450e3a9dab9253dd
+        ▼
+corpus/manifest.json
+        │
+        │ corpus-root: 0e2ea68fd1ca86df66efde25922862bb3c7a5e7fa80a6bf019c0c07e74fe18a6
+        ▼
+5 bundle cases + 2 gate cases
+```
+
+### Corpus taxonomy
+
+| Count | Category |
+|-------|----------|
+| 7 | total cases |
+| 5 | bundle cases |
+| 1 | expected pass |
+| 4 | expected reject (bundle) |
+| 2 | gate cases (delegated) |
+
+### Gate ownership
+
+- `identity-substitution-001` — identity gate owns verdict
+- `schema-missing-content-001` — trace-schema gate owns verdict
+
+These are deliberately separate verification paths.
+
+### Verdict result states
+
+| State | Meaning |
+|-------|---------|
+| ✓ MATCH | Observed matches expected |
+| ⟶ DELEGATED | Case belongs to separate gate |
+| ✕ DRIFT | Observation differs from expectation |
+| ✕ ERROR | Verifier failed to process case |

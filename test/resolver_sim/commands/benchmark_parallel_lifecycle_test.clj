@@ -43,10 +43,26 @@
         (is (zero? (:exit-code result)))
         (is (= 3 (:execution/parallelism @seen-context)))
         (is (= 7 (:execution/chunk-size @seen-context)))
+        (is (= 1 (:execution/claimant-parallelism @seen-context)))
+        (is (= 16 (:execution/claimant-parallel-threshold @seen-context)))
         (is (= orchestration/phases @calls))
         (is (.exists (io/file root "completion.json")))
         (is (not (.exists (io/file root ".run.lock")))))
       (finally (delete-tree! root)))))
+
+(deftest invalid-claimant-runtime-options-are-rejected-before-execution
+  (let [called? (atom false)
+        run! (fn [opts]
+               (with-redefs [benchmark-cli/run-and-report
+                             (fn [& _] (reset! called? true) {:exit-code 0})]
+                 (command/run opts)))]
+    (is (= 2 (:exit-code (run! {:cmd/args ["benchmark/test"]
+                                :run-root "target/invalid-claimant-parallelism"
+                                :claimant-parallelism 0}))))
+    (is (= 2 (:exit-code (run! {:cmd/args ["benchmark/test"]
+                                :run-root "target/invalid-claimant-threshold"
+                                :claimant-parallel-threshold 0}))))
+    (is (false? @called?))))
 
 (deftest claim-evaluator-like-execution-failure-releases-root-without-completion
   (let [root (temp-dir)
@@ -63,6 +79,8 @@
                                                        :execution/chunk-size 7}))))
       (is (= 3 (:parallelism @received-options)))
       (is (= 7 (:chunk-size @received-options)))
+      (is (= 1 (:execution/claimant-parallelism @received-options)))
+      (is (= 16 (:execution/claimant-parallel-threshold @received-options)))
       (is (.exists (io/file root ".run-state")))
       (is (not (.exists (io/file root "completion.json"))))
       (is (not (.exists (io/file root ".run.lock"))))

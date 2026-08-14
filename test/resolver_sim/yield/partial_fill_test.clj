@@ -14,6 +14,39 @@
     (catch clojure.lang.ExceptionInfo e
       (:check-results (ex-data e)))))
 
+(deftest capped-shared-withdrawal-decision-and-mechanism-evidence-are-parallel-invariant
+  (let [rows (mapv (fn [i]
+                     {:key (keyword (str "claim-" i))
+                      :obligation-id (keyword (str "obligation-" i))
+                      :source-position-id (keyword (str "position-" i))
+                      :owed 10 :weight 1
+                      :cap (if (< i 4) 2 10)})
+                   (range 16))
+        policy {:mode :pro-rata :rounding-policy :largest-remainder}
+        run (fn [parallelism]
+              (binding [payoffs/*pro-rata-parallel-threshold* 1]
+                (pf/calculate-fulfillment-pro-rata
+                 101 {} policy
+                 {:rows rows :execution/claimant-parallelism parallelism})))
+        serial (run 1)
+        parallel (run 2)
+        artifact-position {:owner/id "parallel-test-owner"
+                           :module/id :parallel-test-module
+                           :token "USDC"}
+        serial-artifact (pf/decision-artifact artifact-position serial)
+        parallel-artifact (pf/decision-artifact artifact-position parallel)]
+    (is (= serial parallel))
+    (is (= (get-in serial [:evidence :allocation-rows])
+           (get-in parallel [:evidence :allocation-rows])))
+    (is (= (get-in serial [:evidence :allocation-passes])
+           (get-in parallel [:evidence :allocation-passes])))
+    (is (= (get-in serial [:evidence :redistribution])
+           (get-in parallel [:evidence :redistribution])))
+    (is (= (get-in serial [:evidence :allocation-mechanism-evidence])
+           (get-in parallel [:evidence :allocation-mechanism-evidence])))
+    (is (= serial-artifact parallel-artifact))
+    (is (pf/decision-hash-valid? parallel-artifact))))
+
 (def base-position
   (pos/normalize-position
    {:owner/id "user1"

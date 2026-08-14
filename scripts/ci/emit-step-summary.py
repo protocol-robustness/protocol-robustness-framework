@@ -31,6 +31,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import sys
 from pathlib import Path
 
@@ -68,6 +69,58 @@ def _target_failures(data) -> list[tuple[str, str]]:
         if isinstance(t, dict) and t.get("status") in ("fail", "error"):
             rows.append((t.get("target", "?"), t.get("log_file", "")))
     return rows
+
+
+_FAIL_BLOCK_STARTS = re.compile(r"^((FAIL|ERROR) in \(.*\)|Uncaught exception|Syntax error|RuntimeException)")
+_CAUSE_LINES = re.compile(r"^(expected:|actual:|  actual:|Compilation error|clojure\.lang\.|.*Exception.*)")
+_TRAILING = re.compile(r"^ *at |^ *clojure\.|^ *resolver_|^ *scripts\.|^\s*$")
+
+
+def _failure_detail(log_file: str) -> str | None:
+    """Extract the first real failure block from a failing target's log file.
+
+    This is what makes a red/amber run *actually explain itself*: the summary
+    JSON only carries counts + a log path, so without reading the log the
+    emitter could only print "N finding(s)". Reading it lets us surface the
+    concrete expected/actual + exception text on the run page.
+    """
+    if not log_file:
+        return None
+    path = Path(log_file)
+    if not path.exists():
+        return None
+    try:
+        lines = path.read_text(errors="replace").splitlines()
+    except OSError:
+        return None
+
+    blocks = []
+    for i, line in enumerate(lines):
+        if _FAIL_BLOCK_STARTS.match(line.strip()):
+            block = [line.strip()]
+            for nxt in lines[i + 1:]:
+                ns = nxt.strip()
+                if _FAIL_BLOCK_STARTS.match(ns):
+                    break
+                if _TRAILING.match(ns):
+                    continue
+                if _CAUSE_LINES.match(ns):
+                    block.append(ns)
+                    if ns.startswith("actual:") or ns.startswith("expected:"):
+                        # keep the matching expected/actual pair, then stop
+                        # the stack trace behind the first actual.
+                        if len(block) >= 2 and block[-2].startswith("expected:"):
+                            break
+                        if ns.startswith("actual:"):
+                            break
+                if len(block) >= 6:
+                    break
+            blocks.append("\n    ".join(block))
+            if len(blocks) >= 3:
+                break
+    if not blocks:
+        return None
+    return "\n\n".join(blocks)
 
 
 def _risk_lines(data) -> list[tuple[str, str]]:
@@ -118,8 +171,17 @@ def main() -> int:
     else:
         failed = 0 if data.get("overall_status") == "pass" else 1
 
+    # test-summary.v2 lacks a "passed" key but carries per-target status.
+    passed = None
+    if counts and "passed" in counts:
+        passed = counts["passed"]
+    elif data.get("targets"):
+        statuses = [t.get("status") for t in data.get("targets", []) if isinstance(t, dict)]
+        passed = sum(1 for s in statuses if s in ("pass", "passed", "ok", "safe"))
+
     risk = _risk_lines(data)
     target_failures = _target_failures(data)
+    failures_detail = [(_fail[0], _failure_detail(_fail[1])) for _fail in target_failures]
 
     has_findings = (failed or 0) > 0 or target_failures or risk
     total = counts.get("scenario_count", counts.get("total", counts.get("target_count", ""))) if counts else ""
@@ -135,7 +197,7 @@ def main() -> int:
     composed.append("")
 
     if counts and total != "":
-        passed_v = counts.get("passed", "?")
+        passed_v = passed if passed is not None else counts.get("passed", "?")
         failed_v = failed
         composed.append(f"- passed: `{passed_v}`   failed: `{failed_v}`   total: `{total}`")
     if args.file:
@@ -149,6 +211,18 @@ def main() -> int:
             composed.append(f"  - `{target}`" + (f"  (log: {log})" if log else ""))
         if len(target_failures) > 10:
             composed.append(f"  - … and {len(target_failures) - 10} more")
+
+    # Real failure text pulled from each failing target's log file. This is the
+    # detail that makes the run page actually explain what broke.
+    if failures_detail:
+        composed.append("")
+        composed.append("Failure detail:")
+        for target, detail in failures_detail:
+            composed.append("")
+            composed.append(f"### {target}")
+            composed.append("```")
+            composed.append(detail or "(no detail extracted)")
+            composed.append("```")
 
     # Risk digest lines.
     if risk:
@@ -183,6 +257,12 @@ def main() -> int:
         print(f"::{severity} title={title}::{message}")
         for _sev, msg in risk[:5]:
             print(f"::{severity} title={label}::{msg[:200]}")
+        # Surface the concrete failure text so the annotation (PR Checks tab)
+        # carries detail even before the run page is opened.
+        for target, detail in failures_detail:
+            if detail:
+                snip = detail.replace("\n", " ")[:200]
+                print(f"::{severity} title={label}: {target}::{snip}")
     else:
         print(f"::notice title={label}::{label} passed")
 

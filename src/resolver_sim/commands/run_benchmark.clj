@@ -386,7 +386,7 @@
                         witness-artifacts)})))
 
 (defn- invoke! [benchmark-id {:keys [output key scenario-output-dir benchmark-index-path execution-plan-path
-                                     parallelism chunk-size]}]
+                                     parallelism chunk-size claimant-parallelism claimant-parallel-threshold]}]
   (let [benchmark-runner (requiring-resolve 'resolver-sim.benchmark.cli/run-and-report)
         write-evidence (requiring-resolve 'resolver-sim.benchmark.runner/write-evidence)
         benchmark-artifact-dir (some-> output io/file .getParent)
@@ -398,7 +398,9 @@
                                                  :benchmark-index-path benchmark-index-path
                                                  :execution-plan-path execution-plan-path
                                                  :parallelism parallelism
-                                                 :chunk-size chunk-size}))]
+                                                 :chunk-size chunk-size
+                                                 :execution/claimant-parallelism claimant-parallelism
+                                                 :execution/claimant-parallel-threshold claimant-parallel-threshold}))]
     (when-let [evidence (:evidence result)]
       (write-evidence evidence output))
     result))
@@ -607,7 +609,11 @@
                        :sensitivity/profile sensitivity-profile
                        :claim-registry/path *claim-registry-path*
                        :execution/parallelism (or (:execution/parallelism overrides) 1)
-                       :execution/chunk-size (or (:execution/chunk-size overrides) 1))
+                       :execution/chunk-size (or (:execution/chunk-size overrides) 1)
+                       ;; Runtime-only settings: do not add these to context files,
+                       ;; plan roots, evidence, or package projections.
+                       :execution/claimant-parallelism (or (:execution/claimant-parallelism overrides) 1)
+                       :execution/claimant-parallel-threshold (or (:execution/claimant-parallel-threshold overrides) 16))
         lock (lifecycle/acquire-run-lock! (:run/root context) (:run/id context) :benchmark)]
     (try
       (benchmark-run/initialize! context)
@@ -622,7 +628,9 @@
                                                                                   :benchmark-index-path (str (:benchmark/index-file context))
                                                                                   :execution-plan-path (str (:benchmark/plan-file context))
                                                                                   :parallelism (:execution/parallelism context)
-                                                                                  :chunk-size (:execution/chunk-size context)})]
+                                                                                  :chunk-size (:execution/chunk-size context)
+                                                                                  :claimant-parallelism (:execution/claimant-parallelism context)
+                                                                                  :claimant-parallel-threshold (:execution/claimant-parallel-threshold context)})]
                                                 (when-not (:evidence result)
                                                   (throw (ex-info "Benchmark execution produced no evidence; finalization aborted"
                                                                   {:benchmark benchmark-id :exit-code (:exit-code result)})))
@@ -694,8 +702,12 @@
       (not (and (integer? (or (:parallelism opts) 1))
                 (pos? (or (:parallelism opts) 1))
                 (integer? (or (:chunk-size opts) 1))
-                (pos? (or (:chunk-size opts) 1))))
-      {:exit-code 2 :message "Parallelism and chunk size must be positive integers"}
+                (pos? (or (:chunk-size opts) 1))
+                (integer? (or (:claimant-parallelism opts) 1))
+                (pos? (or (:claimant-parallelism opts) 1))
+                (integer? (or (:claimant-parallel-threshold opts) 16))
+                (pos? (or (:claimant-parallel-threshold opts) 16))))
+      {:exit-code 2 :message "Parallelism, chunk size, claimant parallelism, and claimant threshold must be positive integers"}
 
       (and run-root output)
       {:exit-code 2 :message "Use --run-root for the canonical benchmark bundle; --output is a separate legacy export command"}
@@ -712,7 +724,9 @@
       (with-claim-registry claim-registry
         (run-with-root! benchmark-id run-root key (or sensitivity-profile :public)
                         {:execution/parallelism (or (:parallelism opts) 1)
-                         :execution/chunk-size (or (:chunk-size opts) 1)}))
+                         :execution/chunk-size (or (:chunk-size opts) 1)
+                         :execution/claimant-parallelism (or (:claimant-parallelism opts) 1)
+                         :execution/claimant-parallel-threshold (or (:claimant-parallel-threshold opts) 16)}))
 
       output
       (let [result (invoke! benchmark-id {:output output :key key})]

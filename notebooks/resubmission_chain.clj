@@ -8,11 +8,12 @@
 ;; at most one successor per parent — and only when the parent **is the current
 ;; head**. A child submitted against a stale head is NOT ADMITTED, no matter how
 ;; well-formed its receipt is. This notebook recomputes every verdict with the
-;; real chain facade (`resolver-sim.resubmission.chain/admit!`), so the tables
-;; below cannot drift from executable truth.
+;; real chain transition facade. Its compact synthetic requests use the
+;; fixture-only compatibility adapter, so the tables below establish chain-state
+;; behavior rather than production signed-receipt authority admission.
 ;;
 ;; **Companions in this family:**
-;; - `notebooks/not_admitted` — the evidence-chain and invariant admission analysis
+;; - `notebooks/not_admitted` — generic admission boundaries and adopter ownership
 ;; - `notebooks/demo_not_admitted` — Demo A: change an amount after verification
 ;; - `notebooks/demo_reorder_chain` — Demo B: reorder the evidence
 ;; - `notebooks/clean_room_not_admitted` — the clean-room corpus verdicts
@@ -61,6 +62,15 @@
   (chain/new-chain "sha256:FAM"))
 
 ^{:nextjournal.clerk/visibility {:code :hide :result :hide}}
+(defn- admit-demo!
+  "Run a synthetic hash-only fixture request through the real chain transition.
+   This adapter is notebook-local: production admission uses `chain/admit!` with
+   a configured receipt authority and an exact signed attempt receipt."
+  [c request]
+  (binding [chain/*admit-compat-guard* nil]
+    (chain/admit-compat! c request)))
+
+^{:nextjournal.clerk/visibility {:code :hide :result :hide}}
 (defn- result-row
   "Normalise an admit! result into a display row."
   [label r]
@@ -104,20 +114,20 @@
 
 ^{:nextjournal.clerk/visibility {:code :hide :result :hide}}
 (def demo-r1
-  (chain/admit! demo-chain
+  (admit-demo! demo-chain
                 (admit-request :r "sha256:R1" :seq 1 :link "sha256:L1"
                                :idem "sha256:I1" :basis "sha256:B1")))
 
 ^{:nextjournal.clerk/visibility {:code :hide :result :hide}}
 (def demo-r2
-  (chain/admit! demo-chain
+  (admit-demo! demo-chain
                 (admit-request :r "sha256:R2" :seq 2 :parent "sha256:R1"
                                :link "sha256:L2" :idem "sha256:I2"
                                :basis "sha256:B2")))
 
 ^{:nextjournal.clerk/visibility {:code :hide :result :hide}}
 (def stale-head-attempt
-  (chain/admit! demo-chain
+  (admit-demo! demo-chain
                 (admit-request :r "sha256:R3" :seq 3 :parent "sha256:R1"
                                :link "sha256:L3" :idem "sha256:I3"
                                :basis "sha256:B3")))
@@ -217,12 +227,12 @@
 
 ^{:nextjournal.clerk/visibility {:code :hide :result :hide}}
 (defn- run-scenario
-  "Replay a scenario in a fresh chain and return the final admit! verdict."
+  "Replay a synthetic scenario in a fresh chain and return the final verdict."
   [{:keys [r seq parent link idem basis version steps]}]
   (let [c (fresh-chain)]
-    (doseq [req steps] (chain/admit! c req))
-    (chain/admit! c (admit-request :r r :seq seq :parent parent :link link
-                                   :idem idem :basis basis :version version))))
+    (doseq [req steps] (admit-demo! c req))
+    (admit-demo! c (admit-request :r r :seq seq :parent parent :link link
+                                  :idem idem :basis basis :version version))))
 
 ^{:nextjournal.clerk/visibility {:code :hide :result :hide}}
 (def rejection-verdicts

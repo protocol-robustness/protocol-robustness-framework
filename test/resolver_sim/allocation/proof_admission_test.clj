@@ -7,6 +7,8 @@
             [resolver-sim.allocation.proof-verifier-issuer :as issuer]
             [resolver-sim.allocation.realized-statement :as statement]
             [resolver-sim.allocation.round-state :as round-state]
+            [resolver-sim.yield.partial-fill :as partial-fill]
+            [resolver-sim.economics.payoffs :as payoffs]
             [resolver-sim.support.ed25519 :as fx]))
 
 (def raw-context
@@ -108,6 +110,35 @@
                                           :round-lifecycle lifecycle})))
     (is (admission/valid-scenario-statement-binding? binding))
     (is (not (admission/valid-scenario-statement-binding? (assoc binding :scenario-id "other-round"))))))
+
+(deftest production-proof-admission-is-blind-to-parallel-origin
+  (let [policy {:mode :pro-rata :rounding-policy :largest-remainder}
+        run (fn [parallelism]
+              (binding [payoffs/*pro-rata-parallel-threshold* 1]
+                (partial-fill/calculate-fulfillment-pro-rata
+                 50 {:A 50 :B 50} policy
+                 {:execution/claimant-parallelism parallelism})))
+        serial-decision (run 1)
+        parallel-decision (run 2)
+        serial-statement (statement-fixture serial-decision)
+        parallel-statement (statement-fixture parallel-decision)
+        artifact (artifact-fixture serial-statement)
+        kp (fx/keypair :parallel-origin-proof-admission)
+        trust (fx/trust-policy kp :allocation-proof-verifier :active)
+        receipt (signed-receipt artifact kp)
+        request (fn [decision statement]
+                  {:artifact artifact :receipt receipt :trust-policy trust
+                   :program-registry (program-registry artifact) :statement statement
+                   :allocation-context context :decision decision
+                   :round-lifecycle lifecycle})]
+    (is (= serial-decision parallel-decision))
+    (is (= serial-statement parallel-statement))
+    (is (true? (admission/cryptographic-computation-admitted?
+                (request serial-decision serial-statement))))
+    ;; Admission receives only the ordinary canonical decision/statement inputs;
+    ;; no parallelism, executor, threshold, or worker provenance is supplied.
+    (is (true? (admission/cryptographic-computation-admitted?
+                (request parallel-decision parallel-statement))))))
 
 (deftest signed-verifier-receipt-is-the-cryptographic-authority
   (let [s (statement-fixture supported-decision)
