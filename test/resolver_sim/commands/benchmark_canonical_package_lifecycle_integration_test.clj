@@ -7,7 +7,8 @@
             [resolver-sim.benchmark.verify :as benchmark-verify]
             [resolver-sim.benchmark.runner :as runner]
             [resolver-sim.commands.run-benchmark :as command]
-            [resolver-sim.economics.payoffs :as payoffs])
+            [resolver-sim.economics.payoffs :as payoffs]
+            [resolver-sim.evidence.node :as evidence-node])
   (:import [java.util.concurrent CountDownLatch TimeUnit]))
 
 (defn- temp-dir []
@@ -65,15 +66,22 @@
      :closure (:benchmark/execution-closure bundle)}))
 
 (defn- execution-artifact-bytes [root]
-  ;; All files below the coordinator-published execution tree are canonical
-  ;; scenario artifacts. Runtime adapters are projected out before raw replay
-  ;; output is written, so this intentionally includes raw/replay-output.edn.
+  ;; Canonical package artifact bytes: all files below the coordinator-published
+  ;; execution tree, EXCEPT the raw evidence-node envelope. Evidence nodes embed
+  ;; a wall-clock :timestamp and derived :record-hash that are audit-only; they
+  ;; must not make identical semantic runs produce different package identity.
+  ;; They are therefore compared by their deterministic canonical projection
+  ;; (evidence-node/canonical-node-projection), exactly as artifact-manifest-for-dir
+  ;; commits them. This intentionally includes raw/replay-output.edn.
   (let [executions (io/file root "benchmark/executions")]
     (into (sorted-map)
           (for [file (file-seq executions)
                 :let [relative (str (.relativize (.toPath executions) (.toPath file)))]
                 :when (.isFile file)]
-            [relative (vec (java.nio.file.Files/readAllBytes (.toPath file)))]))))
+            [relative (vec (if (clojure.string/includes? relative "evidence-nodes/")
+                             (evidence-node/canonical-node-projection
+                              (edn/read-string (slurp file)))
+                             (java.nio.file.Files/readAllBytes (.toPath file))))]))))
 
 (defn- completion-bindings [root]
   (select-keys (json/read-str (slurp (io/file root "completion.json")))
@@ -113,7 +121,7 @@
                              :allocation-mode "pro-rata" :effective-caps caps}})}))
 
 (deftest nested-yield-claimant-concurrency-preserves-canonical-package
-  (let [fixture-root (clojure.java.io/file "/tmp/nested-root")
+  (let [fixture-root (temp-dir)
         scenarios (doto (io/file fixture-root "scenarios") .mkdirs)
         manifest (io/file fixture-root "nested-yield-benchmark.edn")
         serial-root (io/file fixture-root "serial-package")
@@ -178,11 +186,18 @@
                    (execution-artifact-bytes candidate-root)))
             (is (= (completion-bindings serial-root)
                    (completion-bindings candidate-root))))))
-      (finally
-        (println "KEPT" (.getPath fixture-root))))))
+(finally
+        (try
+          (let [keep "/tmp/preserved-roots"
+                _ (.mkdirs (io/file keep))
+                p (doto (ProcessBuilder.
+                         ["/bin/sh" "-c" (str "cp -r '" (.getPath serial-root) "' '" (str keep "/serial") "'; cp -r '" (.getPath candidate-root) "' '" (str keep "/candidate") "'")]).inheritIO)]
+            (.waitFor (.start p)))
+          (catch Exception e (println :preserve-copy-error (.getMessage e))))
+        (delete-tree! fixture-root)))))
 
 (deftest real-canonical-package-lifecycle-is-stable-across-serial-and-parallel-roots
-  (let [fixture-root (clojure.java.io/file "/tmp/nested-root")
+  (let [fixture-root (temp-dir)
         serial-root (io/file fixture-root "serial-package")
         parallel-root (io/file fixture-root "parallel-package")
         one-chunk-root (io/file fixture-root "one-chunk-package")

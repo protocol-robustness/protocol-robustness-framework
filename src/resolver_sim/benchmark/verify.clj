@@ -6,6 +6,7 @@
             [resolver-sim.benchmark.conservation :as conservation]
             [resolver-sim.benchmark.integrity :as integrity]
             [resolver-sim.commands.run-lifecycle :as lifecycle]
+            [resolver-sim.evidence.node :as evidence-node]
             [resolver-sim.io.paths :as paths]
             [resolver-sim.hash.canonical :as canonical]
             [resolver-sim.hash.reference :as hash-ref]
@@ -68,7 +69,6 @@
             root-path (.toPath (io/file root))
             projection {"domain" (get content-registry "domain")
                         "benchmark_id" (get content-registry "benchmark_id")
-                        "run_id" (get content-registry "run_id")
                         "artifacts" artifacts
                         "excluded_paths" (vec (sort (get content-registry "excluded_paths" [])))}
             expected-root (hash-ref/sha256-ref (canonical/domain-hash "BENCHMARK_CONTENT_REGISTRY_V1" projection))]
@@ -158,6 +158,7 @@
           finalization-file (io/file root "benchmark/finalization.json")
           assurance-file (io/file root "benchmark/assertions/benchmark-assurance.json")
           conservation-file (io/file root "benchmark/assertions/conservation.json")
+          conclusion-file (io/file root "benchmark/conclusion.json")
           registry-file (io/file root paths/artifacts-registry)
           validation-file (io/file root paths/artifacts-validation)
           content-registry-file (io/file root "benchmark/evidence/content-registry.json")
@@ -187,10 +188,9 @@
             inputs (get assurance "input_set")
             projection {"domain" "prf/benchmark-finalization/v1"
                         "benchmark_id" (get finalization "benchmark_id")
-                        "run_id" (get finalization "run_id")
-                        "assurance_artifact_sha256" (sha-ref assurance-file)
-                        "conclusion_sha256" (get finalization "conclusion_sha256")
-                        "evidence_content_registry_sha256" (sha-ref content-registry-file)
+                        "assurance_artifact_sha256" (integrity/content-assurance-sha assurance-file)
+                        "conclusion_sha256" (:sha256 (evidence-node/canonical-artifact-content "benchmark/conclusion.json" conclusion-file))
+                        "evidence_content_registry_sha256" (:sha256 (evidence-node/canonical-artifact-content "benchmark/evidence/content-registry.json" content-registry-file))
                         "input_set_root" (get assurance "input_set_root")}
             expected-final-ref (hash-ref/sha256-ref (canonical/domain-hash "BENCHMARK_FINALIZATION_V1" projection))
             checks {"completion-first-package-index" (and (get-in package-context [:completion-report :valid?])

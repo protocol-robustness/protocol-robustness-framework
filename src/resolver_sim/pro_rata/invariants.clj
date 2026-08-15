@@ -15,23 +15,31 @@
 (defn cap-respecting-violations
   [result]
   (vec
-   (mapcat (fn [{:keys [row/id requested effective-cap allocated]}]
-             (cond-> []
-               (or (not (integer? allocated)) (neg? allocated))
-               (conj {:reason :pro-rata/invalid-allocation :row/id id :observed allocated})
-               (> allocated effective-cap)
-               (conj {:reason :pro-rata/cap-exceeded :row/id id
-                      :expected effective-cap :observed allocated})
-               (> allocated requested)
-               (conj {:reason :pro-rata/request-exceeded :row/id id
-                      :expected requested :observed allocated})))
+   (mapcat (fn [row]
+             (let [id (:row/id row)
+                   requested (:requested row)
+                   effective-cap (:effective-cap row)
+                   allocated (:allocated row)]
+               (cond-> []
+                 (or (not (integer? allocated)) (neg? allocated))
+                 (conj {:reason :pro-rata/invalid-allocation :row/id id :observed allocated})
+                 (> allocated effective-cap)
+                 (conj {:reason :pro-rata/cap-exceeded :row/id id
+                        :expected effective-cap :observed allocated})
+                 (> allocated requested)
+                 (conj {:reason :pro-rata/request-exceeded :row/id id
+                        :expected requested :observed allocated}))))
            (:rows result))))
 
 (defn quota-bounded-violations
   [result]
   (vec
-   (keep (fn [{:keys [row/id effective-cap effective-quota allocated]}]
-           (let [numerator (:quota/numerator effective-quota)
+   (keep (fn [row]
+           (let [id (:row/id row)
+                 effective-cap (:effective-cap row)
+                 effective-quota (:effective-quota row)
+                 allocated (:allocated row)
+                 numerator (:quota/numerator effective-quota)
                  denominator (:quota/denominator effective-quota)
                  bounded-numerator (min numerator (* effective-cap denominator))
                  floor-value (quot bounded-numerator denominator)

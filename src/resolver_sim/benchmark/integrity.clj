@@ -12,7 +12,18 @@
    via verify-evidence-bundle! — a supplied bundle confers no authority
    until its committed identity recomputes."
   (:require [resolver-sim.hash.canonical :as hc]
+            [resolver-sim.hash.reference :as hash-ref]
+            [clojure.data.json :as json]
             [clojure.edn :as edn]))
+
+(defn- sort-maps-for-hash
+  "Recursively sort map keys for deterministic hashing. Used by verify-bundle-hash
+   to match the write-time ordering."
+  [x]
+  (cond
+    (map? x) (into (sorted-map) (map (fn [[k v]] [k (sort-maps-for-hash v)]) x))
+    (coll? x) (into (empty x) (map sort-maps-for-hash x))
+    :else x))
 
 (def ^:private object-tag-reader
   "LEGACY RUNTIME-VALUE COMPATIBILITY ONLY — not a permanent serialization design.
@@ -96,11 +107,11 @@
   [bundle]
   (let [stored-hash (:evidence/hash bundle)
         current-hash (hc/hash-with-intent {:hash/intent :bundle-root}
-                                          (hashable-evidence bundle))
+                                          (into (sorted-map) (hashable-evidence bundle)))
         legacy-hash (hc/hash-with-intent {:hash/intent :bundle-root}
-                                         (dissoc (hashable-evidence bundle)
+                                         (into (sorted-map) (dissoc (hashable-evidence bundle)
                                                  :run/manifest
-                                                 :benchmark-certification))]
+                                                 :benchmark-certification)))]
     (cond
       (hc/intent-hash= current-hash stored-hash)
       {:hash-ok? true :scheme :current :computed-hash current-hash}
@@ -110,6 +121,16 @@
 
       :else
       {:hash-ok? false :scheme nil :computed-hash current-hash})))
+
+(defn content-assurance-sha
+  "Content-derived SHA-256 of a benchmark-assurance artifact with the
+   wall-clock :run/id excluded, so committed final_ref / completion hashes are
+   reproducible across identical roots. Used symmetrically by the writer
+   (run_benchmark) and the verifier (verify) so expectations recompute."
+  [file]
+  (hash-ref/sha256-ref
+   (hc/domain-hash "BENCHMARK_ASSURANCE_CONTENT_V1"
+                   (dissoc (json/read-str (slurp file)) "run_id"))))
 
 (defn verify-evidence-bundle!
   "Fail-closed integrity gate for any consumer that treats bundle fields as

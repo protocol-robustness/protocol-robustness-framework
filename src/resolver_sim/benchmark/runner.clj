@@ -325,11 +325,43 @@
               (recur (.read stream buffer))))))
       (format "%064x" (BigInteger. 1 (.digest digest))))))
 
+(defn- evidence-node-manifest-entry
+  "Build a manifest entry for a persisted evidence-node file using its
+   deterministic canonical projection rather than the raw on-disk bytes.
+
+   Evidence nodes embed a wall-clock :timestamp and derived :record-hash for
+   audit purposes. Those are volatile envelope fields and must not influence
+   canonical package identity. The committed SHA-256 / byte-count are therefore
+   computed over canonical-node-projection (which excludes :timestamp and
+   :record-hash), and the deterministic :node-hash is recomputed and verified
+   against the stored value so integrity is not weakened by trusting the field.
+   Returns nil for files that are not under the evidence-nodes directory."
+  [rel f]
+  (when (str/starts-with? rel "evidence-nodes/")
+    (let [raw (slurp f)
+          node (edn/read-string raw)
+          stored (:node-hash node)
+          recomputed (evidence-node/compute-node-hash node)]
+      (when-not (= stored recomputed)
+        (throw (ex-info "Evidence node hash mismatch in canonical artifact projection"
+                        {:path rel :stored stored :recomputed recomputed})))
+      (let [bytes (evidence-node/canonical-node-projection node)
+            digest (MessageDigest/getInstance "SHA-256")]
+        (.update digest bytes)
+        {:artifact/relative-path rel
+         :artifact/sha256 (format "%064x" (BigInteger. 1 (.digest digest)))
+         :artifact/byte-count (alength bytes)
+         :artifact/semantic-root nil
+         :artifact/canonical-node-hash recomputed
+         :artifact/volatile-envelope? false}))))
+
 (defn- artifact-manifest-for-dir
   "Produce a detached artifact manifest for a single execution directory.
    Each entry carries the logical relative path, SHA-256, byte count, and - for
    the canonical replay commitment - the execution's evidence-content semantic
-   root. Returns nil when the directory does not exist (legacy/direct exec)."
+   root. Evidence-node files are committed via their deterministic canonical
+   projection (canonical-node-projection), never their raw wall-clock envelope
+   bytes. Returns nil when the directory does not exist (legacy/direct exec)."
   [dir semantic-root]
   (when dir
     (let [file (io/file dir)
@@ -347,11 +379,12 @@
                              (filter #(Files/isRegularFile (.toPath %) (make-array LinkOption 0)))
                              (mapv (fn [f]
                                      (let [rel (str (.relativize root (.toPath f)))]
-                                       {:artifact/relative-path rel
-                                        :artifact/sha256 (sha256-file f)
-                                        :artifact/byte-count (.length f)
-                                        :artifact/semantic-root
-                                        (when (= rel "raw/replay-output.edn") semantic-root)})))
+                                       (or (evidence-node-manifest-entry rel f)
+                                           {:artifact/relative-path rel
+                                            :artifact/sha256 (sha256-file f)
+                                            :artifact/byte-count (.length f)
+                                            :artifact/semantic-root
+                                            (when (= rel "raw/replay-output.edn") semantic-root)}))))
                              (sort-by :artifact/relative-path)
                              vec)]
           {:artifact/manifest-version "benchmark-artifact-manifest.v1"
@@ -1140,9 +1173,12 @@
          ;; normalized form, so verify-bundle-hash can recompute it from the
          ;; artifact on disk. Hashing the raw map here would silently diverge
          ;; once normalization rewrites runtime values (e.g. Instants).
-         normalized-evidence (normalize-runtime-values evidence)
-         hashable-evidence (integrity/hashable-evidence normalized-evidence)
-         bundle-root-hash (hc/hash-with-intent {:hash/intent :bundle-root} hashable-evidence)
+normalized-evidence (normalize-runtime-values evidence)
+          hashable-evidence (integrity/hashable-evidence normalized-evidence)
+          ;; Sort keys for deterministic hashing; the persisted file uses the same
+          ;; sort order so verify-bundle-hash can recompute the identity from disk.
+          sorted-hashable (into (sorted-map) hashable-evidence)
+          bundle-root-hash (hc/hash-with-intent {:hash/intent :bundle-root} sorted-hashable)
          final-evidence (assoc normalized-evidence :evidence/hash bundle-root-hash)]
 
      (when-not passed?

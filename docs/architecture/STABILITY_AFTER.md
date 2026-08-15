@@ -111,13 +111,30 @@ fulfilled amount—or merely no deferred residual—is never proof of full fill.
 | Surface | Supplied value | Recompute gate | Authoritative result |
 |---|---|---|---|
 | Invariant aggregates | `:result` / `:passed`-style aggregate fields | `check-aggregate` recomputes from per-check results (`yield/invariants.clj:239`, `held_custody/legacy_validate.clj:697`, `review_aggregate_check.clj`) | pass/fail only from recomputed totals |
-| Cancellation classification | base `:decision :classification` | `effective-decision-valid?` recomputes base → effective (`cancellation/operation.clj:202-215`) | `:authorized`, `:authorized-by-override`, `:forbidden` only; `:forbidden-authorized` is a notebook scenario label, never canonical |
+| Cancellation classification | base `:decision :classification` | `effective-decision-valid?` recomputes base → effective (`cancellation/operation.clj:235-248`) | `:authorized`, `:authorized-by-override`, `:forbidden` only; `:forbidden-authorized` is a notebook scenario label, never canonical |
+| Cancellation operation statement | root-bearing operation fields / `:execution :status` | `operation-complete?` requires qualified SHA-256 references and cross-field status/effect consistency (`cancellation/operation.clj`) | a content-addressed, self-consistent statement only; it does **not** establish reference resolution, authority, admission, or authoritative commit |
 | Certificate issuance | proposal `:result/status` | `issue-certificate` gates on `:passing` and forbids identity/attestation otherwise (`commands/allocation.clj:162-207`) | certificate `:status :valid` only when proof-backed; rejected proposals carry no signer attestation |
 | Framing semantics | declared example labels | fail-closed `verify-stream`/`verify-single` accept only after canonical validity (`hash/framing_view.clj`) | example labels can never become canonical statuses |
 | Canonical interpretation | user tags / intents | `resolve-intent` registry-only lookup; prefix-free domain-tag validation (`hash/canonical.clj:2305-2347`) | unknown intents fail closed |
 | Expected outcomes | expected scenario results | expected/observed kept separate in the scenario runner; expectations never become observed outcomes (`scenario/runner.clj:123-147`) | pass/fail derives from observed only |
 | Use-case registry | user-supplied registry path | explicit fail-closed loading only; never discovered from classpath/cwd (`use_cases/registry.clj`) | only explicitly-supplied, contained `:definition/ref` bundles load |
 | Benchmark report | evidence `:metrics`, `:results`, `:claim-results` | `verify-evidence-bundle!` recomputes the `:bundle-root` commitment before any field is read (`benchmark/report.clj:414`, `benchmark/integrity.clj:96`) | `:all-pass?`, `:score`, `:claim/status`, `:conclusion` only from verified bundles |
+
+### Cancellation statement boundary
+
+`cancellation-operation.v1` is intentionally a pure canonical statement
+contract. Its root binds operation fields and validates reference syntax, but
+it does not load referenced artifacts, verify signatures or authority scope,
+prove current-state eligibility, or establish that a mutation committed. Those
+facts belong to the planned cancellation admission, commit-receipt, and
+canonical-domain-fact boundaries. In particular, `:execution :status :applied`
+in an operation statement is not by itself an authoritative committed status.
+
+The legacy `:cancellation/authorised?` profile result remains available only for
+compatibility. It means declared certificate-profile conformance and never
+cryptographic or policy authority. New consumers must use
+`:cancellation/certificate-profile-conforming?` for this limited model result
+and reserve authorisation claims for verified admission evidence.
 
 ## Positive controls (confirmed exemplars)
 

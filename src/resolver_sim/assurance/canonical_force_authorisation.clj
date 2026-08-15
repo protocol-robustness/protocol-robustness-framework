@@ -939,8 +939,9 @@
 
    This classification owns the WINDOW gate only. It does not assess a
    certificate: `:cancellation/window-possible?` is NOT complete cancellation
-   authority. Use `classify-cancellation-gates` / `cancellation-authorised?`
-   for the authority, executability, and committability gates."
+   authority. `classify-cancellation-gates` exposes certificate-profile
+   conformance only; verified cancellation authority belongs to the admission
+   boundary."
   [opts target-state]
   (let [{:keys [member-count threshold profile-id named-policy? window]} opts
         lifecycle (or window force-authorisation-window)
@@ -976,22 +977,33 @@
 ;;
 ;;   :cancellation/window-possible?   lifecycle reconciliation
 ;;     (and profile-conforming? window-open?)
-;;   :cancellation/authorised?        three-member certificate
+;;   :cancellation/certificate-profile-conforming?
+;;     declared three-member certificate profile only
 ;;     (three-member-standard-conforming? certificate)
-;;   :cancellation/executable?        composition
-;;     (and window-possible? authorised? current-snapshot-binding-valid?)
-;;   :cancellation/committable?       transition race
+;;   :cancellation/executable?        trusted-input composition helper
+;;     (and window-possible? certificate-profile-conforming?
+;;          current-snapshot-binding-valid?)
+;;   :cancellation/committable?       trusted-input race model
 ;;     (and executable? conflict-key-transition-won?)
+;;
+;; This namespace does not verify signatures, signer eligibility, authority
+;; scope, or commit outcomes. Those facts belong to cancellation admission and
+;; commit verification, not a profile-shape predicate.
 
-(defn cancellation-authorised?
-  "Authority gate (three-member certificate layer): the certificate conforms to
-   the canonical profile. Never reopens or reinterprets lifecycle state.
+(defn cancellation-certificate-profile-conforming?
+  "True when a supplied declared certificate profile conforms to the canonical
+   three-member profile. This is deliberately not cancellation authorisation:
+   it does not verify certificate signatures, signer authority, scope, binding,
+   or current-state applicability.
 
-   certificate — a declared profile map from `declare-profile` (or nil when no
-   certificate is available)."
+   `certificate` is a declared profile map from `declare-profile` (or nil)."
   [certificate]
   (and (some? certificate)
        (three-member-standard-conforming? certificate)))
+
+(def ^{:deprecated "Use cancellation-certificate-profile-conforming?. This legacy name never verified authority evidence."}
+  cancellation-authorised?
+  cancellation-certificate-profile-conforming?)
 
 (defn current-snapshot-binding-valid?
   "Whole-snapshot binding (contract 7): true when a certificate's committed
@@ -1008,10 +1020,11 @@
           (select-keys current-snapshot cancellation-binding-fields))))
 
 (defn cancellation-executable?
-  "Executability gate: window-possible AND authorised AND the certificate still
-   binds the complete current cancellation snapshot."
-  [window-possible? authorised? snapshot-binding-valid?]
-  (and window-possible? authorised? snapshot-binding-valid?))
+  "Trusted-input composition helper: window-possible AND certificate-profile
+   conformance AND a supplied snapshot-binding result. This does not establish
+   verified cancellation authority or admission."
+  [window-possible? certificate-profile-conforming? snapshot-binding-valid?]
+  (and window-possible? certificate-profile-conforming? snapshot-binding-valid?))
 
 (defn cancellation-committable?
   "Committability gate: executable AND the authoritative transition race over
@@ -1037,14 +1050,18 @@
      :window                  optional lifecycle profile
 
    Ownership:
-     window-possible?  lifecycle reconciliation (recomputed here);
-     authorised?       three-member certificate;
-     executable?       both gates + current-snapshot binding;
-     committable?      executable + authoritative transition race result.
+     window-possible?                  lifecycle reconciliation (recomputed here);
+     certificate-profile-conforming?   declared certificate profile only;
+     executable?                       trusted composition of supplied inputs;
+     committable?                      trusted race model.
+
+   This is not an admission verifier: its binding and race inputs are supplied
+   by the caller and it does not verify signatures, authority evidence, or a
+   durable commit.
 
    Returns
      {:cancellation/window-possible? bool
-      :cancellation/authorised? bool
+      :cancellation/certificate-profile-conforming? bool
       :cancellation/executable? bool
       :cancellation/committable? bool
       :cancellation/snapshot-binding-valid? bool
@@ -1058,18 +1075,25 @@
                         (assoc decision-opts :window window)
                         target-state)
         window-possible? (:cancellation/window-possible? classification)
-        authorised? (cancellation-authorised? certificate)
+        certificate-profile-conforming?
+        (cancellation-certificate-profile-conforming? certificate)
         binding-valid? (boolean snapshot-binding-valid?)
-        executable? (cancellation-executable? window-possible? authorised?
+        executable? (cancellation-executable? window-possible?
+                                              certificate-profile-conforming?
                                               binding-valid?)
         race-won? (boolean transition-won?)
         committable? (cancellation-committable? executable? race-won?)
         reasons (cond-> (:cancellation/blocking-reasons classification)
-                  (not authorised?) (conj :certificate-not-authorised)
+                  (not certificate-profile-conforming?)
+                  (conj :certificate-profile-not-conforming)
                   (not binding-valid?) (conj :snapshot-binding-stale)
                   (and executable? (not race-won?)) (conj :transition-race-lost))]
     {:cancellation/window-possible? window-possible?
-     :cancellation/authorised? authorised?
+     :cancellation/certificate-profile-conforming? certificate-profile-conforming?
+     ;; Compatibility only. This legacy field expresses profile shape, never
+     ;; verified cancellation authority; new consumers must use the explicit
+     ;; profile-conformance field above.
+     :cancellation/authorised? certificate-profile-conforming?
      :cancellation/executable? executable?
      :cancellation/committable? committable?
      :cancellation/snapshot-binding-valid? binding-valid?

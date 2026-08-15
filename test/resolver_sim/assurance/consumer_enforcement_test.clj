@@ -145,7 +145,7 @@
                                                  :profile-id "cert/2-3"})
               :snapshot-binding-valid? true
               :transition-won? true})]
-      (is (true? (:cancellation/authorised? r)))
+      (is (true? (:cancellation/certificate-profile-conforming? r)))
       (is (true? (:cancellation/committable? r)))
       (is (not (contains? r :counted-support))
           "the cancellation gate does not itself verify positions"))))

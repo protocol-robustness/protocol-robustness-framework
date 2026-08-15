@@ -31,7 +31,7 @@
                  :certificate (valid-certificate)
                  :binding true :race true)]
     (is (true? (:cancellation/window-possible? r)))
-    (is (true? (:cancellation/authorised? r)))
+    (is (true? (:cancellation/certificate-profile-conforming? r)))
     (is (true? (:cancellation/executable? r)))
     (is (true? (:cancellation/committable? r)))
     (is (empty? (:cancellation/blocking-reasons r)))))
@@ -50,7 +50,7 @@
                  :certificate (valid-certificate)
                  :binding false :race true)]
     (is (true? (:cancellation/window-possible? r)))
-    (is (true? (:cancellation/authorised? r)))
+    (is (true? (:cancellation/certificate-profile-conforming? r)))
     (is (false? (:cancellation/executable? r)))
     (is (false? (:cancellation/committable? r)))
     (is (contains? (set (:cancellation/blocking-reasons r))
@@ -61,19 +61,19 @@
                  :certificate nil
                  :binding true :race true)]
     (is (true? (:cancellation/window-possible? r)))
-    (is (false? (:cancellation/authorised? r)))
+    (is (false? (:cancellation/certificate-profile-conforming? r)))
     (is (false? (:cancellation/executable? r)))
     (is (false? (:cancellation/committable? r)))
     (is (contains? (set (:cancellation/blocking-reasons r))
-                   :certificate-not-authorised))))
+                   :certificate-profile-not-conforming))))
 
 (deftest matrix-closed-valid-certificate-authorised-not-executable
   (let [r (gates :target-state :consumed
                  :certificate (valid-certificate)
                  :binding true :race true)]
     (is (false? (:cancellation/window-possible? r)))
-    (is (true? (:cancellation/authorised? r))
-        "authorised evidence exists but the window is closed")
+    (is (true? (:cancellation/certificate-profile-conforming? r))
+        "certificate profile conforms but the window is closed")
     (is (false? (:cancellation/executable? r)))
     (is (false? (:cancellation/committable? r)))
     (is (contains? (set (:cancellation/blocking-reasons r)) :consumed))))
@@ -83,7 +83,7 @@
                  :certificate nil
                  :binding true :race true)]
     (is (false? (:cancellation/window-possible? r)))
-    (is (false? (:cancellation/authorised? r)))
+    (is (false? (:cancellation/certificate-profile-conforming? r)))
     (is (false? (:cancellation/executable? r)))
     (is (false? (:cancellation/committable? r)))))
 
@@ -159,7 +159,7 @@
            (:cancellation/possible? r))
         "legacy :cancellation/possible? is a derived view of window-possible?")
     (is (true? (:cancellation/window-possible? r)))
-    (is (not (contains? r :cancellation/authorised?))
+    (is (not (contains? r :cancellation/certificate-profile-conforming?))
         "classify-cancellation never claims certificate authority")))
 
 (deftest predicate-ownership
@@ -168,8 +168,8 @@
       (is (not (contains? w :member-count)))
       (is (not (contains? w :threshold)))))
   (testing "authority gate never reopens lifecycle state"
-    (is (true? (cfa/cancellation-authorised? (valid-certificate))))
-    (is (false? (cfa/cancellation-authorised? nil)))
-    (is (false? (cfa/cancellation-authorised?
+    (is (true? (cfa/cancellation-certificate-profile-conforming? (valid-certificate))))
+    (is (false? (cfa/cancellation-certificate-profile-conforming? nil)))
+    (is (false? (cfa/cancellation-certificate-profile-conforming?
                  (cfa/declare-profile {:member-count 3 :threshold 1
                                        :profile-id "bad"}))))))

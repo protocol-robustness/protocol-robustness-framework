@@ -32,7 +32,7 @@
       classify-lifecycle-window cancellation-window-assertion
       validate-lifecycle-profile validate-lifecycle-monotonicity
       cancellation-decision-required? cancellation-binding-complete?
-      cancellation-conflict-key cancellation-authorised?
+      cancellation-conflict-key cancellation-certificate-profile-conforming?
       current-snapshot-binding-valid? cancellation-executable?
       cancellation-committable? classify-cancellation-gates
       deterministic-operation-evidence deterministic-operation-evidence-valid?

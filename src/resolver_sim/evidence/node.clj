@@ -67,8 +67,10 @@
    is a separate run-plan execution DAG for scenario-run planning metadata. It is
    NOT the researcher-facing evidence DAG. The canonical researcher-facing DAG
    abstraction is this namespace: resolver-sim.evidence.node."
-  (:require [clojure.edn :as edn]
+  (:require [clojure.data.json :as json]
+            [clojure.edn :as edn]
             [clojure.java.io :as io]
+            [resolver-sim.benchmark.integrity :as integrity]
             [resolver-sim.evidence.chain :as chain]
             [resolver-sim.evidence.config :as evcfg]
             [resolver-sim.evidence.reachability :as reach]
@@ -431,6 +433,181 @@
            :node-hash node-hash
            :content-hash node-hash
            :record-hash record-hash)))
+
+(defn canonical-node-projection
+  "Deterministic canonical form of an evidence node for package commitment.
+
+   Returns a byte array derived from the node's canonical projection, which
+   excludes the volatile audit envelope (:timestamp, :record-hash) and
+   self-referential identity fields (:node-id, :node-hash, :content-hash).
+   Two nodes with identical semantic content therefore produce identical bytes
+   regardless of when they were emitted.
+
+   The caller should recompute and verify :node-hash (via compute-node-hash)
+   against the committed value; the projection bytes here intentionally do not
+   include :record-hash so wall-clock provenance cannot leak into the package."
+  [node]
+  (binding [*print-namespace-maps* false]
+    (-> node
+        (dissoc :node-id :node-hash :content-hash :timestamp :record-hash)
+        canonical-disk-value
+        ppedn/ppr-str
+        (.getBytes "UTF-8"))))
+
+(defn- hash-bytes
+  "SHA-256 hex digest over a byte array."
+  [bytes]
+  (let [digest (java.security.MessageDigest/getInstance "SHA-256")]
+    (.update digest bytes)
+    (format "%064x" (java.math.BigInteger. 1 (.digest digest)))))
+
+(defn- strip-run-id
+  "Recursively remove wall-clock run-id identity (:run/id, 'run_id', :scenario/run-id)
+   from data so content-root commitments are reproducible across identical roots.
+   Intentionally conservative: only drops the key itself, never siblings."
+  [v]
+  (cond
+    (map? v) (into {} (for [[k val] v
+                            :when (not (and (keyword? k) (= k :run/id)))
+                            :when (not (and (string? k) (= k "run_id")))
+                            :when (not (and (keyword? k) (= k :scenario/run-id)))]
+                        [k (strip-run-id val)]))
+    (vector? v) (mapv strip-run-id v)
+    (sequential? v) (map strip-run-id v)
+    (set? v) (set (map strip-run-id v))
+    :else v))
+
+(defn- canonical-json-value
+  "Deterministic canonical form for data parsed from JSON: map entries sorted
+   by their textual key so string-keyed maps serialize reproducibly without
+   relying on Clojure's keyword-only sorted-map comparator."
+  [value]
+  (letfn [(walk [x]
+            (cond
+              (map? x) (into (sorted-map-by (fn [a b] (compare (str a) (str b))))
+                             (map (fn [[k v]] [(walk k) (walk v)]) x))
+              (set? x) (into (sorted-set-by (fn [a b] (compare (str a) (str b))))
+                             (map walk x))
+              (vector? x) (mapv walk x)
+              (sequential? x) (mapv walk x)
+              :else x))]
+    (walk value)))
+
+(defn- canonicalize-special-artifact
+  "Schema-aware projection for artifacts that embed run-local linkage
+   (raw evidence file SHA, staging paths, self-hashes over run-local content).
+   Returns the canonical value with run-local fields excluded by explicit
+   path/field semantics. Does not normalize arbitrary hashes by value matching."
+  [relative-path value]
+  (cond
+    (= relative-path "benchmark/conclusion.json")
+    (update value "evidence" dissoc "file_sha256" "bytes")
+
+    (= relative-path "benchmark/assertions/benchmark-assurance.json")
+    (-> value
+        (update "conservation" dissoc "artifact_sha256")
+        (update "conclusion" dissoc "sha256")
+        (update "required_artifact_assertions"
+                (fn [assertions]
+                  (mapv (fn [a]
+                          (if (#{"benchmark/conclusion.json"
+                                 "benchmark/assertions/conservation.json"}
+                               (get a "path"))
+                            (dissoc a "sha256")
+                            a))
+                        assertions))))
+
+    (= relative-path "benchmark/execution/runner-finalization.json")
+    (-> value
+        (dissoc "evidence-file-sha256")
+        (dissoc "runner-finalization/hash"))
+
+    (= relative-path "manifest/run.json")
+    (-> value
+        (update "run" dissoc "id")
+        (update "benchmark" dissoc "manifest_source"))
+
+    (= relative-path "benchmark/index.edn")
+    (update value :executions
+            (fn [execs]
+              (mapv (fn [exec]
+                      (-> exec
+                          (dissoc :scenario/source-path)
+                          (dissoc :scenario/artifacts)))
+                    execs)))
+
+    :else
+    value))
+
+(defn- canonical-artifact-bytes
+  "Deterministic identity bytes for a persisted artifact file:
+   - the top-level evidence bundle -> its canonical hashable-evidence form
+     (reproducible across run id, timing, staging path, and VCS state);
+   - evidence-node files -> canonical-node-projection (excludes the volatile
+     audit envelope and self-referential identity fields);
+   - parseable JSON/EDN data files -> canonical re-serialization of their
+     run-id-stripped content (the benchmark package embeds :run/id);
+   - everything else -> exact raw bytes."
+  [file]
+  (let [path (str (.getPath file))]
+    (cond
+      (clojure.string/ends-with? path "benchmark/evidence/evidence.edn")
+      (binding [*print-namespace-maps* false]
+        (-> (integrity/hashable-evidence (edn/read-string (slurp file)))
+            canonical-json-value
+            ppedn/ppr-str
+            (.getBytes "UTF-8")))
+
+      (clojure.string/includes? path "evidence-nodes/")
+      (canonical-node-projection (edn/read-string (slurp file)))
+
+      (clojure.string/ends-with? path ".json")
+      (binding [*print-namespace-maps* false]
+        (let [relative-path (or (some #(when (clojure.string/ends-with? path %) %)
+                                      ["benchmark/conclusion.json"
+                                       "benchmark/assertions/benchmark-assurance.json"
+                                       "benchmark/execution/runner-finalization.json"
+                                       "manifest/run.json"])
+                                "")]
+          (-> (json/read-str (slurp file))
+              strip-run-id
+              (canonicalize-special-artifact relative-path)
+              canonical-json-value
+              ppedn/ppr-str
+              (.getBytes "UTF-8"))))
+
+      (clojure.string/ends-with? path ".edn")
+      (binding [*print-namespace-maps* false]
+        (let [relative-path (if (clojure.string/ends-with? path "benchmark/index.edn")
+                              "benchmark/index.edn"
+                              "")]
+          (-> (edn/read-string (slurp file))
+              strip-run-id
+              (canonicalize-special-artifact relative-path)
+              canonical-json-value
+              ppedn/ppr-str
+              (.getBytes "UTF-8"))))
+
+      :else
+      (java.nio.file.Files/readAllBytes (.toPath file)))))
+
+(defn canonical-artifact-content
+  "Return the canonical, wall-clock-independent content commitment for a single
+   persisted artifact file in the executions tree.
+
+   Evidence-node files embed an audit-only :timestamp/:record-hash envelope;
+   they are committed via canonical-node-projection (the same bytes the artifact
+   manifest commits), never their raw on-disk bytes. The benchmark top-level
+   package wraps run in a wall-clock :run/id that would otherwise leak into the
+   content root; JSON/EDN data files therefore drop every 'run_id'/':run/id'
+   occurrence and are re-serialized canonically. All other files are committed
+   by their exact raw bytes (readAllBytes). Returns {:sha256 ... :bytes n}
+   so the content registry, artifact registry, and finalization/assurance roots
+   all agree on one deterministic identity per logical execution file."
+  [path file]
+  (let [bytes (canonical-artifact-bytes file)]
+    {:sha256 (hash-bytes bytes)
+     :bytes (alength bytes)}))
 
 (defn- validate-node-or-throw!
   ([node]

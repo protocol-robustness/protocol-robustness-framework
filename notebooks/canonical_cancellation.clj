@@ -156,20 +156,22 @@
                    correct-snapshot substituted-snapshot)
          :race true))
 
-;; The three-member certificate is present and conforming. Yet the execution
-;; gate stays closed:
+;; The declared three-member certificate profile is conforming. This model
+;; result is not cryptographic authorisation; it only shows profile shape. Yet
+;; the execution-composition gate stays closed:
 
 ^{:nextjournal.clerk/visibility {:code :fold :result :show}}
 (clerk/table
  {:head ["Gate" "Value"]
-  :rows [["certificate authorised?" (if (:cancellation/authorised? substitution-verdict) "✓" "✕")]
+  :rows [["certificate profile conforms?" (if (:cancellation/certificate-profile-conforming? substitution-verdict) "✓" "✕")]
          ["binds current snapshot?" (if (:cancellation/snapshot-binding-valid? substitution-verdict) "✓" "✕")]
          ["executable?" (if (:cancellation/executable? substitution-verdict) "✓" "✕")]
          ["blocking reason(s)" (str/join ", " (map name (:cancellation/blocking-reasons substitution-verdict)))]]})
 
-;; **Why:** authorisation and binding are independent gates. A valid certificate
-;; cannot rescue a stale or substituted binding. The decision is not rewritten;
-;; it simply cannot be applied to a snapshot it never committed to.
+;; **Why:** verified authorisation and binding are independent admission facts.
+;; This profile-only model cannot rescue a stale or substituted binding. The
+;; decision is not rewritten; it simply cannot be applied to a snapshot it never
+;; committed to.
 
 ;; ---
 ;; ## The window gate
@@ -188,7 +190,7 @@
 (clerk/table
  {:head ["Gate" "Value"]
   :rows [["window open?" (if (:cancellation/window-possible? closed-window-verdict) "✓" "✕")]
-         ["certificate authorised?" (if (:cancellation/authorised? closed-window-verdict) "✓" "✕")]
+         ["certificate profile conforms?" (if (:cancellation/certificate-profile-conforming? closed-window-verdict) "✓" "✕")]
          ["executable?" (if (:cancellation/executable? closed-window-verdict) "✓" "✕")]
          ["blocking reason(s)" (str/join ", " (map name (:cancellation/blocking-reasons closed-window-verdict)))]]})
 

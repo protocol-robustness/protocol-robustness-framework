@@ -7,6 +7,7 @@
             [resolver-sim.benchmark.conservation :as conservation]
             [resolver-sim.benchmark.cli :as benchmark-cli]
             [resolver-sim.benchmark.claim-registry :as claim-registry]
+            [resolver-sim.benchmark.integrity :as integrity]
             [resolver-sim.hash.canonical :as canonical]
             [resolver-sim.hash.reference :as hash-ref]
             [resolver-sim.commands.benchmark-conclusion :as conclusion]
@@ -18,6 +19,7 @@
             [resolver-sim.commands.scenario-safety :as safety]
             [resolver-sim.evidence.chain :as chain]
             [resolver-sim.evidence.config :as evidence-config]
+            [resolver-sim.evidence.node :as evidence-node]
             [resolver-sim.io.input-source :as input-source]
             [resolver-sim.io.paths :as paths]
             [resolver-sim.io.resource-path :as resource-path]
@@ -87,21 +89,20 @@
         entries (->> (file-seq root)
                      (filter #(.isFile %))
                      (map (fn [file]
-                            (let [path (str (.relativize root-path (.toPath file)))]
-                              {"path" path "sha256" (sha-ref file)
-                               "bytes" (.length file) "role" (content-role path)})))
+                            (let [path (str (.relativize root-path (.toPath file)))
+                                  content (evidence-node/canonical-artifact-content path file)]
+                              {"path" path "sha256" (:sha256 content)
+                               "bytes" (:bytes content) "role" (content-role path)})))
                      (remove #(content-registry-exclusions (get % "path")))
                      (sort-by #(get % "path"))
                      vec)
         projection {"domain" "prf/benchmark-content-registry/v1"
                     "benchmark_id" (str (:benchmark/id context))
-                    "run_id" (:run/id context)
                     "artifacts" entries
                     "excluded_paths" (vec (sort content-registry-exclusions))}
         value {"schema_version" "benchmark-content-registry.v1"
                "domain" "prf/benchmark-content-registry/v1"
                "benchmark_id" (str (:benchmark/id context))
-               "run_id" (:run/id context)
                "content_scope" "benchmark-evidence-inner-package"
                "hash_algorithm" "sha256"
                "excluded_paths" (vec (sort content-registry-exclusions))
@@ -119,10 +120,9 @@
         assurance-value (json/read-str (slurp assurance))
         projection {"domain" "prf/benchmark-finalization/v1"
                     "benchmark_id" (str (:benchmark/id context))
-                    "run_id" (:run/id context)
-                    "assurance_artifact_sha256" (sha-ref assurance)
-                    "conclusion_sha256" (sha-ref conclusion-file)
-                    "evidence_content_registry_sha256" (sha-ref content-registry)
+                    "assurance_artifact_sha256" (integrity/content-assurance-sha assurance)
+                    "conclusion_sha256" (:sha256 (evidence-node/canonical-artifact-content "benchmark/conclusion.json" conclusion-file))
+                    "evidence_content_registry_sha256" (:sha256 (evidence-node/canonical-artifact-content "benchmark/evidence/content-registry.json" content-registry))
                     "input_set_root" (get assurance-value "input_set_root")}
         value {"schema_version" "benchmark-finalization.v1"
                "domain" "prf/benchmark-finalization/v1"

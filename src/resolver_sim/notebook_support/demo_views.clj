@@ -150,8 +150,8 @@
         failing (filter #(= :fail (:status %)) checks)
         failing-ids (map #(name (:check/id %)) failing)
         failing-msg (when (seq failing)
-                      (str "Required check failed: `" 
-                           (str/join "`, `" failing-ids) "`"))]
+                       (str "Required check failed: `"
+                            (str/join "`, `" failing-ids) "`"))]
     (vec
      (concat
       [:details {:style {:background "#f1f5f9" :border "1px solid #cbd5e1"
@@ -170,6 +170,6 @@
            [:span {:style {:color "#22c55e"}} value]])
         (make-table checks)
         (when failing-msg
-      (when failing-msg
-        [:div {:style {:marginTop "10px" :color "#b91c1c"}}
-         failing-msg])])])
+          [:div {:style {:marginTop "10px" :color "#b91c1c"}}
+           failing-msg])]
+         )))]
