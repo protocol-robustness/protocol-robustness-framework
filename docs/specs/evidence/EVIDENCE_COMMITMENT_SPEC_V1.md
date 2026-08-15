@@ -63,6 +63,12 @@ RFC3161 Timestamp
 On-Chain Attestation
 The Bundle Root is the authoritative commitment for a benchmark run.
 
+> **Realized form.** Today "Bundle Root" is the flat `:evidence/hash` field
+> (hash intent `:bundle-root`, domain tag `BUNDLE_ROOT_V1`, over
+> `hashable-evidence`); the layered `Evidence Merkle Tree → Evidence Root →
+> Bundle Root` ladder above is aspirational and not yet implemented for
+> benchmark evidence bundles.
+
 3. Evidence Record Hash
 An evidence record hash SHALL be computed as:
 SHA256(
@@ -202,6 +208,17 @@ provenance_root
 )
 where all inputs are raw 32-byte hashes.
 This root is the authoritative benchmark commitment.
+
+> **Implemented form.** The operational benchmark commitment implemented today
+> is the **flat** `:evidence/hash` field: `:evidence/hash =
+> hash-with-intent {:hash/intent :bundle-root} (hashable-evidence evidence)`
+> (domain tag `BUNDLE_ROOT_V1`), covering the whole normalized evidence map in a
+> single hash. It is **not** the layered `evidence_root || manifest_root ||
+> provenance_root` construction above, which remains aspirational (see
+> `CANONICAL_HASH_SPEC_V1.md` §11.5). The ladder rows `Evidence Root → Bundle
+> Root` denote that future layered form; consumers MUST trust `:evidence/hash`
+> and never treat `:bundle-root` as a separate field. Scheme is selected by the
+> bundle's `:evidence/commitment-version` (absent ⇒ current).
 
 14. RFC3161 Timestamping
 RFC3161 timestamping SHALL operate on:

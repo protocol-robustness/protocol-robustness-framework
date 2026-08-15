@@ -13,6 +13,7 @@
 (ns notebooks.demo-not-admitted
   (:require [nextjournal.clerk :as clerk]
             [resolver-sim.assurance.custody :as custody]
+            [resolver-sim.assurance.admission-fixed-point :as afp]
             [resolver-sim.notebook-support.demo-views :as demo-views]))
 
 ;; ## The user-owned example
@@ -139,3 +140,73 @@
     [:br]
     [:strong {:style {:color (if holds? "#16a34a" "#dc2626")}}
      (if holds? "HOLDS ✓" "HOLDS ✕")]]))
+
+;; ## Fixed-point stability
+
+;; The table below demonstrates that admission decisions are stable under
+;; canonical transport.  Both the committed and tampered artifacts survive
+;; canonical serialization unchanged (PASS), and the decision root is consistent
+;; after round-trip.  Yet the tampered artifact is rejected by verification —
+;; the hash-integrity check is what distinguishes the two.
+
+^{:nextjournal.clerk/visibility {:code :hide :result :hide}}
+(def fp-evidence-input (records->custody-evidence-input user-records))
+
+^{:nextjournal.clerk/visibility {:code :hide :result :hide}}
+(def fp-artifacts (vec (vals (custody/rebuild-held-custody-artifacts fp-evidence-input))))
+
+^{:nextjournal.clerk/visibility {:code :hide :result :hide}}
+(def fp-tampered (mapv #(assoc % :amount 1100 :held/after 1100) fp-artifacts))
+
+^{:nextjournal.clerk/visibility {:code :hide :result :hide}}
+(def fp-canonical (afp/admission-fixed-point fp-artifacts fp-evidence-input))
+
+^{:nextjournal.clerk/visibility {:code :hide :result :hide}}
+(def fp-tampered-result (afp/admission-fixed-point fp-tampered fp-evidence-input))
+
+^{:nextjournal.clerk/visibility {:code :hide :result :show}}
+(clerk/html
+ [:div {:style {:marginTop "24px"}}
+  [:table {:style {:borderCollapse "collapse" :width "100%" :fontFamily "monospace" :fontSize "14px"}}
+   [:thead
+    [:tr
+     [:th {:style {:border "1px solid #ddd" :padding "8px" :textAlign "left"}} "Artifact"]
+     [:th {:style {:border "1px solid #ddd" :padding "8px" :textAlign "left"}} "Canonical round-trip"]
+     [:th {:style {:border "1px solid #ddd" :padding "8px" :textAlign "left"}} "Verification fixed-point"]
+     [:th {:style {:border "1px solid #ddd" :padding "8px" :textAlign "left"}} "Decision root consistent?"]
+     [:th {:style {:border "1px solid #ddd" :padding "8px" :textAlign "left"}} "Admitted?"]
+     [:th {:style {:border "1px solid #ddd" :padding "8px" :textAlign "left"}} "Blocking reasons"]]]
+   [:tbody
+    (for [[name canonical? verification? root-consistent? admitted? blocking]
+          [["Canonical artifact"
+            (:canonical-fixed-point? fp-canonical)
+            (:verification-fixed-point? fp-canonical)
+            (:decision-root-consistent? fp-canonical)
+            (get-in fp-canonical [:original :admitted?])
+            (pr-str (get-in fp-canonical [:original :blocking-reasons]))]
+           ["Tampered artifact"
+            (:canonical-fixed-point? fp-tampered-result)
+            (:verification-fixed-point? fp-tampered-result)
+            (:decision-root-consistent? fp-tampered-result)
+            (get-in fp-tampered-result [:original :admitted?])
+            (pr-str (get-in fp-tampered-result [:original :blocking-reasons]))]]]
+      ^{:key name}
+      [:tr
+       [:td {:style {:border "1px solid #ddd" :padding "8px"}} name]
+       [:td {:style {:border "1px solid #ddd" :padding "8px" :textAlign "center"
+                     :color (if canonical? "#16a34a" "#dc2626")}}
+        (if canonical? "PASS" "FAIL")]
+       [:td {:style {:border "1px solid #ddd" :padding "8px" :textAlign "center"
+                     :color (if verification? "#16a34a" "#dc2626")}}
+        (if verification? "PASS" "FAIL")]
+       [:td {:style {:border "1px solid #ddd" :padding "8px" :textAlign "center"
+                     :color (if root-consistent? "#16a34a" "#dc2626")}}
+        (if root-consistent? "Yes" "No")]
+       [:td {:style {:border "1px solid #ddd" :padding "8px" :textAlign "center"
+                     :color (if admitted? "#16a34a" "#dc2626")}}
+        (if admitted? "Yes" "No")]
+       [:td {:style {:border "1px solid #ddd" :padding "8px"}} (str blocking)]])]]
+  [:div {:style {:marginTop "12px" :padding "8px" :background "#f0fdf4" :border "1px solid #22c55e" :borderRadius "6px" :fontFamily "monospace" :fontSize "13px"}}
+   "Key insight: both artifacts are fixed points of serialization (PASS), "
+   "but the hash-integrity check distinguishes them. Canonicalization preserves "
+   "tampering faithfully — it does not wash it away."]])

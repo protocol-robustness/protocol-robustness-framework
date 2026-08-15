@@ -10,7 +10,7 @@
            [java.nio.file FileAlreadyExistsException Files LinkOption Path Paths StandardCopyOption]
            [java.security MessageDigest]))
 
-(defn root-state [^Path root]
+(defn root-state [root]
   (cond
     (not (Files/exists root (make-array LinkOption 0))) :absent
     (not (Files/isDirectory root (make-array LinkOption 0))) :not-a-directory
@@ -26,7 +26,7 @@
       (throw (ex-info (if (= run-kind :scenario)
                         "Run root must be absent or empty"
                         (str (clojure.string/capitalize (name run-kind)) " run root must be absent or empty"))
-                      {:run/root (str root) :run/root-state state :run/type run-kind})))
+                    {:run/root (str root) :run/root-state state :run/type run-kind})))
     state))
 
 (defn sha256-file [file]
@@ -80,23 +80,37 @@
       (assoc provenance :input/snapshot-relative (str (.relativize root target))))))
 
 (defn acquire-run-lock!
-  "Acquire the exclusive root lock before any lifecycle or artifact write."
+  "Acquire the exclusive root lock before any lifecycle or artifact write.
+   Re-reads/revalidates root state while ownership is held to prevent
+   TOCTOU races between freshness check and lock acquisition."
   [run-root run-id run-type]
   (let [root (io/file (str run-root))
         lock (io/file root paths/run-lock)]
     (.mkdirs root)
     (try
       (Files/createFile (.toPath lock) (make-array java.nio.file.attribute.FileAttribute 0))
-      (spit lock (ppedn/ppr-str {:run/id run-id :run/type run-type}))
+      (spit lock (ppedn/ppr-str {:run/id run-id :run/type run-type :owner run-id}))
+      (let [state (root-state (.toPath root))]
+        (when (= :completed state)
+          (throw (ex-info "Run root is already completed"
+                          {:run/root (str root) :run/root-state state :run/type run-type}))))
       lock
       (catch FileAlreadyExistsException _
         (throw (ex-info "Run root is already in use"
                         {:run/root (.getPath root) :lock (.getPath lock)
                          :run/id run-id :run/type run-type}))))))
 
-(defn release-run-lock! [lock]
-  (when (and lock (.exists (io/file lock)))
-    (.delete (io/file lock))))
+(defn release-run-lock!
+  "Release the run lock.
+  If owner-token is provided, only release if the lock's owner matches.
+  If owner-token is not provided, delete the lock unconditionally (backward compat)."
+  ([] nil)
+  ([lock] (when (and lock (.exists lock)) (.delete lock)))
+  ([lock owner-token]
+     (when (and lock (.exists lock))
+       (let [lock-content (read-string (slurp lock))]
+         (when (= (:owner lock-content) owner-token)
+           (.delete lock))))))
 
 (defn mark-running! [run-root run-id run-type]
   (let [root (io/file (str run-root))
@@ -110,3 +124,19 @@
     (atomic-json! (io/file root paths/completion) completion)
     (.delete (io/file root paths/run-state))
     completion))
+
+(defn mark-quiescence-unknown!
+  "Mark the run root as :incomplete with :quiescence-unknown status.
+   Called when worker threads do not terminate within the quiescence
+   timeout, so the root must NOT be released for immediate reuse —
+   the lock is retained to prevent a competing invocation from
+   racing detached workers that may still be writing."
+  [run-root run-id run-type context]
+  (let [root (io/file (str run-root))
+        target (io/file root paths/run-state)]
+    (.mkdirs root)
+    (spit target (ppedn/ppr-str {:run/id run-id
+                                 :run/type run-type
+                                 :lifecycle/status :quiescence-unknown
+                                 :quiescence/context context}))
+    target))

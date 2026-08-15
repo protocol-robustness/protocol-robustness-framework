@@ -215,9 +215,11 @@
 
 (deftest test-concurrent-steps-on-same-session-are-serialised
   "Ten threads each attempt create_escrow on the same session.
-   Due to the per-session lock, they must execute one at a time.
-   At most one create_escrow can succeed (subsequent ones are reverts
-   because block-time is the same — no new escrow, but no crash).
+   Due to CAS-based optimistic concurrency control, concurrent steps are
+   serialised through compare-and-set retry. Each thread uses the same
+   :time (1000) to avoid time-regression rejections on retry, and a unique
+   token so each event changes world state (no false no-ops). All 10 steps
+   must complete successfully and step-count must reach 10.
    The session must remain consistent after all threads complete."
   (let [sid     (fresh-sid)
         n       10
@@ -231,10 +233,10 @@
                  (run [_]
                    (.countDown latch)
                    (.await latch)            ; start all threads simultaneously
-                   (let [evt {:seq i :time (+ 1000 (* i 10)) :agent "buyer"
-                              :action "create_escrow"
-                              :params {:token "USDC" :to "0xseller" :amount 100}}
-                         r   (session/step-session! sid evt)]
+                    (let [evt {:seq i :time 1000 :agent "buyer"
+                               :action "create_escrow"
+                               :params {:token (str "USDC" i) :to "0xseller" :amount 100}}
+                          r   (session/step-session! sid evt)]
                      (swap! results conj r))))))
     (.shutdown pool)
     (.awaitTermination pool 10 java.util.concurrent.TimeUnit/SECONDS)

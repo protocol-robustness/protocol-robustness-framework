@@ -30,7 +30,8 @@
             [resolver-sim.run.distribution-provenance :as distribution]
             [resolver-sim.validation.integration.artifact-registry :as artifact-registry]
             [resolver-sim.commands.witness-build :as witness-build]
-            [resolver-sim.assurance.witness-verifier :as wv])
+            [resolver-sim.assurance.witness-verifier :as wv]
+            [resolver-sim.util.thread-quiescence :as quiesce])
   (:import [java.nio.file Files StandardCopyOption]))
 
 (declare sha-ref)
@@ -614,7 +615,8 @@
                        ;; plan roots, evidence, or package projections.
                        :execution/claimant-parallelism (or (:execution/claimant-parallelism overrides) 1)
                        :execution/claimant-parallel-threshold (or (:execution/claimant-parallel-threshold overrides) 16))
-        lock (lifecycle/acquire-run-lock! (:run/root context) (:run/id context) :benchmark)]
+        lock (lifecycle/acquire-run-lock! (:run/root context) (:run/id context) :benchmark)
+      quiescence-failed? (atom false)]
     (try
       (benchmark-run/initialize! context)
       (let [benchmark-conclusion (atom nil)
@@ -657,7 +659,19 @@
                                    :validate-registry (fn [_ _] (validate-registry! context))
                                    :complete (fn [_ _] (complete-canonical-benchmark-run-root! context @benchmark-conclusion))} overrides))]
         {:exit-code (or (:exit-code execution) 1) :run/id (:run/id context) :run/root (str (:run/root context))})
-      (finally (lifecycle/release-run-lock! lock)))))
+      (catch clojure.lang.ExceptionInfo e
+        (if (quiesce/quiescence-failed? e)
+          (do
+            (reset! quiescence-failed? true)
+            (lifecycle/mark-quiescence-unknown! (:run/root context) (:run/id context) :benchmark
+                                                {:quiescence/error (.getMessage e)
+                                                 :quiescence/ex-data (ex-data e)})
+            {:exit-code 1
+             :run/id (:run/id context)
+             :run/root (str (:run/root context))
+             :command/status :quiescence-failed})
+          (throw e)))
+      (finally (when-not @quiescence-failed? (lifecycle/release-run-lock! lock (:run/id context)))))))
 
 (defn- external-manifest-ref? [benchmark-id]
   (and (string? benchmark-id)

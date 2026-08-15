@@ -15,11 +15,12 @@
             [resolver-sim.logging :as log]
             [resolver-sim.config.defaults :as defaults]
             [resolver-sim.config.paths :as paths]
-            [resolver-sim.io.edn :as ppedn]
-            [clojure.java.io :as io]
-            [clojure.string :as str]
-            [clojure.tools.cli :refer [parse-opts]]
-            ;; runner is required lazily in -main to avoid loading
+             [resolver-sim.io.edn :as ppedn]
+             [clojure.java.io :as io]
+             [clojure.string :as str]
+             [clojure.tools.cli :refer [parse-opts]]
+             [resolver-sim.util.thread-quiescence :as quiesce]
+             ;; runner is required lazily in -main to avoid loading
             ;; Sew protocol namespaces for commands like --list
             ))
 
@@ -199,7 +200,9 @@
                                      :benchmark-index-path (:benchmark-index-path options)
                                      :execution-plan-path (:execution-plan-path options)
                                      :parallelism (:parallelism options)
-                                     :chunk-size (:chunk-size options)})
+                                     :chunk-size (:chunk-size options)
+                                     :execution/claimant-parallelism (:execution/claimant-parallelism options)
+                                     :execution/claimant-parallel-threshold (:execution/claimant-parallel-threshold options)})
             output-path (:output options)
             final-evidence (if-let [key-path (:key options)]
                              (let [sig (signing/sign-hash (:evidence/hash evidence) key-path (:password options))
@@ -219,8 +222,11 @@
          :output-path output-path
          :passed? passed?})
       (catch Exception e
-        (log/error! :benchmark-execution-failed {:error (.getMessage e)})
-        {:exit-code 1 :evidence nil :output-path nil :passed? false}))))
+         (if (quiesce/quiescence-failed? e)
+           (throw e)
+           (do
+             (log/error! :benchmark-execution-failed {:error (.getMessage e)})
+             {:exit-code 1 :evidence nil :output-path nil :passed? false}))))))
 
 ;; ── CLI dispatch — subcommands ─────────────────────────────────────────────────
 

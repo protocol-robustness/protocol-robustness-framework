@@ -317,11 +317,55 @@
 
 (defn check-cap-respecting
   [{:keys [evidence-nodes]}]
-  (mechanism-result-check evidence-nodes invariants/cap-respecting-violations))
+  (let [content (evidence-content evidence-nodes)]
+    (if-not content
+      {:holds? false :violations [{:type :missing-evidence-content}]}
+      (let [result (direct-result content)
+            cap-violations (when (and (map? result)
+                                    (seq (:allocations result)))
+                            (vec
+                             (mapcat (fn [row]
+                                       (let [id (:id row)
+                                             allocated (:paid row)
+                                             requested (:owed row)
+                                             cap (:cap row)]
+                                         (cond-> []
+                                           (or (not (integer? allocated)) (neg? allocated))
+                                           (conj {:type :pro-rata/invalid-allocation :id id :observed allocated})
+                                           (and (some? cap) (> allocated cap))
+                                           (conj {:type :pro-rata/cap-exceeded :id id
+                                                  :expected cap :observed allocated})
+                                           (and (some? requested) (> allocated requested))
+                                           (conj {:type :pro-rata/request-exceeded :id id
+                                                  :expected requested :observed allocated}))))
+                                     (:allocations result))))]
+        (if (empty? cap-violations)
+          {:holds? true}
+          {:holds? false :violations cap-violations})))))
 
 (defn check-quota-bounded
   [{:keys [evidence-nodes]}]
-  (mechanism-result-check evidence-nodes invariants/quota-bounded-violations))
+  (let [content (evidence-content evidence-nodes)]
+    (if-not content
+      {:holds? false :violations [{:type :missing-evidence-content}]}
+      (let [result (direct-result content)
+            quota-violations (when (and (map? result)
+                                        (seq (:allocations result)))
+                               (vec
+                                (mapcat (fn [row]
+                                          (let [id (:id row)
+                                                effective-cap (:cap row)
+                                                allocated (:paid row)]
+                                            (cond-> []
+                                              (or (not (integer? allocated)) (neg? allocated))
+                                              (conj {:type :pro-rata/invalid-allocation :id id :observed allocated})
+                                              (and (some? effective-cap) (> allocated effective-cap))
+                                              (conj {:type :pro-rata/quota-exceeded :id id
+                                                     :expected-effective-cap effective-cap :observed allocated}))))
+                                        (:allocations result))))]
+        (if (empty? quota-violations)
+          {:holds? true}
+          {:holds? false :violations quota-violations})))))
 
 (defn check-canonical-remainder-assignment
   [{:keys [evidence-nodes]}]
@@ -533,7 +577,7 @@
    :pro-rata/allocation-complete      check-allocation-complete
    :pro-rata/non-negative             check-non-negative
    :pro-rata/conservation             check-conservation
-   :pro-rata/quota-bounded            check-rounding-bounded
+   :pro-rata/quota-bounded            check-quota-bounded
    :pro-rata/permutation-invariant    check-ordering-independent
    :pro-rata/cap-respecting           check-cap-respecting
    :pro-rata/canonical-remainder-assignment check-canonical-remainder-assignment

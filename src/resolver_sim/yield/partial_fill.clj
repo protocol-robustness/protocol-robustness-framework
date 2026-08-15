@@ -256,7 +256,7 @@
                             :redistribution (:redistribution alloc))})
         ;; Backward compatible path: derive weight/cap from requested
         (let [claims (mapv (fn [[k v]] {:key k :amount (long v)})
-                           (seq requested))
+                   (sort-by (fn [a b] (compare (:key a) (:key b))) (seq requested)))
               rounding-policy (:rounding-policy policy :floor-and-carry)
               alloc (case rounding-policy
                       :largest-remainder (m/largest-remainder-alloc available-liquidity claims)

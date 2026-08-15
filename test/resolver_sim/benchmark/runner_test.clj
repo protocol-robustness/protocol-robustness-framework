@@ -548,6 +548,165 @@
       (finally
         (doseq [file (reverse (file-seq root))] (.delete file))))))
 
+(deftest executor-bounded-parallelism-with-real-overlap
+  (testing "per-execution scheduling overlaps >1 and never exceeds the pool bound"
+    (let [{:keys [root plan source-by-id]} (make-hermetic-plan! 8)
+          current (atom 0)
+          max-in-flight (atom 0)
+          gate (promise)
+          fake-exec (fn [_suite _source entry _run-count _staging]
+                      (let [n (swap! current inc)]
+                        (swap! max-in-flight max n)
+                        (deref gate 5000 nil)
+                        (swap! current dec)
+                        {:execution/id (:execution/id entry)
+                         :execution/ordinal (:execution/ordinal entry)
+                         :execution/descriptor (:execution/descriptor entry)}))]
+      (try
+        (with-redefs [runner/execute-scenario fake-exec]
+          (let [result (future (#'runner/execute-plan-bounded! nil plan source-by-id 1 nil 4 1))]
+            (Thread/sleep 300)
+            (deliver gate true)
+            @result))
+        (is (>= @max-in-flight 2) "more than one execution overlapped (real parallelism)")
+        (is (<= @max-in-flight 4) "in-flight executions respected the pool bound")
+        (finally
+          (deliver gate true)
+          (doseq [file (reverse (file-seq root))] (.delete file)))))))
+
+(deftest executor-serial-mode-never-exceeds-one-in-flight
+  (testing "parallelism 1 never runs more than one execution concurrently"
+    (let [{:keys [root plan source-by-id]} (make-hermetic-plan! 8)
+          current (atom 0)
+          max-in-flight (atom 0)
+          fake-exec (fn [_suite _source entry _run-count _staging]
+                      (let [n (swap! current inc)]
+                        (swap! max-in-flight max n)
+                        (Thread/sleep 40)
+                        (swap! current dec)
+                        {:execution/id (:execution/id entry)
+                         :execution/ordinal (:execution/ordinal entry)
+                         :execution/descriptor (:execution/descriptor entry)}))]
+      (try
+        (with-redefs [runner/execute-scenario fake-exec]
+          (#'runner/execute-plan-bounded! nil plan source-by-id 1 nil 1 1))
+        (is (= 1 @max-in-flight) "serial mode kept in-flight bounded to exactly one")
+        (finally
+          (doseq [file (reverse (file-seq root))] (.delete file)))))))
+
+(deftest executor-worker-failure-cancels-outstanding-and-quiesces
+  (testing "first worker failure cancels outstanding work and quiesces authoritatively"
+    (let [{:keys [root plan source-by-id]} (make-hermetic-plan! 6)
+          started (atom 0)
+          gate (promise)
+          fake-exec (fn [_suite _source entry _run-count _staging]
+                      (let [ordinal (:execution/ordinal entry)]
+                        (swap! started inc)
+                        (when (= ordinal 1)
+                          (throw (ex-info "boom" {:ordinal ordinal})))
+                        (deref gate 10000 nil)
+                        {:execution/id (:execution/id entry)
+                         :execution/ordinal ordinal
+                         :execution/descriptor (:execution/descriptor entry)}))]
+      (try
+        (with-redefs [runner/execute-scenario fake-exec]
+          (let [thrown (try
+                         (#'runner/execute-plan-bounded! nil plan source-by-id 1 nil 4 1)
+                         nil
+                         (catch Exception e e))]
+            (is (some? thrown) "a worker failure must propagate")
+            (is (= :benchmark-execution-failed (:reason (ex-data thrown))))
+            (is (contains? (ex-data thrown) :quiescence)
+                "failure must carry an authoritative quiescence result")
+            (is (< @started 6) "outstanding work was cancelled, not all executions ran")))
+        (finally
+          (deliver gate true)
+          (doseq [file (reverse (file-seq root))] (.delete file)))))))
+
+(defn- make-lane-plan!
+  "Build a frozen plan + source-by-id + protocol-by-id from a list of protocols."
+  [protocols]
+  (let [root (temp-dir!)
+        files (mapv (fn [[i protocol]]
+                      (let [f (java.io.File. root (str "S" i ".edn"))]
+                        (spit f (pr-str {:scenario-id (str "S" i) :protocol protocol}))
+                        f))
+                    (map-indexed vector protocols))
+        sources (mapv #(input-source/source (.getPath %)) files)
+        benchmark {:benchmark/claims []}
+        plan (runner/build-execution-plan benchmark sources)
+        source-by-id (into {} (map (fn [e s] [(:execution/id e) s]) plan sources))
+        protocol-by-id (zipmap (map :execution/id plan) protocols)]
+    {:root root :plan plan :source-by-id source-by-id :protocol-by-id protocol-by-id}))
+
+(deftest lane-safe-executions-overlap-despite-exclusive-present
+  (testing "safe executions still overlap when an exclusive lane is present"
+    (let [{:keys [root plan source-by-id protocol-by-id]}
+          (make-lane-plan! (vec (concat (repeat 4 "sew-v1") (repeat 2 "excl-algo-v1"))))
+          safe-current (atom 0) safe-max (atom 0)
+          excl-current (atom 0) excl-max (atom 0)
+          gate (promise)
+          fake-exec (fn [_suite _source entry _run-count _staging]
+                      (let [protocol (get protocol-by-id (:execution/id entry))]
+                        (if (= "excl-algo-v1" protocol)
+                          (let [n (swap! excl-current inc)]
+                            (swap! excl-max max n)
+                            (deref gate 10000 nil)
+                            (swap! excl-current dec))
+                          (let [n (swap! safe-current inc)]
+                            (swap! safe-max max n)
+                            (deref gate 10000 nil)
+                            (swap! safe-current dec)))
+                        {:execution/id (:execution/id entry)
+                         :execution/ordinal (:execution/ordinal entry)
+                         :execution/descriptor (:execution/descriptor entry)}))]
+      (try
+        (with-redefs [runner/execute-scenario fake-exec]
+          (let [result (future (#'runner/execute-plan-bounded!
+                                 nil plan source-by-id 1 nil 4 1 nil nil #{"excl-algo-v1"}))]
+            (Thread/sleep 400)
+            (deliver gate true)
+            @result))
+        (is (>= @safe-max 2) "safe executions overlapped even with exclusive work present")
+        (is (= 1 @excl-max) "exclusive lane serialized its own executions")
+        (finally
+          (deliver gate true)
+          (doseq [file (reverse (file-seq root))] (.delete file)))))))
+
+(deftest lane-incompatible-exclusive-protocols-never-overlap
+  (testing "different exclusive-protocol lanes never run concurrently, while safe work still overlaps"
+    (let [{:keys [root plan source-by-id protocol-by-id]}
+          (make-lane-plan! (vec (concat (repeat 4 "sew-v1") (repeat 2 "excl-a-v1") (repeat 2 "excl-b-v1"))))
+          safe-current (atom 0) safe-max (atom 0)
+          excl-current (atom 0) excl-max (atom 0)
+          gate (promise)
+          fake-exec (fn [_suite _source entry _run-count _staging]
+                      (let [protocol (get protocol-by-id (:execution/id entry))]
+                        (if (#{"excl-a-v1" "excl-b-v1"} protocol)
+                          (let [n (swap! excl-current inc)]
+                            (swap! excl-max max n)
+                            (deref gate 10000 nil)
+                            (swap! excl-current dec))
+                          (let [n (swap! safe-current inc)]
+                            (swap! safe-max max n)
+                            (deref gate 10000 nil)
+                            (swap! safe-current dec)))
+                        {:execution/id (:execution/id entry)
+                         :execution/ordinal (:execution/ordinal entry)
+                         :execution/descriptor (:execution/descriptor entry)}))]
+      (try
+        (with-redefs [runner/execute-scenario fake-exec]
+          (let [result (future (#'runner/execute-plan-bounded!
+                                 nil plan source-by-id 1 nil 4 1 nil nil #{"excl-a-v1" "excl-b-v1"}))]
+            (Thread/sleep 400)
+            (deliver gate true)
+            @result))
+        (is (>= @safe-max 2) "safe executions still overlapped alongside exclusive lanes")
+        (is (= 1 @excl-max) "incompatible exclusive executions never ran concurrently")
+        (finally
+          (deliver gate true)
+          (doseq [file (reverse (file-seq root))] (.delete file)))))))
+
 (deftest canonical-workers-never-fall-back-to-the-mutable-protocol-registry
   (testing "the frozen adapter map is authoritative for coordinator tasks"
     (let [adapter ::frozen-adapter

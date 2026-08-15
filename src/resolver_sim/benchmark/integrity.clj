@@ -77,8 +77,17 @@
 
 (defn hashable-evidence
   "Return the portion of an evidence bundle covered by the :bundle-root
-   commitment. Post-hash fields (signature, key path) are excluded so the
-   committed hash survives signing."
+  commitment. Post-hash/signature fields (:timestamp, :evidence/hash,
+  :evidence/signature, :evidence/public-key-path) and operational
+  materialization fields (:benchmark/artifact-index, :repo,
+  :run/manifest/:manifest/at, :results/:scenario/artifacts) are excluded so the
+  committed hash survives signing and location/timing drift.
+
+  :evidence/commitment-version is deliberately NOT excluded: when present it is
+  committed into the hash, binding the bundle to the commitment scheme used to
+  interpret it — an evidence commitment binds both the evidence and the
+  commitment semantics. Version-less historical bundles contain no such field,
+  so their hash is unchanged."
   [bundle]
   ;; Execution directories, artifact-index locations, and wall-clock run
   ;; metadata describe one materialization of a package. Detached artifact
@@ -93,34 +102,89 @@
   ;; reproducibility. The :repo map is still persisted in the evidence file
   ;; for audit.
   (-> bundle
-       (dissoc :timestamp :evidence/hash :evidence/signature
-               :evidence/public-key-path :benchmark/artifact-index :repo)
+         (dissoc :timestamp :evidence/hash :evidence/signature
+                 :evidence/public-key-path
+                 :benchmark/artifact-index :repo)
        (cond-> (contains? bundle :run/manifest)
                (update :run/manifest #(dissoc % :manifest/at))
                (contains? bundle :results)
                (update :results #(mapv (fn [result]
                                          (dissoc result :scenario/artifacts))
                                         %)))))
+(defn commitment-version
+  "Resolve the single commitment scheme a bundle declares, by its
+  :evidence/commitment-version field.
+
+  Current scheme  = hash over hashable-evidence as-is (includes :run/manifest
+                    and :benchmark-certification).
+  Legacy-v1 scheme = hash over hashable-evidence with :run/manifest and
+                    :benchmark-certification removed (pre-v2 bundles).
+
+  A declared version selects ONE scheme. A version-less bundle defaults to
+  :current (the historical primary scheme). There is never a fallback: the
+  rule is one artifact version -> one unambiguous commitment rule. An unknown
+  version is :unsupported so the verifier fails closed instead of guessing."
+  [bundle]
+  (let [v (:evidence/commitment-version bundle)]
+    (cond
+      (= v "bundle-root.v1") :legacy-v1
+      (or (= v "bundle-root.v2") (= v :current)) :current
+      (nil? v) :current
+      :else :unsupported)))
+
+(defn- scheme-hash
+  "Compute the bundle-root commitment hash for exactly one scheme, over
+  hashable-evidence (which already excludes post-hash fields incl.
+  :evidence/commitment-version). Mirrors the writer's projection so the
+  recomputation is exact."
+  [bundle scheme]
+  (let [base (into (sorted-map) (hashable-evidence bundle))]
+    (case scheme
+      :current (hc/hash-with-intent {:hash/intent :bundle-root} base)
+      :legacy-v1 (hc/hash-with-intent {:hash/intent :bundle-root}
+                                      (into (sorted-map) (dissoc (hashable-evidence bundle)
+                                                        :run/manifest
+                                                        :benchmark-certification))))))
+
 (defn verify-bundle-hash
-  "Verify current bundles and pre-v2 bundles whose hash excluded post-hash
-   run metadata and certification."
+  "Fail-closed integrity check: recompute the committed :evidence/hash against
+  exactly the scheme its declared :evidence/commitment-version selects.
+
+  Unlike the prior implementation (which opportunistically attempted the
+  current scheme and then the legacy-v1 scheme and accepted whichever matched),
+  this selects ONE scheme from the bundle's declared version and verifies
+  against that only. version-less bundles default to :current. A mismatch or
+  unsupported version fails closed — no cross-scheme fallback.
+
+  Returns {:hash-ok? bool :scheme kw :computed-hash str :reason kw}."
   [bundle]
   (let [stored-hash (:evidence/hash bundle)
-        current-hash (hc/hash-with-intent {:hash/intent :bundle-root}
-                                          (into (sorted-map) (hashable-evidence bundle)))
-        legacy-hash (hc/hash-with-intent {:hash/intent :bundle-root}
-                                         (into (sorted-map) (dissoc (hashable-evidence bundle)
-                                                 :run/manifest
-                                                 :benchmark-certification)))]
+        scheme (commitment-version bundle)
+        computed (when-not (= scheme :unsupported)
+                   (scheme-hash bundle scheme))]
     (cond
-      (hc/intent-hash= current-hash stored-hash)
-      {:hash-ok? true :scheme :current :computed-hash current-hash}
+      (= scheme :unsupported)
+      {:hash-ok? false :scheme nil
+       :computed-hash (scheme-hash bundle :current)
+       :reason :unsupported-commitment-version
+       :declared-version (:evidence/commitment-version bundle)}
 
-      (hc/intent-hash= legacy-hash stored-hash)
-      {:hash-ok? true :scheme :legacy-v1 :computed-hash legacy-hash}
+      (nil? stored-hash)
+      {:hash-ok? false :scheme scheme
+       :computed-hash computed
+       :reason :missing-evidence-hash}
+
+      (some? computed)
+      (let [hash-ok? (hc/intent-hash= computed stored-hash)]
+        {:hash-ok? hash-ok?
+         :scheme (when hash-ok? scheme)
+         :computed-hash computed
+         :reason (if hash-ok? :ok :computed-hash-mismatch)})
 
       :else
-      {:hash-ok? false :scheme nil :computed-hash current-hash})))
+      {:hash-ok? false :scheme scheme
+       :computed-hash computed
+       :reason :unsupported-commitment-version})))
 
 (defn content-assurance-sha
   "Content-derived SHA-256 of a benchmark-assurance artifact with the
@@ -134,19 +198,21 @@
 
 (defn verify-evidence-bundle!
   "Fail-closed integrity gate for any consumer that treats bundle fields as
-   authoritative. Throws when the committed :evidence/hash is absent or does
-   not recompute from the persisted bundle content; returns the bundle when
-   verification succeeds."
+  authoritative. Throws when the committed :evidence/hash is absent, declares
+  an unsupported commitment version, or does not recompute from the persisted
+  bundle content; returns the bundle when verification succeeds."
   [bundle]
-  (let [{:keys [hash-ok? scheme computed-hash]} (verify-bundle-hash bundle)
+  (let [{:keys [hash-ok? scheme computed-hash reason declared-version]} (verify-bundle-hash bundle)
         stored-hash (:evidence/hash bundle)]
     (when-not hash-ok?
       (throw (ex-info "Evidence bundle integrity check failed"
                       {:integrity/failure :bundle-root-mismatch
-                       :reason (if (nil? stored-hash)
-                                 :missing-evidence-hash
-                                 :computed-hash-mismatch)
+                       :reason (or reason
+                                   (if (nil? stored-hash)
+                                     :missing-evidence-hash
+                                     :computed-hash-mismatch))
                        :stored-hash stored-hash
                        :computed-hash computed-hash
-                       :scheme scheme})))
+                       :scheme scheme
+                       :declared-version declared-version})))
     bundle))

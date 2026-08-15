@@ -7,6 +7,15 @@ verification**, never from the declarative shape of a supplied field. An
 authoritative status, result, aggregate, root, or verdict is never
 authoritative merely because supplied content declares it.
 
+**Independence** is with respect to the authority-bearing assertion, not the
+implementation language or process. A check or verification is not independent
+if it ultimately trusts the same supplied result-shaped field it is supposed
+to establish — e.g. a caller that reads `:pass` and a helper that returns
+`:pass` are not two independent checks. Only a recomputation from a basis that
+is distinct from, and not derived from, the asserted field confers independent
+authority; a verifier that reads `:pass` and produces `:pass` establishes
+nothing.
+
 "Supplied content" includes user-supplied use-case bundles, example
 interpretations, extension boundaries, evidence bundles handed to a renderer,
 and any command that consumes those inputs.
@@ -74,22 +83,31 @@ any problematic path.
 The realized-allocation path uses the same derivation rule, but its stages must
 not be collapsed:
 
-1. **statement produced** — the producer has data sufficient to build a
-   `realized-allocation-statement.v1`;
-2. **statement independently recomputed** — canonical context, decision, and
-   lifecycle rebuild the same six roots and statement root;
-3. **scenario binding verified** — the domain-separated
+1. **statement produced** *(implemented)* — the producer has data sufficient to
+   build a `realized-allocation-statement.v1`;
+2. **statement independently recomputed** *(implemented)* — canonical context,
+   decision, and lifecycle rebuild the same six roots and statement root;
+3. **scenario binding verified** *(profile-dependent)* — the domain-separated
    `scenario-realized-statement-binding.v1` relation recomputes for the exact
-   scenario evidence-content and statement-collection roots;
-4. **cryptographic computation verified** — a registered verifier confirms an
-   SP1 proof for the pinned program/VK/profile and exact public statement;
-5. **fairness theorem satisfied** — the applicable Clojure theorem result is
-   bound to that same statement root;
-6. **activation authorized** — a one-time authority transition accepts the
-   same statement/result; and
-7. **economic effect bound** — the applied effect/custody transition commits
-   the accepted allocation identity.
+   scenario evidence-content and statement-collection roots under the
+   registered proof profile;
+4. **cryptographic computation verified** *(profile-dependent)* — a registered
+   verifier confirms an SP1 proof for the pinned program/VK/profile and exact
+   public statement (currently `largest-remainder-deferred-pro-rata.v1` only);
+5. **fairness theorem satisfied** *(profile-dependent)* — the applicable
+   Clojure theorem result is bound to that same statement root under the
+   registered proof profile;
+6. **activation authorized** *(not-yet-an-authoritative-boundary)* — a
+   one-time authority transition accepts the same statement/result; and
+7. **economic effect bound** *(not-yet-an-authoritative-boundary)* — the
+   applied effect/custody transition commits the accepted allocation identity.
 
+Legend: *(implemented)* = enforced unconditionally today; *(profile-dependent)*
+= enforced only under a registered SP1 proof profile (the current profile is
+deliberately narrow — see below); *(not-yet-an-authoritative-boundary)* = a
+required architectural stage that is not yet an established authority boundary.
+
+This list is an architectural requirement set, **not** an existing pipeline.
 A later stage may rely on earlier verified stages, but never substitutes for
 one. In particular, a valid statement root is not an SP1 proof, an SP1
 computation proof is not a fairness theorem, and neither authorizes an
@@ -118,7 +136,7 @@ fulfilled amount—or merely no deferred residual—is never proof of full fill.
 | Canonical interpretation | user tags / intents | `resolve-intent` registry-only lookup; prefix-free domain-tag validation (`hash/canonical.clj:2305-2347`) | unknown intents fail closed |
 | Expected outcomes | expected scenario results | expected/observed kept separate in the scenario runner; expectations never become observed outcomes (`scenario/runner.clj:123-147`) | pass/fail derives from observed only |
 | Use-case registry | user-supplied registry path | explicit fail-closed loading only; never discovered from classpath/cwd (`use_cases/registry.clj`) | only explicitly-supplied, contained `:definition/ref` bundles load |
-| Benchmark report | evidence `:metrics`, `:results`, `:claim-results` | `verify-evidence-bundle!` recomputes the `:bundle-root` commitment before any field is read (`benchmark/report.clj:414`, `benchmark/integrity.clj:96`) | `:all-pass?`, `:score`, `:claim/status`, `:conclusion` only from verified bundles |
+| Benchmark report | evidence `:metrics`, `:results`, `:claim-results` | `verify-evidence-bundle!` recomputes `:evidence/hash` (under the `:bundle-root` hash intent, BUNDLE_ROOT_V1) before any field is read (`benchmark/report.clj`, `benchmark/integrity.clj`) | `:all-pass?`, `:score`, `:claim/status`, `:conclusion` are integrity-bound only — verified ≠ framework-authoritative; provenance admission is separate |
 
 ### Cancellation statement boundary
 
@@ -185,14 +203,19 @@ The corrected benchmark path is pattern 3 and must satisfy the same property
 at two layers:
 
 1. **Artifact integrity** — the persisted bundle recomputes to its committed
-   hash. `verify-evidence-bundle!` recomputes `:bundle-root` over the persisted
-   representation and fails closed on any mismatch
-   (`benchmark/integrity.clj:96`).
+   `:evidence/hash` under the `:bundle-root` hash intent (`BUNDLE_ROOT_V1`).
+   `verify-evidence-bundle!` (in `benchmark/integrity.clj`) selects exactly one
+   scheme from the bundle's declared `:evidence/commitment-version` (absent ⇒
+   current) and fails closed on any mismatch.
 2. **Semantic authority** — report verdicts/statuses are derived from the
    verified underlying evidence, not copied from `:metrics`, `:results`,
    `:claim-results`, or summary fields. `build-report` runs the integrity gate
    before deriving `:all-pass?`, `:score`, `:claim/status`, `:conclusion`,
-   `:scoring/classification` (`benchmark/report.clj:414`).
+   `:scoring/classification` (`benchmark/report.clj`). Its output is
+   integrity-bound only; framework-authoritative provenance additionally
+   requires a separate, independently-derived publisher/provenance admission
+   (see *Integrity vs. authenticity* in
+   `docs/benchmarks/EVIDENCE_INTEGRITY_CONTRACT.md`).
 
 This mirrors the exemplar "good" shape: runner recomputation of metrics and
 claim results from scenario execution (authoritative state) → committed
@@ -280,22 +303,48 @@ benchmark evidence/report surface.
 
 - `test/resolver_sim/benchmark/integrity_test.clj`: runner-committed hash
   round-trips through `write-evidence` and verifies; tampered `:metrics`
-  fails verification; missing `:evidence/hash` fails the gate; current and
-  legacy hash schemes verify; tolerant reader preserves legacy sentinels.
+  fails verification; missing `:evidence/hash` fails the gate; explicit
+  `:evidence/commitment-version` selects exactly one scheme (`bundle-root.v2`
+  ⇒ current, `bundle-root.v1` ⇒ legacy-v1); a declared version that does not
+  match is rejected with no cross-scheme fallback; version-less bundles default
+  to current; legacy sentinels are preserved by the tolerant reader.
 - `test/resolver_sim/benchmark/report_test.clj`: `build-report` fails closed
   on missing hash, tampered `:metrics`, and tampered `:claim-results`.
 
 ### E. Known limitations
 
+- **Authority ceiling (integrity, not authenticity).** `bb benchmark:verify` /
+  `build-report` establish integrity only. A re-committed bundle whose
+  `:evidence/hash` recomputes is internally consistent but is **not**
+  framework-authoritative: a party that can recompute the hash can pass
+  integrity while carrying attacker-selected (or re-selected) content, and can
+  satisfy signature validity by signing with an arbitrary key and supplying an
+  arbitrary `:evidence/public-key-path`. Framework-authoritative provenance
+  requires a separate, independently-derived publisher/provenance admission —
+  signer authentication **and** authorization of that signer from a trusted
+  registry/policy, never bundle-supplied key material. The reusable invariant is:
+  cryptographic signer identity + externally-rooted trust registry +
+  policy-derived authorization for this role/scope = publisher/provenance
+  admission. `evaluate-envelopes` (`evidence/finalization_signing.clj`) is a
+  positive-control realization of this invariant for *finalization* evidence;
+  the benchmark evidence path does not yet route `:evidence/signature` through an
+  admission boundary of this shape. The future `admit-report` boundary is
+  prescribed to reuse the trusted-registry/policy semantics directly — the
+  `evaluate-envelopes` primitives where their envelope / role / scope /
+  revocation abstraction genuinely fits, otherwise the lower-level trusted-registry
+  mechanism — and must NOT hard-wire the finalization-domain `evaluate-envelopes`
+  function by name (that would couple two authority domains prematurely).
+  `build-report` therefore emits integrity-bound conclusions until that admission
+  boundary is consumed. (See also `docs/benchmarks/EVIDENCE_INTEGRITY_CONTRACT.md`,
+  *Integrity vs. authenticity*.)
+- **Scheme selection is version-strict.** Legacy-v1 bundles verify only when
+  they declare `:evidence/commitment-version "bundle-root.v1"`; the verifier
+  does **not** fall back across schemes to make a hash match. Version-less
+  bundles are interpreted as `bundle-root.v2` (the current scheme).
 - Legacy `#object[...]` bundles (pre-normalization) are readable via the
-  tolerant reader but cannot verify unless repaired; they are never admitted
-  as authoritative by `build-report` because their committed hash does not
-  recompute.
-- `bb benchmark:verify` recomputes the committed `:bundle-root` over the
-  persisted artifact. This is an integrity check, not an authenticity check:
-  a re-committed bundle with a self-computed hash is still a framework-role
-  decision at the point of admission (see `docs/benchmarks/` evidence
-  integrity contract).
+  tolerant reader but cannot verify unless repaired to declare a
+  `:evidence/commitment-version`; they are never admitted as authoritative by
+  `build-report` because their committed hash does not recompute.
 
 ### F. Non-findings
 

@@ -7,8 +7,9 @@
      into generic economics functions.
    - Generic economics must never depend on protocol namespaces."
   (:require [resolver-sim.definitions.passive-registries :as registries]
-            [resolver-sim.hash.canonical :as hc])
-  (:import [java.util.concurrent Callable Executors TimeUnit]))
+            [resolver-sim.hash.canonical :as hc]
+            [resolver-sim.util.thread-quiescence :as quiesce])
+   (:import [java.util.concurrent Callable Executors]))
 
 ;; Basis point denominator used by generic integer accounting helpers.
 ;; Also defined as resolver-sim.yield.exact-math/scaling-factor (same value).
@@ -123,8 +124,13 @@
                               values)]
             (mapv #(.get %) futures))
           (finally
-            (.shutdownNow executor)
-            (.awaitTermination executor 30 TimeUnit/SECONDS)))))))
+            (let [q (quiesce/quiesce-executor! executor)]
+              (when-not (= :terminated (:status q))
+                (throw (quiesce/quiescence-failed-exception
+                        "Claimant executor threads did not terminate before pool release"
+                        {:quiescence/status (:status q)
+                         :quiescence/remaining-tasks (:remaining-tasks q)
+                         :executor-parallelism parallelism}))))))))))
 
 (defn- registry-entry
   [entries id]

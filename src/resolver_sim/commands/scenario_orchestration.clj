@@ -30,7 +30,8 @@
             [resolver-sim.definitions.passive-registries :as passive-registries]
             [resolver-sim.protocols.protocol :as proto]
             [resolver-sim.hash.canonical :as hc]
-            [resolver-sim.hash.reference :as hash-ref]))
+            [resolver-sim.hash.reference :as hash-ref]
+            [resolver-sim.util.thread-quiescence :as quiesce]))
 (def ^:private phases [:check-runtime :execute :write-manifest :extract-artifacts :scan-sensitivity :finalize-registry :validate-registry :finalize-run-evidence :build-attestation-bundle :write-canonical-assurance :write-verdict-policy :write-diagnostic :write-pro-rata-mechanism-index :refresh-inventory :refresh-registry :revalidate-registry :write-package-index])
 (defn- p [x] (str x))
 (defn- checked [phase command result] (if (zero? (:exit result)) result (throw (ex-info "Required scenario finalization phase failed" {:phase phase :command command :exit-code (:exit result) :out (:out result) :err (:err result)}))))
@@ -579,7 +580,8 @@
 (defn run-scenario!
   ([context] (run-scenario! context {}))
   ([context overrides]
-   (let [lock (safety/acquire-lock! (:run/root context))]
+   (let [lock (safety/acquire-lock! (:run/root context))
+         quiescence-failed? (atom false)]
      (try
        (layout! context)
        (let [phase-fns (merge defaults overrides)
@@ -601,11 +603,24 @@
              (run-phase :complete execution)
              {:command/status :completed :scenario/outcome (if (zero? (:exit-code execution)) :pass :fail)
               :exit-code (:exit-code execution) :run/id (:run/id context) :run/root (p (:run/root context)) :phases @records})
-           (catch Throwable error
-             ;; Preserve structured lifecycle reasons (not exception text) for
-             ;; callers that need to distinguish a missing required DAG from an
-             ;; execution or finalization failure.
-             {:command/status :failed :scenario/outcome :unknown :exit-code 1
-              :run/id (:run/id context) :run/root (p (:run/root context))
-              :phases @records :error (.getMessage error) :error/data (ex-data error)})))
-       (finally (safety/release-lock! lock))))))
+           (catch clojure.lang.ExceptionInfo e
+             (if (quiesce/quiescence-failed? e)
+               (do
+                 (reset! quiescence-failed? true)
+                 (lifecycle/mark-quiescence-unknown! (:run/root context) (:run/id context) :scenario
+                                                     {:quiescence/error (.getMessage e)
+                                                      :quiescence/ex-data (ex-data e)})
+                 {:command/status :quiescence-failed :scenario/outcome :quiescence-unknown :exit-code 1
+                  :run/id (:run/id context) :run/root (p (:run/root context))
+                  :phases @records :error (.getMessage e) :error/data (ex-data e)})
+               {:command/status :failed :scenario/outcome :unknown :exit-code 1
+                :run/id (:run/id context) :run/root (p (:run/root context))
+                :phases @records :error (.getMessage e) :error/data (ex-data e)}))
+              (catch Throwable error
+                ;; Preserve structured lifecycle reasons (not exception text) for
+                ;; callers that need to distinguish a missing required DAG from an
+                ;; execution or finalization failure.
+                {:command/status :failed :scenario/outcome :unknown :exit-code 1
+                 :run/id (:run/id context) :run/root (p (:run/root context))
+                 :phases @records :error (.getMessage error) :error/data (ex-data error)})))
+       (finally (when-not @quiescence-failed? (safety/release-lock! lock)))))))

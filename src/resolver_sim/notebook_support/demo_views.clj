@@ -168,8 +168,7 @@
           [:div {:key label :style {:color "#64748b" :marginTop "4px"}}
            (str label ": ")
            [:span {:style {:color "#22c55e"}} value]])
-        (make-table checks)
-        (when failing-msg
+         (make-table checks)
+         (when failing-msg
           [:div {:style {:marginTop "10px" :color "#b91c1c"}}
-           failing-msg])]
-         )))]
+           failing-msg])]]))))

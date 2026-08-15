@@ -323,8 +323,9 @@ run_unit() {
     resolver-sim.benchmark.packs.partial-fill.evidence-test \
     resolver-sim.benchmark.researcher-decision-v2-test \
     resolver-sim.benchmark.decision-subject-test \
-    resolver-sim.benchmark.review-aggregate-check-test \
-    resolver-sim.allocation.claim-consumption-receipt-test \
+     resolver-sim.benchmark.review-aggregate-check-test \
+     resolver-sim.benchmark.integrity-scheme-test \
+     resolver-sim.allocation.claim-consumption-receipt-test \
     resolver-sim.allocation.certificate-test \
     resolver-sim.allocation.cli-test \
     resolver-sim.allocation.context-test \

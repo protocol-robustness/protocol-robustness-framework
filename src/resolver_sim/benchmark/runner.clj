@@ -24,6 +24,7 @@
             [resolver-sim.protocols.protocol :as protocol-api]
             [resolver-sim.scenario.runner :as scenario-runner]
             [resolver-sim.scenario.suites :as suites]
+            [resolver-sim.util.thread-quiescence :as quiesce]
             [resolver-sim.yield.module :as yield-module]
             [clojure.edn :as edn]
             [clojure.java.io :as io]
@@ -34,7 +35,7 @@
   (:import [java.math BigInteger]
            [java.nio.file Files LinkOption StandardCopyOption]
            [java.util UUID]
-           [java.util.concurrent Callable Executors TimeUnit]
+           [java.util.concurrent Callable ExecutorCompletionService Executors TimeUnit]
            [java.security MessageDigest]))
 
 ;; ── Helpers ──────────────────────────────────────────────────────────────────
@@ -715,22 +716,148 @@
    scenario, execution plan, evidence, or package projection."
   nil)
 
-(defn- execute-chunk
-  [suite-kw source-by-id run-count staging-root allow-dirty? frozen-protocol-adapters runtime-execution-context chunk]
-  (mapv (fn [plan-entry]
-          (let [source (get source-by-id (:execution/id plan-entry))
-                artifact-dir (staging-execution-dir staging-root plan-entry)]
-            (when-not source
-              (throw (ex-info "Frozen execution plan has no source"
-                              {:execution/id (:execution/id plan-entry)})))
-            (run-with-worker-context artifact-dir allow-dirty? frozen-protocol-adapters runtime-execution-context
-                                     #(do
-                                        (when *outer-scenario-worker-hook*
-                                          (*outer-scenario-worker-hook*
-                                           {:execution/id (:execution/id plan-entry)
-                                            :execution/ordinal (:execution/ordinal plan-entry)}))
-                                        (execute-scenario suite-kw source plan-entry run-count staging-root)))))
-        (:chunk/work-items chunk)))
+(defn- execute-execution
+  [suite-kw source-by-id run-count staging-root allow-dirty? frozen-protocol-adapters runtime-execution-context plan-entry]
+  (let [source (get source-by-id (:execution/id plan-entry))
+        artifact-dir (staging-execution-dir staging-root plan-entry)]
+    (when-not source
+      (throw (ex-info "Frozen execution plan has no source"
+                      {:execution/id (:execution/id plan-entry)})))
+    (run-with-worker-context artifact-dir allow-dirty? frozen-protocol-adapters runtime-execution-context
+                             #(do
+                                (when *outer-scenario-worker-hook*
+                                  (*outer-scenario-worker-hook*
+                                   {:execution/id (:execution/id plan-entry)
+                                    :execution/ordinal (:execution/ordinal plan-entry)}))
+                                (execute-scenario suite-kw source plan-entry run-count staging-root)))))
+
+(defn- reduce-in-original-order
+  "Reassemble per-execution results into frozen plan order. Completion timing is
+   operational only and is never surfaced as canonical result order."
+  [plan results-by-id]
+  (mapv (fn [entry]
+          (let [result (get results-by-id (:execution/id entry))]
+            (when-not result
+              (throw (ex-info "Execution completed but result was not recorded"
+                              {:execution/id (:execution/id entry)})))
+            result))
+        plan))
+
+(defn- derive-protocol-by-id
+  "Map each execution id to its protocol id, loading each distinct source once.
+   Used only for lane scheduling (operational), never for canonical identity."
+  [plan source-by-id]
+  (let [proto-cache (atom {})
+        proto-of (fn [source]
+                   (let [ref (:input/ref source)]
+                     (or (get @proto-cache ref)
+                         (let [p (or (:protocol (load-scenario source))
+                                     protocols/default-protocol-id)]
+                           (swap! proto-cache assoc ref p)
+                           p))))]
+    (into {} (map (fn [entry]
+                    [(:execution/id entry)
+                     (proto-of (get source-by-id (:execution/id entry)))])
+                  plan))))
+
+(defn- execute-entries-bounded!
+  "Schedule one bounded task per frozen execution-plan entry on a fixed pool,
+   observe completion in completion order via ExecutorCompletionService, store
+   results by execution id, and fail fast on the first worker failure (cancelling
+   outstanding work). After all work completes (or is cancelled) the executor is
+   quiesced authoritatively via quiesce-executor!; reduction proceeds only if
+   termination is authoritative.
+
+   Lane scheduling (P1-G): all executions share one fixed pool. Safe executions
+   run freely (parallel). Exclusive-protocol executions serialize through a single
+   global lane gate (a Semaphore(1)) so (a) each exclusive protocol's own
+   executions never overlap, and (b) incompatible executions of different exclusive
+   protocols never run concurrently — while safe work still overlaps even when
+   exclusive work is present. The gate is interrupt-interoperable: a cancelled
+   exclusive worker awaiting the gate releases promptly."
+  [suite-kw source-by-id run-count staging-root parallelism allow-dirty? frozen-protocol-adapters runtime-execution-context exclusive-protocol-ids protocol-by-id plan]
+  (let [parallelism (long (or parallelism 1))
+        _ (when-not (pos? parallelism)
+            (throw (ex-info "Benchmark parallelism must be positive" {:parallelism parallelism})))
+        executor (Executors/newFixedThreadPool (int parallelism))
+        completion (ExecutorCompletionService. executor)
+        exclusive-gate (java.util.concurrent.Semaphore. 1)]
+    (try
+      (report-operational-phase! :parallel-determine-started
+                                 {:execution-count (count plan)
+                                  :parallelism parallelism
+                                  :lane-safe-count (count (remove (fn [e] (contains? exclusive-protocol-ids
+                                                                                    (get protocol-by-id (:execution/id e))))
+                                                                  plan))
+                                  :exclusive-protocol-ids (vec (sort exclusive-protocol-ids))})
+      (let [submit-task (fn [plan-entry]
+                          {:entry plan-entry
+                           :future (.submit completion
+                                             ^Callable
+                                             (reify Callable
+                                               (call [_]
+                                                 (if (contains? exclusive-protocol-ids
+                                                                (get protocol-by-id (:execution/id plan-entry)))
+                                                   (try
+                                                     (.acquire exclusive-gate)
+                                                     (execute-execution suite-kw source-by-id run-count
+                                                                        staging-root allow-dirty?
+                                                                        frozen-protocol-adapters
+                                                                        runtime-execution-context
+                                                                        plan-entry)
+                                                     (finally
+                                                       (.release exclusive-gate)))
+                                                   (execute-execution suite-kw source-by-id run-count
+                                                                      staging-root allow-dirty?
+                                                                      frozen-protocol-adapters
+                                                                      runtime-execution-context
+                                                                      plan-entry)))))})
+            submitted (mapv submit-task plan)
+            results (atom {})
+            failure (atom nil)]
+        (doseq [_ (range (count submitted))
+                :while (nil? @failure)]
+          (let [future (.take completion)
+                result (try
+                         (.get future)
+                         (catch InterruptedException _
+                           (throw (ex-info "Parallel execution interrupted"
+                                           {:reason :execution-interrupted})))
+                         (catch java.util.concurrent.CancellationException _
+                           (reset! failure {:reason :execution-cancelled})
+                           nil)
+                         (catch java.util.concurrent.ExecutionException e
+                           (reset! failure {:reason :benchmark-execution-failed
+                                            :cause (.getCause e)})
+                           nil))]
+            (when (and result (nil? @failure))
+              (swap! results assoc (:execution/id result) result))))
+        (if-let [{:keys [cause reason]} @failure]
+          ;; Fail fast: cancel all outstanding work, then quiesce authoritatively.
+          ;; Reduction/publication must not proceed unless worker termination is
+          ;; confirmed as :terminated; otherwise fail closed with a quiescence error.
+          (do
+            (doseq [task submitted]
+              (.cancel ^java.util.concurrent.Future (:future task) true))
+            (let [quiescence (quiesce/quiesce-executor! executor)]
+              (if (= :terminated (:status quiescence))
+                (throw (ex-info "Benchmark execution failed in worker"
+                                {:reason reason
+                                 :cause cause
+                                 :quiescence quiescence}))
+                (throw (quiesce/quiescence-failed-exception
+                        "Benchmark worker failure could not be cleanly quiesced"
+                        {:reason reason
+                         :cause cause
+                         :quiescence quiescence})))))
+          (do
+            (report-operational-phase! :parallel-determine-complete
+                                       {:execution-count (count plan)})
+            (reduce-in-original-order plan @results))))
+      (finally
+        (when-not (.isShutdown executor)
+          (.shutdown executor)
+          (.awaitTermination executor 30 TimeUnit/SECONDS))))))
 
 (defn- execute-plan-bounded!
   ([suite-kw plan source-by-id run-count staging-root parallelism chunk-size]
@@ -738,39 +865,23 @@
   ([suite-kw plan source-by-id run-count staging-root parallelism chunk-size frozen-protocol-adapters]
    (execute-plan-bounded! suite-kw plan source-by-id run-count staging-root parallelism chunk-size frozen-protocol-adapters nil))
   ([suite-kw plan source-by-id run-count staging-root parallelism chunk-size frozen-protocol-adapters runtime-execution-context]
-   (let [parallelism (long (or parallelism 1))
-         _ (when-not (pos? parallelism)
-             (throw (ex-info "Benchmark parallelism must be positive" {:parallelism parallelism})))
-         chunks (execution-chunks plan (or chunk-size 1))
-         executor (Executors/newFixedThreadPool (int parallelism))
-         allow-dirty? chain/*allow-dirty*]
-     (try
-       (report-operational-phase! :chunks-derived
-                                  {:execution-count (count plan)
-                                   :chunk-count (count chunks)
-                                   :chunk-size (long (or chunk-size 1))
-                                   :parallelism parallelism})
-       (report-operational-phase! :parallel-determine-started
-                                  {:execution-count (count plan)
-                                   :chunk-count (count chunks)
-                                   :parallelism parallelism})
-       (let [futures (mapv (fn [chunk]
-                             (.submit executor
-                                      ^Callable
-                                      (reify Callable
-                                        (call [_]
-                                          (execute-chunk suite-kw source-by-id run-count staging-root allow-dirty? frozen-protocol-adapters runtime-execution-context chunk)))))
-                           chunks)]
-        ;; Dereference in deterministic chunk order. Completion timing has no
-        ;; influence on the returned sequence or subsequent reconciliation.
-         (let [results (vec (mapcat #(.get %) futures))]
-           (report-operational-phase! :parallel-determine-complete
-                                      {:execution-count (count results)
-                                       :chunk-count (count chunks)})
-           results))
-       (finally
-         (.shutdownNow executor)
-         (.awaitTermination executor 30 TimeUnit/SECONDS))))))
+   (execute-plan-bounded! suite-kw plan source-by-id run-count staging-root parallelism chunk-size frozen-protocol-adapters runtime-execution-context nil))
+  ([suite-kw plan source-by-id run-count staging-root parallelism chunk-size frozen-protocol-adapters runtime-execution-context exclusive-protocol-ids]
+   (let [allow-dirty? chain/*allow-dirty*
+         exclusive-ids (set (or exclusive-protocol-ids []))
+         protocol-by-id (derive-protocol-by-id plan source-by-id)]
+     ;; chunk-size is retained as decomposition/distributed-execution metadata
+     ;; but no longer limits local worker utilization; scheduling is per execution
+     ;; and lanes isolate exclusive protocols without blocking safe parallel work.
+     (report-operational-phase! :chunks-derived
+                                {:execution-count (count plan)
+                                 :chunk-count (count (execution-chunks plan (or chunk-size 1)))
+                                 :chunk-size (long (or chunk-size 1))
+                                 :parallelism (long (or parallelism 1))
+                                 :exclusive-protocol-ids (vec (sort exclusive-ids))})
+     (execute-entries-bounded! suite-kw source-by-id run-count staging-root
+                               parallelism allow-dirty? frozen-protocol-adapters
+                               runtime-execution-context exclusive-ids protocol-by-id plan))))
 
 (defn- publish-staged-executions!
   "Coordinator-only canonical publication of detached worker staging.
@@ -1033,12 +1144,11 @@
                                       {:benchmark-id (:benchmark/id manifest)
                                        :scenario-count (count scenarios)
                                        :execution-count (count plan)})
-         preflight (validate-and-freeze-global-prerequisites! source-by-id)
-         _ (report-operational-phase! :global-preflight-complete
-                                      {:exclusive-protocols (vec (sort (map str (:preflight/exclusive-protocols preflight))))
-                                       :effective-parallelism (if (seq (:preflight/exclusive-protocols preflight))
-                                                                1
-                                                                (long (or parallelism 1)))})
+preflight (validate-and-freeze-global-prerequisites! source-by-id)
+          exclusive-protocol-ids (or (:preflight/exclusive-protocols preflight) [])
+          _ (report-operational-phase! :global-preflight-complete
+                                       {:exclusive-protocols (vec (sort (map str exclusive-protocol-ids)))
+                                        :effective-parallelism (long (or parallelism 1))})
          _ (write-execution-plan! execution-plan-path manifest plan)
          _ (report-operational-phase! :execution-plan-written
                                       {:execution-count (count plan)
@@ -1047,17 +1157,16 @@
              (println "Executing" (count scenarios) "scenarios...")
              (log/info! "benchmark/execute" {:scenario-count (count scenarios)
                                              :manifest manifest-path}))
-         raw-results (if (instance? SewAdapter adapter)
-                       (execute-plan-bounded! (:benchmark/scenario-suite manifest)
-                                              plan source-by-id (benchmark-run-count manifest)
-                                              staging-root
-                                              (if (seq (:preflight/exclusive-protocols preflight))
-                                                1
-                                                (or parallelism 1))
-                                              (or chunk-size 1)
-                                              (:preflight/protocol-adapters preflight)
-                                              runtime-execution-context)
-                       (adapter/execute-benchmark adapter manifest scenarios))
+raw-results (if (instance? SewAdapter adapter)
+                        (execute-plan-bounded! (:benchmark/scenario-suite manifest)
+                                               plan source-by-id (benchmark-run-count manifest)
+                                               staging-root
+                                               (or parallelism 1)
+                                               (or chunk-size 1)
+                                               (:preflight/protocol-adapters preflight)
+                                               runtime-execution-context
+                                               exclusive-protocol-ids)
+                        (adapter/execute-benchmark adapter manifest scenarios))
          _ (reconcile-execution-plan! plan raw-results)
          _ (report-operational-phase! :exact-set-reconciled
                                       {:expected-execution-count (count plan)

@@ -7,8 +7,7 @@
            [java.math BigInteger]))
 
 (defn source
-  "Resolve `ref` without coercing classpath resources to filesystem paths.
-   Supports classpath:, legacy resource:, file:, and bare filesystem paths."
+  "Resolve `ref` without coercing classpath resources to filesystem paths."
   [ref]
   (let [ref (str ref)
         classpath-ref (cond
@@ -60,15 +59,24 @@
     (.update digest ^bytes (read-bytes input))
     (format "%064x" (BigInteger. 1 (.digest digest)))))
 
-(defn loadable-ref [input]
-  "Return a legacy loader-compatible ref while preserving classpath semantics."
-  (case (:input/type input)
-    :classpath (str "resource:" (:input/resource-path input))
-    :file (:input/path input)))
+(defn loadable-ref
+  "Return a reference that scenario/benchmark loaders can read directly:
+   classpath inputs are exposed as resource: URLs, filesystem inputs pass
+   through with their original ref."
+  [input]
+  (let [ref (:input/ref input)]
+    (if (str/starts-with? ref "classpath:")
+      (str "resource:" (subs ref (count "classpath:")))
+      ref)))
+
+(defn freeze-source
+  "Freeze source bytes from an InputSource once, returning a byte vector."
+  [input]
+  (read-bytes input))
 
 (defn snapshot!
-  "Copy exact input bytes into a declared bundle input directory and return
-   immutable provenance. Callers must supply a path below their run root."
+  "Materialize an InputSource to `destination`, returning immutable
+   content provenance (path, sha256, byte count)."
   [input destination]
   (let [target (io/file (str destination))
         hash (sha256 input)

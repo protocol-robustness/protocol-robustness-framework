@@ -330,7 +330,24 @@ Registered Contracts:
 | :evidence-chain     | chain-links, registry-structure, prev-hash, chain-seq,         | artifact-content, evidence-payload, timestamps            |
 |                     | self-hash                                                      |                                                           |
 | :manifest           | manifest-metadata, bundle-structure, schema-version            | content-payloads, individual-artifacts                    |
-| :bundle-root        | benchmark-metadata, root-commitment, bundle-summary            | individual-results, detailed-evidence, traces             |
+| :bundle-root        | benchmark-metadata, environment, evidence-aggregates,         | runtime-posthash-fields, operational-locations,            |
+|                     | reproducibility, benchmark-certification, run/manifest          | materialization-metadata, runtime-types                    |
+
+> **Operational realization of `:bundle-root`.** The authoritative, currently
+> implemented benchmark commitment is the **flat** `:evidence/hash` field:
+> `:evidence/hash = hash-with-intent {:hash/intent :bundle-root}
+> (hashable-evidence evidence)` (`resolver-sim.benchmark.integrity/
+> hashable-evidence`, domain tag `BUNDLE_ROOT_V1`). `hashable-evidence` performs
+> the field-level selection (excluding the `:intent/excludes` categories above as
+> concrete fields); `hash-with-intent` then applies
+> `project-world-to-structure-view` for runtime-type normalization. This is
+> **not** the hierarchical `evidence_root || manifest_root || provenance_root`
+> "Bundle Root" described normatively in `EVIDENCE_COMMITMENT_SPEC_V1.md` §13,
+> which is an aspirational layered construction not yet realized. `:bundle-root`
+> is the hash-intent name (an alias); `:evidence/hash` is the sole trusted
+> field (see `docs/benchmarks/EVIDENCE_INTEGRITY_CONTRACT.md`). Scheme is selected
+> by the bundle's `:evidence/commitment-version` (absent ⇒ current); there is no
+> opportunistic cross-scheme fallback.
 | :registry           | registry-index, artifact-catalog, commitment-root              | artifact-content, detailed-evidence, world-state          |
 | :provenance         | provenance-lineage, verification-metadata, links               | raw-evidence-content, world-snapshots                     |
 

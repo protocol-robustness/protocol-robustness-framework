@@ -1691,9 +1691,21 @@
    :bundle-root
    {:intent/name        :bundle-root
     :intent/domain-tag  "BUNDLE_ROOT_V1"
-    :intent/description "Top-level benchmark commitment root"
-    :intent/includes    #{:benchmark-metadata :root-commitment :bundle-summary}
-    :intent/excludes    #{:individual-results :detailed-evidence :traces}
+    :intent/description "Top-level benchmark bundle commitment. Authoritative projection is
+resolver-sim.benchmark.integrity/hashable-evidence (field selection excluding :timestamp,
+:evidence/hash, :evidence/signature, :evidence/public-key-path,
+:benchmark/artifact-index, :repo, :run/manifest/:manifest/at
+and :results/:scenario/artifacts), composed with project-world-to-structure-view (runtime-type
+normalization). :evidence/commitment-version is deliberately NOT excluded: when present it is
+committed into the hash, binding the bundle to its interpretation scheme. The
+:intent/includes/:intent/excludes below are advisory semantic labels only; they
+are NOT the field-level rule and the hash is not recomputed to match them.
+:evidence/hash is the single stored commitment field; :bundle-root is this hash intent's
+name (an alias)."
+    :intent/includes    #{:benchmark-metadata :environment :evidence-aggregates
+                          :reproducibility :benchmark-certification :run/manifest}
+    :intent/excludes    #{:runtime-posthash-fields :operational-locations
+                          :materialization-metadata :runtime-types}
     ;; Benchmark output contains exact ratios and runtime collections; normalize
     ;; them before canonical encoding rather than relying on lossy coercion.
     :intent/projection-fn project-world-to-structure-view
