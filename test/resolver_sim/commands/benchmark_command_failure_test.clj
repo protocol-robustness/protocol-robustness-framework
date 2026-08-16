@@ -197,7 +197,7 @@
                    :build-inventory (record :build-inventory {})
                    :finalize-registry (record :finalize-registry {})
                    :validate-registry (record :validate-registry {})
-                   :complete (record :complete {})}]
+                   :complete (fn [& _] (swap! calls conj :complete) (spit (io/file root "completion.json") "{}"))}]
     (try
       (let [result (command/run-with-root! "benchmark/test" (.getPath root) nil :public overrides)]
         (is (zero? (:exit-code result)))

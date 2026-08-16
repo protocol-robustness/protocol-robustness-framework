@@ -26,7 +26,7 @@
       (throw (ex-info (if (= run-kind :scenario)
                         "Run root must be absent or empty"
                         (str (clojure.string/capitalize (name run-kind)) " run root must be absent or empty"))
-                    {:run/root (str root) :run/root-state state :run/type run-kind})))
+                      {:run/root (str root) :run/root-state state :run/type run-kind})))
     state))
 
 (defn sha256-file [file]
@@ -107,10 +107,10 @@
   ([] nil)
   ([lock] (when (and lock (.exists lock)) (.delete lock)))
   ([lock owner-token]
-     (when (and lock (.exists lock))
-       (let [lock-content (read-string (slurp lock))]
-         (when (= (:owner lock-content) owner-token)
-           (.delete lock))))))
+   (when (and lock (.exists lock))
+     (let [lock-content (read-string (slurp lock))]
+       (when (= (:owner lock-content) owner-token)
+         (.delete lock))))))
 
 (defn mark-running! [run-root run-id run-type]
   (let [root (io/file (str run-root))

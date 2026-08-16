@@ -1226,11 +1226,11 @@
                                                                            seq)]
                                                      (when fixture-refs
                                                        {:fixture/refs (vec fixture-refs)})))))
-                              result (ev-node/with-execution-node+
-                                       exec-spec
-                                       (fn []
-                                         (execute-dispatch! dispatch opts protocol-id
-                                                            runner-selection source-provenance)))
+                            result (ev-node/with-execution-node+
+                                     exec-spec
+                                     (fn []
+                                       (execute-dispatch! dispatch opts protocol-id
+                                                          runner-selection source-provenance)))
                             thunk-result (:result result)
                             execution-node (:execution-node result)
                             thunk-error (:error result)

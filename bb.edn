@@ -88,16 +88,21 @@ Usage: bb check:load [--roots src protocols_src]"
  Usage: bb check:defs [--generate] [--roots src protocols_src]"
     :task (apply shell "clojure" "-M:check" "-m" "scripts.check-defs" *command-line-args*)}
 
-   check:ownership
-   {:doc "Content-authority audit: verify every file inside :governed-roots
- resolves to exactly one classification in config/architecture/content-authority.edn.
- Read-only — never writes to any canonical artifact. Reports mixed files as debt
- and any core→non-core requires as advisory.
- Usage: bb check:ownership [--report|--rootzones] [--manifest PATH]"
-    :task (apply shell "clojure" "-M" "-m" "scripts.ownership-audit" *command-line-args*)}
+check:ownership
+    {:doc "Content-authority audit: verify every file inside :governed-roots
+  resolves to exactly one classification in config/architecture/content-authority.edn.
+  Read-only — never writes to any canonical artifact. Reports mixed files as debt
+  and any core→non-core requires as advisory.
+  Usage: bb check:ownership [--report|--rootzones] [--manifest PATH]"
+     :task (apply shell "clojure" "-M" "-m" "scripts.ownership-audit" *command-line-args*)}
 
+    check:corpus
+    {:doc "Run corpus-verification checks: validate corpus integrity, intent registry contracts, and aggregate invariants.
+         Reports any issues found without failing the run.
+         Usage: bb check:corpus"
+     :task (shell "clojure" "-M" "-m" "scripts.corpus-verification")}
 
-   test:concurrent
+    test:concurrent
    {:doc "Run canonical validation gate with a dedicated artifact dir. Can run alongside bb test, bb backstop, etc."
     :task (shell "bash" "-c"
             "PRF_ARTIFACT_DIR=results/test-artifacts-$(date -u +%Y%m%dT%H%M%SZ)-$$ ./scripts/test.sh all")}

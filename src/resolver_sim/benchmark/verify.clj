@@ -188,7 +188,7 @@
             inputs (get assurance "input_set")
             projection {"domain" "prf/benchmark-finalization/v1"
                         "benchmark_id" (get finalization "benchmark_id")
-                        "assurance_artifact_sha256" (integrity/content-assurance-sha assurance-file)
+                        "assurance_artifact_sha256" (:sha256 (evidence-node/canonical-artifact-content "benchmark/assertions/benchmark-assurance.json" assurance-file))
                         "conclusion_sha256" (:sha256 (evidence-node/canonical-artifact-content "benchmark/conclusion.json" conclusion-file))
                         "evidence_content_registry_sha256" (:sha256 (evidence-node/canonical-artifact-content "benchmark/evidence/content-registry.json" content-registry-file))
                         "input_set_root" (get assurance "input_set_root")}

@@ -10,8 +10,8 @@
         worker-threads (atom #{})
         started (CountDownLatch. 2)
         serial (payoffs/allocate-pro-rata {:amount 101 :items items
-                                            :ordering-policy :canonical-id
-                                            :rounding :floor-with-largest-remainder})
+                                           :ordering-policy :canonical-id
+                                           :rounding :floor-with-largest-remainder})
         parallel (binding [payoffs/*pro-rata-parallelism* 2
                            payoffs/*pro-rata-parallel-threshold* 1]
                    (payoffs/allocate-pro-rata
@@ -106,7 +106,7 @@
                                       (doseq [id release-order]
                                         (deliver (get gates id) true)
                                         @(get completed-gates id))))
-                                   (.start))
+                               (.start))
                     result (binding [payoffs/*pro-rata-parallelism* 4
                                      payoffs/*pro-rata-parallel-threshold* 1]
                              (payoffs/allocate-pro-rata

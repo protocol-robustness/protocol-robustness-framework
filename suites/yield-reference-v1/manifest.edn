@@ -2,7 +2,7 @@
  :suite/version "1.0.0"
  :config/version "reference-config-v1"
 
- ;; Yield-v1 protocol scenarios (12), all simulator-backed via yield-v1 protocol.
+ ;; Yield-v1 protocol scenarios (13), all simulator-backed via yield-v1 protocol.
  ;; Each scenario replays with every event accepted under the yield protocol.
  :scenarios
  ;; ── Vault / liquidity ──────────────────────────────────────────────────

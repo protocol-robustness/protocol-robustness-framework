@@ -155,6 +155,7 @@ The registry file (`resources/prf/commands/registry.edn`) follows schema
 | `:run-scenario` | `run-scenario` | scenario | manual | Run scenarios through the replay engine |
 | `:run-invariants` | `run-invariants` | scenario | default | Run protocol invariant suite |
 | `:run-benchmark` | `run-benchmark` | benchmark | full | Run benchmark and produce evidence |
+| `:parallel-benchmark-run` | `parallel-benchmark-run` | benchmark | full | Bounded capability composition over `run-benchmark`: adds bounded local scenario/claimant parallelism to the same canonical algorithm. Build composed with (and validated to include) the incentive and incentive-compatibility capabilities. Canonical output invariant to parallelism; automatic worker pool default is bounded at min(scenario-count, ceiling) and never exceeds the ceiling; an explicit `--parallelism` is honored exactly; `--execution-budget` bounds total concurrency |
 | `:fmt-check` | `fmt check` | maintenance | fast | Check code formatting |
 | `:lint` | `lint` | validation | fast | Lint source with clj-kondo |
 
@@ -261,12 +262,12 @@ Every command falls into exactly one (surface × jar-availability) case:
 
 | Surface | Jar availability | Runtime | Count | Meaning |
 |---|---|---|---|---|
-| `:prf` | `:native` | `:jvm` | 46 | Standard PRF JAR (`prf.jar`) CLI commands |
+| `:prf` | `:native` | `:jvm` | 49 | Standard PRF JAR (`prf.jar`) CLI commands |
 | `:dev` | `:native` | `:jvm` | 1 | Developer-only JAR command (`run-invariants`) |
 | `:community` | `:native` | `:jvm` | 9 | Community task commands shipped in the JAR |
 | `:bb` | `:external` | `:bb` | 9 | `bb` task requiring an external JAR artifact |
 | `:bb` | `:none` | `:bb` | 12 | Pure `bb` task; not a JAR command |
-| **Total** | | | **77** | All registered commands |
+| **Total** | | | **80** | All registered commands |
 
 `jar-availability` describes **registry/implementation availability**, not
 inclusion in every build artifact. `:native` means the command is implemented

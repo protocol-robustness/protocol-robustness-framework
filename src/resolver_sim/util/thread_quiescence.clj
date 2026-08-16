@@ -33,10 +33,10 @@
            (.shutdownNow executor)
            (try
              (.awaitTermination executor (long timeout-seconds) TimeUnit/SECONDS)
-             (catch InterruptedException e
+             (catch InterruptedException _
                (reset! interrupted? true)
                false))
-           (catch InterruptedException e
+           (catch InterruptedException _
              (reset! interrupted? true)
              nil))]
      (cond

@@ -69,7 +69,7 @@
               (or (:type m) (not (:role m)))
               (assoc :role (or (:role m) (:type m) "buyer"))
               (not (:strategy m)) (assoc :strategy "honest"))))
-          agents))
+        agents))
 
 (defn- normalise-params
   [params]
@@ -91,7 +91,7 @@
          protocol   (get protocol-registry pid)]
      (if-not protocol
        {:ok false :error :unknown-protocol :detail {:protocol-id pid
-                                                     :known (keys protocol-registry)}}
+                                                    :known (keys protocol-registry)}}
        (let [agent-list (normalise-agents agents)
              params     (normalise-params protocol-params)
              validation (replay/validate-agents agent-list)]

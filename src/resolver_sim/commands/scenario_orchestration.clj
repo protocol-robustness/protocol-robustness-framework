@@ -616,11 +616,11 @@
                {:command/status :failed :scenario/outcome :unknown :exit-code 1
                 :run/id (:run/id context) :run/root (p (:run/root context))
                 :phases @records :error (.getMessage e) :error/data (ex-data e)}))
-              (catch Throwable error
+           (catch Throwable error
                 ;; Preserve structured lifecycle reasons (not exception text) for
                 ;; callers that need to distinguish a missing required DAG from an
                 ;; execution or finalization failure.
-                {:command/status :failed :scenario/outcome :unknown :exit-code 1
-                 :run/id (:run/id context) :run/root (p (:run/root context))
-                 :phases @records :error (.getMessage error) :error/data (ex-data error)})))
+             {:command/status :failed :scenario/outcome :unknown :exit-code 1
+              :run/id (:run/id context) :run/root (p (:run/root context))
+              :phases @records :error (.getMessage error) :error/data (ex-data error)})))
        (finally (when-not @quiescence-failed? (safety/release-lock! lock)))))))

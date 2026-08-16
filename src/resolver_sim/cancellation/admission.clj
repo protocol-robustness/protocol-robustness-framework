@@ -99,7 +99,7 @@
                                    :authorization-valid? (= (:authorization roots) (get-in recomputed [:preconditions :preconditions/root]))
                                    :derived-effects-valid? (= (:derived-effects roots) (:effects/root derived))
                                    :execution-effects-valid? (= (:derived-effects/root (resolve-root resolve-artifact (:execution-effects roots)))
-                                                                 (:effects/root derived))
+                                                                (:effects/root derived))
                                    :authorized? (= :authorized (:decision/classification evaluation))}}
         root-reasons (invalid-stage-reasons stages)
         recomputed-reasons (let [r (:recomputed verification)]

@@ -322,23 +322,23 @@
       {:holds? false :violations [{:type :missing-evidence-content}]}
       (let [result (direct-result content)
             cap-violations (when (and (map? result)
-                                    (seq (:allocations result)))
-                            (vec
-                             (mapcat (fn [row]
-                                       (let [id (:id row)
-                                             allocated (:paid row)
-                                             requested (:owed row)
-                                             cap (:cap row)]
-                                         (cond-> []
-                                           (or (not (integer? allocated)) (neg? allocated))
-                                           (conj {:type :pro-rata/invalid-allocation :id id :observed allocated})
-                                           (and (some? cap) (> allocated cap))
-                                           (conj {:type :pro-rata/cap-exceeded :id id
-                                                  :expected cap :observed allocated})
-                                           (and (some? requested) (> allocated requested))
-                                           (conj {:type :pro-rata/request-exceeded :id id
-                                                  :expected requested :observed allocated}))))
-                                     (:allocations result))))]
+                                      (seq (:allocations result)))
+                             (vec
+                              (mapcat (fn [row]
+                                        (let [id (:id row)
+                                              allocated (:paid row)
+                                              requested (:owed row)
+                                              cap (:cap row)]
+                                          (cond-> []
+                                            (or (not (integer? allocated)) (neg? allocated))
+                                            (conj {:type :pro-rata/invalid-allocation :id id :observed allocated})
+                                            (and (some? cap) (> allocated cap))
+                                            (conj {:type :pro-rata/cap-exceeded :id id
+                                                   :expected cap :observed allocated})
+                                            (and (some? requested) (> allocated requested))
+                                            (conj {:type :pro-rata/request-exceeded :id id
+                                                   :expected requested :observed allocated}))))
+                                      (:allocations result))))]
         (if (empty? cap-violations)
           {:holds? true}
           {:holds? false :violations cap-violations})))))

@@ -42,7 +42,7 @@
 
 (def ^:private hash-excluded-keys
   "Keys excluded from the singular outcome hash projection.
-
+ 
    Mirrored top-level fields are committed via :outcome-hashes
    (the canonical commitment map), not individually. The
    :outcome-hashes map itself IS included in the projection.
@@ -63,7 +63,7 @@
     :execution/status
     :execution/model-instance-root :execution/plan-root
     :execution/parameter-domain-root :execution/sampling-policy-root
-    :execution/generated-case-set-root
+    :execution/generated-case-set-root :execution/realised-parameter-set-root
     :execution/command-root :execution/force-authorisation
     :results/operational :results/incentives :results/claims
     :results/model-coverage-root
@@ -586,6 +586,7 @@
    :execution/parameter-domain-root
    :execution/sampling-policy-root
    :execution/generated-case-set-root
+   :execution/realised-parameter-set-root
    :execution/command-root
    :evidence/dimension-support-root
    :outcomes/operational-root

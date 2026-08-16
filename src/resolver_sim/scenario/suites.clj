@@ -31,8 +31,8 @@
      the selector runs entirely in bb.edn.
 
    ─────────────────────────────────────────────────────────────────
-   OVERLAP WARNING:
-   The 44 dispute-resolution files (S-DR-001..S-DR-085) appear in
+OVERLAP WARNING:
+    The 65 dispute-resolution scenarios (S-DR-001..S-DR-108, plus DR-PR-002) appear in
    THREE groupings — one suite + two pack suites.  This is by design
    (pack suites reuse the same ID lists), but means the same
    scenarios execute under different names depending on the entry

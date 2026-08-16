@@ -13,8 +13,8 @@
   Together they prove that canonicalization faithfully preserves ALL input,
   including tampering, allowing a verifier to deterministically reject."
   (:require [resolver-sim.assurance.custody :as custody]
-             [resolver-sim.hash.canonical :as hc]
-             [resolver-sim.hash.round-trip :as rt]))
+            [resolver-sim.hash.canonical :as hc]
+            [resolver-sim.hash.round-trip :as rt]))
 
 ;; ── Decision projection ──────────────────────────────────────────────────────
 ;;
@@ -150,8 +150,8 @@
                        (verify-and-project decoded-artifacts evidence-input))
         bytes-identical? (when (and canonical-ok? decoded-artifacts)
                            (java.util.Arrays/equals
-                             (hc/canonical-bytes artifacts)
-                             (hc/canonical-bytes decoded-artifacts)))
+                            (hc/canonical-bytes artifacts)
+                            (hc/canonical-bytes decoded-artifacts)))
         projection-match? (when (and canonical-ok? decoded-proj)
                             (= (dissoc original-proj :checks :decision-root)
                                (dissoc decoded-proj :checks :decision-root)))]

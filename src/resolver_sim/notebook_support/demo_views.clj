@@ -123,8 +123,8 @@
   [:tr {:key (name id) :style {:borderBottom "1px solid #e2e8f0"}}
    [:td {:style {:padding "4px 8px" :color "#475569"}} (name id)]
    [:td {:style {:padding "4px 8px" :color
-                  (if (= :pass status) "#166534" "#dc2626")
-                  :fontWeight "700"}}
+                 (if (= :pass status) "#166534" "#dc2626")
+                 :fontWeight "700"}}
     (str/upper-case (name status))]
    [:td {:style {:padding "4px 8px" :color "#475569"}}
     (or meaning "")]])
@@ -150,8 +150,8 @@
         failing (filter #(= :fail (:status %)) checks)
         failing-ids (map #(name (:check/id %)) failing)
         failing-msg (when (seq failing)
-                       (str "Required check failed: `"
-                            (str/join "`, `" failing-ids) "`"))]
+                      (str "Required check failed: `"
+                           (str/join "`, `" failing-ids) "`"))]
     (vec
      (concat
       [:details {:style {:background "#f1f5f9" :border "1px solid #cbd5e1"
@@ -168,7 +168,7 @@
           [:div {:key label :style {:color "#64748b" :marginTop "4px"}}
            (str label ": ")
            [:span {:style {:color "#22c55e"}} value]])
-         (make-table checks)
-         (when failing-msg
+        (make-table checks)
+        (when failing-msg
           [:div {:style {:marginTop "10px" :color "#b91c1c"}}
            failing-msg])]]))))

@@ -5,6 +5,7 @@
             [clojure.java.io :as io]
             [clojure.string :as str]
             [resolver-sim.benchmark.conservation :as conservation]
+            [resolver-sim.benchmark.adapter :as adapter]
             [resolver-sim.benchmark.cli :as benchmark-cli]
             [resolver-sim.benchmark.claim-registry :as claim-registry]
             [resolver-sim.benchmark.integrity :as integrity]
@@ -121,7 +122,7 @@
         assurance-value (json/read-str (slurp assurance))
         projection {"domain" "prf/benchmark-finalization/v1"
                     "benchmark_id" (str (:benchmark/id context))
-                    "assurance_artifact_sha256" (integrity/content-assurance-sha assurance)
+                    "assurance_artifact_sha256" (:sha256 (evidence-node/canonical-artifact-content "benchmark/assertions/benchmark-assurance.json" assurance))
                     "conclusion_sha256" (:sha256 (evidence-node/canonical-artifact-content "benchmark/conclusion.json" conclusion-file))
                     "evidence_content_registry_sha256" (:sha256 (evidence-node/canonical-artifact-content "benchmark/evidence/content-registry.json" content-registry))
                     "input_set_root" (get assurance-value "input_set_root")}
@@ -387,7 +388,7 @@
                         witness-artifacts)})))
 
 (defn- invoke! [benchmark-id {:keys [output key scenario-output-dir benchmark-index-path execution-plan-path
-                                     parallelism chunk-size claimant-parallelism claimant-parallel-threshold]}]
+                                     parallelism chunk-size claimant-parallelism claimant-parallel-threshold budget]}]
   (let [benchmark-runner (requiring-resolve 'resolver-sim.benchmark.cli/run-and-report)
         write-evidence (requiring-resolve 'resolver-sim.benchmark.runner/write-evidence)
         benchmark-artifact-dir (some-> output io/file .getParent)
@@ -401,7 +402,8 @@
                                                  :parallelism parallelism
                                                  :chunk-size chunk-size
                                                  :execution/claimant-parallelism claimant-parallelism
-                                                 :execution/claimant-parallel-threshold claimant-parallel-threshold}))]
+                                                 :execution/claimant-parallel-threshold claimant-parallel-threshold
+                                                 :execution/budget budget}))]
     (when-let [evidence (:evidence result)]
       (write-evidence evidence output))
     result))
@@ -614,9 +616,10 @@
                        ;; Runtime-only settings: do not add these to context files,
                        ;; plan roots, evidence, or package projections.
                        :execution/claimant-parallelism (or (:execution/claimant-parallelism overrides) 1)
-                       :execution/claimant-parallel-threshold (or (:execution/claimant-parallel-threshold overrides) 16))
+                       :execution/claimant-parallel-threshold (or (:execution/claimant-parallel-threshold overrides) 16)
+                       :execution/budget (:execution/budget overrides))
         lock (lifecycle/acquire-run-lock! (:run/root context) (:run/id context) :benchmark)
-      quiescence-failed? (atom false)]
+        quiescence-failed? (atom false)]
     (try
       (benchmark-run/initialize! context)
       (let [benchmark-conclusion (atom nil)
@@ -632,7 +635,8 @@
                                                                                   :parallelism (:execution/parallelism context)
                                                                                   :chunk-size (:execution/chunk-size context)
                                                                                   :claimant-parallelism (:execution/claimant-parallelism context)
-                                                                                  :claimant-parallel-threshold (:execution/claimant-parallel-threshold context)})]
+                                                                                  :claimant-parallel-threshold (:execution/claimant-parallel-threshold context)
+                                                                                  :budget (:execution/budget context)})]
                                                 (when-not (:evidence result)
                                                   (throw (ex-info "Benchmark execution produced no evidence; finalization aborted"
                                                                   {:benchmark benchmark-id :exit-code (:exit-code result)})))
@@ -681,19 +685,84 @@
 
 (defn- legacy-scenario-suite-manifest?
   "True when a manifest relies on directory-discovery semantics that cannot
-   produce a portable, explicit canonical execution plan."
+  produce a portable, explicit canonical execution plan."
   [benchmark-id]
   (let [manifest-path (benchmark-cli/resolve-benchmark-manifest benchmark-id)
         manifest (resource-path/edn-read manifest-path)]
     (contains? manifest :scenario-suites)))
 
+(defn- empty-scenario-manifest?
+  "True when a manifest resolves to zero scenarios, which would produce
+  an empty canonical root if execution proceeded."
+  [benchmark-id]
+  (let [manifest-path (benchmark-cli/resolve-benchmark-manifest benchmark-id)
+        manifest (resource-path/edn-read manifest-path)]
+    (try
+      (let [default-adapter @(requiring-resolve 'resolver-sim.benchmark.runner/default-adapter)
+            scenarios (adapter/load-scenarios default-adapter manifest)]
+        (zero? (count scenarios)))
+      (catch Exception _ false))))
+
+(def ^:private parallel-ceiling
+  "Fixed upper bound on the AUTOMATIC (default) local scenario-worker
+  parallelism for the `parallel-benchmark-run` capability composition.
+  Bounded deliberately: the parallel command is a capability composition, not
+  an unbounded worker farm, so its implicit worker pool never exceeds this
+  ceiling. The ceiling constrains only the automatic default; an explicit
+  --parallelism is honored exactly as the operator's requested worker count."
+  8)
+
+(defn- resolved-scenario-count
+  "Number of scenarios a benchmark manifest resolves to. Used only to derive a
+  bounded automatic default scenario-worker parallelism for
+  `parallel-benchmark-run` when --parallelism is omitted; an explicit
+  --parallelism always overrides. Falls back to 1 so a resolution error can
+  never silently select an unbounded worker pool."
+  [benchmark-id]
+  (try
+    (let [manifest-path (benchmark-cli/resolve-benchmark-manifest benchmark-id)
+          default-adapter @(requiring-resolve 'resolver-sim.benchmark.runner/default-adapter)
+          manifest (resource-path/edn-read manifest-path)]
+      (count (adapter/load-scenarios default-adapter manifest)))
+    (catch Exception _ 1)))
+
+(defn effective-parallelism
+  "Resolve the :execution/parallelism for a canonical run.
+
+   For the `parallel-benchmark-run` command (parallel? true):
+     - an explicit --parallelism N is honored exactly (operator choice); it is
+       never clamped or reinterpreted,
+     - when --parallelism is omitted, a bounded automatic default
+       min(max(1, scenario-count), parallel-ceiling) is used, so the implicit
+       worker pool never exceeds the ceiling even when the resolved scenario
+       count is larger. Callers validate explicit N's positivity separately.
+   The plain `run-benchmark` command (parallel? false) uses the supplied value
+   or 1."
+  [parallel? parallelism-opt scenario-count]
+  (if parallel?
+    (if (some? parallelism-opt)
+      parallelism-opt
+      (min (max 1 scenario-count) parallel-ceiling))
+    (or parallelism-opt 1)))
+
 (defn run
   "Run a benchmark. `--run-root` creates a canonical benchmark-owned bundle;
-   `--output` remains the legacy standalone evidence export destination."
-  [{:keys [output key run-root sensitivity-profile claim-registry] :as opts}]
+   `--output` remains the legacy standalone evidence export destination.
+   The `parallel-benchmark-run` command path is a bounded capability
+   composition that adds local scenario/claimant parallelism to the same
+   canonical run-benchmark algorithm (run-with-root! + run->benchmark), so
+   its canonical output is invariant to parallelism. When --parallelism is
+   omitted the worker pool defaults to a bounded min(scenario-count, ceiling);
+   an explicit --parallelism is honored exactly. Both commands accept an
+   optional `--execution-budget` bounding TOTAL concurrent execution."
+  [{:keys [output key run-root sensitivity-profile claim-registry execution-budget] :as opts}]
   (let [benchmark-id (or (first (:cmd/args opts))
                          (:benchmark-id opts)
                          (:benchmark opts))
+        parallel-command? (= "parallel-benchmark-run" (:cmd/path opts))
+        effective-parallelism (effective-parallelism parallel-command?
+                                                     (:parallelism opts)
+                                                     (resolved-scenario-count benchmark-id))
         ;; Fail closed: validate the selected claim registry up front so a run
         ;; can never proceed (and commit evidence) against an unrunnable or
         ;; invalid auditor-supplied registry. Applies whether the registry came
@@ -720,8 +789,10 @@
                 (integer? (or (:claimant-parallelism opts) 1))
                 (pos? (or (:claimant-parallelism opts) 1))
                 (integer? (or (:claimant-parallel-threshold opts) 16))
-                (pos? (or (:claimant-parallel-threshold opts) 16))))
-      {:exit-code 2 :message "Parallelism, chunk size, claimant parallelism, and claimant threshold must be positive integers"}
+                (pos? (or (:claimant-parallel-threshold opts) 16))
+                (integer? (or execution-budget 1))
+                (pos? (or execution-budget 1))))
+      {:exit-code 2 :message "Parallelism, chunk size, claimant parallelism, claimant threshold, and execution budget must be positive integers"}
 
       (and run-root output)
       {:exit-code 2 :message "Use --run-root for the canonical benchmark bundle; --output is a separate legacy export command"}
@@ -734,13 +805,18 @@
       {:exit-code 2
        :message "Canonical benchmark bundles do not support legacy :scenario-suites discovery; use an explicit :benchmark/scenario-suite or the legacy --output workflow"}
 
+      (and run-root (empty-scenario-manifest? benchmark-id))
+      {:exit-code 1
+       :message "Benchmark manifest resolved zero scenarios; canonical bundle was not created"}
+
       run-root
       (with-claim-registry claim-registry
         (run-with-root! benchmark-id run-root key (or sensitivity-profile :public)
-                        {:execution/parallelism (or (:parallelism opts) 1)
+                        {:execution/parallelism effective-parallelism
                          :execution/chunk-size (or (:chunk-size opts) 1)
                          :execution/claimant-parallelism (or (:claimant-parallelism opts) 1)
-                         :execution/claimant-parallel-threshold (or (:claimant-parallel-threshold opts) 16)}))
+                         :execution/claimant-parallel-threshold (or (:claimant-parallel-threshold opts) 16)
+                         :execution/budget execution-budget}))
 
       output
       (let [result (invoke! benchmark-id {:output output :key key})]

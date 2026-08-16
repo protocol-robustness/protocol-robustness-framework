@@ -12,8 +12,6 @@
    via verify-evidence-bundle! — a supplied bundle confers no authority
    until its committed identity recomputes."
   (:require [resolver-sim.hash.canonical :as hc]
-            [resolver-sim.hash.reference :as hash-ref]
-            [clojure.data.json :as json]
             [clojure.edn :as edn]))
 
 (defn- sort-maps-for-hash
@@ -102,15 +100,15 @@
   ;; reproducibility. The :repo map is still persisted in the evidence file
   ;; for audit.
   (-> bundle
-         (dissoc :timestamp :evidence/hash :evidence/signature
-                 :evidence/public-key-path
-                 :benchmark/artifact-index :repo)
-       (cond-> (contains? bundle :run/manifest)
-               (update :run/manifest #(dissoc % :manifest/at))
-               (contains? bundle :results)
-               (update :results #(mapv (fn [result]
-                                         (dissoc result :scenario/artifacts))
-                                        %)))))
+      (dissoc :timestamp :evidence/hash :evidence/signature
+              :evidence/public-key-path
+              :benchmark/artifact-index :repo)
+      (cond-> (contains? bundle :run/manifest)
+        (update :run/manifest #(dissoc % :manifest/at))
+        (contains? bundle :results)
+        (update :results #(mapv (fn [result]
+                                  (dissoc result :scenario/artifacts))
+                                %)))))
 (defn commitment-version
   "Resolve the single commitment scheme a bundle declares, by its
   :evidence/commitment-version field.
@@ -143,8 +141,8 @@
       :current (hc/hash-with-intent {:hash/intent :bundle-root} base)
       :legacy-v1 (hc/hash-with-intent {:hash/intent :bundle-root}
                                       (into (sorted-map) (dissoc (hashable-evidence bundle)
-                                                        :run/manifest
-                                                        :benchmark-certification))))))
+                                                                 :run/manifest
+                                                                 :benchmark-certification))))))
 
 (defn verify-bundle-hash
   "Fail-closed integrity check: recompute the committed :evidence/hash against
@@ -185,16 +183,6 @@
       {:hash-ok? false :scheme scheme
        :computed-hash computed
        :reason :unsupported-commitment-version})))
-
-(defn content-assurance-sha
-  "Content-derived SHA-256 of a benchmark-assurance artifact with the
-   wall-clock :run/id excluded, so committed final_ref / completion hashes are
-   reproducible across identical roots. Used symmetrically by the writer
-   (run_benchmark) and the verifier (verify) so expectations recompute."
-  [file]
-  (hash-ref/sha256-ref
-   (hc/domain-hash "BENCHMARK_ASSURANCE_CONTENT_V1"
-                   (dissoc (json/read-str (slurp file)) "run_id"))))
 
 (defn verify-evidence-bundle!
   "Fail-closed integrity gate for any consumer that treats bundle fields as

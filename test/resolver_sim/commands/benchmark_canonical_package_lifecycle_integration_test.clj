@@ -115,7 +115,7 @@
      :events (conj deposits
                    {:seq 18 :time 1100000 :agent "governance" :action "set-yield-risk"
                     :params {:token "USDC" :shortfall {:available-ratio 0.6
-                                                         :reason "nested-concurrency-test"}}}
+                                                       :reason "nested-concurrency-test"}}}
                    {:seq 19 :time 1200000 :agent "governance" :action "yield_withdraw_shared"
                     :params {:token "USDC" :module-id "aave-v3" :owner-ids owners
                              :allocation-mode "pro-rata" :effective-caps caps}})}))
@@ -186,12 +186,12 @@
                    (execution-artifact-bytes candidate-root)))
             (is (= (completion-bindings serial-root)
                    (completion-bindings candidate-root))))))
-(finally
+      (finally
         (try
           (let [keep "/tmp/preserved-roots"
                 _ (.mkdirs (io/file keep))
                 p (doto (ProcessBuilder.
-                         ["/bin/sh" "-c" (str "cp -r '" (.getPath serial-root) "' '" (str keep "/serial") "'; cp -r '" (.getPath candidate-root) "' '" (str keep "/candidate") "'")]).inheritIO)]
+                         ["/bin/sh" "-c" (str "cp -r '" (.getPath serial-root) "' '" (str keep "/serial") "'; cp -r '" (.getPath candidate-root) "' '" (str keep "/candidate") "'")]) .inheritIO)]
             (.waitFor (.start p)))
           (catch Exception e (println :preserve-copy-error (.getMessage e))))
         (delete-tree! fixture-root)))))

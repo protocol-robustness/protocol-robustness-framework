@@ -154,8 +154,8 @@
               {:resolvers resolvers
                :seniors seniors
                :events (conj (:events state) event-result)}))
-           {:resolvers (:juniors pool) :seniors (:seniors pool) :events []}
-           events))
+          {:resolvers (:juniors pool) :seniors (:seniors pool) :events []}
+          events))
 
 (deftest framework-fraction-covered-derives-from-slashed-and-unmet-loss-pressure
   (testing "framework coverage-adequacy-pct derives from slashed and unmet obligation,
@@ -170,9 +170,9 @@
     ;; while the notebook metric is driven by allocation dimensions (allocated,
     ;; requested). They cannot be conflated even when the numeric ratio coincides.
     (let [pool (waterfall/initialize-waterfall-pool
-                 {:n-seniors 1 :n-juniors-per-senior 1
-                  :senior-bond-amount 100000 :junior-bond-amount 500
-                  :utilization-factor 0.5})
+                {:n-seniors 1 :n-juniors-per-senior 1
+                 :senior-bond-amount 100000 :junior-bond-amount 500
+                 :utilization-factor 0.5})
           ;; Two slash events of 50 each. Junior bond 500, 50% cap = 250.
           ;; Each 50 is fully covered by the junior bond (no unmet).
           ;; total-slashed-by-junior = 100, total-unmet = 0.
@@ -199,9 +199,9 @@
     ;; This proves: changing the ratio scale does NOT make these metrics equal,
     ;; because they consume entirely different input dimensions.
     (let [pool (waterfall/initialize-waterfall-pool
-                 {:n-seniors 1 :n-juniors-per-senior 1
-                  :senior-bond-amount 100000 :junior-bond-amount 500
-                  :utilization-factor 0.5})
+                {:n-seniors 1 :n-juniors-per-senior 1
+                 :senior-bond-amount 100000 :junior-bond-amount 500
+                 :utilization-factor 0.5})
           events (process-events
                   pool
                   [{:resolver-id "j0_0" :senior-id "s0" :slash-amount 50
@@ -209,19 +209,19 @@
                    {:resolver-id "j0_0" :senior-id "s0" :slash-amount 50
                     :reason :fraud :epoch 0}])
           metrics (waterfall/aggregate-waterfall-metrics
-                    (:resolvers events) (:seniors events) (:events events))
+                   (:resolvers events) (:seniors events) (:events events))
 
           ;; Notebook activation-fill-rate: fill 50 of 100 → 0.5
           alloc-result (allocation/allocate
-                         {:schema-version "pro-rata-allocation-request.v1"
-                          :mechanism/version 1
-                          :allocation/id :audit-activation-fill-rate
-                          :available 50
-                          :rows [{:row/id :r/a :obligation/id :o/a :requested 100
-                                  :weight 100 :cap 100}]
-                          :rounding-policy :largest-remainder
-                          :tie-break-policy :canonical-row-id
-                          :redistribution-policy :redistribute-cap-excess})
+                        {:schema-version "pro-rata-allocation-request.v1"
+                         :mechanism/version 1
+                         :allocation/id :audit-activation-fill-rate
+                         :available 50
+                         :rows [{:row/id :r/a :obligation/id :o/a :requested 100
+                                 :weight 100 :cap 100}]
+                         :rounding-policy :largest-remainder
+                         :tie-break-policy :canonical-row-id
+                         :redistribution-policy :redistribute-cap-excess})
           activation-fill-rate (double (/ (:allocated-total alloc-result) 100))]
       ;; Same 50/100 scenario, but different metrics → different values
       (is (= 100.0 (:coverage-adequacy-pct metrics)))
@@ -244,9 +244,9 @@
     ;; 10% cap = 100. One slash of 500: 250 junior + 100 senior = 350 covered,
     ;; 150 unmet. total-loss-pressure = 500. coverage-adequacy-pct = 100*350/500 = 70.0
     (let [pool (waterfall/initialize-waterfall-pool
-                 {:n-seniors 1 :n-juniors-per-senior 1
-                  :senior-bond-amount 1000 :junior-bond-amount 500
-                  :utilization-factor 0.5})
+                {:n-seniors 1 :n-juniors-per-senior 1
+                 :senior-bond-amount 1000 :junior-bond-amount 500
+                 :utilization-factor 0.5})
           events (process-events
                   pool
                   [{:resolver-id "j0_0" :senior-id "s0" :slash-amount 500
@@ -284,9 +284,9 @@
     ;; The framework metric is invariant to allocation dimension changes.
     ;; It only responds to slash-event dimensions (slashed, unmet).
     (let [pool (waterfall/initialize-waterfall-pool
-                 {:n-seniors 1 :n-juniors-per-senior 1
-                  :senior-bond-amount 1000 :junior-bond-amount 500
-                  :utilization-factor 0.5})
+                {:n-seniors 1 :n-juniors-per-senior 1
+                 :senior-bond-amount 1000 :junior-bond-amount 500
+                 :utilization-factor 0.5})
           events (process-events
                   pool
                   [{:resolver-id "j0_0" :senior-id "s0" :slash-amount 500
@@ -296,25 +296,25 @@
 
           ;; Allocation with available 25 vs 75 — same slash scenario
           low-alloc (allocation/allocate
-                       {:schema-version "pro-rata-allocation-request.v1"
-                        :mechanism/version 1
-                        :allocation/id :audit-low
-                        :available 25
-                        :rows [{:row/id :r/a :obligation/id :o/a :requested 100
-                                :weight 100 :cap 100}]
-                        :rounding-policy :largest-remainder
-                        :tie-break-policy :canonical-row-id
-                        :redistribution-policy :redistribute-cap-excess})
+                     {:schema-version "pro-rata-allocation-request.v1"
+                      :mechanism/version 1
+                      :allocation/id :audit-low
+                      :available 25
+                      :rows [{:row/id :r/a :obligation/id :o/a :requested 100
+                              :weight 100 :cap 100}]
+                      :rounding-policy :largest-remainder
+                      :tie-break-policy :canonical-row-id
+                      :redistribution-policy :redistribute-cap-excess})
           high-alloc (allocation/allocate
-                        {:schema-version "pro-rata-allocation-request.v1"
-                         :mechanism/version 1
-                         :allocation/id :audit-high
-                         :available 75
-                         :rows [{:row/id :r/a :obligation/id :o/a :requested 100
-                                 :weight 100 :cap 100}]
-                         :rounding-policy :largest-remainder
-                         :tie-break-policy :canonical-row-id
-                         :redistribution-policy :redistribute-cap-excess})]
+                      {:schema-version "pro-rata-allocation-request.v1"
+                       :mechanism/version 1
+                       :allocation/id :audit-high
+                       :available 75
+                       :rows [{:row/id :r/a :obligation/id :o/a :requested 100
+                               :weight 100 :cap 100}]
+                       :rounding-policy :largest-remainder
+                       :tie-break-policy :canonical-row-id
+                       :redistribution-policy :redistribute-cap-excess})]
 
       ;; Framework metric is the same regardless of allocation available
       (is (= (:coverage-adequacy-pct metrics) (:coverage-adequacy-pct metrics)))

@@ -43,7 +43,7 @@
         op0 (assoc-in bare [:preconditions/root] (get-in plan [:preconditions :preconditions/root]))
         op0 (assoc-in op0 [:authorization :root] (get-in plan [:preconditions :preconditions/root]))
         op0 (assoc-in op0 [:evaluation :decision :derived-effects-root]
-                     (get-in plan [:derived-effects :effects/root]))
+                      (get-in plan [:derived-effects :effects/root]))
         ee0 {:execution-effects/schema semantic/execution-effects-schema
              :derived-effects/root (get-in plan [:derived-effects :effects/root])}
         ee (assoc ee0 :execution-effects/root (semantic/execution-effects-root ee0))
@@ -58,11 +58,11 @@
                                 command/decision-domain
                                 (:private-key kp) (:key/id kp))
         opaque-roots [(get-in op [:target :state-before-root])
-                       (get-in op [:target :lifecycle-head-root])
-                       (get-in op [:evaluation :inputs-root])
-                       (get-in op [:preconditions/root])
-                       (get-in op [:execution :state-after-root])
-                       (get-in op [:authorization :root])]
+                      (get-in op [:target :lifecycle-head-root])
+                      (get-in op [:evaluation :inputs-root])
+                      (get-in op [:preconditions/root])
+                      (get-in op [:execution :state-after-root])
+                      (get-in op [:authorization :root])]
         artifacts (merge
                    (zipmap opaque-roots (map #(hash-map :artifact/root %) opaque-roots))
                    {(:snapshot/root s) s
@@ -82,7 +82,7 @@
 
 (defn rehash-op [op]
   (assoc (dissoc op :operation/root)
-    :operation/root (operation/operation-root (dissoc op :operation/root))))
+         :operation/root (operation/operation-root (dissoc op :operation/root))))
 
 (defn do-admit [ctx op overrides]
   (let [resolve-art (or (:resolve-artifact overrides)
@@ -347,7 +347,7 @@
   (let [ctx (base-setup)
         op (:op ctx)
         stages (get-in (do-admit ctx op {}) [:verification :roots])
-        bad [ :resolver/id :resolver/name :filesystem/path :db/id :hostname :uuid :run-id]]
+        bad [:resolver/id :resolver/name :filesystem/path :db/id :hostname :uuid :run-id]]
     (doseq [[role stage] stages
             provenance-keys bad]
       (is (not (contains? stage provenance-keys))

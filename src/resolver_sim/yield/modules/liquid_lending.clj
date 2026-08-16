@@ -1844,22 +1844,22 @@
                             ;; partial-fill creates claimant executor tasks.
                             (execution/claimant-options)))
                     ((fn [result]
-                     (if (and (every? zero? (vals (:deferred result)))
-                              (every? zero? (vals (:haircut result))))
-                       (assoc result :settlement-mode :full-fill)
-                       result)))
+                       (if (and (every? zero? (vals (:deferred result)))
+                                (every? zero? (vals (:haircut result))))
+                         (assoc result :settlement-mode :full-fill)
+                         result)))
                     (update-in
                      [:evidence :allocation-rows]
-                   (fn [allocation-rows]
-                     (mapv
-                      (fn [row]
-                        (let [owed (long (:owed row 0))
-                              filled (long (:filled row 0))]
-                          (assoc row
-                                 :fill-ratio
-                                 {:numerator filled
-                                  :denominator owed})))
-                      allocation-rows)))))
+                     (fn [allocation-rows]
+                       (mapv
+                        (fn [row]
+                          (let [owed (long (:owed row 0))
+                                filled (long (:filled row 0))]
+                            (assoc row
+                                   :fill-ratio
+                                   {:numerator filled
+                                    :denominator owed})))
+                        allocation-rows)))))
               application-order (current-application-order accrued-world)
               invocation-context
               {:schema-version "pro-rata-invocation-context.v2"

@@ -116,7 +116,7 @@
     (is (= (:decision/canonical-bytes serial-decision)
            (:decision/canonical-bytes parallel-decision)))
     (is (Arrays/equals ^bytes (hc/canonical-bytes serial-propagation)
-                        ^bytes (hc/canonical-bytes parallel-propagation)))
+                       ^bytes (hc/canonical-bytes parallel-propagation)))
     (is (:holds? (inv/check-shared-withdrawal-conservation-world parallel)))
     (is (true? (:valid? (partial-fill/validate-pro-rata-propagation parallel-propagation))))))
 

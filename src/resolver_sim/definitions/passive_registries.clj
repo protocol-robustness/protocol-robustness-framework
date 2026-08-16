@@ -672,19 +672,12 @@
     :evidence-policy/type :capture
     :evidence-policy/source :state
     :description "Evidence computable deterministically from world state alone."
-    :constraints #{:state-derived :recomputable}}
-   {:id :evidence-policy/out-of-band
-    :version 1
-    :evidence-policy/type :attestation
-    :evidence-policy/source :external
-    :description "External evidence submitted via out-of-band channel."
-    :constraints #{:externally-sourced}}
-   {:id :evidence-policy/attested
-    :version 1
-    :evidence-policy/type :attestation
-    :evidence-policy/source :attestor
-    :description "Evidence requiring explicit attestation for verification."
-    :constraints #{:attestor-signed}}
+    :constraints #{:state-derived :recomputable}}   {:id :evidence-policy/attested
+                                                     :version 1
+                                                     :evidence-policy/type :attestation
+                                                     :evidence-policy/source :attestor
+                                                     :description "Evidence requiring explicit attestation for verification."
+                                                     :constraints #{:attestor-signed}}
    {:id :evidence-policy/computed
     :version 1
     :evidence-policy/type :computed

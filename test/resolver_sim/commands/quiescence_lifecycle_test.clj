@@ -1,7 +1,6 @@
 (ns resolver-sim.commands.quiescence-lifecycle-test
   (:require [clojure.java.io :as io]
             [clojure.test :refer [deftest is testing]]
-            [resolver-sim.benchmark.cli :as benchmark-cli]
             [resolver-sim.commands.benchmark-orchestration :as orchestration]
             [resolver-sim.commands.run-benchmark :as command]
             [resolver-sim.util.thread-quiescence :as quiesce]
@@ -10,7 +9,7 @@
 
 (defn- temp-dir []
   (.toFile (Files/createTempDirectory "quiescence-lifecycle-"
-                (make-array java.nio.file.attribute.FileAttribute 0))))
+                                      (make-array java.nio.file.attribute.FileAttribute 0))))
 
 (defn- delete-tree! [path]
   (when (.exists (io/file path))
@@ -31,6 +30,7 @@
           calls (atom [])
           overrides (assoc (successful-overrides calls)
                            :execute (fn [_]
+                                      (swap! calls conj :execute)
                                       (throw (quiesce/quiescence-failed-exception
                                               "Worker threads did not terminate"
                                               {:quiescence/status :termination-timeout})))
@@ -54,16 +54,18 @@
 
 (deftest normal-execution-failure-still-releases-lock
   (testing "Non-quiescence exception releases the lock and marks root :incomplete"
-    (let [root (temp-dir)]
+    (let [root (temp-dir)
+          calls (atom [])
+          overrides (assoc (successful-overrides calls)
+                           :execute (fn [_]
+                                      (swap! calls conj :execute)
+                                      (throw (ex-info "normal execution failure" {:type :normal})))
+                           :execution/parallelism 3
+                           :execution/chunk-size 7)]
       (try
-        (with-redefs [benchmark-cli/run-and-report
-                      (fn [_ _]
-                        (throw (ex-info "normal execution failure" {:type :normal})))]
-          (is (thrown-with-msg? clojure.lang.ExceptionInfo
-                                #"normal execution failure"
-                                (command/run-with-root! "benchmark/test" (.getPath root) nil :public
-                                                        {:execution/parallelism 3
-                                                         :execution/chunk-size 7}))))
+        (is (thrown-with-msg? clojure.lang.ExceptionInfo
+                              #"normal execution failure"
+                              (command/run-with-root! "benchmark/test" (.getPath root) nil :public overrides)))
         (is (.exists (io/file root paths/run-state)))
         (is (not (.exists (io/file root "completion.json"))))
         (is (not (.exists (io/file root paths/run-lock)))
@@ -85,20 +87,22 @@
           (is (.exists (io/file root "completion.json"))))
         (finally (delete-tree! root))))))
 
-(deftest run-and-report-rethrows-quiescence-failures
-  (testing "run-and-report does not swallow quiescence failures"
-    (let [root (temp-dir)]
+(deftest run-with-root-rethrows-quiescence-failures
+  (testing "run-with-root! does not swallow quiescence failures from the execute phase"
+    (let [root (temp-dir)
+          calls (atom [])
+          overrides (assoc (successful-overrides calls)
+                           :execute (fn [_]
+                                      (swap! calls conj :execute)
+                                      (throw (quiesce/quiescence-failed-exception
+                                              "Workers stuck"
+                                              {:quiescence/status :termination-timeout})))
+                           :execution/parallelism 3
+                           :execution/chunk-size 7)]
       (try
-        (with-redefs [benchmark-cli/run-and-report
-                      (fn [_ options]
-                        (throw (quiesce/quiescence-failed-exception
-                                "Workers stuck"
-                                {:quiescence/status :termination-timeout})))]
-          (let [result (command/run-with-root! "benchmark/test" (.getPath root) nil :public
-                                               {:execution/parallelism 3
-                                                :execution/chunk-size 7})]
-            (is (= 1 (:exit-code result)))
-            (is (= :quiescence-failed (:command/status result)))
-            (is (.exists (io/file root paths/run-lock))
-                "lock persists when run-and-report rethrows quiescence failure")))
+        (let [result (command/run-with-root! "benchmark/test" (.getPath root) nil :public overrides)]
+          (is (= 1 (:exit-code result)))
+          (is (= :quiescence-failed (:command/status result)))
+          (is (.exists (io/file root paths/run-lock))
+              "lock persists when execute phase throws quiescence failure"))
         (finally (delete-tree! root))))))

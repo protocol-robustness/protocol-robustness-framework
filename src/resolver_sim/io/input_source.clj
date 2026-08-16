@@ -61,13 +61,15 @@
 
 (defn loadable-ref
   "Return a reference that scenario/benchmark loaders can read directly:
-   classpath inputs are exposed as resource: URLs, filesystem inputs pass
-   through with their original ref."
+   classpath inputs are exposed as resource: URLs, filesystem inputs use
+   their physical path so frozen copies shadow originals."
   [input]
   (let [ref (:input/ref input)]
-    (if (str/starts-with? ref "classpath:")
+    (cond
+      (str/starts-with? ref "classpath:")
       (str "resource:" (subs ref (count "classpath:")))
-      ref)))
+      (:input/path input) (:input/path input)
+      :else ref)))
 
 (defn freeze-source
   "Freeze source bytes from an InputSource once, returning a byte vector."

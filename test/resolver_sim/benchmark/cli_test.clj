@@ -36,16 +36,19 @@
     (is (pos? (:claims replay)))))
 
 (deftest legacy-bundle-hashes-remain-verifiable
-  (let [base {:benchmark {:benchmark/id :benchmark/test}
-              :metrics {:total 1 :passed 1}}
-        legacy (assoc base
-                      :run/manifest {:manifest/version "run-manifest.v1"}
-                      :benchmark-certification {:certification-hash "later"}
-                      :evidence/hash (hc/hash-with-intent {:hash/intent :bundle-root} base))]
-    (is (= {:hash-ok? true
-            :scheme :legacy-v1
-            :computed-hash (:evidence/hash legacy)}
-           (integrity/verify-bundle-hash legacy)))))
+  (testing "Legacy bundles with explicit version tags remain verifiable"
+    (let [computed-hash "3438c8d9df37a645aae36a977c01c727ccb8fa405e4ed7ae076fc8ad5fd86e43"
+          legacy {:benchmark {:benchmark/id :benchmark/test}
+                  :metrics {:total 1 :passed 1}
+                  :run/manifest {:manifest/version "run-manifest.v1"}
+                  :benchmark-certification {:certification-hash "later"}
+                  :evidence/commitment-version "bundle-root.v1"
+                  :evidence/hash computed-hash}]
+      (is (= {:hash-ok? true
+              :scheme :legacy-v1
+              :computed-hash computed-hash
+              :reason :ok}
+             (integrity/verify-bundle-hash legacy))))))
 
 (deftest non-interactive-runs-suppress-the-post-run-prompt
   (is (#'cli/interactive-run? true {}))

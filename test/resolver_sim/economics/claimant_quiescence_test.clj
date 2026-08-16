@@ -2,10 +2,10 @@
   (:require [clojure.test :refer [deftest is testing]]
             [resolver-sim.economics.payoffs :as payoffs]
             [resolver-sim.util.thread-quiescence :as quiesce])
-  (:import [java.util.concurrent Callable CountDownLatch Executors TimeUnit]))
+  (:import [java.util.concurrent CountDownLatch TimeUnit]))
 
 (defn- resolve-ordered-detached-mapv []
-  (ns-resolve 'resolver-sim.economics.payoffs 'ordered-detached-mapv))
+  (requiring-resolve 'resolver-sim.economics.payoffs/ordered-detached-mapv))
 
 (deftest claimant-executor-throws-on-quiescence-failure
   (testing "ordered-detached-mapv throws quiescence-failed-exception when a worker is stuck"
@@ -27,8 +27,11 @@
           original-quiesce quiesce/quiesce-executor!
           result
           (with-redefs [quiesce/quiesce-executor!
-                        (fn [executor]
-                          (original-quiesce executor 1))]
+                        (fn
+                          ([executor]
+                           (original-quiesce executor 1))
+                          ([executor _timeout-seconds]
+                           (original-quiesce executor 1)))]
             (try
               (f 2 task [:fast-fail :stuck])
               nil

@@ -101,57 +101,51 @@
 
 (deftest test-concurrent-cas-multiple-threads-commit-all
   "Ten threads each submit a distinct transform that changes world state.
-   The CAS boundary serialises them — each one commits, revision advances 10x."
+   The CAS boundary serialises them -- each one commits, revision advances 10x."
   (let [h (auth/atomic-world-holder {:counter 0})
         n 10
-        latch (CountDownLatch. n)
-        pool (java.util.concurrent.Executors/newCachedThreadPool)
-        results (atom [])]
-    (dotimes [_ n]
-      (.submit pool
-               (reify Runnable
-                 (run [_]
-                   (.countDown latch)
-                   (.await latch)
-                   (let [r (auth/cas-step! h (fn [w]
-                                               {:ok true
-                                                :world (update w :counter inc)}))]
-                     (swap! results conj r))))))
-    (.shutdown pool)
-    (.awaitTermination pool 10 java.util.concurrent.TimeUnit/SECONDS)
-    ;; All threads should eventually commit
-    (is (= n (count @results)))
-    (is (every? #(= :committed (:status %)) @results))
-    (is (= n (auth/revision-of h)))
-    (is (= n (get-in (auth/world-at h) [:counter])))))
+        snap-barrier (CountDownLatch. n)
+        transform-fn (fn [w]
+                       (.countDown snap-barrier)
+                       (.await snap-barrier)
+                       {:ok true :world (update w :counter inc)})
+        futures (doall
+                  (map (fn [_]
+                         (future
+                           (auth/cas-step! h transform-fn)))
+                        (range n)))]
+    (let [results (map deref futures)]
+      (is (= n (count results)))
+      (is (every? #(= :committed (:status %)) results))
+      (is (= n (auth/revision-of h)))
+      (is (= n (get-in (auth/world-at h) [:counter]))))))
 
 (deftest test-concurrent-cas-loser-retried-on-conflict
-  "Two threads target the same initial world. One wins the CAS against revision 0;
-   the other CAS-fails and retries against the committed revision, then recomputes.
-   If the recompute also succeeds, it commits (revision 0→2). Proves the loser retries."
+  "Two threads target the same initial world. Both read snapshot R (revision 0)
+   simultaneously, then race to CAS. The winner commits R->R+1. The loser CAS-fails,
+   re-reads R+1, recomputes (its transform still succeeds on the updated world),
+   and commits R+1->R+2. Proves the loser retried (:conflict? true, :attempts > 1)."
   (let [h (auth/atomic-world-holder {:counter 0})
-        latch (CountDownLatch. 2)
-        pool (java.util.concurrent.Executors/newCachedThreadPool)
-        results (atom [])]
-    (dotimes [_ 2]
-      (.submit pool
-               (reify Runnable
-                 (run [_]
-                   (.countDown latch)
-                   (.await latch)
-                   (swap! results conj
-                          (auth/cas-step! h (fn [w]
-                                                {:ok true
-                                                 :world (update w :counter inc)}))))))
-    (.shutdown pool)
-    (.awaitTermination pool 10 java.util.concurrent.TimeUnit/SECONDS)
-    (let [sorted (sort-by :revision @results)
+        snap-barrier (CountDownLatch. 2)
+        transform-fn (fn [w]
+                       (.countDown snap-barrier)
+                       (.await snap-barrier)
+                       {:ok true :world (update w :counter inc)})
+        futures (doall
+                  (map (fn [_]
+                         (future
+                           (auth/cas-step! h transform-fn)))
+                       (range 2)))]
+    (let [results (map deref futures)
+          sorted (sort-by :revision results)
           winner (first sorted)
           loser (second sorted)]
       (is (= :committed (:status winner)))
       (is (= 1 (:attempts winner)))
       (is (false? (:conflict? winner)))
-      (is (= :committed (:status loser))))  ;; loser retried and also committed
+      (is (= :committed (:status loser)))
+      (is (:conflict? loser))
+      (is (> (:attempts loser) 1)))
     (is (= 2 (auth/revision-of h)))
     (is (= 2 (get-in (auth/world-at h) [:counter])))))
 
@@ -255,4 +249,4 @@
     ;;   both threads saw :none, then loser re-read and found :prop-456
     (is (= [:none :none :prop-456] (sort @seen)))
     (is (= 1 (auth/revision-of h)))                       ;; revision advanced only once
-    (is (contains? (:applied-pro-rata-propagations (auth/world-at h)) propagator))))))
+    (is (contains? (:applied-pro-rata-propagations (auth/world-at h)) propagator))))

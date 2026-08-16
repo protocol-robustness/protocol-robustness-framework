@@ -1937,9 +1937,11 @@
                         :research-command-trace-v2 "RESEARCH_COMMAND_TRACE_V2"}]
     (testing (str intent)
       (let [contract (hc/resolve-intent intent)]
+        (is (= intent (:intent/name contract)))
         (is (= tag (:intent/domain-tag contract)))
         (is (= tag (get hc/domain-tags intent)))
-        (is (string? (:intent/description contract)))))))
+        (is (string? (:intent/description contract)))
+        (is (fn? (:intent/projection-fn contract)))))))
 
 (deftest test-production-string-tags-are-registered
   (testing "production domain tags previously passed as bare strings are now

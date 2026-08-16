@@ -4,10 +4,10 @@
   :benchmark/domain          :domain/protocol-value-conservation
   :benchmark/protocol        :protocol/sew
    :benchmark/scenario-suite  :suite/sew-dispute-safety-v1
-  :benchmark/scenario-suite-description
-  "44 Sew dispute-resolution scenarios (shared with escrow-dispute-v1).
-   Focus on resolver slashing mechanics: slashing conservation, waterfall
-   coverage, over-slashing prevention, and appeal bond adequacy."
+:benchmark/scenario-suite-description
+    "65 Sew dispute-resolution scenarios (shared with escrow-dispute-v1).
+    Focus on resolver slashing mechanics: slashing conservation, waterfall
+    coverage, over-slashing prevention, and appeal bond adequacy."
   :benchmark/runner-policy   :runner-policy/deterministic-local-v1
  :benchmark/evidence-policy :evidence-policy/forensic-standard-v1
    :benchmark/scoring-rule    :scoring/severity-weighted-robustness-v1
@@ -16,11 +16,11 @@
                                         :claim/waterfall-coverage-correct
                                         :claim/no-over-slashing
                                         :claim/appeal-bond-adequacy]}
-    :benchmark/description
-   "A lens over :suite/sew-dispute-safety-v1 focusing on resolver
+:benchmark/description
+    "A lens over :suite/sew-dispute-safety-v1 focusing on resolver
     slashing mechanics: slashing conservation, waterfall coverage,
     over-slashing prevention, and appeal bond adequacy. Shares the
-    same 44-scenario suite with escrow-dispute-v1 and
+    same 65-scenario suite with escrow-dispute-v1 and
     dispute-liveness-v1 — a single suite run provides evidence for
     all three, but each applies a different scoring rule and different
     claim weights."

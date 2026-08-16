@@ -64,7 +64,7 @@
                 :research-analysis/general-ic-proven? false
                 :research-analysis/status (if (empty? @errors) :valid :invalid)}]
       (assoc base :research-analysis/root (closure-root base)
-                  :errors (vec @errors)))))
+             :errors (vec @errors)))))
 
 (defn closure-valid? [closure]
   (and (= :valid (:research-analysis/status closure))

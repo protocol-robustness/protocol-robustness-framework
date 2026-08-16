@@ -18,8 +18,8 @@
     evidence bundle, verify the hash chain, re-run the scenarios,
     and confirm the results match — without trusting the original
     runner."
-   :concept/maps-to
-   {:scenarios ["suite/prf-replay-v1 (44 dispute-resolution scenarios)"]
+:concept/maps-to
+    {:scenarios ["suite/prf-replay-v1 (65 dispute-resolution scenarios)"]
     :claims    [:claim/replay-identical-results
                 :claim/hash-consistency-across-runs
                 :claim/no-nondeterminism]

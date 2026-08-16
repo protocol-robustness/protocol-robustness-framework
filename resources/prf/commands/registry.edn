@@ -455,6 +455,27 @@
    :command/positional-args {:min 1 :max 1}
    :command/description "Run a registered or bundled benchmark as a canonical --run-root package, or use --output for a separate legacy export."}
 
+  {:command/id :parallel-benchmark-run
+   :command/path ["parallel-benchmark-run"]
+   :command/title "Run a benchmark with bounded local parallelism (capability composition)"
+   :command/category :benchmark
+   :command/surface :prf
+   :command/backstop-tier :full
+   :command/jar-availability :native
+   :command/runtime :jvm
+   :command/options [{:name "--run-root" :type :string :doc "Fresh canonical benchmark package root"}
+                     {:name "--sensitivity-profile" :type :string :doc "Canonical bundle profile: public or internal"}
+                     {:name "--claim-registry" :type :string :doc "External benchmark claim registry (auditor-supplied). Precedence: --claim-registry > PRF_BENCHMARKS_CLAIM_REGISTRY > repository default. Fails closed if the registry is invalid."}
+                     {:name "--parallelism" :type :integer :doc "Explicit local scenario-worker count; positive integer, honored exactly (never clamped). Omitted: bounded automatic default min(resolved-scenario-count, command parallel ceiling)"}
+                     {:name "--chunk-size" :type :integer :doc "Deterministic work items per local chunk; positive integer, default 1"}
+                     {:name "--execution-budget" :type :integer :doc "Shared Semaphore K bounding TOTAL concurrent execution (outer workers consume, inner claimants borrow spare); positive integer, default unbounded"}
+                     {:name "--key" :type :string :doc "Path to private key for signing"}
+                     {:name "--json" :type :flag :doc "Output as JSON"}]
+   :command/outputs []
+   :command/positional-args {:min 1 :max 1}
+   :command/built-with-includes #{:capability/incentive :capability/incentive-compatibility}
+   :command/description "Specialized capability composition: routes through the canonical run-benchmark algorithm (run-with-root! + run->benchmark), adding bounded local parallelism across scenario workers and claimant executors. Not a separate benchmark algorithm. The build is composed with (and therefore includes) the incentive and incentive-compatibility capabilities; that combination is declared here and validated. Canonical output is invariant to parallelism and plan-ordinal (bound-sequence) locality is preserved. The automatic worker pool defaults to min(scenario-count, parallel ceiling) and never exceeds the ceiling; an explicit --parallelism is honored exactly; --execution-budget bounds total concurrency."}
+
   {:command/id :fmt-check
    :command/path ["fmt" "check"]
    :command/title "Check formatting"

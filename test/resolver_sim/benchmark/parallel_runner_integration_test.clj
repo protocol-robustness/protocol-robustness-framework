@@ -166,8 +166,7 @@
                                        (partial deterministic-worker (atom #{}) nil)}
                         #(runner/run-benchmark (.getPath manifest-file) runner/default-adapter
                                                {:scenario-output-dir serial-output
-                                                :parallelism 1 :chunk-size 1})))
-        ]
+                                                :parallelism 1 :chunk-size 1})))]
     (try
       (let [serial (run-serial!)
             ;; The runner remains on this thread, so executor tasks receive the
@@ -182,8 +181,8 @@
                               (doseq [id ["charlie" "alpha" "delta" "bravo"]]
                                 (deliver (get release-gates id) true)
                                 @(get completed-gates id))))
-                           (.setName "forced-completion-test-releaser")
-                           (.start))
+                       (.setName "forced-completion-test-releaser")
+                       (.start))
             parallel (with-redefs-fn
                        {#'repo/metadata (fn [] {:repo {:commit "test" :dirty? false}})
                         #'vcs/source-provenance clean-source-provenance
@@ -194,25 +193,25 @@
                                                :parallelism 4 :chunk-size 1}))
             _ (.join releaser 10000)
             projection (fn [evidence]
-                           (mapv #(select-keys % [:execution/id :execution/ordinal
-                                                  :scenario/id :scenario/evidence-root])
-                                 (:results evidence)))]
-          (testing "forced producer completion order is genuinely noncanonical"
-            (is (= ["charlie" "alpha" "delta" "bravo"] @completion-order))
-            (is (> (count @worker-threads) 1)))
-          (testing "coordinator restores the frozen canonical concatenation/assembly order"
+                         (mapv #(select-keys % [:execution/id :execution/ordinal
+                                                :scenario/id :scenario/evidence-root])
+                               (:results evidence)))]
+        (testing "forced producer completion order is genuinely noncanonical"
+          (is (= ["charlie" "alpha" "delta" "bravo"] @completion-order))
+          (is (> (count @worker-threads) 1)))
+        (testing "coordinator restores the frozen canonical concatenation/assembly order"
             ;; This suite's established plan order is defined by its existing
             ;; scenario discovery rules, not by the release schedule or an
             ;; invented alphabetical convention.
-            (is (= (mapv :scenario/id (:results serial))
-                   (mapv :scenario/id (:results parallel))))
-            (is (= [1 2 3 4] (mapv :execution/ordinal (:results parallel))))
-            (is (= (projection serial) (projection parallel)))
-            (is (= (:evidence/hash serial) (:evidence/hash parallel)))
-            (is (= (artifact-bytes serial-output) (artifact-bytes reverse-output)))
-            (is (every? #(true? (get-in % [:scenario/artifact-manifest
-                                            :artifact/canonical-verified]))
-                        (:results parallel)))))
+          (is (= (mapv :scenario/id (:results serial))
+                 (mapv :scenario/id (:results parallel))))
+          (is (= [1 2 3 4] (mapv :execution/ordinal (:results parallel))))
+          (is (= (projection serial) (projection parallel)))
+          (is (= (:evidence/hash serial) (:evidence/hash parallel)))
+          (is (= (artifact-bytes serial-output) (artifact-bytes reverse-output)))
+          (is (every? #(true? (get-in % [:scenario/artifact-manifest
+                                         :artifact/canonical-verified]))
+                      (:results parallel)))))
       (finally
         ;; Do not leave a worker blocked if an assertion or timeout aborts this
         ;; controlled-interleaving test before all releases are issued.

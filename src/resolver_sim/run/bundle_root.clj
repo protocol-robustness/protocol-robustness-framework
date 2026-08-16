@@ -257,12 +257,12 @@
                            :evidence/profile :output/profile])
          runner-id (get-in request [:runner-selection :runner-id])
          orch-id (lookup-orchestrator-id runner-id)
-        proto-fa (hash-sorted-map :force-authorisations
-                                  (:protocol/force-authorisations result))
-        proto-fa-consumed (hash-sorted-map :force-authorisations-consumed
-                                           (:protocol/force-authorisations-consumed result))
-        proto-held-adjustments (hash-sorted-map :held-adjustments
-                                                (:protocol/held-adjustments result))
+         proto-fa (hash-sorted-map :force-authorisations
+                                   (:protocol/force-authorisations result))
+         proto-fa-consumed (hash-sorted-map :force-authorisations-consumed
+                                            (:protocol/force-authorisations-consumed result))
+         proto-held-adjustments (hash-sorted-map :held-adjustments
+                                                 (:protocol/held-adjustments result))
         ;; Canonical protocol descriptor.
         ;; Grammar: <name>-v<N> where <name> = [a-z][a-z0-9]* (lowercase, no hyphens/underscores)
         ;;          and <N>    = [1-9][0-9]* (positive integer, no leading zero).
@@ -270,80 +270,80 @@
         ;; Deliberately excludes hyphens in the name to avoid ambiguous splitting.
         ;; The version is always emitted as a string, never an integer, so that
         ;; cross-language consumers (Python, etc.) can reliably compare by string equality.
-        proto-id (:protocol/default-id request)
-        proto-descriptor (when proto-id
-                           (let [pid (if (keyword? proto-id) (name proto-id) (str proto-id))
-                                 valid-pattern #"^[a-z][a-z0-9]*-v[1-9][0-9]*$"]
-                             (when-not (re-matches valid-pattern pid)
-                               (throw (ex-info "Malformed protocol/default-id — expected format '<name>-v<N>'"
-                                               {:protocol/default-id proto-id
-                                                :valid-format "<name>-v<N>"
-                                                :observed pid})))
-                             (let [version-idx (clojure.string/last-index-of pid "-v")]
-                               {:id (subs pid 0 version-idx)
-                                :version (subs pid (+ version-idx 2))})))
-        proto-hashes (cond-> {}
-                       proto-fa (assoc :force-authorisations/hash proto-fa)
-                       proto-fa-consumed (assoc :force-authorisations/consumed-hash proto-fa-consumed)
-                       proto-held-adjustments (assoc :held-adjustments/hash proto-held-adjustments))
-        proto-state (cond-> {}
-                      (seq (:protocol/force-authorisations result))
-                      (assoc :force-authorisations (:protocol/force-authorisations result))
-                      (seq (:protocol/force-authorisations-consumed result))
-                      (assoc :force-authorisations/consumed (:protocol/force-authorisations-consumed result))
-                      (seq (:protocol/held-adjustments result))
-                      (assoc :held-adjustments (:protocol/held-adjustments result)))
-        proto-witness (protocol-state-wire-value proto-state)
-        proto-witness-hash (when (seq proto-witness)
-                             (protocol-state-witness-hash proto-witness))
+         proto-id (:protocol/default-id request)
+         proto-descriptor (when proto-id
+                            (let [pid (if (keyword? proto-id) (name proto-id) (str proto-id))
+                                  valid-pattern #"^[a-z][a-z0-9]*-v[1-9][0-9]*$"]
+                              (when-not (re-matches valid-pattern pid)
+                                (throw (ex-info "Malformed protocol/default-id — expected format '<name>-v<N>'"
+                                                {:protocol/default-id proto-id
+                                                 :valid-format "<name>-v<N>"
+                                                 :observed pid})))
+                              (let [version-idx (clojure.string/last-index-of pid "-v")]
+                                {:id (subs pid 0 version-idx)
+                                 :version (subs pid (+ version-idx 2))})))
+         proto-hashes (cond-> {}
+                        proto-fa (assoc :force-authorisations/hash proto-fa)
+                        proto-fa-consumed (assoc :force-authorisations/consumed-hash proto-fa-consumed)
+                        proto-held-adjustments (assoc :held-adjustments/hash proto-held-adjustments))
+         proto-state (cond-> {}
+                       (seq (:protocol/force-authorisations result))
+                       (assoc :force-authorisations (:protocol/force-authorisations result))
+                       (seq (:protocol/force-authorisations-consumed result))
+                       (assoc :force-authorisations/consumed (:protocol/force-authorisations-consumed result))
+                       (seq (:protocol/held-adjustments result))
+                       (assoc :held-adjustments (:protocol/held-adjustments result)))
+         proto-witness (protocol-state-wire-value proto-state)
+         proto-witness-hash (when (seq proto-witness)
+                              (protocol-state-witness-hash proto-witness))
         ;; Compute run-level sensitivity from all scenario results
-        results (:results result [])
-        run-sensitivity (prop/merge-sensitivity
-                         (mapv prop/effective-scenario-sensitivity results))
-        base {:bundle/schema-version schema-version
-              :run/request (assoc req
-                                  :registry-key (or (:registry-key request) :default)
-                                  :workspace (or (:workspace request) :current)
-                                  :orchestrator/id orch-id)
-              :orchestrator/id orch-id
-              :registry/snapshot (registry-snapshot)
+         results (:results result [])
+         run-sensitivity (prop/merge-sensitivity
+                          (mapv prop/effective-scenario-sensitivity results))
+         base {:bundle/schema-version schema-version
+               :run/request (assoc req
+                                   :registry-key (or (:registry-key request) :default)
+                                   :workspace (or (:workspace request) :current)
+                                   :orchestrator/id orch-id)
+               :orchestrator/id orch-id
+               :registry/snapshot (registry-snapshot)
                :run/environment (environment-with-provenance source-provenance)
-              :execution/summary (select-keys result [:totals :status])
-              :overview/hash overview-h
-              :overview overview}
-        base (cond-> base
-               proto-descriptor (assoc :protocol proto-descriptor)
-               (seq proto-hashes) (assoc :protocol/state-hashes proto-hashes)
-               (seq proto-witness) (assoc :protocol/state proto-witness
-                                          :protocol/state-witness-hash proto-witness-hash))
+               :execution/summary (select-keys result [:totals :status])
+               :overview/hash overview-h
+               :overview overview}
+         base (cond-> base
+                proto-descriptor (assoc :protocol proto-descriptor)
+                (seq proto-hashes) (assoc :protocol/state-hashes proto-hashes)
+                (seq proto-witness) (assoc :protocol/state proto-witness
+                                           :protocol/state-witness-hash proto-witness-hash))
         ;; Every emitted bundle field is included in the content-addressed preimage.
         ;; Downstream lifecycle objects must reference this bundle; they must not enrich it.
         ;; Lightweight sensitivity summary (no independently constructed
         ;; provenance — full provenance lives in the persisted sensitivity
         ;; report which downstream consumers reference by hash).
-        base (cond-> base
-               run-sensitivity
-               (assoc :bundle/sensitivity
-                      {:sentinel/run-level (:level run-sensitivity)
-                       :sentinel/risk-meta (:risk-meta run-sensitivity)
-                       :sentinel/risk-meta-hash (when-let [rm (:risk-meta run-sensitivity)]
-                                                  (hc/hash-with-intent
-                                                   {:hash/intent :evidence-record}
-                                                   rm))
-                       :sentinel/scenario-count (count results)
-                       :sentinel/sensitive-scenario-count
-                       (count (filter (fn [r]
-                                        (let [s (get-in r [:scenario-metadata :scenario/sensitivity])]
-                                          (and s (not= :sensitivity/public (:level s)))))
-                                      results))
-                       :sentinel/report-reference
-                       {:schema "sensitivity-report-reference"
-                        :format sens-report/report-schema-version
-                        :path paths/sensitivity-report}}))
+         base (cond-> base
+                run-sensitivity
+                (assoc :bundle/sensitivity
+                       {:sentinel/run-level (:level run-sensitivity)
+                        :sentinel/risk-meta (:risk-meta run-sensitivity)
+                        :sentinel/risk-meta-hash (when-let [rm (:risk-meta run-sensitivity)]
+                                                   (hc/hash-with-intent
+                                                    {:hash/intent :evidence-record}
+                                                    rm))
+                        :sentinel/scenario-count (count results)
+                        :sentinel/sensitive-scenario-count
+                        (count (filter (fn [r]
+                                         (let [s (get-in r [:scenario-metadata :scenario/sensitivity])]
+                                           (and s (not= :sensitivity/public (:level s)))))
+                                       results))
+                        :sentinel/report-reference
+                        {:schema "sensitivity-report-reference"
+                         :format sens-report/report-schema-version
+                         :path paths/sensitivity-report}}))
         ;; :bundle/hash is the portable canonical-JSON content address verified
         ;; by compute-json-hash. Keeping construction and verification on this
         ;; single projection prevents an ID/hash pair from blessing altered data.
-        bundle-hash (compute-json-hash base)]
+         bundle-hash (compute-json-hash base)]
      (assoc base :bundle/id bundle-hash :bundle/hash bundle-hash))))
 
 ;; ── Bundle root validation ────────────────────────────────────────────────────

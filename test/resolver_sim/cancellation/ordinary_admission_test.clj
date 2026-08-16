@@ -62,8 +62,8 @@
         resolve (:resolve-artifact r)
         policy-root (get-in r [:operation :policy :root])
         result (admission/admit (assoc r :resolve-artifact #(if (= % policy-root)
-                                                               {:artifact/root policy-root}
-                                                               (resolve %))))]
+                                                              {:artifact/root policy-root}
+                                                              (resolve %))))]
     (is (false? (:admitted? result)))
     (is (some #{:policy/invalid-artifact} (:blocking-reasons result)))))
 

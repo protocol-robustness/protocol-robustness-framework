@@ -142,12 +142,12 @@
 
 (deftest test-suite-resolution
   (testing "Pack suite keywords resolve to scenario paths"
-    (is (= 56 (count (suites/suite-paths :suite/sew-dispute-safety-v1)))
-        ":suite/sew-dispute-safety-v1 should resolve to 56 dispute-resolution scenarios")
+    (is (= 65 (count (suites/suite-paths :suite/sew-dispute-safety-v1)))
+        ":suite/sew-dispute-safety-v1 should resolve to 65 dispute-resolution scenarios")
     (is (= 15 (count (suites/suite-paths :suite/sew-yield-safety-v1)))
         ":suite/sew-yield-safety-v1 should resolve to 15 yield scenarios")
-    (is (= 56 (count (suites/suite-paths :suite/prf-replay-v1)))
-        ":suite/prf-replay-v1 should resolve to 56 core replay scenarios")
+    (is (= 65 (count (suites/suite-paths :suite/prf-replay-v1)))
+        ":suite/prf-replay-v1 should resolve to 65 core replay scenarios")
     (is (nil? (suites/suite-paths :suite/non-existent))
         "Unknown suite keyword should return nil")))
 
@@ -155,15 +155,15 @@
   (testing "Canonical pack manifests load and reference registered suites"
     (doseq [[path expected-suite expected-count]
             [["benchmarks/packs/sew/escrow-dispute-v1.edn"
-              :suite/sew-dispute-safety-v1 56]
+              :suite/sew-dispute-safety-v1 65]
              ["benchmarks/packs/sew/dispute-liveness-v1.edn"
-              :suite/sew-dispute-safety-v1 56]
+              :suite/sew-dispute-safety-v1 65]
              ["benchmarks/packs/sew/yield-shortfall-v1.edn"
               :suite/sew-yield-safety-v1 15]
              ["benchmarks/packs/sew/resolver-slashing-v1.edn"
-              :suite/sew-dispute-safety-v1 56]
+              :suite/sew-dispute-safety-v1 65]
              ["benchmarks/packs/prf-core/deterministic-replay-v1.edn"
-              :suite/prf-replay-v1 56]]]
+              :suite/prf-replay-v1 65]]]
       (let [manifest (edn/read-string (slurp path))
             suite-kw (:benchmark/scenario-suite manifest)
             paths (suites/suite-paths suite-kw)]
@@ -233,8 +233,8 @@
     (let [manifest (edn/read-string (slurp "benchmarks/packs/sew/escrow-dispute-v1.edn"))
           adapter runner/default-adapter
           scenarios (adapter/load-scenarios adapter manifest)]
-      (is (= 56 (count scenarios))
-          "Adapter should resolve :suite/sew-dispute-safety-v1 to 56 scenarios")
+      (is (= 65 (count scenarios))
+          "Adapter should resolve :suite/sew-dispute-safety-v1 to 65 scenarios")
       (is (every? #(= :file (:input/type %)) scenarios)
           "All scenarios should be file-backed input sources")))
 
@@ -290,16 +290,16 @@
       (let [evidence (runner/run-benchmark "benchmarks/packs/prf-core/deterministic-replay-v1.edn")
             claim-results (:claim-results evidence)
             claim-outcomes (into {} (map (juxt :claim/id :claim/outcome)) claim-results)]
-        (is (= 112 (count (:results evidence)))
-            "Deterministic replay benchmark should execute 56 scenarios twice")
+        (is (= 130 (count (:results evidence)))
+            "Deterministic replay benchmark should execute 65 scenarios twice")
         (is (= #{0 1} (into #{} (map :benchmark/run-index) (:results evidence)))
             "run indices are 0-based repetitions (range run-count)")
         (is (= #{2} (into #{} (map :benchmark/run-count) (:results evidence))))
-        (is (= 112 (get-in evidence [:metrics :execution-count])))
-        (is (= 56 (get-in evidence [:metrics :unique-scenario-count])))
+        (is (= 130 (get-in evidence [:metrics :execution-count])))
+        (is (= 65 (get-in evidence [:metrics :unique-scenario-count])))
         (is (= 2 (get-in evidence [:metrics :declared-run-count])))
-        (is (= 112 (get-in evidence [:run/manifest :execution-count])))
-        (is (= 56 (get-in evidence [:run/manifest :unique-scenario-count])))
+        (is (= 130 (get-in evidence [:run/manifest :execution-count])))
+        (is (= 65 (get-in evidence [:run/manifest :unique-scenario-count])))
         (is (= 2 (get-in evidence [:run/manifest :declared-run-count])))
         (is (= :pass (get claim-outcomes :claim/replay-identical-results)))
         (is (= :pass (get claim-outcomes :claim/hash-consistency-across-runs)))
@@ -663,7 +663,7 @@
       (try
         (with-redefs [runner/execute-scenario fake-exec]
           (let [result (future (#'runner/execute-plan-bounded!
-                                 nil plan source-by-id 1 nil 4 1 nil nil #{"excl-algo-v1"}))]
+                                nil plan source-by-id 1 nil 4 1 nil nil #{"excl-algo-v1"}))]
             (Thread/sleep 400)
             (deliver gate true)
             @result))
@@ -697,7 +697,7 @@
       (try
         (with-redefs [runner/execute-scenario fake-exec]
           (let [result (future (#'runner/execute-plan-bounded!
-                                 nil plan source-by-id 1 nil 4 1 nil nil #{"excl-a-v1" "excl-b-v1"}))]
+                                nil plan source-by-id 1 nil 4 1 nil nil #{"excl-a-v1" "excl-b-v1"}))]
             (Thread/sleep 400)
             (deliver gate true)
             @result))

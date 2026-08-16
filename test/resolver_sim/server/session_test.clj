@@ -233,10 +233,10 @@
                  (run [_]
                    (.countDown latch)
                    (.await latch)            ; start all threads simultaneously
-                    (let [evt {:seq i :time 1000 :agent "buyer"
-                               :action "create_escrow"
-                               :params {:token (str "USDC" i) :to "0xseller" :amount 100}}
-                          r   (session/step-session! sid evt)]
+                   (let [evt {:seq i :time 1000 :agent "buyer"
+                              :action "create_escrow"
+                              :params {:token (str "USDC" i) :to "0xseller" :amount 100}}
+                         r   (session/step-session! sid evt)]
                      (swap! results conj r))))))
     (.shutdown pool)
     (.awaitTermination pool 10 java.util.concurrent.TimeUnit/SECONDS)

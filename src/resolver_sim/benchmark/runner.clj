@@ -18,6 +18,7 @@
             [resolver-sim.io.input-source :as input-source]
             [resolver-sim.io.scenarios :as io-sc]
             [resolver-sim.logging :as log]
+            [resolver-sim.execution.budget :as budget]
             [resolver-sim.execution.context :as execution-context]
             [resolver-sim.contract-model.replay :as replay]
             [resolver-sim.protocols.registry :as protocols]
@@ -707,7 +708,9 @@
                  chain/*allow-dirty* allow-dirty?
                  *frozen-protocol-adapters* frozen-protocol-adapters
                  *canonical-worker?* (some? frozen-protocol-adapters)
-                 execution-context/*context* runtime-execution-context]
+                 execution-context/*context* runtime-execution-context
+                 budget/*execution-budget* (when runtime-execution-context
+                                             (:execution/shared-budget runtime-execution-context))]
          (work)))))
 
 (def ^:dynamic *outer-scenario-worker-hook*
@@ -729,7 +732,15 @@
                                   (*outer-scenario-worker-hook*
                                    {:execution/id (:execution/id plan-entry)
                                     :execution/ordinal (:execution/ordinal plan-entry)}))
-                                (execute-scenario suite-kw source plan-entry run-count staging-root)))))
+                                ;; Outer benchmark work consumes one permit from the
+                                ;; shared JVM execution budget for the scenario's
+                                ;; physical duration. Inner claimant work then borrows
+                                ;; whatever spare capacity remains.
+                                (let [b (budget/acquire-permit!)]
+                                  (try
+                                    (execute-scenario suite-kw source plan-entry run-count staging-root)
+                                    (finally
+                                      (budget/release-permit! b))))))))
 
 (defn- reduce-in-original-order
   "Reassemble per-execution results into frozen plan order. Completion timing is
@@ -787,31 +798,31 @@
                                  {:execution-count (count plan)
                                   :parallelism parallelism
                                   :lane-safe-count (count (remove (fn [e] (contains? exclusive-protocol-ids
-                                                                                    (get protocol-by-id (:execution/id e))))
+                                                                                     (get protocol-by-id (:execution/id e))))
                                                                   plan))
                                   :exclusive-protocol-ids (vec (sort exclusive-protocol-ids))})
       (let [submit-task (fn [plan-entry]
                           {:entry plan-entry
                            :future (.submit completion
-                                             ^Callable
-                                             (reify Callable
-                                               (call [_]
-                                                 (if (contains? exclusive-protocol-ids
-                                                                (get protocol-by-id (:execution/id plan-entry)))
-                                                   (try
-                                                     (.acquire exclusive-gate)
-                                                     (execute-execution suite-kw source-by-id run-count
-                                                                        staging-root allow-dirty?
-                                                                        frozen-protocol-adapters
-                                                                        runtime-execution-context
-                                                                        plan-entry)
-                                                     (finally
-                                                       (.release exclusive-gate)))
-                                                   (execute-execution suite-kw source-by-id run-count
-                                                                      staging-root allow-dirty?
-                                                                      frozen-protocol-adapters
-                                                                      runtime-execution-context
-                                                                      plan-entry)))))})
+                                            ^Callable
+                                            (reify Callable
+                                              (call [_]
+                                                (if (contains? exclusive-protocol-ids
+                                                               (get protocol-by-id (:execution/id plan-entry)))
+                                                  (try
+                                                    (.acquire exclusive-gate)
+                                                    (execute-execution suite-kw source-by-id run-count
+                                                                       staging-root allow-dirty?
+                                                                       frozen-protocol-adapters
+                                                                       runtime-execution-context
+                                                                       plan-entry)
+                                                    (finally
+                                                      (.release exclusive-gate)))
+                                                  (execute-execution suite-kw source-by-id run-count
+                                                                     staging-root allow-dirty?
+                                                                     frozen-protocol-adapters
+                                                                     runtime-execution-context
+                                                                     plan-entry)))))})
             submitted (mapv submit-task plan)
             results (atom {})
             failure (atom nil)]
@@ -1114,7 +1125,7 @@
   ([manifest-path adapter] (run-benchmark manifest-path adapter {}))
   ([manifest-path adapter {:keys [scenario-output-dir benchmark-index-path execution-plan-path
                                   parallelism chunk-size execution/claimant-parallelism
-                                  execution/claimant-parallel-threshold]}]
+                                  execution/claimant-parallel-threshold execution/budget]}]
    (let [adapter (if scenario-output-dir
                    (->SewAdapter scenario-output-dir (or parallelism 1) (or chunk-size 1))
                    adapter)
@@ -1136,19 +1147,26 @@
          frozen-inputs (freeze-plan-inputs! initial-plan manifest scenarios staging-root)
          plan (:plan frozen-inputs)
          source-by-id (:source-by-id frozen-inputs)
-         runtime-execution-context
-         (execution-context/validate-context
-          {:execution/claimant-parallelism claimant-parallelism
-           :execution/claimant-parallel-threshold claimant-parallel-threshold})
+         _ (when (some? budget)
+             (when-not (and (integer? budget) (pos? budget))
+               (throw (ex-info "Execution budget must be a positive integer"
+                               {:execution/budget budget}))))
+         validated-ctx (execution-context/validate-context
+                        {:execution/claimant-parallelism claimant-parallelism
+                         :execution/claimant-parallel-threshold claimant-parallel-threshold})
+         runtime-execution-context (cond-> validated-ctx
+                                     budget (assoc :execution/shared-budget
+                                                   (java.util.concurrent.Semaphore.
+                                                    (int budget))))
          _ (report-operational-phase! :plan-frozen
                                       {:benchmark-id (:benchmark/id manifest)
                                        :scenario-count (count scenarios)
                                        :execution-count (count plan)})
-preflight (validate-and-freeze-global-prerequisites! source-by-id)
-          exclusive-protocol-ids (or (:preflight/exclusive-protocols preflight) [])
-          _ (report-operational-phase! :global-preflight-complete
-                                       {:exclusive-protocols (vec (sort (map str exclusive-protocol-ids)))
-                                        :effective-parallelism (long (or parallelism 1))})
+         preflight (validate-and-freeze-global-prerequisites! source-by-id)
+         exclusive-protocol-ids (or (:preflight/exclusive-protocols preflight) [])
+         _ (report-operational-phase! :global-preflight-complete
+                                      {:exclusive-protocols (vec (sort (map str exclusive-protocol-ids)))
+                                       :effective-parallelism (long (or parallelism 1))})
          _ (write-execution-plan! execution-plan-path manifest plan)
          _ (report-operational-phase! :execution-plan-written
                                       {:execution-count (count plan)
@@ -1157,16 +1175,16 @@ preflight (validate-and-freeze-global-prerequisites! source-by-id)
              (println "Executing" (count scenarios) "scenarios...")
              (log/info! "benchmark/execute" {:scenario-count (count scenarios)
                                              :manifest manifest-path}))
-raw-results (if (instance? SewAdapter adapter)
-                        (execute-plan-bounded! (:benchmark/scenario-suite manifest)
-                                               plan source-by-id (benchmark-run-count manifest)
-                                               staging-root
-                                               (or parallelism 1)
-                                               (or chunk-size 1)
-                                               (:preflight/protocol-adapters preflight)
-                                               runtime-execution-context
-                                               exclusive-protocol-ids)
-                        (adapter/execute-benchmark adapter manifest scenarios))
+         raw-results (if (instance? SewAdapter adapter)
+                       (execute-plan-bounded! (:benchmark/scenario-suite manifest)
+                                              plan source-by-id (benchmark-run-count manifest)
+                                              staging-root
+                                              (or parallelism 1)
+                                              (or chunk-size 1)
+                                              (:preflight/protocol-adapters preflight)
+                                              runtime-execution-context
+                                              exclusive-protocol-ids)
+                       (adapter/execute-benchmark adapter manifest scenarios))
          _ (reconcile-execution-plan! plan raw-results)
          _ (report-operational-phase! :exact-set-reconciled
                                       {:expected-execution-count (count plan)
@@ -1282,13 +1300,13 @@ raw-results (if (instance? SewAdapter adapter)
          ;; normalized form, so verify-bundle-hash can recompute it from the
          ;; artifact on disk. Hashing the raw map here would silently diverge
          ;; once normalization rewrites runtime values (e.g. Instants).
-normalized-evidence (normalize-runtime-values evidence)
-          hashable-evidence (integrity/hashable-evidence normalized-evidence)
+         normalized-evidence (normalize-runtime-values evidence)
+         hashable-evidence (integrity/hashable-evidence normalized-evidence)
           ;; Sort keys for deterministic hashing; the persisted file uses the same
           ;; sort order so verify-bundle-hash can recompute the identity from disk.
-          sorted-hashable (into (sorted-map) hashable-evidence)
+sorted-hashable (into (sorted-map) hashable-evidence)
           bundle-root-hash (hc/hash-with-intent {:hash/intent :bundle-root} sorted-hashable)
-         final-evidence (assoc normalized-evidence :evidence/hash bundle-root-hash)]
+          final-evidence (assoc normalized-evidence :evidence/hash bundle-root-hash)]
 
      (when-not passed?
        (log/warn! "benchmark/failed" {:passed (:passed metrics) :total (:total metrics)})
@@ -1346,11 +1364,28 @@ normalized-evidence (normalize-runtime-values evidence)
     (satisfies? protocol-api/SimulationAdapter x)
     {:protocol/id (protocol-api/protocol-id x) :protocol/version 1}
     (fn? x) {:type :fn :class (str (class x))}
+    ;; Class values (e.g. a resolved adapter class) are runtime objects, not
+    ;; portable data: they print via Object/toString ("class foo.Bar") and do
+    ;; not survive an EDN round-trip as the same value, so commit the declared
+    ;; class identity as a stable descriptor to keep the persisted evidence
+    ;; identical to the form that the :bundle-root commitment was computed over.
+    (instance? java.lang.Class x) {:type :class :name (.getName x)}
     ;; Instant → ISO-8601 string, matching project-world-to-structure-view's
     ;; :instant→iso8601-string contract. Persisting the canonical form (instead
     ;; of a #object[java.time.Instant ...] tag) keeps evidence fully portable
     ;; and lets the committed :bundle-root hash recompute from the file.
     (instance? java.time.Instant x) (.toString x)
+    ;; Integer-valued clojure.lang.Ratio values (e.g. 100/1) are written as
+    ;; "100/1" but edn reduces them to Long 100 on read, so an in-memory hash
+    ;; over the Ratio diverges from recomputation over the persisted file.
+    ;; Fractional ratios (e.g. 100/3) already round-trip as Ratio, so only
+    ;; integer-valued ratios need canonicalizing — to the exact Long the
+    ;; persisted form reads back as.
+    (instance? clojure.lang.Ratio x)
+    (let [n (.numerator x) d (.denominator x)]
+      (if (zero? (mod n d))
+        (long (/ n d))
+        x))
     (map? x) (into {} (map (fn [[k v]] [k (normalize-runtime-values v)]) x))
     (coll? x) (into (empty x) (map normalize-runtime-values x))
     :else x))

@@ -4,10 +4,10 @@
   :benchmark/domain          :domain/escrow-dispute-resolution
   :benchmark/protocol        :protocol/sew
    :benchmark/scenario-suite  :suite/sew-dispute-safety-v1
-  :benchmark/scenario-suite-description
-  "44 Sew dispute-resolution scenarios (shared with escrow-dispute-v1).
-   Focus on dispute liveness: timely resolution under adversarial load,
-   bounded resolution time, and slashing conservation."
+:benchmark/scenario-suite-description
+   "65 Sew dispute-resolution scenarios (shared with escrow-dispute-v1).
+    Focus on dispute liveness: timely resolution under adversarial load,
+    bounded resolution time, and slashing conservation."
   :benchmark/runner-policy   :runner-policy/deterministic-local-v1
  :benchmark/evidence-policy :evidence-policy/forensic-standard-v1
    :benchmark/scoring-rule    :scoring/binary-claims-v1
@@ -16,15 +16,15 @@
                                           :claim/bounded-resolution-time]
                                :safety [:claim/slashing-conservation
                                                                        :claim/funds-conserved]}
-    :benchmark/description
-   "A lens over :suite/sew-dispute-safety-v1 focusing on dispute liveness:
-    timely resolution under adversarial load, bounded resolution time,
-    slashing conservation, and escrow-fund conservation. Shares the same
-    44-scenario suite with
-    escrow-dispute-v1 and resolver-slashing-v1 — a single suite run
-    provides evidence for all three, but each applies a different scoring
-    rule and claim set. This benchmark uses :scoring/binary-claims-v1
-    (all-or-nothing pass/fail per claim), not severity weighting."
+:benchmark/description
+    "A lens over :suite/sew-dispute-safety-v1 focusing on dispute liveness:
+     timely resolution under adversarial load, bounded resolution time,
+     slashing conservation, and escrow-fund conservation. Shares the same
+     65-scenario suite with
+     escrow-dispute-v1 and resolver-slashing-v1 — a single suite run
+     provides evidence for all three, but each applies a different scoring
+     rule and claim set. This benchmark uses :scoring/binary-claims-v1
+     (all-or-nothing pass/fail per claim), not severity weighting."
    :benchmark/purpose
    "Evaluate Sew dispute liveness: timely resolution under adversarial
     load, bounded resolution time, slashing conservation, and escrow-fund

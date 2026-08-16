@@ -44,9 +44,9 @@
   [evidence-input]
   (reduce (fn [acc adjustment]
             (let [prev-hash (when (seq acc)
-                                (:artifact/hash (last acc)))
+                              (:artifact/hash (last acc)))
                   art (custody/build-held-custody-artifact
-                        (assoc adjustment :held/previous-artifact-hash prev-hash))]
+                       (assoc adjustment :held/previous-artifact-hash prev-hash))]
               (conj acc art)))
           []
           (sort-by custody/held-adjustment-order evidence-input)))
@@ -116,8 +116,8 @@
   (testing "blocking-reasons and failed-check-ids are sorted vectors"
     (let [evidence (sample-evidence-input)
           artifacts (vec (vals (custody/rebuild-held-custody-artifacts evidence)))
-           tampered (mapv #(assoc % :amount 1100 :held/after 1100) artifacts)
-           original (afp/verify-and-project tampered evidence)]
+          tampered (mapv #(assoc % :amount 1100 :held/after 1100) artifacts)
+          original (afp/verify-and-project tampered evidence)]
       (is (vector? (:blocking-reasons original)))
       (is (vector? (:failed-check-ids original)))
       (is (= (:blocking-reasons original)

@@ -127,6 +127,43 @@
            (or (nil? (:max contract))
                (<= (:min contract) (:max contract))))))
 
+(def ^:private known-built-with-capabilities
+  "Controlled vocabulary of capabilities a command's build may declare it is
+   composed with (via :command/built-with-includes). Each id names a real
+   packaged capability of the resolver-sim build. The
+   :parallel-benchmark-run command composes incentive and
+   incentive-compatibility into its build; that combination is declared in
+   the registry and must stay within this vocabulary. This is a build
+   composition declaration, NOT an outcome-dimension gate: it does not require
+   an outcome manifest to carry specific outcome roots."
+  #{:capability/incentive
+    :capability/incentive-compatibility})
+
+(defn- built-with-includes-error
+  "Diagnostic string when a command's :command/built-with-includes is malformed
+   or names a capability outside the controlled vocabulary. Returns nil when
+   the field is absent or valid."
+  [cmd]
+  (let [includes (:command/built-with-includes cmd)
+        id (:command/id cmd)]
+    (when (some? includes)
+      (cond
+        (not (set? includes))
+        (str "Command " id " has :command/built-with-includes that is not a set")
+
+        (empty? includes)
+        (str "Command " id " has an empty :command/built-with-includes")
+
+(not (every? #(contains? known-built-with-capabilities %) includes))
+    (let [unknown (vec (sort (remove #(contains? known-built-with-capabilities %)
+                                     includes)))]
+      (str "Command " id " :command/built-with-includes declares unknown "
+           "capabilities " (pr-str unknown)
+           "; expected subset of "
+           (pr-str (vec (sort known-built-with-capabilities)))
+           ". This field is a build-composition declaration, not an "
+           "outcome-dimension gate."))))))
+
 (defn positional-args-error
   "Return a diagnostic when args violate cmd's declared positional contract.
    Returns nil when the command explicitly accepts arbitrary positional args
@@ -183,7 +220,9 @@
                                    " has unsupported (surface, jar-availability, runtime) combination "
                                    (pr-str combo)
                                    "; expected one of "
-                                   (pr-str (sort fixed-jar-availability-cases)))))))
+                                   (pr-str (sort fixed-jar-availability-cases))))))
+      (when-let [bwi-err (built-with-includes-error cmd)]
+        (vswap! errors conj bwi-err)))
     (if (empty? @errors)
       {:ok? true}
       {:ok? false :errors @errors})))

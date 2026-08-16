@@ -7,9 +7,10 @@
      into generic economics functions.
    - Generic economics must never depend on protocol namespaces."
   (:require [resolver-sim.definitions.passive-registries :as registries]
+            [resolver-sim.execution.budget :as budget]
             [resolver-sim.hash.canonical :as hc]
             [resolver-sim.util.thread-quiescence :as quiesce])
-   (:import [java.util.concurrent Callable Executors]))
+  (:import [java.util.concurrent Callable Executors]))
 
 ;; Basis point denominator used by generic integer accounting helpers.
 ;; Also defined as resolver-sim.yield.exact-math/scaling-factor (same value).
@@ -107,30 +108,57 @@
       1
       requested)))
 
+(declare run-claimant-tasks! claimant-quiesce!)
+
 (defn- ordered-detached-mapv
   "Determine independent claimant-local values on a bounded pool, then return
    them in the source vector's stable order. Exceptions are observed in that
-   same order, so a malformed row cannot produce schedule-dependent failures."
+   same order, so a malformed row cannot produce schedule-dependent failures.
+
+   When a shared execution budget is bound, the claimant layer BORROWS spare
+   capacity (acquire-many!) instead of creating an independent pool: borrowing as
+   many permits as are actually available, or running serially when none remain.
+   When no budget is bound, the previous per-call fixed pool is used unchanged."
   [parallelism f values]
-  (let [values (vec values)]
-    (if (<= parallelism 1)
-      (mapv f values)
-      (let [executor (Executors/newFixedThreadPool (int parallelism))]
+  (let [values (vec values)
+        budgeted (budget/current)]
+    (if budgeted
+      (let [acquired (budget/acquire-many! parallelism)]
         (try
-          (let [futures (mapv (fn [value]
-                                (.submit executor ^Callable
-                                         (reify Callable
-                                           (call [_] (f value)))))
-                              values)]
-            (mapv #(.get %) futures))
+          (if (< acquired 2)
+            (mapv f values)
+            (run-claimant-tasks! acquired f values))
           (finally
-            (let [q (quiesce/quiesce-executor! executor)]
-              (when-not (= :terminated (:status q))
-                (throw (quiesce/quiescence-failed-exception
-                        "Claimant executor threads did not terminate before pool release"
-                        {:quiescence/status (:status q)
-                         :quiescence/remaining-tasks (:remaining-tasks q)
-                         :executor-parallelism parallelism}))))))))))
+            (budget/release-many! acquired))))
+      (if (<= parallelism 1)
+        (mapv f values)
+        (run-claimant-tasks! parallelism f values)))))
+
+(defn- run-claimant-tasks!
+  "Run claimant-local tasks on a bounded fresh pool with size `parallelism`,
+   collecting results in stable order and quiescing authoritatively."
+  [parallelism f values]
+  (let [executor (Executors/newFixedThreadPool (int parallelism))]
+    (try
+      (let [futures (mapv (fn [value]
+                            (.submit executor ^Callable
+                                     (reify Callable
+                                       (call [_] (f value)))))
+                          values)]
+        (mapv #(.get %) futures))
+      (finally
+        (claimant-quiesce! executor parallelism)))))
+
+(defn- claimant-quiesce!
+  "Authoritatively quiesce a claimant executor, failing closed on non-termination."
+  [executor parallelism]
+  (let [q (quiesce/quiesce-executor! executor)]
+    (when-not (= :terminated (:status q))
+      (throw (quiesce/quiescence-failed-exception
+              "Claimant executor threads did not terminate before pool release"
+              {:quiescence/status (:status q)
+               :quiescence/remaining-tasks (:remaining-tasks q)
+               :executor-parallelism parallelism})))))
 
 (defn- registry-entry
   [entries id]
@@ -622,14 +650,14 @@
   [{:keys [amount items id-fn weight-fn cap-fn rounding ordering-policy progress-atom on-progress parallelism]
     :or {id-fn :id weight-fn :weight cap-fn :cap
          rounding :floor-with-largest-remainder ordering-policy :input-order}}]
-   (let [amount (non-negative-integer amount)
-         items (vec (or items []))
-         observer (or on-progress progress-atom)
-         item-id (fn [item] (id-fn item))
-         cap-of (fn [item]
-                  (when-let [cap (cap-fn item)]
-                    (non-negative-integer cap)))
-         max-redistribution-rounds (count items)]
+  (let [amount (non-negative-integer amount)
+        items (vec (or items []))
+        observer (or on-progress progress-atom)
+        item-id (fn [item] (id-fn item))
+        cap-of (fn [item]
+                 (when-let [cap (cap-fn item)]
+                   (non-negative-integer cap)))
+        max-redistribution-rounds (count items)]
     (loop [round-index 0
            remaining amount
            active items

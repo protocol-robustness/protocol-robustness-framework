@@ -85,7 +85,7 @@
    :stakeholder-impact "A requested evaluation domain is silently omitted from command outputs, hiding the absence of requested evidence."}]
 
  :concept/assumptions
- "For new commands, research-command.v2 typed scope references define semantic identity; v1 include sets remain legacy compatibility inputs. Argument ordering and aliases do not affect identity."
+ ["For new commands, research-command.v2 typed scope references define semantic identity; v1 include sets remain legacy compatibility inputs. Argument ordering and aliases do not affect identity."
   "Include directives select additional evaluation or output domains. They do not define the evaluation algorithm."
   "A include directive does not imply that every benchmark or pack supports the requested domain."
   "A requested include domain must never be silently omitted from outputs. When the selected benchmark or pack does not support it, the command must surface an explicitly unsupported or inconclusive result according to the execution policy. Surfacing an explicit unsupported result does not by itself invalidate an otherwise structurally valid command."

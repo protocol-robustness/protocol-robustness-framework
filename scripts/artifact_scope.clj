@@ -258,65 +258,68 @@
    (let [s @scope
          _ (when-not (= :active (:status s))
              (throw (ex-info "scope not active" {:scope-id (:scope-id s)
-                                                 :status (:status s)})))
+                                               :status (:status s)})))
          root (io/file (:namespace-root s))
          declared (mapv :relative-path (:artifacts s))
          declared-set (set declared)
          observed (file-relatives root)
          undeclared (vec (sort (remove #(or (declared-set %)
-                                             (= % "_owner.edn")
-                                             (= % "_manifest.json"))
-                                       observed)))
+                                            (= % "_owner.edn")
+                                            (= % "_manifest.json"))
+                                      observed)))
          declared-but-missing (vec (sort (remove (set observed) declared)))
          tmp-files (vec (filter #(str/starts-with? (.getName (io/file (str root "/" %)))
                                                    ".tmp-") undeclared))
          dup-ids (->> (:artifacts s) (group-by :logical-id)
                       (keep (fn [[id xs]] (when (> (count xs) 1) id))) vec sort)
-         missing-hash
+         missing-paths (set declared-but-missing)
+         hash-verify-failures
          (keep (fn [a]
-                 (let [f (io/file root (:relative-path a))
-                       ok (and (.exists f)
+                 (let [p (:relative-path a)
+                       f (io/file root p)
+                       ok (and (not (contains? missing-paths p))
+                               (.exists f)
                                (= (:content-hash a)
                                   (sha256-hex (java.nio.file.Files/readAllBytes (.toPath f)))))]
                    (when-not ok (:logical-id a))))
                (:artifacts s))
-          integrity-problems
-          (concat
-           (when (seq declared-but-missing)
-             [{:type :declared-missing :files declared-but-missing}])
-           (when (seq missing-hash)
-             [{:type :hash-mismatch :ids missing-hash}])
-           (when (seq dup-ids)
-             [{:type :duplicate-logical-id :ids dup-ids}]))
-          ;; Undeclared/temp files are write-bypass findings: reported always,
-          ;; hard-failed only in strict mode.
-          write-bypass-problems
-          (concat
-           (when (seq undeclared)
-             [{:type :undeclared-files :files undeclared}])
-           (when (seq tmp-files)
-             [{:type :temporary-files :files tmp-files}]))
-          hard-problems (if (and strict? (seq undeclared))
-                          (vec (concat integrity-problems write-bypass-problems))
-                          (vec integrity-problems))
-          manifest {:run-id (:run-id s)
-                    :namespace (:namespace s)
-                    :artifact-scope-id (:scope-id s)
-                    :scope-status (if (seq hard-problems) :incomplete :complete)
-                    :artifacts (vec (:artifacts s))
-                    :declared-but-missing declared-but-missing
-                    :hash-mismatch (vec missing-hash)
-                    :duplicate-logical-ids dup-ids
-                    :temporary-files tmp-files
-                    :undeclared-files undeclared
-                    :problems hard-problems}
-          _ (write-manifest-json! scope manifest)]
-      (if (seq hard-problems)
-        (do (swap! scope assoc :status :incomplete)
-            (throw (ex-info "artifact scope verification failed"
-                            {:manifest manifest :problems hard-problems})))
-        (do (swap! scope assoc :status :closed :closed-at (System/currentTimeMillis))
-            manifest)))))
+         integrity-problems
+         (concat
+          (when (seq declared-but-missing)
+            [{:type :declared-missing :files declared-but-missing}])
+          (when (seq hash-verify-failures)
+            [{:type :hash-verify-failure :ids hash-verify-failures}])
+          (when (seq dup-ids)
+            [{:type :duplicate-logical-id :ids dup-ids}]))
+         ;; Undeclared/temp files are write-bypass findings: reported always,
+         ;; hard-failed only in strict mode.
+         write-bypass-problems
+         (concat
+          (when (seq undeclared)
+            [{:type :undeclared-files :files undeclared}])
+          (when (seq tmp-files)
+            [{:type :temporary-files :files tmp-files}]))
+         hard-problems (if (and strict? (seq undeclared))
+                         (vec (concat integrity-problems write-bypass-problems))
+                         (vec integrity-problems))
+         manifest {:run-id (:run-id s)
+                   :namespace (:namespace s)
+                   :artifact-scope-id (:scope-id s)
+                   :scope-status (if (seq hard-problems) :incomplete :complete)
+                   :artifacts (vec (:artifacts s))
+                   :declared-but-missing declared-but-missing
+                   :hash-verify-failures (vec hash-verify-failures)
+                   :duplicate-logical-ids dup-ids
+                   :temporary-files tmp-files
+                   :undeclared-files undeclared
+                   :problems hard-problems}
+         _ (write-manifest-json! scope manifest)]
+       (if (seq hard-problems)
+         (do (swap! scope assoc :status :incomplete)
+             (throw (ex-info "artifact scope verification failed"
+                             {:manifest manifest :problems hard-problems})))
+         (do (swap! scope assoc :status :closed :closed-at (System/currentTimeMillis))
+             manifest)))))
 
 (defn mark-incomplete!
   "Mark a scope incomplete (used on worker exception/timeout) and return the

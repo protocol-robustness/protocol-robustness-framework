@@ -27,6 +27,7 @@
   {:run-scenario 'resolver-sim.commands.scenario/run
    :run-invariants 'resolver-sim.commands.invariants/run
    :run-benchmark 'resolver-sim.commands.run-benchmark/run
+   :parallel-benchmark-run 'resolver-sim.commands.run-benchmark/run
    :verify-scenario 'resolver-sim.commands.verify-scenario/run
    :verify-benchmark 'resolver-sim.commands.verify-benchmark/run
    :compare-runs 'resolver-sim.commands.compare-runs/run
@@ -84,7 +85,7 @@
 
 (def ^:private sew-command-ids
   #{:benchmark-validate :benchmark-validate-jar :benchmark-smoke
-    :run-scenario :run-invariants :run-benchmark :run-simulation
+    :run-scenario :run-invariants :run-benchmark :parallel-benchmark-run :run-simulation
     :scenario-list :scenario-compare :scenario-pick :scenario-run-search
     :benchmark-list :suite-list :invariants-run :verify-run :assure-package})
 
@@ -158,6 +159,7 @@
    [nil "--chunk-size N" "Deterministic work items per local benchmark chunk (default 1)" :parse-fn #(Long/parseLong %)]
    [nil "--claimant-parallelism N" "Runtime-only partial-fill claimant worker count (default 1)" :parse-fn #(Long/parseLong %)]
    [nil "--claimant-parallel-threshold N" "Runtime-only claimant-count threshold for partial-fill parallelism (default 16)" :parse-fn #(Long/parseLong %)]
+   [nil "--execution-budget N" "Shared Semaphore K bounding TOTAL concurrent execution (outer workers consume, inner claimants borrow spare). Positive integer; default unbounded." :parse-fn #(Long/parseLong %)]
    [nil "--report-format FORMAT" "Scenario report format"]
    ["-v" "--verbose" "Scenario report format: verbose"]
    ["-f" "--failures" "Scenario report format: failures"]

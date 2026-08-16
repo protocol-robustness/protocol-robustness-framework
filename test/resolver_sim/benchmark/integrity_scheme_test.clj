@@ -22,9 +22,9 @@
 (deftest current-scheme-verifies-when-version-declared-v2
   (testing "a bundle declaring bundle-root.v2 verifies as :current"
     (let [committed (commit-as :current
-                    {:benchmark {:benchmark/id :b}
-                     :metrics {:total 1 :passed 1}
-                     :evidence/commitment-version "bundle-root.v2"})
+                               {:benchmark {:benchmark/id :b}
+                                :metrics {:total 1 :passed 1}
+                                :evidence/commitment-version "bundle-root.v2"})
           r (integrity/verify-bundle-hash committed)]
       (is (true? (:hash-ok? r)))
       (is (= :current (:scheme r))))))
@@ -40,11 +40,11 @@
 (deftest legacy-v1-declared-only-verifies-as-legacy-v1
   (testing "a bundle declaring bundle-root.v1 verifies with the legacy scheme only"
     (let [committed (commit-as :legacy-v1
-                    {:benchmark {:benchmark/id :b}
-                     :metrics {:total 1 :passed 1}
-                     :run/manifest {:manifest/version "run-manifest.v1"}
-                     :benchmark-certification {:certification-hash "x"}
-                     :evidence/commitment-version "bundle-root.v1"})
+                               {:benchmark {:benchmark/id :b}
+                                :metrics {:total 1 :passed 1}
+                                :run/manifest {:manifest/version "run-manifest.v1"}
+                                :benchmark-certification {:certification-hash "x"}
+                                :evidence/commitment-version "bundle-root.v1"})
           r (integrity/verify-bundle-hash committed)]
       (is (true? (:hash-ok? r)))
       (is (= :legacy-v1 (:scheme r))))))
@@ -52,20 +52,20 @@
 (deftest versionless-legacy-bundle-is-rejected
   (testing "a version-less legacy-hash bundle is rejected (default current fails; no fallback)"
     (let [committed (commit-as :legacy-v1
-                    {:benchmark {:benchmark/id :b}
-                     :metrics {:total 1 :passed 1}
-                     :run/manifest {:manifest/version "run-manifest.v1"}
-                     :benchmark-certification {:certification-hash "x"}})
+                               {:benchmark {:benchmark/id :b}
+                                :metrics {:total 1 :passed 1}
+                                :run/manifest {:manifest/version "run-manifest.v1"}
+                                :benchmark-certification {:certification-hash "x"}})
           r (integrity/verify-bundle-hash committed)]
       (is (false? (:hash-ok? r))))))
 
 (deftest declared-version-does-not-mask-the-other-scheme
   (testing "declaring bundle-root.v1 on a current-hash bundle is rejected, not re-verified as current"
     (let [committed (-> (commit-as :current
-                         {:benchmark {:benchmark/id :b}
-                          :metrics {:total 1 :passed 1}
-                          :run/manifest {:manifest/version "run-manifest.v1"}
-                          :benchmark-certification {:certification-hash "x"}})
+                                   {:benchmark {:benchmark/id :b}
+                                    :metrics {:total 1 :passed 1}
+                                    :run/manifest {:manifest/version "run-manifest.v1"}
+                                    :benchmark-certification {:certification-hash "x"}})
                         (assoc :evidence/commitment-version "bundle-root.v1"))
           r (integrity/verify-bundle-hash committed)]
       (is (false? (:hash-ok? r)))
@@ -74,9 +74,9 @@
 (deftest unsupported-commitment-version-fails-closed
   (testing "an unknown commitment version fails closed"
     (let [committed (commit-as :current
-                    {:benchmark {:benchmark/id :b}
-                     :metrics {:total 1 :passed 1}
-                     :evidence/commitment-version "bundle-root.v9"})
+                               {:benchmark {:benchmark/id :b}
+                                :metrics {:total 1 :passed 1}
+                                :evidence/commitment-version "bundle-root.v9"})
           r (integrity/verify-bundle-hash committed)]
       (is (false? (:hash-ok? r)))
       (is (= :unsupported-commitment-version (:reason r)))
@@ -112,9 +112,9 @@
 (deftest stripping-bound-version-invalidates-commitment
   (testing "removing the bound version from a v2-committed bundle fails verification"
     (let [committed (commit-as :current
-                    {:benchmark {:benchmark/id :b}
-                     :metrics {:total 1 :passed 1}
-                     :evidence/commitment-version "bundle-root.v2"})
+                               {:benchmark {:benchmark/id :b}
+                                :metrics {:total 1 :passed 1}
+                                :evidence/commitment-version "bundle-root.v2"})
           stripped (dissoc committed :evidence/commitment-version)
           r (integrity/verify-bundle-hash stripped)]
       (is (false? (:hash-ok? r))))))
@@ -122,11 +122,11 @@
 (deftest version-tag-cannot-be-repurposed
   (testing "a v2-committed hash is not reinterpretable under a v1 tag"
     (let [committed (-> (commit-as :current
-                        {:benchmark {:benchmark/id :b}
-                         :metrics {:total 1 :passed 1}
-                         :run/manifest {:manifest/version "run-manifest.v1"}
-                         :benchmark-certification {:certification-hash "x"}
-                         :evidence/commitment-version "bundle-root.v2"})
+                                   {:benchmark {:benchmark/id :b}
+                                    :metrics {:total 1 :passed 1}
+                                    :run/manifest {:manifest/version "run-manifest.v1"}
+                                    :benchmark-certification {:certification-hash "x"}
+                                    :evidence/commitment-version "bundle-root.v2"})
                         (dissoc :evidence/commitment-version)
                         (assoc :evidence/commitment-version "bundle-root.v1"))
           r (integrity/verify-bundle-hash committed)]

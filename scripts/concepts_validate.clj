@@ -35,7 +35,7 @@
 ;; unrecognised fields cannot silently pass validation. Captures the full
 ;; vocabulary currently in use across concept files.
 (def allowed-concept-keys
-  #{:actions :aggregation :assumptions :benchmark-concepts :benchmark-domains
+  #{:actions :aggregation :architecture-notes :assumptions :benchmark-concepts :benchmark-domains
     :compatibility :description :display-name :entities :evidence :examples
     :failure-modes :frameworks :guarantees :id :include-values :known-gaps
     :layer :maturity :metrics :name :note :notes :out-of-scope :outcomes
