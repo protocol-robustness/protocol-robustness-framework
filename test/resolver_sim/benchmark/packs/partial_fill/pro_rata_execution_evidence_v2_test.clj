@@ -129,7 +129,73 @@
     (is (not (:valid? (exec-ev/validate-pro-rata-execution-evidence-any with-v2-on-legacy)))
         "v1 schema rejects the v2 field (v2-field-on-v1)")))
 
-(deftest v2-package-requires-operational-results
-  (is (exec-ev/package-requires-pro-rata-evidence? (base-manifest {:conservation :pass})))
-  (is (not (exec-ev/package-requires-pro-rata-evidence?
-            (dissoc (base-manifest {:conservation :pass}) :results/operational)))))
+(deftest v2-package-requires-declarative-marker-not-inferred
+  (let [manifest-with-marker (assoc (base-manifest {:conservation :pass})
+                                   :outcomes/pro-rata-evidence-required true)
+        manifest-without-marker (dissoc (base-manifest {:conservation :pass})
+                                        :results/operational)]
+    (is (exec-ev/package-requires-pro-rata-evidence? manifest-with-marker)
+        "explicit marker declares requirement")
+    (is (not (exec-ev/package-requires-pro-rata-evidence? manifest-without-marker))
+        "absence of marker fails closed — no inference from optional fields")))
+
+(deftest v2-theorem-binding-fails-with-empty-supplied
+  (let [manifest (om/build-manifest
+                   {:benchmark/content-root "sha256:cr"
+                    :benchmark/model-root "sha256:mr"
+                    :benchmark/evaluation-policy-root "sha256:eval"
+                    :execution/status :completed
+                    :outcomes/theorems [{:theorem/id :t1 :theorem/hash "sha256:t1"}]
+                    :results/operational {:conservation :pass}})
+        p (exec-ev/build-pro-rata-execution-evidence-v2
+           {:benchmark-content-root "sha256:cr"
+            :model-root "sha256:mr"
+            :outcome-manifest manifest
+            :allocation-evidence-hash "sha256:a"
+            :application-evidence-hash "sha256:b"
+            :theorem-outcomes []
+            :conclusions []})
+        v (:evidence-profile/verification p)]
+    (is (= false (:theorem-binding-valid? v))
+        "empty supplied evidence must NOT satisfy non-empty manifest theorems")))
+
+(deftest v2-conclusion-binding-fails-with-empty-supplied
+  (let [manifest (om/build-manifest
+                   {:benchmark/content-root "sha256:cr"
+                    :benchmark/model-root "sha256:mr"
+                    :benchmark/evaluation-policy-root "sha256:eval"
+                    :execution/status :completed
+                    :outcomes/conclusions [{:conclusion/id :c1 :conclusion/hash "sha256:c1"}]
+                    :results/operational {:conservation :pass}})
+        p (exec-ev/build-pro-rata-execution-evidence-v2
+           {:benchmark-content-root "sha256:cr"
+            :model-root "sha256:mr"
+            :outcome-manifest manifest
+            :allocation-evidence-hash "sha256:a"
+            :application-evidence-hash "sha256:b"
+            :theorem-outcomes []
+            :conclusions []})
+        v (:evidence-profile/verification p)]
+    (is (= false (:conclusion-binding-valid? v))
+        "empty supplied evidence must NOT satisfy non-empty manifest conclusions")))
+
+(deftest v2-binding-passes-when-supplied-matches-manifest
+  (let [manifest (om/build-manifest
+                   {:benchmark/content-root "sha256:cr"
+                    :benchmark/model-root "sha256:mr"
+                    :benchmark/evaluation-policy-root "sha256:eval"
+                    :execution/status :completed
+                    :outcomes/theorems [{:theorem/id :t1 :theorem/hash "sha256:t1"}]
+                    :outcomes/conclusions [{:conclusion/id :c1 :conclusion/hash "sha256:c1"}]
+                    :results/operational {:conservation :pass}})
+        p (exec-ev/build-pro-rata-execution-evidence-v2
+           {:benchmark-content-root "sha256:cr"
+            :model-root "sha256:mr"
+            :outcome-manifest manifest
+            :allocation-evidence-hash "sha256:a"
+            :application-evidence-hash "sha256:b"
+            :theorem-outcomes [{:theorem/id :t1 :theorem/hash "sha256:t1" :status :established}]
+            :conclusions [{:conclusion/id :c1 :conclusion/hash "sha256:c1"}]})
+        v (:evidence-profile/verification p)]
+    (is (= true (:theorem-binding-valid? v)))
+    (is (= true (:conclusion-binding-valid? v)))))

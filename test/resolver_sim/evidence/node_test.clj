@@ -633,3 +633,19 @@
                               {:hash/intent :creation-provenance
                                :hash/hex out-of-band-provenance-root}))
         "Intent-aware comparison distinguishes the two provenance roots")))
+
+(deftest validate-creation-provenance-accepts-known-values
+  (is (nil? (node/validate-creation-provenance :in-band))
+      "validate-creation-provenance accepts :in-band")
+  (is (nil? (node/validate-creation-provenance :out-of-band))
+      "validate-creation-provenance accepts :out-of-band"))
+
+(deftest validate-creation-provenance-rejects-unknown-value
+  (is (= {:error :creation-provenance/unsupported-value
+          :value :bogus}
+         (node/validate-creation-provenance :bogus))
+      "validate-creation-provenance rejects unknown provenance value")
+  (is (= {:error :creation-provenance/unsupported-value
+          :value nil}
+         (node/validate-creation-provenance nil))
+      "validate-creation-provenance rejects nil provenance"))

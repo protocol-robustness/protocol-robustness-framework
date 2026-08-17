@@ -82,7 +82,10 @@
    :allocation-build-context 'resolver-sim.commands.allocation/build-context
    :allocation-verify-proposal 'resolver-sim.commands.allocation/verify-proposal
    :allocation-vectors 'resolver-sim.commands.allocation/vectors
-   :allocation-issue-certificate 'resolver-sim.commands.allocation/issue-certificate})
+    :allocation-issue-certificate 'resolver-sim.commands.allocation/issue-certificate
+    :researcher-disagree 'resolver-sim.commands.researcher/disagree
+    :researcher-approve 'resolver-sim.commands.researcher/approve
+    :researcher-check 'resolver-sim.commands.researcher/check})
 
 (def ^:private sew-command-ids
   #{:benchmark-validate :benchmark-validate-jar :benchmark-smoke

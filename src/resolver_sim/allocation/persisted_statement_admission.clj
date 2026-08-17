@@ -55,6 +55,11 @@
             (throw (ex-info "requested must be an object" {})))
         requested (into {} (map (fn [[claim amount]]
                                   [claim (parse-amount [:requested claim] amount)])) requested)
+        _ (when (> available (reduce + 0 (vals requested)))
+            (throw (ex-info "available exceeds total requested"
+                            {:reason :available-exceeds-total-requested
+                             :available available
+                             :total-requested (reduce + 0 (vals requested))}))
         policy (keyword-values (get input "policy"))
         fail-policy (some-> (get input "fail-action-policy") keyword-values)
         decision (partial-fill/calculate-fulfillment-pro-rata

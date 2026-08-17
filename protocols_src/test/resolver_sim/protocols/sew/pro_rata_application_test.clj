@@ -43,7 +43,7 @@
         result (sut/apply-pro-rata-held-credit (:before ctx) (:allocation ctx) (:proposal ctx)
                                                (:refinement ctx) (:authorization ctx) (:roots ctx))]
     (is (= 1 (count (:adjustments result))))
-    (is (application/receipt-valid? (:receipt result))))
+    (is (application/receipt-valid? (:receipt result)))))
 
 (deftest roots-bind-a-real-new-held-adjustment
   (let [before (types/empty-world)
@@ -52,7 +52,7 @@
         roots (sut/application-roots before after adjustments)]
     (is (every? string? (vals roots)))
     (is (not= (:state-before/root roots) (:state-after/root roots)))
-    (is (not= (:ledger-before/root roots) (:ledger-after/root roots))))
+    (is (not= (:ledger-before/root roots) (:ledger-after/root roots)))))
 
 (deftest application-transition-valid?-matches-committed-roots
   (let [ctx (fixture)

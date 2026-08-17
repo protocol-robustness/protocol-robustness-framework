@@ -193,11 +193,12 @@
         fixed-jar-availability-cases
         ;; Fixed (surface, jar-availability, runtime) combinations a command
         ;; may take. Enforced so the documented availability matrix stays true.
-        #{[:prf :native :jvm]
-          [:dev :native :jvm]
-          [:community :native :jvm]
-          [:bb :external :bb]
-          [:bb :none :bb]}]
+         #{[:prf :native :jvm]
+           [:dev :native :jvm]
+           [:community :native :jvm]
+           [:researcher :native :jvm]
+           [:bb :external :bb]
+           [:bb :none :bb]}]
     (when-not (= "prf.commands.registry.v1" (:schema-version reg))
       (vswap! errors conj "Invalid schema version"))
     (doseq [cmd (:commands reg)]

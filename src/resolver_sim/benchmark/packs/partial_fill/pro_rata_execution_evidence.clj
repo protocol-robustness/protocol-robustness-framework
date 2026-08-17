@@ -1,22 +1,24 @@
 (ns resolver-sim.benchmark.packs.partial-fill.pro-rata-execution-evidence
   "Pro-rata execution evidence profile.
 
-   Provides one independently recomputable package-level summary of the
-   complete pro-rata calculation and application evidence chain.
+    Provides one independently recomputable package-level summary of the
+    complete pro-rata calculation and application evidence chain.
 
-   References the allocation and application profiles by hash, and
-   cross-validates against the outcome manifest's theorem and conclusion
-   commitments.
+    References the allocation and application profiles by hash, and
+    cross-validates against the outcome manifest's theorem and conclusion
+    commitments.
 
-   Versioned: pro-rata-execution-evidence.v1 (legacy) and
-   pro-rata-execution-evidence.v2 (current). v2 corrects the overclaiming v1
-   execution-result key :current-amount-write-back-verified? to the explicitly
-   operational :current-write-back-operationally-verified? and is the recommended
-   producer for new runs; v1 remains for backward compatibility with existing
-   canonical artifacts."
-  (:require [resolver-sim.hash.canonical :as hc]
-            [resolver-sim.benchmark.outcome-manifest :as om]
-            [resolver-sim.hash.reference :as hash-ref]))
+    Versioned: pro-rata-execution-evidence.v1 (legacy) and
+    pro-rata-execution-evidence.v2 (current). v2 corrects the overclaiming v1
+    execution-result key :current-amount-write-back-verified? to the explicitly
+    operational :current-write-back-operationally-verified? and is the recommended
+    producer for new runs; v1 remains for backward compatibility with existing
+    canonical artifacts."
+   (:require [resolver-sim.hash.canonical :as hc]
+             [resolver-sim.benchmark.outcome-manifest :as om]
+             [resolver-sim.hash.reference :as hash-ref]
+             [resolver-sim.benchmark.packs.partial-fill.pro-rata-allocation-evidence :as alloc-ev]
+             [resolver-sim.benchmark.packs.partial-fill.pro-rata-application-evidence :as app-ev]))
 
 (def ^:const schema-version "pro-rata-execution-evidence.v1")
 (def ^:const schema-version-v2 "pro-rata-execution-evidence.v2")
@@ -29,21 +31,21 @@
 (defn build-pro-rata-execution-evidence
   "Build a pro-rata execution evidence profile.
 
-   Required:
-     :benchmark-content-root   — sha256
-     :model-root               — sha256
-     :outcome-manifest         — resolved outcome manifest
-     :allocation-evidence-hash — sha256 of the allocation evidence profile
-     :application-evidence-hash — sha256 of the application evidence profile
-     :theorem-outcomes          — [{:theorem/id kw :theorem/hash sha256
-                                    :status kw}]
-     :conclusions               — [{:conclusion/id kw :conclusion/hash sha256}]
+    Required:
+      :benchmark-content-root   — sha256
+      :model-root               — sha256
+      :outcome-manifest         — resolved outcome manifest
+      :allocation-evidence-hash — sha256 of the allocation evidence profile
+      :application-evidence-hash — sha256 of the application evidence profile
+      :theorem-outcomes          — [{:theorem/id kw :theorem/hash sha256
+                                     :status kw}]
+      :conclusions               — [{:conclusion/id kw :conclusion/hash sha256}]
 
-   Returns the evidence profile with :evidence-profile/hash."
-  [{:keys [benchmark-content-root model-root
-           outcome-manifest
-           allocation-evidence-hash application-evidence-hash
-           theorem-outcomes conclusions]}]
+    Returns the evidence profile with :evidence-profile/hash."
+   [{:keys [benchmark-content-root model-root
+            outcome-manifest
+            allocation-evidence-hash application-evidence-hash
+            theorem-outcomes conclusions]}]
   (let [errors (atom [])]
     (doseq [[label v] [[:benchmark-content-root benchmark-content-root]
                        [:model-root model-root]
@@ -52,8 +54,8 @@
                        [:application-evidence-hash application-evidence-hash]
                        [:theorem-outcomes theorem-outcomes]
                        [:conclusions conclusions]]
-            :when (nil? v)]
-      (swap! errors conj (str "missing required artifact: " label)))
+             :when (nil? v)]
+       (swap! errors conj (str "missing required artifact: " label)))
     (when (seq @errors)
       (throw (ex-info "Pro-rata execution evidence build failed"
                       {:errors @errors})))
@@ -66,9 +68,12 @@
           conclusion-hashes (set (map :conclusion/hash manifest-conclusions))
           provided-theorem-hashes (set (map :theorem/hash theorem-outcomes))
           provided-conclusion-hashes (set (map :conclusion/hash conclusions))
-          theorem-binding-ok (every? theorem-hashes provided-theorem-hashes)
-          conclusion-binding-ok (every? conclusion-hashes
-                                        provided-conclusion-hashes)
+          theorem-binding-ok (if (empty? theorem-hashes)
+                                true
+                                (every? #(contains? provided-theorem-hashes %) theorem-hashes))
+          conclusion-binding-ok (if (empty? conclusion-hashes)
+                                   true
+                                   (every? #(contains? provided-conclusion-hashes %) conclusion-hashes))
           ;; ── Execution result classification ───────────────────────────
           operational (get outcome-manifest :results/operational {})
           ;; These are execution-evidence status facts, not per-obligation
@@ -81,9 +86,7 @@
                                  (= :pass (:current-amount-write-back operational {})))
           deferred-write-back-verified? (= :pass (:current-amount-write-back operational {}))
           ;; ── Verification map ──────────────────────────────────────────
-          verification {:allocation-profile-valid? true
-                        :application-profile-valid? true
-                        :outcome-binding-valid? manifest-ok
+          verification {:outcome-binding-valid? manifest-ok
                         :theorem-binding-valid? theorem-binding-ok
                         :conclusion-binding-valid? conclusion-binding-ok}
           base {:schema-version schema-version
@@ -174,9 +177,12 @@
           conclusion-hashes (set (map :conclusion/hash manifest-conclusions))
           provided-theorem-hashes (set (map :theorem/hash theorem-outcomes))
           provided-conclusion-hashes (set (map :conclusion/hash conclusions))
-          theorem-binding-ok (every? theorem-hashes provided-theorem-hashes)
-          conclusion-binding-ok (every? conclusion-hashes
-                                        provided-conclusion-hashes)
+          theorem-binding-ok (if (empty? theorem-hashes)
+                                true
+                                (every? #(contains? provided-theorem-hashes %) theorem-hashes))
+          conclusion-binding-ok (if (empty? conclusion-hashes)
+                                   true
+                                   (every? #(contains? provided-conclusion-hashes %) conclusion-hashes))
           ;; ── Execution result classification ───────────────────────────
           operational (get outcome-manifest :results/operational {})
           ;; These are execution-evidence status facts, not per-obligation
@@ -191,9 +197,7 @@
                                  (= :pass (:quota-bounded operational {}))
                                  current-wb-operational-ok?)
           ;; ── Verification map ──────────────────────────────────────────
-          verification {:allocation-profile-valid? true
-                        :application-profile-valid? true
-                        :outcome-binding-valid? manifest-ok
+          verification {:outcome-binding-valid? manifest-ok
                         :theorem-binding-valid? theorem-binding-ok
                         :conclusion-binding-valid? conclusion-binding-ok}
           base {:schema-version schema-version-v2
@@ -396,35 +400,67 @@
 ;; ═══════════════════════════════════════════════════════════════════════════
 
 (defn package-requires-pro-rata-evidence?
-  "True when the outcome manifest contains pro-rata results.
-   Checks for :results/operational or :results/claims with pro-rata content."
-  [manifest]
-  (some? (:results/operational manifest)))
+  "Declarative check: true only when the outcome manifest explicitly marks
+    pro-rata evidence as required via :outcomes/pro-rata-evidence-required.
+
+    Fails closed — does not infer requirement from optional fields like
+    :results/operational. If the marker is absent, returns false."
+   [manifest]
+   (= true (:outcomes/pro-rata-evidence-required manifest)))
 
 (defn verify-package-pro-rata-evidence
   "Package-level verification for pro-rata execution packages.
-   For non-pro-rata manifests returns {:valid? true :required? false
-                                       :status :not-required}.
+    For non-pro-rata manifests returns {:valid? true :required? false
+                                        :status :not-required}.
 
-   Resolves artifacts from the package index and recomputes profiles.
+    Resolves artifacts from the package index, validates each profile's
+    structure and hash integrity, and verifies the execution profile binds
+    correctly to its referenced allocation/application profiles.
 
-   Returns {:valid? bool :errors [string] :checks map}"
-  [package-resolver profile outcome-manifest]
-  (let [errors (atom [])]
-    (if-not (package-requires-pro-rata-evidence? outcome-manifest)
-      {:valid? true :required? false :status :not-required
-       :errors [] :checks {}}
-      (let [alloc-hash (:evidence-profile/allocation-evidence-hash profile)
-            app-hash (:evidence-profile/application-evidence-hash profile)
-            alloc-profile (when alloc-hash (package-resolver alloc-hash))
-            app-profile (when app-hash (package-resolver app-hash))]
-        (when-not alloc-profile
-          (swap! errors conj (str "allocation evidence profile not found: "
-                                  alloc-hash)))
-        (when-not app-profile
-          (swap! errors conj (str "application evidence profile not found: "
-                                  app-hash)))
-        {:valid? (empty? @errors) :required? true
-         :errors @errors
-         :checks {:allocation-profile-resolved? (some? alloc-profile)
-                  :application-profile-resolved? (some? app-profile)}}))))
+    Returns {:valid? bool :errors [string] :checks map}"
+   [package-resolver profile outcome-manifest]
+   (let [errors (atom [])
+         checks (atom {})]
+     (if-not (package-requires-pro-rata-evidence? outcome-manifest)
+       {:valid? true :required? false :status :not-required
+        :errors [] :checks {}}
+       (let [alloc-hash (:evidence-profile/allocation-evidence-hash profile)
+             app-hash (:evidence-profile/application-evidence-hash profile)
+             alloc-profile (when alloc-hash (package-resolver alloc-hash))
+             app-profile (when app-hash (package-resolver app-hash))]
+         ;; Resolve checks
+         (when-not alloc-profile
+           (swap! errors conj (str "allocation evidence profile not found: "
+                                   alloc-hash)))
+         (when-not app-profile
+           (swap! errors conj (str "application evidence profile not found: "
+                                   app-hash)))
+         ;; Validate allocation profile (structural + hash recomputation)
+         (when alloc-profile
+           (let [alloc-validation (alloc-ev/validate-pro-rata-allocation-evidence alloc-profile)]
+             (swap! checks assoc :allocation-profile-valid? (:valid? alloc-validation))
+             (when-not (:valid? alloc-validation)
+               (swap! errors conj (str "allocation profile validation failed: "
+                                       (pr-str (:errors alloc-validation)))))))
+         ;; Validate application profile (structural + hash recomputation)
+         (when app-profile
+           (let [app-validation (app-ev/validate-pro-rata-application-evidence app-profile)]
+             (swap! checks assoc :application-profile-valid? (:valid? app-validation))
+             (when-not (:valid? app-validation)
+               (swap! errors conj (str "application profile validation failed: "
+                                       (pr-str (:errors app-validation)))))))
+         ;; Verify execution profile binds to resolved profiles
+         (swap! checks assoc
+                :allocation-profile-bound? (= alloc-hash (:evidence-profile/hash alloc-profile))
+                :application-profile-bound? (= app-hash (:evidence-profile/hash app-profile)))
+         (when (and alloc-profile (not= alloc-hash (:evidence-profile/hash alloc-profile)))
+           (swap! errors conj (str "allocation profile hash mismatch: expected "
+                                   alloc-hash " got "
+                                   (:evidence-profile/hash alloc-profile))))
+         (when (and app-profile (not= app-hash (:evidence-profile/hash app-profile)))
+           (swap! errors conj (str "application profile hash mismatch: expected "
+                                   app-hash " got "
+                                   (:evidence-profile/hash app-profile))))
+         {:valid? (empty? @errors) :required? true
+          :errors @errors
+          :checks @checks}))))

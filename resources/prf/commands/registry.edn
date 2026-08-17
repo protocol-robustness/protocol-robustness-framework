@@ -1087,4 +1087,53 @@
     :command/options [{:name "--input" :type :string :doc "Input JSON file; use '-' for stdin"}]
     :command/outputs []
     :command/positional-args {:min 0 :max 1}
-    :command/description "Compose allocation-assurance-certificate.v1 from a kernel run."}]}
+     :command/description "Compose allocation-assurance-certificate.v1 from a kernel run."}
+
+   {:command/id :researcher-disagree
+    :command/path ["researcher" "disagree"]
+    :command/title "Sign a dissenting researcher decision"
+    :command/category :researcher
+    :command/surface :researcher
+    :command/backstop-tier :manual
+    :command/jar-availability :native
+    :command/runtime :jvm
+    :command/options [{:name "--input" :type :string :doc "Input EDN file with force-authorisation context; use '-' for stdin"}
+                      {:name "--member-key" :type :integer :doc "Integer review-member/key of the dissenting researcher" :required true}
+                      {:name "--key" :type :string :doc "Path to researcher Ed25519 private key" :required true}
+                      {:name "--dissent-reason" :type :string :doc "Required reason for dissent" :required true}
+                      {:name "--outcome-root" :type :string :doc "Outcome root for v2 signed decision (sha256:...)"}
+                      {:name "--json" :type :flag :doc "Output as JSON"}]
+    :command/outputs []
+    :command/positional-args {:min 0 :max 0}
+    :command/description "Sign a dissenting (:dissent) decision as a researcher, identified by integer review-member/key, targeting a force-authorisation."}
+
+   {:command/id :researcher-approve
+    :command/path ["researcher" "approve"]
+    :command/title "Sign an approving researcher decision"
+    :command/category :researcher
+    :command/surface :researcher
+    :command/backstop-tier :manual
+    :command/jar-availability :native
+    :command/runtime :jvm
+    :command/options [{:name "--input" :type :string :doc "Input EDN file with force-authorisation context; use '-' for stdin"}
+                      {:name "--member-key" :type :integer :doc "Integer review-member/key of the approving researcher" :required true}
+                      {:name "--key" :type :string :doc "Path to researcher Ed25519 private key" :required true}
+                      {:name "--outcome-root" :type :string :doc "Outcome root for v2 signed decision (sha256:...)"}
+                      {:name "--json" :type :flag :doc "Output as JSON"}]
+    :command/outputs []
+    :command/positional-args {:min 0 :max 0}
+    :command/description "Sign an approving (:approve) decision as a researcher, identified by integer review-member/key, targeting a force-authorisation."}
+
+   {:command/id :researcher-check
+    :command/path ["researcher" "check"]
+    :command/title "Check force-authorisation usability"
+    :command/category :researcher
+    :command/surface :researcher
+    :command/backstop-tier :manual
+    :command/jar-availability :native
+    :command/runtime :jvm
+    :command/options [{:name "--input" :type :string :doc "Input EDN file with authorisation record, consumption registry, scope map, and now-ts; use '-' for stdin"}
+                      {:name "--json" :type :flag :doc "Output as JSON"}]
+    :command/outputs []
+    :command/positional-args {:min 0 :max 0}
+    :command/description "Check whether a force-authorisation is usable, classifying the result as :usable, :forbidden, :forbidden-authorized, or :invalid-parameter-attribution."}]}

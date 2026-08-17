@@ -354,9 +354,11 @@
 (defn sampling-comparison-scope?
   "True when two manifests share the same model, parameter domain and
    sampling policy but generated independent case sets.
-   
-   Outcomes should be compared by claim pass rates, confidence bounds,
-   failure classes and incentive findings — not byte-identical hashes."
+
+   Structural root equality (content-root, parameter-domain-root,
+   sampling-policy-root) is used instead of byte-identical hashes,
+   because independent case generation legitimately differs at the
+   realized-case-set level while remaining comparable by outcome roots."
   [a b]
   (and (= (:benchmark/content-root a) (:benchmark/content-root b))
        (= (:execution/parameter-domain-root a) (:execution/parameter-domain-root b))
