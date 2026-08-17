@@ -90,3 +90,24 @@
          (= committed-state-after-root derived-state-after-root)
          (= committed-ledger-before-root derived-ledger-before-root)
          (= committed-ledger-after-root derived-ledger-after-root))))
+
+(defn verify-applied-application
+  "Compose the three assurance propositions into one authoritative verdict:
+
+        receipt integrity  (self-integrity of the applied-effect-receipt)
+        + transition derivation  (re-derived state + ledger roots match committed)
+        + authorization evidence  (authorization artifact self-validates)
+        = authoritative state-after
+
+  Does NOT expand `receipt-valid?` — that remains the self-integrity check.
+  Returns {:valid? bool :receipt-valid? ... :transition-valid? ... :authorization-valid? ...}."
+  [receipt authorization world protocol-effects adjustments]
+  (let [receipt-ok (application/receipt-valid? receipt)
+        auth-ok (application/authorization-valid? authorization)
+        committed-roots (select-keys receipt [:state-before/root :state-after/root
+                                              :ledger-before/root :ledger-after/root])
+        transition-ok (application-transition-valid? world protocol-effects adjustments committed-roots)]
+    {:valid? (and receipt-ok auth-ok transition-ok)
+     :receipt-valid? receipt-ok
+     :authorization-valid? auth-ok
+     :transition-valid? transition-ok}))

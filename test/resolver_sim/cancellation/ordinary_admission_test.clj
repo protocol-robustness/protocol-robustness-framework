@@ -80,15 +80,31 @@
 
 (deftest state-transition-binding-stage-present-and-non-blocking
   (let [result (admission/admit (request))
-        stb (get-in result [:verification :state-transition-binding])]
+        stb (get-in result [:verification :state-transition-binding])
+        sai (get-in result [:verification :state-after-integrity])]
     (is (some? stb)
         "state-transition-binding stage is present in the verification map")
     (is (= :transition/unimplemented (:reason stb))
         "state-transition-binding reports :transition/unimplemented as a known gap")
     (is (true? (:binding-valid? stb))
-        "state-transition-binding is non-blocking: all three roots resolve"))
+        "state-transition-binding is non-blocking: all three roots resolve")
+    (is (some? sai)
+        "state-after-integrity field is present in the verification map")
+    (is (= (get-in result [:verification :roots :state-after :valid?])
+           (:root-valid? sai))
+        "state-after-integrity root-valid? reflects the state-after stage verdict")
+    (is (= (:verified? sai) (:binding-valid? stb))
+        "state-after-integrity verified? is false when transition binding is unimplemented")
+    (is (false? (:verified? stb))
+        "state-transition-binding verified? is false when the kernel is not defined"))
   (testing "state-transition-binding does not block admission when the transition kernel is not defined"
     (let [result (admission/admit (request))]
       (is (admission/admitted? result))
       (is (not (some #{:transition/unimplemented} (:blocking-reasons result)))
-          "state-transition-binding reason is not a blocking reason"))))
+          "state-transition-binding reason is not a blocking reason")
+      (is (some? (get-in result [:state-after-integrity]))
+          "state-after-integrity is exposed on the admission result")
+      (is (some? (get-in result [:state-transition-binding]))
+          "state-transition-binding is exposed on the admission result")
+      (is (false? (get-in result [:state-transition-binding :verified?]))
+          "state-transition-binding verified? is false on the admission result (not a pass)"))))

@@ -1,7 +1,7 @@
 {
   "artifact_filename": "prf-runner-sew-0.1.0-uber.jar",
   "artifact_variant": "sew",
-  "artifact_sha256": "88d9af9e5530363951e56b884d99182d3689a7194942a2bb828c17bc4a03ab80",
+  "artifact_sha256": "09b4530cc3c6e2cde42a3b31a2324570fd1922464a208b434ed1e0d662a4fc70",
   "prf_source_commit": "64e422f91b8424e35259027a378c237fbc15e801",
   "prf_source_commit_short": "64e422f9",
   "allocation_kernel_version": "allocation-kernel.v1",

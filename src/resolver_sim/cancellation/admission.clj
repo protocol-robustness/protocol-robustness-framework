@@ -128,9 +128,14 @@
                                    :execution-effects-valid? (= (:derived-effects/root (resolve-root resolve-artifact (:execution-effects roots)))
                                                                 (:effects/root derived))
 :authorized? (= :authorized (:decision/classification evaluation))}
-                         :state-transition-binding {:available? (some? state-transition-binding)
-                                                    :binding-valid? (:binding-valid? state-transition-binding)
-                                                    :reason (:reason state-transition-binding)}}
+:state-transition-binding {:available? (some? state-transition-binding)
+                           :binding-valid? (:binding-valid? state-transition-binding)
+                           :reason (:reason state-transition-binding)
+                           :verified? (and (:binding-valid? state-transition-binding)
+                                           (not= :transition/unimplemented (:reason state-transition-binding)))}
+                         :state-after-integrity {:available? (boolean (:valid? (get stages :state-after)))
+                                                  :root-valid? (boolean (:valid? (get stages :state-after)))
+                                                  :verified? (boolean (:valid? (get stages :state-after)))}}
         root-reasons (invalid-stage-reasons stages)
         recomputed-reasons (let [r (:recomputed verification)]
                              (vec (remove nil?
@@ -154,7 +159,9 @@
               :blocking-reasons blocking-reasons
               :admitted? admitted?
               :admission/status (if admitted? :admitted :rejected)
-              :admission/reasons blocking-reasons}]
+              :admission/reasons blocking-reasons
+              :state-after-integrity (get-in verification [:state-after-integrity])
+              :state-transition-binding (get-in verification [:state-transition-binding])}]
     (assoc base :admission/root (admission-root base))))
 
 (defn admitted? [a] (true? (:admitted? a)))

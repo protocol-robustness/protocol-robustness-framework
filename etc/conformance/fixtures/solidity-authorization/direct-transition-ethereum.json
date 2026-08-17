@@ -1,0 +1,9 @@
+{
+  "schema": "prf-solidity-configuration-authorization.v1",
+  "decisionRoot": "0x3f5f3d34df298102e72a3c016c66d74e2a6d00b0c5250db5c7691cf54b17ab46",
+  "targetMode": 0,
+  "targetRoot": "0xf6c0f226998ebecb1123f78c2b30347d24c6e7ca2131f44f880b8a43c052cf86",
+  "parentConfigurationRoot": "0x12025a7e7948edfa9319ca31c2a8c81b57b8ad066c05aa2e79b5db9497e53035",
+  "newConfigurationRoot": "0xeeabcdeca12cc86143032758cdf069751b47546dd69a94efeb008f4f2ae2b39c",
+  "epoch": 1
+}

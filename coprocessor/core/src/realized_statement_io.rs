@@ -58,22 +58,28 @@ pub fn run_realized_statement(input: &Value) -> Value {
     let available: i64 = match input.get("available") {
         Some(Value::String(s)) => match s.parse::<i64>() {
             Ok(v) => v,
-            Err(_) => return reject(
-                "malformed-available",
-                "available must be a non-negative integer".to_string(),
-            ),
+            Err(_) => {
+                return reject(
+                    "malformed-available",
+                    "available must be a non-negative integer".to_string(),
+                )
+            }
         },
         Some(Value::Number(n)) => match n.as_i64() {
             Some(v) => v,
-            None => return reject(
+            None => {
+                return reject(
+                    "malformed-available",
+                    "available must be a non-negative integer".to_string(),
+                )
+            }
+        },
+        _ => {
+            return reject(
                 "malformed-available",
                 "available must be a non-negative integer".to_string(),
-            ),
-        },
-        _ => return reject(
-            "malformed-available",
-            "available must be a non-negative integer".to_string(),
-        ),
+            )
+        }
     };
     if available < 0 {
         return reject(

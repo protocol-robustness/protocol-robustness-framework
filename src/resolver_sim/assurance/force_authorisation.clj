@@ -25,13 +25,19 @@
   (let [h (requiring-resolve 'resolver-sim.hash.canonical/domain-hash)]
     (h force-authorisation-scope-domain scope-map)))
 
+(defn scope-hash-missing?
+  "True when the authorization record has no scope-hash at all."
+  [auth-provenance]
+  (nil? (:authorization/scope-hash auth-provenance)))
+
 (defn scope-hash-mismatch?
   "True when the scope-hash recorded in auth-provenance does not match
-   the recomputed hash from scope-map. Indicates scope drift or forgery."
+   the recomputed hash from scope-map. Indicates scope drift or forgery.
+   Returns false when scope-hash is absent (see scope-hash-missing?)."
   [auth-provenance scope-map]
   (let [recorded  (:authorization/scope-hash auth-provenance)
         recomputed (force-authorisation-scope-hash scope-map)]
-    (not= recorded recomputed)))
+    (and (some? recorded) (not= recorded recomputed))))
 
 ;; ── Normalization ──────────────────────────────────────────────────────────
 ;; Force-authorisation data may arrive from JSON (string keys), from
@@ -205,9 +211,13 @@
                  (conj (validation-error :invalid-parameter-attribution
                                          (name (held-adjustment/parameter-attribution-error scope-map))))
 
-                 (scope-hash-mismatch? record scope-map)
-                 (conj (validation-error :scope-hash-mismatch
-                                         "Recomputed scope-hash does not match recorded authorization scope-hash"))
+                  (scope-hash-missing? record)
+                  (conj (validation-error :missing-scope-hash
+                                          "Authorization record has no scope-hash"))
+
+                  (scope-hash-mismatch? record scope-map)
+                  (conj (validation-error :scope-hash-mismatch
+                                          "Recorded scope-hash does not match recomputed scope-hash"))
 
                  (and (:authorization/scope record) (not= (:authorization/scope record) scope-map))
                  (conj (validation-error :scope-mismatch

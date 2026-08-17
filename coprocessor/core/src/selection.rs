@@ -28,6 +28,9 @@ pub struct SelectionReceipt {
     pub selected_outcome_hash: String,
 }
 
+/// Returns 2^256, the upper bound for the rejection sampling algorithm.
+/// This matches the 256-bit security parameter used in the PRF
+/// domain-hash-rejection-v1 selection algorithm.
 fn two_to_256() -> BigInt {
     BigInt::from(1) << 256
 }

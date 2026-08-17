@@ -28,7 +28,7 @@
   (let [source (if (or (nil? path) (= "-" path))
                  (io/reader *in*)
                  (try
-                   (io/file path)
+                    (io/reader path)
                    (catch Exception _ nil)))]
     (when source
       (try
@@ -88,17 +88,17 @@
                            " not found in keyed review round"))
               {:exit-code 2 :message
                (str "member-key " member-key " not found in keyed review round")})
-          (let [researcher-id (:researcher/id resolved)
-                decision (decision-reason cmd)
-                auth-id (:authorisation/id ctx)
-                request-root (:authorisation/request-root ctx)
-                round-hash (:review-round/hash ctx)]
-            (if-not (and researcher-id auth-id request-root round-hash)
-              (do (stderr (str "researcher " (name cmd)
-                               ": input missing :authorisation/id, "
-                               ":authorisation/request-root, or :review-round/hash"))
-                  {:exit-code 2 :message
-                   "input missing :authorisation/id, :authorisation/request-root, or :review-round/hash"})
+           (let [researcher-id (:researcher/id resolved)
+                 decision (decision-reason cmd)
+                 auth-id (:authorization/id ctx)
+                 request-root (:authorisation/request-root ctx)
+                 round-hash (:review-round/hash ctx)]
+             (if-not (and researcher-id auth-id request-root round-hash)
+               (do (stderr (str "researcher " (name cmd)
+                                ": input missing :authorization/id, "
+                                ":authorisation/request-root, or :review-round/hash"))
+                   {:exit-code 2 :message
+                    "input missing :authorization/id, :authorisation/request-root, or :review-round/hash"})
               (try
                 (let [signed (if (some? outcome-root)
                                (rfa/build-signed-decision-v2
@@ -118,9 +118,12 @@
 (defn disagree
   "researcher disagree --input PATH|- --member-key N --key PATH --dissent-reason STR
    Sign a dissenting researcher decision using an integer member-key."
-  [opts]
+   [opts]
   (let [{:keys [cmd/args]} opts
-        parsed (parse-opts args)]
+        parsed (parse-opts args (:input opts)
+                           (some-> (:member-key opts) Long/parseLong)
+                           (:key opts) (:dissent-reason opts)
+                           (:outcome-root opts))]
     (if-let [err (:error parsed)]
       (do (stderr (str "researcher disagree: " err))
           {:exit-code 2 :message err})
@@ -131,7 +134,10 @@
    Sign an approving researcher decision using an integer member-key."
   [opts]
   (let [{:keys [cmd/args]} opts
-        parsed (parse-opts args)]
+        parsed (parse-opts args (:input opts)
+                           (some-> (:member-key opts) Long/parseLong)
+                           (:key opts) (:dissent-reason opts)
+                           (:outcome-root opts))]
     (if-let [err (:error parsed)]
       (do (stderr (str "researcher approve: " err))
           {:exit-code 2 :message err})
@@ -140,13 +146,14 @@
 (defn- parse-opts
   "Parse CLI args for researcher commands.
    Accepts --input, --member-key, --key, --dissent-reason, --outcome-root, --json."
-  [raw-args]
+   [raw-args default-input default-member-key default-key
+    default-dissent-reason default-outcome-root]
   (loop [args (vec raw-args)
-         input nil
-         member-key nil
-         key nil
-         dissent-reason nil
-         outcome-root nil
+         input default-input
+         member-key default-member-key
+         key default-key
+         dissent-reason default-dissent-reason
+          outcome-root default-outcome-root
          json false]
     (cond
       (empty? args)
@@ -194,13 +201,16 @@
       (:valid? auth-result)
       :usable
 
-      (some #(= :invalid-parameter-attribution (:code %)) errors)
-      :invalid-parameter-attribution
+       (some #(= :invalid-parameter-attribution (:code %)) errors)
+       :invalid-parameter-attribution
 
-      (and (some? record)
-           (contains? #{:approved :approved-with-dissent}
-                      (:authorisation/decision-status record)))
-      :forbidden-authorized
+       (some #(= :missing-scope-hash (:code %)) errors)
+       :forbidden
+
+       (and (some? record)
+            (contains? #{:approved :approved-with-dissent}
+                       (:authorisation/decision-status record)))
+       :forbidden-authorized
 
       :else
       :forbidden)))
@@ -213,7 +223,7 @@
     :usable, :forbidden, :forbidden-authorized, :invalid-parameter-attribution."
   [opts]
   (let [{:keys [cmd/args]} opts
-        parsed (parse-opts-check args)]
+        parsed (parse-opts-check args (:input opts))]
     (if-let [err (:error parsed)]
       (do (stderr (str "researcher check: " err))
           {:exit-code 2 :message err})
@@ -238,9 +248,9 @@
 
 (defn- parse-opts-check
   "Parse CLI args for the researcher check command."
-  [raw-args]
+  [raw-args default-input]
   (loop [args (vec raw-args)
-         input nil
+         input default-input
          json false]
     (cond
       (empty? args)

@@ -185,10 +185,13 @@
    [nil "--format FORMAT" "Artifact format for compare: edn or json"]
    [nil "--protocol PROTOCOL" "Protocol ID (default sew-v1)"]
    [nil "--search TEXT" "Filter results by search term"]
-   [nil "--key PATH" "Path to private key"]
-   [nil "--key-id ID" "Issuer key-id for the certificate signature"]
-   [nil "--check FILE" "ref-file: verify a canonical sha256 refs file against file contents"]
-   [nil "--input PATH" "Allocation: input JSON file; use '-' for stdin"]])
+    [nil "--key PATH" "Path to private key"]
+    [nil "--key-id ID" "Issuer key-id for the certificate signature"]
+    [nil "--check FILE" "ref-file: verify a canonical sha256 refs file against file contents"]
+    [nil "--input PATH" "Allocation: input JSON file; use '-' for stdin"]
+    [nil "--member-key N" "Researcher: integer review-member/key for identity resolution"]
+    [nil "--dissent-reason STR" "Researcher disagree: reason for dissent"]
+    [nil "--outcome-root REF" "Researcher approve: outcome root sha256 ref (enables v2 signing)"]])
 
 ;; ---------------------------------------------------------------------------
 ;; Command path resolution

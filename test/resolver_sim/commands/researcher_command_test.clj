@@ -51,7 +51,6 @@
   "Build a valid input context map for researcher disagree/approve."
   [round]
   {:authorization/id :authorisation/test-001
-   :authorisation/id :authorisation/test-001
    :authorisation/request-root "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
    :review-round/hash (:review-round/hash round)
    :review-round round})
@@ -62,13 +61,6 @@
   {:authorization/id "auth-001"
    :authorization/type :force-authorisation
    :held/direction :add
-   :token :eth
-   :amount 1000
-   :held/account "0xabc"
-   :held/position-id "pos-001"
-   :owner/address "0xowner"
-   :held/reason "test"
-   :held/workflow-id "wf-001"
    :parameter/context {:parameter-context/type :protocol-parameters
                        :parameter-context/root "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
                        :parameter-context/version 1}
@@ -84,10 +76,10 @@
           key-path (write-key-file kp)
           input (write-input-file (base-input round))
           result (cmd/disagree {:cmd/args ["--input" input
-                                               "--member-key" "1"
-                                               "--key" key-path
-                                               "--dissent-reason"
-                                               "methodology concern"]})
+                                            "--member-key" "1"
+                                            "--key" key-path
+                                            "--dissent-reason"
+                                            "methodology concern"]})
           decision (:decision result)]
       (is (zero? (:exit-code result)))
       (is (= "researcher-b" (:researcher/id decision)))
@@ -104,16 +96,16 @@
           key-path (write-key-file kp)
           input (write-input-file (base-input round))
           result (cmd/disagree {:cmd/args ["--input" input
-                                               "--member-key" "9"
-                                               "--key" key-path
-                                               "--dissent-reason"
-                                               "test"]})]
+                                            "--member-key" "9"
+                                            "--key" key-path
+                                            "--dissent-reason"
+                                            "test"]})]
       (is (= 2 (:exit-code result)))
       (is (str/includes? (:message result) "not found")))))
 
 (deftest disagree-rejects-invalid-option
   (testing "researcher disagree with unknown option returns error"
-    (let [          result (cmd/disagree {:cmd/args ["--unknown" "x"]})]
+    (let [result (cmd/disagree {:cmd/args ["--unknown" "x"]})]
       (is (= 2 (:exit-code result)))
       (is (str/includes? (:message result) "unknown option")))))
 
@@ -128,9 +120,9 @@
           input (write-input-file (assoc (base-input round)
                                          :outcome/root outcome-root))
           result (cmd/approve {:cmd/args ["--input" input
-                                              "--member-key" "0"
-                                              "--key" key-path
-                                              "--outcome-root" outcome-root]})
+                                           "--member-key" "0"
+                                           "--key" key-path
+                                           "--outcome-root" outcome-root]})
           decision (:decision result)]
       (is (zero? (:exit-code result)))
       (is (= "researcher-a" (:researcher/id decision)))
@@ -144,8 +136,8 @@
           key-path (write-key-file kp)
           input (write-input-file (base-input round))
           result (cmd/approve {:cmd/args ["--input" input
-                                               "--member-key" "2"
-                                               "--key" key-path]})
+                                           "--member-key" "2"
+                                           "--key" key-path]})
           decision (:decision result)]
       (is (zero? (:exit-code result)))
       (is (= "researcher-c" (:researcher/id decision)))
@@ -175,7 +167,7 @@
           result (cmd/check {:cmd/args ["--input" (write-input-file input)]})]
       (is (= 0 (:exit-code result)))
       (is (= "usable" (:outcome parsed)))
-      (is (true? (:valid? parsed)))))
+      (is (true? (:valid? parsed))))))
 
 (deftest check-classifies-forbidden-authorisation
   (testing "an inactive authorisation is classified :forbidden"
@@ -191,7 +183,7 @@
                  :authorization/scope scope}
           result (cmd/check {:cmd/args ["--input" (write-input-file input)]})]
       (is (= 1 (:exit-code result)))
-      (is (= :forbidden (:message result))))))
+      (is (= "forbidden" (:message result))))))
 
 (deftest check-classifies-forbidden-authorized
   (testing "an inactive but decision-approved authorisation is classified
@@ -209,7 +201,7 @@
                  :authorization/scope scope}
           result (cmd/check {:cmd/args ["--input" (write-input-file input)]})]
       (is (= 1 (:exit-code result)))
-      (is (= :forbidden-authorized (:message result))))))
+      (is (= "forbidden-authorized" (:message result))))))
 
 (deftest check-classifies-invalid-parameter-attribution
   (testing "a scope map with invalid parameter attribution is classified
@@ -228,10 +220,30 @@
                  :authorization/scope bad-scope}
           result (cmd/check {:cmd/args ["--input" (write-input-file input)]})]
       (is (= 1 (:exit-code result)))
-      (is (= :invalid-parameter-attribution (:message result))))))
+      (is (= "invalid-parameter-attribution" (:message result))))))
+
+(deftest check-classifies-missing-scope-hash
+  (testing "an authorisation record with no scope-hash is classified :forbidden
+            (not :forbidden-authorized even if decision-status is :approved)"
+    (let [scope (valid-scope-map)
+          record {:authorization/id "auth-001"
+                  :authorization/status :revoked
+                  :consumed? false
+                  :authorization/scope scope
+                  :authorisation/decision-status :approved}
+          input {:authorization/record record
+                 :authorization/consumption-registry {}
+                 :authorization/scope scope}
+          stdout (with-out-str
+                   (cmd/check {:cmd/args ["--input" (write-input-file input)]}))
+          parsed (json/read-str stdout :key-fn keyword)
+          result (cmd/check {:cmd/args ["--input" (write-input-file input)]})]
+      (is (= 1 (:exit-code result)))
+      (is (= "forbidden" (:outcome parsed)))
+      (is (some #{"missing-scope-hash"} (:error-codes parsed))))))
 
 (deftest check-handles-unknown-option
   (testing "researcher check with unknown option returns error"
     (let [result (cmd/check {:cmd/args ["--unknown" "x"]})]
       (is (= 2 (:exit-code result)))
-      (is (str/includes? (:message result) "unknown option"))))))
+      (is (str/includes? (:message result) "unknown option")))))

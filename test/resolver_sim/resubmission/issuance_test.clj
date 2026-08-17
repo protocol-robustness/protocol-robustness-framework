@@ -245,6 +245,13 @@
       (let [bad-candidate (assoc-in candidate [:attempt-receipt/chain :parent-receipt-hash] "sha256:OTHER")
             req (issue-request state-before cmd2 ordering bad-candidate)]
         (is (= :parent-inconsistent (decide-reason (:private-key validator-key) req)))))
+    (testing "command payload diverges from committed input-root"
+      (let [tampered-cmd (assoc-in cmd2
+                                   [:transaction/input :candidate-attempt-receipt-id]
+                                   "sha256:R3-FAKE")
+            req (issue-request state-before tampered-cmd ordering candidate)]
+        (is (= :input-root-mismatch
+               (decide-reason (:private-key validator-key) req)))))
     (testing "invalid candidate shape is rejected"
       (let [bad-candidate (dissoc candidate :attempt-receipt/roots)
             req (issue-request state-before cmd2 ordering bad-candidate)]
