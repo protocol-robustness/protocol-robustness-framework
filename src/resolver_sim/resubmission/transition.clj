@@ -46,7 +46,12 @@
   (:require [resolver-sim.hash.canonical :as hc]
             [resolver-sim.resubmission.disposition :as disposition]
             [resolver-sim.resubmission.receipt :as receipt]
+            [resolver-sim.transaction.ordering :as ordering]
             [resolver-sim.hash.reference :as hash-ref]))
+
+(def ^:private input-root-domain
+  "Domain tag for the canonical change-input (command) root."
+  :prf-transaction-input-v1)
 
 (declare commit-admit)
 
@@ -57,6 +62,36 @@
   "Namespaced action vocabulary (canonical, independent of Clojure source ns)."
   #{:prf.resubmission/admit-child
     :prf.resubmission/apply-disposition})
+
+(defn command-input-root
+  "Canonical change-input root: a committed commitment to the command's intent,
+   excluding chain-position/concurrency guards so the same requested change keeps
+   a stable identity across resequencing. `expected-chain-version` and
+   `expected-disposition-head` are concurrency preconditions, not change intent,
+   and therefore remain in :transaction/expected/:transaction/observed and the
+   ordering/admission preconditions rather than here.
+
+   :prf.resubmission/admit-child
+      -> commits {parent-receipt-hash, candidate-attempt-receipt-id,
+      idempotency-key, content-key} (omits sequence, expected-chain-version)
+   :prf.resubmission/apply-disposition
+      -> commits {attempt-receipt-hash, disposition-artifact-hash}
+      (omits expected-disposition-head, expected-chain-version)"
+  [action input]
+  (let [basis (case action
+                :prf.resubmission/admit-child
+                {:parent-receipt-hash (:parent-receipt-hash input)
+                 :candidate-attempt-receipt-id (:candidate-attempt-receipt-id input)
+                 :idempotency-key (:idempotency-key input)
+                 :content-key (:content-key input)}
+                :prf.resubmission/apply-disposition
+                {:attempt-receipt-hash (:attempt-receipt-hash input)
+                 :disposition-artifact-hash (when-let [artifact (:disposition-artifact input)]
+                                              (disposition/disposition-hash artifact))})]
+    (when (nil? basis)
+      (throw (ex-info "command-input-root: unsupported action" {:action action})))
+    (hash-ref/sha256-ref
+     (hc/domain-hash input-root-domain basis))))
 
 (defn empty-state
   "Initial versioned chain state for a resubmission family.
@@ -155,13 +190,15 @@
                      :sequence (:sequence input)
                      :admission-status :admitted}
      :effects effects
-     :ordering-input {:transaction/action :prf.resubmission/admit-child
-                      :transaction/scope :resubmission-family
-                      :transaction/conflict-key [:resubmission-family (:chain/family-id state)]
-                      :transaction/expected {:chain-head parent-receipt-hash
-                                             :chain-version version}
-                      :transaction/observed {:chain-head parent-receipt-hash
-                                             :chain-version version}}}))
+      :ordering-input {:transaction/action :prf.resubmission/admit-child
+                       :transaction/scope :resubmission-family
+                       :transaction/conflict-key [:resubmission-family (:chain/family-id state)]
+                       :transaction/expected {:chain-head parent-receipt-hash
+                                              :chain-version version}
+                       :transaction/observed {:chain-head parent-receipt-hash
+                                              :chain-version version}
+                       :transaction-ordering/schema ordering/ordering-v2-schema
+                       :transaction/input-root (command-input-root :prf.resubmission/admit-child input)}}))
 
 (defn- admit-child
   "Pure transition for :prf.resubmission/admit-child following the pinned
@@ -345,7 +382,9 @@
          :ordering-input {:transaction/action :prf.resubmission/apply-disposition
                           :transaction/scope :resubmission-family
                           :transaction/conflict-key [:resubmission-family (:chain/family-id state)]
-                          :transaction/expected {:disposition-head cur-head
+                           :transaction-ordering/schema ordering/ordering-v2-schema
+                           :transaction/input-root (command-input-root :prf.resubmission/apply-disposition input)
+                           :transaction/expected {:disposition-head cur-head
                                                  :chain-version version}
                           :transaction/observed {:disposition-head cur-head
                                                  :chain-version version}}}))))

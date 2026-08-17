@@ -379,7 +379,106 @@
                                (:transaction-ordering/hash o1)))
           result (ordering/verify-ordering-chain [o1 other-family])]
       (is (not (:valid? result)))
-      (is (some #(re-find #"conflict-key differs" %) (:errors result))))))
+       (is (some #(re-find #"conflict-key differs" %) (:errors result))))))
+
+;; ── transaction-ordering.v2: change identity & input-root ──────────────────────
+
+(deftest transaction-ordering-v2
+  (let [s (store/new-resubmission-store family)
+        r1 (protocol/transact! s nil nil (fn [st] (transition/apply-action st (admit-cmd :child "sha256:R1" :seq 1 :basis "sha256:B1" :link "sha256:L1" :idem "sha256:I1"))))
+        r2 (protocol/transact! s nil nil (fn [st] (transition/apply-action st (admit-cmd :child "sha256:R2" :seq 2 :parent "sha256:R1" :basis "sha256:B2" :link "sha256:L2" :idem "sha256:I2"))))
+        o1 (:transaction-ordering r1)
+        o2 (:transaction-ordering r2)
+        v1-hashes (fn []
+                    ;; v1 ordering over the same v1 field set, derived from o1's
+                    ;; projection with v2-only fields stripped and schema reset.
+                    (ordering/transaction-ordering
+                     (assoc (ordering/unsigned-ordering-projection-v1 o1)
+                            :transaction-ordering/schema ordering/ordering-schema
+                            :transaction/input-root nil
+                            :transaction/change-identity nil)))]
+    (testing "store commits v2 orderings with a derived change-identity"
+      (is (= ordering/ordering-v2-schema (:transaction-ordering/schema o1)))
+      (is (some? (:transaction/input-root o1)))
+      (is (some? (:transaction/change-identity o1)))
+      (is (= (:transaction/change-identity o1)
+             (ordering/change-identity-hash o1))
+          "change-identity is the recomputed domain hash of the canonical basis")
+      (is (true? (:valid? (ordering/verify-ordering o1)))
+          "self-hash + change-identity recompute both hold"))
+    (testing "a v2 ordering hash diverges from the equivalent v1 hash"
+      (let [v1 (v1-hashes)]
+        (is (not= (:transaction-ordering/hash o1) (:transaction-ordering/hash v1))
+            "v2 schema + input-root + change-identity are inside the v2 identity hash")
+        (is (= ordering/ordering-schema (:transaction-ordering/schema v1)))
+        (is (true? (:valid? (ordering/verify-ordering v1)))
+            "the v1 projection remains a valid v1 ordering")))
+    (testing "change-identity is positional-invariant across resequencing"
+      (let [relocated (ordering/transaction-ordering
+                       (assoc (ordering/unsigned-ordering-projection-v2 o1)
+                              :transaction/commit-index 999
+                              :transaction/previous-transaction-hash
+                              "sha256:0000000000000000000000000000000000000000000000000000000000000000"
+                              :transaction/state-before-root
+                              "sha256:1111111111111111111111111111111111111111111111111111111111111111"
+                              :transaction/state-after-root
+                              "sha256:2222222222222222222222222222222222222222222222222222222222222222"))]
+        (is (= (:transaction/change-identity o1)
+               (:transaction/change-identity relocated))
+            "changing commit-index / previous-hash / state roots must not move change-identity")
+        (is (not= (:transaction-ordering/hash o1)
+                  (:transaction-ordering/hash relocated))
+            "a relocated change still yields a different ordering hash")
+        (is (true? (:valid? (ordering/verify-ordering relocated))))))
+    (testing "input-root excludes concurrency / chain-position guards"
+      (let [base (admit-cmd :child "sha256:R1" :seq 1 :basis "sha256:B1" :link "sha256:L1" :idem "sha256:I1")
+            with-version (assoc-in base [:transaction/input :expected-chain-version] 1618)
+            with-seq (assoc-in base [:transaction/input :sequence] 7)
+            base-root (transition/command-input-root (:transaction/action base)
+                                                     (:transaction/input base))]
+        (is (= base-root
+               (transition/command-input-root (:transaction/action with-version)
+                                            (:transaction/input with-version)))
+            "expected-chain-version (a concurrency guard) is absent from input-root")
+        (is (= base-root
+               (transition/command-input-root (:transaction/action with-seq)
+                                            (:transaction/input with-seq)))
+            "sequence (a chain-position guard) is absent from input-root"))
+      (let [base (disposition-cmd "sha256:R1" :withdrawn)
+            with-head (assoc-in base [:transaction/input :expected-disposition-head] "sha256:HEAD")
+            with-version (assoc-in base [:transaction/input :expected-chain-version] 1618)]
+        (is (= (transition/command-input-root (:transaction/action base) (:transaction/input base))
+               (transition/command-input-root (:transaction/action with-head)
+                                            (:transaction/input with-head)))
+            "expected-disposition-head (a concurrency guard) is absent from input-root")
+        (is (= (transition/command-input-root (:transaction/action base) (:transaction/input base))
+               (transition/command-input-root (:transaction/action with-version)
+                                            (:transaction/input with-version)))
+            "expected-chain-version (a concurrency guard) is absent from disposition input-root")))
+    (testing "v2 verify rejects a forged change-identity"
+      (let [forged (assoc o1 :transaction/change-identity "sha256:0000000000000000000000000000000000000000000000000000000000000000")]
+        (is (= :change-identity-mismatch (:reason (ordering/verify-ordering forged))))))
+    (testing "v2 verify rejects an input-root that detaches from the change-identity"
+      (let [tampered (assoc o1 :transaction/input-root "sha256:0000000000000000000000000000000000000000000000000000000000000000")]
+        (is (= :change-identity-mismatch (:reason (ordering/verify-ordering tampered))))))
+    (testing "v2 verify rejects a missing input-root"
+      (is (= :missing-required-fields
+             (:reason (ordering/verify-ordering (assoc o1 :transaction/input-root nil))))))
+    (testing "v2 verify rejects a missing change-identity"
+      (is (= :missing-required-fields
+             (:reason (ordering/verify-ordering (assoc o1 :transaction/change-identity nil))))))
+    (testing "a v2 chain carries positional change-identity and verifies end-to-end"
+      (let [chain [o1 o2]
+            chain-v (ordering/verify-ordering-chain chain)]
+        (is (true? (:valid? chain-v)))
+        (is (not= (:transaction/change-identity o1) (:transaction/change-identity o2))
+            "distinct changes (different parents/basis) yield distinct change-identity")
+        ;; per-record change-identity recompute catches a forged commit mid-chain
+        (let [tampered-chain [o1 (assoc o2 :transaction/change-identity
+                                      "sha256:0000000000000000000000000000000000000000000000000000000000000000")]
+              bad (ordering/verify-ordering-chain tampered-chain)]
+          (is (false? (:valid? bad)))
+          (is (some #(re-find #"change-identity" %) (:errors bad))))))))
 
 ;; ── trace equivalence: reference transition vs persistent store ─────────────
 

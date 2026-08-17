@@ -119,8 +119,8 @@
   "researcher disagree --input PATH|- --member-key N --key PATH --dissent-reason STR
    Sign a dissenting researcher decision using an integer member-key."
   [opts]
-  (let [{:keys [cmd/raw-args]} opts
-        parsed (parse-opts raw-args)]
+  (let [{:keys [cmd/args]} opts
+        parsed (parse-opts args)]
     (if-let [err (:error parsed)]
       (do (stderr (str "researcher disagree: " err))
           {:exit-code 2 :message err})
@@ -130,8 +130,8 @@
   "researcher approve --input PATH|- --member-key N --key PATH [--outcome-root SHA]
    Sign an approving researcher decision using an integer member-key."
   [opts]
-  (let [{:keys [cmd/raw-args]} opts
-        parsed (parse-opts raw-args)]
+  (let [{:keys [cmd/args]} opts
+        parsed (parse-opts args)]
     (if-let [err (:error parsed)]
       (do (stderr (str "researcher approve: " err))
           {:exit-code 2 :message err})
@@ -212,8 +212,8 @@
    Projects the result into interaction classifications:
     :usable, :forbidden, :forbidden-authorized, :invalid-parameter-attribution."
   [opts]
-  (let [{:keys [cmd/raw-args]} opts
-        parsed (parse-opts-check raw-args)]
+  (let [{:keys [cmd/args]} opts
+        parsed (parse-opts-check args)]
     (if-let [err (:error parsed)]
       (do (stderr (str "researcher check: " err))
           {:exit-code 2 :message err})

@@ -106,10 +106,11 @@ fn selected_outcome_membership(
     committed: &Committed,
     sel: &SelectionReceipt,
 ) -> bool {
-    let idx = usize::try_from(&sel.selected_index).unwrap_or(usize::MAX);
-    if idx >= ctx.outcomes.len() {
+    let idx = usize::try_from(&sel.selected_index);
+    if idx.is_err() || idx.unwrap() >= ctx.outcomes.len() {
         return false;
     }
+    let idx = idx.unwrap();
     let selected_id = &ctx.outcomes[idx].outcome_id;
     if let Some(committed_id) = &committed.selected_outcome_id {
         if committed_id != selected_id {

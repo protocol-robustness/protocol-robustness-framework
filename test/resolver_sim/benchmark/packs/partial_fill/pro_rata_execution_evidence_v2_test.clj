@@ -41,8 +41,8 @@
   (let [p (exec-ev/build-pro-rata-execution-evidence-v2 (v2-args (pass-operational)))
         er (:evidence-profile/execution-result p)]
     (is (= "pro-rata-execution-evidence.v2" (:schema-version p)))
-    (is (= true (:current-write-back-operationally-verified? er))
-        "operational write-back passes -> renamed operational flag true")
+    (is (= true (:current-write-back-operational-pass? er))
+        "operational write-back passes -> operational-pass flag true")
     (is (not (contains? er :current-amount-write-back-verified?))
         "v2 must not carry the overclaiming v1 key")
     (is (= true (:allocation-sound? er))
@@ -60,7 +60,7 @@
                        :current-amount-write-back :fail
                        :authoritative-application :fail}))
           er (:evidence-profile/execution-result p)]
-      (is (= false (:current-write-back-operationally-verified? er)))
+      (is (= false (:current-write-back-operational-pass? er)))
       (is (= false (:allocation-sound? er)))
       (is (= false (:application-write-back-verified? er)))))
   (testing "operational passes while authoritative stricter check fails"
@@ -71,7 +71,7 @@
                        :current-amount-write-back :pass
                        :authoritative-application :fail}))
           er (:evidence-profile/execution-result p)]
-      (is (= true (:current-write-back-operationally-verified? er))
+      (is (= true (:current-write-back-operational-pass? er))
           "operational flag tracks the weak operational status")
       (is (= false (:application-write-back-verified? er))
           "authoritative flag stays separate and stronger"))))
@@ -97,7 +97,7 @@
         p (exec-ev/build-pro-rata-execution-evidence-v2 args)
         legacy-shaped (update-in p [:evidence-profile/execution-result]
                                  (fn [er] (-> er
-                                              (dissoc :current-write-back-operationally-verified?)
+                                              (dissoc :current-write-back-operational-pass?)
                                               (assoc :current-amount-write-back-verified? true))))
         v (exec-ev/validate-pro-rata-execution-evidence-v2 legacy-shaped)]
     (is (not (:valid? v)))
@@ -111,19 +111,22 @@
     (is (= "pro-rata-execution-evidence.v2" (:schema-version v2)))
     (is (not= (:evidence-profile/hash v1) (:evidence-profile/hash v2))
         "the two versions are distinct content-addressed artifacts")
-    (is (not (contains? (:evidence-profile/execution-result v1)
-                        :current-write-back-operationally-verified?))
-        "v1 retains the legacy key")
+    (is (not (contains? (:evidence-profile/execution-result v2)
+                        :current-amount-write-back-verified?))
+        "v2 must not carry the legacy v1 key")
     (is (contains? (:evidence-profile/execution-result v1)
                    :current-amount-write-back-verified?)
-        "sanity: v1 does carry the v1 key")))
+        "sanity: v1 does carry the v1 key")
+    (is (contains? (:evidence-profile/execution-result v2)
+                   :current-write-back-operational-pass?)
+        "v2 carries the operational-pass field")))
 
 (deftest v2-validator-version-dispatch
   (let [args (v2-args (pass-operational))
         p-v2 (exec-ev/build-pro-rata-execution-evidence-v2 args)
         with-v2-on-legacy (assoc (exec-ev/build-pro-rata-execution-evidence args)
                                  :evidence-profile/execution-result
-                                 {:current-write-back-operationally-verified? true})]
+                                 {:current-write-back-operational-pass? true})]
     (is (:valid? (exec-ev/validate-pro-rata-execution-evidence-any p-v2))
         "v2 dispatches to the v2 validator")
     (is (not (:valid? (exec-ev/validate-pro-rata-execution-evidence-any with-v2-on-legacy)))

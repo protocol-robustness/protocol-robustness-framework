@@ -281,6 +281,11 @@
 
 (deftest issuance-golden-signed-receipt
   (testing "golden signed-receipt id for fixed inputs"
+    ;; NOTE: the receipt id commits :attempt-receipt/chain, which carries the
+    ;; ordering hash. New issuances now carry transaction-ordering.v2 orderings
+    ;; (with input-root + derived change-identity), so this golden is the v2-
+    ;; derived id; v1 receipts continue to verify under v1. v1 ordering goldens are
+    ;; unchanged (they assert validity, not a hash string).
     (let [validator-key (ed/keypair :validator-key)
           {:keys [state-before cmd2 ordering]} (committed-fixture)
           candidate (with-chain (candidate-receipt-base) ordering)
@@ -290,4 +295,4 @@
           id (:attempt-receipt/id (:receipt response))]
       ;; The receipt id is the hash of the UNSIGNED projection (signature
       ;; excluded), so it is deterministic across validator keys.
-      (is (= "sha256:8e0db852a8ad46bc80a22d78fda32b018435f8fe784876353058018ee3ea194d" id)))))
+      (is (= "sha256:86c24fefad14f3cee0da1154706595e67c6a8f7b79e5d24949f8c6eb72bee40a" id)))))

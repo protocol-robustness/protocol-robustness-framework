@@ -83,7 +83,7 @@
           kp (fx/keypair :rk/researcher-b)
           key-path (write-key-file kp)
           input (write-input-file (base-input round))
-          result (cmd/disagree {:cmd/raw-args ["--input" input
+          result (cmd/disagree {:cmd/args ["--input" input
                                                "--member-key" "1"
                                                "--key" key-path
                                                "--dissent-reason"
@@ -103,7 +103,7 @@
           kp (fx/keypair)
           key-path (write-key-file kp)
           input (write-input-file (base-input round))
-          result (cmd/disagree {:cmd/raw-args ["--input" input
+          result (cmd/disagree {:cmd/args ["--input" input
                                                "--member-key" "9"
                                                "--key" key-path
                                                "--dissent-reason"
@@ -113,7 +113,7 @@
 
 (deftest disagree-rejects-invalid-option
   (testing "researcher disagree with unknown option returns error"
-    (let [result (cmd/disagree {:cmd/raw-args ["--unknown" "x"]})]
+    (let [          result (cmd/disagree {:cmd/args ["--unknown" "x"]})]
       (is (= 2 (:exit-code result)))
       (is (str/includes? (:message result) "unknown option")))))
 
@@ -127,7 +127,7 @@
           outcome-root "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
           input (write-input-file (assoc (base-input round)
                                          :outcome/root outcome-root))
-          result (cmd/approve {:cmd/raw-args ["--input" input
+          result (cmd/approve {:cmd/args ["--input" input
                                               "--member-key" "0"
                                               "--key" key-path
                                               "--outcome-root" outcome-root]})
@@ -143,9 +143,9 @@
           kp (fx/keypair :rk/researcher-c)
           key-path (write-key-file kp)
           input (write-input-file (base-input round))
-          result (cmd/approve {:cmd/raw-args ["--input" input
-                                              "--member-key" "2"
-                                              "--key" key-path]})
+          result (cmd/approve {:cmd/args ["--input" input
+                                               "--member-key" "2"
+                                               "--key" key-path]})
           decision (:decision result)]
       (is (zero? (:exit-code result)))
       (is (= "researcher-c" (:researcher/id decision)))
@@ -170,9 +170,9 @@
                  :authorization/consumption-registry {}
                  :authorization/scope scope}
           stdout (with-out-str
-                   (cmd/check {:cmd/raw-args ["--input" (write-input-file input)]}))
+                   (cmd/check {:cmd/args ["--input" (write-input-file input)]}))
           parsed (json/read-str stdout :key-fn keyword)
-          result (cmd/check {:cmd/raw-args ["--input" (write-input-file input)]})]
+          result (cmd/check {:cmd/args ["--input" (write-input-file input)]})]
       (is (= 0 (:exit-code result)))
       (is (= "usable" (:outcome parsed)))
       (is (true? (:valid? parsed)))))
@@ -189,7 +189,7 @@
           input {:authorization/record record
                  :authorization/consumption-registry {}
                  :authorization/scope scope}
-          result (cmd/check {:cmd/raw-args ["--input" (write-input-file input)]})]
+          result (cmd/check {:cmd/args ["--input" (write-input-file input)]})]
       (is (= 1 (:exit-code result)))
       (is (= :forbidden (:message result))))))
 
@@ -207,7 +207,7 @@
           input {:authorization/record record
                  :authorization/consumption-registry {}
                  :authorization/scope scope}
-          result (cmd/check {:cmd/raw-args ["--input" (write-input-file input)]})]
+          result (cmd/check {:cmd/args ["--input" (write-input-file input)]})]
       (is (= 1 (:exit-code result)))
       (is (= :forbidden-authorized (:message result))))))
 
@@ -226,12 +226,12 @@
           input {:authorization/record record
                  :authorization/consumption-registry {}
                  :authorization/scope bad-scope}
-          result (cmd/check {:cmd/raw-args ["--input" (write-input-file input)]})]
+          result (cmd/check {:cmd/args ["--input" (write-input-file input)]})]
       (is (= 1 (:exit-code result)))
       (is (= :invalid-parameter-attribution (:message result))))))
 
 (deftest check-handles-unknown-option
   (testing "researcher check with unknown option returns error"
-    (let [result (cmd/check {:cmd/raw-args ["--unknown" "x"]})]
+    (let [result (cmd/check {:cmd/args ["--unknown" "x"]})]
       (is (= 2 (:exit-code result)))
       (is (str/includes? (:message result) "unknown option"))))))

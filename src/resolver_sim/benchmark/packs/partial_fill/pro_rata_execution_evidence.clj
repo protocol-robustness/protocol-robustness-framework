@@ -41,87 +41,93 @@
                                      :status kw}]
       :conclusions               — [{:conclusion/id kw :conclusion/hash sha256}]
 
+    Optional:
+      :creation/provenance        — :in-band | :out-of-band (defaults to :in-band)
+
     Returns the evidence profile with :evidence-profile/hash."
    [{:keys [benchmark-content-root model-root
             outcome-manifest
             allocation-evidence-hash application-evidence-hash
-            theorem-outcomes conclusions]}]
-  (let [errors (atom [])]
-    (doseq [[label v] [[:benchmark-content-root benchmark-content-root]
-                       [:model-root model-root]
-                       [:outcome-manifest outcome-manifest]
-                       [:allocation-evidence-hash allocation-evidence-hash]
-                       [:application-evidence-hash application-evidence-hash]
-                       [:theorem-outcomes theorem-outcomes]
-                       [:conclusions conclusions]]
+            theorem-outcomes conclusions
+            creation/provenance]}]
+   (let [errors (atom [])]
+     (doseq [[label v] [[:benchmark-content-root benchmark-content-root]
+                        [:model-root model-root]
+                        [:outcome-manifest outcome-manifest]
+                        [:allocation-evidence-hash allocation-evidence-hash]
+                        [:application-evidence-hash application-evidence-hash]
+                        [:theorem-outcomes theorem-outcomes]
+                        [:conclusions conclusions]]
              :when (nil? v)]
        (swap! errors conj (str "missing required artifact: " label)))
-    (when (seq @errors)
-      (throw (ex-info "Pro-rata execution evidence build failed"
-                      {:errors @errors})))
-    (let [;; ── Outcome binding ───────────────────────────────────────────
-          manifest-ok (om/manifest-valid? outcome-manifest)
-          ;; ── Theorem/conclusion binding ─────────────────────────────────
-          manifest-theorems (:outcomes/theorems outcome-manifest [])
-          manifest-conclusions (:outcomes/conclusions outcome-manifest [])
-          theorem-hashes (set (map :theorem/hash manifest-theorems))
-          conclusion-hashes (set (map :conclusion/hash manifest-conclusions))
-          provided-theorem-hashes (set (map :theorem/hash theorem-outcomes))
-          provided-conclusion-hashes (set (map :conclusion/hash conclusions))
-          theorem-binding-ok (if (empty? theorem-hashes)
+     (when (seq @errors)
+       (throw (ex-info "Pro-rata execution evidence build failed"
+                       {:errors @errors})))
+     (let [;; ── Outcome binding ───────────────────────────────────────────
+           manifest-ok (om/manifest-valid? outcome-manifest)
+           ;; ── Theorem/conclusion binding ─────────────────────────────────
+           manifest-theorems (:outcomes/theorems outcome-manifest [])
+           manifest-conclusions (:outcomes/conclusions outcome-manifest [])
+           theorem-hashes (set (map :theorem/hash manifest-theorems))
+           conclusion-hashes (set (map :conclusion/hash manifest-conclusions))
+           provided-theorem-hashes (set (map :theorem/hash theorem-outcomes))
+           provided-conclusion-hashes (set (map :conclusion/hash conclusions))
+           theorem-binding-ok (if (empty? theorem-hashes)
                                 true
                                 (every? #(contains? provided-theorem-hashes %) theorem-hashes))
-          conclusion-binding-ok (if (empty? conclusion-hashes)
+           conclusion-binding-ok (if (empty? conclusion-hashes)
                                    true
                                    (every? #(contains? provided-conclusion-hashes %) conclusion-hashes))
-          ;; ── Execution result classification ───────────────────────────
-          operational (get outcome-manifest :results/operational {})
-          ;; These are execution-evidence status facts, not per-obligation
-          ;; settlement classifications. Do not expose them as amount/full-fill
-          ;; predicates: operational write-back can pass for a zero or haircut
-          ;; result, and claim admission derives full-fill from decision rows.
-          application-verified? (= :pass (:authoritative-application operational))
-          allocation-sound? (and (= :pass (:conservation operational {}))
-                                 (= :pass (:quota-bounded operational {}))
-                                 (= :pass (:current-amount-write-back operational {})))
-          deferred-write-back-verified? (= :pass (:current-amount-write-back operational {}))
-          ;; ── Verification map ──────────────────────────────────────────
-          verification {:outcome-binding-valid? manifest-ok
-                        :theorem-binding-valid? theorem-binding-ok
-                        :conclusion-binding-valid? conclusion-binding-ok}
-          base {:schema-version schema-version
-                :evidence-profile/id profile-id
-                :evidence-profile/benchmark-content-root benchmark-content-root
-                :evidence-profile/model-root model-root
-                :evidence-profile/outcome-manifest-hash
-                (:benchmark-outcome/hash outcome-manifest)
-                :evidence-profile/allocation-evidence-hash
-                allocation-evidence-hash
-                :evidence-profile/application-evidence-hash
-                application-evidence-hash
-                :evidence-profile/theorem-hashes
-                (into {} (map (fn [t] [(:theorem/id t) (:theorem/hash t)])
-                              theorem-outcomes))
-                :evidence-profile/conclusion-hashes
-                (into {} (map (fn [c] [(:conclusion/id c) (:conclusion/hash c)])
-                              conclusions))
-                :evidence-profile/execution-result
-                {:allocation-calculated? true
-                 :application-write-back-verified? application-verified?
-                 :allocation-sound? allocation-sound?
-                 :current-amount-write-back-verified? deferred-write-back-verified?
-                 ;; Compatibility fields: this aggregate profile lacks the
-                 ;; per-obligation filled/deferred/haircut rows required to
-                 ;; establish either fact, so it must not infer them from an
-                 ;; operational write-back status.
-                 :positive-amount-applied? false
-                 :fully-satisfied? false
-                 :deferred-residual-created? false}
-                :evidence-profile/verification verification}
-          computed-hash (hash-ref/sha256-ref
-                         (hc/domain-hash :pro-rata-execution-evidence
-                                         base))]
-      (assoc base :evidence-profile/hash computed-hash))))
+           ;; ── Execution result classification ───────────────────────────
+           operational (get outcome-manifest :results/operational {})
+           ;; These are execution-evidence status facts, not per-obligation
+           ;; settlement classifications. Do not expose them as amount/full-fill
+           ;; predicates: operational write-back can pass for a zero or haircut
+           ;; result, and claim admission derives full-fill from decision rows.
+           application-verified? (= :pass (:authoritative-application operational))
+           allocation-sound? (and (= :pass (:conservation operational {}))
+                                  (= :pass (:quota-bounded operational {}))
+                                  (= :pass (:current-amount-write-back operational {})))
+           deferred-write-back-verified? (= :pass (:current-amount-write-back operational {}))
+           ;; ── Verification map ──────────────────────────────────────────
+           verification {:outcome-binding-valid? manifest-ok
+                         :theorem-binding-valid? theorem-binding-ok
+                         :conclusion-binding-valid? conclusion-binding-ok}
+           base {:schema-version schema-version
+                 :evidence-profile/id profile-id
+                 :evidence-profile/benchmark-content-root benchmark-content-root
+                 :evidence-profile/model-root model-root
+                 :evidence-profile/outcome-manifest-hash
+                 (:benchmark-outcome/hash outcome-manifest)
+                 :evidence-profile/allocation-evidence-hash
+                 allocation-evidence-hash
+                 :evidence-profile/application-evidence-hash
+                 application-evidence-hash
+                 :evidence-profile/theorem-hashes
+                 (into {} (map (fn [t] [(:theorem/id t) (:theorem/hash t)])
+                               theorem-outcomes))
+                 :evidence-profile/conclusion-hashes
+                 (into {} (map (fn [c] [(:conclusion/id c) (:conclusion/hash c)])
+                               conclusions))
+                 :evidence-profile/creation
+                 {:provenance (or provenance :in-band)}
+                 :evidence-profile/execution-result
+                 {:allocation-calculated? true
+                  :application-write-back-verified? application-verified?
+                  :allocation-sound? allocation-sound?
+                  :current-amount-write-back-verified? deferred-write-back-verified?
+                  ;; Compatibility fields: this aggregate profile lacks the
+                  ;; per-obligation filled/deferred/haircut rows required to
+                  ;; establish either fact, so it must not infer them from an
+                  ;; operational write-back status.
+                  :positive-amount-applied? false
+                  :fully-satisfied? false
+                  :deferred-residual-created? false}
+                 :evidence-profile/verification verification}
+           computed-hash (hash-ref/sha256-ref
+                          (hc/domain-hash :pro-rata-execution-evidence
+                                          base))]
+       (assoc base :evidence-profile/hash computed-hash))))
 
 ;; ═══════════════════════════════════════════════════════════════════════════
 ;; v2 builder
@@ -141,20 +147,24 @@
 (defn build-pro-rata-execution-evidence-v2
   "Build a pro-rata-execution-evidence.v2 profile.
 
-   Same inputs and cross-bindings as v1, but the emitted operational write-back
-   fact is :current-write-back-operationally-verified? (formerly the overclaiming
-   v1 key :current-amount-write-back-verified?). The (:current-amount-write-back
-   operational) pass predicate is computed once and reused for both
-   :allocation-sound? and the emitted operational flag; it is NOT sourced from
-   :authoritative-application (that stronger fact remains :application-write-back-
-   verified?). The :positive-amount-applied?, :fully-satisfied?, and
-   :deferred-residual-created? fields stay false, as in v1.
+    Same inputs and cross-bindings as v1, but the emitted operational write-back
+    fact is :current-write-back-operational-pass? (formerly the overclaiming v1
+    key :current-amount-write-back-verified?). The (:current-amount-write-back
+    operational) pass predicate is computed once and reused for both
+    :allocation-sound? and the emitted operational flag; it is NOT sourced from
+    :authoritative-application (that stronger fact remains :application-write-back-
+    verified?). The :positive-amount-applied?, :fully-satisfied?, and
+    :deferred-residual-created? fields stay false, as in v1.
 
-   Returns the evidence profile with :evidence-profile/hash."
-  [{:keys [benchmark-content-root model-root
-           outcome-manifest
-           allocation-evidence-hash application-evidence-hash
-           theorem-outcomes conclusions]}]
+    Optional:
+      :creation/provenance        — :in-band | :out-of-band (defaults to :in-band)
+
+    Returns the evidence profile with :evidence-profile/hash."
+   [{:keys [benchmark-content-root model-root
+            outcome-manifest
+            allocation-evidence-hash application-evidence-hash
+            theorem-outcomes conclusions
+            creation/provenance]}]
   (let [errors (atom [])]
     (doseq [[label v] [[:benchmark-content-root benchmark-content-root]
                        [:model-root model-root]
@@ -163,7 +173,7 @@
                        [:application-evidence-hash application-evidence-hash]
                        [:theorem-outcomes theorem-outcomes]
                        [:conclusions conclusions]]
-            :when (nil? v)]
+             :when (nil? v)]
       (swap! errors conj (str "missing required artifact: " label)))
     (when (seq @errors)
       (throw (ex-info "Pro-rata execution evidence build failed"
@@ -216,11 +226,13 @@
                 :evidence-profile/conclusion-hashes
                 (into {} (map (fn [c] [(:conclusion/id c) (:conclusion/hash c)])
                               conclusions))
+                :evidence-profile/creation
+                {:provenance (or provenance :in-band)}
                 :evidence-profile/execution-result
                 {:allocation-calculated? true
                  :application-write-back-verified? application-verified?
                  :allocation-sound? allocation-sound?
-                 :current-write-back-operationally-verified?
+                 :current-write-back-operational-pass?
                  current-wb-operational-ok?
                  ;; Compatibility fields: this aggregate profile lacks the
                  ;; per-obligation filled/deferred/haircut rows required to
@@ -289,62 +301,62 @@
 (defn validate-pro-rata-execution-evidence-v2
   "Standalone structural validator for a pro-rata-execution-evidence.v2 profile.
 
-   v2 requires the renamed operational write-back fact
-   :current-write-back-operationally-verified? in :evidence-profile/execution-result
-   and rejects the overclaiming v1 key :current-amount-write-back-verified? under
-   the v2 schema. Recomputes the hash under the v2 domain tag.
+    v2 requires the operational write-back fact
+    :current-write-back-operational-pass? in :evidence-profile/execution-result
+    and rejects the overclaiming v1 key :current-amount-write-back-verified? under
+    the v2 schema. Recomputes the hash under the v2 domain tag.
 
-   Returns {:valid? bool :errors [string]}."
-  [profile]
-  (let [errors (atom [])]
-    (when-not (= schema-version-v2 (:schema-version profile))
-      (swap! errors conj (str "expected schema-version " schema-version-v2
-                              " got " (:schema-version profile))))
-    (when-not (= profile-id (:evidence-profile/id profile))
-      (swap! errors conj (str "expected profile/id " (pr-str profile-id)
-                              " got " (pr-str (:evidence-profile/id profile)))))
-    (doseq [f v2-required-fields]
-      (when-not (contains? profile f)
-        (swap! errors conj (str "missing " (name f)))))
-    (let [er (:evidence-profile/execution-result profile)]
-      (when (and er (not (contains? er :current-write-back-operationally-verified?)))
-        (swap! errors conj (str "v2 execution-result missing "
-                                ":current-write-back-operationally-verified?")))
-      (when (and er (contains? er :current-amount-write-back-verified?))
-        (swap! errors conj (str "v2 execution-result must not carry the v1 "
-                                "overclaiming :current-amount-write-back-verified?"))))
-    (when (some? (:evidence-profile/hash profile))
-      (let [without-hash (dissoc profile :evidence-profile/hash)
-            computed (hash-ref/sha256-ref
-                      (hc/domain-hash :pro-rata-execution-evidence-v2
-                                      without-hash))]
-        (when-not (= computed (:evidence-profile/hash profile))
-          (swap! errors conj (str "profile/hash mismatch: declared "
-                                  (:evidence-profile/hash profile)
-                                  " computed " computed)))))
-    {:valid? (empty? @errors) :errors @errors}))
+    Returns {:valid? bool :errors [string]}."
+   [profile]
+   (let [errors (atom [])]
+     (when-not (= schema-version-v2 (:schema-version profile))
+       (swap! errors conj (str "expected schema-version " schema-version-v2
+                               " got " (:schema-version profile))))
+     (when-not (= profile-id (:evidence-profile/id profile))
+       (swap! errors conj (str "expected profile/id " (pr-str profile-id)
+                               " got " (pr-str (:evidence-profile/id profile)))))
+     (doseq [f v2-required-fields]
+       (when-not (contains? profile f)
+         (swap! errors conj (str "missing " (name f)))))
+     (let [er (:evidence-profile/execution-result profile)]
+       (when (and er (not (contains? er :current-write-back-operational-pass?)))
+         (swap! errors conj (str "v2 execution-result missing "
+                                 ":current-write-back-operational-pass?")))
+       (when (and er (contains? er :current-amount-write-back-verified?))
+         (swap! errors conj (str "v2 execution-result must not carry the v1 "
+                                 "overclaiming :current-amount-write-back-verified?"))))
+     (when (some? (:evidence-profile/hash profile))
+       (let [without-hash (dissoc profile :evidence-profile/hash)
+             computed (hash-ref/sha256-ref
+                       (hc/domain-hash :pro-rata-execution-evidence-v2
+                                       without-hash))]
+         (when-not (= computed (:evidence-profile/hash profile))
+           (swap! errors conj (str "profile/hash mismatch: declared "
+                                   (:evidence-profile/hash profile)
+                                   " computed " computed)))))
+     {:valid? (empty? @errors) :errors @errors}))
 
 (defn validate-pro-rata-execution-evidence-any
   "Version-dispatched structural validator. v2 rejects the v1 overclaiming key
-   under the v2 schema; v1 rejects the v2 renamed key under the v1 schema.
+    under the v2 schema; v1 rejects the v2 operational-pass key under the v1 schema.
 
-   Returns {:valid? bool :errors [string]}."
-  [profile]
-  (case (:schema-version profile)
-    "pro-rata-execution-evidence.v2"
-    (validate-pro-rata-execution-evidence-v2 profile)
-    "pro-rata-execution-evidence.v1"
-    (let [er (:evidence-profile/execution-result profile)
-          {validation :valid? errors :errors}
-          (validate-pro-rata-execution-evidence profile)]
-      {:valid? (and validation
-                    (not (contains? er :current-write-back-operationally-verified?)))
-       :errors (cond-> (vec (or errors []))
-                 (contains? er :current-write-back-operationally-verified?)
-                 (conj :v2-field-on-v1))})
-    {:valid? false
-     :errors [(str "unsupported schema-version "
-                   (pr-str (:schema-version profile)))]}))
+    Returns {:valid? bool :errors [string]}."
+   [profile]
+   (case (:schema-version profile)
+     "pro-rata-execution-evidence.v2"
+     (validate-pro-rata-execution-evidence-v2 profile)
+     "pro-rata-execution-evidence.v1"
+     (let [er (:evidence-profile/execution-result profile)
+           {validation :valid? errors :errors}
+           (validate-pro-rata-execution-evidence profile)]
+       {:valid? (and validation
+                     (not (contains? er :current-write-back-operational-pass?)))
+        :errors (cond-> (vec (or errors []))
+                  (contains? er :current-write-back-operational-pass?)
+                  (conj :v2-field-on-v1))})
+     {:valid? false
+      :errors [(str "unsupported schema-version "
+                    (pr-str (:schema-version profile)))]}))
 ;; ═══════════════════════════════════════════════════════════════════════════
 
 (defn verify-pro-rata-execution-evidence

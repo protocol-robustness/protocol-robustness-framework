@@ -75,3 +75,30 @@
       (spit path "{:module #object[java.time.Instant \"2026-01-01T00:00:00Z\"]}")
       (let [m (integrity/read-evidence-bundle path)]
         (is (integrity/legacy-object? (:module m)))))))
+
+(deftest scanner-findings-do-not-alter-bundle-root
+  (testing "findings are not part of the canonical evidence object"
+    (let [base-evidence {:benchmark {:benchmark/id :benchmark/test}
+                         :metrics {:total 1 :passed 1}
+                         :claim-results []}
+          base-hash (:evidence/hash (committed-bundle base-evidence))
+          base-projection (integrity/hashable-evidence base-evidence)]
+      (is (not (contains? base-projection :findings))
+          "canonical evidence must not carry a :findings field")
+      (let [tampered (assoc base-evidence
+                            :findings
+                            [{:type :scanner/sensitivity
+                              :severity :high
+                              :message "test finding"}])
+            tampered-hash (:evidence/hash (committed-bundle tampered))]
+        (is (not= base-hash tampered-hash)
+            "adding :findings to evidence silently changes the bundle-root hash, confirming the boundary: findings must never enter the evidence object")))))
+
+(deftest version-strict-commitment-has-no-fallback
+  (testing "an unknown commitment version fails closed"
+    (let [evidence (assoc (committed-bundle {:benchmark {:benchmark/id :benchmark/test}
+                                               :metrics {:total 1 :passed 1}})
+                          :evidence/commitment-version "bundle-root.v3")
+          result (integrity/verify-bundle-hash evidence)]
+      (is (= false (:hash-ok? result)))
+      (is (= :unsupported-commitment-version (:reason result))))))

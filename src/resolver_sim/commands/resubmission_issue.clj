@@ -144,7 +144,22 @@
                         {:reason :ordering-observed-mismatch
                          :derived (:transaction/observed ordering-input)
                          :ordering (:transaction/observed ordering)}))))
-    ;; 4. candidate receipt binding
+    ;; 3c. v2 change-identity binding: the declared change-input root must match
+    ;; the canonical command the authority re-derived (state-after is then the
+    ;; deterministic result: apply(change-identity, state-before-root) ->
+    ;; state-after-root). v1 orders carry no input-root and skip this check.
+    (when (and (ordering/v2? ordering)
+               (let [expected-input-root
+                       (transition/command-input-root
+                        (:transaction/action command)
+                        (:transaction/input command))]
+                 (not= expected-input-root
+                       (:transaction/input-root ordering))))
+       (throw (ex-info "ordering input-root does not match re-derived command"
+                       {:reason :input-root-mismatch
+                        :action (:transaction/action command)
+                        :input-root (:transaction/input-root ordering)})))
+     ;; 4. candidate receipt binding
     (when-not (receipt/valid-receipt-shape? candidate-receipt)
       (throw (ex-info "invalid candidate receipt"
                       {:reason :invalid-candidate-receipt})))

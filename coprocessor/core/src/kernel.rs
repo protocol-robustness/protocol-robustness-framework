@@ -431,7 +431,13 @@ pub fn run_kernel(
             result_leaf(ctx, claim, alloc, &selected.outcome_id, &ctx_hash)
         })
         .collect();
-    let result_root = roots::result_merkle_root(&leaves).unwrap_or_default();
+    let result_root = match roots::result_merkle_root(&leaves) {
+        Ok(r) => r,
+        Err(e) => {
+            eprintln!("allocation-kernel: result_merkle_root error: {}", e);
+            std::process::exit(1);
+        }
+    };
     let total_allocated: BigInt = ctx
         .claimants
         .iter()
@@ -608,8 +614,9 @@ fn selected_index_of(ctx: &Context, selected: &Outcome) -> BigInt {
         .outcomes
         .iter()
         .position(|o| o.outcome_id == selected.outcome_id)
-        .unwrap_or(0);
-    BigInt::from(idx)
+        .map(BigInt::from)
+        .unwrap_or_else(BigInt::zero);
+    idx
 }
 
 /// Parse a raw JSON input document into a context, applying canonical ordering.

@@ -274,8 +274,10 @@
    :prf-submission-attempt-receipt-v1 "prf.submission-attempt-receipt.v1"
    :prf-submission-basis-v1           "prf.submission-basis.v1"
    :prf-submission-bundle-v1          "prf.submission-bundle.v1"
-   :prf-transaction-effects-v1        "prf.transaction-effects.v1"
-   :prf-transaction-ordering-v1       "prf.transaction-ordering.v1"
+  :prf-transaction-effects-v1        "prf.transaction-effects.v1"
+  :prf-transaction-input-v1         "prf.transaction-input.v1"
+  :prf-transaction-ordering-change-identity-v1 "prf.transaction-ordering-change-identity.v1"
+  :prf-transaction-ordering-v1       "prf.transaction-ordering.v1"
    :related-claims-member             "related-claims-member"
    :withdrawal-ledger-v1              "withdrawal-ledger.v1"})
 
