@@ -536,7 +536,7 @@
   {:id             :not-admitted
    :path           "notebooks/not_admitted.clj"
    :title          "Not Admitted — Admission Boundary Showcase"
-   :summary        "Can a plausible candidate enter the next trusted state or process? Six independently recomputed admission boundaries: policy prohibition, scoped authority, claimed status, custody action, canonical state transition, and immutable content identity."
+    :summary        "Can a plausible candidate enter the next trusted state or process? Eight independently recomputed admission boundaries: policy prohibition, scoped authority, claimed status, custody action, canonical state transition, immutable content identity, multi-adjustment hash-integrity, and multi-epoch decision stability."
    :categories     [:evidence-artifacts :security-validation]
    :audience       [:grant-reviewer :researcher :reviewer :auditor]
    :status         :verified

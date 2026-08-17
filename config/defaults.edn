@@ -14,8 +14,11 @@
             :exit-duplicate-registries 6}
  :scenarios {:sew-default-theory-falsification "scenarios/S26_forking-strategist-l1-reversal"
              :generic-default-theory-falsification "scenarios/X01_hypothesis-boundary-check"}
- :framing {:max-stream-bytes 1048576
-           :max-component-count 10000
-           :max-payload-bytes 1048576
-           :max-collection-depth 64
-           :max-collection-members 100000}}
+:framing {:max-stream-bytes 1048576
+          :max-component-count 10000
+          :max-payload-bytes 1048576
+          :max-collection-depth 64
+          :max-collection-members 100000}
+:hardening {:parallel-ceiling 8
+          :quiescence-timeout-seconds 30
+          :claimant-parallel-threshold 16}}

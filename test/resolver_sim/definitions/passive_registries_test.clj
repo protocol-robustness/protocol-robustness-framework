@@ -68,21 +68,22 @@
             overrides))))
 
 (deftest passive-registries-validate
-  (testing "all 8 passive registries are internally valid"
+  (testing "all 9 passive registries are internally valid"
     (is (:valid? (registries/validate-intent-registry)))
     (is (:valid? (registries/validate-projection-definition-registry)))
     (is (:valid? (registries/validate-claim-definition-registry)))
     (is (:valid? (registries/validate-attestor-registry)))
     (is (:valid? (registries/validate-execution-registry)))
     (is (:valid? (registries/validate-evidence-policy-registry)))
+    (is (:valid? (registries/validate-creation-provenance-registry)))
     (is (:valid? (registries/validate-hash-projection-registry)))
     (is (:valid? (registries/validate-domain-tag-registry)))))
 
 (deftest aggregate-validation-includes-all-registries
-  (testing "validate-passive-registries covers all 8 registries"
+  (testing "validate-passive-registries covers all 9 registries"
     (let [result (registries/validate-passive-registries)]
       (is (:valid? result))
-      (is (= 8 (count (:results result))))
+      (is (= 9 (count (:results result))))
       (is (empty? (:errors result))))))
 
 (deftest passive-registry-data-is-hashed-deterministically
@@ -753,6 +754,11 @@
                              :evidence-policy/source :description :constraints}
     :required-registry-fields #{:registry-version :evidence-policies}}
 
+   :creation-provenance-registry
+    {:entries-key :creation-provenances
+     :required-entry-fields #{:id :version :creation-provenance/value :description}
+     :required-registry-fields #{:registry-version :creation-provenances}}
+
    :hash-projection-registry
    {:entries-key :projections
     :required-entry-fields #{:id :version :intent/name :intent/domain-tag
@@ -782,7 +788,7 @@
 (def expected-entry-shapes-hash
   "Expected stable hash of registry entry shape structural paths.
    Update when intentionally changing a registry's entry schema."
-  "1e9c2754ede8e22a5f517582aed68025862e1a50eeeb3da2b15942cf3d5b8fd8")
+  "31747b00cc2c8528adf10536174d13e23bd95b67fa141fd275b4bcf9b557e3c7")
 
 (deftest registry-entry-shapes-structural-stability
   (let [paths (into [] (registry-structural-paths registry-entry-shapes))
@@ -800,10 +806,11 @@
                              :projection-definition-registry registries/projection-definition-registry
                              :claim-definition-registry registries/claim-definition-registry
                              :attestor-registry registries/attestor-registry
-                             :execution-registry registries/execution-registry
-                             :evidence-policy-registry registries/evidence-policy-registry
-                             :hash-projection-registry registries/hash-projection-registry
-                             :domain-tag-registry registries/domain-tag-registry)
+:execution-registry registries/execution-registry
+                              :evidence-policy-registry registries/evidence-policy-registry
+                              :creation-provenance-registry registries/creation-provenance-registry
+                              :hash-projection-registry registries/hash-projection-registry
+                              :domain-tag-registry registries/domain-tag-registry)
                   entries (get registry entries-key [])
                   actual-entry-fields (set (mapcat keys entries))
                   expected-entry-fields (:required-entry-fields spec)]]

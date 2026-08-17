@@ -121,6 +121,7 @@
    :incentive-model "INCENTIVE_MODEL_V1"
    :incentive-deviation-domain "INCENTIVE_DEVIATION_DOMAIN_V1"
    :research-analysis-closure "RESEARCH_ANALYSIS_CLOSURE_V1"
+   :creation-provenance "CREATION_PROVENANCE_V1"
    :trust-sequence-definition "TRUST_SEQUENCE_DEFINITION_V1"
    :procedure-execution-witness "PROCEDURE_EXECUTION_WITNESS_V1"
    :research-force-authorisation "RESEARCH_FORCE_AUTHORISATION_V1"
@@ -153,6 +154,7 @@
    :pro-rata-allocation-evidence "PRO_RATA_ALLOCATION_EVIDENCE_V1"
    :pro-rata-application-evidence "PRO_RATA_APPLICATION_EVIDENCE_V1"
    :pro-rata-execution-evidence "PRO_RATA_EXECUTION_EVIDENCE_V1"
+   :pro-rata-execution-evidence-v2 "PRO_RATA_EXECUTION_EVIDENCE_V2"
    :slash-distribution-policy-v1  "SLASH_DISTRIBUTION_POLICY_V1"
    :slash-distribution-v1         "SLASH_DISTRIBUTION_V1"
    :slash-distribution-application-receipt-v1 "SLASH_DISTRIBUTION_APPLICATION_RECEIPT_V1"
@@ -1257,6 +1259,19 @@
     {:intent intent
      :artifact artifact}))
 
+(defn project-creation-provenance
+  "Canonical projection for a standalone creation-provenance commitment.
+
+   Creation provenance is advisory metadata in the evidence-node projection
+   (not in project-evidence-node's select-keys), so it does not affect
+   evidence-node identity. This projection exists so provenance can be
+   independently root-bound when the caller wants to commit to it."
+  [value intent]
+  (let [artifact {:creation/provenance (:creation/provenance value)}
+        artifact (project-canonical-artifact-value artifact)]
+    {:intent intent
+     :artifact artifact}))
+
 (defn project-evidence-node
   "Canonical projection for execution evidence nodes.
    Includes only integrity-relevant execution provenance and evidence hashes.
@@ -1932,16 +1947,25 @@ name (an alias)."
     :intent/projection-fn project-attestor
     :intent/version     1}
 
-   :evidence-node
-   {:intent/name        :evidence-node
-    :intent/domain-tag  "EVIDENCE_NODE_V1"
-    :intent/description "Canonical identity of an execution evidence node"
-    :intent/includes    #{:schema-version :parent-hashes :bootstrap-roots
-                          :execution :result :evidence :attestations :extensions}
-    :intent/excludes    #{:node-id :node-hash :timestamp :policy-output
-                          :visible-failures :filtered-output :runtime-values}
-    :intent/projection-fn project-evidence-node
-    :intent/version     1}
+:evidence-node
+    {:intent/name        :evidence-node
+     :intent/domain-tag  "EVIDENCE_NODE_V1"
+     :intent/description "Canonical identity of an execution evidence node"
+     :intent/includes    #{:schema-version :parent-hashes :bootstrap-roots
+                           :execution :result :evidence :attestations :extensions}
+     :intent/excludes    #{:node-id :node-hash :timestamp :policy-output
+                           :visible-failures :filtered-output :runtime-values}
+     :intent/projection-fn project-evidence-node
+     :intent/version     1}
+
+   :creation-provenance
+    {:intent/name        :creation-provenance
+     :intent/domain-tag  "CREATION_PROVENANCE_V1"
+     :intent/description "Domain-separated identity for a creation provenance commitment"
+     :intent/includes    #{:creation/provenance}
+     :intent/excludes    #{}
+     :intent/projection-fn project-creation-provenance
+     :intent/version     1}
 
    :decision-evidence
    {:intent/name        :decision-evidence

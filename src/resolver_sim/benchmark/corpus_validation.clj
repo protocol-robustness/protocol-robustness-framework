@@ -109,21 +109,10 @@
   ([]
    (check-aggregate nil))
   ([world]
-   (let [world (or world {})
-         positions (vals (:yield/positions world {}))
-         by-key (group-by (fn [p] [(:module/id p) (:token p)]) positions)
-         violations (atom [])]
-     (doseq [[[mid tok] pos-group] by-key]
-       (try
-         (let [result (yield-invariants/check-aggregate world)]
-           (when-let [vios (:violations result)]
-             (doseq [v vios]
-               (swap! violations conj {:module-id mid :token tok :issue v}))))
-         (catch Exception e
-           (swap! violations conj {:module-id mid :token tok :error (.getMessage e)}))))
+   (let [result (yield-invariants/check-aggregate (or world {}))]
      {:check :aggregate
-      :valid? (empty? @violations)
-      :violations (vec @violations)})))
+      :valid? (:holds? result)
+      :violations (:violations result)})))
 
 (defn check-cap-respecting
   "Check that cap constraints are respected in pro-rata allocations.

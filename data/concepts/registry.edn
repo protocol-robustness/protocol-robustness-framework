@@ -340,6 +340,14 @@
     :concept/status :draft
     :concept/protocols #{:protocol/sew-v1 :protocol/prf}}
 
+   {:concept/id    :framework/creation-provenance
+    :concept/type  :framework
+    :concept/layer :framework-explanation
+    :concept/file  "data/concepts/framework/creation_provenance.edn"
+    :concept/name  "Creation provenance"
+    :concept/status :draft
+    :concept/protocols #{:protocol/sew-v1 :protocol/prf}}
+
    {:concept/id    :assurance/evidence-backed-classification
     :concept/type  :assurance
     :concept/layer :stakeholder

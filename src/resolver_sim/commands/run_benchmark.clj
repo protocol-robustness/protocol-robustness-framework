@@ -7,6 +7,7 @@
             [resolver-sim.benchmark.conservation :as conservation]
             [resolver-sim.benchmark.adapter :as adapter]
             [resolver-sim.benchmark.cli :as benchmark-cli]
+            [resolver-sim.benchmark.hardening :as hardening]
             [resolver-sim.benchmark.claim-registry :as claim-registry]
             [resolver-sim.benchmark.integrity :as integrity]
             [resolver-sim.hash.canonical :as canonical]
@@ -388,7 +389,8 @@
                         witness-artifacts)})))
 
 (defn- invoke! [benchmark-id {:keys [output key scenario-output-dir benchmark-index-path execution-plan-path
-                                     parallelism chunk-size claimant-parallelism claimant-parallel-threshold budget]}]
+                                     parallelism chunk-size claimant-parallelism claimant-parallel-threshold
+                                     budget quiescence-timeout-seconds]}]
   (let [benchmark-runner (requiring-resolve 'resolver-sim.benchmark.cli/run-and-report)
         write-evidence (requiring-resolve 'resolver-sim.benchmark.runner/write-evidence)
         benchmark-artifact-dir (some-> output io/file .getParent)
@@ -403,7 +405,8 @@
                                                  :chunk-size chunk-size
                                                  :execution/claimant-parallelism claimant-parallelism
                                                  :execution/claimant-parallel-threshold claimant-parallel-threshold
-                                                 :execution/budget budget}))]
+                                                 :execution/budget budget
+                                                 :execution/quiescence-timeout-seconds quiescence-timeout-seconds}))]
     (when-let [evidence (:evidence result)]
       (write-evidence evidence output))
     result))
@@ -616,8 +619,11 @@
                        ;; Runtime-only settings: do not add these to context files,
                        ;; plan roots, evidence, or package projections.
                        :execution/claimant-parallelism (or (:execution/claimant-parallelism overrides) 1)
-                       :execution/claimant-parallel-threshold (or (:execution/claimant-parallel-threshold overrides) 16)
-                       :execution/budget (:execution/budget overrides))
+                       :execution/claimant-parallel-threshold (or (:execution/claimant-parallel-threshold overrides)
+                                                                   (hardening/claimant-parallel-threshold))
+                       :execution/budget (:execution/budget overrides)
+                       :execution/quiescence-timeout-seconds (hardening/quiescence-timeout-seconds
+                                                              (:execution/quiescence-timeout-seconds overrides)))
         lock (lifecycle/acquire-run-lock! (:run/root context) (:run/id context) :benchmark)
         quiescence-failed? (atom false)]
     (try
@@ -636,7 +642,8 @@
                                                                                   :chunk-size (:execution/chunk-size context)
                                                                                   :claimant-parallelism (:execution/claimant-parallelism context)
                                                                                   :claimant-parallel-threshold (:execution/claimant-parallel-threshold context)
-                                                                                  :budget (:execution/budget context)})]
+                                                                                  :budget (:execution/budget context)
+                                                                                  :quiescence-timeout-seconds (:execution/quiescence-timeout-seconds context)})]
                                                 (when-not (:evidence result)
                                                   (throw (ex-info "Benchmark execution produced no evidence; finalization aborted"
                                                                   {:benchmark benchmark-id :exit-code (:exit-code result)})))
@@ -703,15 +710,6 @@
         (zero? (count scenarios)))
       (catch Exception _ false))))
 
-(def ^:private parallel-ceiling
-  "Fixed upper bound on the AUTOMATIC (default) local scenario-worker
-  parallelism for the `parallel-benchmark-run` capability composition.
-  Bounded deliberately: the parallel command is a capability composition, not
-  an unbounded worker farm, so its implicit worker pool never exceeds this
-  ceiling. The ceiling constrains only the automatic default; an explicit
-  --parallelism is honored exactly as the operator's requested worker count."
-  8)
-
 (defn- resolved-scenario-count
   "Number of scenarios a benchmark manifest resolves to. Used only to derive a
   bounded automatic default scenario-worker parallelism for
@@ -737,13 +735,17 @@
        worker pool never exceeds the ceiling even when the resolved scenario
        count is larger. Callers validate explicit N's positivity separately.
    The plain `run-benchmark` command (parallel? false) uses the supplied value
-   or 1."
-  [parallel? parallelism-opt scenario-count]
-  (if parallel?
-    (if (some? parallelism-opt)
-      parallelism-opt
-      (min (max 1 scenario-count) parallel-ceiling))
-    (or parallelism-opt 1)))
+   or 1. The automatic ceiling is resolved via hardening/parallel-ceiling
+   (CLI > env PRF_PARALLEL_CEILING > config :hardening :parallel-ceiling)."
+  ([parallel? parallelism-opt scenario-count]
+   (effective-parallelism parallel? parallelism-opt scenario-count
+                           (hardening/parallel-ceiling)))
+  ([parallel? parallelism-opt scenario-count ceiling]
+   (if parallel?
+     (if (some? parallelism-opt)
+       parallelism-opt
+       (min (max 1 scenario-count) ceiling))
+     (or parallelism-opt 1))))
 
 (defn run
   "Run a benchmark. `--run-root` creates a canonical benchmark-owned bundle;
@@ -755,14 +757,16 @@
    omitted the worker pool defaults to a bounded min(scenario-count, ceiling);
    an explicit --parallelism is honored exactly. Both commands accept an
    optional `--execution-budget` bounding TOTAL concurrent execution."
-  [{:keys [output key run-root sensitivity-profile claim-registry execution-budget] :as opts}]
+  [{:keys [output key run-root sensitivity-profile claim-registry execution-budget
+            parallel-ceiling quiescence-timeout-seconds] :as opts}]
   (let [benchmark-id (or (first (:cmd/args opts))
                          (:benchmark-id opts)
                          (:benchmark opts))
         parallel-command? (= "parallel-benchmark-run" (:cmd/path opts))
         effective-parallelism (effective-parallelism parallel-command?
                                                      (:parallelism opts)
-                                                     (resolved-scenario-count benchmark-id))
+                                                     (resolved-scenario-count benchmark-id)
+                                                     (hardening/parallel-ceiling parallel-ceiling))
         ;; Fail closed: validate the selected claim registry up front so a run
         ;; can never proceed (and commit evidence) against an unrunnable or
         ;; invalid auditor-supplied registry. Applies whether the registry came
@@ -788,8 +792,10 @@
                 (pos? (or (:chunk-size opts) 1))
                 (integer? (or (:claimant-parallelism opts) 1))
                 (pos? (or (:claimant-parallelism opts) 1))
-                (integer? (or (:claimant-parallel-threshold opts) 16))
-                (pos? (or (:claimant-parallel-threshold opts) 16))
+                (integer? (or (:claimant-parallel-threshold opts)
+                              (hardening/claimant-parallel-threshold)))
+                (pos? (or (:claimant-parallel-threshold opts)
+                          (hardening/claimant-parallel-threshold)))
                 (integer? (or execution-budget 1))
                 (pos? (or execution-budget 1))))
       {:exit-code 2 :message "Parallelism, chunk size, claimant parallelism, claimant threshold, and execution budget must be positive integers"}
@@ -815,8 +821,11 @@
                         {:execution/parallelism effective-parallelism
                          :execution/chunk-size (or (:chunk-size opts) 1)
                          :execution/claimant-parallelism (or (:claimant-parallelism opts) 1)
-                         :execution/claimant-parallel-threshold (or (:claimant-parallel-threshold opts) 16)
-                         :execution/budget execution-budget}))
+                         :execution/claimant-parallel-threshold (or (:claimant-parallel-threshold opts)
+                                                                    (hardening/claimant-parallel-threshold))
+                         :execution/budget execution-budget
+                         :execution/quiescence-timeout-seconds (hardening/quiescence-timeout-seconds
+                                                                quiescence-timeout-seconds)}))
 
       output
       (let [result (invoke! benchmark-id {:output output :key key})]

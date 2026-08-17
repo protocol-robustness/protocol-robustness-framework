@@ -326,6 +326,24 @@
       (testing "the origin of the store's chain equals the domain empty-state root"
         (is (= (:transaction/state-before-root (:transaction-ordering r1)) true-origin))))))
 
+(deftest state-root-excludes-transaction-last-hash
+  (testing "mutating :transaction/last-hash on committed state does not change state-root"
+    (let [s (store/new-resubmission-store family)
+          _ (protocol/transact! s nil nil (fn [st] (transition/apply-action st (admit-cmd :child "sha256:R1" :seq 1 :basis "sha256:B1" :link "sha256:L1" :idem "sha256:I1"))))
+          _ (protocol/transact! s nil nil (fn [st] (transition/apply-action st (admit-cmd :child "sha256:R2" :seq 2 :parent "sha256:R1" :basis "sha256:B2" :link "sha256:L2" :idem "sha256:I2"))))
+          committed (store/state-of s)
+          original-root (transition/state-root committed)
+          last-hash (:transaction/last-hash committed)
+          tampered (assoc committed :transaction/last-hash "sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff")
+          tampered-root (transition/state-root tampered)]
+      (is (some? last-hash)
+          "committed state carries a :transaction/last-hash (the ordering hash)")
+      (is (= original-root tampered-root)
+          (str "FAIL: state-root must be stable across :transaction/last-hash changes.\n"
+               "chain-state-projection excludes :transaction/last-hash so the ordering\n"
+               "hash does not create a cycle in the state root.\n"
+               "original=" original-root " tampered=" tampered-root)))))
+
 (deftest verify-ordering-chain-commit-monotonicity-and-conflict-key
   (testing "a non-monotonic commit-index is rejected"
     (let [s (store/new-resubmission-store family)

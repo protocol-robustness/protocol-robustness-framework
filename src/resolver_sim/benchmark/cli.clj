@@ -203,7 +203,8 @@
                                      :chunk-size (:chunk-size options)
                                      :execution/claimant-parallelism (:execution/claimant-parallelism options)
                                      :execution/claimant-parallel-threshold (:execution/claimant-parallel-threshold options)
-                                     :execution/budget (:execution/budget options)})
+                                     :execution/budget (:execution/budget options)
+                                     :execution/quiescence-timeout-seconds (:execution/quiescence-timeout-seconds options)})
             output-path (:output options)
             final-evidence (if-let [key-path (:key options)]
                              (let [sig (signing/sign-hash (:evidence/hash evidence) key-path (:password options))

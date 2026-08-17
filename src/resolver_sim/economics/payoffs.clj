@@ -6,7 +6,8 @@
    - resolver-sim.protocols.<protocol>/* adapts protocol-specific state and policy
      into generic economics functions.
    - Generic economics must never depend on protocol namespaces."
-  (:require [resolver-sim.definitions.passive-registries :as registries]
+  (:require [resolver-sim.config.defaults :as config-defaults]
+            [resolver-sim.definitions.passive-registries :as registries]
             [resolver-sim.execution.budget :as budget]
             [resolver-sim.hash.canonical :as hc]
             [resolver-sim.util.thread-quiescence :as quiesce])
@@ -82,8 +83,9 @@
 (def ^:dynamic *pro-rata-parallel-threshold*
   "Minimum claimant count at which detached claimant determination may use the
    runtime worker budget. Small inputs retain the identical map/reduce path but
-   execute serially to avoid executor overhead."
-  16)
+   execute serially to avoid executor overhead. Root default is centralised in
+   config/defaults.edn (:hardening :claimant-parallel-threshold)."
+  (config-defaults/default [:hardening :claimant-parallel-threshold] 16))
 
 (def ^:dynamic *redistribution-claimant-hook*
   "Test/runtime-only hook invoked during detached active-set claimant fact

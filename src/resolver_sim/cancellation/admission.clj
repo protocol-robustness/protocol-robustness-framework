@@ -63,10 +63,11 @@
                :policy (get-in operation [:policy :root])
                :evaluation-inputs (get-in operation [:evaluation :inputs-root])
                :derived-effects (get-in operation [:evaluation :decision :derived-effects-root])
-               :preconditions (get-in operation [:preconditions/root])
-               :authorization (get-in operation [:authorization :root])
-               :execution-effects (get-in operation [:execution :effects-root])
-               :state-after (get-in operation [:execution :state-after-root])}
+:preconditions (get-in operation [:preconditions/root])
+                :authorization (get-in operation [:authorization :root])
+                :execution-effects (get-in operation [:execution :effects-root])
+                :state-after (get-in operation [:execution :state-after-root])
+                :state-transition-binding (get-in operation [:execution :state-after-root])}
         snapshot-stage (resolved-stage resolve-artifact :snapshot (:snapshot roots) snapshot/snapshot-root-valid?)
         policy-stage (resolved-stage resolve-artifact :policy (:policy roots) semantic/policy-root-valid?)
         derived-stage (resolved-stage resolve-artifact :derived-effects (:derived-effects roots) semantic/derived-effects-root-valid?)
@@ -76,6 +77,32 @@
                               [role (opaque-stage resolve-artifact role root)]))
         stages (merge opaque-stages {:snapshot snapshot-stage :policy policy-stage
                                      :derived-effects derived-stage :execution-effects execution-stage})
+        resolved-state-before (resolve-root resolve-artifact (:state-before roots))
+        resolved-execution-effects (resolve-root resolve-artifact (:execution-effects roots))
+        resolved-state-after (resolve-root resolve-artifact (:state-after roots))
+        state-transition-binding
+        (let [state-before-valid? (:valid? (get stages :state-before))
+              execution-effects-valid? (:valid? (get stages :execution-effects))
+              state-after-valid? (:valid? (get stages :state-after))
+              state-before-root (:artifact/root resolved-state-before)
+              execution-effects-root (:artifact/root resolved-execution-effects)
+              state-after-root (:artifact/root resolved-state-after)]
+          {:stage :state-transition-binding
+           :state-before-root state-before-root
+           :execution-effects-root execution-effects-root
+           :state-after-root state-after-root
+           :state-before-valid? (boolean state-before-valid?)
+           :execution-effects-valid? (boolean execution-effects-valid?)
+           :state-after-valid? (boolean state-after-valid?)
+           :binding-valid? (boolean
+                            (and state-before-valid?
+                                 execution-effects-valid?
+                                 state-after-valid?
+                                 (some? state-before-root)
+                                 (some? execution-effects-root)
+                                 (some? state-after-root)))
+           :reason :transition/unimplemented
+           :detail "state-before + execution-effects -> state-after transition derivation is not implemented in this repository; the stage exists as a placeholder slot for when the cancellation transition kernel is defined (see O1)."})
         resolved-snapshot (resolve-root resolve-artifact (:snapshot roots))
         resolved-policy (resolve-root resolve-artifact (:policy roots))
         authorization-artifact (resolve-root resolve-artifact (:authorization roots))
@@ -100,7 +127,10 @@
                                    :derived-effects-valid? (= (:derived-effects roots) (:effects/root derived))
                                    :execution-effects-valid? (= (:derived-effects/root (resolve-root resolve-artifact (:execution-effects roots)))
                                                                 (:effects/root derived))
-                                   :authorized? (= :authorized (:decision/classification evaluation))}}
+                                   :authorized? (= :authorized (:decision/classification evaluation))})
+                        :state-transition-binding {:available? (some? state-transition-binding)
+                                                   :binding-valid? (:binding-valid? state-transition-binding)
+                                                   :reason (:reason state-transition-binding)}}
         root-reasons (invalid-stage-reasons stages)
         recomputed-reasons (let [r (:recomputed verification)]
                              (vec (remove nil?

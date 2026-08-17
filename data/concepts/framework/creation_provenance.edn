@@ -1,0 +1,74 @@
+{:concept/id :framework/creation-provenance
+ :concept/type :framework
+ :concept/layer :framework-explanation
+ :concept/name "Creation provenance"
+ :concept/summary
+ "Creation provenance records where an artifact was created — within the authorized execution lifecycle (:in-band) or outside it (:out-of-band) — and is deliberately orthogonal to evidence policy. Evidence policy describes how evidence is obtained; creation provenance describes the creation context of the artifact. Provenance is advisory metadata in the evidence-node projection (it is not part of project-evidence-node's select-keys), so it does not affect evidence-node identity. Provenance alone does not confer trust or admission; admission is determined by content integrity, evidence policy, attestations, and authority. When provenance must be independently root-bound, it can be committed through the :creation-provenance hash intent."
+
+ :concept/stakeholder-question
+ "Was this artifact created within the authorized execution lifecycle, and if it was created outside it, is that provenance separately committed rather than merely recorded?"
+
+ :concept/protocols #{:protocol/sew-v1 :protocol/prf}
+
+ :concept/related
+ [:framework/content-root
+  :framework/evidence-policy
+  :framework/registry-entry-hash]
+
+ :concept/roles
+ {:provenance-creator {:description "Entity that records the creation provenance of an artifact."
+                       :maps-to [:protocol.actor/verifier]}
+  :provenance-verifier {:description "Entity that checks creation provenance is a known value."
+                        :maps-to [:protocol.role/verifier]}}
+
+ :concept/entities
+ {:creation-provenance-field {:description "The :creation/provenance value stored in an evidence node's :execution map. Defaults to :in-band for backward compatibility."
+                              :maps-to [:protocol.entity/evidence]}
+  :creation-provenance-commitment {:description "An independent root-bound commitment over creation provenance, produced via the :creation-provenance hash intent, so provenance tampering is detectable when provenance is separately committed."
+                                    :maps-to [:protocol.entity/canonical-hash]}}
+
+ :concept/actions
+ {:record-creation-provenance {:description "Set :creation/provenance on an evidence node to :in-band or :out-of-band."
+                                :maps-to [:protocol.action/commit-root]}
+  :validate-creation-provenance {:description "Check :creation/provenance is a known value (:in-band or :out-of-band)."
+                                 :maps-to [:protocol.action/check-invariant]}
+  :commit-creation-provenance {:description "Independently root-bind creation provenance via the :creation-provenance hash intent."
+                               :maps-to [:protocol.action/commit-root]}}
+
+ :concept/outcomes
+ {:creation-provenance-recorded {:description "Evidence node carries a :creation/provenance value in its :execution map."
+                                 :maps-to [:protocol.outcome/released]}
+  :creation-provenance-committed {:description "Creation provenance is separately root-bound so tampering is detectable."
+                                  :maps-to [:protocol.outcome/released]}}
+
+ :concept/failure-modes
+ [{:failure/id :creation-provenance-unrecorded
+   :failure/name "Creation provenance unrecorded"
+   :failure/summary "An artifact is created without recording whether it was created in-band or out-of-band, so its creation context is unknown."
+   :protocol-mechanisms [:creation-provenance-field]
+   :stakeholder-impact "Reviewers cannot distinguish in-band from out-of-band creation; provenance is silently absent."}
+  {:failure/id :creation-provenance-conflated-with-evidence-policy
+   :failure/name "Creation provenance conflated with evidence policy"
+   :failure/summary "Creation provenance is recorded as an evidence-policy value, conflating two orthogonal concepts."
+   :protocol-mechanisms [:evidence-policy]
+   :stakeholder-impact "Evidence policy becomes overloaded with creation-context semantics."}
+  {:failure/id :creation-provenance-confers-admission
+   :failure/name "Creation provenance treated as admission"
+   :failure/summary "An artifact is admitted solely because it carries :in-band creation provenance."
+   :protocol-mechanisms [:creation-provenance-field]
+   :stakeholder-impact "Admission is weakened: provenance is advisory and does not confer trust."}
+  {:failure/id :creation-provenance-tampering-undetected
+   :failure/name "Creation provenance tampering undetected"
+   :failure/summary "Creation provenance is mutated from :in-band to :out-of-band without a separate commitment, so the change is invisible."
+   :protocol-mechanisms [:creation-provenance-commitment]
+   :stakeholder-impact "Mutated provenance cannot be detected unless provenance was separately root-bound."}]
+
+ :concept/assumptions
+  ["Creation provenance is orthogonal to evidence policy: policy describes how evidence is obtained, provenance describes where the artifact was created."
+   "Default :creation/provenance is :in-band, preserving backward compatibility for nodes built before the field existed."
+   "Creation provenance is advisory metadata in the evidence-node projection and does not affect node identity."
+   "Provenance alone does not confer admission; admission requires content integrity, evidence policy, attestations, and authority."
+   "Both :in-band and :out-of-band are valid enum values, so validate-creation-provenance cannot detect a mutation between them unless provenance is separately committed."]
+
+ :concept/notes
+  "Creation provenance is stored in the :execution map of evidence nodes but is intentionally excluded from project-evidence-node's select-keys, so it does not participate in the evidence-node canonical hash. The :creation-provenance hash intent exists for callers who want to independently root-bind provenance. This is not a trust or signature system."}

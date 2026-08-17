@@ -603,3 +603,33 @@
     (is (= 1 (count (:dag-index/root-nodes summary))))
     (is (= 1 (count (:dag-index/failure-nodes summary))))
     (is (= (:node-hash child) (get-in (:dag-index/failure-nodes summary) [0 :node-hash])))))
+
+;; ── Creation Provenance ────────────────────────────────────────────────────
+
+(deftest creation-provenance-is-distinguishable
+  (let [in-band-node (node/build-execution-node (base-node-spec {:creation-provenance :in-band}))
+        out-of-band-node (node/build-execution-node (base-node-spec {:creation-provenance :out-of-band}))]
+    (is (= :in-band (get-in in-band-node [:execution :creation/provenance])))
+    (is (= :out-of-band (get-in out-of-band-node [:execution :creation/provenance]))
+        "Out-of-band provenance is stored distinctly from in-band")))
+
+(deftest creation-provenance-does-not-affect-evidence-node-identity
+  (let [in-band-node (node/build-execution-node (base-node-spec {:creation-provenance :in-band}))
+        out-of-band-node (node/build-execution-node (base-node-spec {:creation-provenance :out-of-band}))]
+    (is (= (:node-hash in-band-node) (:node-hash out-of-band-node))
+        "Creation provenance is advisory metadata and does not affect evidence-node identity")))
+
+(deftest creation-provenance-separately-committed-detects-tampering
+  (let [in-band-node (node/build-execution-node (base-node-spec {:creation-provenance :in-band}))
+        out-of-band-node (node/build-execution-node (base-node-spec {:creation-provenance :out-of-band}))
+        in-band-provenance-root (hc/hash-with-intent {:hash/intent :creation-provenance}
+                                                     {:creation/provenance :in-band})
+        out-of-band-provenance-root (hc/hash-with-intent {:hash/intent :creation-provenance}
+                                                          {:creation/provenance :out-of-band})]
+    (is (not= in-band-provenance-root out-of-band-provenance-root)
+        "Separately committed provenance roots differ for in-band vs out-of-band")
+    (is (not (hc/intent-hash= {:hash/intent :creation-provenance
+                               :hash/hex in-band-provenance-root}
+                              {:hash/intent :creation-provenance
+                               :hash/hex out-of-band-provenance-root}))
+        "Intent-aware comparison distinguishes the two provenance roots")))

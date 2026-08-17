@@ -30,6 +30,7 @@
    - attestor-registry
    - execution-registry
    - evidence-policy-registry
+   - creation-provenance-registry
    - hash-projection-registry (wraps canonical.clj hash-intents)
    - domain-tag-registry (wraps canonical.clj domain-tags)
 
@@ -692,6 +693,24 @@
   {:registry-version 1
    :evidence-policies evidence-policy-registry-definitions})
 
+;; ── Creation Provenance Registry ───────────────────────────────────────────
+
+(def creation-provenance-registry-definitions
+  "CREATION_PROVENANCE_REGISTRY_SPEC_V1 entries: registered creation provenance
+   values for evidence node artifacts."
+  [{:id :creation-provenance/in-band
+    :version 1
+    :creation-provenance/value :in-band
+    :description "Artifact created within authorized execution lifecycle."}
+   {:id :creation-provenance/out-of-band
+    :version 1
+    :creation-provenance/value :out-of-band
+    :description "Artifact created outside authorized execution lifecycle."}])
+
+(def creation-provenance-registry
+  {:registry-version 1
+   :creation-provenances creation-provenance-registry-definitions})
+
 ;; ── Hash Projection Registry ───────────────────────────────────────────
 
 (defn- hash-intent->registry-entry
@@ -785,14 +804,20 @@
                              :description :claims}
     :registry-validator-fn #'validate-execution-registry-entries}
 
-   :evidence-policy-registry
-   {:registry evidence-policy-registry
-    :entries-key :evidence-policies
-    :required-registry-fields #{:registry-version :evidence-policies}
-    :required-entry-fields #{:id :version :evidence-policy/type
-                             :evidence-policy/source :description :constraints}}
+:evidence-policy-registry
+    {:registry evidence-policy-registry
+     :entries-key :evidence-policies
+     :required-registry-fields #{:registry-version :evidence-policies}
+     :required-entry-fields #{:id :version :evidence-policy/type
+                              :evidence-policy/source :description :constraints}}
 
-   :hash-projection-registry
+   :creation-provenance-registry
+    {:registry creation-provenance-registry
+     :entries-key :creation-provenances
+     :required-registry-fields #{:registry-version :creation-provenances}
+     :required-entry-fields #{:id :version :creation-provenance/value :description}}
+
+    :hash-projection-registry
    {:registry hash-projection-registry
     :entries-key :projections
     :required-registry-fields #{:registry-version :projections}
@@ -1580,13 +1605,14 @@
 (defn validate-attestor-registry [] (registry-result :attestor-registry))
 (defn validate-execution-registry [] (registry-result :execution-registry))
 (defn validate-evidence-policy-registry [] (registry-result :evidence-policy-registry))
+(defn validate-creation-provenance-registry [] (registry-result :creation-provenance-registry))
 (defn validate-hash-projection-registry [] (registry-result :hash-projection-registry))
 (defn validate-domain-tag-registry [] (registry-result :domain-tag-registry))
 
 (defn validate-passive-registries
-  "Validate all registries and return an aggregate result.
-   This function is passive and never throws.
-   Includes all 8 registered registry types plus cross-registry alignment."
+"Validate all registries and return an aggregate result.
+    This function is passive and never throws.
+    Includes all 9 registered registry types plus cross-registry alignment."
   ([] (validate-passive-registries {:entry-validation-mode :startup-safe}))
   ([{:keys [entry-validation-mode]
      :or {entry-validation-mode :startup-safe}}]

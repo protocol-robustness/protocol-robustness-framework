@@ -1,6 +1,7 @@
 (ns resolver-sim.benchmark.corpus-validation-test
   (:require [clojure.test :refer [deftest is]]
-            [resolver-sim.benchmark.corpus-validation :as corpus-validation]))
+            [resolver-sim.benchmark.corpus-validation :as corpus-validation]
+            [resolver-sim.yield.invariants :as yield-invariants]))
 
 (deftest registry-reachable-benchmark-corpus-is-classpath-loadable
   (is (= {:packs 2 :benchmarks 11 :status :passed}
@@ -17,6 +18,47 @@
   (let [result (corpus-validation/check-aggregate)]
     (is (= :aggregate (:check result)))
     (is (boolean? (:valid? result)))))
+
+(deftest check-aggregate-empty-world-passes
+  (let [result (corpus-validation/check-aggregate {})]
+    (is (= :aggregate (:check result)))
+    (is (:valid? result))
+    (is (empty? (:violations result)))))
+
+(deftest check-aggregate-nil-world-passes
+  (let [result (corpus-validation/check-aggregate nil)]
+    (is (= :aggregate (:check result)))
+    (is (:valid? result))
+    (is (empty? (:violations result)))))
+
+(deftest check-aggregate-delegates-to-yield-invariant
+  (let [world {:yield/positions
+               {0 {:module/id :modular-v2 :token :ETH
+                   :principal 1000 :shortfall {:basis-amount 1000}}
+                1 {:module/id :modular-v2 :token :ETH
+                   :principal 1000 :shortfall {:basis-amount 1000}}}}
+        result (corpus-validation/check-aggregate world)
+        invariant-result (yield-invariants/check-aggregate world)]
+    (is (= :aggregate (:check result)))
+    (is (= (:holds? invariant-result) (:valid? result)))
+    (is (= (:violations invariant-result) (:violations result)))))
+
+(deftest check-aggregate-violation-attribution
+  (let [world {:yield/positions
+               {0 {:module/id :modular-v2 :token :ETH
+                   :principal 100 :shortfall {:basis-amount 200
+                                              :fulfilled-amount 10
+                                              :deferred-amount 10
+                                              :haircut-amount 10}}
+                1 {:module/id :modular-v2 :token :ETH
+                   :principal 100 :shortfall {:basis-amount 200
+                                              :fulfilled-amount 10
+                                              :deferred-amount 10
+                                              :haircut-amount 10}}}}
+        result (corpus-validation/check-aggregate world)]
+    (is (false? (:valid? result)))
+    (is (seq (:violations result)))
+    (is (every? #(contains? % :module-id) (:violations result)))))
 
 (deftest check-cap-respecting-default
   (let [result (corpus-validation/check-cap-respecting)]

@@ -8,6 +8,7 @@
             [resolver-sim.benchmark.coverage :as benchmark-coverage]
             [resolver-sim.benchmark.execution-identity :as execution-identity]
             [resolver-sim.benchmark.case-set :as case-set]
+            [resolver-sim.benchmark.hardening :as hardening]
             [resolver-sim.concepts.benchmark :as benchmark-concepts]
             [resolver-sim.evidence.chain :as chain]
             [resolver-sim.evidence.config :as evidence-config]
@@ -868,7 +869,11 @@
       (finally
         (when-not (.isShutdown executor)
           (.shutdown executor)
-          (.awaitTermination executor 30 TimeUnit/SECONDS))))))
+          (.awaitTermination executor
+                             (long (or (:execution/quiescence-timeout-seconds
+                                        runtime-execution-context)
+                                       (hardening/quiescence-timeout-seconds)))
+                             TimeUnit/SECONDS))))))
 
 (defn- execute-plan-bounded!
   ([suite-kw plan source-by-id run-count staging-root parallelism chunk-size]
@@ -1125,7 +1130,8 @@
   ([manifest-path adapter] (run-benchmark manifest-path adapter {}))
   ([manifest-path adapter {:keys [scenario-output-dir benchmark-index-path execution-plan-path
                                   parallelism chunk-size execution/claimant-parallelism
-                                  execution/claimant-parallel-threshold execution/budget]}]
+                                  execution/claimant-parallel-threshold execution/budget
+                                  execution/quiescence-timeout-seconds]}]
    (let [adapter (if scenario-output-dir
                    (->SewAdapter scenario-output-dir (or parallelism 1) (or chunk-size 1))
                    adapter)
@@ -1151,13 +1157,21 @@
              (when-not (and (integer? budget) (pos? budget))
                (throw (ex-info "Execution budget must be a positive integer"
                                {:execution/budget budget}))))
+         resolved-quiescence-seconds (hardening/quiescence-timeout-seconds
+                                      quiescence-timeout-seconds)
+         _ (when-not (and (integer? resolved-quiescence-seconds)
+                          (pos? resolved-quiescence-seconds))
+             (throw (ex-info "Quiescence timeout must be a positive integer"
+                             {:execution/quiescence-timeout-seconds resolved-quiescence-seconds})))
          validated-ctx (execution-context/validate-context
                         {:execution/claimant-parallelism claimant-parallelism
                          :execution/claimant-parallel-threshold claimant-parallel-threshold})
          runtime-execution-context (cond-> validated-ctx
                                      budget (assoc :execution/shared-budget
                                                    (java.util.concurrent.Semaphore.
-                                                    (int budget))))
+                                                    (int budget)))
+                                     :always (assoc :execution/quiescence-timeout-seconds
+                                                    resolved-quiescence-seconds))
          _ (report-operational-phase! :plan-frozen
                                       {:benchmark-id (:benchmark/id manifest)
                                        :scenario-count (count scenarios)

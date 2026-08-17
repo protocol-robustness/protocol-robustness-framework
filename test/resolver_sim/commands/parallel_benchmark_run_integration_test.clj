@@ -119,7 +119,17 @@
         ;; The plain run-benchmark path is a single worker by default and is
         ;; not bounded by the composition ceiling.
         (is (= 1 (ep false nil 0)))
-        (is (= 6 (ep false 6 0)))))))
+        (is (= 6 (ep false 6 0)))))
+    (testing "effective parallelism: configurable ceiling (CLI/env) bounds the automatic default only"
+      (let [ep command/effective-parallelism]
+        ;; A caller-supplied ceiling replaces the default for the automatic path.
+        (is (= 3 (ep true nil 1000 3)) "CLI ceiling caps the automatic default")
+        (is (= 20 (ep true nil 1000 20)) "higher ceiling raises the automatic default")
+        ;; Explicit --parallelism is NEVER clamped, even below/above a low ceiling.
+        (is (= 16 (ep true 16 1000 3)) "explicit parallelism above a low ceiling is honored exactly")
+        (is (= 2 (ep true 2 1000 20)) "explicit parallelism below a high ceiling is honored exactly")
+        ;; The automatic default still floors at 1 for a degenerate count.
+        (is (= 1 (ep true nil 0 5)) "degenerate count floors at 1")))))
 
 (deftest parallel-composition-registers-incentive-and-incentive-compatibility-includes
   ;; The parallel command's build declares it is composed with the incentive

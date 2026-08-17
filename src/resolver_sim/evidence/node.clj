@@ -77,9 +77,11 @@
             [resolver-sim.hash.canonical :as hc]
             [resolver-sim.logging :as log]
             [resolver-sim.io.edn :as ppedn]))
-
 (def ^:const schema-version 1)
+
 (def ^:const default-policy-id :evidence-policy/computed)
+
+(def ^:const default-creation-provenance :in-band)
 
 (def ^:private bootstrap-root-pattern
   #"^(?:evidence-chain:)?sha256:[0-9a-f]{64}$")
@@ -384,13 +386,14 @@
 (defn build-execution-node
   [{:keys [execution-id policy-id parent-hashes bootstrap-roots timestamp
            status inputs outputs failure-details attestations extensions
-           execution-kind runner]
-    :or {policy-id default-policy-id
-         parent-hashes []
-         bootstrap-roots []
-         timestamp (now-iso)
-         attestations []
-         extensions {}}}]
+           execution-kind runner creation-provenance]
+     :or {policy-id default-policy-id
+          parent-hashes []
+          bootstrap-roots []
+          timestamp (now-iso)
+          attestations []
+          extensions {}
+          creation-provenance default-creation-provenance}}]
   (let [execution-entry' (or (execution-entry execution-id)
                              (throw (ex-info "Unknown execution id" {:execution-id execution-id})))
         policy-entry' (or (evidence-policy-entry policy-id)
@@ -406,12 +409,13 @@
               :parent-hashes (vec parent-hashes)
               :bootstrap-roots (vec bootstrap-roots)
               :timestamp timestamp
-              :execution {:execution-id execution-id
-                          :execution-kind (or execution-kind (:kind execution-entry'))
-                          :runner (or runner (:runner execution-entry'))
-                          :registry-hash (execution-registry-hash)
-                          :policy-id policy-id
-                          :policy-hash (evidence-policy-hash policy-id)}
+:execution {:execution-id execution-id
+                           :execution-kind (or execution-kind (:kind execution-entry'))
+                           :runner (or runner (:runner execution-entry'))
+                           :registry-hash (execution-registry-hash)
+                           :policy-id policy-id
+                           :policy-hash (evidence-policy-hash policy-id)
+                           :creation/provenance creation-provenance}
               :result {:status status
                        :summary summary}
               :evidence {:inputs-hash (hash-content inputs)
@@ -781,6 +785,17 @@
     (register-node! node)
     node))
 
+(defn validate-creation-provenance
+  "Validate that :creation/provenance is a known value.
+   Returns nil if valid, an error map otherwise.
+   Does NOT confer trust — merely checks enum membership.
+   Both :in-band and :out-of-band are valid; mutation between them is
+   undetectable without a separate commitment over provenance."
+  [provenance]
+  (when-not (#{:in-band :out-of-band} provenance)
+    {:error :creation-provenance/unsupported-value
+     :value provenance}))
+
 (defn validate-node
   "Validate one node against canonical hash integrity and local shape rules.
    Returns {:valid? .. :errors [...] :checks {...}}."
@@ -1079,8 +1094,9 @@
      :status (get-in node [:result :status])
      :parent-hashes (vec (:parent-hashes node))
      :bootstrap-roots (vec (:bootstrap-roots node))
-     :record-hash (:record-hash node)
-     :schema-version (:schema-version node)}))
+:record-hash (:record-hash node)
+      :schema-version (:schema-version node)
+      :creation-provenance (get-in node [:execution :creation/provenance])}))
 
 (defn build-dag-index
   "Build a navigation index from a collection of evidence DAG nodes.
