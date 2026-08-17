@@ -1,5 +1,5 @@
 (ns resolver-sim.cancellation.ordinary-admission-test
-  (:require [clojure.test :refer [deftest is]]
+  (:require [clojure.test :refer [deftest is testing]]
             [resolver-sim.cancellation.admission :as admission]
             [resolver-sim.cancellation.operation :as operation]
             [resolver-sim.cancellation.party-command :as command]
@@ -77,3 +77,18 @@
   (let [r (request) result (admission/admit (assoc r :key->principal {:alice-key "mallory"}))]
     (is (= :rejected (:admission/status result)))
     (is (some #{:authority/forbidden} (:blocking-reasons result)))))
+
+(deftest state-transition-binding-stage-present-and-non-blocking
+  (let [result (admission/admit (request))
+        stb (get-in result [:verification :state-transition-binding])]
+    (is (some? stb)
+        "state-transition-binding stage is present in the verification map")
+    (is (= :transition/unimplemented (:reason stb))
+        "state-transition-binding reports :transition/unimplemented as a known gap")
+    (is (true? (:binding-valid? stb))
+        "state-transition-binding is non-blocking: all three roots resolve"))
+  (testing "state-transition-binding does not block admission when the transition kernel is not defined"
+    (let [result (admission/admit (request))]
+      (is (admission/admitted? result))
+      (is (not (some #{:transition/unimplemented} (:blocking-reasons result)))
+          "state-transition-binding reason is not a blocking reason"))))

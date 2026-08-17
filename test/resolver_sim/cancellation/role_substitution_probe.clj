@@ -116,7 +116,24 @@
     (is (true? (get-in result [:verification :roots :state-before :valid?]))
         "state-before stage accepts the state-after root")
     (is (true? (get-in result [:verification :roots :state-after :valid?]))
-        "state-after stage accepts the state-before root")))
+        "state-after stage accepts the state-before root")
+    (is (true? (get-in result [:verification :state-transition-binding :available?]))
+        "state-transition-binding stage is present in verification")
+    (is (= :transition/unimplemented (get-in result [:verification :state-transition-binding :reason]))
+        "state-transition-binding reports :transition/unimplemented (no kernel exists yet)")
+    (is (true? (get-in result [:verification :state-transition-binding :binding-valid?]))
+        "state-transition-binding is non-blocking: binding-valid? true when all three roots resolve")))
+
+(deftest check1-state-transition-binding-reports-unimplemented
+  (let [ctx (base-setup)
+        op (:op ctx)
+        result (do-admit ctx op {})]
+    (is (some? (get-in result [:verification :state-transition-binding]))
+        "state-transition-binding stage is present in the verification map")
+    (is (= :transition/unimplemented (get-in result [:verification :state-transition-binding :reason]))
+        "state-transition-binding reports :transition/unimplemented as a known gap")
+    (is (true? (get-in result [:verification :state-transition-binding :binding-valid?]))
+        "state-transition-binding is non-blocking: the stage exists as a placeholder slot")))
 
 (deftest check1-state-before-and-lifecycle-head-swappable
   (let [ctx (base-setup)

@@ -256,4 +256,94 @@ EOF
     > SHA256SUMS
 )
 
+# EF Review Packet
+
+## Packet Overview
+This directory contains a generated EF technical-review packet for the PRF (Protocol Robustness Framework) project.
+
+**Packet path**: %OUTPUT_DIR%
+
+**Generated**: %BUILD_TIMESTAMP%
+
+## Included Scenarios
+The packet includes the following scenarios:
+
+- S-DR-001-basic-release-ruling.edn
+- S-DR-084-evidence-after-settlement-rejected.edn
+- S-NC-001-freeze-active-dispute-negative-control.edn
+- Y06_multi-party-pro-rata-shortfall.edn
+- DR-N-002-reversal-slash-appeal-rejected.edn
+
+## Key Artifacts
+- `manifest/canonical-integrity.json` - Unsigned canonical integrity assurance
+- `manifest/forensic-claims-status.json` - Forensic claims status (deferred when no signing configured)
+- `manifest/verdict-policy.json` - Verdict policy for outcome determination
+- `manifest/artifacts.json` - Artifact registry
+- `evidence/scenario-pro-rata/manifest/summary.json` - Summary with value-at-risk
+- `diagnostics/scenario-semantic-failure/` - Semantic failure diagnostic
+
+## Verification Commands
+```bash
+# Verify scenario bundles
+java -jar bin/prf-runner-sew-0.1.0-uber.jar -m resolver-sim.cli.main verify-scenario --run-root scenario-pro-rata
+java -jar bin/prf-runner-sew-0.1.0-uber.jar -m resolver-sim.cli.main verify-scenario --run-root scenario-rejected
+java -jar bin/prf-runner-sew-0.1.0-uber.jar -m resolver-sim.cli.main verify-scenario --run-root scenario-semantic-failure
+
+# Verify benchmark
+java -jar bin/prf-runner-sew-0.1.0-uber.jar -m resolver-sim.cli.main verify-benchmark --run-root benchmark-force-authorisation
+
+# Build attestation
+bb build:attest
+
+# Review packet analysis
+bash scripts/verify-ef-review-packet.sh evidence/scenario-pro-rata
+```
+
+## Current Status
+- **Scenario outcomes**: Y06 multi-party pro-rata shortfall passes semantically (1/1)
+- **Verification status**: See individual scenario results above
+- **Forensic claims status**: Deferred (unsigned; signing required for eligibility)
+- **Canonical integrity**: 14/14 checks pass
+
+## Documentation References
+- [`docs/PACKET_LAYOUT.md`](PACKET_LAYOUT.md) - Packet structure and conventions
+- [`docs/REVIEW_GUIDE.md`](REVIEW_GUIDE.md) - Review commands and procedures
+- [`docs/SCENARIO_REVIEW_HIGHLIGHTS.md`](SCENARIO_REVIEW_HIGHLIGHTS.md) - Scenario review priorities
+- [`docs/BENCHMARK_ASSURANCE_SPEC_V1.md`](BENCHMARK_ASSURANCE_SPEC_V1.md) - Assurance spec reference
+
+## Quick Start
+```bash
+# Generate packet
+bash scripts/build-ef-review-packet.sh /path/to/output-dir
+
+# Verify scenarios
+java -jar bin/prf-runner-sew-0.1.0-uber.jar -m resolver-sim.cli.main verify-scenario --run-root scenario-pro-rata
+
+# Or run the review packet verification script
+bash scripts/verify-ef-review-packet.sh evidence/scenario-pro-rata
+```
+
+## Directory Layout
+output-dir/
+├── bin/                          # JAR and verification scripts
+├── docs/                         # Documentation copies
+│   ├── REVIEW_GUIDE.md
+│   ├── SCENARIO_REVIEW_HIGHLIGHTS.md
+│   ├── PACKET_LAYOUT.md
+│   └── BENCHMARK_ASSURANCE_SPEC_V1.md
+│   └── specs/                    # Additional specs
+├── inputs/                       # Input scenario and benchmark files
+│   ├── scenarios/                 # Scenario EDN files
+│   ├── benchmarks/               # Benchmark definitions
+│   └── test-vectors/             # Test vectors
+├── evidence/                     # Generated evidence bundles
+│   ├── scenario-pro-rata/        # Y06 multi-party pro-rata shortfall
+│   ├── scenario-rejected/        # S-DR-084 evidence after settlement rejected
+│   └── scenario-semantic-failure/ # Semantic failure diagnostic
+├── diagnostics/                  # Diagnostic outputs
+├── REVIEW_PACKET_MANIFEST.json   # Manifest of all packet contents
+├── SHA256SUMS                      # SHA256 checksums for verification
+├── PROVENANCE.txt                # Provenance metadata
+└── README.md                     # This file
+
 echo "Review packet created: $OUTPUT_DIR"

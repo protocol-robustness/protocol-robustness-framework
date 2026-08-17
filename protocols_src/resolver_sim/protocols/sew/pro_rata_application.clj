@@ -55,3 +55,38 @@
                   :ledger-before-root (:ledger-before/root roots)
                   :ledger-after-root (:ledger-after/root roots)})]
     {:world world' :adjustments adjustments :receipt receipt}))
+
+(defn apply-effects-to-world
+  "Apply a vector of protocol effects to `world` via accounting/add-held.
+   Returns the resulting world-state map. Pure: does not mutate anything."
+  [world protocol-effects]
+  (reduce (fn [w {:keys [effect]}]
+            (accounting/add-held w (:effect/token effect) (:effect/amount effect)
+                                 {:action "add-held" :reason (:held/kind effect)
+                                  :account (:effect/account effect)
+                                  :extra (select-keys effect [:owner/address :parameter/context :parameter/address])}))
+          world protocol-effects))
+
+(defn application-transition-valid?
+  "Re-derive state/ledger roots from world-before + protocol-effects + adjustments
+   and compare to the roots committed in the receipt. Does NOT mutate
+   `receipt-valid?` — that remains the self-integrity check. Returns true only
+   when all four committed roots match the re-derived set.
+
+   `committed-roots` is the map of committed roots (e.g. the `roots` argument to
+   `apply-pro-rata-held-credit`, or the receipt's `/root` fields)."
+  [world protocol-effects adjustments committed-roots]
+  (let [world' (apply-effects-to-world world protocol-effects)
+        actual-roots (application-roots world world' adjustments)
+        committed-state-before-root (:state-before/root committed-roots)
+        committed-state-after-root (:state-after/root committed-roots)
+        committed-ledger-before-root (:ledger-before/root committed-roots)
+        committed-ledger-after-root (:ledger-after/root committed-roots)
+        derived-state-before-root (:state-before/root actual-roots)
+        derived-state-after-root (:state-after/root actual-roots)
+        derived-ledger-before-root (:ledger-before/root actual-roots)
+        derived-ledger-after-root (:ledger-after/root actual-roots)]
+    (and (= committed-state-before-root derived-state-before-root)
+         (= committed-state-after-root derived-state-after-root)
+         (= committed-ledger-before-root derived-ledger-before-root)
+         (= committed-ledger-after-root derived-ledger-after-root))))

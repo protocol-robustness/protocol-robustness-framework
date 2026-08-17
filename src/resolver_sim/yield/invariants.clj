@@ -279,27 +279,32 @@
                         (let [splits-ok? (every? (fn [p]
                                                    (let [sf (:shortfall p)]
                                                      (if sf
-                                                       (let [f (long (or (:fulfilled-amount sf) 0))
-                                                             d (long (or (:deferred-amount sf) 0))
-                                                             h (long (or (:haircut-amount sf) 0))
-                                                             b (long (or (:basis-amount sf) 0))
-                              ;; The single-position withdraw path folds a negative
-                              ;; unrealized-yield into basis-amount (recorded on the
-                              ;; shortfall as :basis-negative-unrealized) without
-                              ;; adjusting the splits, so the splits reconcile to
-                              ;; basis once that term is restored: f + d + h + fold == b.
-                              ;; The position's own :unrealized-yield is zeroed on
-                              ;; settle, so it cannot be used there.
-                              ;; Legacy/hand-authored shortfalls may instead retain a
-                              ;; negative :unrealized-yield on the position while the
-                              ;; splits exceed basis by that loss — accepted via the
-                              ;; second disjunct (f + d + h + fold + min(0, unrealized) == b).
-                              ;; Shared-withdrawal shortfalls never fold and record 0,
-                              ;; so the first disjunct reduces to f + d + h == b.
-                                                             fold (long (or (:basis-negative-unrealized sf) 0))
-                                                             pos-neg (min 0 (long (:unrealized-yield p 0)))]
-                                                         (or (= (+ f d h fold) b)
-                                                             (= (+ f d h fold pos-neg) b)))
+                              (let [f (long (or (:fulfilled-amount sf) 0))
+                                                              d (long (or (:deferred-amount sf) 0))
+                                                              h (long (or (:haircut-amount sf) 0))
+                                                              b (long (or (:basis-amount sf) 0))
+                               ;; The single-position and shared-withdrawal paths both
+                               ;; fold a negative unrealized-yield into basis-amount via
+                               ;; :basis-negative-unrealized, so the splits reconcile once
+                               ;; that term is restored: f + d + h + fold == b.
+                               ;; The position's own :unrealized-yield is zeroed on
+                               ;; settle (single-position path); shared-withdrawal positions
+                               ;; retain it, but the fold is already in the shortfall, so
+                               ;; the first disjunct is authoritative and the pos-neg
+                               ;; fallback must NOT compensate for a present (but zeroed
+                               ;; or tampered) :basis-negative-unrealized — that would
+                               ;; mask tampering of the fold term for related-claims
+                               ;; (shared-withdrawal) shortfalls.
+                               ;; Legacy/hand-authored shortfalls that lack
+                               ;; :basis-negative-unrealized retain a negative
+                               ;; :unrealized-yield on the position instead; the second
+                               ;; disjunct covers that case only.
+                                                              fold (long (or (:basis-negative-unrealized sf) 0))
+                                                              pos-neg (min 0 (long (:unrealized-yield p 0)))
+                                                              has-fold? (contains? sf :basis-negative-unrealized)]
+                                                          (or (= (+ f d h fold) b)
+                                                              (and (not has-fold?)
+                                                                   (= (+ f d h pos-neg) b))))
                                                        true)))
                                                  pos-group)
                               total-basis (reduce + 0 (map position-shortfall-basis pos-group))

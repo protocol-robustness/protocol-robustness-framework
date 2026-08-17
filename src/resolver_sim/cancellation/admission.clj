@@ -77,16 +77,16 @@
                               [role (opaque-stage resolve-artifact role root)]))
         stages (merge opaque-stages {:snapshot snapshot-stage :policy policy-stage
                                      :derived-effects derived-stage :execution-effects execution-stage})
-        resolved-state-before (resolve-root resolve-artifact (:state-before roots))
-        resolved-execution-effects (resolve-root resolve-artifact (:execution-effects roots))
-        resolved-state-after (resolve-root resolve-artifact (:state-after roots))
+        resolved-state-before (get stages :state-before)
+        resolved-execution-effects (get stages :execution-effects)
+        resolved-state-after (get stages :state-after)
         state-transition-binding
-        (let [state-before-valid? (:valid? (get stages :state-before))
-              execution-effects-valid? (:valid? (get stages :execution-effects))
-              state-after-valid? (:valid? (get stages :state-after))
-              state-before-root (:artifact/root resolved-state-before)
-              execution-effects-root (:artifact/root resolved-execution-effects)
-              state-after-root (:artifact/root resolved-state-after)]
+        (let [state-before-valid? (:valid? resolved-state-before)
+              execution-effects-valid? (:valid? resolved-execution-effects)
+              state-after-valid? (:valid? resolved-state-after)
+              state-before-root (:root resolved-state-before)
+              execution-effects-root (:root resolved-execution-effects)
+              state-after-root (:root resolved-state-after)]
           {:stage :state-transition-binding
            :state-before-root state-before-root
            :execution-effects-root execution-effects-root
@@ -127,10 +127,10 @@
                                    :derived-effects-valid? (= (:derived-effects roots) (:effects/root derived))
                                    :execution-effects-valid? (= (:derived-effects/root (resolve-root resolve-artifact (:execution-effects roots)))
                                                                 (:effects/root derived))
-                                   :authorized? (= :authorized (:decision/classification evaluation))})
-                        :state-transition-binding {:available? (some? state-transition-binding)
-                                                   :binding-valid? (:binding-valid? state-transition-binding)
-                                                   :reason (:reason state-transition-binding)}}
+:authorized? (= :authorized (:decision/classification evaluation))}
+                         :state-transition-binding {:available? (some? state-transition-binding)
+                                                    :binding-valid? (:binding-valid? state-transition-binding)
+                                                    :reason (:reason state-transition-binding)}}
         root-reasons (invalid-stage-reasons stages)
         recomputed-reasons (let [r (:recomputed verification)]
                              (vec (remove nil?
