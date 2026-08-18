@@ -1,0 +1,11 @@
+{
+    "schema": "prf-solidity-configuration-application-plan.v1",
+    "decisionRoot": "0x2db92fa9655c0fb44cf984c4ebcda53885f7812db3b5368b937821f3c223c66b",
+    "targetMode": 0,
+    "targetRoot": "0xf6c0f226998ebecb1123f78c2b30347d24c6e7ca2131f44f880b8a43c052cf86",
+    "parentConfigurationRoot": "0xa3b808fa66ad9b9c4f35de5590ad95213cf0de76190db5980ced743f39f97f57",
+    "newConfigurationRoot": "0x785f9b5c1a92ba54bd8f6dcaef3e416f4ab8e3b7f708310e92535c640ddbbc6d",
+    "parentVerifierRegistryRoot": "0x2e728266afeb4b7dc7f1251f18bd4e3b6a93d72d06e8841a9b5d2f60c672fdfe",
+    "newVerifierRegistryRoot": "0xfdb55cd836fabfae99c21d90ac11e84ecb75edf93e1a734e453e469d8a274906",
+    "epoch": 1
+}

@@ -200,11 +200,13 @@
     (is (= 5 (:constituent-count result)))
     (is (every? #(:holds? %) (:checks result)))))
 
-(deftest check-allocation-domain-invariants-default-no-evidence
+(deftest check-allocation-domain-invariants-default-uses-test-vectors
   (let [result (corpus-validation/check-allocation-domain-invariants)]
     (is (= :allocation-domain-invariants (:check result)))
     (is (= :pass (:status result)))
-    (is (zero? (:constituent-count result)))))
+    (is (pos? (:constituent-count result))
+        (str "Should run constituent checks against test vectors"))
+    (is (every? #(:holds? %) (:checks result)))))
 
 ;; ── Expected results recompute ─────────────────────────────────────────────
 

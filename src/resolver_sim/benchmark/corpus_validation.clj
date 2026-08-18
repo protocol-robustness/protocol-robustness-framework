@@ -13,11 +13,14 @@
             [resolver-sim.yield.invariants :as yield-invariants]
             [resolver-sim.yield.accounting :as yield-accounting]
             [resolver-sim.pro-rata.claims :as pro-rata-claims]
-            [resolver-sim.protocols.sew.economics :as sew-economics]
-            [resolver-sim.validation.scenario-registry :as scenario-registry]
-            [resolver-sim.hash.reference :as hash-ref]
-            [resolver-sim.hash.round-trip :as rt]
-            [resolver-sim.genesis :as genesis]))
+             [resolver-sim.protocols.sew.economics :as sew-economics]
+             [resolver-sim.validation.scenario-registry :as scenario-registry]
+             [resolver-sim.hash.reference :as hash-ref]
+             [resolver-sim.hash.round-trip :as rt]
+             [resolver-sim.claims.engine :as engine]
+              [resolver-sim.genesis :as genesis]))
+
+(declare parse-test-vector-input)
 
 ;; ── P0: Reference Closure Tests ───────────────────────────────────────────
 
@@ -453,10 +456,38 @@
                            (pro-rata-claims/evaluate-claim claim-id engine-input)))
           claim-ids)))
 
+(defn- test-vector-evidence-nodes
+  "Generate evidence nodes from the slash-allocation test vectors.
+    Returns a vector of evidence node maps suitable for pro-rata claim evaluators."
+  []
+  (let [resource-dir "test-vectors/pro-rata"
+        resource-url (io/resource resource-dir)]
+    (when resource-url
+      (let [files (->> (.listFiles (java.io.File. (.getPath resource-url)))
+                       (filter #(.endsWith (.getName %) ".json"))
+                       (filter #(.contains (.getName %) "slash-allocation"))
+                       sort)]
+        (mapv (fn [file]
+                (let [data (json/read-json (slurp file))
+                      input (:input data)
+                      allocation-input (parse-test-vector-input input)
+                      allocation-result (sew-economics/calculate-sew-slash-allocation allocation-input)]
+                  {:node-hash (str "slash-allocation:" (:vector-id data))
+                   :node/type :slash-allocation-evidence
+                   :resource-path (:vector-id data)
+                   :result {:claims/direct-result allocation-result}})))
+                 files))))))
+
 (defn check-allocation-domain-invariants
   "Aggregate validator for allocation domain invariants.
-    Runs the five focused allocation evaluators plus the existing
-    conservation + cap-respecting checks as constituent checks.
+    Runs the five focused allocation evaluators (non-negative-allocation,
+    allocation-not-above-request, integer-domain, residual-accounting,
+    full-fill-consistency) against test-vector-derived evidence nodes,
+    plus the existing conservation + cap-respecting checks as constituent checks.
+
+    This is called with no args from check-corpus, so it self-generates
+    evidence nodes from the pro-rata test vectors and evaluates every
+    allocation-domain claim end-to-end.
 
     Returns:
       {:check :allocation-domain-invariants
@@ -464,10 +495,8 @@
        :constituent-count <int>
        :checks [...]}   — each entry per ->constituent"
   ([]
-   {:check :allocation-domain-invariants
-    :status :pass
-    :constituent-count 0
-    :checks []})
+   (let [evidence-nodes (or (test-vector-evidence-nodes) [])]
+     (check-allocation-domain-invariants evidence-nodes)))
   ([evidence-nodes]
    (if (empty? evidence-nodes)
      {:check :allocation-domain-invariants
@@ -821,8 +850,62 @@
             (catch Exception _)))))
     {:reference-count (+ hash-intent-count (count @event-actions) (count @claim-ids))
      :references (concat (sort (keys canonical/hash-intents))
-                         (sort @event-actions)
-                         (sort @claim-ids))}))
+                        (sort @event-actions)
+                        (sort @claim-ids))}))
+
+(defn check-claim-registry-closure
+  "Verify the claim evaluator registry and claim-definition registry are
+    closure-consistent:
+
+    1. Every claim ID with an evaluator has a matching claim definition
+    2. Every claim definition has a valid schema (version, category, inputs,
+       evaluation, outputs)
+    3. Claim IDs are unique across both registries
+    4. (Inverse) Every executable claim definition has an evaluator — but
+       only for definitions that declare :evaluation :type explicitly
+       (conceptual/descriptive definitions are allowed to lack evaluators).
+
+    Returns {:check :claim-registry-closure, :status, :mismatches [...], ...}"
+  []
+  (try
+    (let [eval-ids (set (keys pro-rata-claims/evaluator-registry))
+          def-map (engine/claim-definition-map)
+          def-ids (set (keys def-map))
+          eval-without-def (set/difference eval-ids def-ids)
+          def-without-eval (set
+                            (for [cid def-ids
+                                  :when (not (eval-ids cid))]
+                              (let [def-entry (get def-map cid)]
+                                (when (:evaluation def-entry)
+                                  cid))))
+          duplicate-defs (->> (keys def-map)
+                              frequencies
+                              (filter #(> (val %) 1))
+                              (map first)
+                              set)
+          schema-errors (atom [])
+          required-fields [:id :version :category :description :inputs :evaluation :outputs]]
+      (doseq [def-entry def-map]
+        (let [cid (:id def-entry)]
+          (doseq [field required-fields]
+            (when (nil? (get def-entry field))
+              (swap! schema-errors conj {:claim-id cid :missing-field field})))
+      {:check :claim-registry-closure
+       :status (if (and (empty? eval-without-def)
+                        (empty? def-without-eval)
+                        (empty? duplicate-defs)
+                        (empty? @schema-errors))
+                 :pass :fail)
+       :evaluator-count (count eval-ids)
+       :definition-count (count def-ids)
+       :evaluators-without-definitions (vals eval-without-def)
+       :definitions-without-evaluators (vals def-without-eval)
+       :duplicate-definitions (vals duplicate-defs)
+        :schema-errors (vec @schema-errors)})))
+    (catch Exception e
+      {:check :claim-registry-closure
+       :status :fail
+        :error (.getMessage e)})))
 
 (defn- semantic-projection-of
   "Project a generic check result into a canonical, order-independent shape
@@ -874,9 +957,9 @@
        :transition-verifier-root transition-vr
        :matches? matches?})
     (catch Exception e
-      {:check :verifier-registry-consistency
-       :status :fail
-       :error (.getMessage e)})))
+       {:check :verifier-registry-consistency
+        :status :fail
+        :error (.getMessage e)})))
 
 (defn check-corpus
   "Produce a committed corpus manifest containing content roots, reference
@@ -909,6 +992,7 @@
                 :intent-coverage (check-intent-coverage)
                 :contract-case-coverage (check-contract-case-coverage)
                 :verifier-registry-consistency (check-verifier-registry-consistency)
+                :claim-registry-closure (check-claim-registry-closure)
                 :negative-corpus (check-negative-corpus)
                 :order-independence (check-order-independence)
                 :verification-fixed-point (check-verification-fixed-point)}
@@ -939,4 +1023,6 @@
      :manifest manifest
      :verification-root (hash-ref/sha256-ref verification-hash)
      :semantic-checks (count check-statuses)
-     :all-checks-pass? all-pass}))
+       :all-checks-pass? all-pass}))
+
+

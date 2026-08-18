@@ -659,6 +659,54 @@
    :governance-policy/root (fixture-ref "governance-policy.v1")
    :interoperability-policy/root (fixture-ref "interoperability-policy.v1")})
 
+(def chain-configuration-v0-fixture
+  "C0: Initial chain-configuration.v1 fixture for the verifier-registry
+   authority binding task. Uses the existing verifier-registry.v1 registry root.
+   This is an alias of chain-configuration-fixture to give the C0/C1 distinction
+   explicit identity in the application-plan fixtures."
+  chain-configuration-fixture)
+
+(def chain-configuration-v1-fixture
+  "C1: New chain-configuration.v1 fixture representing a configuration transition
+   that adds a synthetic test verifier to the verifier registry. The only field
+   that differs from C0 is :verifier-registry/root, which points to a new
+   deterministic fixture reference verifier-registry.v2."
+  {:configuration/schema "chain-configuration.v1"
+   :module-registry/root (fixture-ref "module-registry.v1")
+   :verifier-registry/root (fixture-ref "verifier-registry.v2")
+   :evidence-policy/root (fixture-ref "evidence-policy.v1")
+   :escrow-template-registry/root (fixture-ref "escrow-template-registry.v1")
+   :parameter-policy/root (fixture-ref "parameter-policy.v1")
+   :governance-policy/root (fixture-ref "governance-policy.v1")
+   :interoperability-policy/root (fixture-ref "interoperability-policy.v1")})
+
+(def chain-configuration-v0-fixture-root
+  "Canonical root of C0 (chain-configuration-v0-fixture)."
+  (chain-configuration-root chain-configuration-v0-fixture))
+
+(def chain-configuration-v1-fixture-root
+  "Canonical root of C1 (chain-configuration-v1-fixture)."
+  (chain-configuration-root chain-configuration-v1-fixture))
+
+(def chain-configuration-transition-v0-to-v1-fixture
+  "Canonical chain-configuration-transition.v1 fixture for the transition
+   C0/R0 → C1/R1. The parent root is the canonical root of C0; the new root
+   is the canonical root of C1; the verifier-registry/root is R1 (C1's
+   verifier-registry root, since the canonical transition commits the new
+   registry root)."
+  {:transition/schema "chain-configuration-transition.v1"
+   :protocol/genesis-root protocol-genesis-fixture-root
+   :target {:target/type :chain-instance
+            :target/root chain-instance-genesis-ethereum-fixture-root}
+   :configuration/parent-root (str chain-configuration-v0-fixture-root)
+   :configuration/new-root (str chain-configuration-v1-fixture-root)
+   :verifier-registry/root (fixture-ref "verifier-registry.v2")
+   :epoch 1})
+
+(def chain-configuration-transition-v0-to-v1-fixture-root
+  "Canonical root (decisionRoot) of the v0→v1 transition fixture."
+  (chain-configuration-transition-root chain-configuration-transition-v0-to-v1-fixture))
+
 (def chain-configuration-fixture-root
   "Canonical root of chain-configuration-fixture (computed at load for reuse by
    the transition fixtures)."
@@ -767,11 +815,101 @@
         target-mode (case target-type
                       :chain-instance solidity-target-mode-direct
                       :chain-instance-set solidity-target-mode-set)]
-    {:decision-root (str "0x"
-                         (subs (chain-configuration-transition-root transition) 7))
-     :target-mode target-mode
-     :target-root (prf-ref->bytes32 (-> transition :target :target/root))
-     :parent-configuration-root (prf-ref->bytes32 (:configuration/parent-root transition))
-     :new-configuration-root (prf-ref->bytes32 (:configuration/new-root transition))
-     :verifier-registry-root (prf-ref->bytes32 (:verifier-registry/root transition))
-     :epoch (:epoch transition)}))
+     {:decision-root (str "0x"
+                          (subs (chain-configuration-transition-root transition) 7))
+      :target-mode target-mode
+      :target-root (prf-ref->bytes32 (-> transition :target :target/root))
+      :parent-configuration-root (prf-ref->bytes32 (:configuration/parent-root transition))
+      :new-configuration-root (prf-ref->bytes32 (:configuration/new-root transition))
+      :verifier-registry-root (prf-ref->bytes32 (:verifier-registry/root transition))
+      :epoch (:epoch transition)}))
+
+;; ──────────────────────────────────────────────────────────────────────────────
+;; Solidity initialization projection (non-canonical, derived)
+;; ──────────────────────────────────────────────────────────────────────────────
+
+(defn chain-configuration->solidity-initialization
+  "Derived, non-canonical projection from a validated chain-configuration.v1 into
+   the Solidity initialization tuple for SewConfigurationExecutor + PrfVerifierRegistry.
+
+   Validates the configuration first (fail-closed). Both roots are derived
+   internally — a caller cannot supply a separately caller-supplied configuration root
+   or verifier-registry root.
+
+   Returns:
+   {:configuration-root           \"0x<64 hex>\"  ;; = chain-configuration.v1 root as bytes32
+    :verifier-registry-root       \"0x<64 hex>\"  ;; = :verifier-registry/root as bytes32
+    }
+
+   No new canonical identity is created. This is derived data only."
+  [configuration]
+  (let [v (validate-chain-configuration configuration)]
+    (when-not (:valid? v)
+      (throw (ex-info "chain-configuration.v1 is invalid"
+                      {:type :configuration/invalid
+                       :schema chain-configuration-schema
+                       :errors (:errors v)}))))
+  {:configuration-root (str "0x"
+                            (subs (chain-configuration-root configuration) 7))
+   :verifier-registry-root (prf-ref->bytes32 (:verifier-registry/root configuration))})
+
+;; ──────────────────────────────────────────────────────────────────────────────
+;; Solidity application plan projection (non-canonical, derived)
+;; ──────────────────────────────────────────────────────────────────────────────
+
+(defn chain-configuration-transition->solidity-application-plan
+  "Derived, non-canonical projection from a validated chain-configuration-transition.v1
+   plus the parent and new canonical chain-configuration.v1 objects into the exact
+   argument tuple consumed by GovGovernor.authorisePrfDecision(…).
+
+   The transition is first validated (fail-closed). It then verifies:
+   - root(parent-configuration) == transition.configuration/parent-root
+   - root(new-configuration)    == transition.configuration/new-root
+
+   All roots are derived internally — a caller cannot override any derived root.
+
+   Returns:
+   {:decision-root                    \"0x<64 hex>\"  ;; = chain-configuration-transition-root
+    :target-mode                      0 | 1
+    :target-root                      \"0x<64 hex>\"
+    :parent-configuration-root        \"0x<64 hex>\"
+    :new-configuration-root           \"0x<64 hex>\"
+    :parent-verifier-registry-root    \"0x<64 hex>\"
+    :new-verifier-registry-root       \"0x<64 hex>\"
+    :epoch                            <uint64>}
+
+   No new canonical identity, hash intent, or domain tag is created. This is derived data only."
+  [transition parent-configuration new-configuration]
+  (let [v (validate-chain-configuration-transition transition)]
+    (when-not (:valid? v)
+      (throw (ex-info "chain-configuration-transition.v1 is invalid"
+                      {:type :transition/invalid
+                       :schema chain-configuration-transition-schema
+                       :errors (:errors v)}))))
+  (let [parent-root (chain-configuration-root parent-configuration)
+        new-root (chain-configuration-root new-configuration)
+        transition-parent (:configuration/parent-root transition)
+        transition-new (:configuration/new-root transition)]
+    (when (not= parent-root transition-parent)
+      (throw (ex-info "parent configuration root does not match transition parent root"
+                      {:type :configuration/parent-root-mismatch
+                       :computed parent-root
+                       :declared transition-parent})))
+    (when (not= new-root transition-new)
+      (throw (ex-info "new configuration root does not match transition new root"
+                      {:type :configuration/new-root-mismatch
+                       :computed new-root
+                       :declared transition-new})))
+    (let [target-type (-> transition :target :target/type)
+          target-mode (case target-type
+                        :chain-instance solidity-target-mode-direct
+                        :chain-instance-set solidity-target-mode-set)]
+      {:decision-root (str "0x"
+                           (subs (chain-configuration-transition-root transition) 7))
+       :target-mode target-mode
+       :target-root (prf-ref->bytes32 (-> transition :target :target/root))
+       :parent-configuration-root (prf-ref->bytes32 (:configuration/parent-root transition))
+       :new-configuration-root (prf-ref->bytes32 (:configuration/new-root transition))
+       :parent-verifier-registry-root (prf-ref->bytes32 (:verifier-registry/root parent-configuration))
+       :new-verifier-registry-root (prf-ref->bytes32 (:verifier-registry/root new-configuration))
+       :epoch (:epoch transition)})))

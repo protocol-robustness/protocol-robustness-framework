@@ -492,31 +492,71 @@
            :outputs [:holds? :violations]}
           {:id :pro-rata/canonical-remainder-assignment
            :version 1
-           :category :invariant
-           :description "Largest-remainder awards follow the persisted canonical rank witness."
-           :inputs [:pro-rata-allocation-result]
-           :evaluation {:type :policy-check :policy :pro-rata/canonical-remainder-assignment}
-           :outputs [:holds? :result :reason :violations]}
-          {:id :pro-rata/projection-diff
-           :version 1
-           :category :safety
-           :description "Every value that required flattening for canonical hashing is explicitly recorded in :projection/flattened-fields with its path, original type, value, and applied contract."
-           :inputs [:projection-artifact]
-           :evaluation {:type :metadata-completeness
-                        :required-keys [:path :type :value :contract]}
-           :outputs [:holds? :violations]}
-             ;; Protocol-specific claim definitions are registered dynamically
-             ;; by protocol implementation namespaces via register-claim-definitions!.
-             ;; See protocols_src/resolver_sim/evidence/forensic_claims.clj for
-             ;; the Sew forensic-grade claims (registry-hash-verifies,
-             ;; registry-hash-signed, cursor-verifies, tsa-token-verified,
-             ;; evidence-chain-reconciled, forensic-grade).
-             ;;
-             ;; IMPORTANT: register-forensic-claims! must be called AFTER this
-             ;; namespace is fully loaded but BEFORE any concurrent test execution
-             ;; or multi-epoch simulation. The claim-definitions var is NOT
-             ;; ^:dynamic because it is a static registry; forensic claims are
-             ;; added via alter-var-root and are shared across all concurrent runs.
+:category :invariant
+            :description "Largest-remainder awards follow the persisted canonical rank witness."
+            :inputs [:pro-rata-allocation-result]
+            :evaluation {:type :policy-check :policy :pro-rata/canonical-remainder-assignment}
+            :outputs [:holds? :result :reason :violations]}
+           {:id :pro-rata/projection-diff
+            :version 1
+            :category :safety
+            :description "Every value that required flattening for canonical hashing is explicitly recorded in :projection/flattened-fields with its path, original type, value, and applied contract."
+            :inputs [:projection-artifact]
+            :evaluation {:type :metadata-completeness
+                         :required-keys [:path :type :value :contract]}
+            :outputs [:holds? :violations]}
+           {:id :pro-rata/non-negative-allocation
+            :version 1
+            :category :invariant
+            :description "Allocation, unmet, paid, owed, basis, and cap values in the allocation result are never negative."
+            :inputs [:allocation-result]
+            :evaluation {:type :code-reference
+                         :entry 'resolver-sim.pro_rata.claims/evaluate-claim}
+            :outputs [:holds? :violations]}
+           {:id :pro-rata/allocation-not-above-request
+            :version 1
+            :category :invariant
+            :description "No allocation exceeds its corresponding requested amount (paid ≤ owed)."
+            :inputs [:allocation-result]
+            :evaluation {:type :code-reference
+                         :entry 'resolver-sim.pro_rata.claims/evaluate-claim}
+            :outputs [:holds? :violations]}
+           {:id :pro-rata/integer-domain
+            :version 1
+            :category :safety
+            :description "Numeric allocation fields are integers (no floating-point or fractional values in standard integer fields: :owed/:paid/:unmet/:cap/:basis-amount)."
+            :inputs [:allocation-result]
+            :evaluation {:type :code-reference
+                         :entry 'resolver-sim.pro_rata.claims/evaluate-claim}
+            :outputs [:holds? :violations]}
+           {:id :pro-rata/residual-accounting
+            :version 1
+            :category :invariant
+            :description "Allocated total plus per-row unmet amounts plus unallocated residual equals the available (slash-obligation) amount."
+            :inputs [:allocation-result]
+            :evaluation {:type :code-reference
+                         :entry 'resolver-sim.pro_rata.claims/evaluate-claim}
+            :outputs [:holds? :violations]}
+           {:id :pro-rata/full-fill-consistency
+            :version 1
+            :category :invariant
+            :description "If any allocation is partially filled (allocated < owed), then unmet must be positive for that allocation, and the aggregate unmet must equal the sum of per-row unmet amounts."
+            :inputs [:allocation-result]
+            :evaluation {:type :code-reference
+                         :entry 'resolver-sim.pro_rata.claims/evaluate-claim}
+            :outputs [:holds? :violations]}
+           ;; Protocol-specific claim definitions are registered dynamically
+           ;; by protocol implementation namespaces via register-claim-definitions!.
+           ;; See protocols_src/resolver_sim/evidence/forensic_claims.clj for
+           ;; the Sew forensic-grade claims (registry-hash-verifies,
+           ;; registry-hash-signed, cursor-verifies, tsa-token-verified,
+           ;; evidence-chain-reconciled, forensic-grade).
+           ;;
+           ;; IMPORTANT: register-forensic-claims! must be called AFTER this
+           ;; namespace is fully loaded but BEFORE any concurrent test execution
+           ;; or multi-epoch simulation. The claim-definitions var is NOT
+           ;; ^:dynamic because it is a static registry; forensic claims are
+           ;; added via alter-var-root and are shared across all concurrent runs.
           ])))
 
 (def claim-definition-registry

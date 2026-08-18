@@ -2,8 +2,9 @@
   (:require [clojure.test :refer :all]
             [clojure.string :as str]
             [clojure.data.json :as json]
-            [resolver-sim.genesis :as g]
-            [resolver-sim.hash.reference :as hash-ref])
+             [resolver-sim.genesis :as g]
+             [resolver-sim.hash.canonical :as canonical]
+             [resolver-sim.hash.reference :as hash-ref])
   (:import [clojure.lang ExceptionInfo]))
 
 ;; ── Golden roots (computed at load) ──────────────────────────────────────
@@ -518,3 +519,140 @@
       (is (= (:new-configuration-root auth) (:newConfigurationRoot json)))
       (is (= (:verifier-registry-root auth) (:verifierRegistryRoot json)))
       (is (= (:epoch auth) (:epoch json))))))
+
+;; ── Solidity initialization projection tests ─────────────────────────────────
+
+(deftest test-solidity-initialization-derives-configuration-root-internally
+  (testing "initialization projection derives configuration root from validated config"
+    (let [init (g/chain-configuration->solidity-initialization g/chain-configuration-fixture)]
+      (is (= (:configuration-root init)
+             (str "0x" (subs g/chain-configuration-fixture-root 7)))))))
+
+(deftest test-solidity-initialization-derives-verifier-registry-root
+  (testing "initialization projection derives verifier-registry root from config :verifier-registry/root"
+    (let [init (g/chain-configuration->solidity-initialization g/chain-configuration-fixture)
+          expected-vr (:verifier-registry/root g/chain-configuration-fixture)]
+      (is (= (:verifier-registry-root init)
+             (str "0x" (subs expected-vr 7)))))))
+
+(deftest test-solidity-initialization-rejects-invalid-configuration
+  (testing "initialization projection rejects an invalid configuration"
+    (let [invalid (assoc g/chain-configuration-fixture :configuration/schema "wrong")]
+      (is (thrown-with-msg?
+           ExceptionInfo
+           #"chain-configuration.v1 is invalid"
+           (g/chain-configuration->solidity-initialization invalid))))))
+
+(deftest test-solidity-initialization-deterministic
+  (testing "initialization projection is deterministic"
+    (let [init1 (g/chain-configuration->solidity-initialization g/chain-configuration-fixture)
+          init2 (g/chain-configuration->solidity-initialization g/chain-configuration-fixture)]
+      (is (= init1 init2)))))
+
+(deftest test-solidity-initialization-json-fixture-matches
+  (testing "JSON fixture matches the initialization projection output"
+    (let [init (g/chain-configuration->solidity-initialization g/chain-configuration-fixture)
+          json (json/read-str (slurp "etc/conformance/fixtures/solidity-authorization/initialization-v0.json") :key-fn keyword)]
+      (is (= (:configuration-root init) (:configurationRoot json)))
+      (is (= (:verifier-registry-root init) (:verifierRegistryRoot json))))))
+
+;; ── Solidity application plan projection tests ───────────────────────────────
+
+(deftest test-solidity-application-plan-derives-parent-config-root-internally
+  (testing "application plan derives parent configuration root from parent config"
+    (let [plan (g/chain-configuration-transition->solidity-application-plan
+                g/chain-configuration-transition-v0-to-v1-fixture
+                g/chain-configuration-v0-fixture
+                g/chain-configuration-v1-fixture)]
+      (is (= (:parent-configuration-root plan)
+             (str "0x" (subs g/chain-configuration-v0-fixture-root 7)))))))
+
+(deftest test-solidity-application-plan-derives-new-config-root-internally
+  (testing "application plan derives new configuration root from new config"
+    (let [plan (g/chain-configuration-transition->solidity-application-plan
+                g/chain-configuration-transition-v0-to-v1-fixture
+                g/chain-configuration-v0-fixture
+                g/chain-configuration-v1-fixture)]
+       (is (= (:new-configuration-root plan)
+              (str "0x" (subs g/chain-configuration-v1-fixture-root 7)))))))
+
+(deftest test-solidity-application-plan-derives-parent-verifier-registry-root
+  (testing "application plan derives parent verifier-registry root from parent config"
+    (let [plan (g/chain-configuration-transition->solidity-application-plan
+                g/chain-configuration-transition-v0-to-v1-fixture
+                g/chain-configuration-v0-fixture
+                g/chain-configuration-v1-fixture)
+          expected-vr (:verifier-registry/root g/chain-configuration-v0-fixture)]
+       (is (= (:parent-verifier-registry-root plan)
+              (str "0x" (subs expected-vr 7)))))))
+
+
+(deftest test-solidity-application-plan-derives-new-verifier-registry-root
+  (testing "application plan derives new verifier-registry root from new config"
+    (let [plan (g/chain-configuration-transition->solidity-application-plan
+                g/chain-configuration-transition-v0-to-v1-fixture
+                g/chain-configuration-v0-fixture
+                g/chain-configuration-v1-fixture)
+          expected-vr (:verifier-registry/root g/chain-configuration-v1-fixture)]
+       (is (= (:new-verifier-registry-root plan)
+              (str "0x" (subs expected-vr 7)))))))
+
+
+(deftest test-solidity-application-plan-rejects-parent-mismatch
+  (testing "application plan rejects when parent config root doesn't match transition parent root"
+    (let [wrong-parent (assoc g/chain-configuration-v0-fixture
+                              :module-registry/root
+                              "sha256:1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef")]
+      (is (thrown-with-msg?
+           ExceptionInfo
+           #"parent configuration root does not match"
+           (g/chain-configuration-transition->solidity-application-plan
+            g/chain-configuration-transition-v0-to-v1-fixture
+            wrong-parent
+            g/chain-configuration-v1-fixture))))))
+
+(deftest test-solidity-application-plan-rejects-new-mismatch
+  (testing "application plan rejects when new config root doesn't match transition new root"
+    (let [wrong-new (assoc g/chain-configuration-v1-fixture
+                           :module-registry/root
+                           "sha256:1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef")]
+      (is (thrown-with-msg?
+           ExceptionInfo
+           #"new configuration root does not match"
+           (g/chain-configuration-transition->solidity-application-plan
+            g/chain-configuration-transition-v0-to-v1-fixture
+            g/chain-configuration-v0-fixture
+            wrong-new))))))
+
+(deftest test-solidity-application-plan-deterministic
+  (testing "application plan projection is deterministic"
+    (let [plan1 (g/chain-configuration-transition->solidity-application-plan
+                 g/chain-configuration-transition-v0-to-v1-fixture
+                 g/chain-configuration-v0-fixture
+                 g/chain-configuration-v1-fixture)
+          plan2 (g/chain-configuration-transition->solidity-application-plan
+                 g/chain-configuration-transition-v0-to-v1-fixture
+                 g/chain-configuration-v0-fixture
+                 g/chain-configuration-v1-fixture)]
+      (is (= plan1 plan2)))))
+
+(deftest test-solidity-application-plan-json-fixture-matches
+  (testing "JSON fixture matches the application plan projection output"
+    (let [plan (g/chain-configuration-transition->solidity-application-plan
+                g/chain-configuration-transition-v0-to-v1-fixture
+                g/chain-configuration-v0-fixture
+                g/chain-configuration-v1-fixture)
+          json (json/read-str (slurp "etc/conformance/fixtures/solidity-authorization/application-plan-v0-to-v1.json") :key-fn keyword)]
+      (is (= (:decision-root plan) (:decisionRoot json)))
+      (is (= (:target-mode plan) (:targetMode json)))
+      (is (= (:target-root plan) (:targetRoot json)))
+      (is (= (:parent-configuration-root plan) (:parentConfigurationRoot json)))
+      (is (= (:new-configuration-root plan) (:newConfigurationRoot json)))
+      (is (= (:parent-verifier-registry-root plan) (:parentVerifierRegistryRoot json)))
+      (is (= (:new-verifier-registry-root plan) (:newVerifierRegistryRoot json)))
+      (is (= (:epoch plan) (:epoch json))))))
+
+(deftest test-no-new-hash-intent-added
+  (testing "no new domain tag or hash intent was added for application plan"
+    (is (not (contains? canonical/domain-tags :prf-solidity-application-plan)))
+    (is (not (contains? canonical/domain-tags :prf-solidity-initialization)))))
