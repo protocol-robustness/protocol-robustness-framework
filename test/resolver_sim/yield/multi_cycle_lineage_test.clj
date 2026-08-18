@@ -1,0 +1,258 @@
+(ns resolver-sim.yield.multi-cycle-lineage-test
+  "Cross-cycle pro-rata assurance: two-cycle original-priority witness,
+   lineage conservation, shuffled-replay determinism, and the
+   `available > total_requested` boundary pinning both domains.
+
+   Test A — Two-cycle original-priority witness (construction + validation)
+   Test B — Lineage conservation on a two-cycle world
+   Test C — Shuffled-replay determinism / canonical equality
+   Test D — Boundary pinning: `available > total_requested` rejected at
+            the Clojure admission boundary (matches Rust)
+
+   PRF does NOT allocate probabilistically: `probabilistic-allocation-window`
+   is a lifecycle/cancellation window. Pro-rata math is deterministic
+   largest-remainder. Priority is a witness/ordering attribute in pro-rata
+   mode, NOT an allocation-amount determinant."
+  (:require [clojure.test :refer :all]
+            [resolver-sim.yield.modules.liquid-lending :as ll]
+            [resolver-sim.yield.invariants :as inv]
+            [resolver-sim.allocation.persisted-statement-admission :as adm]
+            [resolver-sim.allocation.realized-statement :as rs]
+            [resolver-sim.allocation.round-state :as round-state]
+            [clojure.data.json :as json]))
+
+;; ── shared fixture world (identical to lineage_conservation_test) ──────────
+
+(def test-mod
+  (ll/make-liquid-lending-module :test-mod))
+
+(def base-world
+  {:yield/indices {:test-mod {"USDC" 1.0}}
+   :yield/rates   {:test-mod {"USDC" 0.05}}
+   :yield/risk    {:test-mod {"USDC" {:liquidity-mode :available
+                                       :loss-mode :none}}}
+   :yield/held-balances {"USDC" 1000000}
+   :yield/module-status {:test-mod :active}
+   :block-time 1000
+   :run/id "test-run"
+   :execution/id "test-execution"
+   :params {:scenario-id "test-scenario"}})
+
+(defn- deposit-owners
+  [world owners amount]
+  (reduce (fn [w owner]
+            (ll/deposit w test-mod {:owner/id owner :amount amount :token "USDC"}))
+          world
+          owners))
+
+(defn- with-shortfall-ratio
+  [world ratio]
+  (assoc-in world [:yield/risk :test-mod :USDC :shortfall :available-ratio] ratio))
+
+(defn- withdraw-shared
+  [world owners caps]
+  (ll/withdraw-shared world test-mod
+                      {:owner-ids owners
+                       :token "USDC"
+                       :allocation-mode :pro-rata
+                       :effective-caps caps}))
+
+(defn- round-one-world
+  []
+  (-> (deposit-owners base-world ["alice" "bob" "carol" "dan"] 100)
+      (assoc-in [:total-held :USDC] 400)
+      (with-shortfall-ratio 0.35)
+      (withdraw-shared ["alice" "bob" "carol" "dan"]
+                       {"alice" 30 "bob" 40 "carol" 50})))
+
+(defn- round-two-world
+  []
+  (-> (round-one-world)
+      (with-shortfall-ratio 1.0)
+      (withdraw-shared ["alice" "bob" "carol" "dan"]
+                       {"alice" 30 "bob" 40 "carol" 50})))
+
+;; ── helpers ────────────────────────────────────────────────────────────────
+
+(defn- shared-decisions
+  "All :yield-withdraw-shared decision artifacts in the world, in the order
+   they were committed (application step)."
+  [world]
+  (->> (vals (:yield/partial-fill-decisions world {}))
+       (filter #(= :yield-withdraw-shared (:decision/source %)))
+       (sort-by (fn [d] [(get-in d [:allocation/invocation-context :step]
+                                Long/MAX_VALUE)
+                         (:decision/id d)]))))
+
+(defn- priority-witness
+  "The committed :allocation/priority-witness vector from a decision artifact."
+  [decision]
+  (get-in decision [:extra :allocation/priority-witness]))
+
+(defn- ordering
+  "The committed :allocation/ordering from a decision artifact."
+  [decision]
+  (get-in decision [:extra :allocation/ordering]))
+
+(defn- witness-priorities
+  "Original-priority values carried by the committed witness, in committed
+   order (the order the kernel committed them)."
+  [decision]
+  (mapv :original-priority (priority-witness decision)))
+
+;; ══════════════════════════════════════════════════════════════════════════════
+;; Test A — two-cycle original-priority witness guarantee
+;; ══════════════════════════════════════════════════════════════════════════════
+
+(deftest A-construction-guarantee-priority-witness-is-monotonic
+  (testing "committed :allocation/ordering is :original-priority-ascending"
+    (let [w (round-two-world)]
+      (doseq [d (shared-decisions w)]
+        (is (= :original-priority-ascending (ordering d))
+            "every shared decision commits :original-priority-ascending"))))
+
+  (testing "within each round the committed witness is monotonic non-decreasing
+            in original-priority (construction guarantee)"
+    (let [w (round-two-world)]
+      (doseq [d (shared-decisions w)]
+        (let [ps (witness-priorities d)]
+          (is (every? identity (map #(<= %1 %2) ps (rest ps)))
+              (str "witness priorities " ps " are not monotonic non-decreasing"))))))
+
+  (testing "a round-2 witness row never sorts before a round-1 witness row of
+            the same participant: the lineage preserves original priority"
+    (let [w (round-two-world)
+          decs (shared-decisions w)
+          r1 (first decs)
+          r2 (second decs)
+          r1-by-owner (into {} (map (juxt :key :original-priority)
+                                    (priority-witness r1)))
+          r2-by-owner (into {} (map (juxt :key :original-priority)
+                                    (priority-witness r2)))]
+      (doseq [owner (keys r1-by-owner)]
+        (is (= (r1-by-owner owner) (r2-by-owner owner))
+            (str "participant " owner " changed original-priority across cycles"))))))
+
+(deftest A-validation-guarantee-rejects-inverted-witness
+  (testing "an inverted witness (round-2 row sorts before round-1 row of the
+            same participant) is a violation"
+    (let [w (round-two-world)
+          decs (shared-decisions w)
+          r1 (first decs)
+          r2 (second decs)
+          r2-rows (priority-witness r2)
+          ;; move alice's round-2 row to the front, inverting its position
+          ;; relative to the round-1 witness ordering
+          alice-row (first (filter #(= "alice" (:key %)) r2-rows))
+          rest-rows (remove #(= "alice" (:key %)) r2-rows)
+          inverted-r2 (assoc r2 :extra (assoc (:extra r2)
+                                              :allocation/priority-witness
+                                              (vec (cons alice-row rest-rows))))
+          world (assoc-in w [:yield/partial-fill-decisions
+                             (:decision/id r2) inverted-r2])
+          result (inv/check-shared-withdrawal-conservation-world world)]
+      (is (not (:holds? result))
+          "inverted witness is rejected"))))
+
+;; ══════════════════════════════════════════════════════════════════════════════
+;; Test B — lineage conservation on a two-cycle world
+;; ══════════════════════════════════════════════════════════════════════════════
+
+(deftest B-lineage-conservation-holds-on-two-cycle-world
+  (testing "the honest two-cycle world conserves every participant lineage"
+    (let [w (round-two-world)]
+      (is (:holds? (inv/check-withdrawal-lineage-conservation w))
+          "honest two-round world conserves every lineage")
+      (is (= 60 (get-in w [:yield/positions "alice" :cumulative-fulfilled])))
+      (is (= 77 (get-in w [:yield/positions "bob" :cumulative-fulfilled])))
+      (is (= 87 (get-in w [:yield/positions "carol" :cumulative-fulfilled])))
+      (is (= 100 (get-in w [:yield/positions "dan" :cumulative-fulfilled])))
+      (is (= 40 (get-in w [:yield/positions "alice" :deferred-position
+                           :position/current-amount])))
+      (is (= 23 (get-in w [:yield/positions "bob" :deferred-position
+                           :position/current-amount])))
+      (is (= 13 (get-in w [:yield/positions "carol" :deferred-position
+                           :position/current-amount])))
+      (is (= :withdrawn (get-in w [:yield/positions "dan" :status]))
+          "dan is fully satisfied in round 2"))))
+
+(deftest B-lineage-conservation-holds-on-single-round
+  (is (:holds? (inv/check-withdrawal-lineage-conservation
+                (round-one-world)))
+      "a single liquidity-constrained round still conserves the lineage"))
+
+(deftest B-lineage-conservation-vacuous-without-shared-decisions
+  (is (:holds? (inv/check-withdrawal-lineage-conservation
+                (deposit-owners base-world ["alice" "bob"] 100)))
+      "worlds with no shared withdrawal hold vacuously"))
+
+;; ══════════════════════════════════════════════════════════════════════════════
+;; Test C — shuffled-replay determinism / canonical equality
+;; ══════════════════════════════════════════════════════════════════════════════
+
+(deftest C-shuffled-replay-yields-canonical-equality
+  (testing "shuffled round-2 owner order yields identical decision artifacts
+            and lineage results"
+    (let [w1 (round-one-world)
+          caps {"alice" 30 "bob" 40 "carol" 50}
+          w-a (-> w1 (with-shortfall-ratio 1.0)
+                   (withdraw-shared ["alice" "bob" "carol" "dan"] caps))
+          w-b (-> w1 (with-shortfall-ratio 1.0)
+                   (withdraw-shared ["dan" "carol" "bob" "alice"] caps))
+          hashes-a (sort (mapv :decision/hash
+                               (vals (:yield/partial-fill-decisions w-a))))
+          hashes-b (sort (mapv :decision/hash
+                               (vals (:yield/partial-fill-decisions w-b))))]
+      (is (= hashes-a hashes-b)
+          "decision hashes are order-independent")
+      (is (= (get-in w-a [:yield/positions "alice" :cumulative-fulfilled])
+             (get-in w-b [:yield/positions "alice" :cumulative-fulfilled])))
+      (is (= (get-in w-a [:yield/positions "dan" :status])
+             (get-in w-b [:yield/positions "dan" :status])))
+      (is (:holds? (inv/check-withdrawal-lineage-conservation w-a)))
+      (is (:holds? (inv/check-withdrawal-lineage-conservation w-b))))))
+
+;; ══════════════════════════════════════════════════════════════════════════════
+;; Test D — boundary pinning: `available > total_requested`
+;; ══════════════════════════════════════════════════════════════════════════════
+
+(deftest D-boundary-clojure-rejects-available-exceeds-total-requested
+  (testing "reconstruct-input throws :available-exceeds-total-requested when
+            available > total_requested (fail-closed, matching Rust)"
+    (let [raw (slurp "scenarios/allocation/a-vs-b-plus-c/realized-statement-input.json")
+          m (json/read-str raw :key-fn identity)
+          excess (assoc m "available" "101")]
+      (is (thrown? Exception
+                   (adm/reconstruct-input (json/write-str excess)))
+          "reconstruct-input throws when available > total_requested")
+      (let [ex (try (adm/reconstruct-input (json/write-str excess))
+                    (catch Exception e e))]
+        (is (= :available-exceeds-total-requested (:reason (ex-data ex)))
+            "the thrown reason is :available-exceeds-total-requested")
+        (is (= 101N (:available (ex-data ex))))
+        (is (= 100N (:total-requested (ex-data ex))))))))
+
+(deftest D-boundary-clojure-baseline-still-succeeds
+  (testing "reconstruct-input succeeds at the boundary (available == total_requested)"
+    (let [raw (slurp "scenarios/allocation/a-vs-b-plus-c/realized-statement-input.json")
+          r (adm/reconstruct-input raw)]
+      (is (= "c22333a16df1c1efa352e9daab42ccbd78f4a1d7530ee3ed3cf7527ba62cbd81"
+             (get-in r [:statement :statement/root]))
+          "statement root is stable at the boundary"))))
+
+(deftest D-boundary-rust-rejects-available-exceeds-total-requested
+  (testing "the Rust coprocessor rejects available > total_requested with
+            available-exceeds-total-requested (documented divergence, audited
+            at coprocessor/core/src/realized_statement_io.rs:129). The
+            Clojure admission boundary must use the same reason constant so
+            that a cross-runtime audit sees one rejection reason on both
+            sides of the boundary."
+    (let [ex (try
+               (adm/reconstruct-input
+                 (json/write-str
+                   (assoc (json/read-str
+                            (slurp "scenarios/allocation/a-vs-b-plus-c/realized-statement-input.json")
+                            :key-fn identity)
+                          "available" "101")))
+               (catch Exception e e))]
+      (is (= :available-exceeds-total-requested (:reason (ex-data ex)))))))

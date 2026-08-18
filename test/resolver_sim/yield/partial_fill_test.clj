@@ -1331,14 +1331,77 @@
                  [input1 input2])
           pos1' (get-in world [:yield/positions "user1"])
           pos2' (get-in world [:yield/positions "user2"])]
-      (is (:partial-fill-affected? pos1')
-          "First input position marked as affected")
+      (is (not (:partial-fill-affected? pos1'))
+          "Full-fill (full liquidity) is NOT a partial-fill event - flag stays false")
+      (is (= :withdrawn (:status pos1'))
+          "Full-fill fully resolves the position to :withdrawn, not :unwinding")
       (is (:partial-fill-affected? pos2')
-          "Second input position marked as affected")
-      (is (= :unwinding (:status pos1'))
-          "First input (full liquidity) -> unwinding")
+          "Zero-liquidity defers the full entitlement - a genuine partial fill sets the flag")
       (is (= :unwinding (:status pos2'))
-          "Second input (zero liquidity) -> unwinding"))))
+          "Zero-liquidity position remains :unwinding with deferred entitlement"))))
+
+(deftest test-partial-fill-affected-sticky-through-later-full-resolution
+  (testing ":partial-fill-affected? is sticky-historical - never cleared by a later full-fill"
+    (let [policy {:mode :waterfall
+                  :fill-order [:principal :realized-yield :deferred-yield]
+                  :unrealized-yield-treatment :not-claimable
+                  :post-partial-fill-accrual :accrue-residual-as-unrealized}
+          partial-decision (pf/calculate-fulfillment 10200 base-position policy)
+          after-partial (pf/post-partial-fill-position base-position partial-decision)
+          full-decision (pf/calculate-fulfillment
+                         (+ (:principal after-partial 0)
+                            (:unrealized-yield after-partial 0)
+                            (:haircut-yield after-partial 0))
+                         after-partial
+                         policy)
+          resolved (pf/post-partial-fill-position after-partial full-decision)]
+      (is (:partial-fill-affected? after-partial) "Genuine partial fill sets the flag")
+      (is (= :unwinding (:status after-partial)) "Partial fill leaves position unwinding")
+      (is (:partial-fill-affected? resolved)
+          "Flag stays true even after the residual is fully resolved/settled")
+      (is (= :withdrawn (:status resolved))
+          "Fully-resolved residual settles the position to :withdrawn"))))
+
+(deftest test-full-fill-not-a-partial-fill-event
+  (testing "A full-fill decision marks no partial-fill event and resolves to :withdrawn"
+    (let [policy {:mode :waterfall
+                  :fill-order [:principal :realized-yield :deferred-yield]
+                  :unrealized-yield-treatment :not-claimable
+                  :post-partial-fill-accrual :accrue-residual-as-unrealized}
+          requested (+ (:principal base-position) (:realized-yield base-position)
+                       (:unrealized-yield base-position))
+          decision (pf/calculate-fulfillment requested base-position policy)
+          resolved (pf/post-partial-fill-position base-position decision)]
+      (is (not (pf/partial-fill? decision)) "Full entitlement -> :settlement-mode :full-fill")
+      (is (not (:partial-fill-affected? resolved))
+          "Full-fill is not a partial-fill event; flag stays false on a fresh position")
+      (is (= :withdrawn (:status resolved))
+          "Full-fill fully resolves the position"))))
+
+(deftest test-partial-fill-affected-haircut-only
+  (testing "Haircut-only outcome (no deferred) is still a partial-fill event"
+    (let [position (assoc base-position :principal 10000 :realized-yield 0 :unrealized-yield 0)
+          liquidity-needed (+ (:principal position) 1)
+          decision (pf/calculate-fulfillment liquidity-needed position
+                                                 {:mode :pro-rata
+                                                  :fill-order [:principal]
+                                                  :unrealized-yield-treatment :not-claimable
+                                                  :post-partial-fill-accrual :accrue-residual-as-unrealized})
+          updated-pos (pf/post-partial-fill-position position decision)]
+      (is (:partial-fill-affected? updated-pos) "Haircut-only (deferred 0) is a genuine partial fill")
+      (is (= :unwinding (:status updated-pos))))))
+
+(deftest test-partial-fill-affected-zero-liquidity
+  (testing "Zero-fill defers the entire entitlement - flag set, status unwinding"
+    (let [decision (pf/calculate-fulfillment 0 base-position)
+          updated-pos (pf/post-partial-fill-position base-position decision)]
+      (is (pf/partial-fill? decision) "Zero liquidity -> :settlement-mode :partial-fill")
+      (is (:partial-fill-affected? updated-pos))
+      (is (= :unwinding (:status updated-pos))))))
+
+(deftest test-partial-fill-affected-defaults-false
+  (testing "Fresh/normalized position starts with :partial-fill-affected? false"
+    (is (false? (:partial-fill-affected? (pos/normalize-position base-position))))))
 
 (deftest test-batch-partial-fill-total-filled-never-exceeds-liquidity
   (testing "Total filled across batch respects available liquidity per position"
@@ -1361,3 +1424,273 @@
           world-after (pf/batch-partial-fill world-before [input])]
       (is (= 100000 (get-in world-after [:total-held :USDC]))
           "total-held unchanged by generic partial-fill batch"))))
+
+;; ── Rounding-semantics consistency (P0) ───────────────────────────────────
+;;
+;; A canonical producer using an admitted/default policy must not produce an
+;; artifact its corresponding verifier rejects. These regressions lock the
+;; centralized rounding classification: :floor = strict floor (no carry),
+;; :floor-and-carry / :largest-remainder = bounded +1 carry.
+
+(deftest floor-and-carry-indivisible-passes-its-own-closed-form-verification
+  (testing "A non-divisible :floor-and-carry pro-rata fill passes complete closed-form checks"
+    (let [decision {:settlement-mode :partial-fill
+                    :requested {:principal 100 :realized-yield 150 :deferred-yield 200}
+                    :filled {:principal 27 :realized-yield 40 :deferred-yield 54}
+                    :deferred {:principal 73 :realized-yield 110 :deferred-yield 146}
+                    :haircut {}
+                    :policy {:mode :pro-rata :rounding-policy :floor-and-carry}
+                    :evidence {:available-liquidity 121 :total-requested 450 :shortage 329
+                               :fill-mode :pro-rata :rounding-policy :floor-and-carry}}
+          checks (closed-form-checks decision)]
+      (is (= #{:pass :not-applicable} (set (map :status checks))))))
+  (testing "The public default producer's own output is accepted end-to-end"
+    (let [pos (pos/normalize-position
+               {:owner/id "u1" :module/id :m :token "USDC"
+                :principal 100 :realized-yield 150 :deferred-yield 200
+                :shares 100 :entry-index 1 :status :active})
+          checks (closed-form-checks (pf/calculate-fulfillment 121 pos {:mode :pro-rata}))]
+      (is (= #{:pass :not-applicable} (set (map :status checks)))))))
+
+(deftest floor-and-carry-divisible-stays-exactly-proportional
+  (testing "When the fill divides evenly, :floor-and-carry is exactly pro-rata"
+    (let [decision {:settlement-mode :partial-fill
+                    :requested {:a 40 :b 60}
+                    :filled {:a 20 :b 30}
+                    :deferred {:a 20 :b 30}
+                    :haircut {}
+                    :policy {:mode :pro-rata :rounding-policy :floor-and-carry}
+                    :evidence {:available-liquidity 50 :fill-mode :pro-rata}}
+          checks (closed-form-checks decision)
+          by-id (into {} (map (juxt :check/id identity) checks))]
+      (is (= :pass (:status (get by-id :partial-fill/exact-pro-rata))))
+      (is (= :pass (:status (get by-id :partial-fill/rounding-fairness)))))))
+
+(deftest carry-unit-on-wrong-claimant-fails-rounding-fairness
+  (testing "Moving a +1 carry to a non-top-remainder claimant is rejected"
+    (let [decision {:settlement-mode :partial-fill
+                    :requested {:a 100 :b 100 :c 100}
+                    :filled {:a 3 :b 4 :c 3}
+                    :deferred {:a 97 :b 96 :c 97}
+                    :haircut {}
+                    :policy {:mode :pro-rata :rounding-policy :largest-remainder}
+                    :evidence {:available-liquidity 10}}
+          checks (closed-form-checks decision)
+          rf (first (filter #(= :partial-fill/rounding-fairness (:check/id %)) checks))]
+      (is (= :fail (:status rf)))
+      (is (some #(= :unexpected-extra-unit (:kind %)) (get-in rf [:details :violations]))))))
+
+(deftest two-excess-units-fails-the-carry-bound
+  (testing "A +2 deviation exceeds the ≤1 rounding bound and is rejected"
+    (let [decision {:settlement-mode :partial-fill
+                    :requested {:a 100 :b 100 :c 100}
+                    :filled {:a 5 :b 3 :c 3}
+                    :deferred {:a 95 :b 97 :c 97}
+                    :haircut {}
+                    :policy {:mode :pro-rata :rounding-policy :floor-and-carry}
+                    :evidence {:available-liquidity 10}}
+          checks (closed-form-checks decision)
+          rf (first (filter #(= :partial-fill/rounding-fairness (:check/id %)) checks))]
+      (is (= :fail (:status rf)))
+      (is (some #(and (= :a (:claim %)) (= 2 (:error %)))
+                (get-in rf [:details :violations]))))))
+
+(deftest fail-action-deferred-complement-passes-under-carry
+  (testing "The deferred complement of an integer-rounded fill passes fail-action fairness"
+    (let [decision {:settlement-mode :partial-fill
+                    :requested {:a 100 :b 200 :c 300}
+                    :filled {:a 27 :b 54 :c 82}
+                    :deferred {:a 73 :b 146 :c 218}
+                    :haircut {}
+                    :policy {:mode :pro-rata :rounding-policy :floor-and-carry}
+                    :evidence {:available-liquidity 163 :total-requested 600 :shortage 437}}
+          checks (closed-form-checks decision)
+          fa (first (filter #(= :partial-fill/fail-action-fairness (:check/id %)) checks))]
+      (is (= :pass (:status fa)))
+      (is (empty? (get-in fa [:details :violations]))))))
+
+(deftest tampered-deferred-complement-fails-fail-action
+  (testing "An independently-tampered (non-same-ratio) deferred bucket is rejected"
+    (let [decision {:settlement-mode :partial-fill
+                    :requested {:a 100 :b 200 :c 300}
+                    :filled {:a 30 :b 51 :c 82}
+                    :deferred {:a 70 :b 149 :c 218}
+                    :haircut {}
+                    :policy {:mode :pro-rata :rounding-policy :floor-and-carry}
+                    :evidence {:available-liquidity 163 :total-requested 600 :shortage 437}}
+          checks (closed-form-checks decision)
+          fa (first (filter #(= :partial-fill/fail-action-fairness (:check/id %)) checks))]
+      (is (= :fail (:status fa)))
+      (is (seq (get-in fa [:details :violations]))))))
+
+(deftest strict-floor-does-not-acquire-carry-tolerance
+  (testing ":floor rejects an upward +1 carry unit"
+    (let [decision {:settlement-mode :partial-fill
+                    :requested {:a 100 :b 100 :c 100}
+                    :filled {:a 3 :b 4 :c 3}
+                    :deferred {:a 97 :b 96 :c 97}
+                    :haircut {}
+                    :policy {:mode :pro-rata :rounding-policy :floor}
+                    :evidence {:available-liquidity 10}}
+          checks (closed-form-checks decision)
+          rf (first (filter #(= :partial-fill/rounding-fairness (:check/id %)) checks))]
+      (is (= :fail (:status rf)))))
+  (testing "A strict floor leaving the unit residual unallocated is accepted"
+    (let [decision {:settlement-mode :partial-fill
+                    :requested {:a 100 :b 100 :c 100}
+                    :filled {:a 3 :b 3 :c 3}
+                    :deferred {:a 97 :b 97 :c 97}
+                    :haircut {}
+                    :policy {:mode :pro-rata :rounding-policy :floor}
+                    :evidence {:available-liquidity 10}}
+          checks (closed-form-checks decision)
+          rf (first (filter #(= :partial-fill/rounding-fairness (:check/id %)) checks))]
+      (is (= :pass (:status rf))))))
+
+(deftest floor-producer-leaves-residual-undistributed
+  (testing "The non-rows :floor producer leaves the rounding residual unallocated (no carry)"
+    (let [pos (pos/normalize-position
+               {:owner/id "u1" :module/id :m :token "USDC"
+                :principal 100 :realized-yield 150 :deferred-yield 200
+                :shares 100 :entry-index 1 :status :active})
+          d (pf/calculate-fulfillment 121 pos {:mode :pro-rata :rounding-policy :floor})
+          filled (reduce + 0 (vals (:filled d)))]
+      (is (pos? (- 121 filled))
+          "A non-divisible :floor fill does not consume all available units")
+      (is (= #{:pass :not-applicable} (set (map :status (closed-form-checks d))))))))
+
+(deftest rows-and-non-rows-agree-on-floor-and-carry-semantics
+  (testing "Rows and non-rows paths agree on :floor-and-carry bounded-carry invariants"
+    (let [pos (pos/normalize-position
+               {:owner/id "u1" :module/id :m :token "USDC"
+                :principal 100 :realized-yield 150 :deferred-yield 200
+                :shares 100 :entry-index 1 :status :active})
+          policy {:mode :pro-rata :rounding-policy :floor-and-carry}
+          rows-opts {:rows [{:key :principal :owed 100 :weight 100 :cap nil}
+                            {:key :realized-yield :owed 150 :weight 150 :cap nil}
+                            {:key :deferred-yield :owed 200 :weight 200 :cap nil}]}
+          non-rows (pf/calculate-fulfillment 121 pos policy)
+          rows (pf/calculate-fulfillment 121 pos policy rows-opts)
+          statuses (fn [d] (set (map :status (closed-form-checks d))))
+          check-of (fn [d id]
+                     (first (filter #(= id (:check/id %)) (closed-form-checks d))))]
+      (is (= #{:pass :not-applicable} (statuses non-rows)))
+      (is (= #{:pass :not-applicable} (statuses rows)))
+      (is (= :pass (:status (check-of non-rows :partial-fill/rounding-fairness))))
+      (is (= :pass (:status (check-of rows :partial-fill/rounding-fairness))))
+      (is (= :pass (:status (check-of non-rows :partial-fill/rounding-residual-bounded))))
+      (is (= :pass (:status (check-of rows :partial-fill/rounding-residual-bounded)))))))
+
+(deftest effective-rounding-consistency-rows-mechanism
+  (testing "Rows :floor-and-carry requests derive effective :largest-remainder, matching the mechanism"
+    (let [pos (pos/normalize-position
+               {:owner/id "u1" :module/id :m :token "USDC"
+                :principal 100 :realized-yield 150 :deferred-yield 200
+                :shares 100 :entry-index 1 :status :active})
+          d (pf/calculate-fulfillment 121 pos {:mode :pro-rata :rounding-policy :floor-and-carry}
+                                      {:rows [{:key :principal :owed 100 :weight 100 :cap nil}
+                                              {:key :realized-yield :owed 150 :weight 150 :cap nil}
+                                              {:key :deferred-yield :owed 200 :weight 200 :cap nil}]})
+          disclosed (get-in d [:evidence :allocation-mechanism-evidence :mechanism/result :rounding-policy])
+          check (closed-form-checks d)
+          eff (first (filter #(= :partial-fill/effective-rounding-consistency (:check/id %)) check))]
+      (is (= :largest-remainder disclosed))
+      (is (= :pass (:status eff)))
+      (is (= :largest-remainder (get-in eff [:details :derived-effective])))
+      (is (= :largest-remainder (get-in eff [:details :declared-effective]))))))
+
+(deftest effective-rounding-consistency-rejects-disclosed-mismatch
+  (testing "Tampering the mechanism's declared effective algorithm away from the derived value fails the check"
+    (let [pos (pos/normalize-position
+               {:owner/id "u1" :module/id :m :token "USDC"
+                :principal 100 :realized-yield 150 :deferred-yield 200
+                :shares 100 :entry-index 1 :status :active})
+          d (pf/calculate-fulfillment 121 pos {:mode :pro-rata :rounding-policy :floor-and-carry}
+                                      {:rows [{:key :principal :owed 100 :weight 100 :cap nil}
+                                              {:key :realized-yield :owed 150 :weight 150 :cap nil}
+                                              {:key :deferred-yield :owed 200 :weight 200 :cap nil}]})
+          tampered (assoc-in d [:evidence :allocation-mechanism-evidence
+                                :mechanism/result :rounding-policy] :floor)
+          eff (first (filter #(= :partial-fill/effective-rounding-consistency (:check/id %))
+                             (closed-form-checks tampered)))]
+      (is (= :fail (:status eff)))
+      (is (= :floor (get-in eff [:details :declared-effective])))
+      (is (= :largest-remainder (get-in eff [:details :derived-effective]))))))
+
+(deftest effective-rounding-consistency-not-applicable-on-single-shape
+  (testing "Single-shape decisions disclose no effective algorithm; the check is not-applicable"
+    (let [pos (pos/normalize-position
+               {:owner/id "u1" :module/id :m :token "USDC"
+                :principal 100 :realized-yield 150 :deferred-yield 200
+                :shares 100 :entry-index 1 :status :active})
+          d (pf/calculate-fulfillment 121 pos {:mode :pro-rata :rounding-policy :floor-and-carry})
+          check (closed-form-checks d)
+          eff (first (filter #(= :partial-fill/effective-rounding-consistency (:check/id %)) check))]
+      (is (= :not-applicable (:status eff)))
+      (is (= :single (get-in eff [:details :execution-shape]))))))
+
+(deftest exact-tie-carry-goes-to-lowest-canonical-id-both-shapes
+  (testing "A three-way exact remainder tie resolves the carry identically (canonical id) on rows and non-rows"
+    (let [pos (pos/normalize-position
+               {:owner/id "u" :module/id :m :token "USDC"
+                :principal 100 :realized-yield 100 :deferred-yield 100
+                :shares 100 :entry-index 1 :status :active})
+          non-rows (pf/calculate-fulfillment 10 pos {:mode :pro-rata :rounding-policy :floor-and-carry})
+          rows (pf/calculate-fulfillment 10 pos {:mode :pro-rata :rounding-policy :floor-and-carry}
+                                            {:rows [{:key :principal :owed 100 :weight 1 :cap nil}
+                                                    {:key :realized-yield :owed 100 :weight 1 :cap nil}
+                                                    {:key :deferred-yield :owed 100 :weight 1 :cap nil}]})
+          carry-recipient (fn [d] (first (first (filter (fn [[_ amt]] (> amt 3)) (:filled d)))))]
+      (is (= :deferred-yield (carry-recipient non-rows))
+          "lowest canonical id (:deferred-yield) receives the carry")
+      (is (= :deferred-yield (carry-recipient rows)))
+      (is (= (:filled non-rows)
+             (into {} (map (fn [[k v]] [k (long v)]) (:filled rows))))
+          "rows and non-rows agree on the same carry recipient and amounts")
+      (is (= #{:pass :not-applicable} (set (map :status (closed-form-checks non-rows)))))
+      (is (= #{:pass :not-applicable} (set (map :status (closed-form-checks rows))))))))
+
+(deftest tie-carry-recipient-is-insertion-order-invariant
+  (testing "Same stable identities, permuted input order, receive the same carry recipient"
+    (let [pos (pos/normalize-position
+               {:owner/id "u" :module/id :m :token "USDC"
+                :principal 100 :realized-yield 100 :deferred-yield 100
+                :shares 100 :entry-index 1 :status :active})
+          rows-producer (fn [order]
+                          (:filled (pf/calculate-fulfillment 10 pos {:mode :pro-rata :rounding-policy :floor-and-carry}
+                                                            {:rows (map (fn [k] {:key k :owed 100 :weight 1 :cap nil}) order)})))
+          a (rows-producer [:principal :realized-yield :deferred-yield])
+          b (rows-producer [:deferred-yield :realized-yield :principal])
+          c (rows-producer [:realized-yield :deferred-yield :principal])
+          recipient (fn [filled] (first (first (filter (fn [[_ amt]] (> amt 3)) filled))))]
+      (is (= :deferred-yield (recipient a)))
+      (is (= :deferred-yield (recipient b)))
+      (is (= :deferred-yield (recipient c))))))
+
+(deftest carry-on-wrong-tie-member-fails-remainder-ranking
+  (testing "Awarding the tie's single carry to canonical higher id (:principal) is rejected by rounding-fairness"
+    (let [decision {:settlement-mode :partial-fill
+                    :requested {:principal 100 :realized-yield 100 :deferred-yield 100}
+                    :filled {:principal 4 :realized-yield 3 :deferred-yield 3}
+                    :deferred {:principal 96 :realized-yield 97 :deferred-yield 97}
+                    :haircut {}
+                    :policy {:mode :pro-rata :rounding-policy :floor-and-carry}
+                    :evidence {:available-liquidity 10}}
+          check (closed-form-checks decision)
+          rf (first (filter #(= :partial-fill/rounding-fairness (:check/id %)) check))]
+      (is (= :fail (:status rf)))
+      (is (some #(and (= :principal (:claim %))
+                      (= :unexpected-extra-unit (:kind %)))
+                (get-in rf [:details :violations]))))))
+
+(deftest strict-floor-leaves-equal-tie-residual-unallocated
+  (testing "Same exact-tie quota under :floor grants no carry; the unit stays residual"
+    (let [pos (pos/normalize-position
+               {:owner/id "u" :module/id :m :token "USDC"
+                :principal 100 :realized-yield 100 :deferred-yield 100
+                :shares 100 :entry-index 1 :status :active})
+          d (pf/calculate-fulfillment 10 pos {:mode :pro-rata :rounding-policy :floor})
+          filled (reduce + 0 (vals (:filled d)))]
+      (is (= {:principal 3 :realized-yield 3 :deferred-yield 3} (:filled d)))
+      (is (= 1 (- 10 filled)))
+      (is (= #{:pass :not-applicable} (set (map :status (closed-form-checks d))))))))

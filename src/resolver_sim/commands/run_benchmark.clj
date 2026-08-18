@@ -22,8 +22,8 @@
             [resolver-sim.evidence.chain :as chain]
             [resolver-sim.evidence.config :as evidence-config]
             [resolver-sim.evidence.node :as evidence-node]
-            [resolver-sim.io.input-source :as input-source]
-            [resolver-sim.io.paths :as paths]
+             [resolver-sim.io.input-source :as input-source]
+             [resolver-sim.io.paths :as paths]
             [resolver-sim.io.resource-path :as resource-path]
             [resolver-sim.run.runner-finalization :as runner-finalization]
             [resolver-sim.run.package-index :as package-index]
@@ -146,11 +146,21 @@
         assurance (io/file root "benchmark/assertions/benchmark-assurance.json")
         conservation (io/file root "benchmark/assertions/conservation.json")
         content (io/file root "benchmark/evidence/content-registry.json")
-        witness-path (io/file root "manifest/execution-witness.json")
-        run-root-str (str root)
-        ts-root (witness-build/configured-root run-root-str)
-        witness-exists? (.isFile witness-path)
-        ws-required (witness-build/witness-requirement (some? ts-root) witness-exists?)
+         witness-path (io/file root "manifest/execution-witness.json")
+         run-root-str (str root)
+         ts-root (witness-build/configured-root run-root-str)
+         witness-exists? (.isFile witness-path)
+         ws-required (witness-build/witness-requirement (some? ts-root) witness-exists?)
+
+         evidence-file (io/file root "benchmark/evidence/evidence.edn")
+         evidence (when (.isFile evidence-file)
+                    (edn/read-string (slurp evidence-file)))
+         creation-provenance (or (:creation/provenance evidence) :in-band)
+          creation-provenance-hash (when evidence
+                                     (hash-ref/sha256-ref
+                                      (canonical/hash-with-intent
+                                       {:hash/intent :creation-provenance}
+                                       {:creation/provenance creation-provenance})))
 
         ;; Run witness verification when configured and present
         witness-result (case ws-required
@@ -249,7 +259,9 @@
                       "benchmark_assurance" {"ref" "benchmark/assertions/benchmark-assurance.json" "sha256" (sha-ref assurance)}
                       "conservation" {"ref" "benchmark/assertions/conservation.json" "sha256" (sha-ref conservation)}
                       "evidence_content_registry" {"ref" "benchmark/evidence/content-registry.json" "sha256" (sha-ref content)}
-                      "limitations" limitations}
+                      "limitations" limitations
+                      "creation_provenance" (name creation-provenance)
+                      "creation_provenance_hash" (str creation-provenance-hash)})
                      (when (and ts-root (.isFile witness-path))
                        {"execution_witness_ref" "manifest/execution-witness.json"
                         "execution_witness_sha256" (sha-ref witness-path)}))

@@ -86,10 +86,40 @@
 
 ;; ── Normalised scenario-level outcome ─────────────────────────────────────
 
+(defn- allocation-outcome
+  "Central, single-source derivation of the allocation predicates for one
+   obligation. Both normalisers below delegate here so the participant and
+   decision representations can never disagree about the predicates.
+
+   Rejects (throws) any obligation where `filled + haircut` overshoots `owed`
+   rather than silently clamping the residual, so an over-allocation surfaces
+   as an integrity error instead of being masked through `max 0`.
+
+   `deferred` is taken verbatim when provided; otherwise derived from the
+   (already validated) obligation residual."
+  [{:keys [owed filled haircut deferred]}]
+  (let [owed (long (or owed 0))
+        filled (long (or filled 0))
+        haircut (long (or haircut 0))
+        residual (- owed filled haircut)]
+    (when (neg? residual)
+      (throw (ex-info "Allocation overshoot: filled + haircut exceeds obligation"
+                      {:obligation owed :filled filled :haircut haircut
+                       :residual residual})))
+    (let [deferred (if (some? deferred) (long deferred) residual)]
+      {:allocation/positive-amount-applied? (pos? filled)
+       :allocation/no-deferred-residual? (zero? deferred)
+       ;; Complete satisfaction requires the entire obligation, no deferred
+       ;; residual, and no permanent haircut.
+       :allocation/fully-satisfied? (and (= filled owed)
+                                         (zero? deferred)
+                                         (zero? haircut))
+       :allocation/applied? true})))
+
 (defn normalise-participant-outcome
   "Produce a deterministic, researcher-independent representation
    of a single participant's partial-fill outcome.
-   
+
    Uses clear field names that do not collide with the existing
    :allocation-applied (zero? deferred) semantics."
   [participant-map]
@@ -97,22 +127,16 @@
         deferred (long (:deferred participant-map 0))
         haircut (long (:haircut participant-map 0))
         obligation (long (or (:obligation-before participant-map) 0))]
-    {:participant/id (:participant-id participant-map)
-     :obligation/before (:obligation-before participant-map)
-     :obligation/fulfilled fulfilled
-     :obligation/deferred deferred
-     :obligation/haircut haircut
-     :obligation/after (:obligation-after participant-map)
-     ;; Amount applied now, never a complete-settlement classification.
-     :allocation/positive-amount-applied? (pos? fulfilled)
-     ;; Preserve the formerly overloaded weaker fact explicitly.
-     :allocation/no-deferred-residual? (zero? deferred)
-     ;; Complete satisfaction requires the entire obligation, no deferred
-     ;; residual, and no permanent haircut.
-     :allocation/fully-satisfied? (and (= fulfilled obligation)
-                                       (zero? deferred)
-                                       (zero? haircut))
-     :allocation/applied? true}))
+    (merge {:participant/id (:participant-id participant-map)
+            :obligation/before (:obligation-before participant-map)
+            :obligation/fulfilled fulfilled
+            :obligation/deferred deferred
+            :obligation/haircut haircut
+            :obligation/after (:obligation-after participant-map)}
+           (allocation-outcome {:owed obligation
+                                :filled fulfilled
+                                :haircut haircut
+                                :deferred deferred}))))
 
 (defn normalise-decision-outcome
   "Produce a deterministic, researcher-independent representation
@@ -125,23 +149,23 @@
      :requested (:requested decision)
      :filled (:filled decision)
      :deferred (:deferred decision)
-     :participants (mapv (fn [p]
-                           (let [key (:key p)
-                                 owed (long (:owed p 0))
-                                 filled (long (:filled p 0))
-                                 haircut (long (:haircut p 0))
-                                 deferred (max 0 (- owed filled haircut))]
-                             {:participant/id key
-                              :obligation/before owed
-                              :obligation/fulfilled filled
-                              :obligation/deferred deferred
-                              :obligation/haircut haircut
-                              :allocation/positive-amount-applied? (pos? filled)
-                              :allocation/no-deferred-residual? (zero? deferred)
-                              :allocation/fully-satisfied? (and (= filled owed)
-                                                                (zero? deferred)
-                                                                (zero? haircut))
-                              :allocation/applied? true}))
-                         participants)
+:participants (mapv (fn [p]
+                            (let [key (:key p)
+                                  owed (long (:owed p 0))
+                                  filled (long (:filled p 0))
+                                  haircut (long (:haircut p 0))
+                                  ;; validates (rejects overshoot) AND derives
+                                  ;; the shared allocation predicates
+                                  outcome (allocation-outcome {:owed owed
+                                                               :filled filled
+                                                               :haircut haircut})
+                                  deferred (- owed filled haircut)]
+                              (merge {:participant/id key
+                                      :obligation/before owed
+                                      :obligation/fulfilled filled
+                                      :obligation/deferred deferred
+                                      :obligation/haircut haircut}
+                                     outcome)))
+                          participants)
      :evidence/available-liquidity (get-in decision [:evidence :available-liquidity])
      :evidence/shortage (get-in decision [:evidence :shortage])}))

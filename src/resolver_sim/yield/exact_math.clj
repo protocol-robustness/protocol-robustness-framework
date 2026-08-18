@@ -199,6 +199,40 @@
          :shortage-units 0
          :carry (ratio carry)}))))
 
+(defn floor-alloc
+  "Allocate `total-available` across `claims` using strict floor semantics.
+
+   Each claim receives floor(ideal share); the unallocated unit residual is
+   returned in :shortage-units and deliberately NOT carried to any claimant.
+   This is the pure-:floor counterpart to floor-and-carry-alloc: it never
+   awards an upward unit, so per-claimant deviation from the ideal is 0 and
+   the residual is the only source of non-allocation.
+
+   Never allocates more than total-available in base units."
+  [total-available claims]
+  (let [available (ratio total-available)
+        total-amount (reduce + 0 (map (comp ratio :amount) claims))]
+    (if (zero? total-amount)
+      {:allocations (mapv #(assoc % :filled 0 :ideal-exact 0 :remainder-exact 0) claims)
+       :total-available-units (first (quantize-base-units available))
+       :total-allocated-units 0
+       :shortage-units (first (quantize-base-units available))
+       :carry 0}
+      (let [ideal (mapv (fn [claim] (* available (/ (ratio (:amount claim)) total-amount)))
+                        claims)
+            filled (mapv (fn [i] (first (quantize-base-units i))) ideal)
+            rems (mapv (fn [i] (second (quantize-base-units i))) ideal)
+            sum-filled (reduce + 0 filled)
+            available-units (first (quantize-base-units available))
+            shortage (max 0 (- available-units sum-filled))]
+        {:allocations (mapv (fn [claim u r ideal-i]
+                              (assoc claim :filled u :ideal-exact ideal-i :remainder-exact r))
+                            claims filled rems ideal)
+         :total-available-units available-units
+         :total-allocated-units sum-filled
+         :shortage-units shortage
+         :carry 0}))))
+
 (defn largest-remainder-alloc
   "Allocate `total-available` base units across `claims` using the
    largest-remainder method (Hare quota).

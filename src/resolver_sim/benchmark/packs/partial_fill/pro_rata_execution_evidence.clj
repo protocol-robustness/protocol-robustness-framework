@@ -118,11 +118,13 @@
                  :current-amount-write-back-verified? deferred-write-back-verified?
                   ;; Compatibility fields: this aggregate profile lacks the
                   ;; per-obligation filled/deferred/haircut rows required to
-                  ;; establish either fact, so it must not infer them from an
-                  ;; operational write-back status.
-                 :positive-amount-applied? false
-                 :fully-satisfied? false
-                 :deferred-residual-created? false}
+                  ;; establish any of these settlement facts, so it must NOT emit
+                  ;; them as false negatives. Each is marked explicitly unevaluated
+                  ;; rather than hardcoded false, so a consumer can never mistake
+                  ;; an unknown for a known-negative.
+                 :positive-amount-applied-unevaluated? true
+                 :fully-satisfied-unevaluated? true
+                 :deferred-residual-created-unevaluated? true}
                 :evidence-profile/verification verification}
           computed-hash (hash-ref/sha256-ref
                          (hc/domain-hash :pro-rata-execution-evidence
@@ -141,8 +143,8 @@
 ;; authoritative distinction: the stronger authoritative fact remains the separate
 ;; :application-write-back-verified? (from :authoritative-application). The
 ;; operational pass predicate is computed ONCE and reused for both allocation-sound?
-;; and the emitted operational fact. The false amount/full-fill/residual fields are
-;; preserved.
+;; and the emitted operational fact. The un-establishable amount/full-fill/residual
+;; facts are emitted as explicit :...-unevaluated? markers, never hardcoded false.
 
 (defn build-pro-rata-execution-evidence-v2
   "Build a pro-rata-execution-evidence.v2 profile.
@@ -228,19 +230,20 @@
                               conclusions))
                 :evidence-profile/creation
                 {:provenance (or provenance :in-band)}
-                :evidence-profile/execution-result
+:evidence-profile/execution-result
                 {:allocation-calculated? true
                  :application-write-back-verified? application-verified?
                  :allocation-sound? allocation-sound?
                  :current-write-back-operational-pass?
                  current-wb-operational-ok?
-                 ;; Compatibility fields: this aggregate profile lacks the
-                 ;; per-obligation filled/deferred/haircut rows required to
-                 ;; establish either fact, so it must not infer them from an
-                 ;; operational write-back status.
-                 :positive-amount-applied? false
-                 :fully-satisfied? false
-                 :deferred-residual-created? false}
+                  ;; Compatibility fields: this aggregate profile lacks the
+                  ;; per-obligation filled/deferred/haircut rows required to
+                  ;; establish any of these settlement facts, so it must NOT emit
+                  ;; them as false negatives. Each is marked explicitly unevaluated
+                  ;; rather than hardcoded false.
+                 :positive-amount-applied-unevaluated? true
+                 :fully-satisfied-unevaluated? true
+                 :deferred-residual-created-unevaluated? true}
                 :evidence-profile/verification verification}
           computed-hash (hash-ref/sha256-ref
                          (hc/domain-hash :pro-rata-execution-evidence-v2
@@ -274,6 +277,16 @@
                :evidence-profile/verification]]
       (when-not (contains? profile f)
         (swap! errors conj (str "missing " (name f)))))
+    (let [er (:evidence-profile/execution-result profile)]
+      (when (and er (contains? er :positive-amount-applied?))
+        (swap! errors conj (str "execution-result must not emit the factual "
+                                ":positive-amount-applied?")))
+      (doseq [unevaluated [:positive-amount-applied-unevaluated?
+                           :fully-satisfied-unevaluated?
+                           :deferred-residual-created-unevaluated?]]
+        (when (and er (not (contains? er unevaluated)))
+          (swap! errors conj (str "execution-result missing explicit unevaluated marker "
+                                  (name unevaluated))))))
     (when (some? (:evidence-profile/hash profile))
       (let [without-hash (dissoc profile :evidence-profile/hash)
             computed (hash-ref/sha256-ref
@@ -319,6 +332,16 @@
       (when-not (contains? profile f)
         (swap! errors conj (str "missing " (name f)))))
     (let [er (:evidence-profile/execution-result profile)]
+      (when (and er (contains? er :positive-amount-applied?))
+        (swap! errors conj (str "execution-result must not emit the factual "
+                                ":positive-amount-applied?")))
+      (doseq [unevaluated [:positive-amount-applied-unevaluated?
+                           :fully-satisfied-unevaluated?
+                           :deferred-residual-created-unevaluated?]]
+        (when (and er (not (contains? er unevaluated)))
+          (swap! errors conj (str "execution-result missing explicit unevaluated marker "
+                                  (name unevaluated))))))
+    (let [er (:evidence-profile/execution-result profile)]
       (when (and er (not (contains? er :current-write-back-operational-pass?)))
         (swap! errors conj (str "v2 execution-result missing "
                                 ":current-write-back-operational-pass?")))
@@ -363,49 +386,69 @@
   "Independent verification: recompute the evidence profile from resolved
    artifacts and compare hash and findings.
 
+   Re-extracts :creation/provenance from the stored profile and passes it
+   to the rebuilder, so that an :out-of-band profile reproduces its original
+   hash. The rebuilder's creation-boundary default (:in-band) must not
+   override a stored :out-of-band assertion during verification.
+
    Returns {:valid? bool :mismatches [...]}"
-  [profile & args]
-  (let [recomputed (apply build-pro-rata-execution-evidence args)
-        mismatches (atom [])]
-    (when-not (= (:evidence-profile/hash profile)
-                 (:evidence-profile/hash recomputed))
-      (swap! mismatches conj {:field :evidence-profile/hash
-                              :stored (:evidence-profile/hash profile)
-                              :recomputed (:evidence-profile/hash recomputed)}))
-    (let [v-s (:evidence-profile/verification profile)
-          v-r (:evidence-profile/verification recomputed)]
-      (doseq [k (keys v-s)]
-        (when-not (= (get v-s k) (get v-r k))
-          (swap! mismatches conj {:field k
-                                  :stored (get v-s k)
-                                  :recomputed (get v-r k)}))))
-    {:valid? (empty? @mismatches)
-     :profile-recomputed recomputed
-     :mismatches @mismatches}))
+   [profile & args]
+   (let [stored-provenance (get-in profile [:evidence-profile/creation :provenance])
+         args-map (if (and (= (count args) 1) (map? (first args)))
+                    (first args)
+                    (apply hash-map args))
+         recomputed (build-pro-rata-execution-evidence
+                     (assoc args-map :creation/provenance stored-provenance))
+         mismatches (atom [])]
+     (when-not (= (:evidence-profile/hash profile)
+                  (:evidence-profile/hash recomputed))
+       (swap! mismatches conj {:field :evidence-profile/hash
+                               :stored (:evidence-profile/hash profile)
+                               :recomputed (:evidence-profile/hash recomputed)}))
+     (let [v-s (:evidence-profile/verification profile)
+           v-r (:evidence-profile/verification recomputed)]
+       (doseq [k (keys v-s)]
+         (when-not (= (get v-s k) (get v-r k))
+           (swap! mismatches conj {:field k
+                                   :stored (get v-s k)
+                                   :recomputed (get v-r k)}))))
+     {:valid? (empty? @mismatches)
+      :profile-recomputed recomputed
+      :mismatches @mismatches}))
 
 (defn verify-pro-rata-execution-evidence-v2
   "Independent v2 verification: recompute the evidence profile from resolved
    artifacts via the v2 builder and compare hash and findings.
 
+   Re-extracts :creation/provenance from the stored profile and passes it
+   to the rebuilder, so that an :out-of-band profile reproduces its original
+   hash. The rebuilder's creation-boundary default (:in-band) must not
+   override a stored :out-of-band assertion during verification.
+
    Returns {:valid? bool :mismatches [...] :profile-recomputed map}"
-  [profile & args]
-  (let [recomputed (apply build-pro-rata-execution-evidence-v2 args)
-        mismatches (atom [])]
-    (when-not (= (:evidence-profile/hash profile)
-                 (:evidence-profile/hash recomputed))
-      (swap! mismatches conj {:field :evidence-profile/hash
-                              :stored (:evidence-profile/hash profile)
-                              :recomputed (:evidence-profile/hash recomputed)}))
-    (let [v-s (:evidence-profile/verification profile)
-          v-r (:evidence-profile/verification recomputed)]
-      (doseq [k (keys v-s)]
-        (when-not (= (get v-s k) (get v-r k))
-          (swap! mismatches conj {:field k
-                                  :stored (get v-s k)
-                                  :recomputed (get v-r k)}))))
-    {:valid? (empty? @mismatches)
-     :profile-recomputed recomputed
-     :mismatches @mismatches}))
+   [profile & args]
+   (let [stored-provenance (get-in profile [:evidence-profile/creation :provenance])
+         args-map (if (and (= (count args) 1) (map? (first args)))
+                    (first args)
+                    (apply hash-map args))
+         recomputed (build-pro-rata-execution-evidence-v2
+                     (assoc args-map :creation/provenance stored-provenance))
+         mismatches (atom [])]
+     (when-not (= (:evidence-profile/hash profile)
+                  (:evidence-profile/hash recomputed))
+       (swap! mismatches conj {:field :evidence-profile/hash
+                               :stored (:evidence-profile/hash profile)
+                               :recomputed (:evidence-profile/hash recomputed)}))
+     (let [v-s (:evidence-profile/verification profile)
+           v-r (:evidence-profile/verification recomputed)]
+       (doseq [k (keys v-s)]
+         (when-not (= (get v-s k) (get v-r k))
+           (swap! mismatches conj {:field k
+                                   :stored (get v-s k)
+                                   :recomputed (get v-r k)}))))
+     {:valid? (empty? @mismatches)
+      :profile-recomputed recomputed
+      :mismatches @mismatches}))
 
 ;; ═══════════════════════════════════════════════════════════════════════════
 ;; Package-level helpers

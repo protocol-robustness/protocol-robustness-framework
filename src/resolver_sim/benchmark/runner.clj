@@ -1307,7 +1307,8 @@
                                                  :round-count 1
                                                  :derived-work-count (count additional-work)
                                                  :closed? true}
-                   :benchmark-certification certification}
+                    :benchmark-certification certification
+                    :creation/provenance :in-band}
 
          ;; The committed hash covers the normalized (persisted) representation,
          ;; not the raw in-memory map: write-evidence serializes the same

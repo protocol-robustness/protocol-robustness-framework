@@ -119,6 +119,15 @@
                                   (min (long (:owed row)) (long cap))
                                   (long (:owed row))))})
                       rows)
+          ;; P1 (recorded): the rows mechanism normalizes every non-:floor policy
+          ;; (including :floor-and-carry and :principal-protective-floor) to the
+          ;; :largest-remainder allocator. Both are :bounded-carry semantics, so
+          ;; the closed-form verifier's rounding-semantics classification stays
+          ;; consistent (rounding-fairness max-error 1, residual 0). But the
+          ;; artifact must eventually distinguish the REQUESTED policy keyword
+          ;; from the EFFECTIVE allocation algorithm (e.g. an
+          ;; :effective-rounding field), so future verifier code does not infer
+          ;; behavior from the policy keyword alone.
           :rounding-policy (if (= :floor rounding-policy) :floor :largest-remainder)
           :tie-break-policy :canonical-row-id
           :redistribution-policy :redistribute-cap-excess
@@ -160,6 +169,12 @@
   (let [k (:key row)
         owed (long (:owed row))
         f (long (get filled k 0))
+        ;; Reject malformed rows rather than masking an over-allocation: a row
+        ;; can never legitimately fill more than its obligation. Surfacing the
+        ;; overshoot as an integrity error beats silent `max 0` clamping.
+        _ (when (> f owed)
+            (throw (ex-info "Allocation overshoot: filled exceeds obligation"
+                            {:obligation owed :filled f})))
         d (max 0 (- owed f))
         cap (:cap row)
         effective-cap (if (some? cap) (min owed cap) owed)]
@@ -187,6 +202,25 @@
                 (:allocations allocation)) :all-participants-cap-constrained
         (some #(seq (:capped-ids %)) passes) :all-participants-cap-constrained
         :else :rounding-residual-unallocated))))
+
+(defn- rounding-tie-key
+  "Ascending identity ordering used to break rounding-rank TIES (equidistant
+   fractional remainders where the largest-remainder carry must choose among
+   several recipients). Reuses the pro-rata mechanism's :tie-break-policy
+   :canonical-row-id contract (ascending `canonical-id-key`), so the rows
+   mechanism, the non-rows path, and this verifier all resolve a tie to the SAME
+   carry recipient — the carry lands on the single lowest canonical id among the
+   tied claimants."
+  [k]
+  (pro-rata/canonical-id-key k))
+
+(defn- rounding-rank-key
+  "Comparator key for descending largest-remainder ranking: larger fractional
+   remainder first; equidistant ties resolved by ascending canonical id. The
+   producer orders claims by the same `rounding-tie-key`, so taking leading
+   carries from this ranking yields the identical recipients."
+  [[k v]]
+  [(- (long (:fraction-remainder v))) (rounding-tie-key k)])
 
 (defn calculate-fulfillment-pro-rata
   "Pro-rata fill: each claim bucket receives a proportional share of the available
@@ -256,9 +290,10 @@
                             :redistribution (:redistribution alloc))})
         ;; Backward compatible path: derive weight/cap from requested
         (let [claims (mapv (fn [[k v]] {:key k :amount (long v)})
-                           (sort-by :key (seq requested)))
+                           (sort-by (comp rounding-tie-key first) (seq requested)))
               rounding-policy (:rounding-policy policy :floor-and-carry)
               alloc (case rounding-policy
+                      :floor (m/floor-alloc available-liquidity claims)
                       :largest-remainder (m/largest-remainder-alloc available-liquidity claims)
                       :principal-protective-floor (m/principal-protective-floor-alloc
                                                    available-liquidity claims
@@ -369,6 +404,7 @@
                                                                            remaining claims
                                                                            (fn [c] (= :principal (:key c))))
                                               :adversarial-rounding (m/adversarial-rounding remaining claims)
+                                              :floor (m/floor-alloc remaining claims)
                                               (m/floor-and-carry-alloc remaining claims))]
                                   (into {} (map (fn [a] [(:key a) (:filled a)]) (:allocations alloc))))))
                 deferred (merge (when (pos? principal-deferred) {:principal principal-deferred})
@@ -585,6 +621,18 @@
   "True if the settlement decision represents a partial fill."
   [decision]
   (= :partial-fill (:settlement-mode decision)))
+
+(defn partial-fill-outstanding?
+  "True if a settlement decision leaves unresolved deferred/haircut consequences
+   that keep the position unwinding (its full entitlement was not paid out).
+   Derived from the authoritative decision buckets: zero-fill (deferred-all),
+   deferred-only, haircut-only, and mixed outcomes are outstanding; a full-fill
+   is not. Distinct from the sticky `partial-fill?` EVENT — a position that was
+   once partially filled then later fully resolved has outstanding? false but
+   its historical event never clears."
+  [decision]
+  (boolean (or (some pos? (vals (:deferred decision)))
+               (some pos? (vals (:haircut decision))))))
 
 (defn decision-artifact
   "Build a stable first-class artifact for a partial-fill settlement decision.
@@ -1338,11 +1386,110 @@
                          :fraction-remainder remainder}]))
                positive-claims))))
 
+(defn rounding-semantics
+  "Classify a rounding policy by the discrete rounding model its allocation
+   rule guarantees. Central single source so the producer and the closed-form
+   verifier derive expectations from the SAME model (previously each encoded
+   the taxonomy independently, which is how default :floor-and-carry output came
+   to be rejected by its own verifier).
+
+     :exact-floor          — strict floor, no upward carry; unit residual is
+                             left unallocated (see floor-alloc). Per-claimant
+                             deviation from the ideal is 0.
+     :bounded-carry        — floor everyone, then distribute the unit residual
+                             by a deterministic carry ordering (largest
+                             remainder). Per-claimant deviation from the ideal
+                             is bounded by +1 (see floor-and-carry-alloc /
+                             largest-remainder-alloc).
+     :principal-protective — protects principal before yield; principal uses
+                             floor-and-carry and yield uses largest-remainder,
+                             each bounded by +1.
+
+   Returns nil for policies with no defined rounding model (e.g.
+   :adversarial-rounding), which then opt out of rounding-derived checks."
+  [rounding-policy]
+  (case rounding-policy
+    :floor                      :exact-floor
+    :floor-and-carry            :bounded-carry
+    :largest-remainder          :bounded-carry
+    :principal-protective-floor :principal-protective
+    nil))
+
+(defn rounding-max-error
+  "Maximum permitted per-claimant deviation from the ideal allocation, derived
+   from `rounding-semantics`. :bounded-carry/:principal-protective may award one
+   +1 dust unit; :exact-floor never deviates above the ideal floor."
+  [rounding-policy]
+  (case (rounding-semantics rounding-policy)
+    :exact-floor 0
+    (:bounded-carry :principal-protective) 1
+    0))
+
+(defn pro-rata-rounding?
+  "True if the rounding policy is a genuine pro-rata rounding (as distinct from
+   principal-protective, which concentrates principal beyond a pro-rata share).
+   Only genuine pro-rata policies may be measured against the ideal pro-rata
+   allocation in rounding-fairness."
+  [rounding-policy]
+  (boolean (#{:floor :floor-and-carry :largest-remainder} rounding-policy)))
+
+(defn carry-order-rounding?
+  "True if the policy distributes its unit residual by the largest-remainder
+   carry ordering, making the remainder ranking check meaningful (a carry unit
+   must land on a top-remainder claimant). :floor-and-carry uses the same
+   largest-remainder carry ordering as :largest-remainder."
+  [rounding-policy]
+  (boolean (#{:largest-remainder :floor-and-carry} rounding-policy)))
+
+(defn complement-rounding-max-error
+  "Rounding bound for the deferred/haircut complement of a fill. The complement
+   of ANY integer-rounded fill is the ceiling of the proportional shortfall
+   share (deferred_i = requested_i - filled_i), so it necessarily inherits an
+   upward rounding effect of +1 regardless of the fill policy's own
+   floor/carry model. This keeps the fill and its complement each bounded by
+   their inherent rounding semantics — the fill by `rounding-max-error`, the
+   complement by this universal ceiling bound."
+  [_rounding-policy]
+  1)
+
+(defn execution-shape
+  "Classify the execution path that produced a decision from the artifact alone.
+     :rows   — shared-withdrawal rows path routed through the pro-rata mechanism
+               (records :allocation-mechanism-evidence).
+     :single — backward-compatible non-rows allocation.
+   Future shapes (waterfall-rows, etc.) extend this as needed."
+  [decision]
+  (if (get-in decision [:evidence :allocation-mechanism-evidence]) :rows :single))
+
+(defn normalize-rounding-algorithm
+  "Map a REQUESTED rounding policy to the EFFECTIVE allocation algorithm a given
+   execution shape actually runs. Single authoritative derivation so the
+   verifier computes the permitted effective algorithm from the requested policy
+   plus shape, rather than trusting an independently-declared field.
+
+   :floor-and-carry and :largest-remainder are ONE integer algorithm (identical
+   largest-remainder carry ordering; floor-and-carry only adds fractional
+   cross-round :carry bookkeeping that never touches filled/deferred), so both
+   normalize to :largest-remainder. The :rows mechanism additionally coerces
+   every non-:floor policy (incl. :principal-protective-floor) to
+   :largest-remainder. :floor is a distinct exact-floor algorithm in both shapes."
+  [rounding-policy execution-shape]
+  (case execution-shape
+    :rows   (if (= :floor rounding-policy) :floor :largest-remainder)
+    :single (case rounding-policy
+              :floor                      :floor
+              :largest-remainder          :largest-remainder
+              :floor-and-carry            :largest-remainder
+              :principal-protective-floor :principal-protective-floor
+              :adversarial-rounding       :adversarial-rounding
+              :largest-remainder)
+    (if (= :floor rounding-policy) :floor :largest-remainder)))
+
 (defn- rounding-fairness-violations
   "Check rounding fairness for integer allocation.
    Returns a vector of violation maps (empty = pass).
    For each claim, verifies that |actual_fill - ideal| <= max-rounding-error.
-   For largest-remainder, also verifies remainder-ranking correctness.
+   For carry-order policies, also verifies remainder-ranking correctness.
 
    `positive-claims` — map of claim-key -> requested amount
    `filled` — map of claim-key -> filled amount
@@ -1357,19 +1504,19 @@
                     (sort-by key ideals)]
               (let [actual (long (get filled k 0))
                     error (- actual ideal-floor)
-                    max-error (case rounding-policy
-                                :largest-remainder 1
-                                0)]
+                    max-error (rounding-max-error rounding-policy)]
                 (when (> error max-error)
                   (swap! violations conj
                          {:claim k :requested requested :ideal-floor ideal-floor
                           :actual actual :error error :max-error max-error
                           :kind :ideal-floor-violation}))))
-          ;; Largest-remainder: verify remainder ranking
-          ranking-violations (when (= :largest-remainder rounding-policy)
-                               (let [remainders (->> ideals
-                                                     (sort-by (fn [[k v]] [(- (:fraction-remainder v)) (str k)]))
-                                                     (mapv (fn [[k v]]
+          ;; Carry-order policies: verify remainder ranking (a +1 unit must land
+          ;; on a top-remainder claimant). Shared by largest-remainder and
+          ;; floor-and-carry.
+          ranking-violations (when (carry-order-rounding? rounding-policy)
+(let [remainders (->> ideals
+                                                      (sort-by rounding-rank-key)
+                                                      (mapv (fn [[k v]]
                                                              [k (:fraction-remainder v)])))
                                      extra-count (- available (reduce + 0 (map :ideal-floor (vals ideals))))
                                      top-n (take (max 0 extra-count) remainders)
@@ -1411,7 +1558,8 @@
    :partial-fill/rounding-fairness-remainder-ranking :validation.class/allocation-property
    :partial-fill/principal-first-priority :validation.class/allocation-property
    :partial-fill/waterfall-priority      :validation.class/allocation-property
-   :partial-fill/rounding-residual-bounded :validation.class/allocation-property})
+    :partial-fill/rounding-residual-bounded :validation.class/allocation-property
+    :partial-fill/effective-rounding-consistency :validation.class/allocation-property})
 
 (defn- check-result
   ([check-id status details]
@@ -1447,7 +1595,8 @@
    - :partial-fill/rounding-fairness-remainder-ranking
    - :partial-fill/principal-first-priority
    - :partial-fill/waterfall-priority
-   - :partial-fill/rounding-residual-bounded
+    - :partial-fill/rounding-residual-bounded
+    - :partial-fill/effective-rounding-consistency
 
    These checks operate on the structured decision returned by
    calculate-fulfillment*. They intentionally stay local to the decision
@@ -1509,16 +1658,20 @@
                           :recovered-sum total}))))
              vec)
         rounding-policy (:rounding-policy policy :floor-and-carry)
-        ;; Strict equal fill ratios are only meaningful when every ideal share
-        ;; is representable in whole units. Largest-remainder allocations may
-        ;; legitimately award one deterministic dust unit to one claimant.
+        ;; Exact ratio equality is a contractual property ONLY when every ideal
+        ;; share is representable in whole units (the allocation is evenly
+        ;; divisible), so no rounding deviation is possible under ANY policy.
+        ;; When indivisibility exists, rounding-fairness (bounded by the policy's
+        ;; rounding semantics) is the operative guarantee — a carry policy must
+        ;; not enter the strict cross-product exact-pro-rata check, and neither
+        ;; does a principal-protective policy (which concentrates principal).
         strict-pro-rata? (and (= :pro-rata mode)
                               (not cap-constrained?)
-                              (or (not= :largest-remainder rounding-policy)
-                                  (every? (fn [[_ claim]]
-                                            (zero? (mod (* (long claim) available)
-                                                        (max 1 total-requested))))
-                                          positive-claims)))
+                              (pro-rata-rounding? rounding-policy)
+                              (every? (fn [[_ claim]]
+                                        (zero? (mod (* (long claim) available)
+                                                    (max 1 total-requested))))
+                                      positive-claims))
         pro-rata-pairs
         (when strict-pro-rata?
           (->> positive-claims
@@ -1567,9 +1720,11 @@
                                         (if (= :deferred bucket) :deferred-policy :haircut-policy)
                                         :same-ratio))
         same-ratio-bucket? (fn [bucket] (= :same-ratio (bucket-policy bucket)))
-        fail-action-max-error (case rounding-policy
-                                :largest-remainder 1
-                                0)
+        ;; The deferred/haircut complement of a fill is a ceiling of the
+        ;; proportional shortfall share, so it inherits an inherent +1 rounding
+        ;; effect for every policy (including strict :floor). Enforced against
+        ;; each same-ratio bucket's own totals.
+        fail-action-max-error (complement-rounding-max-error rounding-policy)
         ;; A :same-ratio bucket must give every claimant the same shortfall
         ;; ratio within the permitted rounding advantage. Deferred/haircut are
         ;; the complement of the fill, so their remainder pattern is the inverse
@@ -1608,17 +1763,17 @@
           (into (map #(assoc % :bucket :unfilled)
                      (fail-action-bucket-violations unfilled total-unfilled :unfilled))))
         rounding-applicable? (and (not cap-constrained?)
-                                  (#{:floor-and-carry :floor :largest-remainder :principal-protective-floor} rounding-policy))
+                                  (boolean (rounding-semantics rounding-policy)))
         residual-ok? (if cap-constrained?
                        (and (= residual (long (get-in decision [:evidence :unallocated-residual] 0)))
                             (or (zero? residual)
                                 (= :all-participants-cap-constrained
                                    (get-in decision [:evidence :residual-reason]))))
-                       (case rounding-policy
-                         (:floor-and-carry :floor :principal-protective-floor)
+                       (case (rounding-semantics rounding-policy)
+                         :exact-floor
                          (and (<= 0 residual)
                               (< residual (max 1 eligible-claim-count)))
-                         :largest-remainder
+                         (:bounded-carry :principal-protective)
                          (zero? residual)
                          false))
         claim-key-consistency-violations
@@ -1770,7 +1925,8 @@
                                                          "effective caps require constrained redistribution rather than one global ratio"
                                                          "indivisible pro-rata allocation is checked by rounding-fairness")})))
           rounding-fairness-ch (future
-                                 (if (and (= :pro-rata mode) (not cap-constrained?))
+                                 (if (and (= :pro-rata mode) (not cap-constrained?)
+                                          (pro-rata-rounding? rounding-policy))
                                    (let [violations (rounding-fairness-violations
                                                      positive-claims filled available
                                                      total-requested rounding-policy)
@@ -1782,9 +1938,7 @@
                                                             residual-ok?)
                                                      :pass :fail)
                                                    {:violations violations
-                                                    :max-allowed-error (case rounding-policy
-                                                                         :largest-remainder 1
-                                                                         0)
+                                                    :max-allowed-error (rounding-max-error rounding-policy)
                                                     :ideal-fills (compute-ideal-fills
                                                                   positive-claims total-requested available)
                                                     :reconciles? residual-ok?}))
@@ -1809,16 +1963,15 @@
                                            :not-applicable
                                            {:reason "no deferred or haircut amounts (no fail action exercised)"})))
           rounding-fairness-ideal-ch (future
-                                       (if (and (= :pro-rata mode) (not cap-constrained?))
+                                       (if (and (= :pro-rata mode) (not cap-constrained?)
+                                                (pro-rata-rounding? rounding-policy))
                                          (let [violations (rounding-fairness-violations
                                                            positive-claims filled available
                                                            total-requested rounding-policy)]
                                            (check-result :partial-fill/rounding-fairness-ideal
                                                          (if (empty? violations) :pass :fail)
                                                          {:violations violations
-                                                          :max-allowed-error (case rounding-policy
-                                                                               :largest-remainder 1
-                                                                               0)
+                                                          :max-allowed-error (rounding-max-error rounding-policy)
                                                           :ideal-fills (compute-ideal-fills
                                                                         positive-claims total-requested available)}))
                                          (check-result :partial-fill/rounding-fairness-ideal
@@ -1826,7 +1979,7 @@
                                                                         :reason (when cap-constrained?
                                                                                   "effective caps require constrained redistribution")})))
           rounding-remainder-ch (future
-                                  (if (and (= :largest-remainder rounding-policy) (not cap-constrained?))
+                                  (if (and (carry-order-rounding? rounding-policy) (not cap-constrained?))
                                     (let [violations (rounding-fairness-violations
                                                       positive-claims filled available
                                                       total-requested rounding-policy)
@@ -1837,7 +1990,7 @@
                                                     {:violations ranking-violations
                                                      :remainder-order (->> (compute-ideal-fills
                                                                             positive-claims total-requested available)
-                                                                           (sort-by (fn [[k v]] [(- (:fraction-remainder v)) (str k)]))
+                                                                           (sort-by rounding-rank-key)
                                                                            (mapv (fn [[k v]] [k (:fraction-remainder v)])))}))
                                     (check-result :partial-fill/rounding-fairness-remainder-ranking
                                                   :not-applicable {:rounding-policy rounding-policy
@@ -1918,13 +2071,34 @@
           artifact-format-ch (future
                                (check-result :partial-fill/decision-artifact-format
                                              (if (empty? decision-artifact-violations) :pass :fail)
-                                             {:violations decision-artifact-violations}))]
+                                             {:violations decision-artifact-violations}))
+          effective-rounding-ch
+          (let [shape (execution-shape decision)
+                requested-policy rounding-policy
+                derived-effective (normalize-rounding-algorithm requested-policy shape)
+                declared-effective (some-> (get-in decision
+                                                   [:evidence :allocation-mechanism-evidence
+                                                    :mechanism/result :rounding-policy])
+                                           keyword)]
+            (future
+              (if (some? declared-effective)
+                (check-result :partial-fill/effective-rounding-consistency
+                              (if (= declared-effective derived-effective) :pass :fail)
+                              {:requested-policy requested-policy
+                               :execution-shape shape
+                               :derived-effective derived-effective
+                               :declared-effective declared-effective})
+                (check-result :partial-fill/effective-rounding-consistency
+                              :not-applicable
+                              {:requested-policy requested-policy
+                               :execution-shape shape
+                               :reason "no recorded effective algorithm (non-mechanism path)"}))))]
       (let [results (mapv deref [conservation-ch capacity-ch per-claim-ch per-claim-conservation-ch
                                  claim-key-ch non-negative-ch settlement-mode-ch settlement-mode-valid-ch
                                  mode-valid-ch overlap-ch deferred-haircut-sum-ch evidence-ch unrealized-ch artifact-format-ch
                                  exact-pro-rata-ch rounding-fairness-ch rounding-fairness-ideal-ch rounding-remainder-ch
                                  principal-first-ch waterfall-ch
-                                 residual-ch fail-action-ch])
+                                 residual-ch fail-action-ch effective-rounding-ch])
             failed (filterv #(= :fail (:status %)) results)]
         (when (seq failed)
           (throw (ex-info "Partial-fill closed-form checks failed"
@@ -1974,8 +2148,12 @@
   "Update a position after a partial-fill settlement decision has been applied.
 
    Returns an updated position map with:
-   - :partial-fill-affected? set to true
-   - :status set to :unwinding (unless already terminal)
+   - :partial-fill-affected? sticky-historical: ORed across the prior position
+     and the current decision, so a GENUINE partial fill (:partial-fill
+     settlement-mode) sets it true on first occurrence and a full-fill or later
+     full resolution never clears it.
+   - :status :unwinding while any deferred/haircut consequence remains
+     outstanding; fully-resolved (full-fill) settles to :withdrawn.
    - Claimed buckets subtracted from respective fields
    - Residual entitlement preserved as deferred/haircut
 
@@ -1997,8 +2175,12 @@
         (update :principal - p-delta)
         (update :realized-yield - r-delta)
         (update :deferred-yield - d-delta)
-        (assoc :partial-fill-affected? true)
-        (assoc :status :unwinding)
+        (assoc :partial-fill-affected?
+               (boolean (or (:partial-fill-affected? position)
+                            (partial-fill? decision))))
+        (assoc :status (if (partial-fill-outstanding? decision)
+                         :unwinding
+                         :withdrawn))
         (cond->
          (= post-accrual :accrue-residual-as-unrealized)
           (update :unrealized-yield + (long (get deferred :principal 0))

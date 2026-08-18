@@ -101,4 +101,21 @@
                           :evidence/commitment-version "bundle-root.v3")
           result (integrity/verify-bundle-hash evidence)]
       (is (= false (:hash-ok? result)))
-      (is (= :unsupported-commitment-version (:reason result))))))
+       (is (= :unsupported-commitment-version (:reason result))))))
+
+(deftest creation-provenance-excluded-from-bundle-root
+  (testing "changing :creation/provenance does not alter the bundle-root hash"
+    (let [base-evidence {:benchmark {:benchmark/id :benchmark/test}
+                         :metrics {:total 1 :passed 1}}
+          in-band-hash (get-in (committed-bundle (assoc base-evidence :creation/provenance :in-band))
+                               [:evidence/hash])
+          out-of-band-hash (get-in (committed-bundle (assoc base-evidence :creation/provenance :out-of-band))
+                                   [:evidence/hash])]
+      (is (= in-band-hash out-of-band-hash)
+          "creation provenance must not contaminate semantic bundle root identity")))
+    (testing "hashable-evidence projection drops :creation/provenance"
+      (let [evidence {:benchmark {:benchmark/id :benchmark/test}
+                      :creation/provenance :out-of-band}
+            projection (integrity/hashable-evidence evidence)]
+        (is (not (contains? projection :creation/provenance))
+            ":creation/provenance must be absent from hashable evidence"))))

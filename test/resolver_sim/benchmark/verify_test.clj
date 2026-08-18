@@ -2,9 +2,12 @@
   (:require [clojure.data.json :as json]
             [clojure.java.io :as io]
             [clojure.test :refer [deftest is testing]]
-            [resolver-sim.benchmark.verify :as verify]
-            [resolver-sim.commands.run-lifecycle :as lifecycle]
-            [resolver-sim.hash.canonical :as canonical]
+             [resolver-sim.benchmark.verify :as verify]
+             [resolver-sim.benchmark.integrity :as integrity]
+             [resolver-sim.benchmark.runner :as runner]
+             [resolver-sim.commands.run-lifecycle :as lifecycle]
+             [resolver-sim.hash.canonical :as canonical]
+             [resolver-sim.hash.reference :as hash-ref]
             [resolver-sim.run.package-index :as package-index]
             [resolver-sim.run.verdict-policy :as verdict-policy]))
 

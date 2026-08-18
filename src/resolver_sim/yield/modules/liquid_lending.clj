@@ -613,13 +613,17 @@
                :rounding-policy :floor-and-carry
                :conservation {:mode :absolute-smallest-unit
                               :tolerance withdrawal-conservation-tolerance}}
-              updated-position
-              (-> position-after-accrue
-                  (assoc :partial-fill-affected? (boolean shortfall))
-                  (assoc :status (if shortfall :unwinding :withdrawn))
-                  (assoc :realized-yield realized-yield)
-                  (assoc :unrealized-yield 0)
-                  (assoc :shortfall shortfall))
+updated-position
+               (-> position-after-accrue
+                   (assoc :partial-fill-affected?
+                          (or (:partial-fill-affected? position-after-accrue)
+                              (partial-fill/partial-fill? settlement)))
+                   (assoc :status (if (partial-fill/partial-fill? settlement)
+                                    :unwinding
+                                    :withdrawn))
+                   (assoc :realized-yield realized-yield)
+                   (assoc :unrealized-yield 0)
+                   (assoc :shortfall shortfall))
               world-with-position
               (cond-> (assoc-in world-after-accrue
                                 position-path
@@ -1491,12 +1495,14 @@
                           :haircut-amount 0}))
                      updated-position
                      (cond->
-                      (assoc position
+(assoc position
                              :status (if (pos? deferred)
-                                       :unwinding
-                                       :withdrawn)
+                                        :unwinding
+                                        :withdrawn)
                              :shortfall shortfall
-                             :partial-fill-affected? (pos? deferred)
+                             :partial-fill-affected?
+                             (or (:partial-fill-affected? position)
+                                 (pos? deferred))
                              :cumulative-fulfilled
                              (+ (long (:cumulative-fulfilled position 0))
                                 fulfilled))
@@ -2091,8 +2097,12 @@
               unrealized)
             updated-position
             (-> crystallized-position
-                (assoc :partial-fill-affected? (boolean shortfall))
-                (assoc :status (if shortfall :unwinding :withdrawn))
+                (assoc :partial-fill-affected?
+                       (or (:partial-fill-affected? crystallized-position)
+                           (partial-fill/partial-fill? settlement)))
+                (assoc :status (if (partial-fill/partial-fill? settlement)
+                                 :unwinding
+                                 :withdrawn))
                 (assoc :realized-yield realized-yield)
                 (assoc :unrealized-yield 0)
                 (assoc :shortfall shortfall))]

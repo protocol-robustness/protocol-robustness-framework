@@ -81,6 +81,11 @@
   :run/manifest/:manifest/at, :results/:scenario/artifacts) are excluded so the
   committed hash survives signing and location/timing drift.
 
+  :creation/provenance is also EXCLUDED: creation provenance (in-band vs
+  out-of-band) is committed in the outer envelope (canonical-integrity.v1),
+  not in the semantic bundle root. This ensures that provenance variation
+  never alters semantic identity.
+
   :evidence/commitment-version is deliberately NOT excluded: when present it is
   committed into the hash, binding the bundle to the commitment scheme used to
   interpret it — an evidence commitment binds both the evidence and the
@@ -100,9 +105,9 @@
   ;; reproducibility. The :repo map is still persisted in the evidence file
   ;; for audit.
   (-> bundle
-      (dissoc :timestamp :evidence/hash :evidence/signature
-              :evidence/public-key-path
-              :benchmark/artifact-index :repo)
+       (dissoc :timestamp :evidence/hash :evidence/signature
+               :evidence/public-key-path
+               :benchmark/artifact-index :repo :creation/provenance)
       (cond-> (contains? bundle :run/manifest)
         (update :run/manifest #(dissoc % :manifest/at))
         (contains? bundle :results)

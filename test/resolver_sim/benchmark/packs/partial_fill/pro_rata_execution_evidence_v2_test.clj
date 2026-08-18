@@ -8,13 +8,15 @@
    zero or haircut result). v2 renames it to the explicitly operational
    :current-write-back-operationally-verified?, computes the operational pass
    predicate once (shared by :allocation-sound? and the emitted fact), keeps the
-   weaker operational / stronger authoritative distinction intact, and preserves
-   the false amount/full-fill/residual compatibility fields.
+   weaker operational / stronger authoritative distinction intact, and emits the
+   un-establishable amount/full-fill/residual settlement facts as explicit
+   :...-unevaluated? markers rather than hardcoded false.
 
    v1 is retained unchanged for backward compatibility with existing canonical
    artifacts; the two versions are distinct content-addressed schemas."
   (:require [clojure.test :refer [deftest is testing]]
             [resolver-sim.benchmark.packs.partial-fill.pro-rata-execution-evidence :as exec-ev]
+            [resolver-sim.benchmark.packs.partial-fill.outcome :as outcome]
             [resolver-sim.hash.canonical :as hc]
             [resolver-sim.benchmark.outcome-manifest :as om]))
 
@@ -76,12 +78,15 @@
       (is (= false (:application-write-back-verified? er))
           "authoritative flag stays separate and stronger"))))
 
-(deftest v2-preserves-false-amount-full-fill-residual-fields
+(deftest v2-emits-unevaluated-markers-not-factual-false
   (let [er (:evidence-profile/execution-result
             (exec-ev/build-pro-rata-execution-evidence-v2 (v2-args (pass-operational))))]
-    (is (= false (:positive-amount-applied? er)))
-    (is (= false (:fully-satisfied? er)))
-    (is (= false (:deferred-residual-created? er)))))
+    (is (= true (:positive-amount-applied-unevaluated? er))
+        "amount fact is explicitly unevaluated, not hardcoded false")
+    (is (= true (:fully-satisfied-unevaluated? er)))
+    (is (= true (:deferred-residual-created-unevaluated? er)))
+    (is (not (contains? er :positive-amount-applied?))
+        "the aggregate must never emit the factual :positive-amount-applied?")))
 
 (deftest v2-hash-recomputes-under-v2-domain-tag
   (let [args (v2-args (pass-operational))
@@ -91,6 +96,44 @@
     (is (= (str "sha256:" h) (:evidence-profile/hash p)))
     (is (:valid? (exec-ev/validate-pro-rata-execution-evidence-v2 p)))
     (is (:valid? (exec-ev/verify-pro-rata-execution-evidence-v2 p args)))))
+
+(deftest v2-verifies-out-of-band-provenance
+  (testing "out-of-band profile reproduces its hash under verification"
+    (let [args (v2-args (pass-operational))]
+      (let [p-out (exec-ev/build-pro-rata-execution-evidence-v2
+                   (assoc args :creation/provenance :out-of-band))
+            p-in  (exec-ev/build-pro-rata-execution-evidence-v2 args)]
+        (is (= :out-of-band (get-in p-out [:evidence-profile/creation :provenance])))
+        (is (= :in-band (get-in p-in [:evidence-profile/creation :provenance])))
+        (is (:valid? (exec-ev/verify-pro-rata-execution-evidence-v2 p-out args))
+            "out-of-band profile verifies when provenance is re-extracted")
+        (is (:valid? (exec-ev/verify-pro-rata-execution-evidence-v2 p-in args))
+            "in-band profile verifies normally")
+        (is (not= (:evidence-profile/hash p-out)
+                  (:evidence-profile/hash p-in))
+            "different provenance produces different profile hashes")))))
+
+(deftest v2-verification-detects-tampered-provenance
+  (testing "mutating stored :creation/provenance breaks verification"
+    (let [args (v2-args (pass-operational))
+          p (exec-ev/build-pro-rata-execution-evidence-v2
+             (assoc args :creation/provenance :out-of-band))
+          tampered (assoc-in p [:evidence-profile/creation :provenance] :in-band)
+          result (exec-ev/verify-pro-rata-execution-evidence-v2 tampered args)]
+      (is (not (:valid? result))
+          "tampered provenance must fail verification")
+      (is (some #(= :evidence-profile/hash (:field %))
+                (:mismatches result))
+          "mismatch must report :evidence-profile/hash")))
+  (testing "rebuilt-with-declared-out-of-band args, not defaulted in-band"
+    (let [args (v2-args (pass-operational))
+          p (exec-ev/build-pro-rata-execution-evidence-v2
+             (assoc args :creation/provenance :out-of-band))
+          recomputed (:profile-recomputed
+                       (exec-ev/verify-pro-rata-execution-evidence-v2 p args))]
+      (is (= :out-of-band
+             (get-in recomputed [:evidence-profile/creation :provenance]))
+          "verifier must reconstruct with stored provenance, not default :in-band"))))
 
 (deftest v2-rejects-v1-key-under-v2-schema
   (let [args (v2-args (pass-operational))
@@ -202,3 +245,31 @@
         v (:evidence-profile/verification p)]
     (is (= true (:theorem-binding-valid? v)))
     (is (= true (:conclusion-binding-valid? v)))))
+
+(deftest cross-artifact-funded-pro-rata-never-lies-false
+  (testing "A genuinely funded pro-rata execution never reports :positive-amount-applied? false"
+    (let [args (v2-args (pass-operational))
+          v1 (exec-ev/build-pro-rata-execution-evidence args)
+          v2 (exec-ev/build-pro-rata-execution-evidence-v2 args)
+          decision (outcome/normalise-decision-outcome
+                    {:decision/id :funded
+                     :evidence {:allocation-rows [{:key :a :owed 100 :filled 60}]}})
+          participant (first (:participants decision))
+          artifacts [{:kind :decision-outcome :value participant}
+                     {:kind :evidence-v1 :value (:evidence-profile/execution-result v1)}
+                     {:kind :evidence-v2 :value (:evidence-profile/execution-result v2)}]]
+      (is (true? (:allocation/positive-amount-applied? participant))
+          "funded decision row reports positive-amount-applied? true")
+      (is (false? (:allocation/fully-satisfied? participant))
+          "60 of 100 is a genuine partial fill - truthfully not fully satisfied")
+      (doseq [{:keys [kind value]} artifacts]
+        (let [applied (or (:allocation/positive-amount-applied? value)
+                          (:positive-amount-applied? value))
+              unevaluated (or (:allocation/positive-amount-applied-unevaluated? value)
+                              (:positive-amount-applied-unevaluated? value))]
+          (is (or (true? applied) (true? unevaluated))
+              (str kind " must be true or explicitly unevaluated, never false"))
+          (is (not= false applied)
+              (str kind " must not claim the factual :positive-amount-applied? as false"))))
+      (is (:valid? (exec-ev/validate-pro-rata-execution-evidence-any v1)))
+      (is (:valid? (exec-ev/validate-pro-rata-execution-evidence-any v2))))))

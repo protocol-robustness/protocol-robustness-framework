@@ -326,7 +326,9 @@
     (is (some? (:evidence-profile/hash profile)))
     ;; The profile's execution result correctly reflects only operational evidence
     (is (:allocation-calculated? er))
-    (is (= false (:fully-satisfied? er)))
+    (is (= true (:fully-satisfied-unevaluated? er))
+        "full-satisfaction is explicit unevaluated, not hardcoded false")
+    (is (not (contains? er :fully-satisfied?)) "never emits the factual :fully-satisfied?")
     ;; THE CRITICAL ASSERTION: the profile does NOT claim incentive compatibility
     ;; The profile's verification/theorem bindings only verify that the committed
     ;; theorem hashes appear in the manifest — they do NOT validate the content
@@ -384,10 +386,41 @@
 
 (deftest execution-hash-changes-with-input
   (let [pa (exec-ev/build-pro-rata-execution-evidence
-            (exec-args :alloc-hash "sha256:a" :app-hash "sha256:b"))
+             (exec-args :alloc-hash "sha256:a" :app-hash "sha256:b"))
         pb (exec-ev/build-pro-rata-execution-evidence
-            (exec-args :alloc-hash "sha256:different" :app-hash "sha256:b"))]
+             (exec-args :alloc-hash "sha256:different" :app-hash "sha256:b"))]
     (is (not= (:evidence-profile/hash pa) (:evidence-profile/hash pb)))))
+
+(deftest execution-out-of-band-provenance-verifies
+  (testing "out-of-band profile reproduces its hash under verification"
+    (let [args (exec-args)
+          p (exec-ev/build-pro-rata-execution-evidence
+             (assoc args :creation/provenance :out-of-band))]
+      (is (= :out-of-band (get-in p [:evidence-profile/creation :provenance])))
+      (is (:valid? (exec-ev/verify-pro-rata-execution-evidence p args))
+          "out-of-band profile verifies when stored provenance is re-extracted"))))
+
+(deftest execution-v1-verification-detects-tampered-provenance
+  (testing "mutating stored :creation/provenance breaks v1 verification"
+    (let [args (exec-args)
+          p (exec-ev/build-pro-rata-execution-evidence
+             (assoc args :creation/provenance :out-of-band))
+          tampered (assoc-in p [:evidence-profile/creation :provenance] :in-band)
+          result (exec-ev/verify-pro-rata-execution-evidence tampered args)]
+      (is (not (:valid? result))
+          "tampered provenance must fail verification")
+      (is (some #(= :evidence-profile/hash (:field %))
+                (:mismatches result))
+          "mismatch must report :evidence-profile/hash")))
+  (testing "verifier reconstructs with stored provenance, not default :in-band"
+    (let [args (exec-args)
+          p (exec-ev/build-pro-rata-execution-evidence
+             (assoc args :creation/provenance :out-of-band))
+          recomputed (:profile-recomputed
+                       (exec-ev/verify-pro-rata-execution-evidence p args))]
+      (is (= :out-of-band
+             (get-in recomputed [:evidence-profile/creation :provenance]))
+           "verifier must reconstruct with stored :out-of-band, not default :in-band"))))
 
 (deftest execution-missing-artifact-throws
   (is (thrown-with-msg? Exception #"evidence build failed"
