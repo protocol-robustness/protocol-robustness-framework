@@ -1,0 +1,35 @@
+{
+  "description": "Allocation result that references a dangling root (missing result-hash link)",
+  "domain": "pro-rata-allocation-result",
+  "expected-rejection-reasons": [
+    "pro-rata/dangling-root"
+  ],
+  "result": {
+    "allocations": [
+      {
+        "basis-amount": "100",
+        "cap": "100",
+        "id": "alice",
+        "owed": "50",
+        "paid": "50",
+        "unmet": "0"
+      },
+      {
+        "basis-amount": "100",
+        "cap": "100",
+        "id": "bob",
+        "owed": "50",
+        "paid": "50",
+        "unmet": "0"
+      }
+    ],
+    "recovered-total": "100",
+    "slash-obligation": "100",
+    "total-basis": "200",
+    "unmet-total": "0"
+  },
+  "result-hash": null,
+  "schema-version": "pro-rata-allocation-result.v1",
+  "fixture-type": "dangling-root",
+  "vector-id": "dangling-root-reference"
+}

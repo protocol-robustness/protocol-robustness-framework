@@ -551,6 +551,136 @@
             {:holds? (empty? violations)
              :violations violations}))))))
 
+(defn check-non-negative-allocation
+  "Allocation, unmet, paid, owed, basis, and cap values are never negative."
+  [{:keys [evidence-nodes]}]
+  (let [content (evidence-content evidence-nodes)]
+    (if-not content
+      {:holds? false :violations [{:type :missing-evidence-content}]}
+      (let [result (direct-result content)
+            violations (non-negative-violations result)]
+        (if (empty? violations)
+          {:holds? true}
+          {:holds? false
+           :violations violations})))))
+
+(defn check-allocation-not-above-request
+  "No allocation exceeds its corresponding requested amount."
+  [{:keys [evidence-nodes]}]
+  (let [content (evidence-content evidence-nodes)]
+    (if-not content
+      {:holds? false :violations [{:type :missing-evidence-content}]}
+      (let [result (direct-result content)
+            violations (vec
+                         (mapcat (fn [alloc]
+                                   (let [allocated (long (or (:paid alloc) 0))
+                                         requested (long (or (:owed alloc) 0))]
+                                     (when (> allocated requested)
+                                       [{:type :pro-rata/allocation-above-request
+                                         :id (:id alloc)
+                                         :expected requested
+                                         :observed allocated}])))
+                                 (result->allocations result)))]
+        (if (empty? violations)
+          {:holds? true}
+          {:holds? false
+           :violations violations})))))
+
+(defn check-integer-domain
+  "Numeric allocation fields are integers (no floating-point or fractional values
+  in standard integer fields: :owed/:paid/:unmet/:cap/:basis-amount)."
+  [{:keys [evidence-nodes]}]
+  (let [content (evidence-content evidence-nodes)]
+    (if-not content
+      {:holds? false :violations [{:type :missing-evidence-content}]}
+      (let [result (direct-result content)
+            integer-fields [:owed :paid :unmet :cap :basis-amount]
+            violations (vec
+                         (mapcat (fn [alloc]
+                                   (keep (fn [k]
+                                           (when-let [v (k alloc)]
+                                             (when-not (integer? v)
+                                               {:type :pro-rata/non-integer-field
+                                                :id (:id alloc)
+                                                :key k
+                                                :observed v
+                                                :type-of (type v)})))
+                                         integer-fields))
+                                 (result->allocations result)))]
+        (if (empty? violations)
+          {:holds? true}
+          {:holds? false
+           :violations violations})))))
+
+(defn check-residual-accounting
+  "Allocated total plus per-row unmet amounts plus unallocated residual equals
+  available (mode-aware remainder semantics)."
+  [{:keys [evidence-nodes]}]
+  (let [content (evidence-content evidence-nodes)]
+    (if-not content
+      {:holds? false :violations [{:type :missing-evidence-content}]}
+      (let [result (direct-result content)
+            total-allocated (long (or (:recovered-total result)
+                                      (:total-allocated result)
+                                      0))
+            total-unmet (long (or (:unmet-total result) 0))
+            remainder (long (or (:remainder result)
+                                (:unallocated-residual result)
+                                0))
+            available (long (or (:available result)
+                                (:slash-obligation result)
+                                0))
+            sum-checked (+ total-allocated total-unmet remainder)]
+        (if (= available sum-checked)
+          {:holds? true}
+          {:holds? false
+           :violations [{:type :pro-rata/residual-accounting-violation
+                         :available available
+                         :allocated total-allocated
+                         :unmet total-unmet
+                         :remainder remainder
+                         :sum-checked sum-checked
+                         :difference (- available sum-checked)}]})))))
+
+(defn check-full-fill-consistency
+  "If any allocation is partially filled (allocated < owed), then unmet must be
+  positive for that allocation, and the aggregate unmet must equal the sum of
+  per-row unmet amounts."
+  [{:keys [evidence-nodes]}]
+  (let [content (evidence-content evidence-nodes)]
+    (if-not content
+      {:holds? false :violations [{:type :missing-evidence-content}]}
+      (let [result (direct-result content)
+            allocations (result->allocations result)
+            per-row-violations (vec
+                                 (keep (fn [alloc]
+                                         (let [owed (long (or (:owed alloc) 0))
+                                               paid (long (or (:paid alloc) 0))
+                                               unmet (long (or (:unmet alloc) 0))]
+                                           (cond
+                                             (and (pos? owed) (< paid owed) (zero? unmet))
+                                             {:type :pro-rata/partial-fill-without-unmet
+                                              :id (:id alloc)
+                                              :owed owed :paid paid :unmet unmet}
+                                             (and (zero? owed) (not (zero? paid)))
+                                             {:type :pro-rata/allocation-without-request
+                                              :id (:id alloc)
+                                              :paid paid :owed owed})))
+                                       allocations))
+            reported-unmet-total (long (or (:unmet-total result) 0))
+            computed-unmet (reduce + 0 (map #(long (or (:unmet %) 0)) allocations))
+            aggregate-violation (when (not= reported-unmet-total computed-unmet)
+                                  {:type :pro-rata/unmet-aggregate-mismatch
+                                   :reported reported-unmet-total
+                                   :computed computed-unmet})]
+        (let [all-violations (into per-row-violations
+                                   (when aggregate-violation [aggregate-violation]))
+              all-pass (empty? all-violations)]
+          (if all-pass
+            {:holds? true}
+            {:holds? false
+             :violations all-violations}))))))
+
 (defn check-partial-fill-fairness
   "Pro-rata fairness check over partial-fill decision artifacts.
    Reads a partial-fill decision from evidence-node content and verifies
@@ -580,12 +710,17 @@
    :pro-rata/quota-bounded            check-quota-bounded
    :pro-rata/permutation-invariant    check-ordering-independent
    :pro-rata/cap-respecting           check-cap-respecting
-   :pro-rata/canonical-remainder-assignment check-canonical-remainder-assignment
-   :pro-rata/projection-diff          check-projection-diff
-   ;; Exact fill-ratio equality is not valid after integer largest-remainder
-   ;; allocation. The registered claim uses the passive registry's bounded
-   ;; partial-fill fairness definition.
-   :pro-rata/partial-fill-fairness check-partial-fill-fairness})
+    :pro-rata/canonical-remainder-assignment check-canonical-remainder-assignment
+    :pro-rata/projection-diff          check-projection-diff
+    ;; Exact fill-ratio equality is not valid after integer largest-remainder
+    ;; allocation. The registered claim uses the passive registry's bounded
+    ;; partial-fill fairness definition.
+    :pro-rata/partial-fill-fairness check-partial-fill-fairness
+    :pro-rata/non-negative-allocation check-non-negative-allocation
+    :pro-rata/allocation-not-above-request check-allocation-not-above-request
+    :pro-rata/integer-domain check-integer-domain
+    :pro-rata/residual-accounting check-residual-accounting
+    :pro-rata/full-fill-consistency check-full-fill-consistency})
 
 (defn evaluator-resolver
   "Resolve a claim-id to its evaluator function.

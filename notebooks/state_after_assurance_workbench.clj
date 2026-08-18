@@ -75,7 +75,7 @@
     :rows [["integrity"
             ":verified"
             (str "ordering-hash recomputes: "
-                 (:transaction/ordering/hash o2))]
+                 (get o2 :transaction-ordering/hash))]
            ["derivation"
             ":verified"
             (str "committed state-after-root == derived: "
@@ -239,7 +239,7 @@
            ["authority"
             ":not-established"
             (:reason stb)
-            "resulting-state authority not established; NOT inferred from :admitted?"]}))
+            "resulting-state authority not established; NOT inferred from :admitted?"]]}))
 
 ;; The honest cancellation IS admitted, but that does not mean resulting-state
 ;; authority is established. The two are distinct.
@@ -261,4 +261,4 @@
            [:state-transition-binding-verified?
             (get-in result [:verification :state-transition-binding :verified?])]
            [:state-transition-binding-reason
-             (get-in result [:verification :state-transition-binding :reason])]]}))
+            (get-in result [:verification :state-transition-binding :reason])]]}))

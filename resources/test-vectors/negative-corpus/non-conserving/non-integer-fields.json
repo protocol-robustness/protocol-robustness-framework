@@ -1,0 +1,36 @@
+{
+  "description": "Allocation result containing non-integer (floating-point) values in integer fields",
+  "domain": "pro-rata-allocation-result",
+  "expected-rejection-reasons": [
+    "pro-rata/non-integer-field",
+    "validation-error"
+  ],
+  "result": {
+    "allocations": [
+      {
+        "basis-amount": "100",
+        "cap": "100",
+        "id": "alice",
+        "owed": "50.5",
+        "paid": "49",
+        "unmet": "0"
+      },
+      {
+        "basis-amount": "100",
+        "cap": "100",
+        "id": "bob",
+        "owed": "50",
+        "paid": "51.5",
+        "unmet": "0"
+      }
+    ],
+    "recovered-total": "100.5",
+    "slash-obligation": "100",
+    "total-basis": "200",
+    "unmet-total": "0"
+  },
+  "result-hash": "0000000000000000000000000000000000000000000000000000000000000000",
+  "schema-version": "pro-rata-allocation-result.v1",
+  "fixture-type": "non-integer-domain",
+  "vector-id": "non-integer-fields"
+}

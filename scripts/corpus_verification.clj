@@ -76,6 +76,50 @@
           (println (str "[FAIL] " check ": unsupported versions"))
           (doseq [v (:unsupported-versions result)]
             (println (str "  - " v)))))
+      (= check :allocation-domain-invariants)
+      (if (= :pass (:status result))
+        (println (str "[PASS] " check ": " (:constituent-count result) " constituent checks passed"))
+        (do
+          (println (str "[FAIL] " check ": " (:constituent-count result) " constituent checks, some failed"))
+          (doseq [c (:checks result)]
+            (when-not (:holds? c)
+              (println (str "  - " (:name c) ": " (:violations c)))))))
+       (= check :expected-results-recompute)
+       (if (= :pass (:status result))
+         (println (str "[PASS] " check ": " (:vector-count result) " vectors recomputed and match expected outputs"))
+         (do
+           (println (str "[FAIL] " check ": " (:vector-count result) " vectors, some mismatches"))
+           (doseq [m (:mismatches result)]
+             (println (str "  - " (:vector-id m) ": " (:path m))))))
+       (= check :intent-coverage)
+       (if (= :pass (:status result))
+         (println (str "[PASS] " check ": " (:defined-intents result) " intents defined, "
+                       (:exercised-intents result) " exercised"))
+         (do
+           (println (str "[FAIL] " check ": "
+                         (count (:required-but-unexercised result))
+                         " required intents not exercised"))
+           (doseq [i (:required-but-unexercised result)]
+             (println (str "  - " i " is :required but not exercised")))))
+       (= check :contract-case-coverage)
+       (if (= :pass (:status result))
+         (println (str "[PASS] " check ": all contract domains have test vector coverage"))
+         (do
+           (println (str "[FAIL] " check ": missing contract case coverage"))
+           (doseq [m (:missing-cases result)]
+             (println (str "  - " m)))))
+       (= check :negative-corpus)
+       (if (= :pass (:status result))
+         (println (str "[PASS] " check ": all " (:fixture-count result)
+                       " negative fixtures correctly rejected"))
+         (do
+           (println (str "[FAIL] " check ": " (:fixture-count result)
+                         " fixtures, some not correctly rejected"))
+           (doseq [r (:results result)]
+             (when (= :fail (:status r))
+               (println (str "  - " (:fixture r) " [:" (:fixture-type r) "]: "
+                             "expected " (:expected-reasons r)
+                             " observed " (:observed-reasons r)))))))
       (= check :corpus)
       (let [status (:status result)]
         (if (= status :passed)
@@ -147,14 +191,44 @@
     (catch Exception e
       (println (str "[ERROR] " (.getMessage e)))))
   (println)
-  (println "  10. Running conservation check...")
+(println "  10. Running conservation check...")
   (try
     (format-result (cv/check-conservation))
     (catch Exception e
       (println (str "[ERROR] " (.getMessage e)))))
   (println)
-  (println "  11. Validating corpus structure...")
+  (println "  11. Running allocation domain invariants aggregate check...")
   (try
+    (format-result (cv/check-allocation-domain-invariants))
+    (catch Exception e
+      (println (str "[ERROR] " (.getMessage e)))))
+  (println)
+   (println "  12. Running expected-results-recompute check...")
+   (try
+     (format-result (cv/check-expected-results-recompute))
+     (catch Exception e
+       (println (str "[ERROR] " (.getMessage e)))))
+   (println "P1 — Coverage verification:")
+   (println "  13. Running intent coverage check...")
+   (try
+     (format-result (cv/check-intent-coverage))
+     (catch Exception e
+       (println (str "[ERROR] " (.getMessage e)))))
+   (println)
+   (println "  14. Running contract case coverage check...")
+   (try
+     (format-result (cv/check-contract-case-coverage))
+     (catch Exception e
+       (println (str "[ERROR] " (.getMessage e)))))
+   (println)
+   (println "  15. Running negative corpus check...")
+   (try
+     (format-result (cv/check-negative-corpus))
+     (catch Exception e
+       (println (str "[ERROR] " (.getMessage e)))))
+   (println)
+   (println "  16. Validating corpus structure...")
+   (try
     (let [result (cv/validate-corpus!)]
       (println (str "[PASS] corpus validation: " (:packs result) " packs, " (:benchmarks result) " benchmarks"))
       (println "OK: corpus structure valid"))

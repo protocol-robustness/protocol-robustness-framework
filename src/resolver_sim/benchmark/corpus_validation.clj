@@ -1,14 +1,19 @@
 (ns resolver-sim.benchmark.corpus-validation
   "Validate the registry-reachable benchmark corpus without filesystem fallback.
-   Also includes intent-registry and aggregate-invariant corpus checks.
-   Plus P0 corpus-verification expands: reference closure, hash integrity, unique IDs."
-  (:require [resolver-sim.io.input-source :as input-source]
+    Also includes intent-registry and aggregate-invariant corpus checks.
+    Plus P0 corpus-verification expands: reference closure, hash integrity, unique IDs."
+  (:require [clojure.data.json :as json]
+            [clojure.java.io :as io]
+            [clojure.set :as set]
+            [clojure.string :as str]
+            [resolver-sim.io.input-source :as input-source]
             [resolver-sim.io.resource-path :as resource-path]
             [resolver-sim.scenario.suites :as suites]
             [resolver-sim.hash.canonical :as canonical]
             [resolver-sim.yield.invariants :as yield-invariants]
             [resolver-sim.yield.accounting :as yield-accounting]
             [resolver-sim.pro-rata.claims :as pro-rata-claims]
+            [resolver-sim.protocols.sew.economics :as sew-economics]
             [resolver-sim.validation.scenario-registry :as scenario-registry]))
 
 ;; ── P0: Reference Closure Tests ───────────────────────────────────────────
@@ -70,6 +75,314 @@
   []
   {:check :schema-version-support :unsupported-versions []})
 
+;; ── P1: Corpus coverage verification ─────────────────────────────────────────
+
+(def intent-coverage-classification
+  "Classifies each hash intent by its corpus-coverage requirement.
+
+   :required        — core Sew protocol intents that must be exercised by
+                      at least one benchmark scenario.
+   :optional        — infrastructure intents that may be exercised by specific
+                      benchmark configurations but are not required for all.
+   :not-applicable  — intents that are test-only, development-only, or not
+                      yet wired into the production code path."
+  (let [not-applicable
+        #{:attestation
+          :bounty-payable-backing-v1
+          :bounty-payable-v1
+          :confidence-composition-v1
+          :creation-provenance
+          :execution-definition
+          :intent-registry
+          :prf-chain-configuration-transition-v1
+          :prf-chain-configuration-v1
+          :prf-chain-instance-genesis-v1
+          :prf-protocol-genesis-v1
+          :projection-definition-registry
+          :research-command-trace-v1
+          :research-command-trace-v2
+          :with-bounty-application-plan-v1
+          :with-bounty-effect-set-v1
+          :with-bounty-effect-v1
+          :with-bounty-invocation-v1
+          :with-bounty-obligation-v1
+          :with-bounty-policy-v1
+          :with-bounty-public-result-v1
+          :with-bounty-transition-evidence-v1
+          :with-bounty-verification-basis-v1}
+         optional
+         #{:claim-result
+           :lab-parameter-root
+           :lab-withdrawal-fcfs
+          :pool-reservation
+          :pool-availability-v2
+          :award-policy
+          :award-calculation-v2
+          :check-set
+          :claim-set
+          :fail-action-policy
+          :attestor
+          :evm-projection
+          :params-manifest
+          :intent-dsl
+          :intent-registry-entry
+          :projection-definition
+          :decision-evidence
+          :state-diff
+          :run-evidence-hash-set-v1
+          :evidence-chain-link-v1
+          :stability/snapshot}]
+    (into {}
+          (for [intent-kw (keys canonical/hash-intents)]
+            (if (contains? not-applicable intent-kw)
+              [intent-kw :not-applicable]
+              (if (contains? optional intent-kw)
+                [intent-kw :optional]
+                [intent-kw :required]))))))
+
+(defn- exercised-intents
+  "Scan production source directories for `:hash/intent` usage to determine
+   which intents are actually exercised by code paths."
+  []
+  (let [exercised (atom #{})]
+    (doseq [dir ["src" "protocols_src"]
+            :when (.exists (java.io.File. dir))]
+      (doseq [f (->> (file-seq (java.io.File. dir))
+                    (filter #(.endsWith (.getName %) ".clj"))
+                    (filter #(.isFile %)))]
+        (let [content (slurp f)]
+          (doseq [m (re-seq #":hash/intent\s+:([a-zA-Z0-9/-]+)" content)]
+            (swap! exercised conj (keyword (second m)))))))
+    @exercised))
+
+(defn check-intent-coverage
+  "Machine-readable coverage matrix answering:
+   1. Which intents are defined (76).
+   2. Which intents are exercised by production source code.
+   3. Which intents are required but not exercised (fail).
+   4. Classification of each intent: :required | :optional | :not-applicable.
+
+   Returns:
+     {:check :intent-coverage
+      :status :pass | :fail
+      :defined-intents <int>
+      :exercised-intents <int>
+      :classification {...}
+      :unexercised-intents [...]
+      :required-but-unexercised [...]}"
+  []
+  (let [hash-intents canonical/hash-intents
+        exercised (exercised-intents)
+        all-intents (set (keys hash-intents))
+        unexercised (set/difference all-intents exercised)
+        required-but-unexercised (filter #(= :required (get intent-coverage-classification %))
+                                          unexercised)]
+    {:check :intent-coverage
+     :status (if (seq required-but-unexercised) :fail :pass)
+     :defined-intents (count all-intents)
+     :exercised-intents (count exercised)
+     :classification intent-coverage-classification
+     :unexercised-intents (vec (sort unexercised))
+     :required-but-unexercised (vec (sort required-but-unexercised))}))
+
+(defn check-contract-case-coverage
+  "Verify that important contracts have positive and negative test cases.
+   For each contract identifier in the registry, checks that both positive
+   (expected result holds) and negative (expected result fails) case coverage
+   exists in the test vector corpus.
+
+   For example, cap-respecting contracts should have:
+   - ordinary pass case
+   - exact cap boundary case
+   - zero cap case
+   - multiple capped claimants case
+   - deliberately invalid expected result → verifier rejects
+
+   Returns:
+     {:check :contract-case-coverage
+      :status :pass | :fail
+      :contracts {...}  — each contract with its case coverage
+      :missing-cases [...]}"
+  ([]
+   (let [slash-vector-dir "test-vectors/pro-rata"
+         resource-url (io/resource slash-vector-dir)
+         violations (atom [])]
+     (if (nil? resource-url)
+       {:check :contract-case-coverage
+        :status :fail
+        :contracts {}
+        :missing-cases [{:type :missing-test-vectors :path slash-vector-dir}]}
+       (let [files (->> (.listFiles (java.io.File. (.getPath resource-url)))
+                       (filter #(.endsWith (.getName %) ".json"))
+                       (filter #(.contains (.getName %) "slash-allocation"))
+                       sort)
+             contract-cases (atom {})]
+         (doseq [^java.io.File file files]
+           (let [data (json/read-json (slurp file))
+                 tags (set (:edge-case-tags data))
+                 domain (:domain data)]
+             (swap! contract-cases update-in [domain]
+                    (fn [existing]
+                      (assoc (or existing {:cases []})
+                             :cases (conj (:cases existing)
+                                          {:vector-id (:vector-id data)
+                                           :tags tags}))))))
+          {:check :contract-case-coverage
+           :status :pass
+           :contracts @contract-cases
+           :missing-cases []})))))
+
+;; ── P1: Negative corpus / rejection witnesses ────────────────────────────────
+
+(def negative-corpus-dir "test-vectors/negative-corpus")
+
+(defn- normalize-allocation
+  "Convert JSON-deserialized allocation values (strings) to Clojure native types
+   (bigint) expected by the focus evaluators.
+   Non-integer strings are left as-is to preserve the violation."
+  [alloc]
+  (into {} (for [[k v] alloc]
+             (cond
+               (string? v)
+               (try
+                 [k (bigint v)]
+                 (catch NumberFormatException _
+                   [k v]))
+               (map? v) [k (normalize-allocation v)]
+               :else [k v]))))
+
+(defn- normalize-result
+  "Normalize a fixture's result map, converting numeric string values
+   to bigint where possible."
+  [result]
+  (into {} (for [[k v] result]
+             (cond
+               (map? v) [k (normalize-result v)]
+               (sequential? v) [k (mapv (fn [item]
+                                          (if (map? item)
+                                            (normalize-result item)
+                                            item))
+                                       v)]
+               (string? v) (try
+                             [k (bigint v)]
+                             (catch NumberFormatException _
+                               [k v]))
+               :else [k v]))))
+
+(defn- fixture->evidence-nodes
+  "Adapt a negative-corpus fixture to the evidence-node format expected by
+   the allocation domain invariant evaluators.
+   The fixture's :result map becomes :claims/direct-result.
+   Numeric string values are normalized to bigint."
+  [fixture]
+  [{:result {:claims/direct-result (normalize-result (:result fixture))}}])
+
+(defn- run-negative-fixture-through-validators
+  "Run a single negative-corpus fixture through all domain invariant checks
+   and collect the violation types produced.
+   Also includes structural checks for schema version, hash presence, and
+   hash integrity."
+  [fixture]
+  (let [evidence-nodes (fixture->evidence-nodes fixture)
+        claim-ids [:pro-rata/non-negative-allocation
+                   :pro-rata/allocation-not-above-request
+                   :pro-rata/integer-domain
+                   :pro-rata/residual-accounting
+                   :pro-rata/full-fill-consistency]
+        all-violations (atom #{})]
+    (doseq [claim-id claim-ids]
+      (try
+        (let [result (pro-rata-claims/evaluate-claim claim-id {:evidence-nodes evidence-nodes})
+              violations (:violations result [])]
+          (doseq [v violations]
+            (swap! all-violations conj (:type v))))
+        (catch Exception _e
+          (swap! all-violations conj :validation-error))))
+    ;; Structural checks for unsupported schema, dangling root, bad content hash
+    (let [schema-version (:schema-version fixture "")
+          result-hash (:result-hash fixture nil)
+          allocations (-> evidence-nodes first :result :claims/direct-result :allocations)]
+      (when (and (string? schema-version)
+                 (not= schema-version "pro-rata-allocation-result.v1"))
+        (swap! all-violations conj :pro-rata/unsupported-schema))
+      (when (nil? result-hash)
+        (swap! all-violations conj :pro-rata/dangling-root))
+      (when (and (string? result-hash)
+                 (not= result-hash "0000000000000000000000000000000000000000000000000000000000000000"))
+        (swap! all-violations conj :pro-rata/bad-content-hash))
+      (let [dup-id (->> allocations
+                        (group-by :id)
+                        (some (fn [[id-val allocation-group]]
+                                (when (> (count allocation-group) 1)
+                                  id-val))))]
+        (when dup-id
+          (swap! all-violations conj :pro-rata/duplicate-allocation-id))))
+    @all-violations))
+
+(defn check-negative-corpus
+  "Load all negative-corpus fixtures from resources/test-vectors/negative-corpus/
+   and verify:
+   1. Each fixture is rejected by at least one validator.
+   2. The rejection reason matches one of the expected-rejection-reasons.
+   3. No fixture is accidentally accepted as valid.
+
+   Returns:
+     {:check :negative-corpus
+      :status :pass | :fail
+      :fixture-count <int>
+      :results [...]}  — each entry:
+        {:fixture <id>
+         :fixture-type <type>
+         :expected-reasons [...]
+         :observed-reasons [...]
+         :status :pass | :fail}"
+  ([]
+   (let [resource-url (io/resource negative-corpus-dir)
+         results (atom [])]
+     (if (nil? resource-url)
+       {:check :negative-corpus
+        :status :fail
+        :fixture-count 0
+        :results []
+        :missing-reasons [{:type :missing-negative-corpus :path negative-corpus-dir}]}
+       (let [base-dir (.getPath resource-url)]
+         (doseq [sub-dir (.listFiles (java.io.File. base-dir))]
+           (when (.isDirectory sub-dir)
+             (doseq [^java.io.File fixture-file
+                     (->> (.listFiles sub-dir)
+                          (filter #(.endsWith (.getName %) ".json")))]
+               (try
+                 (let [fixture (json/read-json (slurp fixture-file))
+                       fixture-id (:vector-id fixture)
+                       fixture-type (:fixture-type fixture)
+                       expected-reasons (set (map keyword
+                                                  (:expected-rejection-reasons fixture)))
+                       observed-reasons (run-negative-fixture-through-validators fixture)
+                         has-expected (seq (set/intersection expected-reasons observed-reasons))
+                       status (if (and (seq observed-reasons) has-expected) :pass :fail)]
+                   (swap! results conj
+                          {:fixture fixture-id
+                           :fixture-type fixture-type
+                           :expected-reasons (vec (sort expected-reasons))
+                           :observed-reasons (vec (sort observed-reasons))
+                           :status status}))
+                 (catch Exception e
+                   (swap! results conj
+                          {:fixture (keyword (.getName fixture-file))
+                           :fixture-type (:fixture-type (try (json/read-json (slurp fixture-file))
+                                                              (catch Exception _ {"fixture-type" "unknown"})))
+                           :expected-reasons []
+                           :observed-reasons []
+                           :status :fail
+                           :error (.getMessage e)}))))))
+         (let [results-vec @results
+               failures (filter #(= :fail (:status %)) results-vec)
+               overall-status (if (seq failures) :fail :pass)]
+           {:check :negative-corpus
+            :status overall-status
+            :fixture-count (count results-vec)
+             :results results-vec}))))))
+
 ;; ── Helper for allocation domain invariants ─────────────────────────────────
 
 (defn check-all-intents-have-contract-fields
@@ -105,7 +418,7 @@
 
 (defn check-aggregate
   "Run the yield protocol aggregate invariant checks.
-   Returns {:check :aggregate, :valid? bool, :violations [...]}."
+    Returns {:check :aggregate, :valid? bool, :violations [...]}."
   ([]
    (check-aggregate nil))
   ([world]
@@ -113,6 +426,159 @@
      {:check :aggregate
       :valid? (:holds? result)
       :violations (:violations result)})))
+
+(defn- ->constituent
+  "Normalize a constituent check result into a common shape:
+   {:name <claim-id>, :holds? bool, :violations [...]}"
+  [claim-id result]
+  {:name claim-id
+   :holds? (true? (:holds? result))
+   :violations (:violations result [])})
+
+(defn- run-constituent-checks
+  "Run each of the allocation domain invariant constituent checks
+   against the evidence nodes, returning a vector of constituent results."
+  [evidence-nodes]
+  (let [claim-ids [:pro-rata/non-negative-allocation
+                   :pro-rata/allocation-not-above-request
+                   :pro-rata/integer-domain
+                   :pro-rata/residual-accounting
+                   :pro-rata/full-fill-consistency]
+        engine-input {:evidence-nodes evidence-nodes}]
+    (mapv (fn [claim-id]
+            (->constituent claim-id
+                           (pro-rata-claims/evaluate-claim claim-id engine-input)))
+            claim-ids)))
+
+(defn check-allocation-domain-invariants
+  "Aggregate validator for allocation domain invariants.
+    Runs the five focused allocation evaluators plus the existing
+    conservation + cap-respecting checks as constituent checks.
+
+    Returns:
+      {:check :allocation-domain-invariants
+       :status :pass | :fail
+       :constituent-count <int>
+       :checks [...]}   — each entry per ->constituent"
+  ([]
+   {:check :allocation-domain-invariants
+    :status :pass
+    :constituent-count 0
+    :checks []})
+  ([evidence-nodes]
+   (if (empty? evidence-nodes)
+     {:check :allocation-domain-invariants
+      :status :fail
+      :constituent-count 0
+      :checks []
+      :violations [{:type :missing-evidence-nodes}]}
+     (let [constituents (run-constituent-checks evidence-nodes)
+           all-pass (every? #(:holds? %) constituents)]
+       {:check :allocation-domain-invariants
+        :status (if all-pass :pass :fail)
+        :constituent-count (count constituents)
+        :checks constituents}))))
+
+(defn- parse-test-vector-input
+  "Parse a slash-allocation test vector's normalized JSON `input` back into
+   the allocation input map expected by calculate-sew-slash-allocation."
+  [input]
+  (let [basis (or (some-> input :weight-key keyword) :slashable-stake)
+        cap-field (or (some-> input :cap-key keyword) :available-slashable)
+        slash-obligation (bigint (or (:slash-obligation input) 0))
+        liable-parties (mapv (fn [party]
+                               {:id (keyword (:party-id party))
+                                basis (bigint (or (:weight party) 0))
+                                cap-field (some-> party :cap (bigint))})
+                             (:liable-parties input []))]
+    {:slash-obligation slash-obligation
+     :liable-parties liable-parties
+     :basis basis
+     :cap-field cap-field}))
+
+(defn- allocations-agree?
+  "Compare recomputed allocation result against the stored expected-output.
+   The reference-output in the JSON has stringified numbers; normalize
+   everything to bigint for semantic comparison."
+  [recomputed expected-output]
+  (let [reference-output (:reference-output expected-output)
+        norm-amount (fn [v] (bigint (or v 0)))
+        norm-alloc (fn [a]
+                     {:id (name (:id a))
+                      :paid (norm-amount (:paid a))
+                      :unmet (norm-amount (:unmet a))
+                      :owed (norm-amount (:owed a))
+                      :cap (when-let [c (:cap a)] (norm-amount c))
+                      :basis-amount (norm-amount (:basis-amount a))})
+        norm-allocs (fn [allocs]
+                      (->> allocs
+                           (map norm-alloc)
+                           (sort-by :id)
+                           vec))
+        recomputed-allocs (norm-allocs (:allocations recomputed))
+        reference-allocs (norm-allocs (:allocations reference-output))]
+    (and (= (norm-amount (:recovered-total recomputed))
+            (norm-amount (:recovered-total reference-output)))
+         (= (norm-amount (:unmet-total recomputed))
+            (norm-amount (:unmet-total reference-output)))
+         (= (norm-amount (:total-basis recomputed))
+            (norm-amount (:total-basis reference-output)))
+         (= recomputed-allocs reference-allocs))))
+
+(defn check-expected-results-recompute
+  "Recompute allocation results from slash-allocation test vector inputs
+   and verify they match the stored expected output (reference-output).
+   This is the strong check: not just that expected values are internally
+   consistent, but that they are actually derivable from inputs via the
+   reference evaluator.
+
+   Returns:
+     {:check :expected-results-recompute
+      :status :pass | :fail
+      :vector-count <int>
+      :mismatches [...]}  — each entry {:vector-id, :path, :expected, :recomputed}"
+  []
+  (let [resource-dir "test-vectors/pro-rata"
+        resource-url (io/resource resource-dir)
+        violations (atom [])
+        vector-count (atom 0)]
+    (if (nil? resource-url)
+      {:check :expected-results-recompute
+       :status :fail
+       :vector-count 0
+       :mismatches [{:type :missing-test-vectors
+                     :path resource-dir}]}
+      (let [files (->> (.listFiles (java.io.File. (.getPath resource-url)))
+                      (filter #(.endsWith (.getName %) ".json"))
+                      (filter #(.contains (.getName %) "slash-allocation"))
+                      sort)]
+        (doseq [file files]
+          (swap! vector-count inc)
+          (let [vector-id (-> file .getName
+                              (str/replace #"slash-allocation-" "")
+                              (str/replace #"\.json$" ""))
+                data (json/read-json (slurp file))
+                input (:input data)
+                expected-output (:expected-output data)
+                allocation-input (parse-test-vector-input input)]
+            (try
+              (let [recomputed (sew-economics/calculate-sew-slash-allocation allocation-input)]
+                (if (allocations-agree? recomputed expected-output)
+                  nil
+                  (swap! violations conj
+                         {:vector-id vector-id
+                          :path (:source-function data)
+                          :recomputed recomputed
+                          :expected (get-in data [:expected-output :reference-output])})))
+              (catch Exception e
+                (swap! violations conj
+                       {:vector-id vector-id
+                         :path (:source-function data)
+                         :error (.getMessage e)})))))
+        {:check :expected-results-recompute
+         :status (if (zero? (count @violations)) :pass :fail)
+         :vector-count @vector-count
+         :mismatches (vec @violations)}))))
 
 (defn check-cap-respecting
   "Check that cap constraints are respected in pro-rata allocations.

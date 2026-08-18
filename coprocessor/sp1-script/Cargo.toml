@@ -36,3 +36,7 @@ path = "src/bin/realized_statement_prove.rs"
 [[bin]]
 name = "realized-statement-verify"
 path = "src/bin/realized_statement_verify.rs"
+
+[[bin]]
+name = "realized-statement-evm"
+path = "src/bin/realized_statement_evm.rs"
