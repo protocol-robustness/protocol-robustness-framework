@@ -76,10 +76,10 @@
           key-path (write-key-file kp)
           input (write-input-file (base-input round))
           result (cmd/disagree {:cmd/args ["--input" input
-                                            "--member-key" "1"
-                                            "--key" key-path
-                                            "--dissent-reason"
-                                            "methodology concern"]})
+                                           "--member-key" "1"
+                                           "--key" key-path
+                                           "--dissent-reason"
+                                           "methodology concern"]})
           decision (:decision result)]
       (is (zero? (:exit-code result)))
       (is (= "researcher-b" (:researcher/id decision)))
@@ -96,10 +96,10 @@
           key-path (write-key-file kp)
           input (write-input-file (base-input round))
           result (cmd/disagree {:cmd/args ["--input" input
-                                            "--member-key" "9"
-                                            "--key" key-path
-                                            "--dissent-reason"
-                                            "test"]})]
+                                           "--member-key" "9"
+                                           "--key" key-path
+                                           "--dissent-reason"
+                                           "test"]})]
       (is (= 2 (:exit-code result)))
       (is (str/includes? (:message result) "not found")))))
 
@@ -120,9 +120,9 @@
           input (write-input-file (assoc (base-input round)
                                          :outcome/root outcome-root))
           result (cmd/approve {:cmd/args ["--input" input
-                                           "--member-key" "0"
-                                           "--key" key-path
-                                           "--outcome-root" outcome-root]})
+                                          "--member-key" "0"
+                                          "--key" key-path
+                                          "--outcome-root" outcome-root]})
           decision (:decision result)]
       (is (zero? (:exit-code result)))
       (is (= "researcher-a" (:researcher/id decision)))
@@ -136,8 +136,8 @@
           key-path (write-key-file kp)
           input (write-input-file (base-input round))
           result (cmd/approve {:cmd/args ["--input" input
-                                           "--member-key" "2"
-                                           "--key" key-path]})
+                                          "--member-key" "2"
+                                          "--key" key-path]})
           decision (:decision result)]
       (is (zero? (:exit-code result)))
       (is (= "researcher-c" (:researcher/id decision)))
@@ -207,8 +207,8 @@
   (testing "a scope map with invalid parameter attribution is classified
             :invalid-parameter-attribution"
     (let [bad-scope (assoc (valid-scope-map)
-                          :parameter/context {:parameter-context/type :unknown-type
-                                              :parameter-context/root "sha256:abcdef"})
+                           :parameter/context {:parameter-context/type :unknown-type
+                                               :parameter-context/root "sha256:abcdef"})
           hash (fa/force-authorisation-scope-hash bad-scope)
           record {:authorization/id "auth-001"
                   :authorization/status :active

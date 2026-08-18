@@ -190,15 +190,15 @@
                      :sequence (:sequence input)
                      :admission-status :admitted}
      :effects effects
-      :ordering-input {:transaction/action :prf.resubmission/admit-child
-                       :transaction/scope :resubmission-family
-                       :transaction/conflict-key [:resubmission-family (:chain/family-id state)]
-                       :transaction/expected {:chain-head parent-receipt-hash
-                                              :chain-version version}
-                       :transaction/observed {:chain-head parent-receipt-hash
-                                              :chain-version version}
-                       :transaction-ordering/schema ordering/ordering-v2-schema
-                       :transaction/input-root (command-input-root :prf.resubmission/admit-child input)}}))
+     :ordering-input {:transaction/action :prf.resubmission/admit-child
+                      :transaction/scope :resubmission-family
+                      :transaction/conflict-key [:resubmission-family (:chain/family-id state)]
+                      :transaction/expected {:chain-head parent-receipt-hash
+                                             :chain-version version}
+                      :transaction/observed {:chain-head parent-receipt-hash
+                                             :chain-version version}
+                      :transaction-ordering/schema ordering/ordering-v2-schema
+                      :transaction/input-root (command-input-root :prf.resubmission/admit-child input)}}))
 
 (defn- admit-child
   "Pure transition for :prf.resubmission/admit-child following the pinned
@@ -382,9 +382,9 @@
          :ordering-input {:transaction/action :prf.resubmission/apply-disposition
                           :transaction/scope :resubmission-family
                           :transaction/conflict-key [:resubmission-family (:chain/family-id state)]
-                           :transaction-ordering/schema ordering/ordering-v2-schema
-                           :transaction/input-root (command-input-root :prf.resubmission/apply-disposition input)
-                           :transaction/expected {:disposition-head cur-head
+                          :transaction-ordering/schema ordering/ordering-v2-schema
+                          :transaction/input-root (command-input-root :prf.resubmission/apply-disposition input)
+                          :transaction/expected {:disposition-head cur-head
                                                  :chain-version version}
                           :transaction/observed {:disposition-head cur-head
                                                  :chain-version version}}}))))

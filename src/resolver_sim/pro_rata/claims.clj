@@ -572,15 +572,15 @@
       {:holds? false :violations [{:type :missing-evidence-content}]}
       (let [result (direct-result content)
             violations (vec
-                         (mapcat (fn [alloc]
-                                   (let [allocated (long (or (:paid alloc) 0))
-                                         requested (long (or (:owed alloc) 0))]
-                                     (when (> allocated requested)
-                                       [{:type :pro-rata/allocation-above-request
-                                         :id (:id alloc)
-                                         :expected requested
-                                         :observed allocated}])))
-                                 (result->allocations result)))]
+                        (mapcat (fn [alloc]
+                                  (let [allocated (long (or (:paid alloc) 0))
+                                        requested (long (or (:owed alloc) 0))]
+                                    (when (> allocated requested)
+                                      [{:type :pro-rata/allocation-above-request
+                                        :id (:id alloc)
+                                        :expected requested
+                                        :observed allocated}])))
+                                (result->allocations result)))]
         (if (empty? violations)
           {:holds? true}
           {:holds? false
@@ -596,17 +596,17 @@
       (let [result (direct-result content)
             integer-fields [:owed :paid :unmet :cap :basis-amount]
             violations (vec
-                         (mapcat (fn [alloc]
-                                   (keep (fn [k]
-                                           (when-let [v (k alloc)]
-                                             (when-not (integer? v)
-                                               {:type :pro-rata/non-integer-field
-                                                :id (:id alloc)
-                                                :key k
-                                                :observed v
-                                                :type-of (type v)})))
-                                         integer-fields))
-                                 (result->allocations result)))]
+                        (mapcat (fn [alloc]
+                                  (keep (fn [k]
+                                          (when-let [v (k alloc)]
+                                            (when-not (integer? v)
+                                              {:type :pro-rata/non-integer-field
+                                               :id (:id alloc)
+                                               :key k
+                                               :observed v
+                                               :type-of (type v)})))
+                                        integer-fields))
+                                (result->allocations result)))]
         (if (empty? violations)
           {:holds? true}
           {:holds? false
@@ -653,20 +653,20 @@
       (let [result (direct-result content)
             allocations (result->allocations result)
             per-row-violations (vec
-                                 (keep (fn [alloc]
-                                         (let [owed (long (or (:owed alloc) 0))
-                                               paid (long (or (:paid alloc) 0))
-                                               unmet (long (or (:unmet alloc) 0))]
-                                           (cond
-                                             (and (pos? owed) (< paid owed) (zero? unmet))
-                                             {:type :pro-rata/partial-fill-without-unmet
-                                              :id (:id alloc)
-                                              :owed owed :paid paid :unmet unmet}
-                                             (and (zero? owed) (not (zero? paid)))
-                                             {:type :pro-rata/allocation-without-request
-                                              :id (:id alloc)
-                                              :paid paid :owed owed})))
-                                       allocations))
+                                (keep (fn [alloc]
+                                        (let [owed (long (or (:owed alloc) 0))
+                                              paid (long (or (:paid alloc) 0))
+                                              unmet (long (or (:unmet alloc) 0))]
+                                          (cond
+                                            (and (pos? owed) (< paid owed) (zero? unmet))
+                                            {:type :pro-rata/partial-fill-without-unmet
+                                             :id (:id alloc)
+                                             :owed owed :paid paid :unmet unmet}
+                                            (and (zero? owed) (not (zero? paid)))
+                                            {:type :pro-rata/allocation-without-request
+                                             :id (:id alloc)
+                                             :paid paid :owed owed})))
+                                      allocations))
             reported-unmet-total (long (or (:unmet-total result) 0))
             computed-unmet (reduce + 0 (map #(long (or (:unmet %) 0)) allocations))
             aggregate-violation (when (not= reported-unmet-total computed-unmet)
@@ -710,17 +710,17 @@
    :pro-rata/quota-bounded            check-quota-bounded
    :pro-rata/permutation-invariant    check-ordering-independent
    :pro-rata/cap-respecting           check-cap-respecting
-    :pro-rata/canonical-remainder-assignment check-canonical-remainder-assignment
-    :pro-rata/projection-diff          check-projection-diff
+   :pro-rata/canonical-remainder-assignment check-canonical-remainder-assignment
+   :pro-rata/projection-diff          check-projection-diff
     ;; Exact fill-ratio equality is not valid after integer largest-remainder
     ;; allocation. The registered claim uses the passive registry's bounded
     ;; partial-fill fairness definition.
-    :pro-rata/partial-fill-fairness check-partial-fill-fairness
-    :pro-rata/non-negative-allocation check-non-negative-allocation
-    :pro-rata/allocation-not-above-request check-allocation-not-above-request
-    :pro-rata/integer-domain check-integer-domain
-    :pro-rata/residual-accounting check-residual-accounting
-    :pro-rata/full-fill-consistency check-full-fill-consistency})
+   :pro-rata/partial-fill-fairness check-partial-fill-fairness
+   :pro-rata/non-negative-allocation check-non-negative-allocation
+   :pro-rata/allocation-not-above-request check-allocation-not-above-request
+   :pro-rata/integer-domain check-integer-domain
+   :pro-rata/residual-accounting check-residual-accounting
+   :pro-rata/full-fill-consistency check-full-fill-consistency})
 
 (defn evaluator-resolver
   "Resolve a claim-id to its evaluator function.

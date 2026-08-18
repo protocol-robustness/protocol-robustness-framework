@@ -620,7 +620,7 @@
                        ;; plan roots, evidence, or package projections.
                        :execution/claimant-parallelism (or (:execution/claimant-parallelism overrides) 1)
                        :execution/claimant-parallel-threshold (or (:execution/claimant-parallel-threshold overrides)
-                                                                   (hardening/claimant-parallel-threshold))
+                                                                  (hardening/claimant-parallel-threshold))
                        :execution/budget (:execution/budget overrides)
                        :execution/quiescence-timeout-seconds (hardening/quiescence-timeout-seconds
                                                               (:execution/quiescence-timeout-seconds overrides)))
@@ -739,7 +739,7 @@
    (CLI > env PRF_PARALLEL_CEILING > config :hardening :parallel-ceiling)."
   ([parallel? parallelism-opt scenario-count]
    (effective-parallelism parallel? parallelism-opt scenario-count
-                           (hardening/parallel-ceiling)))
+                          (hardening/parallel-ceiling)))
   ([parallel? parallelism-opt scenario-count ceiling]
    (if parallel?
      (if (some? parallelism-opt)
@@ -758,7 +758,7 @@
    an explicit --parallelism is honored exactly. Both commands accept an
    optional `--execution-budget` bounding TOTAL concurrent execution."
   [{:keys [output key run-root sensitivity-profile claim-registry execution-budget
-            parallel-ceiling quiescence-timeout-seconds] :as opts}]
+           parallel-ceiling quiescence-timeout-seconds] :as opts}]
   (let [benchmark-id (or (first (:cmd/args opts))
                          (:benchmark-id opts)
                          (:benchmark opts))

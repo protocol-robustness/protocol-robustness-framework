@@ -76,8 +76,8 @@
 ;; ── schema dispatch ───────────────────────────────────────────────────────────
 
 (defn ordering-schema-of
-   "Declared schema of an ordering record (defaults to v1 for bare v1 records)."
-   [ordering]
+  "Declared schema of an ordering record (defaults to v1 for bare v1 records)."
+  [ordering]
   (or (:transaction-ordering/schema ordering) ordering-schema))
 
 (defn v2?
@@ -163,7 +163,7 @@
    basis (a stale value carried through a projection is overwritten, not rejected);
    independent rejection of a mismatched committed identity lives in
    verify-ordering (recompute + compare), mirroring the command/hash discipline."
-   [inputs]
+  [inputs]
   (let [schema (ordering-schema-of inputs)
         base (merge {:transaction-ordering/schema schema} inputs)]
     (if (= schema ordering-v2-schema)

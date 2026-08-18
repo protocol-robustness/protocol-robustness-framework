@@ -379,7 +379,7 @@
                                (:transaction-ordering/hash o1)))
           result (ordering/verify-ordering-chain [o1 other-family])]
       (is (not (:valid? result)))
-       (is (some #(re-find #"conflict-key differs" %) (:errors result))))))
+      (is (some #(re-find #"conflict-key differs" %) (:errors result))))))
 
 ;; ── transaction-ordering.v2: change identity & input-root ──────────────────────
 
@@ -438,22 +438,22 @@
                                                      (:transaction/input base))]
         (is (= base-root
                (transition/command-input-root (:transaction/action with-version)
-                                            (:transaction/input with-version)))
+                                              (:transaction/input with-version)))
             "expected-chain-version (a concurrency guard) is absent from input-root")
         (is (= base-root
                (transition/command-input-root (:transaction/action with-seq)
-                                            (:transaction/input with-seq)))
+                                              (:transaction/input with-seq)))
             "sequence (a chain-position guard) is absent from input-root"))
       (let [base (disposition-cmd "sha256:R1" :withdrawn)
             with-head (assoc-in base [:transaction/input :expected-disposition-head] "sha256:HEAD")
             with-version (assoc-in base [:transaction/input :expected-chain-version] 1618)]
         (is (= (transition/command-input-root (:transaction/action base) (:transaction/input base))
                (transition/command-input-root (:transaction/action with-head)
-                                            (:transaction/input with-head)))
+                                              (:transaction/input with-head)))
             "expected-disposition-head (a concurrency guard) is absent from input-root")
         (is (= (transition/command-input-root (:transaction/action base) (:transaction/input base))
                (transition/command-input-root (:transaction/action with-version)
-                                            (:transaction/input with-version)))
+                                              (:transaction/input with-version)))
             "expected-chain-version (a concurrency guard) is absent from disposition input-root")))
     (testing "v2 verify rejects a forged change-identity"
       (let [forged (assoc o1 :transaction/change-identity "sha256:0000000000000000000000000000000000000000000000000000000000000000")]
@@ -475,7 +475,7 @@
             "distinct changes (different parents/basis) yield distinct change-identity")
         ;; per-record change-identity recompute catches a forged commit mid-chain
         (let [tampered-chain [o1 (assoc o2 :transaction/change-identity
-                                      "sha256:0000000000000000000000000000000000000000000000000000000000000000")]
+                                        "sha256:0000000000000000000000000000000000000000000000000000000000000000")]
               bad (ordering/verify-ordering-chain tampered-chain)]
           (is (false? (:valid? bad)))
           (is (some #(re-find #"change-identity" %) (:errors bad))))))))

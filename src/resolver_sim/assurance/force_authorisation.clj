@@ -211,13 +211,13 @@
                  (conj (validation-error :invalid-parameter-attribution
                                          (name (held-adjustment/parameter-attribution-error scope-map))))
 
-                  (scope-hash-missing? record)
-                  (conj (validation-error :missing-scope-hash
-                                          "Authorization record has no scope-hash"))
+                 (scope-hash-missing? record)
+                 (conj (validation-error :missing-scope-hash
+                                         "Authorization record has no scope-hash"))
 
-                  (scope-hash-mismatch? record scope-map)
-                  (conj (validation-error :scope-hash-mismatch
-                                          "Recorded scope-hash does not match recomputed scope-hash"))
+                 (scope-hash-mismatch? record scope-map)
+                 (conj (validation-error :scope-hash-mismatch
+                                         "Recorded scope-hash does not match recomputed scope-hash"))
 
                  (and (:authorization/scope record) (not= (:authorization/scope record) scope-map))
                  (conj (validation-error :scope-mismatch

@@ -625,7 +625,7 @@
         in-band-provenance-root (hc/hash-with-intent {:hash/intent :creation-provenance}
                                                      {:creation/provenance :in-band})
         out-of-band-provenance-root (hc/hash-with-intent {:hash/intent :creation-provenance}
-                                                          {:creation/provenance :out-of-band})]
+                                                         {:creation/provenance :out-of-band})]
     (is (not= in-band-provenance-root out-of-band-provenance-root)
         "Separately committed provenance roots differ for in-band vs out-of-band")
     (is (not (hc/intent-hash= {:hash/intent :creation-provenance

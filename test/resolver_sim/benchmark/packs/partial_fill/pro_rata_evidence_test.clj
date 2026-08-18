@@ -396,12 +396,12 @@
 
 (deftest v1-theorem-binding-fails-with-empty-supplied
   (let [manifest (om/build-manifest
-                   {:benchmark/content-root "sha256:cr"
-                    :benchmark/model-root "sha256:mr"
-                    :benchmark/evaluation-policy-root "sha256:eval"
-                    :execution/status :completed
-                    :outcomes/theorems [{:theorem/id :t1 :theorem/hash "sha256:t1"}]
-                    :results/operational {:conservation :pass}})
+                  {:benchmark/content-root "sha256:cr"
+                   :benchmark/model-root "sha256:mr"
+                   :benchmark/evaluation-policy-root "sha256:eval"
+                   :execution/status :completed
+                   :outcomes/theorems [{:theorem/id :t1 :theorem/hash "sha256:t1"}]
+                   :results/operational {:conservation :pass}})
         p (exec-ev/build-pro-rata-execution-evidence
            (exec-args :manifest manifest
                       :theorems []
@@ -412,12 +412,12 @@
 
 (deftest v1-conclusion-binding-fails-with-empty-supplied
   (let [manifest (om/build-manifest
-                   {:benchmark/content-root "sha256:cr"
-                    :benchmark/model-root "sha256:mr"
-                    :benchmark/evaluation-policy-root "sha256:eval"
-                    :execution/status :completed
-                    :outcomes/conclusions [{:conclusion/id :c1 :conclusion/hash "sha256:c1"}]
-                    :results/operational {:conservation :pass}})
+                  {:benchmark/content-root "sha256:cr"
+                   :benchmark/model-root "sha256:mr"
+                   :benchmark/evaluation-policy-root "sha256:eval"
+                   :execution/status :completed
+                   :outcomes/conclusions [{:conclusion/id :c1 :conclusion/hash "sha256:c1"}]
+                   :results/operational {:conservation :pass}})
         p (exec-ev/build-pro-rata-execution-evidence
            (exec-args :manifest manifest
                       :theorems []
@@ -428,13 +428,13 @@
 
 (deftest v1-binding-passes-when-supplied-matches-manifest
   (let [manifest (om/build-manifest
-                   {:benchmark/content-root "sha256:cr"
-                    :benchmark/model-root "sha256:mr"
-                    :benchmark/evaluation-policy-root "sha256:eval"
-                    :execution/status :completed
-                    :outcomes/theorems [{:theorem/id :t1 :theorem/hash "sha256:t1"}]
-                    :outcomes/conclusions [{:conclusion/id :c1 :conclusion/hash "sha256:c1"}]
-                    :results/operational {:conservation :pass}})
+                  {:benchmark/content-root "sha256:cr"
+                   :benchmark/model-root "sha256:mr"
+                   :benchmark/evaluation-policy-root "sha256:eval"
+                   :execution/status :completed
+                   :outcomes/theorems [{:theorem/id :t1 :theorem/hash "sha256:t1"}]
+                   :outcomes/conclusions [{:conclusion/id :c1 :conclusion/hash "sha256:c1"}]
+                   :results/operational {:conservation :pass}})
         p (exec-ev/build-pro-rata-execution-evidence
            (exec-args :manifest manifest
                       :theorems [{:theorem/id :t1 :theorem/hash "sha256:t1" :status :established}]

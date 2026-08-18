@@ -110,10 +110,10 @@
                        (.await snap-barrier)
                        {:ok true :world (update w :counter inc)})
         futures (doall
-                  (map (fn [_]
-                         (future
-                           (auth/cas-step! h transform-fn)))
-                        (range n)))]
+                 (map (fn [_]
+                        (future
+                          (auth/cas-step! h transform-fn)))
+                      (range n)))]
     (let [results (map deref futures)]
       (is (= n (count results)))
       (is (every? #(= :committed (:status %)) results))
@@ -132,10 +132,10 @@
                        (.await snap-barrier)
                        {:ok true :world (update w :counter inc)})
         futures (doall
-                  (map (fn [_]
-                         (future
-                           (auth/cas-step! h transform-fn)))
-                       (range 2)))]
+                 (map (fn [_]
+                        (future
+                          (auth/cas-step! h transform-fn)))
+                      (range 2)))]
     (let [results (map deref futures)
           sorted (sort-by :revision results)
           winner (first sorted)
@@ -198,7 +198,7 @@
                                       (update-in [:withdrawn :USDC] + requested))}
                           {:ok false :world w})))
         run (fn [_]
-               (auth/cas-step! h withdraw-fn))
+              (auth/cas-step! h withdraw-fn))
         results (doall (pmap run (range 2)))
         committed (filter #(= :committed (:status %)) results)
         rejected (filter #(= :rejected (:status %)) results)
@@ -236,7 +236,7 @@
                                          {:token :USDC :amount 50})}
                        {:ok false :world w})))
         run (fn [_]
-               (auth/cas-step! h apply-fn))
+              (auth/cas-step! h apply-fn))
         results (doall (pmap run (range 2)))
         committed (filter #(= :committed (:status %)) results)
         rejected (filter #(= :rejected (:status %)) results)

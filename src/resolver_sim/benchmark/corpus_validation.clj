@@ -13,11 +13,11 @@
             [resolver-sim.yield.invariants :as yield-invariants]
             [resolver-sim.yield.accounting :as yield-accounting]
             [resolver-sim.pro-rata.claims :as pro-rata-claims]
-             [resolver-sim.protocols.sew.economics :as sew-economics]
-             [resolver-sim.validation.scenario-registry :as scenario-registry]
-             [resolver-sim.hash.reference :as hash-ref]
-             [resolver-sim.hash.round-trip :as rt]
-             [resolver-sim.genesis :as genesis]))
+            [resolver-sim.protocols.sew.economics :as sew-economics]
+            [resolver-sim.validation.scenario-registry :as scenario-registry]
+            [resolver-sim.hash.reference :as hash-ref]
+            [resolver-sim.hash.round-trip :as rt]
+            [resolver-sim.genesis :as genesis]))
 
 ;; ── P0: Reference Closure Tests ───────────────────────────────────────────
 
@@ -113,10 +113,10 @@
           :with-bounty-public-result-v1
           :with-bounty-transition-evidence-v1
           :with-bounty-verification-basis-v1}
-         optional
-         #{:claim-result
-           :lab-parameter-root
-           :lab-withdrawal-fcfs
+        optional
+        #{:claim-result
+          :lab-parameter-root
+          :lab-withdrawal-fcfs
           :pool-reservation
           :pool-availability-v2
           :award-policy
@@ -151,8 +151,8 @@
     (doseq [dir ["src" "protocols_src"]
             :when (.exists (java.io.File. dir))]
       (doseq [f (->> (file-seq (java.io.File. dir))
-                    (filter #(.endsWith (.getName %) ".clj"))
-                    (filter #(.isFile %)))]
+                     (filter #(.endsWith (.getName %) ".clj"))
+                     (filter #(.isFile %)))]
         (let [content (slurp f)]
           (doseq [m (re-seq #":hash/intent\s+:([a-zA-Z0-9/-]+)" content)]
             (swap! exercised conj (keyword (second m)))))))
@@ -179,7 +179,7 @@
         all-intents (set (keys hash-intents))
         unexercised (set/difference all-intents exercised)
         required-but-unexercised (filter #(= :required (get intent-coverage-classification %))
-                                          unexercised)]
+                                         unexercised)]
     {:check :intent-coverage
      :status (if (seq required-but-unexercised) :fail :pass)
      :defined-intents (count all-intents)
@@ -216,9 +216,9 @@
         :contracts {}
         :missing-cases [{:type :missing-test-vectors :path slash-vector-dir}]}
        (let [files (->> (.listFiles (java.io.File. (.getPath resource-url)))
-                       (filter #(.endsWith (.getName %) ".json"))
-                       (filter #(.contains (.getName %) "slash-allocation"))
-                       sort)
+                        (filter #(.endsWith (.getName %) ".json"))
+                        (filter #(.contains (.getName %) "slash-allocation"))
+                        sort)
              contract-cases (atom {})]
          (doseq [^java.io.File file files]
            (let [data (json/read-json (slurp file))
@@ -230,10 +230,10 @@
                              :cases (conj (:cases existing)
                                           {:vector-id (:vector-id data)
                                            :tags tags}))))))
-          {:check :contract-case-coverage
-           :status :pass
-           :contracts @contract-cases
-           :missing-cases []})))))
+         {:check :contract-case-coverage
+          :status :pass
+          :contracts @contract-cases
+          :missing-cases []})))))
 
 ;; ── P1: Negative corpus / rejection witnesses ────────────────────────────────
 
@@ -265,7 +265,7 @@
                                           (if (map? item)
                                             (normalize-result item)
                                             item))
-                                       v)]
+                                        v)]
                (string? v) (try
                              [k (bigint v)]
                              (catch NumberFormatException _
@@ -361,7 +361,7 @@
                        expected-reasons (set (map keyword
                                                   (:expected-rejection-reasons fixture)))
                        observed-reasons (run-negative-fixture-through-validators fixture)
-                         has-expected (seq (set/intersection expected-reasons observed-reasons))
+                       has-expected (seq (set/intersection expected-reasons observed-reasons))
                        status (if (and (seq observed-reasons) has-expected) :pass :fail)]
                    (swap! results conj
                           {:fixture fixture-id
@@ -373,7 +373,7 @@
                    (swap! results conj
                           {:fixture (keyword (.getName fixture-file))
                            :fixture-type (:fixture-type (try (json/read-json (slurp fixture-file))
-                                                              (catch Exception _ {"fixture-type" "unknown"})))
+                                                             (catch Exception _ {"fixture-type" "unknown"})))
                            :expected-reasons []
                            :observed-reasons []
                            :status :fail
@@ -384,7 +384,7 @@
            {:check :negative-corpus
             :status overall-status
             :fixture-count (count results-vec)
-             :results results-vec}))))))
+            :results results-vec}))))))
 
 ;; ── Helper for allocation domain invariants ─────────────────────────────────
 
@@ -451,7 +451,7 @@
     (mapv (fn [claim-id]
             (->constituent claim-id
                            (pro-rata-claims/evaluate-claim claim-id engine-input)))
-            claim-ids)))
+          claim-ids)))
 
 (defn check-allocation-domain-invariants
   "Aggregate validator for allocation domain invariants.
@@ -552,9 +552,9 @@
        :mismatches [{:type :missing-test-vectors
                      :path resource-dir}]}
       (let [files (->> (.listFiles (java.io.File. (.getPath resource-url)))
-                      (filter #(.endsWith (.getName %) ".json"))
-                      (filter #(.contains (.getName %) "slash-allocation"))
-                      sort)]
+                       (filter #(.endsWith (.getName %) ".json"))
+                       (filter #(.contains (.getName %) "slash-allocation"))
+                       sort)]
         (doseq [file files]
           (swap! vector-count inc)
           (let [vector-id (-> file .getName
@@ -576,8 +576,8 @@
               (catch Exception e
                 (swap! violations conj
                        {:vector-id vector-id
-                         :path (:source-function data)
-                         :error (.getMessage e)})))))
+                        :path (:source-function data)
+                        :error (.getMessage e)})))))
         {:check :expected-results-recompute
          :status (if (zero? (count @violations)) :pass :fail)
          :vector-count @vector-count
@@ -654,17 +654,17 @@
       (when (seq duplicate-ids)
         (swap! errors conj {:type :duplicate-benchmark-ids :ids duplicate-ids})))
     (when (seq @errors)
-       (throw (ex-info "Benchmark corpus validation failed" {:errors @errors})))
-      {:packs (count (:packs registry))
-       :benchmarks (count @manifests)
-       :hash-intent-count (count canonical/hash-intents)
-       :content-root (hash-ref/sha256-ref (canonical/domain-hash "corpus-registry" registry))
-       :reference-closure-root (hash-ref/sha256-ref
-                                (canonical/domain-hash "reference-closure"
-                                  (scenario-registry/validate-file-backed-suite-registry!)))
-       :verification-profile "corpus-verification.v2"
-       :schema-version "benchmark-corpus.v1"
-       :status :passed}))
+      (throw (ex-info "Benchmark corpus validation failed" {:errors @errors})))
+    {:packs (count (:packs registry))
+     :benchmarks (count @manifests)
+     :hash-intent-count (count canonical/hash-intents)
+     :content-root (hash-ref/sha256-ref (canonical/domain-hash "corpus-registry" registry))
+     :reference-closure-root (hash-ref/sha256-ref
+                              (canonical/domain-hash "reference-closure"
+                                                     (scenario-registry/validate-file-backed-suite-registry!)))
+     :verification-profile "corpus-verification.v2"
+     :schema-version "benchmark-corpus.v1"
+     :status :passed}))
 
 ;; ── P1: Order independence ────────────────────────────────────────────────────
 
@@ -794,7 +794,7 @@
        :status :fail
        :vector-count 0
        :error (.getMessage e)
-        :mismatched [{:type :exception :error (.getMessage e)}]})))
+       :mismatched [{:type :exception :error (.getMessage e)}]})))
 
 ;; ── P1: Corpus manifest / root ────────────────────────────────────────────────
 
@@ -821,8 +821,8 @@
             (catch Exception _)))))
     {:reference-count (+ hash-intent-count (count @event-actions) (count @claim-ids))
      :references (concat (sort (keys canonical/hash-intents))
-                        (sort @event-actions)
-                        (sort @claim-ids))}))
+                         (sort @event-actions)
+                         (sort @claim-ids))}))
 
 (defn- semantic-projection-of
   "Project a generic check result into a canonical, order-independent shape
@@ -913,10 +913,10 @@
                 :order-independence (check-order-independence)
                 :verification-fixed-point (check-verification-fixed-point)}
         check-statuses (into (sorted-map)
-                            (map (fn [[k v]]
-                                   [k {:check (:check v)
-                                      :status (check-result->status v)}]))
-                            checks)
+                             (map (fn [[k v]]
+                                    [k {:check (:check v)
+                                        :status (check-result->status v)}]))
+                             checks)
         all-pass (every? #(= :pass (:status (val %))) check-statuses)
         corpus-summary (validate-corpus!)
         ref-info (collect-references)
@@ -932,11 +932,11 @@
                   :corpus/status (if all-pass :verified :failed)
                   :corpus/schema-version "benchmark-corpus.v1"}
         verification-hash (canonical/domain-hash "verification-profile"
-                              (semantic-projection-of
-                                (into (sorted-map) check-statuses)))]
+                                                 (semantic-projection-of
+                                                  (into (sorted-map) check-statuses)))]
     {:check :corpus
      :status (if all-pass :pass :fail)
-      :manifest manifest
-      :verification-root (hash-ref/sha256-ref verification-hash)
-       :semantic-checks (count check-statuses)
-       :all-checks-pass? all-pass}))
+     :manifest manifest
+     :verification-root (hash-ref/sha256-ref verification-hash)
+     :semantic-checks (count check-statuses)
+     :all-checks-pass? all-pass}))

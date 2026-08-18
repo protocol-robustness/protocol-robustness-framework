@@ -387,13 +387,13 @@
   [{:keys [execution-id policy-id parent-hashes bootstrap-roots timestamp
            status inputs outputs failure-details attestations extensions
            execution-kind runner creation-provenance]
-     :or {policy-id default-policy-id
-          parent-hashes []
-          bootstrap-roots []
-          timestamp (now-iso)
-          attestations []
-          extensions {}
-          creation-provenance default-creation-provenance}}]
+    :or {policy-id default-policy-id
+         parent-hashes []
+         bootstrap-roots []
+         timestamp (now-iso)
+         attestations []
+         extensions {}
+         creation-provenance default-creation-provenance}}]
   (let [execution-entry' (or (execution-entry execution-id)
                              (throw (ex-info "Unknown execution id" {:execution-id execution-id})))
         policy-entry' (or (evidence-policy-entry policy-id)
@@ -409,13 +409,13 @@
               :parent-hashes (vec parent-hashes)
               :bootstrap-roots (vec bootstrap-roots)
               :timestamp timestamp
-:execution {:execution-id execution-id
-                           :execution-kind (or execution-kind (:kind execution-entry'))
-                           :runner (or runner (:runner execution-entry'))
-                           :registry-hash (execution-registry-hash)
-                           :policy-id policy-id
-                           :policy-hash (evidence-policy-hash policy-id)
-                           :creation/provenance creation-provenance}
+              :execution {:execution-id execution-id
+                          :execution-kind (or execution-kind (:kind execution-entry'))
+                          :runner (or runner (:runner execution-entry'))
+                          :registry-hash (execution-registry-hash)
+                          :policy-id policy-id
+                          :policy-hash (evidence-policy-hash policy-id)
+                          :creation/provenance creation-provenance}
               :result {:status status
                        :summary summary}
               :evidence {:inputs-hash (hash-content inputs)
@@ -1094,9 +1094,9 @@
      :status (get-in node [:result :status])
      :parent-hashes (vec (:parent-hashes node))
      :bootstrap-roots (vec (:bootstrap-roots node))
-:record-hash (:record-hash node)
-      :schema-version (:schema-version node)
-      :creation-provenance (get-in node [:execution :creation/provenance])}))
+     :record-hash (:record-hash node)
+     :schema-version (:schema-version node)
+     :creation-provenance (get-in node [:execution :creation/provenance])}))
 
 (defn build-dag-index
   "Build a navigation index from a collection of evidence DAG nodes.

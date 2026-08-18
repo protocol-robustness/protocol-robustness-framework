@@ -274,16 +274,16 @@
    :prf-submission-attempt-receipt-v1 "prf.submission-attempt-receipt.v1"
    :prf-submission-basis-v1           "prf.submission-basis.v1"
    :prf-submission-bundle-v1          "prf.submission-bundle.v1"
-  :prf-transaction-effects-v1        "prf.transaction-effects.v1"
-  :prf-transaction-input-v1         "prf.transaction-input.v1"
-  :prf-transaction-ordering-change-identity-v1 "prf.transaction-ordering-change-identity.v1"
-  :prf-transaction-ordering-v1       "prf.transaction-ordering.v1"
-    :related-claims-member             "related-claims-member"
-    :withdrawal-ledger-v1              "withdrawal-ledger.v1"
-    :prf-protocol-genesis-v1           "PRF_PROTOCOL_GENESIS_V1"
-    :prf-chain-instance-genesis-v1     "PRF_CHAIN_INSTANCE_GENESIS_V1"
-    :prf-chain-configuration-v1        "PRF_CHAIN_CONFIGURATION_V1"
-    :prf-chain-configuration-transition-v1 "PRF_CHAIN_CONFIGURATION_TRANSITION_V1"})
+   :prf-transaction-effects-v1        "prf.transaction-effects.v1"
+   :prf-transaction-input-v1         "prf.transaction-input.v1"
+   :prf-transaction-ordering-change-identity-v1 "prf.transaction-ordering-change-identity.v1"
+   :prf-transaction-ordering-v1       "prf.transaction-ordering.v1"
+   :related-claims-member             "related-claims-member"
+   :withdrawal-ledger-v1              "withdrawal-ledger.v1"
+   :prf-protocol-genesis-v1           "PRF_PROTOCOL_GENESIS_V1"
+   :prf-chain-instance-genesis-v1     "PRF_CHAIN_INSTANCE_GENESIS_V1"
+   :prf-chain-configuration-v1        "PRF_CHAIN_CONFIGURATION_V1"
+   :prf-chain-configuration-transition-v1 "PRF_CHAIN_CONFIGURATION_TRANSITION_V1"})
 
 ;; ──────────────────────────────────────────────────────────────────────────────
 ;; varuint Encoding (LEB128, little-endian base-128)
@@ -1640,11 +1640,11 @@
         gov (:governance value)
         base (select-keys value chain-instance-genesis-fields)]
     (project-canonical-safe
-      (cond-> base
-        (map? cp) (assoc :control-plane
-                         (select-keys cp chain-instance-genesis-control-plane-fields))
-        (map? gov) (assoc :governance
-                          (select-keys gov chain-instance-genesis-governance-fields))))))
+     (cond-> base
+       (map? cp) (assoc :control-plane
+                        (select-keys cp chain-instance-genesis-control-plane-fields))
+       (map? gov) (assoc :governance
+                         (select-keys gov chain-instance-genesis-governance-fields))))))
 
 (def chain-configuration-fields
   "Ordered identity fields of chain-configuration.v1. All values are opaque
@@ -2066,25 +2066,25 @@ name (an alias)."
     :intent/projection-fn project-attestor
     :intent/version     1}
 
-:evidence-node
-    {:intent/name        :evidence-node
-     :intent/domain-tag  "EVIDENCE_NODE_V1"
-     :intent/description "Canonical identity of an execution evidence node"
-     :intent/includes    #{:schema-version :parent-hashes :bootstrap-roots
-                           :execution :result :evidence :attestations :extensions}
-     :intent/excludes    #{:node-id :node-hash :timestamp :policy-output
-                           :visible-failures :filtered-output :runtime-values}
-     :intent/projection-fn project-evidence-node
-     :intent/version     1}
+   :evidence-node
+   {:intent/name        :evidence-node
+    :intent/domain-tag  "EVIDENCE_NODE_V1"
+    :intent/description "Canonical identity of an execution evidence node"
+    :intent/includes    #{:schema-version :parent-hashes :bootstrap-roots
+                          :execution :result :evidence :attestations :extensions}
+    :intent/excludes    #{:node-id :node-hash :timestamp :policy-output
+                          :visible-failures :filtered-output :runtime-values}
+    :intent/projection-fn project-evidence-node
+    :intent/version     1}
 
    :creation-provenance
-    {:intent/name        :creation-provenance
-     :intent/domain-tag  "CREATION_PROVENANCE_V1"
-     :intent/description "Domain-separated identity for a creation provenance commitment"
-     :intent/includes    #{:creation/provenance}
-     :intent/excludes    #{}
-     :intent/projection-fn project-creation-provenance
-     :intent/version     1}
+   {:intent/name        :creation-provenance
+    :intent/domain-tag  "CREATION_PROVENANCE_V1"
+    :intent/description "Domain-separated identity for a creation provenance commitment"
+    :intent/includes    #{:creation/provenance}
+    :intent/excludes    #{}
+    :intent/projection-fn project-creation-provenance
+    :intent/version     1}
 
    :decision-evidence
    {:intent/name        :decision-evidence
@@ -2450,65 +2450,65 @@ name (an alias)."
     :intent/projection-fn project-identity
     :intent/version     1}
 
-    :research-command-trace-v2
-    {:intent/name        :research-command-trace-v2
-     :intent/domain-tag  "RESEARCH_COMMAND_TRACE_V2"
-     :intent/description "Research-command-trace.v2 root over a canonical-value-sequence.v1 commitment with an explicit :purpose"
-     :intent/includes    #{:trace/schema-version :trace/purpose :trace/component-count
-                           :trace/components}
-     :intent/excludes    #{:trace/root :timestamps :runtime-values :functions}
-     :intent/projection-fn project-identity
-     :intent/version     1}
+   :research-command-trace-v2
+   {:intent/name        :research-command-trace-v2
+    :intent/domain-tag  "RESEARCH_COMMAND_TRACE_V2"
+    :intent/description "Research-command-trace.v2 root over a canonical-value-sequence.v1 commitment with an explicit :purpose"
+    :intent/includes    #{:trace/schema-version :trace/purpose :trace/component-count
+                          :trace/components}
+    :intent/excludes    #{:trace/root :timestamps :runtime-values :functions}
+    :intent/projection-fn project-identity
+    :intent/version     1}
 
-    :prf-protocol-genesis-v1
-    {:intent/name        :prf-protocol-genesis-v1
-     :intent/domain-tag  "PRF_PROTOCOL_GENESIS_V1"
-     :intent/description "Canonical SHA-256 identity of a protocol-genesis.v1 constitutional protocol artifact"
-     :intent/includes    #{:genesis/schema :protocol/id :canonicalisation/root
-                           :semantics/root :governance/constitution-root
-                           :governance/evolution-policy-root :configuration/contract-root
-                           :evidence/contract-root :verification/contract-root
-                           :cross-domain/authority-policy-root}
-     :intent/excludes    #{:runtime-values :functions :deployment-metadata :timestamps}
-     :intent/projection-fn project-protocol-genesis
-     :intent/version     1}
+   :prf-protocol-genesis-v1
+   {:intent/name        :prf-protocol-genesis-v1
+    :intent/domain-tag  "PRF_PROTOCOL_GENESIS_V1"
+    :intent/description "Canonical SHA-256 identity of a protocol-genesis.v1 constitutional protocol artifact"
+    :intent/includes    #{:genesis/schema :protocol/id :canonicalisation/root
+                          :semantics/root :governance/constitution-root
+                          :governance/evolution-policy-root :configuration/contract-root
+                          :evidence/contract-root :verification/contract-root
+                          :cross-domain/authority-policy-root}
+    :intent/excludes    #{:runtime-values :functions :deployment-metadata :timestamps}
+    :intent/projection-fn project-protocol-genesis
+    :intent/version     1}
 
-     :prf-chain-instance-genesis-v1
-     {:intent/name        :prf-chain-instance-genesis-v1
-      :intent/domain-tag  "PRF_CHAIN_INSTANCE_GENESIS_V1"
-      :intent/description "Canonical SHA-256 identity of a chain-instance-genesis.v1 execution instance"
-      :intent/includes    #{:genesis/schema :protocol/genesis-root :execution/chain-id
-                            :settlement/chain-id :control-plane :governance
-                            :configuration/initial-root}
-      :intent/excludes    #{:runtime-values :functions :deployment-metadata
-                            :block-context :timestamps}
-      :intent/projection-fn project-chain-instance-genesis
-      :intent/version     1}
+   :prf-chain-instance-genesis-v1
+   {:intent/name        :prf-chain-instance-genesis-v1
+    :intent/domain-tag  "PRF_CHAIN_INSTANCE_GENESIS_V1"
+    :intent/description "Canonical SHA-256 identity of a chain-instance-genesis.v1 execution instance"
+    :intent/includes    #{:genesis/schema :protocol/genesis-root :execution/chain-id
+                          :settlement/chain-id :control-plane :governance
+                          :configuration/initial-root}
+    :intent/excludes    #{:runtime-values :functions :deployment-metadata
+                          :block-context :timestamps}
+    :intent/projection-fn project-chain-instance-genesis
+    :intent/version     1}
 
-     :prf-chain-configuration-v1
-     {:intent/name        :prf-chain-configuration-v1
-      :intent/domain-tag  "PRF_CHAIN_CONFIGURATION_V1"
-      :intent/description "Canonical SHA-256 identity of a chain-configuration.v1 semantic configuration state"
-      :intent/includes    #{:configuration/schema
-                            :module-registry/root :verifier-registry/root
-                            :evidence-policy/root :escrow-template-registry/root
-                            :parameter-policy/root :governance-policy/root
-                            :interoperability-policy/root}
-      :intent/excludes    #{:runtime-values :functions :deployment-metadata :timestamps}
-      :intent/projection-fn project-chain-configuration
-      :intent/version     1}
+   :prf-chain-configuration-v1
+   {:intent/name        :prf-chain-configuration-v1
+    :intent/domain-tag  "PRF_CHAIN_CONFIGURATION_V1"
+    :intent/description "Canonical SHA-256 identity of a chain-configuration.v1 semantic configuration state"
+    :intent/includes    #{:configuration/schema
+                          :module-registry/root :verifier-registry/root
+                          :evidence-policy/root :escrow-template-registry/root
+                          :parameter-policy/root :governance-policy/root
+                          :interoperability-policy/root}
+    :intent/excludes    #{:runtime-values :functions :deployment-metadata :timestamps}
+    :intent/projection-fn project-chain-configuration
+    :intent/version     1}
 
-     :prf-chain-configuration-transition-v1
-     {:intent/name        :prf-chain-configuration-transition-v1
-      :intent/domain-tag  "PRF_CHAIN_CONFIGURATION_TRANSITION_V1"
-      :intent/description "Canonical SHA-256 identity of a chain-configuration-transition.v1 governance transition"
-       :intent/includes    #{:transition/schema :protocol/genesis-root :target
-                             :configuration/parent-root :configuration/new-root
-                             :verifier-registry/root :epoch}
-      :intent/excludes    #{:runtime-values :functions :deployment-metadata
-                            :block-context :timestamps}
-      :intent/projection-fn project-chain-configuration-transition
-      :intent/version     1}})
+   :prf-chain-configuration-transition-v1
+   {:intent/name        :prf-chain-configuration-transition-v1
+    :intent/domain-tag  "PRF_CHAIN_CONFIGURATION_TRANSITION_V1"
+    :intent/description "Canonical SHA-256 identity of a chain-configuration-transition.v1 governance transition"
+    :intent/includes    #{:transition/schema :protocol/genesis-root :target
+                          :configuration/parent-root :configuration/new-root
+                          :verifier-registry/root :epoch}
+    :intent/excludes    #{:runtime-values :functions :deployment-metadata
+                          :block-context :timestamps}
+    :intent/projection-fn project-chain-configuration-transition
+    :intent/version     1}})
 
 (defn resolve-intent
   "Look up an intent contract by keyword name from the registry.

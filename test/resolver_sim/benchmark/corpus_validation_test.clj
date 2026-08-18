@@ -1,7 +1,7 @@
 (ns resolver-sim.benchmark.corpus-validation-test
   (:require [clojure.test :refer [deftest is]]
-             [resolver-sim.benchmark.corpus-validation :as corpus-validation]
-             [resolver-sim.yield.invariants :as yield-invariants]))
+            [resolver-sim.benchmark.corpus-validation :as corpus-validation]
+            [resolver-sim.yield.invariants :as yield-invariants]))
 
 (deftest registry-reachable-benchmark-corpus-is-classpath-loadable
   (let [result (corpus-validation/validate-corpus!)]
@@ -119,12 +119,12 @@
 
 (deftest check-non-negative-allocation-passes
   (let [evidence (make-direct-evidence-node
-                    {:available 150
-                     :recovered-total 100
-                     :unmet-total 50
-                     :remainder 0
-                     :allocations [{:id :a :paid 100 :unmet 0 :owed 100 :cap 1000 :basis-amount 100}
-                                   {:id :b :paid 50 :unmet 50 :owed 100 :cap 100 :basis-amount 100}]})
+                  {:available 150
+                   :recovered-total 100
+                   :unmet-total 50
+                   :remainder 0
+                   :allocations [{:id :a :paid 100 :unmet 0 :owed 100 :cap 1000 :basis-amount 100}
+                                 {:id :b :paid 50 :unmet 50 :owed 100 :cap 100 :basis-amount 100}]})
         result (corpus-validation/check-allocation-domain-invariants evidence)
         nn-check (first (filter #(= (:name %) :pro-rata/non-negative-allocation) (:checks result)))]
     (is (= :pass (:status result)))
@@ -132,7 +132,7 @@
 
 (deftest check-non-negative-allocation-fails-on-negative
   (let [evidence (make-direct-evidence-node
-                    {:allocations [{:id :a :paid -5 :unmet 0 :owed 100 :cap 1000 :basis-amount 100}]})
+                  {:allocations [{:id :a :paid -5 :unmet 0 :owed 100 :cap 1000 :basis-amount 100}]})
         result (corpus-validation/check-allocation-domain-invariants evidence)
         nn-check (first (filter #(= (:name %) :pro-rata/non-negative-allocation) (:checks result)))]
     (is (= :fail (:status result)))
@@ -141,7 +141,7 @@
 
 (deftest check-allocation-not-above-request-fails
   (let [evidence (make-direct-evidence-node
-                    {:allocations [{:id :a :paid 150 :owed 100 :unmet 0 :cap 1000}]})
+                  {:allocations [{:id :a :paid 150 :owed 100 :unmet 0 :cap 1000}]})
         result (corpus-validation/check-allocation-domain-invariants evidence)
         req-check (first (filter #(= (:name %) :pro-rata/allocation-not-above-request) (:checks result)))]
     (is (= :fail (:status result)))
@@ -149,7 +149,7 @@
 
 (deftest check-integer-domain-fails-on-non-integer
   (let [evidence (make-direct-evidence-node
-                    {:allocations [{:id :a :paid 100.5 :unmet 0 :owed 100 :cap 1000}]})
+                  {:allocations [{:id :a :paid 100.5 :unmet 0 :owed 100 :cap 1000}]})
         result (corpus-validation/check-allocation-domain-invariants evidence)
         dom-check (first (filter #(= (:name %) :pro-rata/integer-domain) (:checks result)))]
     (is (= :fail (:status result)))
@@ -157,11 +157,11 @@
 
 (deftest check-residual-accounting-passes
   (let [evidence (make-direct-evidence-node
-                    {:available 150
-                     :recovered-total 100
-                     :unmet-total 50
-                     :remainder 0
-                     :allocations [{:id :a :paid 100 :unmet 50 :owed 100 :cap 1000}]})
+                  {:available 150
+                   :recovered-total 100
+                   :unmet-total 50
+                   :remainder 0
+                   :allocations [{:id :a :paid 100 :unmet 50 :owed 100 :cap 1000}]})
         result (corpus-validation/check-allocation-domain-invariants evidence)
         resid-check (first (filter #(= (:name %) :pro-rata/residual-accounting) (:checks result)))]
     (is (= :pass (:status result)))
@@ -169,11 +169,11 @@
 
 (deftest check-residual-accounting-fails
   (let [evidence (make-direct-evidence-node
-                    {:available 200
-                     :recovered-total 100
-                     :unmet-total 50
-                     :remainder 0
-                     :allocations [{:id :a :paid 100 :unmet 50 :owed 100 :cap 1000}]})
+                  {:available 200
+                   :recovered-total 100
+                   :unmet-total 50
+                   :remainder 0
+                   :allocations [{:id :a :paid 100 :unmet 50 :owed 100 :cap 1000}]})
         result (corpus-validation/check-allocation-domain-invariants evidence)
         resid-check (first (filter #(= (:name %) :pro-rata/residual-accounting) (:checks result)))]
     (is (= :fail (:status result)))
@@ -181,8 +181,8 @@
 
 (deftest check-full-fill-consistency-fails-on-partial-without-unmet
   (let [evidence (make-direct-evidence-node
-                    {:allocations [{:id :a :paid 50 :unmet 0 :owed 100 :cap 1000}]
-                     :unmet-total 0})
+                  {:allocations [{:id :a :paid 50 :unmet 0 :owed 100 :cap 1000}]
+                   :unmet-total 0})
         result (corpus-validation/check-allocation-domain-invariants evidence)
         fill-check (first (filter #(= (:name %) :pro-rata/full-fill-consistency) (:checks result)))]
     (is (= :fail (:status result)))
@@ -190,11 +190,11 @@
 
 (deftest check-allocation-domain-invariants-passes-with-full-evidence
   (let [evidence (make-direct-evidence-node
-                    {:available 100
-                     :recovered-total 100
-                     :unmet-total 0
-                     :remainder 0
-                     :allocations [{:id :a :paid 100 :unmet 0 :owed 100 :cap 1000 :basis-amount 100}]})
+                  {:available 100
+                   :recovered-total 100
+                   :unmet-total 0
+                   :remainder 0
+                   :allocations [{:id :a :paid 100 :unmet 0 :owed 100 :cap 1000 :basis-amount 100}]})
         result (corpus-validation/check-allocation-domain-invariants evidence)]
     (is (= :pass (:status result)))
     (is (= 5 (:constituent-count result)))
@@ -202,9 +202,9 @@
 
 (deftest check-allocation-domain-invariants-default-no-evidence
   (let [result (corpus-validation/check-allocation-domain-invariants)]
-     (is (= :allocation-domain-invariants (:check result)))
-     (is (= :pass (:status result)))
-     (is (zero? (:constituent-count result)))))
+    (is (= :allocation-domain-invariants (:check result)))
+    (is (= :pass (:status result)))
+    (is (zero? (:constituent-count result)))))
 
 ;; ── Expected results recompute ─────────────────────────────────────────────
 
@@ -218,15 +218,15 @@
 
 ;; ── Negative corpus / rejection witnesses ────────────────────────────────────
 
-(deftest check-negative-corpus-rejects-all-fixtures
-  (let [result (corpus-validation/check-negative-corpus)]
-    (is (= :negative-corpus (:check result)))
-    (is (= :pass (:status result)))
-    (is (pos? (:fixture-count result))
-        (str "Should have negative fixtures. Results: " (:results result)))
-    (is (every? #(= :pass (:status %)) (:results result))
-        (str "All negative fixtures should pass. Results: "
-             (map #(select-keys % [:fixture :status :expected-reasons :observed-reasons])
+  (deftest check-negative-corpus-rejects-all-fixtures
+    (let [result (corpus-validation/check-negative-corpus)]
+      (is (= :negative-corpus (:check result)))
+      (is (= :pass (:status result)))
+      (is (pos? (:fixture-count result))
+          (str "Should have negative fixtures. Results: " (:results result)))
+      (is (every? #(= :pass (:status %)) (:results result))
+          (str "All negative fixtures should pass. Results: "
+               (map #(select-keys % [:fixture :status :expected-reasons :observed-reasons])
                     (:results result)))))))
 
 ;; ── P1: Order independence ────────────────────────────────────────────────────
@@ -271,12 +271,12 @@
       (is (= "corpus-verification.v2" (:corpus/verification-profile manifest)))
       (is (= :verified (:corpus/status manifest)))))
 
-(deftest check-verifier-registry-consistency-passes
-  (let [result (corpus-validation/check-verifier-registry-consistency)]
-    (is (= :verifier-registry-consistency (:check result)))
-    (is (= :pass (:status result))
-        (str "Verifier registry roots should be consistent. Error: "
-             (:error result)))
-    (is (boolean (:matches? result)))
-    (is (some? (:configuration-verifier-root result)))
-    (is (some? (:transition-verifier-root result))))))
+  (deftest check-verifier-registry-consistency-passes
+    (let [result (corpus-validation/check-verifier-registry-consistency)]
+      (is (= :verifier-registry-consistency (:check result)))
+      (is (= :pass (:status result))
+          (str "Verifier registry roots should be consistent. Error: "
+               (:error result)))
+      (is (boolean (:matches? result)))
+      (is (some? (:configuration-verifier-root result)))
+      (is (some? (:transition-verifier-root result))))))

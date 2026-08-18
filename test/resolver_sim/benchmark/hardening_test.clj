@@ -20,7 +20,7 @@
   (testing "PRF_* env vars override the config defaults"
     (is (= 12 (hardening/parallel-ceiling nil {"PRF_PARALLEL_CEILING" "12"})))
     (is (= 45 (hardening/quiescence-timeout-seconds nil
-                                                   {"PRF_QUIESCENCE_TIMEOUT_SECONDS" "45"})))
+                                                    {"PRF_QUIESCENCE_TIMEOUT_SECONDS" "45"})))
     (is (= 24 (hardening/claimant-parallel-threshold nil
                                                      {"PRF_CLAIMANT_PARALLEL_THRESHOLD" "24"})))))
 

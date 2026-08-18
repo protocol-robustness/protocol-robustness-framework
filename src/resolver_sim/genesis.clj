@@ -381,7 +381,7 @@
    {:address "0x00112233445566778899aabbccddeeff00112233"
     :runtime-code-keccak256 (fixture-keccak "control-plane.runtime-code.ethereum.v1")}
    :governance
-   {     :authority-adapter "0x112233445566778899aabbccddeeff0011223344"
+   {:authority-adapter "0x112233445566778899aabbccddeeff0011223344"
     :authority-adapter-code-keccak256 (fixture-keccak "authority-adapter.runtime-code.ethereum.v1")
     :initial-authority-state-root (fixture-ref "authority-state.ethereum.v1")}
    :configuration/initial-root (fixture-ref "configuration.initial.ethereum.v1")})
@@ -570,21 +570,21 @@
           (report! (str "unknown top-level keys: " (sort extra))))
         (when (seq missing)
           (report! (str "missing required keys: " (sort missing))))
-         (when-not (hash-ref/valid-sha256-ref? (:protocol/genesis-root transition))
-           (report! "protocol/genesis-root must be a valid sha256 reference"))
-         (let [parent (:configuration/parent-root transition)
-               new-root (:configuration/new-root transition)
-               vr-root (:verifier-registry/root transition)]
-           (when-not (hash-ref/valid-sha256-ref? parent)
-             (report! "configuration/parent-root must be a valid sha256 reference"))
-           (when-not (hash-ref/valid-sha256-ref? new-root)
-             (report! "configuration/new-root must be a valid sha256 reference"))
-           (when-not (hash-ref/valid-sha256-ref? vr-root)
-             (report! "verifier-registry/root must be a valid sha256 reference"))
-           (when (and (some? vr-root) (some? parent) (= vr-root parent))
-             (report! "verifier-registry/root must not equal configuration/parent-root"))
-           (when (and (some? parent) (some? new-root) (= parent new-root))
-             (report! "self-transition rejected: configuration/parent-root equals configuration/new-root")))
+        (when-not (hash-ref/valid-sha256-ref? (:protocol/genesis-root transition))
+          (report! "protocol/genesis-root must be a valid sha256 reference"))
+        (let [parent (:configuration/parent-root transition)
+              new-root (:configuration/new-root transition)
+              vr-root (:verifier-registry/root transition)]
+          (when-not (hash-ref/valid-sha256-ref? parent)
+            (report! "configuration/parent-root must be a valid sha256 reference"))
+          (when-not (hash-ref/valid-sha256-ref? new-root)
+            (report! "configuration/new-root must be a valid sha256 reference"))
+          (when-not (hash-ref/valid-sha256-ref? vr-root)
+            (report! "verifier-registry/root must be a valid sha256 reference"))
+          (when (and (some? vr-root) (some? parent) (= vr-root parent))
+            (report! "verifier-registry/root must not equal configuration/parent-root"))
+          (when (and (some? parent) (some? new-root) (= parent new-root))
+            (report! "self-transition rejected: configuration/parent-root equals configuration/new-root")))
         (when-not (valid-epoch? (:epoch transition))
           (report! "epoch must be an integer in [1, 2^64)"))
         (let [target (:target transition)]
@@ -756,22 +756,22 @@
      :epoch                      <uint64>}
 
     No new canonical identity is created. This is derived data only."
-   [transition]
-   (let [v (validate-chain-configuration-transition transition)]
-     (when-not (:valid? v)
-       (throw (ex-info "chain-configuration-transition.v1 is invalid"
-                       {:type :transition/invalid
-                        :schema chain-configuration-transition-schema
-                        :errors (:errors v)}))))
-   (let [target-type (-> transition :target :target/type)
-         target-mode (case target-type
-                       :chain-instance solidity-target-mode-direct
-                       :chain-instance-set solidity-target-mode-set)]
-     {:decision-root (str "0x"
-                          (subs (chain-configuration-transition-root transition) 7))
-      :target-mode target-mode
-      :target-root (prf-ref->bytes32 (-> transition :target :target/root))
-      :parent-configuration-root (prf-ref->bytes32 (:configuration/parent-root transition))
-      :new-configuration-root (prf-ref->bytes32 (:configuration/new-root transition))
-      :verifier-registry-root (prf-ref->bytes32 (:verifier-registry/root transition))
-      :epoch (:epoch transition)}))
+  [transition]
+  (let [v (validate-chain-configuration-transition transition)]
+    (when-not (:valid? v)
+      (throw (ex-info "chain-configuration-transition.v1 is invalid"
+                      {:type :transition/invalid
+                       :schema chain-configuration-transition-schema
+                       :errors (:errors v)}))))
+  (let [target-type (-> transition :target :target/type)
+        target-mode (case target-type
+                      :chain-instance solidity-target-mode-direct
+                      :chain-instance-set solidity-target-mode-set)]
+    {:decision-root (str "0x"
+                         (subs (chain-configuration-transition-root transition) 7))
+     :target-mode target-mode
+     :target-root (prf-ref->bytes32 (-> transition :target :target/root))
+     :parent-configuration-root (prf-ref->bytes32 (:configuration/parent-root transition))
+     :new-configuration-root (prf-ref->bytes32 (:configuration/new-root transition))
+     :verifier-registry-root (prf-ref->bytes32 (:verifier-registry/root transition))
+     :epoch (:epoch transition)}))

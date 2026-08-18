@@ -63,9 +63,7 @@
          #"caller-supplied chain-configuration root does not match"
          (g/chain-configuration-root
           g/chain-configuration-fixture
-          "sha256:0000000000000000000000000000000000000000000000000000000000000000"))))
-
-  )
+          "sha256:0000000000000000000000000000000000000000000000000000000000000000")))))
 
 (deftest test-chain-configuration-rejects-unknown-keys
   (testing "unknown top-level keys are rejected (fail-closed)"
@@ -250,7 +248,7 @@
   (testing "parent-root == new-root is rejected"
     (let [parent-root (:configuration/parent-root g/chain-configuration-transition-direct-fixture)
           invalid (assoc g/chain-configuration-transition-direct-fixture
-                          :configuration/new-root parent-root)
+                         :configuration/new-root parent-root)
           v (g/validate-chain-configuration-transition invalid)]
       (is (not (:valid? v)))
       (is (some #(str/includes? % "self-transition") (:errors v))))))
@@ -483,7 +481,7 @@
   (testing "self-transition is rejected"
     (let [parent (:configuration/parent-root g/chain-configuration-transition-direct-fixture)
           invalid (assoc g/chain-configuration-transition-direct-fixture
-                          :configuration/new-root parent)
+                         :configuration/new-root parent)
           v (g/validate-chain-configuration-transition invalid)]
       (is (not (:valid? v)))))
 

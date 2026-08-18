@@ -1318,9 +1318,9 @@
          hashable-evidence (integrity/hashable-evidence normalized-evidence)
           ;; Sort keys for deterministic hashing; the persisted file uses the same
           ;; sort order so verify-bundle-hash can recompute the identity from disk.
-sorted-hashable (into (sorted-map) hashable-evidence)
-          bundle-root-hash (hc/hash-with-intent {:hash/intent :bundle-root} sorted-hashable)
-          final-evidence (assoc normalized-evidence :evidence/hash bundle-root-hash)]
+         sorted-hashable (into (sorted-map) hashable-evidence)
+         bundle-root-hash (hc/hash-with-intent {:hash/intent :bundle-root} sorted-hashable)
+         final-evidence (assoc normalized-evidence :evidence/hash bundle-root-hash)]
 
      (when-not passed?
        (log/warn! "benchmark/failed" {:passed (:passed metrics) :total (:total metrics)})

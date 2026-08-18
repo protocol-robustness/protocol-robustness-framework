@@ -804,20 +804,20 @@
                              :description :claims}
     :registry-validator-fn #'validate-execution-registry-entries}
 
-:evidence-policy-registry
-    {:registry evidence-policy-registry
-     :entries-key :evidence-policies
-     :required-registry-fields #{:registry-version :evidence-policies}
-     :required-entry-fields #{:id :version :evidence-policy/type
-                              :evidence-policy/source :description :constraints}}
+   :evidence-policy-registry
+   {:registry evidence-policy-registry
+    :entries-key :evidence-policies
+    :required-registry-fields #{:registry-version :evidence-policies}
+    :required-entry-fields #{:id :version :evidence-policy/type
+                             :evidence-policy/source :description :constraints}}
 
    :creation-provenance-registry
-    {:registry creation-provenance-registry
-     :entries-key :creation-provenances
-     :required-registry-fields #{:registry-version :creation-provenances}
-     :required-entry-fields #{:id :version :creation-provenance/value :description}}
+   {:registry creation-provenance-registry
+    :entries-key :creation-provenances
+    :required-registry-fields #{:registry-version :creation-provenances}
+    :required-entry-fields #{:id :version :creation-provenance/value :description}}
 
-    :hash-projection-registry
+   :hash-projection-registry
    {:registry hash-projection-registry
     :entries-key :projections
     :required-registry-fields #{:registry-version :projections}
@@ -1610,7 +1610,7 @@
 (defn validate-domain-tag-registry [] (registry-result :domain-tag-registry))
 
 (defn validate-passive-registries
-"Validate all registries and return an aggregate result.
+  "Validate all registries and return an aggregate result.
     This function is passive and never throws.
     Includes all 9 registered registry types plus cross-registry alignment."
   ([] (validate-passive-registries {:entry-validation-mode :startup-safe}))

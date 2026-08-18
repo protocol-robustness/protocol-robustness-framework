@@ -8,13 +8,13 @@
 
   All researcher identity is via integer review-member/key resolved through
   the committed review round — no parallel string-keyed representation."
-   (:require [clojure.data.json :as json]
-             [clojure.edn :as edn]
-             [clojure.java.io :as io]
-             [clojure.string :as str]
-             [resolver-sim.benchmark.researcher-force-authorisation :as rfa]
-             [resolver-sim.benchmark.review-round :as rr]
-             [resolver-sim.assurance.force-authorisation :as fa]))
+  (:require [clojure.data.json :as json]
+            [clojure.edn :as edn]
+            [clojure.java.io :as io]
+            [clojure.string :as str]
+            [resolver-sim.benchmark.researcher-force-authorisation :as rfa]
+            [resolver-sim.benchmark.review-round :as rr]
+            [resolver-sim.assurance.force-authorisation :as fa]))
 
 (defn- stderr
   [& lines]
@@ -28,7 +28,7 @@
   (let [source (if (or (nil? path) (= "-" path))
                  (io/reader *in*)
                  (try
-                    (io/reader path)
+                   (io/reader path)
                    (catch Exception _ nil)))]
     (when source
       (try
@@ -88,17 +88,17 @@
                            " not found in keyed review round"))
               {:exit-code 2 :message
                (str "member-key " member-key " not found in keyed review round")})
-           (let [researcher-id (:researcher/id resolved)
-                 decision (decision-reason cmd)
-                 auth-id (:authorization/id ctx)
-                 request-root (:authorisation/request-root ctx)
-                 round-hash (:review-round/hash ctx)]
-             (if-not (and researcher-id auth-id request-root round-hash)
-               (do (stderr (str "researcher " (name cmd)
-                                ": input missing :authorization/id, "
-                                ":authorisation/request-root, or :review-round/hash"))
-                   {:exit-code 2 :message
-                    "input missing :authorization/id, :authorisation/request-root, or :review-round/hash"})
+          (let [researcher-id (:researcher/id resolved)
+                decision (decision-reason cmd)
+                auth-id (:authorization/id ctx)
+                request-root (:authorisation/request-root ctx)
+                round-hash (:review-round/hash ctx)]
+            (if-not (and researcher-id auth-id request-root round-hash)
+              (do (stderr (str "researcher " (name cmd)
+                               ": input missing :authorization/id, "
+                               ":authorisation/request-root, or :review-round/hash"))
+                  {:exit-code 2 :message
+                   "input missing :authorization/id, :authorisation/request-root, or :review-round/hash"})
               (try
                 (let [signed (if (some? outcome-root)
                                (rfa/build-signed-decision-v2
@@ -118,7 +118,7 @@
 (defn disagree
   "researcher disagree --input PATH|- --member-key N --key PATH --dissent-reason STR
    Sign a dissenting researcher decision using an integer member-key."
-   [opts]
+  [opts]
   (let [{:keys [cmd/args]} opts
         parsed (parse-opts args (:input opts)
                            (some-> (:member-key opts) Long/parseLong)
@@ -146,14 +146,14 @@
 (defn- parse-opts
   "Parse CLI args for researcher commands.
    Accepts --input, --member-key, --key, --dissent-reason, --outcome-root, --json."
-   [raw-args default-input default-member-key default-key
-    default-dissent-reason default-outcome-root]
+  [raw-args default-input default-member-key default-key
+   default-dissent-reason default-outcome-root]
   (loop [args (vec raw-args)
          input default-input
          member-key default-member-key
          key default-key
          dissent-reason default-dissent-reason
-          outcome-root default-outcome-root
+         outcome-root default-outcome-root
          json false]
     (cond
       (empty? args)
@@ -201,16 +201,16 @@
       (:valid? auth-result)
       :usable
 
-       (some #(= :invalid-parameter-attribution (:code %)) errors)
-       :invalid-parameter-attribution
+      (some #(= :invalid-parameter-attribution (:code %)) errors)
+      :invalid-parameter-attribution
 
-       (some #(= :missing-scope-hash (:code %)) errors)
-       :forbidden
+      (some #(= :missing-scope-hash (:code %)) errors)
+      :forbidden
 
-       (and (some? record)
-            (contains? #{:approved :approved-with-dissent}
-                       (:authorisation/decision-status record)))
-       :forbidden-authorized
+      (and (some? record)
+           (contains? #{:approved :approved-with-dissent}
+                      (:authorisation/decision-status record)))
+      :forbidden-authorized
 
       :else
       :forbidden)))
@@ -235,9 +235,9 @@
                 consumption-registry (:authorization/consumption-registry ctx)
                 scope-map (:authorization/scope ctx)
                 now-ts (:now-ts ctx
-                           (long (System/currentTimeMillis)))
+                                (long (System/currentTimeMillis)))
                 auth-result (fa/verify-authorisation-usable
-                              record consumption-registry scope-map now-ts)
+                             record consumption-registry scope-map now-ts)
                 outcome (classify-usable-result auth-result record)]
             (print-json {:outcome outcome
                          :valid? (:valid? auth-result)

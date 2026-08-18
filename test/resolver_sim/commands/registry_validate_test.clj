@@ -100,11 +100,11 @@
                       (map (fn [c] [(:command/surface c) (:command/jar-availability c)])
                            cmds))
         fixed-combos #{[:prf :native :jvm]
-                        [:dev :native :jvm]
-                        [:community :native :jvm]
-                        [:researcher :native :jvm]
-                        [:bb :external :bb]
-                        [:bb :none :bb]}
+                       [:dev :native :jvm]
+                       [:community :native :jvm]
+                       [:researcher :native :jvm]
+                       [:bb :external :bb]
+                       [:bb :none :bb]}
         ;; Must stay in lockstep with the Fixed-case availability matrix in
         ;; docs/specs/PRF_CLI_ARCHITECTURE_V1.md (the checked-in documentation
         ;; artifact) and validate-registry's fixed-jar-availability-cases.
@@ -124,7 +124,7 @@
                        cmds))))
     (testing "generated matrix equals the checked-in documentation artifact"
       (is (= expected distribution))
-       (is (= 83 (apply + (vals distribution)))))))
+      (is (= 83 (apply + (vals distribution)))))))
 
 (deftest registry-internally-consistent
   (testing "every command passes registry validation (structure, paths,

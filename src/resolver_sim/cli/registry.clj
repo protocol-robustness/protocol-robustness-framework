@@ -154,15 +154,15 @@
         (empty? includes)
         (str "Command " id " has an empty :command/built-with-includes")
 
-(not (every? #(contains? known-built-with-capabilities %) includes))
-    (let [unknown (vec (sort (remove #(contains? known-built-with-capabilities %)
-                                     includes)))]
-      (str "Command " id " :command/built-with-includes declares unknown "
-           "capabilities " (pr-str unknown)
-           "; expected subset of "
-           (pr-str (vec (sort known-built-with-capabilities)))
-           ". This field is a build-composition declaration, not an "
-           "outcome-dimension gate."))))))
+        (not (every? #(contains? known-built-with-capabilities %) includes))
+        (let [unknown (vec (sort (remove #(contains? known-built-with-capabilities %)
+                                         includes)))]
+          (str "Command " id " :command/built-with-includes declares unknown "
+               "capabilities " (pr-str unknown)
+               "; expected subset of "
+               (pr-str (vec (sort known-built-with-capabilities)))
+               ". This field is a build-composition declaration, not an "
+               "outcome-dimension gate."))))))
 
 (defn positional-args-error
   "Return a diagnostic when args violate cmd's declared positional contract.
@@ -193,12 +193,12 @@
         fixed-jar-availability-cases
         ;; Fixed (surface, jar-availability, runtime) combinations a command
         ;; may take. Enforced so the documented availability matrix stays true.
-         #{[:prf :native :jvm]
-           [:dev :native :jvm]
-           [:community :native :jvm]
-           [:researcher :native :jvm]
-           [:bb :external :bb]
-           [:bb :none :bb]}]
+        #{[:prf :native :jvm]
+          [:dev :native :jvm]
+          [:community :native :jvm]
+          [:researcher :native :jvm]
+          [:bb :external :bb]
+          [:bb :none :bb]}]
     (when-not (= "prf.commands.registry.v1" (:schema-version reg))
       (vswap! errors conj "Invalid schema version"))
     (doseq [cmd (:commands reg)]

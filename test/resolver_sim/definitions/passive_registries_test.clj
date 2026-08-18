@@ -755,9 +755,9 @@
     :required-registry-fields #{:registry-version :evidence-policies}}
 
    :creation-provenance-registry
-    {:entries-key :creation-provenances
-     :required-entry-fields #{:id :version :creation-provenance/value :description}
-     :required-registry-fields #{:registry-version :creation-provenances}}
+   {:entries-key :creation-provenances
+    :required-entry-fields #{:id :version :creation-provenance/value :description}
+    :required-registry-fields #{:registry-version :creation-provenances}}
 
    :hash-projection-registry
    {:entries-key :projections
@@ -806,11 +806,11 @@
                              :projection-definition-registry registries/projection-definition-registry
                              :claim-definition-registry registries/claim-definition-registry
                              :attestor-registry registries/attestor-registry
-:execution-registry registries/execution-registry
-                              :evidence-policy-registry registries/evidence-policy-registry
-                              :creation-provenance-registry registries/creation-provenance-registry
-                              :hash-projection-registry registries/hash-projection-registry
-                              :domain-tag-registry registries/domain-tag-registry)
+                             :execution-registry registries/execution-registry
+                             :evidence-policy-registry registries/evidence-policy-registry
+                             :creation-provenance-registry registries/creation-provenance-registry
+                             :hash-projection-registry registries/hash-projection-registry
+                             :domain-tag-registry registries/domain-tag-registry)
                   entries (get registry entries-key [])
                   actual-entry-fields (set (mapcat keys entries))
                   expected-entry-fields (:required-entry-fields spec)]]

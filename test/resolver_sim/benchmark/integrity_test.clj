@@ -97,7 +97,7 @@
 (deftest version-strict-commitment-has-no-fallback
   (testing "an unknown commitment version fails closed"
     (let [evidence (assoc (committed-bundle {:benchmark {:benchmark/id :benchmark/test}
-                                               :metrics {:total 1 :passed 1}})
+                                             :metrics {:total 1 :passed 1}})
                           :evidence/commitment-version "bundle-root.v3")
           result (integrity/verify-bundle-hash evidence)]
       (is (= false (:hash-ok? result)))

@@ -273,60 +273,60 @@
                                          :principal 1000 :realized-yield 0 :unrealized-yield 0
                                          :shortfall {:basis-amount 600 :fulfilled-amount 400
                                                      :deferred-amount 200 :haircut-amount 0}}
-                                    "u2" {:module/id :m2 :token :t2 :status :unwinding
-                                          :principal 2000 :realized-yield 0 :unrealized-yield 0
-                                          :shortfall {:basis-amount 500 :fulfilled-amount 400
-                                                      :deferred-amount 100 :haircut-amount 0}}}}]
-       (is (inv/holds? :yield/aggregate world)))))
+                                   "u2" {:module/id :m2 :token :t2 :status :unwinding
+                                         :principal 2000 :realized-yield 0 :unrealized-yield 0
+                                         :shortfall {:basis-amount 500 :fulfilled-amount 400
+                                                     :deferred-amount 100 :haircut-amount 0}}}}]
+      (is (inv/holds? :yield/aggregate world)))))
 
 ; ── aggregate pos-neg fallback boundary ────────────────────────────────────
 
 (deftest aggregate-pos-neg-fallback-only-for-legacy-shortfalls
   (testing "legacy shortfall without :basis-negative-unrealized uses pos-neg fallback"
     (let [world {:yield/positions {"u" {:module/id :m :token :t :status :unwinding
-                                         :principal 100 :realized-yield 0 :unrealized-yield -20
-                                         :shortfall {:basis-amount 80 :fulfilled-amount 50
-                                                     :deferred-amount 30 :haircut-amount 20}}}}]
+                                        :principal 100 :realized-yield 0 :unrealized-yield -20
+                                        :shortfall {:basis-amount 80 :fulfilled-amount 50
+                                                    :deferred-amount 30 :haircut-amount 20}}}}]
       (is (inv/holds? :yield/aggregate world))))
 
   (testing "shared-withdrawal shortfall with :basis-negative-unrealized uses only first disjunct"
     (let [world {:yield/positions {"u" {:module/id :m :token :t :status :unwinding
-                                         :principal 100 :realized-yield 0 :unrealized-yield -20
-                                         :shortfall {:basis-amount 60 :fulfilled-amount 50
-                                                     :deferred-amount 30 :haircut-amount 0
-                                                     :basis-negative-unrealized -20}}}}]
+                                        :principal 100 :realized-yield 0 :unrealized-yield -20
+                                        :shortfall {:basis-amount 60 :fulfilled-amount 50
+                                                    :deferred-amount 30 :haircut-amount 0
+                                                    :basis-negative-unrealized -20}}}}]
       (is (inv/holds? :yield/aggregate world))))
 
   (testing "tampered :basis-negative-unrealized (zeroed) is detected, not masked by pos-neg"
     (let [world {:yield/positions {"u" {:module/id :m :token :t :status :unwinding
-                                         :principal 100 :realized-yield 0 :unrealized-yield -20
-                                         :shortfall {:basis-amount 60 :fulfilled-amount 50
-                                                     :deferred-amount 30 :haircut-amount 0
-                                                     :basis-negative-unrealized 0}}}}]
+                                        :principal 100 :realized-yield 0 :unrealized-yield -20
+                                        :shortfall {:basis-amount 60 :fulfilled-amount 50
+                                                    :deferred-amount 30 :haircut-amount 0
+                                                    :basis-negative-unrealized 0}}}}]
       (is (not (inv/holds? :yield/aggregate world))
           "zeroed fold with splits exceeding basis must not be masked by pos-neg")))
 
   (testing "shared-withdrawal shortfall with zero unrealized-yield passes"
     (let [world {:yield/positions {"u" {:module/id :m :token :t :status :unwinding
-                                         :principal 100 :realized-yield 0 :unrealized-yield 0
-                                         :shortfall {:basis-amount 80 :fulfilled-amount 50
-                                                     :deferred-amount 30 :haircut-amount 0
-                                                     :basis-negative-unrealized 0}}}}]
+                                        :principal 100 :realized-yield 0 :unrealized-yield 0
+                                        :shortfall {:basis-amount 80 :fulfilled-amount 50
+                                                    :deferred-amount 30 :haircut-amount 0
+                                                    :basis-negative-unrealized 0}}}}]
       (is (inv/holds? :yield/aggregate world))))
 
   (testing "shared-withdrawal shortfall with positive unrealized-yield passes"
     (let [world {:yield/positions {"u" {:module/id :m :token :t :status :unwinding
-                                         :principal 100 :realized-yield 20 :unrealized-yield 0
-                                         :shortfall {:basis-amount 80 :fulfilled-amount 50
-                                                     :deferred-amount 30 :haircut-amount 0
-                                                     :basis-negative-unrealized 0}}}}]
+                                        :principal 100 :realized-yield 20 :unrealized-yield 0
+                                        :shortfall {:basis-amount 80 :fulfilled-amount 50
+                                                    :deferred-amount 30 :haircut-amount 0
+                                                    :basis-negative-unrealized 0}}}}]
       (is (inv/holds? :yield/aggregate world))))
 
   (testing "genuine imbalance with :basis-negative-unrealized present is still rejected"
     (let [world {:yield/positions {"u" {:module/id :m :token :t :status :unwinding
-                                         :principal 100 :realized-yield 0 :unrealized-yield -20
-                                         :shortfall {:basis-amount 100 :fulfilled-amount 50
-                                                     :deferred-amount 30 :haircut-amount 0
-                                                     :basis-negative-unrealized -20}}}}]
+                                        :principal 100 :realized-yield 0 :unrealized-yield -20
+                                        :shortfall {:basis-amount 100 :fulfilled-amount 50
+                                                    :deferred-amount 30 :haircut-amount 0
+                                                    :basis-negative-unrealized -20}}}}]
       (is (not (inv/holds? :yield/aggregate world))
           "basis 100 != splits 50+30+0+(-20)=60 must be rejected"))))

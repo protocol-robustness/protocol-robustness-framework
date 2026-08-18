@@ -639,23 +639,22 @@
               (str "contextual " kind " " ref " requires no direct output root"))
           (is (not-any? #(re-find #"unsupported command include domain" %) (:errors result)))))))
 
-(deftest hash-bearing-root-keys-subset-of-valid-manifest-keys
-  (is (every? #(contains? om/valid-manifest-keys %)
-              om/hash-bearing-root-keys)
-      "hash-bearing-root-keys must be a subset of valid-manifest-keys"))
+  (deftest hash-bearing-root-keys-subset-of-valid-manifest-keys
+    (is (every? #(contains? om/valid-manifest-keys %)
+                om/hash-bearing-root-keys)
+        "hash-bearing-root-keys must be a subset of valid-manifest-keys"))
 
-(deftest pre-application-checks-rejects-invalid-realised-parameter-set-root
-  (let [manifest {:schema-version om/schema-version
-                  :benchmark/content-root (h "a")
-                  :benchmark/model-root (h "b")
-                  :benchmark/evaluation-policy-root (h "c")
-                  :execution/status :completed
-                  :execution/parameter-domain-root (h "d")
-                  :execution/sampling-policy-root (h "e")
-                  :execution/generated-case-set-root (h "f")
-                  :execution/realised-parameter-set-root "invalid-hash"}
-        result (om/pre-application-checks manifest)]
-    (is (not (:pre-application-valid? result)))
-    (is (some #(re-find #"realised-parameter-set-root is not a valid sha256" %)
-              (:errors result)))))
-)
+  (deftest pre-application-checks-rejects-invalid-realised-parameter-set-root
+    (let [manifest {:schema-version om/schema-version
+                    :benchmark/content-root (h "a")
+                    :benchmark/model-root (h "b")
+                    :benchmark/evaluation-policy-root (h "c")
+                    :execution/status :completed
+                    :execution/parameter-domain-root (h "d")
+                    :execution/sampling-policy-root (h "e")
+                    :execution/generated-case-set-root (h "f")
+                    :execution/realised-parameter-set-root "invalid-hash"}
+          result (om/pre-application-checks manifest)]
+      (is (not (:pre-application-valid? result)))
+      (is (some #(re-find #"realised-parameter-set-root is not a valid sha256" %)
+                (:errors result))))))
