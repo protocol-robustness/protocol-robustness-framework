@@ -46,6 +46,8 @@ struct Artifact {
     program_elf_sha256: String,
     program_vkey: String,
     public_values_schema: String,
+    #[serde(rename = "public_values_bytes32")]
+    _public_values_bytes32: Option<String>,
     public_values_sha256: String,
     proof_encoding: String,
     proof_file: String,

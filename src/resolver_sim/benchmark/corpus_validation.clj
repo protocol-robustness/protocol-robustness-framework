@@ -798,6 +798,32 @@
 
 ;; ── P1: Corpus manifest / root ────────────────────────────────────────────────
 
+(defn- collect-references
+  "Count all content/hash/root/reference nodes reachable from the corpus.
+    Walks every file-backed scenario and counts the distinct reference nodes:
+    hash intents, scenario events, scenario expectations, and content roots.
+    Returns {:reference-count <int> :references [...]}."
+  []
+  (let [hash-intent-count (count canonical/hash-intents)
+        registry (scenario-registry/validate-file-backed-suite-registry!)
+        entries (:scenario-entries registry)
+        event-actions (atom #{})
+        claim-ids (atom #{})]
+    (doseq [entry entries]
+      (let [path (:scenario/path entry)]
+        (when (and path (.exists (java.io.File. path)))
+          (try
+            (let [data (resource-path/edn-read path)]
+              (doseq [event (:events data)]
+                (swap! event-actions conj (:action event)))
+              (when-let [claim-id (get-in data [:claim :id])]
+                (swap! claim-ids conj claim-id)))
+            (catch Exception _)))))
+    {:reference-count (+ hash-intent-count (count @event-actions) (count @claim-ids))
+     :references (concat (sort (keys canonical/hash-intents))
+                        (sort @event-actions)
+                        (sort @claim-ids))}))
+
 (defn- semantic-projection-of
   "Project a generic check result into a canonical, order-independent shape
    for content-root computation. Strips non-essential metadata fields."
@@ -854,19 +880,19 @@
 
 (defn check-corpus
   "Produce a committed corpus manifest containing content roots, reference
-   closure roots, and aggregated verification status.
+    closure roots, and aggregated verification status.
 
-   This turns the corpus from 'a collection we ran checks over' into a
-   versionable research object. The manifest itself is canonical-encodable
-   and survives a canonical round-trip.
+    This turns the corpus from 'a collection we ran checks over' into a
+    versionable research object. The manifest itself is canonical-encodable
+    and survives a canonical round-trip.
 
-   Returns:
-     {:check :corpus
-      :status :pass | :fail
-      :manifest <corpus-manifest-map>   — the committed object
-      :verification-root <sha256-ref>    — hash of the verification profile
-      :semantic-checks <int>            — count of checks run
-      :all-checks-pass? bool}           — whether every check passed"
+    Returns:
+      {:check :corpus
+       :status :pass | :fail
+       :manifest <corpus-manifest-map>   — the committed object
+       :verification-root <sha256-ref>    — hash of the verification profile
+       :semantic-checks <int>            — count of checks run
+       :all-checks-pass? bool}           — whether every check passed"
   []
   (let [checks {:all-intents-have-contract-fields (check-all-intents-have-contract-fields)
                 :aggregate (check-aggregate)
@@ -893,10 +919,12 @@
                             checks)
         all-pass (every? #(= :pass (:status (val %))) check-statuses)
         corpus-summary (validate-corpus!)
+        ref-info (collect-references)
         manifest {:corpus/schema "benchmark-corpus.v1"
                   :corpus/packs (:packs corpus-summary)
                   :corpus/benchmark-count (:benchmarks corpus-summary)
                   :corpus/hash-intent-count (:hash-intent-count corpus-summary)
+                  :corpus/reference-count (:reference-count ref-info)
                   :corpus/content-root (:content-root corpus-summary)
                   :corpus/reference-closure-root (:reference-closure-root corpus-summary)
                   :corpus/verification-profile "corpus-verification.v2"
