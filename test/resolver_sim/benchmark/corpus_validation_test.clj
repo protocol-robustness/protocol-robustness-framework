@@ -4,8 +4,13 @@
              [resolver-sim.yield.invariants :as yield-invariants]))
 
 (deftest registry-reachable-benchmark-corpus-is-classpath-loadable
-  (is (= {:packs 2 :benchmarks 11 :status :passed}
-         (corpus-validation/validate-corpus!))))
+  (let [result (corpus-validation/validate-corpus!)]
+    (is (= :passed (:status result)))
+    (is (= 2 (:packs result)))
+    (is (= 11 (:benchmarks result)))
+    (is (pos? (:hash-intent-count result)))
+    (is (some? (:content-root result)))
+    (is (some? (:reference-closure-root result)))))
 
 (deftest check-all-intents-have-contract-fields
   (let [result (corpus-validation/check-all-intents-have-contract-fields)]
@@ -222,4 +227,56 @@
     (is (every? #(= :pass (:status %)) (:results result))
         (str "All negative fixtures should pass. Results: "
              (map #(select-keys % [:fixture :status :expected-reasons :observed-reasons])
-                   (:results result)))))))
+                    (:results result)))))))
+
+;; ── P1: Order independence ────────────────────────────────────────────────────
+
+(deftest check-order-independence-passes
+  (let [result (corpus-validation/check-order-independence)]
+    (is (= :order-independence (:check result)))
+    (is (= :pass (:status result))
+        (str "Corpus enumeration should be order-independent. Diff: " (:differences result)))
+    (is (= 2 (:orderings-tested result)))
+    (is (pos? (:pack-count result)))
+    (is (pos? (:benchmark-count result)))))
+
+;; ── P1: Verification fixed-point ──────────────────────────────────────────────
+
+(deftest check-verification-fixed-point-passes
+  (let [result (corpus-validation/check-verification-fixed-point)]
+    (is (= :verification-fixed-point (:check result)))
+    (is (= :pass (:status result))
+        (str "Verification report should survive canonical round-trip. Mismatches: "
+             (:mismatched result)))
+    (is (pos? (:vector-count result)))
+    (is (string? (:semantic-hash result)))))
+
+;; ── P1: Corpus manifest / root ────────────────────────────────────────────────
+
+(deftest check-corpus-produces-validated-manifest
+  (let [result (corpus-validation/check-corpus)]
+    (is (= :corpus (:check result)))
+    (is (= :pass (:status result))
+        (str "All corpus checks should pass. Error: " (:error result)))
+    (is (some? (:manifest result)))
+    (is (some? (:verification-root result)))
+    (is (pos? (:semantic-checks result)))
+    (is (true? (:all-checks-pass? result)))
+    (let [manifest (:manifest result)]
+      (is (= "benchmark-corpus.v1" (:corpus/schema manifest)))
+      (is (= 2 (:corpus/packs manifest)))
+      (is (= 11 (:corpus/benchmark-count manifest)))
+      (is (some? (:corpus/content-root manifest)))
+      (is (some? (:corpus/reference-closure-root manifest)))
+      (is (= "corpus-verification.v2" (:corpus/verification-profile manifest)))
+      (is (= :verified (:corpus/status manifest)))))
+
+(deftest check-verifier-registry-consistency-passes
+  (let [result (corpus-validation/check-verifier-registry-consistency)]
+    (is (= :verifier-registry-consistency (:check result)))
+    (is (= :pass (:status result))
+        (str "Verifier registry roots should be consistent. Error: "
+             (:error result)))
+    (is (boolean (:matches? result)))
+    (is (some? (:configuration-verifier-root result)))
+    (is (some? (:transition-verifier-root result))))))

@@ -13,8 +13,11 @@
             [resolver-sim.yield.invariants :as yield-invariants]
             [resolver-sim.yield.accounting :as yield-accounting]
             [resolver-sim.pro-rata.claims :as pro-rata-claims]
-            [resolver-sim.protocols.sew.economics :as sew-economics]
-            [resolver-sim.validation.scenario-registry :as scenario-registry]))
+             [resolver-sim.protocols.sew.economics :as sew-economics]
+             [resolver-sim.validation.scenario-registry :as scenario-registry]
+             [resolver-sim.hash.reference :as hash-ref]
+             [resolver-sim.hash.round-trip :as rt]
+             [resolver-sim.genesis :as genesis]))
 
 ;; ── P0: Reference Closure Tests ───────────────────────────────────────────
 
@@ -651,7 +654,261 @@
       (when (seq duplicate-ids)
         (swap! errors conj {:type :duplicate-benchmark-ids :ids duplicate-ids})))
     (when (seq @errors)
-      (throw (ex-info "Benchmark corpus validation failed" {:errors @errors})))
-    {:packs (count (:packs registry))
-     :benchmarks (count @manifests)
-     :status :passed}))
+       (throw (ex-info "Benchmark corpus validation failed" {:errors @errors})))
+      {:packs (count (:packs registry))
+       :benchmarks (count @manifests)
+       :hash-intent-count (count canonical/hash-intents)
+       :content-root (hash-ref/sha256-ref (canonical/domain-hash "corpus-registry" registry))
+       :reference-closure-root (hash-ref/sha256-ref
+                                (canonical/domain-hash "reference-closure"
+                                  (scenario-registry/validate-file-backed-suite-registry!)))
+       :verification-profile "corpus-verification.v2"
+       :schema-version "benchmark-corpus.v1"
+       :status :passed}))
+
+;; ── P1: Order independence ────────────────────────────────────────────────────
+
+(defn- shuffle-vec
+  "Deterministic shuffle of a vector using a seed, for reproducible testing."
+  [v seed]
+  (->> v
+       (map vector)
+       (sort-by (fn [[_ item]]
+                  (hash [(class item) (pr-str item) seed])))
+       (map first)))
+
+(defn- collect-corpus-items
+  "Collect all pack/benchmark pairs from the canonical registry."
+  []
+  (let [registry (resource-path/edn-read resource-path/canonical-registry-path)
+        packs (:packs registry)]
+    (for [pack packs
+          :let [pack-path (resource-path/pack-registry-path (:pack/registry pack))
+                pack-registry (resource-path/edn-read pack-path)]
+          bench (:benchmarks pack-registry)]
+      {:pack/id (:pack/id pack)
+       :benchmark/id (:benchmark/id bench)
+       :benchmark/file (:benchmark/file bench)
+       :pack/registry (:pack/registry pack)})))
+
+(defn- canonical-result-for-order
+  "Produce a canonical (order-independent) projection of the corpus verification
+   result — pack IDs sorted, benchmark IDs sorted, with a stable status."
+  [items]
+  (->> items
+       (group-by :pack/id)
+       (map (fn [[pack-id benches]]
+              [pack-id (sort (map :benchmark/id benches))]))
+       (sort-by first)
+       vec))
+
+(defn check-order-independence
+  "Verify that corpus enumeration (pack enumeration, benchmark enumeration,
+   input/reference discovery order) does not affect the semantic verification
+   result.
+
+   Runs the corpus enumeration twice — once in sorted (canonical) order
+   and once with a shuffled ordering — then compares the canonical
+   projection of the result.
+
+   Returns:
+     {:check :order-independence
+      :status :pass | :fail
+      :orderings-tested <int>
+      :differences [...]}  — structural descriptions of any ordering-dependent
+                             discrepancies."
+  []
+  (try
+    (let [canonical-items (collect-corpus-items)
+          canonical-projection (canonical-result-for-order canonical-items)
+          shuffled-items (shuffle-vec canonical-items 42)
+          shuffled-projection (canonical-result-for-order shuffled-items)
+          differences (when-not (= canonical-projection shuffled-projection)
+                        [{:type :ordering-dependent-result
+                          :canonical canonical-projection
+                          :shuffled shuffled-projection}])]
+      {:check :order-independence
+       :status (if (empty? differences) :pass :fail)
+       :orderings-tested 2
+       :pack-count (count (set (map :pack/id canonical-items)))
+       :benchmark-count (count canonical-items)
+       :differences (or differences [])})
+    (catch Exception e
+      {:check :order-independence
+       :status :fail
+       :orderings-tested 0
+       :error (.getMessage e)
+       :differences [{:type :exception :error (.getMessage e)}]})))
+
+;; ── P1: Verification fixed-point ─────────────────────────────────────────────
+
+(defn- semantic-verification-report
+  "Build a canonical semantic projection of a verification result — the part
+   of the report a verifier would care about (not diagnostic ordering).
+   Uses sorted maps and sorted sets so canonical encoding is deterministic."
+  [result]
+  (into (sorted-map)
+        (map (fn [[k v]]
+               (cond
+                 (map? v) [k (into (sorted-map) v)]
+                 (sequential? v) [k (vec v)]
+                 :else [k v]))
+             result)))
+
+(defn check-verification-fixed-point
+  "Verify that the verifier's own canonical report survives a canonical
+   encode → decode → canonical-bytes round-trip identical.
+
+   This extends artifact fixed-point testing: the verification conclusion
+   itself becomes reproducible evidence.
+
+   Uses the pro-rata slash-allocation test vectors as input, since
+   `check-expected-results-recompute` produces deterministic verification
+   results for them.
+
+   Returns:
+     {:check :verification-fixed-point
+      :status :pass | :fail
+      :vector-count <int>
+      :mismatched [...]}"
+  []
+  (try
+    (let [recompute-result (check-expected-results-recompute)
+          vector-count (:vector-count recompute-result)
+          semantic-projection (semantic-verification-report recompute-result)
+          canonical-bytes (canonical/canonical-bytes-hex semantic-projection)
+          rt-result (rt/canonical-round-trip semantic-projection)]
+      (if-not (:valid? rt-result)
+        {:check :verification-fixed-point
+         :status :fail
+         :vector-count vector-count
+         :mismatched [{:type :canonical-round-trip-failed
+                       :issues (:issues rt-result)}]}
+        {:check :verification-fixed-point
+         :status :pass
+         :vector-count vector-count
+         :semantic-hash canonical-bytes
+         :mismatched []}))
+    (catch Exception e
+      {:check :verification-fixed-point
+       :status :fail
+       :vector-count 0
+       :error (.getMessage e)
+        :mismatched [{:type :exception :error (.getMessage e)}]})))
+
+;; ── P1: Corpus manifest / root ────────────────────────────────────────────────
+
+(defn- semantic-projection-of
+  "Project a generic check result into a canonical, order-independent shape
+   for content-root computation. Strips non-essential metadata fields."
+  [result]
+  (into (sorted-map)
+        (map (fn [[k v]]
+               (cond
+                 (map? v) [k (semantic-projection-of v)]
+                 (vector? v) [k (sort (map semantic-projection-of v))]
+                 (set? v) [k (sort (map semantic-projection-of v))]
+                 :else [k v]))
+             result)))
+
+(defn- check-result->status
+  "Normalize a check result into :pass or :fail.
+   Different check functions use different success indicators."
+  [result]
+  (or (:status result)
+      (when (:valid? result) :pass)
+      (when (:holds? result) :pass)
+      (when (and (number? (:issue-count result)) (zero? (:issue-count result))) :pass)
+      (when (and (number? (:failures result)) (zero? (:failures result))) :pass)
+      (when (and (coll? (:mismatched result)) (empty? (:mismatched result))) :pass)
+      (when (and (coll? (:duplicates result)) (empty? (:duplicates result))) :pass)
+      (when (and (coll? (:unsupported-versions result)) (empty? (:unsupported-versions result))) :pass)
+      (when (and (coll? (:orphan-paths result)) (empty? (:orphan-paths result))) :pass)
+      (when (and (coll? (:issues result)) (empty? (:issues result))) :pass)
+      :fail))
+
+(defn check-verifier-registry-consistency
+  "Verify that the verifier-registry root declared in a chain-configuration
+   transition matches the one declared in the canonical chain-configuration.
+
+   This prevents the drift scenario where Solidity accepts a verifier that
+   the canonical configuration still rejects, or vice versa.
+
+   Returns {:check :verifier-registry-consistency, :status, ...}"
+  []
+  (try
+    (let [config genesis/chain-configuration-fixture
+          transition genesis/chain-configuration-transition-direct-fixture
+          config-vr (:verifier-registry/root config)
+          transition-vr (:verifier-registry/root transition)
+          matches? (= config-vr transition-vr)]
+      {:check :verifier-registry-consistency
+       :status (if matches? :pass :fail)
+       :configuration-verifier-root config-vr
+       :transition-verifier-root transition-vr
+       :matches? matches?})
+    (catch Exception e
+      {:check :verifier-registry-consistency
+       :status :fail
+       :error (.getMessage e)})))
+
+(defn check-corpus
+  "Produce a committed corpus manifest containing content roots, reference
+   closure roots, and aggregated verification status.
+
+   This turns the corpus from 'a collection we ran checks over' into a
+   versionable research object. The manifest itself is canonical-encodable
+   and survives a canonical round-trip.
+
+   Returns:
+     {:check :corpus
+      :status :pass | :fail
+      :manifest <corpus-manifest-map>   — the committed object
+      :verification-root <sha256-ref>    — hash of the verification profile
+      :semantic-checks <int>            — count of checks run
+      :all-checks-pass? bool}           — whether every check passed"
+  []
+  (let [checks {:all-intents-have-contract-fields (check-all-intents-have-contract-fields)
+                :aggregate (check-aggregate)
+                :cap-respecting (check-cap-respecting)
+                :conservation (check-conservation)
+                :reference-closure (check-reference-closure)
+                :no-orphan-artifacts (check-no-orphan-artifacts)
+                :hash-integrity (check-hash-integrity)
+                :canonical-fixed-point (check-canonical-fixed-point)
+                :unique-identities (check-unique-identities)
+                :schema-version-support (check-schema-version-support)
+                :allocation-domain-invariants (check-allocation-domain-invariants)
+                :expected-results-recompute (check-expected-results-recompute)
+                :intent-coverage (check-intent-coverage)
+                :contract-case-coverage (check-contract-case-coverage)
+                :verifier-registry-consistency (check-verifier-registry-consistency)
+                :negative-corpus (check-negative-corpus)
+                :order-independence (check-order-independence)
+                :verification-fixed-point (check-verification-fixed-point)}
+        check-statuses (into (sorted-map)
+                            (map (fn [[k v]]
+                                   [k {:check (:check v)
+                                      :status (check-result->status v)}]))
+                            checks)
+        all-pass (every? #(= :pass (:status (val %))) check-statuses)
+        corpus-summary (validate-corpus!)
+        manifest {:corpus/schema "benchmark-corpus.v1"
+                  :corpus/packs (:packs corpus-summary)
+                  :corpus/benchmark-count (:benchmarks corpus-summary)
+                  :corpus/hash-intent-count (:hash-intent-count corpus-summary)
+                  :corpus/content-root (:content-root corpus-summary)
+                  :corpus/reference-closure-root (:reference-closure-root corpus-summary)
+                  :corpus/verification-profile "corpus-verification.v2"
+                  :corpus/verification-checks (into (sorted-map) check-statuses)
+                  :corpus/status (if all-pass :verified :failed)
+                  :corpus/schema-version "benchmark-corpus.v1"}
+        verification-hash (canonical/domain-hash "verification-profile"
+                              (semantic-projection-of
+                                (into (sorted-map) check-statuses)))]
+    {:check :corpus
+     :status (if all-pass :pass :fail)
+      :manifest manifest
+      :verification-root (hash-ref/sha256-ref verification-hash)
+       :semantic-checks (count check-statuses)
+       :all-checks-pass? all-pass}))

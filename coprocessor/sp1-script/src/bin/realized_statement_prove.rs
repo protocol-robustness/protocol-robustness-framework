@@ -3,7 +3,7 @@
 //! Generates and verifies a proof of the realized-statement SP1 program, and
 //! checks the equality:
 //!
-//!     native Rust realized-statement output == SP1 guest public values
+//!     native Rust statement root == SP1 guest public values (bytes32)
 //!
 //! Usage:
 //!   cargo run --release --bin realized-statement-prove -- \
@@ -56,7 +56,7 @@ struct RealizedStatementProofArtifact {
     program_elf_sha256: String,
     program_vkey: String,
     public_values_schema: String,
-    public_values_utf8_json: String,
+    public_values_bytes32: String,
     public_values_sha256: String,
     proof_encoding: String,
     proof_file: String,
@@ -84,7 +84,7 @@ fn write_artifact(
     path: &PathBuf,
     proof: &sp1_sdk::SP1ProofWithPublicValues,
     pk: &impl ProvingKey,
-    native: &[u8],
+    statement_root_hex: &str,
 ) {
     let proof_path = path.with_extension("sp1-proof.bin");
     if let Some(parent) = proof_path.parent() {
@@ -96,24 +96,17 @@ fn write_artifact(
     // verifies through the SP1 SDK.
     let proof_bytes = bincode::serialize(proof).expect("serialize SP1 core proof envelope");
     std::fs::write(&proof_path, &proof_bytes).expect("write SP1 proof envelope");
-    let public: Value = serde_json::from_slice(native).expect("native public JSON");
     let artifact = RealizedStatementProofArtifact {
         schema_version: "realized-allocation-proof.v1".to_owned(),
         proof_profile: "allocation-proof/largest-remainder-deferred-pro-rata.v1".to_owned(),
-        statement_schema_version: public["schema-version"]
-            .as_str()
-            .expect("statement schema")
-            .to_owned(),
-        statement_root: public["statement-root"]
-            .as_str()
-            .expect("statement root")
-            .to_owned(),
+        statement_schema_version: "realized-allocation-statement.v1".to_owned(),
+        statement_root: statement_root_hex.to_owned(),
         program_id: "realized-statement-sp1-program.v1".to_owned(),
         program_elf_sha256: sha256_ref(&REALIZED_ELF),
         program_vkey: pk.verifying_key().bytes32().to_string(),
-        public_values_schema: "utf8-json-v1".to_owned(),
-        public_values_utf8_json: String::from_utf8(native.to_vec()).expect("UTF-8 public values"),
-        public_values_sha256: sha256_ref(native),
+        public_values_schema: "evm-bytes32-v1".to_owned(),
+        public_values_bytes32: format!("0x{}", hex::encode(&proof.public_values)),
+        public_values_sha256: sha256_ref(proof.public_values.as_slice()),
         proof_encoding: "sp1-bincode.v1".to_owned(),
         proof_file: proof_path
             .file_name()
@@ -169,11 +162,20 @@ fn main() {
     stdin.write_vec(stdin_input);
 
     // Reference native computation: run the shared realized-statement core on
-    // the host to compare against the committed guest public values.
-    let native = {
+    // the host to compute the expected statement root.
+    let native_statement_root = {
         let result = allocation_kernel::realized_statement_io::run_realized_statement(&input);
-        serde_json::to_vec(&result).expect("serialize native public values")
+        result["statement-root"]
+            .as_str()
+            .expect("statement root from native computation")
+            .to_owned()
     };
+    let native_root_bytes = hex::decode(&native_statement_root)
+        .expect("statement root must be valid hex");
+    let native_root_bytes32: [u8; 32] = native_root_bytes
+        .as_slice()
+        .try_into()
+        .expect("statement root must be 32 bytes");
 
     let client = ProverClient::from_env();
 
@@ -181,8 +183,8 @@ fn main() {
         let (public_values, report) = client.execute(REALIZED_ELF, stdin).run().unwrap();
         println!("Program executed successfully.");
         println!("Cycles: {}", report.total_instruction_count());
-        assert_eq!(public_values.as_slice(), native.as_slice());
-        println!("Guest public values == native public values (execute).");
+        assert_eq!(public_values.as_slice(), &native_root_bytes32[..]);
+        println!("Guest public values == native statement root (execute).");
     } else {
         let pk = client.setup(REALIZED_ELF).expect("failed to setup elf");
         let proof = client.prove(&pk, stdin).run().expect("failed to prove");
@@ -191,14 +193,14 @@ fn main() {
             .expect("failed to verify proof");
         println!("Successfully generated and verified proof!");
 
-        assert_eq!(proof.public_values.as_slice(), native.as_slice());
-        println!("Guest public values == native public values (prove).");
+        assert_eq!(proof.public_values.as_slice(), &native_root_bytes32[..]);
+        println!("Guest public values == native statement root (prove).");
         println!("Program vkey: {}", pk.verifying_key().bytes32());
         write_artifact(
             args.artifact.as_ref().expect("artifact required"),
             &proof,
             &pk,
-            &native,
+            &native_statement_root,
         );
     }
 }

@@ -25,12 +25,8 @@ use std::path::PathBuf;
 
 const REALIZED_ELF: Elf = include_elf!("realized-statement-sp1-program");
 
-fn strip_0x(s: &str) -> &str {
-    if s.starts_with("0x") || s.starts_with("0X") {
-        &s[2..]
-    } else {
-        s
-    }
+fn sha256_ref(bytes: &[u8]) -> String {
+    format!("sha256:{:x}", Sha256::digest(bytes))
 }
 
 #[derive(Parser, Debug)]
@@ -110,7 +106,7 @@ fn main() {
             format!("{:?}", args.system).to_lowercase()
         },
         program_id: "realized-statement-sp1-program.v1".to_string(),
-        public_values_schema: "utf8-json-v1".to_string(),
+        public_values_schema: "evm-bytes32-v1".to_string(),
         elf_sha256: format!("0x{}", hex::encode(elf_hash)),
     };
 

@@ -7,13 +7,15 @@
    establish before a claim may be graduated. A caller-supplied `:verified?`
    flag is therefore never sufficient."
   (:require [clojure.data.json :as json]
+            [clojure.string :as str]
             [buddy.core.codecs :as codecs]
             [resolver-sim.allocation.realized-statement :as statement]
             [resolver-sim.hash.canonical :as hc]
             [resolver-sim.hash.reference :as hash-ref]
             [resolver-sim.signed-external-decision :as sed]
             [resolver-sim.conformance.json :as strict-json])
-  (:import [java.security MessageDigest]))
+  (:import [java.security MessageDigest]
+           [java.util Arrays]))
 
 (def proof-profile :allocation-proof/largest-remainder-deferred-pro-rata.v1)
 (def statement-version statement/schema-version)
@@ -53,7 +55,7 @@
   (select-keys artifact [:proof/schema-version :proof/profile
                          :statement/schema-version :statement/root
                          :program/id :program/elf-sha256 :program/vkey
-                         :public-values/schema :public-values/utf8-json
+                         :public-values/schema :public-values/bytes32
                          :public-values/sha256 :proof/encoding :proof/file :proof/sha256]))
 
 (defn proof-artifact-hash [artifact]
@@ -75,11 +77,12 @@
        (string? (:statement/root artifact))
        (string? (:program/id artifact))
        (sha256-ref? (:program/elf-sha256 artifact))
-       (string? (:program/vkey artifact))
-       (= :utf8-json-v1 (:public-values/schema artifact))
-       (string? (:public-values/utf8-json artifact))
-       (= (:public-values/sha256 artifact)
-          (sha256-utf8-ref (:public-values/utf8-json artifact)))
+        (string? (:program/vkey artifact))
+        (= :evm-bytes32-v1 (:public-values/schema artifact))
+        (string? (:public-values/bytes32 artifact))
+        (= (:public-values/sha256 artifact)
+           (sha256-bytes-ref (codecs/hex->bytes
+                               (subs (:public-values/bytes32 artifact) 2))))
        (sha256-ref? (:public-values/sha256 artifact))
        (= "sp1-bincode.v1" (:proof/encoding artifact))
        (string? (:proof/file artifact))
@@ -108,9 +111,8 @@
                         :program/id (:program_id value)
                         :program/elf-sha256 (:program_elf_sha256 value)
                         :program/vkey (:program_vkey value)
-                        :public-values/schema (some-> (:public_values_schema value) keyword)
-                        :public-values/utf8-json (:public_values_utf8_json value)
-                        :public-values/sha256 (:public_values_sha256 value)
+                         :public-values/schema (some-> (:public_values_schema value) keyword)
+                         :public-values/bytes32 (:public_values_bytes32 value)                        :public-values/sha256 (:public_values_sha256 value)
                         :proof/encoding (:proof_encoding value)
                         :proof/file (:proof_file value)
                         :proof/sha256 (:proof_sha256 value)}
@@ -243,21 +245,27 @@
      (select-keys artifact [:program/id :program/elf-sha256 :program/vkey
                             :statement/schema-version :public-values/schema])))
 
+(defn- strip-sha256-prefix
+  "Strip a leading 'sha256:' prefix from a canonical hash reference, if present."
+  [s]
+  (if (and (string? s) (str/starts-with? s "sha256:"))
+    (subs s 7)
+    s))
+
 (defn public-values-match?
   "Validate the guest's passing public projection against the exact statement.
-   This checks semantic projection fields; the verifier receipt separately binds
-   the raw UTF-8 JSON byte hash that SP1 actually verified."
+   With the evm-bytes32-v1 schema, the SP1 public values are a fixed 32-byte
+   projection (the statement root). The verifier receipt separately binds
+   the raw bytes hash that SP1 actually verified."
   [artifact statement]
-  (let [public (try (json/read-str (:public-values/utf8-json artifact))
-                    (catch Exception _ nil))]
-    (and (map? public)
-         (= "passing" (get public "result/status"))
-         (= statement-version (get public "schema-version"))
-         (= (:statement/root statement) (:statement/root artifact)
-            (get public "statement-root"))
-         (every? #(= (get statement %) (get public (name %)))
-                 [:allocation-context-root :request-set-root :allocation-policy-root
-                  :realized-results-root :fail-action-policy-root :round-lifecycle-root]))))
+  (let [bytes32-hex (:public-values/bytes32 artifact)
+        raw-bytes (when (and (string? bytes32-hex)
+                             (re-matches #"0x[0-9a-f]{64}" bytes32-hex))
+                    (codecs/hex->bytes (subs bytes32-hex 2)))
+        stmt-root-hex (strip-sha256-prefix (:statement/root statement))]
+    (and raw-bytes
+         (= (count raw-bytes) 32)
+         (Arrays/equals raw-bytes (codecs/hex->bytes stmt-root-hex)))))
 
 (defn statement-proof-coverage
   "Canonical per-statement proof coverage. A scenario collection is covered

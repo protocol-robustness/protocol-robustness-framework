@@ -1666,6 +1666,7 @@
    :target
    :configuration/parent-root
    :configuration/new-root
+   :verifier-registry/root
    :epoch])
 
 (def chain-configuration-transition-target-fields
@@ -2501,8 +2502,9 @@ name (an alias)."
      {:intent/name        :prf-chain-configuration-transition-v1
       :intent/domain-tag  "PRF_CHAIN_CONFIGURATION_TRANSITION_V1"
       :intent/description "Canonical SHA-256 identity of a chain-configuration-transition.v1 governance transition"
-      :intent/includes    #{:transition/schema :protocol/genesis-root :target
-                            :configuration/parent-root :configuration/new-root :epoch}
+       :intent/includes    #{:transition/schema :protocol/genesis-root :target
+                             :configuration/parent-root :configuration/new-root
+                             :verifier-registry/root :epoch}
       :intent/excludes    #{:runtime-values :functions :deployment-metadata
                             :block-context :timestamps}
       :intent/projection-fn project-chain-configuration-transition

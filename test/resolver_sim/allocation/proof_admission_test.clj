@@ -2,6 +2,7 @@
   (:require [clojure.test :refer [deftest is testing]]
             [clojure.data.json :as json]
             [clojure.string :as str]
+            [buddy.core.codecs :as codecs]
             [resolver-sim.allocation.context :as ctx]
             [resolver-sim.allocation.proof-admission :as admission]
             [resolver-sim.allocation.proof-verifier-issuer :as issuer]
@@ -37,24 +38,22 @@
 
 (defn- sha-ref [c] (str "sha256:" (apply str (repeat 64 c))))
 (defn- wire-kw [kw] (subs (str kw) 1))
-(defn- sha-utf8-ref [s]
-  (let [d (java.security.MessageDigest/getInstance "SHA-256")]
-    (.update d (.getBytes s "UTF-8"))
-    (str "sha256:" (apply str (map #(format "%02x" (bit-and % 0xff)) (.digest d))))))
+(defn- sha256-bytes-ref [bs]
+  (let [digest (java.security.MessageDigest/getInstance "SHA-256")]
+    (.update digest bs)
+    (str "sha256:" (apply str (map #(format "%02x" (bit-and % 0xff)) (.digest digest))))))
+
+(defn- sha256-utf8-ref [s]
+  (let [digest (java.security.MessageDigest/getInstance "SHA-256")]
+    (.update digest (.getBytes s "UTF-8"))
+    (str "sha256:" (apply str (map #(format "%02x" (bit-and % 0xff)) (.digest digest))))))
 
 (defn- statement-fixture [decision]
   (statement/build-statement {:ctx context :decision decision :round-lifecycle lifecycle}))
 
 (defn- artifact-fixture [s]
-  (let [public-json
-        (str "{\"result/status\":\"passing\",\"schema-version\":\"" admission/statement-version
-             "\",\"statement-root\":\"" (:statement/root s)
-             "\",\"allocation-context-root\":\"" (:allocation-context-root s)
-             "\",\"request-set-root\":\"" (:request-set-root s)
-             "\",\"allocation-policy-root\":\"" (:allocation-policy-root s)
-             "\",\"realized-results-root\":\"" (:realized-results-root s)
-             "\",\"fail-action-policy-root\":\"" (:fail-action-policy-root s)
-             "\",\"round-lifecycle-root\":\"" (:round-lifecycle-root s) "\"}")]
+  (let [statement-root-bytes (codecs/hex->bytes (:statement/root s))
+        public-values-bytes32 (str "0x" (codecs/bytes->hex statement-root-bytes))]
     (admission/build-proof-artifact
      {:proof/schema-version admission/proof-artifact-schema
       :proof/profile admission/proof-profile
@@ -63,13 +62,12 @@
       :program/id "realized-statement-sp1-program.v1"
       :program/elf-sha256 (sha-ref "a")
       :program/vkey "0x1111111111111111111111111111111111111111111111111111111111111111"
-      :public-values/schema :utf8-json-v1
-      :public-values/utf8-json public-json
-      :public-values/sha256 (sha-utf8-ref public-json)
+      :public-values/schema :evm-bytes32-v1
+      :public-values/bytes32 public-values-bytes32
+      :public-values/sha256 (sha256-bytes-ref statement-root-bytes)
       :proof/encoding "sp1-bincode.v1"
       :proof/file "proof.sp1-proof.bin"
-      :proof/sha256 (sha-utf8-ref "\u0001\u0002\u0003\u0004")})))
-
+      :proof/sha256 (sha256-utf8-ref "\u0001\u0002\u0003\u0004")})))
 (defn- program-registry [artifact]
   {admission/proof-profile
    (select-keys artifact [:program/id :program/elf-sha256 :program/vkey
@@ -155,8 +153,8 @@
       (is (false? (admission/cryptographic-computation-admitted?
                    (assoc-in request [:artifact :statement/root] (sha-ref "d")))))
       (is (false? (admission/cryptographic-computation-admitted?
-                   (assoc-in request [:artifact :public-values/utf8-json]
-                             "{\"result/status\":\"passing\",\"statement-root\":\"substituted\"}")))))
+                   (assoc-in request [:artifact :public-values/bytes32]
+                             (str "0x" (apply str (repeat 64 "0"))))))))
     (testing "program/VK identity is registry pinned, not caller nominated"
       (is (false? (admission/cryptographic-computation-admitted?
                    (assoc-in request [:artifact :program/vkey] "0x2222"))))
@@ -179,7 +177,7 @@
                                     "program_elf_sha256" (:program/elf-sha256 artifact)
                                     "program_vkey" (:program/vkey artifact)
                                     "public_values_schema" (wire-kw (:public-values/schema artifact))
-                                    "public_values_utf8_json" (:public-values/utf8-json artifact)
+                                    "public_values_bytes32" (:public-values/bytes32 artifact)
                                     "public_values_sha256" (:public-values/sha256 artifact)
                                     "proof_encoding" (:proof/encoding artifact)
                                     "proof_file" (:proof/file artifact)

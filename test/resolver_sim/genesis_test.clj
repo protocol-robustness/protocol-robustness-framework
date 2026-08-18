@@ -18,10 +18,10 @@
   "sha256:a3b808fa66ad9b9c4f35de5590ad95213cf0de76190db5980ced743f39f97f57")
 
 (def ^:private direct-transition-root
-  "sha256:3f5f3d34df298102e72a3c016c66d74e2a6d00b0c5250db5c7691cf54b17ab46")
+  "sha256:abb2aa2c77e78f5b5633eb645bd05816c97214ad0a2901df4d3e662ae35b7f22")
 
 (def ^:private set-transition-root
-  "sha256:35a53e5a13246269cace61a55845ed2e682818d2993cbc9e4537ef1af79f5442")
+  "sha256:51d907c2cdb63440399bb0a3da075f6849e18b2d8eaba01c31e6ec1c582eca86")
 
 ;; ── Protocol genesis (unchanged) ──────────────────────────────────────────
 
@@ -250,10 +250,22 @@
   (testing "parent-root == new-root is rejected"
     (let [parent-root (:configuration/parent-root g/chain-configuration-transition-direct-fixture)
           invalid (assoc g/chain-configuration-transition-direct-fixture
-                         :configuration/new-root parent-root)
+                          :configuration/new-root parent-root)
           v (g/validate-chain-configuration-transition invalid)]
       (is (not (:valid? v)))
       (is (some #(str/includes? % "self-transition") (:errors v))))))
+
+(deftest test-transition-rejects-missing-verifier-registry-root
+  (testing "transition without :verifier-registry/root is rejected"
+    (let [invalid (dissoc g/chain-configuration-transition-direct-fixture :verifier-registry/root)
+          v (g/validate-chain-configuration-transition invalid)]
+      (is (not (:valid? v)))
+      (is (some #(str/includes? % "verifier-registry/root") (:errors v))))))
+
+(deftest test-transition-accepts-verifier-registry-root
+  (testing "transition with :verifier-registry/root passes validation"
+    (let [v (g/validate-chain-configuration-transition g/chain-configuration-transition-direct-fixture)]
+      (is (:valid? v) (str "validation errors: " (:errors v))))))
 
 ;; ── Target-set vs direct produces different roots ────────────────────────
 
@@ -304,12 +316,21 @@
           parent-config (:configuration/parent-root t)
           new-config (:configuration/new-root t)
           epoch (:epoch t)]
-      (is (= "3f5f3d34df298102e72a3c016c66d74e2a6d00b0c5250db5c7691cf54b17ab46" hex))
+      (is (= "abb2aa2c77e78f5b5633eb645bd05816c97214ad0a2901df4d3e662ae35b7f22" hex))
       (is (= target-mode 0))
       (is (hash-ref/valid-sha256-ref? target-root))
       (is (hash-ref/valid-sha256-ref? parent-config))
       (is (hash-ref/valid-sha256-ref? new-config))
       (is (= 1 epoch)))))
+
+(deftest test-solidity-projection-includes-verifier-registry-root
+  (testing "authorization projection includes verifier-registry-root"
+    (let [auth (g/chain-configuration-transition->solidity-authorization
+                g/chain-configuration-transition-direct-fixture)
+          vr-root (-> g/chain-configuration-transition-direct-fixture :verifier-registry/root)]
+      (is (contains? auth :verifier-registry-root))
+      (is (= (str "0x" (subs vr-root 7))
+             (:verifier-registry-root auth))))))
 
 ;; ── Solidity authorization projection tests ─────────────────────────────────
 
@@ -411,7 +432,7 @@
   (testing "direct transition exports the expected golden tuple"
     (let [auth (g/chain-configuration-transition->solidity-authorization
                 g/chain-configuration-transition-direct-fixture)]
-      (is (= "0x3f5f3d34df298102e72a3c016c66d74e2a6d00b0c5250db5c7691cf54b17ab46"
+      (is (= "0xabb2aa2c77e78f5b5633eb645bd05816c97214ad0a2901df4d3e662ae35b7f22"
              (:decision-root auth)))
       (is (= 0 (:target-mode auth)))
       (is (= "0xf6c0f226998ebecb1123f78c2b30347d24c6e7ca2131f44f880b8a43c052cf86"
@@ -420,6 +441,8 @@
              (:parent-configuration-root auth)))
       (is (= "0xeeabcdeca12cc86143032758cdf069751b47546dd69a94efeb008f4f2ae2b39c"
              (:new-configuration-root auth)))
+      (is (= "0x2e728266afeb4b7dc7f1251f18bd4e3b6a93d72d06e8841a9b5d2f60c672fdfe"
+             (:verifier-registry-root auth)))
       (is (= 1 (:epoch auth))))))
 
 (deftest test-solidity-projection-rejects-malformed-ref
@@ -460,7 +483,12 @@
   (testing "self-transition is rejected"
     (let [parent (:configuration/parent-root g/chain-configuration-transition-direct-fixture)
           invalid (assoc g/chain-configuration-transition-direct-fixture
-                         :configuration/new-root parent)
+                          :configuration/new-root parent)
+          v (g/validate-chain-configuration-transition invalid)]
+      (is (not (:valid? v)))))
+
+  (testing "missing verifier-registry-root is rejected"
+    (let [invalid (dissoc g/chain-configuration-transition-direct-fixture :verifier-registry/root)
           v (g/validate-chain-configuration-transition invalid)]
       (is (not (:valid? v)))))
 
@@ -490,4 +518,5 @@
       (is (= (:target-root auth) (:targetRoot json)))
       (is (= (:parent-configuration-root auth) (:parentConfigurationRoot json)))
       (is (= (:new-configuration-root auth) (:newConfigurationRoot json)))
+      (is (= (:verifier-registry-root auth) (:verifierRegistryRoot json)))
       (is (= (:epoch auth) (:epoch json))))))

@@ -108,28 +108,59 @@
            (println (str "[FAIL] " check ": missing contract case coverage"))
            (doseq [m (:missing-cases result)]
              (println (str "  - " m)))))
-       (= check :negative-corpus)
-       (if (= :pass (:status result))
-         (println (str "[PASS] " check ": all " (:fixture-count result)
-                       " negative fixtures correctly rejected"))
-         (do
-           (println (str "[FAIL] " check ": " (:fixture-count result)
-                         " fixtures, some not correctly rejected"))
-           (doseq [r (:results result)]
-             (when (= :fail (:status r))
-               (println (str "  - " (:fixture r) " [:" (:fixture-type r) "]: "
-                             "expected " (:expected-reasons r)
-                             " observed " (:observed-reasons r)))))))
-      (= check :corpus)
-      (let [status (:status result)]
-        (if (= status :passed)
-          (println (str "[PASS] corpus validation: " (:packs result) " packs, " (:benchmarks result) " benchmarks"))
+         (= check :negative-corpus)
+        (if (= :pass (:status result))
+          (println (str "[PASS] " check ": all " (:fixture-count result)
+                        " negative fixtures correctly rejected"))
           (do
-            (println (str "[FAIL] corpus validation failed"))
-            (doseq [err (:errors result)]
+            (println (str "[FAIL] " check ": " (:fixture-count result)
+                          " fixtures, some not correctly rejected"))
+            (doseq [r (:results result)]
+              (when (= :fail (:status r))
+                (println (str "  - " (:fixture r) " [:" (:fixture-type r) "]: "
+                              "expected " (:expected-reasons r)
+                              " observed " (:observed-reasons r)))))))
+        (= check :order-independence)
+        (if (= :pass (:status result))
+          (println (str "[PASS] " check ": corpus enumeration is order-independent across "
+                        (:orderings-tested result) " orderings"))
+          (do
+            (println (str "[FAIL] " check ": ordering-dependent results detected"))
+            (doseq [d (:differences result)]
+              (println (str "  - " d)))))
+        (= check :verification-fixed-point)
+        (if (= :pass (:status result))
+          (println (str "[PASS] " check ": verification report survives canonical round-trip ("
+                        (:vector-count result) " vectors, hash: " (:semantic-hash result) ")"))
+          (do
+            (println (str "[FAIL] " check ": canonical round-trip failed ("
+                          (:vector-count result) " vectors)"))
+            (doseq [m (:mismatched result)]
+              (println (str "  - " m)))))
+       (= check :corpus)
+       (let [manifest (:manifest result)]
+         (if (= :pass (:status result))
+           (do
+             (println (str "[PASS] " check ": CORPUS VERIFIED"))
+             (println (format "  packs                  %d" (:corpus/packs manifest)))
+             (println (format "  benchmarks             %d" (:corpus/benchmark-count manifest)))
+             (println (format "  hash intents           %d" (:corpus/hash-intent-count manifest)))
+             (println (format "  semantic checks        %d" (:semantic-checks result)))
+             (println (format "  verification-root      %s" (:verification-root result))))
+           (do
+             (println (str "[FAIL] " check ": not all checks passed"))
+             (doseq [[k v] (:corpus/verification-checks manifest)]
+               (when (not= :pass (:status v))
+                 (println (str "  - " k ": " (:status v))))))))
+        (= check :verifier-registry-consistency)
+        (if (= :pass (:status result))
+          (println (str "[PASS] " check ": configuration and transition verifier roots match"))
+          (do
+            (println (str "[FAIL] " check ": configuration and transition verifier roots diverge"))
+            (when-let [err (:error result)]
               (println (str "  - " err)))))
-      :else
-      (println (str "[UNKNOWN] " check ": " check))))))
+        :else
+        (println (str "[UNKNOWN] " check ": " check))))))
 
 (defn -main [& _args]
   (println "=== Corpus Verification Checks (v2) ===")
@@ -220,20 +251,30 @@
      (format-result (cv/check-contract-case-coverage))
      (catch Exception e
        (println (str "[ERROR] " (.getMessage e)))))
-   (println)
-   (println "  15. Running negative corpus check...")
-   (try
-     (format-result (cv/check-negative-corpus))
-     (catch Exception e
-       (println (str "[ERROR] " (.getMessage e)))))
-   (println)
-   (println "  16. Validating corpus structure...")
-   (try
-    (let [result (cv/validate-corpus!)]
-      (println (str "[PASS] corpus validation: " (:packs result) " packs, " (:benchmarks result) " benchmarks"))
-      (println "OK: corpus structure valid"))
-    (catch Exception e
-      (println (str "[ERROR] Corpus validation failed: " (.getMessage e)))))
+    (println)
+    (println "  15. Running negative corpus check...")
+    (try
+      (format-result (cv/check-negative-corpus))
+      (catch Exception e
+        (println (str "[ERROR] " (.getMessage e)))))
+    (println)
+    (println "  16. Running order independence check...")
+    (try
+      (format-result (cv/check-order-independence))
+      (catch Exception e
+        (println (str "[ERROR] " (.getMessage e)))))
+    (println)
+    (println "  17. Running verification fixed-point check...")
+    (try
+      (format-result (cv/check-verification-fixed-point))
+      (catch Exception e
+        (println (str "[ERROR] " (.getMessage e)))))
+    (println)
+    (println "  18. Producing committed corpus manifest / root...")
+    (try
+      (format-result (cv/check-corpus))
+      (catch Exception e
+        (println (str "[ERROR] " (.getMessage e)))))
   (println)
   (println "=== Corpus Verification Complete ===")
   (System/exit 0))

@@ -13,7 +13,6 @@
 
 use clap::Parser;
 use serde::{Deserialize, Serialize};
-use serde_json::Value;
 use sha2::{Digest, Sha256};
 use sp1_sdk::{
     blocking::{Prover, ProverClient},
@@ -25,7 +24,7 @@ const REALIZED_ELF: Elf = include_elf!("realized-statement-sp1-program");
 const PROFILE: &str = "allocation-proof/largest-remainder-deferred-pro-rata.v1";
 const PROGRAM_ID: &str = "realized-statement-sp1-program.v1";
 const STATEMENT_SCHEMA: &str = "realized-allocation-statement.v1";
-const PUBLIC_VALUES_SCHEMA: &str = "utf8-json-v1";
+const PUBLIC_VALUES_SCHEMA: &str = "evm-bytes32-v1";
 const PROOF_ENCODING: &str = "sp1-bincode.v1";
 
 #[derive(Parser, Debug)]
@@ -47,7 +46,6 @@ struct Artifact {
     program_elf_sha256: String,
     program_vkey: String,
     public_values_schema: String,
-    public_values_utf8_json: String,
     public_values_sha256: String,
     proof_encoding: String,
     proof_file: String,
@@ -101,18 +99,20 @@ fn single_sibling_path(artifact_path: &Path, name: &str) -> PathBuf {
 }
 
 fn expected_public_values(artifact: &Artifact) -> Vec<u8> {
-    let public: Value = serde_json::from_str(&artifact.public_values_utf8_json)
-        .unwrap_or_else(|_| fail("public_values_utf8_json is not JSON"));
-    let object = public
-        .as_object()
-        .unwrap_or_else(|| fail("public values must be an object"));
-    if object.get("result/status").and_then(Value::as_str) != Some("passing")
-        || object.get("schema-version").and_then(Value::as_str) != Some(STATEMENT_SCHEMA)
-        || object.get("statement-root").and_then(Value::as_str) != Some(&artifact.statement_root)
-    {
-        fail("public values do not bind a passing expected statement");
+    // With evm-bytes32-v1 schema, the committed public values are the raw
+    // 32-byte statement root. Validate that the artifact's statement root
+    // is a 32-byte hex value.
+    let root_hex = if artifact.statement_root.starts_with("sha256:") {
+        &artifact.statement_root[7..]
+    } else {
+        &artifact.statement_root
+    };
+    let root_bytes = hex::decode(root_hex)
+        .unwrap_or_else(|_| fail("statement_root is not valid hex"));
+    if root_bytes.len() != 32 {
+        fail("statement_root must be 32 bytes");
     }
-    artifact.public_values_utf8_json.as_bytes().to_vec()
+    root_bytes
 }
 
 fn main() {
