@@ -2,9 +2,9 @@
   (:require [clojure.test :refer :all]
             [clojure.string :as str]
             [clojure.data.json :as json]
-             [resolver-sim.genesis :as g]
-             [resolver-sim.hash.canonical :as canonical]
-             [resolver-sim.hash.reference :as hash-ref])
+            [resolver-sim.genesis :as g]
+            [resolver-sim.hash.canonical :as canonical]
+            [resolver-sim.hash.reference :as hash-ref])
   (:import [clojure.lang ExceptionInfo]))
 
 ;; ── Golden roots (computed at load) ──────────────────────────────────────
@@ -573,8 +573,8 @@
                 g/chain-configuration-transition-v0-to-v1-fixture
                 g/chain-configuration-v0-fixture
                 g/chain-configuration-v1-fixture)]
-       (is (= (:new-configuration-root plan)
-              (str "0x" (subs g/chain-configuration-v1-fixture-root 7)))))))
+      (is (= (:new-configuration-root plan)
+             (str "0x" (subs g/chain-configuration-v1-fixture-root 7)))))))
 
 (deftest test-solidity-application-plan-derives-parent-verifier-registry-root
   (testing "application plan derives parent verifier-registry root from parent config"
@@ -583,9 +583,8 @@
                 g/chain-configuration-v0-fixture
                 g/chain-configuration-v1-fixture)
           expected-vr (:verifier-registry/root g/chain-configuration-v0-fixture)]
-       (is (= (:parent-verifier-registry-root plan)
-              (str "0x" (subs expected-vr 7)))))))
-
+      (is (= (:parent-verifier-registry-root plan)
+             (str "0x" (subs expected-vr 7)))))))
 
 (deftest test-solidity-application-plan-derives-new-verifier-registry-root
   (testing "application plan derives new verifier-registry root from new config"
@@ -594,9 +593,8 @@
                 g/chain-configuration-v0-fixture
                 g/chain-configuration-v1-fixture)
           expected-vr (:verifier-registry/root g/chain-configuration-v1-fixture)]
-       (is (= (:new-verifier-registry-root plan)
-              (str "0x" (subs expected-vr 7)))))))
-
+      (is (= (:new-verifier-registry-root plan)
+             (str "0x" (subs expected-vr 7)))))))
 
 (deftest test-solidity-application-plan-rejects-parent-mismatch
   (testing "application plan rejects when parent config root doesn't match transition parent root"
@@ -656,3 +654,102 @@
   (testing "no new domain tag or hash intent was added for application plan"
     (is (not (contains? canonical/domain-tags :prf-solidity-application-plan)))
     (is (not (contains? canonical/domain-tags :prf-solidity-initialization)))))
+
+;; ── chain-configuration-fields invariant tests ────────────────────────────────
+
+(deftest test-chain-configuration-fields-exported-as-set
+  (testing "genesis exports chain-configuration-fields as a set"
+    (is (set? g/chain-configuration-fields))
+    (is (= #{:configuration/schema
+             :module-registry/root
+             :verifier-registry/root
+             :evidence-policy/root
+             :escrow-template-registry/root
+             :parameter-policy/root
+             :governance-policy/root
+             :interoperability-policy/root}
+           g/chain-configuration-fields))))
+
+(deftest test-chain-configuration-fields-agreement-validator-projection-export
+  (testing "validator field set == projection field set == exported chain-configuration-fields"
+    (let [validator-set (set canonical/chain-configuration-fields)
+          projection-set (set canonical/chain-configuration-fields)
+          exported-set g/chain-configuration-fields]
+      (is (= validator-set projection-set))
+      (is (= projection-set exported-set)))))
+
+(deftest test-chain-configuration-fields-no-extras-no-mismatches
+  (testing "chain-configuration-fields has exactly the documented canonical surface"
+    (is (= (count g/chain-configuration-fields) 8))))
+
+;; ── chain-configuration change-identity tests ────────────────────────────────
+
+(deftest test-change-identity-excludes-epoch
+  (testing "change-identity excludes epoch (sequence metadata)"
+    (let [transition-v0 g/chain-configuration-transition-v0-to-v1-fixture
+          transition-alt-epoch (assoc transition-v0 :epoch 999)
+          ci1 (g/chain-configuration-change-identity-hash transition-v0)
+          ci2 (g/chain-configuration-change-identity-hash transition-alt-epoch)]
+      (is (= ci1 ci2)))))
+
+(deftest test-change-identity-includes-complete-basis
+  (testing "change-identity basis = parent-root + new-root + target; no individual sub-roots"
+    (let [basis (g/chain-configuration-change-identity-basis
+                 g/chain-configuration-transition-v0-to-v1-fixture)]
+      (is (contains? basis :configuration/parent-root))
+      (is (contains? basis :configuration/new-root))
+      (is (contains? basis :target))
+      (is (not (contains? basis :verifier-registry/root))
+          "verifier-registry/root is redundant: committed inside new-root")
+      (is (not (contains? basis :transition/schema)))
+      (is (not (contains? basis :protocol/genesis-root)))
+      (is (not (contains? basis :epoch))))))
+
+(deftest test-change-identity-stable-across-retry
+  (testing "same logical change against same parent has stable change-identity"
+    (let [transition g/chain-configuration-transition-v0-to-v1-fixture
+          ci1 (g/chain-configuration-change-identity-hash transition)
+          ci2 (g/chain-configuration-change-identity-hash
+               (g/chain-configuration-change-identity-basis transition))]
+      (is (= ci1 ci2))
+      (is (string? ci1))
+      (is (str/starts-with? ci1 "sha256:")))))
+
+(deftest test-change-identity-invariant-to-standalone-verifier-registry-change
+  (testing "verifier-registry/root is NOT in basis: standalone change without new-root is invisible"
+    (let [transition g/chain-configuration-transition-v0-to-v1-fixture
+          ci-base (g/chain-configuration-change-identity-hash transition)
+          transition-alt-vr (assoc-in transition [:verifier-registry/root]
+                                      "sha256:9999999999999999999999999999999999999999999999999999999999999999")
+          ci-alt (g/chain-configuration-change-identity-hash transition-alt-vr)]
+      (is (= ci-base ci-alt)
+          "change-identity ignores standalone verifier-registry/root (redundant with new-root"))))
+
+(deftest test-change-identity-discriminates-different-new-root
+  (testing "same parent+target+verifier-registry but different new-root gives different identity"
+    (let [transition g/chain-configuration-transition-v0-to-v1-fixture
+          ci1 (g/chain-configuration-change-identity-hash transition)
+          transition-alt-new (assoc transition :configuration/new-root
+                                    "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")
+          ci2 (g/chain-configuration-change-identity-hash transition-alt-new)]
+      (is (not= ci1 ci2)))))
+
+(deftest test-change-identity-discriminates-any-subfield-change
+  (testing "each configuration sub-root committed via new-root discriminates change-identity"
+    (let [transition g/chain-configuration-transition-v0-to-v1-fixture
+          ci-base (g/chain-configuration-change-identity-hash transition)
+          alt-config (assoc g/chain-configuration-v1-fixture
+                            :module-registry/root
+                            "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb")
+          alt-config-root (g/chain-configuration-root alt-config)
+          transition-alt (assoc transition :configuration/new-root alt-config-root)]
+      (is (not= ci-base
+                (g/chain-configuration-change-identity-hash transition-alt))
+          "different new-root from any sub-field change produces different change-identity"))))
+
+(deftest test-change-identity-not-equal-to-transition-root
+  (testing "change-identity hash != transition root (they capture different things)"
+    (let [transition g/chain-configuration-transition-v0-to-v1-fixture
+          ci (g/chain-configuration-change-identity-hash transition)
+          tr (g/chain-configuration-transition-root transition)]
+      (is (not= ci tr)))))

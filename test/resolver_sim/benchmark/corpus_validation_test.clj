@@ -262,7 +262,7 @@
         (str "All corpus checks should pass. Error: " (:error result)))
     (is (some? (:manifest result)))
     (is (some? (:verification-root result)))
-    (is (pos? (:semantic-checks result)))
+    (is (= 19 (:semantic-checks result)))
     (is (true? (:all-checks-pass? result)))
     (let [manifest (:manifest result)]
       (is (= "benchmark-corpus.v1" (:corpus/schema manifest)))
@@ -271,14 +271,43 @@
       (is (some? (:corpus/content-root manifest)))
       (is (some? (:corpus/reference-closure-root manifest)))
       (is (= "corpus-verification.v2" (:corpus/verification-profile manifest)))
-      (is (= :verified (:corpus/status manifest)))))
+      (is (= :verified (:corpus/status manifest))))))
 
-  (deftest check-verifier-registry-consistency-passes
-    (let [result (corpus-validation/check-verifier-registry-consistency)]
-      (is (= :verifier-registry-consistency (:check result)))
-      (is (= :pass (:status result))
-          (str "Verifier registry roots should be consistent. Error: "
-               (:error result)))
-      (is (boolean (:matches? result)))
-      (is (some? (:configuration-verifier-root result)))
-      (is (some? (:transition-verifier-root result))))))
+(deftest check-claim-registry-closure-passes
+  (let [result (corpus-validation/check-claim-registry-closure)]
+    (is (= :claim-registry-closure (:check result)))
+    (is (= :pass (:status result))
+        (str "Claim registry should be closure-consistent. Mismatches: "
+             (:evaluators-without-definitions result)
+             (:definitions-without-evaluators result)
+             (:duplicate-definitions result)
+             (:schema-errors result)))
+    (is (integer? (:evaluator-count result)))
+    (is (integer? (:definition-count result)))
+    (is (empty? (:evaluators-without-definitions result)))
+    (is (empty? (:definitions-without-evaluators result)))
+    (is (empty? (:duplicate-definitions result)))
+    (is (empty? (:schema-errors result)))))
+
+(deftest check-allocation-domain-invariants-evaluates-all-claims
+  (let [result (corpus-validation/check-allocation-domain-invariants)]
+    (is (= :allocation-domain-invariants (:check result)))
+    (is (= :pass (:status result)))
+    (is (pos? (:constituent-count result)))
+    (doseq [expected [:pro-rata/non-negative-allocation
+                      :pro-rata/allocation-not-above-request
+                      :pro-rata/integer-domain
+                      :pro-rata/residual-accounting
+                      :pro-rata/full-fill-consistency]]
+      (is (some #(= expected (:name %)) (:checks result))
+          (str "Expected check " expected " to be in allocation domain invariants checks")))))
+
+(deftest check-verifier-registry-consistency-passes
+  (let [result (corpus-validation/check-verifier-registry-consistency)]
+    (is (= :verifier-registry-consistency (:check result)))
+    (is (= :pass (:status result))
+        (str "Verifier registry roots should be consistent. Error: "
+             (:error result)))
+    (is (boolean (:matches? result)))
+    (is (some? (:configuration-verifier-root result)))
+    (is (some? (:transition-verifier-root result)))))

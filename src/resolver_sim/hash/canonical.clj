@@ -283,7 +283,8 @@
    :prf-protocol-genesis-v1           "PRF_PROTOCOL_GENESIS_V1"
    :prf-chain-instance-genesis-v1     "PRF_CHAIN_INSTANCE_GENESIS_V1"
    :prf-chain-configuration-v1        "PRF_CHAIN_CONFIGURATION_V1"
-   :prf-chain-configuration-transition-v1 "PRF_CHAIN_CONFIGURATION_TRANSITION_V1"})
+   :prf-chain-configuration-transition-v1 "PRF_CHAIN_CONFIGURATION_TRANSITION_V1"
+   :prf-chain-configuration-change-identity-v1 "prf.chain-configuration-change-identity.v1"})
 
 ;; ──────────────────────────────────────────────────────────────────────────────
 ;; varuint Encoding (LEB128, little-endian base-128)

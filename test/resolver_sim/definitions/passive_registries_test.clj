@@ -678,12 +678,14 @@
     (is (seq errors))
     (is (some #(= :cross/missing-hash-intent-ref (:error %)) errors))))
 
-(deftest cross-registry-detects-unknown-hash-intent
+(deftest cross-registry-detects-unregistered-hash-intent
   (let [passive (hash-projection-passive-entry :no-such-intent)
         runtime {}  ;; empty runtime registry
         errors (registries/validate-intent-registry-alignment [passive] runtime)]
     (is (seq errors))
-    (is (some #(= :cross/missing-hash-intent (:error %)) errors))))
+    (is (some #(= :cross/unregistered-hash-intent (:error %)) errors))
+    (is (not (some #(= :cross/missing-hash-intent-ref (:error %)) errors))
+        "a declared-but-unregistered intent is not a missing reference")))
 
 (deftest cross-registry-detects-version-mismatch
   (let [passive (hash-projection-passive-entry :test-intent {:version 2})

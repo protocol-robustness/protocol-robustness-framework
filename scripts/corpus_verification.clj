@@ -84,83 +84,102 @@
           (doseq [c (:checks result)]
             (when-not (:holds? c)
               (println (str "  - " (:name c) ": " (:violations c)))))))
-       (= check :expected-results-recompute)
-       (if (= :pass (:status result))
-         (println (str "[PASS] " check ": " (:vector-count result) " vectors recomputed and match expected outputs"))
-         (do
-           (println (str "[FAIL] " check ": " (:vector-count result) " vectors, some mismatches"))
-           (doseq [m (:mismatches result)]
-             (println (str "  - " (:vector-id m) ": " (:path m))))))
-       (= check :intent-coverage)
-       (if (= :pass (:status result))
-         (println (str "[PASS] " check ": " (:defined-intents result) " intents defined, "
-                       (:exercised-intents result) " exercised"))
-         (do
-           (println (str "[FAIL] " check ": "
-                         (count (:required-but-unexercised result))
-                         " required intents not exercised"))
-           (doseq [i (:required-but-unexercised result)]
-             (println (str "  - " i " is :required but not exercised")))))
-       (= check :contract-case-coverage)
-       (if (= :pass (:status result))
-         (println (str "[PASS] " check ": all contract domains have test vector coverage"))
-         (do
-           (println (str "[FAIL] " check ": missing contract case coverage"))
-           (doseq [m (:missing-cases result)]
-             (println (str "  - " m)))))
-         (= check :negative-corpus)
+      (= check :expected-results-recompute)
+      (if (= :pass (:status result))
+        (println (str "[PASS] " check ": " (:vector-count result) " vectors recomputed and match expected outputs"))
+        (do
+          (println (str "[FAIL] " check ": " (:vector-count result) " vectors, some mismatches"))
+          (doseq [m (:mismatches result)]
+            (println (str "  - " (:vector-id m) ": " (:path m))))))
+      (= check :intent-coverage)
+      (if (= :pass (:status result))
+        (println (str "[PASS] " check ": " (:defined-intents result) " intents defined, "
+                      (:exercised-intents result) " exercised"))
+        (do
+          (println (str "[FAIL] " check ": "
+                        (count (:required-but-unexercised result))
+                        " required intents not exercised"))
+          (doseq [i (:required-but-unexercised result)]
+            (println (str "  - " i " is :required but not exercised")))))
+      (= check :contract-case-coverage)
+      (if (= :pass (:status result))
+        (println (str "[PASS] " check ": all contract domains have test vector coverage"))
+        (do
+          (println (str "[FAIL] " check ": missing contract case coverage"))
+          (doseq [m (:missing-cases result)]
+            (println (str "  - " m)))))
+      (= check :negative-corpus)
+      (if (= :pass (:status result))
+        (println (str "[PASS] " check ": all " (:fixture-count result)
+                      " negative fixtures correctly rejected"))
+        (do
+          (println (str "[FAIL] " check ": " (:fixture-count result)
+                        " fixtures, some not correctly rejected"))
+          (doseq [r (:results result)]
+            (when (= :fail (:status r))
+              (println (str "  - " (:fixture r) " [:" (:fixture-type r) "]: "
+                            "expected " (:expected-reasons r)
+                            " observed " (:observed-reasons r)))))))
+      (= check :order-independence)
+      (if (= :pass (:status result))
+        (println (str "[PASS] " check ": corpus enumeration is order-independent across "
+                      (:orderings-tested result) " orderings"))
+        (do
+          (println (str "[FAIL] " check ": ordering-dependent results detected"))
+          (doseq [d (:differences result)]
+            (println (str "  - " d)))))
+      (= check :verification-fixed-point)
+      (if (= :pass (:status result))
+        (println (str "[PASS] " check ": verification report survives canonical round-trip ("
+                      (:vector-count result) " vectors, hash: " (:semantic-hash result) ")"))
+        (do
+          (println (str "[FAIL] " check ": canonical round-trip failed ("
+                        (:vector-count result) " vectors)"))
+          (doseq [m (:mismatched result)]
+            (println (str "  - " m)))))
+      (= check :verifier-registry-consistency)
+      (if (= :pass (:status result))
+        (println (str "[PASS] " check ": configuration and transition verifier roots match"))
+        (do
+          (println (str "[FAIL] " check ": configuration and transition verifier roots diverge"))
+          (when-let [err (:error result)]
+            (println (str "  - " err)))))
+      (= check :claim-registry-closure)
+      (if (= :pass (:status result))
+        (println (str "[PASS] " check ": "
+                      (:evaluator-count result) " evaluators, "
+                      (:definition-count result) " definitions, all closure-consistent"))
+        (do
+          (println (str "[FAIL] " check ": registry closure violations"))
+          (when-let [e (:evaluators-without-definitions result)]
+            (doseq [eid e]
+              (println (str "  - evaluator without definition: " eid))))
+          (when-let [d (:definitions-without-evaluators result)]
+            (doseq [did d]
+              (println (str "  - definition without evaluator: " did))))
+          (when-let [d (:duplicate-definitions result)]
+            (doseq [did d]
+              (println (str "  - duplicate definitions: " did))))
+          (when-let [s (:schema-errors result)]
+            (doseq [se s]
+              (println (str "  - " (:claim-id se) " missing field: " (:missing-field se)))))))
+      (= check :corpus)
+      (let [manifest (:manifest result)]
         (if (= :pass (:status result))
-          (println (str "[PASS] " check ": all " (:fixture-count result)
-                        " negative fixtures correctly rejected"))
           (do
-            (println (str "[FAIL] " check ": " (:fixture-count result)
-                          " fixtures, some not correctly rejected"))
-            (doseq [r (:results result)]
-              (when (= :fail (:status r))
-                (println (str "  - " (:fixture r) " [:" (:fixture-type r) "]: "
-                              "expected " (:expected-reasons r)
-                              " observed " (:observed-reasons r)))))))
-        (= check :order-independence)
-        (if (= :pass (:status result))
-          (println (str "[PASS] " check ": corpus enumeration is order-independent across "
-                        (:orderings-tested result) " orderings"))
+            (println (str "[PASS] " check ": CORPUS VERIFIED"))
+            (println (format "  packs                  %d" (:corpus/packs manifest)))
+            (println (format "  benchmarks             %d" (:corpus/benchmark-count manifest)))
+            (println (format "  hash intents           %d" (:corpus/hash-intent-count manifest)))
+            (println (format "  semantic checks        %d" (:semantic-checks result)))
+            (println (format "  verification-root      %s" (:verification-root result))))
           (do
-            (println (str "[FAIL] " check ": ordering-dependent results detected"))
-            (doseq [d (:differences result)]
-              (println (str "  - " d)))))
-        (= check :verification-fixed-point)
-        (if (= :pass (:status result))
-          (println (str "[PASS] " check ": verification report survives canonical round-trip ("
-                        (:vector-count result) " vectors, hash: " (:semantic-hash result) ")"))
-          (do
-            (println (str "[FAIL] " check ": canonical round-trip failed ("
-                          (:vector-count result) " vectors)"))
-            (doseq [m (:mismatched result)]
-              (println (str "  - " m)))))
-       (= check :corpus)
-       (let [manifest (:manifest result)]
-         (if (= :pass (:status result))
-           (do
-             (println (str "[PASS] " check ": CORPUS VERIFIED"))
-             (println (format "  packs                  %d" (:corpus/packs manifest)))
-             (println (format "  benchmarks             %d" (:corpus/benchmark-count manifest)))
-             (println (format "  hash intents           %d" (:corpus/hash-intent-count manifest)))
-             (println (format "  semantic checks        %d" (:semantic-checks result)))
-             (println (format "  verification-root      %s" (:verification-root result))))
-           (do
-             (println (str "[FAIL] " check ": not all checks passed"))
-             (doseq [[k v] (:corpus/verification-checks manifest)]
-               (when (not= :pass (:status v))
-                 (println (str "  - " k ": " (:status v))))))))
-        (= check :verifier-registry-consistency)
-        (if (= :pass (:status result))
-          (println (str "[PASS] " check ": configuration and transition verifier roots match"))
-          (do
-            (println (str "[FAIL] " check ": configuration and transition verifier roots diverge"))
-            (when-let [err (:error result)]
-              (println (str "  - " err)))))
-        :else
-        (println (str "[UNKNOWN] " check ": " check))))))
+            (println (str "[FAIL] " check ": not all checks passed"))
+            (doseq [[k v] (:corpus/verification-checks manifest)]
+              (when (not= :pass (:status v))
+                (println (str "  - " k ": " (:status v))))))))
+      :else
+      (println (str "[UNKNOWN] " check ": " check)))))
 
 (defn -main [& _args]
   (println "=== Corpus Verification Checks (v2) ===")
@@ -222,7 +241,7 @@
     (catch Exception e
       (println (str "[ERROR] " (.getMessage e)))))
   (println)
-(println "  10. Running conservation check...")
+  (println "  10. Running conservation check...")
   (try
     (format-result (cv/check-conservation))
     (catch Exception e
@@ -234,47 +253,60 @@
     (catch Exception e
       (println (str "[ERROR] " (.getMessage e)))))
   (println)
-   (println "  12. Running expected-results-recompute check...")
-   (try
-     (format-result (cv/check-expected-results-recompute))
-     (catch Exception e
-       (println (str "[ERROR] " (.getMessage e)))))
-   (println "P1 — Coverage verification:")
-   (println "  13. Running intent coverage check...")
-   (try
-     (format-result (cv/check-intent-coverage))
-     (catch Exception e
-       (println (str "[ERROR] " (.getMessage e)))))
-   (println)
-   (println "  14. Running contract case coverage check...")
-   (try
-     (format-result (cv/check-contract-case-coverage))
-     (catch Exception e
-       (println (str "[ERROR] " (.getMessage e)))))
-    (println)
-    (println "  15. Running negative corpus check...")
-    (try
-      (format-result (cv/check-negative-corpus))
-      (catch Exception e
-        (println (str "[ERROR] " (.getMessage e)))))
-    (println)
-    (println "  16. Running order independence check...")
-    (try
-      (format-result (cv/check-order-independence))
-      (catch Exception e
-        (println (str "[ERROR] " (.getMessage e)))))
-    (println)
-    (println "  17. Running verification fixed-point check...")
-    (try
-      (format-result (cv/check-verification-fixed-point))
-      (catch Exception e
-        (println (str "[ERROR] " (.getMessage e)))))
-    (println)
-    (println "  18. Producing committed corpus manifest / root...")
-    (try
-      (format-result (cv/check-corpus))
-      (catch Exception e
-        (println (str "[ERROR] " (.getMessage e)))))
+  (println "  12. Running claim registry closure check...")
+  (try
+    (format-result (cv/check-claim-registry-closure))
+    (catch Exception e
+      (println (str "[ERROR] " (.getMessage e)))))
+  (println)
+  (println "  13. Running expected-results-recompute check...")
+  (try
+    (format-result (cv/check-expected-results-recompute))
+    (catch Exception e
+      (println (str "[ERROR] " (.getMessage e)))))
+  (println)
+  (println "P1 — Coverage verification:")
+  (println "  14. Running intent coverage check...")
+  (try
+    (format-result (cv/check-intent-coverage))
+    (catch Exception e
+      (println (str "[ERROR] " (.getMessage e)))))
+  (println)
+  (println "  15. Running contract case coverage check...")
+  (try
+    (format-result (cv/check-contract-case-coverage))
+    (catch Exception e
+      (println (str "[ERROR] " (.getMessage e)))))
+  (println)
+  (println "  16. Running verifier registry consistency check...")
+  (try
+    (format-result (cv/check-verifier-registry-consistency))
+    (catch Exception e
+      (println (str "[ERROR] " (.getMessage e)))))
+  (println)
+  (println "  17. Running negative corpus check...")
+  (try
+    (format-result (cv/check-negative-corpus))
+    (catch Exception e
+      (println (str "[ERROR] " (.getMessage e)))))
+  (println)
+  (println "  18. Running order independence check...")
+  (try
+    (format-result (cv/check-order-independence))
+    (catch Exception e
+      (println (str "[ERROR] " (.getMessage e)))))
+  (println)
+  (println "  19. Running verification fixed-point check...")
+  (try
+    (format-result (cv/check-verification-fixed-point))
+    (catch Exception e
+      (println (str "[ERROR] " (.getMessage e)))))
+  (println)
+  (println "  20. Producing committed corpus manifest / root...")
+  (try
+    (format-result (cv/check-corpus))
+    (catch Exception e
+      (println (str "[ERROR] " (.getMessage e)))))
   (println)
   (println "=== Corpus Verification Complete ===")
   (System/exit 0))

@@ -151,7 +151,12 @@
     :contains-public-sink-reference
     :contains-timing-metadata
     :contains-force-auth-add-held
-    :contains-force-auth-add-held-summary})
+    :contains-force-auth-add-held-summary
+    :cross/missing-hash-intent-ref
+    :cross/unregistered-hash-intent
+    :legacy-v1-operational-write-back-pass
+    :sensitivity-not-established
+    :unclassified-finding})
 
 ;; ── Disclosure Matrix ───────────────────────────────────────────────────────
 
@@ -206,6 +211,26 @@
 
 (declare finding-reason-codes)
 
+(def ^:private finding-sensitivity
+  "rule-id → evidence sensitivity independently established by the finding, or
+   nil when the finding does NOT establish that sensitive material exists.
+
+   INVARIANT: a finding's fail-closed :level must not be read as evidence
+   sensitivity. Registry-integrity findings (missing/unregistered hash intent)
+   and the legacy operational write-back key are correctness/operational facts,
+   not evidence that private or unpublished material is present — hence nil
+   here, so they surface as :sensitivity/unknown rather than leaking into a
+   private/critical-private sensitivity bucket."
+  {:secret-scanner/private-key :sensitivity/private
+   :secret-scanner/credential-assignment :sensitivity/private
+   :secret-scanner/bearer-auth :sensitivity/internal
+   :secret-scanner/jwt-token :sensitivity/internal
+   :secret-scanner/github-token :sensitivity/internal
+   :secret-scanner/npm-token :sensitivity/internal
+   :cross/missing-hash-intent-ref nil
+   :cross/unregistered-hash-intent nil
+   :current-amount-write-back-verified? nil})
+
 (defn classify-from-findings
   "Classify an artifact based on safety findings (evidence) from scanning.
    
@@ -213,11 +238,25 @@
    Findings provide concrete evidence for the classification rather than
    just structural heuristics.
    
+   INVARIANT: a finding's fail-closed SEVERITY must not be read as asserting
+   that sensitive/unpublished material is present. `:sensitivity/critical-private`
+   is currently used as a fail-closed handling bucket for registry-integrity
+   findings (e.g. :cross/unregistered-hash-intent) purely because no finer
+   dimension exists yet. This overloads 'sensitivity' — the true model separates
+   the three dimensions {:classification <id> :severity <kw> :sensitivity :unknown}.
+   Until that split lands, the explicit :reasons code (not the level) is the
+   authoritative classification, and severity is fail-closed by policy, not by
+   evidence that private material exists.
+   
    Arguments:
      findings — vector of finding maps from sensitivity-findings
                 Each finding has :rule/id and :rule/version
    
-   Returns {:level <kw> :reasons [<kw> ...] :findings [<finding-ref> ...]}"
+   Returns {:level <kw> :sensitivity <kw> :reasons [<kw> ...]
+            :findings [<finding-ref> ...]}
+     :sensitivity is :sensitivity/unknown when the findings do not independently
+     establish that sensitive material exists; such results always carry an
+     explicit :sensitivity-not-established reason."
   [findings]
   (when (seq findings)
     (let [highest-level (apply max-key
@@ -230,12 +269,40 @@
                                         :secret-scanner/jwt-token :sensitivity/internal
                                         :secret-scanner/github-token :sensitivity/internal
                                         :secret-scanner/npm-token :sensitivity/internal
+                                        ;; Registry-integrity findings. Explicit, fail-closed
+                                        ;; severity (the referenced intent is missing/not
+                                        ;; registered), but the REASON must not be manufactured
+                                        ;; as unpublished/private evidence.
+                                        :cross/missing-hash-intent-ref :sensitivity/critical-private
+                                        :cross/unregistered-hash-intent :sensitivity/critical-private
+                                        ;; Legacy v1 operational write-back key. Its documented
+                                        ;; meaning is the AGGREGATE operational write-back pass,
+                                        ;; NOT independent per-obligation verification (the
+                                        ;; corrected spelling is :current-write-back-operational-pass?).
+                                        ;; Classify it as a legacy operational-pass fact, not as
+                                        ;; unpublished/private evidence.
+                                        :current-amount-write-back-verified? :sensitivity/internal
+                                        ;; Unknown rule id: severity fails closed, but the reason
+                                        ;; is left as unclassified — an unrecognized ID does NOT
+                                        ;; imply unpublished/private evidence exists.
                                         :sensitivity/critical-private))
                                     findings))
-          reason-codes (vec (distinct (mapcat (fn [f]
-                                                (finding-reason-codes (:rule/id f)))
-                                              findings)))]
+          established (keep (fn [f] (get finding-sensitivity (:rule/id f))) findings)
+          sensitivity (if (seq established)
+                        (apply max-key level-index established)
+                        :sensitivity/unknown)
+          reason-codes (->> findings
+                            (mapcat (fn [f] (finding-reason-codes (:rule/id f))))
+                            distinct vec)
+          ;; INVARIANT (executable): every result whose sensitivity is
+          ;; :sensitivity/unknown must carry an explicit reason explaining why
+          ;; sensitivity could not be established. Fail-closed severity is never
+          ;; promoted into an asserted sensitivity.
+          reason-codes (if (= :sensitivity/unknown sensitivity)
+                         (conj reason-codes :sensitivity-not-established)
+                         reason-codes)]
       {:level highest-level
+       :sensitivity sensitivity
        :reasons reason-codes
        :findings (vec (map :finding/id findings))})))
 
@@ -251,7 +318,21 @@
     :secret-scanner/jwt-token [:contains-protocol-identifier]
     :secret-scanner/github-token [:contains-linkable-subject-hash]
     :secret-scanner/npm-token [:contains-linkable-subject-hash]
-    [:contains-unpublished-evidence]))
+    ;; Registry-integrity findings: explicit reason codes. These are taxonomy
+    ;; tags, not evidence claims; they must never collapse into
+    ;; :contains-unpublished-evidence.
+    :cross/missing-hash-intent-ref [:cross/missing-hash-intent-ref]
+    :cross/unregistered-hash-intent [:cross/unregistered-hash-intent]
+    ;; Legacy v1 operational write-back key. Meaning is the AGGREGATE operational
+    ;; write-back pass, NOT independent per-obligation verification. The corrected
+    ;; spelling is :current-write-back-operational-pass?. This tag must not be read
+    ;; as claiming verification occurred, nor as unpublished/private evidence.
+    :current-amount-write-back-verified? [:legacy-v1-operational-write-back-pass]
+    ;; Unknown rule id: signal the finding is unclassified. Do NOT assert
+    ;; :contains-unpublished-evidence — an unrecognized ID is not evidence that
+    ;; unpublished/private evidence exists. Severity still fails closed in
+    ;; classify-from-findings, but the reason must stay honest.
+    [:unclassified-finding]))
 
 (defn- evidence-backed-classification
   "Attempt to classify based on evidence findings attached to the artifact.

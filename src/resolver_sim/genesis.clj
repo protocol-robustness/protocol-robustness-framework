@@ -467,6 +467,65 @@
   [config]
   (:valid? (validate-chain-configuration config)))
 
+(def chain-configuration-fields
+  "Explicit, reusable set of the canonical configuration field surface.
+   Derives from hc/chain-configuration-fields (single source of truth
+   in hash.canonical) and exposes it as a set for membership checks.
+
+   Invariant: validator field set == canonical projection field set
+   == exported chain-configuration-fields."
+  (set hc/chain-configuration-fields))
+
+(def chain-configuration-change-identity-required-fields
+  "Canonical pre-change basis for configuration-transition change-identity.
+
+   Captures the complete logical request:
+
+   - :configuration/parent-root — the exact parent state the change applies to
+   - :configuration/new-root — the exact proposed configuration identity
+     (commits ALL sub-roots: module-registry, verifier-registry, evidence-policy,
+     escrow-templates, parameter-policy, governance-policy, interoperability-policy)
+   - :target — the target scope of the transition
+
+   No individual sub-root (e.g. verifier-registry/root) is included separately
+   because :configuration/new-root already cryptographically commits every
+   configurable field. Including them independently would create a
+   consistency-mismatch surface (e.g. a new-root that commits R1 but a
+   separately-supplied verifier-registry/root that says R2).
+
+   Excluded (sequencing / metadata, NOT part of the logical request):
+   - :transition/schema (metadata)
+   - :protocol/genesis-root (chain identity, immutable)
+   - :epoch (position in chain sequence)"
+  #{:configuration/parent-root
+    :configuration/new-root
+    :target})
+
+(def chain-configuration-change-identity-domain
+  "Domain tag for the internally-derived configuration-transition change identity."
+  :prf-chain-configuration-change-identity-v1)
+
+(defn chain-configuration-change-identity-basis
+  "Canonical pre-change basis map for a chain-scoped configuration change request.
+
+   Includes the complete logical request: parent-root, new-root (the proposed
+   full configuration identity that commits all sub-roots), and target.
+
+   Excludes :epoch (sequence metadata), :transition/schema (metadata), and
+   :protocol/genesis-root (chain identity)."
+  [transition]
+  (select-keys transition chain-configuration-change-identity-required-fields))
+
+(defn chain-configuration-change-identity-hash
+  "Internally-derived, chain-scoped identity of a configuration change request.
+   Pure function of {parent-root, new-root, target}, never of epoch,
+   transition-schema, or protocol/genesis-root, so the same requested change
+   retains its identity across resequencing."
+  [transition]
+  (hash-ref/sha256-ref
+   (hc/domain-hash chain-configuration-change-identity-domain
+                   (chain-configuration-change-identity-basis transition))))
+
 (defn chain-configuration-projection
   "Explicit versioned projection of chain-configuration.v1: exactly the canonical
    identity fields, projected canonical-safe."
@@ -815,14 +874,14 @@
         target-mode (case target-type
                       :chain-instance solidity-target-mode-direct
                       :chain-instance-set solidity-target-mode-set)]
-     {:decision-root (str "0x"
-                          (subs (chain-configuration-transition-root transition) 7))
-      :target-mode target-mode
-      :target-root (prf-ref->bytes32 (-> transition :target :target/root))
-      :parent-configuration-root (prf-ref->bytes32 (:configuration/parent-root transition))
-      :new-configuration-root (prf-ref->bytes32 (:configuration/new-root transition))
-      :verifier-registry-root (prf-ref->bytes32 (:verifier-registry/root transition))
-      :epoch (:epoch transition)}))
+    {:decision-root (str "0x"
+                         (subs (chain-configuration-transition-root transition) 7))
+     :target-mode target-mode
+     :target-root (prf-ref->bytes32 (-> transition :target :target/root))
+     :parent-configuration-root (prf-ref->bytes32 (:configuration/parent-root transition))
+     :new-configuration-root (prf-ref->bytes32 (:configuration/new-root transition))
+     :verifier-registry-root (prf-ref->bytes32 (:verifier-registry/root transition))
+     :epoch (:epoch transition)}))
 
 ;; ──────────────────────────────────────────────────────────────────────────────
 ;; Solidity initialization projection (non-canonical, derived)

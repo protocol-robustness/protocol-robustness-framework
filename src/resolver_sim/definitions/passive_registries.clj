@@ -492,59 +492,59 @@
            :outputs [:holds? :violations]}
           {:id :pro-rata/canonical-remainder-assignment
            :version 1
-:category :invariant
-            :description "Largest-remainder awards follow the persisted canonical rank witness."
-            :inputs [:pro-rata-allocation-result]
-            :evaluation {:type :policy-check :policy :pro-rata/canonical-remainder-assignment}
-            :outputs [:holds? :result :reason :violations]}
-           {:id :pro-rata/projection-diff
-            :version 1
-            :category :safety
-            :description "Every value that required flattening for canonical hashing is explicitly recorded in :projection/flattened-fields with its path, original type, value, and applied contract."
-            :inputs [:projection-artifact]
-            :evaluation {:type :metadata-completeness
-                         :required-keys [:path :type :value :contract]}
-            :outputs [:holds? :violations]}
-           {:id :pro-rata/non-negative-allocation
-            :version 1
-            :category :invariant
-            :description "Allocation, unmet, paid, owed, basis, and cap values in the allocation result are never negative."
-            :inputs [:allocation-result]
-            :evaluation {:type :code-reference
-                         :entry 'resolver-sim.pro_rata.claims/evaluate-claim}
-            :outputs [:holds? :violations]}
-           {:id :pro-rata/allocation-not-above-request
-            :version 1
-            :category :invariant
-            :description "No allocation exceeds its corresponding requested amount (paid ≤ owed)."
-            :inputs [:allocation-result]
-            :evaluation {:type :code-reference
-                         :entry 'resolver-sim.pro_rata.claims/evaluate-claim}
-            :outputs [:holds? :violations]}
-           {:id :pro-rata/integer-domain
-            :version 1
-            :category :safety
-            :description "Numeric allocation fields are integers (no floating-point or fractional values in standard integer fields: :owed/:paid/:unmet/:cap/:basis-amount)."
-            :inputs [:allocation-result]
-            :evaluation {:type :code-reference
-                         :entry 'resolver-sim.pro_rata.claims/evaluate-claim}
-            :outputs [:holds? :violations]}
-           {:id :pro-rata/residual-accounting
-            :version 1
-            :category :invariant
-            :description "Allocated total plus per-row unmet amounts plus unallocated residual equals the available (slash-obligation) amount."
-            :inputs [:allocation-result]
-            :evaluation {:type :code-reference
-                         :entry 'resolver-sim.pro_rata.claims/evaluate-claim}
-            :outputs [:holds? :violations]}
-           {:id :pro-rata/full-fill-consistency
-            :version 1
-            :category :invariant
-            :description "If any allocation is partially filled (allocated < owed), then unmet must be positive for that allocation, and the aggregate unmet must equal the sum of per-row unmet amounts."
-            :inputs [:allocation-result]
-            :evaluation {:type :code-reference
-                         :entry 'resolver-sim.pro_rata.claims/evaluate-claim}
-            :outputs [:holds? :violations]}
+           :category :invariant
+           :description "Largest-remainder awards follow the persisted canonical rank witness."
+           :inputs [:pro-rata-allocation-result]
+           :evaluation {:type :policy-check :policy :pro-rata/canonical-remainder-assignment}
+           :outputs [:holds? :result :reason :violations]}
+          {:id :pro-rata/projection-diff
+           :version 1
+           :category :safety
+           :description "Every value that required flattening for canonical hashing is explicitly recorded in :projection/flattened-fields with its path, original type, value, and applied contract."
+           :inputs [:projection-artifact]
+           :evaluation {:type :metadata-completeness
+                        :required-keys [:path :type :value :contract]}
+           :outputs [:holds? :violations]}
+          {:id :pro-rata/non-negative-allocation
+           :version 1
+           :category :invariant
+           :description "Allocation, unmet, paid, owed, basis, and cap values in the allocation result are never negative."
+           :inputs [:allocation-result]
+           :evaluation {:type :code-reference
+                        :entry 'resolver-sim.pro_rata.claims/evaluate-claim}
+           :outputs [:holds? :violations]}
+          {:id :pro-rata/allocation-not-above-request
+           :version 1
+           :category :invariant
+           :description "No allocation exceeds its corresponding requested amount (paid ≤ owed)."
+           :inputs [:allocation-result]
+           :evaluation {:type :code-reference
+                        :entry 'resolver-sim.pro_rata.claims/evaluate-claim}
+           :outputs [:holds? :violations]}
+          {:id :pro-rata/integer-domain
+           :version 1
+           :category :safety
+           :description "Numeric allocation fields are integers (no floating-point or fractional values in standard integer fields: :owed/:paid/:unmet/:cap/:basis-amount)."
+           :inputs [:allocation-result]
+           :evaluation {:type :code-reference
+                        :entry 'resolver-sim.pro_rata.claims/evaluate-claim}
+           :outputs [:holds? :violations]}
+          {:id :pro-rata/residual-accounting
+           :version 1
+           :category :invariant
+           :description "Allocated total plus per-row unmet amounts plus unallocated residual equals the available (slash-obligation) amount."
+           :inputs [:allocation-result]
+           :evaluation {:type :code-reference
+                        :entry 'resolver-sim.pro_rata.claims/evaluate-claim}
+           :outputs [:holds? :violations]}
+          {:id :pro-rata/full-fill-consistency
+           :version 1
+           :category :invariant
+           :description "If any allocation is partially filled (allocated < owed), then unmet must be positive for that allocation, and the aggregate unmet must equal the sum of per-row unmet amounts."
+           :inputs [:allocation-result]
+           :evaluation {:type :code-reference
+                        :entry 'resolver-sim.pro_rata.claims/evaluate-claim}
+           :outputs [:holds? :violations]}
            ;; Protocol-specific claim definitions are registered dynamically
            ;; by protocol implementation namespaces via register-claim-definitions!.
            ;; See protocols_src/resolver_sim/evidence/forensic_claims.clj for
@@ -1512,8 +1512,10 @@
   "Cross-validate passive intent-definitions against runtime hash-intents.
    
    For each passive entry with :intent/type :identity/hash-projection:
-     - :output :hash/intent must be present
-     - the referenced hash intent must exist in hc/hash-intents
+     - :output :hash/intent must be present (else :cross/missing-hash-intent-ref)
+     - the referenced hash intent must be registered in hc/hash-intents, i.e. it
+       must not reference an unregistered/unknown runtime intent
+       (else :cross/unregistered-hash-intent)
      - versions must match between passive and runtime
    
    For runtime hash intents:
@@ -1539,11 +1541,11 @@
                                              :reason :output-missing-hash-intent
                                              :output (:output entry)}))
                                (and hid (not (contains? hash-intents-map hid)))
-                               (conj (error :cross/missing-hash-intent
+                               (conj (error :cross/unregistered-hash-intent
                                             {:registry :intent-registry
                                              :id id
                                              :hash-intent hid
-                                             :reason :not-found-in-runtime-registry})))]
+                                             :reason :not-registered-in-runtime})))]
                   ;; Version check (separate to avoid cond-> threading into let)
                   (if (and hid (contains? hash-intents-map hid))
                     (let [runtime-version (:intent/version (get hash-intents-map hid))

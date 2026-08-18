@@ -531,8 +531,77 @@
                 [{:finding/id "finding-x" :finding/path-token "path-x"
                   :rule/id :unknown/rule :rule/version "v1"}])]
     (is (= :sensitivity/critical-private (:level result))
-        "unknown rule id must default to critical-private")
-    (is (= [:contains-unpublished-evidence] (:reasons result)))))
+        "unknown rule id must default to critical-private (fail closed)")
+    (is (= :sensitivity/unknown (:sensitivity result))
+        "unknown rule id must NOT be asserted as sensitive")
+    (is (contains? (set (:reasons result)) :unclassified-finding)
+        "unknown rule id must be marked unclassified, not contains-unpublished-evidence")
+    (is (not (some #{:contains-unpublished-evidence} (:reasons result)))
+        "unknown rule id must NOT manufacture a contains-unpublished-evidence claim")))
+
+(deftest classify-from-findings-missing-hash-intent-ref-is-not-unpublished-evidence
+  (let [result (sentinel/classify-from-findings
+                [{:finding/id "f-ref" :finding/path-token "path-x"
+                  :rule/id :cross/missing-hash-intent-ref :rule/version "v1"}])]
+    (is (= :sensitivity/critical-private (:level result)))
+    (is (= :sensitivity/unknown (:sensitivity result)))
+    (is (contains? (set (:reasons result)) :cross/missing-hash-intent-ref))
+    (is (not (some #{:contains-unpublished-evidence} (:reasons result)))
+        "missing-hash-intent-ref must not classify as unpublished/private evidence")))
+
+(deftest classify-from-findings-unregistered-hash-intent-is-not-unpublished-evidence
+  (let [result (sentinel/classify-from-findings
+                [{:finding/id "f-unreg" :finding/path-token "path-x"
+                  :rule/id :cross/unregistered-hash-intent :rule/version "v1"}])]
+    (is (= :sensitivity/critical-private (:level result)))
+    (is (= :sensitivity/unknown (:sensitivity result)))
+    (is (contains? (set (:reasons result)) :cross/unregistered-hash-intent))
+    (is (not (some #{:contains-unpublished-evidence} (:reasons result)))
+        "unregistered-hash-intent must not classify as unpublished/private evidence")))
+
+(deftest classify-from-findings-legacy-write-back-key-explicit
+  (let [result (sentinel/classify-from-findings
+                [{:finding/id "f-wb" :finding/path-token "path-x"
+                  :rule/id :current-amount-write-back-verified? :rule/version "v1"}])]
+    (is (= :sensitivity/internal (:level result))
+        "legacy operational-pass key is a defined, non-sensational classification")
+    (is (= :sensitivity/unknown (:sensitivity result))
+        "an operational-pass fact does not establish evidence sensitivity")
+    (is (contains? (set (:reasons result)) :legacy-v1-operational-write-back-pass)
+        "tag encodes the legacy AGGREGATE operational-pass meaning")
+    (is (not (some #{:contains-unpublished-evidence} (:reasons result)))
+        "legacy write-back key must not classify as unpublished/private evidence")
+    (is (not (some #{:contains-live-vulnerability} (:reasons result)))
+        "legacy write-back key must not be read as independent verification of a write-back")))
+
+(deftest severity-does-not-imply-sensitivity-invariant
+  ;; INVARIANT: every classifier result with :sensitivity :unknown must carry an
+  ;; explicit reason explaining why sensitivity could not be established.
+  ;; Fail-closed severity is never promoted into an asserted sensitivity.
+  (doseq [rule [:unknown/rule
+                :cross/missing-hash-intent-ref
+                :cross/unregistered-hash-intent
+                :current-amount-write-back-verified?]]
+    (let [r (sentinel/classify-from-findings
+             [{:finding/id "f" :finding/path-token "path-x"
+               :rule/id rule :rule/version "v1"}])]
+      (is (= :sensitivity/unknown (:sensitivity r))
+          (str rule " must surface as :sensitivity/unknown"))
+      (is (some #{:sensitivity-not-established :unclassified-finding} (:reasons r))
+          (str rule " unknown-sensitivity result must carry an explicit reason"))
+      (is (not (some #{:contains-unpublished-evidence} (:reasons r)))
+          (str rule " must never be classified as unpublished/private evidence")))))
+
+(deftest established-sensitivity-is-not-unknown
+  (is (= :sensitivity/private (:sensitivity
+                               (sentinel/classify-from-findings [sample-finding-private-key])))
+      "a private-key finding independently establishes private sensitivity")
+  (is (= :sensitivity/internal (:sensitivity
+                                (sentinel/classify-from-findings [sample-finding-jwt])))
+      "a jwt finding independently establishes internal sensitivity")
+  (is (not (some #{:sensitivity-not-established}
+                 (:reasons (sentinel/classify-from-findings [sample-finding-private-key]))))
+      "established-sensitivity results need no :sensitivity-not-established marker"))
 
 (deftest evidence-backed-classification-via-sensitivity-findings
   (let [artifact {:sensitivity/findings [sample-finding-private-key]}

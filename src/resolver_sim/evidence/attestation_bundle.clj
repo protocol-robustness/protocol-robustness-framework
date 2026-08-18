@@ -212,12 +212,16 @@
                                                             (:attestation/id a))})
                           attestations)
 
-        ;; Convert sets to vectors for canonical encoding
+        ;; Convert sets to vectors and functions/symbols to strings for
+        ;; canonical encoding. Symbol values (e.g. an :evaluation function
+        ;; reference like resolver-sim.pro_rata.claims/evaluate-claim) are
+        ;; outside the canonical type domain and must be projected explicitly.
         canon-att-reg (walk/postwalk
                        (fn [x]
                          (cond (set? x) (vec (sort x))
                                (fn? x) (str x)
                                (instance? clojure.lang.Var x) (str x)
+                               (symbol? x) (str x)
                                :else x))
                        registries/attestor-registry)
         canon-cd-reg (walk/postwalk
@@ -225,6 +229,7 @@
                         (cond (set? x) (vec (sort x))
                               (fn? x) (str x)
                               (instance? clojure.lang.Var x) (str x)
+                              (symbol? x) (str x)
                               :else x))
                       registries/claim-definition-registry)
         canon-hi-map (walk/postwalk
@@ -232,6 +237,7 @@
                         (cond (set? x) (vec (sort x))
                               (fn? x) (str x)
                               (instance? clojure.lang.Var x) (str x)
+                              (symbol? x) (str x)
                               :else x))
                       hc/hash-intents)
         registry-snapshot {:attestors

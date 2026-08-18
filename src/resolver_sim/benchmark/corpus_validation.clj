@@ -13,12 +13,12 @@
             [resolver-sim.yield.invariants :as yield-invariants]
             [resolver-sim.yield.accounting :as yield-accounting]
             [resolver-sim.pro-rata.claims :as pro-rata-claims]
-             [resolver-sim.protocols.sew.economics :as sew-economics]
-             [resolver-sim.validation.scenario-registry :as scenario-registry]
-             [resolver-sim.hash.reference :as hash-ref]
-             [resolver-sim.hash.round-trip :as rt]
-             [resolver-sim.claims.engine :as engine]
-              [resolver-sim.genesis :as genesis]))
+            [resolver-sim.protocols.sew.economics :as sew-economics]
+            [resolver-sim.validation.scenario-registry :as scenario-registry]
+            [resolver-sim.hash.reference :as hash-ref]
+            [resolver-sim.hash.round-trip :as rt]
+            [resolver-sim.claims.engine :as engine]
+            [resolver-sim.genesis :as genesis]))
 
 (declare parse-test-vector-input)
 
@@ -467,17 +467,17 @@
                        (filter #(.endsWith (.getName %) ".json"))
                        (filter #(.contains (.getName %) "slash-allocation"))
                        sort)]
-        (mapv (fn [file]
-                (let [data (json/read-json (slurp file))
-                      input (:input data)
-                      allocation-input (parse-test-vector-input input)
-                      allocation-result (sew-economics/calculate-sew-slash-allocation allocation-input)]
-                  {:node-hash (str "slash-allocation:" (:vector-id data))
-                   :node/type :slash-allocation-evidence
-                   :resource-path (:vector-id data)
-                   :result {:claims/direct-result allocation-result}})))
-                 files))))))
-
+        (mapv
+         (fn [file]
+           (let [data (json/read-json (slurp file))
+                 input (:input data)
+                 allocation-input (parse-test-vector-input input)
+                 allocation-result (sew-economics/calculate-sew-slash-allocation allocation-input)]
+             {:node-hash (str "slash-allocation:" (:vector-id data))
+              :node/type :slash-allocation-evidence
+              :resource-path (:vector-id data)
+              :result {:claims/direct-result allocation-result}}))
+         files)))))
 (defn check-allocation-domain-invariants
   "Aggregate validator for allocation domain invariants.
     Runs the five focused allocation evaluators (non-negative-allocation,
@@ -850,8 +850,8 @@
             (catch Exception _)))))
     {:reference-count (+ hash-intent-count (count @event-actions) (count @claim-ids))
      :references (concat (sort (keys canonical/hash-intents))
-                        (sort @event-actions)
-                        (sort @claim-ids))}))
+                         (sort @event-actions)
+                         (sort @claim-ids))}))
 
 (defn check-claim-registry-closure
   "Verify the claim evaluator registry and claim-definition registry are
@@ -871,25 +871,27 @@
     (let [eval-ids (set (keys pro-rata-claims/evaluator-registry))
           def-map (engine/claim-definition-map)
           def-ids (set (keys def-map))
-          eval-without-def (set/difference eval-ids def-ids)
-          def-without-eval (set
+          eval-without-def (seq (set/difference eval-ids def-ids))
+          def-without-eval (seq
                             (for [cid def-ids
                                   :when (not (eval-ids cid))]
-                              (let [def-entry (get def-map cid)]
-                                (when (:evaluation def-entry)
+                              (let [def-entry (get def-map cid)
+                                    eval-type (get-in def-entry [:evaluation :type])]
+                                (when (= :code-reference eval-type)
                                   cid))))
+          def-without-eval (keep identity def-without-eval)
           duplicate-defs (->> (keys def-map)
                               frequencies
                               (filter #(> (val %) 1))
                               (map first)
-                              set)
+                              (set))
           schema-errors (atom [])
           required-fields [:id :version :category :description :inputs :evaluation :outputs]]
-      (doseq [def-entry def-map]
+      (doseq [def-entry (vals def-map)]
         (let [cid (:id def-entry)]
           (doseq [field required-fields]
             (when (nil? (get def-entry field))
-              (swap! schema-errors conj {:claim-id cid :missing-field field})))
+              (swap! schema-errors conj {:claim-id cid :missing-field field})))))
       {:check :claim-registry-closure
        :status (if (and (empty? eval-without-def)
                         (empty? def-without-eval)
@@ -898,14 +900,14 @@
                  :pass :fail)
        :evaluator-count (count eval-ids)
        :definition-count (count def-ids)
-       :evaluators-without-definitions (vals eval-without-def)
-       :definitions-without-evaluators (vals def-without-eval)
-       :duplicate-definitions (vals duplicate-defs)
-        :schema-errors (vec @schema-errors)})))
+       :evaluators-without-definitions eval-without-def
+       :definitions-without-evaluators def-without-eval
+       :duplicate-definitions duplicate-defs
+       :schema-errors (vec @schema-errors)})
     (catch Exception e
       {:check :claim-registry-closure
        :status :fail
-        :error (.getMessage e)})))
+       :error (.getMessage e)})))
 
 (defn- semantic-projection-of
   "Project a generic check result into a canonical, order-independent shape
@@ -957,9 +959,9 @@
        :transition-verifier-root transition-vr
        :matches? matches?})
     (catch Exception e
-       {:check :verifier-registry-consistency
-        :status :fail
-        :error (.getMessage e)})))
+      {:check :verifier-registry-consistency
+       :status :fail
+       :error (.getMessage e)})))
 
 (defn check-corpus
   "Produce a committed corpus manifest containing content roots, reference
@@ -1023,6 +1025,6 @@
      :manifest manifest
      :verification-root (hash-ref/sha256-ref verification-hash)
      :semantic-checks (count check-statuses)
-       :all-checks-pass? all-pass}))
+     :all-checks-pass? all-pass}))
 
 
