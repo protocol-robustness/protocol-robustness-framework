@@ -417,3 +417,35 @@
                        {:name (:scenario-id scenario) :replay-result replay :scenario scenario}
                        (assoc opts :evaluate-theory? false))
                       [:checks :theory])))))
+
+(deftest run-collection-mutates-progress-exactly-once-per-entry
+  (testing "progress is independent of logging/error paths; logging observes completion"
+    (let [mk      (fn [id name] {:name name :scenario {:scenario-id id}})
+          entries [(mk :test/ok-0 "ok0")
+                   (mk :test/boom-1 "boom1")
+                   (mk :test/ok-2 "ok2")
+                   (mk :test/boom-3 "boom3")]
+          n       (count entries)
+          seen    (atom [])
+          log-file (io/file (str (System/getProperty "java.io.tmpdir")
+                                 "/runner-progress-" (System/nanoTime) ".jsonl"))
+          replay-fn (fn [s]
+                      (if (#{:test/boom-1 :test/boom-3} (:scenario-id s))
+                        (throw (ex-info "boom" {:scenario-id (:scenario-id s)}))
+                        {:scenario-id (:scenario-id s) :outcome :pass :metrics {}}))]
+      (binding [runner/*progress-callback* (fn [p] (swap! seen conj (:current p)))
+                runner/*log-level* :info]
+        (runner/run-collection {:entries entries :replay-fn replay-fn}
+                               {:parallel? true :event-log (.getPath log-file)}))
+      ;; Exactly one committed :current per entry, values 1..n, regardless of error.
+      (is (= (vec (range 1 (inc n))) (vec (sort @seen)))
+          "work completion mutates progress exactly once per entry")
+      (let [lines (->> (slurp log-file)
+                       str/split-lines
+                       (keep (fn [l] (json/read-str l :key-fn keyword))))
+            complete (filter #(= "entry-complete" (:event %)) lines)
+            erred (filter #(= "entry-error" (:event %)) lines)]
+        (is (= n (count complete)) "one completion event per entry even on error")
+        (is (= (set (range 1 (inc n))) (set (map :current complete)))
+            "logged completion currents match the committed range")
+        (is (= 2 (count erred)) "error events are diagnostics, not progress mutations")))))

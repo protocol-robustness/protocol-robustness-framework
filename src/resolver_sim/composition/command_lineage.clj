@@ -188,6 +188,19 @@
       (:concatenation/root elem)
       (:termination/root elem)))
 
+(defn shared-state-ref
+  "Extract the :shared-state :ref from a command's built-with-includes members,
+  or nil if no shared-state member is present."
+  [command]
+  (let [members (:command/built-with-includes command [])]
+    (some #(when (= :shared-state (:kind %)) (:ref %)) members)))
+
+(defn find-shared-state-member
+  "Return the shared-state member map from a command's members, or nil."
+  [command]
+  (let [members (:command/built-with-includes command [])]
+    (some #(when (= :shared-state (:kind %)) %) members)))
+
 ;; ── command ─────────────────────────────────────────────────────────────────────
 
 (defn command-projection
@@ -223,7 +236,7 @@
            command/built-with-includes] :as opts}]
   (when-not (keyword? action)
     (throw (ex-info ":command/action must be a keyword"
-                    {:reason :invalid-action :action action}))))
+                    {:reason :invalid-action :action action})))
   (doseq [root [:command/input-state-root :command/resulting-state-root]]
     (when-not (hash-ref/valid-sha256-ref? (get opts root))
       (throw (ex-info (str (name root) " must be a canonical sha256 reference")
@@ -234,7 +247,7 @@
               :command/action action
               :command/input-state-root input-state-root
               :command/resulting-state-root resulting-state-root
-              :command/built-with-includes (canonical-members command-built-with-includes)}]
+              :command/built-with-includes (canonical-members built-with-includes)}]
     (assoc base :command/root (command-root base))))
 
 (defn command-root-valid?
@@ -269,6 +282,20 @@
   "True when elem is a cancel-and-terminate command."
   [elem]
   (and (map? elem) (= terminator-action (:command/action elem))))
+
+(defn verify-command
+  "Full semantic verification of a command: structural validity (schema, action,
+  state roots, member cardinality/refs, root hash). Returns {:valid? bool :issues [...]}."
+  [command]
+  (let [issues (atom [])]
+    (when-not (valid-command? command)
+      (swap! issues conj {:issue :invalid-command
+                          :reason :invalid-command
+                          :detail "Command failed structural validation"}))
+    (let [root-check (command-root-valid? command)]
+      (when-not (:valid? root-check)
+        (swap! issues conj (assoc root-check :element (:command/root command)))))
+    {:valid? (empty? @issues) :issues (vec @issues)}))
 
 ;; ── concatenation ──────────────────────────────────────────────────────────────
 
@@ -309,10 +336,25 @@
 
 (defn verify-concatenation
   "Verify a concatenation record against its resolved left and right commands.
-  Returns {:valid? bool :issues [...]}. Recomputes the root, checks left/right
-  root bindings, and re-derives the join-state fixed point."
+  Returns {:valid? bool :issues [...]}. Checks schema, root integrity, left/right
+  root bindings, child command validity, and re-derives the join-state fixed point."
   [concatenation left right]
   (let [issues (atom [])]
+    (when-not (= concatenation-schema (:concatenation/schema concatenation))
+      (swap! issues conj {:issue :invalid-concatenation-schema
+                          :reason :invalid-concatenation-schema
+                          :expected concatenation-schema
+                          :actual (:concatenation/schema concatenation)}))
+    (let [left-verify (verify-command left)]
+      (when-not (:valid? left-verify)
+        (swap! issues conj {:issue :left-command-invalid
+                            :reason :invalid-command
+                            :detail (:issues left-verify)})))
+    (let [right-verify (verify-command right)]
+      (when-not (:valid? right-verify)
+        (swap! issues conj {:issue :right-command-invalid
+                            :reason :invalid-command
+                            :detail (:issues right-verify)})))
     (let [recomputed (concatenation-root (dissoc concatenation :concatenation/root))]
       (when-not (= recomputed (:concatenation/root concatenation))
         (swap! issues conj {:issue :concatenation-root-mismatch
@@ -424,6 +466,52 @@
   [elem]
   (or (terminator-command? elem) (termination-receipt? elem)))
 
+(defn verify-termination-receipt
+  "Semantically verify a termination receipt against its head command and the
+  cancel-and-terminate command that produced it. Checks schema, root integrity,
+  action, predecessor binding, input-state basis, three-way shared-state invariant,
+  and final-state correspondence. Returns {:valid? bool :issues [...]}."
+  [receipt head cancel-command]
+  (let [issues (atom [])]
+    (when-not (termination-receipt? receipt)
+      (swap! issues conj {:issue :invalid-receipt
+                          :reason :invalid-receipt
+                          :detail "Not a termination receipt"}))
+    (let [root-check (termination-root-valid? receipt)]
+      (when-not (:valid? root-check)
+        (swap! issues conj (assoc root-check :element (:termination/root receipt)))))
+    (when-not (= (:termination/action receipt) terminator-action)
+      (swap! issues conj {:issue :invalid-action
+                          :reason :invalid-action
+                          :expected terminator-action
+                          :actual (:termination/action receipt)}))
+    (when-not (= (:termination/predecessor-root receipt) (:command/root head))
+      (swap! issues conj {:issue :predecessor-root-mismatch
+                          :reason :predecessor-root-mismatch
+                          :expected (:command/root head)
+                          :actual (:termination/predecessor-root receipt)}))
+    (let [head-res (:command/resulting-state-root head)
+          receipt-in (:termination/input-state-root receipt)
+          cancel-shared (shared-state-ref cancel-command)]
+      (when-not (= head-res receipt-in)
+        (swap! issues conj {:issue :stale-termination-basis
+                            :reason :stale-termination-basis
+                            :head-resulting head-res
+                            :receipt-input receipt-in}))
+      (when (some? head-res)
+        (when-not (= head-res cancel-shared)
+          (swap! issues conj {:issue :stale-termination-shared-state
+                              :reason :stale-termination-shared-state
+                              :head-resulting head-res
+                              :terminator-shared-state cancel-shared}))))
+    (when-not (= (:termination/final-state-root receipt)
+                 (:command/resulting-state-root cancel-command))
+      (swap! issues conj {:issue :final-state-mismatch
+                          :reason :final-state-mismatch
+                          :expected (:command/resulting-state-root cancel-command)
+                          :actual (:termination/final-state-root receipt)}))
+    {:valid? (empty? @issues) :issues (vec @issues)}))
+
 ;; ── lineage verification ────────────────────────────────────────────────────────
 
 (defn verify-lineage
@@ -431,42 +519,57 @@
   cancel-and-terminate terminator. Returns
   {:valid? bool :status kw :errors [...]}.
 
-  status is one of:
-    :ok                       -- no terminator, continuity holds
-    :terminated               -- cleanly ends at a terminator
-    :already-terminated       -- an identical terminator replay was recognized
-    :predecessor-terminal     -- a successor appeared after a terminal head
-    :stale-termination-basis  -- terminator input != current head resulting-state
-    :predecessor-state-mismatch -- a non-terminal step broke continuity
-    :command-root-mismatch    -- an element failed self-root recompute"
+   status is one of:
+     :ok                       -- no terminator, continuity holds
+     :terminated               -- cleanly ends at a terminator
+     :already-terminated       -- an identical terminator replay was recognized
+     :predecessor-terminal     -- a successor appeared after a terminal head
+     :stale-termination-basis  -- terminator input != current head resulting-state
+     :stale-termination-shared-state -- terminator shared-state != head resulting-state
+     :missing-termination-predecessor -- terminator with no preceding command
+     :predecessor-state-mismatch -- a non-terminal step broke continuity
+     :invalid-command          -- an element failed command verification
+
+   append? is true when the lineage is valid and not an already-terminated replay;
+   false otherwise (including when errors exist or replay is recognized)."
   [elements]
   (let [errors (atom [])
         terminal-root (atom nil)
         replayed? (atom false)]
     (loop [es (seq (vec elements)) head-result nil]
       (when-let [elem (first es)]
-        (let [self (command-root-valid? elem)]
+        (let [self (verify-command elem)]
           (when-not (:valid? self)
-            (swap! errors conj (assoc self :element (element-root elem)))))
+            (swap! errors conj {:issue :invalid-command
+                                :reason :invalid-command
+                                :element (element-root elem)
+                                :detail (:issues self)})))
         (if (terminator-command? elem)
           (if (some? @terminal-root)
             (if (= (:command/root elem) @terminal-root)
-              (do (reset! replayed? true)
-                  (swap! errors conj {:issue :already-terminated
-                                      :reason :already-terminated
-                                      :root (:command/root elem)
-                                      :note "identical terminal replay recognized; lineage unchanged"}))
+              (reset! replayed? true)
               (swap! errors conj {:issue :predecessor-terminal
                                   :reason :predecessor-terminal
                                   :root (:command/root elem)
                                   :after @terminal-root}))
             (do
-              (when (and (some? head-result)
-                         (not= head-result (:command/input-state-root elem)))
-                (swap! errors conj {:issue :stale-termination-basis
-                                    :reason :stale-termination-basis
-                                    :head-resulting head-result
-                                    :terminator-input (:command/input-state-root elem)}))
+              (when (nil? head-result)
+                (swap! errors conj {:issue :missing-termination-predecessor
+                                    :reason :missing-termination-predecessor
+                                    :root (:command/root elem)}))
+              (when-let [hr head-result]
+                (let [elem-input (:command/input-state-root elem)
+                      elem-shared (shared-state-ref elem)]
+                  (when-not (= hr elem-input)
+                    (swap! errors conj {:issue :stale-termination-basis
+                                        :reason :stale-termination-basis
+                                        :head-resulting hr
+                                        :terminator-input elem-input}))
+                  (when (and (some? elem-shared) (not= hr elem-shared))
+                    (swap! errors conj {:issue :stale-termination-shared-state
+                                        :reason :stale-termination-shared-state
+                                        :head-resulting hr
+                                        :terminator-shared-state elem-shared}))))
               (reset! terminal-root (:command/root elem))))
           (do
             (when (some? @terminal-root)
@@ -487,4 +590,7 @@
                      (true? @replayed?) :already-terminated
                      (some? @terminal-root) :terminated
                      :else :ok))]
-      {:valid? (empty? @errors) :status status :errors (vec @errors)})))
+       {:valid?   (empty? @errors)
+        :status   status
+        :errors   (vec @errors)
+        :append?  (and (empty? @errors) (not @replayed?))})))

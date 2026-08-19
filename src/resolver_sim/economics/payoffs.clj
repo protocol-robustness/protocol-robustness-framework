@@ -10,6 +10,7 @@
             [resolver-sim.definitions.passive-registries :as registries]
             [resolver-sim.execution.budget :as budget]
             [resolver-sim.hash.canonical :as hc]
+            [resolver-sim.pro-rata.progress :as progress]
             [resolver-sim.util.thread-quiescence :as quiesce])
   (:import [java.util.concurrent Callable Executors]))
 
@@ -47,33 +48,40 @@
 
 (def default-pro-rata-projection-definition-id :projection/pro-rata-slash-obligation)
 
-(defn make-pro-rata-progress-atom
-  "Create caller-owned progress state for one pro-rata allocation.
+(def make-pro-rata-progress-atom
+  "Caller-owned progress atom adapter. The atom holds the current progress
+   snapshot (see resolver-sim.pro-rata.progress); it is operational state and
+   deliberately absent from every canonical request. Concurrent allocations
+   remain isolated because the atom is caller-owned."
+  progress/make-progress-atom)
 
-   Pass the returned atom as `:progress-atom` to `allocate-pro-rata`. The
-   allocator updates it atomically through :preparing, :requesting,
-   :allocating, and :completed phases. It deliberately does not use a global
-   atom, so concurrent allocations remain isolated by default."
-  []
-  (atom {:status :pending
-         :phase :pending
-         :current 0
-         :total 0}))
+(def progress-atom-observer
+  "Return an event observer that reduces events into `progress-atom`. This is a
+   convenience adapter for notebooks; public allocation APIs also accept
+   :on-progress directly so callers can use logs, channels, or UIs."
+  progress/progress-atom-observer)
 
-(defn progress-atom-observer
-  "Return an observer that merges allocation progress events into progress-atom.
-   This is a convenience adapter for notebooks; public allocation APIs also
-   accept :on-progress directly so callers can use logs, channels, or UIs."
-  [progress-atom]
-  (fn [event]
-    (swap! progress-atom merge event)))
+(defn- normalize-progress-observer
+  "Normalize a runtime progress observer to an event-consuming function.
+   An atom is adapted to the reducer-based progress-atom-observer; a function is
+   used directly; anything else observes nothing."
+  [observer]
+  (cond
+    (fn? observer) observer
+    (instance? clojure.lang.IAtom observer) (progress/progress-atom-observer observer)
+    :else nil))
 
 (defn- report-pro-rata-progress!
+  "Small safe dispatch primitive for runtime progress events.
+
+   The allocator emits events and knows nothing about how progress is stored.
+   Observer exceptions are swallowed so a broken observer can never influence
+   allocation semantics; callers that want the error count use
+   progress/counting-observer (usable without a progress atom)."
   [observer event]
-  (cond
-    (fn? observer) (try (observer event) (catch Exception _ nil))
-    (instance? clojure.lang.IAtom observer) (swap! observer merge event)
-    :else nil))
+  (when-let [emit (normalize-progress-observer observer)]
+    (try (emit event)
+         (catch Exception _ nil))))
 
 (def ^:dynamic *pro-rata-parallelism*
   "Runtime-only claimant worker budget. It is deliberately absent from every
@@ -424,7 +432,8 @@
         total-items (count items)
         claimant-parallelism (effective-claimant-parallelism parallelism total-items progress-observer)
         _ (report-pro-rata-progress! progress-observer
-                                     {:status :running
+                                     {:event :phase-started
+                                      :status :running
                                       :phase :preparing
                                       :current 0
                                       :total total-items})
@@ -442,20 +451,21 @@
                        :cap cap}))
                   (mapv vector (range) items))
         total-weight (reduce +' 0 (map :weight prepared))
-        _ (report-pro-rata-progress! progress-observer {:phase :requesting})
+        _ (report-pro-rata-progress! progress-observer {:event :phase-started :phase :requesting})
         requests (if (zero? total-weight)
                    (repeat (count prepared) 0)
                    (pro-rata-requests amount prepared total-weight rounding ordering-policy))
-        _ (report-pro-rata-progress! progress-observer {:phase :allocating})
+        _ (report-pro-rata-progress! progress-observer {:event :phase-started :phase :allocating})
         allocations (ordered-detached-mapv
                      claimant-parallelism
-                     (fn [[{:keys [idx id weight cap]} requested]]
+                     (fn [[{:keys [id weight cap]} requested]]
                        (let [allocated (min requested (or cap requested))
                              unmet (- requested allocated)]
                          ;; Parallel eligibility requires no observer, so this
                          ;; preserves legacy callback sequencing on the serial path.
                          (report-pro-rata-progress! progress-observer
-                                                    {:current (inc idx)})
+                                                    {:event :claimants-completed
+                                                     :delta 1})
                          {:id id
                           :allocated allocated
                           :unmet unmet
@@ -475,9 +485,9 @@
                          :ordering-policy ordering-policy
                          :total-weight total-weight}}]
     (report-pro-rata-progress! progress-observer
-                               {:status :completed
-                                :phase :completed
-                                :current total-items})
+                               {:event :allocation-completed
+                                :status :completed
+                                :phase :completed})
     result))
 
 (defn- residual-cap-fn
@@ -581,9 +591,10 @@
                               :iteration-limit-reached? true}})
           (do
             (report-pro-rata-progress! progress-observer
-                                       {:status :running
+                                       {:event :redistribution-started
+                                        :status :running
                                         :phase :redistributing
-                                        :redistribution-pass pass-num})
+                                        :pass-index pass-num})
             (let [allocated-by-id (into {} (map (juxt :id :allocated) (vals acc-base-map)))
                   pass-result (allocate-pro-rata {:amount remaining-excess
                                                   :items uncapped-items
@@ -769,8 +780,10 @@
                                    :active-ids (mapv item-id active)
                                    :constrained-ids (mapv item-id capped)})))
                 (report-pro-rata-progress! observer
-                                           {:status :running :phase :redistributing
-                                            :redistribution-pass round-index})
+                                           {:event :redistribution-started
+                                            :status :running
+                                            :phase :redistributing
+                                            :pass-index round-index})
                 (recur (inc round-index)
                        (- remaining committed-amount)
                        next-active

@@ -316,7 +316,8 @@
 
    The result is a hash-committed mathematical evidence envelope. It contains
    no account, token, participant, or transition semantics."
-  [{:keys [available rows rounding-policy tie-break-policy redistribution-policy progress-atom parallelism]
+  [{:keys [available rows rounding-policy tie-break-policy redistribution-policy
+           on-progress progress-atom parallelism]
     :or {rounding-policy :largest-remainder
          tie-break-policy :canonical-row-id
          redistribution-policy :unallocated}
@@ -373,6 +374,7 @@
                               :rounding (rounding->payoffs rounding-policy)
                               :remainder-policy :unallocated
                               :ordering-policy :canonical-id
+                              :on-progress on-progress
                               :progress-atom progress-atom
                               ;; Operational only: omitted from canonical-request.
                               :parallelism parallelism}

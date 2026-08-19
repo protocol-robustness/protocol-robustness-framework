@@ -449,30 +449,33 @@
         progress-atom (when parallel? (atom 0))
         do-run   (fn [entry]
                    (let [sid (or (when (map? entry) (get-in entry [:scenario :scenario-id]))
-                                 (when (vector? entry) (name (first entry)))
-                                 "unknown")]
+                                  (when (vector? entry) (name (first entry)))
+                                  "unknown")]
                      (binding [*current-scenario* sid]
                        (let [result
                              (try
                                (run-entry entry (assoc opts :replay-fn (:replay-fn collection)
                                                        :type-meta-fn (:type-meta-fn collection)))
                                (catch Exception e
-                                 (let [err-entry (make-error-entry entry e)]
-                                   (when log-writer
-                                     (log-writer {:event "entry-error" :scenario-id sid
-                                                  :error (.getMessage e)
-                                                  :current (if parallel? (swap! progress-atom inc)
-                                                               0)}))
-                                   err-entry)))
+                                 (make-error-entry entry e)))
+                             ;; Work completion mutates progress exactly once, after
+                             ;; the result resolves, regardless of logging or error
+                             ;; path. Logging and callbacks observe the committed value.
+                             committed (if parallel? (swap! progress-atom inc) 0)
                              entry-name (:name result (str sid))]
+                         (when (and log-writer (= :error (:outcome result)))
+                           (log-writer {:event "entry-error" :scenario-id sid
+                                        :error (:error result)
+                                        :current committed
+                                        :total total}))
                          (when log-writer
                            (log-writer {:event "entry-complete" :scenario-id sid
                                         :outcome (name (:outcome result))
                                         :pass? (:pass? result)
-                                        :current (if parallel? (swap! progress-atom inc) 0)
+                                        :current committed
                                         :total total}))
                          (when *progress-callback*
-                           (*progress-callback* {:current (if parallel? @progress-atom 0)
+                           (*progress-callback* {:current committed
                                                  :total total
                                                  :entry-name entry-name
                                                  :result result

@@ -195,7 +195,8 @@
                          {:id :c :weight 1}]
                  :progress-atom progress})]
     (is (= [3 3 3] (mapv :allocated (:allocations result))))
-    (is (= {:status :completed
+    (is (= {:progress/schema "pro-rata-progress.v1"
+            :status :completed
             :phase :completed
             :current 3
             :total 3}
