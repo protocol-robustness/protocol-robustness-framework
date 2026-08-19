@@ -912,6 +912,59 @@
                             (subs (chain-configuration-root configuration) 7))
    :verifier-registry-root (prf-ref->bytes32 (:verifier-registry/root configuration))})
 
+(defn canonical-verifier-entry-hash
+  "Compute the SHA-256 hash of a single verifier entry.
+  All fields are encoded as exactly 32 bytes (big-endian, left-padded)."
+  [entry]
+  (let [verifier-id-bytes (hc/hex->bytes (:verifier/id entry))
+        adapter-int (hc/hex->int (:verifier/adapter entry))
+        adapter-bytes (hc/encode-uint256-be adapter-int)
+        program-vkey-bytes (hc/hex->bytes (:verifier/program-vkey entry))
+        elf-sha256-bytes (hc/hex->bytes
+                          (if (str/starts-with? (:verifier/program-elf-sha256 entry) "sha256:")
+                            (subs (:verifier/program-elf-sha256 entry) 7)
+                            (:verifier/program-elf-sha256 entry)))
+        program-id-bytes (hc/utf8-bytes (:verifier/program-id entry))
+        program-id-hash (hc/hash-bytes program-id-bytes)
+        schema-hash-bytes (hc/hex->bytes (:verifier/statement-schema-version-hash entry))
+        active-bytes (hc/encode-uint256-be (if (:verifier/active entry) 1 0))
+        payload (hc/concat-byte-arrays
+                 [verifier-id-bytes adapter-bytes program-vkey-bytes
+                  elf-sha256-bytes program-id-hash schema-hash-bytes active-bytes])]
+    (hc/hash-bytes payload)))
+
+(defn canonical-verifier-registry-root
+  "Compute the canonical SHA-256 root of a verifier-registry.v1 artifact.
+
+  The registry is a vector of verifier-entry maps, each containing:
+  :verifier/id, :verifier/adapter, :verifier/program-vkey,
+  :verifier/program-elf-sha256, :verifier/program-id,
+  :verifier/statement-schema-version-hash, :verifier/active.
+
+  Entries are sorted by :verifier/id (ascending, as bytes32). Each entry is
+  hashed as:
+  SHA256(verifierId || uint256(adapter) || programVKey || programElfSha256 ||
+         SHA256(programId) || statementSchemaVersionHash || uint256(active?1:0))
+
+  The registry root is:
+  SHA256(\"PRF_VERIFIER_REGISTRY_V1\" || uint256(entry_count) || sorted_entry_hashes)
+
+  Both sides use SHA-256 (not keccak256). Cross-language conformance:
+  the Solidity PrfVerifierRegistry.canonicalRoot() produces the exact same
+  root given the same entries."
+  ;; :hash/intent :prf-verifier-registry-v1
+  ;; Exercises the prf-verifier-registry-v1 canonical hash intent via the
+  ;; custom byte-level algorithm below (domain-separated, sorted entries).
+  [verifiers]
+  (let [sorted-entries (sort-by :verifier/id verifiers)
+        entry-hashes (map canonical-verifier-entry-hash sorted-entries)
+        domain-bytes (hc/utf8-bytes "PRF_VERIFIER_REGISTRY_V1")
+        count-bytes (hc/encode-uint256-be (count sorted-entries))
+        payload (hc/concat-byte-arrays (concat [domain-bytes count-bytes] entry-hashes))
+        root-bytes (hc/hash-bytes payload)
+        root-hex (format "%064x" (BigInteger. 1 root-bytes))]
+    (hash-ref/sha256-ref root-hex)))
+
 ;; ──────────────────────────────────────────────────────────────────────────────
 ;; Solidity application plan projection (non-canonical, derived)
 ;; ──────────────────────────────────────────────────────────────────────────────

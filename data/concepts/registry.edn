@@ -346,9 +346,17 @@
     :concept/file  "data/concepts/framework/creation_provenance.edn"
     :concept/name  "Creation provenance"
     :concept/status :draft
-    :concept/protocols #{:protocol/sew-v1 :protocol/prf}}
+     :concept/protocols #{:protocol/sew-v1 :protocol/prf}}
 
-   {:concept/id    :assurance/evidence-backed-classification
+    {:concept/id    :framework/source-creation
+     :concept/type  :framework
+     :concept/layer :framework-explanation
+     :concept/file  "data/concepts/framework/source_creation.edn"
+     :concept/name  "Source creation provenance"
+     :concept/status :draft
+     :concept/protocols #{:protocol/sew-v1 :protocol/prf}}
+
+    {:concept/id    :assurance/evidence-backed-classification
     :concept/type  :assurance
     :concept/layer :stakeholder
     :concept/file  "data/concepts/assurance/evidence_backed_classification.edn"

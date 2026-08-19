@@ -186,13 +186,13 @@
 
 (deftest test-termination-stale-shared-state
   (testing "terminator input == current head but terminator shared-state != head => reject"
-     (let [head cmd-b
-           stale-term (cl/build-termination-command head s2)
+    (let [head cmd-b
+          stale-term (cl/build-termination-command head s2)
           tampered (assoc-in stale-term
-                            [:command/built-with-includes]
-                            [{:kind :shared-state :ref s0}])
+                             [:command/built-with-includes]
+                             [{:kind :shared-state :ref s0}])
           tampered-with-root (assoc tampered
-                                   :command/root (cl/command-root tampered))
+                                    :command/root (cl/command-root tampered))
           result (cl/verify-lineage [cmd-a cmd-b tampered-with-root])]
       (is (false? (:valid? result)))
       (is (= :stale-termination-shared-state (:status result))))))

@@ -30,7 +30,7 @@
   {:yield/indices {:test-mod {"USDC" 1.0}}
    :yield/rates   {:test-mod {"USDC" 0.05}}
    :yield/risk    {:test-mod {"USDC" {:liquidity-mode :available
-                                      :loss-mode :none}}}
+                                       :loss-mode :none}}}
    :yield/held-balances {"USDC" 1000000}
    :yield/module-status {:test-mod :active}
    :block-time 1000
@@ -81,7 +81,7 @@
   (->> (vals (:yield/partial-fill-decisions world {}))
        (filter #(= :yield-withdraw-shared (:decision/source %)))
        (sort-by (fn [d] [(get-in d [:allocation/invocation-context :step]
-                                 Long/MAX_VALUE)
+                                Long/MAX_VALUE)
                          (:decision/id d)]))))
 
 (defn- priority-witness
@@ -142,7 +142,7 @@
       (doseq [d (shared-decisions w)]
         (let [witness (priority-witness d)
               declared (:allocation/ordering d)
-              sorted (sort-by (fn [row] (long (:original-priority row))) witness)]
+sorted (sort-by #(long (:original-priority %)) witness))
           (is (= :original-priority-ascending declared)
               "declared ordering is :original-priority-ascending")
           (is (= (mapv :key witness) (mapv :key sorted))
@@ -191,9 +191,9 @@
     (let [w1 (round-one-world)
           caps {"alice" 30 "bob" 40 "carol" 50}
           w-a (-> w1 (with-shortfall-ratio 1.0)
-                  (withdraw-shared ["alice" "bob" "carol" "dan"] caps))
+                   (withdraw-shared ["alice" "bob" "carol" "dan"] caps))
           w-b (-> w1 (with-shortfall-ratio 1.0)
-                  (withdraw-shared ["dan" "carol" "bob" "alice"] caps))
+                   (withdraw-shared ["dan" "carol" "bob" "alice"] caps))
           hashes-a (sort (mapv :decision/hash
                                (vals (:yield/partial-fill-decisions w-a))))
           hashes-b (sort (mapv :decision/hash
@@ -244,10 +244,10 @@
             sides of the boundary."
     (let [ex (try
                (adm/reconstruct-input
-                (json/write-str
-                 (assoc (json/read-str
-                         (slurp "scenarios/allocation/a-vs-b-plus-c/realized-statement-input.json")
-                         :key-fn identity)
-                        "available" "101")))
+                 (json/write-str
+                   (assoc (json/read-str
+                            (slurp "scenarios/allocation/a-vs-b-plus-c/realized-statement-input.json")
+                            :key-fn identity)
+                          "available" "101")))
                (catch Exception e e))]
       (is (= :available-exceeds-total-requested (:reason (ex-data ex)))))))

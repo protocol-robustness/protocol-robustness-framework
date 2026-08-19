@@ -1125,6 +1125,90 @@
         :claim/evaluation-error (.getMessage e)
         :claim/outcome :error}])))
 
+;; ── Certification claim binding (P0.0) ────────────────────────────────────────
+;; The certification must independently identify the benchmark's declared claims
+;; (its semantic assertions), not just invariants. These helpers bind the required
+;; claim-set and the evaluated claim-outcomes into the certification so that any
+;; change to a required claim or its evaluated outcome changes the certification
+;; hash. The commitments reuse the related-claims-member hash domain rather than
+;; inventing a parallel scheme.
+
+(defn required-claim-ids
+  "Sorted ids of the claims a manifest requires to be evaluated, derived from its
+   :benchmark/claims declarations. An empty or absent claim list yields []."
+  [manifest]
+  (->> (benchmark-claims/normalize-claim-refs (:benchmark/claims manifest))
+       (map benchmark-claims/claim-ref->id)
+       sort
+       vec))
+
+(defn claim-outcome-projection
+  "Deterministic, sorting-stable projection of evaluated claim outcomes into a
+   portable vector. Any change to an evaluated claim (id, scope, scenario, or
+   outcome) alters the projection and therefore the claim-outcome commitment."
+  [claim-results]
+  (->> claim-results
+       (map (fn [r]
+              {:claim/id (:claim/id r)
+               :claim/outcome (:claim/outcome r)
+               :claim/scope (:claim/scope r)
+               :scenario/id (:scenario/id r)}))
+       (sort-by (juxt :claim/id :claim/scope :scenario/id))
+       vec))
+
+(defn required-claims-covered?
+  "True when the set of evaluated claim ids exactly equals the set of required
+   claim ids. A missing required claim, an unexpected evaluated claim, or an
+   absent claim set fails closed rather than being treated as covered."
+  [required-ids claim-results]
+  (= (set required-ids) (set (map :claim/id claim-results))))
+
+(defn claim-set-root
+  "Domain-separated commitment to the required claim set a certification
+   authorizes. Uses the related-claims-member hash domain."
+  [claim-ids]
+  (hc/domain-hash :related-claims-member
+                  {:claim/set claim-ids
+                   :claim/set-schema "benchmark-claim-set.v1"}))
+
+(defn claim-outcome-root
+  "Domain-separated commitment to the evaluated claim outcomes. Uses the
+   related-claims-member hash domain, kept distinct from the invariant
+   commitment via its schema marker."
+  [claim-outcomes]
+  (hc/domain-hash :related-claims-member
+                  {:claim/outcomes claim-outcomes
+                   :claim/outcome-schema "benchmark-claim-outcome.v1"}))
+
+(defn build-certification
+  "Construct the certification object for a completed benchmark execution.
+
+   Binds the evaluated claims (P0.0) in addition to the pre-existing invariant
+   and count fields: the required claim-set root, the evaluated claim-outcome
+   root, and a fail-closed required-claims-covered? flag are committed into the
+   certification hash. A change to any required claim or to any evaluated claim
+   outcome therefore changes the certification hash — claims can no longer be
+   altered without altering the certification."
+  [manifest {:keys [scenario-count all-invariants-pass invariant-summary]} claim-results]
+  (let [required-ids    (required-claim-ids manifest)
+        claim-outcomes  (claim-outcome-projection claim-results)
+        certification {:certification/schema        "benchmark-certification.v2"
+                       :certification/creation      {:provenance :in-band
+                                                     :producer :benchmark-runner}
+                       :benchmark-id                (or (:id manifest) "unknown")
+                       :scenario-count              scenario-count
+                       :all-invariants-pass         all-invariants-pass
+                       :final-state-hash            nil
+                       :evidence-chain-root         nil
+                       :invariant-summary           invariant-summary
+                       :required-claims-covered?    (required-claims-covered? required-ids claim-results)
+                       :claim-set/root              (claim-set-root required-ids)
+                       :claim-outcome/root          (claim-outcome-root claim-outcomes)}]
+    (assoc certification
+           :certification-hash
+           (hc/hash-with-intent {:hash/intent :benchmark-certification}
+                                certification))))
+
 (defn run-benchmark
   ([manifest-path] (run-benchmark manifest-path default-adapter {}))
   ([manifest-path adapter] (run-benchmark manifest-path adapter {}))
@@ -1276,16 +1360,11 @@
                                 nil)))
 
          run-manifest (build-run-manifest manifest-path manifest adapter results metrics)
-         certification {:benchmark-id      (or (:id manifest) "unknown")
-                        :scenario-count    (:total metrics)
-                        :all-invariants-pass all-invariants-pass?
-                        :final-state-hash  nil
-                        :evidence-chain-root nil
-                        :invariant-summary inv-summary}
-         certification (assoc certification
-                              :certification-hash
-                              (hc/hash-with-intent {:hash/intent :benchmark-certification}
-                                                   certification))
+         certification (build-certification manifest
+                                            {:scenario-count (:total metrics)
+                                             :all-invariants-pass all-invariants-pass?
+                                             :invariant-summary inv-summary}
+                                            claim-results)
          evidence {:benchmark      manifest
                    :repo           repo-meta
                    :environment    {:os-name (System/getProperty "os.name")
@@ -1307,8 +1386,9 @@
                                                  :round-count 1
                                                  :derived-work-count (count additional-work)
                                                  :closed? true}
-                    :benchmark-certification certification
-                    :creation/provenance :in-band}
+                   :benchmark-certification certification
+                   :creation/provenance :in-band
+                   :source/creation {:provenance :in-band}}
 
          ;; The committed hash covers the normalized (persisted) representation,
          ;; not the raw in-memory map: write-evidence serializes the same

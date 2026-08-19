@@ -449,8 +449,8 @@
         progress-atom (when parallel? (atom 0))
         do-run   (fn [entry]
                    (let [sid (or (when (map? entry) (get-in entry [:scenario :scenario-id]))
-                                  (when (vector? entry) (name (first entry)))
-                                  "unknown")]
+                                 (when (vector? entry) (name (first entry)))
+                                 "unknown")]
                      (binding [*current-scenario* sid]
                        (let [result
                              (try

@@ -2,18 +2,19 @@
   (:require [clojure.data.json :as json]
             [clojure.java.io :as io]
             [clojure.test :refer [deftest is testing]]
-             [resolver-sim.benchmark.verify :as verify]
-             [resolver-sim.benchmark.integrity :as integrity]
-             [resolver-sim.benchmark.runner :as runner]
-             [resolver-sim.commands.run-lifecycle :as lifecycle]
-             [resolver-sim.hash.canonical :as canonical]
-             [resolver-sim.hash.reference :as hash-ref]
+            [resolver-sim.benchmark.verify :as verify]
+            [resolver-sim.benchmark.integrity :as integrity]
+            [resolver-sim.benchmark.runner :as runner]
+            [resolver-sim.commands.run-lifecycle :as lifecycle]
+            [resolver-sim.hash.canonical :as canonical]
+            [resolver-sim.hash.reference :as hash-ref]
             [resolver-sim.run.package-index :as package-index]
             [resolver-sim.run.verdict-policy :as verdict-policy]))
 
 (defn- temp-root [] (.toFile (java.nio.file.Files/createTempDirectory "benchmark-verify-" (make-array java.nio.file.attribute.FileAttribute 0))))
 (defn- delete-tree! [root] (doseq [f (reverse (file-seq root))] (io/delete-file f true)))
 (defn- write-json! [file value] (io/make-parents file) (spit file (json/write-str value)))
+(defn- read-json! [file] (json/read-str (slurp file)))
 (defn- sha [file] (str "sha256:" (lifecycle/sha256-file file)))
 (defn- entries [root paths]
   (mapv (fn [path] (let [file (io/file root path)] {"path" path "sha256" (lifecycle/sha256-file file)})) paths))
@@ -24,16 +25,38 @@
         scenario-input (f "benchmark/executions/exec-1/input/scenario.edn")
         conclusion (f "benchmark/conclusion.json") conservation (f "benchmark/assertions/conservation.json")
         assurance (f "benchmark/assertions/benchmark-assurance.json") content (f "benchmark/evidence/content-registry.json")
-        finalization (f "benchmark/finalization.json") integrity (f "benchmark/assertions/canonical-integrity.json")
+        finalization (f "benchmark/finalization.json") integrity-file (f "benchmark/assertions/canonical-integrity.json")
         deferred (f "benchmark/assertions/forensic-claims-status.json") verdict-policy-file (f "manifest/verdict-policy.json") package-index (f "manifest/run-package-index.json")
-        registry (f "manifest/artifacts.json") validation (f "manifest/artifacts-validation.json") completion (f "completion.json")]
+        registry (f "manifest/artifacts.json") validation (f "manifest/artifacts-validation.json") completion (f "completion.json")
+        evidence-file (f "benchmark/evidence/evidence.edn")]
     (doseq [[file content] [[definition "{:benchmark/id :b}"] [plan "{:executions []}"] [scenario-input "{:scenario/id :s}"] [conclusion "{\"outcome\":\"pass\"}"]]]
       (io/make-parents file) (spit file content))
     (write-json! conservation {"status" "not-exercised" "applicability" {"expected_execution_ids" []} "executions" []})
     (let [inputs [{"logical_id" "benchmark-definition" "source_kind" "benchmark-definition-snapshot" "path" "benchmark/definition.edn" "sha256" (sha definition)}
                   {"logical_id" "benchmark-execution-plan" "source_kind" "execution-plan" "path" "benchmark/execution-plan.edn" "sha256" (sha plan)}
                   {"logical_id" "execution/e1/scenario-input" "source_kind" "execution-input-snapshot" "path" "benchmark/executions/exec-1/input/scenario.edn" "sha256" (sha scenario-input)}]
-          input-root (str "sha256:" (canonical/domain-hash "BENCHMARK_INPUT_SET_V1" (vec (sort-by #(get % "path") inputs))))]
+          input-root (str "sha256:" (canonical/domain-hash "BENCHMARK_INPUT_SET_V1" (vec (sort-by #(get % "path") inputs))))
+          evidence-base {:benchmark {:benchmark/id :b}
+                         :creation/provenance :in-band
+                         :source/creation {:provenance :in-band}
+                         :benchmark/execution-closure {:closure/version 1
+                                                       :round-count 1
+                                                       :derived-work-count 0
+                                                       :closed? true}}
+          evidence-hash (hash-ref/sha256-ref
+                         (canonical/hash-with-intent {:hash/intent :bundle-root}
+                                                     (integrity/hashable-evidence
+                                                      (runner/normalize-runtime-values
+                                                       (dissoc evidence-base :timestamp)))))
+          evidence (assoc evidence-base :evidence/hash evidence-hash)
+          creation-provenance-hash (hash-ref/sha256-ref
+                                    (canonical/hash-with-intent {:hash/intent :creation-provenance}
+                                                                {:creation/provenance (:creation/provenance evidence)}))
+          source-creation-hash (hash-ref/sha256-ref
+                                (canonical/hash-with-intent {:hash/intent :source-creation}
+                                                            {:source/creation (:source/creation evidence)}))]
+      (io/make-parents evidence-file)
+      (spit evidence-file (pr-str evidence))
       (write-json! assurance {"schema_version" "benchmark-assurance.v1" "benchmark_id" "b" "run_id" "r" "lifecycle_status" "completed"
                               "conclusion" {"outcome" "pass"} "input_set" inputs "input_set_root" input-root
                               "conservation" {"artifact_ref" "benchmark/assertions/conservation.json" "artifact_sha256" (sha conservation) "status" "not-exercised"}})
@@ -45,9 +68,11 @@
         (write-json! finalization {"schema_version" "benchmark-finalization.v1" "benchmark_id" "b" "run_id" "r"
                                    "conclusion_sha256" (sha conclusion) "evidence_content_registry_sha256" (sha content)
                                    "input_set_root" input-root "final_ref" final-ref})
-        (write-json! integrity {"schema_version" "canonical-integrity.v1" "status" "passed"
-                                "benchmark_finalization" {"sha256" (sha finalization)} "benchmark_assurance" {"sha256" (sha assurance)}
-                                "conservation" {"sha256" (sha conservation)} "evidence_content_registry" {"sha256" (sha content)}})
+        (write-json! integrity-file {"schema_version" "canonical-integrity.v1" "status" "passed"
+                                     "benchmark_finalization" {"sha256" (sha finalization)} "benchmark_assurance" {"sha256" (sha assurance)}
+                                     "conservation" {"sha256" (sha conservation)} "evidence_content_registry" {"sha256" (sha content)}
+                                     "creation_provenance" (name (:creation/provenance evidence)) "creation_provenance_hash" (str creation-provenance-hash)
+                                     "source_creation" (name (get-in evidence [:source/creation :provenance])) "source_creation_hash" (str source-creation-hash)})
         (write-json! deferred {"schema_version" "forensic-claims-status.v1" "status" "deferred" "reason_code" "unsigned-forensic-signing-not-configured"})
         (verdict-policy/write! verdict-policy-file
                                (verdict-policy/build {:run-id "r" :run-type "benchmark"
@@ -65,18 +90,22 @@
         (package-index/write! package-index
                               {:run-id "r"
                                :run-type :benchmark
-                               :bundle-root-hash (sha content)
+                               :bundle-root-hash evidence-hash
                                :artifacts {:runner-finalization {:ref "benchmark/finalization.json" :sha256 (sha finalization)}
                                            :benchmark-finalization {:ref "benchmark/finalization.json" :sha256 (sha finalization)}
                                            :benchmark-assurance {:ref "benchmark/assertions/benchmark-assurance.json" :sha256 (sha assurance)}
-                                           :canonical-integrity {:ref "benchmark/assertions/canonical-integrity.json" :sha256 (sha integrity)}
+                                           :canonical-integrity {:ref "benchmark/assertions/canonical-integrity.json" :sha256 (sha integrity-file)}
                                            :verdict-policy {:ref "manifest/verdict-policy.json" :sha256 (sha verdict-policy-file)}}})
-        (let [paths ["benchmark/definition.edn" "benchmark/execution-plan.edn" "benchmark/executions/exec-1/input/scenario.edn" "benchmark/conclusion.json" "benchmark/assertions/conservation.json" "benchmark/assertions/benchmark-assurance.json" "benchmark/evidence/content-registry.json" "benchmark/finalization.json" "benchmark/assertions/canonical-integrity.json" "benchmark/assertions/forensic-claims-status.json" "manifest/verdict-policy.json" "manifest/run-package-index.json"]]
+        (let [paths ["benchmark/definition.edn" "benchmark/execution-plan.edn" "benchmark/executions/exec-1/input/scenario.edn" "benchmark/conclusion.json" "benchmark/assertions/conservation.json" "benchmark/assertions/benchmark-assurance.json" "benchmark/evidence/content-registry.json" "benchmark/evidence/evidence.edn" "benchmark/finalization.json" "benchmark/assertions/canonical-integrity.json" "benchmark/assertions/forensic-claims-status.json" "manifest/verdict-policy.json" "manifest/run-package-index.json"]]
           (write-json! registry {"artifacts" (entries root paths)})
           (write-json! validation {"status" "passed"})
           (write-json! completion {"schema_version" "benchmark-completion.v1" "run_type" "benchmark" "benchmark_id" "b" "run_id" "r"
                                    "lifecycle_status" "completed" "semantic_status" "pass" "finalization_ref" "benchmark/finalization.json"
                                    "finalization_sha256" (sha finalization) "final_ref" final-ref "input_set_root" input-root
+                                   "bundle_root_hash" (str evidence-hash)
+                                   "closure_commitment" (str (hash-ref/sha256-ref
+                                                              (canonical/hash-with-intent {:hash/intent :evidence-content}
+                                                                                          (:benchmark/execution-closure evidence))))
                                    "run_package_index_ref" "manifest/run-package-index.json" "run_package_index_sha256" (sha package-index)
                                    "run_package_index_bytes" (.length package-index)
                                    "artifact_registry_sha256" (sha registry) "registry_validation_sha256" (sha validation)}))))
@@ -90,6 +119,89 @@
       (try (fixture! root)
            (tamper! root) (is (false? (get-in (verify/verify! root) ["checks" check])) label)
            (finally (delete-tree! root))))))
+
+(deftest verifier-detected-creation-provenance-commitment
+  (testing "positive: valid fixture passes creation-provenance commitment"
+    (let [root (temp-root)]
+      (try
+        (fixture! root)
+        (let [checks (get-in (verify/verify! root) ["checks"])]
+          (is (true? (get checks "canonical-integrity-creation-provenance"))
+              "creation-provenance commitment should be present and valid")
+          (is (true? (get checks "canonical-integrity-source-creation"))
+              "source-creation commitment should be present and valid"))
+        (finally
+          (delete-tree! root)))))
+  (testing "negative: delete creation_provenance_hash"
+    (let [root (temp-root)]
+      (try
+        (fixture! root)
+        (write-json! (io/file root "benchmark/assertions/canonical-integrity.json")
+                     (let [ci (read-json! (io/file root "benchmark/assertions/canonical-integrity.json"))]
+                       (dissoc ci "creation_provenance_hash")))
+        (let [checks (get-in (verify/verify! root) ["checks"])]
+          (is (false? (get checks "canonical-integrity-creation-provenance"))
+              "deleting the commitment hash while provenance string remains should fail")
+          (is (false? (get checks "artifact-registry-recalculated"))
+              "canonical-integrity artifact hash in registry must catch the file modification"))
+        (finally
+          (delete-tree! root)))))
+  (testing "negative: replace provenance without updating hash"
+    (let [root (temp-root)]
+      (try
+        (fixture! root)
+        (write-json! (io/file root "benchmark/assertions/canonical-integrity.json")
+                     (let [ci (read-json! (io/file root "benchmark/assertions/canonical-integrity.json"))]
+                       (assoc ci "creation_provenance" "out-of-band")))
+        (let [checks (get-in (verify/verify! root) ["checks"])]
+          (is (false? (get checks "canonical-integrity-creation-provenance"))
+              "provenance changed without updating hash should fail the check"))
+        (finally
+          (delete-tree! root)))))
+  (testing "negative: update both provenance and hash"
+    (let [root (temp-root)]
+      (try
+        (fixture! root)
+        (let [ci (read-json! (io/file root "benchmark/assertions/canonical-integrity.json"))
+              new-hash (str (hash-ref/sha256-ref
+                             (canonical/hash-with-intent {:hash/intent :creation-provenance}
+                                                         {:creation/provenance :out-of-band})))]
+          (write-json! (io/file root "benchmark/assertions/canonical-integrity.json")
+                       (assoc ci "creation_provenance" "out-of-band"
+                              "creation_provenance_hash" new-hash))
+          (let [checks (get-in (verify/verify! root) ["checks"])]
+            (is (false? (get checks "artifact-registry-recalculated"))
+                "canonical-integrity.json modified so its registry hash must mismatch")
+            (is (false? (get checks "canonical-integrity-creation-provenance"))
+                "evidence says in-band but stored hash is for out-of-band")))
+        (finally
+          (delete-tree! root)))))
+  (testing "negative: unsupported provenance value"
+    (let [root (temp-root)]
+      (try
+        (fixture! root)
+        (let [ci (read-json! (io/file root "benchmark/assertions/canonical-integrity.json"))]
+          (write-json! (io/file root "benchmark/assertions/canonical-integrity.json")
+                       (assoc ci "creation_provenance" "unknown")))
+        (let [checks (get-in (verify/verify! root) ["checks"])]
+          (is (false? (get checks "canonical-integrity-creation-provenance"))
+              "unsupported provenance value with stale hash should fail"))
+        (finally
+          (delete-tree! root)))))
+  (testing "negative: delete source_creation_hash"
+    (let [root (temp-root)]
+      (try
+        (fixture! root)
+        (write-json! (io/file root "benchmark/assertions/canonical-integrity.json")
+                     (let [ci (read-json! (io/file root "benchmark/assertions/canonical-integrity.json"))]
+                       (dissoc ci "source_creation_hash")))
+        (let [checks (get-in (verify/verify! root) ["checks"])]
+          (is (false? (get checks "canonical-integrity-source-creation"))
+              "deleting source_creation_hash while source_creation string remains should fail")
+          (is (false? (get checks "artifact-registry-recalculated"))
+              "canonical-integrity artifact hash in registry must catch the file modification"))
+        (finally
+          (delete-tree! root))))))
 
 (deftest write-is-conditionally-idempotent
   (let [root (temp-root)

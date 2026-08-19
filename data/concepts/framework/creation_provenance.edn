@@ -63,12 +63,26 @@
    :protocol-mechanisms [:creation-provenance-commitment]
    :stakeholder-impact "Mutated provenance cannot be detected unless provenance was separately root-bound."}]
 
- :concept/assumptions
-  ["Creation provenance is orthogonal to evidence policy: policy describes how evidence is obtained, provenance describes where the artifact was created."
-   "Default :creation/provenance is :in-band, preserving backward compatibility for nodes built before the field existed."
-   "Creation provenance is advisory metadata in the evidence-node projection and does not affect node identity."
-   "Provenance alone does not confer admission; admission requires content integrity, evidence policy, attestations, and authority."
-   "Both :in-band and :out-of-band are valid enum values, so validate-creation-provenance cannot detect a mutation between them unless provenance is separately committed."]
+  :concept/assumptions
+   ["Creation provenance is orthogonal to evidence policy: policy describes how evidence is obtained, provenance describes where the artifact was created."
+    "Default :creation/provenance is :in-band, preserving backward compatibility for nodes built before the field existed."
+    "Creation provenance is advisory metadata in the evidence-node projection and does not affect node identity."
+    "Provenance alone does not confer admission; admission requires content integrity, evidence policy, attestations, and authority."
+    "Both :in-band and :out-of-band are valid enum values, so validate-creation-provenance cannot detect a mutation between them unless provenance is separately committed."]
 
- :concept/notes
-  "Creation provenance is stored in the :execution map of evidence nodes but is intentionally excluded from project-evidence-node's select-keys, so it does not participate in the evidence-node canonical hash. The :creation-provenance hash intent exists for callers who want to independently root-bind provenance. This is not a trust or signature system."}
+  :concept/metrics
+  {:creation-provenance-recorded
+   {:description "Fraction of evidence nodes that carry a :creation/provenance value."
+    :source :derived-from-trace}
+   :creation-provenance-committed
+   {:description "Fraction of evidence nodes whose creation provenance is separately root-bound."
+    :source :derived-from-trace}}
+
+  :concept/out-of-scope
+  ["Whether an artifact is correct or was computed correctly."
+   "Who created the artifact — provenance records the context, not the identity."
+   "Signature trust or cryptographic attestation — creation provenance is not a trust system."
+   "Whether the underlying evidence policy is sound — that is the evidence-policy concept."]
+
+  :concept/notes
+   "Creation provenance is stored in the :execution map of evidence nodes but is intentionally excluded from project-evidence-node's select-keys, so it does not participate in the evidence-node canonical hash. The :creation-provenance hash intent exists for callers who want to independently root-bind provenance. This is not a trust or signature system."}

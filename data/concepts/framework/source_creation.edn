@@ -1,0 +1,80 @@
+{:concept/id :framework/source-creation
+ :concept/type :framework
+ :concept/layer :framework-explanation
+ :concept/name "Source creation provenance"
+ :concept/summary
+ "Source creation provenance records the creation context of the underlying source material that an evidence artifact is derived from — whether the source was created within the authorized execution lifecycle (:in-band) or outside it (:out-of-band). This is distinct from :creation/provenance, which records the creation context of the evidence artifact itself. Source creation provenance is advisory metadata stored as a map {:provenance :in-band|:out-of-band} and is excluded from the evidence-node canonical projection, so it does not affect node identity. It can be independently root-bound via the :source-creation hash intent when tamper-evidence is required."
+
+ :concept/stakeholder-question
+ "Was the underlying source material created within the authorized execution lifecycle, and if not, is that out-of-band source provenance separately committed rather than merely recorded?"
+
+ :concept/protocols #{:protocol/sew-v1 :protocol/prf}
+
+ :concept/related
+ [:framework/creation-provenance
+  :framework/evidence-policy
+  :framework/registry-entry-hash]
+
+ :concept/roles
+ {:provenance-creator {:description "Entity that records the source creation provenance of an artifact."
+                       :maps-to [:protocol.actor/verifier]}
+  :provenance-verifier {:description "Entity that checks source creation provenance is a known value."
+                        :maps-to [:protocol.role/verifier]}}
+
+ :concept/entities
+ {:source-creation-field {:description "The :source/creation value stored in an evidence node's :execution map. Defaults to {:provenance :in-band}."
+                          :maps-to [:protocol.entity/evidence]}
+  :source-creation-commitment {:description "An independent root-bound commitment over source creation provenance, produced via the :source-creation hash intent."
+                               :maps-to [:protocol.entity/canonical-hash]}}
+
+ :concept/actions
+ {:record-source-creation {:description "Set :source/creation on an evidence node to {:provenance :in-band} or {:provenance :out-of-band}."
+                           :maps-to [:protocol.action/commit-root]}
+  :validate-source-creation {:description "Check :source/creation is a known value."
+                             :maps-to [:protocol.action/check-invariant]}
+  :commit-source-creation {:description "Independently root-bind source creation provenance via the :source-creation hash intent."
+                           :maps-to [:protocol.action/commit-root]}}
+
+ :concept/outcomes
+ {:source-creation-recorded {:description "Evidence node carries a :source/creation value in its :execution map."
+                             :maps-to [:protocol.outcome/released]}
+  :source-creation-committed {:description "Source creation provenance is separately root-bound so tampering is detectable."
+                              :maps-to [:protocol.outcome/released]}}
+
+ :concept/failure-modes
+ [{:failure/id :source-creation-unrecorded
+   :failure/name "Source creation provenance unrecorded"
+   :failure/summary "An artifact is created without recording the creation context of its underlying source material."
+   :protocol-mechanisms [:source-creation-field]
+   :stakeholder-impact "Reviewers cannot distinguish in-band from out-of-band source creation; provenance is silently absent."}
+  {:failure/id :source-creation-conflated-with-creation-provenance
+   :failure/name "Source creation conflated with artifact creation provenance"
+   :failure/summary "Source creation provenance is recorded as artifact creation provenance, conflating two distinct concepts."
+   :protocol-mechanisms [:source-creation-field]
+   :stakeholder-impact "The creation context of the source material is lost in the artifact provenance."}
+  {:failure/id :source-creation-tampering-undetected
+   :failure/name "Source creation provenance tampering undetected"
+   :failure/summary "Source creation provenance is mutated without a separate commitment, so the change is invisible."
+   :protocol-mechanisms [:source-creation-commitment]
+   :stakeholder-impact "Mutated source provenance cannot be detected unless it was separately root-bound."}]
+
+ :concept/assumptions
+ ["Source creation provenance is distinct from artifact creation provenance."
+  "Default :source/creation is {:provenance :in-band}, preserving backward compatibility."
+  "Source creation provenance is advisory metadata in the evidence-node projection and does not affect node identity."
+  "Source provenance alone does not confer admission; admission requires content integrity, evidence policy, attestations, and authority."]
+
+ :concept/notes
+ "Source creation provenance is stored as {:provenance :in-band|:out-of-band} in the :execution map of evidence nodes but is intentionally excluded from project-evidence-node's select-keys, so it does not participate in the evidence-node canonical hash. The :source-creation hash intent exists for callers who want to independently root-bind source creation provenance. This is not a trust or signature system."
+
+ :concept/metrics
+ {:source-creation-recorded {:description "Fraction of evidence nodes that carry a :source/creation value."
+                              :source :derived-from-trace}
+  :source-creation-committed {:description "Fraction of evidence nodes whose source creation is separately root-bound."
+                               :source :derived-from-trace}}
+
+ :concept/out-of-scope
+ ["Whether the source material itself is correct or was computed correctly."
+  "Who created the source material — provenance records the context, not the identity."
+  "Signature trust or cryptographic attestation — source creation provenance is not a trust system."
+  "Whether the underlying evidence policy is sound — that is the evidence-policy concept."]}

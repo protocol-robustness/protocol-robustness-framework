@@ -386,9 +386,9 @@
 
 (deftest execution-hash-changes-with-input
   (let [pa (exec-ev/build-pro-rata-execution-evidence
-             (exec-args :alloc-hash "sha256:a" :app-hash "sha256:b"))
+            (exec-args :alloc-hash "sha256:a" :app-hash "sha256:b"))
         pb (exec-ev/build-pro-rata-execution-evidence
-             (exec-args :alloc-hash "sha256:different" :app-hash "sha256:b"))]
+            (exec-args :alloc-hash "sha256:different" :app-hash "sha256:b"))]
     (is (not= (:evidence-profile/hash pa) (:evidence-profile/hash pb)))))
 
 (deftest execution-out-of-band-provenance-verifies
@@ -417,10 +417,10 @@
           p (exec-ev/build-pro-rata-execution-evidence
              (assoc args :creation/provenance :out-of-band))
           recomputed (:profile-recomputed
-                       (exec-ev/verify-pro-rata-execution-evidence p args))]
+                      (exec-ev/verify-pro-rata-execution-evidence p args))]
       (is (= :out-of-band
              (get-in recomputed [:evidence-profile/creation :provenance]))
-           "verifier must reconstruct with stored :out-of-band, not default :in-band"))))
+          "verifier must reconstruct with stored :out-of-band, not default :in-band"))))
 
 (deftest execution-missing-artifact-throws
   (is (thrown-with-msg? Exception #"evidence build failed"

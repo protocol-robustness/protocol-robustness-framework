@@ -33,7 +33,19 @@
    ------------
    An indeterminate stage (e.g. external proving that cannot report a
    percentage) is reported as `{:status :running :elapsed-ms ...}` rather than a
-   fabricated figure.")
+   fabricated figure.
+
+   Contract (typed vs legacy)
+   --------------------------
+   *Normative* — the event vocabulary in `event-types`, reduced by each explicit
+   `reducer` case, IS the pro-rata-progress.v1 API. It is the only path SP-A and
+   SP-C are allowed to emit.
+   *Legacy compatibility-only* — pre-SP-A callers may still feed untyped field
+   maps or unknown event keywords. Those DO NOT participate in pro-rata-progress
+   .v1; they are routed through the isolated `legacy-untyped-event->snapshot`
+   adapter, which stamps `:progress/compat :untyped-event` so any such use is
+   visibly detectable. Do not extend that adapter with new behavior. New work
+   adds a typed event to `event-types` and a `reducer` case.")
 
 (def schema-version "pro-rata-progress.v1")
 
@@ -58,6 +70,7 @@
     :redistribution-started
     :redistribution-pass-completed
     :allocation-completed
+    :proving
     ;; proof-pipeline vocabulary (not yet wired)
     :statement-constructed
     :guest-input-constructed
@@ -124,52 +137,84 @@
   "Snapshot fields an event may contribute directly (operational only)."
   [:status :phase :current :total :pass-index :elapsed-ms])
 
-(defn- merge-event-snapshot
-  "Merge event-derived snapshot fields, mapping the legacy :redistribution-pass
-   key to the canonical :pass-index. Used for typed phase events and as the
-   backward-compatible fallback for untyped partial events."
+(defn- typed-event?
+  "True when `event` is a normative pro-rata-progress.v1 typed event (its
+   `:event` keyword belongs to `event-types`). Anything else is legacy."
+  [event]
+  (and (keyword? (:event event))
+       (contains? event-types (:event event))))
+
+(defn- merge-typed-snapshot
+  "Normative merge of snapshot fields for typed events without a dedicated
+   reducer case (e.g. :phase-started/:phase-completed). Broadcast their declared
+   snapshot fields; never treated as a terminal state on its own."
+  [snapshot event]
+  (reduce (fn [s k]
+            (if (contains? event k) (assoc s k (get event k)) s))
+          snapshot
+          snapshot-event-keys))
+
+(defn- legacy-untyped-event->snapshot
+  "LEGACY compatibility-only adapter — NOT part of pro-rata-progress.v1.
+
+   Pre-SP-A callers fed untyped field maps or unknown event keywords into the
+   reducer. That degrades to a best-effort field merge here, and the resulting
+   snapshot is stamped `:progress/compat :untyped-event` so future code can
+   detect that a non-normative event was processed instead of silently relying
+   on it. The legacy `:redistribution-pass` key is remapped to the canonical
+   `:pass-index`.
+
+   Do not extend this adapter with new behavior. New features add a typed event
+   to `event-types` and a `reducer` case."
   [snapshot event]
   (let [event (if (contains? event :redistribution-pass)
                 (assoc event :pass-index (:redistribution-pass event))
                 event)]
-    (reduce (fn [s k]
-              (if (contains? event k) (assoc s k (get event k)) s))
-            snapshot
-            snapshot-event-keys)))
+    (assoc
+     (reduce (fn [s k]
+               (if (contains? event k) (assoc s k (get event k)) s))
+             snapshot
+             snapshot-event-keys)
+     :progress/compat :untyped-event)))
 
 (defn reducer
   "Progress event → snapshot reducer.
 
    Monotonic where it must be: :claimants-completed advances :current by an
    atomic :delta; :allocation-completed forces :completed. Terminal statuses are
-   applied by callers/programmes that observe failures or cancellation. Unknown
-   or untyped events degrade to a field merge for backward compatibility.
+   applied by callers/programmes that observe failures or cancellation.
+
+   Normative flow: typed events (see `event-types`) are dispatched through the
+   explicit cases below. The isolated legacy adapter is ONLY the compatibility
+   path for pre-SP-A untyped maps / unknown event keywords.
 
    Operational and noncanonical: this never affects request/result/evidence/
    statement identity, and :event/sequence is never used to decide order."
   [snapshot event]
   (let [s (or snapshot (initial-progress))
         e (or event {})]
-    (case (:event e)
-      :claimants-completed
-      (update s :current + (long (or (:delta e) 0)))
+    (if (typed-event? e)
+      (case (:event e)
+        :claimants-completed
+        (update s :current + (long (or (:delta e) 0)))
 
-      :allocation-completed
-      (assoc s :status :completed :phase :completed :current (:total s))
+        :allocation-completed
+        (assoc s :status :completed :phase :completed :current (:total s))
 
-      :proving
-      (merge s {:status :running :phase :proving}
-             (select-keys e [:elapsed-ms]))
+        :proving
+        (merge s {:status :running :phase :proving}
+               (select-keys e [:elapsed-ms]))
 
-      :redistribution-started
-      (assoc s :status :running :phase :redistributing
+        :redistribution-started
+        (assoc s :status :running :phase :redistributing
                :pass-index (or (:pass-index e) (:pass-index s)))
 
-      :redistribution-pass-completed
-      (assoc s :phase :redistributing
+        :redistribution-pass-completed
+        (assoc s :phase :redistributing
                :pass-index (or (:pass-index e) (:pass-index s)))
 
-      (merge-event-snapshot s e))))
+        (merge-typed-snapshot s e))
+      (legacy-untyped-event->snapshot s e))))
 
 (defn terminal-failed
   "Force a terminal :failed snapshot for the given phase. Operational only; kept

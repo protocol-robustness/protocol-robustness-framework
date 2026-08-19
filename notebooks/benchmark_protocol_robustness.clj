@@ -329,7 +329,7 @@
           (let [s (:claim/status report)]
             (views/badge (name (or s :none))
                          (case s
-                           :verified pass-badge
+                            :pass pass-badge
                            :partial warn-badge
                            (:declared-not-verified nil) warn-badge
                            pass-badge)))]]]]

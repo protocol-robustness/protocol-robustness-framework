@@ -13,9 +13,50 @@ The most severe finding was **P1.3**: the pro-rata evidence verifier could not r
 | Item | Status | Notes |
 |------|--------|-------|
 | Pro-rata profile provenance reconstruction | **CLOSED** | Verifier now re-extracts stored `:creation/provenance` and passes it to the rebuilder. |
-| Out-of-band profile verification | **SUPPORTED** | `verify-pro-rata-execution-evidence[-v2]` correctly reproduces `:out-of-band` profile hashes after the fix. Regression tests added. |
-| Tampered profile provenance | **REJECTED** | Mutating `:evidence-profile/creation :provenance` breaks the `:evidence-profile/hash` recomputation → verification reports `:evidence-profile/hash` mismatch. |
-| Builder default semantics | **UNDER CALL-SITE AUDIT** | The `(or provenance :in-band)` default at creation boundary is not disproven merely by the former verifier bug. Each call-site that builds evidence for an existing/out-of-band artifact must be audited to determine whether the default is at a genuine creation boundary or a reconstruction boundary. |
+| Out-of-band profile verification | **SUPPORTED + TESTED** | `verify-pro-rata-execution-evidence[-v2]` correctly reproduces `:out-of-band` profile hashes after the fix. Regression tests added (37 tests, 103 assertions, all pass). |
+| Tampered profile provenance | **REJECTED + TESTED** | Mutating `:evidence-profile/creation :provenance` breaks the `:evidence-profile/hash` recomputation → verification reports `:evidence-profile/hash` mismatch. |
+| Builder default semantics | **UNDER CALL-SITE AUDIT** | The `(or provenance :in-band)` default at creation boundary is correct for genuinely in-band creation. Each call-site that builds evidence for an existing/out-of-band artifact must be audited to determine whether the default is at a genuine creation boundary or a reconstruction boundary. |
+| P1.2 creation_provenance_hash envelope commitment | **DONE + TESTED** | `creation_provenance_hash` computed and stored in `canonical-integrity.v1` (both benchmark and scenario paths). Verified via `canonical-integrity-creation-provenance` check. |
+| P1.2 source_creation_hash envelope commitment | **DONE + TESTED** | `source_creation_hash` computed and stored in `canonical-integrity.v1`. Verified via `canonical-integrity-source-creation` check. |
+| P1.3 benchmark evidence `:creation/provenance` | **DONE + TESTED** | `:creation/provenance :in-band` added to benchmark evidence map at `runner.clj:1310`. Excluded from `hashable-evidence` so bundle root identity is unaffected. |
+| P1.4 source-level provenance (`:source/creation`) | **DONE + TESTED** | `:source/creation {:provenance :in-band}` added to fixture evidence. Excluded from `hashable-evidence` (does not alter bundle root). Committed via `source_creation_hash` in canonical-integrity. Four negative cases: delete hash, replace provenance without updating hash, update both, unsupported value. Transitive commitment verified: modifying canonical-integrity.json breaks `artifact-registry-recalculated`. |
+| P1.1 transitive commitment path | **PINNED + TESTED** | Regression test confirms that modifying `creation_provenance_hash` in `canonical-integrity.json` breaks `artifact-registry-recalculated` (the registry's SHA for the file no longer matches). |
+| P2.2 `:claim/status :verified` rename | **DEFERRED** | Awaiting consumer audit per user guidance. `:verified` is semantically stronger than `:pass`: consumers should be classified into (1) successful check result → `:pass`, (2) authority/verification assertion → separate field, (3) generic result vocabulary → normalize full enum. |
+| P2.5 non-canonical `:execution/observation` | **PENDING** | Add serial/parallel execution mode record to run-links. |
+
+## 6A. Transitive Commitment Path (Verified)
+
+The following chain is now pinned with regression tests:
+
+```
+evidence.edn :creation/provenance         ← :in-band (or :out-of-band)
+  → canonical projection                  ← hash-with-intent :creation-provenance
+  → creation_provenance_hash               ← stored in canonical-integrity.json
+  → canonical-integrity artifact          ← SHA256 recorded in artifact-registry.json
+  → completion/finalization commitment    ← seals the artifact registry
+  → verification                          ← artifact-registry-recalculated + canonical-integrity-creation-provenance
+```
+
+**Negative cases established:**
+1. **Delete `creation_provenance_hash`** (keep `creation_provenance` string) → fails: paired-presence rule requires both or neither
+2. **Replace `:in-band` → `:out-of-band` without updating hash** → fails: stored hash (for `:in-band`) ≠ hash of stored provenance string (`:out-of-band`)
+3. **Update both provenance and hash to `:out-of-band`** → fails: (a) `artifact-registry-recalculated` catches the modified canonical-integrity.json; (b) `canonical-integrity-creation-provenance` catches mismatch with evidence's `:creation/provenance :in-band`
+4. **Unsupported provenance value `:unknown`** → fails: not in `#{"in-band" "out-of-band"}` set
+
+Same four cases established for `source_creation_hash` / `:source/creation`.
+
+## 6B. P1.4 Design: Source Creation Provenance
+
+`:source/creation` is intentionally distinct from `:creation/provenance`:
+
+- **`:creation/provenance`** — how this evidence artifact was created (`:in-band` / `:out-of-band`)
+- **`:source/creation`** — where/how the underlying source material came into existence or entered the evidence pipeline
+
+Legitimate combinations:
+- source out-of-band → evidence in-band: researcher supplies external source, canonical runner produces evidence
+- source in-band → evidence out-of-band: canonical source material, reconstructed/analyzed outside canonical execution
+
+Form is a map `{:provenance :in-band}` for extensibility (future: authenticated-source distinctions, importer identity, source artifact root, capture method). Same identity rule as creation provenance: source creation metadata does NOT alter the semantic evidence bundle root — it is committed explicitly in the assurance/closure layer via `source_creation_hash`.
 
 ## 2. Provenance Flow
 

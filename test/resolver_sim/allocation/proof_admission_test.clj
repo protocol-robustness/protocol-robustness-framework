@@ -88,7 +88,20 @@
     (is (= :uncovered
            (:status (admission/proof-profile-result
                      (assoc-in supported-decision [:evidence :allocation-rows]
-                               [{:key :A :owed 50 :filled 25 :effective-cap 50}]))))))
+                               [{:key :A :owed 50 :filled 25 :effective-cap 50}])))))
+    (is (= :uncovered
+           (:status (admission/proof-profile-result
+                     (assoc-in supported-decision [:evidence :allocation-rows]
+                               [{:key :A :owed 50 :filled 25 :cap 50}]))))))
+  (testing "redistribution rows are excluded until redistribution semantics are independently implemented"
+    (is (= :uncovered
+           (:status (admission/proof-profile-result
+                     (assoc-in supported-decision [:evidence :allocation-rows]
+                               [{:key :A :owed 50 :filled 25 :redistribution 25}])))))
+    (is (= :uncovered
+           (:status (admission/proof-profile-result
+                     (assoc-in supported-decision [:evidence :allocation-rows]
+                               [{:key :A :owed 50 :filled 25 :effective-cap 50 :redistribution 25}]))))))
   (testing "haircut and unsupported rounding cannot be silently simplified"
     (is (= :uncovered (:status (admission/proof-profile-result
                                 (assoc supported-decision :haircut {:A 1})))))

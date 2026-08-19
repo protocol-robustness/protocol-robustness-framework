@@ -386,14 +386,15 @@
 (defn build-execution-node
   [{:keys [execution-id policy-id parent-hashes bootstrap-roots timestamp
            status inputs outputs failure-details attestations extensions
-           execution-kind runner creation-provenance]
+           execution-kind runner creation-provenance source-creation]
     :or {policy-id default-policy-id
          parent-hashes []
          bootstrap-roots []
          timestamp (now-iso)
          attestations []
          extensions {}
-         creation-provenance default-creation-provenance}}]
+         creation-provenance default-creation-provenance
+         source-creation {:provenance :in-band}}}]
   (let [execution-entry' (or (execution-entry execution-id)
                              (throw (ex-info "Unknown execution id" {:execution-id execution-id})))
         policy-entry' (or (evidence-policy-entry policy-id)
@@ -415,7 +416,8 @@
                           :registry-hash (execution-registry-hash)
                           :policy-id policy-id
                           :policy-hash (evidence-policy-hash policy-id)
-                          :creation/provenance creation-provenance}
+                          :creation/provenance creation-provenance
+                          :source/creation source-creation}
               :result {:status status
                        :summary summary}
               :evidence {:inputs-hash (hash-content inputs)

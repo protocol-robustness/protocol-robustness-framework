@@ -450,7 +450,7 @@
                       (cond
                         (seq cr)
                         (if (every? #(= :pass (:claim/outcome %)) cr)
-                          :verified
+                          :pass
                           :partial)
                         (seq claim-refs)
                         :declared-not-verified

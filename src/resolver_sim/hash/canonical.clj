@@ -16,7 +16,8 @@
   (:import [java.security MessageDigest]
            [java.io ByteArrayOutputStream]
            [java.math BigInteger BigDecimal])
-  (:require [clojure.edn :as edn]
+  (:require [clojure.string :as str]
+            [clojure.edn :as edn]
             [resolver-sim.hash.reference :as hash-ref]))
 
 (declare domain-hash out-of-domain! strip-self-hash-fields)
@@ -122,6 +123,7 @@
    :incentive-deviation-domain "INCENTIVE_DEVIATION_DOMAIN_V1"
    :research-analysis-closure "RESEARCH_ANALYSIS_CLOSURE_V1"
    :creation-provenance "CREATION_PROVENANCE_V1"
+   :source-creation "SOURCE_CREATION_V1"
    :trust-sequence-definition "TRUST_SEQUENCE_DEFINITION_V1"
    :procedure-execution-witness "PROCEDURE_EXECUTION_WITNESS_V1"
    :research-force-authorisation "RESEARCH_FORCE_AUTHORISATION_V1"
@@ -284,7 +286,8 @@
    :prf-chain-instance-genesis-v1     "PRF_CHAIN_INSTANCE_GENESIS_V1"
    :prf-chain-configuration-v1        "PRF_CHAIN_CONFIGURATION_V1"
    :prf-chain-configuration-transition-v1 "PRF_CHAIN_CONFIGURATION_TRANSITION_V1"
-   :prf-chain-configuration-change-identity-v1 "prf.chain-configuration-change-identity.v1"})
+   :prf-chain-configuration-change-identity-v1 "prf.chain-configuration-change-identity.v1"
+   :prf-verifier-registry-v1          "PRF_VERIFIER_REGISTRY_V1"})
 
 ;; ──────────────────────────────────────────────────────────────────────────────
 ;; varuint Encoding (LEB128, little-endian base-128)
@@ -918,6 +921,57 @@
 ;; Hashing
 ;; ──────────────────────────────────────────────────────────────────────────────
 
+(defn utf8-bytes
+  "Encode a string as UTF-8 bytes."
+  [s]
+  (.getBytes s "UTF-8"))
+
+(defn hex->bytes
+  "Decode a hex string (with or without 0x prefix) into a byte array."
+  [s]
+  (let [hex (if (str/starts-with? s "0x") (subs s 2) s)
+        n (count hex)
+        result (byte-array (/ n 2))]
+    (loop [i 0]
+      (when (< i n)
+        (aset result
+              (int (/ i 2))
+              (unchecked-byte
+               (Integer/parseInt (subs hex i (+ i 2)) 16)))
+        (recur (+ i 2))))
+    result))
+
+(defn hex->int
+  "Decode a hex string (with or without 0x prefix) into a BigInteger."
+  [s]
+  (let [hex (if (str/starts-with? s "0x") (subs s 2) s)]
+    (new BigInteger hex 16)))
+
+(defn encode-uint256-be
+  "Encode a non-negative integer as exactly 32 bytes, big-endian, left-padded."
+  [n]
+  (let [bi (if (instance? BigInteger n) n (BigInteger/valueOf (long n)))
+        src (.toByteArray bi)
+        buf (byte-array 32)
+        src-len (count src)
+        copy-len (min 32 src-len)
+        src-pos (max 0 (- src-len 32))
+        dst-pos (- 32 copy-len)]
+    (System/arraycopy src src-pos buf dst-pos copy-len)
+    buf))
+
+(defn concat-byte-arrays
+  "Concatenate a sequence of byte arrays into a single byte array."
+  [seqs]
+  (let [arrays (filter some? seqs)
+        total (reduce + (map #(alength ^bytes %) arrays))
+        result (byte-array total)
+        pos (atom 0)]
+    (doseq [^bytes arr arrays]
+      (System/arraycopy arr 0 result @pos (alength arr))
+      (swap! pos + (alength arr)))
+    result))
+
 (defn hash-bytes
   "Compute raw SHA-256 digest of a byte array.
    Returns a 32-byte byte-array for use in Merkle construction
@@ -1275,6 +1329,18 @@
    independently root-bound when the caller wants to commit to it."
   [value intent]
   (let [artifact {:creation/provenance (:creation/provenance value)}
+        artifact (project-canonical-artifact-value artifact)]
+    {:intent intent
+     :artifact artifact}))
+
+(defn project-source-creation
+  "Canonical projection for a standalone source-creation provenance commitment.
+
+   Source creation is advisory metadata that describes the provenance of
+   the underlying source material, not the evidence artifact itself.
+   It does not affect evidence-node identity."
+  [value intent]
+  (let [artifact {:source/creation (:source/creation value)}
         artifact (project-canonical-artifact-value artifact)]
     {:intent intent
      :artifact artifact}))
@@ -2087,6 +2153,15 @@ name (an alias)."
     :intent/projection-fn project-creation-provenance
     :intent/version     1}
 
+   :source-creation
+   {:intent/name        :source-creation
+    :intent/domain-tag  "SOURCE_CREATION_V1"
+    :intent/description "Domain-separated identity for a source creation provenance commitment"
+    :intent/includes    #{:source/creation}
+    :intent/excludes    #{}
+    :intent/projection-fn project-source-creation
+    :intent/version     1}
+
    :decision-evidence
    {:intent/name        :decision-evidence
     :intent/domain-tag  "DECISION_EVIDENCE_V1"
@@ -2509,6 +2584,20 @@ name (an alias)."
     :intent/excludes    #{:runtime-values :functions :deployment-metadata
                           :block-context :timestamps}
     :intent/projection-fn project-chain-configuration-transition
+    :intent/version     1}
+
+   :prf-verifier-registry-v1
+   {:intent/name        :prf-verifier-registry-v1
+    :intent/domain-tag  "PRF_VERIFIER_REGISTRY_V1"
+    :intent/description "Canonical SHA-256 commitment to a verifier-registry snapshot:
+                            domain-separated hash of sorted verifier entries.
+                            Root = SHA256(DOMAIN_TAG || uint256(entry_count) ||
+                                   sorted(entry_hashes))"
+    :intent/includes    #{:verifier/id :verifier/adapter :verifier/program-vkey
+                          :verifier/program-elf-sha256 :verifier/program-id
+                          :verifier/statement-schema-version-hash :verifier/active}
+    :intent/excludes    #{}
+    :intent/projection-fn (fn [v _] v)
     :intent/version     1}})
 
 (defn resolve-intent

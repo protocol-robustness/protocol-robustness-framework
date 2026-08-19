@@ -218,8 +218,11 @@
         replayed (payoffs/evaluate-pro-rata-allocation (dissoc request :on-progress))]
     (is (= [40 60] (mapv :allocated (get-in evaluated [:allocation :allocations]))))
     (is (= :passed (get-in evaluated [:validation :status])))
-    (is (= :partial (get-in evaluated [:validation :coverage-status])))
-    (is (= 1 (get-in evaluated [:validation :not-evaluated-check-count])))
+    (is (= :complete (get-in evaluated [:validation :coverage-status])))
+    (is (= 0 (get-in evaluated [:validation :not-evaluated-check-count])))
+    (is (= :passed (get-in evaluated [:validation :checks 4 :status]))
+        "SP-B weight-proportionality check is evaluated, not :not-evaluated")
+    (is (= :weight-proportionality (get-in evaluated [:validation :checks 4 :check])))
     (is (= (:result evaluated) (:result replayed))
         "runtime observer identity and events do not change canonical output")
     (is (string? (get-in evaluated [:projection :artifact/hash])))

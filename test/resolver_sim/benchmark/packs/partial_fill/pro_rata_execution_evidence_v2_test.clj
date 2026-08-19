@@ -6,11 +6,11 @@
    current-amount write-back, but actually carried the AGGREGATE operational
    write-back status (which the surrounding block acknowledges can pass for a
    zero or haircut result). v2 renames it to the explicitly operational
-   :current-write-back-operationally-verified?, computes the operational pass
-   predicate once (shared by :allocation-sound? and the emitted fact), keeps the
-   weaker operational / stronger authoritative distinction intact, and emits the
-   un-establishable amount/full-fill/residual settlement facts as explicit
-   :...-unevaluated? markers rather than hardcoded false.
+    :current-write-back-operational-pass?, computes the operational pass
+    predicate once (shared by :allocation-sound? and the emitted fact), keeps the
+    weaker operational / stronger authoritative distinction intact, and emits the
+    un-establishable amount/full-fill/residual settlement facts as explicit
+    :...-unevaluated? markers rather than hardcoded false.
 
    v1 is retained unchanged for backward compatibility with existing canonical
    artifacts; the two versions are distinct content-addressed schemas."
@@ -39,7 +39,7 @@
   {:conservation :pass :quota-bounded :pass :current-amount-write-back :pass
    :authoritative-application :pass})
 
-(deftest v2-emits-operationally-named-field-not-v1-key
+(deftest v2-emits-operational-pass-field-not-v1-key
   (let [p (exec-ev/build-pro-rata-execution-evidence-v2 (v2-args (pass-operational)))
         er (:evidence-profile/execution-result p)]
     (is (= "pro-rata-execution-evidence.v2" (:schema-version p)))
@@ -55,7 +55,7 @@
   ;; operational write-back passes while authoritative application is weaker in
   ;; a fail scenario, and the emitted flags differ accordingly (mindful of the
   ;; fact that in this aggregate profile positive-amount/full-fill/residual are
-  ;; deliberately false).
+  ;; explicitly marked unevaluated, not asserted false).
   (testing "weaker operational, stronger authoritative both fail"
     (let [p (exec-ev/build-pro-rata-execution-evidence-v2
              (v2-args {:conservation :fail :quota-bounded :fail
@@ -130,7 +130,7 @@
           p (exec-ev/build-pro-rata-execution-evidence-v2
              (assoc args :creation/provenance :out-of-band))
           recomputed (:profile-recomputed
-                       (exec-ev/verify-pro-rata-execution-evidence-v2 p args))]
+                      (exec-ev/verify-pro-rata-execution-evidence-v2 p args))]
       (is (= :out-of-band
              (get-in recomputed [:evidence-profile/creation :provenance]))
           "verifier must reconstruct with stored provenance, not default :in-band"))))
@@ -145,6 +145,82 @@
         v (exec-ev/validate-pro-rata-execution-evidence-v2 legacy-shaped)]
     (is (not (:valid? v)))
     (is (some #(re-find #"must not carry the v1" %) (:errors v)))))
+
+(deftest v2-validator-enforces-unevaluated-and-factual-constraints
+  (let [args (v2-args (pass-operational))
+        p (exec-ev/build-pro-rata-execution-evidence-v2 args)]
+    ;; Sanity: a correctly-built v2 profile (consistent hash) validates clean.
+    (is (:valid? (exec-ev/validate-pro-rata-execution-evidence-v2 p))
+        "sanity: well-formed v2 profile passes validation")
+
+    ;; The hash is dissoc'd in each negative case so the ONLY failures
+    ;; reported are the targeted semantic constraints (no hash-mismatch noise).
+    (testing "unevaluated marker must be exactly true (false is rejected)"
+      (let [bad (dissoc
+                 (assoc-in p [:evidence-profile/execution-result
+                              :positive-amount-applied-unevaluated?] false)
+                 :evidence-profile/hash)
+            v (exec-ev/validate-pro-rata-execution-evidence-v2 bad)]
+        (is (not (:valid? v)))
+        (is (some #(re-find #"must be exactly true" %) (:errors v))
+            "false unevaluated marker must be rejected")))
+
+    (testing "factual :fully-satisfied? present is rejected"
+      (let [bad (dissoc
+                 (assoc-in p [:evidence-profile/execution-result
+                              :fully-satisfied?] true)
+                 :evidence-profile/hash)
+            v (exec-ev/validate-pro-rata-execution-evidence-v2 bad)]
+        (is (not (:valid? v)))
+        (is (some #(re-find #"must not emit the factual fully-satisfied" %)
+                  (:errors v))
+            "a factual :fully-satisfied? must be rejected under v2")))
+
+    (testing "factual :deferred-residual-created? present is rejected"
+      (let [bad (dissoc
+                 (assoc-in p [:evidence-profile/execution-result
+                              :deferred-residual-created?] false)
+                 :evidence-profile/hash)
+            v (exec-ev/validate-pro-rata-execution-evidence-v2 bad)]
+        (is (not (:valid? v)))
+        (is (some #(re-find #"must not emit the factual deferred-residual-created" %)
+                  (:errors v))
+            "a factual :deferred-residual-created? must be rejected under v2")))
+
+    (testing "contradictory factual + unevaluated pair is rejected"
+      (let [bad (dissoc
+                 (-> p
+                     (assoc-in [:evidence-profile/execution-result
+                                :fully-satisfied?] true)
+                     (assoc-in [:evidence-profile/execution-result
+                                :fully-satisfied-unevaluated?] true))
+                 :evidence-profile/hash)
+            v (exec-ev/validate-pro-rata-execution-evidence-v2 bad)]
+        (is (not (:valid? v)))
+        (is (some #(re-find #"must not emit the factual fully-satisfied" %)
+                  (:errors v))
+            "asserted + unevaluated must not both be present")))
+
+    (testing "non-boolean :current-write-back-operational-pass? is rejected"
+      (let [bad (dissoc
+                 (assoc-in p [:evidence-profile/execution-result
+                              :current-write-back-operational-pass?] "yes")
+                 :evidence-profile/hash)
+            v (exec-ev/validate-pro-rata-execution-evidence-v2 bad)]
+        (is (not (:valid? v)))
+        (is (some #(re-find #":current-write-back-operational-pass.*must be boolean" %)
+                  (:errors v))
+            "non-boolean operational-pass must be rejected")))
+
+    (testing "non-boolean :allocation-sound? is rejected"
+      (let [bad (dissoc
+                 (assoc-in p [:evidence-profile/execution-result
+                              :allocation-sound?] :maybe)
+                 :evidence-profile/hash)
+            v (exec-ev/validate-pro-rata-execution-evidence-v2 bad)]
+        (is (not (:valid? v)))
+        (is (some #(re-find #"allocation-sound.*must be boolean" %) (:errors v))
+            "non-boolean :allocation-sound? must be rejected")))))
 
 (deftest v1-and-v2-are-distinct-versioned-artifacts
   (let [args (v2-args (pass-operational))

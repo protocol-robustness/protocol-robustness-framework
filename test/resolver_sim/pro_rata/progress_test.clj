@@ -65,6 +65,34 @@
   (is (not-any? #{:request/root :allocation/result :evidence/root} progress/event-types)
       "events are operational and carry no canonical root identity"))
 
+(deftest untyped-events-are-legacy-compat-with-visible-marker
+  (testing "a bare untyped field map is the legacy path, stamped compat-only"
+    (let [s (reduce-all nil [{:status :running :phase :preparing :current 1}])]
+      (is (= :untyped-event (:progress/compat s)) "legacy use is visibly marked")
+      (is (= :preparing (:phase s)) "legacy map still best-effort merges fields")))
+  (testing "an unknown event keyword is legacy, not part of the typed vocabulary"
+    (let [s (reduce-all nil [{:event :no-such-event :status :running}])]
+      (is (= :untyped-event (:progress/compat s)))))
+  (testing "legacy :redistribution-pass remaps to :pass-index on the legacy path"
+    (let [s (reduce-all nil [{:event :who :redistribution-pass 3}])]
+      (is (= 3 (:pass-index s)))
+      (is (= :untyped-event (:progress/compat s))))))
+
+(deftest normative-typed-events-never-touch-the-legacy-path
+  (let [events [{:event :phase-started :status :running :phase :allocating :total 2}
+                {:event :claimants-completed :delta 1}
+                {:event :claimants-completed :delta 1}
+                {:event :allocation-completed}]
+        s (reduce-all nil events)]
+    (is (= "pro-rata-progress.v1" (:progress/schema s)))
+    (is (= :completed (:status s)))
+    (is (nil? (:progress/compat s))
+        "normative typed events never take the legacy path"))
+  (is (every? (fn [event]
+                (nil? (:progress/compat (reduce-all nil [event]))))
+              (mapv (fn [kw] {:event kw}) progress/event-types))
+      "no event in the typed vocabulary marks a snapshot as legacy"))
+
 (deftest atom-adapter-is-reducer-backed-and-operational-only
   (let [atom (progress/make-progress-atom {:programme/id :probe :allocation/id :alloc-1})
         observer (progress/progress-atom-observer atom)
@@ -98,23 +126,23 @@
    :redistribution-policy :redistribute-cap-excess})
 
 (deftest observer-non-interference-on-canonical-identity  (let [baseline (allocation/allocate (allocation-request))
-        atom-res (allocation/allocate (assoc (allocation-request)
-                                             :progress-atom (progress/make-progress-atom)))
-        cb-res (allocation/allocate (assoc (allocation-request)
-                                           :on-progress (fn [_])))
-        slow-res (allocation/allocate (assoc (allocation-request)
-                                             :on-progress (fn [_] (Thread/sleep 2))))
-        throw-res (allocation/allocate (assoc (allocation-request)
-                                              :on-progress (fn [_] (throw (ex-info "observer boom" {})))))
-        all (map (juxt :canonical-request :request/hash :allocation/hash) 
-                 [baseline atom-res cb-res slow-res throw-res])]
-    (testing "allocation result roots identical across observer variants"
-      (is (apply = (map :allocation/hash all)))
-      (is (apply = (map :request/hash all)))
-      (is (apply = all)))
-    (testing "evidence root identical despite a throwing observer"
-      (is (apply = (map (comp :evidence/hash evidence/mechanism-evidence-artifact)
-                        [baseline atom-res cb-res slow-res throw-res]))))))
+                                                                atom-res (allocation/allocate (assoc (allocation-request)
+                                                                                                     :progress-atom (progress/make-progress-atom)))
+                                                                cb-res (allocation/allocate (assoc (allocation-request)
+                                                                                                   :on-progress (fn [_])))
+                                                                slow-res (allocation/allocate (assoc (allocation-request)
+                                                                                                     :on-progress (fn [_] (Thread/sleep 2))))
+                                                                throw-res (allocation/allocate (assoc (allocation-request)
+                                                                                                      :on-progress (fn [_] (throw (ex-info "observer boom" {})))))
+                                                                all (map (juxt :canonical-request :request/hash :allocation/hash)
+                                                                         [baseline atom-res cb-res slow-res throw-res])]
+                                                            (testing "allocation result roots identical across observer variants"
+                                                              (is (apply = (map :allocation/hash all)))
+                                                              (is (apply = (map :request/hash all)))
+                                                              (is (apply = all)))
+                                                            (testing "evidence root identical despite a throwing observer"
+                                                              (is (apply = (map (comp :evidence/hash evidence/mechanism-evidence-artifact)
+                                                                                [baseline atom-res cb-res slow-res throw-res]))))))
 
 (deftest counting-observer-works-without-a-progress-atom
   (let [{:keys [observe errors]}

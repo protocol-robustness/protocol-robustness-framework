@@ -408,47 +408,54 @@
     mutation of :creation/provenance on evidence nodes is detectable through
     this committed artifact — not through the node hash itself (which
     correctly excludes creation provenance from semantic identity)."
-   [c execution]
-   (let [root (io/file (p (:run/root c)))
-         finalization-file (io/file root "evidence" "finalizations" "run" "evidence-finalization.json")
-         content-registry-file (io/file root "evidence" "content-registry.json")
-         runner-finalization-file (io/file root "scenarios" (:scenario/slug c) "execution" "runner-finalization.json")
-         validation-file (io/file root "manifest" "artifact-registry-validation.json")
-         finalization (json/read-str (slurp finalization-file) :key-fn keyword)
-         validation (json/read-str (slurp validation-file) :key-fn keyword)
-         creation-provenance (get-in execution [:execution-node :execution :creation/provenance] :in-band)
-          creation-provenance-hash (hash-ref/sha256-ref
-                                    (hc/hash-with-intent {:hash/intent :creation-provenance}
-                                                         {:creation/provenance creation-provenance}))
-         integrity {:schema_version "canonical-integrity.v1"
-                    :assurance_kind "unsigned-canonical-integrity"
-                    :run_id (:run/id c)
-                    :status (if (and (= "verified" (get-in finalization [:verification :status]))
-                                     (= "passed" (:status validation)))
-                              "passed"
-                              "failed")
-                    :scope {:content_integrity true
-                            :evidence_reconciliation true
-                            :operator_identity false
-                            :runtime_isolation false}
-                    :run_finalization {:ref "evidence/finalizations/run/evidence-finalization.json"
-                                       :sha256 (hash-ref/sha256-ref (lifecycle/sha256-file finalization-file))}
-                    :evidence_content_registry {:ref "evidence/content-registry.json"
-                                                :sha256 (hash-ref/sha256-ref (lifecycle/sha256-file content-registry-file))}
-                    :runner_finalization {:ref (str (cfg-paths/scenarios-root) "/" (:scenario/slug c) "/execution/runner-finalization.json")
-                                          :sha256 (when (.isFile runner-finalization-file)
-                                                    (hash-ref/sha256-ref (lifecycle/sha256-file runner-finalization-file)))}
-                    :outer_registry {:ref paths/artifacts-registry
-                                     :verification "verified-by-verify-scenario-after-inventory"}
-                    :checks {:run_finalization_verified (= "verified" (get-in finalization [:verification :status]))
-                             :runner_finalization_present (.isFile runner-finalization-file)
-                             :pre_assurance_registry_valid (= "passed" (:status validation))
-                             :creation_provenance_committed creation-provenance-hash}
-                    :creation_provenance {:value (str creation-provenance)
-                                          :hash (str creation-provenance-hash)}
-                    :limitations ["Unsigned assurance does not establish operator identity or signature trust."
-                                  "Runtime isolation is outside this assurance scope."
-                                  "Creation provenance is committed only in this outer envelope, not in semantic node identity."]}
+  [c execution]
+  (let [root (io/file (p (:run/root c)))
+        finalization-file (io/file root "evidence" "finalizations" "run" "evidence-finalization.json")
+        content-registry-file (io/file root "evidence" "content-registry.json")
+        runner-finalization-file (io/file root "scenarios" (:scenario/slug c) "execution" "runner-finalization.json")
+        validation-file (io/file root "manifest" "artifact-registry-validation.json")
+        finalization (json/read-str (slurp finalization-file) :key-fn keyword)
+        validation (json/read-str (slurp validation-file) :key-fn keyword)
+        creation-provenance (get-in execution [:execution-node :execution :creation/provenance] :in-band)
+        creation-provenance-hash (hash-ref/sha256-ref
+                                  (hc/hash-with-intent {:hash/intent :creation-provenance}
+                                                       {:creation/provenance creation-provenance}))
+        source-creation (get-in execution [:execution-node :execution :source/creation] {:provenance :in-band})
+        source-creation-hash (hash-ref/sha256-ref
+                              (hc/hash-with-intent {:hash/intent :source-creation}
+                                                   {:source/creation source-creation}))
+        integrity {:schema_version "canonical-integrity.v1"
+                   :assurance_kind "unsigned-canonical-integrity"
+                   :run_id (:run/id c)
+                   :status (if (and (= "verified" (get-in finalization [:verification :status]))
+                                    (= "passed" (:status validation)))
+                             "passed"
+                             "failed")
+                   :scope {:content_integrity true
+                           :evidence_reconciliation true
+                           :operator_identity false
+                           :runtime_isolation false}
+                   :run_finalization {:ref "evidence/finalizations/run/evidence-finalization.json"
+                                      :sha256 (hash-ref/sha256-ref (lifecycle/sha256-file finalization-file))}
+                   :evidence_content_registry {:ref "evidence/content-registry.json"
+                                               :sha256 (hash-ref/sha256-ref (lifecycle/sha256-file content-registry-file))}
+                   :runner_finalization {:ref (str (cfg-paths/scenarios-root) "/" (:scenario/slug c) "/execution/runner-finalization.json")
+                                         :sha256 (when (.isFile runner-finalization-file)
+                                                   (hash-ref/sha256-ref (lifecycle/sha256-file runner-finalization-file)))}
+                   :outer_registry {:ref paths/artifacts-registry
+                                    :verification "verified-by-verify-scenario-after-inventory"}
+                   :checks {:run_finalization_verified (= "verified" (get-in finalization [:verification :status]))
+                            :runner_finalization_present (.isFile runner-finalization-file)
+                            :pre_assurance_registry_valid (= "passed" (:status validation))
+                            :creation_provenance_committed creation-provenance-hash
+                            :source_creation_committed source-creation-hash}
+                   :creation_provenance {:value (str creation-provenance)
+                                         :hash (str creation-provenance-hash)}
+                   :source_creation {:value (get source-creation :provenance :in-band)
+                                     :hash (str source-creation-hash)}
+                   :limitations ["Unsigned assurance does not establish operator identity or signature trust."
+                                 "Runtime isolation is outside this assurance scope."
+                                 "Creation provenance is committed only in this outer envelope, not in semantic node identity."]}
         deferred {:schema_version "forensic-claims-status.v1"
                   :run_id (:run/id c)
                   :status "deferred"

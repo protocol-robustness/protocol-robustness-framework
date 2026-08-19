@@ -590,7 +590,7 @@
                      (true? @replayed?) :already-terminated
                      (some? @terminal-root) :terminated
                      :else :ok))]
-       {:valid?   (empty? @errors)
-        :status   status
-        :errors   (vec @errors)
-        :append?  (and (empty? @errors) (not @replayed?))})))
+      {:valid?   (empty? @errors)
+       :status   status
+       :errors   (vec @errors)
+       :append?  (and (empty? @errors) (not @replayed?))})))

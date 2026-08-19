@@ -121,7 +121,7 @@
                            "/benchmark-smoke-" (name expected-id) "-"
                            (System/currentTimeMillis))
               evidence (runner/run-benchmark manifest-path
-                                             (runner/->SewAdapter out-dir) {})]
+                                             (runner/->SewAdapter out-dir 1 1) {})]
           (is (contains? evidence :benchmark) ":benchmark key present")
           (is (contains? evidence :results) ":results key present")
           (is (contains? evidence :metrics) ":metrics key present")

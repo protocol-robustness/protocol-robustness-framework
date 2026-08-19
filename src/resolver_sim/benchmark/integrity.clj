@@ -105,9 +105,10 @@
   ;; reproducibility. The :repo map is still persisted in the evidence file
   ;; for audit.
   (-> bundle
-       (dissoc :timestamp :evidence/hash :evidence/signature
-               :evidence/public-key-path
-               :benchmark/artifact-index :repo :creation/provenance)
+      (dissoc :timestamp :evidence/hash :evidence/signature
+              :evidence/public-key-path
+              :benchmark/artifact-index :repo :creation/provenance
+              :source/creation)
       (cond-> (contains? bundle :run/manifest)
         (update :run/manifest #(dissoc % :manifest/at))
         (contains? bundle :results)

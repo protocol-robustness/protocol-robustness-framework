@@ -85,6 +85,40 @@
                                   :allocation-policy-root :realized-results-root
                                   :fail-action-policy-root :round-lifecycle-root])))))
 
+(deftest progress-observation-does-not-alter-realized-statement-root
+  (testing "operational progress reporting (none / atom / slow / throwing) leaves
+            the realized-allocation-statement root and all six sub-roots unchanged"
+    (let [policy {:mode :pro-rata :rounding-policy :largest-remainder
+                  :fail-action-policy {:mode :pro-rata-treatment
+                                       :deferred-policy :same-ratio
+                                       :haircut-policy :same-ratio}}
+          rows [{:key :a :owed 40 :weight 40 :cap 40}
+                {:key :b :owed 60 :weight 60 :cap 60}]
+          run (fn [opts]
+                (binding [payoffs/*pro-rata-parallel-threshold* 1]
+                  (partial-fill/calculate-fulfillment-pro-rata
+                   50 {:a 40 :b 60} policy
+                   (assoc opts :rows rows))))
+          variants {:none {}
+                    :atom {:progress-atom (payoffs/make-pro-rata-progress-atom)}
+                    :slow {:on-progress (fn [_] (Thread/sleep 1))}
+                    :throwing {:on-progress (fn [_] (throw (ex-info "observer failure" {})))}}
+          decisions (into {} (map (fn [[k opts]] [k (run opts)]) variants))
+          statements (into {} (map (fn [[k d]]
+                                     [k (rs/build-statement {:ctx @ctx :decision d
+                                                             :round-lifecycle @lifecycle})])
+                                   decisions))
+          root-keys [:allocation-context-root :request-set-root
+                     :allocation-policy-root :realized-results-root
+                     :fail-action-policy-root :round-lifecycle-root]]
+      (is (= (set (keys decisions)) (set (keys variants))))
+      (is (apply = (vals decisions))
+          "all observer variants produce the identical allocation decision")
+      (is (apply = (map :statement/root (vals statements)))
+          "statement root is invariant to progress observation")
+      (is (apply = (map #(select-keys % root-keys) (vals statements)))
+          "all six sub-roots are invariant to progress observation"))))
+
 (deftest statement-binds-genuine-allocation-context-root
   (testing "the statement's allocation-context-root matches the PRF/native golden hash"
     (let [s (rs/build-statement {:ctx @ctx :decision all-active-decision

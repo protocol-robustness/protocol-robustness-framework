@@ -473,7 +473,7 @@
         (is (string? (:classification-label cls)))
         (is (string? (:scoring/summary cls)))))
     (testing "claim status"
-      (is (contains? #{:verified :partial :declared-not-verified :none}
+      (is (contains? #{:pass :partial :declared-not-verified :none}
                      (:claim/status report)))
       (is (some? (:claim-results report))))
     (testing "dimensions"
@@ -577,7 +577,7 @@
                                               "benchmarks/scoring/robustness-dimensions-v0.edn"))))))
 
 (deftest build-report-fails-closed-on-tampered-claim-results
-  (testing "a supplied :claim-results :claim/outcome :pass cannot be forced into :claim/status :verified without recomputing the bundle root"
+  (testing "a supplied :claim-results :claim/outcome :pass cannot be forced into :claim/status :pass without recomputing the bundle root"
     (let [ev (make-evidence "benchmarks/packs/prf-core/protocol-robustness-v0.edn"
                             []
                             :metrics {:total 0 :passed 0}

@@ -15,10 +15,15 @@
     :pro-rata/permutation-invariant})
 
 (def extended-claims
-  (conj phase-6-claims
-        :pro-rata/cap-respecting
-        :pro-rata/canonical-remainder-assignment
-        :pro-rata/projection-diff))
+  (into phase-6-claims
+        [:pro-rata/cap-respecting
+         :pro-rata/canonical-remainder-assignment
+         :pro-rata/projection-diff
+         :pro-rata/non-negative-allocation
+         :pro-rata/allocation-not-above-request
+         :pro-rata/integer-domain
+         :pro-rata/residual-accounting
+         :pro-rata/full-fill-consistency]))
 
 (defn- make-content
   "Build evidence content with matching direct and projection results."

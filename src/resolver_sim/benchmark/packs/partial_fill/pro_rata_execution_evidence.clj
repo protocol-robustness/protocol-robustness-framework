@@ -8,12 +8,20 @@
     cross-validates against the outcome manifest's theorem and conclusion
     commitments.
 
-    Versioned: pro-rata-execution-evidence.v1 (legacy) and
-    pro-rata-execution-evidence.v2 (current). v2 corrects the overclaiming v1
-    execution-result key :current-amount-write-back-verified? to the explicitly
-    operational :current-write-back-operationally-verified? and is the recommended
-    producer for new runs; v1 remains for backward compatibility with existing
-    canonical artifacts."
+   Versioned: pro-rata-execution-evidence.v1 (legacy) and
+   pro-rata-execution-evidence.v2 (current). v2 corrects the overclaiming v1
+   execution-result key :current-amount-write-back-verified? to the explicitly
+   operational :current-write-back-operational-pass? and is the recommended
+   producer for new runs; v1 remains for backward compatibility with existing
+   canonical artifacts.
+
+   LEGACY SEMANTICS (frozen, v1 only): the v1 key
+   :current-amount-write-back-verified? is a legacy spelling for the AGGREGATE
+   current-amount write-back operational pass. It MUST NOT be interpreted as
+   independent per-obligation write-back verification — operational write-back
+   can pass for a zero or haircut result. Consumers needing per-obligation
+   verification must rely on the stronger authoritative fact
+   :application-write-back-verified? (see :authoritative-application)."
   (:require [resolver-sim.hash.canonical :as hc]
             [resolver-sim.benchmark.outcome-manifest :as om]
             [resolver-sim.hash.reference :as hash-ref]
@@ -116,12 +124,18 @@
                  :application-write-back-verified? application-verified?
                  :allocation-sound? allocation-sound?
                  :current-amount-write-back-verified? deferred-write-back-verified?
-                  ;; Compatibility fields: this aggregate profile lacks the
-                  ;; per-obligation filled/deferred/haircut rows required to
-                  ;; establish any of these settlement facts, so it must NOT emit
-                  ;; them as false negatives. Each is marked explicitly unevaluated
-                  ;; rather than hardcoded false, so a consumer can never mistake
-                  ;; an unknown for a known-negative.
+                   ;; LEGACY (v1 only): this key is a legacy spelling for the
+                   ;; AGGREGATE current-amount write-back operational pass. It
+                   ;; MUST NOT be interpreted as per-obligation write-back
+                   ;; verification; operational write-back can pass for a zero
+                   ;; or haircut result. v2 replaces it with the non-overclaiming
+                   ;; :current-write-back-operational-pass?.
+                   ;; Compatibility fields: this aggregate profile lacks the
+                   ;; per-obligation filled/deferred/haircut rows required to
+                   ;; establish any of these settlement facts, so it must NOT emit
+                   ;; them as false negatives. Each is marked explicitly unevaluated
+                   ;; rather than hardcoded false, so a consumer can never mistake
+                   ;; an unknown for a known-negative.
                  :positive-amount-applied-unevaluated? true
                  :fully-satisfied-unevaluated? true
                  :deferred-residual-created-unevaluated? true}
@@ -139,7 +153,7 @@
 ;; current-amount write-back, but it actually carried the AGGREGATE operational
 ;; write-back status (which the surrounding block itself warns can pass for a zero
 ;; or haircut result). v2 renames it to the explicitly operational
-;; :current-write-back-operationally-verified? and keeps the operational vs
+;; :current-write-back-operational-pass? and keeps the operational vs
 ;; authoritative distinction: the stronger authoritative fact remains the separate
 ;; :application-write-back-verified? (from :authoritative-application). The
 ;; operational pass predicate is computed ONCE and reused for both allocation-sound?
@@ -153,10 +167,12 @@
     fact is :current-write-back-operational-pass? (formerly the overclaiming v1
     key :current-amount-write-back-verified?). The (:current-amount-write-back
     operational) pass predicate is computed once and reused for both
-    :allocation-sound? and the emitted operational flag; it is NOT sourced from
-    :authoritative-application (that stronger fact remains :application-write-back-
-    verified?). The :positive-amount-applied?, :fully-satisfied?, and
-    :deferred-residual-created? fields stay false, as in v1.
+     :allocation-sound? and the emitted operational flag; it is NOT sourced from
+     :authoritative-application (that stronger fact remains :application-write-back-
+     verified?). The :positive-amount-applied?, :fully-satisfied?, and
+     :deferred-residual-created? settlement facts are NOT established by this
+     aggregate profile; they are emitted as :...-unevaluated? markers (true),
+     never as hardcoded false negatives.
 
     Optional:
       :creation/provenance        — :in-band | :out-of-band (defaults to :in-band)
@@ -230,7 +246,7 @@
                               conclusions))
                 :evidence-profile/creation
                 {:provenance (or provenance :in-band)}
-:evidence-profile/execution-result
+                :evidence-profile/execution-result
                 {:allocation-calculated? true
                  :application-write-back-verified? application-verified?
                  :allocation-sound? allocation-sound?
@@ -314,12 +330,21 @@
 (defn validate-pro-rata-execution-evidence-v2
   "Standalone structural validator for a pro-rata-execution-evidence.v2 profile.
 
-    v2 requires the operational write-back fact
-    :current-write-back-operational-pass? in :evidence-profile/execution-result
-    and rejects the overclaiming v1 key :current-amount-write-back-verified? under
-    the v2 schema. Recomputes the hash under the v2 domain tag.
+     v2 requires the operational write-back fact
+     :current-write-back-operational-pass? in :evidence-profile/execution-result
+     and rejects the overclaiming v1 key :current-amount-write-back-verified? under
+     the v2 schema. Recomputes the hash under the v2 domain tag.
 
-    Returns {:valid? bool :errors [string]}."
+     Execution-result semantics enforced:
+       - :current-write-back-operational-pass? must be present and exactly boolean;
+       - the factual settlement keys :positive-amount-applied?, :fully-satisfied?,
+         and :deferred-residual-created? must be ABSENT (the aggregate profile
+         cannot establish them — they are represented by their unevaluated markers);
+       - the three :...-unevaluated? markers must each be present and exactly true;
+       - the remaining execution-result predicates (:allocation-calculated?,
+         :application-write-back-verified?, :allocation-sound?) must be boolean.
+
+     Returns {:valid? bool :errors [string]}."
   [profile]
   (let [errors (atom [])]
     (when-not (= schema-version-v2 (:schema-version profile))
@@ -332,22 +357,44 @@
       (when-not (contains? profile f)
         (swap! errors conj (str "missing " (name f)))))
     (let [er (:evidence-profile/execution-result profile)]
-      (when (and er (contains? er :positive-amount-applied?))
-        (swap! errors conj (str "execution-result must not emit the factual "
-                                ":positive-amount-applied?")))
+      ;; Required v2 operational fact: present and exactly boolean.
+      (when (and er (not (contains? er :current-write-back-operational-pass?)))
+        (swap! errors conj (str "v2 execution-result missing "
+                                ":current-write-back-operational-pass?")))
+      (when (and er (contains? er :current-write-back-operational-pass?)
+                 (not (boolean? (:current-write-back-operational-pass? er))))
+        (swap! errors conj (str "v2 execution-result :current-write-back-operational-pass? "
+                                "must be boolean")))
+      ;; v1 overclaiming key rejected under the v2 schema.
+      (when (and er (contains? er :current-amount-write-back-verified?))
+        (swap! errors conj (str "v2 execution-result must not carry the v1 "
+                                "overclaiming :current-amount-write-back-verified?")))
+      ;; The three factual settlement keys are NOT established by this aggregate
+      ;; profile; their presence is a schema error (must be absent).
+      (doseq [factual [:positive-amount-applied?
+                       :fully-satisfied?
+                       :deferred-residual-created?]]
+        (when (and er (contains? er factual))
+          (swap! errors conj (str "execution-result must not emit the factual "
+                                  (name factual)))))
+      ;; The corresponding unevaluated markers must be present AND exactly true.
       (doseq [unevaluated [:positive-amount-applied-unevaluated?
                            :fully-satisfied-unevaluated?
                            :deferred-residual-created-unevaluated?]]
         (when (and er (not (contains? er unevaluated)))
           (swap! errors conj (str "execution-result missing explicit unevaluated marker "
-                                  (name unevaluated))))))
-    (let [er (:evidence-profile/execution-result profile)]
-      (when (and er (not (contains? er :current-write-back-operational-pass?)))
-        (swap! errors conj (str "v2 execution-result missing "
-                                ":current-write-back-operational-pass?")))
-      (when (and er (contains? er :current-amount-write-back-verified?))
-        (swap! errors conj (str "v2 execution-result must not carry the v1 "
-                                "overclaiming :current-amount-write-back-verified?"))))
+                                  (name unevaluated))))
+        (when (and er (contains? er unevaluated)
+                   (not (true? (get er unevaluated))))
+          (swap! errors conj (str "execution-result unevaluated marker "
+                                  (name unevaluated) " must be exactly true"))))
+      ;; The remaining execution-result predicates are boolean facts.
+      (doseq [flag [:allocation-calculated?
+                    :application-write-back-verified?
+                    :allocation-sound?]]
+        (when (and er (contains? er flag)
+                   (not (boolean? (get er flag))))
+          (swap! errors conj (str "execution-result " (name flag) " must be boolean")))))
     (when (some? (:evidence-profile/hash profile))
       (let [without-hash (dissoc profile :evidence-profile/hash)
             computed (hash-ref/sha256-ref
@@ -392,29 +439,29 @@
    override a stored :out-of-band assertion during verification.
 
    Returns {:valid? bool :mismatches [...]}"
-   [profile & args]
-   (let [stored-provenance (get-in profile [:evidence-profile/creation :provenance])
-         args-map (if (and (= (count args) 1) (map? (first args)))
-                    (first args)
-                    (apply hash-map args))
-         recomputed (build-pro-rata-execution-evidence
-                     (assoc args-map :creation/provenance stored-provenance))
-         mismatches (atom [])]
-     (when-not (= (:evidence-profile/hash profile)
-                  (:evidence-profile/hash recomputed))
-       (swap! mismatches conj {:field :evidence-profile/hash
-                               :stored (:evidence-profile/hash profile)
-                               :recomputed (:evidence-profile/hash recomputed)}))
-     (let [v-s (:evidence-profile/verification profile)
-           v-r (:evidence-profile/verification recomputed)]
-       (doseq [k (keys v-s)]
-         (when-not (= (get v-s k) (get v-r k))
-           (swap! mismatches conj {:field k
-                                   :stored (get v-s k)
-                                   :recomputed (get v-r k)}))))
-     {:valid? (empty? @mismatches)
-      :profile-recomputed recomputed
-      :mismatches @mismatches}))
+  [profile & args]
+  (let [stored-provenance (get-in profile [:evidence-profile/creation :provenance])
+        args-map (if (and (= (count args) 1) (map? (first args)))
+                   (first args)
+                   (apply hash-map args))
+        recomputed (build-pro-rata-execution-evidence
+                    (assoc args-map :creation/provenance stored-provenance))
+        mismatches (atom [])]
+    (when-not (= (:evidence-profile/hash profile)
+                 (:evidence-profile/hash recomputed))
+      (swap! mismatches conj {:field :evidence-profile/hash
+                              :stored (:evidence-profile/hash profile)
+                              :recomputed (:evidence-profile/hash recomputed)}))
+    (let [v-s (:evidence-profile/verification profile)
+          v-r (:evidence-profile/verification recomputed)]
+      (doseq [k (keys v-s)]
+        (when-not (= (get v-s k) (get v-r k))
+          (swap! mismatches conj {:field k
+                                  :stored (get v-s k)
+                                  :recomputed (get v-r k)}))))
+    {:valid? (empty? @mismatches)
+     :profile-recomputed recomputed
+     :mismatches @mismatches}))
 
 (defn verify-pro-rata-execution-evidence-v2
   "Independent v2 verification: recompute the evidence profile from resolved
@@ -426,29 +473,29 @@
    override a stored :out-of-band assertion during verification.
 
    Returns {:valid? bool :mismatches [...] :profile-recomputed map}"
-   [profile & args]
-   (let [stored-provenance (get-in profile [:evidence-profile/creation :provenance])
-         args-map (if (and (= (count args) 1) (map? (first args)))
-                    (first args)
-                    (apply hash-map args))
-         recomputed (build-pro-rata-execution-evidence-v2
-                     (assoc args-map :creation/provenance stored-provenance))
-         mismatches (atom [])]
-     (when-not (= (:evidence-profile/hash profile)
-                  (:evidence-profile/hash recomputed))
-       (swap! mismatches conj {:field :evidence-profile/hash
-                               :stored (:evidence-profile/hash profile)
-                               :recomputed (:evidence-profile/hash recomputed)}))
-     (let [v-s (:evidence-profile/verification profile)
-           v-r (:evidence-profile/verification recomputed)]
-       (doseq [k (keys v-s)]
-         (when-not (= (get v-s k) (get v-r k))
-           (swap! mismatches conj {:field k
-                                   :stored (get v-s k)
-                                   :recomputed (get v-r k)}))))
-     {:valid? (empty? @mismatches)
-      :profile-recomputed recomputed
-      :mismatches @mismatches}))
+  [profile & args]
+  (let [stored-provenance (get-in profile [:evidence-profile/creation :provenance])
+        args-map (if (and (= (count args) 1) (map? (first args)))
+                   (first args)
+                   (apply hash-map args))
+        recomputed (build-pro-rata-execution-evidence-v2
+                    (assoc args-map :creation/provenance stored-provenance))
+        mismatches (atom [])]
+    (when-not (= (:evidence-profile/hash profile)
+                 (:evidence-profile/hash recomputed))
+      (swap! mismatches conj {:field :evidence-profile/hash
+                              :stored (:evidence-profile/hash profile)
+                              :recomputed (:evidence-profile/hash recomputed)}))
+    (let [v-s (:evidence-profile/verification profile)
+          v-r (:evidence-profile/verification recomputed)]
+      (doseq [k (keys v-s)]
+        (when-not (= (get v-s k) (get v-r k))
+          (swap! mismatches conj {:field k
+                                  :stored (get v-s k)
+                                  :recomputed (get v-r k)}))))
+    {:valid? (empty? @mismatches)
+     :profile-recomputed recomputed
+     :mismatches @mismatches}))
 
 ;; ═══════════════════════════════════════════════════════════════════════════
 ;; Package-level helpers

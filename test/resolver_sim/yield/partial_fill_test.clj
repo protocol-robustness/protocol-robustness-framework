@@ -1383,10 +1383,10 @@
     (let [position (assoc base-position :principal 10000 :realized-yield 0 :unrealized-yield 0)
           liquidity-needed (+ (:principal position) 1)
           decision (pf/calculate-fulfillment liquidity-needed position
-                                                 {:mode :pro-rata
-                                                  :fill-order [:principal]
-                                                  :unrealized-yield-treatment :not-claimable
-                                                  :post-partial-fill-accrual :accrue-residual-as-unrealized})
+                                             {:mode :pro-rata
+                                              :fill-order [:principal]
+                                              :unrealized-yield-treatment :not-claimable
+                                              :post-partial-fill-accrual :accrue-residual-as-unrealized})
           updated-pos (pf/post-partial-fill-position position decision)]
       (is (:partial-fill-affected? updated-pos) "Haircut-only (deferred 0) is a genuine partial fill")
       (is (= :unwinding (:status updated-pos))))))
@@ -1637,9 +1637,9 @@
                 :shares 100 :entry-index 1 :status :active})
           non-rows (pf/calculate-fulfillment 10 pos {:mode :pro-rata :rounding-policy :floor-and-carry})
           rows (pf/calculate-fulfillment 10 pos {:mode :pro-rata :rounding-policy :floor-and-carry}
-                                            {:rows [{:key :principal :owed 100 :weight 1 :cap nil}
-                                                    {:key :realized-yield :owed 100 :weight 1 :cap nil}
-                                                    {:key :deferred-yield :owed 100 :weight 1 :cap nil}]})
+                                         {:rows [{:key :principal :owed 100 :weight 1 :cap nil}
+                                                 {:key :realized-yield :owed 100 :weight 1 :cap nil}
+                                                 {:key :deferred-yield :owed 100 :weight 1 :cap nil}]})
           carry-recipient (fn [d] (first (first (filter (fn [[_ amt]] (> amt 3)) (:filled d)))))]
       (is (= :deferred-yield (carry-recipient non-rows))
           "lowest canonical id (:deferred-yield) receives the carry")
@@ -1658,7 +1658,7 @@
                 :shares 100 :entry-index 1 :status :active})
           rows-producer (fn [order]
                           (:filled (pf/calculate-fulfillment 10 pos {:mode :pro-rata :rounding-policy :floor-and-carry}
-                                                            {:rows (map (fn [k] {:key k :owed 100 :weight 1 :cap nil}) order)})))
+                                                             {:rows (map (fn [k] {:key k :owed 100 :weight 1 :cap nil}) order)})))
           a (rows-producer [:principal :realized-yield :deferred-yield])
           b (rows-producer [:deferred-yield :realized-yield :principal])
           c (rows-producer [:realized-yield :deferred-yield :principal])

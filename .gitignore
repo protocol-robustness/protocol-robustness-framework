@@ -148,9 +148,12 @@ temp
 # tmp
 tmp
 
-# symlinks
+# devops symlinks
 ansible
 terraform
+scripts/assurance-lab/full-setup.sh
+docs/ASSURANCE_LAB.md
+scripts/assurance-lab/phase1-master.sh
 
 # prf-runner
 prf-runner

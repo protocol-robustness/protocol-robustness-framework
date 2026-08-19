@@ -149,23 +149,23 @@
      :requested (:requested decision)
      :filled (:filled decision)
      :deferred (:deferred decision)
-:participants (mapv (fn [p]
-                            (let [key (:key p)
-                                  owed (long (:owed p 0))
-                                  filled (long (:filled p 0))
-                                  haircut (long (:haircut p 0))
+     :participants (mapv (fn [p]
+                           (let [key (:key p)
+                                 owed (long (:owed p 0))
+                                 filled (long (:filled p 0))
+                                 haircut (long (:haircut p 0))
                                   ;; validates (rejects overshoot) AND derives
                                   ;; the shared allocation predicates
-                                  outcome (allocation-outcome {:owed owed
-                                                               :filled filled
-                                                               :haircut haircut})
-                                  deferred (- owed filled haircut)]
-                              (merge {:participant/id key
-                                      :obligation/before owed
-                                      :obligation/fulfilled filled
-                                      :obligation/deferred deferred
-                                      :obligation/haircut haircut}
-                                     outcome)))
-                          participants)
+                                 outcome (allocation-outcome {:owed owed
+                                                              :filled filled
+                                                              :haircut haircut})
+                                 deferred (- owed filled haircut)]
+                             (merge {:participant/id key
+                                     :obligation/before owed
+                                     :obligation/fulfilled filled
+                                     :obligation/deferred deferred
+                                     :obligation/haircut haircut}
+                                    outcome)))
+                         participants)
      :evidence/available-liquidity (get-in decision [:evidence :available-liquidity])
      :evidence/shortage (get-in decision [:evidence :shortage])}))

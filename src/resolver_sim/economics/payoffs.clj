@@ -10,6 +10,7 @@
             [resolver-sim.definitions.passive-registries :as registries]
             [resolver-sim.execution.budget :as budget]
             [resolver-sim.hash.canonical :as hc]
+            [resolver-sim.pro-rata.exact-verifier :as exact-verifier]
             [resolver-sim.pro-rata.progress :as progress]
             [resolver-sim.util.thread-quiescence :as quiesce])
   (:import [java.util.concurrent Callable Executors]))
@@ -933,13 +934,20 @@
                                              {:progress-atom progress-atom
                                               :on-progress on-progress})
         replay (allocate-from-projection projection)
+        weight-verification (exact-verifier/verify-weighted-proportionality
+                             {:amount amount
+                              :items participants
+                              :rounding (:rounding policy)
+                              :cap-treatment (:cap-treatment policy)
+                              :ordering-policy (:tie-break policy)}
+                             allocation)
         checks (conj (allocation-validation-checks participants allocation)
                      {:check :deterministic-replay
                       :status (if (= allocation replay) :passed :failed)
                       :details {:method :same-process-repeat-execution}}
                      {:check :weight-proportionality
-                      :status :not-evaluated
-                      :details {:reason "exact quota validation is not implemented"}})
+                      :status (:status weight-verification)
+                      :details (:details weight-verification)})
         evaluated-checks (filter #(not= :not-evaluated (:status %)) checks)
         not-evaluated-checks (filter #(= :not-evaluated (:status %)) checks)
         validation {:status (if (every? #(not= :failed (:status %)) checks) :passed :failed)

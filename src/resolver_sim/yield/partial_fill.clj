@@ -96,7 +96,7 @@
    mechanism's effective demand for a row is `min(requested_i, cap_i)` and the
    aggregate filled total is `min(available, Σ effective-demand)` (see
    calculate-fulfillment-pro-rata)."
-  [available-liquidity rows rounding-policy & [progress-atom parallelism]]
+  [available-liquidity rows rounding-policy & [progress-atom parallelism on-progress]]
   (let [row-id (fn [row]
                  [:shared-withdrawal-row
                   (str (:obligation-id row))
@@ -132,6 +132,7 @@
           :tie-break-policy :canonical-row-id
           :redistribution-policy :redistribute-cap-excess
           :progress-atom progress-atom
+          :on-progress on-progress
           ;; Runtime-only execution setting; excluded by pro-rata/allocation
           ;; from the canonical request, evidence, and roots.
           :parallelism parallelism})
@@ -241,7 +242,8 @@
   [available-liquidity requested policy & [opts]]
   (let [rows (:rows opts)
         progress-atom (:progress-atom opts)
-        ;; Runtime-only; never copied into the decision policy or evidence.
+        on-progress (:on-progress opts)
+         ;; Runtime-only; never copied into the decision policy or evidence.
         parallelism (:execution/claimant-parallelism opts)
         total (if rows
                 (reduce + 0 (map #(long (:owed %)) rows))
@@ -263,7 +265,7 @@
         ;; Canonical shared-withdrawal rows use the public mechanism boundary.
         ;; The compatibility view below preserves existing propagation evidence.
         (let [rounding-policy (:rounding-policy policy :floor-and-carry)
-              alloc (allocate-shared-withdrawal-rows available-liquidity rows rounding-policy progress-atom parallelism)
+              alloc (allocate-shared-withdrawal-rows available-liquidity rows rounding-policy progress-atom parallelism on-progress)
               filled (into {} (map (fn [a] [(:id a) (:allocated a)]) (:allocations alloc)))
               row-evidence (mapv #(row-evidence % filled) rows)
               deferred (into {} (map (fn [r] [(:key r) (:deferred r)]) row-evidence))
@@ -1514,9 +1516,9 @@
           ;; on a top-remainder claimant). Shared by largest-remainder and
           ;; floor-and-carry.
           ranking-violations (when (carry-order-rounding? rounding-policy)
-(let [remainders (->> ideals
-                                                      (sort-by rounding-rank-key)
-                                                      (mapv (fn [[k v]]
+                               (let [remainders (->> ideals
+                                                     (sort-by rounding-rank-key)
+                                                     (mapv (fn [[k v]]
                                                              [k (:fraction-remainder v)])))
                                      extra-count (- available (reduce + 0 (map :ideal-floor (vals ideals))))
                                      top-n (take (max 0 extra-count) remainders)
@@ -1558,8 +1560,8 @@
    :partial-fill/rounding-fairness-remainder-ranking :validation.class/allocation-property
    :partial-fill/principal-first-priority :validation.class/allocation-property
    :partial-fill/waterfall-priority      :validation.class/allocation-property
-    :partial-fill/rounding-residual-bounded :validation.class/allocation-property
-    :partial-fill/effective-rounding-consistency :validation.class/allocation-property})
+   :partial-fill/rounding-residual-bounded :validation.class/allocation-property
+   :partial-fill/effective-rounding-consistency :validation.class/allocation-property})
 
 (defn- check-result
   ([check-id status details]

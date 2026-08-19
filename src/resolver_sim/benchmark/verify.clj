@@ -188,9 +188,12 @@
             inputs (get assurance "input_set")
             projection {"domain" "prf/benchmark-finalization/v1"
                         "benchmark_id" (get finalization "benchmark_id")
-                        "assurance_artifact_sha256" (:sha256 (evidence-node/canonical-artifact-content "benchmark/assertions/benchmark-assurance.json" assurance-file))
-                        "conclusion_sha256" (:sha256 (evidence-node/canonical-artifact-content "benchmark/conclusion.json" conclusion-file))
-                        "evidence_content_registry_sha256" (:sha256 (evidence-node/canonical-artifact-content "benchmark/evidence/content-registry.json" content-registry-file))
+                        "assurance_artifact_sha256" (:sha256 (try (evidence-node/canonical-artifact-content "benchmark/assertions/benchmark-assurance.json" assurance-file)
+                                                                  (catch Exception _ {:sha256 "sha256:tampered"})))
+                        "conclusion_sha256" (:sha256 (try (evidence-node/canonical-artifact-content "benchmark/conclusion.json" conclusion-file)
+                                                          (catch Exception _ {:sha256 "sha256:tampered"})))
+                        "evidence_content_registry_sha256" (:sha256 (try (evidence-node/canonical-artifact-content "benchmark/evidence/content-registry.json" content-registry-file)
+                                                                         (catch Exception _ {:sha256 "sha256:tampered"})))
                         "input_set_root" (get assurance "input_set_root")}
             expected-final-ref (hash-ref/sha256-ref (canonical/domain-hash "BENCHMARK_FINALIZATION_V1" projection))
             checks {"completion-first-package-index" (and (get-in package-context [:completion-report :valid?])
@@ -227,20 +230,39 @@
                     "conservation-recalculated" (and (= (get conservation "status") (:status recalculated-conservation))
                                                      (:ids-match? recalculated-conservation)
                                                      (:hashes-valid? recalculated-conservation))
-                     "canonical-integrity" (and (= "canonical-integrity.v1" (get canonical-integrity "schema_version"))
-                                                (= "passed" (get canonical-integrity "status"))
-                                                (= (sha-ref finalization-file) (get-in canonical-integrity ["benchmark_finalization" "sha256"]))
-                                                (= (sha-ref assurance-file) (get-in canonical-integrity ["benchmark_assurance" "sha256"]))
-                                                (= (sha-ref conservation-file) (get-in canonical-integrity ["conservation" "sha256"]))
-                                                (= (sha-ref content-registry-file) (get-in canonical-integrity ["evidence_content_registry" "sha256"])))
-                     "canonical-integrity-creation-provenance" (let [stored-hash (get-in canonical-integrity ["creation_provenance_hash"])]
-                                                                 (if stored-hash
-                                                                   (let [evidence-provenance (or (:creation/provenance evidence) :in-band)
-                                                                         expected-hash (str (hash-ref/sha256-ref
-                                                                                             (canonical/hash-with-intent {:hash/intent :creation-provenance}
-                                                                                                             {:creation/provenance evidence-provenance})))]
-                                                                     (= stored-hash expected-hash))
-                                                                   true))
+                    "canonical-integrity" (and (= "canonical-integrity.v1" (get canonical-integrity "schema_version"))
+                                               (= "passed" (get canonical-integrity "status"))
+                                               (= (sha-ref finalization-file) (get-in canonical-integrity ["benchmark_finalization" "sha256"]))
+                                               (= (sha-ref assurance-file) (get-in canonical-integrity ["benchmark_assurance" "sha256"]))
+                                               (= (sha-ref conservation-file) (get-in canonical-integrity ["conservation" "sha256"]))
+                                               (= (sha-ref content-registry-file) (get-in canonical-integrity ["evidence_content_registry" "sha256"])))
+                    "canonical-integrity-creation-provenance" (let [stored-provenance (get-in canonical-integrity ["creation_provenance"])
+                                                                    stored-hash (get-in canonical-integrity ["creation_provenance_hash"])
+                                                                    evidence-provenance (or (:creation/provenance evidence) :in-band)]
+                                                                (cond
+                                                                  (and stored-provenance (nil? stored-hash)) false
+                                                                  (nil? stored-hash) true
+                                                                  (not (contains? #{"in-band" "out-of-band"} stored-provenance)) false
+                                                                  :else (let [stored-provenance-kw (keyword stored-provenance)
+                                                                              expected-hash (str (hash-ref/sha256-ref
+                                                                                                  (canonical/hash-with-intent {:hash/intent :creation-provenance}
+                                                                                                                              {:creation/provenance stored-provenance-kw})))]
+                                                                          (and (= stored-provenance-kw evidence-provenance)
+                                                                               (= stored-hash expected-hash)))))
+                    "canonical-integrity-source-creation" (let [stored-source (get-in canonical-integrity ["source_creation"])
+                                                                stored-hash (get-in canonical-integrity ["source_creation_hash"])
+                                                                evidence-source (or (:source/creation evidence) {:provenance :in-band})
+                                                                evidence-source-kw (get evidence-source :provenance :in-band)]
+                                                            (cond
+                                                              (and stored-source (nil? stored-hash)) false
+                                                              (nil? stored-hash) true
+                                                              (not (contains? #{"in-band" "out-of-band"} stored-source)) false
+                                                              :else (let [stored-source-kw (keyword stored-source)
+                                                                          expected-hash (str (hash-ref/sha256-ref
+                                                                                              (canonical/hash-with-intent {:hash/intent :source-creation}
+                                                                                                                          {:source/creation {:provenance stored-source-kw}})))]
+                                                                      (and (= stored-source-kw evidence-source-kw)
+                                                                           (= stored-hash expected-hash)))))
                     "forensic-status-deferred" (and (= "forensic-claims-status.v1" (get forensic-status "schema_version"))
                                                     (= "deferred" (get forensic-status "status"))
                                                     (= "unsigned-forensic-signing-not-configured" (get forensic-status "reason_code")))

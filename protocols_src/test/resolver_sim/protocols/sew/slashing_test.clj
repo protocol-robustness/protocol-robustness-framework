@@ -1316,7 +1316,7 @@
       (is (some? (get-in result [:projection :projection-hash])))
       (is (some? (get-in result [:projection :projection-definition-hash])))
       (is (map? (get result :pro-rata)))
-      (is (= 8 (count (get-in result [:pro-rata :claims]))))
+      (is (= 13 (count (get-in result [:pro-rata :claims]))))
       (is (= true (get-in result [:pro-rata :summary :holds?])))
       (is (some? (get-in result [:pro-rata :allocation-hash])))
       (is (some? (get-in result [:pro-rata :allocation-result-hash]))

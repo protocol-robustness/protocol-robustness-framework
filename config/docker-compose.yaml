@@ -14,7 +14,7 @@ services:
   # Persistent local developer PostgreSQL.
   #
   # Version is pinned to 16 to match the intended AWS RDS PostgreSQL 16 target
-  # (see terraform/aws/modules/rds and docs/operations/postgres-admission.md).
+  # (see terraform/aws/modules/rds (separate repo) and docs/operations/postgres-admission.md).
   # Never use `latest`.
   #
   # All configuration is injected through environment variables with loopback
