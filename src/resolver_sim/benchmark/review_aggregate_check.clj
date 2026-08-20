@@ -75,6 +75,27 @@
    exactly three DISTINCT member identities, with every role from the canonical
    role vocabulary and — for keyed rounds — dense unique member keys.
 
+   Member / role / key identity semantics (what is a 'known member', a 'known
+   role', and a valid member→role relation):
+
+   A review round's constitution is exactly its :review-round/members vector;
+   every entry there is a constituted member, identified by :researcher/id.  A
+   member is 'known' by virtue of being in that vector; the aggregate check does
+   not independently re-derive a separate known-member registry.  A role is
+   'known' when its keyword is in rr/member-roles —
+   #{:model-steward :independent-reproducer :adversarial-reviewer}.  A member→role
+   relation is 'valid' exactly when the member map's :role is drawn from that
+   controlled vocabulary (::unknown-member-role fires otherwise).
+
+   The check deliberately does NOT enforce role uniqueness or a fixed
+   one-to-one member→role assignment: a valid round may legitimately give the
+   same role to two seats, and there is no required pairing of a role with a
+   particular key or researcher.  Collection-level constraints beyond the
+   vocabulary (distinct identities, dense unique keys for keyed rounds, count)
+   are enforced separately and reported under their own kinds.  Key identity is
+   a derived index (:review-member/key) only meaningful for keyed rounds, never
+   part of the round's durable identity.
+
    Returns {:holds? bool
             :violations [{:kind kw :count/:ids/:roles ...} ...]}."
   [round]
@@ -162,7 +183,10 @@
      1. :authorised implies :outcome-source :authoritative-target, a
         counted-support at or above the required threshold, policy conformance,
         identity separation, and exactly three constituted members.
-     2. :outcome-source :target-outcome-unavailable implies not :authorised.
+     2. :outcome-source :target-outcome-unavailable implies not :authorised
+        (surfaced by ::authorised-without-authoritative-outcome, which is the
+        single general finding for an authorised status with any non-authoritative
+        outcome source).
      3. :counted-support equals the count of :valid-supporting-positions.
      4. no position appears in more than one position category.  The
         :duplicate-seat category is the sole exception: it re-commits the hash
@@ -232,6 +256,15 @@
 
       (when (= :authorised status)
         (when-not (= :authoritative-target outcome-source)
+          ;; rule 2: :target-outcome-unavailable implies not :authorised.  The
+          ;; general finding (authorised + a non-authoritative outcome source) is
+          ;; the single surface for this contradiction: the outcome-source
+          ;; vocabulary has exactly one non-authoritative value
+          ;; (:target-outcome-unavailable), so an explicitly-unavailable outcome
+          ;; under an authorised status is a strict subset of this finding.  A
+          ;; former dedicated ::authorised-with-unavailable-outcome kind always
+          ;; co-fired with this one and carried strictly less information (empty
+          ;; data), so it was merged here rather than kept as a redundant branch.
           (add! ::authorised-without-authoritative-outcome {:outcome-source outcome-source}))
         (when-not (>= (:counted-support report) (:required-threshold report))
           (add! ::authorised-below-threshold
@@ -244,10 +277,6 @@
         (when-not (= 3 (:constituted-member-count report))
           (add! ::authorised-not-three-members
                 {:count (:constituted-member-count report)})))
-
-      (when (and (= :target-outcome-unavailable outcome-source)
-                 (= :authorised status))
-        (add! ::authorised-with-unavailable-outcome {}))
 
     ;; 3. counted-support equals valid-supporting count
       (when-not (= (:counted-support report)

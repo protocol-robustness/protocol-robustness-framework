@@ -11,19 +11,26 @@
   (let [context (or context {})
         parallelism (or (:execution/claimant-parallelism context) 1)
         threshold (or (:execution/claimant-parallel-threshold context)
-                      payoffs/*pro-rata-parallel-threshold*)]
+                      payoffs/*pro-rata-parallel-threshold*)
+        quiescence-timeout-seconds (:execution/quiescence-timeout-seconds context)]
     (when-not (and (integer? parallelism) (pos? parallelism))
       (throw (ex-info "Claimant parallelism must be a positive integer"
                       {:execution/claimant-parallelism parallelism})))
     (when-not (and (integer? threshold) (pos? threshold))
       (throw (ex-info "Claimant parallel threshold must be a positive integer"
                       {:execution/claimant-parallel-threshold threshold})))
-    {:execution/claimant-parallelism parallelism
-     :execution/claimant-parallel-threshold threshold}))
+    (when (some? quiescence-timeout-seconds)
+      (when-not (and (integer? quiescence-timeout-seconds)
+                     (pos? quiescence-timeout-seconds))
+        (throw (ex-info "Claimant quiescence timeout must be a positive integer"
+                        {:execution/quiescence-timeout-seconds quiescence-timeout-seconds}))))
+    (cond-> {:execution/claimant-parallelism parallelism
+             :execution/claimant-parallel-threshold threshold}
+      (some? quiescence-timeout-seconds)
+      (assoc :execution/quiescence-timeout-seconds quiescence-timeout-seconds))))
 
 (defn claimant-options
-  "Snapshot runtime settings lexically at an operation boundary. Child claimant
-   executors therefore do not need dynamic-binding conveyance."
+  "Snapshot runtime settings lexically at an operation boundary."
   []
   (validate-context *context*))
 

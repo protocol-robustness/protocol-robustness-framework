@@ -69,8 +69,8 @@
    completion order cannot influence arbitration because signing begins only
    after the exclusive reservation is returned."
   [{:keys [admission-store family-id candidate-root idempotency-key
-           proposed-ordering-root validation sign! verify-signature!]}]
-  (let [snapshot (store/snapshot! admission-store family-id)
+           proposed-ordering-root validation sign! verify-signature! snapshot]}]
+  (let [snapshot (or snapshot (store/snapshot! admission-store family-id))
         aggregate (admission/build-validation
                    (merge validation
                           {:partition-key (:concurrency/partition-key snapshot)

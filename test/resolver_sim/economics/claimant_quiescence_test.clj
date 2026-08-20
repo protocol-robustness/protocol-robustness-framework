@@ -42,6 +42,39 @@
       (.countDown latch)
       (reset! stop? true))))
 
+(deftest claimant-executor-conveys-dynamic-binding-frame
+  (testing "a claimant hook bound by the submitting thread runs in a pool worker"
+    (let [submitter-thread (Thread/currentThread)
+          observed-thread (promise)
+          items [{:id :a :weight 1 :cap nil}
+                 {:id :b :weight 1 :cap nil}]]
+      (binding [payoffs/*pro-rata-parallel-threshold* 1
+                payoffs/*redistribution-claimant-hook*
+                (fn [_] (deliver observed-thread (Thread/currentThread)))]
+        (payoffs/allocate-pro-rata-with-redistribution
+         {:amount 1 :items items :parallelism 2}))
+      (is (not= submitter-thread (deref observed-thread 1000 nil))
+          "control: the claimant hook ran on a different executor worker thread"))))
+
+(deftest claimant-executor-receives-configured-quiescence-timeout
+  (testing "the configured runtime timeout reaches the actual claimant pool shutdown"
+    (let [observed-timeouts (atom [])
+          original-quiesce quiesce/quiesce-executor!]
+      (with-redefs [quiesce/quiesce-executor!
+                    (fn
+                      ([executor] (original-quiesce executor))
+                      ([executor timeout-seconds]
+                       (swap! observed-timeouts conj timeout-seconds)
+                       (original-quiesce executor timeout-seconds)))]
+        (binding [payoffs/*pro-rata-parallel-threshold* 1]
+          (payoffs/allocate-pro-rata
+           {:amount 3
+            :items [{:id :a :weight 1} {:id :b :weight 1}]
+            :parallelism 2
+            :execution/quiescence-timeout-seconds 7})))
+      (is (= [7 7] @observed-timeouts)
+          "both executor-backed claimant phases use the configured timeout"))))
+
 (deftest claimant-executor-succeeds-when-workers-finish
   (testing "ordered-detached-mapv returns results when all workers finish promptly"
     (let [f (resolve-ordered-detached-mapv)

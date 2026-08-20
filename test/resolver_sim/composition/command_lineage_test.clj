@@ -185,7 +185,7 @@
       (is (= :stale-termination-basis (:status result))))))
 
 (deftest test-termination-stale-shared-state
-  (testing "terminator input == current head but terminator shared-state != head => reject"
+  (testing "terminator with tampered shared-state => caught by verify-command in lineage"
     (let [head cmd-b
           stale-term (cl/build-termination-command head s2)
           tampered (assoc-in stale-term
@@ -195,7 +195,9 @@
                                     :command/root (cl/command-root tampered))
           result (cl/verify-lineage [cmd-a cmd-b tampered-with-root])]
       (is (false? (:valid? result)))
-      (is (= :stale-termination-shared-state (:status result))))))
+      (is (= :invalid-command (:status result)))
+      (is (some #(= :shared-state-mismatch (:reason %))
+                (mapcat :detail (:errors result)))))))
 
 (deftest test-terminator-after-terminal
   (testing "terminal-head ⧺ C => :predecessor-terminal"
@@ -249,14 +251,144 @@
       (is (false? (:valid? result))
           (str "Expected stale shared-state rejection, got: " result)))))
 
-;; ── Shared state helpers ────────────────────────────────────────────────────────
+;; ── Shared state invariant ────────────────────────────────────────────────────────
 
 (deftest test-shared-state-ref
   (testing "extracts shared-state ref from command members"
     (is (= s0 (cl/shared-state-ref cmd-a))))
   (testing "returns nil when no shared-state member"
-    (let [cmd (cl/build-command {:command/action :x
-                                 :command/input-state-root s0
-                                 :command/resulting-state-root s1
-                                 :command/built-with-includes [{:kind :command :ref "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}]})]
-      (is (nil? (cl/shared-state-ref cmd))))))
+    (is (nil? (cl/shared-state-ref
+               {:command/built-with-includes
+                [{:kind :command :ref "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}]})))))
+
+(deftest test-shared-state-invariant
+  (testing "command with exactly one matching shared-state member => passes"
+    (is (:valid? (cl/verify-shared-state-invariant cmd-a))))
+  (testing "command with no shared-state member => reject"
+    (let [result (cl/verify-shared-state-invariant
+                  {:command/built-with-includes []
+                   :command/input-state-root s0})]
+      (is (false? (:valid? result)))
+      (is (= :missing-shared-state (:reason result)))))
+  (testing "command with multiple shared-state members => reject"
+    (let [result (cl/verify-shared-state-invariant
+                  {:command/built-with-includes [{:kind :shared-state :ref s0}
+                                                 {:kind :shared-state :ref s1}]
+                   :command/input-state-root s0})]
+      (is (false? (:valid? result)))
+      (is (= :duplicate-shared-state (:reason result)))))
+  (testing "shared-state ref != input-state-root => reject"
+    (let [result (cl/verify-shared-state-invariant
+                  {:command/built-with-includes [{:kind :shared-state :ref s0}]
+                   :command/input-state-root s1})]
+      (is (false? (:valid? result)))
+      (is (= :shared-state-mismatch (:reason result))))))
+
+(deftest test-build-command-enforces-invariant
+  (testing "build-command rejects command without shared-state"
+    (is (thrown? clojure.lang.ExceptionInfo
+                 (cl/build-command {:command/action :x
+                                    :command/input-state-root s0
+                                    :command/resulting-state-root s1
+                                    :command/built-with-includes [{:kind :command :ref "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}]}))))
+  (testing "build-command rejects mismatched shared-state ref"
+    (is (thrown? clojure.lang.ExceptionInfo
+                 (cl/build-command {:command/action :x
+                                    :command/input-state-root s0
+                                    :command/resulting-state-root s1
+                                    :command/built-with-includes [{:kind :shared-state :ref s1}]})))))
+
+(deftest test-verify-command-enforces-invariant
+  (testing "verify-command rejects command with tampered shared-state ref"
+    (let [head cmd-b
+          term (cl/build-termination-command head s2)
+          tampered (assoc-in term [:command/built-with-includes]
+                             [{:kind :shared-state :ref s0}])
+          result (cl/verify-command tampered)]
+      (is (false? (:valid? result)))
+      (is (some #(= :shared-state-mismatch (:reason %))
+                (:issues result))))))
+
+;; ── Concatenation chain ──────────────────────────────────────────────────────────
+
+(deftest test-build-concatenation-chain
+  (testing "builds one concatenation per adjacent pair"
+    (let [cmd-a (build-cmd :a s0 s1 [s0])
+          cmd-b (build-cmd :b s1 s2 [s1])
+          cmd-c (build-cmd :c s2 s0 [s2])
+          chain (cl/build-concatenation-chain [cmd-a cmd-b cmd-c])]
+      (is (= 2 (count chain)))
+      (is (= (:command/root cmd-a) (:concatenation/left (first chain))))
+      (is (= (:command/root cmd-b) (:concatenation/right (first chain))))
+      (is (= (:command/root cmd-b) (:concatenation/left (second chain))))
+      (is (= (:command/root cmd-c) (:concatenation/right (second chain))))))
+  (testing "single command yields empty chain"
+    (is (empty? (cl/build-concatenation-chain [cmd-a]))))
+  (testing "empty input yields empty chain"
+    (is (empty? (cl/build-concatenation-chain [])))))
+
+(deftest test-concatenation-chain-root
+  (testing "same roots in order => same chain root"
+    (let [roots ["sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+                 "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"]
+          root1 (cl/concatenation-chain-root roots)
+          root2 (cl/concatenation-chain-root (vec (reverse roots)))]
+      (is (= root1 (cl/concatenation-chain-root roots)))
+      (is (not= root1 root2)))))
+
+(deftest test-verify-concatenation-chain-valid
+  (testing "valid chain verifies correctly"
+    (let [cmd-a (build-cmd :a s0 s1 [s0])
+          cmd-b (build-cmd :b s1 s2 [s1])
+          cmd-c (build-cmd :c s2 s0 [s2])
+          chain (cl/build-concatenation-chain [cmd-a cmd-b cmd-c])
+          resolved (into {} (map (juxt :command/root identity)) [cmd-a cmd-b cmd-c])
+          result (cl/verify-concatenation-chain chain resolved)]
+      (is (:valid? result))
+      (is (empty? (:issues result)))))
+  (testing "chain break detected"
+    (let [cmd-a (build-cmd :a s0 s1 [s0])
+          cmd-b (build-cmd :b s1 s2 [s1])
+          cmd-c (build-cmd :c s0 s0 [s0])
+          broken-chain [(cl/build-concatenation cmd-a cmd-b)
+                        (cl/build-concatenation cmd-c cmd-a)]
+          resolved (into {} (map (juxt :command/root identity)) [cmd-a cmd-b cmd-c])
+          result (cl/verify-concatenation-chain broken-chain resolved)]
+      (is (false? (:valid? result)))
+      (is (some #(= :concatenation-chain-break (:reason %)) (:issues result))))))
+
+(deftest test-verify-concatenation-chain-unresolved-command
+  (testing "unresolved command in chain => reject"
+    (let [cmd-a (build-cmd :a s0 s1 [s0])
+          cmd-b (build-cmd :b s1 s2 [s1])
+          chain [(cl/build-concatenation cmd-a cmd-b)]
+          resolved {(:command/root cmd-a) cmd-a}
+          result (cl/verify-concatenation-chain chain resolved)]
+      (is (false? (:valid? result)))
+      (is (some #(= :unresolved-concatenation-command (:reason %)) (:issues result))))))
+
+;; ── Lineage with concatenation binding ───────────────────────────────────────────
+
+(deftest test-lineage-includes-concatenation-roots
+  (testing "valid lineage produces committed concatenation roots"
+    (let [result (cl/verify-lineage [cmd-a cmd-b])]
+      (is (:valid? result))
+      (is (= :ok (:status result)))
+      (is (some? (:concatenation-roots result)))
+      (is (= 1 (count (:concatenation-roots result))))
+      (is (some? (:concatenation-chain-root result)))))
+  (testing "single-command lineage has no concatenation roots"
+    (let [result (cl/verify-lineage [cmd-a])]
+      (is (:valid? result))
+      (is (nil? (:concatenation-roots result)))
+      (is (nil? (:concatenation-chain-root result)))))
+  (testing "terminated lineage includes concatenation roots on non-terminator commands"
+    (let [term (cl/build-termination-command cmd-b s2)
+          result (cl/verify-lineage [cmd-a cmd-b term])]
+      (is (:valid? result))
+      (is (= :terminated (:status result)))
+      (is (some? (:concatenation-roots result)))))
+  (testing "invalid lineage has no concatenation roots"
+    (let [result (cl/verify-lineage [cmd-a cmd-c])]
+      (is (false? (:valid? result)))
+      (is (nil? (:concatenation-roots result))))))
