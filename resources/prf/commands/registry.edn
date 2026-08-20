@@ -16,6 +16,20 @@
    :command/positional-args {:min 0 :max 0}
    :command/description "Run the default review gate (backstop)."}
 
+   {:command/id :check-aggregate
+   :command/path ["check-aggregate"]
+   :command/title "Check review aggregate invariants"
+   :command/category :benchmark
+   :command/surface :prf
+   :command/backstop-tier :manual
+   :command/jar-availability :native
+   :command/runtime :jvm
+   :command/options [{:name "--input" :type :string :doc "EDN file with :review-round (:canonical-indices, :authority-report optional); use '-' for stdin" :required true}
+                     {:name "--json" :type :flag :doc "Output result as JSON"}]
+   :command/outputs []
+   :command/positional-args {:min 0 :max 0}
+   :command/description "Run the review-aggregate check surface (three-member standard, member bit-width/key-density, and the three-member-classifications checks when an authority report is supplied) over a review round and emit the complete machine-readable result."}
+
    {:command/id :backstop-fast
     :command/path ["backstop" "fast"]
    :command/title "Fast backstop"

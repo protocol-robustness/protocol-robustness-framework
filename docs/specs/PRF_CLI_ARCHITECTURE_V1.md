@@ -156,6 +156,7 @@ The registry file (`resources/prf/commands/registry.edn`) follows schema
 | `:run-invariants` | `run-invariants` | scenario | default | Run protocol invariant suite |
 | `:run-benchmark` | `run-benchmark` | benchmark | full | Run benchmark and produce evidence |
 | `:parallel-benchmark-run` | `parallel-benchmark-run` | benchmark | full | Bounded capability composition over `run-benchmark`: adds bounded local scenario/claimant parallelism to the same canonical algorithm. Build composed with (and validated to include) the incentive and incentive-compatibility capabilities. Canonical output invariant to parallelism; automatic worker pool default is bounded at min(scenario-count, ceiling) and never exceeds the ceiling; an explicit `--parallelism` is honored exactly; `--execution-budget` bounds total concurrency |
+| `:check-aggregate` | `check-aggregate` | benchmark | manual | Run the review-aggregate check surface (three-member standard, member bit-width/key-density, and the three-member-classifications checks when an authority report is supplied) over a review round and emit the complete machine-readable result |
 | `:fmt-check` | `fmt check` | maintenance | fast | Check code formatting |
 | `:lint` | `lint` | validation | fast | Lint source with clj-kondo |
 
@@ -210,6 +211,7 @@ Each command ID maps to a handler var, resolved lazily:
  :run-scenario          resolver-sim.commands.scenario/run
  :run-invariants        resolver-sim.commands.invariants/run
  :run-benchmark         resolver-sim.commands.run-benchmark/run
+ :check-aggregate       resolver-sim.commands.check-aggregate/run
  :fmt-check             resolver-sim.commands.validate/fmt-check
  :lint                  resolver-sim.commands.validate/lint}
 ```
@@ -262,12 +264,13 @@ Every command falls into exactly one (surface × jar-availability) case:
 
 | Surface | Jar availability | Runtime | Count | Meaning |
 |---|---|---|---|---|
-| `:prf` | `:native` | `:jvm` | 49 | Standard PRF JAR (`prf.jar`) CLI commands |
+| `:prf` | `:native` | `:jvm` | 50 | Standard PRF JAR (`prf.jar`) CLI commands |
 | `:dev` | `:native` | `:jvm` | 1 | Developer-only JAR command (`run-invariants`) |
 | `:community` | `:native` | `:jvm` | 9 | Community task commands shipped in the JAR |
+| `:researcher` | `:native` | `:jvm` | 3 | Researcher interaction commands (`disagree`/`approve`/`check`) |
 | `:bb` | `:external` | `:bb` | 9 | `bb` task requiring an external JAR artifact |
 | `:bb` | `:none` | `:bb` | 12 | Pure `bb` task; not a JAR command |
-| **Total** | | | **80** | All registered commands |
+| **Total** | | | **84** | All registered commands |
 
 `jar-availability` describes **registry/implementation availability**, not
 inclusion in every build artifact. `:native` means the command is implemented

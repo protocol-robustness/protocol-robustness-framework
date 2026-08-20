@@ -15,6 +15,7 @@
             [resolver-sim.scenario.suites :as suites]
             [resolver-sim.commands.run-benchmark :as command]
             [resolver-sim.benchmark.claims :as claims]
+            [resolver-sim.util.thread-quiescence :as quiesce]
             [clojure.edn :as edn]
             [clojure.java.io :as io]
             [clojure.string :as str]))
@@ -615,12 +616,41 @@
                          nil
                          (catch Exception e e))]
             (is (some? thrown) "a worker failure must propagate")
-            (is (= :benchmark-execution-failed (:reason (ex-data thrown))))
-            (is (contains? (ex-data thrown) :quiescence)
-                "failure must carry an authoritative quiescence result")
+            (is (= 1 (:ordinal (ex-data thrown))))
+            (is (= "boom" (.getMessage thrown))
+                "a clean quiescence preserves the original worker error")
             (is (< @started 6) "outstanding work was cancelled, not all executions ran")))
         (finally
           (deliver gate true)
+          (doseq [file (reverse (file-seq root))] (.delete file)))))))
+
+(deftest executor-quiescence-failure-prevents-normal-success
+  (testing "a non-terminating executor is a fail-closed benchmark failure"
+    (let [{:keys [root plan source-by-id]} (make-hermetic-plan! 1)
+          observed-timeout (atom nil)
+          original-quiesce quiesce/quiesce-executor!]
+      (try
+        (with-redefs [runner/execute-scenario
+                      (fn [_suite _source entry _run-count _staging]
+                        {:execution/id (:execution/id entry)
+                         :execution/ordinal (:execution/ordinal entry)
+                         :execution/descriptor (:execution/descriptor entry)})
+                      quiesce/quiesce-executor!
+                      (fn [executor timeout-seconds]
+                        (reset! observed-timeout timeout-seconds)
+                        (original-quiesce executor timeout-seconds)
+                        {:status :termination-timeout :remaining-tasks []})]
+          (let [error (try
+                        (#'runner/execute-plan-bounded!
+                         nil plan source-by-id 1 nil 1 1 nil
+                         {:execution/quiescence-timeout-seconds 9})
+                        nil
+                        (catch Throwable e e))]
+            (is (quiesce/quiescence-failed? error))
+            (is (= 9 @observed-timeout))
+            (is (= :termination-timeout
+                   (get-in (ex-data error) [:quiescence/context :quiescence :status])))))
+        (finally
           (doseq [file (reverse (file-seq root))] (.delete file)))))))
 
 (defn- make-lane-plan!

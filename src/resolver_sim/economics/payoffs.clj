@@ -130,40 +130,45 @@
    capacity (acquire-many!) instead of creating an independent pool: borrowing as
    many permits as are actually available, or running serially when none remain.
    When no budget is bound, the previous per-call fixed pool is used unchanged."
-  [parallelism f values]
-  (let [values (vec values)
-        budgeted (budget/current)]
+  ([parallelism f values]
+   (ordered-detached-mapv parallelism nil f values))
+  ([parallelism quiescence-timeout-seconds f values]
+   (let [values (vec values)
+         budgeted (budget/current)]
     (if budgeted
       (let [acquired (budget/acquire-many! parallelism)]
         (try
           (if (< acquired 2)
             (mapv f values)
-            (run-claimant-tasks! acquired f values))
+            (run-claimant-tasks! acquired quiescence-timeout-seconds f values))
           (finally
             (budget/release-many! acquired))))
-      (if (<= parallelism 1)
-        (mapv f values)
-        (run-claimant-tasks! parallelism f values)))))
+       (if (<= parallelism 1)
+         (mapv f values)
+         (run-claimant-tasks! parallelism quiescence-timeout-seconds f values))))))
 
 (defn- run-claimant-tasks!
   "Run claimant-local tasks on a bounded fresh pool with size `parallelism`,
    collecting results in stable order and quiescing authoritatively."
-  [parallelism f values]
+  [parallelism quiescence-timeout-seconds f values]
   (let [executor (Executors/newFixedThreadPool (int parallelism))]
     (try
       (let [futures (mapv (fn [value]
-                            (.submit executor ^Callable
-                                     (reify Callable
-                                       (call [_] (f value)))))
+                            (let [task (bound-fn [] (f value))]
+                              (.submit executor ^Callable
+                                       (reify Callable
+                                         (call [_] (task))))))
                           values)]
         (mapv #(.get %) futures))
       (finally
-        (claimant-quiesce! executor parallelism)))))
+        (claimant-quiesce! executor parallelism quiescence-timeout-seconds)))))
 
 (defn- claimant-quiesce!
   "Authoritatively quiesce a claimant executor, failing closed on non-termination."
-  [executor parallelism]
-  (let [q (quiesce/quiesce-executor! executor)]
+  [executor parallelism quiescence-timeout-seconds]
+  (let [q (if (some? quiescence-timeout-seconds)
+            (quiesce/quiesce-executor! executor quiescence-timeout-seconds)
+            (quiesce/quiesce-executor! executor))]
     (when-not (= :terminated (:status q))
       (throw (quiesce/quiescence-failed-exception
               "Claimant executor threads did not terminate before pool release"
@@ -414,7 +419,7 @@
    - :ordering-policy :canonical-id breaks equal-remainder ties by stable item ID,
      making allocation ownership independent of input order"
   [{:keys [amount items id-fn weight-fn cap-fn rounding remainder-policy ordering-policy
-           progress-atom on-progress parallelism]
+           progress-atom on-progress parallelism execution/quiescence-timeout-seconds]
     :or {id-fn :id
          weight-fn :weight
          cap-fn (constantly nil)
@@ -439,7 +444,7 @@
                                       :current 0
                                       :total total-items})
         prepared (ordered-detached-mapv
-                  claimant-parallelism
+                  claimant-parallelism quiescence-timeout-seconds
                   (fn [[idx item]]
                     (let [weight (non-negative-integer (weight-fn item))
                           cap-raw (cap-fn item)
@@ -458,7 +463,7 @@
                    (pro-rata-requests amount prepared total-weight rounding ordering-policy))
         _ (report-pro-rata-progress! progress-observer {:event :phase-started :phase :allocating})
         allocations (ordered-detached-mapv
-                     claimant-parallelism
+                     claimant-parallelism quiescence-timeout-seconds
                      (fn [[{:keys [id weight cap]} requested]]
                        (let [allocated (min requested (or cap requested))
                              unmet (- requested allocated)]
@@ -661,7 +666,7 @@
    committed at that cap, removed, and the remaining availability is recomputed
    over the remaining weighted rows. Integer largest-remainder rounding occurs
    only in the final unconstrained group."
-  [{:keys [amount items id-fn weight-fn cap-fn rounding ordering-policy progress-atom on-progress parallelism]
+  [{:keys [amount items id-fn weight-fn cap-fn rounding ordering-policy progress-atom on-progress parallelism execution/quiescence-timeout-seconds]
     :or {id-fn :id weight-fn :weight cap-fn :cap
          rounding :floor-with-largest-remainder ordering-policy :input-order}}]
   (let [amount (non-negative-integer amount)
@@ -745,7 +750,7 @@
                 ;; The coordinator alone commits caps, changes remaining liquidity,
                 ;; and derives the next active set below.
                 round-facts (ordered-detached-mapv
-                             claimant-parallelism
+                             claimant-parallelism quiescence-timeout-seconds
                              (fn [item]
                                (when *redistribution-claimant-hook*
                                  (*redistribution-claimant-hook* item))

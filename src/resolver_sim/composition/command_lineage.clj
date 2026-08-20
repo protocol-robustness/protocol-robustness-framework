@@ -40,6 +40,10 @@
   "Domain tag for a command-termination receipt root."
   "PRF_COMMAND_LINEAGE_TERMINATION_V1")
 
+(def concatenation-chain-domain-tag
+  "Domain tag for a chain of concatenation roots."
+  "PRF_COMMAND_LINEAGE_CHAIN_V1")
+
 ;; ── schema ids ──────────────────────────────────────────────────────────────────
 
 (def combination-schema
@@ -195,11 +199,43 @@
   (let [members (:command/built-with-includes command [])]
     (some #(when (= :shared-state (:kind %)) (:ref %)) members)))
 
+(defn shared-state-count
+  "Return the number of :shared-state members in a command's built-with-includes."
+  [command]
+  (let [members (:command/built-with-includes command [])]
+    (count (filter #(= :shared-state (:kind %)) members))))
+
 (defn find-shared-state-member
   "Return the shared-state member map from a command's members, or nil."
   [command]
   (let [members (:command/built-with-includes command [])]
     (some #(when (= :shared-state (:kind %)) %) members)))
+
+(defn verify-shared-state-invariant
+  "Verify that a command has exactly one :shared-state member whose :ref equals
+  :command/input-state-root. Returns {:valid? bool :reason kw :detail str}.
+  This is the verifier-level enforcement of the shared-state basis invariant."
+  [command]
+  (let [count (shared-state-count command)
+        ref (shared-state-ref command)
+        input (:command/input-state-root command)]
+    (cond
+      (zero? count)
+      {:valid? false :reason :missing-shared-state
+       :detail "command must have exactly one :shared-state member"}
+
+      (> count 1)
+      {:valid? false :reason :duplicate-shared-state
+       :detail (str "command has " count " :shared-state members; expected exactly one")}
+
+      (not= ref input)
+      {:valid? false :reason :shared-state-mismatch
+       :detail "shared-state ref does not match command input-state-root"
+       :shared-state-ref ref
+       :input-state-root input}
+
+      :else
+      {:valid? true})))
 
 ;; ── command ─────────────────────────────────────────────────────────────────────
 
@@ -237,17 +273,24 @@
   (when-not (keyword? action)
     (throw (ex-info ":command/action must be a keyword"
                     {:reason :invalid-action :action action})))
-  (doseq [root [:command/input-state-root :command/resulting-state-root]]
-    (when-not (hash-ref/valid-sha256-ref? (get opts root))
-      (throw (ex-info (str (name root) " must be a canonical sha256 reference")
-                      {:reason :invalid-state-root
-                       :field root
-                       :value (get opts root)}))))
-  (let [base {:command/schema command-schema
-              :command/action action
-              :command/input-state-root input-state-root
-              :command/resulting-state-root resulting-state-root
-              :command/built-with-includes (canonical-members built-with-includes)}]
+   (doseq [root [:command/input-state-root :command/resulting-state-root]]
+     (when-not (hash-ref/valid-sha256-ref? (get opts root))
+       (throw (ex-info (str (name root) " must be a canonical sha256 reference")
+                       {:reason :invalid-state-root
+                        :field root
+                        :value (get opts root)}))))
+    (let [canonicalized (canonical-members built-with-includes)
+          ss-check (verify-shared-state-invariant
+                     {:command/built-with-includes canonicalized
+                      :command/input-state-root input-state-root})]
+      (when-not (:valid? ss-check)
+        (throw (ex-info (str "shared-state invariant violated: " (:detail ss-check))
+                        (assoc ss-check :members canonicalized)))))
+    (let [base {:command/schema command-schema
+               :command/action action
+               :command/input-state-root input-state-root
+               :command/resulting-state-root resulting-state-root
+               :command/built-with-includes (canonical-members built-with-includes)}]
     (assoc base :command/root (command-root base))))
 
 (defn command-root-valid?
@@ -285,13 +328,18 @@
 
 (defn verify-command
   "Full semantic verification of a command: structural validity (schema, action,
-  state roots, member cardinality/refs, root hash). Returns {:valid? bool :issues [...]}."
+  state roots, member cardinality/refs), shared-state invariant (exactly one
+  :shared-state member whose ref equals input-state-root), and self-root recompute.
+  Returns {:valid? bool :issues [...]}."
   [command]
   (let [issues (atom [])]
     (when-not (valid-command? command)
       (swap! issues conj {:issue :invalid-command
                           :reason :invalid-command
                           :detail "Command failed structural validation"}))
+    (let [ss-check (verify-shared-state-invariant command)]
+      (when-not (:valid? ss-check)
+        (swap! issues conj (assoc ss-check :element (:command/root command)))))
     (let [root-check (command-root-valid? command)]
       (when-not (:valid? root-check)
         (swap! issues conj (assoc root-check :element (:command/root command)))))
@@ -384,6 +432,69 @@
                             :reason :join-state-mismatch
                             :expected left-res
                             :actual join})))
+      {:valid? (empty? @issues) :issues (vec @issues)}))
+
+;; ── concatenation chain ──────────────────────────────────────────────────────────
+
+(defn build-concatenation-chain
+  "Build consecutive concatenation records for each adjacent command pair in a
+  sequence. Returns a vector of concatenation records, one per adjacent pair.
+  Each pair must satisfy continuity (resulting-state(left) == input-state(right)),
+  otherwise throws :predecessor-state-mismatch."
+  [commands]
+  (let [cmds (vec commands)]
+    (if (< (count cmds) 2)
+      []
+      (loop [i 0 acc (transient [])]
+        (if (>= i (dec (count cmds)))
+          (persistent! acc)
+          (let [concat (build-concatenation (nth cmds i) (nth cmds (inc i)))]
+             (recur (inc i) (conj! acc concat))))))))
+
+(defn concatenation-chain-root
+  "Content-addressed root committing an ordered vector of concatenation roots.
+  This is the lineage-wide commitment that binds a verified command chain to its
+  committed concatenation artifacts."
+  [concatenation-roots]
+  (hash-ref/sha256-ref
+   (hc/domain-hash concatenation-chain-domain-tag
+                   (vec concatenation-roots))))
+
+(defn verify-concatenation-chain
+  "Verify an ordered sequence of concatenation records as a chain. Each record
+  must verify individually (via verify-concatenation against its resolved
+  commands), and adjacent records must chain: right-of(i) == left-of(i+1).
+  Returns {:valid? bool :issues [...]}."
+  [concatenations resolved-commands]
+  (let [issues (atom [])]
+    (doseq [i (range (count concatenations))]
+      (let [concat (nth concatenations i)
+            left-root (:concatenation/left concat)
+            right-root (:concatenation/right concat)
+            left-cmd (get resolved-commands left-root)
+            right-cmd (get resolved-commands right-root)]
+        (when (or (nil? left-cmd) (nil? right-cmd))
+          (swap! issues conj {:issue :unresolved-concatenation-command
+                              :reason :unresolved-concatenation-command
+                              :index i
+                              :left-root left-root
+                              :right-root right-root}))
+        (when (and left-cmd right-cmd)
+          (let [v (verify-concatenation concat left-cmd right-cmd)]
+            (when-not (:valid? v)
+              (swap! issues conj {:issue :invalid-concatenation
+                                  :reason :invalid-concatenation
+                                  :index i
+                                  :detail (:issues v)}))))))
+    (doseq [i (range (dec (count concatenations)))]
+      (let [right-of-i (:concatenation/right (nth concatenations i))
+            left-of-next (:concatenation/left (nth concatenations (inc i)))]
+        (when-not (= right-of-i left-of-next)
+          (swap! issues conj {:issue :concatenation-chain-break
+                              :reason :concatenation-chain-break
+                              :index i
+                              :expected right-of-i
+                              :actual left-of-next}))))
     {:valid? (empty? @issues) :issues (vec @issues)}))
 
 ;; ── termination ────────────────────────────────────────────────────────────────
@@ -515,9 +626,16 @@
 ;; ── lineage verification ────────────────────────────────────────────────────────
 
 (defn verify-lineage
-  "Verify an ordered lineage of command records. The final element may be a
-  cancel-and-terminate terminator. Returns
-  {:valid? bool :status kw :errors [...]}.
+   "Verify an ordered lineage of command records. The final element may be a
+   cancel-and-terminate terminator. Returns
+   {:valid? bool :status kw :errors [...] :append? bool
+    :concatenation-roots [...] :concatenation-chain-root sha or nil}.
+
+   When the lineage is valid and not a replayed terminator, the result also
+   binds the accepted command chain to its committed concatenation roots:
+   each adjacent non-terminator command pair produces a concatenation record,
+   and the ordered set of concatenation roots is committed via
+   concatenation-chain-root. These are verified for internal consistency.
 
    status is one of:
      :ok                       -- no terminator, continuity holds
@@ -529,13 +647,22 @@
      :missing-termination-predecessor -- terminator with no preceding command
      :predecessor-state-mismatch -- a non-terminal step broke continuity
      :invalid-command          -- an element failed command verification
+     :invalid-concatenation-chain -- a committed concatenation root was inconsistent
 
    append? is true when the lineage is valid and not an already-terminated replay;
-   false otherwise (including when errors exist or replay is recognized)."
+   false otherwise (including when errors exist or replay is recognized).
+
+   concatenation-roots is a vector of concatenation roots for each adjacent
+   command pair, or nil when the lineage has fewer than 2 non-terminator
+   commands or is not valid for append.
+
+   concatenation-chain-root is the canonical commitment over concatenation-roots,
+   or nil when not computed."
   [elements]
   (let [errors (atom [])
         terminal-root (atom nil)
-        replayed? (atom false)]
+        replayed? (atom false)
+        commands (atom [])]
     (loop [es (seq (vec elements)) head-result nil]
       (when-let [elem (first es)]
         (let [self (verify-command elem)]
@@ -544,6 +671,8 @@
                                 :reason :invalid-command
                                 :element (element-root elem)
                                 :detail (:issues self)})))
+        (when-not (terminator-command? elem)
+          (swap! commands conj elem))
         (if (terminator-command? elem)
           (if (some? @terminal-root)
             (if (= (:command/root elem) @terminal-root)
@@ -559,7 +688,7 @@
                                     :root (:command/root elem)}))
               (when-let [hr head-result]
                 (let [elem-input (:command/input-state-root elem)
-                      elem-shared (shared-state-ref elem)]
+                        elem-shared (shared-state-ref elem)]
                   (when-not (= hr elem-input)
                     (swap! errors conj {:issue :stale-termination-basis
                                         :reason :stale-termination-basis
@@ -585,12 +714,34 @@
                                   :input (:command/input-state-root elem)}))))
         (recur (next es) (:command/resulting-state-root elem))))
     (let [status (if (seq @errors)
-                   (or (:reason (first @errors)) :invalid)
-                   (cond
-                     (true? @replayed?) :already-terminated
-                     (some? @terminal-root) :terminated
-                     :else :ok))]
+                    (or (:reason (first @errors)) :invalid)
+                    (cond
+                      (true? @replayed?) :already-terminated
+                      (some? @terminal-root) :terminated
+                      :else :ok))
+          concat-result
+          (when (and (empty? @errors) (not @replayed?))
+            (let [cmds (vec @commands)]
+              (when (>= (count cmds) 2)
+                (try
+                  (let [concats (build-concatenation-chain cmds)
+                        roots (mapv :concatenation/root concats)
+                        chain-root (concatenation-chain-root roots)
+                        resolved (into {} (map (juxt :command/root identity)) cmds)
+                        chain-verify (verify-concatenation-chain concats resolved)]
+                    (when-not (:valid? chain-verify)
+                      (swap! errors conj {:issue :invalid-concatenation-chain
+                                          :reason :invalid-concatenation-chain
+                                          :detail (:issues chain-verify)}))
+                    {:roots roots :chain-root chain-root})
+                  (catch clojure.lang.ExceptionInfo e
+                    (swap! errors conj {:issue :concatenation-chain-build-error
+                                        :reason (:reason (ex-data e))
+                                        :detail (ex-message e)})
+                    nil)))))]
       {:valid?   (empty? @errors)
        :status   status
        :errors   (vec @errors)
-       :append?  (and (empty? @errors) (not @replayed?))})))
+       :append?  (and (empty? @errors) (not @replayed?))
+       :concatenation-roots (some-> concat-result :roots)
+       :concatenation-chain-root (some-> concat-result :chain-root)})))

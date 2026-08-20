@@ -187,6 +187,34 @@
     (testing "identity separation is reported, never real-world independence"
       (is (not (contains? (:violations result) :real-world-independence?))))))
 
+(deftest three-member-standard-rejects-unknown-member-role
+  (testing "a member role outside rr/member-roles is an ::unknown-member-role violation"
+    (let [round {:review-round/members
+                 [{:researcher/id "researcher-a" :role :model-steward}
+                  {:researcher/id "researcher-b" :role :independent-reproducer}
+                  {:researcher/id "researcher-c" :role :ghost-reviewer}]}
+          result (rac/check-aggregate-three-member-standard round)]
+      (is (not (:holds? result)))
+      (let [violation (first (filter #(= ::rac/unknown-member-role (:kind %))
+                                     (:violations result)))]
+        (is (some? violation) "the unknown role must be flagged")
+        (is (= [:model-steward :independent-reproducer :ghost-reviewer] (:roles violation))
+            "the round's full roles vector is reported (the check reports all roles,
+             not only the offending one)")))))
+
+(deftest three-member-standard-rejects-duplicate-member-keys
+  (testing "a keyed round whose members share a :review-member/key is a
+            ::duplicate-member-keys violation (distinct from identity separation)"
+    (let [round {:review-round/members
+                 [{:review-member/key 0 :researcher/id "researcher-a" :role :model-steward}
+                  {:review-member/key 0 :researcher/id "researcher-b" :role :independent-reproducer}
+                  {:review-member/key 1 :researcher/id "researcher-c" :role :adversarial-reviewer}]}
+          result (rac/check-aggregate-three-member-standard round)]
+      (is (not (:holds? result)))
+      (is (some #(= ::rac/duplicate-member-keys (:kind %)) (:violations result)))
+      (is (not-any? #(= ::rac/non-distinct-member-identities (:kind %)) (:violations result))
+          "duplicate keys is a key-space collision, not a researcher-identity collision"))))
+
 ;; ── check-aggregate-three-member-classifications tests ─────────────────────
 
 (defn- auth-report
@@ -499,6 +527,153 @@
                                   ::rac/excluded-position-counted}
                                 (:kind %))
                     (get-in aggregate [:checks :three-member-classifications :violations]))))))
+
+(deftest classifications-reveal-invalid-authority-status
+  (let [round (make-legacy-round)
+        report (assoc (auth-report
+                       :positions [(v2-pos "researcher-a" :approve outcome-a)
+                                   (v2-pos "researcher-b" :approve outcome-a)
+                                   (v2-pos "researcher-c" :approve outcome-a)])
+                      :authority-status :semi-authorised)
+        result (rac/check-aggregate-three-member-classifications round report)]
+    (is (not (:holds? result)))
+    (is (some #(= ::rac/invalid-authority-status (:kind %)) (:violations result)))
+    (is (= :semi-authorised
+           (:status (first (filter #(= ::rac/invalid-authority-status (:kind %))
+                                   (:violations result))))))))
+
+(deftest classifications-reveal-invalid-outcome-source
+  (let [round (make-legacy-round)
+        report (assoc (auth-report
+                       :positions [(v2-pos "researcher-a" :approve outcome-a)
+                                   (v2-pos "researcher-b" :approve outcome-a)
+                                   (v2-pos "researcher-c" :approve outcome-a)])
+                      :outcome-source :elsewhere)
+        result (rac/check-aggregate-three-member-classifications round report)]
+    (is (not (:holds? result)))
+    (is (some #(= ::rac/invalid-outcome-source (:kind %)) (:violations result)))
+    (is (some #(= ::rac/authorised-without-authoritative-outcome (:kind %)) (:violations result))
+        "an authorised status with a malformed source also surfaces the general
+         non-authoritative-outcome finding")))
+
+(deftest classifications-reveal-authorised-below-threshold
+  (let [round (make-legacy-round)
+        ;; 2 approvers + 1 dissent -> counted-support 2; raise the threshold above
+        ;; the support so only ::authorised-below-threshold fires, not the
+        ;; counted-support/supporting-count mismatch.
+        report (assoc (auth-report
+                       :positions [(v2-pos "researcher-a" :approve outcome-a)
+                                   (v2-pos "researcher-b" :approve outcome-a)
+                                   (v2-pos "researcher-c" :dissent outcome-a)])
+                      :required-threshold 3)
+        result (rac/check-aggregate-three-member-classifications round report)]
+    (is (= :authorised (:authority-status report)))
+    (is (= 2 (:counted-support report)))
+    (is (not (:holds? result)))
+    (is (some #(and (= ::rac/authorised-below-threshold (:kind %))
+                    (= 2 (:counted-support %)) (= 3 (:required %)))
+              (:violations result)))
+    (is (not-any? #(= ::rac/counted-support-mismatch (:kind %)) (:violations result)))))
+
+(deftest classifications-reveal-authorised-not-identity-separate
+  (let [round (make-legacy-round)
+        report (assoc (auth-report
+                       :positions [(v2-pos "researcher-a" :approve outcome-a)
+                                   (v2-pos "researcher-b" :approve outcome-a)
+                                   (v2-pos "researcher-c" :approve outcome-a)])
+                      :identity-separate? false)
+        result (rac/check-aggregate-three-member-classifications round report)]
+    (is (not (:holds? result)))
+    (is (some #(= ::rac/authorised-not-identity-separate (:kind %)) (:violations result)))))
+
+(deftest classifications-reveal-authorised-not-three-members
+  (let [round (make-legacy-round)
+        report (assoc (auth-report
+                       :positions [(v2-pos "researcher-a" :approve outcome-a)
+                                   (v2-pos "researcher-b" :approve outcome-a)
+                                   (v2-pos "researcher-c" :approve outcome-a)])
+                      :constituted-member-count 4)
+        result (rac/check-aggregate-three-member-classifications round report)]
+    (is (not (:holds? result)))
+    (is (some #(and (= ::rac/authorised-not-three-members (:kind %)) (= 4 (:count %)))
+              (:violations result)))
+    (is (some #(= ::rac/member-count-mismatch (:kind %)) (:violations result))
+        "the report/round member-count mismatch is reported independently")))
+
+(deftest classifications-reveal-authorised-policy-not-conforming
+  (let [round (make-legacy-round)
+        report (assoc (auth-report
+                       :positions [(v2-pos "researcher-a" :approve outcome-a)
+                                   (v2-pos "researcher-b" :approve outcome-a)
+                                   (v2-pos "researcher-c" :approve outcome-a)])
+                      :policy-conforming? false)
+        result (rac/check-aggregate-three-member-classifications round report)]
+    (is (not (:holds? result)))
+    (is (some #(= ::rac/authorised-policy-not-conforming (:kind %)) (:violations result)))))
+
+(deftest classifications-reveal-equivocator-counted-as-dissenter
+  (let [round (make-legacy-round)
+        report (auth-report
+                :positions [(v2-pos "researcher-a" :approve outcome-a)
+                            (v2-pos "researcher-b" :approve outcome-a)
+                            (v2-pos "researcher-c" :dissent outcome-a)])
+        dissent-pos (first (:valid-dissenting-positions report))
+        ;; the dissenter's own position is re-committed as an equivocator's
+        ;; incompatible position -> double-counted in the dissenting category
+        report' (update report :equivocating-members conj
+                        {:member/id "researcher-c"
+                         :incompatible-positions [dissent-pos]})
+        result (rac/check-aggregate-three-member-classifications round report')]
+    (is (seq (:valid-dissenting-positions report)))
+    (is (not (:holds? result)))
+    (is (some #(= ::rac/equivocator-counted-as-dissenter (:kind %)) (:violations result)))))
+
+(deftest classifications-reveal-excluded-position-counted
+  (let [round (make-legacy-round)
+        report (auth-report
+                :positions [(v2-pos "researcher-a" :approve outcome-a)
+                            (v2-pos "researcher-b" :approve outcome-a)
+                            (v2-pos "researcher-c" :approve outcome-a)])
+        support-pos (first (:valid-supporting-positions report))
+        ;; an excluded (invalid) position is wrongly also counted as a supporter
+        report' (update report :invalid-positions conj support-pos)
+        result (rac/check-aggregate-three-member-classifications round report')]
+    (is (not (:holds? result)))
+    (is (some #(and (= ::rac/excluded-position-counted (:kind %)) (= :invalid (:category %)))
+              (:violations result)))))
+
+(deftest classifications-authorised-with-unavailable-outcome-surfaces-general-finding
+  (testing "an authorised report whose outcome-source is :target-outcome-unavailable
+            (contradicting rule 2) is surfaced by ::authorised-without-authoritative-outcome,
+            the general superset finding.  The former ::authorised-with-unavailable-outcome
+            kind always co-fired with it and carried strictly less information, so it was
+            merged away rather than kept as a redundant branch."
+    (let [round (make-legacy-round)
+          report (assoc (auth-report
+                         :positions [(v2-pos "researcher-a" :approve outcome-a)
+                                     (v2-pos "researcher-b" :approve outcome-a)
+                                     (v2-pos "researcher-c" :approve outcome-a)])
+                        :outcome-source :target-outcome-unavailable)
+          result (rac/check-aggregate-three-member-classifications round report)]
+      (is (not (:holds? result)))
+      (is (some #(= ::rac/authorised-without-authoritative-outcome (:kind %)) (:violations result))
+          "the contradiction is surfaced by the single general finding")
+      (is (not-any? #(= ::rac/authorised-with-unavailable-outcome (:kind %)) (:violations result))
+          "the merged redundant finding is no longer emitted"))))
+
+(deftest aggregate-runner-authorised-with-unavailable-outcome-fails-closed
+  (testing "the merge keeps the aggregate fail-closed: an authorised report with an
+            unavailable outcome still fails the aggregate"
+    (let [round (make-legacy-round)
+          report (assoc (auth-report
+                         :positions [(v2-pos "researcher-a" :approve outcome-a)
+                                     (v2-pos "researcher-b" :approve outcome-a)
+                                     (v2-pos "researcher-c" :approve outcome-a)])
+                        :outcome-source :target-outcome-unavailable)
+          result (rac/run-review-aggregate-checks round nil report)]
+      (is (not (:holds? result)))
+      (is (some #(= ::rac/authorised-without-authoritative-outcome (:kind %))
+                (get-in result [:checks :three-member-classifications :violations]))))))
 
 ;; ── Threading: on-fixed-point consumes the decoded artifact ─────────────────
 ;;

@@ -37,7 +37,7 @@
   (:import [java.math BigInteger]
            [java.nio.file Files LinkOption StandardCopyOption]
            [java.util UUID]
-           [java.util.concurrent Callable ExecutorCompletionService Executors TimeUnit]
+           [java.util.concurrent Callable ExecutorCompletionService Executors]
            [java.security MessageDigest]))
 
 ;; ── Helpers ──────────────────────────────────────────────────────────────────
@@ -793,7 +793,10 @@
             (throw (ex-info "Benchmark parallelism must be positive" {:parallelism parallelism})))
         executor (Executors/newFixedThreadPool (int parallelism))
         completion (ExecutorCompletionService. executor)
-        exclusive-gate (java.util.concurrent.Semaphore. 1)]
+        exclusive-gate (java.util.concurrent.Semaphore. 1)
+        timeout-seconds (or (:execution/quiescence-timeout-seconds runtime-execution-context)
+                            (hardening/quiescence-timeout-seconds))
+        failure (atom nil)]
     (try
       (report-operational-phase! :parallel-determine-started
                                  {:execution-count (count plan)
@@ -825,8 +828,7 @@
                                                                      runtime-execution-context
                                                                      plan-entry)))))})
             submitted (mapv submit-task plan)
-            results (atom {})
-            failure (atom nil)]
+            results (atom {})]
         (doseq [_ (range (count submitted))
                 :while (nil? @failure)]
           (let [future (.take completion)
@@ -851,29 +853,20 @@
           (do
             (doseq [task submitted]
               (.cancel ^java.util.concurrent.Future (:future task) true))
-            (let [quiescence (quiesce/quiesce-executor! executor)]
-              (if (= :terminated (:status quiescence))
-                (throw (ex-info "Benchmark execution failed in worker"
-                                {:reason reason
-                                 :cause cause
-                                 :quiescence quiescence}))
-                (throw (quiesce/quiescence-failed-exception
-                        "Benchmark worker failure could not be cleanly quiesced"
-                        {:reason reason
-                         :cause cause
-                         :quiescence quiescence})))))
+            (throw cause))
           (do
             (report-operational-phase! :parallel-determine-complete
                                        {:execution-count (count plan)})
             (reduce-in-original-order plan @results))))
       (finally
-        (when-not (.isShutdown executor)
-          (.shutdown executor)
-          (.awaitTermination executor
-                             (long (or (:execution/quiescence-timeout-seconds
-                                        runtime-execution-context)
-                                       (hardening/quiescence-timeout-seconds)))
-                             TimeUnit/SECONDS))))))
+        (let [quiescence (quiesce/quiesce-executor! executor timeout-seconds)]
+          (when-not (= :terminated (:status quiescence))
+            (throw (quiesce/quiescence-failed-exception
+                    "Benchmark executor could not be cleanly quiesced"
+                    {:quiescence quiescence
+                     :execution/quiescence-timeout-seconds timeout-seconds
+                     :parallelism parallelism
+                     :worker-failure @failure}))))))))
 
 (defn- execute-plan-bounded!
   ([suite-kw plan source-by-id run-count staging-root parallelism chunk-size]

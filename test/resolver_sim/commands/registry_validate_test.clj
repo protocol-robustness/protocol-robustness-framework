@@ -108,14 +108,14 @@
         ;; Must stay in lockstep with the Fixed-case availability matrix in
         ;; docs/specs/PRF_CLI_ARCHITECTURE_V1.md (the checked-in documentation
         ;; artifact) and validate-registry's fixed-jar-availability-cases.
-        expected {[:prf :native] 49
+        expected {[:prf :native] 50
                   [:dev :native] 1
                   [:community :native] 9
                   [:researcher :native] 3
                   [:bb :external] 9
                   [:bb :none] 12}]
     (testing "every declared command appears exactly once"
-      (is (= 83 (count (set ids))))
+      (is (= 84 (count (set ids))))
       (is (= (count ids) (count (set ids)))))
     (testing "every (surface, jar-availability, runtime) combination is a
               recognized availability case"
@@ -124,7 +124,7 @@
                        cmds))))
     (testing "generated matrix equals the checked-in documentation artifact"
       (is (= expected distribution))
-      (is (= 83 (apply + (vals distribution)))))))
+      (is (= 84 (apply + (vals distribution)))))))
 
 (deftest registry-internally-consistent
   (testing "every command passes registry validation (structure, paths,

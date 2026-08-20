@@ -164,6 +164,41 @@
       (:reservation out)
       (throw (ex-info "expected reservation" {:outcome out})))))
 
+(defn- passing-validation
+  "A complete, snapshot-bound validation input for workflow-level tests."
+  [snapshot candidate]
+  {:profile-id :postgres-concurrency-test
+   :profile-version "1"
+   :checks (mapv (fn [check-id]
+                   {:check/id check-id
+                    :valid? true
+                    :validated-against/root (:concurrency/snapshot-root snapshot)
+                    :validated-against/version (:concurrency/expected-state-version snapshot)
+                    :validated-against/candidate-root candidate})
+                 admission/required-check-order)})
+
+(defn- workflow-attempt
+  "Run a complete admission workflow. The signer intentionally sleeps so a
+   concurrent caller has time to contend while the successful caller holds the
+   durable reservation."
+  [db snapshot id candidate signer-count]
+  (workflow/attempt!
+   {:admission-store db
+    :family-id family
+    :snapshot snapshot
+    :candidate-root candidate
+    :idempotency-key id
+    :proposed-ordering-root (r "o")
+    :validation (passing-validation snapshot candidate)
+    :sign! (fn [payload]
+             (swap! signer-count inc)
+             (Thread/sleep 100)
+             {:receipt/root (r "r")
+              :signing/payload-root (:signing/payload-root payload)})
+    :verify-signature! (fn [payload signed]
+                         (= (:signing/payload-root payload)
+                            (:signing/payload-root signed)))}))
+
 ;; ---------------------------------------------------------------------------
 ;; 1. Reservation contention — exactly one canonical winner
 ;; ---------------------------------------------------------------------------
@@ -184,7 +219,29 @@
         "no duplicate active reservation")))
 
 ;; ---------------------------------------------------------------------------
-;; 2. Idempotent reservation replay — converge on one canonical result
+;; 2. Workflow contention — only the reservation winner reaches the signer
+;; ---------------------------------------------------------------------------
+
+(deftest workflow-contention-signs-and-finalizes-only-one-candidate
+  (let [snapshot (store/snapshot! *db-a* family)
+        signer-count (atom 0)
+        [a b] (race!
+               #(workflow-attempt *db-a* snapshot "workflow-A" (r "a") signer-count)
+               #(workflow-attempt *db-b* snapshot "workflow-B" (r "b") signer-count))
+        outcomes (mapv :concurrency/outcome [a b])
+        finalized (filter #(= :finalized (:concurrency/outcome %)) [a b])
+        state (store/snapshot! *db-a* family)]
+    (is (= 1 (count finalized))
+        (str "exactly one workflow finalized, got " (pr-str outcomes)))
+    (is (= 1 @signer-count) "only the fenced reservation winner invokes signing")
+    (is (= 1 (:family/version state)) "only one receipt is durably published")
+    (is (= (r "r") (:family/head state))
+        "the signed receipt is the authoritative finalized head")
+    (is (some #{:contention} outcomes)
+        (str "the losing workflow reports contention, got " (pr-str outcomes)))))
+
+;; ---------------------------------------------------------------------------
+;; 3. Idempotent reservation replay — converge on one canonical result
 ;; ---------------------------------------------------------------------------
 
 (deftest idempotent-replay-converges-across-instances

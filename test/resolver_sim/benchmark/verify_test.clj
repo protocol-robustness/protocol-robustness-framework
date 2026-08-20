@@ -188,20 +188,62 @@
               "unsupported provenance value with stale hash should fail"))
         (finally
           (delete-tree! root)))))
-  (testing "negative: delete source_creation_hash"
-    (let [root (temp-root)]
-      (try
-        (fixture! root)
-        (write-json! (io/file root "benchmark/assertions/canonical-integrity.json")
-                     (let [ci (read-json! (io/file root "benchmark/assertions/canonical-integrity.json"))]
-                       (dissoc ci "source_creation_hash")))
-        (let [checks (get-in (verify/verify! root) ["checks"])]
-          (is (false? (get checks "canonical-integrity-source-creation"))
-              "deleting source_creation_hash while source_creation string remains should fail")
-          (is (false? (get checks "artifact-registry-recalculated"))
-              "canonical-integrity artifact hash in registry must catch the file modification"))
-        (finally
-          (delete-tree! root))))))
+   (testing "negative: delete source_creation_hash"
+     (let [root (temp-root)]
+       (try
+         (fixture! root)
+         (write-json! (io/file root "benchmark/assertions/canonical-integrity.json")
+                      (let [ci (read-json! (io/file root "benchmark/assertions/canonical-integrity.json"))]
+                        (dissoc ci "source_creation_hash")))
+         (let [checks (get-in (verify/verify! root) ["checks"])]
+           (is (false? (get checks "canonical-integrity-source-creation"))
+               "deleting source_creation_hash while source_creation string remains should fail")
+           (is (false? (get checks "artifact-registry-recalculated"))
+               "canonical-integrity artifact hash in registry must catch the file modification"))
+         (finally
+           (delete-tree! root)))))
+   (testing "negative: replace source_creation provenance without updating hash"
+     (let [root (temp-root)]
+       (try
+         (fixture! root)
+         (write-json! (io/file root "benchmark/assertions/canonical-integrity.json")
+                      (let [ci (read-json! (io/file root "benchmark/assertions/canonical-integrity.json"))]
+                        (assoc ci "source_creation" "out-of-band")))
+         (let [checks (get-in (verify/verify! root) ["checks"])]
+           (is (false? (get checks "canonical-integrity-source-creation"))
+               "provenance changed without updating hash should fail the check"))
+         (finally
+           (delete-tree! root)))))
+   (testing "negative: update both source_creation and hash but evidence disagrees"
+     (let [root (temp-root)]
+       (try
+         (fixture! root)
+         (let [ci (read-json! (io/file root "benchmark/assertions/canonical-integrity.json"))
+               new-hash (str (hash-ref/sha256-ref
+                            (canonical/hash-with-intent {:hash/intent :source-creation}
+                                                        {:source/creation {:provenance :out-of-band}})))]
+           (write-json! (io/file root "benchmark/assertions/canonical-integrity.json")
+                        (assoc ci "source_creation" "out-of-band"
+                               "source_creation_hash" new-hash))
+           (let [checks (get-in (verify/verify! root) ["checks"])]
+             (is (false? (get checks "artifact-registry-recalculated"))
+                 "canonical-integrity.json modified so its registry hash must mismatch")
+             (is (false? (get checks "canonical-integrity-source-creation"))
+                 "evidence says in-band but stored hash is for out-of-band")))
+         (finally
+           (delete-tree! root)))))
+   (testing "negative: unsupported source_creation value"
+     (let [root (temp-root)]
+       (try
+         (fixture! root)
+         (let [ci (read-json! (io/file root "benchmark/assertions/canonical-integrity.json"))]
+           (write-json! (io/file root "benchmark/assertions/canonical-integrity.json")
+                        (assoc ci "source_creation" "unknown")))
+         (let [checks (get-in (verify/verify! root) ["checks"])]
+           (is (false? (get checks "canonical-integrity-source-creation"))
+               "unsupported source_creation value with stale hash should fail"))
+          (finally
+            (delete-tree! root))))))
 
 (deftest write-is-conditionally-idempotent
   (let [root (temp-root)
@@ -229,8 +271,8 @@
   (let [root (temp-root)]
     (try (fixture! root) (spit (io/file root "benchmark/executions/exec-1/input/scenario.edn") "tampered")
          (is (false? (get-in (verify/verify! root) ["checks" "input-set-recalculated"])))
-         (finally (delete-tree! root)))))
-
+         (finally
+           (delete-tree! root)))))
 (deftest replace-draft-is-repeatable-and-idempotent
   (let [root (temp-root)
         draft-file (io/file root "manifest/draft-policy.json")]

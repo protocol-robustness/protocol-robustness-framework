@@ -317,7 +317,7 @@
    The result is a hash-committed mathematical evidence envelope. It contains
    no account, token, participant, or transition semantics."
   [{:keys [available rows rounding-policy tie-break-policy redistribution-policy
-           on-progress progress-atom parallelism]
+           on-progress progress-atom parallelism execution/quiescence-timeout-seconds]
     :or {rounding-policy :largest-remainder
          tie-break-policy :canonical-row-id
          redistribution-policy :unallocated}
@@ -377,7 +377,8 @@
                               :on-progress on-progress
                               :progress-atom progress-atom
                               ;; Operational only: omitted from canonical-request.
-                              :parallelism parallelism}
+                              :parallelism parallelism
+                              :execution/quiescence-timeout-seconds quiescence-timeout-seconds}
           allocation (case redistribution-policy
                        :unallocated
                        (payoffs/allocate-pro-rata allocation-request)

@@ -96,7 +96,7 @@
    mechanism's effective demand for a row is `min(requested_i, cap_i)` and the
    aggregate filled total is `min(available, Σ effective-demand)` (see
    calculate-fulfillment-pro-rata)."
-  [available-liquidity rows rounding-policy & [progress-atom parallelism on-progress]]
+  [available-liquidity rows rounding-policy & [progress-atom parallelism on-progress quiescence-timeout-seconds]]
   (let [row-id (fn [row]
                  [:shared-withdrawal-row
                   (str (:obligation-id row))
@@ -135,7 +135,8 @@
           :on-progress on-progress
           ;; Runtime-only execution setting; excluded by pro-rata/allocation
           ;; from the canonical request, evidence, and roots.
-          :parallelism parallelism})
+          :parallelism parallelism
+          :execution/quiescence-timeout-seconds quiescence-timeout-seconds})
         by-id (into {} (map (juxt :row/id identity) (:rows mechanism-result)))
         allocations (mapv (fn [row]
                             (let [allocated-row (get by-id (row-id row))]
@@ -245,6 +246,7 @@
         on-progress (:on-progress opts)
          ;; Runtime-only; never copied into the decision policy or evidence.
         parallelism (:execution/claimant-parallelism opts)
+        quiescence-timeout-seconds (:execution/quiescence-timeout-seconds opts)
         total (if rows
                 (reduce + 0 (map #(long (:owed %)) rows))
                 (sum-requested requested))
@@ -265,7 +267,7 @@
         ;; Canonical shared-withdrawal rows use the public mechanism boundary.
         ;; The compatibility view below preserves existing propagation evidence.
         (let [rounding-policy (:rounding-policy policy :floor-and-carry)
-              alloc (allocate-shared-withdrawal-rows available-liquidity rows rounding-policy progress-atom parallelism on-progress)
+              alloc (allocate-shared-withdrawal-rows available-liquidity rows rounding-policy progress-atom parallelism on-progress quiescence-timeout-seconds)
               filled (into {} (map (fn [a] [(:id a) (:allocated a)]) (:allocations alloc)))
               row-evidence (mapv #(row-evidence % filled) rows)
               deferred (into {} (map (fn [r] [(:key r) (:deferred r)]) row-evidence))
@@ -613,7 +615,7 @@
                    :fill-mode mode}}
        (case mode
          :pro-rata        (calculate-fulfillment-pro-rata available requested policy
-                                                          (select-keys opts [:rows :progress-atom :execution/claimant-parallelism]))
+                                                          (select-keys opts [:rows :progress-atom :execution/claimant-parallelism :execution/quiescence-timeout-seconds]))
          :principal-first (calculate-fulfillment-principal-first available requested policy
                                                                  (select-keys opts [:rows :progress-atom]))
          :waterfall       (calculate-fulfillment-waterfall available requested policy

@@ -85,7 +85,8 @@
    :allocation-issue-certificate 'resolver-sim.commands.allocation/issue-certificate
    :researcher-disagree 'resolver-sim.commands.researcher/disagree
    :researcher-approve 'resolver-sim.commands.researcher/approve
-   :researcher-check 'resolver-sim.commands.researcher/check})
+   :researcher-check 'resolver-sim.commands.researcher/check
+   :check-aggregate 'resolver-sim.commands.check-aggregate/run})
 
 (def ^:private sew-command-ids
   #{:benchmark-validate :benchmark-validate-jar :benchmark-smoke
