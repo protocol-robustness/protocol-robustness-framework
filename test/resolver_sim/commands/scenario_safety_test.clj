@@ -34,3 +34,40 @@
         (is (= 1 (count (:findings result))))
         (is (not (re-find #"must-not-appear-in-report" (pr-str result)))))
       (finally (delete-tree! root)))))
+
+(deftest scan-content-findings-detects-legacy-write-back-key
+  (let [body "{:current-amount-write-back-verified? true :allocation/positive-amount-applied? true}"
+        findings (safety/scan-content-findings body)]
+    (is (some #(= :current-amount-write-back-verified? (:rule/id %)) findings)
+        "scanner must detect the legacy v1 overclaiming key")
+    (is (every? #(not= "current-amount-write-back-verified?" (:match/value-commitment %)) findings)
+        "matched content must not leak into the value-commitment field")))
+
+(deftest scan-content-findings-detects-legacy-key-in-json
+  (let [body "{\"current-amount-write-back-verified?\": true}"
+        findings (safety/scan-content-findings body)]
+    (is (some #(= :current-amount-write-back-verified? (:rule/id %)) findings)
+        "scanner matches the legacy key regardless of serialization (JSON vs EDN)")))
+
+(deftest public-scan-blocks-legacy-write-back-key
+  (let [root (.toFile (java.nio.file.Files/createTempDirectory "scenario-public-wb-" (make-array java.nio.file.attribute.FileAttribute 0)))]
+    (try
+      (spit (io/file root "evidence.edn") "{:current-amount-write-back-verified? true}")
+      (is (thrown? clojure.lang.ExceptionInfo (safety/scan-public-bundle! root))
+          "public bundle containing the legacy key must be blocked")
+      (finally (delete-tree! root)))))
+
+(deftest internal-scan-retains-legacy-write-back-key
+  (let [root (.toFile (java.nio.file.Files/createTempDirectory "scenario-internal-wb-" (make-array java.nio.file.attribute.FileAttribute 0)))]
+    (try
+      (spit (io/file root "evidence.edn") "{:current-amount-write-back-verified? true}")
+      (let [result (safety/scan-internal-bundle! root)
+            wb-finding (some #(when (= :current-amount-write-back-verified? (:rule/id %)) %)
+                             (:findings result))]
+        (is (= :internal-retention (:decision result))
+            "internal bundle with legacy key is retained, not published")
+        (is (some? wb-finding)
+            "a structural finding is produced for the legacy key")
+        (is (= "v1" (:rule/version wb-finding))
+            "the legacy key rule version is v1"))
+      (finally (delete-tree! root)))))

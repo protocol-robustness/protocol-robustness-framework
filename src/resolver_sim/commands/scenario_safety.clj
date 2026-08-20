@@ -44,19 +44,44 @@
     :label "npm-token"
     :pattern #"(?i)npm_[A-Za-z0-9]{36}"}])
 
+(def ^:private structural-rules
+  "Structural findings rules that scan artifact content for legacy or
+    problematic patterns beyond secret detection. Each rule is a map with
+    :rule/id, :rule/version, :label, and :pattern (regex).
+
+    The :current-amount-write-back-verified? rule detects the v1
+    overclaiming key whose name implies per-obligation write-back
+    verification but actually carries only the aggregate operational
+    write-back pass/fail status. Classified per sentinel.clj as
+    :sensitivity/internal (fail-closed level) with
+    :sensitivity/unknown (no evidence sensitivity established) and reason
+    :legacy-v1-operational-write-back-pass."
+  [{:rule/id :current-amount-write-back-verified?
+    :rule/version "v1"
+    :label "legacy-v1-operational-write-back-pass"
+    :pattern #"current-amount-write-back-verified\?"}])
+
+(def ^:private all-finding-rules
+  "All sensitivity finding rules: secret-scanning rules concatenated with
+    structural rules. Both are scanned by sensitivity-findings and
+    scan-content-findings so the sentinel authority can derive findings
+    from artifact content rather than trusting caller-supplied findings."
+  (concat secret-rules structural-rules))
+
 (def ^:private ruleset-hash
   (delay
     (hc/hash-with-intent {:hash/intent :evidence-record}
-                         {:ruleset/id "secret-scanner"
-                          :ruleset/version "v2"
+                         {:ruleset/id "sensitivity-scanner"
+                          :ruleset/version "v3"
                           :rules (mapv (fn [r]
                                          {:rule/id (:rule/id r)
                                           :rule/version (:rule/version r)
                                           :pattern (str (:pattern r))})
-                                       secret-rules)})))
+                                       all-finding-rules)})))
 
 (defn secret-scanner-ruleset-hash
-  "Deterministic hash of the secret-scanner ruleset for provenance binding."
+  "Deterministic hash of the sensitivity-scanner ruleset (secret + structural
+    rules) for provenance binding."
   []
   @ruleset-hash)
 
@@ -111,11 +136,12 @@
                                                                         :match/value-commitment
                                                                         (when match-line
                                                                           (:value-commitment (nonced-hash match-line)))})))
-                                                                 secret-rules))))
+                                                                 all-finding-rules))))
                                                vec)))
 
 (defn scan-content-findings
-  "Scan a single string body for secret-scanner patterns and return findings.
+  "Scan a single string body for sensitivity findings (secrets + structural
+   legacy patterns) and return findings.
 
    Used by the out-of-process sentinel authority to derive sensitivity
    findings from the hash-verified artifact disclosure projection itself,
@@ -123,7 +149,7 @@
    tokens and salted value commitments so no matched content leaks."
   [body]
   (reset! finding-counter 0)
-  (->> secret-rules
+  (->> all-finding-rules
        (keep (fn [rule]
                (when (re-find (:pattern rule) body)
                  (let [match-line (first (filter #(re-find (:pattern rule) %) (str/split-lines body)))]

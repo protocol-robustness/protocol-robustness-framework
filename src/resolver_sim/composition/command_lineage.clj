@@ -273,24 +273,24 @@
   (when-not (keyword? action)
     (throw (ex-info ":command/action must be a keyword"
                     {:reason :invalid-action :action action})))
-   (doseq [root [:command/input-state-root :command/resulting-state-root]]
-     (when-not (hash-ref/valid-sha256-ref? (get opts root))
-       (throw (ex-info (str (name root) " must be a canonical sha256 reference")
-                       {:reason :invalid-state-root
-                        :field root
-                        :value (get opts root)}))))
-    (let [canonicalized (canonical-members built-with-includes)
-          ss-check (verify-shared-state-invariant
-                     {:command/built-with-includes canonicalized
-                      :command/input-state-root input-state-root})]
-      (when-not (:valid? ss-check)
-        (throw (ex-info (str "shared-state invariant violated: " (:detail ss-check))
-                        (assoc ss-check :members canonicalized)))))
-    (let [base {:command/schema command-schema
-               :command/action action
-               :command/input-state-root input-state-root
-               :command/resulting-state-root resulting-state-root
-               :command/built-with-includes (canonical-members built-with-includes)}]
+  (doseq [root [:command/input-state-root :command/resulting-state-root]]
+    (when-not (hash-ref/valid-sha256-ref? (get opts root))
+      (throw (ex-info (str (name root) " must be a canonical sha256 reference")
+                      {:reason :invalid-state-root
+                       :field root
+                       :value (get opts root)}))))
+  (let [canonicalized (canonical-members built-with-includes)
+        ss-check (verify-shared-state-invariant
+                  {:command/built-with-includes canonicalized
+                   :command/input-state-root input-state-root})]
+    (when-not (:valid? ss-check)
+      (throw (ex-info (str "shared-state invariant violated: " (:detail ss-check))
+                      (assoc ss-check :members canonicalized)))))
+  (let [base {:command/schema command-schema
+              :command/action action
+              :command/input-state-root input-state-root
+              :command/resulting-state-root resulting-state-root
+              :command/built-with-includes (canonical-members built-with-includes)}]
     (assoc base :command/root (command-root base))))
 
 (defn command-root-valid?
@@ -432,7 +432,7 @@
                             :reason :join-state-mismatch
                             :expected left-res
                             :actual join})))
-      {:valid? (empty? @issues) :issues (vec @issues)}))
+    {:valid? (empty? @issues) :issues (vec @issues)}))
 
 ;; ── concatenation chain ──────────────────────────────────────────────────────────
 
@@ -449,7 +449,7 @@
         (if (>= i (dec (count cmds)))
           (persistent! acc)
           (let [concat (build-concatenation (nth cmds i) (nth cmds (inc i)))]
-             (recur (inc i) (conj! acc concat))))))))
+            (recur (inc i) (conj! acc concat))))))))
 
 (defn concatenation-chain-root
   "Content-addressed root committing an ordered vector of concatenation roots.
@@ -626,7 +626,7 @@
 ;; ── lineage verification ────────────────────────────────────────────────────────
 
 (defn verify-lineage
-   "Verify an ordered lineage of command records. The final element may be a
+  "Verify an ordered lineage of command records. The final element may be a
    cancel-and-terminate terminator. Returns
    {:valid? bool :status kw :errors [...] :append? bool
     :concatenation-roots [...] :concatenation-chain-root sha or nil}.
@@ -688,7 +688,7 @@
                                     :root (:command/root elem)}))
               (when-let [hr head-result]
                 (let [elem-input (:command/input-state-root elem)
-                        elem-shared (shared-state-ref elem)]
+                      elem-shared (shared-state-ref elem)]
                   (when-not (= hr elem-input)
                     (swap! errors conj {:issue :stale-termination-basis
                                         :reason :stale-termination-basis
@@ -714,11 +714,11 @@
                                   :input (:command/input-state-root elem)}))))
         (recur (next es) (:command/resulting-state-root elem))))
     (let [status (if (seq @errors)
-                    (or (:reason (first @errors)) :invalid)
-                    (cond
-                      (true? @replayed?) :already-terminated
-                      (some? @terminal-root) :terminated
-                      :else :ok))
+                   (or (:reason (first @errors)) :invalid)
+                   (cond
+                     (true? @replayed?) :already-terminated
+                     (some? @terminal-root) :terminated
+                     :else :ok))
           concat-result
           (when (and (empty? @errors) (not @replayed?))
             (let [cmds (vec @commands)]

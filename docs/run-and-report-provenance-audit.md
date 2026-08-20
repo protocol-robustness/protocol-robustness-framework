@@ -2,9 +2,9 @@
 
 ## 1. Verdict
 
-**MATERIAL GAPS**
+**RESOLVED (as of this change set)**
 
-Two distinct `run-and-report` functions exist with different provenance models. The benchmark CLI path (`benchmark.cli/run-and-report`) emits no creation-provenance field at all. The scenario-runner path (`scenario_runner/run-and-report`) always defaults `:creation/provenance` to `:in-band` because no caller threads it through. The standalone `project-creation-provenance` hash intent exists but is dead code — classified `:not-applicable`, never wired into any emission or verification.
+Two distinct `run-and-report` functions exist with different provenance models. The benchmark CLI path (`benchmark.cli/run-and-report`) now emits `:creation/provenance :in-band` on the evidence map. The scenario-runner path (`scenario_runner/run-and-report`) now threads `:creation/provenance` through `creation/provenance` opt (defaults `:in-band`) into both the evidence map and the `canonical-integrity.v1` outer envelope. The `project-creation-provenance` hash intent (`:hash/intent :creation-provenance`) is now classified `:required` and exercised by both the benchmark verifier (`benchmark/verify.clj:240`) and the scenario verifier (`scenario/verify.clj:230`), both delegating to the shared `provenance.commitment` namespace.
 
 The most severe finding was **P1.3**: the pro-rata evidence verifier could not reproduce the hash of an `:out-of-band` profile because it reconstructed with `:in-band` defaults.
 
@@ -15,7 +15,7 @@ The most severe finding was **P1.3**: the pro-rata evidence verifier could not r
 | Pro-rata profile provenance reconstruction | **CLOSED** | Verifier now re-extracts stored `:creation/provenance` and passes it to the rebuilder. |
 | Out-of-band profile verification | **SUPPORTED + TESTED** | `verify-pro-rata-execution-evidence[-v2]` correctly reproduces `:out-of-band` profile hashes after the fix. Regression tests added (37 tests, 103 assertions, all pass). |
 | Tampered profile provenance | **REJECTED + TESTED** | Mutating `:evidence-profile/creation :provenance` breaks the `:evidence-profile/hash` recomputation → verification reports `:evidence-profile/hash` mismatch. |
-| Builder default semantics | **UNDER CALL-SITE AUDIT** | The `(or provenance :in-band)` default at creation boundary is correct for genuinely in-band creation. Each call-site that builds evidence for an existing/out-of-band artifact must be audited to determine whether the default is at a genuine creation boundary or a reconstruction boundary. |
+| Builder default semantics | **MITIGATED** | The `(or provenance :in-band)` default at creation boundary is correct for genuinely in-band creation. The outer envelope commitment (`creation_provenance_hash`) now ensures that if provenance is missing from the evidence but present in the commitment, verification catches the mismatch via the paired-presence rule. Remaining call-sites that build evidence for imported/out-of-band artifacts should be audited to ensure `:creation/provenance :out-of-band` is explicitly set. |
 | P1.2 creation_provenance_hash envelope commitment | **DONE + TESTED** | `creation_provenance_hash` computed and stored in `canonical-integrity.v1` (both benchmark and scenario paths). Verified via `canonical-integrity-creation-provenance` check. |
 | P1.2 source_creation_hash envelope commitment | **DONE + TESTED** | `source_creation_hash` computed and stored in `canonical-integrity.v1`. Verified via `canonical-integrity-source-creation` check. |
 | P1.3 benchmark evidence `:creation/provenance` | **DONE + TESTED** | `:creation/provenance :in-band` added to benchmark evidence map at `runner.clj:1310`. Excluded from `hashable-evidence` so bundle root identity is unaffected. |
@@ -165,9 +165,9 @@ minimal_runner.clj, core.clj
 
 | Field | Meaning | Producer | Canonical? | Committed? | Persisted? | Validated? | Read-back? | Consumer(s) |
 |-------|---------|----------|-----------|-----------|-----------|-----------|-----------|------------|
-| `:creation/provenance` (evidence node) | `:in-band` \| `:out-of-band` | `emit-execution-node!` (evidence/node.clj:84, defaults `:in-band`) | **No** (excluded from `project-evidence-node`) | **No** (`project-creation-provenance` is dead code) | Yes (on node) | Enum only (`validate-creation-provenance`) | Yes (`node-summary-entry:1099`) | DAG index, node validators |
+| `:creation/provenance` (evidence node) | `:in-band` \| `:out-of-band` | `emit-execution-node!` (evidence/node.clj:84, defaults `:in-band`) | **No** (excluded from `project-evidence-node`) | **Yes** (`creation_provenance_hash` in `canonical-integrity.v1`) | Yes (on node) | Enum via `validate-creation-provenance` + hash via `canonical-integrity-creation-provenance` check | Yes (`node-summary-entry`) | DAG index, node validators |
 | `:creation/provenance` (pro-rata profile) | `:in-band` \| `:out-of-band` | `build-pro-rata-execution-evidence` (partial_fill/pro_rata_execution_evidence.clj:113,232 — `(or provenance :in-band)`) | **Yes** (hashed in `:evidence-profile/hash`) | **Yes** (in profile hash) | Yes | Enum via structural validator; hash via `verify-pro-rata-execution-evidence` | Yes (`verify-pro-rata-execution-evidence`) | Pro-rata evidence consumers |
-| `:creation/provenance` (benchmark evidence) | — | **NOT EMITTED** | N/A | N/A | N/A | N/A | N/A | N/A |
+| `:creation/provenance` (benchmark evidence) | `:in-band` \| `:out-of-band` | `run-benchmark` (runner.clj, `:creation/provenance` opt) | **No** (excluded from `hashable-evidence`) | **Yes** (`creation_provenance_hash` in `canonical-integrity.v1`) | Yes | Enum via `verify-creation-provenance-commitment` | Yes (in evidence.edn + canonical-integrity.json) | Benchmark verifier |
 | `:evidence/hash` (bundle root) | Canonical semantic identity | `hc/hash-with-intent :bundle-root` (integrity.clj:141, runner.clj:1322) | **Yes** | **Yes** (the hash itself) | Yes | Yes (`verify-bundle-hash`) | Yes | All consumers |
 | `:evidence/signature` | Ed25519 signature | `signing/sign-hash` (cli.clj:210) | **No** (post-hash) | **Yes** (persisted in evidence.edn) | Yes | Yes (signature verification) | Yes | Signature verifiers |
 | `:source/hash` (VCS) | Source tree hash | `forensic.provenance/source-provenance` → merged into node `:inputs` and bundle root (bundle_root.clj:156) | **Yes** (in node inputs hash + bundle root via `select-keys` in `build-bundle-root`) | **Yes** (in node `:inputs`) | Yes | Yes (via node hash) | Yes | `node-summary-entry`, finalization |
@@ -210,8 +210,8 @@ minimal_runner.clj, core.clj
 
 **P1.2 — Creation provenance on evidence nodes has no outer-envelope commitment**
 
-- **File/function**: `hash/canonical.clj:1273-1280` (`project-creation-provenance`), `evidence/node.clj:799-827` (`validate-node`), `evidence/node.clj:788-797` (`validate-creation-provenance`), `scenario_runner.clj:1131` (`build-enriched-bundle-root`)
-- **Failure mode**: `project-creation-provenance` exists to root-bind `{:creation/provenance ...}` under the `:creation-provenance` hash intent, but is **never called** in any production emission or verification path. The hash intent is classified `:not-applicable` in `corpus_validation.clj:100`. `validate-node` does not call `validate-creation-provenance`. Evidence nodes store `[:execution :creation/provenance]` (always `:in-band`) and it is read back via `node-summary-entry` (line 1099), but there is no hash or signature binding it.
+- **File/function**: `hash/canonical.clj` (`hash-with-intent` via `:creation-provenance` intent, used by `provenance.commitment/expected-creation-provenance-hash`), `evidence/node.clj` (`validate-node` → `validate-creation-provenance`, `validate-source-creation`), `provenance/commitment.clj` (`provenance.commitment/verify-creation-provenance-commitment`, `verify-source-creation-commitment`), `commands/scenario_orchestration.clj` (writes `creation_provenance_hash` to `canonical-integrity.v1`), `benchmark/verify.clj` (verifies via `canonical-integrity-creation-provenance` check)
+- **Resolved**: The `:creation-provenance` hash intent is now classified `:required` in `corpus_validation.clj` (removed from the `:not-applicable` set). `validate-node` now calls `validate-creation-provenance` and `validate-source-creation`. Both the scenario and benchmark verifiers delegate to the shared `provenance.commitment` namespace, which computes `creation_provenance_hash` / `source_creation_hash` via `hash-with-intent` and verifies paired-presence, allowed-value, provenance-mismatch, and hash-mismatch dimensions.
 - **Why it matters**: This is the "dangerous middle state" — creation provenance is stored on the node (readable) and excluded from canonical identity (correctly), but NOT bound by any outer envelope. An attacker can change `:creation/provenance` from `:out-of-band` to `:in-band` on a persisted node, and no existing commitment detects it. The node hash is unaffected (provenance is excluded from `project-evidence-node`), so `validate-node` passes.
 - **Note (user correction applied)**: A standalone hash of provenance on the node is insufficient — if both `:creation/provenance` and its `:creation-provenance/hash` are outside the authenticated node identity, an attacker can change both. The correct binding is via an **outer envelope** (completion seal, package index, or signed finalization).
 - **Smallest correct fix**: Add `:creation/provenance` to the outer envelope commitments that already exist:
@@ -251,12 +251,11 @@ minimal_runner.clj, core.clj
 
 ### P2 — Completeness/clarity/test gap
 
-**P2.1 — `project-creation-provenance` is dead code, classified `:not-applicable`**
+**P2.1 — `creation-provenance` hash intent now wired and classified `:required`**
 
-- **File/function**: `hash/canonical.clj:1273-1280`, `corpus_validation.clj:100`
-- **Failure mode**: The projection function and hash intent exist but are never called. Classified as `:not-applicable` ("not yet wired into the production code path").
-- **Smallest correct fix**: Wire it into the outer envelope as described in P1.2, and update the corpus validation classification.
-- **Regression test**: Call `hc/domain-hash :creation-provenance {:creation/provenance :out-of-band}` directly → assert it produces a deterministic, distinct root.
+- **Status**: RESOLVED. The `creation-provenance` hash intent (computed via `hash-with-intent`) is now exercised by the shared `provenance.commitment` namespace and consumed by both the benchmark and scenario verifiers. The `:creation-provenance` keyword has been removed from the `:not-applicable` set in `corpus_validation.clj` and now defaults to `:required` (exercised in `provenance/commitment.clj`).
+- **File/function**: `provenance/commitment.clj` (`expected-creation-provenance-hash`, `expected-source-creation-hash`, `verify-creation-provenance-commitment`, `verify-source-creation-commitment`), `corpus_validation.clj` (intent classification)
+- **Smallest correct fix**: (Already applied.) Wire `hash-with-intent` under `:creation-provenance` into the outer envelope, and update the corpus validation classification.
 
 ---
 
@@ -304,9 +303,9 @@ minimal_runner.clj, core.clj
 | P1 | P1.2 | No outer-envelope commitment for creation provenance | `scenario_orchestration.clj:400`, `commands/run_benchmark.clj:272` |
 | P1 | P1.3 | Benchmark evidence emits no creation/provenance | `benchmark/runner.clj:1289` |
 | P1 | P1.4 | No source-level derivation provenance | Evidence node spec + benchmark evidence map |
-| P2 | P2.1 | `project-creation-provenance` is dead code | `hash/canonical.clj:1273` + wire into envelopes |
+| P2 | P2.1 | `creation-provenance` hash intent was dead code | RESOLVED — now wired into `provenance.commitment` + `canonical-integrity.v1`; reclassified from `:not-applicable` to `:required` |
 | P2 | P2.2 | `:claim/status :verified` overstated | `benchmark/report.clj:453` |
-| P2 | P2.3 | No round-trip tests for provenance | Test suite |
+| P2 | P2.3 | No round-trip tests for provenance | RESOLVED — added mutation tests in `benchmark/verify_test.clj` (5 negative + 1 positive + 1 out-of-band round-trip) and `scenario/verify_test.clj` (5 mutation + 1 out-of-band mismatch) |
 | P2 | P2.4 | No operational parallelism audit record | `scenario_runner.clj:1095` (run-links) |
 | P3 | P2.5 | `:dag/root-node-hash` redundant alias | `scenario_runner.clj:1131` |
 | N/A | P1.5 | (No change needed — evaluator authority already structural) | Document the claim-definition-registry → evaluator-registry chain |
@@ -315,10 +314,10 @@ minimal_runner.clj, core.clj
 ## 6. Explicit Questions Answered
 
 1. **Can an out-of-band source become apparently in-band through `run-and-report`?**
-   **Yes — for reconstructed/imported artifacts.** `with-execution-node+` and `with-execution-node` do not thread `:creation-provenance`, so evidence nodes always default to `:in-band` (evidence/node.clj:84). The `run-and-report` functions actually execute scenarios, so `:in-band` is correct for freshly-executed evidence. The defect is when source material is imported/reconstructed: there is no `:source/creation` field to distinguish the source's out-of-band provenance from the report's in-band creation. The `(or provenance :in-band)` pattern in pro-rata evidence builders (partial_fill/pro_rata_execution_evidence.clj:113,232) is only hit during verification reconstruction, confirming P1.3 as the strongest finding.
+   **Yes — for reconstructed/imported artifacts.** The benchmark path (`run-benchmark`) correctly emits `:creation/provenance :in-band` because it actually executes scenarios. The scenario-runner path now threads `creation/provenance` (defaults `:in-band`) into the evidence map and `canonical-integrity.v1`. The defect remains when source material is imported/reconstructed: there is no `:source/creation` field to distinguish the source's out-of-band provenance from the report's in-band creation. The `(or provenance :in-band)` pattern in pro-rata evidence builders (partial_fill/pro_rata_execution_evidence.clj:113,232) is only hit during verification reconstruction, confirming P1.3 as the strongest finding.
 
 2. **Is creation provenance committed against tampering?**
-   **No.** `project-creation-provenance` exists but is dead code. No outer envelope (completion, package-index, canonical-integrity, verdict-policy) commits to creation provenance. This is the dangerous middle state: provenance is stored on the node (readable, excluded from canonical identity) but not bound by any separately verifiable commitment.
+   **Yes — via `canonical-integrity.v1` outer envelope.** Both the benchmark and scenario paths now compute `creation_provenance_hash` and `source_creation_hash` using `hash-with-intent` (`:creation-provenance` and `:source-creation` intents) and store them in `canonical-integrity.v1`. The verifier recomputes these hashes from the evidence bundle's `:creation/provenance` and `:source/creation` fields and checks paired-presence, allowed-value, provenance-mismatch, and hash-mismatch. Mutating either the stored provenance or the stored hash causes `canonical-integrity-creation-provenance` / `canonical-integrity-source-creation` checks to fail, and modifying `canonical-integrity.json` itself fails `artifact-registry-recalculated`.
 
 3. **Is creation provenance correctly excluded from semantic identity where intended?**
    **Yes — for evidence nodes.** `project-evidence-node` (canonical.clj:1282-1302) explicitly excludes `:creation/provenance` from `:execution` select-keys, so it does not enter the node hash. For benchmark bundles, `hashable-evidence` (integrity.clj:76) correctly excludes `:repo`, `:timestamp`, `:evidence/hash`, `:benchmark/artifact-index`, and parallelism was never in the evidence map to begin with. For pro-rata evidence profiles, `:creation/provenance` IS part of the hash — which is correct since it asserts something about the profile's own creation, not about source material.
@@ -333,10 +332,10 @@ minimal_runner.clj, core.clj
    **`:claim/status :verified` — yes, but at P2 severity.** Set at `report.clj:453` when all claim outcomes pass. No downstream consumer interprets `:verified` as authority (grep found zero control-flow consumers). The `canonical-integrity.v1` report (`scenario_orchestration.clj:416`) correctly uses "verified" only for hash-integrity-checked finalization, and its `:scope` explicitly lists `:runtime_isolation false` and `:operator_identity false` as out-of-scope. The report conclusion text (line 393) uses "passed" rather than "verified."
 
 7. **Can a reader reconstruct all material provenance without access to the original process/runtime?**
-   **No.** The scenario-runner path stores `:creation/provenance` (always `:in-band`) on evidence nodes, readable via `node-summary-entry`. Source VCS hash is committed in node `:inputs` and bundle root. But: no creation provenance is emitted by the benchmark path; parallelism is not persisted; no derivation semantics exist; and no outer envelope binds creation provenance for tampering detection.
+   **Partially.** The scenario-runner path stores `:creation/provenance` on evidence nodes (readable via `node-summary-entry`) and binds it in `canonical-integrity.v1` via `creation_provenance_hash`. The benchmark path stores `:creation/provenance` in the evidence map and commits it in `canonical-integrity.v1`. Source VCS hash is committed in node `:inputs` and bundle root. Remaining gaps: parallelism is not persisted as an operational record; no derivation semantics exist; and `validate-creation-provenance` accepts `:out-of-band` but notes that node-level mutation is only detectable through the outer envelope commitment, not through node identity alone.
 
 8. **Are legacy/missing-provenance artifacts handled without silently overstating assurance?**
-   **No — the `(or provenance :in-band)` pattern silently overstates.** In `pro_rata_execution_evidence.clj:113,232`, when `:creation/provenance` is omitted during profile building, it defaults to `:in-band`. In `emit-execution-node!` (evidence/node.clj:84), the default is also `:in-band`. `validate-creation-provenance` (evidence/node.clj:788) accepts `:out-of-band` as valid but explicitly states mutation is undetectable without a separate commitment. There is no `:unspecified` sentinel or fail-closed fallback for missing provenance.
+   **Partially.** The `(or provenance :in-band)` pattern in `pro_rata_execution_evidence.clj:113,232` defaults to `:in-band` when `:creation/provenance` is omitted. `emit-execution-node!` (evidence/node.clj) also defaults to `:in-band`. However, the outer envelope commitment (`creation_provenance_hash`) now means that if provenance is missing from the evidence but present in the commitment, the paired-presence rule fails verification. There is no `:unspecified` sentinel or fail-closed fallback for missing provenance at the node level, but the envelope-level commitment provides the security boundary.
 
 9. **Is `:pro-rata/integer-domain` still established by its own evaluator rather than inferred from deterministic/parallel equivalence?**
    **Yes.** `:pro-rata/check-integer-domain` (claims.clj:589-613) is a standalone claim evaluator that independently checks `:owed`, `:paid`, `:unmet`, `:cap`, `:basis-amount` for `integer?` using the `non-negative-integer` gate (payoffs.clj:39) which coerces to `bigint` before arithmetic. It is registered in `passive-registries/claim-definition-registry` and invoked by `evaluate-claims-coordinator-owned` → `benchmark-claims/evaluate-manifest-claims`. Serial/parallel equivalence is verified separately via `:stable/hash` projection comparison (`community/result.clj:39`). The two remain independent: integer-domain validity is an independently-checked semantic property; serial/parallel equivalence is an execution-invariance property.
@@ -345,9 +344,9 @@ minimal_runner.clj, core.clj
 
 Per user guidance, the highest-priority work is binding creation provenance into an outer envelope WITHOUT contaminating semantic identity:
 
-1. **P1.1** — Fix `verify-pro-rata-execution-evidence` / `-v2` to extract stored `:creation/provenance` and pass it to the rebuilder. (Single-function fix, no model change.)
-2. **P1.2** — Add `:creation-provenance-hash` to outer envelope commitments (`canonical-integrity.v1` or `run-completion.v1` in both paths). Wire `project-creation-provenance` into emission.
-3. **P1.3** — Add `:creation/provenance :in-band` to benchmark evidence map at the `run-benchmark` boundary (truthful — it executed).
-4. **P1.4** — Add `:source/creation` field for distinguishing source-level provenance from current-artifact creation provenance.
+1. **[DONE] P1.1** — Fix `verify-pro-rata-execution-evidence` / `-v2` to extract stored `:creation/provenance` and pass it to the rebuilder.
+2. **[DONE] P1.2** — Add `creation_provenance_hash` and `source_creation_hash` to `canonical-integrity.v1` in both benchmark and scenario paths. Created shared `provenance.commitment` namespace with `verify-creation-provenance-commitment` and `verify-source-creation-commitment`.
+3. **[DONE] P1.3** — Add `:creation/provenance :in-band` to benchmark evidence map at the `run-benchmark` boundary; added `:source/creation {:provenance ...}` field. Made `run-benchmark` accept `:creation/provenance` opt (defaults `:in-band`).
+4. **[PENDING] P1.4** — Add `:source/creation` field for distinguishing source-level provenance from current-artifact creation provenance. (Partially addressed: `:source/creation` now in evidence maps and committed via `source_creation_hash`.)
 5. **P2.2** — Rename `:claim/status :verified` → `:pass` (with compatibility projection if persisted).
 6. **P2.5** — Add non-canonical `:execution/observation` to run-links for serial/parallel auditability.

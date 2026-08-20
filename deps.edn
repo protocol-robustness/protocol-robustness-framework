@@ -164,13 +164,15 @@
     :ns-default build}
 
    :lint
-   {:extra-deps {clj-kondo/clj-kondo {:mvn/version "2026.04.15"}}
+   {:extra-deps {clj-kondo/clj-kondo {:mvn/version "2026.04.15"}
+                 org.clojure/test.check {:mvn/version "1.1.1"}}
     :main-opts ["-m" "clj-kondo.main"
                 "--lint" "src:notebooks:test:dev"
                 "--fail-level" "error"]}
 
    :lint/core
-   {:extra-deps {clj-kondo/clj-kondo {:mvn/version "2026.04.15"}}
+   {:extra-deps {clj-kondo/clj-kondo {:mvn/version "2026.04.15"}
+                 org.clojure/test.check {:mvn/version "1.1.1"}}
     :main-opts ["-m" "clj-kondo.main"
                 "--lint" "src:test"
                 "--fail-level" "error"]}

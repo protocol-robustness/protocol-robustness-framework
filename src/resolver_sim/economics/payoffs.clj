@@ -136,14 +136,14 @@
   ([parallelism quiescence-timeout-seconds f values]
    (let [values (vec values)
          budgeted (budget/current)]
-    (if budgeted
-      (let [acquired (budget/acquire-many! parallelism)]
-        (try
-          (if (< acquired 2)
-            (mapv f values)
-            (run-claimant-tasks! acquired quiescence-timeout-seconds f values))
-          (finally
-            (budget/release-many! acquired))))
+     (if budgeted
+       (let [acquired (budget/acquire-many! parallelism)]
+         (try
+           (if (< acquired 2)
+             (mapv f values)
+             (run-claimant-tasks! acquired quiescence-timeout-seconds f values))
+           (finally
+             (budget/release-many! acquired))))
        (if (<= parallelism 1)
          (mapv f values)
          (run-claimant-tasks! parallelism quiescence-timeout-seconds f values))))))
