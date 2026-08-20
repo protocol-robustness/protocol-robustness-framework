@@ -406,7 +406,7 @@
 
 (defn- invoke! [benchmark-id {:keys [output key scenario-output-dir benchmark-index-path execution-plan-path
                                      parallelism chunk-size claimant-parallelism claimant-parallel-threshold
-                                     budget quiescence-timeout-seconds]}]
+                                     budget quiescence-timeout-seconds creation/provenance]}]
   (let [benchmark-runner (requiring-resolve 'resolver-sim.benchmark.cli/run-and-report)
         write-evidence (requiring-resolve 'resolver-sim.benchmark.runner/write-evidence)
         benchmark-artifact-dir (some-> output io/file .getParent)
@@ -422,7 +422,8 @@
                                                  :execution/claimant-parallelism claimant-parallelism
                                                  :execution/claimant-parallel-threshold claimant-parallel-threshold
                                                  :execution/budget budget
-                                                 :execution/quiescence-timeout-seconds quiescence-timeout-seconds}))]
+                                                 :execution/quiescence-timeout-seconds quiescence-timeout-seconds
+                                                 :creation/provenance provenance}))]
     (when-let [evidence (:evidence result)]
       (write-evidence evidence output))
     result))

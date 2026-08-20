@@ -11,6 +11,7 @@
             [resolver-sim.hash.reference :as hash-ref]
             [resolver-sim.io.paths :as paths]
             [resolver-sim.run.verdict-policy :as verdict-policy]
+            [resolver-sim.provenance.commitment :as prov-commit]
             [resolver-sim.validation.integration.artifact-registry :as artifact-registry]
             [resolver-sim.yield.partial-fill :as partial-fill]))
 
@@ -194,6 +195,27 @@
                   (every? valid-node? mechanism-nodes))
      :node-count (count mechanism-nodes)}))
 
+(defn- evidence-node-files [root]
+  (->> (file-seq (io/file root "scenarios"))
+       (filter #(.isFile %))
+       (filter #(and (= "evidence-nodes" (.getName (.getParentFile %)))
+                     (.endsWith (.getName %) ".edn")))
+       (sort-by #(.getPath %))
+       vec))
+
+(defn- extract-evidence-provenance
+  "Read the first available evidence node to extract the run's
+  :creation/provenance and :source/creation values, mirroring what
+  scenario_orchestration binds into canonical-integrity.v1."
+  [root]
+  (let [files (evidence-node-files root)]
+    (if (empty? files)
+      {:creation/provenance :in-band
+       :source/creation {:provenance :in-band}}
+      (let [node (edn/read-string (slurp (first files)))]
+        {:creation/provenance (get-in node [:execution :creation/provenance] :in-band)
+         :source/creation (get-in node [:execution :source/creation] {:provenance :in-band})}))))
+
 (defn- verify-canonical-integrity [root completion]
   (let [integrity-file (io/file root "manifest/canonical-integrity.json")
         deferred-file (io/file root "manifest/forensic-claims-status.json")
@@ -204,6 +226,15 @@
        :checks {"assurance-files-readable" false}}
       (let [integrity (read-json integrity-file)
             deferred (read-json deferred-file)
+            evidence-provenance (extract-evidence-provenance root)
+            creation-result (prov-commit/verify-creation-provenance-commitment
+                             (:creation_provenance integrity)
+                             (:creation_provenance_hash integrity)
+                             (:creation/provenance evidence-provenance))
+            source-result (prov-commit/verify-source-creation-commitment
+                           (:source_creation integrity)
+                           (:source_creation_hash integrity)
+                           (:source/creation evidence-provenance))
             sub-checks {"schema-version" (= "canonical-integrity.v1" (:schema_version integrity))
                         "assurance-kind" (= "unsigned-canonical-integrity" (:assurance_kind integrity))
                         "status" (= "passed" (:status integrity))
@@ -214,12 +245,16 @@
                         "pre-assurance-registry-valid" (true? (get-in integrity [:checks :pre_assurance_registry_valid]))
                         "operator-identity-excluded" (false? (get-in integrity [:scope :operator_identity]))
                         "runtime-isolation-excluded" (false? (get-in integrity [:scope :runtime_isolation]))
+                        "canonical-integrity-creation-provenance" (:valid? creation-result)
+                        "canonical-integrity-source-creation" (:valid? source-result)
                         "forensic-schema-version" (= "forensic-claims-status.v1" (:schema_version deferred))
                         "forensic-status" (= "deferred" (:status deferred))
                         "forensic-reason-code" (= "unsigned-forensic-signing-not-configured" (:reason_code deferred))
                         "forensic-integrity-ref" (= "manifest/canonical-integrity.json" (:canonical_integrity_ref deferred))}]
         {:valid? (every? true? (vals sub-checks))
          :checks sub-checks
+         :creation-provenance-verification creation-result
+         :source-creation-verification source-result
          :integrity integrity
          :deferred deferred}))))
 
@@ -298,6 +333,8 @@
          "status" (if (every? true? (vals checks)) "passed" "failed")
          "checks" checks
          "canonical-integrity-checks" (:checks canonical-integrity-verification)
+         "canonical-integrity-creation-provenance-verification" (:creation-provenance-verification canonical-integrity-verification)
+         "canonical-integrity-source-creation-verification" (:source-creation-verification canonical-integrity-verification)
          "run_id" (:run_id completion)}))
     (catch Exception error
       {"schema_version" "scenario-verification.v1"

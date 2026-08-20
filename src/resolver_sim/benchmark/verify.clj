@@ -10,6 +10,7 @@
             [resolver-sim.io.paths :as paths]
             [resolver-sim.hash.canonical :as canonical]
             [resolver-sim.hash.reference :as hash-ref]
+            [resolver-sim.provenance.commitment :as prov-commit]
             [resolver-sim.run.package-index :as package-index]
             [resolver-sim.run.verdict-policy :as verdict-policy]))
 
@@ -236,33 +237,16 @@
                                                (= (sha-ref assurance-file) (get-in canonical-integrity ["benchmark_assurance" "sha256"]))
                                                (= (sha-ref conservation-file) (get-in canonical-integrity ["conservation" "sha256"]))
                                                (= (sha-ref content-registry-file) (get-in canonical-integrity ["evidence_content_registry" "sha256"])))
-                    "canonical-integrity-creation-provenance" (let [stored-provenance (get-in canonical-integrity ["creation_provenance"])
-                                                                    stored-hash (get-in canonical-integrity ["creation_provenance_hash"])
-                                                                    evidence-provenance (or (:creation/provenance evidence) :in-band)]
-                                                                (cond
-                                                                  (and stored-provenance (nil? stored-hash)) false
-                                                                  (nil? stored-hash) true
-                                                                  (not (contains? #{"in-band" "out-of-band"} stored-provenance)) false
-                                                                  :else (let [stored-provenance-kw (keyword stored-provenance)
-                                                                              expected-hash (str (hash-ref/sha256-ref
-                                                                                                  (canonical/hash-with-intent {:hash/intent :creation-provenance}
-                                                                                                                              {:creation/provenance stored-provenance-kw})))]
-                                                                          (and (= stored-provenance-kw evidence-provenance)
-                                                                               (= stored-hash expected-hash)))))
-                    "canonical-integrity-source-creation" (let [stored-source (get-in canonical-integrity ["source_creation"])
-                                                                stored-hash (get-in canonical-integrity ["source_creation_hash"])
-                                                                evidence-source (or (:source/creation evidence) {:provenance :in-band})
-                                                                evidence-source-kw (get evidence-source :provenance :in-band)]
-                                                            (cond
-                                                              (and stored-source (nil? stored-hash)) false
-                                                              (nil? stored-hash) true
-                                                              (not (contains? #{"in-band" "out-of-band"} stored-source)) false
-                                                              :else (let [stored-source-kw (keyword stored-source)
-                                                                          expected-hash (str (hash-ref/sha256-ref
-                                                                                              (canonical/hash-with-intent {:hash/intent :source-creation}
-                                                                                                                          {:source/creation {:provenance stored-source-kw}})))]
-                                                                      (and (= stored-source-kw evidence-source-kw)
-                                                                           (= stored-hash expected-hash)))))
+                    "canonical-integrity-creation-provenance" (:valid?
+                                                               (prov-commit/verify-creation-provenance-commitment
+                                                                (get canonical-integrity "creation_provenance")
+                                                                (get canonical-integrity "creation_provenance_hash")
+                                                                (:creation/provenance evidence)))
+                    "canonical-integrity-source-creation" (:valid?
+                                                           (prov-commit/verify-source-creation-commitment
+                                                            (get canonical-integrity "source_creation")
+                                                            (get canonical-integrity "source_creation_hash")
+                                                            (:source/creation evidence)))
                     "forensic-status-deferred" (and (= "forensic-claims-status.v1" (get forensic-status "schema_version"))
                                                     (= "deferred" (get forensic-status "status"))
                                                     (= "unsigned-forensic-signing-not-configured" (get forensic-status "reason_code")))

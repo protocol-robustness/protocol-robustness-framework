@@ -789,14 +789,42 @@
 
 (defn validate-creation-provenance
   "Validate that :creation/provenance is a known value.
-   Returns nil if valid, an error map otherwise.
-   Does NOT confer trust — merely checks enum membership.
-   Both :in-band and :out-of-band are valid; mutation between them is
-   undetectable without a separate commitment over provenance."
+    Returns nil if valid, an error map otherwise.
+    Does NOT confer trust — merely checks enum membership.
+    Both :in-band and :out-of-band are valid; mutation between them is
+    undetectable without a separate commitment over provenance."
   [provenance]
   (when-not (#{:in-band :out-of-band} provenance)
     {:error :creation-provenance/unsupported-value
      :value provenance}))
+
+(defn validate-source-creation
+  "Validate that :source/creation has a well-formed shape and a known
+    :provenance value. Returns nil if valid, an error map otherwise.
+
+    :source/creation is a map {:provenance :in-band | :out-of-band}.
+    Like :creation/provenance, it does NOT confer trust — it only checks
+    enum membership and structural shape. Binding against tampering is
+    via the outer envelope (source_creation_hash in canonical-integrity.v1)."
+  [source-creation]
+  (cond
+    (nil? source-creation)
+    {:error :source-creation/missing
+     :value source-creation}
+
+    (not (map? source-creation))
+    {:error :source-creation/not-a-map
+     :value source-creation}
+
+    (not (contains? source-creation :provenance))
+    {:error :source-creation/missing-provenance
+     :value source-creation}
+
+    (not (#{:in-band :out-of-band} (:provenance source-creation)))
+    {:error :source-creation/unsupported-provenance
+     :value (:provenance source-creation)}
+
+    :else nil))
 
 (defn validate-node
   "Validate one node against canonical hash integrity and local shape rules.
@@ -828,6 +856,10 @@
                                                              {:index i :value a :reason :untyped-ref}
                                                              :else nil))
                                                          attestations)))
+        creation-provenance (get-in node [:execution :creation/provenance] :in-band)
+        creation-provenance-error (validate-creation-provenance creation-provenance)
+        source-creation (get-in node [:execution :source/creation] {:provenance :in-band})
+        source-creation-error (validate-source-creation source-creation)
         errors (cond-> []
                  (seq missing-top-level)
                  (conj {:error :node/missing-fields :missing missing-top-level})
@@ -853,6 +885,15 @@
                  (conj {:error :node/invalid-status
                         :status (get-in node [:result :status])})
 
+                 creation-provenance-error
+                 (conj {:error :node/unsupported-creation-provenance
+                        :value creation-provenance})
+
+                 source-creation-error
+                 (conj {:error :node/invalid-source-creation
+                        :value source-creation
+                        :error-detail source-creation-error})
+
                  (not hash-valid?)
                  (conj {:error :node/hash-mismatch
                         :recorded (:node-hash node)
@@ -865,7 +906,9 @@
      :errors errors
      :checks {:hash-valid? hash-valid?
               :valid-status? valid-status?
-              :missing-parents missing-parents}}))
+              :missing-parents missing-parents
+              :creation-provenance-valid? (nil? creation-provenance-error)
+              :source-creation-valid? (nil? source-creation-error)}}))
 
 (defn validate-node-dag
   "Validate a node collection as a DAG.
@@ -1098,7 +1141,8 @@
      :bootstrap-roots (vec (:bootstrap-roots node))
      :record-hash (:record-hash node)
      :schema-version (:schema-version node)
-     :creation-provenance (get-in node [:execution :creation/provenance])}))
+     :creation-provenance (get-in node [:execution :creation/provenance])
+     :source-creation (get-in node [:execution :source/creation])}))
 
 (defn build-dag-index
   "Build a navigation index from a collection of evidence DAG nodes.

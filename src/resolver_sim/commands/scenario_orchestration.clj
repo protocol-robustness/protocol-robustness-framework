@@ -449,10 +449,10 @@
                             :pre_assurance_registry_valid (= "passed" (:status validation))
                             :creation_provenance_committed creation-provenance-hash
                             :source_creation_committed source-creation-hash}
-                   :creation_provenance {:value (str creation-provenance)
-                                         :hash (str creation-provenance-hash)}
-                   :source_creation {:value (get source-creation :provenance :in-band)
-                                     :hash (str source-creation-hash)}
+                   :creation_provenance (name creation-provenance)
+                   :creation_provenance_hash (str creation-provenance-hash)
+                   :source_creation (get source-creation :provenance :in-band)
+                   :source_creation_hash (str source-creation-hash)
                    :limitations ["Unsigned assurance does not establish operator identity or signature trust."
                                  "Runtime isolation is outside this assurance scope."
                                  "Creation provenance is committed only in this outer envelope, not in semantic node identity."]}

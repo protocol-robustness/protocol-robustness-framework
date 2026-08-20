@@ -1215,7 +1215,7 @@
   ([manifest-path adapter {:keys [scenario-output-dir benchmark-index-path execution-plan-path
                                   parallelism chunk-size execution/claimant-parallelism
                                   execution/claimant-parallel-threshold execution/budget
-                                  execution/quiescence-timeout-seconds]}]
+                                  execution/quiescence-timeout-seconds creation/provenance]}]
    (let [adapter (if scenario-output-dir
                    (->SewAdapter scenario-output-dir (or parallelism 1) (or chunk-size 1))
                    adapter)
@@ -1387,8 +1387,8 @@
                                                  :derived-work-count (count additional-work)
                                                  :closed? true}
                    :benchmark-certification certification
-                   :creation/provenance :in-band
-                   :source/creation {:provenance :in-band}}
+                   :creation/provenance (or provenance :in-band)
+                   :source/creation {:provenance (or provenance :in-band)}}
 
          ;; The committed hash covers the normalized (persisted) representation,
          ;; not the raw in-memory map: write-evidence serializes the same

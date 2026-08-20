@@ -97,7 +97,6 @@
           :bounty-payable-backing-v1
           :bounty-payable-v1
           :confidence-composition-v1
-          :creation-provenance
           :execution-definition
           :intent-registry
           :prf-chain-configuration-transition-v1
