@@ -74,6 +74,22 @@
     (is (not= (:state-before/root roots) (:state-after/root roots)))
     (is (not= (:ledger-before/root roots) (:ledger-after/root roots)))))
 
+(deftest derived-state-transition-commits-the-canonical-post-state
+  (let [ctx (fixture)
+        policy-root (hc/domain-hash :allocation-policy {:profile :sew-held-credit})
+        derived (sut/derive-pro-rata-state-transition (:before ctx)
+                                                   (:allocation ctx)
+                                                   (:refinement ctx)
+                                                   policy-root)]
+    (is (= (:state-after/root (:roots ctx))
+           (get-in derived [:transition :state-after/root])))
+    (is (= (:application/root (:application derived))
+           (get-in derived [:transition :application/root])))
+    (is (true? (sut/application-transition-valid?
+                (:before ctx) (:protocol-effects ctx) (:adjustments derived)
+                (:roots derived)))
+        "the committed post-state root is re-derived from the canonical kernel")))
+
 (deftest application-transition-valid?-matches-committed-roots
   (let [ctx (fixture)
         result (sut/application-transition-valid? (:before ctx)

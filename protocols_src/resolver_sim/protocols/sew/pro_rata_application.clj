@@ -4,6 +4,7 @@
             [resolver-sim.hash.canonical :as hash]
             [resolver-sim.accounting.held-adjustment :as held-adjustment]
             [resolver-sim.pro-rata.application :as application]
+            [resolver-sim.pro-rata.evm :as evm]
             [resolver-sim.pro-rata.refinement :as refinement]
             [resolver-sim.economics.effects :as effects]))
 
@@ -16,6 +17,44 @@
    :ledger-before/root (hash/domain-hash "SEW_HELD_LEDGER_V1" (or (:held-ledger/index before) {}))
    :ledger-after/root (hash/domain-hash "SEW_HELD_LEDGER_V1" (or (:held-ledger/index after) {}))
    :applied-adjustments/root (held-adjustment/settlement-held-adjustment-set-root adjustments)})
+
+(declare apply-effects-to-world)
+
+(defn derive-pro-rata-state-transition
+  "Derive the only canonical post-state for a Sew held-credit refinement.
+   The returned transition is a first-class object: its application rows explain
+   the affected set while its state-after root commits the complete post-state.
+   No supplied state-after root is accepted by this function."
+  [world allocation refinement-artifact application-policy-root]
+  (let [protocol-effects (:effects refinement-artifact)
+        before-count (count (:held-adjustments world))
+        world' (apply-effects-to-world world protocol-effects)
+        adjustments (vec (drop before-count (:held-adjustments world')))
+        roots (application-roots world world' adjustments)
+        applications (mapv (fn [{:keys [effect] :as entry} adjustment]
+                             {:effect/root (:effect/root entry)
+                              :account (:effect/account effect)
+                              :direction :credit
+                              :allocated (:effect/amount effect)
+                              :disposition :held-credit
+                              :adjustment/root (effects/held-adjustment-root adjustment)})
+                           protocol-effects adjustments)
+        application (evm/build-application
+                     {:state-before-root (:state-before/root roots)
+                      :allocation-root (:allocation/hash allocation)
+                      :application-policy-root application-policy-root
+                      :state-after-root (:state-after/root roots)
+                      :applications applications})]
+    {:world world'
+     :adjustments adjustments
+     :roots roots
+     :application application
+     :transition (evm/build-transition
+                  {:state-before-root (:state-before/root roots)
+                   :allocation-root (:allocation/hash allocation)
+                   :application-policy-root application-policy-root
+                   :application-root (:application/root application)
+                   :state-after-root (:state-after/root roots)})}))
 
 (defn apply-pro-rata-held-credit
   "Applies a verified Sew add-held refinement exactly once per effect. `roots`

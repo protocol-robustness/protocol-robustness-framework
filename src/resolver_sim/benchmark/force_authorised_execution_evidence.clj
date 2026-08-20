@@ -23,6 +23,7 @@
             [resolver-sim.benchmark.researcher-force-authorisation :as rfa]
             [resolver-sim.benchmark.outcome-manifest :as om]
             [resolver-sim.benchmark.review-aggregate-check :as rac]
+            [resolver-sim.benchmark.review-governance :as rg]
             [resolver-sim.assurance.three-member-authority :as tma]
             [resolver-sim.assurance.authorised-effect-correlation :as correlation]
             [resolver-sim.hash.reference :as hash-ref]))
@@ -64,7 +65,7 @@
 
    Returns the evidence profile with :evidence-profile/hash.
    Throws on invalid inputs or failed verification."
-  [{:keys [authorisation policy review-round reservation
+  [{:keys [authorisation policy review-round reservation governance
            outcome-manifest consumption-receipt public-key-resolver]}]
   (let [errors (atom [])]
     ;; Ensure all artifacts are present
@@ -119,6 +120,7 @@
             (tma/evaluate-three-member-authority
              :authorisation authorisation
              :review-round review-round
+             :governance governance
              :signature-valid? signature-valid?)
             (catch Exception e
               {:authority-status :not-authorised
@@ -156,7 +158,7 @@
              :outcome-produced? false
              :successful-authorised-outcome? false})
           ;; ── Build profile ─────────────────────────────────────────────
-          base {:schema-version schema-version
+          base (cond-> {:schema-version schema-version
                 :evidence-profile/id profile-id
                 :evidence-profile/policy-hash
                 (:policy/hash (:authorisation/policy authorisation))
@@ -177,6 +179,8 @@
                     (:benchmark/content-root outcome-manifest))
                 :evidence-profile/execution-result execution-result
                 :evidence-profile/verification verification}
+                 governance (assoc :evidence-profile/governance-root
+                                   (rg/governance-root governance)))
           computed-hash (hash-ref/sha256-ref
                          (hc/domain-hash :force-authorised-execution-evidence
                                          base))]

@@ -13,6 +13,8 @@
    layer). Input ordering never changes the classification."
   (:require [resolver-sim.hash.canonical :as hc]
             [resolver-sim.benchmark.researcher-force-authorisation :as rfa]
+            [resolver-sim.benchmark.review-governance :as rg]
+            [resolver-sim.benchmark.review-round :as rr]
             [resolver-sim.assurance.canonical-force-authorisation :as cfa]
             [resolver-sim.hash.reference :as hash-ref]))
 
@@ -182,7 +184,7 @@
    `default-equivocation-policy`. The applied policy is reported so the
    consequence is not an implicit verifier-time choice."
   [& {:keys [authorisation review-round signature-valid? profile-opts
-             equivocation-policy]}]
+             equivocation-policy governance position-time-resolver governance-current?]}]
   (let [auth-id (:authorisation/id authorisation)
         auth-request-root (:authorisation/request-root authorisation)
         auth-round-hash (get-in authorisation
@@ -190,13 +192,40 @@
         authoritative-target-root (authoritative-target-outcome authorisation)
         target-outcome-available? (some? authoritative-target-root)
         members (vec (:review-round/members review-round))
+        ;; P0 governed rounds constitute seats before positions are inspected.
+        ;; Legacy callers omit :governance and retain the existing explicit
+        ;; legacy behavior; they must not be represented as governance-bound.
+        constitution (when governance
+                       (let [evaluated (rg/evaluate-constitution governance
+                                                                 (:review-round/policy-id review-round)
+                                                                 members
+                                                                 (:review-round/constituted-at review-round))
+                             expected-root (:review-round/governance-root review-round)
+                             actual-root (rg/governance-root governance)]
+                         (if (= expected-root actual-root)
+                           evaluated
+                           (-> evaluated
+                               (assoc :constitution-status :invalid)
+                               (update :errors conj "round governance root mismatch")))))
+        ;; Governed finalisation is fresh only when the control-plane resolver
+        ;; confirms the round's pinned snapshot remains current/admissible.
+        governance-fresh? (or (nil? governance)
+                              (and governance-current?
+                                   (true? (governance-current? review-round governance))))
+        constitution-valid? (or (nil? governance)
+                                (= :valid (:constitution-status constitution)))
+        governed-policy (:policy constitution)
         constituted (set (map :researcher/id members))
         constituted-count (count constituted)
         profile (cfa/declare-profile
-                 (or profile-opts
-                     {:member-count cfa/canonical-member-count
-                      :threshold cfa/canonical-threshold
-                      :profile-id "canonical/3-2"}))
+                 (if governance
+                   {:member-count (:member-count governed-policy)
+                    :threshold (:threshold governed-policy)
+                    :profile-id (str (:policy/id governed-policy))}
+                   (or profile-opts
+                       {:member-count cfa/canonical-member-count
+                        :threshold cfa/canonical-threshold
+                        :profile-id "canonical/3-2"})))
         policy-conforming? (cfa/three-member-standard-conforming? profile)
         required (or (and (integer? (:threshold profile)) (:threshold profile))
                      cfa/canonical-threshold)
@@ -217,9 +246,22 @@
                     (not (scope-matches? p))
                     (update acc :re-scoped conj p)
 
+                    (and governance (nil? (:signing-key/id p)))
+                    (update acc :invalid-positions conj {:position p
+                                                         :reason ::missing-signing-key-id})
+
                     (not (position-valid? p auth-id signature-valid?))
                     (update acc :invalid-positions conj {:position p
                                                          :reason "integrity-or-signature-failed"})
+
+                    (and governance
+                         (or (nil? position-time-resolver)
+                             (nil? (position-time-resolver p))
+                             (not (rg/position-key-valid?
+                                   governance (:researcher/id p)
+                                   (:signing-key/id p) (position-time-resolver p)))))
+                    (update acc :invalid-positions conj {:position p
+                                                         :reason ::governed-signing-key-invalid})
 
                     :else
                     (update acc :valid-positions conj p)))
@@ -229,9 +271,11 @@
         valid (vec valid-positions)
         ;; Committed equivocation policy: round policy > supplied option >
         ;; canonical default. The applied policy is surfaced in the report.
-        applied-equivocation-policy (or (:review-round/equivocation-policy review-round)
-                                        equivocation-policy
-                                        default-equivocation-policy)
+        applied-equivocation-policy (if governance
+                                      (:equivocation-policy governed-policy)
+                                      (or (:review-round/equivocation-policy review-round)
+                                          equivocation-policy
+                                          default-equivocation-policy))
         ;; Equivocation among valid positions
         equivocations (detect-equivocation valid auth-id)
         equivocating-ids (set (map :member/id equivocations))
@@ -299,6 +343,8 @@
         authority-reached?
         (and (not fail-certificate?)
              policy-conforming?
+             constitution-valid?
+             governance-fresh?
              (= 3 constituted-count)
              identity-separate?
              outcome-concurrence?
@@ -308,6 +354,8 @@
                   fail-certificate? (conj :equivocation-fails-certificate)
                   (seq equivocations) (conj :equivocation-present)
                   (not policy-conforming?) (conj :policy-not-conforming)
+                  (not constitution-valid?) (conj :invalid-or-unresolved-constitution)
+                  (not governance-fresh?) (conj :governance-stale-reconstitution-required)
                   (not= 3 constituted-count) (conj :not-three-constituted-seats)
                   (not identity-separate?) (conj :non-distinct-identities)
                   (not target-outcome-available?)
@@ -316,7 +364,11 @@
                        (not outcome-concurrence?))
                   (conj :non-target-outcome-concurrence)
                   (< counted-support required) (conj :insufficient-support))]
-    {:constituted-member-count constituted-count
+    {:constitution-status (or (:constitution-status constitution) :legacy-unbound)
+     :constitution (when governance constitution)
+     :governance-root (when governance (rg/governance-root governance))
+     :governance-fresh? governance-fresh?
+     :constituted-member-count constituted-count
      :required-threshold required
      :counted-support counted-support
      :outcome-root (when target-outcome-available?
@@ -336,6 +388,8 @@
      :absent-members absent
      :invalid-positions (vec (sort-by :researcher/id
                                       (mapv :position invalid-positions)))
+     :invalid-position-reasons (vec (sort-by (comp :researcher/id :position)
+                                              invalid-positions))
      :equivocating-members equivocations
      :unknown-members (vec (sort-by :researcher/id unknown-members))
      :re-scoped-positions (vec (sort-by :researcher/id re-scoped))
@@ -343,6 +397,27 @@
      :equivocation-policy-applied applied-equivocation-policy
      :authority-status authority-status
      :authority/reasons reasons}))
+
+(defn evaluate-governed-authority
+  "Production-only authority entry point.  Unlike the legacy evaluator, this
+   never falls back to caller-selected identity/key semantics: v2 round,
+   governance snapshot, authenticated position-time resolver, and control-plane
+   freshness resolver are mandatory."
+  [& {:keys [review-round governance position-time-resolver governance-current?]
+      :as opts}]
+  (when-not (rr/governed-round? review-round)
+    (throw (ex-info "Governed authority requires benchmark-review-round.v2"
+                    {:type ::governed-round-required})))
+  (when-not governance
+    (throw (ex-info "Governed authority requires review governance"
+                    {:type ::governance-required})))
+  (when-not position-time-resolver
+    (throw (ex-info "Governed authority requires authenticated position time"
+                    {:type ::position-time-required})))
+  (when-not governance-current?
+    (throw (ex-info "Governed authority requires governance freshness resolver"
+                    {:type ::governance-freshness-required})))
+  (apply evaluate-three-member-authority (mapcat identity opts)))
 
 ;; ═══════════════════════════════════════════════════════════════════════════
 ;; Authority-report trust boundary

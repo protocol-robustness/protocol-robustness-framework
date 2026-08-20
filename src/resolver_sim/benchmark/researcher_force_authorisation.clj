@@ -234,13 +234,14 @@
    plus :outcome/root — the content-addressed root of the COMPLETE proposed
    outcome. Dissent reason is optional and bound only for dissents."
   [researcher-id authorisation-id request-root review-round-hash outcome-root
-   decision dissent-reason]
+   decision dissent-reason signing-key-id]
   (cond-> {:researcher/id researcher-id
            :authorisation/id authorisation-id
            :authorisation/request-root request-root
            :review-round/hash review-round-hash
            :outcome/root outcome-root
            :decision decision}
+    (some? signing-key-id) (assoc :signing-key/id signing-key-id)
     (and (= :dissent decision) (some? dissent-reason))
     (assoc :dissent/reason dissent-reason)))
 
@@ -274,7 +275,7 @@
    without a reason."
   [researcher-id authorisation-id request-root review-round-hash outcome-root
    decision private-key-path
-   & {:keys [dissent-reason password]}]
+   & {:keys [dissent-reason password signing-key-id]}]
   (when-not (valid-decision? decision)
     (throw (ex-info "Invalid decision value" {:decision decision
                                               :allowed decision-vocabulary})))
@@ -288,7 +289,7 @@
                     {:request-root request-root})))
   (let [preimage (decision-v2-preimage researcher-id authorisation-id
                                        request-root review-round-hash
-                                       outcome-root decision dissent-reason)
+                                       outcome-root decision dissent-reason signing-key-id)
         d-hash (compute-decision-v2-hash preimage)
         stripped (str/replace d-hash #"^sha256:" "")
         signature (signing/sign-hash stripped private-key-path password)]
@@ -303,6 +304,7 @@
              :signature {:algorithm :ed25519
                          :value signature
                          :signed-at (str (java.time.Instant/now))}}
+      signing-key-id (assoc :signing-key/id signing-key-id)
       dissent-reason (assoc :dissent/reason dissent-reason))))
 
 (defn verify-signed-decision-v2
@@ -344,7 +346,8 @@
                           (:review-round/hash decision-ref)
                           outcome-root
                           (:decision decision-ref)
-                          (:dissent/reason decision-ref))
+                          (:dissent/reason decision-ref)
+                          (:signing-key/id decision-ref))
                 expected-hash (compute-decision-v2-hash preimage)
                 actual-hash (:decision/hash decision-ref)]
             (if-not (= expected-hash actual-hash)
@@ -428,7 +431,8 @@
                               (:review-round/hash position)
                               (:outcome/root position)
                               (:decision position)
-                              (:dissent/reason position))))
+                              (:dissent/reason position)
+                              (:signing-key/id position))))
     :v1-legacy
     (= (:decision/hash position)
        (compute-decision-hash

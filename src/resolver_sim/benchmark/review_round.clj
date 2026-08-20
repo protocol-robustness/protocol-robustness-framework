@@ -20,6 +20,37 @@
   (:require [resolver-sim.hash.canonical :as hc]))
 
 (def ^:const schema-version "benchmark-review-round.v1")
+(def ^:const governed-schema-version "benchmark-review-round.v2")
+
+(declare member-identity-projection)
+
+(def ^:private governed-round-fields
+  [:review-round/chain-configuration-root :review-round/governance-root
+   :review-round/governance-epoch :review-round/constituted-at
+   :review-round/policy-id :review-round/policy-hash])
+
+(defn governed-round?
+  "True when a round opts into the P0 root-bound governance contract."
+  [round]
+  (= governed-schema-version (:schema-version round)))
+
+(defn- round-identity-input [ctx members]
+  (let [base {:benchmark/content-root (:benchmark/content-root ctx)
+              :members (member-identity-projection (vec (sort-by :researcher/id members)))
+              :membership-frozen-at (:review-round/membership-frozen-at ctx)
+              :policy-root (:review-round/policy-root ctx)
+              :purpose (:review-round/purpose ctx)}]
+    (if (every? #(contains? ctx %) governed-round-fields)
+      (assoc base :governance (select-keys ctx governed-round-fields))
+      base)))
+
+(defn review-round-root
+  "Recompute the durable review-round identity.  v1 inputs retain the existing
+   hash projection; a v2 round additionally commits its configuration and
+   governance snapshot, policy identity, and constitution time."
+  [round]
+  (str "review-round:" (hc/domain-hash :review-round-identity
+                                        (round-identity-input round (:review-round/members round)))))
 
 (def ^:const review-purposes
   "Controlled vocabulary for review-round purposes."
@@ -307,7 +338,8 @@
            review-round/status]
     :as ctx}]
   (let [purpose (or purpose :model-admission)
-        st (or status :open)]
+        st (or status :open)
+        governed? (some #(contains? ctx %) governed-round-fields)]
     (when-not (contains? review-purposes purpose)
       (throw (ex-info (str "Invalid review-round purpose: " purpose)
                       {:purpose purpose :allowed review-purposes})))
@@ -338,28 +370,30 @@
           (throw (ex-info "Mixed keyed and unkeyed members in review round"
                           {:reason :mixed-keyed-and-unkeyed-members
                            :members members})))))
+    (when (and governed? (not (every? #(contains? ctx %) governed-round-fields)))
+      (throw (ex-info "Governed review-round requires complete governance binding"
+                      {:missing (vec (remove #(contains? ctx %) governed-round-fields))})))
     (let [reqs (check-creation-requirements purpose ctx)]
       (when-not (:valid? reqs)
         (throw (ex-info (str "Review-round creation requirements not met: " (:errors reqs))
                         {:purpose purpose :errors (:errors reqs)}))))
-    (let [identity-members (member-identity-projection (vec (sort-by :researcher/id members)))
-          review-round-id (str "review-round:"
-                               (hc/domain-hash :review-round-identity
-                                               {:benchmark/content-root content-root
-                                                :members identity-members
-                                                :membership-frozen-at membership-frozen-at
-                                                :policy-root policy-root
-                                                :purpose purpose}))]
-      (let [rr {:schema-version schema-version
-                :review-round/id review-round-id
-                :review-round/hash review-round-id
-                :benchmark/content-root content-root
-                :review-round/purpose purpose
-                :review-round/members (vec members)
-                :review-round/membership-frozen-at membership-frozen-at
-                :review-round/policy-root policy-root
-                :review-round/status (or status :open)}]
-        rr))))
+    (let [base (merge {:benchmark/content-root content-root
+                       :review-round/purpose purpose
+                       :review-round/members (vec members)
+                       :review-round/membership-frozen-at membership-frozen-at
+                       :review-round/policy-root policy-root}
+                      (select-keys ctx governed-round-fields))
+          review-round-id (review-round-root base)]
+      (merge {:schema-version (if governed? governed-schema-version schema-version)
+              :review-round/id review-round-id
+              :review-round/hash review-round-id
+              :benchmark/content-root content-root
+              :review-round/purpose purpose
+              :review-round/members (vec members)
+              :review-round/membership-frozen-at membership-frozen-at
+              :review-round/policy-root policy-root
+              :review-round/status (or status :open)}
+             (select-keys ctx governed-round-fields)))))
 
 ;; ── Accessors and validation ──────────────────────────────────────────────
 
@@ -387,7 +421,7 @@
   "Quick structural check for a review round."
   [round]
   (let [members (:review-round/members round)]
-    (and (= schema-version (:schema-version round))
+    (and (contains? #{schema-version governed-schema-version} (:schema-version round))
          (some? (:review-round/id round))
          (some? (:benchmark/content-root round))
          (contains? review-purposes (:review-round/purpose round))
@@ -395,6 +429,9 @@
          (= 3 (count members))
          (every? :researcher/id members)
          (every? (fn [m] (contains? member-roles (:role m))) members)
+         (or (not (governed-round? round))
+             (and (every? #(contains? round %) governed-round-fields)
+                  (= (:review-round/hash round) (review-round-root round))))
          (or (not (some? (some :review-member/key members)))
              (and (every? :review-member/key members)
                   (every? valid-member-key? (map :review-member/key members))
@@ -409,9 +446,16 @@
    Returns {:valid? bool :errors [string]}."
   [round]
   (let [errors (atom [])]
-    (when-not (= schema-version (:schema-version round))
-      (swap! errors conj (str "expected schema-version " schema-version
+    (when-not (contains? #{schema-version governed-schema-version} (:schema-version round))
+      (swap! errors conj (str "expected schema-version " schema-version " or " governed-schema-version
                               " got " (:schema-version round))))
+    (when (governed-round? round)
+      (doseq [f governed-round-fields]
+        (when-not (contains? round f)
+          (swap! errors conj (str "missing governed round field " f))))
+      (when (and (every? #(contains? round %) governed-round-fields)
+                 (not= (:review-round/hash round) (review-round-root round)))
+        (swap! errors conj "review-round hash mismatch")))
     (when-not (some? (:review-round/id round))
       (swap! errors conj "missing :review-round/id"))
     (when-not (some? (:benchmark/content-root round))
