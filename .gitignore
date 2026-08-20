@@ -157,4 +157,9 @@ scripts/assurance-lab/phase1-master.sh
 
 # prf-runner
 prf-runner
- 
+
+# temp dir
+tmp
+
+# gh cli
+.actrc 
