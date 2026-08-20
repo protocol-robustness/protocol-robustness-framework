@@ -37,6 +37,7 @@
             [resolver-sim.protocols.sew.action-context   :as actx]
             [resolver-sim.benchmark.researcher-force-authorisation :as researcher-fa]
             [resolver-sim.benchmark.research-assignment :as research-assignment]
+            [resolver-sim.assurance.three-member-authority :as governed-authority]
             [resolver-sim.yield.expectations             :as yield-exp]
             [resolver-sim.yield.evidence                 :as yield-evi]
             [resolver-sim.time.context                   :as time-ctx]
@@ -802,6 +803,11 @@
                                         :authorization/id auth-id
                                         :authorization/source :governance
                                         :authorization/check :with-governance-actor
+                                        ;; Direct grants remain supported for simulation and legacy
+                                        ;; workflows, but are explicitly not governed production issuance.
+                                        :authorization/issuance-assurance
+                                        (if consensus-provenance :governed-research-authority
+                                            :local-governance-only)
                                         :authorization/scope-hash scope-hash}
                                        consensus-provenance)
                 record          {:authorization/id auth-id
@@ -891,6 +897,45 @@
     (:agent-index context) event (governance-check context)
     (fn [_addr _actor _check] {:ok true})))
 
+(defn- governed-authority-check
+  "Resolve and recompute governed researcher authority solely from the trusted
+   action context. The event names an authorisation and its round hash, but
+   cannot provide a governance snapshot, position times, freshness answer, or
+   authority report/root."
+  [context auth round-ref]
+  (let [resolver (:researcher-force-authorisation-governed-authority-context-resolver context)
+        governed-context (resolved-artifact resolver round-ref)
+        review-round (:review-round governed-context)
+        governance (:review-governance governed-context)
+        position-time-resolver (:position-time-resolver governed-context)
+        governance-current? (:governance-current? governed-context)
+        signature-valid? (fn [position]
+                           (true? (:valid?
+                                   (researcher-fa/verify-decision-signatures
+                                    (:researcher-public-key-resolver context)
+                                    (assoc auth :authorisation/decision-references [position])))))]
+    (try
+      (if (and (:resolved? governed-context)
+               (= round-ref (:review-round/hash review-round))
+               governance
+               (fn? position-time-resolver)
+               (fn? governance-current?))
+        (let [report (governed-authority/evaluate-governed-authority
+                      :authorisation auth
+                      :review-round review-round
+                      :governance governance
+                      :position-time-resolver position-time-resolver
+                      :governance-current? governance-current?
+                      :signature-valid? signature-valid?)
+              report-root (governed-authority/authority-report-root report)]
+          {:valid? (= :authorised (:authority-status report))
+           :report report
+           :authority-report-root report-root
+           :governance-root (:governance-root report)
+           :review-round-hash (:review-round/hash review-round)})
+        {:valid? false})
+      (catch Exception _ {:valid? false}))))
+
 (defn- consensus-authorisation-checks
   "Fail-closed verification for the consensus-to-Sew bridge. Resolvers live in
    the trusted action context; events contain only the researcher artifact hash.
@@ -920,6 +965,7 @@
                       (:researcher-public-key-resolver context) auth))
         policy-check (when (and policy auth) (researcher-fa/verify-against-policy policy auth))
         round-check (when (and round auth) (researcher-fa/verify-against-round round auth))
+        governed-authority (when auth (governed-authority-check context auth round-ref))
         consumed? (when-let [checker (:researcher-force-authorisation-consumed? context)]
                     (try (checker (:authorisation/consumption-key auth))
                          (catch Exception _ true)))
@@ -936,6 +982,7 @@
                                             (= policy-ref actual-policy-hash))
                 :review-round-binding-valid? (and round-check (:valid? round-check)
                                                     (= round-ref (:review-round/hash round)))
+                :governed-authority-valid? (true? (:valid? governed-authority))
                 :target-kind-valid? (= :governance-mandated (:target/kind target))
                 :assignment-resolved? (and assignment
                                             (= assignment-hash (:research-assignment/hash assignment)))
@@ -961,6 +1008,7 @@
      :checks checks
      :authorisation auth
      :research-assignment assignment
+     :governed-authority governed-authority
      :scope scope
      :scope-hash scope-hash}))
 
@@ -1133,7 +1181,7 @@
 (defmethod apply-action "grant-consensus-force-authorisation"
   [context world event]
   (let [governance-result (consensus-governance-preflight context event)
-        {:keys [valid? checks authorisation research-assignment scope-hash]}
+        {:keys [valid? checks authorisation research-assignment governed-authority scope-hash]}
         (consensus-authorisation-checks context world event)
         pp (:params event)
         auth-id (str "fa-" (get world :next-force-authorisation-id 0))
@@ -1172,7 +1220,13 @@
           (t/fail :consensus-force-authorisation-reservation-binding-conflict)
           (let [researcher-provenance
                 {:authorization/assurance :consensus-grant-reserved
-                 :consensus/assurance :researcher-threshold-authenticated
+                 :consensus/assurance :governed-research-authority
+                 :researcher-force-authorisation/governance-root
+                 (:governance-root governed-authority)
+                 :researcher-force-authorisation/authority-report-root
+                 (:authority-report-root governed-authority)
+                 :researcher-force-authorisation/governed-review-round-hash
+                 (:review-round-hash governed-authority)
                  :research-assignment/hash (:research-assignment/hash research-assignment)
                  :researcher-force-authorisation/hash (:authorisation/hash authorisation)
                  :researcher-force-authorisation/policy-hash

@@ -23,13 +23,10 @@
     :governance/members :governance/policies})
 
 (defn- active? [status] (= :active status))
-(defn- at-or-before? [from at] (or (nil? from) (not (pos? (compare from at)))))
-(defn- before? [until at] (or (nil? until) (pos? (compare until at))))
-(defn- valid-at? [entry at]
-  (and (active? (:status entry))
-       (string? at)
-       (at-or-before? (:valid-from entry) at)
-       (before? (:valid-until entry) at)))
+
+;; P0 eligibility is wholly snapshot-scoped.  Any authority-relevant member,
+;; principal, role, independence, or key change creates a new governance root;
+;; no sub-root timestamp selects an earlier eligibility state.
 
 (defn- canonical-value [value]
   (cond
@@ -126,26 +123,27 @@
   (some #(when (= policy-id (:policy/id %)) %) (:governance/policies governance)))
 
 (defn eligible-key-ids
-  "All active key IDs which may be used by member at the supplied signing time.
-   A set is used because constitution proves the sets of eligible keys cannot
-   alias; no particular key is selected until a position is signed."
-  [governance member-id signing-time]
+  "All active governed key IDs for a member in this immutable governance root.
+   Constitution proves these sets cannot alias; a later position identifies one
+   member-owned active key.  P0 deliberately has no signing-time eligibility."
+  [governance member-id]
   (when-let [member (member-by-id governance member-id)]
     (when-let [principal (principal-by-id governance (:principal/id member))]
-      (when (and (valid-at? member signing-time) (valid-at? principal signing-time))
+      (when (and (active? (:status member)) (active? (:status principal)))
         (->> (:principal/keys principal)
-             (filter #(valid-at? % signing-time))
+             (filter #(active? (:status %)))
              (map :key/id)
              set)))))
 
 (defn independence
-  "P0 independence predicate.  Group equality establishes a prohibited
-   relation.  Missing/inactive/stale evidence is unresolved, never independent."
-  [governance principal-a principal-b at]
+  "P0 independence predicate under one immutable governance root.  Group
+   equality establishes a prohibited relation; missing or inactive evidence is
+   unresolved, never independent."
+  [governance principal-a principal-b]
   (let [a (principal-by-id governance principal-a)
         b (principal-by-id governance principal-b)]
     (cond
-      (or (nil? a) (nil? b) (not (valid-at? a at)) (not (valid-at? b at))
+      (or (nil? a) (nil? b) (not (active? (:status a))) (not (active? (:status b)))
           (not (hash-ref/valid-sha256-ref? (:principal/independence-basis-root a)))
           (not (hash-ref/valid-sha256-ref? (:principal/independence-basis-root b))))
       :independence-unresolved
@@ -164,12 +162,12 @@
         member-ids (mapv :researcher/id members)
         governed-members (mapv #(member-by-id governance %) member-ids)
         principal-ids (mapv :principal/id governed-members)
-        key-sets (mapv #(eligible-key-ids governance % constituted-at) member-ids)
+        key-sets (mapv #(eligible-key-ids governance %) member-ids)
         role-set (set (map :role members))
         pairs (for [[i a] (map-indexed vector principal-ids)
                     b (drop (inc i) principal-ids)] [a b])
         independence-results (mapv (fn [[a b]] {:principals [a b]
-                                                :status (independence governance a b constituted-at)}) pairs)
+                                                :status (independence governance a b)}) pairs)
         unresolved? (or (some nil? governed-members)
                         (some #(= :independence-unresolved (:status %)) independence-results))
         errors (cond-> []
@@ -205,8 +203,8 @@
      :errors (vec errors)}))
 
 (defn position-key-valid?
-  "Check the concrete signing key selected by a position after constitution.
-   Returns false unless the key belongs to the member's principal, was eligible
-   at signing time, and is one of the member's governed threshold key set."
-  [governance member-id signing-key-id signing-time]
-  (contains? (or (eligible-key-ids governance member-id signing-time) #{}) signing-key-id))
+  "Check that the concrete position key is active and belongs to the governed
+   member in this pinned root.  P0 uses root-scoped, not signing-time, key
+   eligibility; rotation/retirement requires a governance-root transition."
+  [governance member-id signing-key-id]
+  (contains? (or (eligible-key-ids governance member-id) #{}) signing-key-id))

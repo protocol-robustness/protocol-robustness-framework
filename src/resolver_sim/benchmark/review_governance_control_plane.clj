@@ -9,11 +9,12 @@
 (defn resolve-context
   "Resolve one direct P0 graph: canonical configuration -> direct governance
    root -> unique policy -> governed round. `control-plane-evidence` is the
-   authenticated finalization event and must carry the authoritative
-   configuration root and a derived finalization time. Returns a data-only,
-   fail-closed context with specific reasons."
+   the authenticated finalization/head event and must carry the authoritative
+   configuration root. P0 eligibility is governance-root scoped, so this
+   resolver intentionally has no position-time input or callback. Returns a
+   data-only, fail-closed context with specific reasons."
   [{:keys [chain-configuration review-governance review-round
-           control-plane-evidence position-acceptance-by-hash]}]
+           control-plane-evidence]}]
   (let [config-root (try (genesis/chain-configuration-root chain-configuration)
                          (catch Exception _ nil))
         governance-root (when review-governance (governance/governance-root review-governance))
@@ -35,10 +36,13 @@
      :reasons (vec (distinct reasons))
      :chain-configuration/root config-root
      :review-governance/root governance-root
+     ;; The snapshot itself is returned only by this trusted control-plane
+     ;; resolver; consumers must never take governance from an event payload.
+     :review-governance review-governance
      :review-policy policy
      :review-round review-round
      :control-plane-evidence control-plane-evidence
-     :governance-current? (fn [_ _] (empty? reasons))
-     :position-time-resolver
-     (fn [position]
-       (get-in position-acceptance-by-hash [(:decision/hash position) :accepted-at]))}))
+     ;; Compatibility adapter over the already-resolved finalization result.
+     ;; It must be replaced by a verifier of configuration-head activation
+     ;; evidence before this namespace is used by production admission.
+     :governance-current? (fn [_ _] (empty? reasons))}))

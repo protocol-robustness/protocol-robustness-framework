@@ -184,7 +184,7 @@
    `default-equivocation-policy`. The applied policy is reported so the
    consequence is not an implicit verifier-time choice."
   [& {:keys [authorisation review-round signature-valid? profile-opts
-             equivocation-policy governance position-time-resolver governance-current?]}]
+             equivocation-policy governance governance-current?]}]
   (let [auth-id (:authorisation/id authorisation)
         auth-request-root (:authorisation/request-root authorisation)
         auth-round-hash (get-in authorisation
@@ -255,11 +255,9 @@
                                                          :reason "integrity-or-signature-failed"})
 
                     (and governance
-                         (or (nil? position-time-resolver)
-                             (nil? (position-time-resolver p))
-                             (not (rg/position-key-valid?
-                                   governance (:researcher/id p)
-                                   (:signing-key/id p) (position-time-resolver p)))))
+                         (not (rg/position-key-valid?
+                               governance (:researcher/id p)
+                               (:signing-key/id p))))
                     (update acc :invalid-positions conj {:position p
                                                          :reason ::governed-signing-key-invalid})
 
@@ -401,9 +399,9 @@
 (defn evaluate-governed-authority
   "Production-only authority entry point.  Unlike the legacy evaluator, this
    never falls back to caller-selected identity/key semantics: v2 round,
-   governance snapshot, authenticated position-time resolver, and control-plane
-   freshness resolver are mandatory."
-  [& {:keys [review-round governance position-time-resolver governance-current?]
+   governance snapshot, and finalization-head admissibility are mandatory.
+   P0 key eligibility is wholly scoped by the pinned governance root."
+  [& {:keys [review-round governance governance-current?]
       :as opts}]
   (when-not (rr/governed-round? review-round)
     (throw (ex-info "Governed authority requires benchmark-review-round.v2"
@@ -411,9 +409,7 @@
   (when-not governance
     (throw (ex-info "Governed authority requires review governance"
                     {:type ::governance-required})))
-  (when-not position-time-resolver
-    (throw (ex-info "Governed authority requires authenticated position time"
-                    {:type ::position-time-required})))
+
   (when-not governance-current?
     (throw (ex-info "Governed authority requires governance freshness resolver"
                     {:type ::governance-freshness-required})))
