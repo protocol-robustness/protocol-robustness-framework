@@ -83,9 +83,11 @@
 (defn- requirement-satisfied?
   [requirement capability]
   (let [req-version (:capability/version requirement)
-        req-contract (:capability/contract-version requirement)]
+        req-contract (:capability/contract-version requirement)
+        req-profile (:capability/profile requirement)]
     (and (or (nil? req-version) (= req-version (:capability/version capability)))
-         (or (nil? req-contract) (= req-contract (:capability/contract-version capability))))))
+         (or (nil? req-contract) (= req-contract (:capability/contract-version capability)))
+         (or (nil? req-profile) (= req-profile (:capability/profile capability))))))
 
 (defn- schema-refs-of
   "Schema ids referenced by a resolved registry entry."
@@ -95,7 +97,30 @@
 
 (defn- provider-roots
   [entry]
-  (into #{} (map :package-root) (:providers entry)))
+  (vec (sort (map :package-root (:providers entry)))))
+
+(defn- capability-providers
+  "Map each resolved capability key to its provider package records, enabling
+   the composition to prove which package/component root provides each capability
+   and each dependency edge's resolved provider identity."
+  [entry]
+  {:providers (vec (sort-by :package-root
+                            (map (fn [p]
+                                   {:package/id (:package/id p)
+                                    :package/version (:package/version p)
+                                    :package-root (:package-root p)
+                                    :sealed (:sealed p)})
+                                 (:providers entry []))))})
+
+(defn- enriched-dependency
+  "Add resolved provider package/component roots to a dependency edge so the
+   composition can prove, per edge, the consumer capability identity, declared
+   requirement, and resolved provider package root."
+  [edge nodes]
+  (let [to-entry (get nodes (:to edge))]
+    (if (nil? to-entry)
+      edge
+      (assoc edge :provider-package-roots (provider-roots to-entry)))))
 
 ;; ── snapshot builder ──────────────────────────────────────────────────────
 
@@ -108,33 +133,37 @@
                                              :package/version (:package/version p)
                                              :package-root (:package-root p)
                                              :sealed (:sealed p)}))
-                                   acc
-                                   (:providers entry)))
+                                 acc
+                                 (:providers entry)))
                          {}
                          nodes)
-        ;; capabilities are committed as their hashable projections
-        ;; (entrypoints are symbols in manifests; the projection normalises
-        ;; them to strings for the canonical encoder)
-        capabilities (into {} (map (fn [[k entry]]
-                                     [k (em/capability-projection (:capability entry))]))
-                           nodes)
-        dependencies (mapv (fn [{:keys [from to requirement]}]
-                             {:from from :to to :requirement (or requirement {})})
-                           edges)
-        used-schema-ids (into (sorted-set) (mapcat schema-refs-of) (vals nodes))
-        schema-roots (into {}
-                           (keep (fn [id]
-                                   (when (contains? schemas id)
-                                     [id (get schemas id)])))
-                           used-schema-ids)
-        base {:extensions/resolution-version resolution-version
-              :extensions/packages packages
-              :extensions/capabilities capabilities
-              :extensions/dependencies dependencies
-              :extensions/schema-roots schema-roots
-              :extensions/effect-schema-roots effect-schemas
-              :extensions/runtime-profile runtime-profile}
-        root (hc/domain-hash resolution-domain-tag base)]
+         ;; capabilities are committed as their hashable projections
+         ;; (entrypoints are symbols in manifests; the projection normalises
+         ;; them to strings for the canonical encoder)
+         capabilities (into {} (map (fn [[k entry]]
+                                      [k (em/capability-projection (:capability entry))])
+                                    nodes))
+         ;; capability-provider bindings: proves which package provides each
+         ;; resolved capability (provider package/component root per capability)
+         provider-bindings (into {} (map (fn [[k entry]]
+                                          [k (capability-providers entry)])
+                                        nodes))
+         dependencies (mapv #(enriched-dependency % nodes) edges)
+         used-schema-ids (into (sorted-set) (mapcat schema-refs-of) (vals nodes))
+         schema-roots (into {}
+                            (keep (fn [id]
+                                    (when (contains? schemas id)
+                                      [id (get schemas id)])))
+                            used-schema-ids)
+         base {:extensions/resolution-version resolution-version
+               :extensions/packages packages
+               :extensions/capabilities capabilities
+               :extensions/capability-providers provider-bindings
+               :extensions/dependencies dependencies
+               :extensions/schema-roots schema-roots
+               :extensions/effect-schema-roots effect-schemas
+               :extensions/runtime-profile runtime-profile}
+         root (hc/domain-hash resolution-domain-tag base)]
     (assoc base :extensions/resolution-root root)))
 
 ;; ── public API ────────────────────────────────────────────────────────────

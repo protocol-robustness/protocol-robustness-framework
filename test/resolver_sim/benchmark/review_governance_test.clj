@@ -54,6 +54,15 @@
               (rg/governance-root (assoc g :governance/epoch 18))))
     (is (not (:valid? (rg/validate-governance (assoc g :unexpected true)))))))
 
+(deftest root-scoped-p0-rejects-ignored-validity-windows
+  (let [g (governance)]
+    (is (not (:valid? (rg/validate-governance
+                        (assoc-in g [:governance/principals 0 :principal/keys 0 :valid-until]
+                                  "2027-01-01T00:00:00Z")))))
+    (is (not (:valid? (rg/validate-governance
+                        (assoc-in g [:governance/members 0 :valid-from]
+                                  "2026-01-01T00:00:00Z")))))))
+
 (deftest governed-round-commits-its-governance-snapshot
   (let [g-root (rg/governance-root (governance))
         c-root (hash-ref "e")

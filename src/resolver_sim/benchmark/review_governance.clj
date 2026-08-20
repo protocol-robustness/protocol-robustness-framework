@@ -73,6 +73,8 @@
           (when-not (= (count ids) (count (set ids)))
             (err! "duplicate principal ids"))))
       (doseq [p (or principals [])]
+        (when (or (contains? p :valid-from) (contains? p :valid-until))
+          (err! "principal validity windows are forbidden in root-scoped P0"))
         (when-not (and (:principal/id p) (contains? principal-statuses (:status p)))
           (err! "invalid principal"))
         (when-not (:principal/independence-group p)
@@ -86,6 +88,8 @@
         (when-not (vector? (:principal/keys p))
           (err! "principal keys must be a vector"))
         (doseq [k (:principal/keys p)]
+          (when (or (contains? k :valid-from) (contains? k :valid-until))
+            (err! "signing-key validity windows are forbidden in root-scoped P0"))
           (when-not (and (:key/id k) (contains? key-statuses (:status k))
                          (= :ed25519 (:key/algorithm k))
                          (string? (:key/public-key k)))
@@ -98,6 +102,8 @@
           (when-not (= (count principal-ids) (count (set principal-ids)))
             (err! "a principal may bind to only one governed member"))))
       (doseq [m (or members [])]
+        (when (or (contains? m :valid-from) (contains? m :valid-until))
+          (err! "member validity windows are forbidden in root-scoped P0"))
         (when-not (and (:reviewer/member-id m) (:principal/id m)
                        (contains? member-statuses (:status m)))
           (err! "invalid member"))

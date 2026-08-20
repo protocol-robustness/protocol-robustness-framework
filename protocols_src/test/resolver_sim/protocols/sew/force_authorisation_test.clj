@@ -20,7 +20,8 @@
              [resolver-sim.protocols.sew.invariants :as inv]
              [resolver-sim.benchmark.researcher-force-authorisation :as researcher-fa]
              [resolver-sim.benchmark.research-assignment :as research-assignment]
-             [resolver-sim.assurance.three-member-authority :as governed-authority])
+             [resolver-sim.assurance.three-member-authority :as governed-authority]
+                         [resolver-sim.extensions.force-authorisation :as force-extension])
   (:import [org.bouncycastle.crypto.generators Ed25519KeyPairGenerator]
            [org.bouncycastle.crypto.params Ed25519KeyGenerationParameters]
            [org.bouncycastle.crypto.util PrivateKeyInfoFactory SubjectPublicKeyInfoFactory]
@@ -39,11 +40,15 @@
 (def gov-ctx
   "Context with a governance agent for grant/revoke actions."
   {:agent-index {"gov" {:id "gov" :address gov-addr :role "governance"}}
-   :governance-identity gov-addr})
+   :governance-identity gov-addr
+   :force-authorisation/allow-local-compatibility? true
+   :extension-map (force-extension/install (force-extension/install-governed-authority {}))})
 
 (def exec-ctx
   "Context with any resolvable agent for execute actions."
-  {:agent-index {"exec" {:address resolver-addr}}})
+  {:agent-index {"exec" {:address resolver-addr}}
+   :force-authorisation/allow-local-compatibility? true
+   :extension-map (force-extension/install (force-extension/install-governed-authority {}))})
 
 (defn- disputed-world
   "Create a world with one :disputed escrow at block-time 1000.
@@ -544,6 +549,11 @@
     (is auth-id)
     (is (= :related-claims (:authorization/scope-kind grant)))
     (is (= 2 (count (:member-scope-hashes grant))))
+    (is (= auth-id (:nonce grant)) "related-claims grants receive the canonical permit nonce")
+    (is (true? (:holds? (inv/force-authorisations-governance-origin? (:world grant-result))))
+        "a valid related-claims grant satisfies governance-origin invariants")
+    (is (true? (:holds? (inv/force-authorisations-lifecycle-consistent? (:world grant-result))))
+        "a valid related-claims grant satisfies lifecycle invariants before consumption")
     (is (every? #(contains? % :held/position-id)
                 (map :authorization/scope [grant])))
     (is (nil? (:error execute-0)) "first related member executes")
@@ -551,6 +561,20 @@
     (is (= :consumed (get-in execute-1 [:world :force-authorisations auth-id :authorization/status])))
     (is (true? (:holds? (inv/force-authorisations-lifecycle-consistent? (:world execute-1)))))
     (is (true? (:holds? (inv/related-claims-authorisation-scope-closed? (:world execute-1)))))))
+
+(deftest local-governance-permit-cannot-execute-in-governed-production-context
+  (let [world0 (disputed-world)
+        {:keys [world auth-id]} (grant-force-auth world0)
+        production-context (dissoc exec-ctx :force-authorisation/allow-local-compatibility?)
+        result (sew/apply-action production-context world
+                                 {:seq 2 :time 1000 :agent "exec"
+                                  :action "execute-force-authorised-action"
+                                  :params {:workflow-id 0 :authorization-id auth-id :is-release true}})]
+    (is (= :local-governance-only
+           (get-in world [:force-authorisations auth-id :authorization/provenance
+                          :authorization/issuance-assurance])))
+    (is (= :force-authorisation-governed-issuance-required (:error result)))
+    (is (nil? (:world result)))))
 
 (deftest force-auth-grant-release-cannot-execute-refund
   (let [world0 (disputed-world)
@@ -820,7 +844,18 @@
    Governance identity is configured so the actor is rejected for role/address,
    not for missing configuration."
   {:agent-index {"mallory" {:id "mallory" :address "0xMallory" :type "honest"}}
-   :governance-identity gov-addr})
+   :governance-identity gov-addr
+   :extension-map (force-extension/install (force-extension/install-governed-authority {}))})
+
+(deftest plain-sew-composition-has-no-force-authorisation-capability
+  (let [world0 (disputed-world)
+        result (sew/apply-action (dissoc gov-ctx :extension-map) world0
+                                 {:seq 0 :time 1000 :agent "gov"
+                                  :action "grant-force-authorisation"
+                                  :params {:workflow-id 0 :reason :resolver-overcapacity}})]
+    (is (= :force-authorisation-extension-unavailable (:error result)))
+    (is (nil? (:world result)))
+    (is (empty? (:force-authorisations world0)))))
 
 (deftest force-auth-non-governance-grant-rejected
   (let [world0 (disputed-world)

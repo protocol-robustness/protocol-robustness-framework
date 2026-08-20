@@ -37,7 +37,9 @@
             [resolver-sim.protocols.sew.action-context   :as actx]
             [resolver-sim.benchmark.researcher-force-authorisation :as researcher-fa]
             [resolver-sim.benchmark.research-assignment :as research-assignment]
-            [resolver-sim.assurance.three-member-authority :as governed-authority]
+            [resolver-sim.assurance.governed-authority-consumer :as governed-authority]
+            [resolver-sim.extensions.force-authorisation :as force-extension]
+            [resolver-sim.composition.semantic :as semantic]
             [resolver-sim.yield.expectations             :as yield-exp]
             [resolver-sim.yield.evidence                 :as yield-evi]
             [resolver-sim.time.context                   :as time-ctx]
@@ -49,6 +51,27 @@
 ;; ---------------------------------------------------------------------------
 
 (def ^:private max-safe-amount 922337203685477)
+
+(defn- semantic-composition [context]
+  (:semantic-composition context))
+
+(defn- semantic-force-authorisation-active?
+  "A supplied semantic composition is authoritative: classpath and the legacy
+   extension-map cannot activate force-authorisation outside its selected
+   custody-execution capability and action module. Contexts without a semantic
+   composition retain the staged legacy adapter behaviour."
+  [context]
+  (let [composition (semantic-composition context)]
+    (if composition
+      (and (:valid? (semantic/validate composition))
+           (semantic/selected-capability?
+            composition
+            [:sew/force-authorisation :force-authorisation/custody-execution-v1]))
+      (force-extension/installed? (:extension-map context)))))
+
+(defn- semantic-action-permitted? [context action]
+  (let [composition (semantic-composition context)]
+    (or (nil? composition) (semantic/allows-action? composition action))))
 
 ;; ---------------------------------------------------------------------------
 ;; Helpers
@@ -867,11 +890,15 @@
 
 (defmethod apply-action "grant-force-authorisation"
   [context world event]
-  (grant-force-authorisation* context world event nil))
+  (if (semantic-force-authorisation-active? context)
+    (grant-force-authorisation* context world event nil)
+    (t/fail :force-authorisation-extension-unavailable)))
 
 (defmethod apply-action "grant-force-authorization"
   [context world event]
-  (grant-force-authorisation* context world event nil))
+  (if (semantic-force-authorisation-active? context)
+    (grant-force-authorisation* context world event nil)
+    (t/fail :force-authorisation-extension-unavailable)))
 
 (defn- resolved-artifact
   [resolver reference]
@@ -897,44 +924,8 @@
     (:agent-index context) event (governance-check context)
     (fn [_addr _actor _check] {:ok true})))
 
-(defn- governed-authority-check
-  "Resolve and recompute governed researcher authority solely from the trusted
-   action context. The event names an authorisation and its round hash, but
-   cannot provide a governance snapshot, position times, freshness answer, or
-   authority report/root."
-  [context auth round-ref]
-  (let [resolver (:researcher-force-authorisation-governed-authority-context-resolver context)
-        governed-context (resolved-artifact resolver round-ref)
-        review-round (:review-round governed-context)
-        governance (:review-governance governed-context)
-        position-time-resolver (:position-time-resolver governed-context)
-        governance-current? (:governance-current? governed-context)
-        signature-valid? (fn [position]
-                           (true? (:valid?
-                                   (researcher-fa/verify-decision-signatures
-                                    (:researcher-public-key-resolver context)
-                                    (assoc auth :authorisation/decision-references [position])))))]
-    (try
-      (if (and (:resolved? governed-context)
-               (= round-ref (:review-round/hash review-round))
-               governance
-               (fn? position-time-resolver)
-               (fn? governance-current?))
-        (let [report (governed-authority/evaluate-governed-authority
-                      :authorisation auth
-                      :review-round review-round
-                      :governance governance
-                      :position-time-resolver position-time-resolver
-                      :governance-current? governance-current?
-                      :signature-valid? signature-valid?)
-              report-root (governed-authority/authority-report-root report)]
-          {:valid? (= :authorised (:authority-status report))
-           :report report
-           :authority-report-root report-root
-           :governance-root (:governance-root report)
-           :review-round-hash (:review-round/hash review-round)})
-        {:valid? false})
-      (catch Exception _ {:valid? false}))))
+(defn- governed-authority-check [context auth round-ref]
+  (governed-authority/verify-governed-authority context auth round-ref))
 
 (defn- consensus-authorisation-checks
   "Fail-closed verification for the consensus-to-Sew bridge. Resolvers live in
@@ -1180,7 +1171,9 @@
 
 (defmethod apply-action "grant-consensus-force-authorisation"
   [context world event]
-  (let [governance-result (consensus-governance-preflight context event)
+  (if-not (semantic-force-authorisation-active? context)
+    (t/fail :force-authorisation-extension-unavailable)
+    (let [governance-result (consensus-governance-preflight context event)
         {:keys [valid? checks authorisation research-assignment governed-authority scope-hash]}
         (consensus-authorisation-checks context world event)
         pp (:params event)
@@ -1258,7 +1251,7 @@
                 ;; CAS may release its exact binding after constructor failure.
                 (when (= :new (:mode claim))
                   (release-consensus-grant-reservation! registry consumption-key binding))
-                grant))))))))
+                grant)))))))))
 
 (defmethod apply-action "revoke-force-authorisation"
   [context world event]
@@ -1352,7 +1345,9 @@
 ;; optional parameter attribution through the shared held-adjustment projector.
 (defmethod apply-action "grant-related-claims-force-authorisation"
   [context world event]
-  (run-governance-action context world event
+  (if-not (semantic-force-authorisation-active? context)
+    (t/fail :force-authorisation-extension-unavailable)
+    (run-governance-action context world event
     (fn [addr _auth-info provenance]
       (let [pp (:params event)
             rel-id (:relationship-id pp)
@@ -1429,6 +1424,7 @@
                             :relationship/id rel-id
                             :relationship/hash (:relationship/hash relationship)
                             :member-scope-hashes member-hashes
+                            :nonce auth-id
                             :allowed-action "execute-resolution"
                             :authorization/scope scope
                             :authorization/scope-hash scope-hash
@@ -1442,11 +1438,13 @@
                     world' (-> world
                                (assoc-in [:force-authorisations auth-id] record)
                                (update :next-force-authorisation-id inc))]
-                (assoc (t/ok world') :extra {:authorization/id auth-id})))))))))
+                (assoc (t/ok world') :extra {:authorization/id auth-id}))))))))))
 
 (defmethod apply-action "execute-force-authorised-action"
-  [{:keys [agent-index]} world event]
-  (actx/with-resolved-actor
+  [{:keys [agent-index extension-map] :as context} world event]
+  (if-not (semantic-force-authorisation-active? context)
+    (t/fail :force-authorisation-extension-unavailable)
+    (actx/with-resolved-actor
     agent-index event
     (fn [addr]
       (let [pp              (:params event)
@@ -1466,6 +1464,18 @@
 
           (:consumed? record)
           (t/fail :force-authorisation-already-consumed)
+
+          (and (not= :governed-research-authority
+                     (get-in record [:authorization/provenance :authorization/issuance-assurance]))
+               (not (:force-authorisation/allow-local-compatibility? context)))
+          (t/fail :force-authorisation-governed-issuance-required)
+
+          (and (not (:force-authorisation/allow-local-compatibility? context))
+               (not (every? #(contains? (:authorization/provenance record) %)
+                            [:researcher-force-authorisation/governance-root
+                             :researcher-force-authorisation/authority-report-root
+                             :researcher-force-authorisation/governed-review-round-hash])))
+          (t/fail :force-authorisation-governed-bindings-required)
 
           (and (not related?) (not= workflow-id (:workflow-id record)))
           (t/fail :force-authorisation-workflow-mismatch)
@@ -1528,6 +1538,8 @@
                  :authorization/scope-hash scope-hash
                  :authorization/source :governance
                  :authorization/check :force-authorisation-record
+                 :authorization/issuance-assurance
+                 (get-in record [:authorization/provenance :authorization/issuance-assurance])
                  :authorization/workflow-id workflow-id
                  :authorization/allowed-action "execute-resolution"
                  :authorization/executed-by addr
@@ -1593,11 +1605,11 @@
                     (assoc :extra
                            {:authorization/id auth-id
                             :authorization/provenance execution-prov})))
-               result)))))))))
+               result))))))))))
 
 (defmethod apply-action "execute-force-authorized-action"
-  [{:keys [agent-index]} world event]
-  ((get-method apply-action "execute-force-authorised-action") {:agent-index agent-index} world event))
+  [context world event]
+  ((get-method apply-action "execute-force-authorised-action") context world event))
 
 (defmethod apply-action "execute-overflow-resolution"
   [{:keys [agent-index]} world event]
@@ -2323,8 +2335,12 @@
                               :expected-failures (:expected-failures scenario {}))
           fot-bps      (when tp (get tp :fee-on-transfer 0))
           s-tokens     (into #{} (keep #(get-in % [:params :token]) (:events scenario)))
+          composition  (:semantic-composition scenario)
+          _            (when (and composition (not (:valid? (semantic/validate composition))) )
+                         (throw (ex-info "invalid semantic composition" (semantic/validate composition))))
           base         (-> (t/empty-world init-time)
                            (assoc :params pp)
+                           (cond-> composition (assoc :semantic-composition composition))
                            ;; Declare the held-adjustment completeness contract: a world
                            ;; born from t/empty-world begins with zero custody and is driven
                            ;; only through the protocol command layer (acct/adjust-held), so
@@ -2336,9 +2352,19 @@
                            ;; clear this flag, keeping strong replay honestly :not-evaluated.
                            (assoc-in [:params :held-adjustments/complete?] true)
                            (yield-proto/init-world pp (:yield-config scenario)))]
-      (if (and fot-bps (pos? fot-bps) (seq s-tokens))
-        (reduce (fn [w tok] (assoc-in w [:token-fot-bps tok] fot-bps)) base s-tokens)
-        base)))
+      (let [world (if (and fot-bps (pos? fot-bps) (seq s-tokens))
+                    (reduce (fn [w tok] (assoc-in w [:token-fot-bps tok] fot-bps)) base s-tokens)
+                    base)]
+        ;; A supplied semantic composition owns live-region admission. Legacy
+        ;; scenarios without one retain their pre-Phase-2 initialized shape.
+        (if (and composition
+                 (not-any? (semantic/active-regions composition)
+                           semantic/force-authorisation-state-regions))
+          (apply dissoc world [:force-authorisations
+                              :force-authorisations/consumed
+                              :force-authorisations/consumption-records
+                              :next-force-authorisation-id])
+          world))))
 
   (build-execution-context [_ agents protocol-params]
     (let [pp         protocol-params
@@ -2395,6 +2421,11 @@
                             (update result :world bind-scenario-result event result)
                             result)))]
       (cond
+        (not (semantic-action-permitted? context (:action event)))
+        {:ok false :error :semantic-composition-action-not-permitted
+         :detail {:action (:action event)
+                  :composition-root (get-in context [:semantic-composition :semantic-composition/root])}}
+
         (and require-id? (replay-sensitive-action? event) (nil? eid))
         {:ok false :error :missing-event-id
          :detail {:action (:action event) :seq (:seq event)}}

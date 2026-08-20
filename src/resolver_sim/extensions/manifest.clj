@@ -42,6 +42,7 @@
    :capability/id
    :capability/version
    :capability/contract-version
+   :capability/profile
    :entrypoint
    :input-schema
    :output-schema

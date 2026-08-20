@@ -86,9 +86,9 @@
       "the negative-net fixture actually has negative :net-change"))
 
 (deftest golden-manifest-roots
-  (is (= "f2823c53426f0040a72acb7d27bf917b33285132a0157c41cf5bcd457f1fba17"
+  (is (= "95989b39a8f45b0448f6483a4884b0a4ee71d8782ac5bf82fb77ee83592824e6"
          (em/capability-descriptor-root manifest/capability))
       "capability descriptor root is pinned; manifest contract changes are reviewed")
-  (is (= "209c9b1af4e6f9e17f32d9acb9bdfaafd6243ae532cda0dc846c595a94cf43fa"
+  (is (= "829e229cf2b9e653077f050380fa62f11ca0029af08ed4ba70068b8b8f8eca68"
          (em/package-root manifest/package))
       "package root is pinned; manifest contract changes are reviewed"))

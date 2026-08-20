@@ -36,9 +36,9 @@
                          :cardinality :one}}
    :declared-dependencies
    [{:capability/kind :prf/content-addressed-artifacts
-     :capability/id :envelope}
+     :capability/id :prf/envelope}
     {:capability/kind :prf/force-authorisation
-     :capability/id :scope-verification}]})
+     :capability/id :force-authorisation/scope-verification}]})
 
 (def historical-read-contract
   "Permanent, machine-readable historical-read contract for this package.
