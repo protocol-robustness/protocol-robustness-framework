@@ -46,8 +46,7 @@
   "data/yield"
   "benchmarks/packs"
   "notebooks"
-  "examples"
-  "site"]
+  "examples"]
 
  :allowed-authorities #{:prf :protocol :benchmark :user}
  :allowed-content-kinds #{:core-contract :integration :example
@@ -95,11 +94,7 @@
 
   {:path "examples/**"
    :authority :prf :content-kind :example :support-status :illustrative
-   :reason "PRF-authored illustrative examples; non-normative, user-replaceable"}
-
-  {:path "site/**"
-   :authority :prf :content-kind :demo :support-status :illustrative
-   :reason "PRF product/demo site content"}]
+   :reason "PRF-authored illustrative examples; non-normative, user-replaceable"}]
  :overrides
  [{:path "examples/use-cases/**"
    :authority :user :content-kind :example :support-status :illustrative

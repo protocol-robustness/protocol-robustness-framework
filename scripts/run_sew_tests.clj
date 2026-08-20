@@ -376,16 +376,15 @@
   []
   (let [dir (evcfg/artifact-dir)
         artifact-files (if (and dir (.exists (io/file dir)))
-                       (let [staged (some-> (System/getenv "PARALLEL_TEST_RUN_ROOT")
-                                          io/file .getCanonicalFile .toPath)
+(let [staged (some-> (System/getenv "PARALLEL_TEST_RUN_ROOT")
+                                           io/file .getCanonicalFile .toPath)]
                          (->> (file-seq (io/file dir))
                               (filter #(.isFile %))
                               (remove (fn [f]
                                         (and staged
                                              (.startsWith (.toPath (.getCanonicalFile f)) staged))))
                               (sort-by #(.getName %))
-                              (mapv (fn [f] [(str f) (.length f)])))
-                         [])
+                              (mapv (fn [f] [(str f) (.length f)]))))
                        [])
         threads (->> (.keySet (Thread/getAllStackTraces))
                      (remove #(.isDaemon %))
