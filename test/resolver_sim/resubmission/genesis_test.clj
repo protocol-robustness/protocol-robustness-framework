@@ -363,6 +363,21 @@
       (is (= receipt-pk (.receipt-public-hex c)))
       (is (nil? (.disposition-public-hex c))))))
 
+(deftest test-genesis-g0-is-realization-initial-state
+  (testing "genesis initial-state/root is the actual store initial state root"
+    (let [g genesis-with-receipt
+          c (chain/new-chain-from-genesis g)
+          s0 (store/state-of c)]
+      (is (= (:initial-state/root g)
+             (transition/state-root s0))
+          "store initial state must be the G0 committed in genesis")))
+  (testing "first transition successor of genesis-declared G0"
+    (let [g genesis-no-keys
+          c (chain/new-chain-from-genesis g)
+          s0 (store/state-of c)]
+      (is (= (:initial-state/root g) (transition/state-root s0))
+          "G0 is the transactional predecessor, not merely a matching root"))))
+
 (deftest test-genesis-of-returns-stored-genesis
   (testing "stores created from genesis expose it via genesis-of"
     (let [g genesis-with-receipt

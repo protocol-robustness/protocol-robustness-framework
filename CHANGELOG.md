@@ -2,7 +2,101 @@
 
 ## [Unreleased]
 
-### Recipient-cancel guard scenarios + strategic depth (closing gap #6)
+### Resubmission Genesis Layer — Canonical genesis declaration and realization (CLOSED)
+
+- **Canonical genesis artifact.** `resolver-sim.resubmission.genesis` implements `resubmission-chain-genesis.v1`: a canonical, content-addressed declaration of family identity, initial authority configuration, and committed G0 (initial state root). Adds domain tags `prf.resubmission-chain-identity.v1`, `prf.resubmission-chain-configuration.v1`, and `prf.resubmission-chain-genesis.v1` with dedicated hash intents and canonical projections.
+- **Chain identity frozen.** `chain-id = sha256(H(family-id, genesis disposition-authority, genesis receipt-authority))` — derived from the immutable genesis identity basis, NOT from the genesis root or current configuration. Subsequent authority rotation does NOT recompute chain identity (Interpretation A). Family with different initial trust anchors are necessarily distinct chains.
+- **G0 committed in genesis.** `:initial-state/root` is the canonical `transition/state-root(transition/empty-state(family-id, disposition-public-hex))`, not an abstract nil. Cross-layer invariant verified: store's initial committed state root equals the genesis-declared G0.
+- **Realization API.** `chain/new-chain` (convenience/local realization, constructs genesis for provenance without validation) and `chain/new-chain-from-genesis` (canonical validated realization, validates strict closed-shape fail-closed before construction). `store/genesis-of` accesses declared genesis; docstring explicitly states it conveys provenance only, NOT governance authorization.
+- **Validation boundary defined.** `validate-resubmission-chain-genesis` enforces: schema, closed-shape (unknown keys rejected), sha256-ref validity, chain-id derivation consistency, and initial-state/root consistency. `new-chain-from-genesis` fails closed on any validation error.
+- **Provenance states documented.** `genesis-of(store)` returns: `nil` (legacy/transitional, undeclared), locally-derived G (convenience path, provenance only), or validated G (canonical validated realization). All convey declaration, not authorization.
+- **Architectural invariant frozen:** `validated ≠ authoritative`. A well-formed genesis that passes all structural and canonical checks is NOT governance-authorized. Future `resubmission-chain-genesis-authorization.v1` will bind genesis root to a governance decision as a separate verifiable artifact.
+- **Tests:** 47 tests, 94 assertions, 0 failures. clj-kondo: 0 errors, 0 warnings on modified files.
+- **Files:** `src/resolver_sim/resubmission/genesis.clj`, `src/resolver_sim/resubmission/store.clj`, `src/resolver_sim/resubmission/chain.clj`, `src/resolver_sim/hash/canonical.clj`, `test/resolver_sim/resubmission/genesis_test.clj`
+
+### CC3 — Canonical command-lineage consecutiveness and termination (CLOSED)
+
+- **Command-lineage primitive frozen.** `resolver-sim.composition.command-lineage` implements the canonical command composition algebra with dedicated hash domains (combination, command, concatenation, termination, chain). Closed for all purposes except defect repair from higher-level integration.
+- **Three identities enforced:** shared-state (immutable SHA-256 ref, exactly one per command with `:ref == :command/input-state-root`), combination (`command-built-with-includes`, order-independent), consecutive concatenation (join-state derived as `resulting-state(A) == input-state(B)`).
+- **Idempotent terminal replay.** Identical `cancel-and-terminate` replay recognized as `:already-terminated` with `{:valid? true :append? false}`; successor after terminal head rejected as `:predecessor-terminal`; first-element terminator rejected as `:missing-termination-predecessor`.
+- **Three-way termination basis.** Verifier enforces `head.resulting-state == terminator.input-state == terminator shared-state.basis`.
+- **Concatenation chain.** `build-concatenation-chain` produces per-adjacent-pair records; `verify-concatenation-chain` verifies individual validity + chain continuity (`right-of(i) == left-of(i+1)`); `concatenation-chain-root` is a pure cryptographic commitment — the hash carries no semantic authority, consecutiveness requires rerunning `verify-concatenation-chain`.
+- **Valid layer separation:** pairwise (`verify-concatenation`) ≠ ordered chain (`verify-concatenation-chain`) ≠ injectivity (future, downstream).
+- **Tests:** 27 tests, 95 assertions, 0 failures. clj-kondo: 0 errors, 0 warnings.
+- **Files:** `src/resolver_sim/composition/command_lineage.clj`, `test/resolver_sim/composition/command_lineage_test.clj`
+
+## CC3 Design Boundary
+
+```
+CC3 command consecutiveness
+        ↓
+canonical consecutive composition
+        ↓
+prop-consecutive-injective
+        ↓
+research-facing composition / pro-rata use
+```
+
+## CC3 Design Boundary
+
+```
+CC3 command consecutiveness
+        ↓
+canonical consecutive composition
+        ↓
+prop-consecutive-injective
+        ↓
+research-facing composition / pro-rata use
+```
+
+`prop-consecutive-injective` must add a distinct no-collapse / no-alias / no-reuse condition. It should not cause CC3 to be generalized.
+
+### CC3 Bridge Audit — Preliminary Findings
+
+1. **Where CC3 validity is checked.** `verify-command` (shared-state invariant + structural + root), `verify-lineage` (continuity + termination + concatenation-chain), `verify-concatenation` (pairwise), `verify-concatenation-chain` (ordered chain). All in `resolver-sim.composition.command-lineage`.
+
+2. **Canonical constructor cannot admit what CC3 rejects.** `build-concatenation-chain` calls `build-concatenation` per pair, which enforces `resulting-state(left) == input-state(right)`. `verify-lineage` wraps this in try/catch to surface `:concatenation-chain-build-error`. No constructor bypasses the adjacency check.
+
+3. **compactly/projection collapse risk.** `resolver-sim.composition.v1`'s `compactly` has documented, intentional normalization laws (e.g. `:floor-and-carry` → `:largest-remainder`; uniform contexts collapse to single `:claimant-context`). These are explicitly tested (`identical-contexts-collapse-regardless-of-count`). V1's `compactly` rejects `:execution`/`:diagnostic` keys rather than silently projecting them away. **Audit question remains**: whether the CC3-level canonical consecutive constructor (not yet built) will have its own compact projection that could collapse distinct chains — this must be explicitly lossless except for permitted grouping equivalences.
+
+4. **Recognized nested consecutive node.** Not yet implemented. CC3 currently supports only flat adjacent pairs. Nested/recursive consecutive composition is a future canonical-consecutive-composition concern, not a CC3 concern.
+
+5. **Canonical identity non-aliasing.** CC3 uses dedicated domain tags (`PRF_COMMAND_LINEAGE_COMBINATION_V1`, `PRF_COMMAND_LINEAGE_COMMAND_V1`, `PRF_COMMAND_LINEAGE_CONCATENATION_V1`, `PRF_COMMAND_LINEAGE_TERMINATION_V1`, `PRF_COMMAND_LINEAGE_CHAIN_V1`). V1 uses `SEMANTIC_COMPOSITION_V1`. The two systems are domain-separated — no alias between a CC3 chain root and a V1 composition root is possible.
+
+**Decision**: Do not proceed to canonical consecutive composition or `prop-consecutive-associative` until the above boundary is confirmed. CC3 remains the sole owner of "may follow" adjacency semantics.
+
+### CC3 → Canonical Composition Boundary Characterization
+
+The dependency chain and property decomposition are confirmed:
+
+```
+CC3 command consecutiveness       ── owns: Adjacent(A,B), out(A)=in(B)
+        │                             (adjacency / chain validity)
+        ▼
+canonical consecutive composition ── owns: CC3Valid([A,B,C,…]) → canonical ordered identity
+        │                             (CC3 validity assumed, not redefined)
+        ▼
+prop-consecutive-injective        ── owns: X≠Y ⟹ C(X)≠C(Y)
+        │                             (distinctness / anti-collapse)
+        ▼
+research-facing composition
+        ├── functional composition
+        ├── pro-rata projections
+        ├── additive composition
+        └── other homomorphisms
+```
+
+**Key consequence**: `prop-consecutive-injective` must **consume** CC3 semantics, not redefine them. CC3 is the sole owner of "may follow" adjacency. The injective layer says something different: distinct admissible compositions produce distinct canonical identities.
+
+#### Four distinct conditions (property decomposition)
+
+**A. CC3 admissibility** — `composition.v1` must not reinvent CC3 rules. It should consume/bind to CC3-valid relations, not duplicate the validator.
+
+**B. No-collapse through normalization** — Normalization may erase grouping (`((A;B);C) ≈ A;(B;C) → [A B C]`) but must not erase members, ordering, or multiplicity (`[A B C] ≠ [A C]`, `[A A B] ≠ [A B]`, `[A B C] ≠ [A C B]`). Formal: `N(X) = N(Y)` only when X∼Y by explicitly sanctioned structural equivalences (initially associative grouping only).
+
+**C. No-alias** — `Encode_consecutive([A B])` must not equal `Encode_other-domain([A B])`. Established by `:composition/family` + version + domain tag. Must be demonstrated, not assumed.
+
+**D. No-reuse** — Not "member root occurs once only" (multiplicity preservation makes `[A A B]` meaningful). Instead: a canonical consecutive-composition identity cannot be reused as the identity of a distinct composition. If CC3 has occurrence-consumption rules, they belong to CC3.
 
 - **`recipient_cancel`-during/after-dispute now covered.** `S-DR-107` verifies `recipient_cancel` on an active `:disputed` escrow is rejected with `:transfer-not-pending` — a counterparty cannot use cancel to bypass an in-flight dispute. `S-DR-108` verifies `recipient_cancel` on a terminal `:released` escrow (after resolution) is likewise rejected — cancel cannot unwind a finalized settlement. Both replay to `:pass` with the guard rejection pinned via `:expected-errors`. (`scenarios/edn/S-DR-107/108-recipient-cancel-*.edn`, `protocols_src/test/resolver_sim/protocols/sew/dispute_resolution_coverage_test.clj`)
 - **Strategic category deepened.** Strategic/disputant coverage rises 8 → 10 scenarios. Coverage report: 67 total, 0 missing, 0 todo-stubs. (`src/resolver_sim/scenario/dispute_coverage.clj`, `src/resolver_sim/scenario/suites.clj`)

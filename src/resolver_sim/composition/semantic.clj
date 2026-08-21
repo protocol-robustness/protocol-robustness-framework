@@ -75,11 +75,10 @@
     :next-force-authorisation-id})
 
 (def force-authorisation-invariants
+  ;; Only invariants that actually exist in resolver-sim.protocols.sew.invariants.
+  ;; These are the two force-authorisation invariants in world-invariant-ids.
   #{:force-authorisations-lifecycle-consistent
-    :force-authorisations-governance-origin
-    :force-authorisations-issuance-assurance
-    :force-authorisations-scope-consistent
-    :force-authorisations-consumption-consistent})
+    :force-authorisations-governance-origin})
 
 (def force-authorisation-action-module
   (module :sew.module/force-authorisation-actions 1 force-authorisation-actions #{} #{}))
@@ -209,16 +208,15 @@
 (defn derive-packages
   "Derive the package set from the resolution snapshot.
    Returns a vector of {:extension/id, :extension/package-root} sorted canonically."
-  [resolution]
-  (let [packages (:extensions/packages resolution)]
-    (vec (sort-by :extension/id
-                  (fn [p] (str (:extension/id p)))
-                  (mapv (fn [[_ p]]
-                          {:extension/id (:package/id p)
-                           :extension/package-root (:package-root p)
-                           :extension/version (:package/version p)
-                           :sealed (:sealed p)})
-                        packages)))))
+   [resolution]
+   (let [packages (:extensions/packages resolution)]
+     (vec (sort-by (fn [p] (str (:extension/id p)))
+                   (mapv (fn [[_ p]]
+                           {:extension/id (:package/id p)
+                            :extension/package-root (:package-root p)
+                            :extension/version (:package/version p)
+                            :sealed (:sealed p)})
+                         packages)))))
 
 (defn derive-capabilities
   "Derive the capability key vector from the resolution snapshot, sorted
@@ -230,24 +228,16 @@
 
 (defn default-force-authorisation-policy
   "The canonical default force-authorisation policy artifact, computed from
-   the canonical three-member standard. Used when no explicit policy is supplied
-   but custody-execution is active."
+    the canonical three-member standard. Used when no explicit policy is supplied
+    but custody-execution is active."
   []
-  @#'fa-policy/default-research-policy)
+  @fa-policy/default-research-policy)
 
 (defn policy-root
   "Compute the canonical hash root of a force-authorisation policy artifact."
   [policy]
-  (let [validate (resolve 'fa-policy/validate)
-        build (resolve 'fa-policy/build)]
-    (when-not (and validate build)
-      (throw (ex-info "force-authorisation policy namespace is unavailable; the physical force-authorisation extension must be on the classpath"
-                      {:error :semantic-composition/policy-namespace-unavailable})))
-    (when-not (:valid? (try (validate policy) (catch Exception _ {:valid? false}))
-                       #_:clj-kondo/ignore)
-      (throw (ex-info "invalid force-authorisation policy" {:policy policy})))
-    (let [policy-hash-f (resolve 'fa-policy/policy-hash)]
-      (policy-hash-f policy))))
+  (fa-policy/validate policy)
+  (fa-policy/policy-hash policy))
 
 (defn canonical-policy-conforming?
   "True when a force-authorisation policy conforms to the canonical three-member
