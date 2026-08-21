@@ -192,7 +192,7 @@
 (defn lineage-root
   "Deterministic content root of a reproduction lineage receipt."
   [lineage]
-   (hc/domain-hash :conformance-reproduction-lineage-v1
+  (hc/domain-hash :conformance-reproduction-lineage-v1
                   (select-keys lineage
                                [:schema-version :reproduction/id
                                 :baseline :reproduced :comparison-policy

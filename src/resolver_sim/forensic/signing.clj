@@ -36,7 +36,7 @@
           data-hash (sha256-hex preimage)
           raw-sig (bs/sign data-hash {:key priv :alg :ed25519})
           sig-b64 (.encodeToString (java.util.Base64/getEncoder) raw-sig)]
-       {:signature/schema-version signature-schema-version
+      {:signature/schema-version signature-schema-version
        :signature/signed-hash data-hash
        :signature/value sig-b64
        :signature/key-id (or key-path (System/getenv "PRF_SIGNING_KEY"))

@@ -122,7 +122,7 @@
                                  [[:run/id (:run/id dag)]
                                   [:scenario/id (:scenario/id dag)]
                                   [:execution/id (:execution/id dag)]]))
-                        (when-not (= dag-schema-version (or (:dag/schema-version dag) (:schema-version dag))) [{:code :execution-dag/unsupported-schema}])
+                       (when-not (= dag-schema-version (or (:dag/schema-version dag) (:schema-version dag))) [{:code :execution-dag/unsupported-schema}])
                        (when-not (vector? nodes) [{:code :execution-dag/nodes-not-vector}])
                        (when-not (= (count ids) (count id-set)) [{:code :execution-dag/duplicate-node-id}])
                        (when (some nil? ids) [{:code :execution-dag/missing-node-id}])

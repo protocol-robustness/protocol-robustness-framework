@@ -231,7 +231,7 @@
                                                      (when (= x 3)
                                                        (throw (ex-info "boom" {:x x})))
                                                      x)
-                                                    (range 10))
+                                                 (range 10))
                   nil
                   (catch Exception e e))]
       (is (some? error) "exception propagated")

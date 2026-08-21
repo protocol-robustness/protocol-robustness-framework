@@ -24,7 +24,7 @@
 (defn- base-receipt
   [{:keys [policy-root base-operation-root resolution-root bounty-id stage]}]
   {:composition/type policy/composition-type
-    :composition/version policy/composition-version
+   :composition/version policy/composition-version
    :composition/stage (or stage :stage-b)
    :composition/policy-root policy-root
    :composition/base-operation-root base-operation-root

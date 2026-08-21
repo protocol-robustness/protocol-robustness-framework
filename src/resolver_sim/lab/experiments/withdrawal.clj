@@ -57,7 +57,7 @@
                    party-order)
         result (allocation/allocate
                 {:schema-version "pro-rata-allocation-request.v1"
-                  :mechanism/version allocation/mechanism-version
+                 :mechanism/version allocation/mechanism-version
                  :allocation/id [:lab/withdrawal
                                  (mapv :row/id rows)]
                  :available available

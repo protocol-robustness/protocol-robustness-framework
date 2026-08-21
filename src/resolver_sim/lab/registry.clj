@@ -71,7 +71,7 @@
 (def experiments
   "Registered, browser-runnable experiments."
   [{:experiment/id :withdrawal/constrained-liquidity
-     :experiment/version experiment-version
+    :experiment/version experiment-version
     :experiment/slug "withdrawal-constrained-liquidity"
     :experiment/title "Withdrawal under constrained liquidity"
     :experiment/question "What happens when withdrawal demand exceeds available liquidity?"
@@ -98,7 +98,7 @@
              :label "Rounding policy"})}
 
    {:experiment/id :insolvency/impairment
-     :experiment/version experiment-version
+    :experiment/version experiment-version
     :experiment/slug "insolvency-after-loss"
     :experiment/title "Insolvency after loss"
     :experiment/question "Is the vault still solvent after a realized loss, and what does PRF's assessment vocabulary say?"
@@ -119,7 +119,7 @@
              :default false :label "Require external coverage evidence"})}
 
    {:experiment/id :pro-rata/allocation
-     :experiment/version experiment-version
+    :experiment/version experiment-version
     :experiment/slug "pro-rata-allocation"
     :experiment/title "Pro-rata fractional allocation"
     :experiment/question "How is a constrained quantity divided among claims — and how do rounding, caps, and remainders change the distribution?"

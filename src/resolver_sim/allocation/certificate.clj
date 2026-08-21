@@ -114,7 +114,7 @@
         status (:result/status kernel-result)]
     {:status (if proof-backed? :valid :not-yet-evaluated)
      :proof-hash (when proof-backed?
-                    (hc/domain-hash :native-exact-replication-v1
+                   (hc/domain-hash :native-exact-replication-v1
                                    (dissoc evidence
                                            :native-evidence/status
                                            :native-evidence/reason)))

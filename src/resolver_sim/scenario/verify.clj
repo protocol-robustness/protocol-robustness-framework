@@ -11,9 +11,9 @@
             [resolver-sim.hash.reference :as hash-ref]
             [resolver-sim.io.paths :as paths]
             [resolver-sim.run.verdict-policy :as verdict-policy]
-             [resolver-sim.provenance.commitment :as prov-commit]
-             [resolver-sim.pro-rata.allocation :as allocation]
-             [resolver-sim.validation.integration.artifact-registry :as artifact-registry]
+            [resolver-sim.provenance.commitment :as prov-commit]
+            [resolver-sim.pro-rata.allocation :as allocation]
+            [resolver-sim.validation.integration.artifact-registry :as artifact-registry]
             [resolver-sim.yield.partial-fill :as partial-fill]))
 
 (defn- read-json [file]
@@ -186,7 +186,7 @@
                       (and (:valid? (evidence-node/validate-node node :known-parent-hashes known-hashes))
                            (= :mechanism/pro-rata-allocation
                               (get-in node [:extensions :mechanism/id]))
-                            (= allocation/mechanism-version (get-in node [:extensions :mechanism/version]))
+                           (= allocation/mechanism-version (get-in node [:extensions :mechanism/version]))
                            (contains? event-hashes
                                       (get-in node [:extensions :pro-rata/evidence-hash]))
                            (string? (get-in node [:extensions :pro-rata/allocation-result-hash]))

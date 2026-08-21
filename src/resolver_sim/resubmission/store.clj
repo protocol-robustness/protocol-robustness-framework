@@ -21,9 +21,9 @@
      - a signed attempt receipt commits the resulting
        :transaction-ordering/hash (receipt issuance is a later slice)."
   (:require [resolver-sim.resubmission.transition :as transition]
-             [resolver-sim.resubmission.genesis :as genesis]
-             [resolver-sim.transaction.ordering :as ordering]
-             [resolver-sim.transaction.protocol :as protocol]))
+            [resolver-sim.resubmission.genesis :as genesis]
+            [resolver-sim.transaction.ordering :as ordering]
+            [resolver-sim.transaction.protocol :as protocol]))
 
 (deftype ResubmissionChainStore [family-id disposition-public-hex receipt-public-hex state-atom genesis]
   protocol/TransactionStore

@@ -35,7 +35,7 @@
      :smoke/script "scripts/portability-smoke-test.sh"
      :smoke/output-hash
      (hash-ref/sha256-ref
-       (canonical/domain-hash :default-build-smoke-output-v1 output))
+      (canonical/domain-hash :default-build-smoke-output-v1 output))
      :smoke/log-content output}))
 
 (defn- emit! [variant jar-path bundle-path smoke]

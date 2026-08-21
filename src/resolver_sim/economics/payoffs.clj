@@ -301,7 +301,7 @@
                                            :projection-definition-id projection-definition-id
                                            :source source
                                            :projection projection-body})
-          artifact-base {:schema-version default-pro-rata-allocation-result-version
+         artifact-base {:schema-version default-pro-rata-allocation-result-version
                         :projection-id (str "projection-pro-rata-" (short-hash source-hash))
                         :projection-type (:projection-type projection-definition)
                         :projection-version (:version projection-definition)
@@ -974,13 +974,13 @@
                     :evaluated-check-count (count evaluated-checks)
                     :not-evaluated-check-count (count not-evaluated-checks)
                     :checks checks}
-         result-value {:schema-version default-pro-rata-allocation-result-version
+        result-value {:schema-version default-pro-rata-allocation-result-version
                       :allocation/id id
                       :canonical-request normalized
                       :projection-hash (:projection-hash projection)
                       :allocation allocation
                       :validation validation}
-         result-hash (hc/domain-hash :pro-rata-evaluation-v1 result-value)]
+        result-hash (hc/domain-hash :pro-rata-evaluation-v1 result-value)]
     {:allocation/id id
      :projection {:artifact/type :pro-rata/projection
                   :artifact/hash (:projection-hash projection)
@@ -996,7 +996,7 @@
   [evaluation]
   (let [value (get-in evaluation [:result :artifact/value])
         recorded (get-in evaluation [:result :artifact/hash])
-         computed (hc/domain-hash :pro-rata-evaluation-v1 value)]
+        computed (hc/domain-hash :pro-rata-evaluation-v1 value)]
     (when-not (and value (= recorded computed))
       (throw (ex-info "Invalid pro-rata evaluation package hash"
                       {:recorded recorded :computed computed})))
@@ -1074,7 +1074,7 @@
                                {:evidence-record-hash evidence-record-hash})
                              (when evidence-group-id
                                {:evidence-group-id evidence-group-id}))
-         artifact-base {:schema-version default-pro-rata-allocation-result-version
+        artifact-base {:schema-version default-pro-rata-allocation-result-version
                        :artifact-kind default-pro-rata-allocation-result-artifact-kind
                        :allocation-result-id (str "allocation-pro-rata-"
                                                   (short-hash source-hash))

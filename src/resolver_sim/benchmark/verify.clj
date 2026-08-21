@@ -196,7 +196,7 @@
                         "evidence_content_registry_sha256" (:sha256 (try (evidence-node/canonical-artifact-content "benchmark/evidence/content-registry.json" content-registry-file)
                                                                          (catch Exception _ {:sha256 "sha256:tampered"})))
                         "input_set_root" (get assurance "input_set_root")}
-             expected-final-ref (hash-ref/sha256-ref (canonical/domain-hash :benchmark-finalization-v1 projection))
+            expected-final-ref (hash-ref/sha256-ref (canonical/domain-hash :benchmark-finalization-v1 projection))
             checks {"completion-first-package-index" (and (get-in package-context [:completion-report :valid?])
                                                           (:valid? package-closure))
                     "completion-finalization-hash" (= (get completion "finalization_sha256") (sha-ref finalization-file))

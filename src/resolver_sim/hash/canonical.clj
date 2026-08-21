@@ -315,20 +315,20 @@
    :configuration-head-state-v1 "CONFIGURATION_HEAD_STATE_V1"
    :configuration-head-activation-v1 "CONFIGURATION_HEAD_ACTIVATION_V1"
    :prf-chain-configuration-change-identity-v1 "prf.chain-configuration-change-identity.v1"
-    :prf-verifier-registry-v1          "PRF_VERIFIER_REGISTRY_V1"
-    :prf-resubmission-chain-identity-v1         "prf.resubmission-chain-identity.v1"
-    :prf-resubmission-chain-configuration-v1     "prf.resubmission-chain-configuration.v1"
-    :prf-resubmission-chain-genesis-v1            "prf.resubmission-chain-genesis.v1"
-    :programme-allocation-request-v1   "PROGRAMME_ALLOCATION_REQUEST_V1"
-    :programme-plan-v1                 "PROGRAMME_PLAN_V1"
-    :programme-evidence-v1             "PROGRAMME_EVIDENCE_V1"
-    :programme-receipt-v1              "PROGRAMME_RECEIPT_V1"
-    :use-case-registry-v1              "USE_CASE_REGISTRY_V1"
-    :corpus-registry                   "corpus-registry"
-    :reference-closure                 "reference-closure"
-    :verification-profile              "verification-profile"
-    :custody-admission-decision-v1     "custody-admission-decision.v1"
-    :semantic-composition-v1           "SEMANTIC_COMPOSITION_V1"})
+   :prf-verifier-registry-v1          "PRF_VERIFIER_REGISTRY_V1"
+   :prf-resubmission-chain-identity-v1         "prf.resubmission-chain-identity.v1"
+   :prf-resubmission-chain-configuration-v1     "prf.resubmission-chain-configuration.v1"
+   :prf-resubmission-chain-genesis-v1            "prf.resubmission-chain-genesis.v1"
+   :programme-allocation-request-v1   "PROGRAMME_ALLOCATION_REQUEST_V1"
+   :programme-plan-v1                 "PROGRAMME_PLAN_V1"
+   :programme-evidence-v1             "PROGRAMME_EVIDENCE_V1"
+   :programme-receipt-v1              "PROGRAMME_RECEIPT_V1"
+   :use-case-registry-v1              "USE_CASE_REGISTRY_V1"
+   :corpus-registry                   "corpus-registry"
+   :reference-closure                 "reference-closure"
+   :verification-profile              "verification-profile"
+   :custody-admission-decision-v1     "custody-admission-decision.v1"
+   :semantic-composition-v1           "SEMANTIC_COMPOSITION_V1"})
 
 ;; ──────────────────────────────────────────────────────────────────────────────
 ;; varuint Encoding (LEB128, little-endian base-128)
@@ -1796,9 +1796,9 @@
   (let [target (:target value)
         base (select-keys value chain-configuration-transition-fields)]
     (project-canonical-safe
-      (cond-> base
-        (map? target) (assoc :target
-                             (select-keys target chain-configuration-transition-target-fields))))))
+     (cond-> base
+       (map? target) (assoc :target
+                            (select-keys target chain-configuration-transition-target-fields))))))
 
 ;; ──────────────────────────────────────────────────────────────────────────────
 ;; resubmission-chain-configuration.v1 & resubmission-chain-genesis.v1
@@ -2693,39 +2693,39 @@ name (an alias)."
     :intent/includes    #{:verifier/id :verifier/adapter :verifier/program-vkey
                           :verifier/program-elf-sha256 :verifier/program-id
                           :verifier/statement-schema-version-hash :verifier/active}
-     :intent/excludes    #{}
-     :intent/projection-fn (fn [v _] v)
-     :intent/version     1}
+    :intent/excludes    #{}
+    :intent/projection-fn (fn [v _] v)
+    :intent/version     1}
 
-    :prf-resubmission-chain-configuration-v1
-    {:intent/name        :prf-resubmission-chain-configuration-v1
-     :intent/domain-tag  "prf.resubmission-chain-configuration.v1"
-     :intent/description "Canonical identity of a resubmission-chain-configuration.v1: authority key bindings for a resubmission family"
-     :intent/includes    #{:configuration/schema :disposition-authority/public-key
-                           :receipt-authority/public-key}
-     :intent/excludes    #{:runtime-values :functions}
-     :intent/projection-fn project-resubmission-chain-configuration
-     :intent/version     1}
+   :prf-resubmission-chain-configuration-v1
+   {:intent/name        :prf-resubmission-chain-configuration-v1
+    :intent/domain-tag  "prf.resubmission-chain-configuration.v1"
+    :intent/description "Canonical identity of a resubmission-chain-configuration.v1: authority key bindings for a resubmission family"
+    :intent/includes    #{:configuration/schema :disposition-authority/public-key
+                          :receipt-authority/public-key}
+    :intent/excludes    #{:runtime-values :functions}
+    :intent/projection-fn project-resubmission-chain-configuration
+    :intent/version     1}
 
-    :prf-resubmission-chain-identity-v1
-    {:intent/name        :prf-resubmission-chain-identity-v1
-     :intent/domain-tag  "prf.resubmission-chain-identity.v1"
-     :intent/description "Canonical chain-id basis: sha256(family-id + authority keys). Deliberately excludes genesis root so authority rotation preserves chain identity."
-     :intent/includes    #{:family/id :disposition-authority/public-key
-                           :receipt-authority/public-key}
-     :intent/excludes    #{:runtime-values :functions}
-     :intent/projection-fn project-resubmission-chain-identity
-     :intent/version     1}
+   :prf-resubmission-chain-identity-v1
+   {:intent/name        :prf-resubmission-chain-identity-v1
+    :intent/domain-tag  "prf.resubmission-chain-identity.v1"
+    :intent/description "Canonical chain-id basis: sha256(family-id + authority keys). Deliberately excludes genesis root so authority rotation preserves chain identity."
+    :intent/includes    #{:family/id :disposition-authority/public-key
+                          :receipt-authority/public-key}
+    :intent/excludes    #{:runtime-values :functions}
+    :intent/projection-fn project-resubmission-chain-identity
+    :intent/version     1}
 
-    :prf-resubmission-chain-genesis-v1
-    {:intent/name        :prf-resubmission-chain-genesis-v1
-     :intent/domain-tag  "prf.resubmission-chain-genesis.v1"
-     :intent/description "Canonical identity of a resubmission-chain-genesis.v1: the declared source of truth for a resubmission chain's family, configuration, and initial state"
-     :intent/includes    #{:genesis/schema :chain/id :family/id :configuration
-                           :initial-state/root}
-     :intent/excludes    #{:runtime-values :functions :deployment-metadata :timestamps}
-      :intent/projection-fn project-resubmission-chain-genesis
-      :intent/version     1}})
+   :prf-resubmission-chain-genesis-v1
+   {:intent/name        :prf-resubmission-chain-genesis-v1
+    :intent/domain-tag  "prf.resubmission-chain-genesis.v1"
+    :intent/description "Canonical identity of a resubmission-chain-genesis.v1: the declared source of truth for a resubmission chain's family, configuration, and initial state"
+    :intent/includes    #{:genesis/schema :chain/id :family/id :configuration
+                          :initial-state/root}
+    :intent/excludes    #{:runtime-values :functions :deployment-metadata :timestamps}
+    :intent/projection-fn project-resubmission-chain-genesis
+    :intent/version     1}})
 
 (defn resolve-intent
   "Look up an intent contract by keyword name from the registry.

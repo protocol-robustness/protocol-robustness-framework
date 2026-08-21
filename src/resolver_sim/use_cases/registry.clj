@@ -108,7 +108,7 @@
        :use-case-registry/schema (:schema/id registry)
        :use-case-registry/source :external
        :use-case-registry/path (.getPath registry-file)
-        :use-case-registry/root (hash-ref/sha256-ref (canonical/domain-hash :use-case-registry-v1 root-input))
+       :use-case-registry/root (hash-ref/sha256-ref (canonical/domain-hash :use-case-registry-v1 root-input))
        :use-case-registry/count (count loaded)
        :use-cases (mapv :definition loaded)})))
 

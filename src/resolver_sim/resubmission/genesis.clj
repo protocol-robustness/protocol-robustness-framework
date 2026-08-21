@@ -74,33 +74,33 @@
 
    nil keys are accepted as explicit absence — the field is present (the
    configuration commits to 'no authority configured'), not omitted."
-   [config]
-   (let [errors (atom [])
-         report! (fn [msg] (swap! errors conj msg))
-         expect (set hc/resubmission-chain-configuration-fields)]
-     (when-not (map? config)
-       (report! "resubmission-chain-configuration must be a map"))
-     (when (map? config)
-       (when-not (= resubmission-chain-configuration-schema
-                    (get config :configuration/schema))
-         (report! (str "configuration/schema must be "
-                       resubmission-chain-configuration-schema
-                       ", got " (pr-str (:configuration/schema config)))))
-       (let [have (set (keys config))
-             extra (set/difference have expect)
-             missing (set/difference expect have)]
-         (when (seq extra)
-           (report! (str "unknown configuration keys: " (sort extra))))
-         (when (seq missing)
-           (report! (str "missing configuration keys: " (sort missing))))
-         (doseq [f [:disposition-authority/public-key
-                    :receipt-authority/public-key]
-                 :let [v (get config f)]
-                 :when (contains? (set (keys config)) f)]
-           (when-not (or (nil? v) (string? v))
-             (report! (str f " must be a string or nil, got "
-                           (some-> v class .getName)))))))
-     {:valid? (empty? @errors) :errors (vec @errors)}))
+  [config]
+  (let [errors (atom [])
+        report! (fn [msg] (swap! errors conj msg))
+        expect (set hc/resubmission-chain-configuration-fields)]
+    (when-not (map? config)
+      (report! "resubmission-chain-configuration must be a map"))
+    (when (map? config)
+      (when-not (= resubmission-chain-configuration-schema
+                   (get config :configuration/schema))
+        (report! (str "configuration/schema must be "
+                      resubmission-chain-configuration-schema
+                      ", got " (pr-str (:configuration/schema config)))))
+      (let [have (set (keys config))
+            extra (set/difference have expect)
+            missing (set/difference expect have)]
+        (when (seq extra)
+          (report! (str "unknown configuration keys: " (sort extra))))
+        (when (seq missing)
+          (report! (str "missing configuration keys: " (sort missing))))
+        (doseq [f [:disposition-authority/public-key
+                   :receipt-authority/public-key]
+                :let [v (get config f)]
+                :when (contains? (set (keys config)) f)]
+          (when-not (or (nil? v) (string? v))
+            (report! (str f " must be a string or nil, got "
+                          (some-> v class .getName)))))))
+    {:valid? (empty? @errors) :errors (vec @errors)}))
 
 (defn resubmission-chain-configuration-valid?
   "Quick boolean structural validity check for resubmission-chain-configuration.v1."
@@ -122,17 +122,16 @@
                         :schema resubmission-chain-configuration-schema
                         :errors (:errors v)}))))
    (hash-ref/sha256-ref
-     (hc/domain-hash :prf-resubmission-chain-configuration-v1
-                     (hc/project-resubmission-chain-configuration config :prf-resubmission-chain-configuration-v1))))
+    (hc/domain-hash :prf-resubmission-chain-configuration-v1
+                    (hc/project-resubmission-chain-configuration config :prf-resubmission-chain-configuration-v1))))
   ([config expected]
    (let [computed (resubmission-chain-configuration-root config)]
      (when (and (some? expected) (not= computed expected))
        (throw (ex-info "caller-supplied configuration root does not match computed root"
                        {:type :configuration/root-mismatch
-                         :declared expected
-                          :computed computed})))
-      computed)))
-
+                        :declared expected
+                        :computed computed})))
+     computed)))
 
 ;; ── Genesis derivation ────────────────────────────────────────────────
 
@@ -174,15 +173,15 @@
    are necessarily distinct chains. This prevents masquerading under a
    different initial trust anchor."
   [family-id configuration]
-   (hash-ref/sha256-ref
-    (hc/domain-hash :prf-resubmission-chain-identity-v1
-                    (hc/project-resubmission-chain-identity
-                     {:family/id family-id
-                      :disposition-authority/public-key
-                      (:disposition-authority/public-key configuration)
-                      :receipt-authority/public-key
-                      (:receipt-authority/public-key configuration)}
-                     :prf-resubmission-chain-identity-v1))))
+  (hash-ref/sha256-ref
+   (hc/domain-hash :prf-resubmission-chain-identity-v1
+                   (hc/project-resubmission-chain-identity
+                    {:family/id family-id
+                     :disposition-authority/public-key
+                     (:disposition-authority/public-key configuration)
+                     :receipt-authority/public-key
+                     (:receipt-authority/public-key configuration)}
+                    :prf-resubmission-chain-identity-v1))))
 
 (defn ->genesis
   "Construct a resubmission-chain-genesis.v1 from legacy new-chain parameters.
@@ -229,7 +228,7 @@
      - :initial-state/root that is not a valid sha256 reference;
      - :initial-state/root mismatch against the computed empty-state root
        for the declared family and disposition authority."
-   [genesis]
+  [genesis]
   (let [errors (atom [])
         report! (fn [msg] (swap! errors conj msg))
         expect (set hc/resubmission-chain-genesis-fields)]
@@ -249,13 +248,13 @@
         (when (seq missing)
           (report! (str "missing required keys: " (sort missing))))
        ;; chain/id and initial-state/root must be valid sha256 references
-       (doseq [f genesis-root-fields
-               :let [v (get genesis f)]]
-         (cond
-           (nil? v) (report! (str f " must not be nil"))
-           (not (hash-ref/valid-sha256-ref? v))
-           (report! (str f " must be a valid sha256 reference, got "
-                         (pr-str v)))))
+        (doseq [f genesis-root-fields
+                :let [v (get genesis f)]]
+          (cond
+            (nil? v) (report! (str f " must not be nil"))
+            (not (hash-ref/valid-sha256-ref? v))
+            (report! (str f " must be a valid sha256 reference, got "
+                          (pr-str v)))))
         ;; family/id must not be nil
         (when (nil? (:family/id genesis))
           (report! "family/id must not be nil"))
@@ -308,13 +307,13 @@
                         :schema resubmission-chain-genesis-schema
                         :errors (:errors v)}))))
    (hash-ref/sha256-ref
-     (hc/domain-hash :prf-resubmission-chain-genesis-v1
-                     (hc/project-resubmission-chain-genesis genesis :prf-resubmission-chain-genesis-v1))))
+    (hc/domain-hash :prf-resubmission-chain-genesis-v1
+                    (hc/project-resubmission-chain-genesis genesis :prf-resubmission-chain-genesis-v1))))
   ([genesis expected]
    (let [computed (resubmission-chain-genesis-root genesis)]
      (when (and (some? expected) (not= computed expected))
        (throw (ex-info "caller-supplied genesis root does not match computed root"
                        {:type :genesis/root-mismatch
                         :declared expected
-                         :computed computed})))
-      computed)))
+                        :computed computed})))
+     computed)))

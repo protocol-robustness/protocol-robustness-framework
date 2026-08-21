@@ -43,7 +43,7 @@
    :blocking-reasons [keyword...] — sorted by str
    :failed-check-ids [keyword...] — sorted by str}"
   [admitted? blocking-reasons failed-check-ids subject-root evidence-root]
-   {:decision/schema decision-schema-version
+  {:decision/schema decision-schema-version
    :subject-root subject-root
    :evidence-root evidence-root
    :admitted? admitted?
@@ -55,7 +55,7 @@
 
   H(\"custody-admission-decision.v1\", canonical_bytes(body))"
   [body]
-   (hc/domain-hash :custody-admission-decision-v1 body))
+  (hc/domain-hash :custody-admission-decision-v1 body))
 
 (defn- run-closed-form-checks
   "Run held-custody-closed-form-checks and return {:checks [...] :error nil}

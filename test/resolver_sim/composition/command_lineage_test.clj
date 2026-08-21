@@ -388,7 +388,7 @@
       (is (:valid? result))
       (is (= :terminated (:status result)))
       (is (some? (:concatenation-roots result)))))
-   (testing "invalid lineage has no concatenation roots"
+  (testing "invalid lineage has no concatenation roots"
     (let [result (cl/verify-lineage [cmd-a cmd-c])]
       (is (false? (:valid? result)))
       (is (nil? (:concatenation-roots result))))))

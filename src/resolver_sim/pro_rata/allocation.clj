@@ -318,12 +318,12 @@
 
    The result is a hash-committed mathematical evidence envelope. It contains
    no account, token, participant, or transition semantics."
-   [{:keys [available rows rounding-policy tie-break-policy redistribution-policy
-            on-progress progress-atom parallelism execution/quiescence-timeout-seconds]
-            :or {rounding-policy :largest-remainder
-                 tie-break-policy :canonical-row-id
-                 redistribution-policy :unallocated}
-            :as request}]
+  [{:keys [available rows rounding-policy tie-break-policy redistribution-policy
+           on-progress progress-atom parallelism execution/quiescence-timeout-seconds]
+    :or {rounding-policy :largest-remainder
+         tie-break-policy :canonical-row-id
+         redistribution-policy :unallocated}
+    :as request}]
   (let [allocation-id (:allocation/id request)
         schema-version (:schema-version request "pro-rata-allocation-request.v1")
         mechanism-version (:mechanism/version request mechanism-version)

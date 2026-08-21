@@ -399,7 +399,7 @@
   [artifacts receipt]
   (let [{:keys [request evaluation]} artifacts
         derived-request-root (allocation-request-root request)
-         derived-result-root (hc/domain-hash :pro-rata-evaluation-v1
+        derived-result-root (hc/domain-hash :pro-rata-evaluation-v1
                                             (get-in evaluation [:result :artifact/value]))
         derived-verdict (programme-validation-result evaluation)
         derived-validation-status (:status derived-verdict)

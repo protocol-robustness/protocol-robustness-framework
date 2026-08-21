@@ -32,8 +32,8 @@
     (cond-> {:execution/outer-parallelism outer-parallelism
              :execution/claimant-parallelism parallelism
              :execution/claimant-parallel-threshold threshold}
-       (some? quiescence-timeout-seconds)
-       (assoc :execution/quiescence-timeout-seconds quiescence-timeout-seconds))))
+      (some? quiescence-timeout-seconds)
+      (assoc :execution/quiescence-timeout-seconds quiescence-timeout-seconds))))
 
 (defn claimant-options
   "Snapshot runtime settings lexically at an operation boundary."

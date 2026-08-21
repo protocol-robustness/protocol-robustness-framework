@@ -43,8 +43,8 @@
   specific string domain tags aligned with composition/contract and composition/plan)
   and resolver-sim.hash.reference. The primitive validates references and commits
   roots; it does not derive or interpret world state behind a shared-state root."
-   (:require [resolver-sim.hash.canonical :as hc]
-             [resolver-sim.hash.reference :as hash-ref]))
+  (:require [resolver-sim.hash.canonical :as hc]
+            [resolver-sim.hash.reference :as hash-ref]))
 
 ;; ── domain tags (lineage-specific strings, no central registry edits) ──────────
 

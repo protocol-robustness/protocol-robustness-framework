@@ -1,23 +1,23 @@
 (ns resolver-sim.community.cli
   (:require [clojure.tools.cli :refer [parse-opts]]
-             [clojure.java.io :as io]
-             [clojure.edn :as edn]
-             [clojure.string :as str]
-             [resolver-sim.community.task :as task]
-             [resolver-sim.community.attestation :as att]
-             [resolver-sim.community.mailbox :as mailbox]
-             [resolver-sim.community.graph :as graph]
-             [resolver-sim.community.report :as report]
-             [resolver-sim.community.result :as result]
-             [resolver-sim.evidence.chain :as chain]
-             [resolver-sim.evidence.node :as ev-node]
-             [resolver-sim.benchmark.runner :as runner]
-             [resolver-sim.graph.export :as gex]
-             [resolver-sim.logging :as log]
-             [resolver-sim.vcs :as vcs]
-             [resolver-sim.hash.canonical :as hc]
-             [resolver-sim.definitions.passive-registries :as passive-registries]
-             [resolver-sim.config.paths :as paths]))
+            [clojure.java.io :as io]
+            [clojure.edn :as edn]
+            [clojure.string :as str]
+            [resolver-sim.community.task :as task]
+            [resolver-sim.community.attestation :as att]
+            [resolver-sim.community.mailbox :as mailbox]
+            [resolver-sim.community.graph :as graph]
+            [resolver-sim.community.report :as report]
+            [resolver-sim.community.result :as result]
+            [resolver-sim.evidence.chain :as chain]
+            [resolver-sim.evidence.node :as ev-node]
+            [resolver-sim.benchmark.runner :as runner]
+            [resolver-sim.graph.export :as gex]
+            [resolver-sim.logging :as log]
+            [resolver-sim.vcs :as vcs]
+            [resolver-sim.hash.canonical :as hc]
+            [resolver-sim.definitions.passive-registries :as passive-registries]
+            [resolver-sim.config.paths :as paths]))
 
 (declare compute-code-hash compute-env-hash compute-registry-hash)
 
@@ -103,7 +103,7 @@
            (let [diff-hash (or (try (vcs/dirty-diff-hash)
                                     (catch Exception _ nil))
                                "0000000000000000000000000000000000000000000000000000000000000000")
-                  combined (hc/domain-hash :community-code-v0
+                 combined (hc/domain-hash :community-code-v0
                                           {:git-commit commit-hash
                                            :worktree-status :dirty
                                            :diff-hash diff-hash})]
@@ -151,7 +151,7 @@
   []
   (try (hc/hash-with-intent {:hash/intent :registry}
                             (requiring-resolve 'resolver-sim.definitions.passive-registries/execution-registry))
-         (catch Exception _ (hc/domain-hash :registry {:registry-version passive-registries/registry-version :executions []}))))
+       (catch Exception _ (hc/domain-hash :registry {:registry-version passive-registries/registry-version :executions []}))))
 
 (defn- read-benchmark-claims
   "Read claim IDs from a benchmark manifest."

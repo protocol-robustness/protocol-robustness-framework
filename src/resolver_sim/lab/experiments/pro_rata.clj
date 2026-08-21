@@ -8,9 +8,9 @@
    engine's own invariant validators (resolver-sim.pro-rata.invariants), not
    from lab-recomputed checks."
   (:require [clojure.string :as str]
-             [resolver-sim.pro-rata.allocation :as allocation]
-             [resolver-sim.pro-rata.invariants :as invariants]
-             [resolver-sim.hash.canonical :as hc]))
+            [resolver-sim.pro-rata.allocation :as allocation]
+            [resolver-sim.pro-rata.invariants :as invariants]
+            [resolver-sim.hash.canonical :as hc]))
 
 (def ^:private parties
   [{:party/id :alice :parameter/id :alice-requested}
@@ -85,7 +85,7 @@
   (let [rows (-> (rows-from-parameters parameters)
                  (apply-cap (:cap-alice parameters)))
         request {:schema-version "pro-rata-allocation-request.v1"
-                  :mechanism/version allocation/mechanism-version
+                 :mechanism/version allocation/mechanism-version
                  :allocation/id (allocate-id parameters)
                  :available (long (:available parameters))
                  :rows rows
@@ -96,7 +96,7 @@
         findings (mechanism-findings result)
         by-id (into {} (map (juxt :row/id identity)) (:rows result))]
     {:outcome
-      {:mechanism {:id :mechanism/pro-rata-allocation :version allocation/mechanism-version}
+     {:mechanism {:id :mechanism/pro-rata-allocation :version allocation/mechanism-version}
       :available (long (:available result))
       :allocated-total (long (:allocated-total result))
       :unallocated-residual (long (:unallocated-residual result))

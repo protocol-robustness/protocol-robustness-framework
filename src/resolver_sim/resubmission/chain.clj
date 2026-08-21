@@ -12,10 +12,10 @@
    receipt. The old hash-only behavior is isolated in `admit-compat!` for
    fixtures and demos; it is never an authority admission path."
   (:require [resolver-sim.resubmission.genesis :as genesis]
-             [resolver-sim.resubmission.receipt :as receipt]
-             [resolver-sim.resubmission.store :as store]
-             [resolver-sim.resubmission.transition :as transition]
-             [resolver-sim.transaction.protocol :as protocol]))
+            [resolver-sim.resubmission.receipt :as receipt]
+            [resolver-sim.resubmission.store :as store]
+            [resolver-sim.resubmission.transition :as transition]
+            [resolver-sim.transaction.protocol :as protocol]))
 
 (def ^:dynamic *admit-compat-guard*
   "Runtime guard for admit-compat!. Bind to nil in fixtures/demos to allow

@@ -854,10 +854,10 @@
      ResultProposed           -> :result-proposed         (closed)
      ResultAccepted           -> :result-accepted         (closed)
      ClaimConsumptionStarted  -> :claim-consumption-started (closed)"
-   (lifecycle-window-profile
-    {:profile/id :prf.lifecycle-window/probabilistic-allocation
-     :profile/version lifecycle-window-profile-version
-     :valid-states #{:allocation-committed :randomness-requested
+  (lifecycle-window-profile
+   {:profile/id :prf.lifecycle-window/probabilistic-allocation
+    :profile/version lifecycle-window-profile-version
+    :valid-states #{:allocation-committed :randomness-requested
                     :randomness-fulfilled :result-proposed :result-accepted
                     :claim-consumption-started}
     :open-states #{:allocation-committed}

@@ -21,8 +21,8 @@
 
 (def implementation-root
   (hc/domain-hash :conformance-validator-implementation-v1
-                   {:validator/id :artifact-envelope-schema :kind :schema
-                    :version validator-version :input-contract evidence-package-contract}))
+                  {:validator/id :artifact-envelope-schema :kind :schema
+                   :version validator-version :input-contract evidence-package-contract}))
 
 (defn artifact-envelope-schema
   "Structural validation of an evidence package subject."
@@ -234,5 +234,5 @@
                  :evaluator/implementation-root (:evaluator/implementation-root m)
                  :receipt/root nil}]
     (assoc receipt :receipt/root
-            (hc/domain-hash :evidence-package-admission-v1
+           (hc/domain-hash :evidence-package-admission-v1
                            (dissoc receipt :receipt/root)))))

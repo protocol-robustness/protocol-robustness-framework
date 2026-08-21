@@ -13,7 +13,7 @@
 
 (defn suite-definition-hash [suite-key suite-definition]
   (hash-ref/sha256-ref
-    (canonical/domain-hash :suite-definition-v1
+   (canonical/domain-hash :suite-definition-v1
                           {:suite/id suite-key
                            :suite/definition suite-definition})))
 

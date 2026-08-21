@@ -57,7 +57,7 @@
      {:implementation/id id
       :implementation/kind :validator
       :implementation/domain (or (:validator/domain spec) :generic)
-       :implementation/version (or (:validator/version spec) default-validator-version)
+      :implementation/version (or (:validator/version spec) default-validator-version)
       :implementation/source-root (or (:validator/implementation-root spec) "sha256:none")
       :implementation/status :active})
     id))
@@ -97,7 +97,7 @@
 
 (defn- base-result
   [validator-id kind version implementation-root subject status issues]
-   {:schema-version validation-receipt-schema-version
+  {:schema-version validation-receipt-schema-version
    :validation/id validator-id
    :validation/kind kind
    :validation/version version

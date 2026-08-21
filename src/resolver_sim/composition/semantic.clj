@@ -324,7 +324,7 @@
         cap-keys (set (:semantic-composition/capabilities composition []))]
     {:valid? (and (nil? unknown) (nil? missing)
                   (= schema-version (:semantic-composition/schema composition))
-                   (= semantic-composition-version (:semantic-composition/version composition))
+                  (= semantic-composition-version (:semantic-composition/version composition))
                   (= "sew-v1" (:semantic-composition/protocol composition))
                   (string? (:semantic-composition/resolution-root composition))
                   (every? #(and (vector? %) (= 2 (count %))) cap-keys)

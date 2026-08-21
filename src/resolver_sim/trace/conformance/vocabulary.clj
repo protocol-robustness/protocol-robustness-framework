@@ -30,7 +30,7 @@
 (defn- identity-root
   "Deterministic content root for a validator implementation identity."
   [canonical]
-   (hc/domain-hash :conformance-validator-implementation-v1 canonical))
+  (hc/domain-hash :conformance-validator-implementation-v1 canonical))
 
 (def ^:const validator-version 1)
 

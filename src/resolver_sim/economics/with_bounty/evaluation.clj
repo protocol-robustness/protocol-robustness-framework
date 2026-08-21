@@ -101,7 +101,7 @@
    :owner/address (canonical-address recipient)
    :parameter/context {:parameter-context/type :protocol-parameters
                        :parameter-context/root parameter-context-root
-                        :parameter-context/version parameter-context-version}
+                       :parameter-context/version parameter-context-version}
    :parameter/address {:parameter/path (:parameter/address funding)}})
 
 (defn- funding-map

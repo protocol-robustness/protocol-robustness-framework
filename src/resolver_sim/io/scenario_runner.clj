@@ -1012,7 +1012,7 @@
 (defn- build-minimal-error-root
   "Build a minimal bundle-root for error recovery when the normal path fails."
   [_ protocol-id _ error]
-   {:bundle/schema-version bundle-root-schema-version
+  {:bundle/schema-version bundle-root-schema-version
    :bundle/id             "error-recovery"
    :run/request           {:runner/backend :local-current
                            :protocol/default-id protocol-id}
@@ -1316,7 +1316,7 @@
                             (when (and evidence-root exec-hash)
                               (ev-node/emit-execution-node!
                                {:execution-id :evidence/commitment-root
-                                 :policy-id ev-node/default-policy-id
+                                :policy-id ev-node/default-policy-id
                                 :parent-hashes [(hash-ref/sha256-ref  exec-hash)]
                                 :bootstrap-roots [(str "evidence-chain:sha256:" evidence-root)]
                                 :status :pass

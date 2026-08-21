@@ -12,7 +12,7 @@
 
 (defn payload-hash [payload]
   (hash-ref/sha256-ref
-    (canonical/domain-hash :prf-release-attestation-payload-v1
+   (canonical/domain-hash :prf-release-attestation-payload-v1
                           (dissoc payload :payload/hash))))
 
 (defn build-payload [{:keys [distribution implementation release]}]

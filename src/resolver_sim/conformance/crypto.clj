@@ -190,7 +190,7 @@
                  :verification/implementation-root (:verification/implementation-root m)
                  :verification/status (if pass? :pass :fail)
                  :receipt/root nil}]
-     (assoc receipt :receipt/root (hc/domain-hash :conformance-signature-verification-v1
+    (assoc receipt :receipt/root (hc/domain-hash :conformance-signature-verification-v1
                                                  (dissoc receipt :receipt/root)))))
 
 (defn verification-passed?
