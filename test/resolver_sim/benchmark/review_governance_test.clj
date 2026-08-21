@@ -57,11 +57,11 @@
 (deftest root-scoped-p0-rejects-ignored-validity-windows
   (let [g (governance)]
     (is (not (:valid? (rg/validate-governance
-                        (assoc-in g [:governance/principals 0 :principal/keys 0 :valid-until]
-                                  "2027-01-01T00:00:00Z")))))
+                       (assoc-in g [:governance/principals 0 :principal/keys 0 :valid-until]
+                                 "2027-01-01T00:00:00Z")))))
     (is (not (:valid? (rg/validate-governance
-                        (assoc-in g [:governance/members 0 :valid-from]
-                                  "2026-01-01T00:00:00Z")))))))
+                       (assoc-in g [:governance/members 0 :valid-from]
+                                 "2026-01-01T00:00:00Z")))))))
 
 (deftest governed-round-commits-its-governance-snapshot
   (let [g-root (rg/governance-root (governance))
@@ -129,15 +129,15 @@
               :authorisation/review-round {:review-round/hash round-hash}
               :authorisation/target {:target/proposed-content-root outcome}
               :authorisation/decision-references [(position "member-a" :key/a)
-                                                   (position "member-b" :key/b)
-                                                   (position "member-c" :key/c)]}
+                                                  (position "member-b" :key/b)
+                                                  (position "member-c" :key/c)]}
         round {:review-round/members members :review-round/policy-id :policy/three-independent
                :review-round/governance-root (rg/governance-root g)
                :review-round/constituted-at at}
         good (tma/evaluate-three-member-authority :authorisation auth :review-round round
                                                   :governance g :signature-valid? (constantly true)
-                                                                                                    :position-time-resolver (constantly at)
-                                                                                                    :governance-current? (constantly true))
+                                                  :position-time-resolver (constantly at)
+                                                  :governance-current? (constantly true))
         bad (tma/evaluate-three-member-authority :authorisation
                                                  (assoc auth :authorisation/decision-references
                                                         [(position "member-a" :key/b)
@@ -163,8 +163,8 @@
               :authorisation/review-round {:review-round/hash round-hash}
               :authorisation/target {:target/proposed-content-root outcome}
               :authorisation/decision-references [(dissoc (position "member-a" :key/a) :signing-key/id)
-                                                   (position "member-b" :key/b)
-                                                   (position "member-c" :key/c)]}
+                                                  (position "member-b" :key/b)
+                                                  (position "member-c" :key/c)]}
         report (tma/evaluate-three-member-authority
                 :authorisation auth :review-round round :governance g
                 :signature-valid? (constantly true)

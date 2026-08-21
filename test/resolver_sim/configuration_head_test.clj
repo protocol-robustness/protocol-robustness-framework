@@ -54,4 +54,4 @@
            (:reason (head/activate! store (assoc base :authorized-transition-root "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb")))))
     (is (= :configuration-epoch-not-successor
            (:reason (head/activate! store (assoc base :transition (assoc t :epoch 3)
-                                             :authorized-transition-root (genesis/chain-configuration-transition-root (assoc t :epoch 3)))))))))
+                                                 :authorized-transition-root (genesis/chain-configuration-transition-root (assoc t :epoch 3)))))))))

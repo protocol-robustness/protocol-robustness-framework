@@ -11,26 +11,49 @@
    `admit!` is the canonical path and accepts only the exact signed validator
    receipt. The old hash-only behavior is isolated in `admit-compat!` for
    fixtures and demos; it is never an authority admission path."
-  (:require [resolver-sim.resubmission.receipt :as receipt]
-            [resolver-sim.resubmission.store :as store]
-            [resolver-sim.resubmission.transition :as transition]
-            [resolver-sim.transaction.protocol :as protocol]))
+  (:require [resolver-sim.resubmission.genesis :as genesis]
+             [resolver-sim.resubmission.receipt :as receipt]
+             [resolver-sim.resubmission.store :as store]
+             [resolver-sim.resubmission.transition :as transition]
+             [resolver-sim.transaction.protocol :as protocol]))
 
 (def ^:dynamic *admit-compat-guard*
   "Runtime guard for admit-compat!. Bind to nil in fixtures/demos to allow
    use; leave unbound (truthy) to fail closed in production code."
   true)
 
+(defn new-chain-from-genesis
+  "Explicit canonical realization from a resubmission-chain-genesis.v1.
+
+   Requires a structurally and cryptographically self-consistent genesis:
+   validates strict closed-shape (fail-closed), verifies chain-id derivation
+   consistency, and verifies initial-state/root against the computed
+   empty-state root.
+
+   NOTE: this validates well-formedness and canonical rooting, not
+   governance authorization. It is the canonical validated genesis
+   realization path, distinct from future authority-bearing realization."
+  [genesis]
+  (store/new-resubmission-store-from-genesis genesis))
+
 (defn new-chain
-  "Create an in-memory linear chain (a TransactionStore) for a family.
+  "Convenience/local realization of an in-memory linear chain (a
+   TransactionStore) for a family.
 
    Supply the trusted disposition authority public key to permit signed
-   disposition events; chains without one reject such events fail closed."
+   disposition events; chains without one reject such events fail closed.
+
+   Convenience status: new-chain constructs a genesis for provenance (via
+   genesis/->genesis) and stores it without structural validation. It does NOT
+   validate closed-shape or root consistency, and it does NOT confer
+   governance authorization. For the canonical validated path use
+   new-chain-from-genesis."
   ([family-id] (new-chain family-id nil))
   ([family-id disposition-public-hex]
-   (store/new-resubmission-store family-id disposition-public-hex))
+   (new-chain family-id disposition-public-hex nil))
   ([family-id disposition-public-hex receipt-public-hex]
-   (store/new-resubmission-store family-id disposition-public-hex receipt-public-hex)))
+   (let [g (genesis/->genesis family-id disposition-public-hex receipt-public-hex)]
+     (store/new-resubmission-store family-id disposition-public-hex receipt-public-hex g))))
 
 (defn- bare-receipt
   "Minimal direct-resubmission-parent-compatible receipt for facade callers."

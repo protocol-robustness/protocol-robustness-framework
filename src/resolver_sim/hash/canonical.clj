@@ -315,7 +315,10 @@
    :configuration-head-state-v1 "CONFIGURATION_HEAD_STATE_V1"
    :configuration-head-activation-v1 "CONFIGURATION_HEAD_ACTIVATION_V1"
    :prf-chain-configuration-change-identity-v1 "prf.chain-configuration-change-identity.v1"
-   :prf-verifier-registry-v1          "PRF_VERIFIER_REGISTRY_V1"})
+    :prf-verifier-registry-v1          "PRF_VERIFIER_REGISTRY_V1"
+    :prf-resubmission-chain-identity-v1         "prf.resubmission-chain-identity.v1"
+    :prf-resubmission-chain-configuration-v1     "prf.resubmission-chain-configuration.v1"
+    :prf-resubmission-chain-genesis-v1            "prf.resubmission-chain-genesis.v1"})
 
 ;; ──────────────────────────────────────────────────────────────────────────────
 ;; varuint Encoding (LEB128, little-endian base-128)
@@ -1351,10 +1354,10 @@
 (defn project-creation-provenance
   "Canonical projection for a standalone creation-provenance commitment.
 
-   Creation provenance is advisory metadata in the evidence-node projection
-   (not in project-evidence-node's select-keys), so it does not affect
-   evidence-node identity. This projection exists so provenance can be
-   independently root-bound when the caller wants to commit to it."
+    Creation provenance is excluded from the evidence-node identity projection
+    (not in project-evidence-node's select-keys) but is authenticated through
+    the canonical-integrity envelope via creation_provenance_hash. This
+    projection produces that commitment."
   [value intent]
   (let [artifact {:creation/provenance (:creation/provenance value)}
         artifact (project-canonical-artifact-value artifact)]
@@ -1364,9 +1367,10 @@
 (defn project-source-creation
   "Canonical projection for a standalone source-creation provenance commitment.
 
-   Source creation is advisory metadata that describes the provenance of
-   the underlying source material, not the evidence artifact itself.
-   It does not affect evidence-node identity."
+    Source creation provenance is excluded from the evidence-node identity
+    projection (not in project-evidence-node's select-keys) but is
+    authenticated through the canonical-integrity envelope via
+    source_creation_hash. This projection produces that commitment."
   [value intent]
   (let [artifact {:source/creation (:source/creation value)}
         artifact (project-canonical-artifact-value artifact)]
@@ -1782,9 +1786,64 @@
   (let [target (:target value)
         base (select-keys value chain-configuration-transition-fields)]
     (project-canonical-safe
+      (cond-> base
+        (map? target) (assoc :target
+                             (select-keys target chain-configuration-transition-target-fields))))))
+
+;; ──────────────────────────────────────────────────────────────────────────────
+;; resubmission-chain-configuration.v1 & resubmission-chain-genesis.v1
+;; ──────────────────────────────────────────────────────────────
+;; Stage 1: canonical identity artifacts for the resubmission chain.
+;; These mirror the protocol/chain-instance genesis pattern at the
+;; resubmission layer: a configuration artifact (authority keys), a
+;; chain-identity commitment basis, and a genesis artifact that declares
+;; the family, initial configuration, and initial state root.
+
+(def resubmission-chain-configuration-fields
+  "Ordered identity fields of resubmission-chain-configuration.v1.
+   All values are trusted canonical references: authority public keys
+   as hex strings (nil when absent), never silent defaults."
+  [:configuration/schema
+   :disposition-authority/public-key
+   :receipt-authority/public-key])
+
+(def resubmission-chain-identity-fields
+  "The identity-relevant basis for deriving a resubmission chain-id.
+   chain-id = sha256(domain-hash(prf.resubmission-chain-identity.v1, this-set)).
+   Deliberately does NOT include the genesis root, so authority rotation
+   (Stage 4) can change configuration without changing persistent chain identity."
+  [:family/id
+   :disposition-authority/public-key
+   :receipt-authority/public-key])
+
+(def resubmission-chain-genesis-fields
+  "Ordered identity fields of resubmission-chain-genesis.v1 (top level)."
+  [:genesis/schema :chain/id :family/id :configuration :initial-state/root])
+
+(defn project-resubmission-chain-configuration
+  "Canonical projection of resubmission-chain-configuration.v1: exactly the
+   canonical identity fields, projected canonical-safe. Unknown keys never enter
+   the preimage (they are rejected by the closed validator before hashing)."
+  [value _intent]
+  (project-canonical-safe (select-keys value resubmission-chain-configuration-fields)))
+
+(defn project-resubmission-chain-identity
+  "Canonical projection of the resubmission-chain-identity.v1 commitment basis:
+   exactly family-id and authority keys, projected canonical-safe."
+  [value _intent]
+  (project-canonical-safe (select-keys value resubmission-chain-identity-fields)))
+
+(defn project-resubmission-chain-genesis
+  "Canonical projection of resubmission-chain-genesis.v1: exactly the canonical
+   identity fields, projecting nested :configuration to its exact sub-field set.
+   Unknown top-level or nested keys never enter the preimage."
+  [value _intent]
+  (let [base (select-keys value resubmission-chain-genesis-fields)
+        cfg (:configuration base)]
+    (project-canonical-safe
      (cond-> base
-       (map? target) (assoc :target
-                            (select-keys target chain-configuration-transition-target-fields))))))
+       (map? cfg) (assoc :configuration
+                         (project-resubmission-chain-configuration cfg _intent))))))
 
 (def hash-intents
   "Map of hash intent keywords to their Intent Registry Contracts.
@@ -2624,9 +2683,39 @@ name (an alias)."
     :intent/includes    #{:verifier/id :verifier/adapter :verifier/program-vkey
                           :verifier/program-elf-sha256 :verifier/program-id
                           :verifier/statement-schema-version-hash :verifier/active}
-    :intent/excludes    #{}
-    :intent/projection-fn (fn [v _] v)
-    :intent/version     1}})
+     :intent/excludes    #{}
+     :intent/projection-fn (fn [v _] v)
+     :intent/version     1}
+
+    :prf-resubmission-chain-configuration-v1
+    {:intent/name        :prf-resubmission-chain-configuration-v1
+     :intent/domain-tag  "prf.resubmission-chain-configuration.v1"
+     :intent/description "Canonical identity of a resubmission-chain-configuration.v1: authority key bindings for a resubmission family"
+     :intent/includes    #{:configuration/schema :disposition-authority/public-key
+                           :receipt-authority/public-key}
+     :intent/excludes    #{:runtime-values :functions}
+     :intent/projection-fn project-resubmission-chain-configuration
+     :intent/version     1}
+
+    :prf-resubmission-chain-identity-v1
+    {:intent/name        :prf-resubmission-chain-identity-v1
+     :intent/domain-tag  "prf.resubmission-chain-identity.v1"
+     :intent/description "Canonical chain-id basis: sha256(family-id + authority keys). Deliberately excludes genesis root so authority rotation preserves chain identity."
+     :intent/includes    #{:family/id :disposition-authority/public-key
+                           :receipt-authority/public-key}
+     :intent/excludes    #{:runtime-values :functions}
+     :intent/projection-fn project-resubmission-chain-identity
+     :intent/version     1}
+
+    :prf-resubmission-chain-genesis-v1
+    {:intent/name        :prf-resubmission-chain-genesis-v1
+     :intent/domain-tag  "prf.resubmission-chain-genesis.v1"
+     :intent/description "Canonical identity of a resubmission-chain-genesis.v1: the declared source of truth for a resubmission chain's family, configuration, and initial state"
+     :intent/includes    #{:genesis/schema :chain/id :family/id :configuration
+                           :initial-state/root}
+     :intent/excludes    #{:runtime-values :functions :deployment-metadata :timestamps}
+      :intent/projection-fn project-resubmission-chain-genesis
+      :intent/version     1}})
 
 (defn resolve-intent
   "Look up an intent contract by keyword name from the registry.

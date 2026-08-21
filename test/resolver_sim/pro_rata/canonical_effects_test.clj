@@ -34,9 +34,9 @@
         outstanding (root "3")
         allocation {:rows [{:row/id :claim-a :allocated 50}]}
         effects (sut/compile-pro-rata-effects allocation
-                                               {:liquidity/root liquidity
-                                                :claim-a {:filled/root filled
-                                                          :outstanding/root outstanding}})]
+                                              {:liquidity/root liquidity
+                                               :claim-a {:filled/root filled
+                                                         :outstanding/root outstanding}})]
     (is (= [(sut/delta liquidity -50)
             (sut/delta filled 50)
             (sut/delta outstanding -50)]

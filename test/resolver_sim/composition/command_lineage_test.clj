@@ -388,7 +388,36 @@
       (is (:valid? result))
       (is (= :terminated (:status result)))
       (is (some? (:concatenation-roots result)))))
-  (testing "invalid lineage has no concatenation roots"
+   (testing "invalid lineage has no concatenation roots"
     (let [result (cl/verify-lineage [cmd-a cmd-c])]
       (is (false? (:valid? result)))
       (is (nil? (:concatenation-roots result))))))
+
+(deftest test-concatenation-chain-root-is-commitment-not-proof
+  (testing "chain root is a cryptographic commitment; semantic validity requires verify-concatenation-chain"
+    (let [cmd-a (build-cmd :a s0 s1 [s0])
+          cmd-b (build-cmd :b s1 s2 [s1])
+          cmd-c (build-cmd :c s2 s0 [s2])
+          result (cl/verify-lineage [cmd-a cmd-b cmd-c])
+          roots (:concatenation-roots result)
+          chain-root (:concatenation-chain-root result)
+          resolved (into {} (map (juxt :command/root identity)) [cmd-a cmd-b cmd-c])
+          concats (cl/build-concatenation-chain [cmd-a cmd-b cmd-c])
+          chain-verify (cl/verify-concatenation-chain concats resolved)]
+      (is (:valid? result))
+      (is (some? chain-root))
+      (is (= chain-root (cl/concatenation-chain-root roots)))
+      (is (:valid? chain-verify))
+      (is (empty? (:issues chain-verify)))))
+  (testing "chain root is deterministic for the same ordered roots"
+    (let [roots ["sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+                 "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"]
+          root1 (cl/concatenation-chain-root roots)
+          root2 (cl/concatenation-chain-root (vec roots))]
+      (is (= root1 root2))))
+  (testing "reordered roots produce different chain root"
+    (let [roots ["sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+                 "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"]
+          root1 (cl/concatenation-chain-root roots)
+          root2 (cl/concatenation-chain-root (vec (reverse roots)))]
+      (is (not= root1 root2)))))

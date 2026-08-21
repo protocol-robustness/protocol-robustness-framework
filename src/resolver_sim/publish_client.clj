@@ -22,13 +22,13 @@
      - Promotion writes all files into a fresh sibling directory then atomically
        renames it into place; the target is never observed half-populated.
      - Any failure is fail-closed: the gate throws and nothing is promoted."
-   (:require [clojure.edn :as edn]
-             [clojure.java.io :as io]
-             [clojure.string :as str]
-             [resolver-sim.config.hardening :as hardening]
-             [resolver-sim.publish.contract :as contract]
-             [resolver-sim.publish.manifest :as manifest]
-             [resolver-sim.signed-external-decision :as sed])
+  (:require [clojure.edn :as edn]
+            [clojure.java.io :as io]
+            [clojure.string :as str]
+            [resolver-sim.config.hardening :as hardening]
+            [resolver-sim.publish.contract :as contract]
+            [resolver-sim.publish.manifest :as manifest]
+            [resolver-sim.signed-external-decision :as sed])
   (:import            [java.io PushbackReader]
                       [java.nio.charset StandardCharsets]
                       [java.nio.file Files]
@@ -221,8 +221,8 @@
         _ (when-not command
             (throw (ex-info "no publisher authority command configured"
                             {:reason :publish-command-unavailable})))
-         timeout-ms (or timeout-ms
-                        (hardening/value :publish-timeout-ms {:fallback 60000}))
+        timeout-ms (or timeout-ms
+                       (hardening/value :publish-timeout-ms {:fallback 60000}))
         input (pr-str request)
         {:keys [exit stdout stderr]} ((runner-for opts) command input timeout-ms)]
     (when-not (zero? exit)

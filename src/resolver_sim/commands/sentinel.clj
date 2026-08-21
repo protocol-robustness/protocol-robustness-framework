@@ -12,12 +12,12 @@
      3. derives sensitivity findings from the content (not caller findings),
      4. signs the complete decision envelope under a dedicated domain tag."
   (:require [clojure.edn :as edn]
-             [buddy.core.keys :as keys]
-             [resolver-sim.config.hardening :as hardening]
-             [resolver-sim.sensitivity.contract :as contract]
-             [resolver-sim.sensitivity.sentinel :as sentinel]
-             [resolver-sim.signed-external-decision :as sed]
-             [resolver-sim.commands.scenario-safety :as safety])
+            [buddy.core.keys :as keys]
+            [resolver-sim.config.hardening :as hardening]
+            [resolver-sim.sensitivity.contract :as contract]
+            [resolver-sim.sensitivity.sentinel :as sentinel]
+            [resolver-sim.signed-external-decision :as sed]
+            [resolver-sim.commands.scenario-safety :as safety])
   (:import [java.io PushbackReader Reader StringReader]))
 
 (def error-kind :sensitivity-sentinel-error)
@@ -120,9 +120,9 @@
   [r private-key {:keys [assurance key-id] :as _opts}]
   (let [request-id (atom nil)]
     (try
-       (let [raw (read-limited r
-                               (hardening/value :sentinel-max-request-bytes
-                                                {:fallback (* 4 1024 1024)}))
+      (let [raw (read-limited r
+                              (hardening/value :sentinel-max-request-bytes
+                                               {:fallback (* 4 1024 1024)}))
             request (read-one-request (StringReader. raw))
             _ (reset! request-id (:request/id request))
             _ (when-not (contract/valid-request? request)

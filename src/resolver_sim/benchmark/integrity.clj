@@ -81,10 +81,13 @@
   :run/manifest/:manifest/at, :results/:scenario/artifacts) are excluded so the
   committed hash survives signing and location/timing drift.
 
-  :creation/provenance is also EXCLUDED: creation provenance (in-band vs
-  out-of-band) is committed in the outer envelope (canonical-integrity.v1),
-  not in the semantic bundle root. This ensures that provenance variation
-  never alters semantic identity.
+  :creation/provenance and :source/creation are also EXCLUDED from the
+  bundle-root commitment. These are provenance facts authenticated at an
+  outer layer — the canonical-integrity envelope (canonical-integrity.v1)
+  commits :creation_provenance_hash and :source_creation_hash separately,
+  so provenance facts bind into the package identity without altering the
+  intrinsic evidence-bundle identity. This ensures that provenance variation
+  never mutates the reusable evidence hash.
 
   :evidence/commitment-version is deliberately NOT excluded: when present it is
   committed into the hash, binding the bundle to the commitment scheme used to

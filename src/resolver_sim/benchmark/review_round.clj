@@ -50,7 +50,7 @@
    governance snapshot, policy identity, and constitution time."
   [round]
   (str "review-round:" (hc/domain-hash :review-round-identity
-                                        (round-identity-input round (:review-round/members round)))))
+                                       (round-identity-input round (:review-round/members round)))))
 
 (def ^:const review-purposes
   "Controlled vocabulary for review-round purposes."

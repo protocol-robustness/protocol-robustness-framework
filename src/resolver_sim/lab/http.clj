@@ -13,14 +13,14 @@
        simple global rate limit;
      - sanitized errors: no stack traces, every failure carries a
        LAB-RUN-ID reference an operator can trace in the logs.";
-   (:require [clojure.data.json :as json]
-             [clojure.java.io :as io]
-             [clojure.string :as str]
-             [resolver-sim.config.hardening :as hardening]
-             [resolver-sim.lab.exec :as exec]
-             [resolver-sim.lab.json :as lab-json]
-             [resolver-sim.lab.registry :as registry]
-             [resolver-sim.lab.runner :as lab-runner])
+  (:require [clojure.data.json :as json]
+            [clojure.java.io :as io]
+            [clojure.string :as str]
+            [resolver-sim.config.hardening :as hardening]
+            [resolver-sim.lab.exec :as exec]
+            [resolver-sim.lab.json :as lab-json]
+            [resolver-sim.lab.registry :as registry]
+            [resolver-sim.lab.runner :as lab-runner])
   (:import [com.sun.net.httpserver HttpExchange HttpServer]
            [java.io ByteArrayOutputStream InputStream]
            [java.net InetSocketAddress]
@@ -124,7 +124,7 @@
       (let [n (.read ^InputStream in chunk)]
         (cond
           (neg? n) {:ok? true :body (String. (.toByteArray buffer) StandardCharsets/UTF_8)}
-           (> (+ total n) (get-in @state [:config :max-body-bytes])) {:ok? false :too-large? true}
+          (> (+ total n) (get-in @state [:config :max-body-bytes])) {:ok? false :too-large? true}
           :else
           (do (.write buffer chunk 0 n)
               (recur (+ total n))))))))
@@ -176,11 +176,11 @@
               (try
                 (let [run-id (lab-runner/generate-run-id)
                       runs-dir (config "LAB_RUNS_DIR" "lab.runs.dir" "/var/lib/lab/runs")
-                       timeout-ms (long (or (parse-long (config "LAB_RUN_TIMEOUT_MS" "lab.run.timeout.ms" ""))
-                                            (get-in @state [:config :timeout-ms])))
-                       publish-bucket (config "LAB_PUBLISH_BUCKET" "lab.publish.bucket" "")
-                       region (or (config "LAB_REGION" "lab.region" "")
-                                  (get-in @state [:config :region]))
+                      timeout-ms (long (or (parse-long (config "LAB_RUN_TIMEOUT_MS" "lab.run.timeout.ms" ""))
+                                           (get-in @state [:config :timeout-ms])))
+                      publish-bucket (config "LAB_PUBLISH_BUCKET" "lab.publish.bucket" "")
+                      region (or (config "LAB_REGION" "lab.region" "")
+                                 (get-in @state [:config :region]))
                       result (exec/run-experiment!
                               request run-id
                               {:runs-dir runs-dir
@@ -261,9 +261,9 @@
     (swap! state assoc :limiter (new-limiter max-concurrent))
     (let [server (HttpServer/create (InetSocketAddress. ^String bind (int port)) 0)]
       (.createContext server "/" (reify com.sun.net.httpserver.HttpHandler
-                                  (handle [_ exchange] (handler exchange))))
+                                   (handle [_ exchange] (handler exchange))))
       (.setExecutor server (java.util.concurrent.Executors/newFixedThreadPool
-                             (int (:thread-pool-size cfg))))
+                            (int (:thread-pool-size cfg))))
       (.start server)
       (log "listening" (str bind ":" port))
       server)))

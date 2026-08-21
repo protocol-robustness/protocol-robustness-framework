@@ -22,10 +22,10 @@
             [resolver-sim.yield.position :as pos]
             [resolver-sim.yield.pro-rata-propagation-policy :as propagation-policy]
             [resolver-sim.yield.token :as tok]
-             [resolver-sim.util.attribution :as attr]
-             [resolver-sim.execution.context :as execution-context]
-             [resolver-sim.execution.parallel :as parallel]
-             [resolver-sim.io.event-evidence :as evidence]
+            [resolver-sim.util.attribution :as attr]
+            [resolver-sim.execution.context :as execution-context]
+            [resolver-sim.execution.parallel :as parallel]
+            [resolver-sim.io.event-evidence :as evidence]
             [resolver-sim.hash.reference :as hash-ref]))
 
 (def ^:private schema-version (evcfg/schema :partial-fill-decision))
@@ -2293,9 +2293,9 @@
                              :liquidity-domains duplicate-domains})))
         ;; 1: snapshot world (implicit — world is captured by closure)
         ;; 2: parallel pure compute — each fulfillment is independent
-         decisions (parallel/ordered-bounded-mapv
-                     (or (-> execution-context/*context* :execution/claimant-parallelism) 1)
-                     (fn [{:keys [available-liquidity position policy opts]}]
+        decisions (parallel/ordered-bounded-mapv
+                   (or (-> execution-context/*context* :execution/claimant-parallelism) 1)
+                   (fn [{:keys [available-liquidity position policy opts]}]
                      (let [policy' (if (some? policy)
                                      (merge default-partial-fill-policy policy)
                                      default-partial-fill-policy)]

@@ -11,11 +11,11 @@
    every composition field from a canonical extension resolution snapshot.
    A manual `build-unchecked` constructor remains for tests/fixtures only."
   (:require [clojure.set :as set]
-             [resolver-sim.hash.canonical :as canonical]
-             [resolver-sim.hash.reference :as hash-ref]
-             [resolver-sim.extensions.resolution :as resolution]
-             [resolver-sim.extensions.manifest :as em]
-             [resolver-sim.run.force-authorisation-policy :as fa-policy]))
+            [resolver-sim.hash.canonical :as canonical]
+            [resolver-sim.hash.reference :as hash-ref]
+            [resolver-sim.extensions.resolution :as resolution]
+            [resolver-sim.extensions.manifest :as em]
+            [resolver-sim.run.force-authorisation-policy :as fa-policy]))
 
 (def schema-version "semantic-composition.v1")
 (def domain "SEMANTIC_COMPOSITION_V1")
@@ -231,19 +231,19 @@
   "The canonical default force-authorisation policy artifact, computed from
    the canonical three-member standard. Used when no explicit policy is supplied
    but custody-execution is active."
-   []
-   @#'fa-policy/default-research-policy)
+  []
+  @#'fa-policy/default-research-policy)
 
 (defn policy-root
   "Compute the canonical hash root of a force-authorisation policy artifact."
   [policy]
   (let [validate (resolve 'fa-policy/validate)
-         build (resolve 'fa-policy/build)]
+        build (resolve 'fa-policy/build)]
     (when-not (and validate build)
       (throw (ex-info "force-authorisation policy namespace is unavailable; the physical force-authorisation extension must be on the classpath"
                       {:error :semantic-composition/policy-namespace-unavailable})))
     (when-not (:valid? (try (validate policy) (catch Exception _ {:valid? false}))
-                           #_:clj-kondo/ignore)
+                       #_:clj-kondo/ignore)
       (throw (ex-info "invalid force-authorisation policy" {:policy policy})))
     (let [policy-hash-f (resolve 'fa-policy/policy-hash)]
       (policy-hash-f policy))))
@@ -310,9 +310,9 @@
                                        (set (map :module/id (:invariant-modules supplied))))
                             [{:violation/id :semantic-composition/invariant-module-mismatch
                               :details {:supplied (vec (sort (map :module/id (:invariant-modules supplied))))
-                                          :derived (vec (sort (map :module/id (derived :invariant-modules))))}}])))]
-      {:valid? (empty? violations)
-       :violations violations}))
+                                        :derived (vec (sort (map :module/id (derived :invariant-modules))))}}])))]
+    {:valid? (empty? violations)
+     :violations violations}))
 
 (defn validate [composition]
   (let [unknown (seq (remove (conj (set projection-fields) :semantic-composition/root) (keys composition)))

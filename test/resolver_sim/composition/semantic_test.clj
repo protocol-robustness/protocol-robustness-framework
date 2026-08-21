@@ -48,25 +48,25 @@
 (deftest plain-composition-has-no-force-live-regions-or-actions
   (let [composition (plain-composition)
         world (protocol/init-world sew/protocol {:scenario-id :plain
-                                                  :semantic-composition composition})]
+                                                 :semantic-composition composition})]
     (is (empty? (semantic/active-actions composition)))
     (is (empty? (semantic/active-regions composition)))
     (is (nil? (:force-authorisations world)))
     (is (= :semantic-composition-action-not-permitted
            (:error (protocol/dispatch-action sew/protocol
-                                              {:semantic-composition composition}
-                                              world
-                                              {:action "grant-force-authorisation" :params {}}))))))
+                                             {:semantic-composition composition}
+                                             world
+                                             {:action "grant-force-authorisation" :params {}}))))))
 
 (deftest force-module-selection-enables-only-declared-force-actions-and-regions
   (let [composition (force-composition)
         world (protocol/init-world sew/protocol {:scenario-id :force
-                                                  :semantic-composition composition})]
+                                                 :semantic-composition composition})]
     (is (contains? (semantic/active-actions composition) "grant-consensus-force-authorisation"))
     (is (contains? (semantic/active-regions composition) :force-authorisations))
     (is (= {} (:force-authorisations world)))
     (is (= :semantic-composition-action-not-permitted
            (:error (protocol/dispatch-action sew/protocol
-                                              {:semantic-composition composition}
-                                              world
-                                              {:action "raise-dispute" :params {}}))))))
+                                             {:semantic-composition composition}
+                                             world
+                                             {:action "raise-dispute" :params {}}))))))

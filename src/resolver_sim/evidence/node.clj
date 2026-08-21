@@ -789,10 +789,11 @@
 
 (defn validate-creation-provenance
   "Validate that :creation/provenance is a known value.
-    Returns nil if valid, an error map otherwise.
-    Does NOT confer trust — merely checks enum membership.
-    Both :in-band and :out-of-band are valid; mutation between them is
-    undetectable without a separate commitment over provenance."
+     Returns nil if valid, an error map otherwise.
+     Does NOT confer trust — merely checks enum membership.
+     Both :in-band and :out-of-band are valid; mutation between them is
+     undetectable without a separate commitment over provenance
+     (creation_provenance_hash in canonical-integrity.v1)."
   [provenance]
   (when-not (#{:in-band :out-of-band} provenance)
     {:error :creation-provenance/unsupported-value

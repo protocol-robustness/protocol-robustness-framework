@@ -66,7 +66,7 @@
   :concept/assumptions
    ["Creation provenance is orthogonal to evidence policy: policy describes how evidence is obtained, provenance describes where the artifact was created."
     "Default :creation/provenance is :in-band, preserving backward compatibility for nodes built before the field existed."
-    "Creation provenance is advisory metadata in the evidence-node projection and does not affect node identity."
+    "Creation provenance is excluded from evidence-node identity but is authenticated at the canonical-integrity envelope layer via creation_provenance_hash."
     "Provenance alone does not confer admission; admission requires content integrity, evidence policy, attestations, and authority."
     "Both :in-band and :out-of-band are valid enum values, so validate-creation-provenance cannot detect a mutation between them unless provenance is separately committed."]
 
@@ -85,4 +85,4 @@
    "Whether the underlying evidence policy is sound — that is the evidence-policy concept."]
 
   :concept/notes
-   "Creation provenance is stored in the :execution map of evidence nodes but is intentionally excluded from project-evidence-node's select-keys, so it does not participate in the evidence-node canonical hash. The :creation-provenance hash intent exists for callers who want to independently root-bind provenance. This is not a trust or signature system."}
+   "Creation provenance is stored in the :execution map of evidence nodes but is intentionally excluded from project-evidence-node's select-keys, so it does not participate in the evidence-node canonical hash. It is authenticated at the canonical-integrity envelope layer via the :creation-provenance hash intent, which produces creation_provenance_hash committed in canonical-integrity.v1. This preserves reusable evidence identity while binding creation-context facts into package identity."}

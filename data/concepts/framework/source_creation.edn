@@ -61,11 +61,11 @@
  :concept/assumptions
  ["Source creation provenance is distinct from artifact creation provenance."
   "Default :source/creation is {:provenance :in-band}, preserving backward compatibility."
-  "Source creation provenance is advisory metadata in the evidence-node projection and does not affect node identity."
+  "Source creation provenance is excluded from evidence-node identity but is authenticated at the canonical-integrity envelope layer via source_creation_hash."
   "Source provenance alone does not confer admission; admission requires content integrity, evidence policy, attestations, and authority."]
 
  :concept/notes
- "Source creation provenance is stored as {:provenance :in-band|:out-of-band} in the :execution map of evidence nodes but is intentionally excluded from project-evidence-node's select-keys, so it does not participate in the evidence-node canonical hash. The :source-creation hash intent exists for callers who want to independently root-bind source creation provenance. This is not a trust or signature system."
+   "Source creation provenance is stored as {:provenance :in-band|:out-of-band} in the :execution map of evidence nodes but is intentionally excluded from project-evidence-node's select-keys, so it does not participate in the evidence-node canonical hash. It is authenticated at the canonical-integrity envelope layer via the :source-creation hash intent, which produces source_creation_hash committed in canonical-integrity.v1. This preserves reusable evidence identity while binding source-origin facts into package identity."
 
  :concept/metrics
  {:source-creation-recorded {:description "Fraction of evidence nodes that carry a :source/creation value."

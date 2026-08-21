@@ -387,7 +387,7 @@
      :invalid-positions (vec (sort-by :researcher/id
                                       (mapv :position invalid-positions)))
      :invalid-position-reasons (vec (sort-by (comp :researcher/id :position)
-                                              invalid-positions))
+                                             invalid-positions))
      :equivocating-members equivocations
      :unknown-members (vec (sort-by :researcher/id unknown-members))
      :re-scoped-positions (vec (sort-by :researcher/id re-scoped))

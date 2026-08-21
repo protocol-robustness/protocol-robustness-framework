@@ -19,7 +19,7 @@
                       :trace-policy-root (root "4")})
         trace (sut/execute before transaction canonical policy)
         binding (sut/bind-transition canonical transaction trace
-                                              (:binding-semantics/root (sut/build-binding-semantics :effect-exact)))]
+                                     (:binding-semantics/root (sut/build-binding-semantics :effect-exact)))]
     (is (= 2 (:trace/length trace)))
     (is (<= (:trace/length trace) (:trace/max-length trace)))
     (is (= (:state-after/root canonical) (:transition/output-root trace)))

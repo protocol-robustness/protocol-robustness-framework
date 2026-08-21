@@ -14,12 +14,12 @@
    The timestamp proof is written as timestamp.json alongside the registry,
    and can be independently verified without access to the signing key."
   (:require [clojure.data.json :as json]
-             [clojure.java.io :as io]
-             [resolver-sim.benchmark.signing :as signing]
-             [resolver-sim.config.hardening :as hardening]
-             [resolver-sim.evidence.config :as evcfg]
-             [resolver-sim.hash.canonical :as hc]
-             [resolver-sim.logging :as log])
+            [clojure.java.io :as io]
+            [resolver-sim.benchmark.signing :as signing]
+            [resolver-sim.config.hardening :as hardening]
+            [resolver-sim.evidence.config :as evcfg]
+            [resolver-sim.hash.canonical :as hc]
+            [resolver-sim.logging :as log])
   (:import (java.net URI)
            (java.net.http HttpClient HttpRequest
                           HttpRequest$BodyPublishers HttpResponse$BodyHandlers)
@@ -115,8 +115,8 @@
             :serial <TSA-serial-number>}
    or {:error <message>}."
   [hash & {:keys [tsa-url timeout-ms]
-            :or {tsa-url *tsa-url*
-                 timeout-ms (hardening/value :tsa-timeout-ms {:fallback 30000})}}]
+           :or {tsa-url *tsa-url*
+                timeout-ms (hardening/value :tsa-timeout-ms {:fallback 30000})}}]
   (if-not tsa-url
     {:error "No TSA URL configured. Set *tsa-url* or pass :tsa-url."}
     (try

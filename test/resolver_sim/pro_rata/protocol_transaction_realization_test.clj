@@ -20,10 +20,10 @@
                                :protocol-state-root #(hc/domain-hash :world-state %)
                                :realization-semantics-root (root "7")}))
 (def transaction (transact/build-transaction {:operations [{:quantity-root q :delta -5}]
-                                               :operation-semantics-root (root "8") :trace-policy-root (root "9")}))
+                                              :operation-semantics-root (root "8") :trace-policy-root (root "9")}))
 (def trace (transact/execute {q 10} transaction canonical {:max-fixed-steps 1 :max-steps-per-effect 1}))
 (def transition-binding (transact/bind-transition canonical transaction trace
-                                      (:binding-semantics/root (transact/build-binding-semantics :effect-exact))))
+                                                  (:binding-semantics/root (transact/build-binding-semantics :effect-exact))))
 
 (deftest joins-two-realizations-of-one-canonical-transition
   (let [joined (sut/build {:canonical-transition-root (:canonical-effect-transition/root canonical)

@@ -12,9 +12,9 @@
    The production never requires prf-clean-room.composition; it has its own
    independently implemented projection and reuses only its own canonical
    encoder (resolver-sim.hash.canonical)."
-   (:require [clojure.test :refer [deftest is testing]]
-             [clojure.edn :as edn]
-             [resolver-sim.composition.v1 :as v1]))
+  (:require [clojure.test :refer [deftest is testing]]
+            [clojure.edn :as edn]
+            [resolver-sim.composition.v1 :as v1]))
 
 ;; ── Golden vector data source ───────────────────────────────────
 ;; Consumed as data only: the EDN file is copied from prf-clean-room and
@@ -23,8 +23,8 @@
 (def ^:private golden-vectors
   "Lazy stream of clean-room conformance vectors, read as EDN data."
   (delay
-   (edn/read-string
-    (slurp "etc/conformance/cleanroom/semantic-composition-v1.edn"))))
+    (edn/read-string
+     (slurp "etc/conformance/cleanroom/semantic-composition-v1.edn"))))
 
 (defn- vector-by-id [id]
   (some #(when (= id (:case/id %)) %) @golden-vectors))
@@ -78,8 +78,8 @@
 
 (deftest floor-and-carry-normalizes-to-largest-remainder
   (testing ":floor-and-carry and :largest-remainder produce identical compact and root"
-  (let [floor-and-carry {:composition/version 1 :composition/family :ideal-pro-rata
-                         :composition/dimensions {:rounding-policy :floor-and-carry
+    (let [floor-and-carry {:composition/version 1 :composition/family :ideal-pro-rata
+                           :composition/dimensions {:rounding-policy :floor-and-carry
                                                     :claimant-contexts [{:account :escrow :direction :add}
                                                                         {:account :escrow :direction :add}]}}
           largest-remainder {:composition/version 1 :composition/family :ideal-pro-rata
@@ -148,7 +148,7 @@
                  (v1/compactly
                   {:composition/version 1 :composition/family :ideal-pro-rata
                    :composition/dimensions {:rounding-policy :floor}
-                    :diagnostic {:trace true}})))))
+                   :diagnostic {:trace true}})))))
 
 (deftest sequence-order-is-material
   (testing "A then B != B then A for composition-sequence"

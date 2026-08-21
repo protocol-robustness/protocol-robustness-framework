@@ -2,11 +2,23 @@
   "Thin, domain-neutral primitive for command composition anchored on immutable
   shared-state identity.
 
+  CC3 — CLOSED: canonical command-lineage consecutiveness and termination verification.
+
+  Frozen: this namespace is frozen for all purposes except defect repair
+  discovered by higher-level integration. Do not generalize until the
+  prop-consecutive-injective layer (which must add a distinct no-collapse /
+  no-alias / no-reuse condition over its domain and mapping) has been designed
+  downstream of these semantics.
+
   Three identities, kept sharp:
 
     1. Shared-state identity -- an immutable {:kind :shared-state :ref sha256} ref.
+       The canonical invariant is verifier-enforced: a command has exactly one
+       :shared-state member whose :ref == :command/input-state-root.
+
     2. Combination identity -- built-with-includes over a canonical member set;
        order-independent, duplicate refs rejected (not silently canonicalised).
+
     3. Consecutive concatenation -- A then B where join-state is DERIVED as
        resulting-state(A) == input-state(B); order matters and A then B differs
        from B then A.
@@ -15,12 +27,24 @@
   head rejects as :predecessor-terminal; an identical terminal replay is
   recognised at admission as :already-terminated without appending a new element.
 
+  Concatenation chain commitment:
+
+    concatenation-chain-root is a pure cryptographic commitment over ordered
+    concatenation roots. Semantic consecutiveness authority comes exclusively
+    from verify-concatenation-chain, which is always invoked when the chain
+    root is produced. The hash carries no semantic authority.
+
+  Validity layers are separated:
+
+    pairwise concatenation validity  !=  ordered chain validity  !=  injectivity
+    (verify-concatenation)               (verify-concatenation-chain)   (future)
+
   Reuse (no new crypto): resolver-sim.hash.canonical (domain-hash, with lineage-
   specific string domain tags aligned with composition/contract and composition/plan)
   and resolver-sim.hash.reference. The primitive validates references and commits
   roots; it does not derive or interpret world state behind a shared-state root."
-  (:require [resolver-sim.hash.canonical :as hc]
-            [resolver-sim.hash.reference :as hash-ref]))
+   (:require [resolver-sim.hash.canonical :as hc]
+             [resolver-sim.hash.reference :as hash-ref]))
 
 ;; ── domain tags (lineage-specific strings, no central registry edits) ──────────
 
@@ -214,7 +238,10 @@
 (defn verify-shared-state-invariant
   "Verify that a command has exactly one :shared-state member whose :ref equals
   :command/input-state-root. Returns {:valid? bool :reason kw :detail str}.
-  This is the verifier-level enforcement of the shared-state basis invariant."
+
+  This is the verifier-level enforcement of the shared-state basis invariant.
+  The invariant makes the :shared-state member's semantic role structural
+  rather than conventional: input-state-root IS the shared-state identity."
   [command]
   (let [count (shared-state-count command)
         ref (shared-state-ref command)

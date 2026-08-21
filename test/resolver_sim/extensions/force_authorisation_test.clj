@@ -29,8 +29,8 @@
    :input-schema :force-authorisation/effect-evidence-input.v1
    :output-schema :force-authorisation/effect-evidence-output.v1
    :composition-contract {:composition-contract/version 1
-                           :composition/input {:schema-ref :force-authorisation/effect-evidence-input.v1}
-                           :composition/output {:schema-ref :force-authorisation/effect-evidence-output.v1}}})
+                          :composition/input {:schema-ref :force-authorisation/effect-evidence-input.v1}
+                          :composition/output {:schema-ref :force-authorisation/effect-evidence-output.v1}}})
 
 (def effect-evidence-package
   {:extension/id :force-authorisation/effect-evidence
@@ -43,9 +43,9 @@
    :extension/support-policy :core
    :extension/funding-status :core
    :extension/status {:lifecycle :active :distribution :core
-                       :conformance :conformant :reproduction :artifact-replayable
-                       :verification :replayed :maintenance :supported
-                       :adoption :multi-adapter}})
+                      :conformance :conformant :reproduction :artifact-replayable
+                      :verification :replayed :maintenance :supported
+                      :adoption :multi-adapter}})
 
 (defn register-effect-evidence
   "Register a mock effect-evidence provider into the extension-map."
@@ -67,8 +67,8 @@
 
 (deftest wrong-governed-provider-identity-version-or-profile-is-rejected
   (doseq [bad-cap [(assoc @fa/governed-authority-capability :capability/id :resolver-sim/other-authority)
-                    (assoc @fa/governed-authority-capability :capability/version 2)
-                    (assoc @fa/governed-authority-capability :capability/profile :local-compatibility)]]
+                   (assoc @fa/governed-authority-capability :capability/version 2)
+                   (assoc @fa/governed-authority-capability :capability/profile :local-compatibility)]]
     (let [bad-package (assoc @fa/governed-authority-package :extension/capabilities [bad-cap])
           emap (reg/register-package (reg/empty-extension-map) bad-package)]
       (is (thrown? clojure.lang.ExceptionInfo (fa/install emap))))))
@@ -82,8 +82,7 @@
                             (assoc @fa/package :extension/capabilities
                                    [(assoc-in @fa/capability
                                               [:declared-dependencies 0 :capability/id]
-                                              :resolver-sim/other-authority-v1)]))
-        ]
+                                              :resolver-sim/other-authority-v1)]))]
     (is (not= base changed-id))
     (is (not= base changed-dependency))))
 

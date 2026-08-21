@@ -185,8 +185,8 @@
                  (not= (count principal-ids) (count (set principal-ids))) (conj "non-distinct principals")
                  (some empty? key-sets) (conj "member has no eligible signing keys")
                  (some identity (for [[i ks] (map-indexed vector key-sets)
-                                     other (drop (inc i) key-sets)]
-                                 (seq (set/intersection ks other))))
+                                      other (drop (inc i) key-sets)]
+                                  (seq (set/intersection ks other))))
                  (conj "threshold-eligible key shared across members")
                  (some #(= :not-independent (:status %)) independence-results)
                  (conj "independence not satisfied")

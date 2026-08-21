@@ -14,15 +14,15 @@
      {:schema-version :status :outcome/class :claimable?
       :artifact/root :issues [...]}"
   (:require [clojure.data.json :as json]
-             [resolver-sim.config.hardening :as hardening]
-             [resolver-sim.conformance.json :as json-scan]
-             [resolver-sim.conformance.bundle :as bundle]
-             [resolver-sim.conformance.profile :as profile]
+            [resolver-sim.config.hardening :as hardening]
+            [resolver-sim.conformance.json :as json-scan]
+            [resolver-sim.conformance.bundle :as bundle]
+            [resolver-sim.conformance.profile :as profile]
              ;; Load the production adapters so the committed implementation
              ;; registry root matches the one bound into generated receipts.
-             [resolver-sim.trace.conformance.validators]
-             [resolver-sim.benchmark.conformance.reproduction]
-             [resolver-sim.evidence-package.conformance.admission]))
+            [resolver-sim.trace.conformance.validators]
+            [resolver-sim.benchmark.conformance.reproduction]
+            [resolver-sim.evidence-package.conformance.admission]))
 
 (def cli-schema-version "conformance.cli/v1")
 

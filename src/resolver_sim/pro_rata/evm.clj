@@ -125,9 +125,9 @@
   (try
     (and (= provenance-schema (:schema-version provenance))
          (do (required-roots! provenance [:configuration/root :allocation-input/root
-                                           :allocation/root :state-before/root
-                                           :application/root :state-after/root
-                                           :program-identity/root :statement-schema/root])
+                                          :allocation/root :state-before/root
+                                          :application/root :state-after/root
+                                          :program-identity/root :statement-schema/root])
              true)
          (= (:provenance/root provenance) (provenance-root provenance)))
     (catch Exception _ false)))

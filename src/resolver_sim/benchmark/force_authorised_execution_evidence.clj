@@ -159,26 +159,26 @@
              :successful-authorised-outcome? false})
           ;; ── Build profile ─────────────────────────────────────────────
           base (cond-> {:schema-version schema-version
-                :evidence-profile/id profile-id
-                :evidence-profile/policy-hash
-                (:policy/hash (:authorisation/policy authorisation))
-                :evidence-profile/review-round-hash
-                (:review-round/hash (:authorisation/review-round authorisation))
-                :evidence-profile/authorisation-hash
-                (:authorisation/hash authorisation)
-                :evidence-profile/reservation-hash
-                (:reservation/hash reservation)
-                :evidence-profile/outcome-manifest-hash
-                (:benchmark-outcome/hash outcome-manifest)
-                :evidence-profile/consumption-receipt-hash
-                (:consumption/hash consumption-receipt)
-                :evidence-profile/executed-content-root
-                (or (get-in outcome-manifest
-                            [:execution/force-authorisation
-                             :executed-content-root])
-                    (:benchmark/content-root outcome-manifest))
-                :evidence-profile/execution-result execution-result
-                :evidence-profile/verification verification}
+                        :evidence-profile/id profile-id
+                        :evidence-profile/policy-hash
+                        (:policy/hash (:authorisation/policy authorisation))
+                        :evidence-profile/review-round-hash
+                        (:review-round/hash (:authorisation/review-round authorisation))
+                        :evidence-profile/authorisation-hash
+                        (:authorisation/hash authorisation)
+                        :evidence-profile/reservation-hash
+                        (:reservation/hash reservation)
+                        :evidence-profile/outcome-manifest-hash
+                        (:benchmark-outcome/hash outcome-manifest)
+                        :evidence-profile/consumption-receipt-hash
+                        (:consumption/hash consumption-receipt)
+                        :evidence-profile/executed-content-root
+                        (or (get-in outcome-manifest
+                                    [:execution/force-authorisation
+                                     :executed-content-root])
+                            (:benchmark/content-root outcome-manifest))
+                        :evidence-profile/execution-result execution-result
+                        :evidence-profile/verification verification}
                  governance (assoc :evidence-profile/governance-root
                                    (rg/governance-root governance)))
           computed-hash (hash-ref/sha256-ref

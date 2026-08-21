@@ -133,37 +133,37 @@
                                              :package/version (:package/version p)
                                              :package-root (:package-root p)
                                              :sealed (:sealed p)}))
-                                 acc
-                                 (:providers entry)))
+                                   acc
+                                   (:providers entry)))
                          {}
                          nodes)
          ;; capabilities are committed as their hashable projections
          ;; (entrypoints are symbols in manifests; the projection normalises
          ;; them to strings for the canonical encoder)
-         capabilities (into {} (map (fn [[k entry]]
-                                      [k (em/capability-projection (:capability entry))])
-                                    nodes))
+        capabilities (into {} (map (fn [[k entry]]
+                                     [k (em/capability-projection (:capability entry))])
+                                   nodes))
          ;; capability-provider bindings: proves which package provides each
          ;; resolved capability (provider package/component root per capability)
-         provider-bindings (into {} (map (fn [[k entry]]
+        provider-bindings (into {} (map (fn [[k entry]]
                                           [k (capability-providers entry)])
                                         nodes))
-         dependencies (mapv #(enriched-dependency % nodes) edges)
-         used-schema-ids (into (sorted-set) (mapcat schema-refs-of) (vals nodes))
-         schema-roots (into {}
-                            (keep (fn [id]
-                                    (when (contains? schemas id)
-                                      [id (get schemas id)])))
-                            used-schema-ids)
-         base {:extensions/resolution-version resolution-version
-               :extensions/packages packages
-               :extensions/capabilities capabilities
-               :extensions/capability-providers provider-bindings
-               :extensions/dependencies dependencies
-               :extensions/schema-roots schema-roots
-               :extensions/effect-schema-roots effect-schemas
-               :extensions/runtime-profile runtime-profile}
-         root (hc/domain-hash resolution-domain-tag base)]
+        dependencies (mapv #(enriched-dependency % nodes) edges)
+        used-schema-ids (into (sorted-set) (mapcat schema-refs-of) (vals nodes))
+        schema-roots (into {}
+                           (keep (fn [id]
+                                   (when (contains? schemas id)
+                                     [id (get schemas id)])))
+                           used-schema-ids)
+        base {:extensions/resolution-version resolution-version
+              :extensions/packages packages
+              :extensions/capabilities capabilities
+              :extensions/capability-providers provider-bindings
+              :extensions/dependencies dependencies
+              :extensions/schema-roots schema-roots
+              :extensions/effect-schema-roots effect-schemas
+              :extensions/runtime-profile runtime-profile}
+        root (hc/domain-hash resolution-domain-tag base)]
     (assoc base :extensions/resolution-root root)))
 
 ;; ── public API ────────────────────────────────────────────────────────────

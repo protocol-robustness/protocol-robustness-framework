@@ -142,9 +142,9 @@
        :extension/support-policy :core
        :extension/funding-status :core
        :extension/status {:lifecycle :active :distribution :core
-                            :conformance :conformant :reproduction :artifact-replayable
-                            :verification :replayed :maintenance :supported
-                            :adoption :multi-adapter}})
+                          :conformance :conformant :reproduction :artifact-replayable
+                          :verification :replayed :maintenance :supported
+                          :adoption :multi-adapter}})
     legacy-governed-authority-package))
 
 (def capability

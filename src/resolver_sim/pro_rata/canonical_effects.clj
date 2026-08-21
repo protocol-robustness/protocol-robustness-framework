@@ -69,8 +69,8 @@
    rejects the entire transition rather than producing a partial state."
   [state effects]
   (when-not (every? (fn [[target value]] (and (root? target)
-                                               (integer? value)
-                                               (not (neg? value)))) state)
+                                              (integer? value)
+                                              (not (neg? value)))) state)
     (throw (ex-info "invalid canonical effect state" {:state state})))
   (reduce (fn [next-state {:keys [quantity/root delta]}]
             (let [before (get next-state root 0)

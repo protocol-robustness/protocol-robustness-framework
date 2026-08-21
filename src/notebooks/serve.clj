@@ -1,9 +1,9 @@
 (ns notebooks.serve
   (:require [nextjournal.clerk :as clerk]
-             [clojure.java.io :as io]
-             [clojure.string :as str]
-             [resolver-sim.config.hardening :as hardening]
-             [resolver-sim.logging :as log]))
+            [clojure.java.io :as io]
+            [clojure.string :as str]
+            [resolver-sim.config.hardening :as hardening]
+            [resolver-sim.logging :as log]))
 
 (defn- show-notebook! [path]
   (if (.exists (io/file path))

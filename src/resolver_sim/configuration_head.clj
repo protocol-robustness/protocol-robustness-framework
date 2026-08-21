@@ -139,8 +139,7 @@
                                        :configuration/last-transaction-root (:transaction-ordering/hash tx))]
                 (if (compare-and-set! state-atom current final-state)
                   (assoc result :transaction-ordering tx)
-                  (recur))))))))
-  ))
+                  (recur))))))))))
 
 (defn new-store [initial-configuration-root initial-epoch]
   (ConfigurationHeadStore.

@@ -8,9 +8,9 @@
    server-generated request/run-id/output path). No visitor input ever appears
    in argv."
   (:require [clojure.java.io :as io]
-             [clojure.string :as str]
-             [resolver-sim.config.hardening :as hardening]
-             [resolver-sim.lab.json :as lab-json])
+            [clojure.string :as str]
+            [resolver-sim.config.hardening :as hardening]
+            [resolver-sim.lab.json :as lab-json])
   (:import [java.io File]
            [java.nio.file Files]
            [java.util.concurrent TimeUnit]))
@@ -80,7 +80,7 @@
                          "--region" region])
                    (.redirectErrorStream true))
               proc (.start pb)]
-           (.waitFor proc (long (hardening/value :lab-publish-s3-timeout-s {:fallback 30})) TimeUnit/SECONDS)
+          (.waitFor proc (long (hardening/value :lab-publish-s3-timeout-s {:fallback 30})) TimeUnit/SECONDS)
           (.destroyForcibly proc))
         (catch Throwable _ nil)))))
 
@@ -102,9 +102,9 @@
    Returns the normalized lab result map (possibly
    {:lab-run/status :execution-error ...}) parsed from the runner's output
    file. Throws only on infrastructure failures (unable to write/spawn)."
-   [request run-id {:keys [runs-dir timeout-ms publish-bucket region]
-                    :or {runs-dir "/tmp/lab-runs"
-                         timeout-ms (hardening/value :lab-exec-timeout-ms {:fallback 90000})}}]
+  [request run-id {:keys [runs-dir timeout-ms publish-bucket region]
+                   :or {runs-dir "/tmp/lab-runs"
+                        timeout-ms (hardening/value :lab-exec-timeout-ms {:fallback 90000})}}]
   (let [request-file (write-request-file! runs-dir run-id request)
         output-file (str request-file ".result.json")
         argv (runner-argv request-file run-id output-file)

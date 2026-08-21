@@ -13,11 +13,11 @@
         missing or modified file fails the whole set,
      4. signs the complete certificate under a dedicated domain tag."
   (:require [clojure.edn :as edn]
-             [buddy.core.keys :as keys]
-             [resolver-sim.config.hardening :as hardening]
-             [resolver-sim.publish.contract :as contract]
-             [resolver-sim.publish.manifest :as manifest]
-             [resolver-sim.signed-external-decision :as sed])
+            [buddy.core.keys :as keys]
+            [resolver-sim.config.hardening :as hardening]
+            [resolver-sim.publish.contract :as contract]
+            [resolver-sim.publish.manifest :as manifest]
+            [resolver-sim.signed-external-decision :as sed])
   (:import [java.io PushbackReader Reader StringReader]))
 
 (def error-kind :artifact-publish-error)
@@ -124,9 +124,9 @@
   [r private-key {:keys [assurance key-id] :as _opts}]
   (let [request-id (atom nil)]
     (try
-       (let [raw (read-limited r
-                               (hardening/value :publish-max-request-bytes
-                                                {:fallback (* 16 1024 1024)}))
+      (let [raw (read-limited r
+                              (hardening/value :publish-max-request-bytes
+                                               {:fallback (* 16 1024 1024)}))
             request (read-one-request (StringReader. raw))
             _ (reset! request-id (:request/id request))
             _ (when-not (contract/valid-request? request)
