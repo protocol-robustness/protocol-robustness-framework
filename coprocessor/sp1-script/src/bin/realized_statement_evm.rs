@@ -18,7 +18,7 @@ use clap::{Parser, ValueEnum};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use sp1_sdk::{
-    blocking::{Prover, ProverClient, ProveRequest},
+    blocking::{ProveRequest, Prover, ProverClient},
     include_elf, Elf, HashableKey, ProvingKey, SP1ProofWithPublicValues, SP1Stdin,
 };
 use std::path::PathBuf;
@@ -39,7 +39,10 @@ struct Args {
     input: String,
     #[arg(long, value_enum, default_value = "groth16")]
     system: ProofSystem,
-    #[arg(long, default_value = "../../sew-prf-genesis-solidity/src/fixtures/realized-statement-proof-fixture.json")]
+    #[arg(
+        long,
+        default_value = "../../sew-prf-genesis-solidity/src/fixtures/realized-statement-proof-fixture.json"
+    )]
     fixture: String,
     #[arg(long)]
     mock: bool,

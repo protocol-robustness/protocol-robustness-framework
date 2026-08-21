@@ -44,8 +44,7 @@ pub fn main() {
     let root_hex = result["statement-root"]
         .as_str()
         .expect("statement-root must be present in passing result");
-    let root_bytes = hex::decode(root_hex)
-        .expect("statement-root must be valid hex");
+    let root_bytes = hex::decode(root_hex).expect("statement-root must be valid hex");
     assert_eq!(root_bytes.len(), 32, "statement root must be 32 bytes");
     sp1_zkvm::io::commit_slice(&root_bytes);
 }
