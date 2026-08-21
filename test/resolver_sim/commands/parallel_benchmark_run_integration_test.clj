@@ -129,7 +129,31 @@
         (is (= 16 (ep true 16 1000 3)) "explicit parallelism above a low ceiling is honored exactly")
         (is (= 2 (ep true 2 1000 20)) "explicit parallelism below a high ceiling is honored exactly")
         ;; The automatic default still floors at 1 for a degenerate count.
-        (is (= 1 (ep true nil 0 5)) "degenerate count floors at 1")))))
+         (is (= 1 (ep true nil 0 5)) "degenerate count floors at 1")))))
+
+(deftest parallel-benchmark-run-default-execution-budget
+  (let [handler #'command/run]
+    (testing "parallel-benchmark-run without --execution-budget defaults budget to effective parallelism"
+      (let [result (handler {:cmd/path "parallel-benchmark-run"
+                             :cmd/args ["benchmark/x"]
+                             :parallelism 4})]
+        ;; Without --run-root, exits at the :else branch with exit-code 2.
+        ;; The key point: budget validation passes (defaults to parallelism=4).
+        (is (= 2 (:exit-code result))
+            "no --run-root → exits with 2, but budget validation passed with default")))
+    (testing "explicit --execution-budget overrides the default"
+      (let [result (handler {:cmd/path "parallel-benchmark-run"
+                             :cmd/args ["benchmark/x"]
+                             :parallelism 4
+                             :execution-budget 8})]
+        (is (= 2 (:exit-code result))
+            "explicit budget accepted; exits 2 for missing --run-root")))
+    (testing "plain run-benchmark defaults budget to 1"
+      (let [result (handler {:cmd/path "run-benchmark"
+                             :cmd/args ["benchmark/x"]
+                             :parallelism 1})]
+        (is (= 2 (:exit-code result))
+            "plain run-benchmark defaults to budget=1; exits 2 for missing --run-root")))))
 
 (deftest parallel-composition-registers-incentive-and-incentive-compatibility-includes
   ;; The parallel command's build declares it is composed with the incentive

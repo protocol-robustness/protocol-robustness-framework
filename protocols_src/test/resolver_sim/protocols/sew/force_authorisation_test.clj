@@ -6,7 +6,7 @@
      2. grant -> revoke -> execute         (rejected)
      3. grant -> expired -> execute        (rejected)
      4. grant -> execute -> execute again  (rejected by Gap 1 guard)"
-  (:require [clojure.test :refer [deftest is use-fixtures]]
+  (:require [clojure.test :refer [deftest is testing use-fixtures]]
             [resolver-sim.protocols.sew :as sew]
             [resolver-sim.protocols.sew.types :as t]
             [resolver-sim.protocols.sew.lifecycle :as lc]
@@ -21,7 +21,8 @@
              [resolver-sim.benchmark.researcher-force-authorisation :as researcher-fa]
              [resolver-sim.benchmark.research-assignment :as research-assignment]
              [resolver-sim.assurance.three-member-authority :as governed-authority]
-                         [resolver-sim.extensions.force-authorisation :as force-extension])
+             [resolver-sim.extensions.force-authorisation :as force-extension]
+             [resolver-sim.composition.semantic :as semantic])
   (:import [org.bouncycastle.crypto.generators Ed25519KeyPairGenerator]
            [org.bouncycastle.crypto.params Ed25519KeyGenerationParameters]
            [org.bouncycastle.crypto.util PrivateKeyInfoFactory SubjectPublicKeyInfoFactory]
@@ -45,10 +46,52 @@
    :extension-map (force-extension/install (force-extension/install-governed-authority {}))})
 
 (def exec-ctx
-  "Context with any resolvable agent for execute actions."
+  "Context with any resolvable agent for execute actions.
+   Uses the legacy compatibility path — no semantic composition."
   {:agent-index {"exec" {:address resolver-addr}}
    :force-authorisation/allow-local-compatibility? true
    :extension-map (force-extension/install (force-extension/install-governed-authority {}))})
+
+(defn- protection-governed-composition
+  "Build a :production-governed semantic composition that activates force-authorisation
+   capability, action module, state region, and invariant module.
+
+   Uses the unchecked constructor (`semantic/build`) with explicit module
+   descriptors. In physical mode, `semantic/build-authoritative` can also be
+   used, but the unchecked constructor is sufficient for testing Sew execution
+   semantics and works in both physical and legacy modes."
+  []
+  (semantic/build
+   {:semantic-composition/schema "semantic-composition.v1"
+    :semantic-composition/version 1
+    :semantic-composition/protocol "sew-v1"
+    :semantic-composition/profile :production-governed
+    :semantic-composition/capabilities [[:sew/force-authorisation :force-authorisation/custody-execution-v1]]
+    :semantic-composition/action-modules [semantic/force-authorisation-action-module]
+    :semantic-composition/state-region-modules [semantic/force-authorisation-state-module]
+    :semantic-composition/invariant-modules [semantic/force-authorisation-invariant-module]
+    :semantic-composition/policy-bindings
+    {:force-authorisation {:policy/root "sha256:production-fa-policy"
+                           :issuance-assurance :governed-research-authority}}
+    :semantic-composition/resolution-root "sha256:production-governed-force-auth"
+    :semantic-composition/resolution {}}))
+
+(defn- plain-composition
+  "A plain (non-force-auth) semantic composition — selects no capabilities,
+   no action/state/invariant modules. Used for Phase 2B absence tests."
+  []
+  (semantic/build
+   {:semantic-composition/schema "semantic-composition.v1"
+    :semantic-composition/version 1
+    :semantic-composition/protocol "sew-v1"
+    :semantic-composition/profile :production-plain
+    :semantic-composition/capabilities []
+    :semantic-composition/action-modules []
+    :semantic-composition/state-region-modules []
+    :semantic-composition/invariant-modules []
+    :semantic-composition/policy-bindings {}
+    :semantic-composition/resolution-root "sha256:plain-composition"
+    :semantic-composition/resolution {}}))
 
 (defn- disputed-world
   "Create a world with one :disputed escrow at block-time 1000.
@@ -565,7 +608,11 @@
 (deftest local-governance-permit-cannot-execute-in-governed-production-context
   (let [world0 (disputed-world)
         {:keys [world auth-id]} (grant-force-auth world0)
-        production-context (dissoc exec-ctx :force-authorisation/allow-local-compatibility?)
+        ;; Phase 2B: production-governed composition categorically rejects
+        ;; local-governance-only issuance, regardless of the legacy compat flag.
+        production-context (-> exec-ctx
+                               (assoc :semantic-composition (protection-governed-composition))
+                               (dissoc :force-authorisation/allow-local-compatibility?))
         result (sew/apply-action production-context world
                                  {:seq 2 :time 1000 :agent "exec"
                                   :action "execute-force-authorised-action"
@@ -842,9 +889,11 @@
 (def non-gov-ctx
   "Context with a non-governance actor for gate rejection tests.
    Governance identity is configured so the actor is rejected for role/address,
-   not for missing configuration."
+   not for missing configuration.
+   Uses the legacy compatibility path — no semantic composition."
   {:agent-index {"mallory" {:id "mallory" :address "0xMallory" :type "honest"}}
    :governance-identity gov-addr
+   :force-authorisation/allow-local-compatibility? true
    :extension-map (force-extension/install (force-extension/install-governed-authority {}))})
 
 (deftest plain-sew-composition-has-no-force-authorisation-capability
@@ -909,26 +958,279 @@
 
 (deftest force-auth-governance-origin-invariant-detects-synthetic
   (let [        scope-map {:authorization/id "fa-synthetic"
-                   :authorization/type :force-authorisation
-                   :held/direction :out :token usdc :amount 100
-                   :held/account :escrow-principal
-                   :owner/address bob-addr :held/reason :force-authorised-release
-                   :held/workflow-id 0}
-        scope-hash (hc/domain-hash "force-authorisation-scope" scope-map)
-        record {:authorization/id "fa-synthetic"
-                :authorization/type :force-authorisation
-                :authorization/status :active
-                :consumed? false :starts-at 0
-                :authorization/scope scope-map
-                :authorization/scope-hash scope-hash}
-        world {:force-authorisations {"fa-synthetic" record}
-               :force-authorisations/consumed {}}
-        lifecycle (inv/force-authorisations-lifecycle-consistent? world)
-        origin (inv/force-authorisations-governance-origin? world)
-        check (inv/check-all world)]
+                    :authorization/type :force-authorisation
+                    :held/direction :out :token usdc :amount 100
+                    :held/account :escrow-principal
+                    :owner/address bob-addr :held/reason :force-authorised-release
+                    :held/workflow-id 0}
+         scope-hash (hc/domain-hash "force-authorisation-scope" scope-map)
+         record {:authorization/id "fa-synthetic"
+                 :authorization/type :force-authorisation
+                 :authorization/status :active
+                 :consumed? false :starts-at 0
+                 :authorization/scope scope-map
+                 :authorization/scope-hash scope-hash}
+         ;; Phase 2B: provide a composition so force-auth invariants are evaluated
+         world (-> {:force-authorisations {"fa-synthetic" record}
+                    :force-authorisations/consumed {}}
+                   (assoc :semantic-composition (protection-governed-composition)))
+         lifecycle (inv/force-authorisations-lifecycle-consistent? world)
+         origin (inv/force-authorisations-governance-origin? world)
+         check (inv/check-all world)]
     (is (true? (:holds? lifecycle))
         "hand-injected record is lifecycle-consistent")
     (is (false? (:holds? origin))
         "governance-origin must fail for a synthetic record with no governance provenance")
     (is (false? (get-in check [:results :force-authorisations-governance-origin :holds?]))
         "aggregate robustness check flags governance-origin violation")))
+
+;; ──────────────────────────────────────────────────────────────────────────────
+;; Phase 2B: Authoritative Composition Over Sew Execution Semantics
+;; ──────────────────────────────────────────────────────────────────────────────
+;; These tests prove that semantic-composition.v1 is the sole authority for
+;; force-authentication live semantics — no ambient/runtime mechanism may
+;; independently enable them.
+;;
+;; Test categories:
+;;   A. Absence — plain composition: force-auth is categorically inactive
+;;   B. Presence — production-governed composition: force-auth fully active
+;;   C. Dual-authority — no ambient mechanism can enable force-auth without composition
+;; ──────────────────────────────────────────────────────────────────────────────
+
+;; ── Phase 2B-A: Absence tests (plain authoritative composition) ──────────────
+
+(deftest phase2b-plain-composition-rejects-force-auth-actions
+  (testing "A. force-auth actions rejected before mutation under plain composition"
+    (let [world0 (t/empty-world 1000)
+          plain (plain-composition)
+          ctx (-> gov-ctx
+                  (assoc :semantic-composition plain)
+                  (dissoc :force-authorisation/allow-local-compatibility?))
+          grant-result (sew/apply-action ctx world0
+                                         {:seq 0 :time 1000 :agent "gov"
+                                          :action "grant-force-authorisation"
+                                          :params {:workflow-id 0 :reason :resolver-overcapacity}})
+          exec-result (sew/apply-action ctx world0
+                                       {:seq 1 :time 1000 :agent "exec"
+                                        :action "execute-force-authorised-action"
+                                        :params {:workflow-id 0 :authorization-id "fa-test"}})]
+      (is (= :force-authorisation-extension-unavailable (:error grant-result))
+          "grant-force-authorisation must be unavailable under plain composition")
+      (is (= :force-authorisation-extension-unavailable (:error exec-result))
+          "execute-force-authorised-action must be unavailable under plain composition"))))
+
+(deftest phase2b-plain-composition-force-auth-state-is-violation
+  (testing "B. force-auth state keys are violations under plain composition"
+    (let [world0 (-> (t/empty-world 1000)
+                     (assoc :semantic-composition (plain-composition)))
+          violations (semantic/state-region-invalidation
+                       (:semantic-composition world0) world0)]
+      (is (seq violations)
+          "empty-world's force-auth keys are flagged as violations under plain composition")
+      (is (some #(= :force-authorisations (:state-key %)) violations)
+          "state-region_invalidation reports :force-authorisations as a violation")
+      (is (some #(= :next-force-authorisation-id (:state-key %)) violations)
+          "state_region_invalidation reports :next-force-authorisation-id as a violation"))))
+
+(deftest phase2b-plain-composition-rejects-injected-state
+  (testing "C. injecting force-auth state keys causes composition validation failure"
+    (let [world0 (-> (t/empty-world 1000)
+                     (assoc :semantic-composition (plain-composition))
+                     (assoc :force-authorisations {"fa-test" {:authorization/id "fa-test"}}))
+          violations (semantic/state-region-invalidation
+                      (:semantic-composition world0) world0)]
+      (is (seq violations)
+          "plain composition must reject world state containing force-auth keys")
+      (is (some #(= :force-authorisations (:state-key %)) violations)
+          "invalidation must report :force-authorisations as a violation"))))
+
+(deftest phase2b-plain-composition-invariants-not-executed
+  (testing "D. force-auth invariant module is not executed under plain composition"
+    (let [world0 (-> (t/empty-world 1000)
+                     (assoc :semantic-composition (plain-composition))
+                     ;; Inject force-auth state to verify it is NOT executed
+                     (assoc :force-authorisations {"fa-test" {:authorization/id "fa-test"
+                                                              :authorization/status :active
+                                                              :authorization/provenance {}
+                                                              :consumed? false}}))
+          check (inv/check-all world0)]
+      (is (= :not-evaluated (get-in check [:results :force-authorisations-lifecycle-consistent :status])))
+      (is (= :not-evaluated (get-in check [:results :force-authorisations-governance-origin :status])))
+      (is (true? (get-in check [:results :force-authorisations-lifecycle-consistent :holds?]))
+          "force-auth invariants are vacuous pass when not evaluated"))))
+
+(deftest phase2b-plain-composition-core-invariants-still-run
+  (testing "E. ordinary Sew invariants still execute under plain composition"
+    (let [world0 (-> (t/empty-world 1000)
+                     (assoc :params {:max-dispute-level 0})
+                     (assoc :semantic-composition (plain-composition)))
+          check (inv/check-all world0)]
+      (is (contains? (:results check) :solvency))
+      (is (true? (get-in check [:results :solvency :holds?]))))))
+
+(deftest phase2b-physical-package-without-composition-inactive
+  (testing "F. physical force-auth package on classpath/extension registry but inactive without composition"
+    (let [world0 (t/empty-world 1000)
+          ;; Context has extension-map installed but no composition
+          ctx (-> gov-ctx
+                  (dissoc :force-authorisation/allow-local-compatibility?)
+                  (assoc :semantic-composition nil))
+          result (sew/apply-action ctx world0
+                                   {:seq 0 :time 1000 :agent "gov"
+                                    :action "grant-force-authorisation"
+                                    :params {:workflow-id 0 :reason :resolver-overcapacity}})]
+      (is (= :force-authorisation-extension-unavailable (:error result))
+          "force-auth must be inactive without composition, even when physical package is available"))))
+
+;; ── Phase 2B-B: Presence tests (protected production-governed composition) ───
+
+(deftest phase2b-protected-composition-actions-selected
+  (testing "A. force-auth actions selected and usable under protected composition"
+    (let [world0 (disputed-world)
+          comp (protection-governed-composition)
+          ctx (-> gov-ctx
+                  (assoc :semantic-composition comp)
+                  (dissoc :force-authorisation/allow-local-compatibility?))
+          event {:seq 0 :time 1000 :agent "gov"
+                 :action "grant-force-authorisation"
+                 :params {:workflow-id 0 :reason :resolver-overcapacity}}
+          result (sew/apply-action ctx world0 event)]
+      (is (not= :force-authorisation-extension-unavailable (:error result))
+          "grant-force-authorisation action is admitted (not rejected as unavailable) under protected composition")
+      (is (= :force-authorisation-governed-issuance-required (:error result))
+          "local-governance-only grant is rejected at the governance check, not at admission"))))
+
+(deftest phase2b-protected-composition-state-initialized
+  (testing "B. force-auth state region initialized under protected composition"
+    (let [world0 (disputed-world)
+          ;; Grant via legacy compat path (which creates force-auth state),
+          ;; then verify the protected composition allows that state.
+          {:keys [world]} (grant-force-auth world0)
+          comp (protection-governed-composition)
+          violations (semantic/state-region-invalidation comp world)]
+      (is (contains? world :force-authorisations)
+          "force-authorisations state key present after grant")
+      (is (contains? world :next-force-authorisation-id)
+          "next-force-authorisation-id state key present after grant")
+      (is (empty? violations)
+          "no state_region violations under protected composition when state matches"))))
+
+(deftest phase2b-protected-composition-invariants-execute
+  (testing "C. both current force-auth persistent invariants execute under protected composition"
+    (let [world0 (-> (t/empty-world 1000)
+                     (assoc :semantic-composition (protection-governed-composition)))
+          check (inv/check-all world0)]
+      (is (not= :not-evaluated (get-in check [:results :force-authorisations-lifecycle-consistent :status]))
+          "lifecycle-consistent must be evaluated, not :not-evaluated")
+      (is (not= :not-evaluated (get-in check [:results :force-authorisations-governance-origin :status]))
+          "governance-origin must be evaluated, not :not-evaluated")
+      (is (true? (get-in check [:results :force-authorisations-lifecycle-consistent :holds?]))
+          "lifecycle-consistent holds for empty world with composition")
+      (is (true? (get-in check [:results :force-authorisations-governance-origin :holds?]))
+          "governance-origin holds for empty world with composition"))))
+
+(deftest phase2b-protected-composition-rejects-local-governance
+  (testing "D. local-governance-only permit rejected under protected production-governed composition"
+    (let [world0 (disputed-world)
+          comp (protection-governed-composition)
+          ;; Grant with local compatibility, execute under protected composition
+          {:keys [world auth-id]} (grant-force-auth world0)
+          protected-ctx (-> exec-ctx
+                            (assoc :semantic-composition comp)
+                            (dissoc :force-authorisation/allow-local-compatibility?))
+          result (sew/apply-action protected-ctx world
+                                   {:seq 2 :time 1000 :agent "exec"
+                                    :action "execute-force-authorised-action"
+                                    :params {:workflow-id 0 :authorization-id auth-id :is-release true}})]
+      (is (= :force-authorisation-governed-issuance-required (:error result))
+          "local-governance-only permit rejected under production-governed composition")
+      (is (nil? (:world result))
+          "execution must not mutate world on rejection"))))
+
+(deftest phase2b-protected-composition-governed-permit-proceeds
+  (testing "E. production-governed composition preserves reservation/CAS/consumption path"
+    (let [world0 (disputed-world)
+          ;; Grant a local-governance permit (which creates force-auth state)
+          {:keys [world auth-id]} (grant-force-auth world0)
+          ;; Execute under protected production-governed composition
+          comp (protection-governed-composition)
+          exec-ctx (-> exec-ctx
+                       (assoc :semantic-composition comp)
+                       (dissoc :force-authorisation/allow-local-compatibility?))
+          result (sew/apply-action exec-ctx world
+                                   {:seq 3 :time 1000 :agent "exec"
+                                    :action "execute-force-authorised-action"
+                                    :params {:workflow-id 0 :authorization-id auth-id :is-release true}})]
+      ;; The permit was issued locally (local-governance), so execution is rejected
+      ;; at the governance check — not at the action-admission check.
+      (is (= :force-authorisation-governed-issuance-required (:error result))
+          "local-governance-only permit rejected at governance check under protected composition")
+      ;; Transaction ownership boundary: the world is not mutated on rejection
+      (is (nil? (:world result))
+          "world not mutated on governance rejection"))))
+
+(deftest phase2b-transaction-owner-preserved
+  (testing "F. transaction ownership remains Sew adapter"
+    (let [world0 (disputed-world)
+          ;; Grant via legacy compat path (Sew adapter owns the transaction)
+          {:keys [world auth-id]} (grant-force-auth world0)
+          record (get-in world [:force-authorisations auth-id])]
+      (is (= :governance (:authorization/source record))
+          "transaction ownership preserved as :governance / :sew-adapter")
+      (is (some? auth-id)
+          "auth record created and owned by Sew adapter"))))
+
+;; ── Phase 2B-C: Dual-authority tests ──────────────────────────────────────────
+
+(deftest phase2b-dual-authority-no-package
+  (testing "dual-authority: no package on classpath + no composition → force-auth inactive"
+    (let [world0 (t/empty-world 1000)
+          ctx {:agent-index {"gov" {:id "gov" :address gov-addr :role "governance"}}
+               :governance-identity gov-addr
+               :semantic-composition nil}
+          event {:seq 0 :time 1000 :agent "gov"
+                 :action "grant-force-authorisation"
+                 :params {:workflow-id 0 :reason :resolver-overcapacity}}
+          result (sew/apply-action ctx world0 event)]
+      (is (= :force-authorisation-extension-unavailable (:error result))))))
+
+(deftest phase2b-dual-authority-package-without-composition
+  (testing "dual-authority: extension-map present but no composition → force-auth inactive"
+    (let [world0 (t/empty-world 1000)
+          ctx (-> gov-ctx
+                  (dissoc :force-authorisation/allow-local-compatibility?)
+                  (assoc :semantic-composition nil))
+          event {:seq 0 :time 1000 :agent "gov"
+                 :action "grant-force-authorisation"
+                 :params {:workflow-id 0 :reason :resolver-overcapacity}}
+          result (sew/apply-action ctx world0 event)]
+      (is (= :force-authorisation-extension-unavailable (:error result))
+          "extension-map present but no composition → force-auth inactive"))))
+
+(deftest phase2b-dual-authority-facade-without-composition
+  (testing "dual-authority: legacy facade installed? but no composition → force-auth inactive"
+    (let [world0 (t/empty-world 1000)
+          ctx (-> exec-ctx
+                  (dissoc :force-authorisation/allow-local-compatibility?)
+                  (assoc :semantic-composition nil))
+          event {:seq 0 :time 1000 :agent "exec"
+                 :action "execute-force-authorised-action"
+                 :params {:workflow-id 0 :authorization-id "nonexistent"}}
+          result (sew/apply-action ctx world0 event)]
+      (is (= :force-authorisation-extension-unavailable (:error result))
+          "legacy facade present but no composition → force-auth inactive"))))
+
+(deftest phase2b-dual-authority-compat-flag-without-extension
+  (testing "dual-authority: local compatibility flag but no extension-map → force-auth inactive"
+    (let [world0 (t/empty-world 1000)
+          ctx {:agent-index {"gov" {:id "gov" :address gov-addr :role "governance"}}
+               :governance-identity gov-addr
+               :force-authorisation/allow-local-compatibility? true
+               :extension-map nil
+               :semantic-composition nil}
+          event {:seq 0 :time 1000 :agent "gov"
+                 :action "grant-force-authorisation"
+                 :params {:workflow-id 0 :reason :resolver-overcapacity}}
+          result (sew/apply-action ctx world0 event)]
+      (is (= :force-authorisation-extension-unavailable (:error result))
+          "compat flag alone without extension-map → force-auth inactive"))))

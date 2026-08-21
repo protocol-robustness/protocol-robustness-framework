@@ -127,7 +127,7 @@
    {:validator/id validator-id
     :validator/kind kind
     :validator/input-contract :trace-fixture.v2
-    :validator/version 1
+     :validator/version validator-version
     :validator/implementation-root implementation-root
     :validator/run
     (fn [subject]

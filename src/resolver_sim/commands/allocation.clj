@@ -106,7 +106,7 @@
                            :outcome-set-root (roots/outcome-set-root ctx)
                            :proposed-rates-root (roots/proposed-rates-root ctx)
                            :allocation-kernel-version context/kernel-version
-                           :selection-algorithm "domain-hash-rejection-v1"})
+                            :selection-algorithm context/selection-algorithm-str}
               {:exit-code 0 :message "context built"})
             (catch clojure.lang.ExceptionInfo e
               (let [data (ex-data e)

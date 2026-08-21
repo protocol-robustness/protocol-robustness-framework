@@ -19,12 +19,13 @@
   (:require [clojure.string :as str]
             [resolver-sim.hash.canonical :as hc]))
 
-(def schema-version "allocation-context.v1")
-(def artifact-kind :allocation-context)
-(def kernel-version "allocation-kernel.v1")
-(def selection-algorithm :domain-hash-rejection-v1)
-(def result-status-allocated :allocated)
-(def result-status-not-allocated :not-allocated)
+(def ^:const schema-version "allocation-context.v1")
+(def ^:const artifact-kind :allocation-context)
+(def ^:const kernel-version "allocation-kernel.v1")
+(def ^:const selection-algorithm :domain-hash-rejection-v1)
+(def ^:const selection-algorithm-str "domain-hash-rejection-v1")
+(def ^:const result-status-allocated :allocated)
+(def ^:const result-status-not-allocated :not-allocated)
 
 (def ^:private hex-pattern #"^[0-9a-f]{64}$")
 
@@ -277,7 +278,7 @@
     (rejection! :malformed-input "Input must be a JSON object"))
   (let [allocation-id (get input "allocation-id")
         kernel-version' (get input "kernel-version" kernel-version)
-        selection-algorithm' (get input "selection-algorithm" "domain-hash-rejection-v1")
+        selection-algorithm' (get input "selection-algorithm" selection-algorithm-str)
         policy (parse-policy (get input "policy"))
         raw-claimants (get input "claimants")
         raw-outcomes (get input "outcomes")
@@ -292,9 +293,9 @@
     (when-not (= kernel-version kernel-version')
       (rejection! :unsupported-kernel-version
                   (str "Expected kernel version " kernel-version ", got: " (pr-str kernel-version'))))
-    (when-not (= "domain-hash-rejection-v1" selection-algorithm')
+    (when-not (= selection-algorithm-str selection-algorithm')
       (rejection! :unsupported-selection-algorithm
-                  (str "Expected domain-hash-rejection-v1, got: " (pr-str selection-algorithm'))))
+                  (str "Expected " selection-algorithm-str ", got: " (pr-str selection-algorithm'))))
     (when (neg? capacity)
       (rejection! :non-positive-capacity "Capacity must be positive"))
     (when (zero? capacity)

@@ -1149,7 +1149,9 @@
       :protocol       — protocol id (default sew-v1)
       :dry-run?       — when true, validate without replaying
    `opts` may include:
-      :parallel?      — when true, run scenarios concurrently via pmap
+       :parallel?      — when true, run scenarios concurrently via an owned
+                        fixed-thread-pool executor with explicit cancellation
+                        and fail-closed quiescence (replaces unowned pmap)
 
    Returns {:exit-code <int> :bundle-root <map> :execution-node <map>}."
   [dispatch opts]

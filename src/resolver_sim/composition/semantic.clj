@@ -176,6 +176,31 @@
         (comp (mapcat :module/invariant-ids))
         (:semantic-composition/invariant-modules composition)))
 
+(defn state-region-invalidation
+  "Check that a world-state map does not contain any live state keys owned by
+   a module that is not active in the given composition.
+
+   Returns an empty vector when valid (all present state keys are in active
+   regions), or a vector of violation maps when invalid. Each violation contains:
+   - :state-key — the offending world key
+   - :module-id — which module would own this key if active
+
+   When composition is nil (no semantic composition supplied), all
+   force-authorisation-owned state keys are considered violations — no ambient
+   default enables force-auth state ownership."
+  [composition world]
+  (let [composition (or composition {})
+        active-regions (if (seq composition)
+                          (active-regions composition)
+                          #{})
+        fa-state-keys (keys world)]
+    (vec
+     (for [k fa-state-keys
+           :when (and (contains? force-authorisation-live-state-regions k)
+                      (not (contains? active-regions k)))]
+       {:state-key k
+        :module-id :sew.module/force-authorisation-state}))))
+
 ;; ── profile derivation ──────────────────────────────────────────────────────
 
 (def production-plain-profile :production-plain)

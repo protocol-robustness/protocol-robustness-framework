@@ -32,6 +32,24 @@ Where:
     • CANONICAL_BYTES are produced by this specification
     • || denotes byte concatenation
 
+Hash-Scheme Identity: existing `v1` canonical roots use the explicitly pinned
+SHA-256 hash scheme. Scheme identity is authoritative and immutable:
+`canonical-hash-scheme.v1` is bound permanently to `:sha256` in the registry
+`resolver-sim.hash.canonical/canonical-hash-schemes`, exposed as
+`canonical-hash-scheme-v1`. Every registered hash intent resolves to this
+scheme via its resolved `:intent/hash-scheme`, and the digest actually
+executed is dispatched from that resolved scheme (declared algorithm ==
+executed algorithm; today a single `:sha256` branch). Immutability here is
+protocol-immutability, not a JVM-level guarantee: rebinding a version's
+algorithm is an incompatible specification violation (enforced by validation,
+mismatch regression tests, and pinned-root conformance vectors), never a
+valid evolution step. A future hash scheme requires a new versioned entry in
+that registry plus an explicit digest implementation and commitment format,
+and does not redefine existing roots; scheme descriptors whose algorithms
+need parameters declare them additively inside their own version's descriptor
+(the registry schema is deliberately not generalized ahead of a real second
+scheme).
+
 2.1 Domain-Tag Framing (consecutive concatenation)
 The concatenation DOMAIN_TAG || CANONICAL_BYTES carries no length frame on the
 domain tag. Framing is therefore only unambiguous when no registered domain tag

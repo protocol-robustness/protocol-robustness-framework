@@ -94,6 +94,27 @@ Each intent contract is a map with exactly the following 7 required fields:
  :intent/version       1}
 ```
 
+Stored contracts contain exactly these 7 fields. At resolution time
+(`resolver-sim.hash.canonical/resolve-intent`), every contract is additionally
+enriched with one derived field:
+
+### 4.8 `:intent/hash-scheme` (derived at resolution; never stored)
+
+Map identifying the explicitly pinned hash scheme under which this intent's
+canonical roots are committed. It resolves from the immutable registry
+`resolver-sim.hash.canonical/canonical-hash-schemes`
+(`"canonical-hash-scheme.v1"` is bound permanently to `:algorithm :sha256`)
+and is exposed as `canonical-hash-scheme-v1`, so every intent's domain/version,
+canonical projection, and hash scheme remain jointly explicit and inspectable.
+The resolved scheme also drives execution: `hash-with-intent` dispatches the
+digest through it (`domain-hash-with-scheme` → `hash-bytes-with-scheme`), so
+the declared algorithm is the algorithm actually used. Today there is exactly
+one implementation branch (`:sha256`). This field is not part of the stored
+contract, does not enter any hash preimage, and existing root values are
+unchanged by it. A future hash scheme requires a new versioned registry entry,
+an explicit digest implementation branch, and its own commitment format; it
+never rebinds an existing version or redefines existing roots.
+
 ### 4.1 `:intent/name`
 
 Keyword identifying the intent. MUST match the key in the `hash-intents` map.
@@ -192,6 +213,26 @@ The projection output SHALL pass `validate-canonical-value!` without throwing.
 ### 5.7 Domain Tags Are Unique
 
 No two intents SHALL share the same `:intent/domain-tag`. Violations cause a hard-fail with message `"Intent domain tags must be unique"`.
+
+### 5.8 Hash-Scheme Registry Is Consistent
+
+`canonical-hash-schemes` SHALL bind each scheme version permanently to exactly
+one algorithm: every entry declares a non-empty string version and an algorithm
+accepted by `resolver-sim.hash.algorithm/validate-hash-algorithm!`, and the
+immutable `canonical-hash-scheme-v1` binding must resolve. Scheme validation
+(`validate-hash-scheme!`) never treats version and algorithm as freely
+combinable: an unregistered version, or a declared algorithm that differs from
+the registered binding for that version (e.g. `canonical-hash-scheme.v1`
+claiming `:poseidon2`), fails closed.
+
+Immutability of these bindings is protocol-immutability, not JVM-immutability:
+redefining the Var is technically possible but constitutes an incompatible
+specification violation, enforced by validation, mismatch regression tests,
+and pinned-root conformance vectors. The v1 descriptor carries only
+`:algorithm` because SHA-256 needs no parameters; future scheme descriptors
+SHALL declare additional parameters (field, width, rate, encoding, …)
+additively within their own version's descriptor map when such a scheme is
+actually introduced — the descriptor schema is not generalized preemptively.
 
 ## 6. Runtime Enforcement (`hash-with-intent`)
 

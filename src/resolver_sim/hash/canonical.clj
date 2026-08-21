@@ -18,6 +18,7 @@
            [java.math BigInteger BigDecimal])
   (:require [clojure.string :as str]
             [clojure.edn :as edn]
+            [resolver-sim.hash.algorithm :as hash-algorithm]
             [resolver-sim.hash.reference :as hash-ref]))
 
 (declare domain-hash out-of-domain! strip-self-hash-fields)
@@ -305,7 +306,8 @@
    :prf-transaction-effects-v1        "prf.transaction-effects.v1"
    :prf-transaction-input-v1         "prf.transaction-input.v1"
    :prf-transaction-ordering-change-identity-v1 "prf.transaction-ordering-change-identity.v1"
-   :prf-transaction-ordering-v1       "prf.transaction-ordering.v1"
+    :prf-transaction-ordering-v1       "prf.transaction-ordering.v1"
+    :prf-transaction-ordering-v2       "prf.transaction-ordering.v2"
    :related-claims-member             "related-claims-member"
    :withdrawal-ledger-v1              "withdrawal-ledger.v1"
    :prf-protocol-genesis-v1           "PRF_PROTOCOL_GENESIS_V1"
@@ -316,10 +318,11 @@
    :configuration-head-activation-v1 "CONFIGURATION_HEAD_ACTIVATION_V1"
    :prf-chain-configuration-change-identity-v1 "prf.chain-configuration-change-identity.v1"
    :prf-verifier-registry-v1          "PRF_VERIFIER_REGISTRY_V1"
-   :prf-resubmission-chain-identity-v1         "prf.resubmission-chain-identity.v1"
-   :prf-resubmission-chain-configuration-v1     "prf.resubmission-chain-configuration.v1"
-   :prf-resubmission-chain-genesis-v1            "prf.resubmission-chain-genesis.v1"
-   :programme-allocation-request-v1   "PROGRAMME_ALLOCATION_REQUEST_V1"
+    :prf-resubmission-chain-identity-v1         "prf.resubmission-chain-identity.v1"
+    :prf-resubmission-chain-configuration-v1     "prf.resubmission-chain-configuration.v1"
+    :prf-resubmission-chain-genesis-v1            "prf.resubmission-chain-genesis.v1"
+    :prf-resubmission-chain-genesis-authorization-v1 "prf.resubmission-chain-genesis-authorization.v1"
+    :programme-allocation-request-v1   "PROGRAMME_ALLOCATION_REQUEST_V1"
    :programme-plan-v1                 "PROGRAMME_PLAN_V1"
    :programme-evidence-v1             "PROGRAMME_EVIDENCE_V1"
    :programme-receipt-v1              "PROGRAMME_RECEIPT_V1"
@@ -699,6 +702,13 @@
      {:canonical/bytes <hex of canonical-bytes(body)>
       :canonical/hash <sha256:<hex> domain-separated hash>}
 
+   Commitment format lineage: canonical-commitment v1
+     → canonical-hash-scheme.v1
+     → SHA-256 (sha256:<hex> reference form).
+   This is deliberately a SHA-256 artifact format: when another hash scheme
+   eventually exists it gets its own commitment format/version rather than
+   silently reinterpreting the sha256: reference.
+
    A cross-language verifier recomputes
    sha256(domain-tag || hex-decode(:canonical/bytes)) == :canonical/hash and
    then checks that against the committed artifact hash — no Clojure-specific
@@ -1030,24 +1040,123 @@
       (.append sb (format "%02x" (bit-and (int b) 0xFF))))
     (.toString sb)))
 
+;; ──────────────────────────────────────────────────────────────────────────────
+;; Canonical Hash Schemes (explicit versioned pinning)
+;; ──────────────────────────────────────────────────────────────────────────────
+
+(def canonical-hash-schemes
+  "Immutable protocol definition of canonical hash schemes.
+
+   Each scheme version is bound PERMANENTLY to exactly one algorithm:
+   version and algorithm are one identity, not freely combinable properties.
+   \"Immutable\" is protocol-immutability, not JVM-immutability: a Var can
+   technically be redefined, but changing a version's registered algorithm
+   constitutes an incompatible protocol/specification violation — enforced
+   in practice by validate-hash-scheme!, the mismatch regression tests, and
+   the pinned-root conformance vectors.
+
+   The v1 descriptor needs only :algorithm because SHA-256 is fully
+   parameter-free. A future scheme whose algorithm requires parameters
+   (e.g. Poseidon field/width/rate/encoding) would declare them inside its
+   own version's descriptor map; the registry schema grows ADDITIVELY when
+   an actual second scheme exists and is deliberately not designed now.
+   Adding a scheme also requires an explicit digest implementation branch in
+   hash-bytes-with-scheme, tests, and its own commitment format; it must
+   never redefine or rebind an existing entry."
+  {"canonical-hash-scheme.v1" {:algorithm :sha256}})
+
+(defn validate-hash-scheme!
+  "Fail closed unless the scheme declares a non-empty string :scheme-version
+   whose value is registered in canonical-hash-schemes AND whose :algorithm is
+   EXACTLY the algorithm bound to that version. Version and algorithm are
+   inseparable: this never accepts 'some supported algorithm' under any
+   version. Returns the scheme unchanged when valid; throws otherwise."
+  [scheme]
+  (let [version (:scheme-version scheme)]
+    (when-not (and (string? version) (seq version))
+      (throw (ex-info "Invalid canonical hash scheme: :scheme-version must be a non-empty string"
+                      {:type :invalid-hash-scheme
+                       :scheme scheme})))
+    (let [{bound :algorithm :as registered} (get canonical-hash-schemes version)
+          declared (:algorithm scheme)]
+      (when-not registered
+        (throw (ex-info "Unregistered canonical hash scheme version"
+                        {:type :unregistered-hash-scheme
+                         :scheme-version version
+                         :known (vec (keys canonical-hash-schemes))})))
+      (when-not (= declared bound)
+        (throw (ex-info "Canonical hash scheme does not match its registered algorithm binding"
+                        {:type :hash-scheme-algorithm-mismatch
+                         :scheme-version version
+                         :declared-algorithm declared
+                         :registered-algorithm bound})))))
+  scheme)
+
+(defn resolve-canonical-hash-scheme
+  "Resolve a registered scheme version to its immutable scheme map
+   {:scheme-version <v> :algorithm <a>}. Fails closed on unregistered versions."
+  [scheme-version]
+  (validate-hash-scheme!
+   {:scheme-version scheme-version
+    :algorithm (:algorithm (get canonical-hash-schemes scheme-version))}))
+
+(def canonical-hash-scheme-v1
+  "The immutable v1 canonical hash scheme: SHA-256.
+
+   Every existing CANONICAL_HASH_SPEC_V1 root commits under exactly this
+   scheme. Protocol-immutable forever: repointing this binding at another
+   algorithm would be an incompatible specification violation, not a valid
+   evolution step (a future scheme is a new versioned entry with its own
+   commitment format). Old identities remain verifiable under this value."
+  (resolve-canonical-hash-scheme "canonical-hash-scheme.v1"))
+
+(defn hash-bytes-with-scheme
+  "Digest raw bytes under an explicitly validated canonical hash scheme.
+
+   Deliberately single-branch: only :sha256 has an implementation. The system
+   is structurally algorithm-definable but operationally SHA-256-only; adding
+   an algorithm later requires an explicit implementation branch here plus a
+   new registered scheme version and tests — extending a supported-set alone
+   changes nothing."
+  [scheme ^bytes ba]
+  (validate-hash-scheme! scheme)
+  (case (:algorithm scheme)
+    :sha256 (hash-bytes ba)
+    ;; Unreachable while validate-hash-scheme! only admits registered schemes;
+    ;; kept fail-closed against future registry drift.
+    (throw (ex-info "No digest implementation for canonical hash scheme"
+                    {:type :no-digest-implementation
+                     :scheme (:scheme-version scheme)
+                     :algorithm (:algorithm scheme)}))))
+
+(defn domain-hash-with-scheme
+  "Compute a domain-separated canonical hash under an explicit scheme.
+   HASH = SCHEME(DOMAIN_TAG || CANONICAL_BYTES), where SCHEME is resolved via
+   validate-hash-scheme! and dispatched by hash-bytes-with-scheme. Today the
+   sole registered scheme (canonical-hash-scheme.v1) instantiates SCHEME as
+   SHA-256. Returns a 64-char hex string."
+  [scheme domain-tag v]
+  (let [tag-str (if (instance? String domain-tag)
+                  domain-tag
+                  (or (domain-tags domain-tag)
+                      (throw (ex-info "Unknown domain tag"
+                                      {:domain-tag domain-tag
+                                       :known (keys domain-tags)}))))
+        tag-bytes (utf8-bytes tag-str)
+        canon (canonical-bytes v)]
+    (bytes->hex (hash-bytes-with-scheme scheme (ba-concat tag-bytes canon)))))
+
 (defn domain-hash
-  "Compute a domain-separated canonical hash.
+  "Compute a domain-separated canonical hash under the immutable v1 scheme.
    HASH = SHA256(DOMAIN_TAG || CANONICAL_BYTES)
    where DOMAIN_TAG is the UTF-8 encoding of the domain tag string.
    Returns a 64-char hex string.
-   domain-tag should be a keyword from domain-tags, or a string."
+   domain-tag should be a keyword from domain-tags, or a string.
+   Stable v1 convenience for domain-hash-with-scheme/canonical-hash-scheme-v1."
   ([v]
    (domain-hash :evidence-record v))
   ([domain-tag v]
-   (let [tag-str (if (instance? String domain-tag)
-                   domain-tag
-                   (or (domain-tags domain-tag)
-                       (throw (ex-info "Unknown domain tag"
-                                       {:domain-tag domain-tag
-                                        :known (keys domain-tags)}))))
-         tag-bytes (utf8-bytes tag-str)
-         canon (canonical-bytes v)]
-     (bytes->hex (hash-bytes (ba-concat tag-bytes canon))))))
+   (domain-hash-with-scheme canonical-hash-scheme-v1 domain-tag v)))
 
 ;; ──────────────────────────────────────────────────────────────────────────────
 ;; Evidence Content Projection (for JSON-round-trippable hashes)
@@ -1853,7 +1962,30 @@
     (project-canonical-safe
      (cond-> base
        (map? cfg) (assoc :configuration
-                         (project-resubmission-chain-configuration cfg _intent))))))
+                          (project-resubmission-chain-configuration cfg _intent))))))
+
+;; resubmission-chain-genesis-authorization.v1
+;; ─────────────────────────────────────────────────────
+;; Stage 3: thin authorization binding. Binds an exact genesis root to an
+;; authenticated three-member authority decision. Does NOT duplicate genesis
+;; content — that is transitively committed by the genesis root.
+
+(def resubmission-chain-genesis-authorization-fields
+  "Ordered identity fields of resubmission-chain-genesis-authorization.v1.
+   A thin binding: genesis-root + authority fact references only.
+   Does not duplicate family-id, chain-id, authority keys, or G0 — those
+   are transitively committed by the genesis root."
+  [:authorization/schema
+   :authorization/genesis-root
+   :authorization/force-authorisation-hash
+   :authorization/authority-report-root])
+
+(defn project-resubmission-chain-genesis-authorization
+  "Canonical projection of resubmission-chain-genesis-authorization.v1: exactly
+   the canonical identity fields, projected canonical-safe."
+  [value _intent]
+  (project-canonical-safe
+   (select-keys value resubmission-chain-genesis-authorization-fields)))
 
 (def hash-intents
   "Map of hash intent keywords to their Intent Registry Contracts.
@@ -2723,17 +2855,31 @@ name (an alias)."
     :intent/description "Canonical identity of a resubmission-chain-genesis.v1: the declared source of truth for a resubmission chain's family, configuration, and initial state"
     :intent/includes    #{:genesis/schema :chain/id :family/id :configuration
                           :initial-state/root}
-    :intent/excludes    #{:runtime-values :functions :deployment-metadata :timestamps}
-    :intent/projection-fn project-resubmission-chain-genesis
-    :intent/version     1}})
+     :intent/excludes    #{:runtime-values :functions :deployment-metadata :timestamps}
+     :intent/projection-fn project-resubmission-chain-genesis
+     :intent/version     1}
+
+    :prf-resubmission-chain-genesis-authorization-v1
+    {:intent/name        :prf-resubmission-chain-genesis-authorization-v1
+     :intent/domain-tag  "prf.resubmission-chain-genesis-authorization.v1"
+     :intent/description "Canonical identity of resubmission-chain-genesis-authorization.v1: thin binding of a genesis root to an authenticated three-member authority decision"
+     :intent/includes    #{:authorization/schema :authorization/genesis-root
+                           :authorization/force-authorisation-hash
+                           :authorization/authority-report-root}
+     :intent/excludes    #{:runtime-values :functions}
+     :intent/projection-fn project-resubmission-chain-genesis-authorization
+     :intent/version     1}})
 
 (defn resolve-intent
   "Look up an intent contract by keyword name from the registry.
-   Returns the full intent contract map or throws on unknown intent.
+   Returns the full intent contract map — enriched with the resolved
+   :intent/hash-scheme (the immutable canonical-hash-scheme-v1) — or throws
+   on unknown intent.
    Used internally by hash-with-intent and available for external
    inspection and linting."
   [intent-kw]
-  (or (hash-intents intent-kw)
+  (or (some-> (hash-intents intent-kw)
+              (assoc :intent/hash-scheme canonical-hash-scheme-v1))
       (throw (ex-info "Unknown hash intent"
                       {:intent intent-kw
                        :known  (vec (keys hash-intents))}))))
@@ -2760,9 +2906,20 @@ name (an alias)."
   "Validate the intent registry against INTENT_REGISTRY_SPEC_V1.
    Checks that every contract has all required fields with correct types,
    unique domain tags, and projection functions that return canonical-safe data.
+   Also validates the canonical-hash-schemes registry: every entry's algorithm
+   stays within the declared vocabulary, and the immutable
+   canonical-hash-scheme-v1 binding resolves (fail closed at load).
    Returns nil if valid, throws on first violation.
    Call at startup or in test fixtures to ensure registry integrity."
   []
+  ;; Explicit scheme pinning: registry entries stay within the declared
+  ;; algorithm vocabulary and the v1 binding must resolve — fail closed at load.
+  (doseq [[version {:keys [algorithm]}] canonical-hash-schemes]
+    (when-not (and (string? version) (seq version))
+      (throw (ex-info "Canonical hash scheme version must be a non-empty string"
+                      {:type :invalid-hash-scheme :scheme-version version})))
+    (hash-algorithm/validate-hash-algorithm! algorithm))
+  (validate-hash-scheme! canonical-hash-scheme-v1)
   (let [expected-fields [:intent/name :intent/domain-tag :intent/description
                          :intent/includes :intent/excludes
                          :intent/projection-fn :intent/version]
@@ -3019,7 +3176,7 @@ name (an alias)."
    See hash-intents for all supported intents with their scope
    and exclusion contracts."
   [{:keys [hash/intent]} value]
-  (let [{:intent/keys [projection-fn domain-tag]} (resolve-intent intent)
+  (let [{:intent/keys [projection-fn domain-tag hash-scheme]} (resolve-intent intent)
         flattened-fields (atom [])
         projected (if (or (= projection-fn project-world-to-structure-view)
                           (= projection-fn project-for-content-hash))
@@ -3027,7 +3184,10 @@ name (an alias)."
                     (projection-fn value intent))]
     (when *validate-intent-constraints*
       (validate-intent-constraints! intent value))
-    (domain-hash domain-tag
-                 (if (= projection-fn project-world-to-structure-view)
-                   (dissoc projected :projection/flattened-fields)
-                   projected))))
+    ;; The resolved scheme drives the digest actually executed — the declared
+    ;; algorithm is the algorithm used, not metadata beside a hard-coded one.
+    (domain-hash-with-scheme hash-scheme
+                             domain-tag
+                             (if (= projection-fn project-world-to-structure-view)
+                               (dissoc projected :projection/flattened-fields)
+                               projected))))

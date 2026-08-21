@@ -307,14 +307,15 @@
        scope hashes) always fail (:authorization-binding-mismatch);
      - duplicate adjustment / authorization ids fail only when the corresponding
        :unique-*? option is set; otherwise they are reported as warnings."
-  [members options]
-  (let [members (vec (or members []))
-        opts (or options {})
-        unique-adj? (true? (:unique-adjustment-ids? opts))
-        unique-auth? (true? (:unique-authorization-ids? opts))
-        indexed (mapv (fn [i m] {:index i :member m}) (range) members)
-        per-member (mapv (fn [{:keys [member]}] (classify-member member)) indexed)
-        with-reason (mapv (fn [e r] (assoc e :reason r)) indexed per-member)
+   [members options]
+   (let [members (vec (or members []))
+         opts (or options {})
+         unique-adj? (true? (:unique-adjustment-ids? opts))
+         unique-auth? (true? (:unique-authorization-ids? opts))
+         indexed (mapv (fn [i m] {:index i :member m}) (range) members)
+         per-member (mapv (fn [{:keys [member]}] (classify-member member)) indexed)
+         with-reason (mapv (fn [e r] (assoc e :reason r)) indexed per-member)
+         with-reason (mapv (fn [e r] (assoc e :reason r)) indexed per-member)
         per-valid? (fn [{:keys [reason]}] (nil? reason))
         pass-a (filterv per-valid? with-reason)
         pass-a-indexed (mapv (fn [{:keys [index member]}] {:index index :member member}) pass-a)

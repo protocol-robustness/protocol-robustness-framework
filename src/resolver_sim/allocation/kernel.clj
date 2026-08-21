@@ -210,7 +210,7 @@
                         :outcome-set-root outcome-root
                         :proposed-rates-root rates-root
                         :rate-derived-summary-hash summary-hash
-                        :selection-receipt {:algorithm :domain-hash-rejection-v1
+                        :selection-receipt {:algorithm context/selection-algorithm
                                             :outcome-count outcome-count
                                             :accepted-counter (:accepted-counter sel)
                                             :candidate-digest (:candidate-digest sel)
@@ -263,7 +263,7 @@
         :round-lifecycle lifecycle
         :certificate-assertions-digest digest
         :allocation-kernel-version context/kernel-version
-        :selection-algorithm "domain-hash-rejection-v1"}
+         :selection-algorithm context/selection-algorithm-str}
        (when-not all-pass?
          {:rejection/classification (first-failing-classification assertions)
           :rejection/reason "One or more kernel assertions failed"})))
