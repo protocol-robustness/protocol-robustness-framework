@@ -30,7 +30,8 @@
   no execution controls, no authorisation issuance, no researcher control
   flow, no force-authorisation lifecycle.  Those concerns live in the
   adapter section below."
-  (:require [resolver-sim.hash.canonical :as hc]))
+  (:require [clojure.set :as set]
+            [resolver-sim.hash.canonical :as hc]))
 
 ;; ──────────────────────────────────────────────────────────────────────────────
 ;; V1 Domain Constants
@@ -44,6 +45,36 @@
 (def schema-version
   "Semantic Composition V1 schema version. Always 1."
   1)
+
+;; ──────────────────────────────────────────────────────────────────────────────
+;; V1 Source Key Contracts (versioned, exact — the canonical boundary)
+;; A source is a canonical composition object ONLY if every key is accounted
+;; for here.  No key is silently dropped.
+;; ──────────────────────────────────────────────────────────────────────────────
+
+(def ^:private root-keys
+  "Exact allowed keys of a V1 semantic-composition source map. Any key outside
+   #{root-keys ∪ non-semantic-source-keys} is rejected, so a richer object
+   carrying surplus fields cannot collapse onto a canonical composition shape
+   and thereby become eligible for recursive consecutive flattening."
+  #{:composition/version :composition/family :composition/dimensions})
+
+(def ^:private non-semantic-source-keys
+  "Root keys that carry non-semantic runtime/diagnostic data. They are REJECTED
+   explicitly — reported as :violation/non-semantic-composition-fields — rather
+   than silently dropped, so they never influence the composition root. The only
+   non-canonical keys the V1 schema names as ignorable are handled here; any
+   other unknown key fails closed (see :violation/unknown-composition-source-key)."
+  #{:execution :diagnostic})
+
+(def ^:private dimension-keys
+  "Exact allowed keys per family, for the :composition/dimensions sub-map. Any
+   dimension key outside its family's set is rejected (fail closed) so a richer
+   dimensions map cannot collapse onto the canonical shape."
+  {:ideal-pro-rata                   #{:rounding-policy :claimant-contexts}
+   :authorisation-usability-classification #{:forbidden? :authorized?}
+   :composition-sequence             #{:purpose :components}
+   :composition-consecutive-relation #{:predecessor :successor}})
 
 ;; ──────────────────────────────────────────────────────────────────────────────
 ;; V1 Compact Projection
@@ -117,12 +148,101 @@
                       {:dimensions dimensions})))
     {:predecessor predecessor :successor successor}))
 
+(defn- source-violations
+  "Validate a raw V1 semantic-composition source against the exact allowed-key
+   contract — the authoritative consecutive-composition boundary.
+
+   Returns a vector of violation maps (empty iff the source is a canonical
+   composition object). Surplus keys are classified, never silently dropped:
+
+   - known explicitly non-semantic field (:execution / :diagnostic)
+     → :violation/non-semantic-composition-fields (rejected, per schema);
+   - any other key not in the versioned allowed-key set
+     → :violation/unknown-composition-source-key (fail closed);
+   - the same rule applies per-family to :composition/dimensions
+     → :violation/unknown-composition-dimension-key.
+
+   A richer object is never silently projected down to canonical shape: it is
+   rejected, so recognition for recursive consecutive flattening cannot be
+   triggered by an accidental lossy projection."
+  [source]
+  (if-not (map? source)
+    [{:violation/id :violation/non-map-composition-source
+      :details {:source source}}]
+    (let [src-keys      (set (keys source))
+          known         (set/union root-keys non-semantic-source-keys)
+          unknown-root  (seq (remove known src-keys))
+          rejected-semantic (seq (filter non-semantic-source-keys src-keys))
+          family         (:composition/family source)
+          family-known?  (contains? dimension-keys family)
+          dims           (:composition/dimensions source)
+          unknown-dims   (when (and family-known? (map? dims))
+                           (seq (remove (dimension-keys family) (keys dims))))]
+      (cond-> []
+        (seq unknown-root)
+        (conj {:violation/id :violation/unknown-composition-source-key
+               :details {:unknown (vec (sort unknown-root))
+                         :allowed (vec (sort root-keys))}})
+
+        (seq rejected-semantic)
+        (conj {:violation/id :violation/non-semantic-composition-fields
+               :details {:rejected (vec (sort rejected-semantic))}})
+
+        (nil? (:composition/version source))
+        (conj {:violation/id :violation/missing-composition-version :details {}})
+
+        (nil? family)
+        (conj {:violation/id :violation/missing-composition-family :details {}})
+
+        (nil? dims)
+        (conj {:violation/id :violation/missing-composition-dimensions :details {}})
+
+        (and (some? dims) (not (map? dims)))
+        (conj {:violation/id :violation/invalid-composition-dimensions
+               :details {:composition/dimensions dims}})
+
+        (and (some? (:composition/version source))
+             (not= schema-version (:composition/version source)))
+        (conj {:violation/id :violation/invalid-composition-version
+               :details {:version (:composition/version source)
+                         :supported schema-version}})
+
+        (and (some? family) (not family-known?))
+        (conj {:violation/id :violation/unsupported-semantic-composition-family
+               :details {:family family
+                         :supported (vec (sort (keys dimension-keys)))}})
+
+        (seq unknown-dims)
+        (conj {:violation/id :violation/unknown-composition-dimension-key
+               :details {:family family
+                         :unknown (vec (sort unknown-dims))
+                         :allowed (vec (sort (dimension-keys family)))}})))))
+
+(defn validate-source
+  "Authoritative recogniser for a V1 semantic-composition source.
+
+   Returns {:valid? bool :violations [...]}. Violations are empty iff the
+   source is a canonical composition object under the exact allowed-key
+   contract (fail-closed on unknown keys; known non-semantic :execution /
+   :diagnostic keys rejected explicitly).
+
+   Use this — not `compactly` — to decide whether an arbitrary value is a
+   canonical consecutive-composition node prior to recursive flattening.
+   `compactly` projects only after this validates; it never silently projects a
+   richer object down to canonical shape."
+  [source]
+  (let [violations (source-violations source)]
+    {:valid? (empty? violations) :violations (vec violations)}))
+
 (defn compactly
   "Return the canonical V1 compact representation for one supported family.
 
-   This is the independently-implemented V1 compaction law.  It rejects
-   :execution and :diagnostic keys rather than allowing them to affect
-   semantic identity.
+   Authoritative boundary: the source is first validated against the exact
+   allowed-key contract (validate-source). Non-map sources, missing required
+   keys, unknown keys, and non-semantic :execution / :diagnostic keys all fail
+   closed — they are rejected rather than silently projected away, so a richer
+   object cannot become eligible for recursive consecutive flattening merely
+   because a lossy projection drops its surplus fields.
 
    Supported families (Phase-2 first pass — only rooted entries):
    - :ideal-pro-rata
@@ -130,10 +250,10 @@
    - :composition-sequence
    - :composition-consecutive-relation"
   [source]
-  (when (some #(contains? source %) [:execution :diagnostic])
-    (throw (ex-info "Execution and diagnostic data are not semantic composition fields"
-                    {:composition source})))
-  (require-keys! source [:composition/version :composition/family :composition/dimensions])
+  (let [validation (validate-source source)]
+    (when-not (:valid? validation)
+      (throw (ex-info "Source is not a canonical V1 semantic-composition object"
+                      (assoc validation :composition source)))))
   (let [dimensions (:composition/dimensions source)]
     (case (:composition/family source)
       :ideal-pro-rata

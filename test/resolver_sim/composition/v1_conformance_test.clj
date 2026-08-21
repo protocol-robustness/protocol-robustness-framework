@@ -12,7 +12,7 @@
    The production never requires prf-clean-room.composition; it has its own
    independently implemented projection and reuses only its own canonical
    encoder (resolver-sim.hash.canonical)."
-  (:require [clojure.test :refer [deftest is testing]]
+  (:require [clojure.test :refer [deftest is testing are]]
             [clojure.edn :as edn]
             [resolver-sim.composition.v1 :as v1]))
 
@@ -67,7 +67,7 @@
   (testing "identify preserves compactness and root for non-golden sources"
     (let [source {:composition/version 1 :composition/family :ideal-pro-rata
                   :composition/dimensions {:rounding-policy :largest-remainder
-                                           :claimant-context [{:account :escrow :direction :add}]}}
+                                           :claimant-contexts [{:account :escrow :direction :add}]}}
           identified (v1/identify source)
           compact (:composition/compact identified)
           root (:composition/root identified)]
@@ -149,6 +149,73 @@
                   {:composition/version 1 :composition/family :ideal-pro-rata
                    :composition/dimensions {:rounding-policy :floor}
                    :diagnostic {:trace true}})))))
+
+(deftest validate-source-classifies-surplus-keys
+  (testing "known explicitly non-semantic field → rejected as non-semantic (class 1)"
+    (let [source {:composition/version 1
+                  :composition/family :composition-consecutive-relation
+                  :composition/dimensions {:predecessor :state/a :successor :state/b}
+                  :execution {:parallelism 8}}
+          result (v1/validate-source source)]
+      (is (false? (:valid? result)))
+      (is (some #(= :violation/non-semantic-composition-fields (:violation/id %))
+                (:violations result))
+          ":execution is a known non-semantic field, rejected per schema")))
+  (testing "unknown field → rejected as unknown (class 2), distinct from non-semantic"
+    (let [source {:composition/version 1
+                  :composition/family :composition-consecutive-relation
+                  :composition/dimensions {:predecessor :state/a :successor :state/b}
+                  :unknown/semantic-looking-value :meaningful}
+          result (v1/validate-source source)]
+      (is (false? (:valid? result)))
+      (is (some #(= :violation/unknown-composition-source-key (:violation/id %))
+                (:violations result))
+          "an unknown key fails closed as unknown, not as non-semantic")
+      (is (not-any? #(= :violation/non-semantic-composition-fields (:violation/id %))
+                    (:violations result))
+          "the unknown key is not part of the schema's ignorable set")))
+  (testing "unknown dimension key → rejected (class 2, per-family)"
+    (let [source (-> (v1/project-consecutive-relation :state/a :state/b)
+                     (assoc-in [:composition/dimensions :evil/shadow] :state/c))
+          result (v1/validate-source source)]
+      (is (false? (:valid? result)))
+      (is (some #(= :violation/unknown-composition-dimension-key (:violation/id %))
+                (:violations result))
+          "a surplus dimension key fails closed per family"))))
+
+(deftest consecutively-enriched-node-cannot-collapse
+  (testing "an enriched consecutive-relation node does not silently collapse onto
+            the canonical node merely because a lossy projection drops the
+            surplus field"
+    (let [valid-node          (v1/project-consecutive-relation :state/a :state/b)
+          valid-compact       (v1/compactly valid-node)
+          valid-root          (v1/composition-root valid-compact)
+          enriched-root       (assoc valid-node :unknown/semantic-looking-value :meaningful)
+          enriched-dims       (assoc-in valid-node [:composition/dimensions :evil/shadow] :state/c)
+          enriched-non-semantic (assoc valid-node :diagnostic {:trace true})]
+      ;; baseline: a canonical node is recognized and compacts to the golden shape
+      (is (:valid? (v1/validate-source valid-node)))
+      (is (= valid-compact (v1/compactly valid-node)))
+
+      ;; class 1: known explicitly non-semantic field → rejected, never ignored
+      (is (thrown? clojure.lang.ExceptionInfo (v1/compactly enriched-non-semantic)))
+      (is (false? (:valid? (v1/validate-source enriched-non-semantic))))
+
+      ;; class 2: unknown root key → fail closed, never silently projected away
+      (is (thrown? clojure.lang.ExceptionInfo (v1/compactly enriched-root)))
+      (is (false? (:valid? (v1/validate-source enriched-root))))
+
+      ;; class 2: unknown dimension key → fail closed, never silently projected away
+      (is (thrown? clojure.lang.ExceptionInfo (v1/compactly enriched-dims)))
+      (is (false? (:valid? (v1/validate-source enriched-dims))))
+
+      ;; the enriched nodes never yield the canonical composition root
+      (are [enriched] (not= valid-root
+                            (try (v1/composition-root (v1/compactly enriched))
+                                 (catch clojure.lang.ExceptionInfo _ :rejected)))
+        enriched-root
+        enriched-dims
+        enriched-non-semantic))))
 
 (deftest sequence-order-is-material
   (testing "A then B != B then A for composition-sequence"
