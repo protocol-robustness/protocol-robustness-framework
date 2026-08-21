@@ -109,8 +109,8 @@ fn expected_public_values(artifact: &Artifact) -> Vec<u8> {
     } else {
         &artifact.statement_root
     };
-    let root_bytes = hex::decode(root_hex)
-        .unwrap_or_else(|_| fail("statement_root is not valid hex"));
+    let root_bytes =
+        hex::decode(root_hex).unwrap_or_else(|_| fail("statement_root is not valid hex"));
     if root_bytes.len() != 32 {
         fail("statement_root must be 32 bytes");
     }

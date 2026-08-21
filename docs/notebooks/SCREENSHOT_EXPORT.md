@@ -164,9 +164,8 @@ bb notebook:shots:index       # rebuild the whole guided site from existing runs
 Upload the `shots/` directory (or the tarball) to GitHub Pages, Netlify, S3, nginx, or
 any static file server. `--index-only` (a.k.a. `bb notebook:shots:index`) regenerates the
 homepage, explore, catalogue, notebook pages, and run archive from runs already on disk,
-so the site can be refreshed without touching the Clerk server. A GitHub Actions workflow
-(`.github/workflows/notebook-shots-site.yml`, disabled by default) shows how to publish to
-GitHub Pages.
+so the site can be refreshed without touching the Clerk server. To publish, upload the
+`shots/` directory (or tarball) to any static file host (S3, nginx, Netlify, etc.).
 
 ## 5. Config schema — `data/notebook-shots.edn`
 
@@ -251,7 +250,6 @@ Shipped (this feature):
 - `data/notebooks.edn` — `:themes` + per-notebook `:presentation` editorial layer.
 - `data/notebook-shots.edn` — config (incl. `demo_adversarial_escalation` for the Start-here set).
 - `bb.edn` tasks (`notebook:shots`, `:one`, `:sections`, `:open`, `:retry`, `:index`, `:serve`, `:package`, `:setup`, `:ci`).
-- `.github/workflows/notebook-shots-site.yml` — GitHub Pages publish (disabled by default).
 - `shots/` gitignored.
 
 ## 9. Resolved / open decisions

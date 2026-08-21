@@ -76,9 +76,18 @@ jobs:
           set +e
           bb public-claims:generate
           GENERATE_EXIT=$?
+          if [ $GENERATE_EXIT -ne 0 ]; then
+            echo "::error::bb public-claims:generate failed (exit code: $GENERATE_EXIT)"
+          fi
           bb claim-bindings:validate
           VALIDATE_EXIT=$?
-          exit $((GENERATE_EXIT | VALIDATE_EXIT))
+          if [ $VALIDATE_EXIT -ne 0 ]; then
+            echo "::error::bb claim-bindings:validate failed (exit code: $VALIDATE_EXIT)"
+          fi
+          if [ $GENERATE_EXIT -ne 0 ] || [ $VALIDATE_EXIT -ne 0 ]; then
+            echo "::error::Public claim binding validation failed"
+            exit 1
+          fi
 
       - name: Upload claim-binding report
         if: always()

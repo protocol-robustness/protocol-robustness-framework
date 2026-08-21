@@ -111,13 +111,21 @@ jobs:
         if: always()
         run: |
           mkdir -p results/ci-bundle
-          clojure -M -m resolver-sim.scripts.evidence sign ./test_key || true
+          if ! clojure -M -m resolver-sim.scripts.evidence sign ./test_key; then
+            echo "::warning::Evidence signing failed (non-gating — evidence bundle may be incomplete)"
+          fi
 
       - name: Verify signature with public key
         if: always()
         run: |
-          ssh-keygen -e -f test_key -m PKCS8 > test_key.pub.pem || true
-          clojure -M -m resolver-sim.scripts.verify-signature test_key.pub.pem || true
+          if ! ssh-keygen -e -f test_key -m PKCS8 > test_key.pub.pem; then
+            echo "::warning::Failed to extract public key from test_key (non-gating)"
+          fi
+          if [ -f test_key.pub.pem ]; then
+            if ! clojure -M -m resolver-sim.scripts.verify-signature test_key.pub.pem; then
+              echo "::warning::Signature verification failed (non-gating)"
+            fi
+          fi
 
       - name: Export evidence bundle (CI)
         if: always()

@@ -170,8 +170,8 @@ fn main() {
             .expect("statement root from native computation")
             .to_owned()
     };
-    let native_root_bytes = hex::decode(&native_statement_root)
-        .expect("statement root must be valid hex");
+    let native_root_bytes =
+        hex::decode(&native_statement_root).expect("statement root must be valid hex");
     let native_root_bytes32: [u8; 32] = native_root_bytes
         .as_slice()
         .try_into()

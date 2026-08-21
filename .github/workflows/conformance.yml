@@ -21,25 +21,47 @@ jobs:
         with:
           cli: 1.11.1.1435
 
+      - name: Install protobuf compiler
+        run: sudo apt-get update && sudo apt-get install -y protobuf-compiler
+
       - name: Rust fmt check
-        run: cd coprocessor && cargo fmt --check
+        working-directory: coprocessor
+        run: cargo fmt --check
 
       - name: Rust clippy
-        run: cd coprocessor && cargo clippy --all-targets --all-features -- -D warnings
+        working-directory: coprocessor
+        run: cargo clippy --all-targets --all-features -- -D warnings
 
       - name: Rust unit tests
-        run: cd coprocessor && cargo test
+        working-directory: coprocessor
+        run: cargo test
 
       - name: Rust release build
-        run: cd coprocessor && cargo build --release
+        working-directory: coprocessor
+        run: cargo build --release
 
       - name: Build pinned PRF sewer JAR
         run: clojure -T:build uberjar :variant sew
 
       - name: PRF JAR SHA-256 + vector-set root verification
         run: |
-          python3 -c "import json,hashlib; lock=json.load(open('prf-runner/artifact-lock.json')); actual=hashlib.sha256(open('target/prf-runner-sew-0.1.0-uber.jar','rb').read()).hexdigest(); assert actual==lock['artifact_sha256'], f'JAR hash mismatch: {actual}'"
-          ./scripts/conformance/vector-set-root.sh | python3 -c "import json,sys; vsroot,count=sys.stdin.read().split(); lock=json.load(open('prf-runner/artifact-lock.json')); assert vsroot==lock['vector_set_root'], f'vector-set root mismatch: {vsroot}'; assert int(count)==lock['vector_count']"
+          echo "Verifying PRF JAR SHA-256..."
+          python3 -c "
+          import json, hashlib
+          lock = json.load(open('prf-runner/artifact-lock.json'))
+          actual = hashlib.sha256(open('target/prf-runner-sew-0.1.0-uber.jar', 'rb').read()).hexdigest()
+          assert actual == lock['artifact_sha256'], f'JAR hash mismatch: expected {lock[\"artifact_sha256\"]}, got {actual}'
+          print(f'  JAR SHA-256 verified: {actual}')
+          "
+          echo "Verifying vector-set root..."
+          ./scripts/conformance/vector-set-root.sh | python3 -c "
+          import json, sys
+          vsroot, count = sys.stdin.read().split()
+          lock = json.load(open('prf-runner/artifact-lock.json'))
+          assert vsroot == lock['vector_set_root'], f'vector-set root mismatch: expected {lock[\"vector_set_root\"]}, got {vsroot}'
+          assert int(count) == lock['vector_count'], f'vector count mismatch: expected {lock[\"vector_count\"]}, got {count}'
+          print(f'  vector-set root verified: {vsroot} ({count} vectors)')
+          "
 
       - name: Install Foundry
         uses: foundry-rs/foundry-toolchain@v1
@@ -47,7 +69,8 @@ jobs:
           version: stable
 
       - name: Forge build + mock verifier tests
-        run: cd contracts/allocation && forge build && forge test
+        working-directory: contracts/allocation
+        run: forge build && forge test
 
       - name: Conformance gate (PRF result == native Rust result)
         run: ./scripts/conformance/conformance.sh
