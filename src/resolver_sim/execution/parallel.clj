@@ -45,7 +45,7 @@
                     {:quiescence/status (:status q)
                      :quiescence/remaining-tasks (:remaining-tasks q)
                      :quiescence/timeout-seconds timeout
-                       :executor-parallelism parallelism}))))))))
+                     :executor-parallelism parallelism}))))))))
 
 (defn ordered-bounded-mapv
   "Benchmark-safe ordered parallel map with owned executor lifecycle.

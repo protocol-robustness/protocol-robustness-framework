@@ -312,6 +312,8 @@
    :prf-chain-instance-genesis-v1     "PRF_CHAIN_INSTANCE_GENESIS_V1"
    :prf-chain-configuration-v1        "PRF_CHAIN_CONFIGURATION_V1"
    :prf-chain-configuration-transition-v1 "PRF_CHAIN_CONFIGURATION_TRANSITION_V1"
+   :configuration-head-state-v1 "CONFIGURATION_HEAD_STATE_V1"
+   :configuration-head-activation-v1 "CONFIGURATION_HEAD_ACTIVATION_V1"
    :prf-chain-configuration-change-identity-v1 "prf.chain-configuration-change-identity.v1"
    :prf-verifier-registry-v1          "PRF_VERIFIER_REGISTRY_V1"})
 

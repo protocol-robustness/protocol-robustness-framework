@@ -16,12 +16,20 @@
 
   {:zone/id :extension-held-custody
    :source-roots ["extensions/held-custody/src"]
-   :namespace-prefixes ["prf.extensions.held-custody"]}]
+   :namespace-prefixes ["prf.extensions.held-custody"]}
+
+  {:zone/id :extension-force-authorisation
+   :source-roots ["extensions/force-authorisation/src"]
+   :namespace-prefixes ["prf.extensions.force-authorisation"]}]
 
  ;; Cross-zone dependency graph (same-zone dependencies are implicitly
  ;; permitted; :may-depend-on describes cross-zone dependencies only):
  ;;   protocol-sew → extension-held-custody → core
+ ;;   protocol-sew → extension-force-authorisation → core
  ;;   protocol-sew → core
+ ;; Capability requirements, rather than Clojure imports, express the
+ ;; force-authorisation/held-custody execution relationship. This prevents a
+ ;; package-level dependency cycle and keeps extensions independent of Sew.
  ;; Forbidden: core → extension, extension → protocol-sew.
  :architecture/dependency-rules
  [{:from :core
@@ -30,8 +38,11 @@
   {:from :extension-held-custody
    :may-depend-on #{:core}}
 
+  {:from :extension-force-authorisation
+   :may-depend-on #{:core}}
+
   {:from :protocol-sew
-   :may-depend-on #{:core :extension-held-custody}}]
+   :may-depend-on #{:core :extension-held-custody :extension-force-authorisation}}]
 
  ;; ── exact per-file approvals (exception mechanism) ────────────────────────
  ;; Every exception is an existing, reviewed framework-to-Sew bridge. Entries

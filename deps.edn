@@ -78,6 +78,16 @@
    :extension/held-custody/runtime
    {:extra-paths ["extensions/held-custody/src"]}
 
+   ;; Optional force-authorisation capability package. This package is opt-in:
+   ;; its pure scope verifier can satisfy held-custody's declared dependency,
+   ;; while Sew keeps the transactional adapter during the staged extraction.
+   :extension/force-authorisation
+   {:extra-paths ["extensions/force-authorisation/src"
+                  "extensions/force-authorisation/test"]}
+
+   :extension/force-authorisation/runtime
+   {:extra-paths ["extensions/force-authorisation/src"]}
+
    ;; flow-storm
 ;;   {:1.12-storm {:classpath-overrides {org.clojure/clojure nil}
 ;;                :extra-deps {com.github.flow-storm/clojure {:mvn/version "1.13.0-alpha6"}
