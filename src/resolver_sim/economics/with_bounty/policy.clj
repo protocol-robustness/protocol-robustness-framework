@@ -12,10 +12,10 @@
    (extension resolution + invocation) lands in Stage B."
   (:require [resolver-sim.hash.canonical :as hc]))
 
-(def composition-type
+(def ^:const composition-type
   :economics/with-bounty)
 
-(def composition-version
+(def ^:const composition-version
   1)
 
 (def policy-domain-tag

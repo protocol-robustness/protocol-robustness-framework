@@ -8,6 +8,8 @@
   (:require [resolver-sim.economics.payoffs :as payoffs]
             [resolver-sim.hash.canonical :as hc]))
 
+(def ^:const mechanism-version 1)
+
 (defn- non-negative-integer?
   [value]
   (and (integer? value) (not (neg? value))))
@@ -316,15 +318,15 @@
 
    The result is a hash-committed mathematical evidence envelope. It contains
    no account, token, participant, or transition semantics."
-  [{:keys [available rows rounding-policy tie-break-policy redistribution-policy
-           on-progress progress-atom parallelism execution/quiescence-timeout-seconds]
-    :or {rounding-policy :largest-remainder
-         tie-break-policy :canonical-row-id
-         redistribution-policy :unallocated}
-    :as request}]
+   [{:keys [available rows rounding-policy tie-break-policy redistribution-policy
+            on-progress progress-atom parallelism execution/quiescence-timeout-seconds]
+            :or {rounding-policy :largest-remainder
+                 tie-break-policy :canonical-row-id
+                 redistribution-policy :unallocated}
+            :as request}]
   (let [allocation-id (:allocation/id request)
         schema-version (:schema-version request "pro-rata-allocation-request.v1")
-        mechanism-version (:mechanism/version request 1)
+        mechanism-version (:mechanism/version request mechanism-version)
         available (when (integer? available) (bigint available))]
     (when-not (= "pro-rata-allocation-request.v1" schema-version)
       (invalid! :unsupported-allocation-request-schema {:schema-version schema-version}))

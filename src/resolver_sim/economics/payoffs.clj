@@ -15,6 +15,10 @@
             [resolver-sim.util.thread-quiescence :as quiesce])
   (:import [java.util.concurrent Callable Executors]))
 
+(def ^:const default-pro-rata-allocation-result-kind :pro-rata-allocation)
+(def ^:const default-pro-rata-allocation-result-version 1)
+(def ^:const default-pro-rata-allocation-result-artifact-kind :pro-rata/allocation-result)
+
 ;; Basis point denominator used by generic integer accounting helpers.
 ;; Also defined as resolver-sim.yield.exact-math/scaling-factor (same value).
 (def basis-point-denominator 10000)
@@ -297,7 +301,7 @@
                                            :projection-definition-id projection-definition-id
                                            :source source
                                            :projection projection-body})
-         artifact-base {:schema-version 1
+          artifact-base {:schema-version default-pro-rata-allocation-result-version
                         :projection-id (str "projection-pro-rata-" (short-hash source-hash))
                         :projection-type (:projection-type projection-definition)
                         :projection-version (:version projection-definition)
@@ -970,13 +974,13 @@
                     :evaluated-check-count (count evaluated-checks)
                     :not-evaluated-check-count (count not-evaluated-checks)
                     :checks checks}
-        result-value {:schema-version 1
+         result-value {:schema-version default-pro-rata-allocation-result-version
                       :allocation/id id
                       :canonical-request normalized
                       :projection-hash (:projection-hash projection)
                       :allocation allocation
                       :validation validation}
-        result-hash (hc/domain-hash "PRO_RATA_EVALUATION_V1" result-value)]
+         result-hash (hc/domain-hash :pro-rata-evaluation-v1 result-value)]
     {:allocation/id id
      :projection {:artifact/type :pro-rata/projection
                   :artifact/hash (:projection-hash projection)
@@ -992,15 +996,11 @@
   [evaluation]
   (let [value (get-in evaluation [:result :artifact/value])
         recorded (get-in evaluation [:result :artifact/hash])
-        computed (hc/domain-hash "PRO_RATA_EVALUATION_V1" value)]
+         computed (hc/domain-hash :pro-rata-evaluation-v1 value)]
     (when-not (and value (= recorded computed))
       (throw (ex-info "Invalid pro-rata evaluation package hash"
                       {:recorded recorded :computed computed})))
     evaluation))
-
-(def default-pro-rata-allocation-result-kind :pro-rata-allocation)
-(def default-pro-rata-allocation-result-version 1)
-(def default-pro-rata-allocation-result-artifact-kind :pro-rata/allocation-result)
 
 (defn build-pro-rata-allocation-result-artifact
   "Build a pro-rata allocation result artifact from an allocation result
@@ -1074,7 +1074,7 @@
                                {:evidence-record-hash evidence-record-hash})
                              (when evidence-group-id
                                {:evidence-group-id evidence-group-id}))
-        artifact-base {:schema-version 1
+         artifact-base {:schema-version default-pro-rata-allocation-result-version
                        :artifact-kind default-pro-rata-allocation-result-artifact-kind
                        :allocation-result-id (str "allocation-pro-rata-"
                                                   (short-hash source-hash))

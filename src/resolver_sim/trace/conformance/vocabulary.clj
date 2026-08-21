@@ -30,14 +30,16 @@
 (defn- identity-root
   "Deterministic content root for a validator implementation identity."
   [canonical]
-  (hc/domain-hash "conformance.validator-implementation.v1" canonical))
+   (hc/domain-hash :conformance-validator-implementation-v1 canonical))
+
+(def ^:const validator-version 1)
 
 (def trace-fixture-v2-schema-root
   "Content root of the structural (schema) validator implementation."
   (identity-root
    {:validator/id :trace-fixture-v2-schema
     :kind :schema
-    :version 1
+    :version validator-version
     :canonicalizer :trace-fixture.v2}))
 
 (def trace-fixture-v2-semantics-root
@@ -45,5 +47,5 @@
   (identity-root
    {:validator/id :trace-fixture-v2-semantics
     :kind :semantic
-    :version 1
+    :version validator-version
     :canonicalizer :trace-fixture.v2}))

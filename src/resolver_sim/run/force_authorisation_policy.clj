@@ -12,8 +12,8 @@
             [resolver-sim.hash.canonical :as canonical]
             [resolver-sim.hash.reference :as hash-ref]))
 
-(def schema-version "force-authorisation-policy.v1")
-(def domain "PRF_FORCE_AUTHORISATION_POLICY_V1")
+(def ^:const schema-version "force-authorisation-policy.v1")
+(def ^:const domain :prf-force-authorisation-policy-v1)
 
 ;;; ============================================================
 ;;; Low-level helpers

@@ -318,7 +318,17 @@
     :prf-verifier-registry-v1          "PRF_VERIFIER_REGISTRY_V1"
     :prf-resubmission-chain-identity-v1         "prf.resubmission-chain-identity.v1"
     :prf-resubmission-chain-configuration-v1     "prf.resubmission-chain-configuration.v1"
-    :prf-resubmission-chain-genesis-v1            "prf.resubmission-chain-genesis.v1"})
+    :prf-resubmission-chain-genesis-v1            "prf.resubmission-chain-genesis.v1"
+    :programme-allocation-request-v1   "PROGRAMME_ALLOCATION_REQUEST_V1"
+    :programme-plan-v1                 "PROGRAMME_PLAN_V1"
+    :programme-evidence-v1             "PROGRAMME_EVIDENCE_V1"
+    :programme-receipt-v1              "PROGRAMME_RECEIPT_V1"
+    :use-case-registry-v1              "USE_CASE_REGISTRY_V1"
+    :corpus-registry                   "corpus-registry"
+    :reference-closure                 "reference-closure"
+    :verification-profile              "verification-profile"
+    :custody-admission-decision-v1     "custody-admission-decision.v1"
+    :semantic-composition-v1           "SEMANTIC_COMPOSITION_V1"})
 
 ;; ──────────────────────────────────────────────────────────────────────────────
 ;; varuint Encoding (LEB128, little-endian base-128)

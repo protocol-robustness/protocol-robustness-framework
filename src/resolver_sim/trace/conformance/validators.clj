@@ -14,6 +14,8 @@
             [resolver-sim.conformance.profile :as profile]
             [resolver-sim.trace.conformance.vocabulary :as vocab]))
 
+(def ^:const validator-version 1)
+
 (defn schema-validate
   "Structural validation of a CDRS v0.2 trace fixture.  Mirrors the committed
    JSON Schema at etc/conformance/schemas/trace-fixture-v2.schema.json."
@@ -134,13 +136,13 @@
           (validation/pass-result
            {:validator/id validator-id
             :validator/kind kind
-            :validator/version 1
+            :validator/version vocab/validator-version
             :validator/implementation-root implementation-root}
            subject)
           (validation/reject-result
            {:validator/id validator-id
             :validator/kind kind
-            :validator/version 1
+            :validator/version vocab/validator-version
             :validator/implementation-root implementation-root}
            subject
            issues))))}))

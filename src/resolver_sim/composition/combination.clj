@@ -9,9 +9,9 @@
    rejected explicitly rather than left undefined."
   (:require [resolver-sim.hash.canonical :as hc]))
 
-(def combination-version 1)
+(def ^:const combination-version 1)
 
-(def combination-domain-tag
+(def ^:const combination-domain-tag
   "COMPOSITION_COMBINATION_V1")
 
 (def combination-address-fields

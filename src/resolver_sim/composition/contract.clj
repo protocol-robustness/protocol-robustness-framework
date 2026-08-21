@@ -14,10 +14,10 @@
    canonical form before hashing and comparison."
   (:require [resolver-sim.hash.canonical :as hc]))
 
-(def contract-version
+(def ^:const contract-version
   1)
 
-(def contract-domain-tag
+(def ^:const contract-domain-tag
   "COMPOSITION_CONTRACT_V1")
 
 ;; ── supported value domains ───────────────────────────────────────────────

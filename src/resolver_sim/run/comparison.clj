@@ -24,7 +24,7 @@
         (not (and (= (get c "run_package_index_sha256") (sha index))
                   (= (get c "run_package_index_bytes") (.length index))))
         {:valid? false :reason :comparison/completion-invalid}
-        (not (= (get p "policy_sha256") (hash-ref/sha256-ref (canonical/domain-hash "PRF_VERDICT_POLICY_V1" (dissoc p "policy_sha256")))))
+        (not (= (get p "policy_sha256") (hash-ref/sha256-ref (canonical/domain-hash :prf-verdict-policy-v1 (dissoc p "policy_sha256")))))
         {:valid? false :reason :comparison/verdict-policy-invalid}
         :else {:valid? true
                :submission {:schema-version "run-comparison-submission.v1"

@@ -9,9 +9,9 @@
             [resolver-sim.hash.reference :as hash-ref]
             [resolver-sim.run.force-authorisation-policy :as fa-policy]))
 
-(def schema-version "verdict-policy.v1")
-(def policy-family-id "canonical-verdict-policy")
-(def domain "PRF_VERDICT_POLICY_V1")
+(def ^:const schema-version "verdict-policy.v1")
+(def ^:const policy-family-id "canonical-verdict-policy")
+(def ^:const domain :prf-verdict-policy-v1)
 
 ;;; ============================================================
 ;;; Low-level helpers

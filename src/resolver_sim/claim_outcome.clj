@@ -26,7 +26,7 @@
   "claim-outcome.v1")
 
 (def ^:const claim-outcome-hash-domain
-  "CLAIM_OUTCOME_V1")
+  :claim-outcome-v1)
 
 (def supported-claim-outcomes
   "Bounded vocabulary of evaluated-claim outcomes."

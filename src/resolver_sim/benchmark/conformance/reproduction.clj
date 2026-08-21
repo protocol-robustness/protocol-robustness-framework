@@ -12,11 +12,13 @@
             [resolver-sim.conformance.profile :as profile]
             [resolver-sim.benchmark.outcome-manifest :as om]))
 
+(def ^:const validator-version 1)
+
 (def implementation-root
   "Content root of the benchmark reproduction comparator implementation."
   (hc/domain-hash
-   "conformance.validator-implementation.v1"
-   {:validator/id :research-scenario-semantics :kind :semantic :version 1
+   :conformance-validator-implementation-v1
+   {:validator/id :research-scenario-semantics :kind :semantic :version validator-version
     :comparison-policy :exact-outcome-reproduction.v1}))
 
 ;; ---------------------------------------------------------------------------
@@ -85,14 +87,14 @@
                           {:validator/id validator-id
                            :validator/kind kind
                            :validator/input-contract :research-scenario.v1
-                           :validator/version 1
+                           :validator/version validator-version
                            :validator/implementation-root implementation-root}
                           subject)
                          (validation/reject-result
                           {:validator/id validator-id
                            :validator/kind kind
                            :validator/input-contract :research-scenario.v1
-                           :validator/version 1
+                           :validator/version validator-version
                            :validator/implementation-root implementation-root}
                           subject
                           issues))))}))
@@ -153,6 +155,8 @@
    :benchmark-execution     :benchmark-execution
    :outcome-comparison      :outcome-comparison})
 
+(def ^:const reproduction-lineage-schema-version "conformance.reproduction-lineage/v1")
+
 (defn reproduction-lineage
   "Bind a baseline and reproduced lineage.
 
@@ -176,8 +180,7 @@
         result (if (and baseline reproduced)
                  (if (seq diverged) :diverged :equal)
                  :not-evaluated)]
-    {:schema-version "conformance.reproduction-lineage/v1"
-     :reproduction/id (:reproduction/id m)
+    {:schema-version reproduction-lineage-schema-version
      :baseline baseline
      :reproduced reproduced
      :comparison-policy policy
@@ -189,7 +192,7 @@
 (defn lineage-root
   "Deterministic content root of a reproduction lineage receipt."
   [lineage]
-  (hc/domain-hash "conformance.reproduction-lineage.v1"
+   (hc/domain-hash :conformance-reproduction-lineage-v1
                   (select-keys lineage
                                [:schema-version :reproduction/id
                                 :baseline :reproduced :comparison-policy

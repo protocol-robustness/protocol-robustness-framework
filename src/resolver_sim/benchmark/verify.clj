@@ -19,7 +19,7 @@
 
 (defn- input-set-root [inputs]
   (hash-ref/sha256-ref
-   (canonical/domain-hash "BENCHMARK_INPUT_SET_V1"
+   (canonical/domain-hash :benchmark-input-set-v1
                           (vec (sort-by #(get % "path")
                                         (map #(select-keys % ["logical_id" "source_kind" "path" "sha256"])
                                              inputs))))))
@@ -72,7 +72,7 @@
                         "benchmark_id" (get content-registry "benchmark_id")
                         "artifacts" artifacts
                         "excluded_paths" (vec (sort (get content-registry "excluded_paths" [])))}
-            expected-root (hash-ref/sha256-ref (canonical/domain-hash "BENCHMARK_CONTENT_REGISTRY_V1" projection))]
+            expected-root (hash-ref/sha256-ref (canonical/domain-hash :benchmark-content-registry-v1 projection))]
         (and (= "benchmark-content-registry.v1" (get content-registry "schema_version"))
              (= "prf/benchmark-content-registry/v1" (get content-registry "domain"))
              (= "benchmark-evidence-inner-package" (get content-registry "content_scope"))
@@ -196,7 +196,7 @@
                         "evidence_content_registry_sha256" (:sha256 (try (evidence-node/canonical-artifact-content "benchmark/evidence/content-registry.json" content-registry-file)
                                                                          (catch Exception _ {:sha256 "sha256:tampered"})))
                         "input_set_root" (get assurance "input_set_root")}
-            expected-final-ref (hash-ref/sha256-ref (canonical/domain-hash "BENCHMARK_FINALIZATION_V1" projection))
+             expected-final-ref (hash-ref/sha256-ref (canonical/domain-hash :benchmark-finalization-v1 projection))
             checks {"completion-first-package-index" (and (get-in package-context [:completion-report :valid?])
                                                           (:valid? package-closure))
                     "completion-finalization-hash" (= (get completion "finalization_sha256") (sha-ref finalization-file))

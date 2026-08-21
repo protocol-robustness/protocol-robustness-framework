@@ -7,7 +7,7 @@
    Verification is in resolver-sim.assurance.witness-verifier."
   (:require [resolver-sim.hash.canonical :as hc]))
 
-(def schema-version 1)
+(def ^:const schema-version 1)
 
 (defn build-witness
   "Build an immutable execution witness.

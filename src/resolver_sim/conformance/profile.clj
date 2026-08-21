@@ -16,7 +16,7 @@
             [resolver-sim.hash.canonical :as hc]
             [resolver-sim.conformance.registry :as registry]))
 
-(def profile-schema-version "conformance-profile.v1")
+(def ^:const profile-schema-version "conformance-profile.v1")
 
 (defn load-profile
   "Read a conformance profile descriptor from an EDN file."
@@ -33,7 +33,7 @@
    canonical-safe form (sets → sorted vectors) before hashing — otherwise the
    strict canonical encoder rejects the descriptor it is supposed to commit."
   [profile]
-  (hc/domain-hash "conformance.profile.v1"
+  (hc/domain-hash :conformance-profile-v1
                   (hc/project-committable-content (dissoc profile :profile/root))))
 
 (defn required-component-ids

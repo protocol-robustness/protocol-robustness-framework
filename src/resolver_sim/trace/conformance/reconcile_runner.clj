@@ -108,7 +108,7 @@
         included (filterv #(contains? replayed-dests (:destination %)) entries)
         excluded (filterv #(not (contains? replayed-dests (:destination %))) entries)
         subject-ids (mapv :id included)
-        subject-set-root (hc/domain-hash "conformance.subject-set.v1"
+         subject-set-root (hc/domain-hash :conformance-subject-set-v1
                                          (vec (sort subject-ids)))
         subject-set {:subject-set/root subject-set-root
                      :subjects subject-ids}

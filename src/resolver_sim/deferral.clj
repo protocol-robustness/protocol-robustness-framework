@@ -29,7 +29,7 @@
   "deferral.v1")
 
 (def ^:const deferral-hash-domain
-  "DEFERRAL_V1")
+  :deferral-v1)
 
 ;; ---------------------------------------------------------------------------
 ;; Keys

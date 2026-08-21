@@ -99,13 +99,13 @@
 ;; SP-C.1 — canonical programme plan and identity
 ;; ---------------------------------------------------------------------------
 
-(def plan-schema-version "programme-plan.v1")
+(def ^:const plan-schema-version "programme-plan.v1")
 
 (defn allocation-request-root
   "Root identity of the exact allocation request. Frozen and independent of any
    execution state (no parallelism/progress/budget/timestamps)."
   [{:keys [schema-version amount participants policy use-case unit]}]
-  (hc/domain-hash "PROGRAMME_ALLOCATION_REQUEST_V1"
+  (hc/domain-hash :programme-allocation-request-v1
                   {:schema-version (or schema-version 1)
                    :amount amount
                    :participants (mapv #(select-keys % [:id :weight :cap]) participants)
@@ -175,7 +175,7 @@
   "Root identity of the canonical programme plan (the stable thing later stages
    refer to). Pure function of the frozen plan fields."
   [canonical-plan]
-  (hc/domain-hash "PROGRAMME_PLAN_V1" canonical-plan))
+  (hc/domain-hash :programme-plan-v1 canonical-plan))
 
 (defn verify-programme-plan
   "Verify a programme plan is canonical and canonicalization is idempotent.
@@ -261,7 +261,7 @@
 ;; SP-C.3 — evidence + receipt verifier (built before the runner)
 ;; ---------------------------------------------------------------------------
 
-(def evidence-schema-version "programme-mechanism-evidence.v1")
+(def ^:const evidence-schema-version "programme-mechanism-evidence.v1")
 
 (defn programme-evidence-artifact
   "Hash-committed programme evidence envelope derived from an evaluation. The
@@ -279,14 +279,14 @@
                             (allocation-request-root request)
                             result-root]}]
     (assoc base :evidence/hash
-           (hc/domain-hash "PROGRAMME_EVIDENCE_V1" (dissoc base :evidence/hash)))))
+           (hc/domain-hash :programme-evidence-v1 (dissoc base :evidence/hash)))))
 
 (defn evidence-root
   "The evidence root (hash) of a programme evidence artifact."
   [artifact]
   (:evidence/hash artifact))
 
-(def receipt-schema-version "programme-receipt.v1")
+(def ^:const receipt-schema-version "programme-receipt.v1")
 
 (defn- stage-success-status
   "The terminal status that counts as success for a required stage (per the
@@ -387,7 +387,7 @@
               (select-keys derived [:semantic/status :programme/status :summary
                                     :exact-set-complete :validation/status]))]
     (assoc base :receipt-hash
-           (hc/domain-hash "PROGRAMME_RECEIPT_V1" (dissoc base :receipt-hash)))))
+           (hc/domain-hash :programme-receipt-v1 (dissoc base :receipt-hash)))))
 
 (defn verify-programme-receipt
   "Independently derive the receipt's semantic fields AND its aggregate verdict
@@ -399,7 +399,7 @@
   [artifacts receipt]
   (let [{:keys [request evaluation]} artifacts
         derived-request-root (allocation-request-root request)
-        derived-result-root (hc/domain-hash "PRO_RATA_EVALUATION_V1"
+         derived-result-root (hc/domain-hash :pro-rata-evaluation-v1
                                             (get-in evaluation [:result :artifact/value]))
         derived-verdict (programme-validation-result evaluation)
         derived-validation-status (:status derived-verdict)

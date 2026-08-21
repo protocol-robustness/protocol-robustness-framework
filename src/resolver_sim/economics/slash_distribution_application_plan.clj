@@ -22,8 +22,8 @@
             [resolver-sim.economics.slash-distribution :as sd]
             [resolver-sim.hash.canonical :as hc]))
 
-(def schema-version "slash-distribution-application-plan.v1")
-(def schema-version-v2 "slash-distribution-application-plan.v2")
+(def ^:const schema-version "slash-distribution-application-plan.v1")
+(def ^:const schema-version-v2 "slash-distribution-application-plan.v2")
 
 ;; ── hash projection ─────────────────────────────────────────────────────────
 

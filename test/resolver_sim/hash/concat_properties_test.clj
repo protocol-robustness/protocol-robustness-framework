@@ -11,7 +11,8 @@
    this is tested three independent ways:
      1. Round-trip:  decode(canonical-bytes(v)) == v
      2. Sequence:    decode(concat(encode(v1..vn))) == [v1..vn]
-     3. Injectivity: distinct component sequences ⇒ distinct framed byte streams
+     3. Injectivity: distinct canonical ordered sequences ⇒ distinct canonical
+        consecutive-composition byte streams
 
    The decoder in this namespace is a *separate* implementation from the
    encoder, so the round-trip tests are not circular."
@@ -292,35 +293,47 @@
                 (not (bytes= (hc/canonical-bytes s)
                              (concat-bytes (map hc/canonical-bytes s))))))
 
+(def ^:private consecutive-purpose
+  "Fixed semantic domain for this property.  Purpose/schema framing is part of
+   C_v; callers use another purpose only for a different composition domain."
+  :consecutive-composition)
+
+(defn- encode-consecutive
+  "C_v: versioned, canonical framing of one ordered member sequence.
+
+   The production sequence contract carries its schema version, purpose,
+   explicit arity, and member vector.  This property intentionally does not
+   hash these bytes: SHA-256 is a commitment layer, not an injective function."
+  [xs]
+  (seq/canonical-sequence-bytes {:purpose consecutive-purpose} xs))
+
 (def prop-consecutive-injective
-  "Decisive injectivity of consecutive concatenation:
+  "Canonical consecutive framing is injective over canonical ordered sequences:
 
-     (bytes= (encode-consecutive xs) (encode-consecutive ys))  ⇒  (= xs ys)
+     C_v(xs) = C_v(ys)  ⟺  xs = ys
 
-   because the stream is prefix-free and self-delimiting.  Sequences of
-   different lengths are generated freely, so [a b] vs [c], [a] vs [b c],
-   and [] vs [v] collisions are exercised by the generator."
+   `xs` and `ys` range over canonical member vectors.  The generator permits
+   independently chosen arities, so empty/non-empty, split-boundary, ordering,
+   and repeated-member cases are all in the domain."
   (prop/for-all [xs (gen/vector gen-value 0 15)
                  ys (gen/vector gen-value 0 15)]
-                (let [equal-bytes? (bytes= (concat-bytes (map hc/canonical-bytes xs))
-                                           (concat-bytes (map hc/canonical-bytes ys)))]
-                  (if equal-bytes?
-                    (= xs ys)
-                    (not= xs ys)))))
+                (= (= xs ys)
+                   (bytes= (encode-consecutive xs)
+                           (encode-consecutive ys)))))
 
-(deftest test-injectivity-edge-cases
-  (testing "[a b] can never collide with a single-component stream [c]"
-    (is (not (bytes= (concat-bytes (map hc/canonical-bytes [1 2]))
-                     (concat-bytes (map hc/canonical-bytes [3]))))))
-  (testing "[a] can never collide with [b c]"
-    (is (not (bytes= (concat-bytes (map hc/canonical-bytes [1]))
-                     (concat-bytes (map hc/canonical-bytes [2 3]))))))
-  (testing "the empty sequence can never collide with any non-empty sequence"
-    (is (not (bytes= (concat-bytes [])
-                     (concat-bytes (map hc/canonical-bytes [nil]))))))
-  (testing "equal sequences produce equal streams"
-    (is (bytes= (concat-bytes (map hc/canonical-bytes ["a" 1 :b]))
-                (concat-bytes (map hc/canonical-bytes ["a" 1 :b]))))))
+(deftest test-consecutive-injectivity-edge-cases
+  (let [encode encode-consecutive]
+    (testing "arity and empty/non-empty boundaries are retained"
+      (is (not (bytes= (encode []) (encode [1]))))
+      (is (not (bytes= (encode [1]) (encode [1 2]))))
+      (is (not (bytes= (encode [1 2]) (encode [3]))))
+      (is (not (bytes= (encode [1]) (encode [2 3])))))
+    (testing "member order and repetition are retained"
+      (is (not (bytes= (encode [1 2]) (encode [2 1]))))
+      (is (not (bytes= (encode [1 1]) (encode [1])))))
+    (testing "equal ordered sequences deterministically produce equal bytes"
+      (is (bytes= (encode ["a" 1 :b])
+                  (encode ["a" 1 :b]))))))
 
 (def prop-typed-injectivity
   "Typed injectivity over the ACCEPTED canonical domain:

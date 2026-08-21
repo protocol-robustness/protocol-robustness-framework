@@ -826,8 +826,8 @@
 ;; projection/report — it is not a second verifier; it aggregates the existing
 ;; ledger, index, artifacts, and closed-form checks.
 
-(def held-custody-summary-schema-version "held-custody-summary.v2")
-(def held-custody-summary-verifier-id "held-custody-summary-verifier.v1")
+(def ^:const held-custody-summary-schema-version "held-custody-summary.v2")
+(def ^:const held-custody-summary-verifier-id "held-custody-summary-verifier.v1")
 
 (defn ledger-root
   "Content root over the canonical ledger: intent-tagged hash of the adjustments

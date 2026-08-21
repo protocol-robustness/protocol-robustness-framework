@@ -23,6 +23,8 @@
 ;; so that the decision-root is deterministic regardless of insertion order
 ;; or Clojure's set literal representation.
 
+(def ^:const decision-schema-version "custody-admission-decision.v1")
+
 (defn- canonical-vec
   "Convert a collection to a canonical-order sorted vector."
   [coll]
@@ -41,7 +43,7 @@
    :blocking-reasons [keyword...] — sorted by str
    :failed-check-ids [keyword...] — sorted by str}"
   [admitted? blocking-reasons failed-check-ids subject-root evidence-root]
-  {:decision/schema "custody-admission-decision.v1"
+   {:decision/schema decision-schema-version
    :subject-root subject-root
    :evidence-root evidence-root
    :admitted? admitted?
@@ -53,7 +55,7 @@
 
   H(\"custody-admission-decision.v1\", canonical_bytes(body))"
   [body]
-  (hc/domain-hash "custody-admission-decision.v1" body))
+   (hc/domain-hash :custody-admission-decision-v1 body))
 
 (defn- run-closed-form-checks
   "Run held-custody-closed-form-checks and return {:checks [...] :error nil}

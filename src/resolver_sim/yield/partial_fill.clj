@@ -106,7 +106,7 @@
         mechanism-result
         (pro-rata/allocate
          {:schema-version "pro-rata-allocation-request.v1"
-          :mechanism/version 1
+           :mechanism/version pro-rata/mechanism-version
           :allocation/id [:shared-withdrawal-allocation
                           (mapv row-id rows)]
           :available available-liquidity

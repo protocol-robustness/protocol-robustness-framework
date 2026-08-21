@@ -34,32 +34,37 @@
 ;; Canonical profile (D1 / D4)
 ;; ═══════════════════════════════════════════════════════════════════════════
 
-(def canonical-member-count
+(def ^:const canonical-member-count
   "Canonical member count of the three-member decision standard, pinned to 3."
   3)
 
-(def canonical-threshold
+(def ^:const canonical-threshold
   "Canonical threshold of the three-member decision standard: two concurring
    positions over the same whole outcome."
   2)
 
-(def canonical-profile
+(def ^:const canonical-profile
   {:member-count canonical-member-count
    :threshold canonical-threshold})
 
-(def canonical-schema-version
+(def ^:const canonical-profile-version
   "Version of the canonical reconciliation vocabulary."
   "force-authorisation-canonical-reconciliation.v1")
 
-(def canonical-decision-statuses
+(def ^:const lifecycle-window-profile-version
+  "Protocol-identity version of lifecycle-window profiles; committed to hashes
+  via :profile/version."
+  1)
+
+(def ^:const canonical-decision-statuses
   "Canonical immutable decision statuses (shared with the research world)."
   #{:approved :approved-with-dissent :declined})
 
-(def canonical-decision-vocabulary
+(def ^:const canonical-decision-vocabulary
   "Individual position vocabulary for a canonical decision."
   #{:approve :dissent})
 
-(def legacy-lifecycle-statuses
+(def ^:const legacy-lifecycle-statuses
   "Lifecycle statuses recognized from the legacy evidence world."
   #{:active :consumed :revoked :expired :failed-after-consumption :rolled-back})
 
@@ -304,7 +309,7 @@
     {:representation/class :legacy-evidence
      :projection/normative? false
      :canonical-emission-eligible? false
-     :reconciliation/schema canonical-schema-version
+     :reconciliation/schema canonical-profile-version
      :projection/source :legacy-evidence
      :authorization/id auth-id
      :legacy/status st
@@ -319,7 +324,7 @@
   "D2 summary: one canonical model; legacy representations are read-only
    projections. Pure metadata, no state."
   []
-  {:reconciliation/schema canonical-schema-version
+  {:reconciliation/schema canonical-profile-version
    :canonical-model "resolver-sim.benchmark.researcher-force-authorisation"
    :canonical-policy "resolver-sim.run.force-authorisation-policy"
    :legacy-representation "prf.extensions.held-custody.legacy-validate"
@@ -820,7 +825,7 @@
    irreversible."
   (lifecycle-window-profile
    {:profile/id :resolution.lifecycle-window/force-authorisation
-    :profile/version 1
+    :profile/version lifecycle-window-profile-version
     :valid-states #{:proposed :signed-eligible :authorisation-built
                     :reservation-issued :consumed :outcome-released
                     :rolled-back-after-consumption
@@ -849,10 +854,10 @@
      ResultProposed           -> :result-proposed         (closed)
      ResultAccepted           -> :result-accepted         (closed)
      ClaimConsumptionStarted  -> :claim-consumption-started (closed)"
-  (lifecycle-window-profile
-   {:profile/id :prf.lifecycle-window/probabilistic-allocation
-    :profile/version 1
-    :valid-states #{:allocation-committed :randomness-requested
+   (lifecycle-window-profile
+    {:profile/id :prf.lifecycle-window/probabilistic-allocation
+     :profile/version lifecycle-window-profile-version
+     :valid-states #{:allocation-committed :randomness-requested
                     :randomness-fulfilled :result-proposed :result-accepted
                     :claim-consumption-started}
     :open-states #{:allocation-committed}

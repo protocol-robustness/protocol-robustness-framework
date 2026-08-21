@@ -54,6 +54,34 @@ breaking format change: it requires recomputing all golden hashes, conformance
 test vectors, and cross-language verifier preimages, and MUST NOT be introduced
 without coordinated versioning.
 
+2.2 Canonical Consecutive Composition
+A canonical consecutive composition is a versioned encoding of one ordered
+sequence of canonical member values.  The current `canonical-value-sequence.v1`
+contract encodes exactly one canonical map containing:
+
+    • `:encoding-contract` — the framing/schema version
+    • `:purpose` — the composition domain
+    • `:component-count` — the explicit non-negative arity
+    • `:components` — the ordered canonical member vector
+
+For a fixed contract version and purpose, write this encoder as `C_v`.  Its
+domain is the set of canonical ordered member sequences `D_v*`, including the
+empty sequence.  The required framing property is:
+
+    C_v(X) = C_v(Y) if and only if X = Y, for all X,Y in D_v*.
+
+In particular, the encoding preserves arity, member boundaries, ordering, and
+repetition: `[] ≠ [A]`, `[A B] ≠ [C]`, `[A] ≠ [B C]`, `[A B] ≠ [B A]` when
+`A ≠ B`, and `[A A] ≠ [A]`.  This is an encoding theorem, tested against
+canonical bytes; it is not a claim that SHA-256 is injective.  Hashing
+`SHA256(C_v(X))` provides a collision-resistant commitment to the already
+unambiguous canonical bytes.
+
+This low-level sequence contract accepts an already-normalized member vector;
+it does not assign semantics to nested composition trees.  Any higher-level
+consecutive operator that adopts associativity MUST normalize `(A ; B) ; C` and
+`A ; (B ; C)` to the same `[A B C]` member vector before invoking `C_v`.
+
 3. Supported Types
 Implementations MUST support only the following value types.
 Null

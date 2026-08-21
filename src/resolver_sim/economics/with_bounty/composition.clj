@@ -13,7 +13,8 @@
    exist yet.
 
    An ineligible bounty is recorded as :skipped with its eligibility evidence
-   and nil effect/plan roots — omission is not acceptable (design note §11).")
+   and nil effect/plan roots — omission is not acceptable (design note §11)."
+  (:require [resolver-sim.economics.with-bounty.policy :as policy]))
 
 (def verification-profile
   "Re-running the sealed implementations is implementation replay, never
@@ -22,8 +23,8 @@
 
 (defn- base-receipt
   [{:keys [policy-root base-operation-root resolution-root bounty-id stage]}]
-  {:composition/type :economics/with-bounty
-   :composition/version 1
+  {:composition/type policy/composition-type
+    :composition/version policy/composition-version
    :composition/stage (or stage :stage-b)
    :composition/policy-root policy-root
    :composition/base-operation-root base-operation-root

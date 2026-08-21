@@ -19,14 +19,17 @@
                               :result entry-result :error? bool}
                              For tooling, CI monitors, and progress bars."
   (:require [clojure.data.json :as json]
-            [clojure.string :as str]
-            [resolver-sim.scenario.expectations :as expectations]
-            [resolver-sim.scenario.outcome-semantics :as ose]
-            [resolver-sim.scenario.summary :as summary]
-            [resolver-sim.scenario.normalize :as normalize]
-            [resolver-sim.scenario.theory :as theory]
-            [resolver-sim.io.reasoning-registry :as registry]
-            [resolver-sim.io.reasoning-capsule :as capsule]))
+             [clojure.string :as str]
+             [resolver-sim.scenario.expectations :as expectations]
+             [resolver-sim.scenario.outcome-semantics :as ose]
+             [resolver-sim.scenario.summary :as summary]
+             [resolver-sim.scenario.normalize :as normalize]
+             [resolver-sim.scenario.theory :as theory]
+             [resolver-sim.io.reasoning-registry :as registry]
+             [resolver-sim.io.reasoning-capsule :as capsule]
+             [resolver-sim.execution.parallel :as parallel]
+             [resolver-sim.execution.context :as execution]
+             [resolver-sim.util.thread-quiescence :as quiesce]))
 
 ;; ---------------------------------------------------------------------------
 ;; Inspectability dynamic vars
@@ -419,7 +422,9 @@
       :type-meta-fn — optional (fn [scenario-id] → metadata map for entry)
 
    `opts` forwarded to build-entry-result / theory (e.g. :evaluate-theory?).
-   When `opts` includes `:parallel? true`, entries are run concurrently via pmap.
+   When `opts` includes `:parallel? true`, entries are run concurrently via an
+   owned, benchmark-safe executor (ordered-bounded-mapv) with explicit
+   cancellation/quiescence lifecycle.
 
    ### Inspectability
 
@@ -481,9 +486,15 @@
                                                  :result result
                                                  :error? (= :error (:outcome result))}))
                          result))))
-        results   (if parallel?
-                    (vec (pmap do-run entries))
-                    (mapv do-run entries))
+         results   (if parallel?
+                     (let [outer-parallelism (or (-> execution/*context* :execution/outer-parallelism)
+                                                 (.availableProcessors (Runtime/getRuntime)))]
+                       (parallel/ordered-bounded-mapv
+                        outer-parallelism
+                        (or (-> execution/*context* :execution/quiescence-timeout-seconds)
+                            (quiesce/config-default-timeout-seconds))
+                        do-run entries))
+                     (mapv do-run entries))
         elapsed   (- (System/currentTimeMillis) t0)]
     (summary/build-summary results {:elapsed-ms elapsed
                                     :suite-id   (:suite-id opts)})))

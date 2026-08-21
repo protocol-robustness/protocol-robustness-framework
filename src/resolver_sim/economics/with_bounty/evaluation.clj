@@ -23,6 +23,8 @@
 
 ;; ── defaults ──────────────────────────────────────────────────────────────
 
+(def ^:const parameter-context-version 1)
+
 (defn- default-extension-map
   []
   (ext-reg/register-package (ext-reg/empty-extension-map)
@@ -99,7 +101,7 @@
    :owner/address (canonical-address recipient)
    :parameter/context {:parameter-context/type :protocol-parameters
                        :parameter-context/root parameter-context-root
-                       :parameter-context/version 1}
+                        :parameter-context/version parameter-context-version}
    :parameter/address {:parameter/path (:parameter/address funding)}})
 
 (defn- funding-map

@@ -140,10 +140,10 @@
 
 ;; ── envelope shape (shareable, content-addressed) ────────────────────────
 
-(def envelope-shape-domain-tag
+(def ^:const envelope-shape-domain-tag
   "EXTENSION_ENVELOPE_SHAPE_V1")
 
-(def shape-schema-version
+(def ^:const shape-schema-version
   1)
 
 (defn shape-of

@@ -10,9 +10,9 @@
    contract, and compiler identity/version."
   (:require [resolver-sim.hash.canonical :as hc]))
 
-(def plan-schema-version 1)
+(def ^:const plan-schema-version 1)
 
-(def plan-domain-tag
+(def ^:const plan-domain-tag
   "COMPOSITION_PLAN_V1")
 
 (defn plan-projection

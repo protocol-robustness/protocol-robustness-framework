@@ -686,10 +686,10 @@
     {:packs (count (:packs registry))
      :benchmarks (count @manifests)
      :hash-intent-count (count canonical/hash-intents)
-     :content-root (hash-ref/sha256-ref (canonical/domain-hash "corpus-registry" registry))
-     :reference-closure-root (hash-ref/sha256-ref
-                              (canonical/domain-hash "reference-closure"
-                                                     (scenario-registry/validate-file-backed-suite-registry!)))
+      :content-root (hash-ref/sha256-ref (canonical/domain-hash :corpus-registry registry))
+      :reference-closure-root (hash-ref/sha256-ref
+                               (canonical/domain-hash :reference-closure
+                                                      (scenario-registry/validate-file-backed-suite-registry!)))
      :verification-profile "corpus-verification.v2"
      :schema-version "benchmark-corpus.v1"
      :status :passed}))
@@ -1016,7 +1016,7 @@
                   :corpus/verification-checks (into (sorted-map) check-statuses)
                   :corpus/status (if all-pass :verified :failed)
                   :corpus/schema-version "benchmark-corpus.v1"}
-        verification-hash (canonical/domain-hash "verification-profile"
+         verification-hash (canonical/domain-hash :verification-profile
                                                  (semantic-projection-of
                                                   (into (sorted-map) check-statuses)))]
     {:check :corpus

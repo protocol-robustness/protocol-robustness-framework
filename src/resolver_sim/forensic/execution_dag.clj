@@ -62,6 +62,8 @@
         updated (assoc node :node/invariant-checks (conj existing check))]
     (assoc updated :node/hash (node-hash updated))))
 
+(def ^:const dag-schema-version "execution-dag.v1")
+
 (defn build-dag
   "Assemble a full DAG from plan nodes and edges. The optional identity map is
    additive within execution-dag.v1 for legacy read compatibility; finalized
@@ -69,7 +71,7 @@
   ([nodes edges] (build-dag nodes edges nil))
   ([nodes edges {:keys [run-id scenario-id execution-id]}]
    (let [root-str (pr-str (sort-by :node/id nodes) (sort-by :edge/from edges))]
-     (cond-> {:dag/schema-version "execution-dag.v1"
+     (cond-> {:dag/schema-version dag-schema-version
               :dag/generated-at (str (Instant/now))
               :dag/nodes nodes
               :dag/edges edges
@@ -120,7 +122,7 @@
                                  [[:run/id (:run/id dag)]
                                   [:scenario/id (:scenario/id dag)]
                                   [:execution/id (:execution/id dag)]]))
-                       (when-not (= "execution-dag.v1" (or (:dag/schema-version dag) (:schema-version dag))) [{:code :execution-dag/unsupported-schema}])
+                        (when-not (= dag-schema-version (or (:dag/schema-version dag) (:schema-version dag))) [{:code :execution-dag/unsupported-schema}])
                        (when-not (vector? nodes) [{:code :execution-dag/nodes-not-vector}])
                        (when-not (= (count ids) (count id-set)) [{:code :execution-dag/duplicate-node-id}])
                        (when (some nil? ids) [{:code :execution-dag/missing-node-id}])

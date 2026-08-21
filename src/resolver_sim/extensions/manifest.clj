@@ -23,10 +23,10 @@
 
 ;; ── domain tags (string form, per canonical-hash string convention) ─────
 
-(def capability-descriptor-domain-tag
+(def ^:const capability-descriptor-domain-tag
   "EXTENSION_CAPABILITY_DESCRIPTOR_V1")
 
-(def package-manifest-domain-tag
+(def ^:const package-manifest-domain-tag
   "EXTENSION_PACKAGE_MANIFEST_V1")
 
 ;; ── capability identity ───────────────────────────────────────────────────

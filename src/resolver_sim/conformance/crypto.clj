@@ -23,7 +23,7 @@
   (:import [java.security KeyPairGenerator Signature]
            [java.security.spec X509EncodedKeySpec]))
 
-(def signature-verification-schema-version "conformance.signature-verification/v1")
+(def ^:const signature-verification-schema-version "conformance.signature-verification/v1")
 
 (defn- sha256-hex
   "Lowercase sha256 hex of bytes (for value/preimage roots)."
@@ -190,7 +190,7 @@
                  :verification/implementation-root (:verification/implementation-root m)
                  :verification/status (if pass? :pass :fail)
                  :receipt/root nil}]
-    (assoc receipt :receipt/root (hc/domain-hash "conformance.signature-verification.v1"
+     (assoc receipt :receipt/root (hc/domain-hash :conformance-signature-verification-v1
                                                  (dissoc receipt :receipt/root)))))
 
 (defn verification-passed?

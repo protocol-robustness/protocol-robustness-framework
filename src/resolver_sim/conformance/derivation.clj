@@ -18,7 +18,7 @@
    fixtures."
   (:require [resolver-sim.hash.canonical :as hc]))
 
-(def derivation-schema-version "conformance-derivation.v1")
+(def ^:const derivation-schema-version "conformance-derivation.v1")
 
 (defn derivation-receipt
   "Build a derivation-boundary receipt.
@@ -45,7 +45,7 @@
 (defn- chain-hash
   "Deterministic content hash of a chain, over the stable receipt projection."
   [receipts]
-  (hc/domain-hash "conformance.derivation-chain.v1"
+  (hc/domain-hash :conformance-derivation-chain-v1
                   (mapv #(select-keys %
                                       [:boundary/id :input/root :output/root
                                        :transformation/id :status])

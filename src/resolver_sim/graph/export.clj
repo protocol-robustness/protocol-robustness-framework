@@ -57,7 +57,7 @@
   "Deterministic SHA-256 of the graph's nodes and edges.
    Uses canonical encoding for cross-platform stability."
   [nodes edges]
-  (hc/domain-hash "EVIDENCE_GRAPH_V1"
+  (hc/domain-hash :evidence-graph-v1
                   {:nodes (vec (sort-by :node/id (map #(select-keys % [:node/id :node/label]) nodes)))
                    :edges (vec (sort-by (juxt :edge/from :edge/to) edges))}))
 

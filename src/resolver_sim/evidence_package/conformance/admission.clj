@@ -16,10 +16,13 @@
             [resolver-sim.conformance.validation :as validation]
             [resolver-sim.conformance.profile :as profile]))
 
+(def ^:const validator-version 1)
+(def ^:const evidence-package-contract :evidence-package.v1)
+
 (def implementation-root
-  (hc/domain-hash "conformance.validator-implementation.v1"
-                  {:validator/id :artifact-envelope-schema :kind :schema
-                   :version 1 :input-contract :evidence-package.v1}))
+  (hc/domain-hash :conformance-validator-implementation-v1
+                   {:validator/id :artifact-envelope-schema :kind :schema
+                    :version validator-version :input-contract evidence-package-contract}))
 
 (defn artifact-envelope-schema
   "Structural validation of an evidence package subject."
@@ -71,14 +74,14 @@
                        (if valid?
                          (validation/pass-result
                           {:validator/id validator-id :validator/kind kind
-                           :validator/input-contract :evidence-package.v1
-                           :validator/version 1
+                           :validator/input-contract evidence-package-contract
+                           :validator/version validator-version
                            :validator/implementation-root implementation-root}
                           subject)
                          (validation/reject-result
                           {:validator/id validator-id :validator/kind kind
-                           :validator/input-contract :evidence-package.v1
-                           :validator/version 1
+                           :validator/input-contract evidence-package-contract
+                           :validator/version validator-version
                            :validator/implementation-root implementation-root}
                           subject
                           issues))))}))
@@ -231,5 +234,5 @@
                  :evaluator/implementation-root (:evaluator/implementation-root m)
                  :receipt/root nil}]
     (assoc receipt :receipt/root
-           (hc/domain-hash "evidence-package-admission.v1"
+            (hc/domain-hash :evidence-package-admission-v1
                            (dissoc receipt :receipt/root)))))

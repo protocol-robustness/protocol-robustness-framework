@@ -14,9 +14,9 @@
   (:require [resolver-sim.extensions.manifest :as em]
             [resolver-sim.hash.canonical :as hc]))
 
-(def resolution-version 1)
+(def ^:const resolution-version 1)
 
-(def resolution-domain-tag
+(def ^:const resolution-domain-tag
   "EXTENSION_RESOLUTION_V1")
 
 ;; ── helpers ───────────────────────────────────────────────────────────────

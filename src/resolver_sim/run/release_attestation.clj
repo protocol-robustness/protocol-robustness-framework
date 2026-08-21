@@ -6,13 +6,13 @@
   (:import [java.security KeyFactory Signature]
            [java.security.spec X509EncodedKeySpec]))
 
-(def payload-schema "prf-release-attestation-payload.v1")
-(def signature-schema "prf-release-signature.v1")
-(def verification-schema "prf-release-verification.v1")
+(def ^:const payload-schema "prf-release-attestation-payload.v1")
+(def ^:const signature-schema "prf-release-signature.v1")
+(def ^:const verification-schema "prf-release-verification.v1")
 
 (defn payload-hash [payload]
   (hash-ref/sha256-ref
-   (canonical/domain-hash "PRF_RELEASE_ATTESTATION_PAYLOAD_V1"
+    (canonical/domain-hash :prf-release-attestation-payload-v1
                           (dissoc payload :payload/hash))))
 
 (defn build-payload [{:keys [distribution implementation release]}]

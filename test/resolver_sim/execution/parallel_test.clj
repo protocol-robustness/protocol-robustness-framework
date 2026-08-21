@@ -251,7 +251,7 @@
                       (catch Exception e e))]
           (is (some? error) "a quiescence failure was thrown")
           (is (quiesce/quiescence-failed? error)
-              "the error is a recognized quiescence-failed exception")))))))
+              "the error is a recognized quiescence-failed exception"))))))
 
 ;; ── Successful quiescence: no ghost threads ──────────────────────────────────
 
@@ -322,7 +322,7 @@
       (is (= 4 (deref parallelism-observed 5000 nil))
           "payoffs/*pro-rata-parallelism* is visible (conveyed by pmap bound-fn)")
       (is (= 2 (deref threshold-observed 5000 nil))
-          "payoffs/*pro-rata-parallel-threshold* is visible (conveyed by pmap bound-fn"))))))
+          "payoffs/*pro-rata-parallel-threshold* is visible (conveyed by pmap bound-fn"))))
 
 (deftest contextual-pmap-does-not-govern-executor-by-budget
   (testing "contextual-pmap workers see the budget binding but are NOT bounded by it"

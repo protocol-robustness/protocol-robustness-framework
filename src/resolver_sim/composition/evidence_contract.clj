@@ -22,7 +22,7 @@
    identically."
   (:require [resolver-sim.hash.reference :as hash-ref]))
 
-(def schema-version
+(def ^:const schema-version
   "evidence-contract.registry.v1")
 
 (def supported-kind

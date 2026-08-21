@@ -22,7 +22,7 @@
    hidden inside individual obligation definitions."
   (:require [resolver-sim.hash.reference :as hash-ref]))
 
-(def schema-version
+(def ^:const schema-version
   "obligation.v1")
 
 (def supported-kinds

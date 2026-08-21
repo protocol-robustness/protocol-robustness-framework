@@ -44,4 +44,4 @@
      :reconciliation nil}))
 
 (defn final-ref [artifact]
-  (hash-ref/sha256-ref (canonical/domain-hash "BENCHMARK_CONSERVATION_V1" artifact)))
+  (hash-ref/sha256-ref (canonical/domain-hash :benchmark-conservation-v1 artifact)))

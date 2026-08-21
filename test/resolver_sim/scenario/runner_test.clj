@@ -1,20 +1,20 @@
 (ns resolver-sim.scenario.runner-test
   (:require [clojure.data.json :as json]
-            [clojure.java.io :as io]
-            [clojure.string :as str]
-            [clojure.test :refer [deftest is testing use-fixtures]]
-            [resolver-sim.evidence.chain :as chain]
-            [resolver-sim.evidence.node :as ev-node]
-            [resolver-sim.forensic.provenance :as prov]
-            [resolver-sim.io.fixtures :as io-fixtures]
-            [resolver-sim.io.scenario-runner :as scenario-runner]
-            [resolver-sim.io.scenarios :as sc]
-            [resolver-sim.protocols.sew :as sew]
-            [resolver-sim.scenario.normalize :as norm]
-            [resolver-sim.scenario.report :as report]
-            [resolver-sim.scenario.runner :as runner]
-            [resolver-sim.scenario.suites :as suites]
-            [resolver-sim.sim.fixtures :as fixtures]))
+             [clojure.java.io :as io]
+             [clojure.string :as str]
+             [clojure.test :refer [deftest is testing use-fixtures]]
+             [resolver-sim.evidence.chain :as chain]
+             [resolver-sim.evidence.node :as ev-node]
+             [resolver-sim.forensic.provenance :as prov]
+             [resolver-sim.io.fixtures :as io-fixtures]
+             [resolver-sim.io.scenario-runner :as scenario-runner]
+             [resolver-sim.io.scenarios :as sc]
+             [resolver-sim.protocols.sew :as sew]
+             [resolver-sim.scenario.normalize :as norm]
+             [resolver-sim.scenario.report :as report]
+             [resolver-sim.scenario.runner :as runner]
+             [resolver-sim.scenario.suites :as suites]
+             [resolver-sim.sim.fixtures :as fixtures]))
 
 (use-fixtures :each
   (fn [test-fn]
@@ -449,3 +449,20 @@
         (is (= (set (range 1 (inc n))) (set (map :current complete)))
             "logged completion currents match the committed range")
         (is (= 2 (count erred)) "error events are diagnostics, not progress mutations")))))
+
+(deftest run-collection-parallel-quiesces-executor-after-success
+  (testing "parallel run-collection shuts down its owned executor before returning"
+    (let [worker-threads (atom #{})
+          replay-fn (fn [s]
+                      (swap! worker-threads conj (Thread/currentThread))
+                      (Thread/sleep 5)
+                      {:scenario-id (:scenario-id s) :outcome :pass :metrics {}})
+          mk (fn [id name] {:name name :scenario {:scenario-id id}})
+          entries [(mk :a "a")
+                   (mk :b "b")
+                   (mk :c "c")]]
+      (runner/run-collection {:entries entries :replay-fn replay-fn}
+                             {:parallel? true})
+      (is (seq @worker-threads) "parallel workers were spawned")
+      (is (every? (fn [^Thread t] (not (.isAlive t))) @worker-threads)
+          "all nested workers terminated — executor was quiesced before return"))))

@@ -9,11 +9,11 @@
             [resolver-sim.scenario.suites :as suites]
             [resolver-sim.hash.reference :as hash-ref]))
 
-(def plan-schema-version "suite-execution-plan.v1")
+(def ^:const plan-schema-version "suite-execution-plan.v1")
 
 (defn suite-definition-hash [suite-key suite-definition]
   (hash-ref/sha256-ref
-   (canonical/domain-hash "SUITE_DEFINITION_V1"
+    (canonical/domain-hash :suite-definition-v1
                           {:suite/id suite-key
                            :suite/definition suite-definition})))
 

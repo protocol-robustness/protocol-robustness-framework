@@ -48,6 +48,17 @@
    Defaults to true — corrupted registries are a hard-fail."
   true)
 
+;; ── Registry version (protocol-identity invariant) ─────────────────────────
+;; Committed into every registry hash via :registry-version. All registries
+;; in this namespace use the same value: changing this constant invalidates
+;; all registry roots.
+(def ^:const registry-version 1)
+
+;; ── Entry version (protocol-identity invariant) ─────────────────────────
+;; All registry entries carry :version entry-version; committed into every
+;; registry hash. Changing this constant invalidates all registry roots.
+(def ^:const entry-version 1)
+
 (def ^:dynamic *entry-validation-mode*
   "Controls execution-entry validation during registry checks.
    :startup-safe keeps passive startup load behavior.
@@ -148,7 +159,7 @@
          ;; These are ready for any protocol to reference.
          ;; ══════════════════════════════════════════════════════════════════
          {:id :identity/intent-dsl
-          :version 1
+            :version entry-version
           :intent/type :identity/hash-projection
           :intent/purpose :intent-dsl-identity
           :scope {:protocols #{:framework}
@@ -162,7 +173,7 @@
                               :require-namespaced-keys? true}
           :description "Canonical identity for INTENT_DSL_SPEC_V1 intent objects."}
          {:id :identity/intent-registry-entry
-          :version 1
+            :version entry-version
           :intent/type :identity/hash-projection
           :intent/purpose :intent-registry-entry-identity
           :scope {:protocols #{:framework}
@@ -174,7 +185,7 @@
                    :hash/intent :intent-registry-entry}
           :description "Canonical identity for one registered intent entry."}
          {:id :identity/projection-definition
-          :version 1
+            :version entry-version
           :intent/type :identity/hash-projection
           :intent/purpose :projection-definition-identity
           :scope {:protocols #{:framework}
@@ -186,7 +197,7 @@
                    :hash/intent :projection-definition}
           :description "Canonical identity for one projection definition."}
          {:id :identity/projection-artifact
-          :version 1
+            :version entry-version
           :intent/type :identity/hash-projection
           :intent/purpose :projection-artifact-identity
           :scope {:protocols #{:framework}
@@ -198,7 +209,7 @@
                    :hash/intent :projection-artifact}
           :description "Canonical identity for one projection artifact."}
          {:id :identity/claim-definition
-          :version 1
+            :version entry-version
           :intent/type :identity/hash-projection
           :intent/purpose :claim-definition-identity
           :scope {:protocols #{:framework}
@@ -210,7 +221,7 @@
                    :hash/intent :claim-definition}
           :description "Canonical identity for one claim definition."}
          {:id :identity/attestor
-          :version 1
+            :version entry-version
           :intent/type :identity/hash-projection
           :intent/purpose :attestor-identity
           :scope {:protocols #{:framework}
@@ -222,7 +233,7 @@
                    :hash/intent :attestor}
           :description "Canonical identity for one attestor registry entry."}
          {:id :identity/scenario
-          :version 1
+            :version entry-version
           :intent/type :identity/hash-projection
           :intent/purpose :scenario-identity
           :scope {:protocols #{:framework}
@@ -238,7 +249,7 @@
           ;; Each entry is scoped to a specific protocol.
           ;; ──────────────────────────────────────────────────────────────────
          {:id :pro-rata/slash-obligation-allocation
-          :version 1
+            :version entry-version
           :intent/type :pro-rata/allocation
           :intent/purpose :slash-obligation-allocation
           :scope {:protocols #{:sew}
@@ -259,7 +270,7 @@
 (def intent-registry
   (attach-registry-hash
    :intent-registry
-   {:registry-version 1
+    {:registry-version registry-version
     :intents intent-definitions}))
 
 (def projection-definitions
@@ -270,7 +281,7 @@
          ;; These are ready for any protocol to reference.
          ;; ══════════════════════════════════════════════════════════════════
          {:id :projection/world-structure
-          :version 1
+            :version entry-version
           :projection-type :world-structure
           :intent-types #{:identity/hash-projection}
           :intent-purposes #{:intent-dsl-identity
@@ -285,7 +296,7 @@
                    {:claim-id :projection-canonical-safe
                     :required? true}]}
          {:id :projection/projection-definition-registry
-          :version 1
+            :version entry-version
           :projection-type :registry-view
           :intent-types #{:identity/hash-projection}
           :intent-purposes #{:projection-definition-identity}
@@ -299,7 +310,7 @@
                    {:claim-id :projection-canonical-safe
                     :required? true}]}
          {:id :projection/projection-artifact
-          :version 1
+            :version entry-version
           :projection-type :projection-artifact
           :intent-types #{:identity/hash-projection}
           :intent-purposes #{:projection-artifact-identity}
@@ -313,7 +324,7 @@
                    {:claim-id :projection-canonical-safe
                     :required? true}]}
          {:id :projection/scenario-content
-          :version 1
+            :version entry-version
           :projection-type :scenario-content
           :intent-types #{:identity/hash-projection}
           :intent-purposes #{:scenario-content-identity}
@@ -329,7 +340,7 @@
                     :required? true}]}
            ;; ──────────────────────────────────────────────────────────────────
          {:id :projection/scenario
-          :version 1
+            :version entry-version
           :projection-type :scenario-view
           :intent-types #{:identity/hash-projection}
           :intent-purposes #{:scenario-identity}
@@ -347,7 +358,7 @@
           ;; Each entry is scoped to a specific protocol.
           ;; ──────────────────────────────────────────────────────────────────
          {:id :projection/pro-rata-slash-obligation
-          :version 1
+            :version entry-version
           :projection-type :pro-rata-allocation
           :intent-types #{:pro-rata/allocation}
           :intent-purposes #{:slash-obligation-allocation}
@@ -393,7 +404,7 @@
 (def projection-definition-registry
   (attach-registry-hash
    :projection-definition-registry
-   {:registry-version 1
+    {:registry-version registry-version
     :projection-definitions projection-definitions}))
 
 (def claim-definitions
@@ -403,7 +414,7 @@
   (enrich-claim-definitions
    (mapv (partial attach-hash :claim-definition :canonical-hash)
          [{:id :projection-deterministic
-           :version 1
+           :version entry-version
            :category :invariant
            :description "Projection output is deterministic for the same source input and definition."
            :inputs [:projection-definition :source-input :projection-artifact]
@@ -411,7 +422,7 @@
                         :expected :same-projection-hash}
            :outputs [:passed? :expected-hash :actual-hash]}
           {:id :projection-canonical-safe
-           :version 1
+           :version entry-version
            :category :safety
            :description "Projection output contains only canonical hash-safe values."
            :inputs [:projection-artifact]
@@ -419,7 +430,7 @@
                         :validator :resolver-sim.hash.canonical/validate-canonical-value!}
            :outputs [:passed? :violations]}
           {:id :registry-entry-hash-valid
-           :version 1
+           :version entry-version
            :category :audit
            :description "Registry entry self hash matches its registered canonical projection."
            :inputs [:registry-entry]
@@ -427,7 +438,7 @@
                         :expected :entry-self-hash}
            :outputs [:passed? :expected-hash :actual-hash]}
           {:id :pro-rata/allocation-complete
-           :version 1
+           :version entry-version
            :category :invariant
            :description "Every eligible participant has a corresponding allocation row."
            :inputs [:projection-artifact :allocation-result]
@@ -435,7 +446,7 @@
                         :expected :eligible-participants-covered}
            :outputs [:passed? :missing-participants :extra-participants]}
           {:id :pro-rata/non-negative
-           :version 1
+           :version entry-version
            :category :invariant
            :description "Allocation, unmet, weight, and cap values are never negative."
            :inputs [:allocation-result]
@@ -443,7 +454,7 @@
                         :predicate :all-values-non-negative}
            :outputs [:passed? :violations]}
           {:id :pro-rata/conservation
-           :version 1
+           :version entry-version
            :category :invariant
            :description "Requested amount equals allocated plus unmet plus remainder."
            :inputs [:allocation-result]
@@ -452,7 +463,7 @@
                         :right [:total-allocated :total-unmet :remainder]}
            :outputs [:passed? :difference]}
           {:id :pro-rata/quota-bounded
-           :version 1
+           :version entry-version
            :category :invariant
            :description "Rounding behavior is bounded by the registered allocation policy."
            :inputs [:projection-artifact :allocation-result]
@@ -460,7 +471,7 @@
                         :policy :floor-with-largest-remainder}
            :outputs [:passed? :violations]}
           {:id :pro-rata/permutation-invariant
-           :version 1
+           :version entry-version
            :category :invariant
            :description "Allocation result is invariant under permutation of input items (multi-set equality)."
            :inputs [:allocation-input :allocation-result]
@@ -468,7 +479,7 @@
                         :policy :multi-set-equality}
            :outputs [:passed? :violations]}
           {:id :pro-rata-fairness
-           :version 1
+           :version entry-version
            :category :invariant
            :description "Exact pro-rata allocations require cross-product equality. Quantized largest-remainder allocations instead require bounded quota error and the declared deterministic remainder/tie-break ordering."
            :inputs [:projection-artifact :allocation-result]
@@ -476,7 +487,7 @@
                         :policy :exact-or-quantized-pro-rata-fairness}
            :outputs [:holds? :violations]}
           {:id :pro-rata/partial-fill-fairness
-           :version 1
+           :version entry-version
            :category :invariant
            :description "Pro-rata fairness over partial-fill decisions: exact allocations use cross-product equality; largest-remainder allocations use bounded exact quota error and deterministic remainder ordering."
            :inputs [:evidence-nodes]
@@ -484,21 +495,21 @@
                         :policy :exact-or-quantized-pro-rata-fairness}
            :outputs [:holds? :violations]}
           {:id :pro-rata/cap-respecting
-           :version 1
+           :version entry-version
            :category :invariant
            :description "Every persisted allocation row is bounded by its effective cap and requested amount."
            :inputs [:pro-rata-allocation-result]
            :evaluation {:type :policy-check :policy :pro-rata/cap-respecting}
            :outputs [:holds? :violations]}
           {:id :pro-rata/canonical-remainder-assignment
-           :version 1
+           :version entry-version
            :category :invariant
            :description "Largest-remainder awards follow the persisted canonical rank witness."
            :inputs [:pro-rata-allocation-result]
            :evaluation {:type :policy-check :policy :pro-rata/canonical-remainder-assignment}
            :outputs [:holds? :result :reason :violations]}
           {:id :pro-rata/projection-diff
-           :version 1
+           :version entry-version
            :category :safety
            :description "Every value that required flattening for canonical hashing is explicitly recorded in :projection/flattened-fields with its path, original type, value, and applied contract."
            :inputs [:projection-artifact]
@@ -506,7 +517,7 @@
                         :required-keys [:path :type :value :contract]}
            :outputs [:holds? :violations]}
           {:id :pro-rata/non-negative-allocation
-           :version 1
+           :version entry-version
            :category :invariant
            :description "Allocation, unmet, paid, owed, basis, and cap values in the allocation result are never negative."
            :inputs [:allocation-result]
@@ -514,7 +525,7 @@
                         :entry 'resolver-sim.pro_rata.claims/evaluate-claim}
            :outputs [:holds? :violations]}
           {:id :pro-rata/allocation-not-above-request
-           :version 1
+           :version entry-version
            :category :invariant
            :description "No allocation exceeds its corresponding requested amount (paid ≤ owed)."
            :inputs [:allocation-result]
@@ -522,7 +533,7 @@
                         :entry 'resolver-sim.pro_rata.claims/evaluate-claim}
            :outputs [:holds? :violations]}
           {:id :pro-rata/integer-domain
-           :version 1
+           :version entry-version
            :category :safety
            :description "Numeric allocation fields are integers (no floating-point or fractional values in standard integer fields: :owed/:paid/:unmet/:cap/:basis-amount)."
            :inputs [:allocation-result]
@@ -530,7 +541,7 @@
                         :entry 'resolver-sim.pro_rata.claims/evaluate-claim}
            :outputs [:holds? :violations]}
           {:id :pro-rata/residual-accounting
-           :version 1
+           :version entry-version
            :category :invariant
            :description "Allocated total plus per-row unmet amounts plus unallocated residual equals the available (slash-obligation) amount."
            :inputs [:allocation-result]
@@ -538,7 +549,7 @@
                         :entry 'resolver-sim.pro_rata.claims/evaluate-claim}
            :outputs [:holds? :violations]}
           {:id :pro-rata/full-fill-consistency
-           :version 1
+           :version entry-version
            :category :invariant
            :description "If any allocation is partially filled (allocated < owed), then unmet must be positive for that allocation, and the aggregate unmet must equal the sum of per-row unmet amounts."
            :inputs [:allocation-result]
@@ -560,14 +571,14 @@
           ])))
 
 (def claim-definition-registry
-  {:registry-version 1
+   {:registry-version registry-version
    :claim-definitions claim-definitions})
 
 (def attestors
   "Passive ATTESTOR_REGISTRY_SPEC_V1 entries."
   (mapv (partial attach-hash :attestor :attestor-hash)
         [{:id :local-development
-          :version 1
+            :version entry-version
           :type :validator
           :display-name "Local development validator"
           :status :active
@@ -577,7 +588,7 @@
           :key-history []
           :metadata {:intended-use #{:tests :local-replay}}}
          {:id :ci-validation
-          :version 1
+            :version entry-version
           :type :ci-runner
           :display-name "CI validation runner"
           :status :active
@@ -594,7 +605,7 @@
           :metadata {:intended-use #{:validation :attestation}}}]))
 
 (def attestor-registry
-  {:registry-version 1
+   {:registry-version registry-version
    :attestors attestors})
 
 ;; ── Execution Registry ─────────────────────────────────────────────────
@@ -602,7 +613,7 @@
 (def execution-registry-definitions
   "EXECUTION_REGISTRY_SPEC_V1 entries: registered execution modes."
   [{:id :execution/simulation
-    :version 1
+          :version entry-version
     :kind :simulation
     :runner :phase-runner
     :entry 'resolver-sim.core.phases/run-simulation
@@ -611,7 +622,7 @@
     :description "Full Monte Carlo simulation from protocol params."
     :claims #{:deterministic-replay :evidence-completeness}}
    {:id :execution/replay
-    :version 1
+          :version entry-version
     :kind :replay
     :runner :scenario-runner
     :entry 'resolver-sim.io.scenario-runner/run-and-report
@@ -620,7 +631,7 @@
     :description "Deterministic replay from recorded trace."
     :claims #{:deterministic-replay :trace-fidelity}}
    {:id :execution/server
-    :version 1
+          :version entry-version
     :kind :service
     :runner :grpc-server
     :entry 'resolver-sim.server.grpc/start!
@@ -629,7 +640,7 @@
     :description "Long-running gRPC server for interactive simulation."
     :claims #{:evidence-completeness}}
    {:id :execution/batch
-    :version 1
+          :version entry-version
     :kind :batch
     :runner :phase-runner
     :entry 'resolver-sim.core.phases/run-sweep
@@ -639,7 +650,7 @@
     :description "Parameter sweep or batch execution over multiple trials."
     :claims #{:deterministic-replay}}
    {:id :execution/diff
-    :version 1
+          :version entry-version
     :kind :differential
     :runner :differential-runner
     :entry 'resolver-sim.io.diff-runner/run-diff-traces!
@@ -649,7 +660,7 @@
     :description "Trace diff between two simulation runs."
     :claims #{:trace-fidelity}}
    {:id :execution/validation
-    :version 1
+          :version entry-version
     :kind :validation
     :runner :registry-validator
     :entry 'resolver-sim.definitions.passive-registries/validate-all-registries!
@@ -658,7 +669,7 @@
     :description "Static validation of registries, fixtures, or scenarios."
     :claims #{}}
    {:id :execution/attestation
-    :version 1
+          :version entry-version
     :kind :attestation
     :runner :attestation-emitter
     :entry 'resolver-sim.evidence.node/build-execution-node
@@ -667,7 +678,7 @@
     :description "Attestation creation evidence node — records an attestation event as a DAG-verifiable evidence node."
     :claims #{}}
    {:id :execution/pro-rata-allocation
-    :version 1
+          :version entry-version
     :kind :allocation
     :runner :protocol-layer
     :entry 'resolver-sim.evidence.node/build-execution-node
@@ -676,7 +687,7 @@
     :description "Pro-rata allocation execution evidence node — records the full pro-rata computation chain (projection, allocation, claims, artifact) as a DAG-verifiable evidence node."
     :claims #{:pro-rata/allocation-complete :pro-rata/non-negative :pro-rata/conservation :pro-rata/quota-bounded :pro-rata/permutation-invariant}}
    {:id :execution/yield-accounting
-    :version 1
+          :version entry-version
     :kind :accounting
     :runner :protocol-layer
     :entry 'resolver-sim.evidence.node/build-execution-node
@@ -685,7 +696,7 @@
     :description "Per-event yield accounting delta emitted during deterministic replay."
     :claims #{:conservation :trace-fidelity}}
    {:id :evidence/commitment-root
-    :version 1
+          :version entry-version
     :kind :commitment-root
     :runner :scenario-runner
     :entry 'resolver-sim.io.scenario-runner/run-and-report
@@ -695,7 +706,7 @@
     :claims #{}}])
 
 (def execution-registry
-  {:registry-version 1
+   {:registry-version registry-version
    :executions execution-registry-definitions})
 
 ;; ── Evidence Policy Registry ───────────────────────────────────────────
@@ -703,24 +714,24 @@
 (def evidence-policy-registry-definitions
   "EVIDENCE_POLICY_REGISTRY_SPEC_V1 entries: registered evidence policies."
   [{:id :evidence-policy/in-band
-    :version 1
+          :version entry-version
     :evidence-policy/type :capture
     :evidence-policy/source :action
     :description "Evidence captured inline during action execution."
     :constraints #{:deterministic :replayable}}
    {:id :evidence-policy/deterministic
-    :version 1
+          :version entry-version
     :evidence-policy/type :capture
     :evidence-policy/source :state
     :description "Evidence computable deterministically from world state alone."
     :constraints #{:state-derived :recomputable}}   {:id :evidence-policy/attested
-                                                     :version 1
+                                                     :version entry-version
                                                      :evidence-policy/type :attestation
                                                      :evidence-policy/source :attestor
                                                      :description "Evidence requiring explicit attestation for verification."
                                                      :constraints #{:attestor-signed}}
    {:id :evidence-policy/computed
-    :version 1
+          :version entry-version
     :evidence-policy/type :computed
     :evidence-policy/source :derived
     :description "Evidence derived from existing evidence via transformation."
@@ -730,7 +741,7 @@
                      :exclude-classes #{:environment :debug}}}])
 
 (def evidence-policy-registry
-  {:registry-version 1
+   {:registry-version registry-version
    :evidence-policies evidence-policy-registry-definitions})
 
 ;; ── Creation Provenance Registry ───────────────────────────────────────────
@@ -739,16 +750,16 @@
   "CREATION_PROVENANCE_REGISTRY_SPEC_V1 entries: registered creation provenance
    values for evidence node artifacts."
   [{:id :creation-provenance/in-band
-    :version 1
+          :version entry-version
     :creation-provenance/value :in-band
     :description "Artifact created within authorized execution lifecycle."}
    {:id :creation-provenance/out-of-band
-    :version 1
+          :version entry-version
     :creation-provenance/value :out-of-band
     :description "Artifact created outside authorized execution lifecycle."}])
 
 (def creation-provenance-registry
-  {:registry-version 1
+   {:registry-version registry-version
    :creation-provenances creation-provenance-registry-definitions})
 
 ;; ── Hash Projection Registry ───────────────────────────────────────────
@@ -770,7 +781,7 @@
         (vals hc/hash-intents)))
 
 (def hash-projection-registry
-  {:registry-version 1
+   {:registry-version registry-version
    :projections hash-projection-registry-definitions})
 
 ;; ── Domain Tag Registry ────────────────────────────────────────────────
@@ -780,7 +791,7 @@
   {:id kw
    :tag/id kw
    :tag/domain-string tag-string
-   :version 1})
+       :version entry-version})
 
 (def domain-tag-registry-definitions
   "DOMAIN_TAG_REGISTRY_SPEC_V1 entries: registered domain tags
@@ -788,7 +799,7 @@
   (mapv domain-tag->registry-entry (seq hc/domain-tags)))
 
 (def domain-tag-registry
-  {:registry-version 1
+   {:registry-version registry-version
    :domain-tags domain-tag-registry-definitions})
 
 (declare validate-projection-definition-registry-entries)
@@ -903,7 +914,7 @@
    These are the per-node runners that execute individual suites, distinct from
    the orchestrator that dispatches suite-level run-and-report."
   [{:id :runner/local-bb
-    :version 1
+          :version entry-version
     :kind :local-bb
     :capabilities #{:clojure :bb :filesystem :evidence-dag}
     :deterministic? true
@@ -911,7 +922,7 @@
     :description "Local Babashka execution runner for canonical suite execution."
     :orchestrator-id :orchestrator/run-and-report-v1}
    {:id :runner/local-clojure
-    :version 1
+          :version entry-version
     :kind :local-clojure
     :capabilities #{:clojure :jvm :filesystem :evidence-dag :full-classpath}
     :deterministic? true
@@ -920,7 +931,7 @@
     :orchestrator-id :orchestrator/run-and-report-v1}])
 
 (def execution-runner-registry
-  {:registry-version 1
+   {:registry-version registry-version
    :runners execution-runner-definitions})
 
 (def known-execution-runner-ids
@@ -932,7 +943,7 @@
    Orchestrators dispatch run-and-report across execution runners.
    The :entry field points to the suite-level dispatch function."
   [{:id :orchestrator/run-and-report-v1
-    :version 1
+          :version entry-version
     :description "Primary orchestrator that dispatches suite-level execution.
                   Used by both :runner/local-bb and :runner/local-clojure."
     :entry 'resolver-sim.io.scenario-runner/run-and-report}])

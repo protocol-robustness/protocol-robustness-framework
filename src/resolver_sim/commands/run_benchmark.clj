@@ -110,7 +110,7 @@
                "hash_algorithm" "sha256"
                "excluded_paths" (vec (sort content-registry-exclusions))
                "artifacts" entries
-               "content_root" (hash-ref/sha256-ref (canonical/domain-hash "BENCHMARK_CONTENT_REGISTRY_V1" projection))}
+                "content_root" (hash-ref/sha256-ref (canonical/domain-hash :benchmark-content-registry-v1 projection))}
         target (io/file root "benchmark/evidence/content-registry.json")]
     (lifecycle/atomic-json! target value)
     value))
@@ -135,7 +135,7 @@
                "conclusion_sha256" (sha-ref conclusion-file)
                "evidence_content_registry_sha256" (sha-ref content-registry)
                "input_set_root" (get assurance-value "input_set_root")
-               "final_ref" (hash-ref/sha256-ref (canonical/domain-hash "BENCHMARK_FINALIZATION_V1" projection))}
+                "final_ref" (hash-ref/sha256-ref (canonical/domain-hash :benchmark-finalization-v1 projection))}
         target (io/file (str root) "benchmark/finalization.json")]
     (lifecycle/atomic-json! target value)
     value))
@@ -520,7 +520,7 @@
 
 (defn- input-set-root [inputs]
   (hash-ref/sha256-ref
-   (canonical/domain-hash "BENCHMARK_INPUT_SET_V1"
+    (canonical/domain-hash :benchmark-input-set-v1
                           (vec (sort-by #(get % "path")
                                         (map #(select-keys % ["logical_id" "source_kind" "path" "sha256"])
                                              inputs))))))

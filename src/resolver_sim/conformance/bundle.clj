@@ -18,7 +18,7 @@
             [resolver-sim.conformance.claim :as claim]
             [resolver-sim.conformance.reconciliation :as rec]))
 
-(def bundle-schema-version "conformance.bundle/v1")
+(def ^:const bundle-schema-version "conformance.bundle/v1")
 
 (def supported-canonicalisation-ids
   #{:prf-canonical-edn.v1 "prf-canonical-edn.v1"
@@ -33,7 +33,7 @@
    fields (e.g. subject-identities, coverage, exclusions), which the strict
    canonical encoder rejects. Projection is deterministic."
   [bundle]
-  (hc/domain-hash "conformance.bundle.v1"
+  (hc/domain-hash :conformance-bundle-v1
                   (hc/project-committable-content
                    (dissoc bundle :bundle/root :bundle/index))))
 

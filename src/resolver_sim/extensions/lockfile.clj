@@ -8,9 +8,9 @@
   (:require [clojure.edn :as edn]
             [resolver-sim.hash.canonical :as hc]))
 
-(def lockfile-version 1)
+(def ^:const lockfile-version 1)
 
-(def lockfile-domain-tag
+(def ^:const lockfile-domain-tag
   "EXTENSION_LOCKFILE_V1")
 
 ;; ── builder ───────────────────────────────────────────────────────────────

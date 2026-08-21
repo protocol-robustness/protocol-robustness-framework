@@ -33,8 +33,9 @@
   :execution/attestation)
 
 (def ^:const default-policy-id
-  "Default evidence policy for attestation DAG nodes."
-  :evidence-policy/computed)
+  "Default evidence policy for attestation DAG nodes — delegates to node/default-policy-id
+  to ensure single-source consistency (the value is committed to evidence-node hashes)."
+  node/default-policy-id)
 
 ;; ── Validation ───────────────────────────────────────────────────────────────
 

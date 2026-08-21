@@ -17,8 +17,9 @@
             [resolver-sim.extensions.manifest :as em]
             [resolver-sim.run.force-authorisation-policy :as fa-policy]))
 
-(def schema-version "semantic-composition.v1")
-(def domain "SEMANTIC_COMPOSITION_V1")
+(def ^:const schema-version "semantic-composition.v1")
+(def ^:const domain :semantic-composition-v1)
+(def ^:const semantic-composition-version 1)
 
 (def projection-fields
   [:semantic-composition/schema
@@ -323,7 +324,7 @@
         cap-keys (set (:semantic-composition/capabilities composition []))]
     {:valid? (and (nil? unknown) (nil? missing)
                   (= schema-version (:semantic-composition/schema composition))
-                  (= 1 (:semantic-composition/version composition))
+                   (= semantic-composition-version (:semantic-composition/version composition))
                   (= "sew-v1" (:semantic-composition/protocol composition))
                   (string? (:semantic-composition/resolution-root composition))
                   (every? #(and (vector? %) (= 2 (count %))) cap-keys)
@@ -354,7 +355,7 @@
    the composition is still structurally valid but is NOT authoritative."
   [composition]
   (let [composition (assoc composition :semantic-composition/schema schema-version
-                           :semantic-composition/version 1)]
+                           :semantic-composition/version semantic-composition-version)]
     (when-not (:valid? (validate composition))
       (throw (ex-info "invalid semantic composition" (validate composition))))
     (assoc composition :semantic-composition/root (root composition))))
@@ -428,7 +429,7 @@
           modules (derive-modules capabilities)
           policy-bindings (derive-policy-binding capabilities force-authorisation-policy)
           composition (-> {:semantic-composition/schema schema-version
-                           :semantic-composition/version 1
+                           :semantic-composition/version semantic-composition-version
                            :semantic-composition/protocol "sew-v1"
                            :semantic-composition/profile profile
                            :semantic-composition/packages packages

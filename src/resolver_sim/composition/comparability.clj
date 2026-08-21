@@ -38,8 +38,8 @@
             [resolver-sim.extensions.manifest :as em]
             [resolver-sim.hash.canonical :as hc]))
 
-(def comparability-domain-tag
-  "COMPARABILITY_SHARED_V1")
+(def ^:const comparability-domain-tag
+  :comparability-shared-v1)
 
 (defn- side-contract
   [{:keys [capability]}]

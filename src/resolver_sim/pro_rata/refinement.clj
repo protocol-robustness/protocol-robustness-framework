@@ -3,14 +3,22 @@
   (:require [resolver-sim.hash.canonical :as hc]
             [resolver-sim.pro-rata.evidence :as evidence]))
 
-(def schema-version "pro-rata-effect-refinement.v1")
-(def sew-held-credit-profile :sew/pro-rata-held-credit.v1)
+(def ^:const schema-version "pro-rata-effect-refinement.v1")
+(def ^:const sew-held-credit-profile :sew/pro-rata-held-credit.v1)
+(def ^:const pro-rata-generic-effect-domain-tag
+  "Domain tag for generic pro-rata effect roots. Not in canonical.clj domain-tags
+  to avoid prefix relationships with other PROTOCOL_EFFECT_* tags."
+  "PRO_RATA_GENERIC_EFFECT_V1")
+(def ^:const protocol-effect-domain-tag
+  "Domain tag for protocol effect roots. Not in canonical.clj domain-tags
+  to avoid prefix relationships with other PROTOCOL_EFFECT_* tags."
+  "PROTOCOL_EFFECT_V1")
 
 (defn- source-root [source]
-  (hc/domain-hash "PRO_RATA_GENERIC_EFFECT_V1" source))
+  (hc/domain-hash pro-rata-generic-effect-domain-tag source))
 
 (defn- effect-root [effect]
-  (hc/domain-hash "PROTOCOL_EFFECT_V1" effect))
+  (hc/domain-hash protocol-effect-domain-tag effect))
 
 (defn sew-add-held-refinement
   "Refines each generic proposed effect exactly once into a Sew add-held effect.

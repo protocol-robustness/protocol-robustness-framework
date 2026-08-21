@@ -29,12 +29,12 @@
             [resolver-sim.signed-external-decision :as sed]
             [resolver-sim.hash.reference :as hash-ref]))
 
-(def link-schema "resubmission-link.artifact.v1")
-(def link-kind :resubmission-link)
-(def link-verifier "resubmission-link.verifier.v1")
-(def link-domain "prf.researcher-resubmission.v1")
-(def family-domain "prf.resubmission-family.v1")
-(def idempotency-domain "prf.resubmission-idempotency.v1")
+(def ^:const link-schema "resubmission-link.artifact.v1")
+(def ^:const link-kind :resubmission-link)
+(def ^:const link-verifier "resubmission-link.verifier.v1")
+(def ^:const link-domain :prf-researcher-resubmission-v1)
+(def ^:const family-domain :prf-resubmission-family-v1)
+(def ^:const idempotency-domain :prf-resubmission-idempotency-v1)
 
 (def kinds #{:exact-retry :corrected-result :submission-repair})
 (def dispositions #{:addressed :disputed :not-applicable})

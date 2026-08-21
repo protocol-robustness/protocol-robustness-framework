@@ -19,7 +19,7 @@
             [resolver-sim.economics.schemas :as schemas]
             [resolver-sim.hash.canonical :as hc]))
 
-(def effect-schema-domain-tag
+(def ^:const effect-schema-domain-tag
   "PRF_EFFECT_CONTRACT_V1")
 
 (def held-action->direction
@@ -388,7 +388,7 @@
 
 ;; ── canonical held-adjustment records ─────────────────────────────────────
 
-(def held-adjustment-domain-tag
+(def ^:const held-adjustment-domain-tag
   "HELD_ADJUSTMENT_V1")
 
 (defn- held-direction

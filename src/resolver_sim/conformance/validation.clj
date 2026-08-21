@@ -36,6 +36,9 @@
 
 (def validation-kinds #{:schema :semantic :capability :integrity})
 
+(def ^:const validation-receipt-schema-version "conformance.validation-receipt/v1")
+(def ^:const default-validator-version 1)
+
 (defn register-validator!
   "Register a validator implementation.  spec keys:
      :validator/id, :validator/kind, :validator/input-contract,
@@ -54,7 +57,7 @@
      {:implementation/id id
       :implementation/kind :validator
       :implementation/domain (or (:validator/domain spec) :generic)
-      :implementation/version (or (:validator/version spec) 1)
+       :implementation/version (or (:validator/version spec) default-validator-version)
       :implementation/source-root (or (:validator/implementation-root spec) "sha256:none")
       :implementation/status :active})
     id))
@@ -84,7 +87,7 @@
 (defn subject-root
   "Content root of a validation subject (deterministic, canonical)."
   [subject]
-  (hc/domain-hash "conformance.validation-subject.v1" subject))
+  (hc/domain-hash :conformance-validation-subject-v1 subject))
 
 (defn validation-issue
   "Build a single validation issue.  code is a keyword; details is an optional map."
@@ -94,7 +97,7 @@
 
 (defn- base-result
   [validator-id kind version implementation-root subject status issues]
-  {:schema-version "conformance.validation-receipt/v1"
+   {:schema-version validation-receipt-schema-version
    :validation/id validator-id
    :validation/kind kind
    :validation/version version

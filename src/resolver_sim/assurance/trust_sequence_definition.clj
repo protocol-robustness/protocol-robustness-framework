@@ -1,7 +1,7 @@
 (ns resolver-sim.assurance.trust-sequence-definition
   (:require [resolver-sim.hash.canonical :as hc]))
 
-(def schema-version 1)
+(def ^:const schema-version 1)
 
 (def ^:private valid-step-types #{:assertion :state-transition})
 
