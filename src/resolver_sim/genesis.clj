@@ -501,7 +501,7 @@
     :configuration/new-root
     :target})
 
-(def chain-configuration-change-identity-domain
+(def ^:const chain-configuration-change-identity-domain
   "Domain tag for the internally-derived configuration-transition change identity."
   :prf-chain-configuration-change-identity-v1)
 

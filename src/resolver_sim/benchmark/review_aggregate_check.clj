@@ -444,13 +444,13 @@
                   (assoc :classifications-fixed-point
                          {:holds? (:holds? fixed-point)
                           :violations (:violations fixed-point)})
-                  ;; The semantic check on the decoded report consumes the actual
-                  ;; fixed-point artifact (decoded-report) — a real data
-                  ;; dependency, not a duplicate check of the stored report.
-                  ;; A decode failure is LOUD: the check is always present and
-                  ;; fails with ::fixed-point-unavailable rather than being
-                  ;; silently omitted (which would be indistinguishable from
-                  ;; "no report supplied").
+                   ;; The semantic check on the decoded report consumes the actual
+                   ;; fixed-point artifact (decoded-report) — a real data
+                   ;; dependency, not a duplicate check of the stored report.
+                   ;; A decode failure is LOUD: the check is always present and
+                   ;; fails with ::fixed-point-unavailable rather than being
+                   ;; silently omitted (which would be indistinguishable from
+                   ;; "no report supplied").
                   report
                   (assoc :three-member-classifications-on-fixed-point
                          (if decoded-report

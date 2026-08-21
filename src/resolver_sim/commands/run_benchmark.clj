@@ -765,25 +765,37 @@
      (or parallelism-opt 1))))
 
 (defn run
-  "Run a benchmark. `--run-root` creates a canonical benchmark-owned bundle;
-   `--output` remains the legacy standalone evidence export destination.
-   The `parallel-benchmark-run` command path is a bounded capability
-   composition that adds local scenario/claimant parallelism to the same
-   canonical run-benchmark algorithm (run-with-root! + run->benchmark), so
-   its canonical output is invariant to parallelism. When --parallelism is
-   omitted the worker pool defaults to a bounded min(scenario-count, ceiling);
-   an explicit --parallelism is honored exactly. Both commands accept an
-   optional `--execution-budget` bounding TOTAL concurrent execution."
-  [{:keys [output key run-root sensitivity-profile claim-registry execution-budget
-           parallel-ceiling quiescence-timeout-seconds] :as opts}]
-  (let [benchmark-id (or (first (:cmd/args opts))
-                         (:benchmark-id opts)
-                         (:benchmark opts))
-        parallel-command? (= "parallel-benchmark-run" (:cmd/path opts))
-        effective-parallelism (effective-parallelism parallel-command?
-                                                     (:parallelism opts)
-                                                     (resolved-scenario-count benchmark-id)
-                                                     (hardening/parallel-ceiling parallel-ceiling))
+   "Run a benchmark. `--run-root` creates a canonical benchmark-owned bundle;
+    `--output` remains the legacy standalone evidence export destination.
+    The `parallel-benchmark-run` command path is a bounded capability
+    composition that adds local scenario/claimant parallelism to the same
+    canonical run-benchmark algorithm (run-with-root! + run->benchmark).  When
+    --parallelism is omitted the worker pool defaults to a bounded
+    min(scenario-count, ceiling); an explicit --parallelism is honored exactly.
+    Both commands accept an optional `--execution-budget` bounding TOTAL
+    concurrent execution.  When omitted on `parallel-benchmark-run`, the
+    execution budget defaults to the effective outer parallelism, so nested
+    claimant work borrows spare capacity rather than multiplying threads
+    unbounded."
+   [{:keys [output key run-root sensitivity-profile claim-registry execution-budget
+            parallel-ceiling quiescence-timeout-seconds] :as opts}]
+   (let [benchmark-id (or (first (:cmd/args opts))
+                          (:benchmark-id opts)
+                          (:benchmark opts))
+         parallel-command? (= "parallel-benchmark-run" (:cmd/path opts))
+         effective-parallelism (effective-parallelism parallel-command?
+                                                      (:parallelism opts)
+                                                      (resolved-scenario-count benchmark-id)
+                                                      (hardening/parallel-ceiling parallel-ceiling))
+         ;; Default execution-budget for parallel-benchmark-run to the effective
+         ;; outer parallelism, preventing unbounded nested thread multiplication
+         ;; when --execution-budget is not explicitly supplied. A plain
+         ;; run-benchmark defaults to a single worker (budget=1).
+         effective-execution-budget (if execution-budget
+                                      execution-budget
+                                      (if parallel-command?
+                                        effective-parallelism
+                                        1))
         ;; Fail closed: validate the selected claim registry up front so a run
         ;; can never proceed (and commit evidence) against an unrunnable or
         ;; invalid auditor-supplied registry. Applies whether the registry came
@@ -813,9 +825,9 @@
                               (hardening/claimant-parallel-threshold)))
                 (pos? (or (:claimant-parallel-threshold opts)
                           (hardening/claimant-parallel-threshold)))
-                (integer? (or execution-budget 1))
-                (pos? (or execution-budget 1))))
-      {:exit-code 2 :message "Parallelism, chunk size, claimant parallelism, claimant threshold, and execution budget must be positive integers"}
+                 (integer? (or effective-execution-budget 1))
+                 (pos? (or effective-execution-budget 1))))
+       {:exit-code 2 :message "Parallelism, chunk size, claimant parallelism, claimant threshold, and execution budget must be positive integers"}
 
       (and run-root output)
       {:exit-code 2 :message "Use --run-root for the canonical benchmark bundle; --output is a separate legacy export command"}
@@ -832,26 +844,26 @@
       {:exit-code 1
        :message "Benchmark manifest resolved zero scenarios; canonical bundle was not created"}
 
-      run-root
-      (with-claim-registry claim-registry
-        (run-with-root! benchmark-id run-root key (or sensitivity-profile :public)
-                        {:execution/parallelism effective-parallelism
-                         :execution/chunk-size (or (:chunk-size opts) 1)
-                         :execution/claimant-parallelism (or (:claimant-parallelism opts) 1)
-                         :execution/claimant-parallel-threshold (or (:claimant-parallel-threshold opts)
-                                                                    (hardening/claimant-parallel-threshold))
-                         :execution/budget execution-budget
-                         :execution/quiescence-timeout-seconds (hardening/quiescence-timeout-seconds
-                                                                quiescence-timeout-seconds)}))
+       run-root
+       (with-claim-registry claim-registry
+         (run-with-root! benchmark-id run-root key (or sensitivity-profile :public)
+                         {:execution/parallelism effective-parallelism
+                          :execution/chunk-size (or (:chunk-size opts) 1)
+                          :execution/claimant-parallelism (or (:claimant-parallelism opts) 1)
+                          :execution/claimant-parallel-threshold (or (:claimant-parallel-threshold opts)
+                                                                     (hardening/claimant-parallel-threshold))
+                          :execution/budget effective-execution-budget
+                          :execution/quiescence-timeout-seconds (hardening/quiescence-timeout-seconds
+                                                                 quiescence-timeout-seconds)}))
 
-      output
-      (let [result (invoke! benchmark-id {:output output :key key
-                                          :parallelism (:parallelism opts)
-                                          :chunk-size (:chunk-size opts)
-                                          :claimant-parallelism (:claimant-parallelism opts)
-                                          :claimant-parallel-threshold (or (:claimant-parallel-threshold opts)
-                                                                           (hardening/claimant-parallel-threshold))
-                                          :budget execution-budget
+       output
+       (let [result (invoke! benchmark-id {:output output :key key
+                                           :parallelism (:parallelism opts)
+                                           :chunk-size (:chunk-size opts)
+                                           :claimant-parallelism (:claimant-parallelism opts)
+                                           :claimant-parallel-threshold (or (:claimant-parallel-threshold opts)
+                                                                            (hardening/claimant-parallel-threshold))
+                                           :budget effective-execution-budget
                                           :quiescence-timeout-seconds (hardening/quiescence-timeout-seconds
                                                                        quiescence-timeout-seconds)})]
         {:exit-code (or (:exit-code result) 1)})

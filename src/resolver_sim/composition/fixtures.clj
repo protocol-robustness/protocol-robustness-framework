@@ -6,7 +6,8 @@
    on the base (non-test) classpath. These are research/demo scaffolding, not
    production protocol capabilities."
   (:require [resolver-sim.economics.slash-distribution :as sd]
-            [resolver-sim.extensions.registry :as reg]))
+             [resolver-sim.extensions.registry :as reg]
+             [resolver-sim.composition.contract :as contract]))
 
 ;; ── executable fixture entrypoints ────────────────────────────────────────
 
@@ -71,12 +72,12 @@
               modes #{:sequential} entrypoint 'resolver-sim.composition.fixtures/identity-award}}]
   {:capability/kind :economics/award-amount
    :capability/id id
-   :capability/version 1
-   :capability/contract-version 1
+    :capability/version 1
+    :capability/contract-version contract/contract-version
    :entrypoint entrypoint
    :input-schema :prf/award-amount-context.v1
    :output-schema :prf/calculation-result.v1
-   :composition-contract {:composition-contract/version 1
+    :composition-contract {:composition-contract/version contract/contract-version
                           :composition/input {:schema-ref :prf/award-amount-context.v1
                                               :semantic-type input-semantic
                                               :cardinality :one}

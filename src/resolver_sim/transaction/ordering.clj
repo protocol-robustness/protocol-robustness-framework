@@ -40,13 +40,13 @@
 
 ;; ── schema / domain constants ────────────────────────────────────────────────
 
-(def ordering-schema "transaction-ordering.v1")
-(def ordering-domain "prf.transaction-ordering.v1")
+(def ^:const ordering-schema "transaction-ordering.v1")
+(def ^:const ordering-domain :prf-transaction-ordering-v1)
 
-(def ordering-v2-schema "transaction-ordering.v2")
-(def ordering-v2-domain "prf.transaction-ordering.v2")
+(def ^:const ordering-v2-schema "transaction-ordering.v2")
+(def ^:const ordering-v2-domain :prf-transaction-ordering-v2)
 
-(def change-identity-domain
+(def ^:const change-identity-domain
   "Domain tag for the internally-derived, chain-scoped change identity."
   :prf-transaction-ordering-change-identity-v1)
 

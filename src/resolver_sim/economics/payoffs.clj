@@ -871,7 +871,7 @@
     :as request}]
   (when (contains-function? request)
     (throw (ex-info "Canonical pro-rata evaluation requests cannot contain functions" {})))
-  (when-not (= 1 (or schema-version 1))
+  (when-not (= default-pro-rata-allocation-result-version (or schema-version default-pro-rata-allocation-result-version))
     (throw (ex-info "Unsupported canonical pro-rata request schema" {:schema-version schema-version})))
   (when-not (vector? participants)
     (throw (ex-info "Canonical pro-rata evaluation requires :participants vector" {})))

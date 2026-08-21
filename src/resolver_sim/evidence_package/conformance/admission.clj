@@ -67,7 +67,7 @@
    {:validator/id validator-id
     :validator/kind kind
     :validator/input-contract :evidence-package.v1
-    :validator/version 1
+     :validator/version validator-version
     :validator/implementation-root implementation-root
     :validator/run (fn [subject]
                      (let [{:keys [valid? issues]} (check-fn subject)]

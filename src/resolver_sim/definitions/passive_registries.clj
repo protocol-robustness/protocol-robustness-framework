@@ -1607,7 +1607,7 @@
                           (conj (error :registry/missing-fields
                                        {:registry registry-name
                                         :missing (vec registry-missing)}))
-                          (not= 1 (:registry-version registry))
+                          (not= registry-version (:registry-version registry))
                           (conj (error :registry/unsupported-version
                                        {:registry registry-name
                                         :version (:registry-version registry)}))
