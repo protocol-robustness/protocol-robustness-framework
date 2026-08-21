@@ -43,7 +43,8 @@
             [resolver-sim.protocols.sew.registry :as reg]
             [resolver-sim.protocols.sew.related-claims :as rc]
             [resolver-sim.accounting.held-adjustment :as held-adjustment]
-            [resolver-sim.hash.canonical :as hash]))
+            [resolver-sim.hash.canonical :as hash]
+            [resolver-sim.composition.semantic :as semantic]))
 
 (defn cancellation-mutex? [world] (escrow/cancellation-mutex? world))
 
@@ -2539,7 +2540,14 @@
   "Run all single-world invariants.
 
    token-balances — optional {token nat-int} for external balance check.
-   Returns {:all-hold? bool :results {invariant-id {:holds? bool :violations [...]}}}"
+   Returns {:all-hold? bool :results {invariant-id {:holds? bool :violations [...]}}}.
+
+   Phase 2B: force-authorisation operational invariants only execute when the
+   world's semantic composition selects the force-authorisation invariant
+   module. When the composition does not select it (plain composition, or no
+   composition), force-auth invariants are reported as :not-evaluated rather
+   than executed — no ambient/default runtime mechanism enables force-auth
+   invariant checks."
   ([world] (check-all world nil nil))
   ([world scenario-id] (check-all world scenario-id nil))
   ([world scenario-id token-balances]
@@ -2547,94 +2555,116 @@
                                    (get-in world [:params :expected-failures (keyword scenario-id)])
                                    #{})
          expected-failures (set (map keyword expected-failures-raw))
+         ;; Phase 2B: determine which invariant modules are active
+         composition (:semantic-composition world)
+         force-auth-invariants-active?
+         (and composition
+              (contains? (semantic/active-invariants composition)
+                         :force-authorisations-lifecycle-consistent))
+         ;; Force-auth invariant IDs that must only run when the composition
+         ;; selects the force-authorisation invariant module.
+         force-auth-invariant-ids
+         #{:force-authorisations-lifecycle-consistent
+           :force-authorisations-governance-origin}
          ;; Define all canonical checks
-         checks {:solvency                      (held-custody-reconciles? world token-balances)
-                 :contract-payout-solvency     (contract-payout-solvency? world)
-                 :economic-solvency            (economic-solvency? world)
-                 :reserved-coverage-sufficient (reserved-coverage-sufficient? world)
-                 :fees-non-negative             (fees-non-negative? world)
-                 :held-non-negative             (held-non-negative? world)
-                 :held-partitions-non-negative  (held-partitions-non-negative? world)
-                 :terminal-workflow-custody-closed (terminal-workflow-custody-closed? world)
-                  :force-authorisations-lifecycle-consistent (force-authorisations-lifecycle-consistent? world)
-                  :force-authorisations-governance-origin (force-authorisations-governance-origin? world)
-                 :held-custody-closed-form      (held-custody-closed-form? world)
-                 :all-status-combinations-valid (all-status-combinations-valid? world)
-                 :persisted-escrow-state-valid (persisted-escrow-state-valid? world)
-                 :escrow-state-in-graph         (escrow-state-in-graph? world)
-                 :escrow-dispute-metadata-consistent (escrow-dispute-metadata-consistent? world)
-                 :pending-settlement-consistent (pending-settlement-consistency? world)
-                 :temporal-consistency          (check-temporal-consistency world)
-                 :dispute-timestamp-consistent  (dispute-timestamp-consistency? world)
-                 :dispute-level-bounded         (dispute-level-bounded? world)
-                 :canonical-slash-registry-consistent (canonical-slash-registry-consistent? world)
-                 :slash-context-index-consistent (slash-context-index-consistent? world)
-                 :slash-status-consistent       (slash-status-consistent? world)
-                 :appeal-bond-conserved         (appeal-bond-conserved? world)
-                 :appeal-bond-custody-consistent (appeal-bond-custody-consistent? world)
-                 :held-adjustments-reconstruct-total-held (held-adjustments-reconstruct-total-held? world)
-                 :held-artifacts-derived-from-adjustments (held-artifacts-derived-from-adjustments? world)
-                 :settlement-custody-attribution (check-settlement-custody-attribution? world)
-                 :no-auto-fraud-execute         (no-auto-fraud-execute? world)
-                 :bond-liquidity                (bond-liquidity-holds? world)
-                 :bond-slash-bounded            (bond-slash-bounded? world)
-                 :fee-cap                       (fee-cap-holds? world)
-                 :no-stale-automatable-escrows  (no-stale-automatable-escrows? world)
-                 :conservation-of-funds         (conservation-of-funds? world)
-                 :settlement-principal-boundary (settlement-principal-boundary? world)
-                 :settlement-yield-boundary     (settlement-yield-boundary? world)
-                 :liability-slash-boundary      (liability-slash-boundary? world)
-                 :bond-boundary                 (bond-boundary? world)
-                 :fee-boundary                  (fee-boundary? world)
-                 :shortfall-fidelity            (shortfall-fidelity? world)
-                 :migration-parity              (migration-parity? world)
-                 :cancellation-mutex            (cancellation-mutex? world)
-                 :dispute-resolution-path       (dispute-resolution-path-exists? world)
-                 :slash-distribution-consistent (slash-distribution-consistent? world)
-                 :resolver-bond-mix-valid        (resolver-bond-mix-valid? world)
-                 :senior-coverage-not-exceeded   (senior-coverage-not-exceeded? world)
-                 :resolver-not-frozen-on-assign  (resolver-not-frozen-on-assign? world)
-                 :slash-epoch-cap-respected      (slash-epoch-cap-respected? world)
-                 :reversal-slash-disabled        (reversal-slash-disabled? world)
-                 :resolver-capacity              (resolver-capacity-invariant? world)
-                 :single-resolution-payout-consistent (single-resolution-payout-consistent? world)
-                 :fraud-slash-executions-accounted    (fraud-slash-executions-accounted? world)
-                 :slash-amount-valid                 (slash-amount-valid? world)
-                 :slash-max-per-offense-bounded      (slash-max-per-offense-bounded? world)
-                 :reversal-slash-executions-accounted (reversal-slash-executions-accounted? world)
-                 :evidence-on-state-change            (dispute/evidence-on-state-change? world)
-                 :no-duplicate-dispute                (dispute/no-duplicate-dispute? world)
-                 :appeal-requires-prior-resolution    (dispute/appeal-requires-prior-resolution? world)
-                 :resolver-decision-attributable      (dispute/resolver-decision-attributable? world)
-                 :appeal-reversal-detectable          (dispute/appeal-reversal-detectable? world)
-                 :evidence-deadline-enforced          (dispute/evidence-deadline-enforced? world)
-                 :finality-blocked-during-appeal      (dispute/finality-blocked-during-appeal? world)
-                 :challenge-bond-proportional         (challenge-bond-proportional? world)
-                  :resolver-stake-proportional         (resolver-stake-proportional-to-escrow? world)
-                  :related-claims-members-exist        (related-claims-members-exist? world)
-                  :related-claims-no-duplicate-members (related-claims-no-duplicate-members? world)
-                  :related-claims-hash-matches-members (related-claims-hash-matches-members? world)
-                  :related-claims-do-not-block-finality (related-claims-do-not-block-finality? world)
-                  :related-claims-authorisation-scope-closed (related-claims-authorisation-scope-closed? world)
-                  :yield-position-consistency          (generic-yield-inv/check-position-consistency world)
-                  :yield-exposure                      (let [r (sew-yield-inv/check-sew-yield-exposure world)]
-                                                         (if (map? r) r {:holds? r :violations nil}))
-                  :fee-payouts-sum-equals-total-fees-withdrawn (fee-payouts-sum-equals-total-fees-withdrawn? world)
-                  :no-reentrant-guard-leak (no-reentrant-guard-leak? world)}
-           ;; Process results
-          results (into {}
-                        (for [[id result-map] checks]
-                          (let [actually-holds? (:holds? result-map)
-                                expected-fail? (contains? expected-failures id)]
-                           [id (assoc result-map
-                                      :holds? (or actually-holds? expected-fail?)
-                                      :expected-failure? expected-fail?
-                                      :unused-expected-failure? (and expected-fail? actually-holds?))])))
+         all-checks {:solvency                      (held-custody-reconciles? world token-balances)
+                     :contract-payout-solvency     (contract-payout-solvency? world)
+                     :economic-solvency            (economic-solvency? world)
+                     :reserved-coverage-sufficient (reserved-coverage-sufficient? world)
+                     :fees-non-negative             (fees-non-negative? world)
+                     :held-non-negative             (held-non-negative? world)
+                     :held-partitions-non-negative  (held-partitions-non-negative? world)
+                     :terminal-workflow-custody-closed (terminal-workflow-custody-closed? world)
+                     :held-custody-closed-form      (held-custody-closed-form? world)
+                     :all-status-combinations-valid (all-status-combinations-valid? world)
+                     :persisted-escrow-state-valid (persisted-escrow-state-valid? world)
+                     :escrow-state-in-graph         (escrow-state-in-graph? world)
+                     :escrow-dispute-metadata-consistent (escrow-dispute-metadata-consistent? world)
+                     :pending-settlement-consistent (pending-settlement-consistency? world)
+                     :temporal-consistency          (check-temporal-consistency world)
+                     :dispute-timestamp-consistent  (dispute-timestamp-consistency? world)
+                     :dispute-level-bounded         (dispute-level-bounded? world)
+                     :canonical-slash-registry-consistent (canonical-slash-registry-consistent? world)
+                     :slash-context-index-consistent (slash-context-index-consistent? world)
+                     :slash-status-consistent       (slash-status-consistent? world)
+                     :appeal-bond-conserved         (appeal-bond-conserved? world)
+                     :appeal-bond-custody-consistent (appeal-bond-custody-consistent? world)
+                     :held-adjustments-reconstruct-total-held (held-adjustments-reconstruct-total-held? world)
+                     :held-artifacts-derived-from-adjustments (held-artifacts-derived-from-adjustments? world)
+                     :settlement-custody-attribution (check-settlement-custody-attribution? world)
+                     :no-auto-fraud-execute         (no-auto-fraud-execute? world)
+                     :bond-liquidity                (bond-liquidity-holds? world)
+                     :bond-slash-bounded            (bond-slash-bounded? world)
+                     :fee-cap                       (fee-cap-holds? world)
+                     :no-stale-automatable-escrows  (no-stale-automatable-escrows? world)
+                     :conservation-of-funds         (conservation-of-funds? world)
+                     :settlement-principal-boundary (settlement-principal-boundary? world)
+                     :settlement-yield-boundary     (settlement-yield-boundary? world)
+                     :liability-slash-boundary      (liability-slash-boundary? world)
+                     :bond-boundary                 (bond-boundary? world)
+                     :fee-boundary                  (fee-boundary? world)
+                     :shortfall-fidelity            (shortfall-fidelity? world)
+                     :migration-parity              (migration-parity? world)
+                     :cancellation-mutex            (cancellation-mutex? world)
+                     :dispute-resolution-path       (dispute-resolution-path-exists? world)
+                     :slash-distribution-consistent (slash-distribution-consistent? world)
+                     :resolver-bond-mix-valid        (resolver-bond-mix-valid? world)
+                     :senior-coverage-not-exceeded   (senior-coverage-not-exceeded? world)
+                     :resolver-not-frozen-on-assign  (resolver-not-frozen-on-assign? world)
+                     :slash-epoch-cap-respected      (slash-epoch-cap-respected? world)
+                     :reversal-slash-disabled        (reversal-slash-disabled? world)
+                     :resolver-capacity              (resolver-capacity-invariant? world)
+                     :single-resolution-payout-consistent (single-resolution-payout-consistent? world)
+                     :fraud-slash-executions-accounted    (fraud-slash-executions-accounted? world)
+                     :slash-amount-valid                 (slash-amount-valid? world)
+                     :slash-max-per-offense-bounded      (slash-max-per-offense-bounded? world)
+                     :reversal-slash-executions-accounted (reversal-slash-executions-accounted? world)
+                     :evidence-on-state-change            (dispute/evidence-on-state-change? world)
+                     :no-duplicate-dispute                (dispute/no-duplicate-dispute? world)
+                     :appeal-requires-prior-resolution    (dispute/appeal-requires-prior-resolution? world)
+                     :resolver-decision-attributable      (dispute/resolver-decision-attributable? world)
+                     :appeal-reversal-detectable          (dispute/appeal-reversal-detectable? world)
+                     :evidence-deadline-enforced          (dispute/evidence-deadline-enforced? world)
+                     :finality-blocked-during-appeal      (dispute/finality-blocked-during-appeal? world)
+                     :challenge-bond-proportional         (challenge-bond-proportional? world)
+                     :resolver-stake-proportional         (resolver-stake-proportional-to-escrow? world)
+                     :related-claims-members-exist        (related-claims-members-exist? world)
+                     :related-claims-no-duplicate-members (related-claims-no-duplicate-members? world)
+                     :related-claims-hash-matches-members (related-claims-hash-matches-members? world)
+                     :related-claims-do-not-block-finality (related-claims-do-not-block-finality? world)
+                     :related-claims-authorisation-scope-closed (related-claims-authorisation-scope-closed? world)
+                     :yield-position-consistency          (generic-yield-inv/check-position-consistency world)
+                     :yield-exposure                      (let [r (sew-yield-inv/check-sew-yield-exposure world)]
+                                                           (if (map? r) r {:holds? r :violations nil}))
+                     :fee-payouts-sum-equals-total-fees-withdrawn (fee-payouts-sum-equals-total-fees-withdrawn? world)
+                     :no-reentrant-guard-leak (no-reentrant-guard-leak? world)}
+         ;; Force-auth invariants are only executed when the composition
+         ;; selects the force-authorisation invariant module. Otherwise they
+         ;; are reported as :not-evaluated (skipped, not failed).
+          fa-checks (if force-auth-invariants-active?
+                      {:force-authorisations-lifecycle-consistent (force-authorisations-lifecycle-consistent? world)
+                       :force-authorisations-governance-origin (force-authorisations-governance-origin? world)}
+                      {:force-authorisations-lifecycle-consistent {:holds? true
+                                                                  :status :not-evaluated
+                                                                  :violations []}
+                       :force-authorisations-governance-origin {:holds? true
+                                                               :status :not-evaluated
+                                                               :violations []}})
+         checks (merge all-checks fa-checks)
+         ;; Process results
+         results (into {}
+                         (for [[id result-map] checks]
+                           (let [actually-holds? (:holds? result-map)
+                                 expected-fail? (contains? expected-failures id)]
+                            [id (assoc result-map
+                                       :holds? (or actually-holds? expected-fail?)
+                                       :expected-failure? expected-fail?
+                                       :unused-expected-failure? (and expected-fail? actually-holds?))])))
          unused-expected (filter #(:unused-expected-failure %) (vals results))
          all-hold? (every? #(:holds? %) (vals results))]
-     {:all-hold? all-hold?
-      :results   results
-      :unused-expected-failures (seq unused-expected)})))
+    {:all-hold? all-hold?
+     :results   results
+     :unused-expected-failures (seq unused-expected)})))
 
 (defn check-transition
   "Run all cross-world invariants that require comparing world-before to world-after.

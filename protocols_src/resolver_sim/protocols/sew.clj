@@ -56,10 +56,16 @@
   (:semantic-composition context))
 
 (defn- semantic-force-authorisation-active?
-  "A supplied semantic composition is authoritative: classpath and the legacy
-   extension-map cannot activate force-authorisation outside its selected
-   custody-execution capability and action module. Contexts without a semantic
-   composition retain the staged legacy adapter behaviour."
+  "A supplied semantic composition is authoritative: classpath, extension-map,
+   and legacy facade availability cannot activate force-authorisation outside
+   its selected custody-execution capability and action module.
+
+   Without a semantic composition, force-authorisation is inactive UNLESS the
+   context explicitly carries :force-authorisation/allow-local-compatibility?
+   true — an explicitly named compatibility/legacy path for callers that have
+   not yet migrated to semantic composition. This flag is the sole remaining
+   ambient activation mechanism and is categorically rejected under a
+   :production-governed composition."
   [context]
   (let [composition (semantic-composition context)]
     (if composition
@@ -67,11 +73,54 @@
            (semantic/selected-capability?
             composition
             [:sew/force-authorisation :force-authorisation/custody-execution-v1]))
-      (force-extension/installed? (:extension-map context)))))
+       ;; Legacy compatibility path — only activated by explicit flag
+       (and (:force-authorisation/allow-local-compatibility? context)
+            (force-extension/installed? (:extension-map context))))))
 
-(defn- semantic-action-permitted? [context action]
+(defn- semantic-action-permitted?
+  "Action admission is composition-driven. A force-authorisation production
+   action is admitted only when the composition's action module selects it.
+
+   Without a composition (legacy compatibility path), force-authorisation
+   production actions are admitted only when the explicit compatibility flag
+   is set AND the force-extension is installed. Non-force-authorisation
+   actions remain admitted under the legacy path."
+  [context action]
   (let [composition (semantic-composition context)]
-    (or (nil? composition) (semantic/allows-action? composition action))))
+    (cond
+      (nil? composition)
+      ;; Legacy compatibility path: allow non-force-auth actions;
+      ;; allow force-auth actions only with explicit compat flag + extension
+      (if (contains? semantic/force-authorisation-actions action)
+        (and (:force-authorisation/allow-local-compatibility? context)
+             (force-extension/installed? (:extension-map context)))
+        true)
+
+      :else
+      ;; Composition present: check action module
+      (semantic/allows-action? composition action))))
+
+(defn- production-governed?
+  "True when the semantic composition has a :production-governed profile."
+  [context]
+  (let [composition (semantic-composition context)]
+    (and composition
+         (= :production-governed
+            (get composition :semantic-composition/profile)))))
+
+(defn- local-compatibility-allowed?
+  "True when local-compatibility (non-governed issuance) is permitted.
+
+   Under a :production-governed semantic composition, local compatibility
+   is categorically rejected — the :force-authorisation/allow-local-compatibility?
+   flag must NOT override a production-governed profile.
+
+   Without a composition (legacy path), the flag remains the
+   compatibility escape hatch for unmigrated callers."
+   [context]
+   (if (production-governed? context)
+    false
+    (:force-authorisation/allow-local-compatibility? context)))
 
 ;; ---------------------------------------------------------------------------
 ;; Helpers
@@ -888,16 +937,36 @@
             (assoc (t/ok world') :extra {:authorization/id auth-id
                                          :authorization/scope-hash scope-hash})))))))
 
+(defn- local-governance-grant-allowed?
+  "True when a direct (local-governance) grant is permitted.
+
+   Under :production-governed profile, local-governance-only issuance is
+   categorically rejected — only consensus-governed grants (with non-nil
+   consensus-provenance) are admissible.
+
+   Without a semantic composition (legacy path), the
+   :force-authorisation/allow-local-compatibility? flag remains the
+   compatibility escape hatch."
+   [context consensus-provenance]
+   (if (production-governed? context)
+    (some? consensus-provenance)
+    (or (some? consensus-provenance)
+        (:force-authorisation/allow-local-compatibility? context))))
+
 (defmethod apply-action "grant-force-authorisation"
   [context world event]
   (if (semantic-force-authorisation-active? context)
-    (grant-force-authorisation* context world event nil)
+    (if-not (local-governance-grant-allowed? context nil)
+      (t/fail :force-authorisation-governed-issuance-required)
+      (grant-force-authorisation* context world event nil))
     (t/fail :force-authorisation-extension-unavailable)))
 
 (defmethod apply-action "grant-force-authorization"
   [context world event]
   (if (semantic-force-authorisation-active? context)
-    (grant-force-authorisation* context world event nil)
+    (if-not (local-governance-grant-allowed? context nil)
+      (t/fail :force-authorisation-governed-issuance-required)
+      (grant-force-authorisation* context world event nil))
     (t/fail :force-authorisation-extension-unavailable)))
 
 (defn- resolved-artifact
@@ -1465,16 +1534,22 @@
           (:consumed? record)
           (t/fail :force-authorisation-already-consumed)
 
-          (and (not= :governed-research-authority
-                     (get-in record [:authorization/provenance :authorization/issuance-assurance]))
-               (not (:force-authorisation/allow-local-compatibility? context)))
-          (t/fail :force-authorisation-governed-issuance-required)
+           ;; Phase 2B: under a :production-governed composition, local-governance-only
+           ;; issuance is categorically rejected regardless of the
+           ;; :force-authorisation/allow-local-compatibility? flag.
+           (and (not= :governed-research-authority
+                      (get-in record [:authorization/provenance :authorization/issuance-assurance]))
+                (not (local-compatibility-allowed? context)))
+           (t/fail :force-authorisation-governed-issuance-required)
 
-          (and (not (:force-authorisation/allow-local-compatibility? context))
-               (not (every? #(contains? (:authorization/provenance record) %)
-                            [:researcher-force-authorisation/governance-root
-                             :researcher-force-authorisation/authority-report-root
-                             :researcher-force-authorisation/governed-review-round-hash])))
+           ;; Phase 2B: governed binding presence check — under production-governed
+           ;; composition, local compatibility cannot weaken the governed bindings
+           ;; requirement.
+           (and (not (local-compatibility-allowed? context))
+                (not (every? #(contains? (:authorization/provenance record) %)
+                             [:researcher-force-authorisation/governance-root
+                              :researcher-force-authorisation/authority-report-root
+                              :researcher-force-authorisation/governed-review-round-hash])))
           (t/fail :force-authorisation-governed-bindings-required)
 
           (and (not related?) (not= workflow-id (:workflow-id record)))
@@ -2400,15 +2475,19 @@
                                                   :circuit-breaker-active
                                                   :resolver-unavailable
                                                   :manual-override}}]
-          {:agent-index          (into {} (map (juxt :id identity) agents))
-           :snapshot             snapshot
-           :escalation-fn        esc-fn
-           :resolution-module-fn rm-fn
-           :resolution-level-map level-map
-           :governance-mode      (get pp :governance-mode :restricted)
-           :governance-identity  (normalize-governance-identity (get pp :governance/identity))
-           :resolver-overflow-policy (merge def-policy of-policy)
-           :force-authorisation-policy (merge def-fa-policy fa-policy)})))
+           {:agent-index          (into {} (map (juxt :id identity) agents))
+            :snapshot             snapshot
+            :escalation-fn        esc-fn
+            :resolution-module-fn rm-fn
+            :resolution-level-map level-map
+            :governance-mode      (get pp :governance-mode :restricted)
+            :governance-identity  (normalize-governance-identity (get pp :governance/identity))
+            :resolver-overflow-policy (merge def-policy of-policy)
+            :force-authorisation-policy (merge def-fa-policy fa-policy)
+            ;; Phase 2B: propagate authoritative semantic composition from
+            ;; protocol-params into the execution context. When absent, the
+            ;; context remains legacy/compat (no force-auth activation).
+            :semantic-composition (get pp :semantic-composition)})))
 
   (dispatch-action [_ context world event]
     (let [event       (resolve-scenario-bindings world event)
@@ -2425,6 +2504,16 @@
         {:ok false :error :semantic-composition-action-not-permitted
          :detail {:action (:action event)
                   :composition-root (get-in context [:semantic-composition :semantic-composition/root])}}
+
+        ;; Phase 2B state-region validity: force-auth live state keys must not
+        ;; be present in the world unless the composition selects them.
+        ;; This is a generic composition-governed state ownership check, not
+        ;; a force-auth-only exception.
+        (semantic/state-region-invalidation
+         (semantic-composition context) world)
+        {:ok false :error :semantic-composition-state-region-violation
+         :detail {:violations (semantic/state-region-invalidation
+                               (semantic-composition context) world)}}
 
         (and require-id? (replay-sensitive-action? event) (nil? eid))
         {:ok false :error :missing-event-id

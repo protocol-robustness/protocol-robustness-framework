@@ -316,10 +316,11 @@
    :configuration-head-activation-v1 "CONFIGURATION_HEAD_ACTIVATION_V1"
    :prf-chain-configuration-change-identity-v1 "prf.chain-configuration-change-identity.v1"
    :prf-verifier-registry-v1          "PRF_VERIFIER_REGISTRY_V1"
-   :prf-resubmission-chain-identity-v1         "prf.resubmission-chain-identity.v1"
-   :prf-resubmission-chain-configuration-v1     "prf.resubmission-chain-configuration.v1"
-   :prf-resubmission-chain-genesis-v1            "prf.resubmission-chain-genesis.v1"
-   :programme-allocation-request-v1   "PROGRAMME_ALLOCATION_REQUEST_V1"
+    :prf-resubmission-chain-identity-v1         "prf.resubmission-chain-identity.v1"
+    :prf-resubmission-chain-configuration-v1     "prf.resubmission-chain-configuration.v1"
+    :prf-resubmission-chain-genesis-v1            "prf.resubmission-chain-genesis.v1"
+    :prf-resubmission-chain-genesis-authorization-v1 "prf.resubmission-chain-genesis-authorization.v1"
+    :programme-allocation-request-v1   "PROGRAMME_ALLOCATION_REQUEST_V1"
    :programme-plan-v1                 "PROGRAMME_PLAN_V1"
    :programme-evidence-v1             "PROGRAMME_EVIDENCE_V1"
    :programme-receipt-v1              "PROGRAMME_RECEIPT_V1"
@@ -1853,7 +1854,30 @@
     (project-canonical-safe
      (cond-> base
        (map? cfg) (assoc :configuration
-                         (project-resubmission-chain-configuration cfg _intent))))))
+                          (project-resubmission-chain-configuration cfg _intent))))))
+
+;; resubmission-chain-genesis-authorization.v1
+;; ─────────────────────────────────────────────────────
+;; Stage 3: thin authorization binding. Binds an exact genesis root to an
+;; authenticated three-member authority decision. Does NOT duplicate genesis
+;; content — that is transitively committed by the genesis root.
+
+(def resubmission-chain-genesis-authorization-fields
+  "Ordered identity fields of resubmission-chain-genesis-authorization.v1.
+   A thin binding: genesis-root + authority fact references only.
+   Does not duplicate family-id, chain-id, authority keys, or G0 — those
+   are transitively committed by the genesis root."
+  [:authorization/schema
+   :authorization/genesis-root
+   :authorization/force-authorisation-hash
+   :authorization/authority-report-root])
+
+(defn project-resubmission-chain-genesis-authorization
+  "Canonical projection of resubmission-chain-genesis-authorization.v1: exactly
+   the canonical identity fields, projected canonical-safe."
+  [value _intent]
+  (project-canonical-safe
+   (select-keys value resubmission-chain-genesis-authorization-fields)))
 
 (def hash-intents
   "Map of hash intent keywords to their Intent Registry Contracts.
@@ -2723,9 +2747,20 @@ name (an alias)."
     :intent/description "Canonical identity of a resubmission-chain-genesis.v1: the declared source of truth for a resubmission chain's family, configuration, and initial state"
     :intent/includes    #{:genesis/schema :chain/id :family/id :configuration
                           :initial-state/root}
-    :intent/excludes    #{:runtime-values :functions :deployment-metadata :timestamps}
-    :intent/projection-fn project-resubmission-chain-genesis
-    :intent/version     1}})
+     :intent/excludes    #{:runtime-values :functions :deployment-metadata :timestamps}
+     :intent/projection-fn project-resubmission-chain-genesis
+     :intent/version     1}
+
+    :prf-resubmission-chain-genesis-authorization-v1
+    {:intent/name        :prf-resubmission-chain-genesis-authorization-v1
+     :intent/domain-tag  "prf.resubmission-chain-genesis-authorization.v1"
+     :intent/description "Canonical identity of resubmission-chain-genesis-authorization.v1: thin binding of a genesis root to an authenticated three-member authority decision"
+     :intent/includes    #{:authorization/schema :authorization/genesis-root
+                           :authorization/force-authorisation-hash
+                           :authorization/authority-report-root}
+     :intent/excludes    #{:runtime-values :functions}
+     :intent/projection-fn project-resubmission-chain-genesis-authorization
+     :intent/version     1}})
 
 (defn resolve-intent
   "Look up an intent contract by keyword name from the registry.

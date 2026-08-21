@@ -12,6 +12,7 @@
    receipt. The old hash-only behavior is isolated in `admit-compat!` for
    fixtures and demos; it is never an authority admission path."
   (:require [resolver-sim.resubmission.genesis :as genesis]
+            [resolver-sim.resubmission.genesis-authorization :as genesis-authz]
             [resolver-sim.resubmission.receipt :as receipt]
             [resolver-sim.resubmission.store :as store]
             [resolver-sim.resubmission.transition :as transition]
@@ -31,10 +32,39 @@
    empty-state root.
 
    NOTE: this validates well-formedness and canonical rooting, not
-   governance authorization. It is the canonical validated genesis
-   realization path, distinct from future authority-bearing realization."
-  [genesis]
-  (store/new-resubmission-store-from-genesis genesis))
+    governance authorization. It is the canonical validated genesis
+    realization path, distinct from future authority-bearing realization."
+   [genesis]
+   (store/new-resubmission-store-from-genesis genesis))
+
+(defn admit-chain-from-authorization
+   "Authoritative realization boundary: admits a resubmission chain ONLY when
+    a verified genesis authorization binds the exact genesis root to an
+    authenticated three-member researcher authority decision.
+
+    This is the production-strength admission boundary (design §15). It does
+    NOT weaken or repurpose new-chain or new-chain-from-genesis; local replay,
+    research, fixtures, and validation remain possible without pretending to
+    be authoritative.
+
+    Args:
+      genesis         — the resubmission-chain-genesis.v1 artifact
+      authz           — the authorization artifact
+      package-resolver — fn (sha256-ref) -> resolved artifact map | nil
+      context         — governance context map (see
+                         verify-governed-authority)
+
+    Throws ex-info with :type :authorization/failed and :errors when the
+    authorization does not verify. Returns the realized TransactionStore on
+    success."
+   [genesis authz package-resolver context]
+   (let [result (genesis-authz/verify-genesis-authorization
+                 genesis authz package-resolver context)]
+     (when-not (:valid? result)
+       (throw (ex-info "genesis authorization verification failed"
+                       {:type :authorization/failed
+                        :errors (:errors result)})))
+     (store/new-resubmission-store-from-genesis genesis)))
 
 (defn new-chain
   "Convenience/local realization of an in-memory linear chain (a
