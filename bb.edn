@@ -252,6 +252,12 @@ check:ownership
   test:generators {:doc "Run canonical generator/property regression target"
                    :task (shell "./scripts/test.sh generators")}
 
+  triage:attribute {:doc "Attribute failing targets to agent/merge-parent changes (add --rerun-failed to replay failed targets against tips and pairwise merges)"
+                    :task (apply shell "bb" "scripts/attribute_failures.clj" *command-line-args*)}
+
+  triage:guard {:doc "Pre-merge guard: reject empty or undescribed agent-* tips before merging into integration"
+                :task (shell "bb" "scripts/attribute_failures.clj" "--guard")}
+
   test:contracts {:doc "Run canonical cross-layer contract target (proto/service/wire compatibility)"
                   :task (shell "./scripts/test.sh contracts")}
 
