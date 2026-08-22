@@ -2,7 +2,7 @@
   "Allocation context construction and validation.
 
    Builds and validates the canonical `allocation-context.v1` artifact that
-   commits every identity-defining input of an IEE allocation round: schema,
+   commits every identity-defining input of an allocation round: schema,
    kernel version, selection algorithm, policy, claimant records, economic
    owners, amounts, weights, capacity, total eligible weight, exact pro-rata
    denominator, canonical claimant and outcome ordering, and authoritative

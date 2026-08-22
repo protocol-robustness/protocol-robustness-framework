@@ -3,8 +3,8 @@
 ## Scope
 
 The next phase adds real SP1 proof generation and local on-chain proof
-verification. It must still exclude IEE integration and the complete allocation
-coordinator lifecycle.
+verification. It must still exclude host-integration work and the complete
+allocation coordinator lifecycle.
 
 In scope:
 
@@ -21,7 +21,7 @@ In scope:
 
 Out of scope until the proof boundary is independently green:
 
-- IEE integration (adapter, `InputsComplete` workflow);
+- Host-system integration (adapter, `InputsComplete` workflow);
 - the complete `AllocationCoordinator` lifecycle (freeze, randomness request,
   result activation, double-consumption guard, custody);
 - cancellation and post-randomness recovery;

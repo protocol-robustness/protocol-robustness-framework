@@ -326,7 +326,7 @@ test-dr:
 ci:
 	./bin/ci
 
-# ── Allocation coprocessor (migrated from iee-prf-allocation-coprocessor-demo) ──
+# ── Allocation coprocessor ──
 # The independent Rust kernel + SP1 guest/prover + Solidity verifier + PRF
 # conformance gate now live in this repo. The gate remains
 #   PRF reference result == native Rust result,

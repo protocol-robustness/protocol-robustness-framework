@@ -426,8 +426,8 @@ The standard is established when:
   and `namespace-load-test` green; clean `clj-kondo` (0/0).
 - **Coordinator, Rust-kernel, and on-chain cutpoints remain out of scope**
   (the ADR records the canonical decision and audit vocabulary only). The
-  Rust/Solidity coordinators and the IEE demonstration consume this vocabulary
-  in a later slice.
+  Rust/Solidity coordinators and the external demonstration consume this
+  vocabulary in a later slice.
 
 ## Open questions
 

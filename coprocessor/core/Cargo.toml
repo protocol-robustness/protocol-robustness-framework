@@ -2,7 +2,7 @@
 name = "allocation-kernel"
 version = "0.1.0"
 edition = "2021"
-description = "Independent Rust allocation kernel for the IEE-PRF coprocessor demo. Reproduces the PRF reference allocation computation byte-for-byte at the declared public-output boundary."
+description = "Independent Rust allocation kernel. Reproduces the PRF reference allocation computation byte-for-byte at the declared public-output boundary."
 
 [dependencies]
 sha2 = "0.10"

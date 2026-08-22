@@ -1,6 +1,6 @@
 # a-vs-b-plus-c scenario
 
-Fixed IEE allocation scenario for the PRF + native Rust coprocessor demo.
+Fixed allocation scenario for the PRF + native Rust coprocessor.
 
 ## Semantics
 

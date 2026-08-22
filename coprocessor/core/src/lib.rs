@@ -1,4 +1,4 @@
-//! Independent Rust allocation kernel for the IEE-PRF coprocessor demo.
+//! Independent Rust allocation kernel.
 //!
 //! Reproduces the PRF reference allocation computation byte-for-byte at the
 //! declared public-output boundary (PRF result == native Rust result).

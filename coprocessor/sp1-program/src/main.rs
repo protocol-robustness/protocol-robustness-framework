@@ -1,4 +1,4 @@
-//! SP1 guest for the IEE-PRF allocation kernel.
+//! SP1 guest for the PRF allocation kernel.
 //!
 //! The guest reads the canonical allocation input document (the same JSON that
 //! the PRF `allocation verify-proposal` command and the native Rust CLI

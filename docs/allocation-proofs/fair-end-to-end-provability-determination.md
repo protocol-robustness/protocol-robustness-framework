@@ -8,9 +8,8 @@ earlier demo-repo determination and incorporates five architectural changes
 before the contract is treated as binding.
 
 The source of truth for the allocation coprocessor now lives in this repo
-(see [Migration decision](#migration-decision)). The former
-`iee-prf-allocation-coprocessor-demo` repository is reduced to an external
-integration/demo consumer.
+(see [Migration decision](#migration-decision)). The former standalone
+coprocessor repository is reduced to an external integration/demo consumer.
 
 ---
 

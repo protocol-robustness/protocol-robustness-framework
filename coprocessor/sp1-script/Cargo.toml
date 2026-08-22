@@ -2,7 +2,7 @@
 name = "allocation-sp1-script"
 version = "0.1.0"
 edition = "2021"
-description = "SP1 host script for the IEE-PRF allocation kernel: executes, proves, verifies, and generates EVM-compatible proof fixtures."
+description = "SP1 host script for the PRF allocation kernel: executes, proves, verifies, and generates EVM-compatible proof fixtures."
 
 [build-dependencies]
 sp1-build = "6.0.1"
