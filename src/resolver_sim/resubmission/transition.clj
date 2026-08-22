@@ -49,16 +49,17 @@
             [resolver-sim.transaction.ordering :as ordering]
             [resolver-sim.hash.reference :as hash-ref]))
 
-(def ^:private input-root-domain
-  "Domain tag for the canonical change-input (command) root."
+(def ^:const ^:private input-root-domain
+  "Domain tag for the canonical change-input (command) root.
+  Registered in canonical.clj domain-tags as :prf-transaction-input-v1."
   :prf-transaction-input-v1)
 
 (declare commit-admit)
 
-(def state-domain "prf.resubmission-chain-state.v1")
-(def effects-domain "prf.transaction-effects.v1")
+(def ^:const state-domain :prf-resubmission-chain-state-v1)
+(def ^:const effects-domain :prf-transaction-effects-v1)
 
-(def actions
+(def ^:const actions
   "Namespaced action vocabulary (canonical, independent of Clojure source ns)."
   #{:prf.resubmission/admit-child
     :prf.resubmission/apply-disposition})
@@ -291,7 +292,7 @@
       :else
       (commit-admit state input child-receipt-hash parent-receipt-hash))))
 
-(def allowed-disposition-transitions
+(def ^:const allowed-disposition-transitions
   "The disposition-event transitions accepted by the mutable chain."
   {:active disposition/disposition-statuses
    :pending-review #{:final :withdrawn :revoked :superseded}

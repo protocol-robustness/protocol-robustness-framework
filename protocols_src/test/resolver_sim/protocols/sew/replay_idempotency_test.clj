@@ -77,19 +77,22 @@
               :appeal-window-duration 200
               :escalation-resolvers {:1 "0xResolver1" :2 "0xResolver2"}})
         w0 (disputed-world-with-pending ctx)
-        ;; Hop 0 -> 1
+        ;; Hop 0 -> 1 at T=1030 (within appeal window; no prior escalation)
         e-hop1 {:seq 3 :time 1030 :agent "buyer" :action "escalate_dispute"
                 :params {:workflow-id 0 :event-id "evt-hop-shared"}}
         r-hop1 (replay/process-step sew/protocol ctx w0 e-hop1)
         w1 (:world r-hop1)
         ;; Seed a new pending at level 1 to model the next hop being appealable.
+        ;; Appeal deadline must exceed the 1-day cooldown so the L1→L2 hop
+        ;; can succeed after advancing time past cooldown.
         w2 (assoc-in w1 [:pending-settlements 0]
                      (t/make-pending-settlement {:exists true
                                                  :is-release true
-                                                 :appeal-deadline 1200
+                                                 :appeal-deadline 100000
                                                  :resolution-hash "0xhash-l1"}))
-        ;; Hop 1 -> 2 with same event-id should be allowed (different hop level)
-        e-hop2 {:seq 5 :time 1050 :agent "buyer" :action "escalate_dispute"
+        ;; Hop 1 -> 2: must advance past the 86400s cooldown (since T=1030)
+        ;; and stay within the appeal window (deadline 100000).
+        e-hop2 {:seq 5 :time 87431 :agent "buyer" :action "escalate_dispute"
                 :params {:workflow-id 0 :event-id "evt-hop-shared"}}
         r-hop2 (replay/process-step sew/protocol ctx w2 e-hop2)]
     (is (= :ok (get-in r-hop1 [:trace-entry :result])))

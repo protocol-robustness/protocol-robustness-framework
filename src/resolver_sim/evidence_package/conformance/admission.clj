@@ -19,7 +19,7 @@
 (def ^:const validator-version 1)
 (def ^:const evidence-package-contract :evidence-package.v1)
 
-(def implementation-root
+(def ^:const implementation-root
   (hc/domain-hash :conformance-validator-implementation-v1
                   {:validator/id :artifact-envelope-schema :kind :schema
                    :version validator-version :input-contract evidence-package-contract}))
@@ -185,7 +185,7 @@
 ;; Admission decision receipt
 ;; ---------------------------------------------------------------------------
 
-(def admission-schema-version "evidence-package-admission/v1")
+(def ^:const admission-schema-version "evidence-package-admission/v1")
 
 (defn admission-decision
   "A first-class admission decision receipt, mechanically derivable from its

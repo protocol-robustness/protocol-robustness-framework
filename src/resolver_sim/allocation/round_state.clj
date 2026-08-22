@@ -17,7 +17,7 @@
    closed to :unknown-target-state."
   (:require [resolver-sim.assurance.canonical-force-authorisation :as cfa]))
 
-(def coprocessor-round-states
+(def ^:const coprocessor-round-states
   "Canonical coprocessor round-state tokens the mapper recognises, in the order
    they occur in a round (pre-cutpoint to terminal)."
   [:allocation-committed :randomness-requested :randomness-fulfilled
@@ -104,11 +104,11 @@
     :domain-projection (fn [evidence] (lifecycle-target-state (:round/state evidence)))
     :decision-opts opts}))
 
-(def lifecycle-profile-id
+(def ^:const lifecycle-profile-id
   "Public lifecycle profile identifier for the probabilistic-allocation window."
   "prf.lifecycle-window/probabilistic-allocation")
 
-(def lifecycle-profile-version
+(def ^:const lifecycle-profile-version
   "Public lifecycle profile version for the probabilistic-allocation window."
   1)
 

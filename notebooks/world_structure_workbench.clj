@@ -99,14 +99,14 @@
                                                                     :sequence (:seq terminal-entry)}))))
 
 ^{:nextjournal.clerk/visibility {:code :fold :result :show}}
-(clerk/md """
+(clerk/md "
 Buyer deposits **1,970 USDC** → time reaches the cancellation boundary → a
 keeper triggers automatic cancellation → the buyer becomes claimable for the
 refunded amount.
 
 > **Why it matters:** the keeper triggers the transition; the keeper does not
 > become the owner or beneficiary of the refund.
-""")
+")
 
 ^{:nextjournal.clerk/visibility {:code :fold :result :show}}
 (clerk/table
@@ -132,11 +132,11 @@ refunded amount.
 ;; ## 1. What just happened?
 
 ^{:nextjournal.clerk/visibility {:code :fold :result :show}}
-(clerk/md """
+(clerk/md "
 **Why it matters:** execution success and structural assurance are different
 results. A replay may complete while an independently recomputed representation
 still exposes a mismatch.
-""")
+")
 
 ^{:nextjournal.clerk/visibility {:code :fold :result :show}}
 (clerk/table
@@ -159,11 +159,11 @@ still exposes a mismatch.
 ;; ## 2. What does the world look like now?
 
 ^{:nextjournal.clerk/visibility {:code :fold :result :show}}
-(clerk/md """
+(clerk/md "
 **Why it matters:** a terminal world is a protocol value, not just an event
 record. This summary starts with the human consequences before exposing its map
 structure.
-""")
+")
 
 ^{:nextjournal.clerk/visibility {:code :fold :result :show}}
 (clerk/table
@@ -178,21 +178,21 @@ structure.
 ;; ## 3. Where did the money go?
 
 ^{:nextjournal.clerk/visibility {:code :fold :result :show}}
-(clerk/md """
+(clerk/md "
 ```text
                          CANONICAL HISTORY
-                        :held-adjustments
-                               │
-                  ┌────────────┴─────────────┐
-                  ▼                          ▼
-          LIVE MATERIALIZATION       INDEPENDENT REPLAY
-          :total-held                custody reconstruction
-          :held-ledger/index
-          :held/positions
-                  │                          │
-                  └────────────┬─────────────┘
-                               ▼
-                         RECONCILIATION
+                         :held-adjustments
+                                │
+                   ┌────────────┴─────────────┐
+                   ▼                          ▼
+           LIVE MATERIALIZATION       INDEPENDENT REPLAY
+           :total-held                custody reconstruction
+           :held-ledger/index
+           :held/positions
+                   │                          │
+                   └────────────┬─────────────┘
+                                ▼
+                          RECONCILIATION
 ```
 
 The custody history is authoritative; balances and indexes are recomputable
@@ -200,7 +200,7 @@ views. PRF independently replays the history to detect drift.
 
 **Why it matters:** a balance can look plausible while disagreeing with the
 canonical adjustment history.
-""")
+")
 
 ^{:nextjournal.clerk/visibility {:code :fold :result :show}}
 (clerk/table
@@ -218,14 +218,14 @@ canonical adjustment history.
 ;; ## 4. What exactly changed?
 
 ^{:nextjournal.clerk/visibility {:code :fold :result :show}}
-(clerk/md """
+(clerk/md "
 At the cancellation boundary the escrow moved from pending to refunded, custody
 left the escrow, and the buyer received a claimable refund. The full diff is
 available below as proof material rather than the default explanation.
 
 **Why it matters:** registered regions receive explicit authority labels;
 unregistered paths remain visible but are not assigned invented semantics.
-""")
+")
 
 ^{:nextjournal.clerk/visibility {:code :hide :result :hide}}
 (def transition-explanation
@@ -238,7 +238,7 @@ unregistered paths remain visible but are not assigned invented semantics.
 ^{:nextjournal.clerk/visibility {:code :fold :result :show}}
 (clerk/table
  {:head ["Changed area" "Observed effect"]
-  :rows [["Escrow lifecycle" (str (name (:escrow-state before-escrow)) " → " (name (:escrow-state after-escrow))]
+  :rows [["Escrow lifecycle" (str (name (:escrow-state before-escrow)) " → " (name (:escrow-state after-escrow)))]
          ["Custody" (str (money (get-in previous-world [:total-held :USDC])) " → "
                           (money (get-in terminal-world [:total-held :USDC])))]
          ["Claims" (str "buyer claimable 0 → " (money principal))]
@@ -274,14 +274,14 @@ unregistered paths remain visible but are not assigned invented semantics.
 ;; ## 7. Is every state-shaped value the same kind of thing?
 
 ^{:nextjournal.clerk/visibility {:code :fold :result :show}}
-(clerk/md """
+(clerk/md "
 No. A runtime world has transition semantics. A checkpoint is a historical
 instance of that world. A reconstruction, snapshot, export, or EVM comparison
 view is computed from a source value and has a narrower contract.
 
 **Why it matters:** useful projections must not silently replace the protocol
 world that owns state semantics.
-""")
+")
 
 ^{:nextjournal.clerk/visibility {:code :fold :result :show}}
 (clerk/code (if terminal-world

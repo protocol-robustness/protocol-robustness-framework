@@ -14,10 +14,10 @@
             [resolver-sim.signed-external-decision :as sed])
   (:import [java.nio.file Files]))
 
-(def source-schema "realized-allocation-source.v1")
-(def source-domain "REALIZED_ALLOCATION_SOURCE_V1")
-(def source-role :allocation-source-authority)
-(def source-file-name "realized-allocation-source.json")
+(def ^:const source-schema "realized-allocation-source.v1")
+(def ^:const source-domain "REALIZED_ALLOCATION_SOURCE_V1")
+(def ^:const source-role :allocation-source-authority)
+(def ^:const source-file-name "realized-allocation-source.json")
 
 (defn source-preimage [source]
   (select-keys source [:source/schema-version :source/id :source/scope

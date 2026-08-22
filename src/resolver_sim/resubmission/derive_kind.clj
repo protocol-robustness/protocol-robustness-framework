@@ -22,7 +22,7 @@
 
    Reasons distinguish the failures per the design contract.")
 
-(def semantic-rejection-classifications
+(def ^:const semantic-rejection-classifications
   "Rejection classifications that concern the semantic result/reconciliation.
    A parent rejected for these cannot be an :exact-retry with an unchanged
    semantic result."

@@ -8,17 +8,17 @@
    always identifies which implementation produced it."
   (:require [resolver-sim.hash.canonical :as hc]))
 
-(def supported-fixture-contracts
+(def ^:const supported-fixture-contracts
   #{:trace-fixture.v2 :trace-fixture.v1})
 
-(def actions
+(def ^:const actions
   "Actions the trace harness can replay (CDRS v0.2)."
   #{:create-escrow :release :sender-cancel :recipient-cancel
     :raise-dispute :release-as-dispute-resolver :cancel-as-dispute-resolver
     :execute-pending-settlement :auto-cancel-disputed :escalate-dispute
     :register-stake :withdraw-stake})
 
-(def roles
+(def ^:const roles
   "Roles the trace harness resolves to explicit addresses (mirrors
    _roleToAddressV2 in TraceEquivalence.t.sol).  resolver1 is intentionally
    absent — the harness cannot resolve it — so traces using it are correctly
@@ -34,7 +34,7 @@
 
 (def ^:const validator-version 1)
 
-(def trace-fixture-v2-schema-root
+(def ^:const trace-fixture-v2-schema-root
   "Content root of the structural (schema) validator implementation."
   (identity-root
    {:validator/id :trace-fixture-v2-schema
@@ -42,7 +42,7 @@
     :version validator-version
     :canonicalizer :trace-fixture.v2}))
 
-(def trace-fixture-v2-semantics-root
+(def ^:const trace-fixture-v2-semantics-root
   "Content root of the semantic validator implementation."
   (identity-root
    {:validator/id :trace-fixture-v2-semantics

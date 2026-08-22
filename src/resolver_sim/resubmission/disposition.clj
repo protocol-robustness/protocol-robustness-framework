@@ -18,14 +18,14 @@
             [resolver-sim.signed-external-decision :as sed]
             [resolver-sim.hash.reference :as hash-ref]))
 
-(def disposition-schema "attempt-disposition.v1")
-(def disposition-domain "prf.attempt-disposition.v1")
+(def ^:const disposition-schema "attempt-disposition.v1")
+(def ^:const disposition-domain :prf-attempt-disposition-v1)
 
-(def disposition-statuses
+(def ^:const disposition-statuses
   "Event vocabulary. These are not receipt lifecycle statuses."
   #{:pending-review :final :withdrawn :revoked :superseded})
 
-(def disposition->lifecycle-status
+(def ^:const disposition->lifecycle-status
   "The sole mapping from an immutable disposition event to the receipt lifecycle
    vocabulary. Review and finality describe disposition workflow, not a change
    to receipt eligibility; only explicit lifecycle events deactivate a receipt."

@@ -326,12 +326,12 @@
     :as request}]
   (let [allocation-id (:allocation/id request)
         schema-version (:schema-version request "pro-rata-allocation-request.v1")
-        mechanism-version (:mechanism/version request mechanism-version)
+        req-mechanism-version (:mechanism/version request mechanism-version)
         available (when (integer? available) (bigint available))]
     (when-not (= "pro-rata-allocation-request.v1" schema-version)
       (invalid! :unsupported-allocation-request-schema {:schema-version schema-version}))
-    (when-not (= 1 mechanism-version)
-      (invalid! :unsupported-allocation-mechanism-version {:mechanism/version mechanism-version}))
+    (when-not (= mechanism-version req-mechanism-version)
+      (invalid! :unsupported-allocation-mechanism-version {:mechanism/version req-mechanism-version}))
     (when-not allocation-id
       (invalid! :missing-allocation-id {}))
     (try
@@ -347,9 +347,9 @@
       (invalid! :unsupported-redistribution-policy
                 {:redistribution-policy redistribution-policy}))
     (let [rows (canonical-rows rows)
-        ;; Persist request-shaped rows, rather than internal normalized rows:
-        ;; replay must feed precisely the same public contract back into
-        ;; `allocate`.
+         ;; Persist request-shaped rows, rather than internal normalized rows:
+         ;; replay must feed precisely the same public contract back into
+         ;; `allocate`.
           canonical-request-rows (mapv (fn [row]
                                          {:row/id (:row/id row)
                                           :obligation/id (:obligation/id row)
@@ -358,7 +358,7 @@
                                           :cap (:declared-cap row)})
                                        rows)
           canonical-request {:schema-version schema-version
-                             :mechanism/version mechanism-version
+                             :mechanism/version req-mechanism-version
                              :allocation/id allocation-id
                              :available available
                              :rows canonical-request-rows
@@ -410,7 +410,7 @@
                                                {:type (type total-ratio) :value total-ratio}))))
           result-base
           {:schema-version "pro-rata-allocation-result.v1"
-           :mechanism {:id :mechanism/pro-rata-allocation :version 1}
+           :mechanism {:id :mechanism/pro-rata-allocation :version req-mechanism-version}
            :allocation/id allocation-id
            :canonical-request canonical-request
            :request/hash request-hash

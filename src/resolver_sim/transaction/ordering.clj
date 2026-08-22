@@ -50,7 +50,7 @@
   "Domain tag for the internally-derived, chain-scoped change identity."
   :prf-transaction-ordering-change-identity-v1)
 
-(def change-identity-required-fields
+(def ^:const change-identity-required-fields
   "Basis of transaction/change-identity. These describe the canonical
    pre-change operation (chain scope, action, and the committed command/input
    root). Deliberately excluded: state-before-root (application context),

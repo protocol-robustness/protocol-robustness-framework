@@ -27,8 +27,8 @@
    pinned PRF identity, pinned Rust implementation identity, conformance
    vector / run identity, comparison outcome, and verifier version.")
 
-(def native-verifier-version "native-evidence.v1")
-(def native-schema "native-evidence.v1")
+(def ^:const native-verifier-version "native-evidence.v1")
+(def ^:const native-schema "native-evidence.v1")
 
 (defn malformed-native-evidence?
   "True when evidence is not a map, has the wrong schema, or is not the

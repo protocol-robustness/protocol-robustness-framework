@@ -26,13 +26,13 @@
             [resolver-sim.allocation.round-state :as round-state]
             [resolver-sim.allocation.selection :as selection]))
 
-(def lifecycle-decision-opts
+(def ^:const lifecycle-decision-opts
   "Cancellation decision profile used for the kernel's round-lifecycle
    projection: the canonical three-member profile under its named allocation
    policy id (mirrors `resolver-sim.allocation.certificate`)."
   {:profile-id "alloc/2-3"})
 
-(def assertion-ids
+(def ^:const assertion-ids
   "The ordered 14-assertion contract. The order is part of the compatibility
    contract between PRF and the Rust kernel."
   [:allocation.assertion/claimant-set-root-valid

@@ -25,17 +25,17 @@
             [resolver-sim.signed-external-decision :as sed]
             [resolver-sim.hash.reference :as hash-ref]))
 
-(def receipt-schema "submission-attempt-receipt.v1")
-(def receipt-domain "prf.submission-attempt-receipt.v1")
+(def ^:const receipt-schema "submission-attempt-receipt.v1")
+(def ^:const receipt-domain :prf-submission-attempt-receipt-v1)
 
-(def outcomes #{:accepted :rejected :system-failure :indeterminate})
-(def finalities #{:provisional :final})
-(def resubmission-eligibilities #{:eligible :ineligible :retry-same-attempt})
-(def lifecycle-statuses #{:active :withdrawn :revoked :superseded})
-(def root-statuses #{:verified :invalid :unavailable})
-(def results-statuses #{:verified :invalid :missing})
-(def submitter-statuses #{:verified :authenticated-session :claimed :missing})
-(def identity-sources #{:publisher-signature :submission-auth :authenticated-session})
+(def ^:const outcomes #{:accepted :rejected :system-failure :indeterminate})
+(def ^:const finalities #{:provisional :final})
+(def ^:const resubmission-eligibilities #{:eligible :ineligible :retry-same-attempt})
+(def ^:const lifecycle-statuses #{:active :withdrawn :revoked :superseded})
+(def ^:const root-statuses #{:verified :invalid :unavailable})
+(def ^:const results-statuses #{:verified :invalid :missing})
+(def ^:const submitter-statuses #{:verified :authenticated-session :claimed :missing})
+(def ^:const identity-sources #{:publisher-signature :submission-auth :authenticated-session})
 
 (defn unsigned-receipt-projection
   "The canonical unsigned projection of a receipt: everything except

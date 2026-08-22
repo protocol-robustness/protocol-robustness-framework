@@ -194,7 +194,7 @@
    the same validated correlation referenced by the receipt; explicit no-effect
    failures prohibit a correlation rather than inventing a synthetic effect."
   [{:keys [correlation consumption-receipt] :as fields}]
-  (when-not (= "force-authorisation-consumption.v2"
+   (when-not (= rfa/receipt-v2-schema-version
                (:schema-version consumption-receipt))
     (throw (ex-info "Execution evidence v2 requires a receipt v2" {})))
   (when-not (:valid? (rfa/validate-consumption-receipt consumption-receipt))

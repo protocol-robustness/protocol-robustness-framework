@@ -6,8 +6,8 @@
             [resolver-sim.hash.reference :as hash-ref]
             [resolver-sim.signed-external-decision :as sed]))
 
-(def schema "resubmission-admission-authorization.v2")
-(def domain "prf.resubmission-admission-authorization.v2")
+(def ^:const schema "resubmission-admission-authorization.v2")
+(def ^:const domain :prf-resubmission-admission-authorization-v2)
 
 (defn unsigned-projection [evidence]
   ;; The signature envelope is attached after both identity and signing bytes

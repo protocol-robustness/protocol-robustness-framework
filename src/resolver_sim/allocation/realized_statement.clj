@@ -31,7 +31,7 @@
   (:require [resolver-sim.allocation.context :as context]
             [resolver-sim.hash.canonical :as hc]))
 
-(def schema-version "realized-allocation-statement.v1")
+(def ^:const schema-version "realized-allocation-statement.v1")
 
 (defn- sort-by-claim-id
   "Canonical order for claim-keyed maps: sort by claim id key."

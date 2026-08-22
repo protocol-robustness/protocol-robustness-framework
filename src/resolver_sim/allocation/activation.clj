@@ -26,9 +26,9 @@
    and a *decision authorizing an irreversible effect*."
   (:require [resolver-sim.hash.canonical :as hc]))
 
-(def schema-version "allocation-activation.v1")
+(def ^:const schema-version "allocation-activation.v1")
 
-(def activation-statuses #{:activated :prohibited})
+(def ^:const activation-statuses #{:activated :prohibited})
 
 (defn rejected-proof?
   "True when the proof result carries a rejection classification (i.e. the

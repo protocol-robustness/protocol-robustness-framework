@@ -828,7 +828,8 @@
             now              (time-ctx/block-ts world)
             workflow-id      (:workflow-id pp)
             escrow           (t/get-transfer world workflow-id)
-            reason           (:reason pp)
+            reason           (let [r (:reason pp)]
+                               (if (string? r) (keyword r) r))
             allowed          (:allowed-reasons fa-policy)
             starts-at        (or (:starts-at pp) now)
             duration         (:duration pp)
@@ -2483,11 +2484,14 @@
             :governance-mode      (get pp :governance-mode :restricted)
             :governance-identity  (normalize-governance-identity (get pp :governance/identity))
             :resolver-overflow-policy (merge def-policy of-policy)
-            :force-authorisation-policy (merge def-fa-policy fa-policy)
-            ;; Phase 2B: propagate authoritative semantic composition from
-            ;; protocol-params into the execution context. When absent, the
-            ;; context remains legacy/compat (no force-auth activation).
-            :semantic-composition (get pp :semantic-composition)})))
+             :force-authorisation-policy (merge def-fa-policy fa-policy)
+             ;; Phase 2B: propagate authoritative semantic composition from
+             ;; protocol-params into the execution context. When absent, the
+             ;; context remains legacy/compat (no force-auth activation).
+             :semantic-composition (get pp :semantic-composition)
+             :force-authorisation/allow-local-compatibility? (get pp :force-authorisation/allow-local-compatibility? false)
+             :extension-map (when (get pp :force-authorisation/allow-local-compatibility? false)
+                              (force-extension/install (force-extension/install-governed-authority {})))})))
 
   (dispatch-action [_ context world event]
     (let [event       (resolve-scenario-bindings world event)

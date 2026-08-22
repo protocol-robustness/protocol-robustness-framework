@@ -40,14 +40,14 @@
             [resolver-sim.hash.reference :as hash-ref]
             [resolver-sim.signed-external-decision :as sed]))
 
-(def schema-version "allocation-assurance-certificate.v1")
+(def ^:const schema-version "allocation-assurance-certificate.v1")
 
-(def certificate-domain
+(def ^:const certificate-domain
   "Domain tag separating the allocation-assurance-certificate hash from all
    other content-addressed artifacts."
   "ALLOCATION_ASSURANCE_CERTIFICATE_V1")
 
-(def certificate-signature-schema
+(def ^:const certificate-signature-schema
   "Schema version of the certificate attestation block (reuses the signed
    external-decision signature schema)."
   sed/signature-schema)

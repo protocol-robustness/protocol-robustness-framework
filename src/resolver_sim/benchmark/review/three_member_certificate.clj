@@ -38,6 +38,7 @@
             [resolver-sim.hash.reference :as hash-ref]))
 
 (def ^:const schema-version "three-member-research-certificate.v3")
+(def ^:const inputs-version 1)
 (def ^:const legacy-schema-version "three-member-research-certificate.v2")
 (def ^:const deprecated-schema-version "three-member-research-certificate.v1")
 
@@ -685,7 +686,7 @@
                   :review-member-canonical-indices/hash
                   (:review-member-canonical-indices/hash ci-artifact)
                   :certificate/inputs
-                  {:version 1
+                  {:version inputs-version
                    :review-round review-round
                    :canonical-indices ci-artifact
                    :reports (vec reports)
