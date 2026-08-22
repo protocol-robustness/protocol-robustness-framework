@@ -19,8 +19,9 @@
 ;;   LOW    weak token overlap only (suite names etc.)
 ;;   NONE   no candidate-specific evidence
 ;;
-;; Verdicts: LIKELY CULPRIT (HIGH only), MULTIPLE PLAUSIBLE CONTRIBUTORS,
-;; PLAUSIBLE CONTRIBUTOR (MEDIUM), UNATTRIBUTED.
+;; Verdicts: HIGH-CONFIDENCE CONTRIBUTOR (HIGH only), MULTIPLE PLAUSIBLE
+;; CONTRIBUTORS, PLAUSIBLE CONTRIBUTOR (MEDIUM), UNATTRIBUTED.
+;; Attribution applies to recorded candidate TREES, never to authorship or blame.
 ;;
 ;; Divergence labels: a merged file differing from every parent is reported as
 ;; COMPOSITE-MERGE (legitimate combined edits also look like this);
@@ -28,17 +29,36 @@
 ;;
 ;; --rerun-failed replays failed targets against: stage 0 the integration
 ;; baseline, stage 1 each parent tip, stage 2 pairwise merges, inside throwaway
-;; jj workspaces under /tmp/opencode. Verdict taxonomy:
+;; jj workspaces. Verdict taxonomy:
 ;;   BASELINE_FAILURE / SINGLE_PARENT_FAILURE / PAIRWISE_INTERACTION /
-;;   HIGHER_ORDER_OR_UNREPRODUCED / INFRASTRUCTURE_FAILURE.
+;;   INTEGRATION_RESOLUTION_SUSPECT / HIGHER_ORDER_INTERACTION /
+;;   UNREPRODUCED_OR_NONDETERMINISTIC / MERGE_CONFLICT_UNTESTED /
+;;   INFRASTRUCTURE_FAILURE.
 (ns attribute-failures
   (:require [babashka.fs :as fs]
             [cheshire.core :as json]
+            [clojure.edn :as edn]
             [clojure.java.io :as io]
             [clojure.java.shell :as sh]
             [clojure.string :as str]))
 
-(def tmp-root "/tmp/opencode")
+(def repo-dir (System/getProperty "user.dir"))
+
+(def default-config
+  {:bookmark-glob "agent-*"
+   :impl-roots ["src" "test" "protocols_src"]
+   :tmp-root "/tmp/opencode"
+   :baseline "integration@origin"})
+
+(def config
+  (merge default-config
+         (try (let [f (io/file repo-dir ".triage.edn")]
+                (when (.exists f) (edn/read-string (slurp f))))
+              (catch Exception _ {}))))
+
+(def tmp-root
+  (or (System/getenv "TRIAGE_TMP_ROOT") (:tmp-root config)))
+
 (def default-max-pairs 15)
 
 (defn sh* [dir & args]
@@ -46,8 +66,6 @@
     (apply sh/sh "jj" (concat args [:dir dir]))
     (catch Exception e
       {:exit -1 :err (.getMessage e) :out ""})))
-
-(def repo-dir (System/getProperty "user.dir"))
 
 (defn pairs [xs]
   (when (> (count xs) 1)
@@ -67,29 +85,53 @@
   (str/join "\n"
             ["usage:"
              "  bb triage:attribute [artifact-dir] [--at REV] [--baseline REV] [--json]"
-             "  bb triage:attribute [artifact-dir] --rerun-failed [--only unit,suites] [--max-pairs N]"
-             "  bb triage:guard [--baseline REV]"
+             "  bb triage:attribute [artifact-dir] --rerun-failed [--only unit,suites]"
+             "                      [--max-pairs N] [--repetitions N] [--require-reproductions N]"
+             "  bb triage:guard [--baseline REV] [--bookmark-glob GLOB] [--impl-roots a,b,c]"
+             "                  [--require-nonempty-tip]"
+             ""
+             "  explicit candidates (overrides provenance/bookmarks):"
+             "  bb triage:attribute --candidate api=REV --candidate storage=REV ..."
              ""
              "  artifact-dir defaults to newest results/test-artifacts-* containing test-summary.json"
              "  --at REV        revision considered the integrated/tested tree (default:"
              "                  provenance tested-revision, else current @)"
-             "  --baseline REV  common ancestor contributions are measured against;"
-             "                  default: fork_point(candidates), else immediate-parent fallback"
-             "  --only t1,t2    restrict --rerun-failed to these targets"]))
+             "  --baseline REV  contribution/descent baseline; default fork_point(candidates),"
+             "                  then :baseline from .triage.edn ('integration@origin')"
+             "  --only t1,t2    restrict --rerun-failed to these targets"
+             ""
+             "  configuration: .triage.edn at repo root may set :bookmark-glob, :impl-roots,"
+             "  :tmp-root, :baseline. Env TRIAGE_TMP_ROOT overrides the temp workspace root."
+             ""
+             "  exit codes: 0 attribution/guard completed · 1 failures found ·"
+             "              nonzero from assertions = invalid input"]))
 
 (defn parse-args [args]
   (loop [xs args, acc {:dirs [] :flags {}}]
     (if-let [x (first xs)]
       (cond
-        (= "--rerun-failed" x) (recur (rest xs) (assoc-in acc [:flags :rerun-failed] true))
-        (= "--guard" x)        (recur (rest xs) (assoc-in acc [:flags :guard] true))
-        (= "--json" x)         (recur (rest xs) (assoc-in acc [:flags :json] true))
-        (= "--help" x)         (recur (rest xs) (assoc-in acc [:flags :help] true))
-        (= "--at" x)           (recur (drop 2 xs) (assoc-in acc [:flags :at] (second xs)))
-        (= "--baseline" x)     (recur (drop 2 xs) (assoc-in acc [:flags :baseline] (second xs)))
-        (= "--max-pairs" x)    (recur (drop 2 xs) (assoc-in acc [:flags :max-pairs] (second xs)))
-        (= "--only" x)         (recur (drop 2 xs) (assoc-in acc [:flags :only] (second xs)))
-        :else                  (recur (rest xs) (update acc :dirs conj x)))
+        (= "--rerun-failed" x)         (recur (rest xs) (assoc-in acc [:flags :rerun-failed] true))
+        (= "--guard" x)                (recur (rest xs) (assoc-in acc [:flags :guard] true))
+        (= "--json" x)                 (recur (rest xs) (assoc-in acc [:flags :json] true))
+        (= "--help" x)                 (recur (rest xs) (assoc-in acc [:flags :help] true))
+        (= "--require-nonempty-tip" x) (recur (rest xs) (assoc-in acc [:flags :require-nonempty-tip] true))
+        (= "--at" x)                   (recur (drop 2 xs) (assoc-in acc [:flags :at] (second xs)))
+        (= "--baseline" x)             (recur (drop 2 xs) (assoc-in acc [:flags :baseline] (second xs)))
+        (= "--max-pairs" x)            (recur (drop 2 xs) (assoc-in acc [:flags :max-pairs] (second xs)))
+        (= "--only" x)                 (recur (drop 2 xs) (assoc-in acc [:flags :only] (second xs)))
+        (= "--bookmark-glob" x)        (recur (drop 2 xs) (assoc-in acc [:flags :bookmark-glob] (second xs)))
+        (= "--impl-roots" x)           (recur (drop 2 xs) (assoc-in acc [:flags :impl-roots]
+                                                                      (vec (str/split (second xs) #","))))
+        (= "--repetitions" x)          (recur (drop 2 xs) (assoc-in acc [:flags :repetitions]
+                                                                     (some-> (second xs) parse-long)))
+        (= "--require-reproductions" x) (recur (drop 2 xs) (assoc-in acc [:flags :require-reproductions]
+                                                                      (some-> (second xs) parse-long)))
+        (= "--candidate" x)
+        (let [[label rev] (str/split (second xs) #"=" 2)]
+          (if (and label rev)
+            (recur (drop 2 xs) (update-in acc [:flags :candidates] assoc label rev))
+            (throw (ex-info "--candidate expects label=rev" {}))))
+        :else                          (recur (rest xs) (update acc :dirs conj x)))
       acc)))
 
 ;; ---------------------------------------------------------------------------
@@ -211,25 +253,42 @@
                        :commit-id  (:commit_id c)
                        :empty?     false}))))))
 
-(defn candidates-from-bookmarks []
-  (letfn [(parse [line]
-            (when-let [[_ name cid] (re-find #"^\s*(agent-[^:]+):\s+([a-z0-9]+)" line)]
-              {:label name
-               :change-id cid
-               :empty? (= "true"
-                          (str/trim (or (jj "log" "-r" cid "--no-graph"
-                                         "-T" "if(empty, \"true\", \"false\")")
-                                        "")))}))]
-    (when-let [out (jj "bookmark" "list")]
-      (seq (doall (keep parse (str/split-lines out)))))))
+(defn glob->bookmark-regex [glob]
+  (let [parts (str/split glob #"\*" -1)]
+    (re-pattern (str "^\\s*("
+                     (str/join "[^:\\s]+" (map java.util.regex.Pattern/quote parts))
+                     "):\\s+([a-z0-9]+)"))))
 
-(defn resolve-candidates [artifact-dir]
-  (let [prov?   (boolean (load-provenance artifact-dir))
-        cands   (or (candidates-from-provenance artifact-dir)
-                    (candidates-from-bookmarks))]
+(defn candidates-from-bookmarks
+  ([] (candidates-from-bookmarks (:bookmark-glob config)))
+  ([bookmark-glob]
+   (let [rx (glob->bookmark-regex bookmark-glob)]
+     (letfn [(parse [line]
+               (when-let [[_ name cid] (re-find rx line)]
+                 {:label name
+                  :change-id cid
+                  :empty? (= "true"
+                             (str/trim (or (jj "log" "-r" cid "--no-graph"
+                                            "-T" "if(empty, \"true\", \"false\")")
+                                           "")))}))]
+       (when-let [out (jj "bookmark" "list")]
+         (seq (doall (keep parse (str/split-lines out)))))))))
+
+(defn resolve-candidates [artifact-dir flags]
+  (let [prov?    (boolean (load-provenance artifact-dir))
+        explicit (seq (:candidates flags))
+        cands    (cond
+                   explicit (mapv (fn [[label rev]]
+                                    {:label label :change-id rev :empty? false})
+                                  explicit)
+                   :else (or (candidates-from-provenance artifact-dir)
+                             (candidates-from-bookmarks
+                              (or (:bookmark-glob flags)
+                                  (:bookmark-glob config)))))]
     {:source-tag (cond
-                   prov? ".provenance.json parents"
-                   cands "agent-* bookmark fallback")
+                   explicit "explicit --candidate list"
+                   prov?    ".provenance.json parents"
+                   cands    (str "bookmark fallback (" (:bookmark-glob config) ")"))
      :candidates (vec cands)}))
 
 (defn tested-revision [artifact-dir flags]
@@ -240,6 +299,7 @@
 (defn resolve-baseline [flags candidates]
   (or (when-let [b (:baseline flags)]
         {:ref b :id b})
+      ;; fork_point of the candidates is the precise common baseline
       (let [revs (str/join "|" (map :change-id candidates))]
         (when (seq revs)
           (let [out (str/trim (or (jj "log" "-r" (str "fork_point(" revs ")")
@@ -249,7 +309,10 @@
                 lines (str/split-lines out)]
             (when (= 1 (count lines))
               (when-let [id (not-empty (first lines))]
-                {:ref (str "fork_point(" revs ")") :id id})))))))
+                {:ref (str "fork_point(" revs ")") :id id})))))
+      ;; configured fallback only when fork_point is ambiguous/unresolvable
+      (when-let [b (:baseline config)]
+        {:ref b :id b})))
 
 (defn commit-short [c]
   (or (:commit-id c)
@@ -331,6 +394,7 @@
 (defn print-static [{:keys [source-tag tested-rev baseline failed candidates
                             contributions matrix tokens]} divs]
   (println "=== triage:attribute ===")
+  (println "note: attribution applies to recorded candidate trees, not authorship or blame.")
   (println (format "candidate source : %s" source-tag))
   (println (format "tested revision  : %s" tested-rev))
   (println (if baseline
@@ -365,7 +429,7 @@
                       lbl)]
       (cond
         (= 1 (count with-high))
-        (println (format "   => LIKELY CULPRIT (HIGH): %s" (first with-high)))
+        (println (format "   => HIGH-CONFIDENCE CONTRIBUTOR: %s" (first with-high)))
         (> (count with-high) 1)
         (println (format "   => MULTIPLE PLAUSIBLE CONTRIBUTORS (HIGH): %s"
                          (str/join ", " with-high)))
@@ -462,8 +526,9 @@
                           ""))))
 
 (defn rerun-one!
-  "Runs one (candidate-set x target) cell. Records {:exit n :conflict b}."
-  [results key prefix label change-refs targets stamp]
+  "Runs one (candidate-set x target) cell --repetitions times.
+   Records {:exits [..] :conflict b}."
+  [results key prefix label change-refs targets stamp repetitions]
   (let [path (make-workspace! prefix label (first change-refs) stamp)]
     (try
       (when (> (count change-refs) 1)
@@ -472,35 +537,53 @@
             (throw (ex-info (str "jj new merge failed: " err) {})))))
       (let [conflict (ws-conflict? path)]
         (doseq [t targets]
-          (print (format "[%s @%s] %-24s ... " label (last change-refs) t))
-          (flush)
           (if conflict
-            (do (swap! results assoc-in [key t] {:exit nil :conflict true})
-                (println "SKIPPED (unresolved conflicts)"))
-            (let [code (run-target-in path t)]
-              (swap! results assoc-in [key t] {:exit code :conflict false})
-              (println (case code
-                         0 "PASS"
-                         127 "FAIL(exit=127 INFRASTRUCTURE?)"
-                         (str "FAIL(exit=" code ")")))))))
+            (do
+              (print (format "[%s @%s] %-24s ... " label (last change-refs) t))
+              (flush)
+              (swap! results assoc-in [key t] {:exits [] :conflict true})
+              (println "MERGE_CONFLICT_UNTESTED"))
+            (let [exits (vec (for [rep (range repetitions)]
+                               (do
+                                 (print (format "[%s @%s] %-24s%s ... "
+                                                label (last change-refs) t
+                                                (if (> repetitions 1)
+                                                  (format " rep %d/%d" (inc rep) repetitions)
+                                                  "")))
+                                 (flush)
+                                 (:exit (run-target-in path t)))))]
+              (swap! results assoc-in [key t] {:exits exits :conflict false})
+              (doseq [[i code] (map-indexed vector exits)]
+                (println
+                 (let [rs (case code
+                            0 "PASS"
+                            127 "FAIL(exit=127 INFRASTRUCTURE?)"
+                            (str "FAIL(exit=" code ")"))]
+                   (if (> repetitions 1)
+                     (format "  rep %d/%d: %s" (inc i) repetitions rs)
+                     rs))))))))
       (finally (drop-workspace! (fs/file-name path))))))
 
 (defn outcome-kind [cell]
   (cond
     (nil? cell) :not-run
-    (:conflict cell) :infrastructure
-    (nil? (:exit cell)) :infrastructure
-    (= 127 (:exit cell)) :infrastructure
-    (pos? (:exit cell)) :failure
+    (:conflict cell) :conflict
+    (some #(or (nil? %) (= 127 %)) (:exits cell)) :infrastructure
+    (pos? (count (filter pos? (:exits cell)))) :failure
     :else :pass))
+
+(defn cell-fail-count [cell]
+  (count (filter pos? (:exits cell))))
 
 (defn rerun-failed [artifact-dir flags]
   (let [summary    (load-summary artifact-dir)
         targets    (failing-targets summary (:only flags))
-        {:keys [candidates]} (resolve-candidates artifact-dir)
+        {:keys [candidates]} (resolve-candidates artifact-dir flags)
         candidates (->> candidates (remove :empty?) vec)
         baseline   (resolve-baseline flags candidates)
         max-pairs  (or (some-> (:max-pairs flags) parse-long) default-max-pairs)
+        repetitions (max 1 (or (:repetitions flags) 1))
+        min-repro  (max 1 (min repetitions (or (:require-reproductions flags) 1)))
         results    (atom {})
         stamp      (format "%x" (System/currentTimeMillis))]
     (assert (seq candidates) "no candidate parents found")
@@ -510,13 +593,16 @@
     (println (format "parents   : %s" (str/join ", " (mapv :label candidates))))
     (println (format "baseline  : %s"
                      (or (some-> baseline :id) "UNRESOLVED (stage 0 skipped)")))
+    (when (> repetitions 1)
+      (println (format "repetitions: %d per cell (failure requires >=%d failing run(s))"
+                       repetitions min-repro)))
     (when baseline
       (println "\n--- stage 0: integration baseline control ---")
-      (rerun-one! results [:s0] "tri0" "baseline" [(:id baseline)] targets stamp))
+      (rerun-one! results [:s0] "tri0" "baseline" [(:id baseline)] targets stamp repetitions))
     (println "\n--- stage 1: individual parent tips ---")
     (doseq [c candidates]
       (rerun-one! results [:s1 (:label c)] "tri1" (:label c)
-                  [(:change-id c)] targets stamp))
+                  [(:change-id c)] targets stamp repetitions))
     (let [all-pairs (pairs candidates)
           pairs     (take max-pairs all-pairs)]
       (println (format "\n--- stage 2: pairwise merges (%d of %d)%s ---"
@@ -526,45 +612,82 @@
       (doseq [[a b] pairs]
         (rerun-one! results [:s2 (str/join "+" (mapv :label [a b]))]
                     "tri2" (str/join "+" (mapv :label [a b]))
-                    (mapv :change-id [a b]) targets stamp)))
-    (println "\n=== rerun verdict ===")
-    (println "note: pairwise testing cannot prove absence of three-way interactions.")
-    (doseq [t targets]
-      (let [s0      (get-in @results [:s0 t])
-            s0-fail (= (outcome-kind s0) :failure)
-            s1-fail (for [[lbl m] (:s1 @results)
-                          :when (= (outcome-kind (get m t)) :failure)]
-                      lbl)
-            s2-fail (for [[pair m] (:s2 @results)
-                          :when (= (outcome-kind (get m t)) :failure)]
-                      pair)
-            infra   (concat
-                     (for [[lbl m] (:s1 @results)
-                           :when (= (outcome-kind (get m t)) :infrastructure)]
-                       lbl)
-                     (for [[pair m] (:s2 @results)
-                           :when (= (outcome-kind (get m t)) :infrastructure)]
-                       pair))]
-        (println (format "%s:" t))
-        (cond
-          (seq infra)
-          (println (format "  INFRASTRUCTURE_FAILURE/SKIPPED on: %s" (str/join ", " infra)))
-          s0-fail
-          (println (format "  BASELINE_FAILURE — preexisting/environmental (baseline exit=%s); attribution suppressed"
-                           (:exit s0)))
-          (seq s1-fail)
-          (println (format "  SINGLE_PARENT_FAILURE reproduced on: %s" (str/join ", " s1-fail)))
-          (seq s2-fail)
-          (do (println (format "  PAIRWISE_INTERACTION reproduced on merge(s): %s"
-                               (str/join ", " s2-fail)))
-              (println "  => interaction failure between the pairs above"))
-          :else
-          (println "  HIGHER_ORDER_OR_UNREPRODUCED (all tested tips/pairs pass)"))))))
+                    (mapv :change-id [a b]) targets stamp repetitions)))
+    ;; resolution-suspect hint: composite-merge files detected statically
+    (let [contributions (vec (for [c candidates]
+                               (merge c {:commit-id (commit-short c)}
+                                      (contribution-diff baseline c))))
+          divs (divergence-report contributions
+                                 (or (:at flags) "@"))
+          composite-files (keep :path
+                                (filter #(str/starts-with? (or (:label %) "") "COMPOSITE-MERGE")
+                                        divs))]
+      (println "\n=== rerun verdict ===")
+      (println "note: attribution applies to recorded candidate trees, not authorship.")
+      (println "note: pairwise testing cannot prove absence of three-way interactions.")
+      (doseq [t targets]
+        (let [s0       (get-in @results [:s0 t])
+              s0-kind  (outcome-kind s0)
+              s0-fails (cell-fail-count s0)
+              s1-fail  (for [[lbl m] (:s1 @results)
+                             :when (and (= (outcome-kind (get m t)) :failure)
+                                        (>= (cell-fail-count (get m t)) min-repro))]
+                         lbl)
+              s2-fail  (for [[pair m] (:s2 @results)
+                             :when (and (= (outcome-kind (get m t)) :failure)
+                                        (>= (cell-fail-count (get m t)) min-repro))]
+                         pair)
+              conflicts (concat
+                         (for [[lbl m] (:s1 @results)
+                               :when (= (outcome-kind (get m t)) :conflict)]
+                           lbl)
+                         (for [[pair m] (:s2 @results)
+                               :when (= (outcome-kind (get m t)) :conflict)]
+                           pair))
+              infra     (concat
+                         (for [[lbl m] (:s1 @results)
+                               :when (= (outcome-kind (get m t)) :infrastructure)]
+                           lbl)
+                         (for [[pair m] (:s2 @results)
+                               :when (= (outcome-kind (get m t)) :infrastructure)]
+                           pair))]
+          (println (format "%s:" t))
+          (cond
+            (seq infra)
+            (println (format "  INFRASTRUCTURE_FAILURE on: %s" (str/join ", " infra)))
+            (and s0 (= s0-kind :failure) (>= s0-fails min-repro))
+            (println (format "  BASELINE_FAILURE — preexisting/environmental (%d/%d runs failed); attribution suppressed"
+                             s0-fails repetitions))
+            (seq s1-fail)
+            (do (println (format "  SINGLE_PARENT_FAILURE — REPRODUCED WITH: %s"
+                                 (str/join ", " s1-fail)))
+                (doseq [lbl s1-fail]
+                  (let [k (cell-fail-count (get-in @results [:s1 lbl t]))]
+                    (when (and (> repetitions 1) (< k repetitions))
+                      (println (format "    FLAKY_REPRODUCTION: %s matched %d/%d" lbl k repetitions))))))
+            (seq s2-fail)
+            (do (println (format "  PAIRWISE_INTERACTION — REPRODUCED ON MERGE(S): %s"
+                                 (str/join ", " s2-fail)))
+                (doseq [p s2-fail]
+                  (let [k (cell-fail-count (get-in @results [:s2 p t]))]
+                    (when (and (> repetitions 1) (< k repetitions))
+                      (println (format "    FLAKY_REPRODUCTION: %s matched %d/%d" p k repetitions))))))
+            (seq conflicts)
+            (println (format "  MERGE_CONFLICT_UNTESTED on: %s" (str/join ", " conflicts)))
+            (seq composite-files)
+            (do (println "  INTEGRATION_RESOLUTION_SUSPECT — all tested tips/pairs pass, but the")
+                (println "  integrated tree contains COMPOSITE-MERGE files differing from every parent:")
+                (doseq [f (take 5 composite-files)]
+                  (println (str "    " f)))
+                (println "  => suspect the merge resolution itself (auto-merge delta check is deferred)."))
+            :else
+            (println "  HIGHER_ORDER_INTERACTION / UNREPRODUCED_OR_NONDETERMINISTIC (all tested cells pass)")))))))
 
 ;; ---------------------------------------------------------------------------
 ;; Guard
 
-(defn guard-problem [{:keys [label change-id]} baseline-desc strict-baseline?]
+(defn guard-problem [{:keys [label change-id baseline-desc strict-baseline?
+                             require-nonempty-tip impl-roots]}]
   (let [cid    (str/trim (or (jj "log" "-r" change-id "--no-graph"
                              "-T" "commit_id.short()") ""))
         state  (str/trim (or (jj "log" "-r" change-id "--no-graph"
@@ -578,42 +701,69 @@
                                (str "(" baseline-desc ") & ::(" change-id ")")
                                "--no-graph" "-T" "commit_id.short()")]
                    (boolean (seq (str/trim (or out "")))))
+        contributes (let [out (jj "diff" "--from" baseline-desc "--to" change-id
+                                  "--summary" "--no-pager")]
+                      (boolean (seq (str/trim (or out "")))))
         ws-dir (io/file (.getParentFile (io/file repo-dir)) label)
+        roots-rx (re-pattern
+                  (str "(^|\\? )(" (str/join "|" (map java.util.regex.Pattern/quote impl-roots)) ")/"))
         untracked (when (.isDirectory ws-dir)
                     (let [out (jj-out (.getPath ws-dir) "status" "--no-pager")]
                       (->> (str/split-lines (or out ""))
                            (filter #(str/starts-with? % "? "))
-                           (filterv #(re-find #"(^|\? )(src|test|protocols_src)/" %))
-                           vec)))]
+                           (filterv #(re-find roots-rx %))
+                           vec)))
+        empty-tip?  (str/includes? state "EMPTY")
+        undescribed? (str/includes? state "NO-DESCRIPTION")
+        conflicts?  (str/includes? state "CONFLICTS")]
     (cond
       (str/blank? cid)
-      {:severity :error
-       :msg (format "%s: bookmark does not resolve uniquely (%s)" label change-id)}
+      [{:severity :error
+        :msg (format "%s: bookmark does not resolve uniquely (%s)" label change-id)}]
 
-      (not= ";DESCRIBED;CLEAN" state)
-      {:severity :error
-       :msg (format "%s (%s): %s" label cid state)}
+      conflicts?
+      [{:severity :error
+        :msg (format "%s (%s): CONFLICTS — resolve before merging" label cid)}]
 
-      (and strict-baseline? (not descends))
-      {:severity :error
-       :msg (format "%s (%s): does NOT descend from explicit baseline '%s'"
-                    label cid baseline-desc)}
+      undescribed?
+      [{:severity :error
+        :msg (format "%s (%s): NO-DESCRIPTION" label cid)}]
 
-      (seq untracked)
-      {:severity :error
-       :msg (format "%s (%s): workspace has untracked implementation files: %s"
-                    label cid (str/join ", " (take 3 untracked)))}
-
-      (not descends)
-      {:severity :warn
-       :msg (format "%s (%s): does not descend from '%s' (normal for merge-based agent branches; pass --baseline to enforce)"
-                    label cid baseline-desc)})))
+      :else
+      (concat
+       (when (and empty-tip? require-nonempty-tip)
+         [{:severity :error
+           :msg (format "%s (%s): EMPTY tip (--require-nonempty-tip policy)" label cid)}])
+       (when (and (not descends) strict-baseline?)
+         [{:severity :error
+           :msg (format "%s (%s): does NOT descend from explicit baseline '%s'"
+                        label cid baseline-desc)}])
+       (when (seq untracked)
+         [{:severity :error
+           :msg (format "%s (%s): workspace has untracked implementation files: %s"
+                        label cid (str/join ", " (take 3 untracked)))}])
+       (when empty-tip?
+         [{:severity :warn
+           :msg (format "%s (%s): EMPTY tip commit (legitimate in jj when ancestry carries the work)"
+                        label cid)}])
+       (when (and (not descends) (not strict-baseline?))
+         [{:severity :warn
+           :msg (format "%s (%s): does not descend from '%s' (normal for merge-based agent branches; pass --baseline to enforce)"
+                        label cid baseline-desc)}])
+       (when-not contributes
+         [{:severity :warn
+           :msg (format "%s (%s): NO tree changes relative to baseline '%s'"
+                        label cid baseline-desc)}])))))
 
 (defn guard [flags]
-  (let [tips (candidates-from-bookmarks)]
-    (assert (seq tips) "no agent-* bookmarks found")
-    (let [baseline-desc (or (:baseline flags) "integration@origin")
-          results (map #(guard-problem % baseline-desc (boolean (:baseline flags))) tips)
+  (let [glob   (or (:bookmark-glob flags) (:bookmark-glob config))
+        tips   (candidates-from-bookmarks glob)]
+    (assert (seq tips) (str "no bookmarks matching glob '" glob "' found"))
+    (let [ctx {:baseline-desc    (or (:baseline flags) (:baseline config))
+               :strict-baseline?  (boolean (:baseline flags))
+               :require-nonempty-tip (boolean (:require-nonempty-tip flags))
+               :impl-roots        (or (:impl-roots flags) (:impl-roots config))}
+          results (mapcat #(guard-problem (merge % (select-keys ctx [:baseline-desc :strict-baseline? :require-nonempty-tip :impl-roots]))) tips)
           errors  (keep #(when (= :error (:severity %)) (:msg %)) results)
           warns   (keep #(when (= :warn  (:severity %)) (:msg %)) results)]
       (doseq [w warns]
@@ -623,9 +773,9 @@
             (doseq [p errors]
               (println "  " p))
             (System/exit 1))
-        (do (println (format "triage:guard OK — tips non-empty, described, conflict-free, no untracked impl files%s"
+        (do (println (format "triage:guard OK — tips described, conflict-free, no untracked impl files%s"
                              (if (seq warns)
-                               "" (format ", descend from '%s'" baseline-desc))))
+                               "" (format ", non-empty and descending from '%s'" (:baseline-desc ctx)))))
             (System/exit 0))))))
 
 ;; ---------------------------------------------------------------------------
@@ -641,7 +791,7 @@
                               (rerun-failed dir flags))
       :else                 (let [dir (or (first dirs) (latest-artifact-dir))]
                               (assert dir "no artifact dir found")
-                              (let [{:keys [source-tag candidates]} (resolve-candidates dir)
+                              (let [{:keys [source-tag candidates]} (resolve-candidates dir flags)
                                     tested-rev (tested-revision dir flags)
                                     baseline   (resolve-baseline flags candidates)
                                     summary    (load-summary dir)

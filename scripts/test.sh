@@ -940,7 +940,7 @@ write_provenance() {
   fi
   PROV_MODE="$MODE" PROV_ARGS="$*" PRF_TARGETS="${PRF_TARGETS:-}" \
   timeout 60 python3 - "$prov" "$RUN_ID" <<'PYEOF' 2>/dev/null || true
-import datetime, json, os, subprocess, sys
+import datetime, json, os, socket, subprocess, sys, uuid
 
 out_path, run_id = sys.argv[1], sys.argv[2]
 
@@ -1013,10 +1013,18 @@ doc = {
     "schema_version": "test-provenance.v2",
     "vcs": "jj",
     "run_id": run_id,
+    # collision-resistant run identity (RUN_ID alone is second-resolution)
+    "run_uid": "%s-%s" % (run_id, uuid.uuid4().hex[:8]),
     "created_at": datetime.datetime.now(datetime.timezone.utc).isoformat(),
     "mode": os.environ.get("PROV_MODE", ""),
     "args": os.environ.get("PROV_ARGS", "").split(),
     "targets": [t for t in os.environ.get("PRF_TARGETS", "").split(",") if t],
+    "execution": {
+        "hostname": socket.gethostname(),
+        "cwd": os.getcwd(),
+        "command": ["./scripts/test.sh"] + ([os.environ["PROV_MODE"]] if os.environ.get("PROV_MODE") else []) + os.environ.get("PROV_ARGS", "").split(),
+        "jj_version": (jj("--version") or "").strip().splitlines()[:1],
+    },
     "working_copy": wc,
     "tested_revision": tested,
     "parents": [node(c) for c in primary_ids],

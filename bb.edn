@@ -255,8 +255,8 @@ check:ownership
   triage:attribute {:doc "Attribute failing targets to agent/merge-parent changes (add --rerun-failed to replay failed targets against tips and pairwise merges)"
                     :task (apply shell "bb" "scripts/attribute_failures.clj" *command-line-args*)}
 
-  triage:guard {:doc "Pre-merge guard: reject empty or undescribed agent-* tips before merging into integration"
-                :task (shell "bb" "scripts/attribute_failures.clj" "--guard")}
+  triage:guard {:doc "Pre-merge guard: reject undescribed/conflicted tips; --require-nonempty-tip, --bookmark-glob, --impl-roots, --baseline optional"
+                :task (apply shell "bb" "scripts/attribute_failures.clj" "--guard" *command-line-args*)}
 
   test:contracts {:doc "Run canonical cross-layer contract target (proto/service/wire compatibility)"
                   :task (shell "./scripts/test.sh contracts")}
