@@ -120,13 +120,30 @@
         content-registry (io/file (str root) "benchmark/evidence/content-registry.json")
         assurance (io/file (str root) "benchmark/assertions/benchmark-assurance.json")
         conclusion-file (io/file (str root) "benchmark/conclusion.json")
+        evidence-file (io/file (str root) "benchmark/evidence/evidence.edn")
         assurance-value (json/read-str (slurp assurance))
+        evidence (edn/read-string (slurp evidence-file))
+        ;; Phase 2C: Extract the semantic-composition/root from evidence results.
+        ;; All scenario results must carry the same composition root for a
+        ;; coherent benchmark; if any result lacks a composition root (legacy
+        ;; scenarios without composition), nil is committed — distinguishing
+        ;; "no composition" from "composition A".
+        results (get evidence :results [])
+        composition-roots (into #{} (keep :semantic-composition-root) results)
+        composition-root (if (= 1 (count composition-roots))
+                           (first composition-roots)
+                           nil)
+        _ (when (and (seq composition-roots)
+                     (> (count composition-roots) 1))
+            (throw (ex-info "Benchmark evidence contains mixed semantic-composition roots"
+                            {:composition-roots (seq composition-roots)})))
         projection {"domain" "prf/benchmark-finalization/v1"
                     "benchmark_id" (str (:benchmark/id context))
                     "assurance_artifact_sha256" (:sha256 (evidence-node/canonical-artifact-content "benchmark/assertions/benchmark-assurance.json" assurance))
                     "conclusion_sha256" (:sha256 (evidence-node/canonical-artifact-content "benchmark/conclusion.json" conclusion-file))
                     "evidence_content_registry_sha256" (:sha256 (evidence-node/canonical-artifact-content "benchmark/evidence/content-registry.json" content-registry))
-                    "input_set_root" (get assurance-value "input_set_root")}
+                    "input_set_root" (get assurance-value "input_set_root")
+                    "semantic_composition_root" (or composition-root "")}
         value {"schema_version" "benchmark-finalization.v1"
                "domain" "prf/benchmark-finalization/v1"
                "benchmark_id" (str (:benchmark/id context))
@@ -135,6 +152,7 @@
                "conclusion_sha256" (sha-ref conclusion-file)
                "evidence_content_registry_sha256" (sha-ref content-registry)
                "input_set_root" (get assurance-value "input_set_root")
+               "semantic_composition_root" (or composition-root "")
                "final_ref" (hash-ref/sha256-ref (canonical/domain-hash :benchmark-finalization-v1 projection))}
         target (io/file (str root) "benchmark/finalization.json")]
     (lifecycle/atomic-json! target value)
@@ -320,14 +338,12 @@
         :bundle_root_hash (:evidence/hash evidence)
         :artifact_set_root (get content-registry "content_root")
         :closure_commitment (closure-commitment closure)
-        :finalization_ref "benchmark/finalization.json"
-        :finalization_sha256 (sha-ref finalization-file)
-        :final_ref (get finalization "final_ref")
-        :run_package_index_ref paths/run-package-index
-        :run_package_index_sha256 (sha-ref package-index-file)
-        :run_package_index_bytes (.length package-index-file)
-        :input_set_root (get finalization "input_set_root")
-        :artifact_registry_ref paths/artifacts-registry
+         :finalization_ref "benchmark/finalization.json"
+         :finalization_sha256 (sha-ref finalization-file)
+         :final_ref (get finalization "final_ref")
+         :input_set_root (get finalization "input_set_root")
+         :semantic_composition_root (get finalization "semantic_composition_root")
+         :artifact_registry_ref paths/artifacts-registry
         :artifact_registry_sha256 (hash-ref/sha256-ref (lifecycle/sha256-file registry))
         :registry_validation_ref paths/artifacts-validation
         :registry_validation_sha256 (hash-ref/sha256-ref (lifecycle/sha256-file validation))}))))
