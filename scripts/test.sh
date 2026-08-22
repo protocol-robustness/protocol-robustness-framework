@@ -927,7 +927,110 @@ run_comparison_lint() {
 run_coverage_gates() {
   require_clojure || return $?
   echo "Running transition/guard coverage report + gates..."
-  mkdir -p "$ARTIFACT_DIR"
+mkdir -p "$ARTIFACT_DIR"
+
+# Provenance stamp (schema test-provenance.v2): records which VCS revision(s)
+# produced this run so failures can be attributed to specific merge parents
+# (`bb triage:attribute`). Bounded-time, best-effort; never fails the gate.
+write_provenance() {
+  local prov="$ARTIFACT_DIR/.provenance.json"
+  if ! command -v jj >/dev/null 2>&1 || ! timeout 10 jj root >/dev/null 2>&1; then
+    printf '{"schema_version": "test-provenance.v2", "vcs": "unknown"}\n' > "$prov" 2>/dev/null || true
+    return 0
+  fi
+  PROV_MODE="$MODE" PROV_ARGS="$*" PRF_TARGETS="${PRF_TARGETS:-}" \
+  timeout 60 python3 - "$prov" "$RUN_ID" <<'PYEOF' 2>/dev/null || true
+import datetime, json, os, subprocess, sys
+
+out_path, run_id = sys.argv[1], sys.argv[2]
+
+def jj(*args):
+    try:
+        r = subprocess.run(["jj"] + list(args), capture_output=True,
+                           text=True, timeout=15)
+        return r.stdout if r.returncode == 0 else ""
+    except Exception:
+        return ""
+
+FIELDS_TPL = ('"\\t" ++ change_id.short() ++ "\\t" ++ commit_id.short() ++'
+              '"\\t" ++ if(empty, "true", "false") ++ "\\t" ++'
+              'if(conflict, "true", "false") ++ "\\t" ++'
+              'bookmarks.map(|b| b.name()).join(",") ++ "\\t" ++'
+              'description.first_line() ++ "\\n"')
+
+def collect(rev):
+    out = jj("log", "-r", rev, "--no-graph", "-T", FIELDS_TPL)
+    nodes = []
+    for line in out.splitlines():
+        parts = line.split("\t", 6)
+        if len(parts) != 7:
+            continue
+        _tag, cid, cmid, empty, conflict, bms, desc = parts
+        nodes.append({
+            "change_id": cid, "commit_id": cmid,
+            "empty": empty == "true", "conflict": conflict == "true",
+            "bookmarks": [b for b in bms.split(",") if b],
+            "description": desc,
+        })
+    return nodes
+
+gens = [collect("@")]
+rev = "@"
+for _ in range(4):
+    rev = "parents(%s)" % rev
+    gens.append(collect(rev))
+by_commit = {}
+order = []
+for depth, nodes in enumerate(gens):
+    for n in nodes:
+        if n["commit_id"] not in by_commit:
+            n["depth"] = depth
+            by_commit[n["commit_id"]] = n
+            order.append(n["commit_id"])
+
+wc = gens[0][0] if gens and gens[0] else None
+# Tests execute against the working-copy tree; an empty WC commit still has a
+# full merged tree, so the tested revision is always @ itself.
+tested = wc
+
+def node(cid):
+    return by_commit.get(cid, {})
+
+def nonempty_at(depth):
+    return [by_commit[c] for c in order
+            if by_commit[c].get("depth") == depth
+            and not by_commit[c]["empty"]]
+
+primary_nodes = nonempty_at(1) or nonempty_at(2)
+primary_ids = [n["commit_id"] for n in primary_nodes]
+context_ids = [c for c in order
+               if c not in primary_ids
+               and by_commit[c].get("depth", 99) >= 1
+               and not by_commit[c]["empty"]
+               and c != (tested or {}).get("commit_id")]
+
+doc = {
+    "schema_version": "test-provenance.v2",
+    "vcs": "jj",
+    "run_id": run_id,
+    "created_at": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+    "mode": os.environ.get("PROV_MODE", ""),
+    "args": os.environ.get("PROV_ARGS", "").split(),
+    "targets": [t for t in os.environ.get("PRF_TARGETS", "").split(",") if t],
+    "working_copy": wc,
+    "tested_revision": tested,
+    "parents": [node(c) for c in primary_ids],
+    "context": [node(c) for c in context_ids],
+}
+if wc is None or tested is None:
+    doc["warning"] = ("provenance incomplete: jj queries failed "
+                      "(stale working copy? run 'jj workspace update-stale')")
+with open(out_path, "w") as f:
+    json.dump(doc, f, indent=2)
+    f.write("\n")
+PYEOF
+}
+write_provenance
   _cov_out=$(python3 -c "from evidence_config import EvidenceConfig; print(EvidenceConfig().artifact_path('coverage'))" 2>/dev/null) || _cov_out="$ARTIFACT_DIR/coverage.json"
   clojure -M -m resolver-sim.scenario.coverage -- data/fixtures/traces "$_cov_out" || return $?
   python3 scripts/validate/coverage_gates.py --artifact-dir "$ARTIFACT_DIR" --max-unhit-transitions "$MAX_UNHIT_TRANSITIONS"
