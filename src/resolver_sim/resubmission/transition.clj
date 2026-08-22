@@ -55,8 +55,8 @@
 
 (declare commit-admit)
 
-(def state-domain "prf.resubmission-chain-state.v1")
-(def effects-domain "prf.transaction-effects.v1")
+(def ^:private state-domain :prf-resubmission-chain-state-v1)
+(def ^:private effects-domain :prf-transaction-effects-v1)
 
 (def actions
   "Namespaced action vocabulary (canonical, independent of Clojure source ns)."
@@ -113,10 +113,47 @@
     :chain/content-index {}       ; content-key -> {:parent-receipt-hash :receipt-hash}
     :chain/attempt-receipts {}})) ; receipt-hash -> {:attempt-receipt :sequence :parent-receipt-hash}
 
+(def ^:const chain-state-projection-schema
+  "Version identifier for the projected state fields. The version is carried
+  by the domain tag (prf.resubmission-chain-state.v1) and this constant, NOT
+  by a versioned key inside the hashed projection (which would alter roots)."
+  "chain-state-projection.v1")
+
 (defn- chain-state-projection
-  "The domain state committed by the state root. EXCLUDES the attempt receipts
-   (the receipt commits the transaction ordering hash, so including it would
-   create a cycle) and :transaction/last-hash (the ordering hash itself)."
+  "Exact fields projected for the v1 chain-state root (chain-state-projection.v1).
+
+   Required projected fields (always present, in order):
+     :chain/family-id
+     :chain/version
+     :transaction/commit-index
+     :chain/head
+     :chain/successor-by-parent
+     :chain/effective-disposition-by-receipt
+     :chain/disposition-head-by-receipt
+     :chain/idempotency-index
+     :chain/content-index
+
+   Optional projected field:
+     :chain/disposition-status-by-receipt
+   Included ONLY when (contains? state :chain/disposition-status-by-receipt)
+   is true. When present, the field's value is projected verbatim (even if
+   the value is an empty map {}).
+
+   Exclusion of unknown source fields:
+     Only the keys above are selected via ->/cond->. Any other key in the
+     source state (e.g. :transaction/last-hash, :chain/attempt-receipts,
+     :chain/disposition-public-hex, :chain/version beyond the projected
+     subset) never enters the projection.
+
+   Absent-vs-empty semantics (v1, preserved):
+     Absent :chain/disposition-status-by-receipt (key not in source state)
+       -> the key is omitted from the projection.
+     Present-but-empty {:chain/disposition-status-by-receipt {}}
+       -> the key IS included in the projection with value {}.
+     These are intentionally distinct semantic states and produce different
+     state roots. This behavior is v1-stable; normalizing absent to empty
+     (or vice-versa) would alter roots and is deferred to a potential v2
+     migration."
   [state]
   (cond-> {:chain/family-id (:chain/family-id state)
            :chain/version (:chain/version state)

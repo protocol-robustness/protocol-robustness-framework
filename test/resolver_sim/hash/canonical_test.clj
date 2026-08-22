@@ -1993,3 +1993,30 @@
                                                           "EVIDENCE_RECORD_V2"})))))
   (testing "prefix-freeness holds for the live registry"
     (is (nil? (hc/validate-registry!)))))
+
+(deftest test-v2-ordering-domain-registered
+  (testing "prf-transaction-ordering-v2 is registered in domain-tags"
+    (is (contains? hc/domain-tags :prf-transaction-ordering-v2))
+    (is (= "prf.transaction-ordering.v2"
+           (hc/domain-tags :prf-transaction-ordering-v2)))
+    (is (contains? hc/domain-tags :prf-transaction-ordering-v1))
+    (is (= "prf.transaction-ordering.v1"
+           (hc/domain-tags :prf-transaction-ordering-v1)))))
+
+(deftest test-registered-keyword-domains-equal-literal-strings
+  (testing "registered keyword domain tags resolve to the same bytes as their
+            literal domain strings, so hashes are identical"
+    (let [body {:a 1 :b [2 3]}]
+      (are [kw str] (= (hc/domain-hash kw body)
+                       (hc/domain-hash str body))
+        :prf-resubmission-chain-state-v1    "prf.resubmission-chain-state.v1"
+        :prf-transaction-effects-v1         "prf.transaction-effects.v1"
+        :prf-transaction-input-v1           "prf.transaction-input.v1"
+        :prf-transaction-ordering-v1        "prf.transaction-ordering.v1"
+        :prf-transaction-ordering-v2        "prf.transaction-ordering.v2"))))
+
+(deftest test-domain-hash-fails-closed-on-unknown-keyword
+  (testing "an unknown keyword domain tag causes domain-hash to throw"
+    (is (thrown?
+         clojure.lang.ExceptionInfo
+         (hc/domain-hash :prf-this-domain-does-not-exist {:x 1})))))

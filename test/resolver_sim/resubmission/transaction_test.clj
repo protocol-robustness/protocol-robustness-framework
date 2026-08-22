@@ -3,7 +3,8 @@
    the pure resubmission transition (pinned rejection precedence), the in-memory
    TransactionStore (CAS + ordering evidence), and reference-vs-store trace
    equivalence."
-  (:require [clojure.test :refer [deftest is testing]]
+  (:require [clojure.test :refer [are deftest is testing]]
+            [resolver-sim.hash.canonical :as hc]
             [resolver-sim.resubmission.disposition :as disposition]
             [resolver-sim.resubmission.receipt :as receipt]
             [resolver-sim.resubmission.store :as store]
@@ -559,3 +560,74 @@
         (is (= (store/chain-head s) (:chain-head winner))))
       (testing "every loser is rejected because the winner advanced the head first"
         (is (every? #(= :parent-not-current-head (:reason %)) losers))))))
+
+;; ── state-after stabilization regression tests ────────────────────────────────
+
+(deftest v2-ordering-domain-registered
+  (testing "prf-transaction-ordering-v2 is registered in domain-tags"
+    (is (contains? hc/domain-tags :prf-transaction-ordering-v2))
+    (is (= "prf.transaction-ordering.v2"
+           (get hc/domain-tags :prf-transaction-ordering-v2)))))
+
+(deftest registered-keyword-domains-produce-same-hashes-as-literal-strings
+  (testing "registered keyword domain tags resolve to identical bytes as their
+            literal domain strings, so hashes are unchanged"
+    (let [state-body {:chain/family-id family
+                      :chain/version 0
+                      :transaction/commit-index 0
+                      :chain/head nil
+                      :chain/successor-by-parent {}
+                      :chain/effective-disposition-by-receipt {}
+                      :chain/disposition-head-by-receipt {}
+                      :chain/idempotency-index {}
+                      :chain/content-index {}}
+          effects-body [{:parent "sha256:PARENT" :child "sha256:CHILD"}]]
+      (are [kw str body] (= (hc/domain-hash kw body)
+                            (hc/domain-hash str body))
+        :prf-resubmission-chain-state-v1    "prf.resubmission-chain-state.v1"    state-body
+        :prf-transaction-effects-v1         "prf.transaction-effects.v1"         effects-body
+        :prf-transaction-input-v1           "prf.transaction-input.v1"         state-body
+        :prf-transaction-ordering-v1        "prf.transaction-ordering.v1"        effects-body
+        :prf-transaction-ordering-v2        "prf.transaction-ordering.v2"        effects-body))))
+
+(deftest resubmission-state-root-is-pinned
+  (testing "the empty resubmission chain state root is stable"
+    (let [s (transition/empty-state family)
+          root (transition/state-root s)]
+      (is (= "sha256:53e5ae09087f3733a54110c9a00f4cb227894f18f1384b7a8d88a929e5b66ffb"
+             root)))))
+
+(deftest resubmission-effects-root-is-pinned
+  (testing "the effects root for a fixed effects vector is stable"
+    (let [effects [{:effect/type :chain-successor
+                    :parent "sha256:PARENT"
+                    :child "sha256:CHILD"}]
+          root (transition/effects-root effects)]
+      (is (= "sha256:50f4e36f29a6c8d26b99c93d5aa0f76890cfb0a0c8bf448a75f76f95bbdc931c"
+             root)))))
+
+(deftest disposition-status-absent-vs-empty-distinct
+  (testing "absent vs present-but-empty :chain/disposition-status-by-receipt
+            produce distinct state roots (v1 behavior preserved)"
+    (let [s-absent (transition/empty-state family)
+          s-empty (assoc s-absent :chain/disposition-status-by-receipt {})
+          root-absent (transition/state-root s-absent)
+          root-empty (transition/state-root s-empty)]
+      (is (not= root-absent root-empty)
+          "absent and empty disposition-status must remain distinct")
+      (is (= "sha256:53e5ae09087f3733a54110c9a00f4cb227894f18f1384b7a8d88a929e5b66ffb"
+             root-absent))
+      (is (= "sha256:5ad475061e36b69e3f1b9f365617dc060c41a4a619b0b891389946d1175c7c12"
+             root-empty)))))
+
+(deftest chain-state-projection-excludes-unknown-fields
+  (testing "only projected fields participate in the state root; unknown
+            extra keys are ignored"
+    (let [s (transition/empty-state family)
+          s-polluted (assoc s :transaction/last-hash "sha256:DEAD"
+                            :chain/attempt-receipts {"sha256:DEAD" {}}
+                            :chain/disposition-public-hex "00112233")
+          root-clean (transition/state-root s)
+          root-polluted (transition/state-root s-polluted)]
+      (is (= root-clean root-polluted)
+          "extra non-projected keys must not affect the state root"))))

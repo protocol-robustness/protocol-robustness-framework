@@ -9,11 +9,45 @@
    v2 adds a declared, chain-scoped change identity (transaction/
    change-identity) derived internally from the pre-change canonical operation,
    plus a committed transaction/input-root (the canonical command/intent root).
-   change-identity is derived (never caller-arbitrary) and excludes chain
-   position and the state-after root, so that state-after-root is stabilised as
-   a deterministic function of the change request plus its application context:
+    change-identity is derived (never caller-arbitrary) and excludes chain
+    position and the state-after root.  The ordering record commits the LINKAGE
+    between a committed transition and its resulting state; it does not itself
+    execute the transition.  The actual derivation contract is:
 
-       apply(change-identity, state-before-root) -> state-after-root
+        derive(
+          canonical-state-before,
+          canonical-command,
+          applicable-semantic-context
+        ) ->
+          canonical-state-after
+
+        root(project-state(canonical-state-after))
+          -> state-after-root
+
+    With verification equations:
+
+        root(project-state(canonical-state-before))
+          == claimed-state-before-root
+
+        change-identity(canonical-command)
+          == claimed-change-identity
+
+        derive(...)
+          == expected transition result
+
+        root(project-state(canonical-state-after))
+          == claimed-state-after-root
+
+    The ordering artifact binds the independently derived roots and identity.
+    Ordering-chain linkage (previous-transaction-hash, prior-state fixed point)
+    proves positional continuity, NOT transition derivation.
+
+    v1 reproducibility guarantee: the same canonical state-before, canonical
+    command, and applicable semantic context produce the same canonical
+    transition result and state-after root.  Change identity and state-before
+    root are commitments, not sufficient executable inputs — they do not expose
+    the canonical state value or the canonical command payload, and cannot be
+    applied in isolation to produce state-after-root.
 
    Canonical contract:
 
