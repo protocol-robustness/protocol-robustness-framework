@@ -16,8 +16,6 @@
             [resolver-sim.execution.context :as execution]
             [resolver-sim.execution.parallel :as parallel]
             [resolver-sim.util.attribution :as attr]
-            [resolver-sim.execution.context :as execution]
-            [resolver-sim.execution.parallel :as parallel]
             [resolver-sim.yield.evidence :as ye]
             [resolver-sim.time.context :as time-ctx]
             [resolver-sim.time.deadlines :as dl]

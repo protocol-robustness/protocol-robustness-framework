@@ -306,8 +306,8 @@
    :prf-transaction-effects-v1        "prf.transaction-effects.v1"
    :prf-transaction-input-v1         "prf.transaction-input.v1"
    :prf-transaction-ordering-change-identity-v1 "prf.transaction-ordering-change-identity.v1"
-    :prf-transaction-ordering-v1       "prf.transaction-ordering.v1"
-    :prf-transaction-ordering-v2       "prf.transaction-ordering.v2"
+   :prf-transaction-ordering-v1       "prf.transaction-ordering.v1"
+   :prf-transaction-ordering-v2       "prf.transaction-ordering.v2"
    :related-claims-member             "related-claims-member"
    :withdrawal-ledger-v1              "withdrawal-ledger.v1"
    :prf-protocol-genesis-v1           "PRF_PROTOCOL_GENESIS_V1"
@@ -318,11 +318,11 @@
    :configuration-head-activation-v1 "CONFIGURATION_HEAD_ACTIVATION_V1"
    :prf-chain-configuration-change-identity-v1 "prf.chain-configuration-change-identity.v1"
    :prf-verifier-registry-v1          "PRF_VERIFIER_REGISTRY_V1"
-    :prf-resubmission-chain-identity-v1         "prf.resubmission-chain-identity.v1"
-    :prf-resubmission-chain-configuration-v1     "prf.resubmission-chain-configuration.v1"
-    :prf-resubmission-chain-genesis-v1            "prf.resubmission-chain-genesis.v1"
-    :prf-resubmission-chain-genesis-authorization-v1 "prf.resubmission-chain-genesis-authorization.v1"
-    :programme-allocation-request-v1   "PROGRAMME_ALLOCATION_REQUEST_V1"
+   :prf-resubmission-chain-identity-v1         "prf.resubmission-chain-identity.v1"
+   :prf-resubmission-chain-configuration-v1     "prf.resubmission-chain-configuration.v1"
+   :prf-resubmission-chain-genesis-v1            "prf.resubmission-chain-genesis.v1"
+   :prf-resubmission-chain-genesis-authorization-v1 "prf.resubmission-chain-genesis-authorization.v1"
+   :programme-allocation-request-v1   "PROGRAMME_ALLOCATION_REQUEST_V1"
    :programme-plan-v1                 "PROGRAMME_PLAN_V1"
    :programme-evidence-v1             "PROGRAMME_EVIDENCE_V1"
    :programme-receipt-v1              "PROGRAMME_RECEIPT_V1"
@@ -1962,7 +1962,7 @@
     (project-canonical-safe
      (cond-> base
        (map? cfg) (assoc :configuration
-                          (project-resubmission-chain-configuration cfg _intent))))))
+                         (project-resubmission-chain-configuration cfg _intent))))))
 
 ;; resubmission-chain-genesis-authorization.v1
 ;; ─────────────────────────────────────────────────────
@@ -2855,20 +2855,20 @@ name (an alias)."
     :intent/description "Canonical identity of a resubmission-chain-genesis.v1: the declared source of truth for a resubmission chain's family, configuration, and initial state"
     :intent/includes    #{:genesis/schema :chain/id :family/id :configuration
                           :initial-state/root}
-     :intent/excludes    #{:runtime-values :functions :deployment-metadata :timestamps}
-     :intent/projection-fn project-resubmission-chain-genesis
-     :intent/version     1}
+    :intent/excludes    #{:runtime-values :functions :deployment-metadata :timestamps}
+    :intent/projection-fn project-resubmission-chain-genesis
+    :intent/version     1}
 
-    :prf-resubmission-chain-genesis-authorization-v1
-    {:intent/name        :prf-resubmission-chain-genesis-authorization-v1
-     :intent/domain-tag  "prf.resubmission-chain-genesis-authorization.v1"
-     :intent/description "Canonical identity of resubmission-chain-genesis-authorization.v1: thin binding of a genesis root to an authenticated three-member authority decision"
-     :intent/includes    #{:authorization/schema :authorization/genesis-root
-                           :authorization/force-authorisation-hash
-                           :authorization/authority-report-root}
-     :intent/excludes    #{:runtime-values :functions}
-     :intent/projection-fn project-resubmission-chain-genesis-authorization
-     :intent/version     1}})
+   :prf-resubmission-chain-genesis-authorization-v1
+   {:intent/name        :prf-resubmission-chain-genesis-authorization-v1
+    :intent/domain-tag  "prf.resubmission-chain-genesis-authorization.v1"
+    :intent/description "Canonical identity of resubmission-chain-genesis-authorization.v1: thin binding of a genesis root to an authenticated three-member authority decision"
+    :intent/includes    #{:authorization/schema :authorization/genesis-root
+                          :authorization/force-authorisation-hash
+                          :authorization/authority-report-root}
+    :intent/excludes    #{:runtime-values :functions}
+    :intent/projection-fn project-resubmission-chain-genesis-authorization
+    :intent/version     1}})
 
 (defn resolve-intent
   "Look up an intent contract by keyword name from the registry.

@@ -263,7 +263,7 @@
         :round-lifecycle lifecycle
         :certificate-assertions-digest digest
         :allocation-kernel-version context/kernel-version
-         :selection-algorithm context/selection-algorithm-str}
+        :selection-algorithm context/selection-algorithm-str}
        (when-not all-pass?
          {:rejection/classification (first-failing-classification assertions)
           :rejection/reason "One or more kernel assertions failed"})))

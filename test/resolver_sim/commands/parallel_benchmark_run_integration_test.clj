@@ -129,7 +129,7 @@
         (is (= 16 (ep true 16 1000 3)) "explicit parallelism above a low ceiling is honored exactly")
         (is (= 2 (ep true 2 1000 20)) "explicit parallelism below a high ceiling is honored exactly")
         ;; The automatic default still floors at 1 for a degenerate count.
-         (is (= 1 (ep true nil 0 5)) "degenerate count floors at 1")))))
+        (is (= 1 (ep true nil 0 5)) "degenerate count floors at 1")))))
 
 (deftest parallel-benchmark-run-default-execution-budget
   (let [handler #'command/run]

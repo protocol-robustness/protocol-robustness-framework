@@ -121,7 +121,7 @@
   []
   {"allocation-id" "a-vs-b-plus-c"
    "kernel-version" context/kernel-version
-    "selection-algorithm" context/selection-algorithm-str
+   "selection-algorithm" context/selection-algorithm-str
    "policy" {"policy-id" "policy-a-vs-b-plus-c"
              "policy-hash" (str "0x" (apply str (repeat 32 "ab")))
              "forbid-duplicate-owners" false}

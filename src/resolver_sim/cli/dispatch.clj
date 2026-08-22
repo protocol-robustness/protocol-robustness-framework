@@ -164,7 +164,7 @@
    [nil "--chunk-size N" "Deterministic work items per local benchmark chunk (default 1)" :parse-fn #(Long/parseLong %)]
    [nil "--claimant-parallelism N" "Runtime-only partial-fill claimant worker count (default 1)" :parse-fn #(Long/parseLong %)]
    [nil "--claimant-parallel-threshold N" "Runtime-only claimant-count threshold for partial-fill parallelism (default from config :hardening :claimant-parallel-threshold; env PRF_CLAIMANT_PARALLEL_THRESHOLD)" :parse-fn #(Long/parseLong %)]
-    [nil "--execution-budget N" "Shared Semaphore K bounding TOTAL concurrent execution (outer workers consume, inner claimants borrow spare). Positive integer; for parallel-benchmark-run defaults to effective outer parallelism; otherwise unbounded unless supplied." :parse-fn #(Long/parseLong %)]
+   [nil "--execution-budget N" "Shared Semaphore K bounding TOTAL concurrent execution (outer workers consume, inner claimants borrow spare). Positive integer; for parallel-benchmark-run defaults to effective outer parallelism; otherwise unbounded unless supplied." :parse-fn #(Long/parseLong %)]
    [nil "--parallel-ceiling N" "Automatic-default worker ceiling for parallel-benchmark-run; does not clamp an explicit --parallelism (default from config :hardening :parallel-ceiling; env PRF_PARALLEL_CEILING)" :parse-fn #(Long/parseLong %)]
    [nil "--quiescence-timeout-seconds N" "Post-run executor shutdown wait in seconds (default from config :hardening :quiescence-timeout-seconds; env PRF_QUIESCENCE_TIMEOUT_SECONDS)" :parse-fn #(Long/parseLong %)]
    [nil "--report-format FORMAT" "Scenario report format"]

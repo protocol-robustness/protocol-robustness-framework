@@ -191,8 +191,8 @@
   [composition world]
   (let [composition (or composition {})
         active-regions (if (seq composition)
-                          (active-regions composition)
-                          #{})
+                         (active-regions composition)
+                         #{})
         fa-state-keys (keys world)]
     (vec
      (for [k fa-state-keys
@@ -233,15 +233,15 @@
 (defn derive-packages
   "Derive the package set from the resolution snapshot.
    Returns a vector of {:extension/id, :extension/package-root} sorted canonically."
-   [resolution]
-   (let [packages (:extensions/packages resolution)]
-     (vec (sort-by (fn [p] (str (:extension/id p)))
-                   (mapv (fn [[_ p]]
-                           {:extension/id (:package/id p)
-                            :extension/package-root (:package-root p)
-                            :extension/version (:package/version p)
-                            :sealed (:sealed p)})
-                         packages)))))
+  [resolution]
+  (let [packages (:extensions/packages resolution)]
+    (vec (sort-by (fn [p] (str (:extension/id p)))
+                  (mapv (fn [[_ p]]
+                          {:extension/id (:package/id p)
+                           :extension/package-root (:package-root p)
+                           :extension/version (:package/version p)
+                           :sealed (:sealed p)})
+                        packages)))))
 
 (defn derive-capabilities
   "Derive the capability key vector from the resolution snapshot, sorted

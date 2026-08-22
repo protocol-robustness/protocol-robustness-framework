@@ -208,7 +208,7 @@
                    (assoc :authorisation/review-round
                           {:review-round/hash round-hash-str}))
          fa-hash (hash-ref/sha256-ref
-                   (hc/domain-hash :research-force-authorisation fa-base))]
+                  (hc/domain-hash :research-force-authorisation fa-base))]
      (assoc fa-base :authorisation/hash fa-hash))))
 
 (defn- mock-resolver

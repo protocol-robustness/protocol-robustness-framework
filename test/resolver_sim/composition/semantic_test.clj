@@ -163,9 +163,9 @@
     (when (facade/scope-verification-capability)
       (let [em (full-physical-extension-map)
             result (resolution/resolve-requested
-                     em
-                     [[:assurance/force-authorisation :force-authorisation/governed-permit-v1]]
-                     standard-opts)]
+                    em
+                    [[:assurance/force-authorisation :force-authorisation/governed-permit-v1]]
+                    standard-opts)]
         (is (:valid? result)
             (str "governed-permit should resolve when governed-authority is present; "
                  "violations: " (pr-str (:violations result))))
@@ -179,9 +179,9 @@
     (when (facade/scope-verification-capability)
       (let [em (no-governed-authority-extension-map)
             result (resolution/resolve-requested
-                     em
-                     [[:assurance/force-authorisation :force-authorisation/governed-permit-v1]]
-                     standard-opts)]
+                    em
+                    [[:assurance/force-authorisation :force-authorisation/governed-permit-v1]]
+                    standard-opts)]
         (is (false? (:valid? result))
             "governed-permit must fail when governed-authority is absent")
         (is (some #(= :extensions/error-missing-dependency (:violation/id %))
@@ -193,9 +193,9 @@
     (when (facade/scope-verification-capability)
       (let [em (full-physical-extension-map)
             result (resolution/resolve-requested
-                     em
-                     [[:force-authorisation/effect-evidence :held-custody/mutation]]
-                     standard-opts)]
+                    em
+                    [[:force-authorisation/effect-evidence :held-custody/mutation]]
+                    standard-opts)]
         (is (:valid? result)
             (str "held-custody/mutation should resolve when scope-verification is present; "
                  "violations: " (pr-str (:violations result))))
@@ -209,9 +209,9 @@
     (when (facade/scope-verification-capability)
       (let [em (full-physical-extension-map)
             result (resolution/resolve-requested
-                     em
-                     [[:sew/force-authorisation :force-authorisation/custody-execution-v1]]
-                     standard-opts)]
+                    em
+                    [[:sew/force-authorisation :force-authorisation/custody-execution-v1]]
+                    standard-opts)]
         (is (:valid? result)
             (str "custody-execution should resolve with all dependencies present; "
                  "violations: " (pr-str (:violations result))))
@@ -233,9 +233,9 @@
     (when (facade/scope-verification-capability)
       (let [em (no-held-custody-extension-map)
             result (resolution/resolve-requested
-                     em
-                     [[:sew/force-authorisation :force-authorisation/custody-execution-v1]]
-                     standard-opts)]
+                    em
+                    [[:sew/force-authorisation :force-authorisation/custody-execution-v1]]
+                    standard-opts)]
         (is (false? (:valid? result))
             "custody-execution must fail when held-custody/mutation is absent")
         (is (some #(= :extensions/error-missing-dependency (:violation/id %))
@@ -247,9 +247,9 @@
     (when (facade/scope-verification-capability)
       (let [em (full-physical-extension-map)
             result (resolution/resolve-requested
-                     em
-                     [[:sew/force-authorisation :force-authorisation/custody-execution-v1]]
-                     standard-opts)]
+                    em
+                    [[:sew/force-authorisation :force-authorisation/custody-execution-v1]]
+                    standard-opts)]
         (is (:valid? result)
             "full resolution must succeed")
         (when (:valid? result)
@@ -263,9 +263,9 @@
   (testing "physical package absent + plain composition -> succeeds"
     (let [em (reg/empty-extension-map)
           result (semantic/build-authoritative
-                   em
-                   []
-                   standard-opts)]
+                  em
+                  []
+                  standard-opts)]
       (is (some? result)
           "plain composition should succeed without physical package"))))
 
@@ -274,23 +274,23 @@
     (let [em (reg/empty-extension-map)]
       (is (thrown? Exception
                    (semantic/build-authoritative
-                     em
-                     [[:prf/force-authorisation :force-authorisation/scope-verification]]
-                     standard-opts)))))
+                    em
+                    [[:prf/force-authorisation :force-authorisation/scope-verification]]
+                    standard-opts)))))
   (testing "physical package absent + request governed-permit -> fails"
     (let [em (reg/empty-extension-map)]
       (is (thrown? Exception
                    (semantic/build-authoritative
-                     em
-                     [[:assurance/force-authorisation :force-authorisation/governed-permit-v1]]
-                     standard-opts)))))
+                    em
+                    [[:assurance/force-authorisation :force-authorisation/governed-permit-v1]]
+                    standard-opts)))))
   (testing "physical package absent + request custody-execution -> fails"
     (let [em (reg/empty-extension-map)]
       (is (thrown? Exception
                    (semantic/build-authoritative
-                     em
-                     [[:sew/force-authorisation :force-authorisation/custody-execution-v1]]
-                     standard-opts))))))
+                    em
+                    [[:sew/force-authorisation :force-authorisation/custody-execution-v1]]
+                    standard-opts))))))
 
 (deftest legacy-facade-cannot-satisfy-authoritative-physical
   (testing "legacy facade descriptors present + authoritative production request
@@ -304,24 +304,24 @@
         (testing "requesting physical scope-verification with only legacy facade fails"
           (is (thrown? Exception
                        (semantic/build-authoritative
-                         em
-                         [[:prf/force-authorisation :force-authorisation/scope-verification]]
-                         standard-opts))))
+                        em
+                        [[:prf/force-authorisation :force-authorisation/scope-verification]]
+                        standard-opts))))
         (testing "requesting physical custody-execution with only legacy facade fails"
           (is (thrown? Exception
                        (semantic/build-authoritative
-                         em
-                         [[:sew/force-authorisation :force-authorisation/custody-execution-v1]]
-                         standard-opts))))))))
+                        em
+                        [[:sew/force-authorisation :force-authorisation/custody-execution-v1]]
+                        standard-opts))))))))
 
 (deftest caller-cannot-inject-arbitrary-resolution-root
   (testing "caller cannot inject arbitrary resolution-root to authoritative constructor"
     (when (facade/scope-verification-capability)
       (let [em (full-physical-extension-map)
             result (semantic/build-authoritative
-                     em
-                     [[:sew/force-authorisation :force-authorisation/custody-execution-v1]]
-                     (assoc standard-opts :extensions/resolution-root "fake-root"))]
+                    em
+                    [[:sew/force-authorisation :force-authorisation/custody-execution-v1]]
+                    (assoc standard-opts :extensions/resolution-root "fake-root"))]
         (is (some? result))
         (when result
           (let [root (:semantic-composition/resolution-root result)
@@ -337,13 +337,13 @@
     (when (facade/scope-verification-capability)
       (let [em (full-physical-extension-map)
             result (semantic/build-authoritative
-                     em
-                     [[:sew/force-authorisation :force-authorisation/custody-execution-v1]]
-                     (assoc standard-opts :extensions/provider-package-roots #{"sha256:fake-root"}))]
+                    em
+                    [[:sew/force-authorisation :force-authorisation/custody-execution-v1]]
+                    (assoc standard-opts :extensions/provider-package-roots #{"sha256:fake-root"}))]
         (is (some? result))
         (when result
           (let [packages (get-in result [:semantic-composition/resolution
-                                        :extensions/packages])]
+                                         :extensions/packages])]
             (is (not= #{"sha256:fake-root"} (set (map :package-root (vals packages))))
                 "no provider package root should be the injected fake")))))))
 
@@ -352,12 +352,12 @@
     (when (facade/scope-verification-capability)
       (let [em (full-physical-extension-map)
             result (semantic/build-authoritative
-                     em
-                     [[:sew/force-authorisation :force-authorisation/custody-execution-v1]]
-                     (-> standard-opts
-                         (assoc :semantic-composition/action-modules [[:fake :action]]
-                                :semantic-composition/state-modules [[:fake :state]]
-                                :semantic-composition/invariant-modules [[:fake :invariant]])))]
+                    em
+                    [[:sew/force-authorisation :force-authorisation/custody-execution-v1]]
+                    (-> standard-opts
+                        (assoc :semantic-composition/action-modules [[:fake :action]]
+                               :semantic-composition/state-modules [[:fake :state]]
+                               :semantic-composition/invariant-modules [[:fake :invariant]])))]
         (is (some? result))
         (when result
           (is (not (some #(= [:fake :action] %) (:semantic-composition/action-modules result)))
@@ -372,9 +372,9 @@
     (when (facade/scope-verification-capability)
       (let [em (full-physical-extension-map)
             result (semantic/build-authoritative
-                     em
-                     [[:sew/force-authorisation :force-authorisation/custody-execution-v1]]
-                     standard-opts)]
+                    em
+                    [[:sew/force-authorisation :force-authorisation/custody-execution-v1]]
+                    standard-opts)]
         (is (some? result)
             "custody-execution composition should be valid")
         (when result
@@ -450,13 +450,13 @@
     (when (facade/scope-verification-capability)
       (let [em (full-physical-extension-map)
             r1 (semantic/build-authoritative
-                 em
-                 [[:sew/force-authorisation :force-authorisation/custody-execution-v1]]
-                 standard-opts)
+                em
+                [[:sew/force-authorisation :force-authorisation/custody-execution-v1]]
+                standard-opts)
             r2 (semantic/build-authoritative
-                 em
-                 [[:sew/force-authorisation :force-authorisation/custody-execution-v1]]
-                 standard-opts)]
+                em
+                [[:sew/force-authorisation :force-authorisation/custody-execution-v1]]
+                standard-opts)]
         (is (some? r1))
         (is (some? r2))
         (when (and r1 r2)
@@ -498,9 +498,9 @@
                                 :adoption :multi-adapter}}
             em1 (full-physical-extension-map)
             r1 (semantic/build-authoritative
-                 em1
-                 [[:sew/force-authorisation :force-authorisation/custody-execution-v1]]
-                 standard-opts)]
+                em1
+                [[:sew/force-authorisation :force-authorisation/custody-execution-v1]]
+                standard-opts)]
         (is (some? r1) "first registration must resolve")
         (when r1
           (let [root1 (:semantic-composition/root r1)
@@ -510,9 +510,9 @@
                         (reg/register-package (held-custody-package))
                         (facade/install-governed-authority))
                 r2 (semantic/build-authoritative
-                     em2
-                     [[:sew/force-authorisation :force-authorisation/custody-execution-v1]]
-                     standard-opts)]
+                    em2
+                    [[:sew/force-authorisation :force-authorisation/custody-execution-v1]]
+                    standard-opts)]
             (is (some? r2) "second registration must resolve")
             (when r2
               (let [root2 (:semantic-composition/root r2)]
@@ -524,13 +524,13 @@
     (when (facade/scope-verification-capability)
       (let [em (full-physical-extension-map)
             r1 (semantic/build-authoritative
-                 em
-                 [[:sew/force-authorisation :force-authorisation/custody-execution-v1]]
-                 standard-opts)
+                em
+                [[:sew/force-authorisation :force-authorisation/custody-execution-v1]]
+                standard-opts)
             r2 (semantic/build-authoritative
-                 em
-                 (reverse [[:sew/force-authorisation :force-authorisation/custody-execution-v1]])
-                 standard-opts)]
+                em
+                (reverse [[:sew/force-authorisation :force-authorisation/custody-execution-v1]])
+                standard-opts)]
         (is (some? r1))
         (is (some? r2))
         (when (and r1 r2)
@@ -554,13 +554,13 @@
                     (reg/register-package envelope-package)
                     (reg/register-package @facade/package))
             r1 (semantic/build-authoritative
-                 em1
-                 [[:sew/force-authorisation :force-authorisation/custody-execution-v1]]
-                 standard-opts)
+                em1
+                [[:sew/force-authorisation :force-authorisation/custody-execution-v1]]
+                standard-opts)
             r2 (semantic/build-authoritative
-                 em2
-                 [[:sew/force-authorisation :force-authorisation/custody-execution-v1]]
-                 standard-opts)]
+                em2
+                [[:sew/force-authorisation :force-authorisation/custody-execution-v1]]
+                standard-opts)]
         (is (some? r1))
         (is (some? r2))
         (when (and r1 r2)
@@ -578,16 +578,16 @@
       (let [em (full-physical-extension-map)
             ;; Request scope-verification first, then custody-execution
             r1 (semantic/build-authoritative
-                 em
-                 [[:prf/force-authorisation :force-authorisation/scope-verification]
-                  [:sew/force-authorisation :force-authorisation/custody-execution-v1]]
-                 standard-opts)
+                em
+                [[:prf/force-authorisation :force-authorisation/scope-verification]
+                 [:sew/force-authorisation :force-authorisation/custody-execution-v1]]
+                standard-opts)
             ;; Request custody-execution first, then scope-verification
             r2 (semantic/build-authoritative
-                 em
-                 [[:sew/force-authorisation :force-authorisation/custody-execution-v1]
-                  [:prf/force-authorisation :force-authorisation/scope-verification]]
-                 standard-opts)]
+                em
+                [[:sew/force-authorisation :force-authorisation/custody-execution-v1]
+                 [:prf/force-authorisation :force-authorisation/scope-verification]]
+                standard-opts)]
         (is (some? r1))
         (is (some? r2))
         (when (and r1 r2)
@@ -601,9 +601,9 @@
     (when (facade/scope-verification-capability)
       (let [em (full-physical-extension-map)
             result (semantic/build-authoritative
-                     em
-                     [[:prf/force-authorisation :force-authorisation/scope-verification]]
-                     standard-opts)]
+                    em
+                    [[:prf/force-authorisation :force-authorisation/scope-verification]]
+                    standard-opts)]
         (is (some? result)
             "scope-verification should resolve")
         (when result
@@ -619,9 +619,9 @@
     (when (facade/scope-verification-capability)
       (let [em (full-physical-extension-map)
             result (semantic/build-authoritative
-                     em
-                     [[:assurance/force-authorisation :force-authorisation/governed-permit-v1]]
-                     standard-opts)]
+                    em
+                    [[:assurance/force-authorisation :force-authorisation/governed-permit-v1]]
+                    standard-opts)]
         (is (some? result)
             "governed-permit should resolve")
         (when result
@@ -638,9 +638,9 @@
   (testing "plain composition has no force-auth policy binding"
     (let [em (reg/empty-extension-map)
           result (semantic/build-authoritative
-                   em
-                   []
-                   standard-opts)]
+                  em
+                  []
+                  standard-opts)]
       (is (some? result))
       (when result
         (is (empty? (:semantic-composition/action-modules result))
@@ -681,13 +681,13 @@
                              :expiry-required? true
                              :allowed-reasons ["governance-mandated"]})
             r1 (semantic/build-authoritative
-                 em
-                 [[:sew/force-authorisation :force-authorisation/custody-execution-v1]]
-                 (assoc standard-opts :force-authorisation-policy default-policy))
+                em
+                [[:sew/force-authorisation :force-authorisation/custody-execution-v1]]
+                (assoc standard-opts :force-authorisation-policy default-policy))
             r2 (semantic/build-authoritative
-                 em
-                 [[:sew/force-authorisation :force-authorisation/custody-execution-v1]]
-                 (assoc standard-opts :force-authorisation-policy strict-policy))]
+                em
+                [[:sew/force-authorisation :force-authorisation/custody-execution-v1]]
+                (assoc standard-opts :force-authorisation-policy strict-policy))]
         (is (some? r1))
         (is (some? r2))
         (when (and r1 r2)
@@ -705,9 +705,9 @@
       (let [em (full-physical-extension-map)
             default-policy (semantic/default-force-authorisation-policy)
             r (semantic/build-authoritative
-                em
-                [[:sew/force-authorisation :force-authorisation/custody-execution-v1]]
-                (assoc standard-opts :force-authorisation-policy default-policy))
+               em
+               [[:sew/force-authorisation :force-authorisation/custody-execution-v1]]
+               (assoc standard-opts :force-authorisation-policy default-policy))
             policy-binding (get-in r [:semantic-composition/policy-bindings
                                       :force-authorisation])]
         (is (some? r))
@@ -736,23 +736,23 @@
                            :expiry-required? false
                            :allowed-reasons ["governance-mandated"]})]
         (is (thrown-with-msg?
-              Exception
-              #"does not conform to canonical"
-              (semantic/build-authoritative
-                em
-                [[:sew/force-authorisation :force-authorisation/custody-execution-v1]]
-                (assoc standard-opts :force-authorisation-policy local-policy))))))))
+             Exception
+             #"does not conform to canonical"
+             (semantic/build-authoritative
+              em
+              [[:sew/force-authorisation :force-authorisation/custody-execution-v1]]
+              (assoc standard-opts :force-authorisation-policy local-policy))))))))
 
 (deftest default-policy-used-when-none-supplied
   (testing "when custody-execution is active and no policy supplied, canonical default is used"
     (when (facade/scope-verification-capability)
       (let [em (full-physical-extension-map)
             r (semantic/build-authoritative
-                em
-                [[:sew/force-authorisation :force-authorisation/custody-execution-v1]]
-                standard-opts)
+               em
+               [[:sew/force-authorisation :force-authorisation/custody-execution-v1]]
+               standard-opts)
             policy-binding (get-in r [:semantic-composition/policy-bindings
-                                     :force-authorisation])]
+                                      :force-authorisation])]
         (is (some? r))
         (when r
           (is (some? policy-binding)
@@ -797,9 +797,9 @@
     (when (facade/scope-verification-capability)
       (let [em (full-physical-extension-map)
             result (resolution/resolve-requested
-                     em
-                     [[:sew/force-authorisation :force-authorisation/custody-execution-v1]]
-                     standard-opts)]
+                    em
+                    [[:sew/force-authorisation :force-authorisation/custody-execution-v1]]
+                    standard-opts)]
         (when (:valid? result)
           (let [packages (get-in result [:resolution :extensions/packages])
                 fa-res (get packages :prf.extensions/force-authorisation)]
@@ -815,9 +815,9 @@
     (when (facade/scope-verification-capability)
       (let [em (full-physical-extension-map)
             result (resolution/resolve-requested
-                     em
-                     [[:sew/force-authorisation :force-authorisation/custody-execution-v1]]
-                     standard-opts)]
+                    em
+                    [[:sew/force-authorisation :force-authorisation/custody-execution-v1]]
+                    standard-opts)]
         (when (:valid? result)
           (let [caps (get-in result [:resolution :extensions/capabilities])
                 scope-cap (get caps [:prf/force-authorisation :force-authorisation/scope-verification])

@@ -79,22 +79,22 @@
                (report! (str f " must not be nil"))
                (not (hash-ref/valid-sha256-ref? v))
                (report! (str f " must be a valid sha256 reference, got "
-                             (pr-str v)))))))
+                             (pr-str v))))))))
        ;; genesis-root cross-check
-       (when (and (map? authz) genesis)
-         (let [gv (genesis/validate-resubmission-chain-genesis genesis)]
-           (when-not (:valid? gv)
-             (report! (str "referenced genesis is not canonically valid: "
-                           (:errors gv))))
-           (when (:valid? gv)
-             (let [computed (genesis/resubmission-chain-genesis-root genesis)
-                   declared (:authorization/genesis-root authz)]
-               (when (and (hash-ref/valid-sha256-ref? declared)
-                          (not= computed declared))
-                 (report! (str "authorization/genesis-root does not match "
-                               "recomputed genesis root: declared "
-                               (pr-str declared) " computed "
-                               (pr-str computed))))))))
+     (when (and (map? authz) genesis)
+       (let [gv (genesis/validate-resubmission-chain-genesis genesis)]
+         (when-not (:valid? gv)
+           (report! (str "referenced genesis is not canonically valid: "
+                         (:errors gv))))
+         (when (:valid? gv)
+           (let [computed (genesis/resubmission-chain-genesis-root genesis)
+                 declared (:authorization/genesis-root authz)]
+             (when (and (hash-ref/valid-sha256-ref? declared)
+                        (not= computed declared))
+               (report! (str "authorization/genesis-root does not match "
+                             "recomputed genesis root: declared "
+                             (pr-str declared) " computed "
+                             (pr-str computed))))))))
      {:valid? (empty? @errors) :errors (vec @errors)})))
 
 (defn genesis-authorization-valid?
@@ -207,5 +207,4 @@
        :force-authorisation-hash (:authorization/force-authorisation-hash authz)
        :authority-report-root    (:authorization/authority-report-root authz)
        :governance-root     (:governance-root @auth-result)}
-      {:valid? false :errors (vec @errors)})
-    )))
+      {:valid? false :errors (vec @errors)})))
