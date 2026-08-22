@@ -17,7 +17,7 @@
             [resolver-sim.hash.canonical :as hash]
             [resolver-sim.hash.reference :as hash-ref]))
 
-(def artifact-envelope-keys
+(def ^:const artifact-envelope-keys
   "Envelope keys that are stripped from the artifact body before hashing or
    canonical preimage computation. Includes the legacy :artifact/hash and
    :artifact/preimage plus the OPTIONAL parallel canonical commitment
@@ -120,11 +120,11 @@
        (= (:artifact/hash artifact)
           (hash-ref/sha256-ref (hash/domain-hash :evidence-record (artifact-body artifact))))))
 
-(def supported-preimage-policies
+(def ^:const supported-preimage-policies
   "Accepted preimage policies."
   #{:exact :decoded-agreement})
 
-(def frozen-legacy-schema-versions
+(def ^:const frozen-legacy-schema-versions
   "Schema versions that may still use the frozen :decoded-agreement preimage
    policy. These are the pre-canonical v1 force-authorisation schemas, emitted
    before canonical fixed-point serialization existed. No NEW artifact may be

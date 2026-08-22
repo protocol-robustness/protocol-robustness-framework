@@ -45,7 +45,7 @@
   (:require [clojure.string :as str]
             [resolver-sim.allocation.roots :as roots]))
 
-(def supported-rounding-policies
+(def ^:const supported-rounding-policies
   "Rounding/distribution rules the reconciliation can verify are honored."
   #{"floor-to-asset-decimals.v1"})
 

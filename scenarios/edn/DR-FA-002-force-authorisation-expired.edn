@@ -19,7 +19,8 @@
                     :resolver-fee-bps 150
                     :appeal-window-duration 120
                     :max-dispute-duration 2592000
-                    :dispute-resolver "0xprimary"}
+                    :dispute-resolver "0xprimary"
+                    :force-authorisation/allow-local-compatibility? true}
  :agents [{:id "buyer" :address "0xbuyer" :strategy "honest"}
           {:id "seller" :address "0xseller" :strategy "honest"}
           {:id "governance" :address "0xgovernance" :role "governance"}

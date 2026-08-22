@@ -35,7 +35,52 @@
                           (.startsWith resolved root-path)
                           (.isFile file)
                           (= (get entry "sha256") (sha-ref file)))))
-                 inputs))))
+                  inputs))))
+
+(defn- input-set-composition-root
+  "Read scenario input snapshots from the committed input_set and extract
+  the :semantic-composition/root declared by the authoritative composition.
+  Returns the root string if found, or nil if no authoritative input is present.
+
+  This is the independent authoritative discriminator for the exact composition
+  identity: scenario inputs are committed in input_set_root with their sha256,
+  so an attacker cannot substitute a different composition root without also
+  changing the input files (which would break input-set-root)."
+  [root inputs]
+  (some (fn [entry]
+          (let [path (get entry "path")
+                source-kind (get entry "source_kind")
+                file (io/file root path)]
+            (try
+              (when (and (= source-kind "execution-input-snapshot")
+                         (.isFile file))
+                (let [scenario (edn/read-string (slurp file))
+                      composition (:semantic-composition scenario)]
+                  (when (and composition
+                             (or (contains? scenario :semantic-composition)
+                                 (= :authoritative (:execution-mode scenario))))
+                    (get-in composition [:semantic-composition/root]))))
+              (catch Exception _ nil))))
+        inputs))
+
+(defn- input-set-declares-authoritative?
+  "Determine whether any committed scenario input declares :semantic-composition
+  or :execution-mode :authoritative. This is the independent authority/boolean
+  discriminator; the exact root value comes from input-set-composition-root."
+  [root inputs]
+  (some true?
+        (map (fn [entry]
+               (let [path (get entry "path")
+                     source-kind (get entry "source_kind")
+                     file (io/file root path)]
+                 (try
+                   (when (and (= source-kind "execution-input-snapshot")
+                              (.isFile file))
+                     (let [scenario (edn/read-string (slurp file))]
+                       (or (contains? scenario :semantic-composition)
+                           (= :authoritative (:execution-mode scenario)))))
+                     (catch Exception _ false))))
+              inputs)))
 
 (defn- registry-sha256-matches? [expected file]
   ;; Artifact registries store the digest value; finalization objects use a
@@ -165,8 +210,8 @@
           content-registry-file (io/file root "benchmark/evidence/content-registry.json")
           canonical-integrity-file (io/file root "benchmark/assertions/canonical-integrity.json")
           forensic-status-file (io/file root "benchmark/assertions/forensic-claims-status.json")
-          verdict-policy-file (io/file root "manifest/verdict-policy.json")]
-      (when-not (every? #(.isFile %) [completion-file finalization-file assurance-file conservation-file registry-file validation-file content-registry-file canonical-integrity-file forensic-status-file verdict-policy-file])
+           verdict-policy-file (io/file root "manifest/verdict-policy.json")]
+    (when-not (every? #(.isFile %) [completion-file finalization-file assurance-file conservation-file registry-file validation-file content-registry-file canonical-integrity-file forensic-status-file verdict-policy-file])
         (throw (ex-info "Benchmark terminal artifact is missing" {:run-root run-root})))
       (let [completion (read-json completion-file)
             finalization (read-json finalization-file)
@@ -187,15 +232,33 @@
             execution-closure (verify-execution-closure root registry)
             recalculated-conservation (recalculate-conservation root conservation)
             inputs (get assurance "input_set")
+            ;; Phase 2C: Independent authoritative discriminator.
+            ;; Read scenario input snapshots from the committed input_set to
+            ;; determine whether the run was composition-authoritative. This
+            ;; cannot be downstripped by editing evidence results alone,
+            ;; because input snapshots are committed via input_set_root.
+            input-declares-authoritative? (input-set-declares-authoritative? root inputs)
+            ;; Phase 2C: The committed scenario input carries the authoritative
+            ;; composition root. Evidence/finalization/completion must match it.
+            expected-composition-root (input-set-composition-root root inputs)
+            ;; Phase 2C: Recompute semantic-composition/root from evidence
+            ;; for final_ref recomputation.
+            evidence-results (get evidence :results [])
+            evidence-composition-root (let [roots (into #{} (keep :semantic-composition-root evidence-results))]
+                                        (when (= 1 (count roots))
+                                          (first roots)))
             projection {"domain" "prf/benchmark-finalization/v1"
-                        "benchmark_id" (get finalization "benchmark_id")
-                        "assurance_artifact_sha256" (:sha256 (try (evidence-node/canonical-artifact-content "benchmark/assertions/benchmark-assurance.json" assurance-file)
+                         "benchmark_id" (get finalization "benchmark_id")
+                         "assurance_artifact_sha256" (:sha256 (try (evidence-node/canonical-artifact-content "benchmark/assertions/benchmark-assurance.json" assurance-file)
                                                                   (catch Exception _ {:sha256 "sha256:tampered"})))
-                        "conclusion_sha256" (:sha256 (try (evidence-node/canonical-artifact-content "benchmark/conclusion.json" conclusion-file)
-                                                          (catch Exception _ {:sha256 "sha256:tampered"})))
-                        "evidence_content_registry_sha256" (:sha256 (try (evidence-node/canonical-artifact-content "benchmark/evidence/content-registry.json" content-registry-file)
-                                                                         (catch Exception _ {:sha256 "sha256:tampered"})))
-                        "input_set_root" (get assurance "input_set_root")}
+                         "conclusion_sha256" (:sha256 (try (evidence-node/canonical-artifact-content "benchmark/conclusion.json" conclusion-file)
+                                                           (catch Exception _ {:sha256 "sha256:tampered"})))
+                         "evidence_content_registry_sha256" (:sha256 (try (evidence-node/canonical-artifact-content "benchmark/evidence/content-registry.json" content-registry-file)
+                                                                          (catch Exception _ {:sha256 "sha256:tampered"})))
+                         "input_set_root" (get assurance "input_set_root")
+                         "semantic_composition_root" (if input-declares-authoritative?
+                                                      (or evidence-composition-root "")
+                                                      (get finalization "semantic_composition_root"))}
             expected-final-ref (hash-ref/sha256-ref (canonical/domain-hash :benchmark-finalization-v1 projection))
             checks {"completion-first-package-index" (and (get-in package-context [:completion-report :valid?])
                                                           (:valid? package-closure))
@@ -252,7 +315,45 @@
                                                     (= "unsigned-forensic-signing-not-configured" (get forensic-status "reason_code")))
                     "verdict-policy" (:valid? verdict-policy-verification)
                     "final-ref" (and (= expected-final-ref (get finalization "final_ref"))
-                                     (= expected-final-ref (get completion "final_ref")))}]
+                                     (= expected-final-ref (get completion "final_ref")))
+                    ;; Phase 2C: Verify semantic-composition/root consistency.
+                    ;; The composition root must be the same across finalization
+                    ;; and completion. A different composition produces a different
+                    ;; final_ref, so evidence under composition A cannot pass
+                    ;; as evidence under composition B.
+                    "semantic-composition-root" (and (= (get finalization "semantic_composition_root")
+                                                        (get completion "semantic_composition_root"))
+                                                     (contains? finalization "semantic_composition_root"))
+                    ;; Phase 2C: Authoritative presence requirement (anti-downgrade).
+                    ;; The input_set is the independent discriminator: if any
+                    ;; scenario input declares :semantic-composition or
+                    ;; :execution-mode :authoritative, the run is authoritative.
+                    ;; An attacker cannot strip composition-root from evidence
+                    ;; results without also changing the committed input
+                    ;; snapshots (which would break input-set-root).
+                    ;; Requirement: when input_set declares authoritative, the
+                    ;; finalization must carry the actual composition root
+                    ;; (non-empty), and evidence results must agree.
+                     "authoritative-composition-presence" (cond
+                                                           (not input-declares-authoritative?)
+                                                           true
+                                                           (empty? (get finalization "semantic_composition_root"))
+                                                           false
+                                                           (not= evidence-composition-root
+                                                                 (get finalization "semantic_composition_root"))
+                                                           false
+                                                           :else true)
+                     ;; Phase 2C: Committed-input composition binding (anti-substitution).
+                     ;; The scenario input declares the authoritative composition root;
+                     ;; evidence must carry the same root. Prevents substituting
+                     ;; composition B while leaving the committed scenario at A.
+                      "composition-root-derivation" (or (not input-declares-authoritative?)
+                                                        (= expected-composition-root
+                                                           evidence-composition-root))}]
+
+
+
+
         {"schema_version" "benchmark-verification.v1"
          "status" (if (every? true? (vals checks)) "passed" "failed")
          "checks" checks

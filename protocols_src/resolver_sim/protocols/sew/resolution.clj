@@ -728,12 +728,15 @@
 
    When :resolver-response-window is configured and the assigned resolver has
    exceeded it (sm/resolver-response-exceeded?), the dispute is no longer
-   exclusively bound to the original resolver: any resolution-module-authorized
-   resolver (Priority 2) or a fresh resolver reaching the dispute via Priority 3
-   fallthrough may rule.  This lets a stalling resolver be escaped earlier than
-   max-dispute-duration."
-  [world workflow-id caller is-release resolution-hash resolution-module-fn]
-  (let [response-window-expired? (sm/resolver-response-exceeded? world workflow-id)]
+   exclusively bound to the original resolver: a fresh resolver may step in via
+   the Priority-3 emergency override (only when no custom-resolver is set).
+   Custom-resolver escrows remain exclusively bound to the configured address
+   at all times — the response window never relaxes Priority-1 authority."
+   [world workflow-id caller is-release resolution-hash resolution-module-fn]
+  (let [response-window-expired? (sm/resolver-response-exceeded? world workflow-id)
+        settings (t/get-settings world workflow-id)
+        custom-resolver (:custom-resolver settings)
+        custom-exclusive? (and (some? custom-resolver) (not= "" custom-resolver))]
     (cond
       (not (t/valid-workflow-id? world workflow-id))
       (guard-fail :invalid-workflow-id :workflow-id workflow-id)
@@ -743,8 +746,21 @@
                   :escrow-state (t/escrow-state world workflow-id)
                   :workflow-id workflow-id)
 
-      ;; When the response window has expired, a different resolver may step in.
-      ;; Otherwise only the assigned resolver (or module-authorized resolver) may rule.
+      ;; Priority 1: custom-resolver is ALWAYS exclusive — even after the
+      ;; response window expires.  This closes the authorization bypass where
+      ;; an arbitrary caller could resolve a custom-resolver escrow once the
+      ;; response window had elapsed.
+      (and custom-exclusive? (not= caller custom-resolver))
+      (guard-fail :not-authorized-resolver
+                  :caller caller
+                  :resolution-mode :custom-resolver
+                  :dispute-level (t/dispute-level world workflow-id)
+                  :workflow-id workflow-id)
+
+      ;; Before the response window expires, require standard authorization
+      ;; (assigned resolver, module-authorized, or custom-resolver above).
+      ;; After expiry the Priority-3 emergency-override engages: any caller
+      ;; may resolve a non-custom-resolver dispute.
       (and (not response-window-expired?)
            (not (auth/authorized-resolver? world workflow-id caller resolution-module-fn)))
       (guard-fail :not-authorized-resolver
@@ -966,6 +982,20 @@
 ;; Allows any third party to force an escalation by posting a challenge bond.
 ;; ---------------------------------------------------------------------------
 
+(def ^:private escalation-cooldown-seconds
+  "Minimum block-time gap between successive escalations/challenges by the same
+   address (Sybil Mitigation Layer A). One day — mirrors the s66 scenario.
+   Uses time-ctx/seconds-per-day so the value stays canonical."
+  time-ctx/seconds-per-day)
+
+(defn- escalation-cooldown-violated?
+  "True when caller's last escalation-block-time is within the cooldown window."
+  [world caller]
+  (let [last-esc (get-in world [:last-escalation-block-time-per-addr caller])
+        now-ts   (time-ctx/block-ts world)]
+    (and (some? last-esc)
+         (< (- now-ts last-esc) escalation-cooldown-seconds))))
+
 (defn challenge-resolution
   "Challenge a provisional resolution decision (Phase L).
    Similar to escalate-dispute but can be called by anyone.
@@ -1003,21 +1033,31 @@
     (nil? escalation-fn)
     (guard-fail :escalation-not-configured :workflow-id workflow-id)
 
+    (escalation-cooldown-violated? world caller)
+    (guard-fail :escalation-cooldown-active
+                :caller caller
+                :last-escalation-block-time
+                (get-in world [:last-escalation-block-time-per-addr caller])
+                :cooldown-seconds escalation-cooldown-seconds
+                :workflow-id workflow-id)
+
     :else
     (let [current-level (t/dispute-level world workflow-id)
           esc-result    (escalation-fn world workflow-id caller current-level)]
       (if-not (:ok esc-result)
         (t/fail (or (:error esc-result) :escalation-not-allowed))
         (let [new-level    (inc current-level)
-              new-resolver (:new-resolver esc-result)
-              old-resolver (get-in world [:escrow-transfers workflow-id :dispute-resolver])
+              new-resolver (:new-resolver esc-result)]
+          (if (or (nil? new-resolver) (= "" new-resolver))
+            (t/fail :invalid-new-resolver)
+            (let [old-resolver (get-in world [:escrow-transfers workflow-id :dispute-resolver])
               snap         (t/get-snapshot world workflow-id)
               et           (t/get-transfer world workflow-id)
 
-               ;; Sybil Mitigation Layer B: Linear Bond Scaling (1.1x per escalation)
+                ;; Sybil Mitigation Layer B: Linear Bond Scaling (1.1x per escalation)
               esc-count    (get-in world [:escalation-counts-per-addr caller] 0)
 
-               ;; Challenge bond amount
+                ;; Challenge bond amount
               base-bond    (sew-econ/calculate-challenge-bond-amount (:amount-after-fee et) snap)
               bond-amt     (quot (* base-bond (+ 10000 (* esc-count 1000))) 10000)
 
@@ -1057,11 +1097,11 @@
               :challenge/bond-amount bond-amt
               :challenge/escalation-count esc-count}
              nil
-             {:world-before world
-              :world-after world'}))
-          (assoc (t/ok world')
-                 :new-level    new-level
-                 :new-resolver new-resolver))))))
+               {:world-before world
+                :world-after world'}))
+            (assoc (t/ok world')
+                   :new-level    new-level
+                   :new-resolver new-resolver))))))))
 
 ;; ---------------------------------------------------------------------------
 ;; automate-timed-actions
@@ -1215,17 +1255,27 @@
                 :appeal-deadline (:appeal-deadline (t/get-pending world workflow-id))
                 :workflow-id workflow-id)
 
-    (nil? escalation-fn)
-    (guard-fail :escalation-not-configured :workflow-id workflow-id)
+     (nil? escalation-fn)
+     (guard-fail :escalation-not-configured :workflow-id workflow-id)
 
-    :else
-    (let [current-level (t/dispute-level world workflow-id)
-          esc-result    (escalation-fn world workflow-id caller current-level)]
-      (if-not (:ok esc-result)
-        (t/fail (or (:error esc-result) :escalation-not-allowed))
-        (let [new-level    (inc current-level)
-              new-resolver (:new-resolver esc-result)
-              old-resolver (get-in world [:escrow-transfers workflow-id :dispute-resolver])
+     (escalation-cooldown-violated? world caller)
+     (guard-fail :escalation-cooldown-active
+                 :caller caller
+                 :last-escalation-block-time
+                 (get-in world [:last-escalation-block-time-per-addr caller])
+                 :cooldown-seconds escalation-cooldown-seconds
+                 :workflow-id workflow-id)
+
+     :else
+     (let [current-level (t/dispute-level world workflow-id)
+           esc-result    (escalation-fn world workflow-id caller current-level)]
+       (if-not (:ok esc-result)
+         (t/fail (or (:error esc-result) :escalation-not-allowed))
+         (let [new-level    (inc current-level)
+               new-resolver (:new-resolver esc-result)]
+           (if (or (nil? new-resolver) (= "" new-resolver))
+             (t/fail :invalid-new-resolver)
+             (let [old-resolver (get-in world [:escrow-transfers workflow-id :dispute-resolver])
 
                ;; Sybil Mitigation Layer B: Linear Bond Scaling (1.1x per escalation)
               esc-count    (get-in world [:escalation-counts-per-addr caller] 0)
@@ -1280,18 +1330,18 @@
              nil
              {:world-before world
               :world-after world'}))
-          (emit-decision-evidence!
-           {:decision-id (str "escalate-" workflow-id "-" current-level)
-            :step (time-ctx/block-ts world)
-            :alternatives [:accept-resolution :escalate]
-            :selected :escalate
-            :reasoning (str "Participant " caller " escalated dispute " workflow-id
-                            " from level " current-level " to " new-level)
-            :caller caller
-            :workflow-id workflow-id})
-          (assoc (t/ok world')
-                 :new-level    new-level
-                 :new-resolver new-resolver))))))
+            (emit-decision-evidence!
+             {:decision-id (str "escalate-" workflow-id "-" current-level)
+              :step (time-ctx/block-ts world)
+              :alternatives [:accept-resolution :escalate]
+              :selected :escalate
+              :reasoning (str "Participant " caller " escalated dispute " workflow-id
+                             " from level " current-level " to " new-level)
+              :caller caller
+              :workflow-id workflow-id})
+            (assoc (t/ok world')
+                   :new-level    new-level
+                   :new-resolver new-resolver))))))))
 
 (defn- resolver-has-other-active-disputes?
   "True when resolver-addr is assigned to at least one :disputed escrow on a

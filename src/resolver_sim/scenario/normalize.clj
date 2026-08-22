@@ -51,6 +51,14 @@
     (string? v)  (keyword (.replace ^String v "_" "-"))
     :else        (keyword (str v))))
 
+(defn- normalize-reason-param
+  [v]
+  (cond
+    (nil? v)        nil
+    (keyword? v)    v
+    (string? v)     (keyword v)
+    :else           (keyword (str v))))
+
 (defn- normalize-event-params
   [params]
   (if-not (map? params)
@@ -59,7 +67,9 @@
       (contains? params :yield-preset)
       (update :yield-preset normalize-yield-preset-param)
       (contains? params :yield_preset)
-      (update :yield_preset normalize-yield-preset-param))))
+      (update :yield_preset normalize-yield-preset-param)
+      (contains? params :reason)
+      (update :reason normalize-reason-param))))
 
 (defn- normalize-scenario-events
   [scenario]

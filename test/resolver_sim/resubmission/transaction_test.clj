@@ -3,7 +3,9 @@
    the pure resubmission transition (pinned rejection precedence), the in-memory
    TransactionStore (CAS + ordering evidence), and reference-vs-store trace
    equivalence."
-  (:require [clojure.test :refer [deftest is testing]]
+  (:require [clojure.edn :as edn]
+            [clojure.test :refer [are deftest is testing]]
+            [resolver-sim.hash.canonical :as hc]
             [resolver-sim.resubmission.disposition :as disposition]
             [resolver-sim.resubmission.receipt :as receipt]
             [resolver-sim.resubmission.store :as store]
@@ -559,3 +561,280 @@
         (is (= (store/chain-head s) (:chain-head winner))))
       (testing "every loser is rejected because the winner advanced the head first"
         (is (every? #(= :parent-not-current-head (:reason %)) losers))))))
+
+;; ── state-after stabilization regression tests ────────────────────────────────
+
+(deftest v2-ordering-domain-registered
+  (testing "prf-transaction-ordering-v2 is registered in domain-tags"
+    (is (contains? hc/domain-tags :prf-transaction-ordering-v2))
+    (is (= "prf.transaction-ordering.v2"
+           (get hc/domain-tags :prf-transaction-ordering-v2)))))
+
+(deftest registered-keyword-domains-produce-same-hashes-as-literal-strings
+  (testing "registered keyword domain tags resolve to identical bytes as their
+            literal domain strings, so hashes are unchanged"
+    (let [state-body {:chain/family-id family
+                      :chain/version 0
+                      :transaction/commit-index 0
+                      :chain/head nil
+                      :chain/successor-by-parent {}
+                      :chain/effective-disposition-by-receipt {}
+                      :chain/disposition-head-by-receipt {}
+                      :chain/idempotency-index {}
+                      :chain/content-index {}}
+          effects-body [{:parent "sha256:PARENT" :child "sha256:CHILD"}]]
+      (are [kw str body] (= (hc/domain-hash kw body)
+                            (hc/domain-hash str body))
+        :prf-resubmission-chain-state-v1    "prf.resubmission-chain-state.v1"    state-body
+        :prf-transaction-effects-v1         "prf.transaction-effects.v1"         effects-body
+        :prf-transaction-input-v1           "prf.transaction-input.v1"         state-body
+        :prf-transaction-ordering-v1        "prf.transaction-ordering.v1"        effects-body
+        :prf-transaction-ordering-v2        "prf.transaction-ordering.v2"        effects-body))))
+
+(deftest resubmission-state-root-is-pinned
+  (testing "the empty resubmission chain state root is stable"
+    (let [s (transition/empty-state family)
+          root (transition/state-root s)]
+      (is (= "sha256:53e5ae09087f3733a54110c9a00f4cb227894f18f1384b7a8d88a929e5b66ffb"
+             root)))))
+
+(deftest resubmission-effects-root-is-pinned
+  (testing "the effects root for a fixed effects vector is stable"
+    (let [effects [{:effect/type :chain-successor
+                    :parent "sha256:PARENT"
+                    :child "sha256:CHILD"}]
+          root (transition/effects-root effects)]
+      (is (= "sha256:50f4e36f29a6c8d26b99c93d5aa0f76890cfb0a0c8bf448a75f76f95bbdc931c"
+             root)))))
+
+(deftest disposition-status-absent-vs-empty-distinct
+  (testing "absent vs present-but-empty :chain/disposition-status-by-receipt
+            produce distinct state roots (v1 behavior preserved)"
+    (let [s-absent (transition/empty-state family)
+          s-empty (assoc s-absent :chain/disposition-status-by-receipt {})
+          root-absent (transition/state-root s-absent)
+          root-empty (transition/state-root s-empty)]
+      (is (not= root-absent root-empty)
+          "absent and empty disposition-status must remain distinct")
+      (is (= "sha256:53e5ae09087f3733a54110c9a00f4cb227894f18f1384b7a8d88a929e5b66ffb"
+             root-absent))
+      (is (= "sha256:5ad475061e36b69e3f1b9f365617dc060c41a4a619b0b891389946d1175c7c12"
+             root-empty)))))
+
+(deftest chain-state-projection-excludes-unknown-fields
+  (testing "only projected fields participate in the state root; unknown
+            extra keys are ignored"
+    (let [s (transition/empty-state family)
+          s-polluted (assoc s :transaction/last-hash "sha256:DEAD"
+                            :chain/attempt-receipts {"sha256:DEAD" {}}
+                            :chain/disposition-public-hex "00112233")
+          root-clean (transition/state-root s)
+          root-polluted (transition/state-root s-polluted)]
+      (is (= root-clean root-polluted)
+          "extra non-projected keys must not affect the state root"))))
+
+;; ── committed conformance fixture ───────────────────────────────────────────────
+
+(defn- load-fixture
+  "Load a committed resubmission transition conformance fixture by fixture-id."
+  ([]
+   (load-fixture "resubmission-transition"))
+  ([fixture-name]
+   (edn/read-string
+    (slurp (str "etc/conformance/fixtures/" fixture-name ".edn")))))
+
+(deftest conformance-fixture-validates-state-after-derivation
+  (testing "the committed genesis-admit fixture reproduces every pinned root and
+            canonical-byte hex"
+    (let [fx (load-fixture "resubmission-transition-v1")
+          s-before (:state-before fx)
+          cmd (:command fx)
+          ctx (:semantic-context fx)
+          s-before-proj (:state-before-projection fx)
+          proj-fn @#'transition/chain-state-projection
+
+          result (transition/apply-action s-before cmd)
+
+          s-after (:state result)
+          effects (:effects result)
+          ordering-input (:ordering-input result)
+
+          ;; reconstruct ordering as the store does
+          full-ordering-input (merge ordering-input ctx)
+          ordering-record (ordering/transaction-ordering full-ordering-input)
+          ordering-proj (ordering/unsigned-ordering-projection ordering-record)
+          input-root-computed
+          (transition/command-input-root
+           (:transaction/action cmd) (:transaction/input cmd))]
+
+      ;; --- transition outcome ---
+      (is (= (:status (:transition-outcome fx)) (:status result))
+          "fixture status must match transition result")
+      (is (= (:public-result (:transition-outcome fx)) (:public-result result))
+          "fixture public-result must match transition result")
+
+      ;; --- state-after (complete) ---
+      (is (= (:state-after fx) s-after)
+          "fixture state-after must match transition result state")
+
+      ;; --- effects ---
+      (is (= (:effects fx) effects)
+          "fixture effects must match transition result effects")
+      (is (= (:effects-root fx) (transition/effects-root effects))
+          "effects-root must match fixture")
+      (is (= (:effects-canonical-bytes-hex fx)
+             (hc/canonical-bytes-hex (vec effects)))
+          "effects canonical bytes must match fixture")
+
+      ;; --- ordering input ---
+      (is (= (:ordering-input fx) ordering-input)
+          "ordering-input must match fixture")
+
+      ;; --- input root ---
+      (is (= (:input-root fx) input-root-computed)
+          "input-root must match fixture")
+
+      ;; --- state-before projection + root ---
+      (is (= s-before-proj (proj-fn s-before))
+          "state-before projection must match fixture")
+      (is (= (:state-before-projection fx) (proj-fn s-before))
+          "recomputed state-before projection matches fixture")
+      (is (= (:state-before-root fx) (transition/state-root s-before))
+          "state-before root must match fixture")
+      (is (= (:state-before-canonical-bytes-hex fx)
+             (hc/canonical-bytes-hex (proj-fn s-before)))
+          "state-before canonical bytes must match fixture")
+
+      ;; --- state-after projection + root ---
+      (is (= (:state-after-projection fx) (proj-fn s-after))
+          "state-after projection must match fixture")
+      (is (= (:state-after-root fx) (transition/state-root s-after))
+          "state-after root must match fixture")
+      (is (= (:state-after-canonical-bytes-hex fx)
+             (hc/canonical-bytes-hex (proj-fn s-after)))
+          "state-after canonical bytes must match fixture")
+
+      ;; --- change identity ---
+      (is (= (:change-identity fx)
+             (ordering/change-identity-hash full-ordering-input))
+          "change identity must match fixture")
+
+      ;; --- ordering v2 projection + root ---
+      (is (= (:ordering-v2-projection fx) ordering-proj)
+          "ordering v2 projection must match fixture")
+      (is (= (:ordering-canonical-bytes-hex fx)
+             (hc/canonical-bytes-hex ordering-proj))
+          "ordering canonical bytes must match fixture")
+       (is (= (:ordering-root fx) (:transaction-ordering/hash ordering-record))
+           "ordering root must match fixture"))))
+
+(deftest conformance-fixture-rejection-duplicate-content-validates
+  (testing "the committed duplicate-content-rejection fixture reproduces the pinned
+            rejection outcome and unchanged state"
+    (let [fx (load-fixture "resubmission-transition-rejection-v1")
+          s-before (:state-before fx)
+          cmd (:command fx)
+
+          result (transition/apply-action s-before cmd)]
+      (is (= :rejected (:status result))
+          "rejection fixture must produce :rejected")
+      (is (= (:reason (:transition-outcome fx)) (:reason result))
+          "rejection reason must match fixture")
+      (is (= (:public-result (:transition-outcome fx)) (:public-result result))
+          "rejection public-result must match fixture")
+      (is (= (:state-before-root fx) (transition/state-root s-before))
+          "state-before-root must match fixture")
+      (is (nil? (:effects result))
+          "rejected transition must produce no effects")
+      (is (nil? (:ordering-input result))
+          "rejected transition must produce no ordering-input")
+      (is (= (:state-before-root fx)
+             (:state-before-root fx))
+          "rejection leaves state unchanged (state-before-root == state-after-root)"))))
+
+(deftest conformance-fixture-disposition-final-validates
+  (testing "the committed disposition-final fixture reproduces every pinned root and
+            canonical-byte hex"
+    (let [fx (load-fixture "resubmission-transition-disposition-v1")
+          s-before (:state-before fx)
+          cmd (:command fx)
+          ctx (:semantic-context fx)
+          proj-fn @#'transition/chain-state-projection
+
+          result (transition/apply-action s-before cmd)
+
+          s-after (:state result)
+          effects (:effects result)
+          ordering-input (:ordering-input result)
+          input-root-computed
+          (transition/command-input-root
+           (:transaction/action cmd) (:transaction/input cmd))
+
+          full-ordering-input (merge ordering-input ctx)
+          ordering-record (ordering/transaction-ordering full-ordering-input)
+          ordering-proj (ordering/unsigned-ordering-projection ordering-record)]
+      (is (= :committed (:status result))
+          "disposition fixture must produce :committed")
+      (is (= (:public-result (:transition-outcome fx)) (:public-result result))
+          "public-result must match fixture")
+
+      (is (= (:state-before fx) s-before)
+          "state-before must match fixture")
+      (is (= (:state-before-root fx) (transition/state-root s-before))
+          "state-before-root must match fixture")
+      (is (= (:state-before-canonical-bytes-hex fx)
+             (hc/canonical-bytes-hex (proj-fn s-before)))
+          "state-before canonical bytes must match fixture")
+
+      (is (= (:state-after fx) s-after)
+          "state-after must match fixture")
+      (is (= (:state-after-root fx) (transition/state-root s-after))
+          "state-after-root must match fixture")
+      (is (= (:state-after-canonical-bytes-hex fx)
+             (hc/canonical-bytes-hex (proj-fn s-after)))
+          "state-after canonical bytes must match fixture")
+      (is (contains? s-after :chain/disposition-status-by-receipt)
+          "state-after must contain disposition-status-by-receipt")
+      (is (= {:chain/disposition-status-by-receipt {"sha256:R1" :final}}
+             (select-keys s-after [:chain/disposition-status-by-receipt]))
+          "disposition-status-by-receipt must match fixture")
+
+      (is (= (:effects fx) effects)
+          "effects must match fixture")
+      (is (= (:effects-root fx) (transition/effects-root effects))
+          "effects-root must match fixture")
+      (is (= (:effects-canonical-bytes-hex fx)
+             (hc/canonical-bytes-hex (vec effects)))
+          "effects canonical bytes must match fixture")
+
+      (is (= (:input-root fx) input-root-computed)
+          "input-root must match fixture")
+
+      (is (= (:ordering-input fx) ordering-input)
+          "ordering-input must match fixture")
+
+      (is (= (:ordering-v2-projection fx) ordering-proj)
+          "ordering v2 projection must match fixture")
+      (is (= (:ordering-canonical-bytes-hex fx)
+             (hc/canonical-bytes-hex ordering-proj))
+          "ordering canonical bytes must match fixture")
+      (is (= (:ordering-root fx) (:transaction-ordering/hash ordering-record))
+          "ordering root must match fixture")
+      (is (= (:change-identity fx)
+             (ordering/change-identity-hash full-ordering-input))
+          "change-identity must match fixture"))))
+
+(deftest conformance-fixture-disposition-signature-verifies
+  (testing "the disposition artifact in the fixture verifies against the pinned public key"
+    (let [fx (load-fixture "resubmission-transition-disposition-v1")
+          artifact (:disposition-artifact fx)
+          pub-hex (:public-key-hex (:fixture/disposition-authority fx))]
+      (is (some? pub-hex)
+          "fixture must declare a disposition authority public key")
+      (is (some? artifact)
+          "fixture must contain a disposition artifact")
+      (let [verification (disposition/verify-disposition artifact pub-hex)]
+        (is (true? (:valid? verification))
+            "disposition signature must verify against the pinned public key")
+        (is (= :ok (:reason verification))
+            "disposition must have a valid schema and status")))))

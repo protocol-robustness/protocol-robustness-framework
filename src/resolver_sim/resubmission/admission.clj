@@ -10,16 +10,22 @@
   (:require [resolver-sim.hash.canonical :as hc]
             [resolver-sim.hash.reference :as hash-ref]))
 
-(def admission-state-schema "resubmission-admission-state.v2")
-(def reservation-lease-seconds 120)
-(def max-idempotency-key-bytes 512)
-(def max-family-id-bytes 512)
-(def max-reservation-count 10000)
-(def validation-domain "prf.resubmission-validation.v1")
-(def reservation-domain "prf.resubmission-reservation.v1")
-(def finalization-domain "prf.resubmission-finalization.v1")
-(def validation-schema "resubmission-validation.v1")
-(def required-check-order
+(def ^:const admission-state-schema "resubmission-admission-state.v2")
+(def ^:const reservation-lease-seconds 120)
+(def ^:const max-idempotency-key-bytes 512)
+(def ^:const max-family-id-bytes 512)
+(def ^:const max-reservation-count 10000)
+(def ^:const validation-domain :prf-resubmission-validation-v1)
+(def ^:const reservation-domain :prf-resubmission-reservation-v1)
+(def ^:const finalization-domain :prf-resubmission-finalization-v1)
+(def ^:const validation-schema "resubmission-validation.v1")
+(def ^:const admission-snapshot-domain :prf-resubmission-admission-snapshot-v1)
+(def ^:const admission-signing-domain :prf-resubmission-admission-signing-v1)
+(def ^:const signing-schema "resubmission-admission-signing.v1")
+(def ^:const required-check-order
+  "Pinned canonical order for validation checks. Serialized into the validation
+  aggregate (validation/check-order) and thus contributes to validation-root.
+  Reordering checks by any caller is rejected at build-validation time."
   [:link-artifact :bundle-binding :researcher-authority :derived-kind
    :remediation :parent-receipt :disposition])
 
@@ -185,7 +191,7 @@
 (defn snapshot [state]
   {:concurrency/partition-key (:concurrency/partition-key state)
    :concurrency/snapshot-root
-   (root "prf.resubmission-admission-snapshot.v1"
+    (root admission-snapshot-domain
          (select-keys state [:concurrency/partition-key :family/version :family/head
                              :admission/idempotency-index :admission/candidate-index]))
    :concurrency/expected-state-version (:family/version state)
@@ -202,7 +208,7 @@
    this is derived only after `reserve!` grants one caller a fenced attempt.
    Its root is checked again by finalization."
   [reservation]
-  (let [payload {:signing/schema "resubmission-admission-signing.v1"
+   (let [payload {:signing/schema signing-schema
                  :signing/partition-key (:reservation/partition-key reservation)
                  :signing/reservation-id (:reservation/id reservation)
                  :signing/fence (:reservation/fence reservation)
@@ -211,7 +217,7 @@
                  :signing/validation-root (:reservation/validation-root reservation)
                  :signing/proposed-ordering-root (:reservation/proposed-ordering-root reservation)}]
     (assoc payload :signing/payload-root
-           (root "prf.resubmission-admission-signing.v1" payload))))
+                       (root admission-signing-domain payload))))
 
 (defn finalization-request-root [request]
   (root finalization-domain (dissoc request :finalization/request-root)))

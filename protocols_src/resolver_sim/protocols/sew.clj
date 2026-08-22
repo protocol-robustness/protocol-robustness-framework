@@ -60,45 +60,60 @@
    and legacy facade availability cannot activate force-authorisation outside
    its selected custody-execution capability and action module.
 
-   Without a semantic composition, force-authorisation is inactive UNLESS the
-   context explicitly carries :force-authorisation/allow-local-compatibility?
-   true — an explicitly named compatibility/legacy path for callers that have
-   not yet migrated to semantic composition. This flag is the sole remaining
-   ambient activation mechanism and is categorically rejected under a
-   :production-governed composition."
-  [context]
-  (let [composition (semantic-composition context)]
-    (if composition
-      (and (:valid? (semantic/validate composition))
-           (semantic/selected-capability?
-            composition
-            [:sew/force-authorisation :force-authorisation/custody-execution-v1]))
-       ;; Legacy compatibility path — only activated by explicit flag
-       (and (:force-authorisation/allow-local-compatibility? context)
-            (force-extension/installed? (:extension-map context))))))
+   Under :execution-mode :authoritative (fail-closed): no composition →
+   force-authorisation categorically inactive. The legacy compatibility flag
+   must NOT override authoritative execution.
+
+   Under :execution-mode :legacy (explicit compatibility path): force-
+   authorisation is active only when the explicit compatibility flag is set
+   AND the force-extension is installed.
+
+   The composition itself is the semantic authority; all other mechanisms are
+   provider/loading plumbing."
+   [context]
+   (let [composition (semantic-composition context)
+         mode (:execution-mode context :legacy)]
+     (if composition
+       (and (:valid? (semantic/validate composition))
+            (semantic/selected-capability?
+             composition
+             [:sew/force-authorisation :force-authorisation/custody-execution-v1]))
+       ;; No composition
+       (case mode
+         :authoritative false
+         ;; :legacy (default) — explicit compatibility path
+         (and (:force-authorisation/allow-local-compatibility? context)
+               (force-extension/installed? (:extension-map context)))))))
 
 (defn- semantic-action-permitted?
-  "Action admission is composition-driven. A force-authorisation production
-   action is admitted only when the composition's action module selects it.
+  "Action admission is composition-driven under authoritative execution.
 
-   Without a composition (legacy compatibility path), force-authorisation
-   production actions are admitted only when the explicit compatibility flag
-   is set AND the force-extension is installed. Non-force-authorisation
-   actions remain admitted under the legacy path."
-  [context action]
-  (let [composition (semantic-composition context)]
-    (cond
-      (nil? composition)
-      ;; Legacy compatibility path: allow non-force-auth actions;
-      ;; allow force-auth actions only with explicit compat flag + extension
-      (if (contains? semantic/force-authorisation-actions action)
-        (and (:force-authorisation/allow-local-compatibility? context)
-             (force-extension/installed? (:extension-map context)))
-        true)
+   Under :execution-mode :authoritative (fail-closed): no composition →
+   force-authorisation actions are categorically unavailable. All other
+   actions are admitted (they are not composition-gated).
 
-      :else
-      ;; Composition present: check action module
-      (semantic/allows-action? composition action))))
+   Under :execution-mode :legacy: force-authorisation actions require the
+   explicit compatibility flag + extension-map; non-force-auth actions remain
+   admitted.
+
+   When a composition is present, only the selected action module's actions
+   are available."
+   [context action]
+   (let [composition (semantic-composition context)
+         mode (:execution-mode context :legacy)]
+      (cond
+        composition
+        (semantic/allows-action? composition action)
+
+        (= mode :authoritative)
+        (not (contains? semantic/force-authorisation-actions action))
+
+        :else
+        ;; :legacy or default
+        (if (contains? semantic/force-authorisation-actions action)
+          (and (:force-authorisation/allow-local-compatibility? context)
+               (force-extension/installed? (:extension-map context)))
+          true))))
 
 (defn- production-governed?
   "True when the semantic composition has a :production-governed profile."
@@ -828,7 +843,8 @@
             now              (time-ctx/block-ts world)
             workflow-id      (:workflow-id pp)
             escrow           (t/get-transfer world workflow-id)
-            reason           (:reason pp)
+            reason           (let [r (:reason pp)]
+                               (if (string? r) (keyword r) r))
             allowed          (:allowed-reasons fa-policy)
             starts-at        (or (:starts-at pp) now)
             duration         (:duration pp)
@@ -2402,17 +2418,22 @@
 
   (protocol-id [_] "sew-v1")
 
-  (init-world [_ scenario]
-    (let [init-time    (get scenario :initial-block-time 1000)
-          tp           (:token-params scenario)
-          pp           (assoc (:protocol-params scenario {})
-                              :scenario-id (:scenario-id scenario)
-                              :expected-failures (:expected-failures scenario {}))
-          fot-bps      (when tp (get tp :fee-on-transfer 0))
-          s-tokens     (into #{} (keep #(get-in % [:params :token]) (:events scenario)))
-          composition  (:semantic-composition scenario)
-          _            (when (and composition (not (:valid? (semantic/validate composition))) )
-                         (throw (ex-info "invalid semantic composition" (semantic/validate composition))))
+   (init-world [_ scenario]
+     (let [init-time    (get scenario :initial-block-time 1000)
+           tp           (:token-params scenario)
+           pp           (assoc (:protocol-params scenario {})
+                               :scenario-id (:scenario-id scenario)
+                               :expected-failures (:expected-failures scenario {}))
+           fot-bps      (when tp (get tp :fee-on-transfer 0))
+           s-tokens     (into #{} (keep #(get-in % [:params :token]) (:events scenario)))
+           composition  (:semantic-composition scenario)
+           execution-mode (:execution-mode scenario :legacy)
+           _            (when (and (= execution-mode :authoritative) (nil? composition))
+                          (throw (ex-info "authoritative execution requires semantic-composition"
+                                          {:execution-mode execution-mode
+                                           :missing :semantic-composition})))
+           _            (when (and composition (not (:valid? (semantic/validate composition))))
+                          (throw (ex-info "invalid semantic composition" (semantic/validate composition))))
           base         (-> (t/empty-world init-time)
                            (assoc :params pp)
                            (cond-> composition (assoc :semantic-composition composition))
@@ -2487,7 +2508,13 @@
             ;; Phase 2B: propagate authoritative semantic composition from
             ;; protocol-params into the execution context. When absent, the
             ;; context remains legacy/compat (no force-auth activation).
-            :semantic-composition (get pp :semantic-composition)})))
+            ;; Under :authoritative execution-mode, a missing composition is a
+            ;; construction-time rejection (init-world fails closed).
+            :semantic-composition (get pp :semantic-composition)
+            :execution-mode (get pp :execution-mode :legacy)
+            :force-authorisation/allow-local-compatibility? (get pp :force-authorisation/allow-local-compatibility? false)
+            :extension-map (when (get pp :force-authorisation/allow-local-compatibility? false)
+                              (force-extension/install (force-extension/install-governed-authority {})))})))
 
   (dispatch-action [_ context world event]
     (let [event       (resolve-scenario-bindings world event)
@@ -2503,22 +2530,21 @@
                           (if (:ok result)
                             (update result :world bind-scenario-result event result)
                             result)))]
-      (cond
-        (not (semantic-action-permitted? context (:action event)))
-        {:ok false :error :semantic-composition-action-not-permitted
-         :detail {:action (:action event)
-                  :composition-root (get-in context [:semantic-composition :semantic-composition/root])}}
-
-        ;; Phase 2B state-region validity: force-auth live state keys must not
-        ;; be present in the world unless the composition selects them.
-        ;; This is a generic composition-governed state ownership check, not
-        ;; a force-auth-only exception. Composition-governed only: a nil
-        ;; composition is the legacy/compat path (see
-        ;; semantic-action-permitted?) and carries no composition state
-        ;; ownership to enforce.
-        region-violations
-        {:ok false :error :semantic-composition-state-region-violation
-         :detail {:violations (vec region-violations)}}
+       (cond
+         (not (semantic-action-permitted? context (:action event)))
+          {:ok false :error :semantic-composition-action-not-permitted
+           :detail {:action (:action event)
+                    :composition-root (get-in context [:semantic-composition :semantic-composition/root])}}
+  ;; Phase 2B state-region validity: under authoritative execution,
+  ;; force-auth live state keys must not be present in the world unless
+  ;; the composition selects them. This is a generic composition-governed
+  ;; state ownership check, not a force-auth-only exception.
+  (and (= (:execution-mode context :legacy) :authoritative)
+       (seq (semantic/state-region-invalidation
+             (semantic-composition context) world)))
+  {:ok false :error :semantic-composition-state-region-violation
+   :detail {:violations (semantic/state-region-invalidation
+                         (semantic-composition context) world)}}
 
         (and require-id? (replay-sensitive-action? event) (nil? eid))
         {:ok false :error :missing-event-id

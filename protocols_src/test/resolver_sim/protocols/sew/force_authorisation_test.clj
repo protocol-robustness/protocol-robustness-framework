@@ -1004,6 +1004,7 @@
     (let [world0 (t/empty-world 1000)
           plain (plain-composition)
           ctx (-> gov-ctx
+                  (assoc :execution-mode :authoritative)
                   (assoc :semantic-composition plain)
                   (dissoc :force-authorisation/allow-local-compatibility?))
           grant-result (sew/apply-action ctx world0
@@ -1089,6 +1090,7 @@
     (let [world0 (disputed-world)
           comp (protection-governed-composition)
           ctx (-> gov-ctx
+                  (assoc :execution-mode :authoritative)
                   (assoc :semantic-composition comp)
                   (dissoc :force-authorisation/allow-local-compatibility?))
           event {:seq 0 :time 1000 :agent "gov"
@@ -1136,6 +1138,7 @@
           ;; Grant with local compatibility, execute under protected composition
           {:keys [world auth-id]} (grant-force-auth world0)
           protected-ctx (-> exec-ctx
+                            (assoc :execution-mode :authoritative)
                             (assoc :semantic-composition comp)
                             (dissoc :force-authorisation/allow-local-compatibility?))
           result (sew/apply-action protected-ctx world
@@ -1155,6 +1158,7 @@
           ;; Execute under protected production-governed composition
           comp (protection-governed-composition)
           exec-ctx (-> exec-ctx
+                       (assoc :execution-mode :authoritative)
                        (assoc :semantic-composition comp)
                        (dissoc :force-authorisation/allow-local-compatibility?))
           result (sew/apply-action exec-ctx world
@@ -1187,6 +1191,7 @@
     (let [world0 (t/empty-world 1000)
           ctx {:agent-index {"gov" {:id "gov" :address gov-addr :role "governance"}}
                :governance-identity gov-addr
+               :execution-mode :authoritative
                :semantic-composition nil}
           event {:seq 0 :time 1000 :agent "gov"
                  :action "grant-force-authorisation"
@@ -1198,6 +1203,7 @@
   (testing "dual-authority: extension-map present but no composition → force-auth inactive"
     (let [world0 (t/empty-world 1000)
           ctx (-> gov-ctx
+                  (assoc :execution-mode :authoritative)
                   (dissoc :force-authorisation/allow-local-compatibility?)
                   (assoc :semantic-composition nil))
           event {:seq 0 :time 1000 :agent "gov"
@@ -1211,6 +1217,7 @@
   (testing "dual-authority: legacy facade installed? but no composition → force-auth inactive"
     (let [world0 (t/empty-world 1000)
           ctx (-> exec-ctx
+                  (assoc :execution-mode :authoritative)
                   (dissoc :force-authorisation/allow-local-compatibility?)
                   (assoc :semantic-composition nil))
           event {:seq 0 :time 1000 :agent "exec"
@@ -1225,6 +1232,7 @@
     (let [world0 (t/empty-world 1000)
           ctx {:agent-index {"gov" {:id "gov" :address gov-addr :role "governance"}}
                :governance-identity gov-addr
+               :execution-mode :authoritative
                :force-authorisation/allow-local-compatibility? true
                :extension-map nil
                :semantic-composition nil}

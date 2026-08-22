@@ -1238,7 +1238,7 @@
                              (not= "pro-rata-allocation-reference.v1" (:schema-version allocation-ref)) (conj :allocation-reference-schema-mismatch)
                              (nil? (:allocation/id allocation-ref)) (conj :allocation-reference-id-missing)
                              (nil? (:allocation/hash allocation-ref)) (conj :allocation-reference-hash-missing)
-                             (not= {:id :mechanism/pro-rata-allocation :version 1}
+                             (not= {:id :mechanism/pro-rata-allocation :version pro-rata/mechanism-version}
                                    (:mechanism allocation-ref)) (conj :allocation-reference-mechanism-mismatch)
                              (not= (:calculation-ref validated-artifact)
                                    (get-in allocation-ref [:source-evidence :artifact/id])) (conj :allocation-reference-source-id-mismatch)

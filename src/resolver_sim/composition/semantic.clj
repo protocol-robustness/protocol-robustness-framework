@@ -180,7 +180,7 @@
   "Check that a world-state map does not contain any live state keys owned by
    a module that is not active in the given composition.
 
-   Returns an empty vector when valid (all present state keys are in active
+   Returns an empty vector when valid (all present state keys belong to active
    regions), or a vector of violation maps when invalid. Each violation contains:
    - :state-key — the offending world key
    - :module-id — which module would own this key if active

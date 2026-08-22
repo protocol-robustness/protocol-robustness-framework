@@ -24,13 +24,13 @@
             [resolver-sim.hash.canonical :as hc]
             [resolver-sim.hash.reference :as hash-ref]))
 
-(def basis-schema "submission-basis-projection.v1")
-(def bundle-schema "submission-bundle-projection.v1")
-(def basis-domain "prf.submission-basis.v1")
-(def final-bundle-domain "prf.submission-bundle.v1")
+(def ^:const basis-schema "submission-basis-projection.v1")
+(def ^:const bundle-schema "submission-bundle-projection.v1")
+(def ^:const basis-domain :prf-submission-basis-v1)
+(def ^:const final-bundle-domain :prf-submission-bundle-v1)
 
 ;; Keys that MUST NOT be present in the basis projection (the cutpoint).
-(def basis-excluded-keys
+(def ^:const basis-excluded-keys
   "Keys the submission-basis projection must never contain."
   #{:resubmission-link :resubmission-link-hash :final-bundle-root
     :final-publisher-signature :attempt-receipt :submitted-bundle-root})

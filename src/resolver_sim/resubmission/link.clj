@@ -36,8 +36,8 @@
 (def ^:const family-domain :prf-resubmission-family-v1)
 (def ^:const idempotency-domain :prf-resubmission-idempotency-v1)
 
-(def kinds #{:exact-retry :corrected-result :submission-repair})
-(def dispositions #{:addressed :disputed :not-applicable})
+(def ^:const kinds #{:exact-retry :corrected-result :submission-repair})
+(def ^:const dispositions #{:addressed :disputed :not-applicable})
 (def change-bools [:execution-context-changed? :submission-basis-changed? :results-changed?])
 
 (def artifact-self-keys

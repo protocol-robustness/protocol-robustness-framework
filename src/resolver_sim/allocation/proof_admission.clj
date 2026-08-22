@@ -17,19 +17,20 @@
   (:import [java.security MessageDigest]
            [java.util Arrays]))
 
-(def proof-profile :allocation-proof/largest-remainder-deferred-pro-rata.v1)
-(def statement-version statement/schema-version)
+(def ^:const proof-profile :allocation-proof/largest-remainder-deferred-pro-rata.v1)
+(def ^:const statement-version statement/schema-version)
 
-(def assurance-levels
+(def ^:const assurance-levels
   #{:assurance/evidence
     :assurance/cryptographic-computation
     :assurance/cryptographic-activation
     :assurance/effect-bound})
 
-(def proof-artifact-schema "realized-allocation-proof.v1")
-(def verifier-receipt-schema "realized-allocation-proof-verification.v1")
-(def ^:private proof-artifact-domain "REALIZED_ALLOCATION_PROOF_V1")
-(def ^:private verifier-receipt-domain "REALIZED_ALLOCATION_PROOF_VERIFICATION_V1")
+(def ^:const proof-artifact-schema "realized-allocation-proof.v1")
+(def ^:const verifier-receipt-schema "realized-allocation-proof-verification.v1")
+(def ^:const proof-artifact-domain "REALIZED_ALLOCATION_PROOF_V1")
+(def ^:const verifier-receipt-domain "REALIZED_ALLOCATION_PROOF_VERIFICATION_V1")
+(def ^:const sp1-bincode-encoding "sp1-bincode.v1")
 
 (defn- sha256-ref? [value]
   (boolean (and (string? value)
@@ -84,7 +85,7 @@
           (sha256-bytes-ref (codecs/hex->bytes
                              (subs (:public-values/bytes32 artifact) 2))))
        (sha256-ref? (:public-values/sha256 artifact))
-       (= "sp1-bincode.v1" (:proof/encoding artifact))
+        (= sp1-bincode-encoding (:proof/encoding artifact))
        (string? (:proof/file artifact))
        (sha256-ref? (:proof/sha256 artifact))
        (= (:proof/artifact-hash artifact) (proof-artifact-hash artifact))))

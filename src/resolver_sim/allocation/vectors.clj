@@ -77,7 +77,7 @@
 ;; Public-value projection
 ;; ──────────────────────────────────────────────────────────────────────────────
 
-(def public-value-keys
+(def ^:const public-value-keys
   "The complete declared public-value projection that PRF and Rust must match.
    Any missing or extra field is a conformance failure."
   [:result/status
@@ -99,7 +99,7 @@
    :allocation-kernel-version
    :selection-algorithm])
 
-(def rejection-keys
+(def ^:const rejection-keys
   "Rejection fields included in the projection when present."
   [:rejection/classification])
 

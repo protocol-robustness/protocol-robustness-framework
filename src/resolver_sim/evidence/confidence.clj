@@ -532,7 +532,7 @@
   ([components key-fn]
    (vec (sort-by key-fn components))))
 
-(def confidence-commitment-domain-tag
+(def ^:const confidence-commitment-domain-tag
   "Domain-separation tag for confidence composition commitments.
    Prevents cross-domain hash collisions between a confidence commitment and
    any other evidence record hashed under the Canonical Hash Spec V1."

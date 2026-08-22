@@ -4,7 +4,8 @@
             [resolver-sim.protocols.sew.types      :as t]
             [resolver-sim.protocols.sew.lifecycle  :as lc]
             [resolver-sim.protocols.sew.resolution :as res]
-            [resolver-sim.protocols.sew.registry   :as reg]))
+            [resolver-sim.protocols.sew.registry   :as reg]
+            [resolver-sim.time.context             :as time-ctx]))
 
 (defn- slash-id-for
   [world workflow-id kind level]
@@ -99,13 +100,13 @@
           r0 "0xRes0"
           r1 "0xRes1"
           r2 "0xRes2"
-          snap (snap-fix/escrow-snapshot {:dispute-resolver r0
-                                          :reversal-slash-bps 2500
-                                          :appeal-window-duration 86400
-                                          :challenge-window-duration 86400
-                                          :max-dispute-level 3
-                                          :resolver-bond-bps 10000
-                                          :escrow-fee-bps 50})
+      snap (snap-fix/escrow-snapshot {:dispute-resolver r0
+                                      :reversal-slash-bps 2500
+                                      :appeal-window-duration 200000
+                                      :challenge-window-duration 200000
+                                      :max-dispute-level 3
+                                      :resolver-bond-bps 10000
+                                      :escrow-fee-bps 50})
           world (-> world
                     (reg/register-stake r0 5000)
                     (reg/register-stake r1 5000)
@@ -120,6 +121,9 @@
           ;; Escalate to L1
           esc-fn (fn [_ _ _ _] {:ok true :new-resolver r1})
           world (-> (res/escalate-dispute world workflow-id buyer esc-fn) :world)
+
+          ;; Advance past the 1-day escalation cooldown before buyer's next escalation.
+          world (time-ctx/advance-time world {:to (+ 1000 time-ctx/seconds-per-day 1)})
 
           ;; Flag evidence *before* first reversal — both reversals should use Track 2
           world (assoc-in world [:evidence-updated? workflow-id] true)

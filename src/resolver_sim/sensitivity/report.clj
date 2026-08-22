@@ -12,6 +12,7 @@
            [java.nio.file Files StandardCopyOption]))
 
 (def ^:const report-schema-version "sensitivity-report.v2")
+(def ^:const secret-ruleset-version "sensitivity-secret-rules.v1")
 
 ;; ── Policy identity (deterministic) ─────────────────────────────────────────
 
@@ -49,11 +50,11 @@
      :implementation/source "resolver-sim.commands.scenario-safety/sensitivity-findings"
      :ruleset-ref {:ruleset/id "secret-patterns"
                    :ruleset/schema "regex-patterns.v1"
-                   :ruleset/version "v1"}
-     :ruleset/hash (hc/hash-with-intent {:hash/intent :evidence-record}
-                                        {:ruleset/id "secret-patterns"
-                                         :version "v1"
-                                         :source "resolver-sim.commands.scenario-safety/secret-rules"})}))
+                    :ruleset/version secret-ruleset-version}
+      :ruleset-hash (hc/hash-with-intent {:hash/intent :evidence-record}
+                                         {:ruleset/id "secret-patterns"
+                                          :version secret-ruleset-version
+                                          :source "resolver-sim.commands.scenario-safety/secret-rules"})}))
 
 (def ^:private merge-function
   {:implementation/id "merge-sensitivity"

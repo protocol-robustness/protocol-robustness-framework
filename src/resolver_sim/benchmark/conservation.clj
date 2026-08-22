@@ -4,8 +4,9 @@
             [resolver-sim.hash.canonical :as canonical]
             [resolver-sim.hash.reference :as hash-ref]))
 
-(def invariant-id :conservation-of-funds)
-(def schema-version "benchmark-conservation.v1")
+(def ^:const invariant-id :conservation-of-funds)
+(def ^:const schema-version "benchmark-conservation.v1")
+(def ^:const invariant-authority-version "v1")
 
 (defn aggregate-status [expected observed]
   (let [expected (set expected)
@@ -33,7 +34,7 @@
     {:schema_version schema-version
      :benchmark_id benchmark-id
      :run_id run-id
-     :authority {:kind "invariant" :namespace "sew" :id "conservation-of-funds" :version "v1"}
+      :authority {:kind "invariant" :namespace "sew" :id "conservation-of-funds" :version invariant-authority-version}
      :applicability {:policy "all-required-executions" :required required? :expected_execution_ids expected}
      :status (name status)
      :summary {:expected (count expected) :evaluated (count executions)

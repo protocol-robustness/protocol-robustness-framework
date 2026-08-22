@@ -8,7 +8,7 @@
   (:require [resolver-sim.allocation.proof-admission :as admission]
             [resolver-sim.allocation.persisted-statement-admission :as persisted]))
 
-(def default-artifact
+(def ^:const default-artifact
   "results/allocation/a-vs-b-plus-c/realized-statement/sp1-proof-artifact.json")
 
 (defn- artifact-dir [path]

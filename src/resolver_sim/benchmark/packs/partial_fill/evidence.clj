@@ -593,11 +593,11 @@
 ;; file-artifact so a downstream consumer can store it and independently
 ;; re-verify it without re-deriving the analysis.
 
-(def verification-report-schema-version
+(def ^:const verification-report-schema-version
   "Version of the partial-fill decisions verification report artifact."
   "partial-fill-decisions-verification.v1")
 
-(def verification-report-verifier-id
+(def ^:const verification-report-verifier-id
   "Producer identifier for the partial-fill decisions verification report."
   "partial-fill-decisions-verifier.v1")
 
@@ -654,11 +654,11 @@
 ;; capacity-respecting, and decidable" by surfacing the verifier's failures
 ;; alongside amount, count, and fill-ratio aggregates. Not a second verifier.
 
-(def partial-fill-summary-schema-version
+(def ^:const partial-fill-summary-schema-version
   "Version of the partial-fill decisions summary artifact."
   "partial-fill-decisions-summary.v1")
 
-(def partial-fill-summary-verifier-id
+(def ^:const partial-fill-summary-verifier-id
   "Producer identifier for the partial-fill decisions summary artifact."
   "partial-fill-decisions-summary-verifier.v1")
 
