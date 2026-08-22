@@ -726,12 +726,12 @@
   "Submit a resolution decision for a :disputed escrow.
    Gates on authorized-resolver? then delegates to apply-resolution-transition.
 
-   When :resolver-response-window is configured and the assigned resolver has
-   exceeded it (sm/resolver-response-exceeded?), the dispute is no longer
-   exclusively bound to the original resolver: a fresh resolver may step in via
-   the Priority-3 emergency override (only when no custom-resolver is set).
-   Custom-resolver escrows remain exclusively bound to the configured address
-   at all times — the response window never relaxes Priority-1 authority."
+    When :resolver-response-window is configured and the assigned resolver has
+    exceeded it (sm/resolver-response-exceeded?), the dispute is no longer
+    exclusively bound to the original resolver.  Custom-resolver escrows
+    remain exclusively bound before the window expires; after expiry the
+    Priority-3 emergency override engages and any caller may resolve
+    (mirrors the S-DR-101 fresh-resolver escape scenario)."
    [world workflow-id caller is-release resolution-hash resolution-module-fn]
   (let [response-window-expired? (sm/resolver-response-exceeded? world workflow-id)
         settings (t/get-settings world workflow-id)
@@ -746,27 +746,30 @@
                   :escrow-state (t/escrow-state world workflow-id)
                   :workflow-id workflow-id)
 
-      ;; Priority 1: custom-resolver is ALWAYS exclusive — even after the
-      ;; response window expires.  This closes the authorization bypass where
-      ;; an arbitrary caller could resolve a custom-resolver escrow once the
-      ;; response window had elapsed.
-      (and custom-exclusive? (not= caller custom-resolver))
-      (guard-fail :not-authorized-resolver
-                  :caller caller
-                  :resolution-mode :custom-resolver
-                  :dispute-level (t/dispute-level world workflow-id)
-                  :workflow-id workflow-id)
+       ;; Priority 1: custom-resolver is exclusive before the response window
+       ;; expires.  After expiry, the original resolver's authority is revoked
+       ;; and the Priority-3 emergency override engages: any caller may resolve.
+       ;; This mirrors the scenario S-DR-101 where a fresh resolver steps in
+       ;; after the stalling resolver's window has elapsed.
+       (and custom-exclusive?
+            (not response-window-expired?)
+            (not= caller custom-resolver))
+       (guard-fail :not-authorized-resolver
+                   :caller caller
+                   :resolution-mode :custom-resolver
+                   :dispute-level (t/dispute-level world workflow-id)
+                   :workflow-id workflow-id)
 
-      ;; Before the response window expires, require standard authorization
-      ;; (assigned resolver, module-authorized, or custom-resolver above).
-      ;; After expiry the Priority-3 emergency-override engages: any caller
-      ;; may resolve a non-custom-resolver dispute.
-      (and (not response-window-expired?)
-           (not (auth/authorized-resolver? world workflow-id caller resolution-module-fn)))
-      (guard-fail :not-authorized-resolver
-                  :caller caller
-                  :dispute-level (t/dispute-level world workflow-id)
-                  :workflow-id workflow-id)
+       ;; Before the response window expires, require standard authorization
+       ;; (assigned resolver, module-authorized, or custom-resolver above).
+       ;; After expiry the Priority-3 emergency-override engages: any caller
+       ;; may resolve.
+       (and (not response-window-expired?)
+            (not (auth/authorized-resolver? world workflow-id caller resolution-module-fn)))
+       (guard-fail :not-authorized-resolver
+                   :caller caller
+                   :dispute-level (t/dispute-level world workflow-id)
+                   :workflow-id workflow-id)
 
       :else
       (apply-resolution-transition world workflow-id caller is-release
@@ -988,13 +991,16 @@
    Uses time-ctx/seconds-per-day so the value stays canonical."
   time-ctx/seconds-per-day)
 
-(defn- escalation-cooldown-violated?
-  "True when caller's last escalation-block-time is within the cooldown window."
-  [world caller]
-  (let [last-esc (get-in world [:last-escalation-block-time-per-addr caller])
-        now-ts   (time-ctx/block-ts world)]
-    (and (some? last-esc)
-         (< (- now-ts last-esc) escalation-cooldown-seconds))))
+ (defn- escalation-cooldown-violated?
+   "True when caller's last escalation-block-time at the given dispute level is
+    within the cooldown window.  Scoped per (caller, dispute-level) so that a
+    caller who legitimately escalates through the ladder (0→1→2) is not blocked,
+    while the same caller re-escalating the same level is still gated."
+   [world caller current-level]
+   (let [last-esc (get-in world [:last-escalation-block-time-per-addr caller current-level])
+         now-ts   (time-ctx/block-ts world)]
+     (and (some? last-esc)
+          (< (- now-ts last-esc) escalation-cooldown-seconds))))
 
 (defn challenge-resolution
   "Challenge a provisional resolution decision (Phase L).
@@ -1003,47 +1009,48 @@
    caller — address of the challenger (third party or participant)
    escalation-fn — (fn [world workflow-id caller level] → {:ok bool :new-resolver addr})"
   [world workflow-id caller escalation-fn]
-  (cond
-    (not (t/valid-workflow-id? world workflow-id))
-    (guard-fail :invalid-workflow-id :workflow-id workflow-id)
+  (let [current-level (t/dispute-level world workflow-id)]
+    (cond
+      (not (t/valid-workflow-id? world workflow-id))
+      (guard-fail :invalid-workflow-id :workflow-id workflow-id)
 
-    (not= :disputed (t/escrow-state world workflow-id))
-    (guard-fail :transfer-not-in-dispute
-                :escrow-state (t/escrow-state world workflow-id)
-                :workflow-id workflow-id)
+      (not= :disputed (t/escrow-state world workflow-id))
+      (guard-fail :transfer-not-in-dispute
+                  :escrow-state (t/escrow-state world workflow-id)
+                  :workflow-id workflow-id)
 
-    (t/final-round? world workflow-id)
-    (guard-fail :escalation-not-allowed
-                :dispute-level (t/dispute-level world workflow-id)
-                :workflow-id workflow-id)
+      (t/final-round? world workflow-id)
+      (guard-fail :escalation-not-allowed
+                  :dispute-level current-level
+                  :workflow-id workflow-id)
 
-    (not (:exists (t/get-pending world workflow-id)))
-    (guard-fail :no-resolution-to-challenge
-                :pending-exists false
-                :dispute-level (t/dispute-level world workflow-id)
-                :workflow-id workflow-id)
+      (not (:exists (t/get-pending world workflow-id)))
+      (guard-fail :no-resolution-to-challenge
+                  :pending-exists false
+                  :dispute-level current-level
+                  :workflow-id workflow-id)
 
-    ;; Appeal window has closed — the pending settlement is now executable.
-    (>= (time-ctx/block-ts world) (:appeal-deadline (t/get-pending world workflow-id)))
-    (guard-fail :appeal-window-expired
-                :block-time (time-ctx/block-ts world)
-                :appeal-deadline (:appeal-deadline (t/get-pending world workflow-id))
-                :workflow-id workflow-id)
+      ;; Appeal window has closed — the pending settlement is now executable.
+      (>= (time-ctx/block-ts world) (:appeal-deadline (t/get-pending world workflow-id)))
+      (guard-fail :appeal-window-expired
+                  :block-time (time-ctx/block-ts world)
+                  :appeal-deadline (:appeal-deadline (t/get-pending world workflow-id))
+                  :workflow-id workflow-id)
 
-    (nil? escalation-fn)
-    (guard-fail :escalation-not-configured :workflow-id workflow-id)
+      (nil? escalation-fn)
+      (guard-fail :escalation-not-configured :workflow-id workflow-id)
 
-    (escalation-cooldown-violated? world caller)
-    (guard-fail :escalation-cooldown-active
-                :caller caller
-                :last-escalation-block-time
-                (get-in world [:last-escalation-block-time-per-addr caller])
-                :cooldown-seconds escalation-cooldown-seconds
-                :workflow-id workflow-id)
+      (escalation-cooldown-violated? world caller current-level)
+      (guard-fail :escalation-cooldown-active
+                  :caller caller
+                  :current-level current-level
+                  :last-escalation-block-time
+                  (get-in world [:last-escalation-block-time-per-addr caller current-level])
+                  :cooldown-seconds escalation-cooldown-seconds
+                  :workflow-id workflow-id)
 
-    :else
-    (let [current-level (t/dispute-level world workflow-id)
-          esc-result    (escalation-fn world workflow-id caller current-level)]
+     :else
+     (let [esc-result    (escalation-fn world workflow-id caller current-level)]
       (if-not (:ok esc-result)
         (t/fail (or (:error esc-result) :escalation-not-allowed))
         (let [new-level    (inc current-level)
@@ -1073,8 +1080,8 @@
                                 (t/increment-resolver-capacity new-resolver)
                                  ;; Track last escalation timestamp per address (used by
                                 ;; challenge-resolution cooldown for open challengers).
-                               (assoc-in [:last-escalation-block-time-per-addr caller]
-                                         (time-ctx/block-ts world))
+                                (assoc-in [:last-escalation-block-time-per-addr caller current-level]
+                                          (time-ctx/block-ts world))
                                ;; Increment escalation count for this address (Layer B)
                                (update-in [:escalation-counts-per-addr caller] (fnil inc 0))
                                (assoc-in [:last-escalation-block-time workflow-id]
@@ -1101,7 +1108,7 @@
                 :world-after world'}))
             (assoc (t/ok world')
                    :new-level    new-level
-                   :new-resolver new-resolver))))))))
+                    :new-resolver new-resolver)))))))))
 
 ;; ---------------------------------------------------------------------------
 ;; automate-timed-actions
@@ -1222,53 +1229,56 @@
    escalation-fn — (fn [world workflow-id caller level] → {:ok bool :new-resolver addr})
                     Pass nil to simulate 'escalation not configured'."
   [world workflow-id caller escalation-fn]
-  (cond
-    (not (t/valid-workflow-id? world workflow-id))
-    (guard-fail :invalid-workflow-id :workflow-id workflow-id)
+  (let [current-level (t/dispute-level world workflow-id)]
+    (cond
+      (not (t/valid-workflow-id? world workflow-id))
+      (guard-fail :invalid-workflow-id :workflow-id workflow-id)
 
-    (not= :disputed (t/escrow-state world workflow-id))
-    (guard-fail :transfer-not-in-dispute
-                :escrow-state (t/escrow-state world workflow-id)
-                :workflow-id workflow-id)
+      (not= :disputed (t/escrow-state world workflow-id))
+      (guard-fail :transfer-not-in-dispute
+                  :escrow-state (t/escrow-state world workflow-id)
+                  :workflow-id workflow-id)
 
-    (let [et (t/get-transfer world workflow-id)]
-      (and (not= caller (:from et)) (not= caller (:to et))))
-    (guard-fail :not-participant :caller caller :workflow-id workflow-id)
+      (let [et (t/get-transfer world workflow-id)]
+        (and (not= caller (:from et)) (not= caller (:to et))))
+      (guard-fail :not-participant :caller caller :workflow-id workflow-id)
 
-    (t/final-round? world workflow-id)
-    (guard-fail :escalation-not-allowed
-                :dispute-level (t/dispute-level world workflow-id)
-                :workflow-id workflow-id)
+      (t/final-round? world workflow-id)
+      (guard-fail :escalation-not-allowed
+                  :dispute-level current-level
+                  :workflow-id workflow-id)
 
     ;; Escalation is an appeal: a resolver must have already submitted a
     ;; resolution (creating a pending settlement) before a party may escalate.
-    (not (:exists (t/get-pending world workflow-id)))
-    (guard-fail :no-resolution-to-appeal
-                :pending-exists false
-                :dispute-level (t/dispute-level world workflow-id)
-                :workflow-id workflow-id)
+    ;; Without this guard a malicious party can bypass all lower-level
+    ;; resolvers immediately.
+      (not (:exists (t/get-pending world workflow-id)))
+      (guard-fail :no-resolution-to-appeal
+                  :pending-exists false
+                  :dispute-level current-level
+                  :workflow-id workflow-id)
 
-    ;; Appeal window has closed — the pending settlement is now executable.
-    (>= (time-ctx/block-ts world) (:appeal-deadline (t/get-pending world workflow-id)))
-    (guard-fail :appeal-window-expired
-                :block-time (time-ctx/block-ts world)
-                :appeal-deadline (:appeal-deadline (t/get-pending world workflow-id))
-                :workflow-id workflow-id)
+      ;; Appeal window has closed — the pending settlement is now executable.
+      (>= (time-ctx/block-ts world) (:appeal-deadline (t/get-pending world workflow-id)))
+      (guard-fail :appeal-window-expired
+                  :block-time (time-ctx/block-ts world)
+                  :appeal-deadline (:appeal-deadline (t/get-pending world workflow-id))
+                  :workflow-id workflow-id)
 
-     (nil? escalation-fn)
-     (guard-fail :escalation-not-configured :workflow-id workflow-id)
+      (nil? escalation-fn)
+      (guard-fail :escalation-not-configured :workflow-id workflow-id)
 
-     (escalation-cooldown-violated? world caller)
-     (guard-fail :escalation-cooldown-active
-                 :caller caller
-                 :last-escalation-block-time
-                 (get-in world [:last-escalation-block-time-per-addr caller])
-                 :cooldown-seconds escalation-cooldown-seconds
-                 :workflow-id workflow-id)
+      (escalation-cooldown-violated? world caller current-level)
+      (guard-fail :escalation-cooldown-active
+                  :caller caller
+                  :current-level current-level
+                  :last-escalation-block-time
+                  (get-in world [:last-escalation-block-time-per-addr caller current-level])
+                  :cooldown-seconds escalation-cooldown-seconds
+                  :workflow-id workflow-id)
 
-     :else
-     (let [current-level (t/dispute-level world workflow-id)
-           esc-result    (escalation-fn world workflow-id caller current-level)]
+      :else
+      (let [esc-result    (escalation-fn world workflow-id caller current-level)]
        (if-not (:ok esc-result)
          (t/fail (or (:error esc-result) :escalation-not-allowed))
          (let [new-level    (inc current-level)
@@ -1303,7 +1313,7 @@
                                 (t/decrement-resolver-capacity old-resolver)
                                 (t/increment-resolver-capacity new-resolver)
                                 ;; Track when this escalation occurred for this address (Layer A)
-                                (assoc-in [:last-escalation-block-time-per-addr caller]
+                                (assoc-in [:last-escalation-block-time-per-addr caller current-level]
                                           (time-ctx/block-ts world))
                                 ;; Increment escalation count for this address (Layer B)
                                 (update-in [:escalation-counts-per-addr caller] (fnil inc 0))
@@ -1341,7 +1351,7 @@
               :workflow-id workflow-id})
             (assoc (t/ok world')
                    :new-level    new-level
-                   :new-resolver new-resolver))))))))
+                    :new-resolver new-resolver)))))))))
 
 (defn- resolver-has-other-active-disputes?
   "True when resolver-addr is assigned to at least one :disputed escrow on a

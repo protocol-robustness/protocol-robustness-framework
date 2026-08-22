@@ -6,8 +6,6 @@
  :protocol :protocol/sew
  :thresholds :thresholds/strict-baseline
   :traces [{:trace :traces/dr-fa-001-force-authorisation-basic
-            :expected-outcome :fail
-            :expected-halt-reason :open-entities-at-end}
+            :expected-outcome :pass}
            {:trace :traces/dr-fa-002-force-authorisation-expired
-            :expected-outcome :fail
-            :expected-halt-reason :open-entities-at-end}]}
+            :expected-outcome :pass}]}

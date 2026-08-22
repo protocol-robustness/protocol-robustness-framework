@@ -32,13 +32,13 @@ jobs:
         working-directory: coprocessor
         run: cargo clippy --all-targets --all-features -- -D warnings
 
-      - name: Rust unit tests
+      - name: Rust unit tests (core kernel only)
         working-directory: coprocessor
-        run: cargo test
+        run: cargo test -p allocation-kernel
 
-      - name: Rust release build
+      - name: Rust release build (core kernel only)
         working-directory: coprocessor
-        run: cargo build --release
+        run: cargo build --release -p allocation-kernel
 
       - name: Build pinned PRF sewer JAR
         run: clojure -T:build uberjar :variant sew

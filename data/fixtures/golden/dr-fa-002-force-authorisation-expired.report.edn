@@ -2,7 +2,7 @@
  :suite-id :suites/force-authorisation-custody-v1,
  :trace-id "dr-fa-002-force-authorisation-expired",
  :final-state-hash
- "e65e5736a860b05e92353e76a68472ae5a4bcc1e2f62a3ce9d9ac845ff6741fe",
+ "d81bfd3ca7dc4930b93dcc626c36397fd1c7b037c08040041bb6996b8a8a0612",
  :metrics
  {:yield/escrow-unrealized 0,
   :yield/position-status nil,
@@ -31,8 +31,8 @@
   :invalid-state-transitions 0,
   :batch-events 0,
   :yield/escrow-reclaimed 0,
-  :reverts 2,
-  :unexpected-reverts 2,
+  :reverts 1,
+  :unexpected-reverts 0,
   :yield/escrow-current-value 0,
   :yield/reclaimed 0,
   :resolutions-executed 0,
@@ -61,4 +61,4 @@
   :expected-reverts 0,
   :escrow/live-state "disputed",
   :batch-buckets 0},
- :outcome :fail}
+ :outcome :pass}

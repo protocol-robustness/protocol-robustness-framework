@@ -1,5 +1,5 @@
 {:golden-schema-version "2.0",
- :suite-id :suites/all-invariants,
+ :suite-id :suites/dr3-critical,
  :trace-id "s23-preemptive-escalation-blocked",
  :final-state-hash
  "836e53687549697d075ac2653ff0aa8792b173a13111b3073a526076af4a7d6a",
