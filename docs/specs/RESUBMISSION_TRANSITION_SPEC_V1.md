@@ -272,7 +272,124 @@ Ed25519 keypair (seed pinned in `:fixture/disposition-authority/private-key-seed
 The state-after includes `:chain/disposition-status-by-receipt {"sha256:R1" :final}`,
 which is included in the state-after projection via the conditional field rule (§3.2).
 
-## 11. Reproducibility Contract for Independent Implementations
+## 11. Cross-Language Encoding Ambiguities
+
+The following ambiguities were discovered during independent Rust verification and
+must be handled identically across implementations:
+
+### 12.1 Keyword vs. String Encoding
+
+In the canonical encoding, `:keyword` and `"string"` produce distinct byte
+sequences. Keywords carry a `0x22` tag; strings carry a `0x20` tag. A value
+that appears as a keyword in the Clojure fixture (e.g., `:final`) MUST be
+encoded with the keyword tag, not the string tag, even when the EDN parser
+is untyped.
+
+**Key example:** The `:signature/signature` field inside a disposition
+artifact's signature sub-map is an unqualified keyword `:signature`
+(NOT `:signature/signature`). The `map_get` function matches by keyword name
+only, so `map_get(sig_map, "signature")` matches `Keyword(None, "signature")`.
+Implementations must NOT assume the key is `:signature/signature`.
+
+### 12.2 Qualified vs. Unqualified Keywords
+
+Clojure EDN supports both `#:namespace{:key value}` (namespaced maps that
+auto-qualify unqualified keys) and explicit `:ns/name` (qualified keywords).
+These produce different `Value::Keyword` variants:
+
+| EDN syntax | Parsed as |
+|---|---|
+| `:name` (inside `#:ns{...}`) | `Keyword(Some("ns"), "name")` |
+| `:ns/name` (standalone) | `Keyword(Some("ns"), "name")` |
+| `:name` (standalone, no `#:`) | `Keyword(None, "name")` |
+
+In the disposition fixture, the signature sub-map uses unqualified `:signature`
+as the key name (inside `#:attempt-disposition{...}`), while the algorithm
+uses `:signature/algorithm`. Both are qualified with namespace `"signature"`:
+
+- `:signature/algorithm` → `Keyword(Some("signature"), "algorithm")`
+- `:signature` → qualified to `Keyword(Some("attempt-disposition"), "signature")` by the enclosing `#:attempt-disposition` context. Its VALUE is a map with `:signature/algorithm` and `:signature` (unqualified).
+
+The `map_get` function matches by the full qualified string `"ns/name"` via
+the second rule, OR by bare name via the first rule. Both must be checked
+in order.
+
+### 12.3 Absent vs. Empty Disposition Maps
+
+(See §3.4 for the v1-stable semantics.) The disposition fixture's state-before
+has `:chain/disposition-public-hex` set to the authority key, while the genesis
+state-after has it as `nil`. Because `disposition-public-hex` is EXCLUDED from
+the chain-state projection, both states produce the same state root. This
+allows the genesis state-after to be reused as the disposition state-before
+without altering the root.
+
+### 12.4 Derived Change-Identity Inclusion
+
+The `:transaction/change-identity` field is NOT supplied by the caller. It is
+derived from `{scope, conflict-key, action, input-root}` via
+`prf.transaction-ordering-change-identity.v1` and injected into the
+ordering-v2 projection BEFORE the ordering hash is computed. Independent
+implementations must compute this value and include it as
+`:transaction/change-identity` in the unsigned projection.
+
+### 12.5 Dependency Chain: Unsigned Disposition → Hash → Input Root → Change Identity → Ordering Root
+
+For `apply-disposition`:
+
+1. `disposition-artifact-hash` = `SHA256("prf.attempt-disposition.v1" || canonical-bytes(artifact \ {signature}))`
+2. `input-root` = `SHA256("prf.transaction-input.v1" || canonical-bytes({attempt-receipt-hash, disposition-artifact-hash}))`
+3. `change-identity` = `SHA256("prf.transaction-ordering-change-identity.v1" || canonical-bytes({scope, conflict-key, action, input-root}))`
+4. `ordering-root` = `SHA256("prf.transaction-ordering.v2" || canonical-bytes(unsigned-ordering-projection-v2))`
+
+The ordering root transitively depends on the disposition-artifact-hash through
+the input-root and change-identity. Tampering any upstream component changes
+all downstream roots.
+
+### 12.6 Consecutive State/Ordering Linkage
+
+The two committed fixtures (`resubmission-transition-v1.edn` and
+`resubmission-transition-disposition-v1.edn`) describe consecutive
+transitions on the same chain:
+
+- **Family identity:** Both use `sha256:FAM`.
+- **Genesis state-after root = disposition state-before root:** `sha256:7e117371e6db8c6c4eddc156b5e705f7e3c20a0b26b9cc3a5941275868d6f835`.
+- **Version progression:** genesis 0→1, disposition 1→2.
+- **Commit-index progression:** genesis 0→1, disposition 1→2.
+- **Scope and conflict-key:** Both use `:resubmission-family` and
+  `[:resubmission-family "sha256:FAM"]`.
+- **`previous-transaction-hash`:** Both are `nil` in the fixture ordering
+  projections. This is because `:transaction/last-hash` is EXCLUDED from
+  the chain-state projection (§3.3), so it does NOT propagate through state
+  roots. In a real store, the store would set `last-hash` after each
+  committed transition; the ordering record's `previous-transaction-hash`
+  is derived from `state[:transaction/last-hash]`, not from the state root.
+- **Authority context:** The disposition fixture injects the authority public
+  key (`48f898ce...`) into `:chain/disposition-public-hex` on the
+  state-before. Since this field is excluded from the projection, it does
+  not alter the state root. The signature is verified against this
+  state-level key, not against an arbitrary caller-supplied key.
+
+## 12. Concurrency Checks
+
+Two concurrency guards are enforced by `apply-disposition` (and by
+`admit-child` for genesis):
+
+1. **`expected-chain-version`:** If present in the command input, the
+   state's `:chain/version` must match. A mismatch produces
+   `:rejected` with reason `:commit-contention` — an explicit
+   rejection, not merely a root mismatch.
+
+2. **`expected-disposition-head`:** If present and non-nil in the command
+   input, the state's current disposition head (from
+   `:chain/disposition-head-by-receipt`) for the target receipt must
+   match. A mismatch produces `:rejected` with reason
+   `:disposition-head-mismatch`.
+
+These checks are enforced inside the transition function itself, not at the
+store layer. Independent implementations MUST reproduce this rejection
+behavior.
+
+## 13. Reproducibility Contract for Independent Implementations
 
 An independent implementation (e.g., Rust, Go, Haskell) must:
 

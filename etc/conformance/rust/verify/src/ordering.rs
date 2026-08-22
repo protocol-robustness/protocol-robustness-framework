@@ -9,16 +9,16 @@ pub const CHANGE_IDENTITY_DOMAIN: &str = "prf.transaction-ordering-change-identi
 /// Includes only: scope, conflict-key, action, input-root.
 pub fn change_identity_basis(ordering: &Value) -> Value {
     let scope = map_get(ordering, "transaction/scope")
-        .map(|v| v.clone())
+        .cloned()
         .unwrap_or(Value::Nil);
     let conflict_key = map_get(ordering, "transaction/conflict-key")
-        .map(|v| v.clone())
+        .cloned()
         .unwrap_or(Value::Vec(vec![]));
     let action = map_get(ordering, "transaction/action")
-        .map(|v| v.clone())
+        .cloned()
         .unwrap_or(Value::Nil);
     let input_root = map_get(ordering, "transaction/input-root")
-        .map(|v| v.clone())
+        .cloned()
         .unwrap_or(Value::Nil);
 
     Value::Map(vec![

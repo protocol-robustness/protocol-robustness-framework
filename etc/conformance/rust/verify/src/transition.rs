@@ -156,7 +156,7 @@ pub fn disposition_hash(disposition: &Value) -> String {
     crate::canonical::domain_hash("prf.attempt-disposition.v1", &unsigned)
 }
 
-fn extract_str(v: &Value) -> Option<String> {
+pub fn extract_str(v: &Value) -> Option<String> {
     match v {
         Value::Str(s) => Some(s.clone()),
         Value::Nil => None,
@@ -164,7 +164,7 @@ fn extract_str(v: &Value) -> Option<String> {
     }
 }
 
-fn extract_int(v: &Value) -> i64 {
+pub fn extract_int(v: &Value) -> i64 {
     match v {
         Value::Int(i) => *i,
         _ => 0,
@@ -193,8 +193,7 @@ pub fn admit_child(state: &Value, input: &Value) -> Value {
     };
 
     // Precedence 1: idempotent replay vs content mismatch
-    if idem_key.is_some() && idem.is_some() {
-        let idem = idem.unwrap();
+    if let (Some(_idem_key), Some(idem)) = (idem_key, idem) {
         let existing_ck = map_get(&idem, "content-key")
             .and_then(extract_str)
             .unwrap_or_default();
@@ -235,9 +234,7 @@ pub fn admit_child(state: &Value, input: &Value) -> Value {
         }
     }
 
-    // Precedence 2: duplicate content / transplant
-    if content.is_some() {
-        let c = content.unwrap();
+    if let Some(c) = content {
         let content_parent = map_get(&c, "parent-receipt-hash").and_then(extract_str);
         let content_hash = map_get(&c, "receipt-hash").cloned().unwrap_or(Value::Nil);
 
@@ -325,9 +322,7 @@ fn commit_admit(
     let idem_key = map_get(input, "idempotency-key").and_then(extract_str);
     let content_key = map_get(input, "content-key").and_then(extract_str);
     let candidate = map_get(input, "candidate-attempt-receipt").cloned();
-    let seq_val = map_get(input, "sequence")
-        .cloned()
-        .unwrap_or_else(|| Value::Int(0));
+    let seq_val = map_get(input, "sequence").cloned().unwrap_or(Value::Int(0));
 
     // successor-by-parent
     let mut succ_pairs = match map_get(state, "chain/successor-by-parent") {
@@ -674,6 +669,32 @@ pub fn apply_disposition(state: &Value, input: &Value) -> Value {
         );
     }
 
+    let _family_id = map_get(state, "chain/family-id")
+        .and_then(extract_str)
+        .unwrap_or_default();
+    let version = map_get(state, "chain/version")
+        .map(extract_int)
+        .unwrap_or(0);
+    let _commit_index = map_get(state, "transaction/commit-index")
+        .map(extract_int)
+        .unwrap_or(0);
+
+    let expected_chain_version = match map_get(input, "expected-chain-version") {
+        Some(Value::Int(i)) => Some(*i),
+        _ => None,
+    };
+    if let Some(ecv) = expected_chain_version {
+        if ecv != version {
+            return reject("commit-contention", Value::Nil);
+        }
+    }
+
+    if let Some(Value::Str(expected_head)) = map_get(input, "expected-disposition-head") {
+        if Some(expected_head.as_str()) != cur_head_str {
+            return reject("disposition-head-mismatch", Value::Nil);
+        }
+    }
+
     let artifact_hash = disposition_hash(artifact);
     let artifact_hash_clone = artifact_hash.clone();
 
@@ -857,13 +878,16 @@ pub fn apply_disposition(state: &Value, input: &Value) -> Value {
 }
 
 fn is_allowed_transition(from: &str, to: &str) -> bool {
-    match (from, to) {
-        ("active", "pending-review") | ("active", "final") => true,
-        ("pending-review", "final") => true,
-        ("final", "withdrawn") | ("final", "revoked") | ("final", "superseded") => true,
-        ("superseded", "final") => true,
-        _ => false,
-    }
+    matches!(
+        (from, to),
+        ("active", "pending-review")
+            | ("active", "final")
+            | ("pending-review", "final")
+            | ("final", "withdrawn")
+            | ("final", "revoked")
+            | ("final", "superseded")
+            | ("superseded", "final")
+    )
 }
 
 fn disposition_to_lifecycle(status: &str) -> String {
