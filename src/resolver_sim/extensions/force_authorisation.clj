@@ -121,31 +121,13 @@
     legacy-package))
 
 (defn- resolved-governed-authority-package
-  "Return the physical governed-authority package when available.
-   The physical governed-permit-capability is rewritten to present the legacy
-   governed-authority identity so that dependency resolution aligns."
+  "Return the legacy governed-authority provider package.
+   This is an EXPLICIT fixture with its actual legacy identity
+   (:assurance/governed-authority / :resolver-sim/three-member-v1).
+   It is NOT derived from or rewritten from the physical governed-permit
+   capability — governed-authority is a separate provider."
   []
-  (if physical-available?
-    (let [cap (if-let [c (resolve-var 'governed-permit-capability)]
-                (-> (var-get c)
-                    (assoc :capability/kind governed-authority-kind
-                           :capability/id governed-authority-id)
-                    (dissoc :declared-dependencies))
-                legacy-governed-authority-capability)]
-      {:extension/id :resolver-sim/governed-authority
-       :extension/version "1.0.0"
-       :extension/api-version 1
-       :extension/manifest-version 1
-       :extension/capabilities [cap]
-       :extension/license "Apache-2.0"
-       :extension/maintainers ["PRF core"]
-       :extension/support-policy :core
-       :extension/funding-status :core
-       :extension/status {:lifecycle :active :distribution :core
-                          :conformance :conformant :reproduction :artifact-replayable
-                          :verification :replayed :maintenance :supported
-                          :adoption :multi-adapter}})
-    legacy-governed-authority-package))
+  legacy-governed-authority-package)
 
 (def capability
   "The primary force-authorisation capability descriptor.
@@ -167,16 +149,14 @@
     (resolved-package)))
 
 (def governed-authority-capability
-  "The governed-authority capability descriptor that force-authorisation
-   depends on. When the physical extension is available, this is the physical
-   governed-permit-capability rewritten with the legacy identity."
+  "The legacy governed-authority capability descriptor.
+   This is an EXPLICIT fixture with its actual legacy identity.
+   It is NOT derived from or rewritten from the physical governed-permit
+   capability — governed-authority is a separate provider that governed-permit
+   consumes. In physical mode, this fixture is the explicit local-compatibility
+   fallback; production callers must register a real governed-authority provider."
   (delay
-    (if-let [cap (resolve-var 'governed-permit-capability)]
-      (-> (var-get cap)
-          (assoc :capability/kind governed-authority-kind
-                 :capability/id governed-authority-id)
-          (dissoc :declared-dependencies))
-      legacy-governed-authority-capability)))
+    legacy-governed-authority-capability))
 
 (def governed-authority-package
   "The governed-authority package."
