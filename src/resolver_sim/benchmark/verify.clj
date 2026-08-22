@@ -37,13 +37,36 @@
                           (= (get entry "sha256") (sha-ref file)))))
                   inputs))))
 
+(defn- input-set-composition-root
+  "Read scenario input snapshots from the committed input_set and extract
+  the :semantic-composition/root declared by the authoritative composition.
+  Returns the root string if found, or nil if no authoritative input is present.
+
+  This is the independent authoritative discriminator for the exact composition
+  identity: scenario inputs are committed in input_set_root with their sha256,
+  so an attacker cannot substitute a different composition root without also
+  changing the input files (which would break input-set-root)."
+  [root inputs]
+  (some (fn [entry]
+          (let [path (get entry "path")
+                source-kind (get entry "source_kind")
+                file (io/file root path)]
+            (try
+              (when (and (= source-kind "execution-input-snapshot")
+                         (.isFile file))
+                (let [scenario (edn/read-string (slurp file))
+                      composition (:semantic-composition scenario)]
+                  (when (and composition
+                             (or (contains? scenario :semantic-composition)
+                                 (= :authoritative (:execution-mode scenario))))
+                    (get-in composition [:semantic-composition/root]))))
+              (catch Exception _ nil))))
+        inputs))
+
 (defn- input-set-declares-authoritative?
-  "Read scenario input snapshots from the committed input_set and determine
-   whether any declares :semantic-composition or :execution-mode :authoritative.
-   This is the independent authoritative discriminator: scenario inputs are
-   committed in input_set_root with their sha256, so stripping composition-root
-   from evidence results cannot downgrade an authoritative run to legacy
-   without also changing the input files (which would break input-set-root)."
+  "Determine whether any committed scenario input declares :semantic-composition
+  or :execution-mode :authoritative. This is the independent authority/boolean
+  discriminator; the exact root value comes from input-set-composition-root."
   [root inputs]
   (some true?
         (map (fn [entry]
@@ -56,8 +79,8 @@
                      (let [scenario (edn/read-string (slurp file))]
                        (or (contains? scenario :semantic-composition)
                            (= :authoritative (:execution-mode scenario)))))
-                   (catch Exception _ false))))
-             inputs)))
+                     (catch Exception _ false))))
+              inputs)))
 
 (defn- registry-sha256-matches? [expected file]
   ;; Artifact registries store the digest value; finalization objects use a
@@ -215,6 +238,9 @@
             ;; cannot be downstripped by editing evidence results alone,
             ;; because input snapshots are committed via input_set_root.
             input-declares-authoritative? (input-set-declares-authoritative? root inputs)
+            ;; Phase 2C: The committed scenario input carries the authoritative
+            ;; composition root. Evidence/finalization/completion must match it.
+            expected-composition-root (input-set-composition-root root inputs)
             ;; Phase 2C: Recompute semantic-composition/root from evidence
             ;; for final_ref recomputation.
             evidence-results (get evidence :results [])
@@ -308,15 +334,26 @@
                     ;; Requirement: when input_set declares authoritative, the
                     ;; finalization must carry the actual composition root
                     ;; (non-empty), and evidence results must agree.
-                    "authoritative-composition-presence" (cond
-                                                          (not input-declares-authoritative?)
-                                                          true
-                                                          (empty? (get finalization "semantic_composition_root"))
-                                                          false
-                                                          (not= evidence-composition-root
-                                                                (get finalization "semantic_composition_root"))
-                                                          false
-                                                          :else true)}]
+                     "authoritative-composition-presence" (cond
+                                                           (not input-declares-authoritative?)
+                                                           true
+                                                           (empty? (get finalization "semantic_composition_root"))
+                                                           false
+                                                           (not= evidence-composition-root
+                                                                 (get finalization "semantic_composition_root"))
+                                                           false
+                                                           :else true)
+                     ;; Phase 2C: Committed-input composition binding (anti-substitution).
+                     ;; The scenario input declares the authoritative composition root;
+                     ;; evidence must carry the same root. Prevents substituting
+                     ;; composition B while leaving the committed scenario at A.
+                      "composition-root-derivation" (or (not input-declares-authoritative?)
+                                                        (= expected-composition-root
+                                                           evidence-composition-root))}]
+
+
+
+
         {"schema_version" "benchmark-verification.v1"
          "status" (if (every? true? (vals checks)) "passed" "failed")
          "checks" checks

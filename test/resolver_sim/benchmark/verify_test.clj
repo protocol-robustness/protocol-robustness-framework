@@ -2,6 +2,7 @@
   (:require [clojure.data.json :as json]
             [clojure.edn :as edn]
             [clojure.java.io :as io]
+            [clojure.string :as str]
             [clojure.test :refer [deftest is testing]]
             [resolver-sim.benchmark.verify :as verify]
             [resolver-sim.benchmark.integrity :as integrity]
@@ -365,9 +366,10 @@
   [root comp-root]
   (let [scenario-path "benchmark/executions/exec-1/input/scenario.edn"
         scenario-file (io/file root scenario-path)
-        scenario (assoc (edn/read-string (slurp scenario-file))
-                        :semantic-composition {:schema "semantic-composition.v1"}
-                        :execution-mode :authoritative)]
+         scenario (assoc (edn/read-string (slurp scenario-file))
+                         :semantic-composition {:schema "semantic-composition.v1"
+                                                :semantic-composition/root comp-root}
+                         :execution-mode :authoritative)]
     (spit scenario-file (pr-str scenario))
     (let [assurance-file (io/file root "benchmark/assertions/benchmark-assurance.json")
           assurance (json/read-str (slurp assurance-file))
@@ -435,7 +437,7 @@
   (let [fin-file (io/file root "benchmark/finalization.json")
         comp-file (io/file root "completion.json")
         fin (json/read-str (slurp fin-file))
-        strip-prefix (fn [s] (if (and (string? s) (clojure.string/starts-with? s "sha256:"))
+         strip-prefix (fn [s] (if (and (string? s) (str/starts-with? s "sha256:"))
                               (subs s 7)
                               s))
         projection {"domain" "prf/benchmark-finalization/v1"
@@ -544,3 +546,32 @@
               "finalization and completion both carry B root — that check passes; final-ref + presence fail"))
         (finally (do (delete-tree! root-a)
                      (delete-tree! root-b))))))))
+
+(deftest phase2c-composition-substitution-A-evidence-as-B
+  (testing "committed scenario declares root A but evidence relabeled as root B -> derivation check fails"
+    (let [root (temp-root)]
+      (try
+        (fixture! root)
+        (with-authoritative-input root "sha256:composition-A-root")
+        ;; Verify baseline: stable authoritative-A run passes
+        (let [checks-a (get-in (verify/verify! root) ["checks"])]
+          (is (true? (get checks-a "composition-root-derivation"))
+            "legitimate A run: derivation check passes (expected=A, evidence=A)"))
+
+        ;; Substitution attack: rewrite evidence, finalization, and completion
+        ;; to carry root B without touching the committed scenario input.
+        ;; The input_set_root still commits the original scenario (root A),
+        ;; so input-set-root passes and composition-root-derivation must fail.
+        (let [evidence-file (io/file root "benchmark/evidence/evidence.edn")
+              evidence (edn/read-string (slurp evidence-file))
+              _ (spit evidence-file
+                       (pr-str (assoc evidence :results [{:semantic-composition-root "sha256:composition-B-root"}])))]
+          ;; write-finalization-with-root! updates finalization + completion + final_ref
+          ;; to carry comp-root, but does NOT touch evidence or input_set.
+          (write-finalization-with-root! root "sha256:composition-B-root")
+          (let [checks-b (get-in (verify/verify! root) ["checks"])]
+            (is (false? (get checks-b "composition-root-derivation"))
+              "substitution attack: derivation check fails (expected=A from scenario, evidence=B)")
+            (is (false? (get checks-b "final-ref"))
+              "substitution attack: final_ref fails (evidence hash changed, final_ref stale)")))
+        (finally (delete-tree! root))))))
