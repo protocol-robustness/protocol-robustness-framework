@@ -6,7 +6,20 @@
             [resolver-sim.protocols.sew.types :as t]
             [resolver-sim.protocols.sew.lifecycle :as lc]
             [resolver-sim.protocols.sew.snapshot-fixtures :as snap-fix]
+            [resolver-sim.extensions.force-authorisation :as force-extension]
             [resolver-sim.testing.scenario-builder :as sb]))
+
+(defn- compat-ctx
+  "Legacy-compatibility context: force-authorisation actions are admitted via
+   the explicit compatibility flag + installed force extension (the sanctioned
+   unmigrated-caller path; see resolver-sim.protocols.sew docs)."
+  ([agent-index]
+   (compat-ctx agent-index nil))
+  ([agent-index governance-identity]
+   (cond-> {:agent-index agent-index
+            :force-authorisation/allow-local-compatibility? true
+            :extension-map (force-extension/install (force-extension/install-governed-authority {}))}
+     governance-identity (assoc :governance-identity governance-identity))))
 
 (def gov-agent {:id "gov" :address "0xGov" :role "governance"})
 (def mallory {:id "mallory" :address "0xMallory" :role "governance"})
@@ -104,12 +117,12 @@
                        (assoc-in [:escrow-transfers 0 :sender-status] :raise-dispute)
                        (assoc-in [:escrow-transfers 0 :dispute-resolver] "0xExecutor")
                        (assoc-in [:dispute-timestamps 0] 1000))
-          gov-ctx {:agent-index {"gov" gov-agent} :governance-identity "0xGov"}
+          gov-ctx (compat-ctx {"gov" gov-agent} "0xGov")
           grant (sew/apply-action gov-ctx disputed
                                   {:seq 0 :time 1000 :agent "gov" :action "grant-force-authorisation"
                                    :params {:workflow-id 0 :reason :resolver-overcapacity}})
           auth-id (get-in grant [:extra :authorization/id])
-          exec-ctx {:agent-index {"exec" {:address "0xExecutor" :type "honest"}}}
+          exec-ctx (compat-ctx {"exec" {:address "0xExecutor" :type "honest"}})
           exec (sew/apply-action exec-ctx (:world grant)
                                  {:seq 1 :time 1000 :agent "exec" :action "execute-force-authorised-action"
                                   :params {:workflow-id 0 :authorization-id auth-id :is-release true}})

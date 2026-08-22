@@ -2494,6 +2494,10 @@
           flags       (:replay-flags context {})
           require-id? (:require-event-id? flags false)
           eid         (event-id event)
+          composition (semantic-composition context)
+          region-violations (when composition
+                              (seq (semantic/state-region-invalidation
+                                    composition world)))
           apply!      (fn [w]
                         (let [result (apply-action context w event)]
                           (if (:ok result)
@@ -2508,12 +2512,13 @@
         ;; Phase 2B state-region validity: force-auth live state keys must not
         ;; be present in the world unless the composition selects them.
         ;; This is a generic composition-governed state ownership check, not
-        ;; a force-auth-only exception.
-        (semantic/state-region-invalidation
-         (semantic-composition context) world)
+        ;; a force-auth-only exception. Composition-governed only: a nil
+        ;; composition is the legacy/compat path (see
+        ;; semantic-action-permitted?) and carries no composition state
+        ;; ownership to enforce.
+        region-violations
         {:ok false :error :semantic-composition-state-region-violation
-         :detail {:violations (semantic/state-region-invalidation
-                               (semantic-composition context) world)}}
+         :detail {:violations (vec region-violations)}}
 
         (and require-id? (replay-sensitive-action? event) (nil? eid))
         {:ok false :error :missing-event-id

@@ -40,6 +40,16 @@
    :resolver "0xResolver"
    :token :USDC})
 
+(defn- canonical-project
+  "Project values outside the canonical hash domain into stable canonical-safe
+   equivalents before hashing (sets -> sorted vectors, recursively)."
+  [v]
+  (cond
+    (set? v) (vec (sort v))
+    (map? v) (into {} (map (fn [[k x]] [k (canonical-project x)])) v)
+    (sequential? v) (mapv canonical-project v)
+    :else v))
+
 (defn profile-hash
   "Canonical environment hash for a test-environment-profile.v1. The profile
    describes stable capability/configuration only; run state belongs in a
@@ -47,7 +57,8 @@
   [profile]
   (hash-ref/sha256-ref
    (hash/hash-with-intent {:hash/intent :evidence-record}
-                          (dissoc profile :profile/hash :environment/hash))))
+                          (canonical-project
+                           (dissoc profile :profile/hash :environment/hash)))))
 
 (defn environment-hash
   "Alias that makes the profile hash's environment-commitment role explicit."
