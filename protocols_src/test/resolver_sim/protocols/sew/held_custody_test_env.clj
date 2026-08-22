@@ -6,6 +6,7 @@
             [resolver-sim.protocols.sew.snapshot-fixtures :as snapshots]
             [resolver-sim.protocols.sew.invariants :as invariants]
             [resolver-sim.assurance.custody :as custody]
+            [resolver-sim.extensions.force-authorisation :as force-extension]
             [resolver-sim.hash.canonical :as hash]
             [resolver-sim.hash.reference :as hash-ref]))
 
@@ -329,18 +330,22 @@
      :or {snapshot (snapshots/escrow-snapshot
                      {:escrow-fee-bps 50 :appeal-window-duration 0
                       :max-dispute-duration 3600})}}]
-   {:agent-index {"alice" {:id "alice" :address (:alice identities) :type "honest"}
-                  "bob" {:id "bob" :address (:bob identities) :type "honest"}
-                  "gov" {:id "gov" :address (:governance identities) :role "governance"}
-                  "executor" {:id "executor" :address (:executor identities) :type "honest"}}
-    :snapshot snapshot
-    :governance-mode :restricted
-    :governance-identity (:governance identities)
-    :force-authorisation-policy
-    (or force-authorisation-policy
-        {:allowed-reasons #{:resolver-overcapacity}
-         :default-duration 3600
-         :max-duration 7200})}))
+    {:agent-index {"alice" {:id "alice" :address (:alice identities) :type "honest"}
+                   "bob" {:id "bob" :address (:bob identities) :type "honest"}
+                   "gov" {:id "gov" :address (:governance identities) :role "governance"}
+                   "executor" {:id "executor" :address (:executor identities) :type "honest"}}
+     :snapshot snapshot
+     :governance-mode :restricted
+     :governance-identity (:governance identities)
+     ;; Force-authorisation actions are admitted via the explicit legacy
+     ;; compatibility path (flag + installed force extension).
+     :force-authorisation/allow-local-compatibility? true
+     :extension-map (force-extension/install (force-extension/install-governed-authority {}))
+     :force-authorisation-policy
+     (or force-authorisation-policy
+         {:allowed-reasons #{:resolver-overcapacity}
+          :default-duration 3600
+          :max-duration 7200})}))
 
 (defn public-empty-held-world
   ([] (public-empty-held-world {}))

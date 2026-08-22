@@ -11,6 +11,7 @@
             [resolver-sim.contract-model.idempotency :as idem]
             [resolver-sim.protocols.protocol         :as proto]
             [resolver-sim.protocols.sew              :as sew]
+            [resolver-sim.extensions.force-authorisation :as force-extension]
             [resolver-sim.time.context               :as time-ctx]))
 
 (def alice "0xAlice")
@@ -449,7 +450,8 @@
 (deftest checklist-alias-cross-spelling-replay-dedup
   (testing "US-spelled duplicate of a canonical event shares the same dedupe identity"
     (let [calls (atom 0)
-          context {}
+          context {:force-authorisation/allow-local-compatibility? true
+                   :extension-map (force-extension/install (force-extension/install-governed-authority {}))}
           world {:counter 0}
           fake-apply (fn [_ctx w _event]
                        (swap! calls inc)

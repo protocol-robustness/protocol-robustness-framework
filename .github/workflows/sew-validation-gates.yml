@@ -159,6 +159,20 @@ jobs:
     runs-on: ubuntu-latest
     continue-on-error: true
     timeout-minutes: 30
+    # The matrix `integration` entry (bb test:integration) exercises the DB
+    # telemetry integration tests against XTDB's pgwire on localhost:5432;
+    # every matrix entry shares this job definition, so the service is
+    # provided job-wide.
+    services:
+      xtdb:
+        image: ghcr.io/xtdb/xtdb@sha256:15b6aa9d37d1e1a4e21748788db9275a57b87c339e5eb66d86376cf1e6899816
+        ports:
+          - 5432:5432
+        env:
+          XTDB_PGWIRE_PORT: 5432
+          XTDB_PGWIRE_USER: xtdb
+          XTDB_PGWIRE_PASSWORD: xtdb
+          XTDB_DBNAME: xtdb
     strategy:
       fail-fast: false
       matrix:
@@ -195,6 +209,15 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
+
+      # Evidence/extraction scripts invoked by every matrix target import
+      # jsonschema regardless of matrix.python; install unconditionally against
+      # whichever interpreter `python3` resolves to. --break-system-packages
+      # covers images whose system Python enforces PEP 668.
+      - name: Install jsonschema
+        run: |
+          python3 -m pip install --quiet jsonschema \
+            || python3 -m pip install --quiet --break-system-packages jsonschema
 
       - name: Cache Maven dependencies
         uses: actions/cache@v4
