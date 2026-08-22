@@ -50,11 +50,11 @@
      :implementation/source "resolver-sim.commands.scenario-safety/sensitivity-findings"
      :ruleset-ref {:ruleset/id "secret-patterns"
                    :ruleset/schema "regex-patterns.v1"
-                    :ruleset/version secret-ruleset-version}
-      :ruleset-hash (hc/hash-with-intent {:hash/intent :evidence-record}
-                                         {:ruleset/id "secret-patterns"
-                                          :version secret-ruleset-version
-                                          :source "resolver-sim.commands.scenario-safety/secret-rules"})}))
+                   :ruleset/version secret-ruleset-version}
+     :ruleset-hash (hc/hash-with-intent {:hash/intent :evidence-record}
+                                        {:ruleset/id "secret-patterns"
+                                         :version secret-ruleset-version
+                                         :source "resolver-sim.commands.scenario-safety/secret-rules"})}))
 
 (def ^:private merge-function
   {:implementation/id "merge-sensitivity"

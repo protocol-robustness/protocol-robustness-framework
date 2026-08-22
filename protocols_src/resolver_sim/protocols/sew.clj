@@ -55,65 +55,113 @@
 (defn- semantic-composition [context]
   (:semantic-composition context))
 
+;; ---------------------------------------------------------------------------
+;; Semantic-composition admission API
+;;
+;; Sew answers three questions through this API instead of keeping any
+;; protocol-owned force-authorisation action registry:
+;;   1. Is this action force-authorisation class?   -> force-authorisation-action?
+;;   2. Is this action selected by the active
+;;      composition?                                -> composition-selected-action?
+;;   3. Is legacy compatibility explicitly allowed? -> legacy-compatibility-allowed?
+;;
+;; Action-class membership is owned by the semantic-composition artifact layer
+;; (`resolver-sim.composition.semantic`), selection is answered by the
+;; context's active composition, and legacy compatibility is explicit,
+;; non-authoritative only.
+;; ---------------------------------------------------------------------------
+
+(defn force-authorisation-action?
+  "True when `action` belongs to the force-authorisation action class.
+   Class membership is owned by the semantic-composition API; Sew keeps no
+   protocol-owned copy of the action set."
+  [action]
+  (contains? semantic/force-authorisation-actions action))
+
+(defn composition-selected-action?
+  "True when the context's active semantic composition selects `action`
+   through its active action modules. False when no composition is present —
+   absence of a composition never selects anything."
+  [context action]
+  (boolean (when-let [composition (semantic-composition context)]
+             (semantic/allows-action? composition action))))
+
+(defn legacy-compatibility-allowed?
+  "True when the explicit legacy compatibility path is permitted: the
+   :force-authorisation/allow-local-compatibility? flag must be set AND
+   execution must be non-authoritative. The flag never overrides
+   :execution-mode :authoritative."
+  [context]
+  (and (not= :authoritative (:execution-mode context :legacy))
+       (boolean (:force-authorisation/allow-local-compatibility? context))))
+
+(defn- legacy-force-authorisation-available?
+  "Legacy compatibility activation for one run: explicitly allowed AND the
+   force-extension package is installed."
+  [context]
+  (and (legacy-compatibility-allowed? context)
+       (force-extension/installed? (:extension-map context))))
+
 (defn- semantic-force-authorisation-active?
   "A supplied semantic composition is authoritative: classpath, extension-map,
    and legacy facade availability cannot activate force-authorisation outside
    its selected custody-execution capability and action module.
 
    Under :execution-mode :authoritative (fail-closed): no composition →
-   force-authorisation categorically inactive. The legacy compatibility flag
-   must NOT override authoritative execution.
+   force-authorisation categorically inactive. Legacy compatibility is
+   explicit and non-authoritative only; it must NOT override authoritative
+   execution.
 
    Under :execution-mode :legacy (explicit compatibility path): force-
-   authorisation is active only when the explicit compatibility flag is set
-   AND the force-extension is installed.
+   authorisation is active only when legacy compatibility is explicitly
+   allowed AND the force-extension is installed.
 
    The composition itself is the semantic authority; all other mechanisms are
    provider/loading plumbing."
    [context]
-   (let [composition (semantic-composition context)
-         mode (:execution-mode context :legacy)]
+   (let [composition (semantic-composition context)]
      (if composition
        (and (:valid? (semantic/validate composition))
             (semantic/selected-capability?
              composition
-             [:sew/force-authorisation :force-authorisation/custody-execution-v1]))
-       ;; No composition
-       (case mode
-         :authoritative false
-         ;; :legacy (default) — explicit compatibility path
-         (and (:force-authorisation/allow-local-compatibility? context)
-               (force-extension/installed? (:extension-map context)))))))
+             semantic/custody-execution-capability))
+       ;; No composition: authoritative fails closed; legacy requires the
+       ;; explicit compatibility path.
+       (if (= :authoritative (:execution-mode context :legacy))
+         false
+         (legacy-force-authorisation-available? context)))))
 
 (defn- semantic-action-permitted?
-  "Action admission is composition-driven under authoritative execution.
-
-   Under :execution-mode :authoritative (fail-closed): no composition →
-   force-authorisation actions are categorically unavailable. All other
-   actions are admitted (they are not composition-gated).
-
-   Under :execution-mode :legacy: force-authorisation actions require the
-   explicit compatibility flag + extension-map; non-force-auth actions remain
-   admitted.
+  "Action admission is answered through the semantic-composition API.
 
    When a composition is present, only the selected action module's actions
-   are available."
+   are available.
+
+   Under :execution-mode :authoritative (fail-closed): no composition →
+   force-authorisation-class actions are categorically denied. All other
+   actions are admitted (they are not composition-gated).
+
+   Under :execution-mode :legacy: force-authorisation-class actions require
+   explicit legacy compatibility + extension-map; non-force-auth actions
+   remain admitted."
    [context action]
-   (let [composition (semantic-composition context)
-         mode (:execution-mode context :legacy)]
-      (cond
-        composition
-        (semantic/allows-action? composition action)
+   (cond
+     (composition-selected-action? context action)
+     true
 
-        (= mode :authoritative)
-        (not (contains? semantic/force-authorisation-actions action))
+     (some? (semantic-composition context))
+     false
 
-        :else
-        ;; :legacy or default
-        (if (contains? semantic/force-authorisation-actions action)
-          (and (:force-authorisation/allow-local-compatibility? context)
-               (force-extension/installed? (:extension-map context)))
-          true))))
+     (= :authoritative (:execution-mode context :legacy))
+     ;; Fail-closed: authoritative execution without a composition denies the
+     ;; force-authorisation action class outright.
+     (not (force-authorisation-action? action))
+
+     :else
+     ;; :legacy or default
+     (if (force-authorisation-action? action)
+       (legacy-force-authorisation-available? context)
+       true)))
 
 (defn- production-governed?
   "True when the semantic composition has a :production-governed profile."

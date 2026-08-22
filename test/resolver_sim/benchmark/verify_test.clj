@@ -7,9 +7,9 @@
             [resolver-sim.benchmark.verify :as verify]
             [resolver-sim.benchmark.integrity :as integrity]
             [resolver-sim.benchmark.runner :as runner]
-             [resolver-sim.commands.run-lifecycle :as lifecycle]
-             [resolver-sim.evidence.node :as evidence-node]
-             [resolver-sim.hash.canonical :as canonical]
+            [resolver-sim.commands.run-lifecycle :as lifecycle]
+            [resolver-sim.evidence.node :as evidence-node]
+            [resolver-sim.hash.canonical :as canonical]
             [resolver-sim.hash.reference :as hash-ref]
             [resolver-sim.run.package-index :as package-index]
             [resolver-sim.run.verdict-policy :as verdict-policy]))
@@ -67,15 +67,15 @@
        (write-json! assurance {"schema_version" "benchmark-assurance.v1" "benchmark_id" "b" "run_id" "r" "lifecycle_status" "completed"
                                "conclusion" {"outcome" "pass"} "input_set" inputs "input_set_root" input-root
                                "conservation" {"artifact_ref" "benchmark/assertions/conservation.json" "artifact_sha256" (sha conservation) "status" "not-exercised"}})
-        (write-json! content {"schema_version" "benchmark-content-registry.v1" "artifacts" []})
-        (let [projection {"domain" "prf/benchmark-finalization/v1" "benchmark_id" "b"
-                          "assurance_artifact_sha256" (:sha256 (evidence-node/canonical-artifact-content "benchmark/assertions/benchmark-assurance.json" assurance)) "conclusion_sha256" (:sha256 (evidence-node/canonical-artifact-content "benchmark/conclusion.json" conclusion))
-                          "evidence_content_registry_sha256" (:sha256 (evidence-node/canonical-artifact-content "benchmark/evidence/content-registry.json" content)) "input_set_root" input-root
-                          "semantic_composition_root" ""}
-            final-ref (str "sha256:" (canonical/domain-hash "BENCHMARK_FINALIZATION_V1" projection))]
-          (write-json! finalization {"schema_version" "benchmark-finalization.v1" "benchmark_id" "b"
-                                      "conclusion_sha256" (sha conclusion) "evidence_content_registry_sha256" (sha content)
-                                      "input_set_root" input-root "semantic_composition_root" "" "final_ref" final-ref})
+       (write-json! content {"schema_version" "benchmark-content-registry.v1" "artifacts" []})
+       (let [projection {"domain" "prf/benchmark-finalization/v1" "benchmark_id" "b"
+                         "assurance_artifact_sha256" (:sha256 (evidence-node/canonical-artifact-content "benchmark/assertions/benchmark-assurance.json" assurance)) "conclusion_sha256" (:sha256 (evidence-node/canonical-artifact-content "benchmark/conclusion.json" conclusion))
+                         "evidence_content_registry_sha256" (:sha256 (evidence-node/canonical-artifact-content "benchmark/evidence/content-registry.json" content)) "input_set_root" input-root
+                         "semantic_composition_root" ""}
+             final-ref (str "sha256:" (canonical/domain-hash "BENCHMARK_FINALIZATION_V1" projection))]
+         (write-json! finalization {"schema_version" "benchmark-finalization.v1" "benchmark_id" "b"
+                                    "conclusion_sha256" (sha conclusion) "evidence_content_registry_sha256" (sha content)
+                                    "input_set_root" input-root "semantic_composition_root" "" "final_ref" final-ref})
          (write-json! integrity-file {"schema_version" "canonical-integrity.v1" "status" "passed"
                                       "benchmark_finalization" {"sha256" (sha finalization)} "benchmark_assurance" {"sha256" (sha assurance)}
                                       "conservation" {"sha256" (sha conservation)} "evidence_content_registry" {"sha256" (sha content)}
@@ -107,11 +107,11 @@
          (let [paths ["benchmark/definition.edn" "benchmark/execution-plan.edn" "benchmark/executions/exec-1/input/scenario.edn" "benchmark/conclusion.json" "benchmark/assertions/conservation.json" "benchmark/assertions/benchmark-assurance.json" "benchmark/evidence/content-registry.json" "benchmark/evidence/evidence.edn" "benchmark/finalization.json" "benchmark/assertions/canonical-integrity.json" "benchmark/assertions/forensic-claims-status.json" "manifest/verdict-policy.json" "manifest/run-package-index.json"]]
            (write-json! registry {"artifacts" (entries root paths)})
            (write-json! validation {"status" "passed"})
-            (write-json! completion {"schema_version" "benchmark-completion.v1" "run_type" "benchmark" "benchmark_id" "b" "run_id" "r"
-                                     "lifecycle_status" "completed" "semantic_status" "pass" "finalization_ref" "benchmark/finalization.json"
-                                     "finalization_sha256" (sha finalization) "final_ref" final-ref "input_set_root" input-root
-                                     "semantic_composition_root" ""
-                                     "bundle_root_hash" (str evidence-hash)
+           (write-json! completion {"schema_version" "benchmark-completion.v1" "run_type" "benchmark" "benchmark_id" "b" "run_id" "r"
+                                    "lifecycle_status" "completed" "semantic_status" "pass" "finalization_ref" "benchmark/finalization.json"
+                                    "finalization_sha256" (sha finalization) "final_ref" final-ref "input_set_root" input-root
+                                    "semantic_composition_root" ""
+                                    "bundle_root_hash" (str evidence-hash)
                                     "closure_commitment" (str (hash-ref/sha256-ref
                                                                (canonical/hash-with-intent {:hash/intent :evidence-content}
                                                                                            (:benchmark/execution-closure evidence))))
@@ -366,69 +366,69 @@
   [root comp-root]
   (let [scenario-path "benchmark/executions/exec-1/input/scenario.edn"
         scenario-file (io/file root scenario-path)
-         scenario (assoc (edn/read-string (slurp scenario-file))
-                         :semantic-composition {:schema "semantic-composition.v1"
-                                                :semantic-composition/root comp-root}
-                         :execution-mode :authoritative)]
+        scenario (assoc (edn/read-string (slurp scenario-file))
+                        :semantic-composition {:schema "semantic-composition.v1"
+                                               :semantic-composition/root comp-root}
+                        :execution-mode :authoritative)]
     (spit scenario-file (pr-str scenario))
     (let [assurance-file (io/file root "benchmark/assertions/benchmark-assurance.json")
           assurance (json/read-str (slurp assurance-file))
           inputs (get assurance "input_set")
           updated-inputs (mapv (fn [entry]
-                                   (if (= (get entry "source_kind") "execution-input-snapshot")
-                                     (assoc entry "sha256" (sha-ref scenario-file))
-                                     entry))
-                                 inputs)
+                                 (if (= (get entry "source_kind") "execution-input-snapshot")
+                                   (assoc entry "sha256" (sha-ref scenario-file))
+                                   entry))
+                               inputs)
           input-root (str "sha256:" (canonical/domain-hash "BENCHMARK_INPUT_SET_V1"
-                                                          (vec (sort-by #(get % "path")
-                                                                       (map #(select-keys % ["logical_id" "source_kind" "path" "sha256"])
-                                                                            updated-inputs)))))
+                                                           (vec (sort-by #(get % "path")
+                                                                         (map #(select-keys % ["logical_id" "source_kind" "path" "sha256"])
+                                                                              updated-inputs)))))
           evidence-file (io/file root "benchmark/evidence/evidence.edn")
           evidence (edn/read-string (slurp evidence-file))
           evidence-with-results (assoc evidence :results
                                        [{:semantic-composition-root comp-root}])
           evidence-hash (hash-ref/sha256-ref
-                          (canonical/hash-with-intent {:hash/intent :bundle-root}
-                                                        (integrity/hashable-evidence
-                                                         (runner/normalize-runtime-values
-                                                          (dissoc evidence-with-results :timestamp :evidence/hash)))))
+                         (canonical/hash-with-intent {:hash/intent :bundle-root}
+                                                     (integrity/hashable-evidence
+                                                      (runner/normalize-runtime-values
+                                                       (dissoc evidence-with-results :timestamp :evidence/hash)))))
           updated-evidence (assoc evidence-with-results :evidence/hash evidence-hash)
           _ (spit evidence-file (pr-str updated-evidence))
           _ (write-json! assurance-file
                          (assoc assurance
-                           "input_set" updated-inputs
-                           "input_set_root" input-root))]
-    (let [fin-file (io/file root "benchmark/finalization.json")
-          fin (json/read-str (slurp fin-file))
-          projection {"domain" "prf/benchmark-finalization/v1"
-                      "benchmark_id" (get fin "benchmark_id")
-                      "assurance_artifact_sha256" (:sha256 (evidence-node/canonical-artifact-content "benchmark/assertions/benchmark-assurance.json" (io/file root "benchmark/assertions/benchmark-assurance.json")))
-                      "conclusion_sha256" (:sha256 (evidence-node/canonical-artifact-content "benchmark/conclusion.json" (io/file root "benchmark/conclusion.json")))
-                      "evidence_content_registry_sha256" (:sha256 (evidence-node/canonical-artifact-content "benchmark/evidence/content-registry.json" (io/file root "benchmark/evidence/content-registry.json")))
-                      "input_set_root" input-root
-                      "semantic_composition_root" comp-root}
-          final-ref (str "sha256:" (canonical/domain-hash "BENCHMARK_FINALIZATION_V1" projection))
-          fin-updated (assoc fin
-                             "input_set_root" input-root
-                             "semantic_composition_root" comp-root
-                             "final_ref" final-ref)]
-      (write-json! fin-file fin-updated)
-      (let [comp-file (io/file root "completion.json")
-            comp (json/read-str (slurp comp-file))
-            comp-updated (assoc comp
-                                "input_set_root" input-root
-                                "semantic_composition_root" comp-root
-                                "final_ref" final-ref
-                                "bundle_root_hash" (str evidence-hash)
-                                "finalization_sha256" (sha-ref fin-file))]
-        (write-json! comp-file comp-updated))
-      (let [int-file (io/file root "benchmark/assertions/canonical-integrity.json")
-            int (json/read-str (slurp int-file))
-            int-updated (assoc int
-                               "benchmark_finalization" {"sha256" (sha-ref fin-file)}
-                               "benchmark_assurance" {"sha256" (sha-ref (io/file root "benchmark/assertions/benchmark-assurance.json"))}
-                               "evidence_content_registry" {"sha256" (sha-ref (io/file root "benchmark/evidence/content-registry.json"))})]
-        (write-json! int-file int-updated))))))
+                                "input_set" updated-inputs
+                                "input_set_root" input-root))]
+      (let [fin-file (io/file root "benchmark/finalization.json")
+            fin (json/read-str (slurp fin-file))
+            projection {"domain" "prf/benchmark-finalization/v1"
+                        "benchmark_id" (get fin "benchmark_id")
+                        "assurance_artifact_sha256" (:sha256 (evidence-node/canonical-artifact-content "benchmark/assertions/benchmark-assurance.json" (io/file root "benchmark/assertions/benchmark-assurance.json")))
+                        "conclusion_sha256" (:sha256 (evidence-node/canonical-artifact-content "benchmark/conclusion.json" (io/file root "benchmark/conclusion.json")))
+                        "evidence_content_registry_sha256" (:sha256 (evidence-node/canonical-artifact-content "benchmark/evidence/content-registry.json" (io/file root "benchmark/evidence/content-registry.json")))
+                        "input_set_root" input-root
+                        "semantic_composition_root" comp-root}
+            final-ref (str "sha256:" (canonical/domain-hash "BENCHMARK_FINALIZATION_V1" projection))
+            fin-updated (assoc fin
+                               "input_set_root" input-root
+                               "semantic_composition_root" comp-root
+                               "final_ref" final-ref)]
+        (write-json! fin-file fin-updated)
+        (let [comp-file (io/file root "completion.json")
+              comp (json/read-str (slurp comp-file))
+              comp-updated (assoc comp
+                                  "input_set_root" input-root
+                                  "semantic_composition_root" comp-root
+                                  "final_ref" final-ref
+                                  "bundle_root_hash" (str evidence-hash)
+                                  "finalization_sha256" (sha-ref fin-file))]
+          (write-json! comp-file comp-updated))
+        (let [int-file (io/file root "benchmark/assertions/canonical-integrity.json")
+              int (json/read-str (slurp int-file))
+              int-updated (assoc int
+                                 "benchmark_finalization" {"sha256" (sha-ref fin-file)}
+                                 "benchmark_assurance" {"sha256" (sha-ref (io/file root "benchmark/assertions/benchmark-assurance.json"))}
+                                 "evidence_content_registry" {"sha256" (sha-ref (io/file root "benchmark/evidence/content-registry.json"))})]
+          (write-json! int-file int-updated))))))
 
 (defn- write-finalization-with-root!
   "Write finalization and completion JSON with a given composition root,
@@ -437,9 +437,9 @@
   (let [fin-file (io/file root "benchmark/finalization.json")
         comp-file (io/file root "completion.json")
         fin (json/read-str (slurp fin-file))
-         strip-prefix (fn [s] (if (and (string? s) (str/starts-with? s "sha256:"))
-                              (subs s 7)
-                              s))
+        strip-prefix (fn [s] (if (and (string? s) (str/starts-with? s "sha256:"))
+                               (subs s 7)
+                               s))
         projection {"domain" "prf/benchmark-finalization/v1"
                     "benchmark_id" (get fin "benchmark_id")
                     "assurance_artifact_sha256" (strip-prefix (get fin "assurance_artifact_sha256"))
@@ -481,10 +481,10 @@
                  comp (read-json! comp-file)]
              (write-json! comp-file (assoc comp "semantic_composition_root" "sha256:xyz")))
            (let [checks (get-in (verify/verify! root) ["checks"])]
-          (is (false? (get checks "semantic-composition-root"))
-              "mismatched roots between finalization and completion fail")
-          (is (true? (get checks "final-ref"))
-              "final_ref still matches (only completion's root field was tampered, not final_ref)"))
+             (is (false? (get checks "semantic-composition-root"))
+                 "mismatched roots between finalization and completion fail")
+             (is (true? (get checks "final-ref"))
+                 "final_ref still matches (only completion's root field was tampered, not final_ref)"))
            (finally (delete-tree! root))))))
 
 (deftest phase2c-unchanged-runs-remain-stable
@@ -504,48 +504,48 @@
 (deftest phase2c-authoritative-presence-rejects-empty
   (testing "evidence with composition but finalization has empty root -> fail"
     (let [root (temp-root)]
-       (try
-         (fixture! root)
-         (with-authoritative-input root "sha256:abc123")
-         (let [evidence-file (io/file root "benchmark/evidence/evidence.edn")
-               evidence (edn/read-string (slurp evidence-file))
-               stripped-evidence (-> evidence
-                                    (dissoc :results))]
-           (spit evidence-file (pr-str stripped-evidence)))
-          (let [checks (get-in (verify/verify! root) ["checks"])]
-           (is (false? (get checks "authoritative-composition-presence"))
-               "input_set declares authoritative but evidence root stripped -> presence check fails")
-           (is (false? (get checks "final-ref"))
-               "final_ref recomputed from stripped evidence (nil -> \"\") differs from finalization (has real root)"))
-          (finally (delete-tree! root)))))
-
-(deftest phase2c-anti-transplant-composition-A-not-B
-  (testing "evidence carrying composition-root-A cannot be relabeled as composition-B"
-    (let [root-a (temp-root)
-          root-b (temp-root)]
       (try
-        (fixture! root-a)
-        (with-authoritative-input root-a "sha256:composition-A-root")
-        (let [checks-a (get-in (verify/verify! root-a) ["checks"])]
-          (is (true? (get checks-a "authoritative-composition-presence"))
-              "composition-A root presence passes for legitimate A run")
-          (is (true? (get checks-a "final-ref"))
-              "final_ref matches for legitimate A run (all commitments consistent)")
-          (is (true? (get checks-a "semantic-composition-root"))
-              "composition root matches between finalization and completion for A"))
+        (fixture! root)
+        (with-authoritative-input root "sha256:abc123")
+        (let [evidence-file (io/file root "benchmark/evidence/evidence.edn")
+              evidence (edn/read-string (slurp evidence-file))
+              stripped-evidence (-> evidence
+                                    (dissoc :results))]
+          (spit evidence-file (pr-str stripped-evidence)))
+        (let [checks (get-in (verify/verify! root) ["checks"])]
+          (is (false? (get checks "authoritative-composition-presence"))
+              "input_set declares authoritative but evidence root stripped -> presence check fails")
+          (is (false? (get checks "final-ref"))
+              "final_ref recomputed from stripped evidence (nil -> \"\") differs from finalization (has real root)"))
+        (finally (delete-tree! root)))))
 
-        (fixture! root-b)
-        (with-authoritative-input root-b "sha256:composition-A-root")
-        (write-finalization-with-root! root-b "sha256:composition-B-root")
-        (let [checks-b (get-in (verify/verify! root-b) ["checks"])]
-          (is (false? (get checks-b "final-ref"))
-              "final_ref mismatch: evidence-derived root (A) != finalization-claimed (B)")
-          (is (false? (get checks-b "authoritative-composition-presence"))
-              "presence check catches transplant: evidence-root (A) != finalization-root (B)")
-          (is (true? (get checks-b "semantic-composition-root"))
-              "finalization and completion both carry B root — that check passes; final-ref + presence fail"))
-        (finally (do (delete-tree! root-a)
-                     (delete-tree! root-b))))))))
+  (deftest phase2c-anti-transplant-composition-A-not-B
+    (testing "evidence carrying composition-root-A cannot be relabeled as composition-B"
+      (let [root-a (temp-root)
+            root-b (temp-root)]
+        (try
+          (fixture! root-a)
+          (with-authoritative-input root-a "sha256:composition-A-root")
+          (let [checks-a (get-in (verify/verify! root-a) ["checks"])]
+            (is (true? (get checks-a "authoritative-composition-presence"))
+                "composition-A root presence passes for legitimate A run")
+            (is (true? (get checks-a "final-ref"))
+                "final_ref matches for legitimate A run (all commitments consistent)")
+            (is (true? (get checks-a "semantic-composition-root"))
+                "composition root matches between finalization and completion for A"))
+
+          (fixture! root-b)
+          (with-authoritative-input root-b "sha256:composition-A-root")
+          (write-finalization-with-root! root-b "sha256:composition-B-root")
+          (let [checks-b (get-in (verify/verify! root-b) ["checks"])]
+            (is (false? (get checks-b "final-ref"))
+                "final_ref mismatch: evidence-derived root (A) != finalization-claimed (B)")
+            (is (false? (get checks-b "authoritative-composition-presence"))
+                "presence check catches transplant: evidence-root (A) != finalization-root (B)")
+            (is (true? (get checks-b "semantic-composition-root"))
+                "finalization and completion both carry B root — that check passes; final-ref + presence fail"))
+          (finally (do (delete-tree! root-a)
+                       (delete-tree! root-b))))))))
 
 (deftest phase2c-composition-substitution-A-evidence-as-B
   (testing "committed scenario declares root A but evidence relabeled as root B -> derivation check fails"
@@ -556,7 +556,7 @@
         ;; Verify baseline: stable authoritative-A run passes
         (let [checks-a (get-in (verify/verify! root) ["checks"])]
           (is (true? (get checks-a "composition-root-derivation"))
-            "legitimate A run: derivation check passes (expected=A, evidence=A)"))
+              "legitimate A run: derivation check passes (expected=A, evidence=A)"))
 
         ;; Substitution attack: rewrite evidence, finalization, and completion
         ;; to carry root B without touching the committed scenario input.
@@ -565,13 +565,13 @@
         (let [evidence-file (io/file root "benchmark/evidence/evidence.edn")
               evidence (edn/read-string (slurp evidence-file))
               _ (spit evidence-file
-                       (pr-str (assoc evidence :results [{:semantic-composition-root "sha256:composition-B-root"}])))]
+                      (pr-str (assoc evidence :results [{:semantic-composition-root "sha256:composition-B-root"}])))]
           ;; write-finalization-with-root! updates finalization + completion + final_ref
           ;; to carry comp-root, but does NOT touch evidence or input_set.
           (write-finalization-with-root! root "sha256:composition-B-root")
           (let [checks-b (get-in (verify/verify! root) ["checks"])]
             (is (false? (get checks-b "composition-root-derivation"))
-              "substitution attack: derivation check fails (expected=A from scenario, evidence=B)")
+                "substitution attack: derivation check fails (expected=A from scenario, evidence=B)")
             (is (false? (get checks-b "final-ref"))
-              "substitution attack: final_ref fails (evidence hash changed, final_ref stale)")))
+                "substitution attack: final_ref fails (evidence hash changed, final_ref stale)")))
         (finally (delete-tree! root))))))

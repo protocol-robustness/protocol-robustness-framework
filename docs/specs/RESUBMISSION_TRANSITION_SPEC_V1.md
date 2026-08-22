@@ -33,10 +33,12 @@ and validated prefix-free at namespace load time.
 ## 3. Chain-State Projection (chain-state-projection.v1)
 
 The projection is identified by `transition/chain-state-projection-schema` =
-`"chain-state-projection.v1"`. It is private to the transition namespace and
-MUST NOT be made public.
+`"chain-state-projection.v1"`. It is an internal projection of the transition namespace.
+Implementations MAY expose the projection for diagnostic purposes, but the
+canonical state root binds only to the projected fields regardless of whether
+the projection itself is publicly surfaced.
 
-### 3.1 Required Projected Fields (always present, in canonical key order)
+### 3.1 Required Projected Fields (always present, sorted by encoded-byte ordering)
 
 1. `:chain/family-id`
 2. `:chain/version`
@@ -118,7 +120,7 @@ effects-root(effects)                        == claimed-effects-root
 The change-identity (`prf.transaction-ordering-change-identity.v1`) is derived
 from only `{scope, conflict-key, action, input-root}`. It does NOT contain:
 
-- The canonical state-before value (only its root, not the state itself)
+- The canonical state-before value or its root (change-identity's basis contains neither)
 - The canonical command payload (only the input-root, not the input)
 - Any semantic context (chain version, expected head)
 
@@ -228,6 +230,13 @@ committed to disk and loaded independently.
 
 The genesis `admit-child` from the empty chain state (family `sha256:FAM`).
 
+> **Note:** Identifiers such as `sha256:FAM`, `sha256:R1`, `sha256:B1`,
+> `sha256:L1`, `sha256:I1`, and `sha256:L2` are **synthetic placeholder
+> hashes** — short ASCII tokens that exercise the hash-reference type but
+> do NOT correspond to real content roots. Only the pinned 64-hex-character
+> roots (listed in the tables below) are semantically meaningful for
+> conformance.
+
 | Field | Value |
 |-------|-------|
 | state-before-root | `sha256:53e5ae09087f3733a54110c9a00f4cb227894f18f1384b7a8d88a929e5b66ffb` |
@@ -259,6 +268,11 @@ stale-head rejection at precedence 6).
 A `:final` disposition applied to receipt `sha256:R1`, signed with a deterministic
 Ed25519 keypair (seed pinned in `:fixture/disposition-authority/private-key-seed`).
 
+> **Security note:** The deterministic Ed25519 keypair is test-only. Its private
+> key seed is committed to the fixture so that the disposition signature is
+> reproducible across implementations and CI runs. It MUST NOT be used outside
+> conformance fixtures or with any value-bearing chain.
+
 | Field | Value |
 |-------|-------|
 | state-before-root | `sha256:7e117371e6db8c6c4eddc156b5e705f7e3c20a0b26b9cc3a5941275868d6f835` |
@@ -272,26 +286,28 @@ Ed25519 keypair (seed pinned in `:fixture/disposition-authority/private-key-seed
 The state-after includes `:chain/disposition-status-by-receipt {"sha256:R1" :final}`,
 which is included in the state-after projection via the conditional field rule (§3.2).
 
-## 11. Cross-Language Encoding Ambiguities
+## 11. Language-Neutral Transition Input Contract
 
-The following ambiguities were discovered during independent Rust verification and
-must be handled identically across implementations:
+The transition input schema is defined in EDN and must be parsed by any
+language implementation. The following ambiguities are resolved as normative
+contract requirements, independent of any specific implementation language:
 
-### 12.1 Keyword vs. String Encoding
+### 11.1 Keyword vs. String Encoding
 
-In the canonical encoding, `:keyword` and `"string"` produce distinct byte
-sequences. Keywords carry a `0x22` tag; strings carry a `0x20` tag. A value
-that appears as a keyword in the Clojure fixture (e.g., `:final`) MUST be
-encoded with the keyword tag, not the string tag, even when the EDN parser
-is untyped.
+In the canonical encoding, a value that appears as a keyword in the fixture
+EDN (e.g., `:final`) MUST be encoded with the keyword tag (`0x22`), not the
+string tag (`0x20`), even when the host EDN parser is untyped. Every field
+value in the fixture maps is either a string (quoted, `"..."`) or a keyword
+(unquoted, `:foo`). Implementations MUST preserve this distinction when
+projecting canonical bytes.
 
-**Key example:** The `:signature/signature` field inside a disposition
-artifact's signature sub-map is an unqualified keyword `:signature`
-(NOT `:signature/signature`). The `map_get` function matches by keyword name
-only, so `map_get(sig_map, "signature")` matches `Keyword(None, "signature")`.
-Implementations must NOT assume the key is `:signature/signature`.
+### 11.2 Qualified vs. Unqualified Keywords
 
-### 12.2 Qualified vs. Unqualified Keywords
+The transition parser MUST resolve field keys by exact match. For a
+namespaced map context (`#:ns{...}`), an unqualified key `:key` is resolved
+to `Keyword(Some("ns"), "key")`. A standalone `:key` is resolved to
+`Keyword(None, "key")`. The parser MUST NOT apply implicit aliases or
+fuzzy matching across namespace boundaries.
 
 Clojure EDN supports both `#:namespace{:key value}` (namespaced maps that
 auto-qualify unqualified keys) and explicit `:ns/name` (qualified keywords).
@@ -302,6 +318,15 @@ These produce different `Value::Keyword` variants:
 | `:name` (inside `#:ns{...}`) | `Keyword(Some("ns"), "name")` |
 | `:ns/name` (standalone) | `Keyword(Some("ns"), "name")` |
 | `:name` (standalone, no `#:`) | `Keyword(None, "name")` |
+
+**Key example:** The signature sub-map inside a disposition artifact uses
+unqualified `:signature` as the key name (inside the enclosing
+`#:attempt-disposition{...}` context), yielding
+`Keyword(Some("attempt-disposition"), "signature")`. It is NOT
+`:signature/signature`. Implementations MUST NOT assume the key is namespaced
+as `:signature/signature`; a lookup by the bare name `"signature"` within the
+sub-map context MUST match, while a lookup by `"signature/signature"` MUST NOT
+match.
 
 In the disposition fixture, the signature sub-map uses unqualified `:signature`
 as the key name (inside `#:attempt-disposition{...}`), while the algorithm
@@ -314,7 +339,7 @@ The `map_get` function matches by the full qualified string `"ns/name"` via
 the second rule, OR by bare name via the first rule. Both must be checked
 in order.
 
-### 12.3 Absent vs. Empty Disposition Maps
+### 11.3 Absent vs. Empty Disposition Maps
 
 (See §3.4 for the v1-stable semantics.) The disposition fixture's state-before
 has `:chain/disposition-public-hex` set to the authority key, while the genesis
@@ -323,7 +348,7 @@ the chain-state projection, both states produce the same state root. This
 allows the genesis state-after to be reused as the disposition state-before
 without altering the root.
 
-### 12.4 Derived Change-Identity Inclusion
+### 11.4 Derived Change-Identity Inclusion
 
 The `:transaction/change-identity` field is NOT supplied by the caller. It is
 derived from `{scope, conflict-key, action, input-root}` via
@@ -332,7 +357,7 @@ ordering-v2 projection BEFORE the ordering hash is computed. Independent
 implementations must compute this value and include it as
 `:transaction/change-identity` in the unsigned projection.
 
-### 12.5 Dependency Chain: Unsigned Disposition → Hash → Input Root → Change Identity → Ordering Root
+### 11.5 Dependency Chain: Unsigned Disposition → Hash → Input Root → Change Identity → Ordering Root
 
 For `apply-disposition`:
 
@@ -345,7 +370,7 @@ The ordering root transitively depends on the disposition-artifact-hash through
 the input-root and change-identity. Tampering any upstream component changes
 all downstream roots.
 
-### 12.6 Consecutive State/Ordering Linkage
+### 11.6 Consecutive State/Ordering Linkage
 
 The two committed fixtures (`resubmission-transition-v1.edn` and
 `resubmission-transition-disposition-v1.edn`) describe consecutive
@@ -394,9 +419,9 @@ behavior.
 An independent implementation (e.g., Rust, Go, Haskell) must:
 
 1. **Read the fixture EDN files** from `etc/conformance/fixtures/`.
-2. **Reproduce the chain-state projection**: apply the 9 required fields in
-   canonical key order, include the conditional disposition-status field only when
-   the source state contains the key, and exclude all other source keys.
+   2. **Reproduce the chain-state projection**: apply the 9 required fields in
+      encoded-byte ordering, include the conditional disposition-status field only when
+      the source state contains the key, and exclude all other source keys.
 3. **Compute state roots**: `SHA256("prf.resubmission-chain-state.v1" || canonical-bytes(projection))`.
 4. **Compute input roots**: `SHA256("prf.transaction-input.v1" || canonical-bytes(command.input))`
    with concurrency guards excluded.
@@ -409,4 +434,4 @@ An independent implementation (e.g., Rust, Go, Haskell) must:
 All canonical encoding follows the Clojure `pr`-based canonical-bytes algorithm
 defined in `resolver-sim.hash.canonical`. Integer and string types are encoded as
 UTF-8. Keywords are encoded as their string representation (e.g., `:foo` → `":foo"`).
-NIL values are encoded as `0x00`. Maps are sorted by canonical key order.
+NIL values are encoded as `0x00`. Maps are sorted by encoded-byte ordering of their canonical key bytes.

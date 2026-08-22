@@ -191,7 +191,7 @@
 (defn snapshot [state]
   {:concurrency/partition-key (:concurrency/partition-key state)
    :concurrency/snapshot-root
-    (root admission-snapshot-domain
+   (root admission-snapshot-domain
          (select-keys state [:concurrency/partition-key :family/version :family/head
                              :admission/idempotency-index :admission/candidate-index]))
    :concurrency/expected-state-version (:family/version state)
@@ -208,7 +208,7 @@
    this is derived only after `reserve!` grants one caller a fenced attempt.
    Its root is checked again by finalization."
   [reservation]
-   (let [payload {:signing/schema signing-schema
+  (let [payload {:signing/schema signing-schema
                  :signing/partition-key (:reservation/partition-key reservation)
                  :signing/reservation-id (:reservation/id reservation)
                  :signing/fence (:reservation/fence reservation)
@@ -217,7 +217,7 @@
                  :signing/validation-root (:reservation/validation-root reservation)
                  :signing/proposed-ordering-root (:reservation/proposed-ordering-root reservation)}]
     (assoc payload :signing/payload-root
-                       (root admission-signing-domain payload))))
+           (root admission-signing-domain payload))))
 
 (defn finalization-request-root [request]
   (root finalization-domain (dissoc request :finalization/request-root)))

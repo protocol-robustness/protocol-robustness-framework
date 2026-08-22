@@ -34,7 +34,7 @@
     {:schema_version schema-version
      :benchmark_id benchmark-id
      :run_id run-id
-      :authority {:kind "invariant" :namespace "sew" :id "conservation-of-funds" :version invariant-authority-version}
+     :authority {:kind "invariant" :namespace "sew" :id "conservation-of-funds" :version invariant-authority-version}
      :applicability {:policy "all-required-executions" :required required? :expected_execution_ids expected}
      :status (name status)
      :summary {:expected (count expected) :evaluated (count executions)

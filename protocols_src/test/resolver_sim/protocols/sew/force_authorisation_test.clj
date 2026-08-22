@@ -22,6 +22,7 @@
              [resolver-sim.benchmark.research-assignment :as research-assignment]
              [resolver-sim.assurance.three-member-authority :as governed-authority]
              [resolver-sim.extensions.force-authorisation :as force-extension]
+             [resolver-sim.protocols.protocol :as proto]
              [resolver-sim.composition.semantic :as semantic])
   (:import [org.bouncycastle.crypto.generators Ed25519KeyPairGenerator]
            [org.bouncycastle.crypto.params Ed25519KeyGenerationParameters]
@@ -1242,3 +1243,89 @@
           result (sew/apply-action ctx world0 event)]
       (is (= :force-authorisation-extension-unavailable (:error result))
           "compat flag alone without extension-map → force-auth inactive"))))
+
+;; ──────────────────────────────────────────────────────────────────────────────
+;; Semantic-composition admission API
+;; ──────────────────────────────────────────────────────────────────────────────
+;; Sew answers action admission through three semantic-composition questions:
+;;   1. force-authorisation-action?   (class membership)
+;;   2. composition-selected-action?  (active composition selection)
+;;   3. legacy-compatibility-allowed? (explicit, non-authoritative only)
+;; Sew owns no protocol-owned force-authorisation action registry; class
+;; membership is owned by resolver-sim.composition.semantic.
+
+(deftest api-force-authorisation-action-class
+  (testing "1. class membership is answered by the semantic-composition API"
+    (doseq [action ["grant-force-authorisation"
+                    "grant-force-authorization"
+                    "grant-consensus-force-authorisation"
+                    "grant-related-claims-force-authorisation"
+                    "revoke-force-authorisation"
+                    "execute-force-authorised-action"
+                    "execute-force-authorized-action"]]
+      (is (true? (sew/force-authorisation-action? action))
+          (str action " is force-authorisation class")))
+    (doseq [action ["create-escrow" "release" "execute-resolution" "set-paused"]]
+      (is (false? (sew/force-authorisation-action? action))
+          (str action " is not force-authorisation class")))))
+
+(deftest api-composition-selected-action
+  (testing "2. selection is answered by the active composition; absence selects nothing"
+    (let [protected-ctx {:semantic-composition (protection-governed-composition)}
+          plain-ctx     {:semantic-composition (plain-composition)}]
+      (is (true? (sew/composition-selected-action?
+                  protected-ctx "grant-force-authorisation")))
+      (is (true? (sew/composition-selected-action?
+                  protected-ctx "execute-force-authorised-action")))
+      (is (false? (sew/composition-selected-action? protected-ctx "create-escrow"))
+          "a composition admits exactly its selected action modules")
+      (is (every? false? [(sew/composition-selected-action? plain-ctx "create-escrow")
+                          (sew/composition-selected-action? plain-ctx "grant-force-authorisation")])
+          "a composition without custody-execution capability selects nothing")
+      (is (every? false? [(sew/composition-selected-action? {} "create-escrow")
+                          (sew/composition-selected-action? {} "grant-force-authorisation")])
+          "no composition never selects anything"))))
+
+(deftest api-legacy-compatibility-explicit-non-authoritative-only
+  (testing "3. legacy compatibility is explicit and non-authoritative only"
+    (is (true? (sew/legacy-compatibility-allowed?
+                {:execution-mode :legacy
+                 :force-authorisation/allow-local-compatibility? true})))
+    (is (true? (sew/legacy-compatibility-allowed?
+                {:force-authorisation/allow-local-compatibility? true}))
+        "default execution-mode is non-authoritative legacy")
+    (is (false? (sew/legacy-compatibility-allowed?
+                 {:execution-mode :authoritative
+                  :force-authorisation/allow-local-compatibility? true}))
+        "the compatibility flag never overrides authoritative execution")
+    (is (false? (sew/legacy-compatibility-allowed? {:execution-mode :legacy}))
+        "compatibility is never implicit")))
+
+(deftest preserved-authoritative-no-composition-denies-fa-admission
+  (testing "preserved: authoritative + no composition → force-authorisation action denied at admission"
+    (let [ctx    (-> gov-ctx
+                     (assoc :execution-mode :authoritative)
+                     (assoc :semantic-composition nil)
+                     (dissoc :force-authorisation/allow-local-compatibility?))
+          result (proto/dispatch-action sew/protocol ctx (t/empty-world 1000)
+                                        {:seq 0 :time 1000 :agent "gov"
+                                         :action "grant-force-authorisation"
+                                         :params {:workflow-id 0
+                                                  :reason :resolver-overcapacity}})]
+      (is (= :semantic-composition-action-not-permitted (:error result))))))
+
+(deftest preserved-legacy-compatibility-explicit-only-at-admission
+  (testing "preserved: legacy compatibility admits force-auth actions only when explicit + installed"
+    (let [world0 (disputed-world)
+          event  {:seq 0 :time 1000 :agent "gov"
+                  :action "grant-force-authorisation"
+                  :params {:workflow-id 0 :reason :resolver-overcapacity}}
+          ;; Explicit compatibility + installed extension → admitted past the
+          ;; admission gate and executed by the grant path.
+          explicit (proto/dispatch-action sew/protocol gov-ctx world0 event)
+          ;; Same extension-map, no explicit flag → denied at admission.
+          implicit (-> (dissoc gov-ctx :force-authorisation/allow-local-compatibility?)
+                       (as-> ctx (proto/dispatch-action sew/protocol ctx world0 event)))]
+      (is (:ok explicit) "explicit legacy compatibility reaches the grant path")
+      (is (= :semantic-composition-action-not-permitted (:error implicit))
+          "an installed extension without an explicit flag is not admitted"))))
