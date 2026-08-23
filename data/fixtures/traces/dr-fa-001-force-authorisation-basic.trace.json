@@ -38,10 +38,12 @@
     }
   ],
   "protocol-params": {
+    "governance/identity": {"governance/address": "0xgovernance"},
     "resolver-fee-bps": 150,
     "appeal-window-duration": 120,
     "max-dispute-duration": 2592000,
-    "dispute-resolver": "0xprimary"
+    "dispute-resolver": "0xprimary",
+    "force-authorisation/allow-local-compatibility?": true
   },
   "events": [
     {

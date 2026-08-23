@@ -48,7 +48,12 @@
    :output-schema
    :composition-contract
    :declared-dependencies
-   :verification/contract])
+   :verification/contract
+   ;; A verifier capability declares the exact subject contract it can assess.
+   ;; This field is part of descriptor identity so selection cannot be changed
+   ;; by an uncommitted registry-side convention.
+   :verifies
+   :verification/profile])
 
 (defn capability-key
   "Registry key for a capability: [capability-kind capability-id].
@@ -180,6 +185,8 @@
         kind (:capability/kind cap)
         id (:capability/id cap)
         deps (:declared-dependencies cap [])
+        verifier? (= :evidence/verifier kind)
+        verifies (:verifies cap)
         v (cond-> []
             (seq conflicts)
             (conj {:violation/id :violation/conflicting-capability-fields
@@ -236,7 +243,26 @@
             (not (vector? deps))
             (conj {:violation/id :violation/invalid-declared-dependencies
                    :details {:capability/id id
-                             :declared-dependencies deps}}))
+                             :declared-dependencies deps}})
+
+            (and verifier? (not (map? verifies)))
+            (conj {:violation/id :violation/missing-verifier-subject-contract
+                   :details {:capability/id id}})
+
+            (and verifier? (map? verifies)
+                 (not (keyword? (:capability/kind verifies))))
+            (conj {:violation/id :violation/invalid-verifier-subject-kind
+                   :details {:capability/id id :verifies verifies}})
+
+            (and verifier? (map? verifies)
+                 (not (keyword? (:capability/id verifies))))
+            (conj {:violation/id :violation/invalid-verifier-subject-id
+                   :details {:capability/id id :verifies verifies}})
+
+            (and verifier? (map? verifies)
+                 (not (pos? (or (:capability/contract-version verifies) 0))))
+            (conj {:violation/id :violation/invalid-verifier-subject-contract-version
+                   :details {:capability/id id :verifies verifies}}))
         v (if (and (vector? deps) (some (complement map?) deps))
             (conj v {:violation/id :violation/invalid-declared-dependency
                      :details {:capability/id id

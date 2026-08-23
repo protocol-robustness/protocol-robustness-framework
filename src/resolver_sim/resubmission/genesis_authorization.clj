@@ -30,6 +30,7 @@
             [resolver-sim.hash.canonical :as hc]
             [resolver-sim.hash.reference :as hash-ref]
             [resolver-sim.resubmission.genesis :as genesis]
+            [resolver-sim.resubmission.authority-context :as authority-context]
             [resolver-sim.benchmark.researcher-force-authorisation :as rfa]
             [resolver-sim.assurance.governed-authority-consumer :as gac]))
 
@@ -206,5 +207,10 @@
        :genesis-root        (:authorization/genesis-root authz)
        :force-authorisation-hash (:authorization/force-authorisation-hash authz)
        :authority-report-root    (:authorization/authority-report-root authz)
-       :governance-root     (:governance-root @auth-result)}
+       :governance-root     (:governance-root @auth-result)
+       ;; Derived only after every gate succeeds; this is the rooted, closed
+       ;; authority-context artifact consumed by authoritative checkpointing.
+       :authorized-disposition-context
+       (authority-context/build-authority-context
+        genesis (genesis-authorization-root authz))}
       {:valid? false :errors (vec @errors)})))

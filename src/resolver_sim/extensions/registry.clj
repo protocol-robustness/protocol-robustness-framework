@@ -124,6 +124,54 @@
   [extension-map capability-kind capability-id]
   (:providers (lookup-capability extension-map capability-kind capability-id) []))
 
+(defn select-verifier
+  "Resolve one explicitly registered verifier for a subject capability contract.
+
+   A verifier is never nominated by the subject. Its descriptor must be an
+   :evidence/verifier capability whose committed :verifies map exactly matches
+   the requested subject kind, id, and contract version. Returns a structured,
+   fail-closed result: no match and multiple matches are both invalid because
+   callers must bind one exact verifier descriptor/package root into evidence."
+  [extension-map subject]
+  (let [required [:capability/kind :capability/id :capability/contract-version]
+        subject-valid? (and (map? subject) (every? #(some? (get subject %)) required))
+        subject-contract (select-keys subject required)
+        matches (->> extension-map
+                     vals
+                     (filter (fn [entry]
+                               (let [cap (:capability entry)]
+                                 (and (= :evidence/verifier (:capability/kind cap))
+                                      (= subject-contract (:verifies cap))))))
+                     (sort-by :descriptor-root)
+                     vec)]
+    (cond
+      (not subject-valid?)
+      {:valid? false
+       :reason :extensions/error-invalid-verifier-subject-contract
+       :subject subject-contract}
+
+      (empty? matches)
+      {:valid? false
+       :reason :extensions/error-no-registered-verifier
+       :subject subject-contract}
+
+      (> (count matches) 1)
+      {:valid? false
+       :reason :extensions/error-ambiguous-registered-verifier
+       :subject subject-contract
+       :descriptor-roots (mapv :descriptor-root matches)}
+
+      :else
+      (let [entry (first matches)
+            providers (:providers entry)]
+        (if (= 1 (count providers))
+          {:valid? true :subject subject-contract :entry entry :provider (first providers)}
+          {:valid? false
+           :reason :extensions/error-ambiguous-verifier-provider
+           :subject subject-contract
+           :descriptor-root (:descriptor-root entry)
+           :package-roots (mapv :package-root providers)})))))
+
 ;; ── atom-backed development registry ──────────────────────────────────────
 
 (defonce ^:private state

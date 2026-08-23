@@ -8,12 +8,11 @@
          :statement "A force-authorisation with an expiration window rejects execution attempts after the window closes."
          :falsifies-if ["A force-authorised resolution succeeds after the expiration window has passed"]
          :assumptions ["Governance address is configured in protocol-params"]}
- :allow-open-disputes? true
- :expectations {:must-hold ["dispute_timestamp_consistency"
-                            "dispute_level_bounded"
-                            "no_duplicate_dispute"]
-                :error-on-seq [3]
-                :expected-errors {:seq 3 :error :force-authorisation-expired}}
+  :allow-open-disputes? true
+  :expectations {:must-hold ["dispute_timestamp_consistency"
+                             "dispute_level_bounded"
+                             "no_duplicate_dispute"]}
+  :expected-errors [{:seq 3 :action "execute_force_authorized_action" :error :force-authorisation-expired}]
   :initial-block-time 1000
   :protocol-params {:governance/identity {:governance/address "0xgovernance"}
                     :resolver-fee-bps 150

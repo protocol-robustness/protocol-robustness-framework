@@ -1,13 +1,15 @@
 (ns resolver-sim.commands.validate
   "Structural validation: lint, fmt check, notebook checks.
-   Port of bb validate.")
+   Port of bb validate."
+  (:require [clojure.java.shell :as shell]
+            [clojure.string :as str]))
 
 (defn- sh
   [& cmd]
-  (let [proc (apply clojure.java.shell/sh cmd)]
-    (when-not (clojure.string/blank? (:out proc))
+  (let [proc (apply shell/sh cmd)]
+    (when-not (str/blank? (:out proc))
       (println (:out proc)))
-    (when-not (clojure.string/blank? (:err proc))
+    (when-not (str/blank? (:err proc))
       (binding [*out* *err*] (println (:err proc))))
     (:exit proc)))
 

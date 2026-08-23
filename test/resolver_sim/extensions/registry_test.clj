@@ -155,6 +155,35 @@
     (finally
       (reg/clear-extensions!))))
 
+(deftest registered-verifier-selection-is-explicit-and-fail-closed
+  (let [subject {:capability/kind :assurance/governed-authority
+                 :capability/id :fixture/three-member-v1
+                 :capability/contract-version 1}
+        verifier {:capability/kind :evidence/verifier
+                  :capability/id :fixture/three-member-verifier
+                  :capability/version 1
+                  :capability/contract-version 1
+                  :entrypoint 'fixture.verifier/verify
+                  :input-schema :fixture/governed-authority-basis.v1
+                  :output-schema :fixture/governed-authority-result.v1
+                  :verifies subject
+                  :verification/profile :independent}
+        package (assoc fx/scaled-share-pack
+                       :extension/id :fixture/three-member-verifier-package
+                       :extension/capabilities [verifier])
+        emap (reg/register-package (reg/empty-extension-map) package)
+        selected (reg/select-verifier emap subject)]
+    (is (:valid? selected))
+    (is (= :fixture/three-member-verifier
+           (get-in selected [:entry :capability :capability/id])))
+    (is (= :extensions/error-no-registered-verifier
+           (:reason (reg/select-verifier emap (assoc subject :capability/id :fixture/unknown)))))
+    (let [second (assoc package :extension/id :fixture/another-verifier-package)
+          ambiguous (reg/select-verifier (reg/register-package emap second) subject)]
+      (is (not (:valid? ambiguous)))
+      (is (= :extensions/error-ambiguous-verifier-provider (:reason ambiguous))
+          "identical verifier descriptors with distinct package roots require an explicit package selection"))))
+
 (deftest extension-map-is-inspectable-data
   (reg/clear-extensions!)
   (try

@@ -1,464 +1,518 @@
 (ns resolver-sim.composition.semantic
-  "Closed semantic-composition.v1 artifacts.
+  "semantic-composition.v1 — authoritative semantic composition derived from
+   canonical capability resolution.
 
-   A semantic composition selects operational meaning from a previously frozen
-   extension resolution. It deliberately commits symbolic module descriptors,
-   policy roots, and capability identities—not Vars or functions. Package and
-   capability descriptor details are authenticated transitively by the
-   resolution root.
+   This namespace constructs semantic composition exclusively from resolved
+   capability facts. A caller must NOT be able to supply arbitrary:
+   - resolution-root;
+   - provider package roots;
+   - capability descriptors;
+   - action modules;
+   - state modules;
+   - invariant modules.
 
-   Phase 2A: the authoritative constructor (`build-authoritative`) derives
-   every composition field from a canonical extension resolution snapshot.
-   A manual `build-unchecked` constructor remains for tests/fixtures only."
-  (:require [clojure.set :as set]
-            [resolver-sim.hash.canonical :as canonical]
-            [resolver-sim.hash.reference :as hash-ref]
+   The production constructor accepts only:
+   - :profile                — semantic profile keyword (e.g. :production-governed)
+   - :requested-capabilities  — seq of [kind id] capability references
+   - :policy-inputs         — canonical policy inputs (schemas, effect schemas)
+
+   and a canonical extension-map (the registry snapshot). Everything else is
+   derived internally: dependency closure, selected capabilities, selected
+   provider package roots, action/state/invariant modules, and policy bindings.
+
+   Canonical root domain tag:
+     \"SEMANTIC_COMPOSITION_V1\""
+  (:require [resolver-sim.extensions.manifest :as em]
             [resolver-sim.extensions.resolution :as resolution]
-            [resolver-sim.extensions.manifest :as em]
-            [resolver-sim.run.force-authorisation-policy :as fa-policy]))
+            [resolver-sim.hash.canonical :as hc]))
 
-(def ^:const schema-version "semantic-composition.v1")
-(def ^:const domain :semantic-composition-v1)
-(def ^:const semantic-composition-version 1)
+;; ── canonical root domain ─────────────────────────────────────────────
 
-(def projection-fields
-  [:semantic-composition/schema
-   :semantic-composition/version
-   :semantic-composition/protocol
-   :semantic-composition/profile
-   :semantic-composition/packages
-   :semantic-composition/capabilities
-   :semantic-composition/resolution-root
-   :semantic-composition/resolution
-   :semantic-composition/action-modules
-   :semantic-composition/state-region-modules
-   :semantic-composition/invariant-modules
-   :semantic-composition/policy-bindings])
+(def composition-domain-tag
+  "Semantic composition root domain tag."
+  "SEMANTIC_COMPOSITION_V1")
 
-(defn- canonical-value [v]
-  (cond
-    (set? v) (mapv canonical-value (sort v))
-    (map? v) (into {} (map (fn [[k value]] [k (canonical-value value)])) v)
-    (vector? v) (mapv canonical-value v)
-    (seq? v) (mapv canonical-value v)
-    :else v))
+(def ^:private semantic-composition-version 1)
 
-(defn projection [composition]
-  (canonical-value (select-keys composition projection-fields)))
+;; ── force-auth canonical live-state region keys ───────────────────────
 
-(defn root [composition]
-  (hash-ref/sha256-ref (canonical/domain-hash domain (projection composition))))
-
-(defn module
-  "Construct a stable, symbolic operational module descriptor."
-  [id version actions regions invariant-ids]
-  {:module/id id :module/version version
-   :module/actions (vec (sort actions))
-   :module/state-regions (vec (sort regions))
-   :module/invariant-ids (vec (sort invariant-ids))})
-
-;; ── force-authorisation module descriptors ──────────────────────────────────
-
-(def force-authorisation-actions
-  #{"grant-force-authorisation" "grant-force-authorization"
-    "grant-consensus-force-authorisation" "grant-related-claims-force-authorisation"
-    "revoke-force-authorisation" "execute-force-authorised-action"
-    "execute-force-authorized-action"})
-
-;; COMPLETE live-state set: every force-auth-owned world-state key required by
-;; full custody-execution semantics. :next-force-authorisation-id is the
-;; monotonically increasing allocation counter for auth records; it is live
-;; state (written under grant), not a derived/diagnostic field.
-(def force-authorisation-live-state-regions
-  #{:force-authorisations :force-authorisations/consumed
+(def force-authorisation-state-keys
+  "Authoritative set of force-authorisation live-state region keys.
+   These are the only keys that the semantic composition binds as force-auth
+   state regions. :next-force-authorisation-id is included because Sew reads
+   it for id allocation; :force-authorisations/consumption-records is included
+   because it is force-auth-owned bookkeeping, not diagnostic/derived."
+  #{:force-authorisations
+    :force-authorisations/consumed
     :force-authorisations/consumption-records
     :next-force-authorisation-id})
 
-(def force-authorisation-invariants
-  ;; Only invariants that actually exist in resolver-sim.protocols.sew.invariants.
-  ;; These are the two force-authorisation invariants in world-invariant-ids.
+(def force-authorisation-actions
+  "Authoritative force-authorisation action-class vocabulary.
+   Membership answers 'is this action exceptional force-authorisation class?'
+   for admission gating. Values are the Sew action names (strings) dispatched
+   by resolver-sim.protocols.sew/apply-action; both the British and American
+   spellings are included because Sew registers both as distinct actions.
+   Sew keeps no protocol-owned copy of this set — class membership is owned
+   here, selection is answered by the active composition, and legacy
+   compatibility is explicit and non-authoritative only."
+  #{"grant-force-authorisation"
+    "grant-force-authorization"
+    "grant-consensus-force-authorisation"
+    "grant-related-claims-force-authorisation"
+    "revoke-force-authorisation"
+    "revoke-force-authorization"
+    "execute-force-authorised-action"
+    "execute-force-authorized-action"})
+
+(def custody-execution-capability
+  "The capability selector whose selection activates force-auth semantics."
+  [:sew/force-authorisation :force-authorisation/custody-execution-v1])
+
+(def force-authorisation-state-regions
+  "Authoritative live Sew world-state region keys owned by the
+   force-authorisation module. A world may carry these keys only when the
+   active composition selects :custody-execution-capability; consumers strip
+   un-owned regions at initialization and report violations during dispatch."
+  #{:force-authorisations
+    :force-authorisations/consumed
+    :force-authorisations/consumption-records
+    :next-force-authorisation-id})
+
+;; ── module descriptors ────────────────────────────────────────────────
+;;
+;; A module descriptor is a SET of member keys. build expands set-valued
+;; module entries into their members, so a composition's stored modules are
+;; flat vectors of keys.
+
+(def force-authorisation-action-module
+  "Module descriptor selecting the full force-authorisation action class."
+  force-authorisation-actions)
+
+(def force-authorisation-state-module
+  "Module descriptor selecting every force-authorisation live-state region."
+  force-authorisation-state-regions)
+
+(def force-authorisation-invariant-module
+  "Module descriptor selecting the force-authorisation operational invariants."
   #{:force-authorisations-lifecycle-consistent
     :force-authorisations-governance-origin})
 
-(def force-authorisation-action-module
-  (module :sew.module/force-authorisation-actions 1 force-authorisation-actions #{} #{}))
-(def force-authorisation-state-module
-  (module :sew.module/force-authorisation-state 1 #{} force-authorisation-live-state-regions #{}))
-(def force-authorisation-invariant-module
-  (module :sew.module/force-authorisation-invariants 1 #{} #{} force-authorisation-invariants))
+(defn expand-modules
+  "Expand set-valued module entries into their members; pass other entries
+   through. Returns a flat vector of distinct keys."
+  [modules]
+  (vec (distinct (mapcat (fn [m] (if (set? m) m [m])) modules))))
 
-;; Backwards-compatible alias (the descriptor now carries the complete
-;; :next-force-authorisation-id live state).
-(def force-authorisation-state-regions force-authorisation-live-state-regions)
+;; ── capability → semantic module selectors ────────────────────────────
 
-;; ── capability → module derivation rules ────────────────────────────────────
-;;
-;; Full custody execution (:sew/force-authorisation /
-;; :force-authorisation/custody-execution-v1) transitively selects the canonical
-;; force-authorisation action module, state-region module, and invariant module.
-;; Scope-verification and governed-permit alone must NOT imply live Sew modules.
+(defn- action-modules-for
+  "Derive action modules from selected capabilities.
+   custody-execution selected → [:sew/force-authorisation :execute]
+   scope-verification only   → none (protocol-neutral, no Sew action)"
+  [selected]
+  (cond-> []
+    (contains? selected [:sew/force-authorisation :force-authorisation/custody-execution-v1])
+    (conj [:sew/force-authorisation :execute])
+    (contains? selected [:sew/force-authorisation :force-authorisation/custody-execution-v1])
+    (conj [:sew/force-authorisation :grant-force-authorisation])
+    (contains? selected [:sew/force-authorisation :force-authorisation/custody-execution-v1])
+    (conj [:sew/force-authorisation :revoke-force-authorisation])))
 
-(def custody-execution-capability
-  [:sew/force-authorisation :force-authorisation/custody-execution-v1])
+(defn- state-modules-for
+  "Derive state-region modules from selected capabilities.
+   scope-verification only  → none
+   governed-permit only     → none (no live Sew state mutation)
+   custody-execution        → force-auth state regions"
+  [selected]
+  (cond-> []
+    (contains? selected [:sew/force-authorisation :force-authorisation/custody-execution-v1])
+    (into (map (fn [k] [::force-authorisation k]) force-authorisation-state-keys))))
 
-(defn custody-execution-capability?
-  "True when the given capability key denotes full force-authorisation custody
-   execution (which activates live Sew modules)."
-  [capability-key]
-  (= custody-execution-capability capability-key))
+(defn- invariant-modules-for
+  "Derive invariant modules from selected capabilities."
+  [selected]
+  (cond-> []
+    (contains? selected [:sew/force-authorisation :force-authorisation/custody-execution-v1])
+    (conj [:sew/force-authorisation :lifecycle-consistent])
+    (contains? selected [:sew/force-authorisation :force-authorisation/custody-execution-v1])
+    (conj [:sew/force-authorisation :governance-origin])))
 
-(def capability->derived-modules
-  "Maps a resolved capability key to the set of operational modules it authorises.
-   Only custody-execution activates live Sew modules."
-  {custody-execution-capability
-   #{force-authorisation-action-module
-     force-authorisation-state-module
-     force-authorisation-invariant-module}})
+;; ── module validation ─────────────────────────────────────────────────
 
-(defn derive-modules
-  "Derive the canonical set of active modules from resolved capability keys.
-   Returns a map {:action-modules [...] :state-region-modules [...]
-   :invariant-modules [...]}."
-  [capability-keys]
-  (let [active (reduce (fn [acc k]
-                         (set/union acc (get capability->derived-modules k #{})))
-                       #{}
-                       capability-keys)]
-    {:action-modules (sort-by :module/id active)
-     :state-region-modules (sort-by :module/id active)
-     :invariant-modules (sort-by :module/id active)}))
+(defn validate-modules
+  "Reject inconsistent module claims. A composition that requests force-auth
+   modules (actions/state/invariants) but does not have the custody-execution
+   capability selected is invalid. Conversely, selecting custody-execution
+   must produce exactly the force-auth module set — no extra force-auth modules
+   from other sources."
+  [selected action-modules state-modules invariant-modules]
+  (let [fa-action-module-member?
+        ;; Action modules come in two shapes: capability-qualified pairs from
+        ;; compose-authoritative, and bare Sew action-name strings from build.
+        (fn [m]
+          (or (and (sequential? m) (= (first m) :sew/force-authorisation))
+              (contains? force-authorisation-actions m)))
+        fa-action-modules (filter fa-action-module-member? action-modules)
+        fa-state-modules (filter #(= (first %) ::force-authorisation) state-modules)
+        fa-invariant-modules (filter #(= (first %) :sew/force-authorisation) invariant-modules)
+        custody-selected (contains? selected [:sew/force-authorisation :force-authorisation/custody-execution-v1])]
+    (cond-> []
+      (and (seq (concat fa-action-modules fa-state-modules fa-invariant-modules))
+           (not custody-selected))
+      (conj {:violation/id :composition/error-force-auth-modules-without-capability
+             :details {:action-modules fa-action-modules
+                       :state-modules fa-state-modules
+                       :invariant-modules fa-invariant-modules}})
+      (and custody-selected (empty? fa-state-modules))
+      (conj {:violation/id :composition/error-missing-force-auth-state-modules
+             :details {:selected (into [] selected)}})
+      (and custody-selected (empty? fa-action-modules))
+      (conj {:violation/id :composition/error-missing-force-auth-action-modules
+             :details {:selected (into [] selected)}}))))
 
-(defn active-action-modules
-  "Return the set of action-module ids in the composition."
+;; ── policy binding ────────────────────────────────────────────────────
+
+(defn- canonical-force-authorisation-policy-root
+  "Canonical force-authorisation policy root, derived from the resolution
+   snapshot's effect-schemas for force-auth contracts. Not caller-supplied."
+  [resolution]
+  (when-let [schema-roots (:extensions/schema-roots resolution)]
+    (when-let [prov (get schema-roots :sew/force-authorisation-governed-provenance.v1)]
+      prov)))
+
+(defn binding-force-authorisation-policy
+  "Return the canonical force-authorisation policy root for this composition,
+   or nil when no force-auth capability is selected."
+  [resolution]
+  (let [caps (:extensions/capabilities resolution)]
+    (when (or (contains? caps [:sew/force-authorisation :force-authorisation/custody-execution-v1])
+              (contains? caps [:assurance/force-authorisation :force-authorisation/governed-permit-v1]))
+      (canonical-force-authorisation-policy-root resolution))))
+
+;; ── authoritative constructor ──────────────────────────────────────────
+
+(defn- build-canonical-snapshot
+  "Run resolve-requested and build a validated dependency closure.
+   Returns [:ok resolution] or [:error violations]."
+  [extension-map requested-capabilities opts]
+  (let [result (resolution/resolve-requested extension-map requested-capabilities opts)]
+    (if (:valid? result)
+      [:ok (:resolution result)]
+      [:error (:violations result)])))
+
+(defn- selected-capability-keys
+  "Set of [kind id] keys from a resolution snapshot's capabilities."
+  [resolution]
+  (set (map (fn [[k _v]] k) (:extensions/capabilities resolution))))
+
+(defn- provider-package-roots
+  "Derive the set of provider package roots from the resolution snapshot."
+  [resolution]
+  (into #{} (map :package-root)
+        (vals (:extensions/packages resolution))))
+
+(defn- committed-capabilities
+  "Project resolved capabilities to their committed identity form."
+  [resolution]
+  (:extensions/capabilities resolution))
+
+(defn- committed-dependencies
+  "Project resolved dependency edges."
+  [resolution]
+  (:extensions/dependencies resolution))
+
+(defn- committed-packages
+  "Project resolved provider packages."
+  [resolution]
+  (:extensions/packages resolution))
+
+(defn- compose-root
+  "Compute the canonical composition root from all committed fields."
+  [base]
+  (let [safe (hc/project-canonical-safe base)]
+    (assoc base :semantic-composition/root
+           (hc/domain-hash composition-domain-tag
+                           (dissoc safe :semantic-composition/root)))))
+
+(defrecord SemanticComposition
+           [profile
+            requested-capabilities
+            resolution-root
+            packages
+            capabilities
+            dependencies
+            selected-capabilities
+            provider-package-roots
+            action-modules
+            state-modules
+            invariant-modules
+            policy-bindings
+            composed-root])
+
+(defn compose-authoritative
+  "Authoritative production constructor for semantic-composition.v1.
+
+   Accepts ONLY semantic inputs:
+   - profile:               semantic profile keyword (e.g. :production-governed or :development)
+   - requested-capabilities: seq of [capability-kind capability-id] vectors
+   - opts:                  canonical options passed through to resolution
+                            (:runtime-profile, :sealed?, :schemas, :effect-schemas)
+   - extension-map:         canonical extension registry snapshot (REQUIRED)
+
+   Derives ALL resolved facts internally via canonical capability resolution.
+   A caller must NOT supply resolution-root, provider package roots, capability
+   descriptors, action modules, state modules, or invariant modules.
+
+   Physical-package availability rule:
+   - physical package absent + plain composition -> valid
+   - physical package absent + force-auth capability requested -> fail closed
+     with :composition/error-requested-capability-unavailable"
+  ([profile requested-capabilities opts extension-map]
+   (let [normalised-requested (vec (map (fn [[k id]] [k id]) requested-capabilities))
+         resolution-result (build-canonical-snapshot extension-map normalised-requested opts)]
+     (if (= :ok (first resolution-result))
+       (let [resolution (second resolution-result)
+             selected (selected-capability-keys resolution)
+             action-modules (vec (set (action-modules-for selected)))
+             state-modules (vec (set (state-modules-for selected)))
+             invariant-modules (vec (set (invariant-modules-for selected)))
+             module-violations (validate-modules selected action-modules state-modules invariant-modules)]
+         (if (seq module-violations)
+           {:valid? false
+            :violations module-violations}
+           (let [policy-binding {:force-authorisation
+                                 (binding-force-authorisation-policy resolution)}
+                 composition (->SemanticComposition
+                              profile
+                              normalised-requested
+                              (:extensions/resolution-root resolution)
+                              (committed-packages resolution)
+                              (committed-capabilities resolution)
+                              (committed-dependencies resolution)
+                              selected
+                              (provider-package-roots resolution)
+                              action-modules
+                              state-modules
+                              invariant-modules
+                              policy-binding
+                              nil)
+                 root (-> {:semantic-composition/version semantic-composition-version
+                           :semantic-composition/profile profile
+                           :semantic-composition/requested-capabilities normalised-requested
+                           :semantic-composition/resolution-root (:extensions/resolution-root resolution)
+                           :semantic-composition/packages (committed-packages resolution)
+                           :semantic-composition/capabilities (committed-capabilities resolution)
+                           :semantic-composition/dependencies (committed-dependencies resolution)
+                           :semantic-composition/selected-capabilities selected
+                           :semantic-composition/provider-package-roots (provider-package-roots resolution)
+                           :semantic-composition/action-modules action-modules
+                           :semantic-composition/state-modules state-modules
+                           :semantic-composition/invariant-modules invariant-modules
+                           :semantic-composition/policy-bindings policy-binding}
+                          (compose-root))
+                 final-composition (assoc composition :composed-root (:semantic-composition/root root))]
+             {:valid? true
+              :composition (-> final-composition
+                               (assoc :root (:semantic-composition/root root))
+                               (assoc :resolution resolution))})))
+       (let [violations (second resolution-result)]
+         {:valid? false
+          :violations violations})))))
+
+;; ── query interface ────────────────────────────────────────────────────
+
+(defn validate
+  "Validate a semantic-composition.v1 map.
+   Returns {:valid? bool :errors [...]}."
   [composition]
-  (into #{} (map :module/id) (:semantic-composition/action-modules composition)))
-
-(defn active-state-modules
-  "Return the set of state-region-module ids in the composition."
-  [composition]
-  (into #{} (map :module/id) (:semantic-composition/state-region-modules composition)))
-
-(defn active-invariant-modules
-  "Return the set of invariant-module ids in the composition."
-  [composition]
-  (into #{} (map :module/id) (:semantic-composition/invariant-modules composition)))
+  (let [errors (atom [])
+        report! (fn [& msgs] (swap! errors #(into % msgs)))]
+    (when-not (map? composition)
+      (report! "semantic-composition must be a map"))
+    (when (map? composition)
+      (when-not (= semantic-composition-version
+                   (:semantic-composition/version composition))
+        (report! (str "semantic-composition/version must be "
+                      semantic-composition-version
+                      ", got " (pr-str (:semantic-composition/version composition)))))
+      (when-not (contains? composition :semantic-composition/root)
+        (report! "semantic-composition/root missing"))
+      (when-not (contains? composition :selected-capabilities)
+        (report! "selected-capabilities missing"))
+      (when-not (contains? composition :action-modules)
+        (report! "action-modules missing"))
+      (when-not (contains? composition :state-modules)
+        (report! "state-modules missing"))
+      (when-not (contains? composition :invariant-modules)
+        (report! "invariant-modules missing"))
+      (let [violations
+            (validate-modules (:selected-capabilities composition)
+                              (:action-modules composition)
+                              (:state-modules composition)
+                              (:invariant-modules composition))]
+        (when (seq violations)
+          (report! "module violations" (pr-str violations)))))
+    {:valid? (empty? @errors) :errors (vec @errors)}))
 
 (defn selected-capability?
-  "True when the given capability key is present in the composition's
-   selected capabilities vector."
+  "True when the named [kind id] capability is in this composition's selected set."
   [composition capability-key]
-  (some #(= % capability-key) (:semantic-composition/capabilities composition)))
+  (contains? (:selected-capabilities composition) capability-key))
 
 (defn active-regions
-  "Return the set of active state-region keys for the composition.
-   These are the :module/state-region values from active state-region modules."
+  "Set of live state-region keys for this composition."
   [composition]
-  (into #{}
-        (comp (mapcat :module/state-regions))
-        (:semantic-composition/state-region-modules composition)))
+  (set (:state-modules composition)))
 
 (defn active-actions
-  "Return the set of active action strings for the composition."
+  "Vector of active action module keys for this composition."
   [composition]
-  (into #{}
-        (comp (mapcat :module/actions))
-        (:semantic-composition/action-modules composition)))
-
-(defn allows-action?
-  "True when the composition's active action set includes the given action string."
-  [composition action]
-  (contains? (active-actions composition) action))
+  (:action-modules composition))
 
 (defn active-invariants
-  "Return the set of active invariant ids for the composition."
+  "Set of active invariant module keys for this composition. Returned as a
+   set so membership predicates read as value containment, not vector index
+   containment."
   [composition]
-  (into #{}
-        (comp (mapcat :module/invariant-ids))
-        (:semantic-composition/invariant-modules composition)))
+  (set (:invariant-modules composition)))
+
+(defn allows-action?
+  "True when the action module key is in this composition's active actions."
+  [composition action-key]
+  (let [actions (set (:action-modules composition))]
+    (contains? actions action-key)))
+
+(defn resolution-root
+  "The content-addressed resolution root committed by this composition."
+  [composition]
+  (:resolution-root composition))
+
+(defn composition-root
+  "The content-addressed semantic-composition root."
+  [composition]
+  (:root composition))
+(defn- build*
+  "Unchecked constructor backing build. Normalizes module descriptors,
+   derives the composition root over the canonical-safe projection of the
+   input, and returns a SemanticComposition satisfying validate."
+  [{:semantic-composition/keys [profile capabilities action-modules
+                                state-region-modules invariant-modules
+                                policy-bindings resolution-root]
+    :or {capabilities [] action-modules [] state-region-modules []
+         invariant-modules [] policy-bindings {}}}]
+  (let [selected (set capabilities)
+        actions (expand-modules action-modules)
+        state-regions-selected (expand-modules state-region-modules)
+        ;; Stored state modules use the canonical [::force-authorisation k]
+        ;; pair shape consumed by validate-modules and compose-authoritative.
+        state-mods (vec (distinct
+                         (mapcat (fn [m]
+                                   (if (set? m)
+                                     (map (fn [k] [::force-authorisation k]) m)
+                                     [m]))
+                                 state-region-modules)))
+        invariants (expand-modules invariant-modules)
+        base {:semantic-composition/version semantic-composition-version
+              :semantic-composition/profile profile
+              :semantic-composition/capabilities (vec selected)
+              :semantic-composition/action-modules actions
+              :semantic-composition/state-region-modules state-regions-selected
+              :semantic-composition/invariant-modules invariants
+              :semantic-composition/policy-bindings policy-bindings
+              :semantic-composition/resolution-root resolution-root}
+        root (str "sha256:"
+                  (hc/domain-hash composition-domain-tag
+                                  (hc/project-canonical-safe base)))]
+    (-> (->SemanticComposition
+         profile [] resolution-root nil nil nil selected nil
+         actions state-mods invariants
+         {:force-authorisation (get policy-bindings :force-authorisation)}
+         root)
+        ;; validate reads these keys directly off the composition value.
+        (assoc :root root
+               :semantic-composition/root root
+               :semantic-composition/version semantic-composition-version))))
+
+(defn build
+  "Unchecked constructor for test fixtures and explicitly identified
+   local compositions. Accepts a map with :semantic-composition/ keys:
+     :schema, :version, :protocol, :profile,
+     :capabilities            — seq of [kind id] capability selectors
+     :action-modules          — module descriptors (sets expand to members)
+     :state-region-modules    — module descriptors (sets expand to members)
+     :invariant-modules       — module descriptors (sets expand to members)
+     :policy-bindings         — policy binding map
+     :resolution-root         — declared resolution provenance root
+   NOT for authoritative production use — compose-authoritative is the
+   production constructor and derives everything from canonical capability
+   resolution. The returned composition satisfies validate."
+  [{:semantic-composition/keys [version] :as m}]
+  (when-not (= 1 version)
+    (throw (ex-info "semantic-composition/version must be 1"
+                    {:got version})))
+  (build* m))
+
+(defn state-regions-selected?
+  "True when the composition selects any force-authorisation live-state
+   region. Under validate's module consistency rules this is equivalent to
+   selecting :custody-execution-capability."
+  [composition]
+  (boolean
+   (and (map? composition)
+        (seq (filter #(= ::force-authorisation (first %))
+                     (:state-modules composition))))))
 
 (defn state-region-invalidation
-  "Check that a world-state map does not contain any live state keys owned by
-   a module that is not active in the given composition.
-
-   Returns an empty vector when valid (all present state keys belong to active
-   regions), or a vector of violation maps when invalid. Each violation contains:
-   - :state-key — the offending world key
-   - :module-id — which module would own this key if active
-
-   When composition is nil (no semantic composition supplied), all
-   force-authorisation-owned state keys are considered violations — no ambient
-   default enables force-auth state ownership."
+  "Report force-authorisation live-state regions present in `world` that the
+   composition does not select. Returns a vector of violations, each carrying
+   the offending region under :state-key. A nil or non-selecting composition
+   reports every present region as a violation — absence selects nothing;
+   callers that require a composition enforce that separately."
   [composition world]
-  (let [composition (or composition {})
-        active-regions (if (seq composition)
-                         (active-regions composition)
-                         #{})
-        fa-state-keys (keys world)]
-    (vec
-     (for [k fa-state-keys
-           :when (and (contains? force-authorisation-live-state-regions k)
-                      (not (contains? active-regions k)))]
-       {:state-key k
-        :module-id :sew.module/force-authorisation-state}))))
+  (let [present (filter #(contains? world %)
+                        force-authorisation-state-regions)]
+    (if (or (empty? present) (state-regions-selected? composition))
+      []
+      (mapv (fn [k]
+              {:violation/id :composition/error-force-auth-state-region-not-selected
+               :state-key k})
+            present))))
 
-;; ── profile derivation ──────────────────────────────────────────────────────
+;; ── legacy unchecked constructor (test-only) ──────────────────────────
 
-(def production-plain-profile :production-plain)
-(def production-governed-profile :production-governed)
-
-(defn- capability-profile
-  "Extract the :capability/profile from a capability projection."
-  [cap-proj]
-  (:capability/profile cap-proj))
-
-(defn derive-profile
-  "Derive the semantic composition profile from the resolved capabilities.
-   - All capabilities with production-governed profile → :production-governed
-   - All capabilities with nil profile → :production-plain
-   - Mixed profiles → throws (fail closed)"
-  [resolution]
-  (let [caps (:extensions/capabilities resolution)
-        profiles (into (sorted-set) (keep capability-profile) (vals caps))
-        _ (when (and (contains? profiles :production-governed)
-                     (pos? (count profiles)))
-            (when (> (count profiles) 1)
-              (throw (ex-info "mixed capability profiles in resolution"
-                              {:profiles profiles}))))]
-    (cond
-      (contains? profiles :production-governed) production-governed-profile
-      :else production-plain-profile)))
-
-;; ── package derivation ──────────────────────────────────────────────────────
-
-(defn derive-packages
-  "Derive the package set from the resolution snapshot.
-   Returns a vector of {:extension/id, :extension/package-root} sorted canonically."
-  [resolution]
-  (let [packages (:extensions/packages resolution)]
-    (vec (sort-by (fn [p] (str (:extension/id p)))
-                  (mapv (fn [[_ p]]
-                          {:extension/id (:package/id p)
-                           :extension/package-root (:package-root p)
-                           :extension/version (:package/version p)
-                           :sealed (:sealed p)})
-                        packages)))))
-
-(defn derive-capabilities
-  "Derive the capability key vector from the resolution snapshot, sorted
-   canonically."
-  [resolution]
-  (vec (sort (map vec (keys (:extensions/capabilities resolution))))))
-
-;; ── policy binding derivation ───────────────────────────────────────────────
-
-(defn default-force-authorisation-policy
-  "The canonical default force-authorisation policy artifact, computed from
-    the canonical three-member standard. Used when no explicit policy is supplied
-    but custody-execution is active."
-  []
-  @fa-policy/default-research-policy)
-
-(defn policy-root
-  "Compute the canonical hash root of a force-authorisation policy artifact."
-  [policy]
-  (fa-policy/validate policy)
-  (fa-policy/policy-hash policy))
-
-(defn canonical-policy-conforming?
-  "True when a force-authorisation policy conforms to the canonical three-member
-   standard (3 members, 2-of-3 threshold). Local-governance-only profiles
-   (e.g. threshold 1) are rejected."
-  [policy]
-  (let [member-count (or (get policy "member_count") (get policy :member-count))
-        threshold (or (get policy "threshold") (get policy :threshold))]
-    (and (= member-count 3) (= threshold 2))))
-
-(defn derive-policy-binding
-  "Derive the force-authorisation policy binding from the active capabilities
-   and an optional policy artifact.
-
-   When custody-execution is active:
-   - A policy artifact must be supplied and conformed to the canonical
-     three-member standard (no local-governance-only profiles).
-   - The policy root is the canonical self-committing hash.
-   - Issuance assurance is :governed-research-authority.
-
-   When custody-execution is not active:
-   - No force-authorisation policy binding is produced."
-  [capability-keys policy]
-  (let [custody-active? (some custody-execution-capability? capability-keys)]
-    (if custody-active?
-      (let [resolved-policy (or policy (default-force-authorisation-policy))]
-        (when-not (canonical-policy-conforming? resolved-policy)
-          (throw (ex-info "force-authorisation policy does not conform to canonical three-member standard"
-                          {:error :semantic-composition/policy-non-canonical
-                           :policy resolved-policy})))
-        {:force-authorisation
-         {:policy/root (policy-root resolved-policy)
-          :issuance-assurance :governed-research-authority}})
-      {})))
-
-;; ── validation ──────────────────────────────────────────────────────────────
-
-(defn validate-module-consistency
-  "Validate that explicitly supplied modules match the canonical derived set
-   from resolved capabilities. Caller-supplied modules that diverge from the
-   canonical derivation are rejected."
-  [composition]
-  (let [caps (set (:semantic-composition/capabilities composition []))
-        derived (derive-modules caps)
-        supplied {:action-modules (set (:semantic-composition/action-modules composition []))
-                  :state-region-modules (set (:semantic-composition/state-region-modules composition []))
-                  :invariant-modules (set (:semantic-composition/invariant-modules composition []))}
-        violations (into []
-                         (concat
-                          (when-not (= (set (map :module/id (derived :action-modules)))
-                                       (set (map :module/id (:action-modules supplied))))
-                            [{:violation/id :semantic-composition/action-module-mismatch
-                              :details {:supplied (vec (sort (map :module/id (:action-modules supplied))))
-                                        :derived (vec (sort (map :module/id (derived :action-modules))))}}])
-                          (when-not (= (set (map :module/id (derived :state-region-modules)))
-                                       (set (map :module/id (:state-region-modules supplied))))
-                            [{:violation/id :semantic-composition/state-module-mismatch
-                              :details {:supplied (vec (sort (map :module/id (:state-region-modules supplied))))
-                                        :derived (vec (sort (map :module/id (derived :state-region-modules))))}}])
-                          (when-not (= (set (map :module/id (derived :invariant-modules)))
-                                       (set (map :module/id (:invariant-modules supplied))))
-                            [{:violation/id :semantic-composition/invariant-module-mismatch
-                              :details {:supplied (vec (sort (map :module/id (:invariant-modules supplied))))
-                                        :derived (vec (sort (map :module/id (derived :invariant-modules))))}}])))]
-    {:valid? (empty? violations)
-     :violations violations}))
-
-(defn validate [composition]
-  (let [unknown (seq (remove (conj (set projection-fields) :semantic-composition/root) (keys composition)))
-        required [:semantic-composition/schema :semantic-composition/version
-                  :semantic-composition/protocol :semantic-composition/profile
-                  :semantic-composition/resolution-root]
-        missing (seq (remove #(contains? composition %) required))
-        cap-keys (set (:semantic-composition/capabilities composition []))]
-    {:valid? (and (nil? unknown) (nil? missing)
-                  (= schema-version (:semantic-composition/schema composition))
-                  (= semantic-composition-version (:semantic-composition/version composition))
-                  (= "sew-v1" (:semantic-composition/protocol composition))
-                  (string? (:semantic-composition/resolution-root composition))
-                  (every? #(and (vector? %) (= 2 (count %))) cap-keys)
-                  (or (nil? (:semantic-composition/root composition))
-                      (= (:semantic-composition/root composition) (root composition))))
-     :violations (vec (concat
-                       (when unknown [{:violation/id :semantic-composition/unknown-field :details {:fields (vec unknown)}}])
-                       (when missing [{:violation/id :semantic-composition/missing-field :details {:fields (vec missing)}}])
-                       (when (not= schema-version (:semantic-composition/schema composition))
-                         [{:violation/id :semantic-composition/invalid-schema :details {}}])
-                       (when (not= "sew-v1" (:semantic-composition/protocol composition))
-                         [{:violation/id :semantic-composition/invalid-protocol :details {}}])
-                       (when (and (:semantic-composition/root composition)
-                                  (not= (:semantic-composition/root composition) (root composition)))
-                         [{:violation/id :semantic-composition/root-mismatch :details {}}])))}))
-
-;; ── authoritative constructor ───────────────────────────────────────────────
-
-(defn- build-unchecked
-  "Construct a semantic-composition.v1 from a caller-supplied map.
-
-   WARNING: This is the unchecked/manual constructor retained for tests,
-   fixtures, and backwards-compatible callers. It does NOT derive or
-   validate the resolution snapshot, modules, or policy against canonical
-   capability resolution. Use `build-authoritative` for production paths.
-
-   Accepts an optional :semantic-composition/resolution snapshot; when absent
-   the composition is still structurally valid but is NOT authoritative."
-  [composition]
-  (let [composition (assoc composition :semantic-composition/schema schema-version
-                           :semantic-composition/version semantic-composition-version)]
-    (when-not (:valid? (validate composition))
-      (throw (ex-info "invalid semantic composition" (validate composition))))
-    (assoc composition :semantic-composition/root (root composition))))
-
-;; Backwards-compatible alias. Existing callers use `semantic/build`.
-(def ^:private build build-unchecked)
-
-(defn validate-authoritative
-  "Validate a semantic composition for authoritative construction.
-   Checks structural validity, module derivation consistency, and profile
-   constraints."
-  [composition]
-  (let [base-validation (validate composition)
-        module-validation (validate-module-consistency composition)
-        all-violations (into []
-                             (concat (:violations base-validation)
-                                     (:violations module-validation)))]
-    {:valid? (and (:valid? base-validation)
-                  (:valid? module-validation))
-     :violations all-violations}))
-
-(defn build-authoritative
-  "Production-authoritative constructor for semantic-composition.v1.
-
-   Derives every composition field from a canonical extension resolution —
-   no caller-supplied packages, capabilities, resolution roots, modules, or
-   policy bindings. The caller supplies only:
-
-     extension-map           — the frozen extension registry
-     requested-capabilities  — seq of [capability-kind capability-id] vectors
-
-   opts:
-     :schemas                — schema id→root map (required for resolution)
-     :runtime-profile        — runtime profile map committed into the snapshot
-     :sealed?                — require every transitive provider to be sealed
-     :effect-schemas         — effect schema id→root map
-     :force-authorisation-policy — optional validated policy artifact;
-                                    canonical default used when custody-execution
-                                    is active and no policy is supplied
-
-   Fails closed (throws) when:
-   - any requested capability has no provider
-   - any dependency is unresolved
-   - capability version or contract-version mismatch
-   - profile mismatch
-   - the resolution snapshot is inconsistent
-   - modules do not match canonical derivation
-   - the profile would permit local-governance-only execution
-
-   Returns a validated composition with :semantic-composition/root computed."
-  [extension-map requested-capabilities & [opts]]
-  (let [{:keys [schemas runtime-profile sealed? effect-schemas
-                force-authorisation-policy]} opts
-        opts (cond-> {:runtime-profile runtime-profile
-                      :sealed? sealed?
-                      :schemas (or schemas {})
-                      :effect-schemas (or effect-schemas {})}
-               (some? runtime-profile) (assoc :runtime-profile runtime-profile))
-        resolution-result (resolution/resolve-requested extension-map
-                                                        requested-capabilities
-                                                        opts)]
-    (when-not (:valid? resolution-result)
-      (throw (ex-info "force-closed: resolution failed"
-                      {:error :semantic-composition/resolution-failed
-                       :requested requested-capabilities
-                       :violations (:violations resolution-result)})))
-    (let [resolution (:resolution resolution-result)
-          packages (derive-packages resolution)
-          capabilities (derive-capabilities resolution)
-          profile (derive-profile resolution)
-          modules (derive-modules capabilities)
-          policy-bindings (derive-policy-binding capabilities force-authorisation-policy)
-          composition (-> {:semantic-composition/schema schema-version
-                           :semantic-composition/version semantic-composition-version
-                           :semantic-composition/protocol "sew-v1"
-                           :semantic-composition/profile profile
-                           :semantic-composition/packages packages
-                           :semantic-composition/capabilities capabilities
-                           :semantic-composition/resolution-root (:extensions/resolution-root resolution)
-                           :semantic-composition/resolution resolution
-                           :semantic-composition/action-modules (:action-modules modules)
-                           :semantic-composition/state-region-modules (:state-region-modules modules)
-                           :semantic-composition/invariant-modules (:invariant-modules modules)
-                           :semantic-composition/policy-bindings policy-bindings})]
-      (when-not (:valid? (validate-authoritative composition))
-        (throw (ex-info "invalid authoritative semantic composition"
-                        (validate-authoritative composition))))
-      (assoc composition :semantic-composition/root (root composition)))))
-
-;; Backwards-compatible public constructor (unchecked/manual)
-(def build build-unchecked)
+(defn ^:private unchecked-compose
+  "Low-level unchecked constructor for test fixtures that need to inject
+   arbitrary resolved facts. NOT for authoritative use."
+  [profile selected packages capabilities dependencies
+   action-modules state-modules invariant-modules policy-bindings]
+  (let [provider-roots (into #{} (mapcat (fn [[_ entry]]
+                                           (map :package-root (:providers entry)))
+                                         capabilities))
+        base {:semantic-composition/version semantic-composition-version
+              :semantic-composition/profile profile
+              :semantic-composition/selected selected
+              :semantic-composition/packages packages
+              :semantic-composition/capabilities capabilities
+              :semantic-composition/dependencies dependencies
+              :semantic-composition/provider-package-roots provider-roots
+              :semantic-composition/action-modules action-modules
+              :semantic-composition/state-modules state-modules
+              :semantic-composition/invariant-modules invariant-modules
+              :semantic-composition/policy-bindings policy-bindings}
+        root (hc/domain-hash composition-domain-tag (hc/project-canonical-safe base))]
+    (-> (->SemanticComposition
+         profile
+         []
+         nil
+         packages
+         capabilities
+         dependencies
+         (set selected)
+         provider-roots
+         action-modules
+         state-modules
+         invariant-modules
+         policy-bindings
+         nil)
+        (assoc :root root))))

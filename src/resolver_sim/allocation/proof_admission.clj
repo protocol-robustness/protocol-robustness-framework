@@ -85,7 +85,7 @@
           (sha256-bytes-ref (codecs/hex->bytes
                              (subs (:public-values/bytes32 artifact) 2))))
        (sha256-ref? (:public-values/sha256 artifact))
-        (= sp1-bincode-encoding (:proof/encoding artifact))
+       (= sp1-bincode-encoding (:proof/encoding artifact))
        (string? (:proof/file artifact))
        (sha256-ref? (:proof/sha256 artifact))
        (= (:proof/artifact-hash artifact) (proof-artifact-hash artifact))))

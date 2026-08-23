@@ -239,6 +239,7 @@
    :extension-envelope-shape-v1 "EXTENSION_ENVELOPE_SHAPE_V1"
    :extension-lockfile-v1      "EXTENSION_LOCKFILE_V1"
    :extension-resolution-v1    "EXTENSION_RESOLUTION_V1"
+   :extension-registry-v1      "EXTENSION_REGISTRY_V1"
    :extension-capability-descriptor-v1 "EXTENSION_CAPABILITY_DESCRIPTOR_V1"
    :extension-package-manifest-v1     "EXTENSION_PACKAGE_MANIFEST_V1"
    :benchmark-conservation-v1         "BENCHMARK_CONSERVATION_V1"
@@ -304,16 +305,16 @@
    :prf-submission-basis-v1           "prf.submission-basis.v1"
    :prf-submission-bundle-v1          "prf.submission-bundle.v1"
    :prf-transaction-effects-v1        "prf.transaction-effects.v1"
-    :prf-transaction-input-v1         "prf.transaction-input.v1"
-    :prf-transaction-ordering-change-identity-v1 "prf.transaction-ordering-change-identity.v1"
-    :prf-transaction-ordering-v1       "prf.transaction-ordering.v1"
-    :prf-transaction-ordering-v2       "prf.transaction-ordering.v2"
-    :prf-resubmission-validation-v1    "prf.resubmission-validation.v1"
-    :prf-resubmission-reservation-v1   "prf.resubmission-reservation.v1"
-    :prf-resubmission-finalization-v1  "prf.resubmission-finalization.v1"
-    :prf-resubmission-admission-authorization-v2 "prf.resubmission-admission-authorization.v2"
-    :prf-resubmission-admission-snapshot-v1 "prf.resubmission-admission-snapshot.v1"
-    :prf-resubmission-admission-signing-v1  "prf.resubmission-admission-signing.v1"
+   :prf-transaction-input-v1         "prf.transaction-input.v1"
+   :prf-transaction-ordering-change-identity-v1 "prf.transaction-ordering-change-identity.v1"
+   :prf-transaction-ordering-v1       "prf.transaction-ordering.v1"
+   :prf-transaction-ordering-v2       "prf.transaction-ordering.v2"
+   :prf-resubmission-validation-v1    "prf.resubmission-validation.v1"
+   :prf-resubmission-reservation-v1   "prf.resubmission-reservation.v1"
+   :prf-resubmission-finalization-v1  "prf.resubmission-finalization.v1"
+   :prf-resubmission-admission-authorization-v2 "prf.resubmission-admission-authorization.v2"
+   :prf-resubmission-admission-snapshot-v1 "prf.resubmission-admission-snapshot.v1"
+   :prf-resubmission-admission-signing-v1  "prf.resubmission-admission-signing.v1"
    :related-claims-member             "related-claims-member"
    :withdrawal-ledger-v1              "withdrawal-ledger.v1"
    :prf-protocol-genesis-v1           "PRF_PROTOCOL_GENESIS_V1"
@@ -324,6 +325,8 @@
    :configuration-head-activation-v1 "CONFIGURATION_HEAD_ACTIVATION_V1"
    :prf-chain-configuration-change-identity-v1 "prf.chain-configuration-change-identity.v1"
    :prf-verifier-registry-v1          "PRF_VERIFIER_REGISTRY_V1"
+   :prf-verification-basis-v1          "PRF_VERIFICATION_BASIS_V1"
+   :prf-verification-result-v1         "PRF_VERIFICATION_RESULT_V1"
    :prf-resubmission-chain-identity-v1         "prf.resubmission-chain-identity.v1"
    :prf-resubmission-chain-configuration-v1     "prf.resubmission-chain-configuration.v1"
    :prf-resubmission-chain-genesis-v1            "prf.resubmission-chain-genesis.v1"
@@ -337,7 +340,10 @@
    :reference-closure                 "reference-closure"
    :verification-profile              "verification-profile"
    :custody-admission-decision-v1     "custody-admission-decision.v1"
-   :semantic-composition-v1           "SEMANTIC_COMPOSITION_V1"})
+   :semantic-composition-v1           "SEMANTIC_COMPOSITION_V1"
+   :prf-resubmission-authority-context-v1 "prf.resubmission-authority-context.v1"
+   :prf-resubmission-authoritative-checkpoint-v1 "prf.resubmission-authoritative-checkpoint.v1"
+   :prf-resubmission-authoritative-disposition-v2 "prf.resubmission-authoritative-disposition.v2"})
 
 ;; ──────────────────────────────────────────────────────────────────────────────
 ;; varuint Encoding (LEB128, little-endian base-128)
@@ -1988,10 +1994,85 @@
 
 (defn project-resubmission-chain-genesis-authorization
   "Canonical projection of resubmission-chain-genesis-authorization.v1: exactly
-   the canonical identity fields, projected canonical-safe."
+    the canonical identity fields, projected canonical-safe."
   [value _intent]
   (project-canonical-safe
    (select-keys value resubmission-chain-genesis-authorization-fields)))
+
+;; ──────────────────────────────────────────────────────────────────────────────
+;; resubmission-disposition-authority-context.v1 & authoritative-checkpoint.v1
+;; ──────────────────────────────────────────────────────────────────────────────
+
+(def resubmission-authority-context-fields
+  "Identity fields of resubmission-disposition-authority-context.v1.
+   The self-hash :authority/context-root is excluded from the projection
+   (stripped before hashing). Permitted-actions are projected verbatim as a
+   vector, preserving canonical order — duplicates are rejected by the
+   closed validator before hashing."
+  [:authority/context-schema
+   :authority/genesis-root
+   :authority/configuration-root
+   :authority/authorization-root
+   :authority/public-key
+   :authority/epoch
+   :authority/permitted-actions])
+
+(defn project-resubmission-authority-context
+  "Canonical projection of resubmission-disposition-authority-context.v1.
+   Strips the self-hash :authority/context-root and selects exactly the
+   identity fields, projected canonical-safe."
+  [value _intent]
+  (project-canonical-safe
+   (select-keys value resubmission-authority-context-fields)))
+
+(def resubmission-authoritative-checkpoint-fields
+  "Identity fields of resubmission-authoritative-checkpoint.v1.
+   The self-hash :checkpoint/root is excluded from the projection (stripped
+   before hashing). :checkpoint/predecessor-root may be nil (initial checkpoint)."
+  [:checkpoint/schema
+   :checkpoint/chain-id
+   :checkpoint/genesis-root
+   :checkpoint/state-root
+   :checkpoint/authority-context-root
+   :checkpoint/configuration-root
+   :checkpoint/epoch
+   :checkpoint/authorization-mode
+   :checkpoint/predecessor-root
+   :checkpoint/sequence])
+
+(defn project-resubmission-authoritative-checkpoint
+  "Canonical projection of resubmission-authoritative-checkpoint.v1.
+   Strips the self-hash :checkpoint/root and selects exactly the identity
+   fields, projected canonical-safe."
+  [value _intent]
+  (project-canonical-safe
+   (select-keys value resubmission-authoritative-checkpoint-fields)))
+
+(def resubmission-authoritative-disposition-fields
+  "Identity fields of resubmission-authoritative-disposition.v2.
+   Includes :authority-context-root to bind the disposition to a specific
+   authority context checkpoint. The signature is excluded from the hash
+   preimage (stripped before signing/hashing)."
+  [:attempt-disposition/schema
+   :attempt-disposition/action
+   :attempt-disposition/chain-id
+   :attempt-disposition/genesis-root
+   :attempt-disposition/configuration-root
+   :attempt-disposition/authority-context-root
+   :attempt-disposition/authority-epoch
+   :attempt-disposition/parent-checkpoint-root
+   :attempt-disposition/sequence
+   :attempt-disposition/attempt-receipt-hash
+   :attempt-disposition/previous-disposition-hash
+   :attempt-disposition/status])
+
+(defn project-resubmission-authoritative-disposition
+  "Canonical projection of resubmission-authoritative-disposition.v2.
+   Strips the signature and selects exactly the identity fields, projected
+   canonical-safe."
+  [value _intent]
+  (project-canonical-safe
+   (select-keys value resubmission-authoritative-disposition-fields)))
 
 (def hash-intents
   "Map of hash intent keywords to their Intent Registry Contracts.
@@ -2835,6 +2916,19 @@ name (an alias)."
     :intent/projection-fn (fn [v _] v)
     :intent/version     1}
 
+   :extension-registry-v1
+   {:intent/name        :extension-registry-v1
+    :intent/domain-tag  "EXTENSION_REGISTRY_V1"
+    :intent/description "Canonical SHA-256 commitment to an extension-map verifier
+                            registry snapshot: sorted capability entries with their
+                            descriptor roots, builtin classification, and provider
+                            package identities.
+                            Root = SHA256(DOMAIN_TAG || canonical_bytes(sorted_entries))"
+    :intent/includes    #{:capability-key :descriptor-root :builtin? :providers}
+    :intent/excludes    #{:runtime-values :functions}
+    :intent/projection-fn (fn [v _] v)
+    :intent/version     1}
+
    :prf-resubmission-chain-configuration-v1
    {:intent/name        :prf-resubmission-chain-configuration-v1
     :intent/domain-tag  "prf.resubmission-chain-configuration.v1"
@@ -2874,7 +2968,51 @@ name (an alias)."
                           :authorization/authority-report-root}
     :intent/excludes    #{:runtime-values :functions}
     :intent/projection-fn project-resubmission-chain-genesis-authorization
-    :intent/version     1}})
+    :intent/version     1}
+
+   :prf-resubmission-authority-context-v1
+   {:intent/name        :prf-resubmission-authority-context-v1
+    :intent/domain-tag  "prf.resubmission-authority-context.v1"
+    :intent/description "Canonical identity of resubmission-disposition-authority-context.v1: admits a disposition authority key for a chain epoch"
+    :intent/includes    #{:authority/context-schema :authority/genesis-root
+                          :authority/configuration-root :authority/authorization-root
+                          :authority/public-key :authority/epoch
+                          :authority/permitted-actions}
+    :intent/excludes    #{:authority/context-root :runtime-values :functions}
+    :intent/projection-fn project-resubmission-authority-context
+    :intent/version     1}
+
+   :prf-resubmission-authoritative-checkpoint-v1
+   {:intent/name        :prf-resubmission-authoritative-checkpoint-v1
+    :intent/domain-tag  "prf.resubmission-authoritative-checkpoint.v1"
+    :intent/description "Canonical identity of resubmission-authoritative-checkpoint.v1: binds a chain state-root to an admitted authority context"
+    :intent/includes    #{:checkpoint/schema :checkpoint/chain-id
+                          :checkpoint/genesis-root :checkpoint/state-root
+                          :checkpoint/authority-context-root
+                          :checkpoint/configuration-root :checkpoint/epoch
+                          :checkpoint/authorization-mode :checkpoint/predecessor-root
+                          :checkpoint/sequence}
+    :intent/excludes    #{:checkpoint/root :runtime-values :functions}
+    :intent/projection-fn project-resubmission-authoritative-checkpoint
+    :intent/version     1}
+
+   :prf-resubmission-authoritative-disposition-v2
+   {:intent/name        :prf-resubmission-authoritative-disposition-v2
+    :intent/domain-tag  "prf.resubmission-authoritative-disposition.v2"
+    :intent/description "Canonical identity of resubmission-authoritative-disposition.v2: checkpoint-bound disposition signed by the admitted authority key"
+    :intent/includes    #{:attempt-disposition/schema :attempt-disposition/action
+                          :attempt-disposition/chain-id :attempt-disposition/genesis-root
+                          :attempt-disposition/configuration-root
+                          :attempt-disposition/authority-context-root
+                          :attempt-disposition/authority-epoch
+                          :attempt-disposition/parent-checkpoint-root
+                          :attempt-disposition/sequence
+                          :attempt-disposition/attempt-receipt-hash
+                          :attempt-disposition/previous-disposition-hash
+                          :attempt-disposition/status}
+    :intent/excludes    #{:attempt-disposition/signature :runtime-values :functions}
+    :intent/projection-fn project-resubmission-authoritative-disposition
+    :intent/version     2}})
 
 (defn resolve-intent
   "Look up an intent contract by keyword name from the registry.

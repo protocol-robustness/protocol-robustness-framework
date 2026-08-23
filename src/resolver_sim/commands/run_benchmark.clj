@@ -338,12 +338,12 @@
         :bundle_root_hash (:evidence/hash evidence)
         :artifact_set_root (get content-registry "content_root")
         :closure_commitment (closure-commitment closure)
-         :finalization_ref "benchmark/finalization.json"
-         :finalization_sha256 (sha-ref finalization-file)
-         :final_ref (get finalization "final_ref")
-         :input_set_root (get finalization "input_set_root")
-         :semantic_composition_root (get finalization "semantic_composition_root")
-         :artifact_registry_ref paths/artifacts-registry
+        :finalization_ref "benchmark/finalization.json"
+        :finalization_sha256 (sha-ref finalization-file)
+        :final_ref (get finalization "final_ref")
+        :input_set_root (get finalization "input_set_root")
+        :semantic_composition_root (get finalization "semantic_composition_root")
+        :artifact_registry_ref paths/artifacts-registry
         :artifact_registry_sha256 (hash-ref/sha256-ref (lifecycle/sha256-file registry))
         :registry_validation_ref paths/artifacts-validation
         :registry_validation_sha256 (hash-ref/sha256-ref (lifecycle/sha256-file validation))}))))

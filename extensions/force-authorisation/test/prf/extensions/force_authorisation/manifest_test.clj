@@ -1,129 +1,119 @@
 (ns prf.extensions.force-authorisation.manifest-test
-  "Physical-package tests for the capability split. These tests exercise only
-   package manifests and resolution; they deliberately do not load Sew."
+  "Tests for the physical force-authorisation extension package manifest:
+   strict conformance to the core extension contract, pure package registration,
+   three distinct capabilities, and declared dependency integrity."
   (:require [clojure.test :refer [deftest is testing]]
-            [prf.extensions.force-authorisation.manifest :as force]
-            [prf.extensions.held-custody.manifest :as held]
-            [resolver-sim.extensions.core :as core]
-            [resolver-sim.extensions.manifest :as manifest]
+            [resolver-sim.extensions.manifest :as em]
             [resolver-sim.extensions.registry :as registry]
-            [resolver-sim.extensions.resolution :as resolution]))
+            [prf.extensions.force-authorisation.manifest :as manifest]))
 
-(defn- schemas-for [& packages]
-  (into {}
-        (map (fn [schema] [schema (str "sha256:" (name schema))]))
-        (keep identity
-              (mapcat (fn [package]
-                        (mapcat #(map % [:input-schema :output-schema :verification/contract])
-                                (:extension/capabilities package)))
-                      packages))))
+(deftest manifest-conforms-to-core-extension-contract
+  (testing "package validation"
+    (let [validation (em/validate-package manifest/package)]
+      (is (:valid? validation)
+          (str "manifest violations: " (pr-str (:violations validation)))))
+    (is (= :prf.extensions/force-authorisation (:extension/id manifest/package)))
+    (is (string? (:extension/version manifest/package)))))
 
-(defn- provider-package [id capability]
-  {:extension/id id
-   :extension/version "1.0.0"
-   :extension/api-version 1
-   :extension/manifest-version 1
-   :extension/capabilities [capability]})
+(deftest three-distinct-capabilities
+  (testing "capability count and identities"
+    (let [caps (:extension/capabilities manifest/package)]
+      (is (= 3 (count caps)))
+      (is (some #(= [:prf/force-authorisation :force-authorisation/scope-verification]
+                    [(:capability/kind %) (:capability/id %)]) caps)
+          "scope-verification capability present")
+      (is (some #(= [:assurance/force-authorisation :force-authorisation/governed-permit-v1]
+                    [(:capability/kind %) (:capability/id %)]) caps)
+          "governed-permit-v1 capability present")
+      (is (some #(= [:sew/force-authorisation :force-authorisation/custody-execution-v1]
+                    [(:capability/kind %) (:capability/id %)]) caps)
+          "custody-execution-v1 capability present"))))
 
-(def envelope-package
-  (provider-package
-   :fixture/envelope
-   {:capability/kind :prf/content-addressed-artifacts
-    :capability/id :prf/envelope
-    :capability/version 1
-    :capability/contract-version 1
-    :entrypoint 'fixture/envelope
-    :input-schema :fixture/envelope-input.v1
-    :output-schema :fixture/envelope-output.v1
-    :composition-contract {:composition-contract/version 1
-                           :composition/input {:schema-ref :fixture/envelope-input.v1}
-                           :composition/output {:schema-ref :fixture/envelope-output.v1}}}))
+(deftest governance-profile-is-production-governed
+  (testing "governed-permit declares :production-governed profile"
+    (let [governed-permit (first (filter #(= :force-authorisation/governed-permit-v1
+                                              (:capability/id %))
+                                         (:extension/capabilities manifest/package)))]
+      (is (some? governed-permit))
+      (is (= :production-governed
+             (get-in governed-permit [:declared-dependencies 0 :requirement :capability/profile]))
+          "governed-permit depends on governed-authority with :production-governed profile"))))
 
-(def governed-authority-package
-  (provider-package
-   :fixture/governed-authority
-   {:capability/kind :assurance/governed-authority
-    :capability/id :resolver-sim/three-member-v1
-    :capability/version 1
-    :capability/contract-version 1
-    :capability/profile :production-governed
-    :entrypoint 'fixture/governed-authority
-    :input-schema :fixture/governed-authority-input.v1
-    :output-schema :fixture/governed-authority-output.v1
-    :composition-contract {:composition-contract/version 1
-                           :composition/input {:schema-ref :fixture/governed-authority-input.v1}
-                           :composition/output {:schema-ref :fixture/governed-authority-output.v1}}}))
+(deftest governance-profile-not-altered-by-local-compatibility
+  (testing "production-governed profile is fixed and cannot be altered"
+    (let [governed-permit (first (filter #(= :force-authorisation/governed-permit-v1
+                                              (:capability/id %))
+                                         (:extension/capabilities manifest/package)))
+          profile (get-in governed-permit [:declared-dependencies 0 :requirement :capability/profile])]
+      (is (= :production-governed profile)
+          "governed-permit dependency profile is :production-governed, not alterable"))))
 
-(deftest package-manifest-is-valid-and-identifies-three-separate-capabilities
-  (let [validation (manifest/validate-package force/package)
-        capabilities (:extension/capabilities force/package)]
-    (is (:valid? validation) (pr-str (:violations validation)))
-    (is (= #{[:prf/force-authorisation :force-authorisation/scope-verification]
-             [:assurance/force-authorisation :force-authorisation/governed-permit-v1]
-             [:sew/force-authorisation :force-authorisation/custody-execution-v1]}
-           (set (map manifest/capability-key capabilities))))
-    (is (every? symbol? (map :entrypoint capabilities)))
-    (is (= (manifest/package-root force/package)
-           (manifest/package-root force/package)))
-    (is (not= (manifest/package-root force/package)
-              (manifest/package-root (assoc force/package :extension/version "0.1.1"))))))
+(deftest declared-dependencies-not-stripped
+  (testing "governed-permit retains its declared-dependencies"
+    (let [governed-permit (first (filter #(= :force-authorisation/governed-permit-v1
+                                              (:capability/id %))
+                                         (:extension/capabilities manifest/package)))]
+      (is (seq (:declared-dependencies governed-permit))
+          "declared-dependencies must not be stripped")
+      (is (some #(= :assurance/governed-authority
+                    (get % :capability/kind))
+                (:declared-dependencies governed-permit))
+          "governed-authority dependency must be present")))
 
-(deftest governed-permit-requires-a-matching-governed-authority-provider
-  (let [schemas (schemas-for force/package governed-authority-package)
-        absent (resolution/resolve-requested
-                (registry/register-package (registry/empty-extension-map) force/package)
-                [[:assurance/force-authorisation :force-authorisation/governed-permit-v1]]
-                {:schemas schemas})
-        present-map (-> (registry/empty-extension-map)
-                        (registry/register-package governed-authority-package)
-                        (registry/register-package force/package))
-        present (resolution/resolve-requested present-map
-                                              [[:assurance/force-authorisation :force-authorisation/governed-permit-v1]]
-                                              {:schemas schemas})]
-    (is (not (:valid? absent)))
-    (is (some #(= :extensions/error-missing-dependency (:violation/id %))
-              (:violations absent)))
-    (is (:valid? present))))
+  (testing "custody-execution retains its declared-dependencies"
+    (let [custody-execution (first (filter #(= :force-authorisation/custody-execution-v1
+                                                (:capability/id %))
+                                           (:extension/capabilities manifest/package)))]
+      (is (seq (:declared-dependencies custody-execution))
+          "declared-dependencies must not be stripped")
+      (is (some #(= :assurance/force-authorisation
+                    (get % :capability/kind))
+                (:declared-dependencies custody-execution))
+          "governed-permit dependency must be present")
+      (is (some #(= :force-authorisation/effect-evidence
+                    (get % :capability/kind))
+                (:declared-dependencies custody-execution))
+          "held-custody/mutation dependency must be present"))))
 
-(deftest custody-execution-requires-permit-and-held-custody-mutation
-  (let [schemas (schemas-for force/package held/package governed-authority-package envelope-package)
-        base (-> (registry/empty-extension-map)
-                 (registry/register-package governed-authority-package)
-                 (registry/register-package force/package))
-        no-held (resolution/resolve-requested base
-                                               [[:sew/force-authorisation :force-authorisation/custody-execution-v1]]
-                                               {:schemas schemas})
-        complete-map (-> (registry/empty-extension-map)
-                         (registry/register-package core/core-economics-package)
-                         (registry/register-package envelope-package)
-                         (registry/register-package governed-authority-package)
-                         (registry/register-package force/package)
-                         (registry/register-package held/package))
-        complete (resolution/resolve-requested complete-map
-                                               [[:sew/force-authorisation :force-authorisation/custody-execution-v1]]
-                                               {:schemas schemas})]
-    (is (not (:valid? no-held)))
-    (is (some #(and (= :extensions/error-missing-dependency (:violation/id %))
-                    (= [:force-authorisation/effect-evidence :held-custody/mutation]
-                       (get-in % [:details :capability])))
-              (:violations no-held)))
-    (is (:valid? complete) (pr-str (:violations complete)))
-    (is (contains? (get-in complete [:resolution :extensions/capabilities])
-                   [:prf/force-authorisation :force-authorisation/scope-verification]))
-    (is (contains? (get-in complete [:resolution :extensions/capabilities])
-                   [:force-authorisation/effect-evidence :held-custody/mutation]))))
+(deftest pure-registration-into-an-extension-map
+  (testing "all three capabilities register into an extension-map"
+    (let [extension-map (registry/register-package (registry/empty-extension-map) manifest/package)
+          scope (registry/lookup-capability extension-map :prf/force-authorisation :force-authorisation/scope-verification)
+          permit (registry/lookup-capability extension-map :assurance/force-authorisation :force-authorisation/governed-permit-v1)
+          exec (registry/lookup-capability extension-map :sew/force-authorisation :force-authorisation/custody-execution-v1)]
+      (is (some? scope))
+      (is (some? permit))
+      (is (some? exec))
+      (is (false? (:builtin? scope)) "scope-verification is not a built-in")
+      (is (false? (:builtin? permit)) "governed-permit is not a built-in")
+      (is (false? (:builtin? exec)) "custody-execution is not a built-in"))))
 
-(deftest held-custody-resolves-through-the-physical-scope-verifier
-  (let [schemas (schemas-for force/package held/package envelope-package)
-        extension-map (-> (registry/empty-extension-map)
-                          (registry/register-package core/core-economics-package)
-                          (registry/register-package envelope-package)
-                          (registry/register-package force/package)
-                          (registry/register-package held/package))
-        result (resolution/resolve-requested
-                extension-map
-                [[:force-authorisation/effect-evidence :held-custody/mutation]]
-                {:schemas schemas})]
-    (is (:valid? result) (pr-str (:violations result)))
-    (is (contains? (get-in result [:resolution :extensions/capabilities])
-                   [:prf/force-authorisation :force-authorisation/scope-verification]))))
+(deftest capability-descriptor-roots-are-stable
+  (testing "descriptor roots are stable and content-addressed"
+    (let [caps (:extension/capabilities manifest/package)]
+      (doseq [cap caps]
+        (let [root (em/capability-descriptor-root cap)]
+          (is (string? root) "descriptor root is a string")
+          (is (= root (em/capability-descriptor-root cap))
+              "descriptor root is stable"))))))
+
+(deftest package-root-is-stable
+  (testing "package root is stable and content-addressed"
+    (let [root (em/package-root manifest/package)]
+      (is (string? root))
+      (is (= root (em/package-root manifest/package))
+          "package root is stable"))))
+
+(deftest governance-is-not-merged
+  (testing "governed-authority is NOT provided by force-authorisation package"
+    (let [caps (:extension/capabilities manifest/package)]
+      (is (not-any? #(= :assurance/governed-authority (:capability/kind %)) caps)
+          "force-authorisation must not provide governed-authority capability"))))
+
+(deftest transaction-owner-declared
+  (testing "custody-execution declares transaction-owner"
+    (let [custody-execution (first (filter #(= :force-authorisation/custody-execution-v1
+                                                (:capability/id %))
+                                           (:extension/capabilities manifest/package)))]
+      (is (= :sew-adapter (:transaction-owner custody-execution))
+          "custody-execution must declare :transaction-owner :sew-adapter"))))

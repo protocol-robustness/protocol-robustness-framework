@@ -80,6 +80,102 @@
       :else
       {:valid? true :reason :ok})))
 
+(def ^:const authority-context-schema
+  "resubmission-disposition-authority-context.v1")
+
+(defn verify-authorized-disposition
+  "Verify a disposition against an admitted authority context. The context is
+   produced only after genesis/governance authorization at the authoritative
+   chain boundary; a state root alone is deliberately insufficient authority.
+
+   A supplied `:signature/public-key` is a signer claim, not a trust anchor. In
+   an authoritative context it must equal the admitted key, making a valid
+   attacker-key signature distinguishable from an authorized signature."
+  [disposition authority-context]
+  (let [public-key (:authority/public-key authority-context)
+        signer-key (get-in disposition [:attempt-disposition/signature :signature/public-key])]
+    (cond
+      (not= authority-context-schema (:authority/context-schema authority-context))
+      {:valid? false :reason :invalid-disposition-authority-context}
+
+      (not (contains? (set (:authority/permitted-actions authority-context))
+                      :prf.resubmission/apply-disposition))
+      {:valid? false :reason :disposition-action-not-authorized}
+
+      (nil? public-key)
+      {:valid? false :reason :disposition-authority-not-configured}
+
+      (and signer-key (not= signer-key public-key))
+      {:valid? false :reason :unauthorized-disposition-key}
+
+      :else
+      (verify-disposition disposition public-key))))
+
+;; ─── v2 authoritative disposition (resubmission-authoritative-disposition.v2)
+
+(def ^:const authoritative-disposition-schema
+  "Schema identifier for resubmission-authoritative-disposition.v2."
+  "attempt-disposition-authoritative.v2")
+
+(def ^:const authoritative-disposition-domain
+  :prf-resubmission-authoritative-disposition-v2)
+
+(defn unsigned-authoritative-disposition-projection
+  "Everything except the signature."
+  [disposition]
+  (dissoc disposition :attempt-disposition/signature))
+
+(defn authoritative-disposition-hash
+  "Canonical content hash of an unsigned authoritative disposition."
+  [disposition]
+  (hash-ref/sha256-ref
+   (hc/domain-hash authoritative-disposition-domain
+                   (unsigned-authoritative-disposition-projection disposition))))
+
+(defn sign-authoritative-disposition
+  "Attach an Ed25519 signature over the unsigned authoritative disposition."
+  [disposition private-key public-hex]
+  (assoc disposition
+         :attempt-disposition/signature
+         {:signature/algorithm :ed25519
+          :signature/public-key public-hex
+          :signature (sed/ed25519-sign-bytes
+                      (hc/canonical-bytes (unsigned-authoritative-disposition-projection disposition))
+                      private-key)}))
+
+(defn verify-authoritative-disposition
+  "Verify an authoritative disposition signature against the expected public key."
+  [disposition expected-public-hex]
+  (let [sig (:attempt-disposition/signature disposition)
+        disposition-public-key (get-in disposition [:attempt-disposition/signature :signature/public-key])
+        signer-key (or disposition-public-key expected-public-hex)]
+    (cond
+      (not= authoritative-disposition-schema
+            (:attempt-disposition/schema disposition))
+      {:valid? false :reason :invalid-disposition-schema}
+
+      (nil? expected-public-hex)
+      {:valid? false :reason :invalid-public-key}
+
+      (not= :prf.resubmission/admit
+            (:attempt-disposition/action disposition))
+      {:valid? false :reason :invalid-disposition-action}
+
+      (nil? sig)
+      {:valid? false :reason :missing-disposition-signature}
+
+      (not= expected-public-hex signer-key)
+      {:valid? false :reason :unauthorized-signer-key}
+
+      (not (sed/ed25519-verify-bytes
+            (hc/canonical-bytes (unsigned-authoritative-disposition-projection disposition))
+            (:signature sig)
+            expected-public-hex))
+      {:valid? false :reason :invalid-disposition-signature}
+
+      :else
+      {:valid? true :reason :ok})))
+
 (defn valid-disposition-chain?
   "Validate an ordered (most-recent-first) disposition chain for one receipt.
 

@@ -64,7 +64,8 @@
       (throw (ex-info "genesis authorization verification failed"
                       {:type :authorization/failed
                        :errors (:errors result)})))
-    (store/new-resubmission-store-from-genesis genesis)))
+    (store/new-resubmission-store-from-genesis
+     genesis (:authorized-disposition-context result))))
 
 (defn new-chain
   "Convenience/local realization of an in-memory linear chain (a

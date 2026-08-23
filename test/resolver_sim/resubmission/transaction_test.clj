@@ -142,6 +142,19 @@
           dup (transition/apply-action s2 (admit-cmd :child "sha256:R3" :seq 3 :parent "sha256:R1" :basis "sha256:B2" :link "sha256:L3" :idem "sha256:I3"))]
       (is (= :rejected (:status dup)))
       (is (= :duplicate-content-submission (:reason dup)))))
+  (testing "stale-head rejection applies by contrast when content is unique (precedence 6)"
+    (let [s0 (transition/empty-state family)
+          r1 (transition/apply-action s0 (admit-cmd :child "sha256:R1" :seq 1 :basis "sha256:B1" :link "sha256:L1" :idem "sha256:I1"))
+          s1 (:state r1)
+          r2 (transition/apply-action s1 (admit-cmd :child "sha256:R2" :seq 2 :parent "sha256:R1" :basis "sha256:B2" :link "sha256:L2" :idem "sha256:I2"))
+          s2 (:state r2)
+          ;; UNIQUE content (B3) submitted to R1, which is no longer the head (R2 is):
+          ;; stale-head applies because there is no duplicate-content conflict.
+          stale (transition/apply-action s2 (admit-cmd :child "sha256:R3" :seq 3 :parent "sha256:R1" :basis "sha256:B3" :link "sha256:L3" :idem "sha256:I3"))]
+      (is (= :rejected (:status stale)))
+      (is (= :parent-not-current-head (:reason stale))
+          "without duplicate content, stale-head rejection (precedence 6) applies,
+           proving duplicate-content precedence by contrast")))
   (testing "transplant detection (precedence 4)"
     (let [s0 (transition/empty-state family)
           s1 (:state (transition/apply-action s0 (admit-cmd :child "sha256:R1" :seq 1 :basis "sha256:B1" :link "sha256:L1" :idem "sha256:I1")))
@@ -224,6 +237,42 @@
     (is (= :rejected (:status (transition/apply-action (transition/empty-state family)
                                                        {:transaction/action :bogus/action
                                                         :transaction/input {}}))))))
+
+(deftest authoritative-disposition-context-rejects-substituted-valid-key
+  (let [authorized disposition-authority
+        attacker (ed/keypair :attacker-disposition-authority)
+        s0 (transition/empty-state family (:public-hex authorized))
+        s1 (:state (transition/apply-action
+                    s0 (admit-cmd :child "sha256:R1" :seq 1 :basis "sha256:B1"
+                                  :link "sha256:L1" :idem "sha256:I1")))
+        ;; Authority context is not part of the projected state root. It is
+        ;; supplied only by the authoritative genesis-admission boundary.
+        authoritative-state
+        (assoc s1 :chain/disposition-authority-context
+               {:authority/context-schema disposition/authority-context-schema
+                :authority/genesis-root "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+                :authority/authorization-root "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+                :authority/public-key (:public-hex authorized)
+                :authority/epoch 0
+                :authority/permitted-actions [:prf.resubmission/apply-disposition]})
+        attacker-artifact
+        (update (disposition/sign-disposition
+                 {:attempt-disposition/schema disposition/disposition-schema
+                  :attempt-disposition/attempt-receipt-hash "sha256:R1"
+                  :attempt-disposition/status :withdrawn}
+                 (:private-key attacker))
+                :attempt-disposition/signature
+                assoc :signature/public-key (:public-hex attacker))
+        result (transition/apply-action
+                authoritative-state
+                {:transaction/action :prf.resubmission/apply-disposition
+                 :transaction/input {:attempt-receipt-hash "sha256:R1"
+                                     :disposition-artifact attacker-artifact}})]
+    (is (= (transition/state-root s1) (transition/state-root authoritative-state))
+        "authority context is external to the state projection")
+    (is (= :rejected (:status result)))
+    (is (= :unauthorized-disposition-key (:reason result))
+        "a valid attacker signature cannot substitute for the admitted authority key")))
 
 (deftest re-admit-existing-receipt-rejected
   (testing "re-admitting an already-committed receipt under a new parent is rejected (prior-state integrity)"
@@ -432,6 +481,23 @@
                   (:transaction-ordering/hash relocated))
             "a relocated change still yields a different ordering hash")
         (is (true? (:valid? (ordering/verify-ordering relocated))))))
+    (testing "change-identity excludes state-before-root (regression for spec §4.2)"
+      ;; The change-identity basis is {scope, conflict-key, action, input-root} —
+      ;; state-before-root is NOT part of the computation. Mutating only
+      ;; state-before-root (leaving input-root unchanged) must preserve the
+      ;; change-identity while changing the ordering hash.
+      (let [o2 (ordering/transaction-ordering
+                (assoc (ordering/unsigned-ordering-projection-v2 o1)
+                       :transaction/state-before-root
+                       "sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"))]
+        (is (= (:transaction/change-identity o1)
+               (:transaction/change-identity o2))
+            "state-before-root does not participate in change-identity")
+        (is (not= (:transaction-ordering/hash o1)
+                  (:transaction-ordering/hash o2))
+            "ordering hash still changes because state-before-root is in the ordering projection")
+        (is (true? (:valid? (ordering/verify-ordering o2)))
+            "recomputed ordering with mutated state-before-root verifies end-to-end")))
     (testing "input-root excludes concurrency / chain-position guards"
       (let [base (admit-cmd :child "sha256:R1" :seq 1 :basis "sha256:B1" :link "sha256:L1" :idem "sha256:I1")
             with-version (assoc-in base [:transaction/input :expected-chain-version] 1618)
@@ -725,8 +791,8 @@
       (is (= (:ordering-canonical-bytes-hex fx)
              (hc/canonical-bytes-hex ordering-proj))
           "ordering canonical bytes must match fixture")
-       (is (= (:ordering-root fx) (:transaction-ordering/hash ordering-record))
-           "ordering root must match fixture"))))
+      (is (= (:ordering-root fx) (:transaction-ordering/hash ordering-record))
+          "ordering root must match fixture"))))
 
 (deftest conformance-fixture-rejection-duplicate-content-validates
   (testing "the committed duplicate-content-rejection fixture reproduces the pinned
