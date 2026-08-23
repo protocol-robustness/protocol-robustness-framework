@@ -381,6 +381,22 @@
       (is (false? (:ok r)))
       (is (= :not-authorized-resolver (:error r))))))
 
+(deftest execute-resolution-refused-blocks-followup-resolution
+  (testing "a refused escrow rejects a later execute-resolution and preserves the refusal"
+    (let [w (-> (base-world 1800)
+                (assoc-in [:escrow-transfers 0 :dispute-resolver] resolver)
+                project-legacy-time)
+          wf (res/execute-resolution-refused w 0 resolver "0xrefused-hash" nil)
+          wfr (:world wf)
+          r (res/execute-resolution wfr 0 resolver true "0xhash" nil)]
+      (is (true? (:ok wf)) "refusal recorded")
+      (is (true? (get-in wfr [:escrow-transfers 0 :resolution/refused]))
+          "refusal present before follow-up")
+      (is (false? (:ok r)))
+      (is (= :resolution-already-refused (:error r)))
+      (is (true? (get-in wfr [:escrow-transfers 0 :resolution/refused]))
+          "refusal preserved (not erased) after rejected follow-up"))))
+
 ;; ===========================================================================
 ;; Resolution-module adapter failure tests (authority.clj fail-closed)
 ;; ===========================================================================

@@ -660,13 +660,23 @@
       (not (t/valid-workflow-id? world workflow-id))
       (guard-fail :invalid-workflow-id :workflow-id workflow-id)
 
-      (not= :disputed (t/escrow-state world workflow-id))
-      (guard-fail :transfer-not-in-dispute
-                  :escrow-state (t/escrow-state world workflow-id)
-                  :workflow-id workflow-id)
+       (not= :disputed (t/escrow-state world workflow-id))
+       (guard-fail :transfer-not-in-dispute
+                   :escrow-state (t/escrow-state world workflow-id)
+                   :workflow-id workflow-id)
 
-      :else
-      (let [world          (if (:exists (t/get-pending world workflow-id))
+       ;; Kleros ruling 0 (refuse to arbitrate) makes the escrow terminal until
+       ;; its max-dispute-duration timeout triggers auto-cancel.  Any follow-up
+       ;; resolution attempt — normal, force-authorised, or interactive — must be
+       ;; rejected so the refusal record is preserved (the interned :resolution
+       ;; submap below would otherwise overwrite and erase it).
+       (get-in world [:escrow-transfers workflow-id :resolution/refused] false)
+       (guard-fail :resolution-already-refused
+                   :workflow-id workflow-id
+                   :resolution-source resolution-source)
+
+       :else
+       (let [world          (if (:exists (t/get-pending world workflow-id))
                               (archive-current-pending-settlement world workflow-id :new-resolution)
                               world)
             world          (clear-pending-settlement world workflow-id)
@@ -847,14 +857,22 @@
           pending        (if (:exists active-pending)
                            active-pending
                            (some-> fallback-entry :pending))]
-      (cond
-        (not (:exists pending))
-        (guard-fail :no-pending-settlement :workflow-id workflow-id)
+       (cond
+         ;; A refused escrow (Kleros ruling 0) is terminal until its
+         ;; max-dispute-duration timeout; a lingering pending settlement must
+         ;; not be executable.
+         (get-in world [:escrow-transfers workflow-id :resolution/refused] false)
+         (guard-fail :resolution-already-refused
+                     :workflow-id workflow-id
+                     :action :execute-pending-settlement)
 
-        (not= :disputed (t/escrow-state world workflow-id))
-        (guard-fail :transfer-not-in-dispute
-                    :escrow-state (t/escrow-state world workflow-id)
-                    :workflow-id workflow-id)
+         (not (:exists pending))
+         (guard-fail :no-pending-settlement :workflow-id workflow-id)
+
+         (not= :disputed (t/escrow-state world workflow-id))
+         (guard-fail :transfer-not-in-dispute
+                     :escrow-state (t/escrow-state world workflow-id)
+                     :workflow-id workflow-id)
 
         (< now-ts (:appeal-deadline pending))
         (guard-fail :appeal-window-not-expired
