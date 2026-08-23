@@ -60,7 +60,7 @@
                      allocation targets (:effect-compilation-semantics/root adapter-dependencies))
         canonical-before (modeled-project quantity-identities modeled-protocol-before)
         canonical-transition (effects/transition canonical-before
-                                               (effects/compile-pro-rata-effects allocation targets))
+                                                 (effects/compile-pro-rata-effects allocation targets))
         adapter (realization/build-adapter
                  {:protocol-id :modeled-sew
                   :protocol-state-schema-root (:protocol-state-schema/root adapter-dependencies)
@@ -95,39 +95,39 @@
                      :protocol-effect-realization protocol-realization})
         projections
         {:effect-compilation (root-projection compilation [:schema-version :realized-allocation/root
-                                                            :effect-compilation-semantics/root :effects/root
-                                                            :effect-compilation/root])
+                                                           :effect-compilation-semantics/root :effects/root
+                                                           :effect-compilation/root])
          :canonical-transition (root-projection canonical-transition [:schema-version :effect-semantics/root
-                                                                       :state-before/root :effects/root
-                                                                       :state-after/root :canonical-effect-transition/root])
+                                                                      :state-before/root :effects/root
+                                                                      :state-after/root :canonical-effect-transition/root])
          :transact (root-projection transaction [:schema-version :operations/root :operation-semantics/root
-                                                  :trace-policy/root :transact/root])
+                                                 :trace-policy/root :transact/root])
          :trace (root-projection trace [:schema-version :transact/root :transition/input-root
                                         :transition/output-root :trace/root :trace/length
                                         :trace/max-length :operation-semantics/root :trace-policy/root
                                         :trace-bounded-transition/root])
          :transition-binding (root-projection binding [:schema-version :binding/mode
-                                                        :canonical-transition/root
-                                                        :trace-bounded-transition/root
-                                                        :operation-footprint/root
-                                                        :projected-trace-before/root
-                                                        :projected-trace-after/root
-                                                        :binding-semantics/root
-                                                        :transition-binding/root])
+                                                       :canonical-transition/root
+                                                       :trace-bounded-transition/root
+                                                       :operation-footprint/root
+                                                       :projected-trace-before/root
+                                                       :projected-trace-after/root
+                                                       :binding-semantics/root
+                                                       :transition-binding/root])
          :protocol-realization (root-projection protocol-realization [:schema-version :protocol/id :adapter/root
-                                                                       :canonical-transition/root
-                                                                       :protocol-state-before/root
-                                                                       :canonical-state-before/root
-                                                                       :canonical-state-after/root
-                                                                       :protocol-state-after/root :write-set/root
-                                                                       :realization-semantics/root
-                                                                       :protocol-effect-realization/root])
+                                                                      :canonical-transition/root
+                                                                      :protocol-state-before/root
+                                                                      :canonical-state-before/root
+                                                                      :canonical-state-after/root
+                                                                      :protocol-state-after/root :write-set/root
+                                                                      :realization-semantics/root
+                                                                      :protocol-effect-realization/root])
          :protocol-transaction-realization
          (root-projection protocol-transaction-realization [:schema-version :canonical-transition/root
-                                                             :transition-binding/root
-                                                             :protocol-effect-realization/root
-                                                             :binding/mode
-                                                             :protocol-transaction-realization/root])}]
+                                                            :transition-binding/root
+                                                            :protocol-effect-realization/root
+                                                            :binding/mode
+                                                            :protocol-transaction-realization/root])}]
     {:allocation allocation
      :compilation compilation
      :canonical-before canonical-before
@@ -193,9 +193,9 @@
                               :transition-binding (assoc binding :canonical-transition/root "sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff")
                               :protocol-effect-realization protocol-realization})))
     (is (false? (join/valid? (assoc protocol-transaction-realization :binding/mode :net-equivalent)
-                            binding protocol-realization)))
+                             binding protocol-realization)))
     (is (false? (join/valid? (assoc protocol-transaction-realization :unexpected true)
-                            binding protocol-realization)))
+                             binding protocol-realization)))
     (let [reordered-transaction
           (transact/build-transaction
            {:operations (mapv (fn [operation]

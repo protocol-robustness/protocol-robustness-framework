@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Distributed benchmark fixed-chunk coordination
+
+- **Fixed execution registrations are immutable.** Distributed benchmark runs now persist a domain-separated commitment and expected count for the complete canonical chunk descriptors; retries must supply the exact chunk set, including every chunk’s input and execution roots. Terminal lifecycle states no longer issue leases, and accepted completion identity includes sensitivity level provenance.
+
 ### Phase B — persisted pro-rata claim-evaluation references
 
 - **Claim evidence references now identify persisted execution nodes.** Pro-rata slash claim results retain explicit `:evidence-references` to the persisted claim-evaluation execution node. That node carries the complete evaluator input in its committed `:extensions/:claims/evaluation-content`, so an independent reader can resolve the referenced node and reproduce evaluation without transient construction data. The former bare content-node hash is no longer emitted as an externally meaningful claim reference.
