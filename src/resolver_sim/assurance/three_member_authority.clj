@@ -426,10 +426,18 @@
 (defn authority-report-root
   "Canonical content-addressed root over the recomputed authority report. Binds
    the classification into a consumer artifact so it can be recomputed and
-   compared, rather than trusted from storage."
+   compared, rather than trusted from storage.
+
+   The report is projected through hc/project-canonical-safe before hashing:
+   governed reports embed the review constitution, whose policy role sets and
+   per-member eligible key sets are Clojure sets outside the canonical hash
+   domain. The projection is the identity on canonical-safe values, so roots
+   over legacy (constitution-free) reports are byte-unchanged."
   [report]
-  (hash-ref/sha256-ref (hc/domain-hash :three-member-authority-report
-                                       (dissoc report :authority/report-root))))
+  (hash-ref/sha256-ref
+   (hc/domain-hash :three-member-authority-report
+                   (hc/project-canonical-safe
+                    (dissoc report :authority/report-root)))))
 
 (defn recompute-authority-report
   "The trusted recomputation path for a consumer: re-evaluate the authority

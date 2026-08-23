@@ -25,7 +25,7 @@
             [resolver-sim.transaction.ordering :as ordering]
             [resolver-sim.transaction.protocol :as protocol]))
 
-(deftype ResubmissionChainStore [family-id disposition-public-hex receipt-public-hex state-atom genesis]
+(deftype ResubmissionChainStore [family-id disposition-public-hex receipt-public-hex state-atom genesis authority-context]
   protocol/TransactionStore
   (transact!
     [_store _conflict-key expected-version transition-fn]
@@ -33,7 +33,9 @@
       (loop []
         (let [current @state-atom
               entry (get current conflict-key
-                         {:state (transition/empty-state family-id disposition-public-hex) :version 0})
+                         {:state (cond-> (transition/empty-state family-id disposition-public-hex)
+                                   authority-context (assoc :chain/disposition-authority-context authority-context))
+                          :version 0})
               {:keys [state version]} entry]
           (if (and (some? expected-version) (not= expected-version version))
             {:status :contention :reason :version-mismatch
@@ -85,8 +87,10 @@
   ([family-id disposition-public-hex receipt-public-hex]
    (new-resubmission-store family-id disposition-public-hex receipt-public-hex nil))
   ([family-id disposition-public-hex receipt-public-hex genesis]
+   (new-resubmission-store family-id disposition-public-hex receipt-public-hex genesis nil))
+  ([family-id disposition-public-hex receipt-public-hex genesis authority-context]
    (ResubmissionChainStore. family-id disposition-public-hex receipt-public-hex
-                            (atom {}) genesis)))
+                            (atom {}) genesis authority-context)))
 
 (defn new-resubmission-store-from-genesis
   "Canonical validated genesis realization path.
@@ -100,18 +104,19 @@
    NOTE: validation establishes well-formedness, internal consistency, and
    canonical rooting. It does NOT yet establish governance authorization.
    Authorized genesis binding is a future stage (see design §15)."
-  [genesis]
-  (let [v (genesis/validate-resubmission-chain-genesis genesis)]
-    (when-not (:valid? v)
-      (throw (ex-info "invalid resubmission-chain-genesis.v1"
-                      {:type :genesis/invalid
-                       :schema genesis/resubmission-chain-genesis-schema
-                       :errors (:errors v)}))))
-  (let [cfg (:configuration genesis)
-        family-id (:family/id genesis)
-        disp-k (:disposition-authority/public-key cfg)
-        recv-k (:receipt-authority/public-key cfg)]
-    (new-resubmission-store family-id disp-k recv-k genesis)))
+  ([genesis] (new-resubmission-store-from-genesis genesis nil))
+  ([genesis authority-context]
+   (let [v (genesis/validate-resubmission-chain-genesis genesis)]
+     (when-not (:valid? v)
+       (throw (ex-info "invalid resubmission-chain-genesis.v1"
+                       {:type :genesis/invalid
+                        :schema genesis/resubmission-chain-genesis-schema
+                        :errors (:errors v)}))))
+   (let [cfg (:configuration genesis)
+         family-id (:family/id genesis)
+         disp-k (:disposition-authority/public-key cfg)
+         recv-k (:receipt-authority/public-key cfg)]
+     (new-resubmission-store family-id disp-k recv-k genesis authority-context))))
 
 (defn genesis-of
   "Return the genesis artifact declared on the store, or nil for stores created
@@ -135,8 +140,10 @@
   [store]
   (let [{:keys [state]}
         (get @(.state-atom store) [:resubmission-family (.family-id store)]
-             {:state (transition/empty-state (.family-id store)
-                                             (.disposition-public-hex store))})]
+             {:state (cond-> (transition/empty-state (.family-id store)
+                                                     (.disposition-public-hex store))
+                       (.authority-context store)
+                       (assoc :chain/disposition-authority-context (.authority-context store)))})]
     state))
 
 (defn chain-head

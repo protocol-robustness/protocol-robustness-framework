@@ -29,14 +29,17 @@ and validated prefix-free at namespace load time.
 | `:prf-transaction-ordering-v1` | `prf.transaction-ordering.v1` | Ordering v1 identity hash |
 | `:prf-transaction-ordering-v2` | `prf.transaction-ordering.v2` | Ordering v2 identity hash |
 | `:prf-transaction-ordering-change-identity-v1` | `prf.transaction-ordering-change-identity.v1` | Change identity hash |
+| `:prf-attempt-disposition-v1` | `prf.attempt-disposition.v1` | Unsigned disposition identity and signed disposition payload |
 
 ## 3. Chain-State Projection (chain-state-projection.v1)
 
 The projection is identified by `transition/chain-state-projection-schema` =
-`"chain-state-projection.v1"`. It is an internal projection of the transition namespace.
-Implementations MAY expose the projection for diagnostic purposes, but the
-canonical state root binds only to the projected fields regardless of whether
-the projection itself is publicly surfaced.
+`"chain-state-projection.v1"`. The Clojure reference implementation keeps its
+helper private to the transition namespace; implementations in other languages
+may expose an equivalent API or surface the projection for diagnostic purposes.
+The canonical state root binds only to the projected fields regardless of
+whether the projection itself is publicly surfaced; the normative requirement
+is the exact projection and resulting canonical root.
 
 ### 3.1 Required Projected Fields (always present, sorted by encoded-byte ordering)
 
@@ -169,14 +172,22 @@ The unsigned projection excludes ONLY `:transaction-ordering/hash` itself.
 
 ```
 input-root = "sha256:" + SHA256(
-    "prf.transaction-input.v1" || canonical-bytes(canonical-command.input)
+    "prf.transaction-input.v1" || canonical-bytes(project-command-input(action, command.input))
 )
 ```
 
-Concurrency guards (`sequence`, `expected-chain-version`, `expected-disposition-head`)
-are excluded from the input projection. Only the substantive command payload
-participates in the input-root. The same command applied at different chain
-positions or under different observers yields the same input-root.
+The admitted input projection is action-specific:
+
+- `:prf.resubmission/admit-child` commits
+  `{parent-receipt-hash, candidate-attempt-receipt-id, idempotency-key, content-key}`.
+- `:prf.resubmission/apply-disposition` commits
+  `{attempt-receipt-hash, disposition-artifact-hash}`.
+
+Concurrency guards (`sequence`, `expected-chain-version`,
+`expected-disposition-head`) are excluded from the input projection. They remain
+semantic admission preconditions and ordering evidence, not change intent. The
+same requested command applied at different chain positions or under different
+observers yields the same input-root.
 
 ## 7. Effects Root
 
@@ -423,15 +434,17 @@ An independent implementation (e.g., Rust, Go, Haskell) must:
       encoded-byte ordering, include the conditional disposition-status field only when
       the source state contains the key, and exclude all other source keys.
 3. **Compute state roots**: `SHA256("prf.resubmission-chain-state.v1" || canonical-bytes(projection))`.
-4. **Compute input roots**: `SHA256("prf.transaction-input.v1" || canonical-bytes(command.input))`
-   with concurrency guards excluded.
+4. **Compute input roots**: `SHA256("prf.transaction-input.v1" || canonical-bytes(project-command-input(action, command.input)))`, using the exact action-specific projection in §6; do not hash the raw input map. Concurrency guards are excluded.
 5. **Compute effects roots**: `SHA256("prf.transaction-effects.v1" || canonical-bytes(vec(effects)))`.
 6. **Compute change-identity**: `SHA256("prf.transaction-ordering-change-identity.v1" || canonical-bytes({scope, conflict-key, action, input-root}))`.
 7. **Compute ordering roots**: `SHA256("prf.transaction-ordering.v2" || canonical-bytes(unsigned-v2-projection))`.
 8. **Verify dispositions**: Ed25519 verify the signature over
    `canonical-bytes(unsigned-disposition-projection)` against the pinned public key.
 
-All canonical encoding follows the Clojure `pr`-based canonical-bytes algorithm
-defined in `resolver-sim.hash.canonical`. Integer and string types are encoded as
-UTF-8. Keywords are encoded as their string representation (e.g., `:foo` → `":foo"`).
-NIL values are encoded as `0x00`. Maps are sorted by encoded-byte ordering of their canonical key bytes.
+`CANONICAL_HASH_SPEC_V1` is the sole normative encoding definition. An
+implementation must encode the typed canonical value into its tagged canonical
+binary form, then domain-prefix and SHA-256 hash those bytes. In particular,
+strings and keywords are distinct tagged values; keywords are not UTF-8 strings.
+Maps are sorted by the canonical encoded-key ordering specified there. The
+Clojure reference implementation is informative only and must not be treated as
+a separate `pr`-based encoding contract.

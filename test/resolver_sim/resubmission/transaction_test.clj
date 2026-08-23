@@ -238,6 +238,42 @@
                                                        {:transaction/action :bogus/action
                                                         :transaction/input {}}))))))
 
+(deftest authoritative-disposition-context-rejects-substituted-valid-key
+  (let [authorized disposition-authority
+        attacker (ed/keypair :attacker-disposition-authority)
+        s0 (transition/empty-state family (:public-hex authorized))
+        s1 (:state (transition/apply-action
+                    s0 (admit-cmd :child "sha256:R1" :seq 1 :basis "sha256:B1"
+                                  :link "sha256:L1" :idem "sha256:I1")))
+        ;; Authority context is not part of the projected state root. It is
+        ;; supplied only by the authoritative genesis-admission boundary.
+        authoritative-state
+        (assoc s1 :chain/disposition-authority-context
+               {:authority/context-schema disposition/authority-context-schema
+                :authority/genesis-root "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+                :authority/authorization-root "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+                :authority/public-key (:public-hex authorized)
+                :authority/epoch 0
+                :authority/permitted-actions [:prf.resubmission/apply-disposition]})
+        attacker-artifact
+        (update (disposition/sign-disposition
+                 {:attempt-disposition/schema disposition/disposition-schema
+                  :attempt-disposition/attempt-receipt-hash "sha256:R1"
+                  :attempt-disposition/status :withdrawn}
+                 (:private-key attacker))
+                :attempt-disposition/signature
+                assoc :signature/public-key (:public-hex attacker))
+        result (transition/apply-action
+                authoritative-state
+                {:transaction/action :prf.resubmission/apply-disposition
+                 :transaction/input {:attempt-receipt-hash "sha256:R1"
+                                     :disposition-artifact attacker-artifact}})]
+    (is (= (transition/state-root s1) (transition/state-root authoritative-state))
+        "authority context is external to the state projection")
+    (is (= :rejected (:status result)))
+    (is (= :unauthorized-disposition-key (:reason result))
+        "a valid attacker signature cannot substitute for the admitted authority key")))
+
 (deftest re-admit-existing-receipt-rejected
   (testing "re-admitting an already-committed receipt under a new parent is rejected (prior-state integrity)"
     (let [s0 (transition/empty-state family)

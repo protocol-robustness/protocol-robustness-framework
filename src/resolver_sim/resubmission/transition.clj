@@ -62,7 +62,8 @@
 (def ^:const actions
   "Namespaced action vocabulary (canonical, independent of Clojure source ns)."
   #{:prf.resubmission/admit-child
-    :prf.resubmission/apply-disposition})
+    :prf.resubmission/apply-disposition
+    :prf.resubmission/apply-authoritative-disposition})
 
 (defn command-input-root
   "Canonical change-input root: a committed commitment to the command's intent,
@@ -75,9 +76,13 @@
    :prf.resubmission/admit-child
       -> commits {parent-receipt-hash, candidate-attempt-receipt-id,
       idempotency-key, content-key} (omits sequence, expected-chain-version)
-   :prf.resubmission/apply-disposition
-      -> commits {attempt-receipt-hash, disposition-artifact-hash}
-      (omits expected-disposition-head, expected-chain-version)"
+    :prf.resubmission/apply-disposition
+       -> commits {attempt-receipt-hash, disposition-artifact-hash}
+       (omits expected-disposition-head, expected-chain-version)
+    :prf.resubmission/apply-authoritative-disposition
+       -> commits {attempt-receipt-hash, authoritative-disposition-artifact-hash,
+       parent-checkpoint-root, authority-epoch}
+       (omits expected-checkpoint-root, expected-chain-version)"
   [action input]
   (let [basis (case action
                 :prf.resubmission/admit-child
@@ -88,7 +93,13 @@
                 :prf.resubmission/apply-disposition
                 {:attempt-receipt-hash (:attempt-receipt-hash input)
                  :disposition-artifact-hash (when-let [artifact (:disposition-artifact input)]
-                                              (disposition/disposition-hash artifact))})]
+                                              (disposition/disposition-hash artifact))}
+                :prf.resubmission/apply-authoritative-disposition
+                {:attempt-receipt-hash (:attempt-receipt-hash (:disposition-artifact input))
+                 :authoritative-disposition-artifact-hash (when-let [artifact (:disposition-artifact input)]
+                                                            (disposition/authoritative-disposition-hash artifact))
+                 :parent-checkpoint-root (get-in input [:disposition-artifact :attempt-disposition/parent-checkpoint-root])
+                 :authority-epoch (get-in input [:disposition-artifact :attempt-disposition/authority-epoch])})]
     (when (nil? basis)
       (throw (ex-info "command-input-root: unsupported action" {:action action})))
     (hash-ref/sha256-ref
@@ -352,16 +363,26 @@
         disposition-status (:attempt-disposition/status disposition-artifact)
         declared-attempt (:attempt-disposition/attempt-receipt-hash disposition-artifact)
         declared-previous (:attempt-disposition/previous-disposition-hash disposition-artifact)
+        authority-context (:chain/disposition-authority-context state)
         verification (when (and disposition-artifact
                                 (:chain/disposition-public-hex state))
-                       (disposition/verify-disposition
-                        disposition-artifact (:chain/disposition-public-hex state)))]
+                       (if authority-context
+                         (disposition/verify-authorized-disposition
+                          disposition-artifact authority-context)
+                         ;; Local/replay chains are explicitly non-authoritative.
+                         (disposition/verify-disposition
+                          disposition-artifact (:chain/disposition-public-hex state))))]
     (cond
       (not (contains? (:chain/attempt-receipts state) attempt-receipt-hash))
       {:status :rejected :reason :attempt-not-found}
 
       (nil? (:chain/disposition-public-hex state))
       {:status :rejected :reason :disposition-authority-not-configured}
+
+      (and authority-context
+           (not= (:authority/public-key authority-context)
+                 (:chain/disposition-public-hex state)))
+      {:status :rejected :reason :disposition-authority-context-key-mismatch}
 
       (not (map? disposition-artifact))
       {:status :rejected :reason :missing-disposition-artifact}
@@ -427,6 +448,35 @@
                           :transaction/observed {:disposition-head cur-head
                                                  :chain-version version}}}))))
 
+(defn- apply-authoritative-disposition
+  "Apply a v2 resubmission-authoritative-disposition. Verifies the disposition
+   against the chain's authority context and applies the disposition to chain
+   state.
+
+   Input: {:disposition-artifact <authoritative-disposition.v2>
+           :expected-checkpoint-root <sha256-ref | nil>
+           :expected-chain-version <int | nil>}"
+  [state input]
+  (let [authority-context (:chain/disposition-authority-context state)
+        disposition-artifact (:disposition-artifact input)
+        attempt-receipt-hash (:attempt-disposition/attempt-receipt-hash disposition-artifact)]
+    (cond
+      (nil? authority-context)
+      {:status :rejected :reason :no-authority-context}
+
+      (not (contains? (:chain/attempt-receipts state) attempt-receipt-hash))
+      {:status :rejected :reason :attempt-not-found}
+
+      :else
+      (let [verification (disposition/verify-authoritative-disposition
+                          disposition-artifact
+                          (:authority/public-key authority-context))]
+        (if-not (:valid? verification)
+          {:status :rejected :reason (:reason verification)}
+          (apply-disposition state
+                             (assoc (select-keys input [:disposition-artifact :expected-disposition-head])
+                                    :attempt-receipt-hash attempt-receipt-hash)))))))
+
 (defn apply-action
   "Pure transition dispatch. `command` is a closed map:
      {:transaction/action <namespaced action>
@@ -445,5 +495,8 @@
 
       :prf.resubmission/apply-disposition
       (apply-disposition state (:transaction/input command))
+
+      :prf.resubmission/apply-authoritative-disposition
+      (apply-authoritative-disposition state (:transaction/input command))
 
       {:status :rejected :reason :unknown-action})))

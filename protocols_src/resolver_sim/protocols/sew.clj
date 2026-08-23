@@ -2500,15 +2500,11 @@
                     (reduce (fn [w tok] (assoc-in w [:token-fot-bps tok] fot-bps)) base s-tokens)
                     base)]
         ;; A supplied semantic composition owns live-region admission. Legacy
-        ;; scenarios without one retain their pre-Phase-2 initialized shape.
-        (if (and composition
-                 (not-any? (semantic/active-regions composition)
-                           semantic/force-authorisation-state-regions))
-          (apply dissoc world [:force-authorisations
-                              :force-authorisations/consumed
-                              :force-authorisations/consumption-records
-                              :next-force-authorisation-id])
-          world))))
+         ;; scenarios without one retain their pre-Phase-2 initialized shape.
+         (if (and composition
+                  (not (semantic/state-regions-selected? composition)))
+           (apply dissoc world semantic/force-authorisation-state-regions)
+           world))))
 
   (build-execution-context [_ agents protocol-params]
     (let [pp         protocol-params
