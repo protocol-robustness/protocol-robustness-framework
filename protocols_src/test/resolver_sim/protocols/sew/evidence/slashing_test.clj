@@ -4,6 +4,7 @@
    evidence-node references, not through raw allocation-input tunneling."
   (:require [clojure.test :refer [deftest is testing]]
             [resolver-sim.claims.engine :as claims-engine]
+            [resolver-sim.evidence.chain :as chain]
             [resolver-sim.evidence.node :as node]
             [resolver-sim.protocols.sew.evidence.slashing :as slashing]
             [resolver-sim.protocols.sew.economics :as sew-economics]
@@ -123,13 +124,12 @@
 
 (deftest claims-engine-throws-for-missing-definition
   (testing "claims engine throws when claim definition is not in registry"
-    (let [eval-node (slashing/build-claim-evaluation-node
-                     sample-allocation-input
-                     (sew-economics/build-sew-slash-projection-artifact sample-allocation-input)
-                     (sew-economics/calculate-sew-slash-allocation sample-allocation-input)
-                     (sew-economics/build-sew-slash-projection-artifact sample-allocation-input)
-                     (sew-economics/calculate-sew-slash-allocation-from-projection
-                      (sew-economics/build-sew-slash-projection-artifact sample-allocation-input)))
+    (let [eval-node (slashing/emit-claim-eval-execution-node!
+                     {:claims/input-context {}
+                      :claims/direct-result (sew-economics/calculate-sew-slash-allocation
+                                             sample-allocation-input)
+                      :claims/projection-artifact
+                      (sew-economics/build-sew-slash-projection-artifact sample-allocation-input)})
           requests [{:claim-id :nonexistent-claim
                      :evidence-references [(:node-hash eval-node)]}]]
       (is (thrown-with-msg? clojure.lang.ExceptionInfo #"Unknown claim definition"
@@ -193,6 +193,62 @@
           "dependencies include a claim-evaluation entry")
       (is (some (fn [d] (string? (:node-hash d))) deps)
           "claim-evaluation entry has a :node-hash string"))))
+
+(deftest persisted-claim-evidence-references-reconstruct-evaluator-input
+  (testing "shaped claims can be re-evaluated from their persisted evidence nodes alone"
+    (let [{:keys [evidence]}
+          (slashing/build-prorata-slash-evidence
+           {:world sample-world
+            :slash-id 0
+            :workflow-id 0
+            :resolver :test-resolver
+            :epoch 0
+            :trigger :test
+            :allocation-input sample-allocation-input
+            :allocation-result (sew-economics/calculate-sew-slash-allocation
+                                sample-allocation-input)
+            :transition-dependencies []
+            :attribution sample-attribution})
+          shaped-claims (get-in evidence [:evidence/result :pro-rata :claims])
+          references (->> shaped-claims
+                          (mapcat :evidence-references)
+                          distinct
+                          vec)
+          artifact-entries (mapv (fn [node-hash]
+                                   (some #(when (= node-hash (:artifact/hash %)) %)
+                                         (:artifacts (chain/registry-snapshot))))
+                                 references)
+          persisted-nodes (mapv (fn [artifact-entry]
+                                  (when artifact-entry
+                                    (node/read-persisted-node (:artifact/path artifact-entry))))
+                                artifact-entries)
+          persisted-verifications
+          (mapv (fn [artifact-entry]
+                  (when artifact-entry
+                    (node/verify-persisted-node-artifact!
+                     (:artifact/path artifact-entry) artifact-entry)))
+                artifact-entries)
+          requests (mapv #(select-keys % [:claim-id :evidence-references]) shaped-claims)
+          {:keys [claim-results validation]}
+          (claims-engine/evaluate-claims
+           requests persisted-nodes
+           {:evaluator-resolver pro-rata-claims/evaluator-resolver})]
+      (is (seq references) "claims retain explicit evidence references")
+      (is (every? some? artifact-entries)
+          "every explicit reference resolves through the persisted artifact registry")
+      (is (every? some? persisted-nodes)
+          "every referenced node is deserialized from its persisted artifact")
+      (is (every? :valid? persisted-verifications)
+          "each serialized node verifies against its registered artifact entry")
+      (is (every? #(map? (get-in % [:extensions :claims/evaluation-content]))
+                  persisted-nodes)
+          "each reloaded node alone carries hash-committed evaluator input")
+      (is (:valid? validation) "reloaded persisted node references validate")
+      (is (= (mapv #(select-keys % [:claim-id :evidence-references :holds? :status])
+                   shaped-claims)
+             (mapv #(select-keys % [:claim-id :evidence-references :holds? :status])
+                   claim-results))
+          "re-evaluation from reloaded persisted nodes reproduces shaped claim results"))))
 
 (deftest pro-rata-execution-node-persisted-in-registry
   (testing "emit-pro-rata-execution-node! produces a registered execution node"
