@@ -54,7 +54,8 @@ notebook.log
 .nrepl-port
 .repl
 .lsp
-.clj-kondo
+!.clj-kondo/config.edn
+!.clj-kondo/hooks
 .cider
 .calva
 .eca
