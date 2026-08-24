@@ -144,7 +144,8 @@
                         {:row/id :b :obligation/id :b :requested 10 :weight 1 :cap 10}
                         {:row/id :c :obligation/id :c :requested 10 :weight 1 :cap 10}
                         {:row/id :d :obligation/id :d :requested 10 :weight 1 :cap 10}]})
-        context {:evidence-nodes [{:result {:claims/mechanism-result result}}]}]
+        context {:evidence-nodes [{:extensions {:claims/evaluation-content
+                                                {:claims/mechanism-result result}}}]}]
     (is (true? (:holds? (claims/check-cap-respecting context))))
     (is (true? (:holds? (claims/check-quota-bounded context))))
     (is (true? (:holds? (claims/check-canonical-remainder-assignment context))))))

@@ -33,6 +33,12 @@
    :claims/projection-artifact {:projection-hash "h1"}
    :claims/projection-artifact-again {:projection-hash "h1"}})
 
+(defn- evaluation-node
+  "Wrap evaluator content in the persisted claim-evaluation execution-node
+   shape consumed by the evidence-content extractor in pro-rata claims."
+  [content]
+  {:extensions {:claims/evaluation-content content}})
+
 (def representative-fixtures
   [{:slash-obligation 11
     :slash-policy {:policy/id :test-policy}
@@ -142,7 +148,7 @@
                     :total-requested 6N :total-allocated 3N :total-unmet 3N :remainder 0N}
         content (assoc (make-content direct) :claims/projection-result projection)
         result (claims/evaluate-claim :pro-rata/conservation
-                                      {:evidence-nodes [{:result content}]})]
+                                      {:evidence-nodes [(evaluation-node content)]})]
     (is (true? (:holds? result)))
     (is (empty? (:violations result)))))
 
@@ -151,7 +157,7 @@
                                  {:id :alice :owed 3 :paid 1 :unmet 2}]
                    :total-requested 6 :total-allocated 3 :total-unmet 3 :remainder 0}
         result (claims/evaluate-claim :pro-rata/conservation
-                                      {:evidence-nodes [{:result (make-content duplicate)}]})]
+                                      {:evidence-nodes [(evaluation-node (make-content duplicate))]})]
     (is (false? (:holds? result)))
     (is (some #(= :duplicate-allocation-identity (:type %))
               (:violations result)))))
@@ -177,10 +183,10 @@
                        {:id :b :paid 30 :owed 60}]
           result (claims/evaluate-claim
                   :pro-rata-fairness
-                  {:evidence-nodes [{:result {:claims/direct-result {:allocations allocations}
-                                              :claims/projection-result {:allocations allocations}
-                                              :claims/projection-artifact {:projection-hash "h1"}
-                                              :claims/projection-artifact-again {:projection-hash "h1"}}}]})]
+                  {:evidence-nodes [(evaluation-node {:claims/direct-result {:allocations allocations}
+                                                      :claims/projection-result {:allocations allocations}
+                                                      :claims/projection-artifact {:projection-hash "h1"}
+                                                      :claims/projection-artifact-again {:projection-hash "h1"}})]})]
       (is (true? (:holds? result)))
       (is (empty? (:violations result))))))
 
@@ -190,10 +196,10 @@
                        {:id :b :paid 40 :owed 60}]
           result (claims/evaluate-claim
                   :pro-rata-fairness
-                  {:evidence-nodes [{:result {:claims/direct-result {:allocations allocations}
-                                              :claims/projection-result {:allocations allocations}
-                                              :claims/projection-artifact {:projection-hash "h1"}
-                                              :claims/projection-artifact-again {:projection-hash "h1"}}}]})]
+                  {:evidence-nodes [(evaluation-node {:claims/direct-result {:allocations allocations}
+                                                      :claims/projection-result {:allocations allocations}
+                                                      :claims/projection-artifact {:projection-hash "h1"}
+                                                      :claims/projection-artifact-again {:projection-hash "h1"}})]})]
       (is (false? (:holds? result)))
       (is (seq (:violations result))))))
 
@@ -202,10 +208,10 @@
     (let [allocations [{:id :a :paid 20 :owed 40}]
           result (claims/evaluate-claim
                   :pro-rata-fairness
-                  {:evidence-nodes [{:result {:claims/direct-result {:allocations allocations}
-                                              :claims/projection-result {:allocations allocations}
-                                              :claims/projection-artifact {:projection-hash "h1"}
-                                              :claims/projection-artifact-again {:projection-hash "h1"}}}]})]
+                  {:evidence-nodes [(evaluation-node {:claims/direct-result {:allocations allocations}
+                                                      :claims/projection-result {:allocations allocations}
+                                                      :claims/projection-artifact {:projection-hash "h1"}
+                                                      :claims/projection-artifact-again {:projection-hash "h1"}})]})]
       (is (true? (:holds? result)))
       (is (empty? (:violations result))))))
 
@@ -224,7 +230,7 @@
                     :policy {:mode :pro-rata}}
           result (claims/evaluate-claim
                   :partial-fill-fairness
-                  {:evidence-nodes [{:result decision}]})]
+                  {:evidence-nodes [(evaluation-node decision)]})]
       (is (true? (:holds? result)))
       (is (empty? (:violations result))))))
 
@@ -235,7 +241,7 @@
                     :policy {:mode :pro-rata}}
           result (claims/evaluate-claim
                   :partial-fill-fairness
-                  {:evidence-nodes [{:result decision}]})]
+                  {:evidence-nodes [(evaluation-node decision)]})]
       (is (false? (:holds? result)))
       (is (seq (:violations result))))))
 
@@ -244,7 +250,7 @@
     (let [decision {:requested {:a 40} :filled {:a 20} :policy {:mode :pro-rata}}
           result (claims/evaluate-claim
                   :partial-fill-fairness
-                  {:evidence-nodes [{:result decision}]})]
+                  {:evidence-nodes [(evaluation-node decision)]})]
       (is (true? (:holds? result)))
       (is (empty? (:violations result))))))
 
@@ -303,7 +309,7 @@
                   :remainder 0}
           result (claims/evaluate-claim
                   :conservation
-                  {:evidence-nodes [{:result (make-content direct)}]})]
+                  {:evidence-nodes [(evaluation-node (make-content direct))]})]
       (is (true? (:holds? result)))
       (is (empty? (:violations result))))))
 
@@ -312,7 +318,7 @@
     (let [direct {:allocations [] :total-requested 100 :total-allocated 60 :total-unmet 20 :remainder 0}
           result (claims/evaluate-claim
                   :conservation
-                  {:evidence-nodes [{:result (make-content direct)}]})]
+                  {:evidence-nodes [(evaluation-node (make-content direct))]})]
       (is (false? (:holds? result)))
       (is (seq (:violations result))))))
 
@@ -323,7 +329,7 @@
                   :total-requested 20 :total-allocated 15 :total-unmet 4 :remainder 1}
           result (claims/evaluate-claim
                   :conservation
-                  {:evidence-nodes [{:result (make-content direct)}]})]
+                  {:evidence-nodes [(evaluation-node (make-content direct))]})]
       (is (false? (:holds? result)))
       (is (some #(= {:type :per-allocation-owed-mismatch
                      :idx 1
@@ -358,10 +364,10 @@
                        {:id :c :paid 25 :owed 50}]
           result (claims/evaluate-claim
                   :pro-rata-fairness
-                  {:evidence-nodes [{:result {:claims/direct-result {:allocations allocations}
-                                              :claims/projection-result {:allocations allocations}
-                                              :claims/projection-artifact {:projection-hash "h1"}
-                                              :claims/projection-artifact-again {:projection-hash "h1"}}}]})]
+                  {:evidence-nodes [(evaluation-node {:claims/direct-result {:allocations allocations}
+                                                      :claims/projection-result {:allocations allocations}
+                                                      :claims/projection-artifact {:projection-hash "h1"}
+                                                      :claims/projection-artifact-again {:projection-hash "h1"}})]})]
       (is (true? (:holds? result)))
       (is (empty? (:violations result))))))
 
@@ -372,9 +378,9 @@
                        {:id :c :paid 25 :owed 50}]
           result (claims/evaluate-claim
                   :pro-rata-fairness
-                  {:evidence-nodes [{:result {:claims/direct-result {:allocations allocations}
-                                              :claims/projection-result {:allocations allocations}
-                                              :claims/projection-artifact {:projection-hash "h1"}
-                                              :claims/projection-artifact-again {:projection-hash "h1"}}}]})]
+                  {:evidence-nodes [(evaluation-node {:claims/direct-result {:allocations allocations}
+                                                      :claims/projection-result {:allocations allocations}
+                                                      :claims/projection-artifact {:projection-hash "h1"}
+                                                      :claims/projection-artifact-again {:projection-hash "h1"}})]})]
       (is (false? (:holds? result)))
       (is (seq (:violations result))))))

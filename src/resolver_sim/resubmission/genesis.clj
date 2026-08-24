@@ -95,9 +95,9 @@
             extra (set/difference have expect)
             missing (set/difference expect have)]
         (when (seq extra)
-          (report! (str "unknown configuration keys: " (sort extra))))
+          (report! (str "unknown configuration keys: " (sort-by str extra))))
         (when (seq missing)
-          (report! (str "missing configuration keys: " (sort missing))))
+          (report! (str "missing configuration keys: " (sort-by str missing))))
         (doseq [f [:disposition-authority/public-key
                    :receipt-authority/public-key]
                 :let [v (get config f)]
@@ -298,9 +298,9 @@
             extra (set/difference have expect)
             missing (set/difference expect have)]
         (when (seq extra)
-          (report! (str "unknown top-level keys: " (sort extra))))
+          (report! (str "unknown top-level keys: " (sort-by str extra))))
         (when (seq missing)
-          (report! (str "missing required keys: " (sort missing))))
+          (report! (str "missing required keys: " (sort-by str missing))))
         (doseq [f genesis-v2-root-fields
                 :let [v (get genesis f)]]
           (cond
@@ -312,44 +312,47 @@
         (report! "family/id must not be nil"))
       (let [configuration (:configuration genesis)
             configuration-validation
-            (validate-resubmission-chain-configuration configuration)]
-        (when-not (:valid? configuration-validation)
+            (validate-resubmission-chain-configuration configuration)
+            config-valid (:valid? configuration-validation)]
+        (when-not config-valid
           (doseq [error (:errors configuration-validation)]
             (report! (str "configuration: " error))))
-        (when (:valid? configuration-validation)
+        (when config-valid
           (let [computed-configuration-root
                 (resubmission-chain-configuration-root configuration)]
             (when (not= computed-configuration-root (:configuration/root genesis))
               (report! (str ":configuration/root does not match computed configuration root: "
                             (pr-str (:configuration/root genesis)) " vs "
-                            (pr-str computed-configuration-root)))))))
-      (when (and (hash-ref/valid-sha256-ref? (:protocol-genesis/root genesis))
-                 (hash-ref/valid-sha256-ref? (:chain-instance-genesis/root genesis))
-                 (some? (:family/id genesis))
-                 (hash-ref/valid-sha256-ref? (:configuration/root genesis))
-                 (hash-ref/valid-sha256-ref? (:chain/id genesis)))
-        (let [expected-chain-id
-              (resubmission-chain-identity-v2-root
-               (:protocol-genesis/root genesis)
-               (:chain-instance-genesis/root genesis)
-               (:family/id genesis)
-               (:configuration/root genesis))]
-          (when (not= expected-chain-id (:chain/id genesis))
-            (report! (str ":chain/id does not match deployment-scoped V2 derivation: "
-                          (pr-str (:chain/id genesis)) " vs "
-                          (pr-str expected-chain-id))))))
-      (when (and (hash-ref/valid-sha256-ref? (:initial-state/root genesis))
-                 (some? (:family/id genesis))
-                 (map? (:configuration genesis)))
-        (let [expected-state-root
-              (initial-state-root
-               (:family/id genesis)
-               (get-in genesis [:configuration :disposition-authority/public-key]))]
-          (when (not= expected-state-root (:initial-state/root genesis))
-            (report! (str ":initial-state/root does not match computed empty-state root: "
-                          (pr-str (:initial-state/root genesis)) " vs "
-                          (pr-str expected-state-root)))))))
-    {:valid? (empty? @errors) :errors (vec @errors)}))
+                            (pr-str computed-configuration-root))))))
+        (when (and config-valid
+                   (hash-ref/valid-sha256-ref? (:protocol-genesis/root genesis))
+                   (hash-ref/valid-sha256-ref? (:chain-instance-genesis/root genesis))
+                   (some? (:family/id genesis))
+                   (hash-ref/valid-sha256-ref? (:configuration/root genesis))
+                   (hash-ref/valid-sha256-ref? (:chain/id genesis)))
+          (let [expected-chain-id
+                (resubmission-chain-identity-v2-root
+                 (:protocol-genesis/root genesis)
+                 (:chain-instance-genesis/root genesis)
+                 (:family/id genesis)
+                 (:configuration/root genesis))]
+            (when (not= expected-chain-id (:chain/id genesis))
+              (report! (str ":chain/id does not match deployment-scoped V2 derivation: "
+                            (pr-str (:chain/id genesis)) " vs "
+                            (pr-str expected-chain-id))))))
+        (when (and config-valid
+                   (hash-ref/valid-sha256-ref? (:initial-state/root genesis))
+                   (some? (:family/id genesis))
+                   (map? (:configuration genesis)))
+          (let [expected-state-root
+                (initial-state-root
+                 (:family/id genesis)
+                 (get-in genesis [:configuration :disposition-authority/public-key]))]
+            (when (not= expected-state-root (:initial-state/root genesis))
+              (report! (str ":initial-state/root does not match computed empty-state root: "
+                            (pr-str (:initial-state/root genesis)) " vs "
+                            (pr-str expected-state-root)))))))
+      {:valid? (empty? @errors) :errors (vec @errors)})))
 
 (defn resubmission-chain-genesis-v2-valid?
   "Quick boolean structural validity check for resubmission-chain-genesis.v2."
@@ -429,6 +432,39 @@
                         :computed computed})))
      computed)))
 
+(defn verify-resubmission-chain-genesis-v2-root!
+  "Strict V2 genesis root verifier.
+
+   Unlike the permissive 2-arg `resubmission-chain-genesis-v2-root`
+   (which silently returns the computed root when `expected` is nil),
+   this function treats a nil, malformed, or non-canonical `expected`
+   root as an error and throws. This is the preferred verifier at
+   trusted deployment boundaries where an absent or malformed expected
+   root must never be silently accepted.
+
+   Throws with type :genesis-v2/root-not-provided when `expected` is nil.
+   Throws with type :genesis-v2/root-not-canonical when `expected` is
+   present but not a valid sha256 reference.
+   Throws with type :genesis-v2/root-mismatch when `expected` does not
+   match the computed root."
+  [genesis expected]
+  (let [computed (resubmission-chain-genesis-v2-root genesis)]
+    (when (nil? expected)
+      (throw (ex-info "expected V2 genesis root must not be nil"
+                      {:type :genesis-v2/root-not-provided
+                       :computed computed})))
+    (when-not (hash-ref/valid-sha256-ref? expected)
+      (throw (ex-info "expected V2 genesis root is not a valid sha256 reference"
+                      {:type :genesis-v2/root-not-canonical
+                       :declared expected
+                       :computed computed})))
+    (when (not= computed expected)
+      (throw (ex-info "caller-supplied V2 genesis root does not match computed root"
+                      {:type :genesis-v2/root-mismatch
+                       :declared expected
+                       :computed computed})))
+    computed))
+
 ;; ── Genesis validation ───────────────────────────────────────────────
 
 (def ^:private genesis-root-fields
@@ -465,10 +501,10 @@
             extra (set/difference have expect)
             missing (set/difference expect have)]
         (when (seq extra)
-          (report! (str "unknown top-level keys: " (sort extra))))
+          (report! (str "unknown top-level keys: " (sort-by str extra))))
         (when (seq missing)
-          (report! (str "missing required keys: " (sort missing))))
-       ;; chain/id and initial-state/root must be valid sha256 references
+          (report! (str "missing required keys: " (sort-by str missing))))
+        ;; chain/id and initial-state/root must be valid sha256 references
         (doseq [f genesis-root-fields
                 :let [v (get genesis f)]]
           (cond
