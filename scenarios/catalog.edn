@@ -708,28 +708,28 @@
                :format :edn}]}
   #:scenario{:id "s-dr-001-basic-release-ruling",
              :protocol "sew-v1",
-             :path "scenarios/S-DR-001-basic-release-ruling.json",
+             :path "data/fixtures/scenarios/S-DR-001-basic-release-ruling.json",
              :format :json,
              :files
              [{:path "scenarios/edn/S-DR-001-basic-release-ruling.edn",
                :format :edn}
               {:path "scenarios/edn/S-DR-001-basic-release-ruling.edn",
                :format :edn}
-              {:path "scenarios/S-DR-001-basic-release-ruling.json",
+              {:path "data/fixtures/scenarios/S-DR-001-basic-release-ruling.json",
                :format :json}],
              :golden-path
              "data/fixtures/golden/s-dr-001-basic-release-ruling.report.edn",
              :expected-outcome :pass}
   #:scenario{:id "s-dr-002-basic-refund-ruling",
              :protocol "sew-v1",
-             :path "scenarios/S-DR-002-basic-refund-ruling.json",
+             :path "data/fixtures/scenarios/S-DR-002-basic-refund-ruling.json",
              :format :json,
              :files
              [{:path "scenarios/edn/S-DR-002-basic-refund-ruling.edn",
                :format :edn}
               {:path "scenarios/edn/S-DR-002-basic-refund-ruling.edn",
                :format :edn}
-              {:path "scenarios/S-DR-002-basic-refund-ruling.json",
+              {:path "data/fixtures/scenarios/S-DR-002-basic-refund-ruling.json",
                :format :json}],
              :golden-path
              "data/fixtures/golden/s-dr-002-basic-refund-ruling.report.edn",
@@ -737,7 +737,7 @@
   #:scenario{:id "s-dr-003-duplicate-dispute-rejected",
              :protocol "sew-v1",
              :path
-             "scenarios/S-DR-003-duplicate-dispute-rejected.json",
+             "data/fixtures/scenarios/S-DR-003-duplicate-dispute-rejected.json",
              :format :json,
              :files
              [{:path
@@ -747,7 +747,7 @@
                "scenarios/edn/S-DR-003-duplicate-dispute-rejected.edn",
                :format :edn}
               {:path
-               "scenarios/S-DR-003-duplicate-dispute-rejected.json",
+               "data/fixtures/scenarios/S-DR-003-duplicate-dispute-rejected.json",
                :format :json}],
              :golden-path
              "data/fixtures/golden/s-dr-003-duplicate-dispute-rejected.report.edn",
@@ -755,7 +755,7 @@
   #:scenario{:id "s-dr-004-timeout-default-resolution",
              :protocol "sew-v1",
              :path
-             "scenarios/S-DR-004-timeout-default-resolution.json",
+             "data/fixtures/scenarios/S-DR-004-timeout-default-resolution.json",
              :format :json,
              :files
              [{:path
@@ -765,28 +765,28 @@
                "scenarios/edn/S-DR-004-timeout-default-resolution.edn",
                :format :edn}
               {:path
-               "scenarios/S-DR-004-timeout-default-resolution.json",
+               "data/fixtures/scenarios/S-DR-004-timeout-default-resolution.json",
                :format :json}],
              :golden-path
              "data/fixtures/golden/s-dr-004-timeout-default-resolution.report.edn",
              :expected-outcome :pass}
   #:scenario{:id "s-dr-010-missing-evidence",
              :protocol "sew-v1",
-             :path "scenarios/S-DR-010-missing-evidence.json",
+             :path "data/fixtures/scenarios/S-DR-010-missing-evidence.json",
              :format :json,
              :files
              [{:path "scenarios/edn/S-DR-010-missing-evidence.edn",
                :format :edn}
               {:path "scenarios/edn/S-DR-010-missing-evidence.edn",
                :format :edn}
-              {:path "scenarios/S-DR-010-missing-evidence.json",
+              {:path "data/fixtures/scenarios/S-DR-010-missing-evidence.json",
                :format :json}],
              :golden-path
              "data/fixtures/golden/s-dr-010-missing-evidence.report.edn",
              :expected-outcome :pass}
   #:scenario{:id "s-dr-011-contradictory-evidence",
              :protocol "sew-v1",
-             :path "scenarios/S-DR-011-contradictory-evidence.json",
+             :path "data/fixtures/scenarios/S-DR-011-contradictory-evidence.json",
              :format :json,
              :files
              [{:path
@@ -795,14 +795,14 @@
               {:path
                "scenarios/edn/S-DR-011-contradictory-evidence.edn",
                :format :edn}
-              {:path "scenarios/S-DR-011-contradictory-evidence.json",
+              {:path "data/fixtures/scenarios/S-DR-011-contradictory-evidence.json",
                :format :json}],
              :golden-path
              "data/fixtures/golden/s-dr-011-contradictory-evidence.report.edn",
              :expected-outcome :pass}
   #:scenario{:id "s-dr-012-late-evidence-rejected",
              :protocol "sew-v1",
-             :path "scenarios/S-DR-012-late-evidence-rejected.json",
+             :path "data/fixtures/scenarios/S-DR-012-late-evidence-rejected.json",
              :format :json,
              :files
              [{:path
@@ -811,28 +811,28 @@
               {:path
                "scenarios/edn/S-DR-012-late-evidence-rejected.edn",
                :format :edn}
-              {:path "scenarios/S-DR-012-late-evidence-rejected.json",
+              {:path "data/fixtures/scenarios/S-DR-012-late-evidence-rejected.json",
                :format :json}],
              :golden-path
              "data/fixtures/golden/s-dr-012-late-evidence-rejected.report.edn",
              :expected-outcome :fail}
   #:scenario{:id "s-dr-013-evidence-at-deadline",
              :protocol "sew-v1",
-             :path "scenarios/S-DR-013-evidence-at-deadline.json",
+             :path "data/fixtures/scenarios/S-DR-013-evidence-at-deadline.json",
              :format :json,
              :files
              [{:path "scenarios/edn/S-DR-013-evidence-at-deadline.edn",
                :format :edn}
               {:path "scenarios/edn/S-DR-013-evidence-at-deadline.edn",
                :format :edn}
-              {:path "scenarios/S-DR-013-evidence-at-deadline.json",
+              {:path "data/fixtures/scenarios/S-DR-013-evidence-at-deadline.json",
                :format :json}],
              :golden-path
              "data/fixtures/golden/s-dr-013-evidence-at-deadline.report.edn",
              :expected-outcome :fail}
   #:scenario{:id "s-dr-020-false-claimant-slashed",
              :protocol "sew-v1",
-             :path "scenarios/S-DR-020-false-claimant-slashed.json",
+             :path "data/fixtures/scenarios/S-DR-020-false-claimant-slashed.json",
              :format :json,
              :files
              [{:path
@@ -841,28 +841,28 @@
               {:path
                "scenarios/edn/S-DR-020-false-claimant-slashed.edn",
                :format :edn}
-              {:path "scenarios/S-DR-020-false-claimant-slashed.json",
+              {:path "data/fixtures/scenarios/S-DR-020-false-claimant-slashed.json",
                :format :json}],
              :golden-path
              "data/fixtures/golden/s-dr-020-false-claimant-slashed.report.edn",
              :expected-outcome :pass}
   #:scenario{:id "s-dr-021-griefing-claim-cost",
              :protocol "sew-v1",
-             :path "scenarios/S-DR-021-griefing-claim-cost.json",
+             :path "data/fixtures/scenarios/S-DR-021-griefing-claim-cost.json",
              :format :json,
              :files
              [{:path "scenarios/edn/S-DR-021-griefing-claim-cost.edn",
                :format :edn}
               {:path "scenarios/edn/S-DR-021-griefing-claim-cost.edn",
                :format :edn}
-              {:path "scenarios/S-DR-021-griefing-claim-cost.json",
+              {:path "data/fixtures/scenarios/S-DR-021-griefing-claim-cost.json",
                :format :json}],
              :golden-path
              "data/fixtures/golden/s-dr-021-griefing-claim-cost.report.edn",
              :expected-outcome :pass}
   #:scenario{:id "s-dr-022-lazy-counterparty-timeout",
              :protocol "sew-v1",
-             :path "scenarios/S-DR-022-lazy-counterparty-timeout.json",
+             :path "data/fixtures/scenarios/S-DR-022-lazy-counterparty-timeout.json",
              :format :json,
              :files
              [{:path
@@ -872,14 +872,14 @@
                "scenarios/edn/S-DR-022-lazy-counterparty-timeout.edn",
                :format :edn}
               {:path
-               "scenarios/S-DR-022-lazy-counterparty-timeout.json",
+               "data/fixtures/scenarios/S-DR-022-lazy-counterparty-timeout.json",
                :format :json}],
              :golden-path
              "data/fixtures/golden/s-dr-022-lazy-counterparty-timeout.report.edn",
              :expected-outcome :pass}
   #:scenario{:id "s-dr-030-biased-resolver-appealed",
              :protocol "sew-v1",
-             :path "scenarios/S-DR-030-biased-resolver-appealed.json",
+             :path "data/fixtures/scenarios/S-DR-030-biased-resolver-appealed.json",
              :format :json,
              :files
              [{:path
@@ -889,7 +889,7 @@
                "scenarios/edn/S-DR-030-biased-resolver-appealed.edn",
                :format :edn}
               {:path
-               "scenarios/S-DR-030-biased-resolver-appealed.json",
+               "data/fixtures/scenarios/S-DR-030-biased-resolver-appealed.json",
                :format :json}],
              :golden-path
              "data/fixtures/golden/s-dr-030-biased-resolver-appealed.report.edn",
@@ -897,7 +897,7 @@
   #:scenario{:id "s-dr-031-colluding-resolver-detected",
              :protocol "sew-v1",
              :path
-             "scenarios/S-DR-031-colluding-resolver-detected.json",
+             "data/fixtures/scenarios/S-DR-031-colluding-resolver-detected.json",
              :format :json,
              :files
              [{:path
@@ -907,7 +907,7 @@
                "scenarios/edn/S-DR-031-colluding-resolver-detected.edn",
                :format :edn}
               {:path
-               "scenarios/S-DR-031-colluding-resolver-detected.json",
+               "data/fixtures/scenarios/S-DR-031-colluding-resolver-detected.json",
                :format :json}],
              :golden-path
              "data/fixtures/golden/s-dr-031-colluding-resolver-detected.report.edn",
@@ -915,7 +915,7 @@
   #:scenario{:id "s-dr-032-resolver-insufficient-stake",
              :protocol "sew-v1",
              :path
-             "scenarios/S-DR-032-resolver-insufficient-stake.json",
+             "data/fixtures/scenarios/S-DR-032-resolver-insufficient-stake.json",
              :format :json,
              :files
              [{:path
@@ -925,7 +925,7 @@
                "scenarios/edn/S-DR-032-resolver-insufficient-stake.edn",
                :format :edn}
               {:path
-               "scenarios/S-DR-032-resolver-insufficient-stake.json",
+               "data/fixtures/scenarios/S-DR-032-resolver-insufficient-stake.json",
                :format :json}],
              :golden-path
              "data/fixtures/golden/s-dr-032-resolver-insufficient-stake.report.edn",
@@ -933,7 +933,7 @@
   #:scenario{:id "s-dr-040-finality-blocked-during-appeal",
              :protocol "sew-v1",
              :path
-             "scenarios/S-DR-040-finality-blocked-during-appeal.json",
+             "data/fixtures/scenarios/S-DR-040-finality-blocked-during-appeal.json",
              :format :json,
              :files
              [{:path
@@ -943,7 +943,7 @@
                "scenarios/edn/S-DR-040-finality-blocked-during-appeal.edn",
                :format :edn}
               {:path
-               "scenarios/S-DR-040-finality-blocked-during-appeal.json",
+               "data/fixtures/scenarios/S-DR-040-finality-blocked-during-appeal.json",
                :format :json}],
              :golden-path
              "data/fixtures/golden/s-dr-040-finality-blocked-during-appeal.report.edn",
@@ -951,7 +951,7 @@
   #:scenario{:id "s-dr-041-finality-after-appeal-window",
              :protocol "sew-v1",
              :path
-             "scenarios/S-DR-041-finality-after-appeal-window.json",
+             "data/fixtures/scenarios/S-DR-041-finality-after-appeal-window.json",
              :format :json,
              :files
              [{:path
@@ -961,7 +961,7 @@
                "scenarios/edn/S-DR-041-finality-after-appeal-window.edn",
                :format :edn}
               {:path
-               "scenarios/S-DR-041-finality-after-appeal-window.json",
+               "data/fixtures/scenarios/S-DR-041-finality-after-appeal-window.json",
                :format :json}],
              :golden-path
              "data/fixtures/golden/s-dr-041-finality-after-appeal-window.report.edn",
@@ -969,7 +969,7 @@
   #:scenario{:id "s-dr-042-duplicate-claim-after-finality-rejected",
              :protocol "sew-v1",
              :path
-             "scenarios/S-DR-042-duplicate-claim-after-finality-rejected.json",
+             "data/fixtures/scenarios/S-DR-042-duplicate-claim-after-finality-rejected.json",
              :format :json,
              :files
              [{:path
@@ -979,14 +979,14 @@
                "scenarios/edn/S-DR-042-duplicate-claim-after-finality-rejected.edn",
                :format :edn}
               {:path
-               "scenarios/S-DR-042-duplicate-claim-after-finality-rejected.json",
+               "data/fixtures/scenarios/S-DR-042-duplicate-claim-after-finality-rejected.json",
                :format :json}],
              :golden-path
              "data/fixtures/golden/s-dr-042-duplicate-claim-after-finality-rejected.report.edn",
              :expected-outcome :pass}
   #:scenario{:id "s-dr-043-payout-shortfall-deferred",
              :protocol "sew-v1",
-             :path "scenarios/S-DR-043-payout-shortfall-deferred.json",
+             :path "data/fixtures/scenarios/S-DR-043-payout-shortfall-deferred.json",
              :format :json,
              :files
              [{:path
@@ -996,7 +996,7 @@
                "scenarios/edn/S-DR-043-payout-shortfall-deferred.edn",
                :format :edn}
               {:path
-               "scenarios/S-DR-043-payout-shortfall-deferred.json",
+               "data/fixtures/scenarios/S-DR-043-payout-shortfall-deferred.json",
                :format :json}],
              :golden-path
              "data/fixtures/golden/s-dr-043-payout-shortfall-deferred.report.edn",
@@ -1004,7 +1004,7 @@
   #:scenario{:id "s-dr-044-slash-obligation-unmet-recorded",
              :protocol "sew-v1",
              :path
-             "scenarios/S-DR-044-slash-obligation-unmet-recorded.json",
+             "data/fixtures/scenarios/S-DR-044-slash-obligation-unmet-recorded.json",
              :format :json,
              :files
              [{:path
@@ -1014,7 +1014,7 @@
                "scenarios/edn/S-DR-044-slash-obligation-unmet-recorded.edn",
                :format :edn}
               {:path
-               "scenarios/S-DR-044-slash-obligation-unmet-recorded.json",
+               "data/fixtures/scenarios/S-DR-044-slash-obligation-unmet-recorded.json",
                :format :json}],
              :golden-path
              "data/fixtures/golden/s-dr-044-slash-obligation-unmet-recorded.report.edn",
@@ -1022,7 +1022,7 @@
   #:scenario{:id "s-dr-050-resolution-module-plus-kleros",
              :protocol "sew-v1",
              :path
-             "scenarios/S-DR-050-resolution-module-plus-kleros.json",
+             "data/fixtures/scenarios/S-DR-050-resolution-module-plus-kleros.json",
              :format :json,
              :files
              [{:path
@@ -1032,7 +1032,7 @@
                "scenarios/edn/S-DR-050-resolution-module-plus-kleros.edn",
                :format :edn}
               {:path
-               "scenarios/S-DR-050-resolution-module-plus-kleros.json",
+               "data/fixtures/scenarios/S-DR-050-resolution-module-plus-kleros.json",
                :format :json}],
              :golden-path
              "data/fixtures/golden/s-dr-050-resolution-module-plus-kleros.report.edn",
@@ -1040,7 +1040,7 @@
   #:scenario{:id "s-dr-051-challenge-without-escalation",
              :protocol "sew-v1",
              :path
-             "scenarios/S-DR-051-challenge-without-escalation.json",
+             "data/fixtures/scenarios/S-DR-051-challenge-without-escalation.json",
              :format :json,
              :files
              [{:path
@@ -1050,7 +1050,7 @@
                "scenarios/edn/S-DR-051-challenge-without-escalation.edn",
                :format :edn}
               {:path
-               "scenarios/S-DR-051-challenge-without-escalation.json",
+               "data/fixtures/scenarios/S-DR-051-challenge-without-escalation.json",
                :format :json}],
              :golden-path
              "data/fixtures/golden/s-dr-051-challenge-without-escalation.report.edn",
@@ -1058,7 +1058,7 @@
   #:scenario{:id "s-dr-052-custom-resolver-bypasses-module",
              :protocol "sew-v1",
              :path
-             "scenarios/S-DR-052-custom-resolver-bypasses-module.json",
+             "data/fixtures/scenarios/S-DR-052-custom-resolver-bypasses-module.json",
              :format :json,
              :files
              [{:path
@@ -1068,14 +1068,14 @@
                "scenarios/edn/S-DR-052-custom-resolver-bypasses-module.edn",
                :format :edn}
               {:path
-               "scenarios/S-DR-052-custom-resolver-bypasses-module.json",
+               "data/fixtures/scenarios/S-DR-052-custom-resolver-bypasses-module.json",
                :format :json}],
              :golden-path
              "data/fixtures/golden/s-dr-052-custom-resolver-bypasses-module.report.edn",
              :expected-outcome :pass}
   #:scenario{:id "s-dr-053-module-false-fallthrough",
              :protocol "sew-v1",
-             :path "scenarios/S-DR-053-module-false-fallthrough.json",
+             :path "data/fixtures/scenarios/S-DR-053-module-false-fallthrough.json",
              :format :json,
              :files
              [{:path
@@ -1085,14 +1085,14 @@
                "scenarios/edn/S-DR-053-module-false-fallthrough.edn",
                :format :edn}
               {:path
-               "scenarios/S-DR-053-module-false-fallthrough.json",
+               "data/fixtures/scenarios/S-DR-053-module-false-fallthrough.json",
                :format :json}],
              :golden-path
              "data/fixtures/golden/s-dr-053-module-false-fallthrough.report.edn",
              :expected-outcome :pass}
   #:scenario{:id "s-dr-054-missing-escalation-level",
              :protocol "sew-v1",
-             :path "scenarios/S-DR-054-missing-escalation-level.json",
+             :path "data/fixtures/scenarios/S-DR-054-missing-escalation-level.json",
              :format :json,
              :files
              [{:path
@@ -1102,21 +1102,21 @@
                "scenarios/edn/S-DR-054-missing-escalation-level.edn",
                :format :edn}
               {:path
-               "scenarios/S-DR-054-missing-escalation-level.json",
+               "data/fixtures/scenarios/S-DR-054-missing-escalation-level.json",
                :format :json}],
              :golden-path
              "data/fixtures/golden/s-dr-054-missing-escalation-level.report.edn",
              :expected-outcome :fail}
   #:scenario{:id "s-dr-055-sender-cancel-refund",
              :protocol "sew-v1",
-             :path "scenarios/S-DR-055-sender-cancel-refund.json",
+             :path "data/fixtures/scenarios/S-DR-055-sender-cancel-refund.json",
              :format :json,
              :files
              [{:path "scenarios/edn/S-DR-055-sender-cancel-refund.edn",
                :format :edn}
               {:path "scenarios/edn/S-DR-055-sender-cancel-refund.edn",
                :format :edn}
-              {:path "scenarios/S-DR-055-sender-cancel-refund.json",
+              {:path "data/fixtures/scenarios/S-DR-055-sender-cancel-refund.json",
                :format :json}],
              :golden-path
              "data/fixtures/golden/s-dr-055-sender-cancel-refund.report.edn",
@@ -1124,7 +1124,7 @@
   #:scenario{:id "s-dr-056-evidence-non-disputed-rejected",
              :protocol "sew-v1",
              :path
-             "scenarios/S-DR-056-evidence-non-disputed-rejected.json",
+             "data/fixtures/scenarios/S-DR-056-evidence-non-disputed-rejected.json",
              :format :json,
              :files
              [{:path
@@ -1134,7 +1134,7 @@
                "scenarios/edn/S-DR-056-evidence-non-disputed-rejected.edn",
                :format :edn}
               {:path
-               "scenarios/S-DR-056-evidence-non-disputed-rejected.json",
+               "data/fixtures/scenarios/S-DR-056-evidence-non-disputed-rejected.json",
                :format :json}],
              :golden-path
              "data/fixtures/golden/s-dr-056-evidence-non-disputed-rejected.report.edn",
@@ -1142,7 +1142,7 @@
   #:scenario{:id "s-dr-060-rotate-resolver-mid-dispute",
              :protocol "sew-v1",
              :path
-             "scenarios/S-DR-060-rotate-resolver-mid-dispute.json",
+             "data/fixtures/scenarios/S-DR-060-rotate-resolver-mid-dispute.json",
              :format :json,
              :files
              [{:path
@@ -1152,14 +1152,14 @@
                "scenarios/edn/S-DR-060-rotate-resolver-mid-dispute.edn",
                :format :edn}
               {:path
-               "scenarios/S-DR-060-rotate-resolver-mid-dispute.json",
+               "data/fixtures/scenarios/S-DR-060-rotate-resolver-mid-dispute.json",
                :format :json}],
              :golden-path
              "data/fixtures/golden/s-dr-060-rotate-resolver-mid-dispute.report.edn",
              :expected-outcome :pass}
   #:scenario{:id "s-dr-061-slash-propose-execute",
              :protocol "sew-v1",
-             :path "scenarios/S-DR-061-slash-propose-execute.json",
+             :path "data/fixtures/scenarios/S-DR-061-slash-propose-execute.json",
              :format :json,
              :files
              [{:path
@@ -1168,14 +1168,14 @@
               {:path
                "scenarios/edn/S-DR-061-slash-propose-execute.edn",
                :format :edn}
-              {:path "scenarios/S-DR-061-slash-propose-execute.json",
+              {:path "data/fixtures/scenarios/S-DR-061-slash-propose-execute.json",
                :format :json}],
              :golden-path
              "data/fixtures/golden/s-dr-061-slash-propose-execute.report.edn",
              :expected-outcome :pass}
   #:scenario{:id "s-dr-062-rotate-resolver-rejected",
              :protocol "sew-v1",
-             :path "scenarios/S-DR-062-rotate-resolver-rejected.json",
+             :path "data/fixtures/scenarios/S-DR-062-rotate-resolver-rejected.json",
              :format :json,
              :files
              [{:path
@@ -1185,21 +1185,21 @@
                "scenarios/edn/S-DR-062-rotate-resolver-rejected.edn",
                :format :edn}
               {:path
-               "scenarios/S-DR-062-rotate-resolver-rejected.json",
+               "data/fixtures/scenarios/S-DR-062-rotate-resolver-rejected.json",
                :format :json}],
              :golden-path
              "data/fixtures/golden/s-dr-062-rotate-resolver-rejected.report.edn",
              :expected-outcome :pass}
   #:scenario{:id "s-dr-063-slash-appeal-upheld",
              :protocol "sew-v1",
-             :path "scenarios/S-DR-063-slash-appeal-upheld.json",
+             :path "data/fixtures/scenarios/S-DR-063-slash-appeal-upheld.json",
              :format :json,
              :files
              [{:path "scenarios/edn/S-DR-063-slash-appeal-upheld.edn",
                :format :edn}
               {:path "scenarios/edn/S-DR-063-slash-appeal-upheld.edn",
                :format :edn}
-              {:path "scenarios/S-DR-063-slash-appeal-upheld.json",
+              {:path "data/fixtures/scenarios/S-DR-063-slash-appeal-upheld.json",
                :format :json}],
              :golden-path
              "data/fixtures/golden/s-dr-063-slash-appeal-upheld.report.edn",
@@ -1207,7 +1207,7 @@
   #:scenario{:id "s-dr-064-slash-appeal-rejected-executed",
              :protocol "sew-v1",
              :path
-             "scenarios/S-DR-064-slash-appeal-rejected-executed.json",
+             "data/fixtures/scenarios/S-DR-064-slash-appeal-rejected-executed.json",
              :format :json,
              :files
              [{:path
@@ -1217,7 +1217,7 @@
                "scenarios/edn/S-DR-064-slash-appeal-rejected-executed.edn",
                :format :edn}
               {:path
-               "scenarios/S-DR-064-slash-appeal-rejected-executed.json",
+               "data/fixtures/scenarios/S-DR-064-slash-appeal-rejected-executed.json",
                :format :json}],
              :golden-path
              "data/fixtures/golden/s-dr-064-slash-appeal-rejected-executed.report.edn",
@@ -1225,7 +1225,7 @@
   #:scenario{:id "s-dr-070-empty-string-resolver-rejected",
              :protocol "sew-v1",
              :path
-             "scenarios/S-DR-070-empty-string-resolver-rejected.json",
+             "data/fixtures/scenarios/S-DR-070-empty-string-resolver-rejected.json",
              :format :json,
              :files
              [{:path
@@ -1235,7 +1235,7 @@
                "scenarios/edn/S-DR-070-empty-string-resolver-rejected.edn",
                :format :edn}
               {:path
-               "scenarios/S-DR-070-empty-string-resolver-rejected.json",
+               "data/fixtures/scenarios/S-DR-070-empty-string-resolver-rejected.json",
                :format :json}],
              :golden-path
              "data/fixtures/golden/s-dr-070-empty-string-resolver-rejected.report.edn",
@@ -1243,7 +1243,7 @@
   #:scenario{:id "s-dr-071-governance-rotate-biased-ruling",
              :protocol "sew-v1",
              :path
-             "scenarios/S-DR-071-governance-rotate-biased-ruling.json",
+             "data/fixtures/scenarios/S-DR-071-governance-rotate-biased-ruling.json",
              :format :json,
              :files
              [{:path
@@ -1253,7 +1253,7 @@
                "scenarios/edn/S-DR-071-governance-rotate-biased-ruling.edn",
                :format :edn}
               {:path
-               "scenarios/S-DR-071-governance-rotate-biased-ruling.json",
+               "data/fixtures/scenarios/S-DR-071-governance-rotate-biased-ruling.json",
                :format :json}],
              :golden-path
              "data/fixtures/golden/s-dr-071-governance-rotate-biased-ruling.report.edn",
@@ -1261,7 +1261,7 @@
   #:scenario{:id "s-dr-072-resolver-unavailable-timeout",
              :protocol "sew-v1",
              :path
-             "scenarios/S-DR-072-resolver-unavailable-timeout.json",
+             "data/fixtures/scenarios/S-DR-072-resolver-unavailable-timeout.json",
              :format :json,
              :files
              [{:path
@@ -1271,7 +1271,7 @@
                "scenarios/edn/S-DR-072-resolver-unavailable-timeout.edn",
                :format :edn}
               {:path
-               "scenarios/S-DR-072-resolver-unavailable-timeout.json",
+               "data/fixtures/scenarios/S-DR-072-resolver-unavailable-timeout.json",
                :format :json}],
              :golden-path
              "data/fixtures/golden/s-dr-072-resolver-unavailable-timeout.report.edn",
@@ -1279,7 +1279,7 @@
   #:scenario{:id "s-dr-073-capacity-exhaustion-permanent-lock",
              :protocol "sew-v1",
              :path
-             "scenarios/S-DR-073-capacity-exhaustion-permanent-lock.json",
+             "data/fixtures/scenarios/S-DR-073-capacity-exhaustion-permanent-lock.json",
              :format :json,
              :files
              [{:path
@@ -1289,7 +1289,7 @@
                "scenarios/edn/S-DR-073-capacity-exhaustion-permanent-lock.edn",
                :format :edn}
               {:path
-               "scenarios/S-DR-073-capacity-exhaustion-permanent-lock.json",
+               "data/fixtures/scenarios/S-DR-073-capacity-exhaustion-permanent-lock.json",
                :format :json}],
              :golden-path
              "data/fixtures/golden/s-dr-073-capacity-exhaustion-permanent-lock.report.edn",
@@ -1297,7 +1297,7 @@
   #:scenario{:id "s-dr-074-governance-capacity-bypass",
              :protocol "sew-v1",
              :path
-             "scenarios/S-DR-074-governance-capacity-bypass.json",
+             "data/fixtures/scenarios/S-DR-074-governance-capacity-bypass.json",
              :format :json,
              :files
              [{:path
@@ -1307,7 +1307,7 @@
                "scenarios/edn/S-DR-074-governance-capacity-bypass.edn",
                :format :edn}
               {:path
-               "scenarios/S-DR-074-governance-capacity-bypass.json",
+               "data/fixtures/scenarios/S-DR-074-governance-capacity-bypass.json",
                :format :json}],
              :golden-path
              "data/fixtures/golden/s-dr-074-governance-capacity-bypass.report.edn",
@@ -1315,7 +1315,7 @@
   #:scenario{:id "s-dr-075-insufficient-bond-deterrence",
              :protocol "sew-v1",
              :path
-             "scenarios/S-DR-075-insufficient-bond-deterrence.json",
+             "data/fixtures/scenarios/S-DR-075-insufficient-bond-deterrence.json",
              :format :json,
              :files
              [{:path
@@ -1325,7 +1325,7 @@
                "scenarios/edn/S-DR-075-insufficient-bond-deterrence.edn",
                :format :edn}
               {:path
-               "scenarios/S-DR-075-insufficient-bond-deterrence.json",
+               "data/fixtures/scenarios/S-DR-075-insufficient-bond-deterrence.json",
                :format :json}],
              :golden-path
              "data/fixtures/golden/s-dr-075-insufficient-bond-deterrence.report.edn",
@@ -1333,7 +1333,7 @@
   #:scenario{:id "s-dr-076-non-governance-rotate-rejected",
              :protocol "sew-v1",
              :path
-             "scenarios/S-DR-076-non-governance-rotate-rejected.json",
+             "data/fixtures/scenarios/S-DR-076-non-governance-rotate-rejected.json",
              :format :json,
              :files
              [{:path
@@ -1343,14 +1343,14 @@
                "scenarios/edn/S-DR-076-non-governance-rotate-rejected.edn",
                :format :edn}
               {:path
-               "scenarios/S-DR-076-non-governance-rotate-rejected.json",
+               "data/fixtures/scenarios/S-DR-076-non-governance-rotate-rejected.json",
                :format :json}],
              :golden-path
              "data/fixtures/golden/s-dr-076-non-governance-rotate-rejected.report.edn",
              :expected-outcome :fail}
   #:scenario{:id "s-dr-080-stake-capacity-enforced",
              :protocol "sew-v1",
-             :path "scenarios/S-DR-080-stake-capacity-enforced.json",
+             :path "data/fixtures/scenarios/S-DR-080-stake-capacity-enforced.json",
              :format :json,
              :files
              [{:path
@@ -1359,11 +1359,11 @@
               {:path
                "scenarios/edn/S-DR-080-stake-capacity-enforced.edn",
                :format :edn}
-              {:path "scenarios/S-DR-080-stake-capacity-enforced.json",
+              {:path "data/fixtures/scenarios/S-DR-080-stake-capacity-enforced.json",
                :format :json}]}
   #:scenario{:id "s-dr-081-stake-capacity-bypass",
              :protocol "sew-v1",
-             :path "scenarios/S-DR-081-stake-capacity-bypass.json",
+             :path "data/fixtures/scenarios/S-DR-081-stake-capacity-bypass.json",
              :format :json,
              :files
              [{:path
@@ -1372,11 +1372,11 @@
               {:path
                "scenarios/edn/S-DR-081-stake-capacity-bypass.edn",
                :format :edn}
-              {:path "scenarios/S-DR-081-stake-capacity-bypass.json",
+              {:path "data/fixtures/scenarios/S-DR-081-stake-capacity-bypass.json",
                :format :json}]}
   #:scenario{:id "s-dr-082-stake-capacity-sufficient",
              :protocol "sew-v1",
-             :path "scenarios/S-DR-082-stake-capacity-sufficient.json",
+             :path "data/fixtures/scenarios/S-DR-082-stake-capacity-sufficient.json",
              :format :json,
              :files
              [{:path
@@ -1386,11 +1386,11 @@
                "scenarios/edn/S-DR-082-stake-capacity-sufficient.edn",
                :format :edn}
               {:path
-               "scenarios/S-DR-082-stake-capacity-sufficient.json",
+               "data/fixtures/scenarios/S-DR-082-stake-capacity-sufficient.json",
                :format :json}]}
   #:scenario{:id "s-dr-083-evidence-after-resolution",
              :protocol "sew-v1",
-             :path "scenarios/S-DR-083-evidence-after-resolution.json",
+             :path "data/fixtures/scenarios/S-DR-083-evidence-after-resolution.json",
              :format :json,
              :files
              [{:path
@@ -1400,12 +1400,12 @@
                "scenarios/edn/S-DR-083-evidence-after-resolution.edn",
                :format :edn}
               {:path
-               "scenarios/S-DR-083-evidence-after-resolution.json",
+               "data/fixtures/scenarios/S-DR-083-evidence-after-resolution.json",
                :format :json}]}
   #:scenario{:id "s-dr-084-evidence-after-settlement-rejected",
              :protocol "sew-v1",
              :path
-             "scenarios/S-DR-084-evidence-after-settlement-rejected.json",
+             "data/fixtures/scenarios/S-DR-084-evidence-after-settlement-rejected.json",
              :format :json,
              :files
              [{:path
@@ -1415,12 +1415,12 @@
                "scenarios/edn/S-DR-084-evidence-after-settlement-rejected.edn",
                :format :edn}
               {:path
-               "scenarios/S-DR-084-evidence-after-settlement-rejected.json",
+               "data/fixtures/scenarios/S-DR-084-evidence-after-settlement-rejected.json",
                :format :json}]}
   #:scenario{:id "s-dr-085-repeated-frivolous-disputes",
              :protocol "sew-v1",
              :path
-             "scenarios/S-DR-085-repeated-frivolous-disputes.json",
+             "data/fixtures/scenarios/S-DR-085-repeated-frivolous-disputes.json",
              :format :json,
              :files
              [{:path
@@ -1430,53 +1430,53 @@
                "scenarios/edn/S-DR-085-repeated-frivolous-disputes.edn",
                :format :edn}
               {:path
-               "scenarios/S-DR-085-repeated-frivolous-disputes.json",
+               "data/fixtures/scenarios/S-DR-085-repeated-frivolous-disputes.json",
                :format :json}]}
   #:scenario{:id "s01-baseline-happy-path",
              :protocol "sew-v1",
-             :path "scenarios/S01_baseline-happy-path.json",
+             :path "data/fixtures/scenarios/S01_baseline-happy-path.json",
              :format :json,
              :files
              [{:path "scenarios/edn/S01_baseline-happy-path.edn",
                :format :edn}
               {:path "scenarios/edn/S01_baseline-happy-path.edn",
                :format :edn}
-              {:path "scenarios/S01_baseline-happy-path.json",
+              {:path "data/fixtures/scenarios/S01_baseline-happy-path.json",
                :format :json}],
              :golden-path
              "data/fixtures/golden/s01-baseline-happy-path.report.edn",
              :expected-outcome :pass}
   #:scenario{:id "s02-dr3-dispute-release",
              :protocol "sew-v1",
-             :path "scenarios/S02_dr3-dispute-release.json",
+             :path "data/fixtures/scenarios/S02_dr3-dispute-release.json",
              :format :json,
              :files
              [{:path "scenarios/edn/S02_dr3-dispute-release.edn",
                :format :edn}
               {:path "scenarios/edn/S02_dr3-dispute-release.edn",
                :format :edn}
-              {:path "scenarios/S02_dr3-dispute-release.json",
+              {:path "data/fixtures/scenarios/S02_dr3-dispute-release.json",
                :format :json}],
              :golden-path
              "data/fixtures/golden/s02-dr3-dispute-release.report.edn",
              :expected-outcome :pass}
   #:scenario{:id "s03-dr3-dispute-refund",
              :protocol "sew-v1",
-             :path "scenarios/S03_dr3-dispute-refund.json",
+             :path "data/fixtures/scenarios/S03_dr3-dispute-refund.json",
              :format :json,
              :files
              [{:path "scenarios/edn/S03_dr3-dispute-refund.edn",
                :format :edn}
               {:path "scenarios/edn/S03_dr3-dispute-refund.edn",
                :format :edn}
-              {:path "scenarios/S03_dr3-dispute-refund.json",
+              {:path "data/fixtures/scenarios/S03_dr3-dispute-refund.json",
                :format :json}],
              :golden-path
              "data/fixtures/golden/s03-dr3-dispute-refund.report.edn",
              :expected-outcome :pass}
   #:scenario{:id "s04-dispute-timeout-autocancel",
              :protocol "sew-v1",
-             :path "scenarios/S04_dispute-timeout-autocancel.json",
+             :path "data/fixtures/scenarios/S04_dispute-timeout-autocancel.json",
              :format :json,
              :files
              [{:path
@@ -1485,7 +1485,7 @@
               {:path
                "scenarios/edn/S04_dispute-timeout-autocancel.edn",
                :format :edn}
-              {:path "scenarios/S04_dispute-timeout-autocancel.json",
+              {:path "data/fixtures/scenarios/S04_dispute-timeout-autocancel.json",
                :format :json}],
              :golden-path
              "data/fixtures/golden/s04-dispute-timeout-autocancel.report.edn",
@@ -1500,13 +1500,13 @@
               {:path
                "scenarios/edn/S05_pending-settlement-execute.edn",
                :format :edn}
-              {:path "scenarios/S05_pending-settlement-execute.json",
+              {:path "data/fixtures/scenarios/S05_pending-settlement-execute.json",
                :format :json}],
              :invariants ["pull-first-value-flow"],
              :threat "Unsafe external value movement",
              :claim
              "Settlement is pull-first for sensitive value movement.",
-             :path "scenarios/S05_pending-settlement-execute.json",
+             :path "data/fixtures/scenarios/S05_pending-settlement-execute.json",
              :format :json,
              :expected-outcome :pass,
              :claim-id "pull-first-settlement-safety",
@@ -1515,21 +1515,21 @@
              :classification :fund-safety}
   #:scenario{:id "s06-mutual-cancel",
              :protocol "sew-v1",
-             :path "scenarios/S06_mutual-cancel.json",
+             :path "data/fixtures/scenarios/S06_mutual-cancel.json",
              :format :json,
              :files
              [{:path "scenarios/edn/S06_mutual-cancel.edn",
                :format :edn}
               {:path "scenarios/edn/S06_mutual-cancel.edn",
                :format :edn}
-              {:path "scenarios/S06_mutual-cancel.json",
+              {:path "data/fixtures/scenarios/S06_mutual-cancel.json",
                :format :json}],
              :golden-path
              "data/fixtures/golden/s06-mutual-cancel.report.edn",
              :expected-outcome :pass}
   #:scenario{:id "s07-unauthorized-resolver-rejected",
              :protocol "sew-v1",
-             :path "scenarios/S07_unauthorized-resolver-rejected.json",
+             :path "data/fixtures/scenarios/S07_unauthorized-resolver-rejected.json",
              :format :json,
              :files
              [{:path
@@ -1539,14 +1539,14 @@
                "scenarios/edn/S07_unauthorized-resolver-rejected.edn",
                :format :edn}
               {:path
-               "scenarios/S07_unauthorized-resolver-rejected.json",
+               "data/fixtures/scenarios/S07_unauthorized-resolver-rejected.json",
                :format :json}],
              :golden-path
              "data/fixtures/golden/s07-unauthorized-resolver-rejected.report.edn",
              :expected-outcome :pass}
   #:scenario{:id "s08-state-machine-attack-gauntlet",
              :protocol "sew-v1",
-             :path "scenarios/S08_state-machine-attack-gauntlet.json",
+             :path "data/fixtures/scenarios/S08_state-machine-attack-gauntlet.json",
              :format :json,
              :files
              [{:path
@@ -1556,35 +1556,35 @@
                "scenarios/edn/S08_state-machine-attack-gauntlet.edn",
                :format :edn}
               {:path
-               "scenarios/S08_state-machine-attack-gauntlet.json",
+               "data/fixtures/scenarios/S08_state-machine-attack-gauntlet.json",
                :format :json}],
              :golden-path
              "data/fixtures/golden/s08-state-machine-attack-gauntlet.report.edn",
              :expected-outcome :pass}
   #:scenario{:id "s09-multi-escrow-solvency",
              :protocol "sew-v1",
-             :path "scenarios/S09_multi-escrow-solvency.json",
+             :path "data/fixtures/scenarios/S09_multi-escrow-solvency.json",
              :format :json,
              :files
              [{:path "scenarios/edn/S09_multi-escrow-solvency.edn",
                :format :edn}
               {:path "scenarios/edn/S09_multi-escrow-solvency.edn",
                :format :edn}
-              {:path "scenarios/S09_multi-escrow-solvency.json",
+              {:path "data/fixtures/scenarios/S09_multi-escrow-solvency.json",
                :format :json}],
              :golden-path
              "data/fixtures/golden/s09-multi-escrow-solvency.report.edn",
              :expected-outcome :pass}
   #:scenario{:id "s10-double-finalize-rejected",
              :protocol "sew-v1",
-             :path "scenarios/S10_double-finalize-rejected.json",
+             :path "data/fixtures/scenarios/S10_double-finalize-rejected.json",
              :format :json,
              :files
              [{:path "scenarios/edn/S10_double-finalize-rejected.edn",
                :format :edn}
               {:path "scenarios/edn/S10_double-finalize-rejected.edn",
                :format :edn}
-              {:path "scenarios/S10_double-finalize-rejected.json",
+              {:path "data/fixtures/scenarios/S10_double-finalize-rejected.json",
                :format :json}],
              :golden-path
              "data/fixtures/golden/s10-double-finalize-rejected.report.edn",
@@ -1592,7 +1592,7 @@
   #:scenario{:id "s103-negative-yield-shortfall-cascade",
              :protocol "sew-v1",
              :path
-             "scenarios/S103_negative-yield-shortfall-cascade.json",
+             "data/fixtures/scenarios/S103_negative-yield-shortfall-cascade.json",
              :format :json,
              :files
              [{:path
@@ -1602,42 +1602,42 @@
                "scenarios/edn/S103_negative-yield-shortfall-cascade.edn",
                :format :edn}
               {:path
-               "scenarios/S103_negative-yield-shortfall-cascade.json",
+               "data/fixtures/scenarios/S103_negative-yield-shortfall-cascade.json",
                :format :json}],
              :golden-path
              "data/fixtures/golden/s103-negative-yield-shortfall-cascade.report.edn",
              :expected-outcome :fail}
   #:scenario{:id "s104-resolver-stake-shortfall",
              :protocol "sew-v1",
-             :path "scenarios/S104_resolver-stake-shortfall.json",
+             :path "data/fixtures/scenarios/S104_resolver-stake-shortfall.json",
              :format :json,
              :files
              [{:path "scenarios/edn/S104_resolver-stake-shortfall.edn",
                :format :edn}
               {:path "scenarios/edn/S104_resolver-stake-shortfall.edn",
                :format :edn}
-              {:path "scenarios/S104_resolver-stake-shortfall.json",
+              {:path "data/fixtures/scenarios/S104_resolver-stake-shortfall.json",
                :format :json}],
              :golden-path
              "data/fixtures/golden/s104-resolver-stake-shortfall.report.edn",
              :expected-outcome :pass}
   #:scenario{:id "s105-policy-response-cascade",
              :protocol "sew-v1",
-             :path "scenarios/S105_policy-response-cascade.json",
+             :path "data/fixtures/scenarios/S105_policy-response-cascade.json",
              :format :json,
              :files
              [{:path "scenarios/edn/S105_policy-response-cascade.edn",
                :format :edn}
               {:path "scenarios/edn/S105_policy-response-cascade.edn",
                :format :edn}
-              {:path "scenarios/S105_policy-response-cascade.json",
+              {:path "data/fixtures/scenarios/S105_policy-response-cascade.json",
                :format :json}],
              :golden-path
              "data/fixtures/golden/s105-policy-response-cascade.report.edn",
              :expected-outcome :pass}
   #:scenario{:id "s106-create-escrow-shortfall-block",
              :protocol "sew-v1",
-             :path "scenarios/S106_create-escrow-shortfall-block.json",
+             :path "data/fixtures/scenarios/S106_create-escrow-shortfall-block.json",
              :format :json,
              :files
              [{:path
@@ -1647,42 +1647,42 @@
                "scenarios/edn/S106_create-escrow-shortfall-block.edn",
                :format :edn}
               {:path
-               "scenarios/S106_create-escrow-shortfall-block.json",
+               "data/fixtures/scenarios/S106_create-escrow-shortfall-block.json",
                :format :json}],
              :golden-path
              "data/fixtures/golden/s106-create-escrow-shortfall-block.report.edn",
              :expected-outcome :pass}
   #:scenario{:id "s107-isolated-shortfall",
              :protocol "sew-v1",
-             :path "scenarios/S107_isolated-shortfall.json",
+             :path "data/fixtures/scenarios/S107_isolated-shortfall.json",
              :format :json,
              :files
              [{:path "scenarios/edn/S107_isolated-shortfall.edn",
                :format :edn}
               {:path "scenarios/edn/S107_isolated-shortfall.edn",
                :format :edn}
-              {:path "scenarios/S107_isolated-shortfall.json",
+              {:path "data/fixtures/scenarios/S107_isolated-shortfall.json",
                :format :json}],
              :golden-path
              "data/fixtures/golden/s107-isolated-shortfall.report.edn",
              :expected-outcome :invalid}
   #:scenario{:id "s108-negative-yield-mild",
              :protocol "sew-v1",
-             :path "scenarios/S108_negative-yield-mild.json",
+             :path "data/fixtures/scenarios/S108_negative-yield-mild.json",
              :format :json,
              :files
              [{:path "scenarios/edn/S108_negative-yield-mild.edn",
                :format :edn}
               {:path "scenarios/edn/S108_negative-yield-mild.edn",
                :format :edn}
-              {:path "scenarios/S108_negative-yield-mild.json",
+              {:path "data/fixtures/scenarios/S108_negative-yield-mild.json",
                :format :json}],
              :golden-path
              "data/fixtures/golden/s108-negative-yield-mild.report.edn",
              :expected-outcome :fail}
   #:scenario{:id "s109-negative-yield-severe-repair",
              :protocol "sew-v1",
-             :path "scenarios/S109_negative-yield-severe-repair.json",
+             :path "data/fixtures/scenarios/S109_negative-yield-severe-repair.json",
              :format :json,
              :files
              [{:path
@@ -1692,21 +1692,21 @@
                "scenarios/edn/S109_negative-yield-severe-repair.edn",
                :format :edn}
               {:path
-               "scenarios/S109_negative-yield-severe-repair.json",
+               "data/fixtures/scenarios/S109_negative-yield-severe-repair.json",
                :format :json}],
              :golden-path
              "data/fixtures/golden/s109-negative-yield-severe-repair.report.edn",
              :expected-outcome :fail}
   #:scenario{:id "s11-zero-fee-edge-case",
              :protocol "sew-v1",
-             :path "scenarios/S11_zero-fee-edge-case.json",
+             :path "data/fixtures/scenarios/S11_zero-fee-edge-case.json",
              :format :json,
              :files
              [{:path "scenarios/edn/S11_zero-fee-edge-case.edn",
                :format :edn}
               {:path "scenarios/edn/S11_zero-fee-edge-case.edn",
                :format :edn}
-              {:path "scenarios/S11_zero-fee-edge-case.json",
+              {:path "data/fixtures/scenarios/S11_zero-fee-edge-case.json",
                :format :json}],
              :golden-path
              "data/fixtures/golden/s11-zero-fee-edge-case.report.edn",
@@ -1719,14 +1719,14 @@
                :format :edn}
               {:path "scenarios/edn/S110_resolver-yield-accrual.edn",
                :format :edn}
-              {:path "scenarios/S110_resolver-yield-accrual.json",
+              {:path "data/fixtures/scenarios/S110_resolver-yield-accrual.json",
                :format :json}],
              :invariants
              ["yield-position-consistency" "yield-value-conservation"],
              :threat "Resolver stake yield drift",
              :claim
              "Resolver stake accrues fixed-rate yield over one year and settles on full withdraw.",
-             :path "scenarios/S110_resolver-yield-accrual.json",
+             :path "data/fixtures/scenarios/S110_resolver-yield-accrual.json",
              :format :json,
              :expected-outcome :pass,
              :claim-id :resolver-stake-accrues-yield,
@@ -1736,7 +1736,7 @@
   #:scenario{:id "s111-governance-upgrade-mid-dispute-forward-only",
              :protocol "sew-v1",
              :path
-             "scenarios/S111_governance-upgrade-mid-dispute-forward-only.json",
+             "data/fixtures/scenarios/S111_governance-upgrade-mid-dispute-forward-only.json",
              :format :json,
              :files
              [{:path
@@ -1746,7 +1746,7 @@
                "scenarios/edn/S111_governance-upgrade-mid-dispute-forward-only.edn",
                :format :edn}
               {:path
-               "scenarios/S111_governance-upgrade-mid-dispute-forward-only.json",
+               "data/fixtures/scenarios/S111_governance-upgrade-mid-dispute-forward-only.json",
                :format :json}],
              :golden-path
              "data/fixtures/golden/s111-governance-upgrade-mid-dispute-forward-only.report.edn",
@@ -1754,7 +1754,7 @@
   #:scenario{:id "s112-aave-partial-liquidity-recovery",
              :protocol "sew-v1",
              :path
-             "scenarios/S112_aave-partial-liquidity-recovery.json",
+             "data/fixtures/scenarios/S112_aave-partial-liquidity-recovery.json",
              :format :json,
              :files
              [{:path
@@ -1764,28 +1764,28 @@
                "scenarios/edn/S112_aave-partial-liquidity-recovery.edn",
                :format :edn}
               {:path
-               "scenarios/S112_aave-partial-liquidity-recovery.json",
+               "data/fixtures/scenarios/S112_aave-partial-liquidity-recovery.json",
                :format :json}],
              :golden-path
              "data/fixtures/golden/s112-aave-partial-liquidity-recovery.report.edn",
              :expected-outcome :pass}
   #:scenario{:id "s113-principal-loss-haircut",
              :protocol "sew-v1",
-             :path "scenarios/S113_principal-loss-haircut.json",
+             :path "data/fixtures/scenarios/S113_principal-loss-haircut.json",
              :format :json,
              :files
              [{:path "scenarios/edn/S113_principal-loss-haircut.edn",
                :format :edn}
               {:path "scenarios/edn/S113_principal-loss-haircut.edn",
                :format :edn}
-              {:path "scenarios/S113_principal-loss-haircut.json",
+              {:path "data/fixtures/scenarios/S113_principal-loss-haircut.json",
                :format :json}],
              :golden-path
              "data/fixtures/golden/s113-principal-loss-haircut.report.edn",
              :expected-outcome :fail}
   #:scenario{:id "s114-multi-escrow-pool-shortage",
              :protocol "sew-v1",
-             :path "scenarios/S114_multi-escrow-pool-shortage.json",
+             :path "data/fixtures/scenarios/S114_multi-escrow-pool-shortage.json",
              :format :json,
              :files
              [{:path
@@ -1794,21 +1794,21 @@
               {:path
                "scenarios/edn/S114_multi-escrow-pool-shortage.edn",
                :format :edn}
-              {:path "scenarios/S114_multi-escrow-pool-shortage.json",
+              {:path "data/fixtures/scenarios/S114_multi-escrow-pool-shortage.json",
                :format :json}],
              :golden-path
              "data/fixtures/golden/s114-multi-escrow-pool-shortage.report.edn",
              :expected-outcome :pass}
   #:scenario{:id "s114-withdraw-fees-governance",
              :protocol "sew-v1",
-             :path "scenarios/S114_withdraw-fees-governance.json",
+             :path "data/fixtures/scenarios/S114_withdraw-fees-governance.json",
              :format :json,
              :files
              [{:path "scenarios/edn/S114_withdraw-fees-governance.edn",
                :format :edn}
               {:path "scenarios/edn/S114_withdraw-fees-governance.edn",
                :format :edn}
-              {:path "scenarios/S114_withdraw-fees-governance.json",
+              {:path "data/fixtures/scenarios/S114_withdraw-fees-governance.json",
                :format :json}],
              :golden-path
              "data/fixtures/golden/s114-withdraw-fees-governance.report.edn",
@@ -1824,7 +1824,7 @@
                "scenarios/edn/S115_claim-deferred-yield-recovery.edn",
                :format :edn}
               {:path
-               "scenarios/S115_claim-deferred-yield-recovery.json",
+               "data/fixtures/scenarios/S115_claim-deferred-yield-recovery.json",
                :format :json}],
              :invariants
              ["yield-deferred-reclaim"
@@ -1833,7 +1833,7 @@
              :threat "Deferred yield recovery",
              :claim
              "Deferred yield recovery after mutual cancel and withdraw finalizes correctly.",
-             :path "scenarios/S115_claim-deferred-yield-recovery.json",
+             :path "data/fixtures/scenarios/S115_claim-deferred-yield-recovery.json",
              :format :json,
              :expected-outcome :pass,
              :claim-id :deferred-yield-recovery-correct,
@@ -1842,14 +1842,14 @@
              :classification :economic-baseline}
   #:scenario{:id "s115-historical-index-replay",
              :protocol "sew-v1",
-             :path "scenarios/S115_historical-index-replay.json",
+             :path "data/fixtures/scenarios/S115_historical-index-replay.json",
              :format :json,
              :files
              [{:path "scenarios/edn/S115_historical-index-replay.edn",
                :format :edn}
               {:path "scenarios/edn/S115_historical-index-replay.edn",
                :format :edn}
-              {:path "scenarios/S115_historical-index-replay.json",
+              {:path "data/fixtures/scenarios/S115_historical-index-replay.json",
                :format :json}],
              :golden-path
              "data/fixtures/golden/s115-historical-index-replay.report.edn",
@@ -1857,7 +1857,7 @@
   #:scenario{:id "s116-superseded-pending-repeated-keeper",
              :protocol "sew-v1",
              :path
-             "scenarios/S116_superseded-pending-repeated-keeper.json",
+             "data/fixtures/scenarios/S116_superseded-pending-repeated-keeper.json",
              :format :json,
              :files
              [{:path
@@ -1867,14 +1867,14 @@
                "scenarios/edn/S116_superseded-pending-repeated-keeper.edn",
                :format :edn}
               {:path
-               "scenarios/S116_superseded-pending-repeated-keeper.json",
+               "data/fixtures/scenarios/S116_superseded-pending-repeated-keeper.json",
                :format :json}],
              :golden-path
              "data/fixtures/golden/s116-superseded-pending-repeated-keeper.report.edn",
              :expected-outcome :pass}
   #:scenario{:id "s117-challenge-resolution-dedupe",
              :protocol "sew-v1",
-             :path "scenarios/S117_challenge-resolution-dedupe.json",
+             :path "data/fixtures/scenarios/S117_challenge-resolution-dedupe.json",
              :format :json,
              :files
              [{:path
@@ -1883,28 +1883,28 @@
               {:path
                "scenarios/edn/S117_challenge-resolution-dedupe.edn",
                :format :edn}
-              {:path "scenarios/S117_challenge-resolution-dedupe.json",
+              {:path "data/fixtures/scenarios/S117_challenge-resolution-dedupe.json",
                :format :json}],
              :golden-path
              "data/fixtures/golden/s117-challenge-resolution-dedupe.report.edn",
              :expected-outcome :pass}
   #:scenario{:id "s118-withdraw-while-paused",
              :protocol "sew-v1",
-             :path "scenarios/S118_withdraw-while-paused.json",
+             :path "data/fixtures/scenarios/S118_withdraw-while-paused.json",
              :format :json,
              :files
              [{:path "scenarios/edn/S118_withdraw-while-paused.edn",
                :format :edn}
               {:path "scenarios/edn/S118_withdraw-while-paused.edn",
                :format :edn}
-              {:path "scenarios/S118_withdraw-while-paused.json",
+              {:path "data/fixtures/scenarios/S118_withdraw-while-paused.json",
                :format :json}],
              :golden-path
              "data/fixtures/golden/s118-withdraw-while-paused.report.edn",
              :expected-outcome :fail}
   #:scenario{:id "s12-governance-snapshot-isolation",
              :protocol "sew-v1",
-             :path "scenarios/S12_governance-snapshot-isolation.json",
+             :path "data/fixtures/scenarios/S12_governance-snapshot-isolation.json",
              :format :json,
              :files
              [{:path
@@ -1914,28 +1914,28 @@
                "scenarios/edn/S12_governance-snapshot-isolation.edn",
                :format :edn}
               {:path
-               "scenarios/S12_governance-snapshot-isolation.json",
+               "data/fixtures/scenarios/S12_governance-snapshot-isolation.json",
                :format :json}],
              :golden-path
              "data/fixtures/golden/s12-governance-snapshot-isolation.report.edn",
              :expected-outcome :invalid}
   #:scenario{:id "s120-over-slash-vulnerability",
              :protocol "sew-v1",
-             :path "scenarios/S120_over-slash-vulnerability.json",
+             :path "data/fixtures/scenarios/S120_over-slash-vulnerability.json",
              :format :json,
              :files
              [{:path "scenarios/edn/S120_over-slash-vulnerability.edn",
                :format :edn}
               {:path "scenarios/edn/S120_over-slash-vulnerability.edn",
                :format :edn}
-              {:path "scenarios/S120_over-slash-vulnerability.json",
+              {:path "data/fixtures/scenarios/S120_over-slash-vulnerability.json",
                :format :json}],
              :golden-path
              "data/fixtures/golden/s120-over-slash-vulnerability.report.edn",
              :expected-outcome :invalid}
   #:scenario{:id "s12a-snapshot-isolation-fee-zero",
              :protocol "sew-v1",
-             :path "scenarios/s12a_snapshot_isolation_fee_zero.json",
+             :path "data/fixtures/scenarios/s12a_snapshot_isolation_fee_zero.json",
              :format :json,
              :files
              [{:path
@@ -1944,14 +1944,14 @@
               {:path
                "scenarios/edn/s12a_snapshot_isolation_fee_zero.edn",
                :format :edn}
-              {:path "scenarios/s12a_snapshot_isolation_fee_zero.json",
+              {:path "data/fixtures/scenarios/s12a_snapshot_isolation_fee_zero.json",
                :format :json}],
              :golden-path
              "data/fixtures/golden/s12a-snapshot-isolation-fee-zero.report.edn",
              :expected-outcome :pass}
   #:scenario{:id "s12b-snapshot-isolation-fee-500",
              :protocol "sew-v1",
-             :path "scenarios/s12b_snapshot_isolation_fee_500.json",
+             :path "data/fixtures/scenarios/s12b_snapshot_isolation_fee_500.json",
              :format :json,
              :files
              [{:path
@@ -1960,35 +1960,35 @@
               {:path
                "scenarios/edn/s12b_snapshot_isolation_fee_500.edn",
                :format :edn}
-              {:path "scenarios/s12b_snapshot_isolation_fee_500.json",
+              {:path "data/fixtures/scenarios/s12b_snapshot_isolation_fee_500.json",
                :format :json}],
              :golden-path
              "data/fixtures/golden/s12b-snapshot-isolation-fee-500.report.edn",
              :expected-outcome :pass}
   #:scenario{:id "s13-pending-settlement-refund",
              :protocol "sew-v1",
-             :path "scenarios/S13_pending-settlement-refund.json",
+             :path "data/fixtures/scenarios/S13_pending-settlement-refund.json",
              :format :json,
              :files
              [{:path "scenarios/edn/S13_pending-settlement-refund.edn",
                :format :edn}
               {:path "scenarios/edn/S13_pending-settlement-refund.edn",
                :format :edn}
-              {:path "scenarios/S13_pending-settlement-refund.json",
+              {:path "data/fixtures/scenarios/S13_pending-settlement-refund.json",
                :format :json}],
              :golden-path
              "data/fixtures/golden/s13-pending-settlement-refund.report.edn",
              :expected-outcome :pass}
   #:scenario{:id "s14-dr3-module-authorized",
              :protocol "sew-v1",
-             :path "scenarios/S14_dr3-module-authorized.json",
+             :path "data/fixtures/scenarios/S14_dr3-module-authorized.json",
              :format :json,
              :files
              [{:path "scenarios/edn/S14_dr3-module-authorized.edn",
                :format :edn}
               {:path "scenarios/edn/S14_dr3-module-authorized.edn",
                :format :edn}
-              {:path "scenarios/S14_dr3-module-authorized.json",
+              {:path "data/fixtures/scenarios/S14_dr3-module-authorized.json",
                :format :json}],
              :golden-path
              "data/fixtures/golden/s14-dr3-module-authorized.report.edn",
@@ -1996,7 +1996,7 @@
   #:scenario{:id "s15-dr3-module-unauthorized-rejected",
              :protocol "sew-v1",
              :path
-             "scenarios/S15_dr3-module-unauthorized-rejected.json",
+             "data/fixtures/scenarios/S15_dr3-module-unauthorized-rejected.json",
              :format :json,
              :files
              [{:path
@@ -2006,21 +2006,21 @@
                "scenarios/edn/S15_dr3-module-unauthorized-rejected.edn",
                :format :edn}
               {:path
-               "scenarios/S15_dr3-module-unauthorized-rejected.json",
+               "data/fixtures/scenarios/S15_dr3-module-unauthorized-rejected.json",
                :format :json}],
              :golden-path
              "data/fixtures/golden/s15-dr3-module-unauthorized-rejected.report.edn",
              :expected-outcome :pass}
   #:scenario{:id "s16-ieo-create-release",
              :protocol "sew-v1",
-             :path "scenarios/S16_ieo-create-release.json",
+             :path "data/fixtures/scenarios/S16_ieo-create-release.json",
              :format :json,
              :files
              [{:path "scenarios/edn/S16_ieo-create-release.edn",
                :format :edn}
               {:path "scenarios/edn/S16_ieo-create-release.edn",
                :format :edn}
-              {:path "scenarios/S16_ieo-create-release.json",
+              {:path "data/fixtures/scenarios/S16_ieo-create-release.json",
                :format :json}],
              :golden-path
              "data/fixtures/golden/s16-ieo-create-release.report.edn",
@@ -2028,7 +2028,7 @@
   #:scenario{:id "s17-ieo-dispute-no-resolver-timeout",
              :protocol "sew-v1",
              :path
-             "scenarios/S17_ieo-dispute-no-resolver-timeout.json",
+             "data/fixtures/scenarios/S17_ieo-dispute-no-resolver-timeout.json",
              :format :json,
              :files
              [{:path
@@ -2038,38 +2038,38 @@
                "scenarios/edn/S17_ieo-dispute-no-resolver-timeout.edn",
                :format :edn}
               {:path
-               "scenarios/S17_ieo-dispute-no-resolver-timeout.json",
+               "data/fixtures/scenarios/S17_ieo-dispute-no-resolver-timeout.json",
                :format :json}],
              :golden-path
              "data/fixtures/golden/s17-ieo-dispute-no-resolver-timeout.report.edn",
              :expected-outcome :pass}
   #:scenario{:id "s18-dr3-kleros-l0-resolves",
              :protocol "sew-v1",
-             :path "scenarios/S18_dr3-kleros-l0-resolves.json",
+             :path "data/fixtures/scenarios/S18_dr3-kleros-l0-resolves.json",
              :format :json,
              :files
              [{:path "scenarios/edn/S18_dr3-kleros-l0-resolves.edn",
                :format :edn}
               {:path "scenarios/edn/S18_dr3-kleros-l0-resolves.edn",
                :format :edn}
-              {:path "scenarios/S18_dr3-kleros-l0-resolves.json",
+              {:path "data/fixtures/scenarios/S18_dr3-kleros-l0-resolves.json",
                :format :json}],
              :golden-path
              "data/fixtures/golden/s18-dr3-kleros-l0-resolves.report.edn",
              :expected-outcome :pass}
   #:scenario{:id "s180",
              :protocol "sew-v1",
-             :path "scenarios/S180.json",
+             :path "data/fixtures/scenarios/S180.json",
              :format :json,
              :files
              [{:path "scenarios/edn/S180.edn", :format :edn}
               {:path "scenarios/edn/S180.edn", :format :edn}
-              {:path "scenarios/S180.json", :format :json}],
+              {:path "data/fixtures/scenarios/S180.json", :format :json}],
              :golden-path "data/fixtures/golden/s180.report.edn",
              :expected-outcome :pass}
   #:scenario{:id "s181-refund-release-refund-chain",
              :protocol "sew-v1",
-             :path "scenarios/S181_refund-release-refund-chain.json",
+             :path "data/fixtures/scenarios/S181_refund-release-refund-chain.json",
              :format :json,
              :files
              [{:path
@@ -2078,21 +2078,21 @@
               {:path
                "scenarios/edn/S181_refund-release-refund-chain.edn",
                :format :edn}
-              {:path "scenarios/S181_refund-release-refund-chain.json",
+              {:path "data/fixtures/scenarios/S181_refund-release-refund-chain.json",
                :format :json}],
              :golden-path
              "data/fixtures/golden/s181-refund-release-refund-chain.report.edn",
              :expected-outcome :pass}
   #:scenario{:id "s182-fraud-slash-reversal",
              :protocol "sew-v1",
-             :path "scenarios/S182_fraud-slash-reversal.json",
+             :path "data/fixtures/scenarios/S182_fraud-slash-reversal.json",
              :format :json,
              :files
              [{:path "scenarios/edn/S182_fraud-slash-reversal.edn",
                :format :edn}
               {:path "scenarios/edn/S182_fraud-slash-reversal.edn",
                :format :edn}
-              {:path "scenarios/S182_fraud-slash-reversal.json",
+              {:path "data/fixtures/scenarios/S182_fraud-slash-reversal.json",
                :format :json}],
              :golden-path
              "data/fixtures/golden/s182-fraud-slash-reversal.report.edn",
@@ -2100,7 +2100,7 @@
   #:scenario{:id "s19-dr3-kleros-escalation-rejected-l0-resolves",
              :protocol "sew-v1",
              :path
-             "scenarios/S19_dr3-kleros-escalation-rejected-l0-resolves.json",
+             "data/fixtures/scenarios/S19_dr3-kleros-escalation-rejected-l0-resolves.json",
              :format :json,
              :files
              [{:path
@@ -2110,7 +2110,7 @@
                "scenarios/edn/S19_dr3-kleros-escalation-rejected-l0-resolves.edn",
                :format :edn}
               {:path
-               "scenarios/S19_dr3-kleros-escalation-rejected-l0-resolves.json",
+               "data/fixtures/scenarios/S19_dr3-kleros-escalation-rejected-l0-resolves.json",
                :format :json}],
              :golden-path
              "data/fixtures/golden/s19-dr3-kleros-escalation-rejected-l0-resolves.report.edn",
@@ -2126,14 +2126,14 @@
                "scenarios/edn/S20_dr3-kleros-max-escalation-guard.edn",
                :format :edn}
               {:path
-               "scenarios/S20_dr3-kleros-max-escalation-guard.json",
+               "data/fixtures/scenarios/S20_dr3-kleros-max-escalation-guard.json",
                :format :json}],
              :invariants ["escalation-layer-protection"],
              :threat "Appeal layer breakdown",
              :claim
              "Corrupt verdict capture requires escalation failure.",
              :path
-             "scenarios/S20_dr3-kleros-max-escalation-guard.json",
+             "data/fixtures/scenarios/S20_dr3-kleros-max-escalation-guard.json",
              :format :json,
              :expected-outcome :pass,
              :claim-id "corrupt-verdict-must-survive-escalation",
@@ -2143,7 +2143,7 @@
   #:scenario{:id "s21-dr3-kleros-pending-cleared-on-escalation",
              :protocol "sew-v1",
              :path
-             "scenarios/S21_dr3-kleros-pending-cleared-on-escalation.json",
+             "data/fixtures/scenarios/S21_dr3-kleros-pending-cleared-on-escalation.json",
              :format :json,
              :files
              [{:path
@@ -2153,7 +2153,7 @@
                "scenarios/edn/S21_dr3-kleros-pending-cleared-on-escalation.edn",
                :format :edn}
               {:path
-               "scenarios/S21_dr3-kleros-pending-cleared-on-escalation.json",
+               "data/fixtures/scenarios/S21_dr3-kleros-pending-cleared-on-escalation.json",
                :format :json}],
              :golden-path
              "data/fixtures/golden/s21-dr3-kleros-pending-cleared-on-escalation.report.edn",
@@ -2161,7 +2161,7 @@
   #:scenario{:id "s22-status-leak-agree-cancel-over-dispute",
              :protocol "sew-v1",
              :path
-             "scenarios/S22_status-leak-agree-cancel-over-dispute.json",
+             "data/fixtures/scenarios/S22_status-leak-agree-cancel-over-dispute.json",
              :format :json,
              :files
              [{:path
@@ -2171,14 +2171,14 @@
                "scenarios/edn/S22_status-leak-agree-cancel-over-dispute.edn",
                :format :edn}
               {:path
-               "scenarios/S22_status-leak-agree-cancel-over-dispute.json",
+               "data/fixtures/scenarios/S22_status-leak-agree-cancel-over-dispute.json",
                :format :json}],
              :golden-path
              "data/fixtures/golden/s22-status-leak-agree-cancel-over-dispute.report.edn",
              :expected-outcome :pass}
   #:scenario{:id "s23-preemptive-escalation-blocked",
              :protocol "sew-v1",
-             :path "scenarios/S23_preemptive-escalation-blocked.json",
+             :path "data/fixtures/scenarios/S23_preemptive-escalation-blocked.json",
              :format :json,
              :files
              [{:path
@@ -2188,7 +2188,7 @@
                "scenarios/edn/S23_preemptive-escalation-blocked.edn",
                :format :edn}
               {:path
-               "scenarios/S23_preemptive-escalation-blocked.json",
+               "data/fixtures/scenarios/S23_preemptive-escalation-blocked.json",
                :format :json}],
              :golden-path
              "data/fixtures/golden/s23-preemptive-escalation-blocked.report.edn",
@@ -2196,7 +2196,7 @@
   #:scenario{:id "s24-resolver-stake-depletion-cascade",
              :protocol "sew-v1",
              :path
-             "scenarios/S24_resolver-stake-depletion-cascade.json",
+             "data/fixtures/scenarios/S24_resolver-stake-depletion-cascade.json",
              :format :json,
              :files
              [{:path
@@ -2206,7 +2206,7 @@
                "scenarios/edn/S24_resolver-stake-depletion-cascade.edn",
                :format :edn}
               {:path
-               "scenarios/S24_resolver-stake-depletion-cascade.json",
+               "data/fixtures/scenarios/S24_resolver-stake-depletion-cascade.json",
                :format :json}],
              :golden-path
              "data/fixtures/golden/s24-resolver-stake-depletion-cascade.report.edn",
@@ -2222,14 +2222,14 @@
                "scenarios/edn/S25_profit-maximizer-slash-lifecycle.edn",
                :format :edn}
               {:path
-               "scenarios/S25_profit-maximizer-slash-lifecycle.json",
+               "data/fixtures/scenarios/S25_profit-maximizer-slash-lifecycle.json",
                :format :json}],
              :invariants ["slashable-liability-preserved"],
              :threat "Malicious resolver verdict",
              :claim
              "Resolver corruption is economically bounded under stated assumptions.",
              :path
-             "scenarios/S25_profit-maximizer-slash-lifecycle.json",
+             "data/fixtures/scenarios/S25_profit-maximizer-slash-lifecycle.json",
              :format :json,
              :expected-outcome :pass,
              :claim-id "malicious-verdict-economically-bounded",
@@ -2238,7 +2238,7 @@
              :classification :bounded-counterfactual}
   #:scenario{:id "s26-forking-strategist-l1-reversal",
              :protocol "sew-v1",
-             :path "scenarios/S26_forking-strategist-l1-reversal.json",
+             :path "data/fixtures/scenarios/S26_forking-strategist-l1-reversal.json",
              :format :json,
              :files
              [{:path
@@ -2248,14 +2248,14 @@
                "scenarios/edn/S26_forking-strategist-l1-reversal.edn",
                :format :edn}
               {:path
-               "scenarios/S26_forking-strategist-l1-reversal.json",
+               "data/fixtures/scenarios/S26_forking-strategist-l1-reversal.json",
                :format :json}],
              :golden-path
              "data/fixtures/golden/s26-forking-strategist-l1-reversal.report.edn",
              :expected-outcome :pass}
   #:scenario{:id "s27-forking-strategist-l2-fork",
              :protocol "sew-v1",
-             :path "scenarios/S27_forking-strategist-l2-fork.json",
+             :path "data/fixtures/scenarios/S27_forking-strategist-l2-fork.json",
              :format :json,
              :files
              [{:path
@@ -2264,7 +2264,7 @@
               {:path
                "scenarios/edn/S27_forking-strategist-l2-fork.edn",
                :format :edn}
-              {:path "scenarios/S27_forking-strategist-l2-fork.json",
+              {:path "data/fixtures/scenarios/S27_forking-strategist-l2-fork.json",
                :format :json}],
              :golden-path
              "data/fixtures/golden/s27-forking-strategist-l2-fork.report.edn",
@@ -2272,7 +2272,7 @@
   #:scenario{:id "s28-forking-strategist-late-escalation-rejected",
              :protocol "sew-v1",
              :path
-             "scenarios/S28_forking-strategist-late-escalation-rejected.json",
+             "data/fixtures/scenarios/S28_forking-strategist-late-escalation-rejected.json",
              :format :json,
              :files
              [{:path
@@ -2282,7 +2282,7 @@
                "scenarios/edn/S28_forking-strategist-late-escalation-rejected.edn",
                :format :edn}
               {:path
-               "scenarios/S28_forking-strategist-late-escalation-rejected.json",
+               "data/fixtures/scenarios/S28_forking-strategist-late-escalation-rejected.json",
                :format :json}],
              :golden-path
              "data/fixtures/golden/s28-forking-strategist-late-escalation-rejected.report.edn",
@@ -2290,7 +2290,7 @@
   #:scenario{:id "s29-forking-strategist-seller-escalates",
              :protocol "sew-v1",
              :path
-             "scenarios/S29_forking-strategist-seller-escalates.json",
+             "data/fixtures/scenarios/S29_forking-strategist-seller-escalates.json",
              :format :json,
              :files
              [{:path
@@ -2300,14 +2300,14 @@
                "scenarios/edn/S29_forking-strategist-seller-escalates.edn",
                :format :edn}
               {:path
-               "scenarios/S29_forking-strategist-seller-escalates.json",
+               "data/fixtures/scenarios/S29_forking-strategist-seller-escalates.json",
                :format :json}],
              :golden-path
              "data/fixtures/golden/s29-forking-strategist-seller-escalates.report.edn",
              :expected-outcome :pass}
   #:scenario{:id "s30-forking-strategist-double-loss",
              :protocol "sew-v1",
-             :path "scenarios/S30_forking-strategist-double-loss.json",
+             :path "data/fixtures/scenarios/S30_forking-strategist-double-loss.json",
              :format :json,
              :files
              [{:path
@@ -2317,7 +2317,7 @@
                "scenarios/edn/S30_forking-strategist-double-loss.edn",
                :format :edn}
               {:path
-               "scenarios/S30_forking-strategist-double-loss.json",
+               "data/fixtures/scenarios/S30_forking-strategist-double-loss.json",
                :format :json}],
              :golden-path
              "data/fixtures/golden/s30-forking-strategist-double-loss.report.edn",
@@ -2325,7 +2325,7 @@
   #:scenario{:id "s31-forking-strategist-all-levels-confirm",
              :protocol "sew-v1",
              :path
-             "scenarios/S31_forking-strategist-all-levels-confirm.json",
+             "data/fixtures/scenarios/S31_forking-strategist-all-levels-confirm.json",
              :format :json,
              :files
              [{:path
@@ -2335,7 +2335,7 @@
                "scenarios/edn/S31_forking-strategist-all-levels-confirm.edn",
                :format :edn}
               {:path
-               "scenarios/S31_forking-strategist-all-levels-confirm.json",
+               "data/fixtures/scenarios/S31_forking-strategist-all-levels-confirm.json",
                :format :json}],
              :golden-path
              "data/fixtures/golden/s31-forking-strategist-all-levels-confirm.report.edn",
@@ -2344,7 +2344,7 @@
              "s32-forking-strategist-premature-settlement-rejected",
              :protocol "sew-v1",
              :path
-             "scenarios/S32_forking-strategist-premature-settlement-rejected.json",
+             "data/fixtures/scenarios/S32_forking-strategist-premature-settlement-rejected.json",
              :format :json,
              :files
              [{:path
@@ -2354,7 +2354,7 @@
                "scenarios/edn/S32_forking-strategist-premature-settlement-rejected.edn",
                :format :edn}
               {:path
-               "scenarios/S32_forking-strategist-premature-settlement-rejected.json",
+               "data/fixtures/scenarios/S32_forking-strategist-premature-settlement-rejected.json",
                :format :json}],
              :golden-path
              "data/fixtures/golden/s32-forking-strategist-premature-settlement-rejected.report.edn",
@@ -2362,7 +2362,7 @@
   #:scenario{:id "s33-forking-strategist-two-escrow-fork-isolation",
              :protocol "sew-v1",
              :path
-             "scenarios/S33_forking-strategist-two-escrow-fork-isolation.json",
+             "data/fixtures/scenarios/S33_forking-strategist-two-escrow-fork-isolation.json",
              :format :json,
              :files
              [{:path
@@ -2372,7 +2372,7 @@
                "scenarios/edn/S33_forking-strategist-two-escrow-fork-isolation.edn",
                :format :edn}
               {:path
-               "scenarios/S33_forking-strategist-two-escrow-fork-isolation.json",
+               "data/fixtures/scenarios/S33_forking-strategist-two-escrow-fork-isolation.json",
                :format :json}],
              :golden-path
              "data/fixtures/golden/s33-forking-strategist-two-escrow-fork-isolation.report.edn",
@@ -2380,7 +2380,7 @@
   #:scenario{:id "s34-pending-settlement-races-fraud-slash",
              :protocol "sew-v1",
              :path
-             "scenarios/S34_pending-settlement-races-fraud-slash.json",
+             "data/fixtures/scenarios/S34_pending-settlement-races-fraud-slash.json",
              :format :json,
              :files
              [{:path
@@ -2390,7 +2390,7 @@
                "scenarios/edn/S34_pending-settlement-races-fraud-slash.edn",
                :format :edn}
               {:path
-               "scenarios/S34_pending-settlement-races-fraud-slash.json",
+               "data/fixtures/scenarios/S34_pending-settlement-races-fraud-slash.json",
                :format :json}],
              :golden-path
              "data/fixtures/golden/s34-pending-settlement-races-fraud-slash.report.edn",
@@ -2411,7 +2411,7 @@
   #:scenario{:id "s35-profit-maximizer-governance-wins-appeal",
              :protocol "sew-v1",
              :path
-             "scenarios/S35_profit-maximizer-governance-wins-appeal.json",
+             "data/fixtures/scenarios/S35_profit-maximizer-governance-wins-appeal.json",
              :format :json,
              :files
              [{:path
@@ -2421,7 +2421,7 @@
                "scenarios/edn/S35_profit-maximizer-governance-wins-appeal.edn",
                :format :edn}
               {:path
-               "scenarios/S35_profit-maximizer-governance-wins-appeal.json",
+               "data/fixtures/scenarios/S35_profit-maximizer-governance-wins-appeal.json",
                :format :json}],
              :golden-path
              "data/fixtures/golden/s35-profit-maximizer-governance-wins-appeal.report.edn",
@@ -2429,7 +2429,7 @@
   #:scenario{:id "s36-profit-maximizer-pre-window-execute-rejected",
              :protocol "sew-v1",
              :path
-             "scenarios/S36_profit-maximizer-pre-window-execute-rejected.json",
+             "data/fixtures/scenarios/S36_profit-maximizer-pre-window-execute-rejected.json",
              :format :json,
              :files
              [{:path
@@ -2439,7 +2439,7 @@
                "scenarios/edn/S36_profit-maximizer-pre-window-execute-rejected.edn",
                :format :edn}
               {:path
-               "scenarios/S36_profit-maximizer-pre-window-execute-rejected.json",
+               "data/fixtures/scenarios/S36_profit-maximizer-pre-window-execute-rejected.json",
                :format :json}],
              :golden-path
              "data/fixtures/golden/s36-profit-maximizer-pre-window-execute-rejected.report.edn",
@@ -2447,7 +2447,7 @@
   #:scenario{:id "s37-profit-maximizer-two-resolver-split-outcomes",
              :protocol "sew-v1",
              :path
-             "scenarios/S37_profit-maximizer-two-resolver-split-outcomes.json",
+             "data/fixtures/scenarios/S37_profit-maximizer-two-resolver-split-outcomes.json",
              :format :json,
              :files
              [{:path
@@ -2457,28 +2457,28 @@
                "scenarios/edn/S37_profit-maximizer-two-resolver-split-outcomes.edn",
                :format :edn}
               {:path
-               "scenarios/S37_profit-maximizer-two-resolver-split-outcomes.json",
+               "data/fixtures/scenarios/S37_profit-maximizer-two-resolver-split-outcomes.json",
                :format :json}],
              :golden-path
              "data/fixtures/golden/s37-profit-maximizer-two-resolver-split-outcomes.report.edn",
              :expected-outcome :fail}
   #:scenario{:id "s38-dr3-bond-mix-valid",
              :protocol "sew-v1",
-             :path "scenarios/S38_dr3-bond-mix-valid.json",
+             :path "data/fixtures/scenarios/S38_dr3-bond-mix-valid.json",
              :format :json,
              :files
              [{:path "scenarios/edn/S38_dr3-bond-mix-valid.edn",
                :format :edn}
               {:path "scenarios/edn/S38_dr3-bond-mix-valid.edn",
                :format :edn}
-              {:path "scenarios/S38_dr3-bond-mix-valid.json",
+              {:path "data/fixtures/scenarios/S38_dr3-bond-mix-valid.json",
                :format :json}],
              :golden-path
              "data/fixtures/golden/s38-dr3-bond-mix-valid.report.edn",
              :expected-outcome :pass}
   #:scenario{:id "s39-dr3-senior-coverage-delegation",
              :protocol "sew-v1",
-             :path "scenarios/S39_dr3-senior-coverage-delegation.json",
+             :path "data/fixtures/scenarios/S39_dr3-senior-coverage-delegation.json",
              :format :json,
              :files
              [{:path
@@ -2488,28 +2488,28 @@
                "scenarios/edn/S39_dr3-senior-coverage-delegation.edn",
                :format :edn}
               {:path
-               "scenarios/S39_dr3-senior-coverage-delegation.json",
+               "data/fixtures/scenarios/S39_dr3-senior-coverage-delegation.json",
                :format :json}],
              :golden-path
              "data/fixtures/golden/s39-dr3-senior-coverage-delegation.report.edn",
              :expected-outcome :pass}
   #:scenario{:id "s40-dr3-freeze-post-slash",
              :protocol "sew-v1",
-             :path "scenarios/S40_dr3-freeze-post-slash.json",
+             :path "data/fixtures/scenarios/S40_dr3-freeze-post-slash.json",
              :format :json,
              :files
              [{:path "scenarios/edn/S40_dr3-freeze-post-slash.edn",
                :format :edn}
               {:path "scenarios/edn/S40_dr3-freeze-post-slash.edn",
                :format :edn}
-              {:path "scenarios/S40_dr3-freeze-post-slash.json",
+              {:path "data/fixtures/scenarios/S40_dr3-freeze-post-slash.json",
                :format :json}],
              :golden-path
              "data/fixtures/golden/s40-dr3-freeze-post-slash.report.edn",
              :expected-outcome :pass}
   #:scenario{:id "s41-dr3-reversal-slash-disabled",
              :protocol "sew-v1",
-             :path "scenarios/S41_dr3-reversal-slash-disabled.json",
+             :path "data/fixtures/scenarios/S41_dr3-reversal-slash-disabled.json",
              :format :json,
              :files
              [{:path
@@ -2518,14 +2518,14 @@
               {:path
                "scenarios/edn/S41_dr3-reversal-slash-disabled.edn",
                :format :edn}
-              {:path "scenarios/S41_dr3-reversal-slash-disabled.json",
+              {:path "data/fixtures/scenarios/S41_dr3-reversal-slash-disabled.json",
                :format :json}],
              :golden-path
              "data/fixtures/golden/s41-dr3-reversal-slash-disabled.report.edn",
              :expected-outcome :pass}
   #:scenario{:id "s42-resolver-buyer-bribery-loop",
              :protocol "sew-v1",
-             :path "scenarios/S42_resolver-buyer-bribery-loop.json",
+             :path "data/fixtures/scenarios/S42_resolver-buyer-bribery-loop.json",
              :format :json,
              :files
              [{:path
@@ -2534,7 +2534,7 @@
               {:path
                "scenarios/edn/S42_resolver-buyer-bribery-loop.edn",
                :format :edn}
-              {:path "scenarios/S42_resolver-buyer-bribery-loop.json",
+              {:path "data/fixtures/scenarios/S42_resolver-buyer-bribery-loop.json",
                :format :json}],
              :golden-path
              "data/fixtures/golden/s42-resolver-buyer-bribery-loop.report.edn",
@@ -2542,7 +2542,7 @@
   #:scenario{:id "s43-auth-rejected-then-authorized-recovery",
              :protocol "sew-v1",
              :path
-             "scenarios/s43_auth_rejected_then_authorized_recovery.json",
+             "data/fixtures/scenarios/s43_auth_rejected_then_authorized_recovery.json",
              :format :json,
              :files
              [{:path
@@ -2552,21 +2552,21 @@
                "scenarios/edn/s43_auth_rejected_then_authorized_recovery.edn",
                :format :edn}
               {:path
-               "scenarios/s43_auth_rejected_then_authorized_recovery.json",
+               "data/fixtures/scenarios/s43_auth_rejected_then_authorized_recovery.json",
                :format :json}],
              :golden-path
              "data/fixtures/golden/s43-auth-rejected-then-authorized-recovery.report.edn",
              :expected-outcome :pass}
   #:scenario{:id "s43-dr3-kleros-reversal-slash",
              :protocol "sew-v1",
-             :path "scenarios/S43_dr3-kleros-reversal-slash.json",
+             :path "data/fixtures/scenarios/S43_dr3-kleros-reversal-slash.json",
              :format :json,
              :files
              [{:path "scenarios/edn/S43_dr3-kleros-reversal-slash.edn",
                :format :edn}
               {:path "scenarios/edn/S43_dr3-kleros-reversal-slash.edn",
                :format :edn}
-              {:path "scenarios/S43_dr3-kleros-reversal-slash.json",
+              {:path "data/fixtures/scenarios/S43_dr3-kleros-reversal-slash.json",
                :format :json}],
              :golden-path
              "data/fixtures/golden/s43-dr3-kleros-reversal-slash.report.edn",
@@ -2574,7 +2574,7 @@
   #:scenario{:id "s44-escalation-tier-mismatch-rejected",
              :protocol "sew-v1",
              :path
-             "scenarios/s44_escalation_tier_mismatch_rejected.json",
+             "data/fixtures/scenarios/s44_escalation_tier_mismatch_rejected.json",
              :format :json,
              :files
              [{:path
@@ -2584,7 +2584,7 @@
                "scenarios/edn/s44_escalation_tier_mismatch_rejected.edn",
                :format :edn}
               {:path
-               "scenarios/s44_escalation_tier_mismatch_rejected.json",
+               "data/fixtures/scenarios/s44_escalation_tier_mismatch_rejected.json",
                :format :json}],
              :golden-path
              "data/fixtures/golden/s44-escalation-tier-mismatch-rejected.report.edn",
@@ -2592,7 +2592,7 @@
   #:scenario{:id "s45-stale-module-snapshot-rejects-legacy-resolver",
              :protocol "sew-v1",
              :path
-             "scenarios/s45_stale_module_snapshot_rejects_legacy_resolver.json",
+             "data/fixtures/scenarios/s45_stale_module_snapshot_rejects_legacy_resolver.json",
              :format :json,
              :files
              [{:path
@@ -2602,21 +2602,21 @@
                "scenarios/edn/s45_stale_module_snapshot_rejects_legacy_resolver.edn",
                :format :edn}
               {:path
-               "scenarios/s45_stale_module_snapshot_rejects_legacy_resolver.json",
+               "data/fixtures/scenarios/s45_stale_module_snapshot_rejects_legacy_resolver.json",
                :format :json}],
              :golden-path
              "data/fixtures/golden/s45-stale-module-snapshot-rejects-legacy-resolver.report.edn",
              :expected-outcome :pass}
   #:scenario{:id "s46-reorg-idempotence",
              :protocol "sew-v1",
-             :path "scenarios/S46_reorg-idempotence.json",
+             :path "data/fixtures/scenarios/S46_reorg-idempotence.json",
              :format :json,
              :files
              [{:path "scenarios/edn/S46_reorg-idempotence.edn",
                :format :edn}
               {:path "scenarios/edn/S46_reorg-idempotence.edn",
                :format :edn}
-              {:path "scenarios/S46_reorg-idempotence.json",
+              {:path "data/fixtures/scenarios/S46_reorg-idempotence.json",
                :format :json}],
              :golden-path
              "data/fixtures/golden/s46-reorg-idempotence.report.edn",
@@ -2624,7 +2624,7 @@
   #:scenario{:id "s46a-settlement-before-escalation-window-edge",
              :protocol "sew-v1",
              :path
-             "scenarios/s46a_settlement_before_escalation_window_edge.json",
+             "data/fixtures/scenarios/s46a_settlement_before_escalation_window_edge.json",
              :format :json,
              :files
              [{:path
@@ -2634,7 +2634,7 @@
                "scenarios/edn/s46a_settlement_before_escalation_window_edge.edn",
                :format :edn}
               {:path
-               "scenarios/s46a_settlement_before_escalation_window_edge.json",
+               "data/fixtures/scenarios/s46a_settlement_before_escalation_window_edge.json",
                :format :json}],
              :golden-path
              "data/fixtures/golden/s46a-settlement-before-escalation-window-edge.report.edn",
@@ -2642,7 +2642,7 @@
   #:scenario{:id "s46b-escalation-before-settlement-window-edge",
              :protocol "sew-v1",
              :path
-             "scenarios/s46b_escalation_before_settlement_window_edge.json",
+             "data/fixtures/scenarios/s46b_escalation_before_settlement_window_edge.json",
              :format :json,
              :files
              [{:path
@@ -2652,7 +2652,7 @@
                "scenarios/edn/s46b_escalation_before_settlement_window_edge.edn",
                :format :edn}
               {:path
-               "scenarios/s46b_escalation_before_settlement_window_edge.json",
+               "data/fixtures/scenarios/s46b_escalation_before_settlement_window_edge.json",
                :format :json}],
              :golden-path
              "data/fixtures/golden/s46b-escalation-before-settlement-window-edge.report.edn",
@@ -2660,7 +2660,7 @@
   #:scenario{:id "s47a-appeal-window-last-second-settlement",
              :protocol "sew-v1",
              :path
-             "scenarios/s47a_appeal_window_last_second_settlement.json",
+             "data/fixtures/scenarios/s47a_appeal_window_last_second_settlement.json",
              :format :json,
              :files
              [{:path
@@ -2670,7 +2670,7 @@
                "scenarios/edn/s47a_appeal_window_last_second_settlement.edn",
                :format :edn}
               {:path
-               "scenarios/s47a_appeal_window_last_second_settlement.json",
+               "data/fixtures/scenarios/s47a_appeal_window_last_second_settlement.json",
                :format :json}],
              :golden-path
              "data/fixtures/golden/s47a-appeal-window-last-second-settlement.report.edn",
@@ -2678,7 +2678,7 @@
   #:scenario{:id "s47b-appeal-window-plus-one-rejected",
              :protocol "sew-v1",
              :path
-             "scenarios/s47b_appeal_window_plus_one_rejected.json",
+             "data/fixtures/scenarios/s47b_appeal_window_plus_one_rejected.json",
              :format :json,
              :files
              [{:path
@@ -2688,14 +2688,14 @@
                "scenarios/edn/s47b_appeal_window_plus_one_rejected.edn",
                :format :edn}
               {:path
-               "scenarios/s47b_appeal_window_plus_one_rejected.json",
+               "data/fixtures/scenarios/s47b_appeal_window_plus_one_rejected.json",
                :format :json}],
              :golden-path
              "data/fixtures/golden/s47b-appeal-window-plus-one-rejected.report.edn",
              :expected-outcome :pass}
   #:scenario{:id "s48-max-escalation-exact-boundary",
              :protocol "sew-v1",
-             :path "scenarios/s48_max_escalation_exact_boundary.json",
+             :path "data/fixtures/scenarios/s48_max_escalation_exact_boundary.json",
              :format :json,
              :files
              [{:path
@@ -2705,7 +2705,7 @@
                "scenarios/edn/s48_max_escalation_exact_boundary.edn",
                :format :edn}
               {:path
-               "scenarios/s48_max_escalation_exact_boundary.json",
+               "data/fixtures/scenarios/s48_max_escalation_exact_boundary.json",
                :format :json}],
              :golden-path
              "data/fixtures/golden/s48-max-escalation-exact-boundary.report.edn",
@@ -2713,7 +2713,7 @@
   #:scenario{:id "s49-max-escalation-plus-one-rejected",
              :protocol "sew-v1",
              :path
-             "scenarios/s49_max_escalation_plus_one_rejected.json",
+             "data/fixtures/scenarios/s49_max_escalation_plus_one_rejected.json",
              :format :json,
              :files
              [{:path
@@ -2723,7 +2723,7 @@
                "scenarios/edn/s49_max_escalation_plus_one_rejected.edn",
                :format :edn}
               {:path
-               "scenarios/s49_max_escalation_plus_one_rejected.json",
+               "data/fixtures/scenarios/s49_max_escalation_plus_one_rejected.json",
                :format :json}],
              :golden-path
              "data/fixtures/golden/s49-max-escalation-plus-one-rejected.report.edn",
@@ -2731,7 +2731,7 @@
   #:scenario{:id "s50-multi-hop-pending-cleared-every-hop",
              :protocol "sew-v1",
              :path
-             "scenarios/s50_multi_hop_pending_cleared_every_hop.json",
+             "data/fixtures/scenarios/s50_multi_hop_pending_cleared_every_hop.json",
              :format :json,
              :files
              [{:path
@@ -2741,7 +2741,7 @@
                "scenarios/edn/s50_multi_hop_pending_cleared_every_hop.edn",
                :format :edn}
               {:path
-               "scenarios/s50_multi_hop_pending_cleared_every_hop.json",
+               "data/fixtures/scenarios/s50_multi_hop_pending_cleared_every_hop.json",
                :format :json}],
              :golden-path
              "data/fixtures/golden/s50-multi-hop-pending-cleared-every-hop.report.edn",
@@ -2749,7 +2749,7 @@
   #:scenario{:id "s51-held-delta-monotonic-under-resolution",
              :protocol "sew-v1",
              :path
-             "scenarios/s51_held_delta_monotonic_under_resolution.json",
+             "data/fixtures/scenarios/s51_held_delta_monotonic_under_resolution.json",
              :format :json,
              :files
              [{:path
@@ -2759,14 +2759,14 @@
                "scenarios/edn/s51_held_delta_monotonic_under_resolution.edn",
                :format :edn}
               {:path
-               "scenarios/s51_held_delta_monotonic_under_resolution.json",
+               "data/fixtures/scenarios/s51_held_delta_monotonic_under_resolution.json",
                :format :json}],
              :golden-path
              "data/fixtures/golden/s51-held-delta-monotonic-under-resolution.report.edn",
              :expected-outcome :pass}
   #:scenario{:id "s52-fee-delta-monotonic-under-fot",
              :protocol "sew-v1",
-             :path "scenarios/s52_fee_delta_monotonic_under_fot.json",
+             :path "data/fixtures/scenarios/s52_fee_delta_monotonic_under_fot.json",
              :format :json,
              :files
              [{:path
@@ -2776,7 +2776,7 @@
                "scenarios/edn/s52_fee_delta_monotonic_under_fot.edn",
                :format :edn}
               {:path
-               "scenarios/s52_fee_delta_monotonic_under_fot.json",
+               "data/fixtures/scenarios/s52_fee_delta_monotonic_under_fot.json",
                :format :json}],
              :golden-path
              "data/fixtures/golden/s52-fee-delta-monotonic-under-fot.report.edn",
@@ -2784,7 +2784,7 @@
   #:scenario{:id "s53-pending-create-clear-balance-consistency",
              :protocol "sew-v1",
              :path
-             "scenarios/s53_pending_create_clear_balance_consistency.json",
+             "data/fixtures/scenarios/s53_pending_create_clear_balance_consistency.json",
              :format :json,
              :files
              [{:path
@@ -2794,7 +2794,7 @@
                "scenarios/edn/s53_pending_create_clear_balance_consistency.edn",
                :format :edn}
               {:path
-               "scenarios/s53_pending_create_clear_balance_consistency.json",
+               "data/fixtures/scenarios/s53_pending_create_clear_balance_consistency.json",
                :format :json}],
              :golden-path
              "data/fixtures/golden/s53-pending-create-clear-balance-consistency.report.edn",
@@ -2802,7 +2802,7 @@
   #:scenario{:id "s54-alias-poisoning-noncanonical-id-rejected",
              :protocol "sew-v1",
              :path
-             "scenarios/S54_alias-poisoning-noncanonical-id-rejected.json",
+             "data/fixtures/scenarios/S54_alias-poisoning-noncanonical-id-rejected.json",
              :format :json,
              :files
              [{:path
@@ -2812,7 +2812,7 @@
                "scenarios/edn/S54_alias-poisoning-noncanonical-id-rejected.edn",
                :format :edn}
               {:path
-               "scenarios/S54_alias-poisoning-noncanonical-id-rejected.json",
+               "data/fixtures/scenarios/S54_alias-poisoning-noncanonical-id-rejected.json",
                :format :json}],
              :golden-path
              "data/fixtures/golden/s54-alias-poisoning-noncanonical-id-rejected.report.edn",
@@ -2820,7 +2820,7 @@
   #:scenario{:id "s55-alias-rebinding-after-create-blocked",
              :protocol "sew-v1",
              :path
-             "scenarios/S55_alias-rebinding-after-create-blocked.json",
+             "data/fixtures/scenarios/S55_alias-rebinding-after-create-blocked.json",
              :format :json,
              :files
              [{:path
@@ -2830,7 +2830,7 @@
                "scenarios/edn/S55_alias-rebinding-after-create-blocked.edn",
                :format :edn}
               {:path
-               "scenarios/S55_alias-rebinding-after-create-blocked.json",
+               "data/fixtures/scenarios/S55_alias-rebinding-after-create-blocked.json",
                :format :json}],
              :golden-path
              "data/fixtures/golden/s55-alias-rebinding-after-create-blocked.report.edn",
@@ -2846,14 +2846,14 @@
                "scenarios/edn/S56_same-block-dual-resolution-order-invariant.edn",
                :format :edn}
               {:path
-               "scenarios/S56_same-block-dual-resolution-order-invariant.json",
+               "data/fixtures/scenarios/S56_same-block-dual-resolution-order-invariant.json",
                :format :json}],
              :invariants ["no-double-settlement"],
              :threat "Ordering-dependent double settlement",
              :claim
              "Settlement paths remain mutually exclusive under concurrent ordering.",
              :path
-             "scenarios/S56_same-block-dual-resolution-order-invariant.json",
+             "data/fixtures/scenarios/S56_same-block-dual-resolution-order-invariant.json",
              :format :json,
              :expected-outcome :pass,
              :claim-id "settlement-mutual-exclusion",
@@ -2871,14 +2871,14 @@
                "scenarios/edn/S57_pending-settlement-expiry-boundary-1s.edn",
                :format :edn}
               {:path
-               "scenarios/S57_pending-settlement-expiry-boundary-1s.json",
+               "data/fixtures/scenarios/S57_pending-settlement-expiry-boundary-1s.json",
                :format :json}],
              :invariants ["no-stale-pending-settlements"],
              :threat "Settlement window manipulation",
              :claim
              "Pending settlement expiry is enforced at boundary conditions.",
              :path
-             "scenarios/S57_pending-settlement-expiry-boundary-1s.json",
+             "data/fixtures/scenarios/S57_pending-settlement-expiry-boundary-1s.json",
              :format :json,
              :expected-outcome :pass,
              :claim-id "pending-settlement-boundary-enforced",
@@ -2896,13 +2896,13 @@
                "scenarios/edn/S58_escalation-after-terminal-hard-reject.edn",
                :format :edn}
               {:path
-               "scenarios/S58_escalation-after-terminal-hard-reject.json",
+               "data/fixtures/scenarios/S58_escalation-after-terminal-hard-reject.json",
                :format :json}],
              :invariants ["terminal-states-unchanged"],
              :threat "Post-terminal escalation",
              :claim "Escalation after terminal state is rejected.",
              :path
-             "scenarios/S58_escalation-after-terminal-hard-reject.json",
+             "data/fixtures/scenarios/S58_escalation-after-terminal-hard-reject.json",
              :format :json,
              :expected-outcome :pass,
              :claim-id "terminal-state-irreversible-after-escalation",
@@ -2912,7 +2912,7 @@
   #:scenario{:id "s59-fot-rounding-multi-hop-conservation",
              :protocol "sew-v1",
              :path
-             "scenarios/S59_fot-rounding-multi-hop-conservation.json",
+             "data/fixtures/scenarios/S59_fot-rounding-multi-hop-conservation.json",
              :format :json,
              :files
              [{:path
@@ -2922,7 +2922,7 @@
                "scenarios/edn/S59_fot-rounding-multi-hop-conservation.edn",
                :format :edn}
               {:path
-               "scenarios/S59_fot-rounding-multi-hop-conservation.json",
+               "data/fixtures/scenarios/S59_fot-rounding-multi-hop-conservation.json",
                :format :json}],
              :golden-path
              "data/fixtures/golden/s59-fot-rounding-multi-hop-conservation.report.edn",
@@ -2938,14 +2938,14 @@
                "scenarios/edn/S60_partial-withdraw-then-slash-ordering.edn",
                :format :edn}
               {:path
-               "scenarios/S60_partial-withdraw-then-slash-ordering.json",
+               "data/fixtures/scenarios/S60_partial-withdraw-then-slash-ordering.json",
                :format :json}],
              :invariants ["liability-gated-withdrawal"],
              :threat "Slash evasion",
              :claim
              "Unresolved liabilities block premature withdrawal.",
              :path
-             "scenarios/S60_partial-withdraw-then-slash-ordering.json",
+             "data/fixtures/scenarios/S60_partial-withdraw-then-slash-ordering.json",
              :format :json,
              :expected-outcome :pass,
              :claim-id "unresolved-liabilities-block-withdrawal",
@@ -2963,7 +2963,7 @@
                "scenarios/edn/S61_governance-snapshot-mid-dispute-immutability.edn",
                :format :edn}
               {:path
-               "scenarios/S61_governance-snapshot-mid-dispute-immutability.json",
+               "data/fixtures/scenarios/S61_governance-snapshot-mid-dispute-immutability.json",
                :format :json}],
              :invariants
              ["active-escrow-module-snapshot-immutable"
@@ -2971,7 +2971,7 @@
              :threat "Governance timing attack",
              :claim "Governance cannot alter active escrow rules.",
              :path
-             "scenarios/S61_governance-snapshot-mid-dispute-immutability.json",
+             "data/fixtures/scenarios/S61_governance-snapshot-mid-dispute-immutability.json",
              :format :json,
              :expected-outcome :pass,
              :claim-id "active-escrow-rules-immutable",
@@ -2981,7 +2981,7 @@
   #:scenario{:id "s62-cross-token-fee-on-transfer-under-dispute-load",
              :protocol "sew-v1",
              :path
-             "scenarios/S62_cross-token-fee-on-transfer-under-dispute-load.json",
+             "data/fixtures/scenarios/S62_cross-token-fee-on-transfer-under-dispute-load.json",
              :format :json,
              :files
              [{:path
@@ -2991,7 +2991,7 @@
                "scenarios/edn/S62_cross-token-fee-on-transfer-under-dispute-load.edn",
                :format :edn}
               {:path
-               "scenarios/S62_cross-token-fee-on-transfer-under-dispute-load.json",
+               "data/fixtures/scenarios/S62_cross-token-fee-on-transfer-under-dispute-load.json",
                :format :json}],
              :golden-path
              "data/fixtures/golden/s62-cross-token-fee-on-transfer-under-dispute-load.report.edn",
@@ -2999,7 +2999,7 @@
   #:scenario{:id "s62-cross-token-isolation-under-dispute-load",
              :protocol "sew-v1",
              :path
-             "scenarios/S62_cross-token-isolation-under-dispute-load.json",
+             "data/fixtures/scenarios/S62_cross-token-isolation-under-dispute-load.json",
              :format :json,
              :files
              [{:path
@@ -3009,7 +3009,7 @@
                "scenarios/edn/S62_cross-token-isolation-under-dispute-load.edn",
                :format :edn}
               {:path
-               "scenarios/S62_cross-token-isolation-under-dispute-load.json",
+               "data/fixtures/scenarios/S62_cross-token-isolation-under-dispute-load.json",
                :format :json}],
              :golden-path
              "data/fixtures/golden/s62-cross-token-isolation-under-dispute-load.report.edn",
@@ -3018,7 +3018,7 @@
              "s62-cross-token-parallel-appeal-depths-under-dispute-load",
              :protocol "sew-v1",
              :path
-             "scenarios/S62_cross-token-parallel-appeal-depths-under-dispute-load.json",
+             "data/fixtures/scenarios/S62_cross-token-parallel-appeal-depths-under-dispute-load.json",
              :format :json,
              :files
              [{:path
@@ -3028,35 +3028,35 @@
                "scenarios/edn/S62_cross-token-parallel-appeal-depths-under-dispute-load.edn",
                :format :edn}
               {:path
-               "scenarios/S62_cross-token-parallel-appeal-depths-under-dispute-load.json",
+               "data/fixtures/scenarios/S62_cross-token-parallel-appeal-depths-under-dispute-load.json",
                :format :json}],
              :golden-path
              "data/fixtures/golden/s62-cross-token-parallel-appeal-depths-under-dispute-load.report.edn",
              :expected-outcome :pass}
   #:scenario{:id "s62-load-gradual-fallback",
              :protocol "sew-v1",
-             :path "scenarios/S62_load-gradual-fallback.json",
+             :path "data/fixtures/scenarios/S62_load-gradual-fallback.json",
              :format :json,
              :files
              [{:path "scenarios/edn/S62_load-gradual-fallback.edn",
                :format :edn}
               {:path "scenarios/edn/S62_load-gradual-fallback.edn",
                :format :edn}
-              {:path "scenarios/S62_load-gradual-fallback.json",
+              {:path "data/fixtures/scenarios/S62_load-gradual-fallback.json",
                :format :json}],
              :golden-path
              "data/fixtures/golden/s62-load-gradual-fallback.report.edn",
              :expected-outcome :fail}
   #:scenario{:id "s62-mass-appeal-thresholds",
              :protocol "sew-v1",
-             :path "scenarios/S62_mass-appeal-thresholds.json",
+             :path "data/fixtures/scenarios/S62_mass-appeal-thresholds.json",
              :format :json,
              :files
              [{:path "scenarios/edn/S62_mass-appeal-thresholds.edn",
                :format :edn}
               {:path "scenarios/edn/S62_mass-appeal-thresholds.edn",
                :format :edn}
-              {:path "scenarios/S62_mass-appeal-thresholds.json",
+              {:path "data/fixtures/scenarios/S62_mass-appeal-thresholds.json",
                :format :json}],
              :golden-path
              "data/fixtures/golden/s62-mass-appeal-thresholds.report.edn",
@@ -3064,7 +3064,7 @@
   #:scenario{:id "s62-resolver-capacity-concurrent-dispute-load",
              :protocol "sew-v1",
              :path
-             "scenarios/S62_resolver-capacity-concurrent-dispute-load.json",
+             "data/fixtures/scenarios/S62_resolver-capacity-concurrent-dispute-load.json",
              :format :json,
              :files
              [{:path
@@ -3074,7 +3074,7 @@
                "scenarios/edn/S62_resolver-capacity-concurrent-dispute-load.edn",
                :format :edn}
               {:path
-               "scenarios/S62_resolver-capacity-concurrent-dispute-load.json",
+               "data/fixtures/scenarios/S62_resolver-capacity-concurrent-dispute-load.json",
                :format :json}],
              :golden-path
              "data/fixtures/golden/s62-resolver-capacity-concurrent-dispute-load.report.edn",
@@ -3090,13 +3090,13 @@
                "scenarios/edn/S62_resolver-throughput-exhaustion.edn",
                :format :edn}
               {:path
-               "scenarios/S62_resolver-throughput-exhaustion.json",
+               "data/fixtures/scenarios/S62_resolver-throughput-exhaustion.json",
                :format :json}],
              :invariants ["bounded-progress-under-load"],
              :threat "Dispute capacity exhaustion",
              :claim
              "Liveness remains bounded under adversarial dispute load assumptions.",
-             :path "scenarios/S62_resolver-throughput-exhaustion.json",
+             :path "data/fixtures/scenarios/S62_resolver-throughput-exhaustion.json",
              :format :json,
              :expected-outcome :fail,
              :claim-id "liveness-under-adversarial-load",
@@ -3105,14 +3105,14 @@
              :classification :capacity-bounded}
   #:scenario{:id "s62-watchdog-rate-limit",
              :protocol "sew-v1",
-             :path "scenarios/S62_watchdog-rate-limit.json",
+             :path "data/fixtures/scenarios/S62_watchdog-rate-limit.json",
              :format :json,
              :files
              [{:path "scenarios/edn/S62_watchdog-rate-limit.edn",
                :format :edn}
               {:path "scenarios/edn/S62_watchdog-rate-limit.edn",
                :format :edn}
-              {:path "scenarios/S62_watchdog-rate-limit.json",
+              {:path "data/fixtures/scenarios/S62_watchdog-rate-limit.json",
                :format :json}],
              :golden-path
              "data/fixtures/golden/s62-watchdog-rate-limit.report.edn",
@@ -3120,7 +3120,7 @@
   #:scenario{:id "s63-replay-idempotence-same-trace-double-run",
              :protocol "sew-v1",
              :path
-             "scenarios/S63_replay-idempotence-same-trace-double-run.json",
+             "data/fixtures/scenarios/S63_replay-idempotence-same-trace-double-run.json",
              :format :json,
              :files
              [{:path
@@ -3130,7 +3130,7 @@
                "scenarios/edn/S63_replay-idempotence-same-trace-double-run.edn",
                :format :edn}
               {:path
-               "scenarios/S63_replay-idempotence-same-trace-double-run.json",
+               "data/fixtures/scenarios/S63_replay-idempotence-same-trace-double-run.json",
                :format :json}],
              :golden-path
              "data/fixtures/golden/s63-replay-idempotence-same-trace-double-run.report.edn",
@@ -3146,7 +3146,7 @@
                "scenarios/edn/S64_force-refund-then-illegal-release-attempt.edn",
                :format :edn}
               {:path
-               "scenarios/S64_force-refund-then-illegal-release-attempt.json",
+               "data/fixtures/scenarios/S64_force-refund-then-illegal-release-attempt.json",
                :format :json}],
              :invariants
              ["terminal-states-unchanged"
@@ -3155,7 +3155,7 @@
              :claim
              "Force-refunded escrows reject subsequent release attempts.",
              :path
-             "scenarios/S64_force-refund-then-illegal-release-attempt.json",
+             "data/fixtures/scenarios/S64_force-refund-then-illegal-release-attempt.json",
              :format :json,
              :expected-outcome :pass,
              :claim-id "terminal-state-absorbing-after-force-refund",
@@ -3164,14 +3164,14 @@
              :classification :safety-critical}
   #:scenario{:id "s64-replay-event-id-dedupe",
              :protocol "sew-v1",
-             :path "scenarios/S64_replay-event-id-dedupe.json",
+             :path "data/fixtures/scenarios/S64_replay-event-id-dedupe.json",
              :format :json,
              :files
              [{:path "scenarios/edn/S64_replay-event-id-dedupe.edn",
                :format :edn}
               {:path "scenarios/edn/S64_replay-event-id-dedupe.edn",
                :format :edn}
-              {:path "scenarios/S64_replay-event-id-dedupe.json",
+              {:path "data/fixtures/scenarios/S64_replay-event-id-dedupe.json",
                :format :json}],
              :golden-path
              "data/fixtures/golden/s64-replay-event-id-dedupe.report.edn",
@@ -3188,7 +3188,7 @@
                "scenarios/edn/S65_escalation-supersedes-old-pending-then-old-path-attempt.edn",
                :format :edn}
               {:path
-               "scenarios/S65_escalation-supersedes-old-pending-then-old-path-attempt.json",
+               "data/fixtures/scenarios/S65_escalation-supersedes-old-pending-then-old-path-attempt.json",
                :format :json}],
              :invariants
              ["pending-settlement-consistent"
@@ -3197,7 +3197,7 @@
              :claim
              "Escalation supersedes pending settlement and archives it.",
              :path
-             "scenarios/S65_escalation-supersedes-old-pending-then-old-path-attempt.json",
+             "data/fixtures/scenarios/S65_escalation-supersedes-old-pending-then-old-path-attempt.json",
              :format :json,
              :expected-outcome :pass,
              :claim-id "escalation-supersedes-pending-settlement",
@@ -3206,7 +3206,7 @@
              :classification :safety-critical}
   #:scenario{:id "s65-spe-fork-event-id-inheritance",
              :protocol "sew-v1",
-             :path "scenarios/S65_spe-fork-event-id-inheritance.json",
+             :path "data/fixtures/scenarios/S65_spe-fork-event-id-inheritance.json",
              :format :json,
              :files
              [{:path
@@ -3216,35 +3216,35 @@
                "scenarios/edn/S65_spe-fork-event-id-inheritance.edn",
                :format :edn}
               {:path
-               "scenarios/S65_spe-fork-event-id-inheritance.json",
+               "data/fixtures/scenarios/S65_spe-fork-event-id-inheritance.json",
                :format :json}],
              :golden-path
              "data/fixtures/golden/s65-spe-fork-event-id-inheritance.report.edn",
              :expected-outcome :pass}
   #:scenario{:id "s66-cooldown-boundary-reorg",
              :protocol "sew-v1",
-             :path "scenarios/S66_cooldown-boundary-reorg.json",
+             :path "data/fixtures/scenarios/S66_cooldown-boundary-reorg.json",
              :format :json,
              :files
              [{:path "scenarios/edn/S66_cooldown-boundary-reorg.edn",
                :format :edn}
               {:path "scenarios/edn/S66_cooldown-boundary-reorg.edn",
                :format :edn}
-              {:path "scenarios/S66_cooldown-boundary-reorg.json",
+              {:path "data/fixtures/scenarios/S66_cooldown-boundary-reorg.json",
                :format :json}],
              :golden-path
              "data/fixtures/golden/s66-cooldown-boundary-reorg.report.edn",
              :expected-outcome :fail}
   #:scenario{:id "s67-reentrancy-callback",
              :protocol "sew-v1",
-             :path "scenarios/S67_reentrancy-callback.json",
+             :path "data/fixtures/scenarios/S67_reentrancy-callback.json",
              :format :json,
              :files
              [{:path "scenarios/edn/S67_reentrancy-callback.edn",
                :format :edn}
               {:path "scenarios/edn/S67_reentrancy-callback.edn",
                :format :edn}
-              {:path "scenarios/S67_reentrancy-callback.json",
+              {:path "data/fixtures/scenarios/S67_reentrancy-callback.json",
                :format :json}],
              :golden-path
              "data/fixtures/golden/s67-reentrancy-callback.report.edn",
@@ -3260,7 +3260,7 @@
                "scenarios/edn/S68_yield-aave-long-horizon-10y-monthly-accrual.edn",
                :format :edn}
               {:path
-               "scenarios/S68_yield-aave-long-horizon-10y-monthly-accrual.json",
+               "data/fixtures/scenarios/S68_yield-aave-long-horizon-10y-monthly-accrual.json",
                :format :json}],
              :invariants
              ["yield-position-consistency"
@@ -3270,7 +3270,7 @@
              :claim
              "Ten-year Aave v3 monthly accrual remains deterministic and invariant-safe.",
              :path
-             "scenarios/S68_yield-aave-long-horizon-10y-monthly-accrual.json",
+             "data/fixtures/scenarios/S68_yield-aave-long-horizon-10y-monthly-accrual.json",
              :format :json,
              :expected-outcome :pass,
              :claim-id :aave-long-horizon-accrual-deterministic,
@@ -3288,7 +3288,7 @@
                "scenarios/edn/S69_yield-fixed-long-horizon-10y-quarterly-accrual.edn",
                :format :edn}
               {:path
-               "scenarios/S69_yield-fixed-long-horizon-10y-quarterly-accrual.json",
+               "data/fixtures/scenarios/S69_yield-fixed-long-horizon-10y-quarterly-accrual.json",
                :format :json}],
              :invariants
              ["yield-position-consistency" "yield-value-conservation"],
@@ -3296,7 +3296,7 @@
              :claim
              "Ten-year fixed-rate quarterly accrual remains deterministic and invariant-safe.",
              :path
-             "scenarios/S69_yield-fixed-long-horizon-10y-quarterly-accrual.json",
+             "data/fixtures/scenarios/S69_yield-fixed-long-horizon-10y-quarterly-accrual.json",
              :format :json,
              :expected-outcome :pass,
              :claim-id :fixed-rate-long-horizon-accrual-deterministic,
@@ -3314,7 +3314,7 @@
                "scenarios/edn/S73_yield-rounding-drift-repeated-small-accruals.edn",
                :format :edn}
               {:path
-               "scenarios/S73_yield-rounding-drift-repeated-small-accruals.json",
+               "data/fixtures/scenarios/S73_yield-rounding-drift-repeated-small-accruals.json",
                :format :json}],
              :invariants
              ["yield-position-consistency"
@@ -3324,7 +3324,7 @@
              :claim
              "Repeated small accrual operations maintain numerical stability without rounding drift.",
              :path
-             "scenarios/S73_yield-rounding-drift-repeated-small-accruals.json",
+             "data/fixtures/scenarios/S73_yield-rounding-drift-repeated-small-accruals.json",
              :format :json,
              :expected-outcome :pass,
              :claim-id :repeated-small-accrual-rounding-stable,
@@ -3333,21 +3333,21 @@
              :classification :economic-baseline}
   #:scenario{:id "s74-appeal-deadline-boundary",
              :protocol "sew-v1",
-             :path "scenarios/S74_appeal-deadline-boundary.json",
+             :path "data/fixtures/scenarios/S74_appeal-deadline-boundary.json",
              :format :json,
              :files
              [{:path "scenarios/edn/S74_appeal-deadline-boundary.edn",
                :format :edn}
               {:path "scenarios/edn/S74_appeal-deadline-boundary.edn",
                :format :edn}
-              {:path "scenarios/S74_appeal-deadline-boundary.json",
+              {:path "data/fixtures/scenarios/S74_appeal-deadline-boundary.json",
                :format :json}],
              :golden-path
              "data/fixtures/golden/s74-appeal-deadline-boundary.report.edn",
              :expected-outcome :pass}
   #:scenario{:id "s75-auto-release-vs-dispute-race",
              :protocol "sew-v1",
-             :path "scenarios/S75_auto-release-vs-dispute-race.json",
+             :path "data/fixtures/scenarios/S75_auto-release-vs-dispute-race.json",
              :format :json,
              :files
              [{:path
@@ -3356,7 +3356,7 @@
               {:path
                "scenarios/edn/S75_auto-release-vs-dispute-race.edn",
                :format :edn}
-              {:path "scenarios/S75_auto-release-vs-dispute-race.json",
+              {:path "data/fixtures/scenarios/S75_auto-release-vs-dispute-race.json",
                :format :json}],
              :golden-path
              "data/fixtures/golden/s75-auto-release-vs-dispute-race.report.edn",
@@ -3364,7 +3364,7 @@
   #:scenario{:id "s76-sponsored-appeal-third-party-funding",
              :protocol "sew-v1",
              :path
-             "scenarios/S76_sponsored-appeal-third-party-funding.json",
+             "data/fixtures/scenarios/S76_sponsored-appeal-third-party-funding.json",
              :format :json,
              :files
              [{:path
@@ -3374,7 +3374,7 @@
                "scenarios/edn/S76_sponsored-appeal-third-party-funding.edn",
                :format :edn}
               {:path
-               "scenarios/S76_sponsored-appeal-third-party-funding.json",
+               "data/fixtures/scenarios/S76_sponsored-appeal-third-party-funding.json",
                :format :json}],
              :golden-path
              "data/fixtures/golden/s76-sponsored-appeal-third-party-funding.report.edn",
@@ -3383,7 +3383,7 @@
              "s77-appeal-window-challenge-clears-pending-without-next-resolver",
              :protocol "sew-v1",
              :path
-             "scenarios/S77_appeal-window-challenge-clears-pending-without-next-resolver.json",
+             "data/fixtures/scenarios/S77_appeal-window-challenge-clears-pending-without-next-resolver.json",
              :format :json,
              :files
              [{:path
@@ -3393,7 +3393,7 @@
                "scenarios/edn/S77_appeal-window-challenge-clears-pending-without-next-resolver.edn",
                :format :edn}
               {:path
-               "scenarios/S77_appeal-window-challenge-clears-pending-without-next-resolver.json",
+               "data/fixtures/scenarios/S77_appeal-window-challenge-clears-pending-without-next-resolver.json",
                :format :json}],
              :golden-path
              "data/fixtures/golden/s77-appeal-window-challenge-clears-pending-without-next-resolver.report.edn",
@@ -3409,7 +3409,7 @@
                "scenarios/edn/S78_yield-aave-partial-liquidity-release.edn",
                :format :edn}
               {:path
-               "scenarios/S78_yield-aave-partial-liquidity-release.json",
+               "data/fixtures/scenarios/S78_yield-aave-partial-liquidity-release.json",
                :format :json}],
              :invariants
              ["yield-shortfall-splits"
@@ -3419,7 +3419,7 @@
              :claim
              "Aave partial liquidity release path correctly defers yield for later recovery.",
              :path
-             "scenarios/S78_yield-aave-partial-liquidity-release.json",
+             "data/fixtures/scenarios/S78_yield-aave-partial-liquidity-release.json",
              :format :json,
              :expected-outcome :pass,
              :claim-id :aave-partial-liquidity-release-correct,
@@ -3429,7 +3429,7 @@
   #:scenario{:id "s78-yield-negative-yield-release-path",
              :protocol "sew-v1",
              :path
-             "scenarios/S78_yield-negative-yield-release-path.json",
+             "data/fixtures/scenarios/S78_yield-negative-yield-release-path.json",
              :format :json,
              :files
              [{:path
@@ -3439,7 +3439,7 @@
                "scenarios/edn/S78_yield-negative-yield-release-path.edn",
                :format :edn}
               {:path
-               "scenarios/S78_yield-negative-yield-release-path.json",
+               "data/fixtures/scenarios/S78_yield-negative-yield-release-path.json",
                :format :json}],
              :golden-path
              "data/fixtures/golden/s78-yield-negative-yield-release-path.report.edn",
@@ -3455,7 +3455,7 @@
                "scenarios/edn/S79_yield-aave-partial-liquidity-dispute-resolution.edn",
                :format :edn}
               {:path
-               "scenarios/S79_yield-aave-partial-liquidity-dispute-resolution.json",
+               "data/fixtures/scenarios/S79_yield-aave-partial-liquidity-dispute-resolution.json",
                :format :json}],
              :invariants
              ["yield-shortfall-splits"
@@ -3465,7 +3465,7 @@
              :claim
              "Aave partial liquidity under dispute resolution remains deterministic and invariant-safe.",
              :path
-             "scenarios/S79_yield-aave-partial-liquidity-dispute-resolution.json",
+             "data/fixtures/scenarios/S79_yield-aave-partial-liquidity-dispute-resolution.json",
              :format :json,
              :expected-outcome :pass,
              :claim-id
@@ -3476,7 +3476,7 @@
   #:scenario{:id "s79-yield-negative-yield-dispute-refund-path",
              :protocol "sew-v1",
              :path
-             "scenarios/S79_yield-negative-yield-dispute-refund-path.json",
+             "data/fixtures/scenarios/S79_yield-negative-yield-dispute-refund-path.json",
              :format :json,
              :files
              [{:path
@@ -3486,7 +3486,7 @@
                "scenarios/edn/S79_yield-negative-yield-dispute-refund-path.edn",
                :format :edn}
               {:path
-               "scenarios/S79_yield-negative-yield-dispute-refund-path.json",
+               "data/fixtures/scenarios/S79_yield-negative-yield-dispute-refund-path.json",
                :format :json}],
              :golden-path
              "data/fixtures/golden/s79-yield-negative-yield-dispute-refund-path.report.edn",
@@ -3503,7 +3503,7 @@
                "scenarios/edn/S80_yield-aave-partial-liquidity-governance-disable-post-create.edn",
                :format :edn}
               {:path
-               "scenarios/S80_yield-aave-partial-liquidity-governance-disable-post-create.json",
+               "data/fixtures/scenarios/S80_yield-aave-partial-liquidity-governance-disable-post-create.json",
                :format :json}],
              :invariants
              ["yield-shortfall-splits"
@@ -3513,7 +3513,7 @@
              :claim
              "Aave module disabled for new deposits after creation still settles existing escrows correctly.",
              :path
-             "scenarios/S80_yield-aave-partial-liquidity-governance-disable-post-create.json",
+             "data/fixtures/scenarios/S80_yield-aave-partial-liquidity-governance-disable-post-create.json",
              :format :json,
              :expected-outcome :pass,
              :claim-id
@@ -3532,7 +3532,7 @@
                "scenarios/edn/S80_yield-mostly-liquid-partial-liquidity.edn",
                :format :edn}
               {:path
-               "scenarios/S80_yield-mostly-liquid-partial-liquidity.json",
+               "data/fixtures/scenarios/S80_yield-mostly-liquid-partial-liquidity.json",
                :format :json}],
              :invariants
              ["yield-shortfall-splits" "yield-value-conservation"],
@@ -3540,7 +3540,7 @@
              :claim
              "Ninety-percent liquidity availability still correctly applies partial-fill shortfall accounting.",
              :path
-             "scenarios/S80_yield-mostly-liquid-partial-liquidity.json",
+             "data/fixtures/scenarios/S80_yield-mostly-liquid-partial-liquidity.json",
              :format :json,
              :expected-outcome :pass,
              :claim-id :mostly-liquid-partial-fill-correct,
@@ -3550,7 +3550,7 @@
   #:scenario{:id "s81-escrow-yield-may-be-partially-deferred",
              :protocol "sew-v1",
              :path
-             "scenarios/S81_escrow-yield-may-be-partially-deferred.json",
+             "data/fixtures/scenarios/S81_escrow-yield-may-be-partially-deferred.json",
              :format :json,
              :files
              [{:path
@@ -3560,35 +3560,35 @@
                "scenarios/edn/S81_escrow-yield-may-be-partially-deferred.edn",
                :format :edn}
               {:path
-               "scenarios/S81_escrow-yield-may-be-partially-deferred.json",
+               "data/fixtures/scenarios/S81_escrow-yield-may-be-partially-deferred.json",
                :format :json}],
              :golden-path
              "data/fixtures/golden/s81-escrow-yield-may-be-partially-deferred.report.edn",
              :expected-outcome :fail}
   #:scenario{:id "s82-shortfall-recovery-cycle",
              :protocol "sew-v1",
-             :path "scenarios/S82_shortfall-recovery-cycle.json",
+             :path "data/fixtures/scenarios/S82_shortfall-recovery-cycle.json",
              :format :json,
              :files
              [{:path "scenarios/edn/S82_shortfall-recovery-cycle.edn",
                :format :edn}
               {:path "scenarios/edn/S82_shortfall-recovery-cycle.edn",
                :format :edn}
-              {:path "scenarios/S82_shortfall-recovery-cycle.json",
+              {:path "data/fixtures/scenarios/S82_shortfall-recovery-cycle.json",
                :format :json}],
              :golden-path
              "data/fixtures/golden/s82-shortfall-recovery-cycle.report.edn",
              :expected-outcome :pass}
   #:scenario{:id "s83-terminal-conflict-race",
              :protocol "sew-v1",
-             :path "scenarios/S83_terminal-conflict-race.json",
+             :path "data/fixtures/scenarios/S83_terminal-conflict-race.json",
              :format :json,
              :files
              [{:path "scenarios/edn/S83_terminal-conflict-race.edn",
                :format :edn}
               {:path "scenarios/edn/S83_terminal-conflict-race.edn",
                :format :edn}
-              {:path "scenarios/S83_terminal-conflict-race.json",
+              {:path "data/fixtures/scenarios/S83_terminal-conflict-race.json",
                :format :json}],
              :golden-path
              "data/fixtures/golden/s83-terminal-conflict-race.report.edn",
@@ -3601,7 +3601,7 @@
                :format :edn}
               {:path "scenarios/edn/S83_yield-accrual-reorg-race.edn",
                :format :edn}
-              {:path "scenarios/S83_yield-accrual-reorg-race.json",
+              {:path "data/fixtures/scenarios/S83_yield-accrual-reorg-race.json",
                :format :json}],
              :invariants
              ["yield-position-consistency"
@@ -3610,7 +3610,7 @@
              :threat "Accrual reorg race",
              :claim
              "Competing accrual resolutions at same timestamp settle deterministically.",
-             :path "scenarios/S83_yield-accrual-reorg-race.json",
+             :path "data/fixtures/scenarios/S83_yield-accrual-reorg-race.json",
              :format :json,
              :expected-outcome :fail,
              :claim-id :accrual-reorg-race-deterministic,
@@ -3628,14 +3628,14 @@
                "scenarios/edn/S84_yield-protocol-fee-mid-accrual.edn",
                :format :edn}
               {:path
-               "scenarios/S84_yield-protocol-fee-mid-accrual.json",
+               "data/fixtures/scenarios/S84_yield-protocol-fee-mid-accrual.json",
                :format :json}],
              :invariants
              ["yield-position-consistency" "yield-value-conservation"],
              :threat "Mid-accrual fee manipulation",
              :claim
              "Protocol fee governance-updated mid-accrual period remains invariant-safe.",
-             :path "scenarios/S84_yield-protocol-fee-mid-accrual.json",
+             :path "data/fixtures/scenarios/S84_yield-protocol-fee-mid-accrual.json",
              :format :json,
              :expected-outcome :pass,
              :claim-id :protocol-fee-mid-accrual-deterministic,
@@ -3650,7 +3650,7 @@
                :format :edn}
               {:path "scenarios/edn/S85_fot-token-yield-accrual.edn",
                :format :edn}
-              {:path "scenarios/S85_fot-token-yield-accrual.json",
+              {:path "data/fixtures/scenarios/S85_fot-token-yield-accrual.json",
                :format :json}],
              :invariants
              ["yield-position-consistency"
@@ -3659,7 +3659,7 @@
              :threat "Fee-on-transfer token accrual",
              :claim
              "Fee-on-transfer token with Aave yield generation accrues and settles deterministically.",
-             :path "scenarios/S85_fot-token-yield-accrual.json",
+             :path "data/fixtures/scenarios/S85_fot-token-yield-accrual.json",
              :format :json,
              :expected-outcome :pass,
              :claim-id :fot-token-yield-accrual-deterministic,
@@ -3669,7 +3669,7 @@
   #:scenario{:id "s86-escalation-timed-fallback-settlement",
              :protocol "sew-v1",
              :path
-             "scenarios/S86_escalation-timed-fallback-settlement.json",
+             "data/fixtures/scenarios/S86_escalation-timed-fallback-settlement.json",
              :format :json,
              :files
              [{:path
@@ -3679,7 +3679,7 @@
                "scenarios/edn/S86_escalation-timed-fallback-settlement.edn",
                :format :edn}
               {:path
-               "scenarios/S86_escalation-timed-fallback-settlement.json",
+               "data/fixtures/scenarios/S86_escalation-timed-fallback-settlement.json",
                :format :json}],
              :golden-path
              "data/fixtures/golden/s86-escalation-timed-fallback-settlement.report.edn",
@@ -3695,7 +3695,7 @@
                "scenarios/edn/S87_resolver-frozen-while-yield-due.edn",
                :format :edn}
               {:path
-               "scenarios/S87_resolver-frozen-while-yield-due.json",
+               "data/fixtures/scenarios/S87_resolver-frozen-while-yield-due.json",
                :format :json}],
              :invariants
              ["yield-position-consistency"
@@ -3705,7 +3705,7 @@
              :claim
              "Resolver stake with yield accrual while frozen by dispute eventually settles correctly.",
              :path
-             "scenarios/S87_resolver-frozen-while-yield-due.json",
+             "data/fixtures/scenarios/S87_resolver-frozen-while-yield-due.json",
              :format :json,
              :expected-outcome :pass,
              :claim-id :resolver-frozen-yield-still-accrues,
@@ -3720,7 +3720,7 @@
                :format :edn}
               {:path "scenarios/edn/S88_yield-accrual-efficiency.edn",
                :format :edn}
-              {:path "scenarios/S88_yield-accrual-efficiency.json",
+              {:path "data/fixtures/scenarios/S88_yield-accrual-efficiency.json",
                :format :json}],
              :invariants
              ["yield-position-consistency"
@@ -3729,7 +3729,7 @@
              :threat "Fee drag on long positions",
              :claim
              "Long-duration yield accrual exceeds baseline protocol fees.",
-             :path "scenarios/S88_yield-accrual-efficiency.json",
+             :path "data/fixtures/scenarios/S88_yield-accrual-efficiency.json",
              :format :json,
              :expected-outcome :pass,
              :claim-id :yield-accrual-covers-protocol-fees,
@@ -3747,7 +3747,7 @@
                :format :edn}]}
   #:scenario{:id "y01-deposit-accrue-positive",
              :protocol "yield-v1",
-             :path "scenarios/yield/Y01_deposit-accrue-positive.json",
+             :path "data/fixtures/scenarios/yield/Y01_deposit-accrue-positive.json",
              :format :json,
              :files
              [{:path
@@ -3757,7 +3757,7 @@
                "scenarios/edn/yield/Y01_deposit-accrue-positive.edn",
                :format :edn}
               {:path
-               "scenarios/yield/Y01_deposit-accrue-positive.json",
+               "data/fixtures/scenarios/yield/Y01_deposit-accrue-positive.json",
                :format :json}],
              :golden-path
              "data/fixtures/golden/y01-deposit-accrue-positive.golden.edn",
@@ -3770,14 +3770,14 @@
                :format :edn}
               {:path "scenarios/edn/Y01_vault-shared-liquidity.edn",
                :format :edn}
-              {:path "scenarios/Y01_vault-shared-liquidity.json",
+              {:path "data/fixtures/scenarios/Y01_vault-shared-liquidity.json",
                :format :json}],
              :invariants
              ["yield-position-consistency" "yield-value-conservation"],
              :threat "Vault liquidity shortfall",
              :claim
              "Shared vault liquidity covers simultaneous withdrawals with correct principal tracking.",
-             :path "scenarios/Y01_vault-shared-liquidity.json",
+             :path "data/fixtures/scenarios/Y01_vault-shared-liquidity.json",
              :format :json,
              :expected-outcome :fail,
              :claim-id :shared-liquidity-covers-withdrawals,
@@ -3786,14 +3786,14 @@
              :classification :economic-baseline}
   #:scenario{:id "y02-negative-yield-mtm",
              :protocol "yield-v1",
-             :path "scenarios/yield/Y02_negative-yield-mtm.json",
+             :path "data/fixtures/scenarios/yield/Y02_negative-yield-mtm.json",
              :format :json,
              :files
              [{:path "scenarios/edn/yield/Y02_negative-yield-mtm.edn",
                :format :edn}
               {:path "scenarios/edn/yield/Y02_negative-yield-mtm.edn",
                :format :edn}
-              {:path "scenarios/yield/Y02_negative-yield-mtm.json",
+              {:path "data/fixtures/scenarios/yield/Y02_negative-yield-mtm.json",
                :format :json}],
              :golden-path
              "data/fixtures/golden/y02-negative-yield-mtm.golden.edn",
@@ -3801,7 +3801,7 @@
   #:scenario{:id "y02-vault-shortfall-partial-withdraw",
              :protocol "sew-v1",
              :path
-             "scenarios/Y02_vault-shortfall-partial-withdraw.json",
+             "data/fixtures/scenarios/Y02_vault-shortfall-partial-withdraw.json",
              :format :json,
              :files
              [{:path
@@ -3811,7 +3811,7 @@
                "scenarios/edn/Y02_vault-shortfall-partial-withdraw.edn",
                :format :edn}
               {:path
-               "scenarios/Y02_vault-shortfall-partial-withdraw.json",
+               "data/fixtures/scenarios/Y02_vault-shortfall-partial-withdraw.json",
                :format :json}],
              :golden-path
              "data/fixtures/golden/y02-vault-shortfall-partial-withdraw.report.edn",
@@ -3819,7 +3819,7 @@
   #:scenario{:id "y03-partial-liquidity-shortfall-affected",
              :protocol "yield-v1",
              :path
-             "scenarios/yield/Y03_partial-liquidity-shortfall-affected.json",
+             "data/fixtures/scenarios/yield/Y03_partial-liquidity-shortfall-affected.json",
              :format :json,
              :files
              [{:path
@@ -3829,7 +3829,7 @@
                "scenarios/edn/yield/Y03_partial-liquidity-shortfall-affected.edn",
                :format :edn}
               {:path
-               "scenarios/yield/Y03_partial-liquidity-shortfall-affected.json",
+               "data/fixtures/scenarios/yield/Y03_partial-liquidity-shortfall-affected.json",
                :format :json}],
              :golden-path
              "data/fixtures/golden/y03-partial-liquidity-shortfall-affected.golden.edn",
@@ -3837,7 +3837,7 @@
   #:scenario{:id "y03-vault-risk-override-schedule-shadowing",
              :protocol "sew-v1",
              :path
-             "scenarios/Y03_vault-risk-override-schedule-shadowing.json",
+             "data/fixtures/scenarios/Y03_vault-risk-override-schedule-shadowing.json",
              :format :json,
              :files
              [{:path
@@ -3847,7 +3847,7 @@
                "scenarios/edn/Y03_vault-risk-override-schedule-shadowing.edn",
                :format :edn}
               {:path
-               "scenarios/Y03_vault-risk-override-schedule-shadowing.json",
+               "data/fixtures/scenarios/Y03_vault-risk-override-schedule-shadowing.json",
                :format :json}],
              :golden-path
              "data/fixtures/golden/y03-vault-risk-override-schedule-shadowing.report.edn",
@@ -3855,7 +3855,7 @@
   #:scenario{:id "y04-liquidity-shortfall-withdraw",
              :protocol "yield-v1",
              :path
-             "scenarios/yield/Y04_liquidity-shortfall-withdraw.json",
+             "data/fixtures/scenarios/yield/Y04_liquidity-shortfall-withdraw.json",
              :format :json,
              :files
              [{:path
@@ -3865,14 +3865,14 @@
                "scenarios/edn/yield/Y04_liquidity-shortfall-withdraw.edn",
                :format :edn}
               {:path
-               "scenarios/yield/Y04_liquidity-shortfall-withdraw.json",
+               "data/fixtures/scenarios/yield/Y04_liquidity-shortfall-withdraw.json",
                :format :json}],
              :golden-path
              "data/fixtures/golden/y04-liquidity-shortfall-withdraw.golden.edn",
              :expected-outcome :fail}
   #:scenario{:id "y04-vault-recovery-claim-deferred",
              :protocol "sew-v1",
-             :path "scenarios/Y04_vault-recovery-claim-deferred.json",
+             :path "data/fixtures/scenarios/Y04_vault-recovery-claim-deferred.json",
              :format :json,
              :files
              [{:path
@@ -3882,7 +3882,7 @@
                "scenarios/edn/Y04_vault-recovery-claim-deferred.edn",
                :format :edn}
               {:path
-               "scenarios/Y04_vault-recovery-claim-deferred.json",
+               "data/fixtures/scenarios/Y04_vault-recovery-claim-deferred.json",
                :format :json}],
              :golden-path
              "data/fixtures/golden/y04-vault-recovery-claim-deferred.report.edn",
@@ -3895,14 +3895,14 @@
                :format :edn}
               {:path "scenarios/edn/Y05_auto-generated-shortfall.edn",
                :format :edn}
-              {:path "scenarios/Y05_auto-generated-shortfall.json",
+              {:path "data/fixtures/scenarios/Y05_auto-generated-shortfall.json",
                :format :json}],
              :invariants
              ["yield-shortfall-splits" "yield-deferred-reclaim"],
              :threat "Shortfall tracking accuracy",
              :claim
              "Auto-generated shortfall records deferred recovery correctly.",
-             :path "scenarios/Y05_auto-generated-shortfall.json",
+             :path "data/fixtures/scenarios/Y05_auto-generated-shortfall.json",
              :format :json,
              :expected-outcome :fail,
              :claim-id :shortfall-auto-generated-correctly,
@@ -3912,7 +3912,7 @@
   #:scenario{:id "y05-shortfall-affected-recovery",
              :protocol "yield-v1",
              :path
-             "scenarios/yield/Y05_shortfall-affected-recovery.json",
+             "data/fixtures/scenarios/yield/Y05_shortfall-affected-recovery.json",
              :format :json,
              :files
              [{:path
@@ -3922,7 +3922,7 @@
                "scenarios/edn/yield/Y05_shortfall-affected-recovery.edn",
                :format :edn}
               {:path
-               "scenarios/yield/Y05_shortfall-affected-recovery.json",
+               "data/fixtures/scenarios/yield/Y05_shortfall-affected-recovery.json",
                :format :json}],
              :golden-path
              "data/fixtures/golden/y05-shortfall-affected-recovery.golden.edn",
@@ -3930,7 +3930,7 @@
   #:scenario{:id "y06-liquidity-shortage-deposit-blocked",
              :protocol "yield-v1",
              :path
-             "scenarios/yield/Y06_liquidity-shortage-deposit-blocked.json",
+             "data/fixtures/scenarios/yield/Y06_liquidity-shortage-deposit-blocked.json",
              :format :json,
              :files
              [{:path
@@ -3940,14 +3940,14 @@
                "scenarios/edn/yield/Y06_liquidity-shortage-deposit-blocked.edn",
                :format :edn}
               {:path
-               "scenarios/yield/Y06_liquidity-shortage-deposit-blocked.json",
+               "data/fixtures/scenarios/yield/Y06_liquidity-shortage-deposit-blocked.json",
                :format :json}],
              :golden-path
              "data/fixtures/golden/y06-liquidity-shortage-deposit-blocked.golden.edn",
              :expected-outcome :fail}
   #:scenario{:id "y07-monthly-accrual-one-year",
              :protocol "yield-v1",
-             :path "scenarios/yield/Y07_monthly-accrual-one-year.json",
+             :path "data/fixtures/scenarios/yield/Y07_monthly-accrual-one-year.json",
              :format :json,
              :files
              [{:path
@@ -3957,14 +3957,14 @@
                "scenarios/edn/yield/Y07_monthly-accrual-one-year.edn",
                :format :edn}
               {:path
-               "scenarios/yield/Y07_monthly-accrual-one-year.json",
+               "data/fixtures/scenarios/yield/Y07_monthly-accrual-one-year.json",
                :format :json}],
              :golden-path
              "data/fixtures/golden/y07-monthly-accrual-one-year.golden.edn",
              :expected-outcome :fail}
   #:scenario{:id "y08-optimal-strategy-load-stress",
              :protocol "sew-v1",
-             :path "scenarios/Y08_optimal-strategy-load-stress.json",
+             :path "data/fixtures/scenarios/Y08_optimal-strategy-load-stress.json",
              :format :json,
              :files
              [{:path
@@ -3973,7 +3973,7 @@
               {:path
                "scenarios/edn/Y08_optimal-strategy-load-stress.edn",
                :format :edn}
-              {:path "scenarios/Y08_optimal-strategy-load-stress.json",
+              {:path "data/fixtures/scenarios/Y08_optimal-strategy-load-stress.json",
                :format :json}],
              :golden-path
              "data/fixtures/golden/y08-optimal-strategy-load-stress.report.edn",

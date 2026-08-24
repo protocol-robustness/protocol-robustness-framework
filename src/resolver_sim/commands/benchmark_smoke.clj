@@ -41,8 +41,8 @@
                      suite-key
                      scenario-ids
                      (count scenario-ids))))
-                (:benchmarks pack-data)))))
-         (:packs registry))))))
+                (:benchmarks pack-data))))))
+        (:packs registry)))))
 
 (defn- allocate-smoke-output-root []
   (let [configured-root (paths/benchmark-smoke-dir)]
@@ -55,7 +55,11 @@
 (defn- run-single-scenario
   [scenario-ref run-root]
   (try
-    (let [parsed (scenario-run/parse-request [scenario-ref "--run-root" run-root])]
+    ;; Scenario refs are file paths, not catalog ids: resolve the id to its
+    ;; canonical EDN source so the input snapshot is EDN-parseable by the
+    ;; completion gate's value-at-risk validator.
+    (let [scenario-file (io-sc/scenario-path scenario-ref)
+          parsed (scenario-run/parse-request [scenario-file "--run-root" run-root])]
       (if-not (:ok? parsed)
         {:status :parse-error :errors (:errors parsed)}
         (let [context (scenario-run/build-run-context (:request parsed) {:project-root "."})

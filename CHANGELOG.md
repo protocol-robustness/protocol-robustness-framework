@@ -2,6 +2,19 @@
 
 ## [Unreleased]
 
+### Deployment-scoped resubmission genesis V2
+
+- **Added `resubmission-chain-genesis.v2`.** V2 canonically binds `:protocol-genesis/root`, `:chain-instance-genesis/root`, family, the existing `resubmission-chain-configuration.v1` and its root, derived chain ID, and initial state root. Its new identity basis is `{protocol-genesis/root, chain-instance-genesis/root, family/id, initial-configuration/root}` under distinct `prf.resubmission-chain-identity.v2` and `prf.resubmission-chain-genesis.v2` domains. V1 projections, bytes, roots, and validation remain unchanged.
+- **Trusted deployment verification.** `validate-resubmission-chain-genesis-v2-for-deployment` revalidates and re-roots independently trusted `protocol-genesis.v1` and `chain-instance-genesis.v1` artifacts, requires the declared V2 roots to match them, and requires the chain-instance artifact to commit the trusted protocol genesis root.
+
+### Distributed benchmark fixed-chunk coordination
+
+- **Fixed execution registrations are immutable.** Distributed benchmark runs now persist a domain-separated commitment and expected count for the complete canonical chunk descriptors; retries must supply the exact chunk set, including every chunk’s input and execution roots. Terminal lifecycle states no longer issue leases, and accepted completion identity includes sensitivity level provenance.
+
+### Phase B — persisted pro-rata claim-evaluation references
+
+- **Claim evidence references now identify persisted execution nodes.** Pro-rata slash claim results retain explicit `:evidence-references` to the persisted claim-evaluation execution node. That node carries the complete evaluator input in its committed `:extensions/:claims/evaluation-content`, so an independent reader can resolve the referenced node and reproduce evaluation without transient construction data. The former bare content-node hash is no longer emitted as an externally meaningful claim reference.
+
 ### Resubmission genesis authorization — governed authority rooting fix (OPEN)
 
 - **`three-member-authority/authority-report-root` roots governed reports.** The report root now projects the report through `hc/project-canonical-safe` before hashing. Governed reports embed the review constitution, whose policy role sets and per-member eligible key sets are Clojure sets outside the canonical hash domain; rooting them previously threw `:canonical/out-of-domain`, making the governed-authority consumer (`verify-governed-authority`) fail closed on every canonical three-member decision. The projection is the identity on canonical-safe values, so roots over legacy (constitution-free) reports are byte-unchanged. Consumers binding `resubmission-chain-genesis-authorization.v1` artifacts can now verify against a recomputed `:authority-report-root`.

@@ -46,6 +46,7 @@
    authorization. Authority must be evidenced by a separate verifiable
    artifact."
   (:require [clojure.set :as set]
+            [resolver-sim.genesis :as deployment-genesis]
             [resolver-sim.hash.canonical :as hc]
             [resolver-sim.hash.reference :as hash-ref]
             [resolver-sim.resubmission.transition :as transition]))
@@ -55,6 +56,10 @@
 (def ^:const resubmission-chain-genesis-schema
   "Schema identifier for resubmission-chain-genesis.v1."
   "resubmission-chain-genesis.v1")
+
+(def ^:const resubmission-chain-genesis-v2-schema
+  "Schema identifier for deployment-scoped resubmission-chain-genesis.v2."
+  "resubmission-chain-genesis.v2")
 
 (def ^:const resubmission-chain-configuration-schema
   "Schema identifier for resubmission-chain-configuration.v1."
@@ -90,9 +95,9 @@
             extra (set/difference have expect)
             missing (set/difference expect have)]
         (when (seq extra)
-          (report! (str "unknown configuration keys: " (sort extra))))
+          (report! (str "unknown configuration keys: " (sort-by str extra))))
         (when (seq missing)
-          (report! (str "missing configuration keys: " (sort missing))))
+          (report! (str "missing configuration keys: " (sort-by str missing))))
         (doseq [f [:disposition-authority/public-key
                    :receipt-authority/public-key]
                 :let [v (get config f)]
@@ -208,7 +213,259 @@
       :configuration configuration
       :initial-state/root state-root})))
 
-;; ── Genesis validation ────────────────────────────────────────────────
+;; ── Deployment-scoped genesis v2 ─────────────────────────────────────
+
+(def ^:private genesis-v2-root-fields
+  "SHA-256 reference fields of resubmission-chain-genesis.v2."
+  #{:protocol-genesis/root
+    :chain-instance-genesis/root
+    :chain/id
+    :configuration/root
+    :initial-state/root})
+
+(defn resubmission-chain-identity-v2-root
+  "Compute the deployment-scoped V2 chain identity.
+
+   The V2 identity commits the exact protocol and chain-instance genesis roots,
+   family, and canonical initial configuration root. It is intentionally
+   domain-separated from the V1 family/key identity."
+  [protocol-genesis-root chain-instance-genesis-root family-id
+   initial-configuration-root]
+  (let [basis {:protocol-genesis/root protocol-genesis-root
+               :chain-instance-genesis/root chain-instance-genesis-root
+               :family/id family-id
+               :initial-configuration/root initial-configuration-root}]
+    (when-not (and (hash-ref/valid-sha256-ref? protocol-genesis-root)
+                   (hash-ref/valid-sha256-ref? chain-instance-genesis-root)
+                   (some? family-id)
+                   (hash-ref/valid-sha256-ref? initial-configuration-root))
+      (throw (ex-info "invalid resubmission-chain-identity.v2 basis"
+                      {:type :chain-identity-v2/invalid-basis
+                       :basis basis})))
+    (hash-ref/sha256-ref
+     (hc/domain-hash :prf-resubmission-chain-identity-v2
+                     (hc/project-resubmission-chain-identity-v2
+                      basis :prf-resubmission-chain-identity-v2)))))
+
+(defn ->genesis-v2
+  "Construct a deployment-scoped resubmission-chain-genesis.v2 from existing
+   protocol and chain-instance genesis roots plus the legacy initial authority
+   key inputs. The constructor declares roots; trusted deployment binding is
+   verified separately by `validate-resubmission-chain-genesis-v2-for-deployment`."
+  ([protocol-genesis-root chain-instance-genesis-root family-id]
+   (->genesis-v2 protocol-genesis-root chain-instance-genesis-root family-id nil nil))
+  ([protocol-genesis-root chain-instance-genesis-root family-id disposition-public-hex]
+   (->genesis-v2 protocol-genesis-root chain-instance-genesis-root family-id
+                 disposition-public-hex nil))
+  ([protocol-genesis-root chain-instance-genesis-root family-id
+    disposition-public-hex receipt-public-hex]
+   (let [configuration (configuration-from-keys disposition-public-hex
+                                                receipt-public-hex)
+         configuration-root (resubmission-chain-configuration-root configuration)
+         chain-id (resubmission-chain-identity-v2-root
+                   protocol-genesis-root chain-instance-genesis-root family-id
+                   configuration-root)
+         state-root (initial-state-root family-id disposition-public-hex)]
+     {:genesis/schema resubmission-chain-genesis-v2-schema
+      :protocol-genesis/root protocol-genesis-root
+      :chain-instance-genesis/root chain-instance-genesis-root
+      :family/id family-id
+      :chain/id chain-id
+      :configuration configuration
+      :configuration/root configuration-root
+      :initial-state/root state-root})))
+
+(defn validate-resubmission-chain-genesis-v2
+  "Strict, closed-shape validator for resubmission-chain-genesis.v2.
+
+   This establishes self-consistency of a V2 artifact only. It deliberately
+   does not trust caller-supplied deployment roots; use
+   `validate-resubmission-chain-genesis-v2-for-deployment` to bind the artifact
+   to independently trusted protocol and chain-instance genesis artifacts."
+  [genesis]
+  (let [errors (atom [])
+        report! (fn [msg] (swap! errors conj msg))
+        expect (set hc/resubmission-chain-genesis-v2-fields)]
+    (when-not (map? genesis)
+      (report! "resubmission-chain-genesis.v2 must be a map"))
+    (when (map? genesis)
+      (when-not (= resubmission-chain-genesis-v2-schema
+                   (:genesis/schema genesis))
+        (report! (str "genesis/schema must be "
+                      resubmission-chain-genesis-v2-schema
+                      ", got " (pr-str (:genesis/schema genesis)))))
+      (let [have (set (keys genesis))
+            extra (set/difference have expect)
+            missing (set/difference expect have)]
+        (when (seq extra)
+          (report! (str "unknown top-level keys: " (sort-by str extra))))
+        (when (seq missing)
+          (report! (str "missing required keys: " (sort-by str missing))))
+        (doseq [f genesis-v2-root-fields
+                :let [v (get genesis f)]]
+          (cond
+            (nil? v) (report! (str f " must not be nil"))
+            (not (hash-ref/valid-sha256-ref? v))
+            (report! (str f " must be a valid sha256 reference, got "
+                          (pr-str v))))))
+      (when (nil? (:family/id genesis))
+        (report! "family/id must not be nil"))
+      (let [configuration (:configuration genesis)
+            configuration-validation
+            (validate-resubmission-chain-configuration configuration)
+            config-valid (:valid? configuration-validation)]
+        (when-not config-valid
+          (doseq [error (:errors configuration-validation)]
+            (report! (str "configuration: " error))))
+        (when config-valid
+          (let [computed-configuration-root
+                (resubmission-chain-configuration-root configuration)]
+            (when (not= computed-configuration-root (:configuration/root genesis))
+              (report! (str ":configuration/root does not match computed configuration root: "
+                            (pr-str (:configuration/root genesis)) " vs "
+                            (pr-str computed-configuration-root))))))
+        (when (and config-valid
+                   (hash-ref/valid-sha256-ref? (:protocol-genesis/root genesis))
+                   (hash-ref/valid-sha256-ref? (:chain-instance-genesis/root genesis))
+                   (some? (:family/id genesis))
+                   (hash-ref/valid-sha256-ref? (:configuration/root genesis))
+                   (hash-ref/valid-sha256-ref? (:chain/id genesis)))
+          (let [expected-chain-id
+                (resubmission-chain-identity-v2-root
+                 (:protocol-genesis/root genesis)
+                 (:chain-instance-genesis/root genesis)
+                 (:family/id genesis)
+                 (:configuration/root genesis))]
+            (when (not= expected-chain-id (:chain/id genesis))
+              (report! (str ":chain/id does not match deployment-scoped V2 derivation: "
+                            (pr-str (:chain/id genesis)) " vs "
+                            (pr-str expected-chain-id))))))
+        (when (and config-valid
+                   (hash-ref/valid-sha256-ref? (:initial-state/root genesis))
+                   (some? (:family/id genesis))
+                   (map? (:configuration genesis)))
+          (let [expected-state-root
+                (initial-state-root
+                 (:family/id genesis)
+                 (get-in genesis [:configuration :disposition-authority/public-key]))]
+            (when (not= expected-state-root (:initial-state/root genesis))
+              (report! (str ":initial-state/root does not match computed empty-state root: "
+                            (pr-str (:initial-state/root genesis)) " vs "
+                            (pr-str expected-state-root)))))))
+      {:valid? (empty? @errors) :errors (vec @errors)})))
+
+(defn resubmission-chain-genesis-v2-valid?
+  "Quick boolean structural validity check for resubmission-chain-genesis.v2."
+  [genesis]
+  (:valid? (validate-resubmission-chain-genesis-v2 genesis)))
+
+(defn validate-resubmission-chain-genesis-v2-for-deployment
+  "Validate V2 genesis against independently trusted protocol and chain-instance
+   genesis artifacts. Both trusted artifacts are structurally validated and
+   re-rooted with the repository's canonical deployment validators before their
+   roots are compared to the V2 declaration."
+  [genesis trusted-protocol-genesis trusted-chain-instance-genesis]
+  (let [errors (atom [])
+        report! (fn [msg] (swap! errors conj msg))
+        genesis-validation (validate-resubmission-chain-genesis-v2 genesis)
+        protocol-validation
+        (deployment-genesis/validate-protocol-genesis trusted-protocol-genesis)
+        instance-validation
+        (deployment-genesis/validate-chain-instance-genesis
+         trusted-chain-instance-genesis)]
+    (when-not (:valid? genesis-validation)
+      (doseq [error (:errors genesis-validation)]
+        (report! error)))
+    (when-not (:valid? protocol-validation)
+      (doseq [error (:errors protocol-validation)]
+        (report! (str "trusted protocol genesis: " error))))
+    (when-not (:valid? instance-validation)
+      (doseq [error (:errors instance-validation)]
+        (report! (str "trusted chain-instance genesis: " error))))
+    (when (and (:valid? genesis-validation)
+               (:valid? protocol-validation)
+               (:valid? instance-validation))
+      (let [trusted-protocol-root
+            (deployment-genesis/protocol-genesis-root trusted-protocol-genesis)
+            trusted-chain-instance-root
+            (deployment-genesis/chain-instance-genesis-root
+             trusted-chain-instance-genesis)]
+        (when (not= trusted-protocol-root (:protocol-genesis/root genesis))
+          (report! (str "protocol-genesis/root does not match trusted protocol genesis root: "
+                        (pr-str (:protocol-genesis/root genesis)) " vs "
+                        (pr-str trusted-protocol-root))))
+        (when (not= trusted-chain-instance-root
+                    (:chain-instance-genesis/root genesis))
+          (report! (str "chain-instance-genesis/root does not match trusted chain-instance genesis root: "
+                        (pr-str (:chain-instance-genesis/root genesis)) " vs "
+                        (pr-str trusted-chain-instance-root))))
+        (when (not= trusted-protocol-root
+                    (:protocol/genesis-root trusted-chain-instance-genesis))
+          (report! (str "trusted chain-instance genesis protocol/genesis-root does not match trusted protocol genesis root: "
+                        (pr-str (:protocol/genesis-root trusted-chain-instance-genesis))
+                        " vs " (pr-str trusted-protocol-root))))))
+    {:valid? (empty? @errors) :errors (vec @errors)}))
+
+(defn resubmission-chain-genesis-v2-root
+  "Compute the canonical SHA-256 root of a resubmission-chain-genesis.v2.
+
+   This validates the V2 artifact's closed shape and internal commitments. Use
+   `validate-resubmission-chain-genesis-v2-for-deployment` before accepting a
+   caller-supplied V2 artifact at a trusted deployment boundary."
+  ([genesis]
+   (let [validation (validate-resubmission-chain-genesis-v2 genesis)]
+     (when-not (:valid? validation)
+       (throw (ex-info "resubmission-chain-genesis.v2 is invalid"
+                       {:type :genesis-v2/invalid
+                        :schema resubmission-chain-genesis-v2-schema
+                        :errors (:errors validation)})))
+     (hash-ref/sha256-ref
+      (hc/domain-hash :prf-resubmission-chain-genesis-v2
+                      (hc/project-resubmission-chain-genesis-v2
+                       genesis :prf-resubmission-chain-genesis-v2)))))
+  ([genesis expected]
+   (let [computed (resubmission-chain-genesis-v2-root genesis)]
+     (when (and (some? expected) (not= computed expected))
+       (throw (ex-info "caller-supplied V2 genesis root does not match computed root"
+                       {:type :genesis-v2/root-mismatch
+                        :declared expected
+                        :computed computed})))
+     computed)))
+
+(defn verify-resubmission-chain-genesis-v2-root!
+  "Strict V2 genesis root verifier.
+
+   Unlike the permissive 2-arg `resubmission-chain-genesis-v2-root`
+   (which silently returns the computed root when `expected` is nil),
+   this function treats a nil, malformed, or non-canonical `expected`
+   root as an error and throws. This is the preferred verifier at
+   trusted deployment boundaries where an absent or malformed expected
+   root must never be silently accepted.
+
+   Throws with type :genesis-v2/root-not-provided when `expected` is nil.
+   Throws with type :genesis-v2/root-not-canonical when `expected` is
+   present but not a valid sha256 reference.
+   Throws with type :genesis-v2/root-mismatch when `expected` does not
+   match the computed root."
+  [genesis expected]
+  (let [computed (resubmission-chain-genesis-v2-root genesis)]
+    (when (nil? expected)
+      (throw (ex-info "expected V2 genesis root must not be nil"
+                      {:type :genesis-v2/root-not-provided
+                       :computed computed})))
+    (when-not (hash-ref/valid-sha256-ref? expected)
+      (throw (ex-info "expected V2 genesis root is not a valid sha256 reference"
+                      {:type :genesis-v2/root-not-canonical
+                       :declared expected
+                       :computed computed})))
+    (when (not= computed expected)
+      (throw (ex-info "caller-supplied V2 genesis root does not match computed root"
+                      {:type :genesis-v2/root-mismatch
+                       :declared expected
+                       :computed computed})))
+    computed))
+
+;; ── Genesis validation ───────────────────────────────────────────────
 
 (def ^:private genesis-root-fields
   "sha256 reference fields of resubmission-chain-genesis.v1."
@@ -244,10 +501,10 @@
             extra (set/difference have expect)
             missing (set/difference expect have)]
         (when (seq extra)
-          (report! (str "unknown top-level keys: " (sort extra))))
+          (report! (str "unknown top-level keys: " (sort-by str extra))))
         (when (seq missing)
-          (report! (str "missing required keys: " (sort missing))))
-       ;; chain/id and initial-state/root must be valid sha256 references
+          (report! (str "missing required keys: " (sort-by str missing))))
+        ;; chain/id and initial-state/root must be valid sha256 references
         (doseq [f genesis-root-fields
                 :let [v (get genesis f)]]
           (cond

@@ -11,7 +11,7 @@
 
 ^{:nextjournal.clerk/toc true
   :nextjournal.clerk/dark-mode true
-  :nextjournal.clerk/visibility {:code :fold :result :show}}
+  :nextjournal.clerk/visibility {:code :hidden :result :show}}
 (ns notebooks.not-admitted
   (:require [nextjournal.clerk :as clerk]
 

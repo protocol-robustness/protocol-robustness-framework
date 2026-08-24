@@ -1,0 +1,46 @@
+{
+  "scenario-id" : "S114_multi-escrow-pool-shortage",
+  "schema-version" : "1.0",
+  "initial-block-time" : 1000,
+  "agents" : [ {
+    "id" : "buyer",
+    "address" : "0xbuyer",
+    "strategy" : "honest"
+  }, {
+    "id" : "seller",
+    "address" : "0xseller",
+    "strategy" : "honest"
+  } ],
+  "yield-config": {
+    "modules": {
+      "aave-v3": {
+        "tokens": {
+          "USDC": {
+            "liquidity-schedule": {
+              "type": "steps",
+              "values": [
+                { "time": 1000, "value": 1.0 },
+                { "time": 1500, "value": 0.5 }
+              ]
+            },
+            "withdrawal-policy": { "on-shortfall": "partial-fill" }
+          }
+        }
+      }
+    }
+  },
+  "protocol-params" : {
+    "yield-profile": "aave-v3"
+  },
+  "events" : [ {
+    "seq" : 0, "time" : 1000, "agent" : "buyer", "action" : "create_escrow",
+    "params" : { "token" : "USDC", "to" : "0xseller", "amount" : 1000 }
+  }, {
+    "seq" : 1, "time" : 1100, "agent" : "buyer", "action" : "create_escrow",
+    "params" : { "token" : "USDC", "to" : "0xseller", "amount" : 2000 }
+  }, {
+    "seq" : 2, "time" : 2000, "agent" : "buyer", "action" : "release",
+    "params" : { "workflow-id" : 0 }
+  } ],
+  "note": "Tests whether escrow 1 remains safe when escrow 0 settles during shortage."
+}

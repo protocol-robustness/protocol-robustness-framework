@@ -19,7 +19,9 @@
   (common/read-edn (paths/notebooks-registry)))
 
 (defn- notebook-url [path]
-  (str "/" (str/replace path #"\.clj$" "")))
+  ;; Relative, not absolute: keeps links working when the server is proxied
+  ;; under a path prefix (e.g. CloudFront /lab) as well as at the root.
+  (str/replace path #"\.clj$" ""))
 
 ;; ── status helpers ────────────────────────────────────────────────────────────
 

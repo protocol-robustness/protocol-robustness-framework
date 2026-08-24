@@ -1,0 +1,42 @@
+{
+  "scenario-id" : "s-dr-082-stake-capacity-sufficient",
+  "schema-version" : "1.0",
+  "initial-block-time" : 1000,
+  "scenario-title" : "Stake capacity sufficient — resolver stake covers escrow value, dispute proceeds",
+  "scenario-purpose" : "Verify that when resolver has sufficient stake (stake * multiplier >= escrow) and resolver-bond-bps > 0, the raise_dispute succeeds.",
+  "purpose" : "regression",
+  "threat-tags" : ["dispute-resolution", "stake-capacity", "economic-security"],
+  "tags" : ["suite/dispute-resolution", "coverage/resolver-integrity"],
+  "agents" : [ {
+    "id" : "buyer", "address" : "0xbuyer", "strategy" : "honest"
+  }, {
+    "id" : "seller", "address" : "0xseller", "strategy" : "honest"
+  }, {
+    "id" : "resolver", "address" : "0xresolver", "role" : "resolver"
+  }, {
+    "id" : "keeper", "address" : "0xkeeper", "role" : "keeper"
+  } ],
+  "protocol-params" : {
+    "resolver-fee-bps" : 150,
+    "resolver-bond-bps" : 500,
+    "capacity-multiplier" : 4.0,
+    "appeal-window-duration" : 0,
+    "max-dispute-duration" : 2592000
+  },
+  "events" : [ {
+    "seq" : 0, "time" : 1000, "agent" : "resolver", "action" : "register_stake",
+    "params" : { "amount" : 2000, "token" : "USDC" }
+  }, {
+    "seq" : 1, "time" : 1010, "agent" : "buyer", "action" : "create_escrow",
+    "params" : { "token" : "USDC", "to" : "0xseller", "amount" : 2000, "custom-resolver" : "0xresolver" }
+  }, {
+    "seq" : 2, "time" : 1070, "agent" : "buyer", "action" : "raise_dispute",
+    "params" : { "workflow-id" : 0 }
+  }, {
+    "seq" : 3, "time" : 1130, "agent" : "resolver", "action" : "execute_resolution",
+    "params" : { "workflow-id" : 0, "is-release" : true, "resolution-hash" : "0xhash" }
+  } ],
+  "scenario-notes" : "resolver-bond-bps=500 enables stake check. resolver stakes 2000 USDC, capacity-multiplier=4 → max-escrow=8000. Escrow value=2000 < 8000 with fee applied → afa ≈ 1970, which is < 2000 stake → resolver-stake-proportional passes. Tests the happy path of the stake capacity check.",
+  "scenario-author" : "@kilo-research",
+  "provenance" : { "author-id" : "@kilo-research", "author" : "Kilo Research" }
+}

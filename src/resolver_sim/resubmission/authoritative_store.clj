@@ -37,8 +37,8 @@
 
 ;; ── Construction ────────────────────────────────────────────────────────
 
-(defn new-authoritative-store
-  "Create an in-memory authoritative resubmission chain store from a validated
+(defn- new-authoritative-store
+  "Internal constructor used only after the authoritative admission boundary has validated
    genesis, a verified genesis authorization, and the authority context they
    admit.
 
@@ -65,7 +65,7 @@
     (AuthoritativeStore. genesis ctx checkpoint-atom)))
 
 (defn admit-authoritative-store
-  "The public authoritative realization boundary. It verifies genesis
+  "The only production authoritative realization boundary. It verifies genesis
    authorization, derives the rooted authority context itself, and only then
    creates the initial checkpoint head."
   [genesis authz package-resolver governance-context]
@@ -76,6 +76,19 @@
                       {:type :authorization/failed :errors (:errors verified)})))
     (new-authoritative-store genesis authz
                              (:authorized-disposition-context verified))))
+
+(defn new-test-authoritative-store
+  "Fixture-only constructor. It validates canonical genesis, authorization, and
+   rooted authority-context shapes but does not evaluate governed authority.
+   Production callers must use `admit-authoritative-store`."
+  [genesis authz ctx]
+  (let [checks [(genesis-authz/validate-genesis-authorization authz genesis)
+                (authority-context/validate-authority-context ctx)]]
+    (when-let [invalid (first (remove :valid? checks))]
+      (throw (ex-info "invalid authoritative-store fixture inputs"
+                      {:type :authoritative-store/invalid-fixture
+                       :errors (:errors invalid)})))
+    (new-authoritative-store genesis authz ctx)))
 
 ;; ── Accessors ───────────────────────────────────────────────────────────
 

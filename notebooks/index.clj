@@ -37,23 +37,23 @@
     "Navigate by category, threat, or audience role."]
    [:div {:style {:display "flex" :gap "16px" :marginTop "14px" :flexWrap "wrap"}}
     (for [[label href icon]
-           [            ["Verification Overview"   "/notebooks/verification_overview"           "✅"]
-            ["Evidence Workbook"       "/notebooks/report"                          "🛡️"]
-            ["Protocol Provenance"     "/notebooks/protocol_provenance"             "📋"]
-            ["Clean-Room Corpus"       "/notebooks/clean_room_not_admitted"         "📜"]
-            ["Invariant Failures"      "/notebooks/invariant_failures"              "🔍"]
-            ["Workbench v2"            "/notebooks/workbench_v2"                    "🔧"]
-            ["Security Validation"     "/notebooks/security_validation"             "🛡️"]
-            ["Pro-Rata Allocation"     "/notebooks/pro_rata_allocation_result"      "📐"]
-            ["Not Admitted"            "/notebooks/not_admitted"                    "⛔"]
-            ["Demo: Changed Result"    "/notebooks/demo_not_admitted"               "🔁"]
-            ["Demo: Reorder"           "/notebooks/demo_reorder_chain"              "🔀"]
-            ["Resubmission Chain"      "/notebooks/resubmission_chain"              "⛓️"]
-            ["Allocation Activation"   "/notebooks/allocation_activation"           "✅"]
-            ["Authorization Chain"      "/notebooks/authorization_chain"            "🔗"]
-            ["Yield Scenarios"         "/notebooks/yield_scenarios_workbench"       "📈"]
-            ["Benchmark Report"        "/notebooks/benchmark_protocol_robustness"   "📊"]
-            ["Appeal Analysis"         "/notebooks/appeal_analysis"                 "⚖️"]]]
+           [            ["Verification Overview"   "notebooks/verification_overview"           "✅"]
+            ["Evidence Workbook"       "notebooks/report"                          "🛡️"]
+            ["Protocol Provenance"     "notebooks/protocol_provenance"             "📋"]
+            ["Clean-Room Corpus"       "notebooks/clean_room_not_admitted"         "📜"]
+            ["Invariant Failures"      "notebooks/invariant_failures"              "🔍"]
+            ["Workbench v2"            "notebooks/workbench_v2"                    "🔧"]
+            ["Security Validation"     "notebooks/security_validation"             "🛡️"]
+            ["Pro-Rata Allocation"     "notebooks/pro_rata_allocation_result"      "📐"]
+            ["Not Admitted"            "notebooks/not_admitted"                    "⛔"]
+            ["Demo: Changed Result"    "notebooks/demo_not_admitted"               "🔁"]
+            ["Demo: Reorder"           "notebooks/demo_reorder_chain"              "🔀"]
+            ["Resubmission Chain"      "notebooks/resubmission_chain"              "⛓️"]
+            ["Allocation Activation"   "notebooks/allocation_activation"           "✅"]
+            ["Authorization Chain"      "notebooks/authorization_chain"            "🔗"]
+            ["Yield Scenarios"         "notebooks/yield_scenarios_workbench"       "📈"]
+            ["Benchmark Report"        "notebooks/benchmark_protocol_robustness"   "📊"]
+            ["Appeal Analysis"         "notebooks/appeal_analysis"                 "⚖️"]]]
       [:a {:key   label :href href
            :style {:background "#1e293b" :border "1px solid #334155"
                    :borderRadius "5px" :padding "5px 12px"
@@ -76,7 +76,7 @@
         "📌 Recently Added"]
        [:div {:style {:display "grid" :gridTemplateColumns "repeat(auto-fill, minmax(280px, 1fr))" :gap "12px"}}
         (for [e entries]
-          (let [href (str "/" (clojure.string/replace (:path e) #"\.clj$" ""))]
+          (let [href (clojure.string/replace (:path e) #"\.clj$" "")]
             [:div {:key (name (:id e))
                    :style {:background "#0f172a" :border "1px solid #134e4a"
                            :borderRadius "6px" :padding "12px 14px"}}

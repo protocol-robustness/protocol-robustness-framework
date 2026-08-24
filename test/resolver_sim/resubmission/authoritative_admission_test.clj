@@ -498,32 +498,32 @@
 
 (deftest test-authoritative-store-construction
   (testing "store is created with initial checkpoint C0"
-    (let [s (auth-store/new-authoritative-store genesis-with-auth-key
-                                                valid-authz
-                                                authority-context-ctx)]
+    (let [s (auth-store/new-test-authoritative-store genesis-with-auth-key
+                                                     valid-authz
+                                                     authority-context-ctx)]
       (is (auth-store/is-authoritative? s))
       (is (hash-ref/valid-sha256-ref? (auth-store/current-checkpoint-root s)))
       (is (= ckpt0-root (auth-store/current-checkpoint-root s)))
       (is (= family (auth-store/family-id-of s)))))
 
   (testing "store carries the admitted authority context"
-    (let [s (auth-store/new-authoritative-store genesis-with-auth-key
-                                                valid-authz
-                                                authority-context-ctx)]
+    (let [s (auth-store/new-test-authoritative-store genesis-with-auth-key
+                                                     valid-authz
+                                                     authority-context-ctx)]
       (is (= authority-public-hex
              (:authority/public-key (auth-store/authority-context-of s))))))
 
   (testing "store carries the genesis artifact"
-    (let [s (auth-store/new-authoritative-store genesis-with-auth-key
-                                                valid-authz
-                                                authority-context-ctx)]
+    (let [s (auth-store/new-test-authoritative-store genesis-with-auth-key
+                                                     valid-authz
+                                                     authority-context-ctx)]
       (is (= genesis-with-auth-key (auth-store/genesis-of s))))))
 
 (deftest test-authoritative-store-cas-fence
   (testing "disposition with mismatched checkpoint-root returns contention"
-    (let [s (auth-store/new-authoritative-store genesis-with-auth-key
-                                                valid-authz
-                                                authority-context-ctx)
+    (let [s (auth-store/new-test-authoritative-store genesis-with-auth-key
+                                                     valid-authz
+                                                     authority-context-ctx)
           base-disposition
           {:attempt-disposition/schema disposition/authoritative-disposition-schema
            :attempt-disposition/action :prf.resubmission/admit
@@ -545,9 +545,9 @@
       (is (= :checkpoint-root-mismatch (:reason result)))))
 
   (testing "missing checkpoint-root cannot downgrade authoritative admission"
-    (let [s (auth-store/new-authoritative-store genesis-with-auth-key
-                                                valid-authz
-                                                authority-context-ctx)
+    (let [s (auth-store/new-test-authoritative-store genesis-with-auth-key
+                                                     valid-authz
+                                                     authority-context-ctx)
           before-root (auth-store/current-checkpoint-root s)
           before-state (auth-store/state-of s)
           result (auth-store/apply-authoritative-disposition!
@@ -567,9 +567,9 @@
 
 (deftest test-authoritative-vs-local-replay-result-types
   (testing "apply-authoritative-disposition! returns :authoritative mode"
-    (let [s (auth-store/new-authoritative-store genesis-with-auth-key
-                                                valid-authz
-                                                authority-context-ctx)
+    (let [s (auth-store/new-test-authoritative-store genesis-with-auth-key
+                                                     valid-authz
+                                                     authority-context-ctx)
           base-disposition
           {:attempt-disposition/schema disposition/authoritative-disposition-schema
            :attempt-disposition/action :prf.resubmission/admit
@@ -591,9 +591,9 @@
         (is (= :rejected (:status result))))))
 
   (testing "apply-local-replay-disposition! returns :local-replay mode"
-    (let [s (auth-store/new-authoritative-store genesis-with-auth-key
-                                                valid-authz
-                                                authority-context-ctx)
+    (let [s (auth-store/new-test-authoritative-store genesis-with-auth-key
+                                                     valid-authz
+                                                     authority-context-ctx)
           v1-disposition
           {:attempt-disposition/schema disposition/disposition-schema
            :attempt-disposition/action :prf.resubmission/admit

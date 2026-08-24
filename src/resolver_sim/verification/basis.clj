@@ -158,12 +158,14 @@
   [entry]
   {:descriptor-root (:descriptor-root entry)
    :builtin? (:builtin? entry)
-   :providers (mapv (fn [p]
-                      {:package/id (:package/id p)
-                       :package/version (:package/version p)
-                       :package-root (:package-root p)
-                       :sealed (:sealed p)})
-                    (:providers entry []))})
+   :providers (->> (:providers entry [])
+                   (map (fn [p]
+                          {:package/id (:package/id p)
+                           :package/version (:package/version p)
+                           :package-root (:package-root p)
+                           :sealed (:sealed p)}))
+                   (sort-by :package-root)
+                   vec)})
 
 (defn- project-extension-registry
   "Project an extension-map into a canonical-safe form for content-addressed
@@ -196,8 +198,15 @@
    or {:valid? false, :reason <kw>, :expected <ref>, :actual <ref>} otherwise."
   [extension-map resolution basis]
   (let [registry-root (verifier-registry-root extension-map)
-        resolution-root (ref/sha256-ref (res/resolution-root resolution))]
+        raw-resolution-root (res/resolution-root resolution)
+        resolution-root (when (valid-extension-root? raw-resolution-root)
+                          (ref/sha256-ref raw-resolution-root))]
     (cond
+      (nil? resolution-root)
+      {:valid? false
+       :reason :verification/invalid-resolution-root
+       :actual raw-resolution-root}
+
       (not= registry-root (:verifier-registry/root basis))
       {:valid? false
        :reason :verification/registry-root-mismatch

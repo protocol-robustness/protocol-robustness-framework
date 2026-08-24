@@ -1017,9 +1017,21 @@
 ;; ---------------------------------------------------------------------------
 
 (defn cleanup-orphaned-slashes
-  "Archive and remove orphaned pending reversal slashes for a terminal escrow.
-   Only expired Track 2 slashes are removed; their complete records are retained in
-   :reversal-slash-history with an auditable :expired-cleaned-up status."
+  "Resolve and remove orphaned pending reversal slashes for a terminal escrow.
+
+   Track 2 (pending) reversal slashes are proposed with an appeal window.  When
+   the escrow finalizes, these slashes must still be resolved:
+     - If the appeal window has elapsed (no successful appeal), the reversal
+       penalty is ENFORCED: the resolver's stake is slashed and the entry is
+       archived to :reversal-slash-history with status :expired-executed.
+     - If the window is still open, the slash is left in :pending-fraud-slashes
+       (not removed) so it remains resolvable once its window closes — it is no
+       longer silently dropped or leaked.
+
+   This closes the previously-documented inconsistency where expired Track 2
+   reversal slashes were removed without being executed (the reversed resolver
+   escaped the penalty) and unexpired ones lingered forever with no resolution
+   path."
   [world workflow-id]
   (let [now-ts (time-ctx/block-ts world)]
     (if (#{:released :refunded} (t/escrow-state world workflow-id))
@@ -1029,18 +1041,30 @@
                             (= :reversal (:slash/kind slash))
                             (<= (:appeal-deadline slash 0) now-ts)))
             expired  (filter expired? (:pending-fraud-slashes world {}))]
-        (-> world
-            (update :reversal-slash-history
-                    (fnil into {})
-                    (map (fn [[slash-id slash]]
-                           [slash-id (assoc slash
-                                            :status :expired-cleaned-up
-                                            :cleanup-at now-ts
-                                            :cleanup-reason :appeal-window-expired)])
-                         expired))
-            (update :pending-fraud-slashes
-                    (fn [slashes]
-                      (into {} (remove expired? slashes))))))
+        (reduce (fn [w [slash-id slash]]
+                  (let [resolver   (:resolver slash)
+                        amount     (:amount slash)
+                        can-slash? (and (some? resolver)
+                                        (pos? amount)
+                                        (pos? (reg/get-stake w resolver)))
+                        bounty-bps (or (:challenge-bounty-bps (t/get-snapshot w workflow-id) 0) 0)
+                        w'         (if can-slash?
+                                     (:world (reg/slash-resolver-stake
+                                               w resolver amount nil bounty-bps
+                                               workflow-id true))
+                                     w)]
+                    (-> w'
+                        (update :reversal-slash-history
+                                (fnil into {})
+                                {slash-id (assoc slash
+                                                 :status (if can-slash?
+                                                           :expired-executed
+                                                           :expired-cleaned-up)
+                                                 :cleanup-at now-ts
+                                                 :cleanup-reason :appeal-window-expired)})
+                        (update :pending-fraud-slashes dissoc slash-id))))
+                world
+                expired))
       world)))
 
 ;; ---------------------------------------------------------------------------

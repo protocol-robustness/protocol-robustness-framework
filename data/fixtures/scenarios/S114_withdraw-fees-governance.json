@@ -1,0 +1,89 @@
+{
+  "protocol-params" : {
+    "resolver-fee-bps" : 150
+  },
+  "schema-version" : "1.0",
+  "initial-block-time" : 1000,
+  "scenario-author" : "@grifma",
+  "agents" : [ {
+    "id" : "buyer",
+    "address" : "0xbuyer",
+    "strategy" : "honest"
+  }, {
+    "id" : "seller",
+    "address" : "0xseller",
+    "strategy" : "honest"
+  }, {
+    "id" : "resolver",
+    "address" : "0xresolver",
+    "role" : "resolver"
+  }, {
+    "id" : "gov",
+    "address" : "0xgov",
+    "type" : "governance"
+  } ],
+  "scenario-id" : "s114-withdraw-fees-governance",
+  "events" : [ {
+    "seq" : 0,
+    "time" : 1000,
+    "agent" : "buyer",
+    "action" : "create_escrow",
+    "params" : {
+      "token" : "USDC",
+      "to" : "0xseller",
+      "amount" : 10000
+    }
+  }, {
+    "seq" : 1,
+    "time" : 2000,
+    "agent" : "gov",
+    "action" : "withdraw-fees",
+    "params" : {
+      "token" : "USDC"
+    }
+  }, {
+    "seq" : 2,
+    "time" : 3000,
+    "agent" : "buyer",
+    "action" : "sender-cancel",
+    "params" : {
+      "workflow-id" : 0
+    }
+  }, {
+    "seq" : 3,
+    "time" : 4000,
+    "agent" : "seller",
+    "action" : "recipient-cancel",
+    "params" : {
+      "workflow-id" : 0
+    }
+  }, {
+    "seq" : 4,
+    "time" : 5000,
+    "agent" : "buyer",
+    "action" : "withdraw-escrow",
+    "params" : {
+      "workflow-id" : 0
+    }
+  }, {
+    "seq" : 5,
+    "time" : 6000,
+    "agent" : "gov",
+    "action" : "withdraw-fees",
+    "params" : {
+      "token" : "USDC"
+    }
+  }, {
+    "seq" : 6,
+    "time" : 7000,
+    "agent" : "gov",
+    "action" : "withdraw-fees",
+    "params" : {
+      "token" : "USDC"
+    }
+  } ],
+  "provenance" : {
+    "author-id" : "@grifma",
+    "author" : "Marc Griffiths"
+  }
+}

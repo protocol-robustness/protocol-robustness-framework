@@ -107,17 +107,13 @@
 ;; ── capability → semantic module selectors ────────────────────────────
 
 (defn- action-modules-for
-  "Derive action modules from selected capabilities.
-   custody-execution selected → [:sew/force-authorisation :execute]
-   scope-verification only   → none (protocol-neutral, no Sew action)"
+  "Derive the dispatched Sew action names from selected capabilities. A
+   composition's action-modules are queried directly by `allows-action?`, so
+   they must use the same string identities as Sew dispatch."
   [selected]
-  (cond-> []
-    (contains? selected [:sew/force-authorisation :force-authorisation/custody-execution-v1])
-    (conj [:sew/force-authorisation :execute])
-    (contains? selected [:sew/force-authorisation :force-authorisation/custody-execution-v1])
-    (conj [:sew/force-authorisation :grant-force-authorisation])
-    (contains? selected [:sew/force-authorisation :force-authorisation/custody-execution-v1])
-    (conj [:sew/force-authorisation :revoke-force-authorisation])))
+  (if (contains? selected custody-execution-capability)
+    (vec (sort force-authorisation-actions))
+    []))
 
 (defn- state-modules-for
   "Derive state-region modules from selected capabilities.

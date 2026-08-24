@@ -4,12 +4,13 @@ services:
   xtdb:
     image: ghcr.io/xtdb/xtdb@sha256:15b6aa9d37d1e1a4e21748788db9275a57b87c339e5eb66d86376cf1e6899816
     ports:
-      - "5432:5432"
+      - "${PRG_XTDB_PORT:-5432}:5432"
     environment:
       - XTDB_PGWIRE_PORT=5432
       - XTDB_PGWIRE_USER=xtdb
       - XTDB_PGWIRE_PASSWORD=xtdb
       - XTDB_DBNAME=xtdb
+    restart: unless-stopped
 
   # Persistent local developer PostgreSQL.
   #
@@ -54,7 +55,7 @@ services:
     tmpfs:
       - /var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${PRG_POSTGRES_TEST_USER:-postgres} -d ${PRG_POSTGRES_TEST_DB:-postgres}"]
+      test: ["CMD-SHELL", "pg_isready -U ${PRG_POSTGRES_TEST_USER:-postgres} -d ${PRG_POSTGRES_TEST_DB:-postgres_test}"]
       interval: 1s
       timeout: 5s
       retries: 30

@@ -71,10 +71,9 @@ tunneling."
               (fn [rows]
                 (mapv #(dissoc % :share) (or rows []))))))
 
-(defn build-claim-evaluation-node
-  "Build a lightweight evidence node carrying the allocation facts needed by
-   claim evaluators. Hash is computed on the node content for deterministic
-   addressing."
+(defn- build-claim-evaluation-content
+  "Build the allocation facts persisted inside the claim-evaluation execution
+   node. The execution node's :node-hash is the sole external evidence identity."
   [allocation-input projection-artifact allocation-result
    projection-artifact-again projection-result]
   (let [permuted-input (update allocation-input :liable-parties
@@ -101,10 +100,8 @@ tunneling."
                  :claims/projection-artifact-again projection-artifact-again
                  :claims/projection-result (claim-allocation-view projection-result)
                  :claims/projection-result-permuted (claim-allocation-view projection-result-permuted)}
-        node-hash (hc/hash-with-intent {:hash/intent :evidence-content} content)]
-    {:node-hash node-hash
-     :result content
-     :claims/evaluation-context true}))
+        ]
+    content))
 
 (defn legacy-projection-claim-ids
   "Claim IDs that can be evaluated from the legacy Sew projection evidence.
@@ -115,7 +112,7 @@ tunneling."
                (pro-rata-claims/registered-claim-ids))))
 
 (defn build-claim-requests
-  "Build claim requests referencing the claim-evaluation node hash."
+  "Build claim requests referencing the persisted claim-evaluation node hash."
   [evaluation-node-hash]
   (let [legacy-projection-claim-ids (legacy-projection-claim-ids)]
     (mapv (fn [claim-id]
@@ -149,6 +146,7 @@ tunneling."
         base {:claim-id claim-id
               :claim-definition-hash (:canonical-hash definition)
               :claim-definition-concept-hash (:concept-hash definition)
+              :evidence-references (vec (:evidence-references claim-result))
               :holds? (boolean (:holds? claim-result))
               :violations (hash-safe-value (vec (:violations claim-result)))
               :status (if (:holds? claim-result) :pass :fail)}]
@@ -187,7 +185,8 @@ tunneling."
     :inputs claim-eval-content
     :outputs {:type :claim-evaluation
               :claim-count (count (get-in claim-eval-content [:claims/input-context :liable-parties]))}
-    :extensions {:pro-rata/type :claim-evaluation}
+    :extensions {:pro-rata/type :claim-evaluation
+                 :claims/evaluation-content claim-eval-content}
     :execution-kind :claim-evaluation
     :runner :protocol-layer}))
 
@@ -292,17 +291,17 @@ tunneling."
                                      world-before-hash (assoc :world-before-hash world-before-hash)
                                      action-hash-at (assoc :action-hash-at action-hash-at)))
         projection-result (sew-economics/calculate-sew-slash-allocation-from-projection projection-artifact)
-        claim-eval-node (build-claim-evaluation-node
-                         allocation-input projection-artifact allocation-result
-                         projection-artifact-again projection-result)
-        claim-eval-hash (:node-hash claim-eval-node)
-        ;; Persist claim-evaluation node as an execution evidence node
-        claim-eval-persisted (emit-claim-eval-execution-node! (:result claim-eval-node))
+        claim-eval-content (build-claim-evaluation-content
+                            allocation-input projection-artifact allocation-result
+                            projection-artifact-again projection-result)
+        ;; The persisted execution node is both the referenced identity and the
+        ;; complete evaluator input; do not retain a second content-node hash.
+        claim-eval-persisted (emit-claim-eval-execution-node! claim-eval-content)
         claim-eval-node-hash (:node-hash claim-eval-persisted)
-        claim-requests (build-claim-requests claim-eval-hash)
+        claim-requests (build-claim-requests claim-eval-node-hash)
         {:keys [claim-results]}
         (claims-engine/evaluate-claims
-         claim-requests [claim-eval-node]
+         claim-requests [claim-eval-persisted]
          {:evaluator-resolver pro-rata-claims/evaluator-resolver})
         shaped-claims (mapv (fn [cr]
                               (claim-result-entry (:claim-id cr) cr))

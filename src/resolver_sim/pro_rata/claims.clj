@@ -14,7 +14,9 @@
       :evidence-references [<hash> ...]
       :dependency-results {<claim-id> <result>}}
 
-   The first evidence node's :result must contain:
+   The first evidence node must carry the following content either in :result
+   (legacy content nodes) or in :extensions/:claims/evaluation-content
+   (persisted claim-evaluation execution nodes):
      :claims/input-context  — liable parties, total-basis, slash-obligation
       :claims/direct-result  — allocation result (e.g. from calculate-sew-slash-allocation)
          :claims/direct-result-permuted — independently calculated result for a
@@ -34,9 +36,15 @@
 ;; ── Evidence-node content extractors ─────────────────────────────────────
 
 (defn- evidence-content
+  "Recover evaluator input from either a legacy content node or a persisted
+   claim-evaluation execution node. Execution-node :result contains lifecycle
+   status, so only use it when it is itself claim-evaluation content."
   [evidence-nodes]
   (when-let [node (first evidence-nodes)]
-    (:result node)))
+    (let [result (:result node)]
+      (if (contains? result :claims/input-context)
+        result
+        (get-in node [:extensions :claims/evaluation-content])))))
 
 (defn- input-ctx
   [content]
