@@ -36,3 +36,19 @@ Native-after is a proposed/modelled reconstruction. These contracts perform no
 persistence, write-back, read-back, transaction, or historical-execution
 attestation. `protocol-effect-realization.v1` remains unchanged and does not
 by itself prove this newer core-authorized construction path.
+
+## Stage A: SEW aggregate held-credit mapping
+
+`allocation-quantity-target-map.v2` and its validation v2 add the committed
+`:allocation-target-map/many-to-one.v1` profile without changing v1's
+one-to-one/injective behavior. Resolved Alice/Bob allocation rows can map to
+one canonical aggregate USDC custody quantity, whose subject is the aggregate
+SEW custody holder and whose scope is the token-level aggregate ledger domain.
+Allocation round scope remains a separate committed mapping fact.
+
+`sew/aggregate-held-credit.v1` compiles positive, uncapped, all-active,
+same-asset credits through existing canonical delta normalization, producing
+one aggregate credit delta. The sole native authoritative location is
+`[:held-ledger/index :by-token :USDC]`; mirror realization and append-only
+held-adjustment/artifact attribution are deliberately deferred to Stages B and
+C.

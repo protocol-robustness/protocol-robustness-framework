@@ -2,6 +2,16 @@
 
 ## [Unreleased]
 
+### Notebook-only certificate-input admission inspection
+
+- **Exposed three-member certificate preconditions in the Not Admitted notebook.** The notebook now runs `pre-certificate-checks` against an incomplete review cell and shows that a certificate is refused unless the frozen review round, per-member reports and positions, and canonical member index all join correctly. This is reviewer-facing inspection only; it does not alter certificate semantics or add a public product-site claim. (`notebooks/not_admitted.clj`)
+
+### Pro-rata target-map and modeled realization contracts
+
+- **Added target-map-bound pro-rata compilation v2.** `allocation-quantity-target-map.v1`, separate canonical-quantity native-location and validation commitments, and `pro-rata-effect-compilation.v2` make target-map, mapping-profile, and allocation-policy identity explicit while preserving all v1 compilation roots.
+- **Added core-authorized proposed realization.** `core-authorized-proposed-realization.v1` derives exact authorized native leaves from validated locations and normalized canonical effects, then rejects modeled reconstructions that change any other leaf, including absent-versus-`nil` differences. Native-after remains a non-persistent proposed model; extension execution context validation is structural only until configuration-bound extension authorization is added.
+- **Added SEW aggregate held-credit Stage A mapping.** `allocation-quantity-target-map.v2` and validation v2 add a committed many-to-one profile for resolved allocation rows that share one aggregate SEW token-custody quantity. The aggregate compilation profile emits a single normalized credit delta while v1 target-map and exact native-location injectivity remain unchanged; native mirrors and held-adjustment attribution remain deferred.
+
 ### Deployment-scoped resubmission genesis V2
 
 - **Added `resubmission-chain-genesis.v2`.** V2 canonically binds `:protocol-genesis/root`, `:chain-instance-genesis/root`, family, the existing `resubmission-chain-configuration.v1` and its root, derived chain ID, and initial state root. Its new identity basis is `{protocol-genesis/root, chain-instance-genesis/root, family/id, initial-configuration/root}` under distinct `prf.resubmission-chain-identity.v2` and `prf.resubmission-chain-genesis.v2` domains. V1 projections, bytes, roots, and validation remain unchanged.

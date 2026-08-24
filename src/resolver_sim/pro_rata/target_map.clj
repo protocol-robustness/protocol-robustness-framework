@@ -4,12 +4,16 @@
    Target maps relate allocation subjects to canonical quantities. Native
    locations are a separate, adapter-specific relation from quantities to exact
    native leaf paths. Neither artifact performs native reconstruction."
-  (:require [resolver-sim.hash.canonical :as hc]))
+  (:require [resolver-sim.hash.canonical :as hc]
+            [resolver-sim.pro-rata.quantity :as quantity]))
 
 (def target-map-schema "allocation-quantity-target-map.v1")
 (def location-map-schema "canonical-quantity-native-location-map.v1")
 (def validation-schema "allocation-quantity-target-map-validation.v1")
 (def one-to-one-profile :allocation-target-map/one-to-one.v1)
+(def aggregate-target-map-schema "allocation-quantity-target-map.v2")
+(def aggregate-validation-schema "allocation-quantity-target-map-validation.v2")
+(def many-to-one-profile :allocation-target-map/many-to-one.v1)
 
 (defn- root? [value]
   (and (string? value) (re-matches #"(?:sha256:)?[0-9a-f]{64}" value)))
@@ -128,3 +132,85 @@
                 :native-state-before/root native-state-before-root
                 :native-location-map/root (:native-location-map/root native-location-map)}]
       (assoc base :target-map-validation/root (validation-root base)))))
+
+(defn aggregate-target-map-root [target-map]
+  (hc/domain-hash :allocation-quantity-target-map-v2
+                  (select-keys target-map [:schema-version :allocation-subjects/root
+                                           :allocation-scope/root
+                                           :aggregate-custody-scope/root
+                                           :mapping-profile/root :targets])))
+
+(defn build-aggregate-target-map
+  "Many resolved allocation rows may map to one aggregate custody quantity.
+   V1 remains injective; this closed v2 profile is deliberately separate."
+  [{:keys [allocation-subjects-root allocation-scope-root aggregate-custody-scope-root
+           mapping-profile-root targets] :as input}]
+  (when-not (and (every? root? [allocation-subjects-root allocation-scope-root
+                                aggregate-custody-scope-root mapping-profile-root])
+                 (vector? targets))
+    (throw (ex-info "invalid aggregate target-map inputs" {:input input})))
+  (doseq [target targets]
+    (when-not (= #{:allocation/subject-id :mapping/role :quantity/root} (set (keys target)))
+      (throw (ex-info "aggregate target must have closed shape" {:target target})))
+    (when-not (and (= :aggregate-held-credit (:mapping/role target))
+                   (root? (:quantity/root target)))
+      (throw (ex-info "invalid aggregate target" {:target target})))
+    (hc/validate-canonical-value! (:allocation/subject-id target)))
+  (when-not (= (count targets)
+               (count (distinct (map (juxt :allocation/subject-id :mapping/role) targets))))
+    (throw (ex-info "duplicate aggregate allocation subject/role" {:targets targets})))
+  (let [base {:schema-version aggregate-target-map-schema
+              :allocation-subjects/root allocation-subjects-root
+              :allocation-scope/root allocation-scope-root
+              :aggregate-custody-scope/root aggregate-custody-scope-root
+              :mapping-profile/root mapping-profile-root
+              :targets (vec (sort-by (comp canonical-key :allocation/subject-id) targets))}]
+    (assoc base :target-map/root (aggregate-target-map-root base))))
+
+(defn aggregate-validation-root [validation]
+  (hc/domain-hash :allocation-quantity-target-map-validation-v2
+                  (select-keys validation [:schema-version :target-map/root
+                                           :realized-allocation/root :mapping-profile/root
+                                           :allocation-scope/root :aggregate-custody-scope/root
+                                           :adapter/descriptor-root :native-state-before/root
+                                           :native-location-map/root :aggregate-quantity/root])))
+
+(defn validate-aggregate-target-map
+  "Validate exact row coverage and the aggregate quantity identity without
+   weakening v1 cardinality or native-location injectivity."
+  [{:keys [allocation target-map allocation-scope-root aggregate-custody-scope-root
+           adapter-descriptor-root native-state-before-root native-location-map
+           aggregate-quantity expected-identity] :as input}]
+  (when-not (and (= aggregate-target-map-schema (:schema-version target-map))
+                 (= (:target-map/root target-map) (aggregate-target-map-root target-map))
+                 (= location-map-schema (:schema-version native-location-map))
+                 (= (:native-location-map/root native-location-map) (location-map-root native-location-map))
+                 (every? root? [allocation-scope-root aggregate-custody-scope-root
+                                adapter-descriptor-root native-state-before-root]))
+    (throw (ex-info "invalid aggregate target-map validation inputs" {:input input})))
+  (let [rows (set (map :row/id (:rows allocation)))
+        subjects (set (map :allocation/subject-id (:targets target-map)))
+        quantity-root (:quantity/root aggregate-quantity)]
+    (when-not (and (= rows subjects)
+                   (quantity/valid-identity? aggregate-quantity)
+                   (= many-to-one-profile (:mapping/profile expected-identity))
+                   (= allocation-scope-root (:allocation-scope/root target-map))
+                   (= aggregate-custody-scope-root (:aggregate-custody-scope/root target-map))
+                   (= adapter-descriptor-root (:adapter/descriptor-root native-location-map))
+                   (= #{quantity-root} (set (map :quantity/root (:targets target-map))))
+                   (= #{quantity-root} (set (map :quantity/root (:locations native-location-map))))
+                   (every? #(= (get aggregate-quantity %) (get expected-identity %))
+                           [:protocol-instance/root :state-domain/root :subject/root
+                            :quantity-kind :asset/root :scope/root]))
+      (throw (ex-info "aggregate target-map validation mismatch" {})))
+    (let [base {:schema-version aggregate-validation-schema
+                :target-map/root (:target-map/root target-map)
+                :realized-allocation/root (:allocation/hash allocation)
+                :mapping-profile/root (:mapping-profile/root target-map)
+                :allocation-scope/root allocation-scope-root
+                :aggregate-custody-scope/root aggregate-custody-scope-root
+                :adapter/descriptor-root adapter-descriptor-root
+                :native-state-before/root native-state-before-root
+                :native-location-map/root (:native-location-map/root native-location-map)
+                :aggregate-quantity/root quantity-root}]
+      (assoc base :target-map-validation/root (aggregate-validation-root base)))))
