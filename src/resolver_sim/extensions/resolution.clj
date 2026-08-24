@@ -4,15 +4,19 @@
 
    Per ADR-0005 the snapshot contains the complete transitive dependency graph
    (not only directly requested capabilities), schema roots, effect schema
-   roots, and the runtime profile, closed by a content-addressed
+   roots validated against the canonical effect schema registry, and the
+   runtime profile, closed by a content-addressed
    :extensions/resolution-root.
 
-   The resolver fails on: missing capabilities, missing dependencies,
-   dependency cycles, ambiguous providers, incompatible contract versions,
-   unsealed transitive dependencies in a sealed run, multiple roots for the
-   same supposedly exact dependency, and unresolved schema references."
+   The resolver fails on: missing capabilities, missing (non-optional)
+   dependencies, dependency cycles, ambiguous providers (including transitive),
+   incompatible contract versions, unsealed or source-pinned transitive
+   dependencies in a sealed run, multiple roots for the same supposedly exact
+   dependency (deduplicated per capability), unresolved schema references, and
+   unknown effect-schema ids."
   (:require [resolver-sim.extensions.manifest :as em]
-            [resolver-sim.hash.canonical :as hc]))
+            [resolver-sim.hash.canonical :as hc]
+            [resolver-sim.economics.effects :as effects]))
 
 (def ^:const resolution-version 1)
 
@@ -31,11 +35,12 @@
 
 (defn- dependency-specs
   "Dependency edges of a resolved registry entry:
-   [{:to [kind id] :requirement <map-or-nil>} ...]."
+   [{:to [kind id] :requirement <map-or-nil> :optional <boolean>} ...]."
   [entry]
   (mapv (fn [d]
           {:to [(get d :capability/kind) (get d :capability/id)]
-           :requirement (:requirement d)})
+           :requirement (:requirement d)
+           :optional (:optional d false)})
         (:declared-dependencies (:capability entry) [])))
 
 (defn- closure
@@ -179,7 +184,9 @@
                         sealed; unsealed providers fail the resolution
      :schemas         — map of schema id -> schema root for resolving declared
                         schema references (fail-closed)
-     :effect-schemas  — map of effect contract id -> root, committed verbatim
+      :effect-schemas  — map of effect contract id -> root, validated
+                        against the canonical effect-schema registry
+                        (fail-closed on unknown ids)
 
    Returns {:valid? true, :resolution <snapshot>}
         or {:valid? false, :violations [...]}."
@@ -192,84 +199,91 @@
        :violations [{:violation/id :extensions/error-invalid-requested-capability
                      :details {:requested requested}}]}
       (let [{:keys [nodes edges]} (closure extension-map requested-keys)
-            missing-requested (vec (remove #(contains? nodes %) requested-keys))
-            dep-keys (mapv :to edges)
-            missing-deps (vec (remove #(contains? nodes %) dep-keys))
-            cycle (find-cycle nodes)
-            ;; sealed checks apply to every transitive node
-            sealed-violations (into []
-                                    (mapcat (fn [[k entry]]
-                                              (let [providers (:providers entry)]
-                                                (when (and sealed?
-                                                           (some #(= :unsealed (:sealed %)) providers))
-                                                  [{:violation/id :extensions/error-unsealed-in-sealed-run
-                                                    :details {:capability k
-                                                              :unsealed-providers
-                                                              (mapv :package/id
-                                                                    (filter #(= :unsealed (:sealed %)) providers))}}])))
-                                            nodes))
-            ;; ambiguous providers apply to directly requested capabilities
-            ambiguous-violations (into []
-                                       (mapcat (fn [k]
-                                                 (let [entry (get nodes k)
-                                                       roots (provider-roots entry)]
-                                                   (when (and entry (> (count roots) 1))
-                                                     [{:violation/id :extensions/error-ambiguous-provider
-                                                       :details {:capability k
-                                                                 :package-roots (vec roots)}}])))
-                                               requested-keys))
-            req-violations (into []
-                                 (mapcat (fn [{:keys [from to requirement]}]
-                                           (let [entry (get nodes to)]
-                                             (if (or (nil? entry)
-                                                     (requirement-satisfied? requirement
-                                                                             (:capability entry)))
-                                               []
-                                               [{:violation/id :extensions/error-incompatible-contract-version
-                                                 :details {:from from
-                                                           :to to
-                                                           :requirement (or requirement {})
-                                                           :provided-version (:capability/version (:capability entry))
-                                                           :provided-contract-version
-                                                           (:capability/contract-version (:capability entry))}}])))
-                                         edges))
-            ;; multiple roots for the same supposedly exact dependency
-            dep-root-violations (into []
-                                      (mapcat (fn [{:keys [to]}]
-                                                (let [entry (get nodes to)]
-                                                  (when (and entry (> (count (provider-roots entry)) 1))
-                                                    [{:violation/id :extensions/error-multiple-dependency-roots
-                                                      :details {:capability to
-                                                                :package-roots (vec (provider-roots entry))}}])))
-                                              edges))
-            schema-ids (into (sorted-set) (mapcat schema-refs-of) (vals nodes))
-            unresolved-schemas (vec (remove #(contains? schemas %) schema-ids))
-            all-violations (into []
-                                 (concat
-                                  (map (fn [k]
-                                         {:violation/id :extensions/error-missing-capability
-                                          :details {:capability k}})
-                                       missing-requested)
-                                  (map (fn [k]
-                                         {:violation/id :extensions/error-missing-dependency
-                                          :details {:capability k}})
-                                       missing-deps)
-                                  (when cycle
-                                    [{:violation/id :extensions/error-dependency-cycle
-                                      :details {:cycle cycle}}])
-                                  sealed-violations
-                                  ambiguous-violations
-                                  req-violations
-                                  dep-root-violations
-                                  (when (seq unresolved-schemas)
-                                    [{:violation/id :extensions/error-unresolved-schema-root
-                                      :details {:unresolved unresolved-schemas}}])))]
-        (if (seq all-violations)
-          {:valid? false
-           :violations all-violations}
-          {:valid? true
-           :resolution (build-snapshot nodes edges runtime-profile
-                                       schemas effect-schemas)})))))
+             missing-requested (vec (remove #(contains? nodes %) requested-keys))
+             dep-keys (mapv :to (remove :optional edges))
+             missing-deps (vec (remove #(contains? nodes %) dep-keys))
+             cycle (find-cycle nodes)
+             ;; sealed checks apply to every transitive node
+             sealed-violations (into []
+                                     (mapcat (fn [[k entry]]
+                                               (let [providers (:providers entry)]
+                                                 (when (and sealed?
+                                                            (some #(not= :artifact-replayable (:sealed %)) providers))
+                                                   [{:violation/id :extensions/error-unsealed-in-sealed-run
+                                                     :details {:capability k
+                                                               :unsealed-providers
+                                                               (mapv :package/id
+                                                                     (filter #(not= :artifact-replayable (:sealed %)) providers))}}])))
+                                             nodes))
+             ;; ambiguous providers apply to every resolved capability
+             ;; (directly requested or transitive)
+             ambiguous-violations (into []
+                                        (mapcat (fn [k]
+                                                  (let [entry (get nodes k)
+                                                        roots (provider-roots entry)]
+                                                    (when (and entry (> (count roots) 1))
+                                                      [{:violation/id :extensions/error-ambiguous-provider
+                                                        :details {:capability k
+                                                                  :package-roots (vec roots)}}])))
+                                                (keys nodes)))
+             req-violations (into []
+                                  (mapcat (fn [{:keys [from to requirement]}]
+                                            (let [entry (get nodes to)]
+                                              (if (or (nil? entry)
+                                                      (requirement-satisfied? requirement
+                                                                              (:capability entry)))
+                                                []
+                                                [{:violation/id :extensions/error-incompatible-contract-version
+                                                  :details {:from from
+                                                            :to to
+                                                            :requirement (or requirement {})
+                                                            :provided-version (:capability/version (:capability entry))
+                                                            :provided-contract-version
+                                                            (:capability/contract-version (:capability entry))}}])))
+                                          edges))
+              ;; multiple roots for the same supposedly exact dependency
+              ;; (deduplicated per capability to avoid diamond duplicates)
+              dep-root-violations (into []
+                                        (mapcat (fn [to]
+                                                  (let [entry (get nodes to)]
+                                                    (when (and entry (> (count (provider-roots entry)) 1))
+                                                      [{:violation/id :extensions/error-multiple-dependency-roots
+                                                        :details {:capability to
+                                                                  :package-roots (vec (provider-roots entry))}}])))
+                                        (distinct (map :to edges))))
+             schema-ids (into (sorted-set) (mapcat schema-refs-of) (vals nodes))
+             unresolved-schemas (vec (remove #(contains? schemas %) schema-ids))
+             unknown-effect-schemas (vec (remove #(contains? effects/effect-schema-maps %)
+                                                 (keys effect-schemas)))
+             all-violations (into []
+                                  (concat
+                                   (map (fn [k]
+                                          {:violation/id :extensions/error-missing-capability
+                                           :details {:capability k}})
+                                        missing-requested)
+                                   (map (fn [k]
+                                          {:violation/id :extensions/error-missing-dependency
+                                           :details {:capability k}})
+                                        missing-deps)
+                                   (when cycle
+                                     [{:violation/id :extensions/error-dependency-cycle
+                                       :details {:cycle cycle}}])
+                                   sealed-violations
+                                   ambiguous-violations
+                                   req-violations
+                                   dep-root-violations
+                                   (when (seq unresolved-schemas)
+                                     [{:violation/id :extensions/error-unresolved-schema-root
+                                       :details {:unresolved unresolved-schemas}}])
+                                   (when (seq unknown-effect-schemas)
+                                     [{:violation/id :extensions/error-unknown-effect-schema
+                                       :details {:unknown unknown-effect-schemas}}])))]
+         (if (seq all-violations)
+           {:valid? false
+            :violations all-violations}
+            {:valid? true
+             :resolution (build-snapshot nodes edges runtime-profile
+                                         schemas effect-schemas)})))))
 
 (defn resolution-root
   "Content-addressed root of a resolution snapshot."

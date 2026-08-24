@@ -171,6 +171,226 @@
    :extension/manifest-version 1
    :extension/capabilities [missing-dep-cap]})
 
+;; ── source-pinned provider (source identity, no artifact) ─────────────────
+
+(def source-pinned-pack
+  "Only the source sealing root is committed: sealed-classification returns
+   :source-pinned. Used to prove a sealed run rejects it."
+  {:extension/id :fixture/source-pinned-pack
+   :extension/version "0.1.0"
+   :extension/api-version 1
+   :extension/manifest-version 1
+   :extension/capabilities [unsealed-cap]
+   :extension/source {:type :git
+                      :repository "fixture"
+                      :commit "def456"
+                      :source-root "sha256:fixture-source-only"}})
+
+;; ── self-loop cycle (a -> a) ──────────────────────────────────────────────
+
+(def self-cycle-cap
+  {:capability/kind :economics/award-amount
+   :capability/id :fixture/self-cycle
+   :capability/version 1
+   :capability/contract-version 1
+   :entrypoint 'fixture.self-cycle/calculate
+   :declared-dependencies
+   [{:capability/kind :economics/award-amount
+     :capability/id :fixture/self-cycle}]})
+
+(def self-cycle-pack
+  {:extension/id :fixture/self-cycle-pack
+   :extension/version "1.0.0"
+   :extension/api-version 1
+   :extension/manifest-version 1
+   :extension/capabilities [self-cycle-cap]})
+
+;; ── transitive-only cycle (requested -> b -> c -> b) ──────────────────────
+
+(def transitive-cycle-b-cap
+  {:capability/kind :economics/funding
+   :capability/id :fixture/tc-b
+   :capability/version 1
+   :capability/contract-version 1
+   :entrypoint 'fixture.tc-b/allocate
+   :declared-dependencies
+   [{:capability/kind :economics/allocation
+     :capability/id :fixture/tc-c}]})
+
+(def transitive-cycle-c-cap
+  {:capability/kind :economics/allocation
+   :capability/id :fixture/tc-c
+   :capability/version 1
+   :capability/contract-version 1
+   :entrypoint 'fixture.tc-c/allocate
+   :declared-dependencies
+   [{:capability/kind :economics/funding
+     :capability/id :fixture/tc-b}]})
+
+(def transitive-cycle-root-cap
+  {:capability/kind :economics/award-amount
+   :capability/id :fixture/tc-root
+   :capability/version 1
+   :capability/contract-version 1
+   :entrypoint 'fixture.tc-root/calculate
+   :declared-dependencies
+   [{:capability/kind :economics/funding
+     :capability/id :fixture/tc-b}]})
+
+(def transitive-cycle-pack
+  {:extension/id :fixture/transitive-cycle-pack
+   :extension/version "1.0.0"
+   :extension/api-version 1
+   :extension/manifest-version 1
+   :extension/capabilities [transitive-cycle-root-cap
+                            transitive-cycle-b-cap
+                            transitive-cycle-c-cap]})
+
+;; ── diamond dependency (root -> left/right -> shared bottom) ──────────────
+;; The shared bottom capability is registered by two packages with identical
+;; descriptors (two providers), so every edge into it trips the multiple-
+;; roots check; the diamond proves the violation is deduplicated per
+;; capability.
+
+(def diamond-bottom-cap
+  {:capability/kind :arithmetic/profile
+   :capability/id :prf/diamond-bottom-v1
+   :capability/version 1
+   :capability/contract-version 1
+   :entrypoint 'fixture.diamond/bottom
+   :input-schema :prf/scaled-share-input.v1
+   :output-schema :prf/calculation-result.v1})
+
+(def diamond-bottom-pack
+  (merge {:extension/id :fixture/diamond-bottom-pack
+          :extension/version "1.0.0"
+          :extension/api-version 1
+          :extension/manifest-version 1
+          :extension/capabilities [diamond-bottom-cap]
+          :extension/license "MIT"}
+         sealed-roots))
+
+(def alt-diamond-bottom-pack
+  (assoc diamond-bottom-pack :extension/id :fixture/alt-diamond-bottom-pack))
+
+(defn- diamond-arm-cap
+  [id ep]
+  {:capability/kind :economics/award-amount
+   :capability/id id
+   :capability/version 1
+   :capability/contract-version 1
+   :entrypoint ep
+   :input-schema :prf/scaled-share-input.v1
+   :output-schema :prf/calculation-result.v1
+   :declared-dependencies
+   [{:capability/kind :arithmetic/profile
+     :capability/id :prf/diamond-bottom-v1}]})
+
+(def diamond-left-cap
+  (diamond-arm-cap :fixture/diamond-left 'fixture.diamond/left))
+
+(def diamond-right-cap
+  (diamond-arm-cap :fixture/diamond-right 'fixture.diamond/right))
+
+(def diamond-root-cap
+  {:capability/kind :economics/allocation
+   :capability/id :fixture/diamond-root
+   :capability/version 1
+   :capability/contract-version 1
+   :entrypoint 'fixture.diamond/root
+   :input-schema :prf/allocation-context.v1
+   :output-schema :prf/allocation-result.v1
+   :declared-dependencies
+   [{:capability/kind :economics/award-amount
+     :capability/id :fixture/diamond-left}
+    {:capability/kind :economics/award-amount
+     :capability/id :fixture/diamond-right}]})
+
+(def diamond-top-pack
+  {:extension/id :fixture/diamond-top-pack
+   :extension/version "1.0.0"
+   :extension/api-version 1
+   :extension/manifest-version 1
+   :extension/capabilities [diamond-left-cap diamond-right-cap diamond-root-cap]})
+
+;; ── optional dependencies ─────────────────────────────────────────────────
+
+(def optional-dep-absent-cap
+  "Declares an optional dependency that is NOT in the registry: resolution
+   must succeed without it."
+  {:capability/kind :economics/allocation
+   :capability/id :fixture/opt-dep-absent
+   :capability/version 1
+   :capability/contract-version 1
+   :entrypoint 'fixture.optdep/run
+   :input-schema :prf/allocation-context.v1
+   :output-schema :prf/allocation-result.v1
+   :declared-dependencies
+   [{:capability/kind :arithmetic/profile
+     :capability/id :prf/does-not-exist
+     :optional true}]})
+
+(def optional-dep-absent-pack
+  {:extension/id :fixture/optional-dep-absent-pack
+   :extension/version "1.0.0"
+   :extension/api-version 1
+   :extension/manifest-version 1
+   :extension/capabilities [optional-dep-absent-cap]})
+
+(def optional-dep-present-consumer-cap
+  "Declares an optional dependency that IS present in the registry:
+   it must be resolved into the closure."
+  {:capability/kind :economics/allocation
+   :capability/id :fixture/opt-dep-present
+   :capability/version 1
+   :capability/contract-version 1
+   :entrypoint 'fixture.optdep/run2
+   :input-schema :prf/allocation-context.v1
+   :output-schema :prf/allocation-result.v1
+   :declared-dependencies
+   [{:capability/kind :arithmetic/profile
+     :capability/id :prf/scaled-share-v1
+     :optional true}]})
+
+(def optional-dep-present-pack
+  {:extension/id :fixture/optional-dep-present-pack
+   :extension/version "1.0.0"
+   :extension/api-version 1
+   :extension/manifest-version 1
+   :extension/capabilities [optional-dep-present-consumer-cap]})
+
+;; ── profile-mismatch requirement ──────────────────────────────────────────
+
+(def profiled-scaled-share-cap
+  "The scaled-share capability with an explicit runtime profile."
+  (assoc scaled-share-cap :capability/profile :jvm-21))
+
+(def profiled-scaled-share-pack
+  (assoc scaled-share-pack
+         :extension/id :fixture/profiled-scaled-share-pack
+         :extension/capabilities [profiled-scaled-share-cap]))
+
+(def profile-mismatch-consumer-cap
+  "Requires scaled-share under a different profile than provided."
+  {:capability/kind :economics/award-amount
+   :capability/id :fixture/profile-mismatch-consumer
+   :capability/version 1
+   :capability/contract-version 1
+   :entrypoint 'fixture.profilemismatch/consumer
+   :input-schema :prf/award-amount-context.v1
+   :output-schema :prf/calculation-result.v1
+   :declared-dependencies
+   [{:capability/kind :arithmetic/profile
+     :capability/id :prf/scaled-share-v1
+     :requirement {:capability/profile :jvm-17}}]})
+
+(def profile-mismatch-consumer-pack
+  {:extension/id :fixture/profile-mismatch-consumer-pack
+   :extension/version "1.0.0"
+   :extension/api-version 1
+   :extension/manifest-version 1
+   :extension/capabilities [profile-mismatch-consumer-cap]})
+
 ;; ── schema registry used by resolution tests ──────────────────────────────
 
 (def schemas
