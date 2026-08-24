@@ -246,12 +246,14 @@
    2. Manual Track (proposeSlash):
        New evidence submitted — slash is :pending with appeal window (governance path).
 
-   Limitation: Track 2 :pending reversal slashes are NOT automatically resolved
-   when the escrow finalizes.  If a pending reversal slash outlives the escrow
-   (appeal window expires without resolution), the entry remains in
-   :pending-fraud-slashes indefinitely.  This is a state inconsistency — the
-   slash cannot execute because the escrow is no longer :disputed, but the entry
-   is never garbage-collected."
+   Track 2 :pending reversal slashes are resolved when the escrow finalizes via
+   lifecycle/cleanup-orphaned-slashes: an expired pending reversal slash (appeal
+   window elapsed with no successful appeal) has its penalty ENFORCED — the
+   resolver's stake is slashed and the entry is archived to
+   :reversal-slash-history with status :expired-executed.  Unexpired pending
+   reversal slashes are left in :pending-fraud-slashes so they remain resolvable
+   once their window closes (executable via execute-fraud-slash); they are no
+   longer silently dropped or leaked."
   [world workflow-id current-is-release]
   (let [level (t/dispute-level world workflow-id)]
     (if-not (pos? level)

@@ -381,7 +381,53 @@
           "r0 is the L0 reversal target")
       (is (some? slash-r1) "same-level L1 re-resolution reversal slash recorded")
       (is (= r1 (:resolver (get-in world [:pending-fraud-slashes slash-r1])))
-          "r1 (current level) is slashed for the same-level flip, not r0"))))
+           "r1 (current level) is slashed for the same-level flip, not r0"))))
+
+(deftest cleanup-orphaned-slashes-executes-expired-pending-reversal
+  (testing "expired Track 2 pending reversal slash is enforced, not dropped"
+    (let [resolver "0xR0"
+          workflow-id 0
+          world0 (-> (t/empty-world 1000)
+                     (reg/register-stake resolver 1000))
+          world-terminal (assoc-in world0 [:escrow-transfers workflow-id :escrow-state] :released)
+          entry {:status :pending
+                 :resolver resolver
+                 :amount 250
+                 :token :USDC
+                 :appeal-deadline 100
+                 :reason :reversal}
+          world (insert-test-slash world-terminal workflow-id :reversal 0 entry)
+          slash-id (get-in world [:slash-by-context (t/slash-context-key workflow-id :reversal 0)])]
+      (is (= 1000 (reg/get-stake world resolver)) "stake intact before cleanup")
+      (let [cleaned (lc/cleanup-orphaned-slashes world workflow-id)]
+        (is (= (- 1000 250) (reg/get-stake cleaned resolver))
+            "resolver stake slashed by the expired reversal penalty")
+        (is (nil? (get-in cleaned [:pending-fraud-slashes slash-id]))
+            "expired reversal slash removed from pending-fraud-slashes")
+        (is (= :expired-executed
+               (get-in cleaned [:reversal-slash-history slash-id :status]))
+             "archived to history as executed"))))
+  (testing "unexpired Track 2 pending reversal slash is left resolvable"
+    (let [resolver "0xR0"
+          workflow-id 0
+          world0 (-> (t/empty-world 1000)
+                     (reg/register-stake resolver 1000))
+          world-terminal (assoc-in world0 [:escrow-transfers workflow-id :escrow-state] :released)
+          entry {:status :pending
+                 :resolver resolver
+                 :amount 250
+                 :token :USDC
+                 :appeal-deadline 5000
+                 :reason :reversal}
+          world (insert-test-slash world-terminal workflow-id :reversal 0 entry)
+          slash-id (get-in world [:slash-by-context (t/slash-context-key workflow-id :reversal 0)])]
+      (let [cleaned (lc/cleanup-orphaned-slashes world workflow-id)]
+        (is (= 1000 (reg/get-stake cleaned resolver))
+            "resolver stake untouched while window open")
+        (is (some? (get-in cleaned [:pending-fraud-slashes slash-id]))
+            "pending reversal slash retained for later resolution")
+        (is (nil? (get-in cleaned [:reversal-slash-history slash-id]))
+            "nothing archived while window open")))))
 
 (deftest execute-fraud-slash-tracks-unavailability-and-circuit-breaker
   (let [resolver-addr "0xRes"
