@@ -343,7 +343,45 @@
     (is (= :replay-context/agent-index
            (get-in force-entry [:authorization/provenance :authorization/source])))
     (is (= "force-reversal-slash"
-           (get-in force-entry [:authorization/provenance :authorization/action])))))
+            (get-in force-entry [:authorization/provenance :authorization/action])))))
+
+(deftest same-level-reresolution-reversal-targets-current-level-resolver
+  (testing "a same-level re-resolution reverses the decision recorded at the
+            current level and slashes that level's resolver (not the prior level)"
+    (let [buyer "0xBuyer"
+          seller "0xSeller"
+          r0 "0xR0"
+          r1 "0xR1"
+          snap (snap-fix/escrow-snapshot {:dispute-resolver r0
+                                          :appeal-window-duration 100
+                                          :challenge-window-duration 100
+                                          :reversal-slash-bps 2500
+                                          :max-dispute-level 2})
+          world0 (-> (t/empty-world 1000)
+                     (reg/register-stake r0 10000)
+                     (reg/register-stake r1 10000))
+          {:keys [world workflow-id]}
+          (let [{:keys [world workflow-id]} (lc/create-escrow world0 buyer "USDC" seller 5000 {} snap)
+                after-raise (:world (lc/raise-dispute world workflow-id buyer))
+                ;; L0 resolution by r0 (release)
+                after-l0 (:world (res/execute-resolution after-raise workflow-id r0 true "0xh0" nil))
+                esc-fn (fn [_ _ _ _] {:ok true :new-resolver r1})
+                ;; escalate to L1 (resolver r1)
+                after-esc (:world (res/escalate-dispute after-l0 workflow-id buyer esc-fn))
+                ;; L1 resolution by r1 (refund) -> reverses L0 -> r0 slashed at level 0
+                after-l1 (:world (res/execute-resolution after-esc workflow-id r1 false "0xh1" nil))
+                ;; SAME-LEVEL re-resolution at L1 by r1 (release) -> reverses the
+                ;; L1 decision -> r1 must be slashed at level 1
+                after-l1-re (:world (res/execute-resolution after-l1 workflow-id r1 true "0xh1b" nil))]
+            {:world after-l1-re :workflow-id workflow-id})
+          slash-r0 (get-in world [:slash-by-context (t/slash-context-key workflow-id :reversal 0)])
+          slash-r1 (get-in world [:slash-by-context (t/slash-context-key workflow-id :reversal 1)])]
+      (is (some? slash-r0) "L0->L1 reversal slash recorded")
+      (is (= r0 (:resolver (get-in world [:pending-fraud-slashes slash-r0])))
+          "r0 is the L0 reversal target")
+      (is (some? slash-r1) "same-level L1 re-resolution reversal slash recorded")
+      (is (= r1 (:resolver (get-in world [:pending-fraud-slashes slash-r1])))
+          "r1 (current level) is slashed for the same-level flip, not r0"))))
 
 (deftest execute-fraud-slash-tracks-unavailability-and-circuit-breaker
   (let [resolver-addr "0xRes"

@@ -256,11 +256,21 @@
   (let [level (t/dispute-level world workflow-id)]
     (if-not (pos? level)
       world
-      (let [prev-decision (get-in world [:previous-decisions workflow-id (dec level)])]
+      (let [;; On a normal escalation, the decision being reversed is the one at
+             ;; the prior level (dec level).  But when an existing decision at the
+             ;; CURRENT level is being re-resolved (same-level re-resolution — e.g.
+             ;; a pending settlement was archived and a fresh resolution submitted
+             ;; at the same dispute level), the superseded decision is the one
+             ;; already recorded at this level, not at (dec level).  Resolve the
+             ;; reversed level accordingly so the correct resolver is slashed.
+             reversed-level (if (some? (get-in world [:previous-decisions workflow-id level]))
+                              level
+                              (dec level))
+             prev-decision (get-in world [:previous-decisions workflow-id reversed-level])]
         (if-not (and (some? prev-decision)
                      (not= (:is-release prev-decision) current-is-release))
           world
-          (let [slash-level     (dec level)
+          (let [slash-level     reversed-level
                 prev-resolver   (:resolver prev-decision)]
             ;; Idempotency: if a reversal entry already exists for this level, skip.
             ;; Also skip if a pending/appealed slash targets the same resolver on this
@@ -284,7 +294,7 @@
                     now             (time-ctx/block-ts world)
                     appeal-window   (:appeal-window-duration snap 0)
                     reversal-prob   (or (:reversal-detection-probability snap) 0.0)
-                    challenger      (get-in world [:challengers workflow-id (dec level)])
+                     challenger      (get-in world [:challengers workflow-id reversed-level])
                     bounty-bps      (:challenge-bounty-bps snap 0)]
             (if-not (pos? slash-amt)
               world
