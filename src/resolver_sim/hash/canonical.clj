@@ -328,8 +328,10 @@
    :prf-verification-basis-v1          "PRF_VERIFICATION_BASIS_V1"
    :prf-verification-result-v1         "PRF_VERIFICATION_RESULT_V1"
    :prf-resubmission-chain-identity-v1         "prf.resubmission-chain-identity.v1"
+   :prf-resubmission-chain-identity-v2         "prf.resubmission-chain-identity.v2"
    :prf-resubmission-chain-configuration-v1     "prf.resubmission-chain-configuration.v1"
    :prf-resubmission-chain-genesis-v1            "prf.resubmission-chain-genesis.v1"
+   :prf-resubmission-chain-genesis-v2            "prf.resubmission-chain-genesis.v2"
    :prf-resubmission-chain-genesis-authorization-v1 "prf.resubmission-chain-genesis-authorization.v1"
    :programme-allocation-request-v1   "PROGRAMME_ALLOCATION_REQUEST_V1"
    :programme-plan-v1                 "PROGRAMME_PLAN_V1"
@@ -1951,6 +1953,24 @@
   "Ordered identity fields of resubmission-chain-genesis.v1 (top level)."
   [:genesis/schema :chain/id :family/id :configuration :initial-state/root])
 
+(def resubmission-chain-identity-v2-fields
+  "Ordered identity basis for deployment-scoped resubmission chain IDs."
+  [:protocol-genesis/root
+   :chain-instance-genesis/root
+   :family/id
+   :initial-configuration/root])
+
+(def resubmission-chain-genesis-v2-fields
+  "Ordered identity fields of resubmission-chain-genesis.v2 (top level)."
+  [:genesis/schema
+   :protocol-genesis/root
+   :chain-instance-genesis/root
+   :family/id
+   :chain/id
+   :configuration
+   :configuration/root
+   :initial-state/root])
+
 (defn project-resubmission-chain-configuration
   "Canonical projection of resubmission-chain-configuration.v1: exactly the
    canonical identity fields, projected canonical-safe. Unknown keys never enter
@@ -1970,6 +1990,25 @@
    Unknown top-level or nested keys never enter the preimage."
   [value _intent]
   (let [base (select-keys value resubmission-chain-genesis-fields)
+        cfg (:configuration base)]
+    (project-canonical-safe
+     (cond-> base
+       (map? cfg) (assoc :configuration
+                         (project-resubmission-chain-configuration cfg _intent))))))
+
+(defn project-resubmission-chain-identity-v2
+  "Canonical projection of the deployment-scoped resubmission chain identity
+   basis. The initial configuration contributes only through its canonical root."
+  [value _intent]
+  (project-canonical-safe
+   (select-keys value resubmission-chain-identity-v2-fields)))
+
+(defn project-resubmission-chain-genesis-v2
+  "Canonical projection of resubmission-chain-genesis.v2. V2 commits the
+   protocol and chain-instance deployment roots plus the declared canonical
+   configuration root; its embedded configuration retains the V1 projection."
+  [value _intent]
+  (let [base (select-keys value resubmission-chain-genesis-v2-fields)
         cfg (:configuration base)]
     (project-canonical-safe
      (cond-> base
@@ -2958,6 +2997,27 @@ name (an alias)."
     :intent/excludes    #{:runtime-values :functions :deployment-metadata :timestamps}
     :intent/projection-fn project-resubmission-chain-genesis
     :intent/version     1}
+
+   :prf-resubmission-chain-identity-v2
+   {:intent/name        :prf-resubmission-chain-identity-v2
+    :intent/domain-tag  "prf.resubmission-chain-identity.v2"
+    :intent/description "Deployment-scoped resubmission chain-id basis: protocol genesis, chain-instance genesis, family, and initial configuration root"
+    :intent/includes    #{:protocol-genesis/root :chain-instance-genesis/root
+                          :family/id :initial-configuration/root}
+    :intent/excludes    #{:runtime-values :functions}
+    :intent/projection-fn project-resubmission-chain-identity-v2
+    :intent/version     2}
+
+   :prf-resubmission-chain-genesis-v2
+   {:intent/name        :prf-resubmission-chain-genesis-v2
+    :intent/domain-tag  "prf.resubmission-chain-genesis.v2"
+    :intent/description "Canonical identity of a deployment-scoped resubmission-chain-genesis.v2"
+    :intent/includes    #{:genesis/schema :protocol-genesis/root
+                          :chain-instance-genesis/root :family/id :chain/id
+                          :configuration :configuration/root :initial-state/root}
+    :intent/excludes    #{:runtime-values :functions :timestamps}
+    :intent/projection-fn project-resubmission-chain-genesis-v2
+    :intent/version     2}
 
    :prf-resubmission-chain-genesis-authorization-v1
    {:intent/name        :prf-resubmission-chain-genesis-authorization-v1

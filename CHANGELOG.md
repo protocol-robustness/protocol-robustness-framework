@@ -2,6 +2,11 @@
 
 ## [Unreleased]
 
+### Deployment-scoped resubmission genesis V2
+
+- **Added `resubmission-chain-genesis.v2`.** V2 canonically binds `:protocol-genesis/root`, `:chain-instance-genesis/root`, family, the existing `resubmission-chain-configuration.v1` and its root, derived chain ID, and initial state root. Its new identity basis is `{protocol-genesis/root, chain-instance-genesis/root, family/id, initial-configuration/root}` under distinct `prf.resubmission-chain-identity.v2` and `prf.resubmission-chain-genesis.v2` domains. V1 projections, bytes, roots, and validation remain unchanged.
+- **Trusted deployment verification.** `validate-resubmission-chain-genesis-v2-for-deployment` revalidates and re-roots independently trusted `protocol-genesis.v1` and `chain-instance-genesis.v1` artifacts, requires the declared V2 roots to match them, and requires the chain-instance artifact to commit the trusted protocol genesis root.
+
 ### Distributed benchmark fixed-chunk coordination
 
 - **Fixed execution registrations are immutable.** Distributed benchmark runs now persist a domain-separated commitment and expected count for the complete canonical chunk descriptors; retries must supply the exact chunk set, including every chunk’s input and execution roots. Terminal lifecycle states no longer issue leases, and accepted completion identity includes sensitivity level provenance.

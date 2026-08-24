@@ -2,8 +2,10 @@
   "Tests for the canonical resubmission-chain-genesis.v1 artifact:
    configuration validation/root, genesis construction, validation, root
    determinism, chain-id derivation, and store realization."
-  (:require [clojure.test :refer :all]
+  (:require [clojure.edn :as edn]
+            [clojure.test :refer :all]
             [clojure.string :as str]
+            [resolver-sim.genesis :as deployment-genesis]
             [resolver-sim.hash.canonical :as hc]
             [resolver-sim.hash.reference :as hash-ref]
             [resolver-sim.resubmission.genesis :as genesis]
@@ -51,6 +53,15 @@
 
 (def config-with-receipt
   (:configuration genesis-with-receipt))
+
+(def ^:private v2-conformance-fixture
+  (delay
+    (edn/read-string
+     (slurp "etc/conformance/fixtures/resubmission-chain-genesis-v2.edn"))))
+
+(defn- sha256-fixture-ref
+  [label]
+  (hash-ref/sha256-ref (hc/domain-hash :evidence-record label)))
 
 ;; ── Configuration validation ──────────────────────────────────────────────
 
@@ -344,6 +355,137 @@
     (let [root-nok (genesis/resubmission-chain-genesis-root (genesis/->genesis family))
           root-ok (genesis/resubmission-chain-genesis-root genesis-with-receipt)]
       (is (not= root-nok root-ok)))))
+
+;; ── Deployment-scoped genesis v2 ─────────────────────────────────────────
+
+(deftest test-genesis-v2-conformance-vectors
+  (testing "pinned V2 vectors reproduce canonical configuration, chain identity, and genesis roots"
+    (let [vectors (:vectors @v2-conformance-fixture)
+          instances {deployment-genesis/chain-instance-genesis-ethereum-fixture-root
+                     deployment-genesis/chain-instance-genesis-ethereum-fixture
+                     deployment-genesis/chain-instance-genesis-eez-fixture-root
+                     deployment-genesis/chain-instance-genesis-eez-fixture}]
+      (is (= "resubmission-chain-genesis-v2-fixture.v1"
+             (:fixture/schema @v2-conformance-fixture)))
+      (doseq [vector vectors]
+        (let [artifact (:genesis vector)]
+          (testing (:fixture/id vector)
+            (is (:valid? (genesis/validate-resubmission-chain-genesis-v2 artifact)))
+            (is (= (:expected/genesis-root vector)
+                   (genesis/resubmission-chain-genesis-v2-root artifact)))
+            (is (= (:configuration/root artifact)
+                   (genesis/resubmission-chain-configuration-root
+                    (:configuration artifact))))
+            (is (= (:chain/id artifact)
+                   (genesis/resubmission-chain-identity-v2-root
+                    (:protocol-genesis/root artifact)
+                    (:chain-instance-genesis/root artifact)
+                    (:family/id artifact)
+                    (:configuration/root artifact))))
+            (is (:valid?
+                 (genesis/validate-resubmission-chain-genesis-v2-for-deployment
+                  artifact
+                  deployment-genesis/protocol-genesis-fixture
+                  (instances (:chain-instance-genesis/root artifact)))))))))))
+
+(deftest test-genesis-v2-deployment-scoping
+  (let [protocol-root deployment-genesis/protocol-genesis-fixture-root
+        ethereum-root deployment-genesis/chain-instance-genesis-ethereum-fixture-root
+        eez-root deployment-genesis/chain-instance-genesis-eez-fixture-root
+        ethereum (genesis/->genesis-v2 protocol-root ethereum-root family nil receipt-pk)
+        eez (genesis/->genesis-v2 protocol-root eez-root family nil receipt-pk)
+        alternate-protocol
+        (assoc deployment-genesis/protocol-genesis-fixture
+               :canonicalisation/root (sha256-fixture-ref "resubmission-v2.alternate-protocol"))
+        alternate-protocol-root
+        (deployment-genesis/protocol-genesis-root alternate-protocol)
+        alternate-instance
+        (assoc deployment-genesis/chain-instance-genesis-ethereum-fixture
+               :protocol/genesis-root alternate-protocol-root)
+        alternate-instance-root
+        (deployment-genesis/chain-instance-genesis-root alternate-instance)
+        alternate
+        (genesis/->genesis-v2 alternate-protocol-root alternate-instance-root family nil receipt-pk)]
+    (testing "identical family and configuration on distinct chain instances have distinct identities"
+      (is (= (:configuration/root ethereum) (:configuration/root eez)))
+      (is (not= (:chain/id ethereum) (:chain/id eez))))
+    (testing "a distinct protocol/deployment pair has a distinct identity"
+      (is (not= (:chain/id ethereum) (:chain/id alternate)))
+      (is (:valid?
+           (genesis/validate-resubmission-chain-genesis-v2-for-deployment
+            alternate alternate-protocol alternate-instance))))))
+
+(deftest test-genesis-v2-trusted-deployment-binding
+  (let [base (genesis/->genesis-v2
+              deployment-genesis/protocol-genesis-fixture-root
+              deployment-genesis/chain-instance-genesis-ethereum-fixture-root
+              family nil receipt-pk)
+        syntactically-valid-untrusted-root
+        (sha256-fixture-ref "resubmission-v2.untrusted-deployment")
+        untrusted (genesis/->genesis-v2
+                   syntactically-valid-untrusted-root
+                   deployment-genesis/chain-instance-genesis-ethereum-fixture-root
+                   family nil receipt-pk)
+        inconsistent-instance
+        (assoc deployment-genesis/chain-instance-genesis-ethereum-fixture
+               :protocol/genesis-root (sha256-fixture-ref "resubmission-v2.inconsistent-protocol"))]
+    (testing "the declared V2 roots must equal independently trusted deployment artifacts"
+      (is (:valid? (genesis/validate-resubmission-chain-genesis-v2 untrusted)))
+      (is (not (:valid?
+                (genesis/validate-resubmission-chain-genesis-v2-for-deployment
+                 untrusted
+                 deployment-genesis/protocol-genesis-fixture
+                 deployment-genesis/chain-instance-genesis-ethereum-fixture)))))
+    (testing "the trusted chain-instance artifact must belong to the trusted protocol artifact"
+      (is (not (:valid?
+                (genesis/validate-resubmission-chain-genesis-v2-for-deployment
+                 base deployment-genesis/protocol-genesis-fixture
+                 inconsistent-instance)))))))
+
+(deftest test-genesis-v2-rejects-modified-commitments
+  (let [base (genesis/->genesis-v2
+              deployment-genesis/protocol-genesis-fixture-root
+              deployment-genesis/chain-instance-genesis-ethereum-fixture-root
+              family nil receipt-pk)
+        invalids
+        [(assoc-in base [:configuration :receipt-authority/public-key] "sha256:modified")
+         (assoc base :family/id "sha256:modified-family")
+         (assoc base :protocol-genesis/root (sha256-fixture-ref "resubmission-v2.modified-protocol"))
+         (assoc base :initial-state/root (sha256-fixture-ref "resubmission-v2.modified-state"))
+         (dissoc base :configuration/root)
+         (assoc base :unexpected/key true)]]
+    (doseq [invalid invalids]
+      (is (not (:valid? (genesis/validate-resubmission-chain-genesis-v2 invalid)))))))
+
+(deftest test-genesis-v2-is-closed-and-domain-separated-from-v1
+  (let [v1 (genesis/->genesis family nil receipt-pk)
+        v2 (genesis/->genesis-v2
+            deployment-genesis/protocol-genesis-fixture-root
+            deployment-genesis/chain-instance-genesis-ethereum-fixture-root
+            family nil receipt-pk)]
+    (testing "V2 rejects missing and unknown fields"
+      (is (not (:valid?
+                (genesis/validate-resubmission-chain-genesis-v2
+                 (dissoc v2 :chain-instance-genesis/root)))))
+      (is (not (:valid?
+                (genesis/validate-resubmission-chain-genesis-v2
+                 (assoc v2 :unexpected/key true))))))
+    (testing "V1 and V2 validators and root functions are non-interchangeable"
+      (is (not (:valid? (genesis/validate-resubmission-chain-genesis v2))))
+      (is (not (:valid? (genesis/validate-resubmission-chain-genesis-v2 v1))))
+      (is (thrown? ExceptionInfo
+                   (genesis/resubmission-chain-genesis-root v2)))
+      (is (thrown? ExceptionInfo
+                   (genesis/resubmission-chain-genesis-v2-root v1))))
+    (testing "V1 projections and roots remain unchanged"
+      (is (= genesis-root-with-receipt
+             (genesis/resubmission-chain-genesis-root v1)))
+      (is (= chain-id-with-receipt (:chain/id v1)))
+      (is (contains? hc/domain-tags :prf-resubmission-chain-identity-v2))
+      (is (contains? hc/domain-tags :prf-resubmission-chain-genesis-v2))
+      (is (not= (:chain/id v1) (:chain/id v2)))
+      (is (not= (genesis/resubmission-chain-genesis-root v1)
+                (genesis/resubmission-chain-genesis-v2-root v2))))))
 
 ;; ── Store realization ────────────────────────────────────────────────────
 
