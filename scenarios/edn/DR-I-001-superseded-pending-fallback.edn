@@ -2,18 +2,18 @@
  :schema-version "1.0"
  :allow-open-disputes? true
  :purpose "adversarial-robustness"
- :title "Superseded pending settlement fallback: escalation archives pending, escalated resolver fails, fallback executes archived settlement"
- :description "L0 resolver rules release, creating pending settlement. Participant escalates (clears pending, archives as superseded). The escalated resolver fails to produce a resolution before max-dispute-duration. The pending settlement expiry mechanism should NOT auto-execute the original superseded settlement — the escrow remains :disputed until manual cleanup or further escalation."
+ :title "Superseded pending settlement recovery: escalation archives pending, escalated resolver stalls, canonical recovery settles after the appeal window"
+ :description "L0 resolver rules release, creating pending settlement. Participant escalates (clears pending, archives as superseded). The escalated resolver produces no replacement resolution. While the archived decision's appeal window is open nothing can execute it; once that window elapses with no replacement decision at the current level, ONE canonical eligibility rule (sm/eligible-superseded-pending) makes the authoritative superseded decision recoverable — identically for direct execute_pending_settlement callers and for keeper automation (automate_timed_actions)."
  :provenance {:author "@dispute-researcher" :created-at "2026-06-30" :license "CC-BY-4.0"}
- :claim {:id "superseded-pending-does-not-auto-execute"
-         :statement "When a pending settlement is superseded by escalation and the escalated resolver fails to resolve, the original pending settlement is archived but NOT automatically executable. The escrow remains :disputed. No fallback executor can claim the old pending. This prevents stale settlement execution after escalation."
-         :falsifies-if ["The old superseded pending settlement auto-executes after some time"
-                        "The escrow terminal state diverges from the latest resolution"
-                        "A keeper can execute the superseded pending settlement directly"]}
- :expectations {:terminal-state "disputed"
-                :must-hold ["finality_blocked_during_appeal" "dispute_level_bounded"]
-                :metrics {:dispute_level {:gte 1}
-                          :superseded_pending_count {:gte 1}}}
+ :claim {:id "superseded-pending-recovery-canonical"
+         :statement "A superseded pending settlement is NOT executable while its appeal window is open or while a newer decision exists at the current level. Once the authoritative superseded decision's deadline has elapsed with no replacement decision produced, it becomes recoverable under a single canonical rule shared by direct execution and keeper automation — who invokes settlement does not change which transitions are admissible."
+         :falsifies-if ["The superseded pending settlement executes before its appeal deadline has elapsed"
+                        "An older same-level superseded decision executes when a newer one is authoritative"
+                        "Direct execution and keeper automation disagree on whether a superseded decision is admissible"]}
+ :expectations {:invariants ["finality_blocked_during_appeal" "dispute_level_bounded"]
+                :terminal [{:path ["escrow-transfers" 0 "escrow-state"] :equals "disputed"}]
+                :step-terminal [{:seq 3 :path ["dispute-levels" 0] :equals 1}
+                                {:seq 3 :path ["pending-count"] :equals 0}]}
  :threat {:family "settlement-finality" :attack "superseded-pending-settlement-revival" :severity "high"
           :actors ["escalator"]
           :assumptions ["Escalation archives -> superseded pending"
@@ -36,10 +36,10 @@
            :params {:workflow-id 0 :is-release true :resolution-hash "0xl0release"}}
           ;; Escalate to L1 — archives pending settlement as superseded
           {:seq 3 :time 1120 :agent "seller" :action "escalate_dispute" :params {:workflow-id 0}}
-          ;; L1 resolver does NOT produce a resolution
-          ;; The escrow remains :disputed at level 1
-          ;; Max-dispute-duration = 600, so at time 1660 the escrow auto-expires
-          ;; But no keeper action can execute the old superseded pending settlement
-          ;; Attempt to execute old settlement should fail
-          ;; (This is the key claim: superseded settlements are not executable)
+           ;; L1 resolver does NOT produce a resolution
+           ;; The escrow remains :disputed at level 1
+           ;; Max-dispute-duration = 600, so at time 1660 the escrow auto-expires
+           ;; Before that, once the L0 decision's appeal deadline (1100+120=1220)
+           ;; elapses, the canonical recovery rule makes the archived decision
+           ;; admissible — for direct callers and keeper automation alike.
           ]}

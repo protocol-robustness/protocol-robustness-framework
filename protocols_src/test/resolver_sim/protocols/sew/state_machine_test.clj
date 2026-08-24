@@ -305,6 +305,79 @@
     (is (false? (sm/pending-settlement-executable? w 0)))))
 
 ;; ---------------------------------------------------------------------------
+;; Canonical superseded-recovery eligibility (shared with direct execution)
+;;
+;; The keeper predicate and resolution/execute-pending-settlement must agree:
+;; cross-level liveness recovery is admissible for BOTH once the authoritative
+;; superseded decision's appeal window has elapsed.
+;; ---------------------------------------------------------------------------
+
+(def ^:private superseded-entry
+  "Archived pending entry as produced by archive-current-pending-settlement."
+  (fn [is-release deadline level superseded-at]
+    {:pending   (t/make-pending-settlement {:exists          true
+                                            :is-release      is-release
+                                            :appeal-deadline deadline
+                                            :resolution-hash "0xs"})
+     :superseded-at superseded-at
+     :level         level}))
+
+(defn- escalated-stalled-world
+  "Disputed world at level 1 whose L1 resolver never produced a decision;
+  the archived L0 pending was superseded by the escalation."
+  [block-time is-release deadline]
+  (-> (disputed-world block-time)
+      (assoc-in [:dispute-levels 0] 1)
+      (assoc-in [:superseded-pending-settlements 0]
+                [(superseded-entry is-release deadline 0 (- deadline 20))])))
+
+(deftest pending-settlement-executable-cross-level-superseded-after-deadline
+  (testing "keeper eligibility matches direct execution: cross-level recovery fires after the archived deadline"
+    (let [w (escalated-stalled-world 1300 true 1250)]
+      (is (true? (sm/pending-settlement-executable? w 0))
+          "cross-level superseded entry, deadline elapsed → executable")
+      (is (some? (sm/eligible-superseded-pending w 0))
+          "canonical policy selects the recovered entry"))))
+
+(deftest pending-settlement-executable-cross-level-superseded-before-deadline
+  (testing "cross-level recovery must not fire while the appeal window is open"
+    (let [w (escalated-stalled-world 1200 true 1250)]
+      (is (false? (sm/pending-settlement-executable? w 0))
+          "deadline not elapsed → not executable"))))
+
+(deftest pending-settlement-executable-same-level-newest-gates
+  (testing "among same-level entries only the newest (authoritative) deadline gates — matching direct execution"
+    (let [w (-> (disputed-world 4800)
+                (assoc :pending-settlements {})
+                (assoc-in [:superseded-pending-settlements 0]
+                          [(superseded-entry true 4500 0 4600)    ; older, expired
+                           (superseded-entry false 5000 0 4999)]))] ; newest, NOT expired
+      (is (false? (sm/pending-settlement-executable? w 0))
+          "older entry's expired deadline must not make settlement executable")
+      (is (= "0xs" (:resolution-hash (:pending (sm/eligible-superseded-pending w 0))))
+          "canonical policy still selects the authoritative entry for reporting"))))
+
+(deftest eligible-superseded-pending-terminal-escrow-no-cross-level
+  (testing "cross-level recovery does not apply to terminal escrows"
+    (let [w (-> (escalated-stalled-world 1300 true 1250)
+                (assoc-in [:escrow-transfers 0 :escrow-state] :released))]
+      (is (nil? (sm/eligible-superseded-pending w 0))
+          "terminal escrow has nothing to settle from another level")
+      (is (false? (sm/pending-settlement-executable? w 0))))))
+
+(deftest eligible-superseded-pending-active-pending-blocks-recovery
+  (testing "a live replacement decision blocks recovery of older superseded entries"
+    (let [w (-> (escalated-stalled-world 1300 true 1250)
+                (assoc-in [:pending-settlements 0]
+                          (t/make-pending-settlement {:exists          true
+                                                      :is-release      false
+                                                      :appeal-deadline 9000
+                                                      :resolution-hash "0xnew"})))]
+      ;; Active pending exists but its own window is open → not executable,
+      ;; and recovery must not bypass it via the older entry.
+      (is (false? (sm/pending-settlement-executable? w 0))))))
+
+;; ---------------------------------------------------------------------------
 ;; Absorbing-state invariant: no transition escapes terminal states
 ;; ---------------------------------------------------------------------------
 

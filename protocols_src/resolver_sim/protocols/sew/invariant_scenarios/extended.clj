@@ -1621,9 +1621,17 @@
    :agents             [{:id "buyer"      :address "0xbuyer"      :strategy "honest"}
                         {:id "seller"     :address "0xseller"     :strategy "honest"}
                         {:id "resolver"  :address "0xresolver"  :role "resolver"}
-                        {:id "governance" :address "0xgov"       :role "governance"}]
+                        {:id "governance" :address "0xgov"       :role "governance"}
+                        {:id "keeper"    :address "0xkeeper"    :role "keeper"}]
    :protocol-params    timeout
-   :notes "Kleros ruling 0 (refuse to arbitrate). Before the timeout expires, governance rotates the resolver (who can then release). Tests the recovery path where a refused dispute gets back on track."
+   ;; Kleros ruling 0 (refuse to arbitrate) records a persistent refusal:
+   ;; NO follow-up resolution can revive the dispute — even after governance
+   ;; rotates the resolver — so the refusal record cannot be overwritten.
+   ;; The max-dispute-duration timeout (keeper auto-cancel) is the only exit.
+   :notes "Kleros ruling 0 refuses to arbitrate. Governance rotation succeeds but does NOT clear the refusal; the follow-up resolution at seq 5 must be rejected with :resolution-already-refused. The keeper settles via the dispute-timeout path at seq 6."
+   :allow-open-disputes? true
+   :strict-expected-errors? true
+   :expected-errors     [{:seq 5 :action "execute_resolution" :error :resolution-already-refused}]
    :events
    [{:seq 0 :time 1000 :agent "resolver" :action "register_stake"
      :params {:amount 5000}}
@@ -1637,7 +1645,9 @@
     {:seq 4 :time 1200 :agent "governance" :action "rotate_dispute_resolver"
      :params {:workflow-id 0 :new-resolver "0xresolver"}}
     {:seq 5 :time 1300 :agent "resolver" :action "execute_resolution"
-     :params {:workflow-id 0 :is-release true :resolution-hash "0xrelease"}}]})
+     :params {:workflow-id 0 :is-release true :resolution-hash "0xrelease"}}
+    {:seq 6 :time 1401 :agent "keeper" :action "automate_timed_actions"
+     :params {:workflow-id 0}}]})
 
 ;; ---------------------------------------------------------------------------
 

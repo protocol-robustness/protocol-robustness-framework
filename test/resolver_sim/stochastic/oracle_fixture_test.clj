@@ -187,7 +187,12 @@
   (testing "validate-scenario invokes oracle validation"
     (is (types/validate-scenario
          (merge types/default-params
-                {:oracle-fixture {:mode :static-no-slash}})))))
+                {:description "oracle validation smoke"
+                 :scenario-id "oracle-validation-smoke"
+                 :rng-seed 1
+                 :escrow-distribution {:type :constant :value 10000}
+                 :strategy-mix {:honest 1.0 :lazy 0.0 :malicious 0.0 :collusive 0.0}
+                 :oracle-fixture {:mode :static-no-slash}})))))
 
 ;; ── Per-kind detection activation tests ─────────────────────────────────
 
@@ -222,7 +227,7 @@
 (deftest fixed-or-l2-detection-active
   (testing ":fixed-or :l2-detection rolls are consumed when l2-detection-prob > 0"
     (let [result (dispute/resolve-dispute
-                  (rng/make-rng 44) 10000 150 700 2.5 :malicious 0.05 0.40 0.1
+                  (rng/make-rng 44) 10000 150 700 2.5 :malicious 0.05 1.0 0.1
                   :l2-detection-prob 0.5
                   :p-l1-reversal 1.0
                   :fixed-or {:rolls {:l2-detection [0.01]}
@@ -230,6 +235,7 @@
                              :on-exhaustion :throw
                              :on-unknown-roll-kind :stochastic}
                   :oracle-roll-trace-enabled? true)]
+      (is (:appeal-triggered? result) "appeal must fire for the L2 path to be reached")
       (is (some #(= :l2-detection (:roll/kind %))
                 (:oracle-roll-trace result))
           ":l2-detection roll consumed when appeal fires and threshold > 0"))))
@@ -272,7 +278,9 @@
                   :reversal-slash-bps 2500
                   :p-l1-reversal 1.0
                   :freeze-on-detection? true
-                  :unstaking-delay-days 5   ; < freeze(3) + appeal(7), so can-escape?=false → escaped?=false
+                  ;; 14 >= freeze(3) + appeal(7): withdrawal cannot complete before
+                  ;; the slash executes, so can-escape? is false → escaped?=false
+                  :unstaking-delay-days 14
                   :has-kleros? true
                   :fixed-or {:rolls {:reversal-detection [0.01]
                                      :pending-evidence [0.01]}
@@ -281,10 +289,38 @@
           fee 150]
       (is (:slashing-pending? result) "slashing-pending? must be true")
       (is (:frozen? result) "frozen? must be true: freeze-on-detection?=true")
+      (is (not (:escaped? result))
+          "escaped? must be false: unstaking delay exceeds freeze + appeal window")
       (is (pos? (:bond-loss result))
           "bond-loss must be positive when frozen despite slashing-pending?")
       (is (< (:profit-malice result) fee)
           "profit-malice must be less than fee when bond loss is applied"))))
+
+(deftest pending-evidence-defers-loss-when-frozen-but-escaped
+  (testing "when slashing-pending?, frozen, and escape possible, the resolver escapes with no bond loss"
+    (let [result (dispute/resolve-dispute
+                  (rng/make-rng 42) 10000 150 700 2.5 :malicious 1.0 1.0 0.1
+                  :fraud-detection-probability 0
+                  :reversal-detection-probability 1.0
+                  :new-evidence-probability 1.0
+                  :reversal-slash-bps 2500
+                  :p-l1-reversal 1.0
+                  :freeze-on-detection? true
+                  ;; 5 < freeze(3) + appeal(7): withdrawal completes before the
+                  ;; slash executes, so can-escape? is true → escaped?=true
+                  :unstaking-delay-days 5
+                  :has-kleros? true
+                  :fixed-or {:rolls {:reversal-detection [0.01]
+                                     :pending-evidence [0.01]}
+                             :scope #{:detection}
+                             :on-unknown-roll-kind :stochastic})
+          fee 150]
+      (is (:slashing-pending? result) "slashing-pending? must be true")
+      (is (:frozen? result) "frozen? must be true: freeze-on-detection?=true")
+      (is (:escaped? result)
+          "escaped? must be true: short unstaking delay beats freeze + appeal window")
+      (is (= fee (:profit-malice result))
+          (str "profit-malice should equal fee (" fee ") when the resolver escapes")))))
 
 (deftest pending-evidence-zero-slash-bps-skips-pending
   (testing "slashing-pending? is false when reversal-slash-bps=0 despite new-evidence-probability>0"
@@ -390,17 +426,19 @@
                   :new-evidence-probability 0.5
                   :l2-detection-prob 0.5
                   :reversal-slash-bps 2500
-                  :p-l1-reversal 1.0
+                  ;; 0.5 with roll 0.99: L1 does NOT reverse, so the L2 branch
+                  ;; (escalation + reversal) is also exercised in this trial.
+                  :p-l1-reversal 0.5
                   :p-l2-escalation 1.0
                   :p-l2-reversal 1.0
                   :has-kleros? true
-                  :fixed-or {:rolls {:fraud-detection [0.01]
+                  :fixed-or {:rolls {:fraud-detection [0.99]   ; consumed, NOT detected → :l1-detection fires
                                      :timeout-detection [0.01]
                                      :pending-evidence [0.01]
                                      :l2-detection [0.01]
                                      :reversal-detection [0.01]
                                      :l1-detection [0.01]
-                                     :l1-reversal [0.01]
+                                     :l1-reversal [0.99]       ; not reversed → :l2-escalation reachable
                                      :l2-escalation [0.01]
                                      :l2-reversal [0.01]}
                              :scope #{:detection :appeal}

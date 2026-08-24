@@ -2366,12 +2366,20 @@
     :senior-not-registered
     :senior-coverage-exceeded
     :insufficient-stake
-    :protocol-paused})
+    :protocol-paused
+    ;; Dispute resolution lifecycle rejections
+    :no-pending-settlement
+    :auto-cancel-time-not-passed
+    :resolution-already-refused
+    :amount-exceeds-balance
+    :insufficient-custody-position})
 
 (def ^:private sew-guard-error-codes
   ;; Precondition guard rejections
   #{:yield-position-unsettled
+    :yield-position-still-active-after-settlement
     :no-resolution-to-appeal
+    :no-resolution-to-challenge
     :appeal-window-expired
     :appeal-window-not-expired
     :escalation-not-allowed
@@ -2398,6 +2406,24 @@
     :workflow-not-slashable
     :missing-caller-context
     :invalid-new-resolver
+    :release-strategy-not-set
+    :escalation-cooldown-active
+    ;; Slash / appeal guards (canonical slash entity IDs)
+    :invalid-slash-id
+    :slash-not-found
+    :slash-workflow-mismatch
+    :not-fraud-group-slash
+    :not-liable-member
+    :member-appeal-already-pending
+    :no-active-member-appeal
+    :appeal-in-progress
+    :missing-authorization-provenance
+    ;; Fraud-incident declaration guards
+    :empty-incident-affected-workflows
+    :invalid-fraud-incident-id
+    :invalid-incident-workflow
+    :fraud-incident-already-declared
+    :unsupported-fraud-incident-kind
     :evidence-deadline-exceeded
     :reentrancy-guard-violated})
 
@@ -2722,11 +2748,12 @@
         (let [pending (t/get-pending world wf-id)]
           (if (:exists pending)
             (:appeal-deadline pending)
-            (let [current-level (t/dispute-level world wf-id)]
-              (some (fn [entry]
-                      (when (= (:level entry) current-level)
-                        (:appeal-deadline (:pending entry))))
-                    (get-in world [:superseded-pending-settlements wf-id] [])))))
+            ;; Canonical recovery policy (shared with execute-pending-settlement
+            ;; and pending-settlement-executable?): newest same-level entry, or
+            ;; cross-level liveness recovery while still :disputed.
+            (some-> (sm/eligible-superseded-pending world wf-id)
+                    :pending
+                    :appeal-deadline)))
         :appeal
         (let [pending (t/get-pending world wf-id)]
           (when (:exists pending)

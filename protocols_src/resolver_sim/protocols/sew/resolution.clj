@@ -639,8 +639,6 @@
     (t/fail :circuit-breaker-active)
     (t/ok true)))
 
-(declare pick-eligible-superseded-pending)
-
 ;; ---------------------------------------------------------------------------
 ;; execute-resolution
 ;;
@@ -875,18 +873,21 @@
 (defn execute-pending-settlement
   "Execute a deferred settlement after the appeal window has closed.
 
-   When no active pending settlement exists but a superseded one has been
-   recovered by pick-eligible-superseded-pending (escalation or challenge that
-   produced no replacement decision), execution proceeds from that recovered
-   decision and the result records :settlement/recovered-from-superseded with the
-   originating level and supersession reason."
+   When no active pending settlement exists but a superseded one is
+   authoritative under the canonical recovery policy (sm/eligible-superseded-pending —
+   same-level newest wins; cross-level liveness recovery while still :disputed),
+   execution proceeds from that recovered decision and the result records
+   :settlement/recovered-from-superseded with the originating level and
+   supersession reason. The keeper's automate-timed-actions dispatches on the
+   SAME rule via sm/pending-settlement-executable?, so a settlement that is
+   admissible here is also admissible for automated execution."
   [world workflow-id]
   (if-not (t/valid-workflow-id? world workflow-id)
     (guard-fail :invalid-workflow-id :workflow-id workflow-id)
     (let [active-pending (t/get-pending world workflow-id)
           now-ts         (time-ctx/block-ts world)
           fallback-entry (when-not (:exists active-pending)
-                           (pick-eligible-superseded-pending world workflow-id now-ts))
+                           (sm/eligible-superseded-pending world workflow-id))
           pending        (if (:exists active-pending)
                            active-pending
                            (some-> fallback-entry :pending))]
@@ -997,38 +998,6 @@
                       (fn [v] (take-last max-superseded-pending-per-workflow v)))
            (update :pending-settlements dissoc workflow-id))
        world))))
-
-(defn- pick-eligible-superseded-pending
-  "Select the superseded pending entry that is authoritative for the CURRENT
-   escrow state. Returns the archived entry map ({:pending ... :level ...}) or nil.
-
-   A superseded decision is authoritative while the dispute remains at the level
-   at which it was superseded; among same-level entries only the most recently
-   superseded decision is authoritative (older ones were cancelled by it), and an
-   older decision must not execute just because its deadline passed earlier.
-
-   When no decision exists at the current active level — no active pending and no
-   same-level superseded entry — the most recently superseded decision across all
-   levels is recovered so that an escalation or challenge that never produces a
-   replacement decision cannot stall settlement indefinitely (liveness). The
-   caller's guards still require the recovered decision's deadline to have elapsed
-   and preserve all normal settlement validation. If a newer replacement decision
-   exists (active pending, or a same-level superseded entry), it is preferred and
-   no older decision is recovered. Cross-level recovery applies only while the
-   escrow is still :disputed — a terminal escrow has nothing to settle, so no
-   entry is returned from another level."
-  [world workflow-id _now-ts]
-  (let [entries       (get-in world [:superseded-pending-settlements workflow-id] [])
-        current-level (t/dispute-level world workflow-id)
-        same-level    (seq (filter #(= current-level (:level %)) entries))
-        disputed?     (= :disputed (t/escrow-state world workflow-id))
-        ordered       (fn [es] (last (sort-by (fn [e] [(:superseded-at e 0)
-                                                       (:appeal-deadline (:pending e) 0)])
-                                             es)))]
-    (cond
-      same-level    (ordered same-level)
-      (and disputed? (seq entries)) (ordered entries)
-      :else nil)))
 
 ;; ---------------------------------------------------------------------------
 ;; challenge-resolution (Phase L)
@@ -1182,6 +1151,14 @@
 
 (defn automate-timed-actions
   "Dispatch timed keeper actions for workflow-id.
+
+   Priority 1 gates on sm/pending-settlement-executable?, which applies the
+   SAME canonical eligibility rule as a direct execute-pending-settlement call
+   (sm/eligible-superseded-pending): an active pending past its appeal window,
+   or — when no replacement decision was ever produced at the current level —
+   the authoritative superseded decision (cross-level liveness recovery).
+   Keepers may add operational filters (batching, retries, scheduling) but do
+   not see different protocol eligibility than direct callers.
 
    Returns {:ok true :world world' :action kw} — even when action is :none,
    to simplify caller logic."

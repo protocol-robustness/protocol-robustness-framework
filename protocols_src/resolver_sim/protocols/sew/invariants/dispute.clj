@@ -199,32 +199,47 @@
   "True when no evidence has been submitted after the evidence window deadline.
    When :evidence-window-duration is configured in protocol-params, every
    submit-evidence event's timestamp is checked against the dispute creation
-   timestamp + evidence-window-duration."
+   timestamp + evidence-window-duration.
+
+   Event-level checking requires the world to carry an :events log; replay
+   worlds do not currently embed one, in which case the invariant holds
+   vacuously with an explanatory note (the submit-evidence guard itself
+   enforces the deadline at transition time)."
   [world]
   (let [deadline-duration (get-in world [:params :evidence-window-duration] nil)]
     (if (nil? deadline-duration)
       {:holds? true :violations [] :note "No evidence deadline configured"}
-      (let [violations
-            (for [[wf et] (:escrow-transfers world)
-                  :when (= :disputed (:escrow-state et))
-                  :let [dispute-ts (get-in world [:dispute-timestamps wf] 0)
-                        deadline (when (pos? dispute-ts)
-                                   (+ dispute-ts deadline-duration))
-                        ;; Gather evidence submissions for this workflow
-                        evidence-events (filter #(and (= wf (:workflow-id %))
-                                                       (= "submit-evidence" (:action %)))
-                                                 (:events world []))]
-                  :when (seq evidence-events)
-                  :let [late-submissions (filter #(> (:time %) deadline) evidence-events)]
-                  :when (seq late-submissions)]
-              {:workflow-id wf
-               :dispute-timestamp dispute-ts
-               :deadline deadline
-               :evidence-deadline-duration deadline-duration
-               :late-submissions (mapv #(select-keys % [:seq :time :agent]) late-submissions)
-               :violation :late-evidence-submission})]
-        {:holds? (empty? violations)
-         :violations (vec violations)}))))
+      (if-not (seq (:events world []))
+        {:holds? true
+         :violations []
+         :note "No event log in world; deadline enforced by the submit-evidence guard"}
+        (let [evidence-action? #(contains? #{"submit-evidence" "submit_evidence"} (:action %))
+              violations
+              (for [[wf et] (:escrow-transfers world)
+                    :when (= :disputed (:escrow-state et))
+                    :let [dispute-ts (get-in world [:dispute-timestamps wf] 0)
+                          deadline (when (pos? dispute-ts)
+                                     (+ dispute-ts deadline-duration))
+                          ;; Gather evidence submissions for this workflow
+                          evidence-events (filter #(and (= wf (:workflow-id %))
+                                                         (evidence-action? %))
+                                                   (:events world []))
+                          ;; A disputed escrow without a usable timestamp cannot
+                          ;; be evaluated; report rather than crash on nil.
+                          late-submissions (when deadline
+                                             (filter #(> (:time %) deadline) evidence-events))]
+                    :when (seq late-submissions)]
+                {:workflow-id wf
+                 :dispute-timestamp dispute-ts
+                 :deadline deadline
+                 :escrow-state (:escrow-state et)
+                 :evidence-deadline-duration deadline-duration
+                 :late-submissions (mapv #(select-keys % [:seq :time :agent]) late-submissions)
+                 :violation (if deadline
+                              :late-evidence-submission
+                              :missing-dispute-timestamp)})]
+          {:holds? (empty? violations)
+           :violations (vec violations)})))))
 
 ;; ---------------------------------------------------------------------------
 ;; Invariant: Finality blocks during appeal window

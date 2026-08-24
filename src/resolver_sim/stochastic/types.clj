@@ -54,6 +54,7 @@
    [:p-l2-reversal {:optional true} [:and number? [:>= 0] [:<= 1]]]
    [:n-trials {:optional true} [:and integer? [:> 0]]]
    [:n-seeds {:optional true} [:and integer? [:> 0]]]
+   [:min-trials {:optional true} [:and integer? [:> 0]]]
    [:parallelism {:optional true} [:or keyword? integer?]]
    [:new-evidence-probability {:optional true} [:and number? [:>= 0] [:<= 1]]]
    [:l2-detection-prob {:optional true} [:and number? [:>= 0] [:<= 1]]]

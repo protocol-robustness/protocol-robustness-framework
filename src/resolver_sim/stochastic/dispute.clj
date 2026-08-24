@@ -43,18 +43,26 @@
    Returns:
    {:dispute-correct? bool        ; Whether resolver judged correctly
     :appeal-triggered? bool       ; Whether initial appeal happened
+    :detected? bool               ; Any detection mechanism fired
+    :l2-detected? bool            ; Kleros backstop detection fired
     :escalated? bool              ; Whether case went beyond L0 (level > 0)
     :escalation-level int         ; Final level: 0=none, 1=L1 appeal, 2=L2 (Kleros)
     :slashed? bool                ; Whether resolver caught and slashed
     :slashing-pending? bool       ; Phase G: slashing is scheduled but delayed
     :frozen? bool                 ; Phase H: account frozen at detection
     :escaped? bool                ; Phase H: did resolver unstake before penalties?
+    :reversal-pending? bool       ; Track 2: pending new-evidence reversal slash
     :slashing-delay-weeks int     ; Phase G: weeks until slashing takes effect (0 = immediate)
-    :slashing-reason keyword      ; Reason for slashing (:timeout/:reversal/:fraud or nil)
+    :slashing-reason keyword      ; Reason for slashing (:fraud/:reversal/:l2/:timeout/:l1 or nil)
+    :bond-loss integer            ; Raw bond loss when slashed (reporting key; profit uses effective loss)
     :profit-honest integer        ; Profit if honest (MC-4: includes appeal-bond recovery when enabled)
     :profit-malice integer        ; Profit if malicious (MC-1: includes escrow-diversion upside when fraud-success-rate > 0)
     :fraud-upside integer         ; MC-1: escrow-diversion gain (0 when fraud-success-rate=0 or slashed)
+    :fraud-survival-prob double   ; Effective probability the fraud survives escalation
     :slash-distributed map        ; {:insurance :protocol :retained} — nil when not slashed
+    :oracle-roll-trace seq        ; Roll trace when :oracle-roll-trace-enabled?
+    :oracle-fixture/exhausted? bool ; Fixed-roll fixture exhausted at least once
+    :oracle-fixture/warnings vec  ; Oracle fixture configuration warnings
     :strategy keyword}            ; Strategy used"
   [rng escrow-wei fee-bps bond-bps slash-mult strategy
    appeal-prob-correct appeal-prob-wrong detection-prob
@@ -222,12 +230,18 @@
         can-escape?        (and frozen?
                                 (< unstaking-delay-days
                                    (+ freeze-duration-days appeal-window-days)))
-        escaped?           (if frozen? (not can-escape?) false)
+        escaped?           (and frozen? can-escape?)
 
         effective-bond-loss
-        (if (and slashed-detected? frozen? (not escaped?))
-          bond-loss
-          (if slashing-pending? 0 bond-loss))
+        (cond
+          ;; Escaped: stake withdrawn before the slash executed — no loss.
+          (and slashed-detected? frozen? escaped?) 0
+          ;; Frozen and unable to escape: the pending loss is effectively owed
+          ;; now (freeze removes any deferral benefit).
+          (and slashed-detected? frozen?) bond-loss
+          ;; Not frozen: loss deferred while the pending window resolves.
+          slashing-pending? 0
+          :else bond-loss)
 
         ;; MC-1/MC-SEQ: Escrow-diversion upside.
         ;; A malicious resolver who is NOT caught may redirect the escrow to a colluding
@@ -313,24 +327,33 @@
    appeal-prob-correct appeal-prob-wrong detection-prob
    & args]
 
-  (let [results (repeatedly n-trials
-                            #(apply resolve-dispute rng escrow-wei fee-bps bond-bps slash-mult
-                                    strategy appeal-prob-correct appeal-prob-wrong
-                                    detection-prob args))
-        profits-honest    (map :profit-honest results)
-        profits-malice    (map :profit-malice results)
-        mean-honest       (double (/ (reduce + profits-honest) n-trials))
-        mean-malice       (double (/ (reduce + profits-malice) n-trials))
-        appeal-count      (count (filter :appeal-triggered? results))
-        slash-count       (count (filter :slashed? results))
-        escalation-count  (count (filter :escalated? results))
-        l2-count          (count (filter #(= (:escalation-level %) 2) results))]
+  (if (not (pos? n-trials))
+    {:n-trials           0
+     :mean-profit-honest 0.0
+     :mean-profit-malice 0.0
+     :appeal-rate        0.0
+     :slash-rate         0.0
+     :escalation-rate    0.0
+     :l2-escalation-rate 0.0
+     :honest-wins        0}
+    (let [results (repeatedly n-trials
+                              #(apply resolve-dispute rng escrow-wei fee-bps bond-bps slash-mult
+                                      strategy appeal-prob-correct appeal-prob-wrong
+                                      detection-prob args))
+          profits-honest    (map :profit-honest results)
+          profits-malice    (map :profit-malice results)
+          mean-honest       (double (/ (reduce + profits-honest) n-trials))
+          mean-malice       (double (/ (reduce + profits-malice) n-trials))
+          appeal-count      (count (filter :appeal-triggered? results))
+          slash-count       (count (filter :slashed? results))
+          escalation-count  (count (filter :escalated? results))
+          l2-count          (count (filter #(= (:escalation-level %) 2) results))]
 
-    {:n-trials           n-trials
-     :mean-profit-honest mean-honest
-     :mean-profit-malice mean-malice
-     :appeal-rate        (double (/ appeal-count n-trials))
-     :slash-rate         (double (/ slash-count n-trials))
-     :escalation-rate    (double (/ escalation-count n-trials))
-     :l2-escalation-rate (double (/ l2-count n-trials))
-     :honest-wins        (count (filter #(> (:profit-honest %) (:profit-malice %)) results))}))
+      {:n-trials           n-trials
+       :mean-profit-honest mean-honest
+       :mean-profit-malice mean-malice
+       :appeal-rate        (double (/ appeal-count n-trials))
+       :slash-rate         (double (/ slash-count n-trials))
+       :escalation-rate    (double (/ escalation-count n-trials))
+       :l2-escalation-rate (double (/ l2-count n-trials))
+       :honest-wins        (count (filter #(> (:profit-honest %) (:profit-malice %)) results))})))

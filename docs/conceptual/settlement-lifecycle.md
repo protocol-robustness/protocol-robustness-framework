@@ -2386,18 +2386,18 @@ The Sew adapter (`protocols_src/resolver_sim/protocols/Sew.clj:1748`) implements
 | Deadline Kind | Subject | Returns | Used By | Nil Means |
 |---------------|---------|---------|---------|----------|
 | `:evidence-submission` | workflow-id | `dispute-timestamp + evidence-window-duration` | `submit_evidence` | No deadline (window=0) |
-| `:settlement` | workflow-id | Active pending `:appeal-deadline`, or superseded pending at current level | `execute_pending_settlement` | No pending at all |
+| `:settlement` | workflow-id | Active pending `:appeal-deadline`, or authoritative superseded decision per `sm/eligible-superseded-pending` | `execute_pending_settlement` | No pending at all |
 | `:appeal` | workflow-id | Active pending `:appeal-deadline` | `escalate_dispute`, `challenge_resolution` | No pending exists |
 | `:earliest-execution` | slash-id / workflow-id | `world[:pending-fraud-slashes][subject][:appeal-deadline]` | `execute_fraud_slash`, `execute_fraud_group_slash` | No slash found |
 
-Key nuance for `:settlement` fallback: the superseded pending lookup via
-`some` stops at the *first* entry at the current dispute level.  Because
-`superseded-pending-settlements` is a list ordered by superseding time
-(most recent last), and `some` iterates from oldest to newest, an older
-superseded pending could be returned.  However, the `pick-eligible-superseded-pending`
-function in the action handler (`resolution.clj:827`) sorts by
-`:appeal-deadline` and picks the *latest* deadline, ensuring the most
-permissive (latest-expiring) settlement window is used.
+Key nuance for `:settlement` fallback: the deadline is resolved through the
+canonical recovery policy (`sm/eligible-superseded-pending`): among same-level
+entries only the most recently superseded decision is authoritative, and when
+no decision exists at the current level a cross-level entry is recovered for
+liveness while the escrow is still `:disputed`.  The same policy gates
+`execute_pending_settlement` and the keeper's
+`pending-settlement-executable?`, so direct callers and automation always see
+the same deadline.
 
 ### 4.3 PRF Replay Engine: Temporal Rules
 
@@ -2800,52 +2800,52 @@ metadata.  This creates a fallback execution path:
       world)))
 ```
 
-**Selection** (`resolution.clj:827`):
+**Selection** (`state_machine.clj` — canonical recovery policy):
 ```clojure
-(defn- pick-eligible-superseded-pending
-  "Select the latest superseded pending that is executable at now-ts."
-  [world workflow-id now-ts]
-  (->> (get-in world [:superseded-pending-settlements workflow-id] [])
-       (map :pending)
-       (filter :exists)
-       (filter #(<= (:appeal-deadline %) now-ts))
-       (sort-by :appeal-deadline)
-       last))
+(defn eligible-superseded-pending
+  "Canonical superseded-settlement recovery policy, shared by
+   `pending-settlement-executable?` (keeper candidate selection) and
+   `resolution/execute-pending-settlement` (direct execution)."
+  [world workflow-id]
+  ;; same-level entries: only the most recently superseded is authoritative;
+  ;; otherwise (still :disputed) recover the most recent entry across levels.
+  ...)
 ```
 
-The selection pipeline:
-1. Get all superseded entries for the workflow
-2. Extract the `:pending` maps
-3. Filter out entries with `:exists false` (should not occur, but defensive)
-4. Filter to entries whose `appeal-deadline` has passed (`<= now-ts`)
-5. Sort by `appeal-deadline` ascending
-6. Take the `last` (latest deadline — largest timestamp)
+The selection policy:
+1. Same-level superseded entries exist → the most recently superseded one is
+   authoritative (older ones were cancelled by it; an older decision must not
+   execute just because its deadline passed earlier).
+2. No same-level entry and the escrow is still `:disputed` → the most recently
+   superseded decision across all levels is recovered (cross-level liveness
+   recovery: an escalation or challenge that never produced a replacement must
+   not stall settlement indefinitely).
+3. Terminal escrow → nothing to settle; no cross-level recovery.
 
-This ensures the superseded pending with the *longest* (latest-expiring)
-appeal window is selected, giving the most permissive execution window.
-If multiple superseded pendings exist (from repeated escalation cycles),
-the latest-expiring one governs.
-
-**Level filtering in `pending-settlement-executable?`:**
-The state machine predicate adds an extra level check that
-`pick-eligible-superseded-pending` does not: it filters by *current*
-dispute level.  This means a superseded pending from level 0 is *not*
-eligible for execution when the escrow is at level 1.  The rationale:
-an escalation to level 1 intentionally overrode the level-0 decision,
-so the level-0 decision should not be executable without a replacement.
+**One rule for direct and automated settlement:**
+Cross-level supersession is a legitimate liveness recovery condition, and who
+invokes settlement must not change which protocol transitions are admissible.
+`resolution/execute-pending-settlement`, the keeper's
+`sm/pending-settlement-executable?`, and the `:settlement`
+`TemporalDeadlines` deadline all consult the same
+`sm/eligible-superseded-pending` policy.  Keepers may layer operational
+filters (batching, retries, scheduling) on top, but never narrower protocol
+eligibility.
 
 **Combined eligibility logic:**
 
 ```
-execute_pending_settlement eligibility:
+execute_pending_settlement eligibility (direct == keeper automation):
   1. Active pending exists AND now >= appeal-deadline
      → EXECUTE (active path)
   2. Active pending exists AND now < appeal-deadline
      → REJECT :appeal-window-not-expired
-  3. No active pending, superseded pending at current level exists AND now >= appeal-deadline
-     → EXECUTE (superseded fallback path)
-  4. No active pending, superseded pendings exist but at DIFFERENT level
-     → REJECT :no-pending-settlement
+  3. No active pending; authoritative superseded decision exists
+     (same-level newest, or cross-level while still :disputed)
+     AND its appeal-deadline has elapsed
+     → EXECUTE (recovery path; records :settlement/recovered-from-superseded)
+  4. No active pending; authoritative superseded decision's window still open
+     → REJECT :appeal-window-not-expired
   5. No pending at all (active or superseded)
      → REJECT :no-pending-settlement
 ```

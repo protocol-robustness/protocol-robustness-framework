@@ -333,6 +333,35 @@
     (is (= :escalation (:reason recovered)) "recovery records :escalation supersession")
     (is (some? (:superseded-at recovered)) "recovery records when the decision was superseded")))
 
+(deftest automate-timed-actions-recovers-superseded-like-direct-execution
+  "PARITY: keeper automation must apply the SAME canonical eligibility rule as
+   direct execution. After an escalation supersedes the level-0 pending with no
+   replacement produced at level 1, automate-timed-actions settles from the
+   recovered decision once its appeal window elapses — not while the window is
+   open, and not via the dispute-timeout refund path."
+  (let [w0     (base-world 1800)                     ;; block 1000, level 0
+        esc-fn (fn [world wf caller level] {:ok true :new-resolver "0xLevel1"})
+        r0     (res/execute-resolution w0 0 resolver true "0xhash-level0" direct-resolver-fn)
+        r-esc  (res/escalate-dispute
+                (time-ctx/advance-time (:world r0) {:to 2000}) 0 bob esc-fn)
+        ;; Archived P0 deadline = 2800; max-dispute-duration expires at 4600.
+        early  (res/automate-timed-actions
+                (time-ctx/advance-time (:world r-esc) {:to 2500}) 0)
+        late   (res/automate-timed-actions
+                (time-ctx/advance-time (:world r-esc) {:to 3000}) 0)]
+    (is (:ok r-esc) "escalation accepted")
+    (testing "while the recovered decision's window is open, the keeper must not act"
+      (is (= :none (:action early)))
+      (is (= :disputed (t/escrow-state (:world early) 0))))
+    (testing "after the window closes, the keeper settles on the same rule as a direct call"
+      (is (:ok late))
+      (is (= :execute-pending (:action late))
+          "keeper executes the recovered superseded decision")
+      (is (= :released (t/escrow-state (:world late) 0))
+          "finalized per the recovered release decision, not the timeout refund path")
+      (is (= 0 (get-in late [:extra :settlement/recovered-from-superseded :level]))
+          "recovery origin recorded on the keeper path too"))))
+
 (deftest execute-pending-refuses-superseded-when-active-replacement-exists
   "REGRESSION: a superseded pending must NOT be recovered once a newer decision
    has been submitted at the active level — the active pending takes precedence

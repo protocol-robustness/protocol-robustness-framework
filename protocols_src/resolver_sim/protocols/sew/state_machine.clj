@@ -519,22 +519,66 @@
          (pos? max-dur)
          (dl/deadline-expired? (time-ctx/block-ts world) (dl/deadline ts max-dur)))))
 
-(defn pending-settlement-executable?
-  "True when a pending-settlement exists and its appeal-deadline has passed
-   (or eligible superseded pending exists when no active pending exists),
-   and state is :disputed.
+(defn eligible-superseded-pending
+  "Canonical superseded-settlement recovery policy, shared by
+  `pending-settlement-executable?` (keeper candidate selection) and
+  `resolution/execute-pending-settlement` (direct execution).
 
-   Only superseded pendings at the current dispute level are considered:
-   a superseded pending from a lower level was archived by an escalation
-   and should not be executed until the higher-level resolver acts."
+  Selects the superseded pending entry that is authoritative for the CURRENT
+  escrow state. Returns the archived entry map ({:pending ... :level ...}) or
+  nil.
+
+  A superseded decision is authoritative while the dispute remains at the level
+  at which it was superseded; among same-level entries only the most recently
+  superseded decision is authoritative (older ones were cancelled by it), and an
+  older decision must not execute just because its deadline passed earlier.
+
+  When no decision exists at the current active level — no active pending and no
+  same-level superseded entry — the most recently superseded decision across all
+  levels is recovered so that an escalation or challenge that never produces a
+  replacement decision cannot stall settlement indefinitely (liveness).
+  Cross-level recovery is a legitimate liveness condition: who invokes
+  settlement (keeper automation vs a direct call) must not change which
+  protocol transitions are admissible. Cross-level recovery applies only while
+  the escrow is still :disputed — a terminal escrow has nothing to settle, so
+  no entry is returned from another level.
+
+  Callers still owe their own guards (deadline elapsed, state checks, normal
+  settlement validation); this function only selects WHICH decision, if any,
+  is authoritative."
   [world workflow-id]
-  (let [pending       (t/get-pending world workflow-id)
-        state         (t/escrow-state world workflow-id)
-        now-ts        (time-ctx/block-ts world)
-        current-level (t/dispute-level world workflow-id)]
+  (let [entries       (get-in world [:superseded-pending-settlements workflow-id] [])
+        current-level (t/dispute-level world workflow-id)
+        same-level    (seq (filter #(= current-level (:level %)) entries))
+        disputed?     (= :disputed (t/escrow-state world workflow-id))
+        ordered       (fn [es] (last (sort-by (fn [e] [(:superseded-at e 0)
+                                                       (:appeal-deadline (:pending e) 0)])
+                                              es)))]
+    (cond
+      same-level    (ordered same-level)
+      (and disputed? (seq entries)) (ordered entries)
+      :else nil)))
+
+(defn pending-settlement-executable?
+  "True when settlement is admissible right now under the SAME canonical
+  eligibility rule that gates direct execution (`resolution/execute-pending-settlement`
+  via `eligible-superseded-pending`):
+
+    - an active pending whose appeal-deadline has elapsed, OR
+    - no active pending, but an authoritative superseded decision exists
+      (same level, or cross-level liveness recovery while still :disputed)
+      whose appeal-deadline has elapsed,
+    - and the escrow is :disputed.
+
+  The keeper may layer operational filters on top of this predicate (batching,
+  retries, scheduling) but must not narrow protocol eligibility: who invokes
+  settlement does not change which transitions are admissible."
+  [world workflow-id]
+  (let [state   (t/escrow-state world workflow-id)
+        now-ts  (time-ctx/block-ts world)
+        pending (t/get-pending world workflow-id)]
     (and (= :disputed state)
          (if (:exists pending)
            (dl/deadline-expired? now-ts (:appeal-deadline pending))
-           (some #(and (= (:level %) current-level)
-                       (dl/deadline-expired? now-ts (:appeal-deadline (:pending %))))
-                 (get-in world [:superseded-pending-settlements workflow-id] []))))))
+           (when-let [entry (eligible-superseded-pending world workflow-id)]
+             (boolean (dl/deadline-expired? now-ts (:appeal-deadline (:pending entry)))))))))
