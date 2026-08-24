@@ -1388,12 +1388,12 @@
          ;; normalized form, so verify-bundle-hash can recompute it from the
          ;; artifact on disk. Hashing the raw map here would silently diverge
          ;; once normalization rewrites runtime values (e.g. Instants).
+         ;;
+         ;; The projection+hash composition is integrity/canonical-projection
+         ;; → integrity/bundle-root-hash (extracted from this inline form so
+         ;; writer and verifiers share one definition).
          normalized-evidence (normalize-runtime-values evidence)
-         hashable-evidence (integrity/hashable-evidence normalized-evidence)
-          ;; Sort keys for deterministic hashing; the persisted file uses the same
-          ;; sort order so verify-bundle-hash can recompute the identity from disk.
-         sorted-hashable (into (sorted-map) hashable-evidence)
-         bundle-root-hash (hc/hash-with-intent {:hash/intent :bundle-root} sorted-hashable)
+         bundle-root-hash (integrity/bundle-root-hash normalized-evidence)
          final-evidence (assoc normalized-evidence :evidence/hash bundle-root-hash)]
 
      (when-not passed?

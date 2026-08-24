@@ -2244,10 +2244,28 @@
     :intent/projection-fn project-identity
     :intent/version     1}
 
+   :reproducibility
+   {:intent/name        :reproducibility
+    :intent/domain-tag  "BENCHMARK_REPRODUCIBILITY_V1"
+    :intent/description "Deterministic re-execution identity of a benchmark evidence bundle.
+Authoritative projection is resolver-sim.benchmark.reproducibility/reproducibility-projection:
+semantic benchmark content (manifest, results sans observational fields, metrics,
+invariant summary, certification, commitment version, reproduce command), with all
+runtime/materialization metadata removed (:environment, :repo, :run/manifest,
+:timestamp, signature/post-hash fields, provenance). Two bundles with equal
+reproducibility roots are claimed to be re-derivable from the same inputs under the
+same execution semantics; wall-clock, host, VCS-dirt and signing differences do not
+participate."
+    :intent/includes    #{:benchmark-metadata :results-semantics :metrics
+                          :invariant-summary :benchmark-certification}
+    :intent/excludes    #{:environment :vcs-state :wall-clock :signatures
+                          :materialization-locations :provenance-mode}
+    :intent/projection-fn project-identity
+    :intent/version     1}
+
    :bundle-root
    {:intent/name        :bundle-root
-    :intent/domain-tag  "BUNDLE_ROOT_V1"
-    :intent/description "Top-level benchmark bundle commitment. Authoritative projection is
+    :intent/domain-tag  "BUNDLE_ROOT_V1"    :intent/description "Top-level benchmark bundle commitment. Authoritative projection is
 resolver-sim.benchmark.integrity/hashable-evidence (field selection excluding :timestamp,
 :evidence/hash, :evidence/signature, :evidence/public-key-path,
 :benchmark/artifact-index, :repo, :run/manifest/:manifest/at

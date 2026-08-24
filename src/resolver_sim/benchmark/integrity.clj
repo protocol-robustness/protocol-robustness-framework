@@ -145,13 +145,31 @@
   :evidence/commitment-version). Mirrors the writer's projection so the
   recomputation is exact."
   [bundle scheme]
-  (let [base (into (sorted-map) (hashable-evidence bundle))]
+  (let [base (canonical-projection bundle)]
     (case scheme
       :current (hc/hash-with-intent {:hash/intent :bundle-root} base)
       :legacy-v1 (hc/hash-with-intent {:hash/intent :bundle-root}
                                       (into (sorted-map) (dissoc (hashable-evidence bundle)
                                                                  :run/manifest
                                                                  :benchmark-certification))))))
+
+(defn canonical-projection
+  "THE explicit canonical projection committed by the :current bundle-root
+   scheme: hashable-evidence over a sorted top-level map. The canonical
+   encoder sorts nested maps by key bytes itself, so this projection is the
+   single definition both the writer's commitment and every reader-side
+   recomputation must go through. Previously this composition lived inline in
+   benchmark/runner.clj; it is extracted so the writer and verifiers cannot
+   drift."
+  [bundle]
+  (into (sorted-map) (hashable-evidence bundle)))
+
+(defn bundle-root-hash
+  "Hash of `bundle` under the :current scheme (bundle-root.v2 semantics):
+   canonical-projection → :bundle-root intent hash. Equivalent to the legacy
+   writer-inline composition; see canonical-projection."
+  [bundle]
+  (hc/hash-with-intent {:hash/intent :bundle-root} (canonical-projection bundle)))
 
 (defn verify-bundle-hash
   "Fail-closed integrity check: recompute the committed :evidence/hash against

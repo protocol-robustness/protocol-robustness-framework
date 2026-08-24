@@ -10,7 +10,10 @@ Blocked by:
 
 1. irreversible-state reconciliation with simulation-side regimes (GAP-F
    blocker 5);
-2. implementation of the shared atomic transition seam (§4 invariant).
+2. implementation of the shared atomic transition seam (§4 invariant) —
+   prerequisite, NOT an existing guarantee;
+3. DEPLOYMENT-identity binding for intents — `:protocol/id` alone does not
+   exclude cross-deployment replay (see Binding table).
 
 The GAP-F choice stands decided: additive prospective path; retrospective
 artifacts untouched.
@@ -58,6 +61,26 @@ required/optional scopes per operation kind; a `:not-applicable` on a
 policy-required scope fails issuance with `:permit/scope-not-permitted`.
 Syntactic explicitness never substitutes for scope authority.
 
+### Binding table (deployment-identity corrected)
+
+| # | Required binding | Intent field | Status |
+| --- | --- | --- | --- |
+| 1 | Chain/protocol + DEPLOYMENT identity | `:protocol/id` is necessary but NOT sufficient — see blocker below | open blocker |
+| 2 | Escrow identity | `:target {:kind :sew/escrow :id :workflow/id}` — workflow ids are plain strings today (`sew_escrow_snapshot.clj`); they commit no deployment identity | field exists; strength pending #1 |
+| 3–12 | party/principal · action · state-before root · lifecycle head+version+window assertion · conflict key · policy root · tagged scopes · nonce/event-id + replay rule | as specified in Signer consent scope and prior revision | unchanged |
+
+**Deployment-identity blocker.** Two deployments running the same protocol,
+with identical workflow identifiers and equivalent policy, would produce
+byte-identical intents under `:protocol/id` alone — cross-deployment replay of
+a signed intent is therefore NOT yet excluded. The intent must additionally
+bind either `{:protocol-genesis/root … :chain-instance-genesis/root …}` or an
+existing deployment root that provably commits both (none exists in this
+layer; resubmission's derived `chain/id` is family-local and does not
+qualify). Acceptance test once bound: same protocol + same workflow id + same
+party + same policy on DIFFERENT deployments ⇒ different signed-intent roots,
+and permit transplantation between them rejected by the serialization seam.
+Until then `:protocol/id` must not be described as sufficient.
+
 ## 2. Artifact B — `prospective-permit`
 
 Fields: `:permit/schema` · `:intent/root` · verified `:principal` ·
@@ -70,7 +93,7 @@ Fields: `:permit/schema` · `:intent/root` · verified `:principal` ·
 
 ## 3. Artifact dependency DAG (blocking correction #1)
 
-### 3.1 The existing anti-cycle projection, exactly
+### 3.1 The authorization slot: LOOKUP ADDRESS + preconditions commitment — not an authorization-material commitment
 
 The apparent cycle `statement root → command root → statement root` does not
 exist because the authorization slot is **addressed by an antecedent root**
@@ -93,6 +116,40 @@ artifact at that address, verify-command(C) asserts C.subject-root == R
 Dependency order: `P ← plan`; `R ← {…, P}`; `C ← R`. Acyclic. The command is
 a RETROSPECTIVE attestation of the finished statement; it is never an input
 to computing that statement's root.
+
+**Commitment semantics of P — the five required answers:**
+
+1. **Exact canonical projection of P:** the preconditions map
+   `{preconditions/schema, workflow/id, party, principal,
+   preconditions/errors}` rooted under `SEW_PARTY_CANCELLATION_PRECONDITIONS_V1`
+   (`party_preconditions.clj:14-19`). Nothing else.
+2. **Is C part of that projection?** NO. Changing, substituting, or removing
+   the command does NOT change P, and therefore does NOT change R.
+3. **What does the admission result bind?** `:authority {stage, command-root
+   (= the SLOT address P), verified?, principal, reason}` inside the hashed
+   admission base (`admission.clj:110-115`, `admission-root :15`). It commits
+   the verification OUTCOME and bound principal — but records only the slot
+   ADDRESS as `:command-root`; it does NOT record the command's own root C or
+   the signing key-id.
+4. **Missing / substituted / wrong-principal commands:** fail closed —
+   unresolvable slot ⇒ `verified? false` ⇒ blocking `:authority/forbidden`;
+   wrong principal ⇒ `:key-principal-mismatch`; bad shape/signature ⇒ typed
+   reasons from `verify-command`.
+5. **Two different valid commands at the same P:** produce the SAME operation
+   root AND indistinguishable admission results whenever both keys map to the
+   same principal. This is currently INTENTIONAL in effect (trusted-key-set
+   membership is what matters; key rotation among trusted keys is invisible),
+   and it is exactly why this field must be documented as an INDIRECTION +
+   PRECONDITIONS COMMITMENT — never described as a cryptographic commitment
+   to authorization material. Key-level attestation exists only inside the
+   command envelope itself and in any evidence bundle that separately captures
+   it.
+
+Consequently the V2 arrangement is not merely acyclic but semantically
+cleaner: `signed intent → permit → transition → applied statement binding
+:prospective-permit/root (a DIRECT commitment) → separately rooted
+retrospective authorization/evidence`. V2 must not replicate the
+address-not-commitment pattern for the permit slot.
 
 ### 3.2 Full DAG table
 
@@ -132,6 +189,12 @@ seam.** Sharing the key value alone guards nothing; a post-transition
 registration of results is insufficient — reservation, lifecycle head/version,
 transition publication, and terminal outcome must bind atomically (one
 transaction, one CAS state, or a store-issued fence mandatory at commit).
+
+**Implementation status: this seam is an IMPLEMENTATION PREREQUISITE, not an
+existing guarantee.** Nothing in the current repository serializes the two
+surfaces; `resubmission/store` is the cited PATTERN only. Until the seam
+exists, cross-surface coordination is a specified requirement, not a property
+of running code.
 
 Reservation transitions (atomic over `(conflict-key → slot)`):
 
