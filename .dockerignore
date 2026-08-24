@@ -1,16 +1,42 @@
 .git/
 .gitattributes
 .gitignore
+.jj/
+.github/
+
+# Tool/agent state
+.ai/
+.claude/
+.clj-kondo/
+.cpcache/
+.calva/
+.clerk/
+.eca/
+.joyride/
+.kilo/
+.lsp/
+.nrepl-port
+.prf/
+
+# Large source-tree areas not consumed by scripts/build.clj (Dockerfile)
+docs/
+notebooks/
+benchmarks/
+suites/
+test/
+dev/
+examples/
+extensions/
+public/
+shots/
+prf-artifacts/
+checks/
+coprocessor/target/
 
 results/
 target/
 send-to-ef/
 outputs/
-.cpcache/
-.pytest_cache/
-.calva/
-.clj-kondo/
-.lsp/
 
 *.log
 *.tmp
