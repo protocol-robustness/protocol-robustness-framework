@@ -49,6 +49,26 @@ Allocation round scope remains a separate committed mapping fact.
 `sew/aggregate-held-credit.v1` compiles positive, uncapped, all-active,
 same-asset credits through existing canonical delta normalization, producing
 one aggregate credit delta. The sole native authoritative location is
-`[:held-ledger/index :by-token :USDC]`; mirror realization and append-only
-held-adjustment/artifact attribution are deliberately deferred to Stages B and
-C.
+`[:held-ledger/index :by-token :USDC]`.
+
+## Stage B: aggregate numeric modeled realization
+
+`aggregate-numeric-custody-realization.v1` adds a typed, modeled numeric-only
+assurance artifact. It binds the existing Stage A descriptor, target-map
+validation, aggregate compilation, canonical transition, aggregate quantity,
+full native-before root, before/after numeric projection roots, authoritative
+location, numeric frame semantics, and the core-derived exact two-leaf write
+set.
+
+For token `T`, the authoritative leaf is recovered from the validated
+native-location map as `[:held-ledger/index :by-token T]`; the only approved
+mirror is derived by the core as `[:total-held T]`. Both values must be present,
+non-negative, and equal before reconstruction. The candidate updates both to
+the canonical after amount and rejects every diff outside those exact leaves.
+
+The numeric candidate is explicitly not a complete legacy SEW state. It does
+not commit a full native-after root, adjustment history, custody artifacts,
+persistence, write-back, read-back, transaction execution, or external
+execution history. Stage C may compare its complete modeled after-state by
+reprojecting the numeric leaves to this Stage B numeric-after projection; it
+need not equal the Stage B candidate's full native state.

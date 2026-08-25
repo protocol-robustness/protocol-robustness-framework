@@ -9,6 +9,7 @@
             [resolver-sim.pro-rata.quantity :as quantity]))
 
 (def profile :sew/aggregate-held-credit.v1)
+(def numeric-realization-profile :sew/aggregate-held-credit-numeric-realization.v1)
 
 (defn compilation-semantics-root []
   (hc/domain-hash :sew-aggregate-held-credit-semantics
@@ -25,6 +26,18 @@
                              :projection-profile :sew-aggregate-held-credit.v1
                              :reconstruction-profile :sew-aggregate-held-credit.v1
                              :frame-profile :exact-native-leaf-paths.v1}))
+
+(defn numeric-realization-semantics-root []
+  (hc/domain-hash :sew-aggregate-held-credit-numeric-realization-semantics
+                  {:schema-version "sew-aggregate-held-credit-numeric-realization-semantics.v1"
+                   :profile numeric-realization-profile
+                   :assurance/mode :modeled-numeric-projection
+                   :authoritative-location [:held-ledger/index :by-token :token]
+                   :derived-mirror-location [:total-held :token]
+                   :frame/profile :exact-native-leaf-paths.v1
+                   :claims [:numeric-projection]
+                   :excludes [:append-history :custody-artifacts :persistence
+                              :write-back :read-back :external-execution]}))
 
 (defn aggregate-quantity
   "Build one aggregate custody quantity. The subject and scope are supplied as
