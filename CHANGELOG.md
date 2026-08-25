@@ -2,6 +2,18 @@
 
 ## [Unreleased]
 
+### State-addressed governed-authority resolution — Stage A contract
+
+- **Added three acyclic, closed, canonical authority-resolution artifacts.** `governed-authority-resolution-basis.v1` commits the explicit resolution purpose (`:current-admission`, `:transition-replay`, or `:historical-audit`), chain-instance genesis, pre-state, anchor, and review-round question. `resolved-review-authority-context.v1` commits the state-addressed governance, activation, round, temporal, admissibility, and control-plane roots without callbacks or runtime objects. `governed-authority-transition-binding.v1` separately binds that resolved context to a completed transition’s before/after roots and authorization result, avoiding an authority-to-after-state cycle. Stage A defines contracts only; authenticated state lookup, admission integration, and commit-time fencing remain deferred. (`src/resolver_sim/benchmark/governed_authority_resolution.clj`, `test/resolver_sim/benchmark/governed_authority_resolution_test.clj`, `src/resolver_sim/hash/canonical.clj`)
+
+### Governed-authority resolver identity — B2 stabilization
+
+- **Added semantic resolver identity and a V2 resolution basis.** `governed-authority-resolver.v1` is a closed, self-rooted descriptor over resolver id, contract, profile, and version only; it excludes runtime implementation and deployment provenance. `governed-authority-resolution-basis.v2` commits exactly one recognized `:authority-resolver/root`, preventing equivalent-looking authority contexts from silently crossing resolver-contract versions. V1 basis verification remains available for historical artifacts. (`src/resolver_sim/benchmark/governed_authority_resolution.clj`, `test/resolver_sim/benchmark/governed_authority_resolution_test.clj`, `src/resolver_sim/hash/canonical.clj`)
+
+### State-addressed governed-authority resolution — Stage B authenticated state view
+
+- **Added authenticated authority-state envelope resolution.** `authoritative-state-envelope.v1` atomically publishes an execution state with its chain, configuration, governance, activation, control-plane, and configuration-head roots. The new operational authority-state store resolves a Stage A basis only from published envelope material: current admission requires the exact current envelope, while replay/audit requires an ancestor relationship to the selected anchor. Missing state, wrong chain, stale head, unknown round, and mismatched authority material remain distinct fail-closed outcomes. Consumer integration and commit-time fencing remain deferred. (`src/resolver_sim/benchmark/governed_authority_state.clj`, `test/resolver_sim/benchmark/governed_authority_state_test.clj`, `src/resolver_sim/hash/canonical.clj`)
+
 ### Notebook-only certificate-input admission inspection
 
 - **Exposed three-member certificate preconditions in the Not Admitted notebook.** The notebook now runs `pre-certificate-checks` against an incomplete review cell and shows that a certificate is refused unless the frozen review round, per-member reports and positions, and canonical member index all join correctly. This is reviewer-facing inspection only; it does not alter certificate semantics or add a public product-site claim. (`notebooks/not_admitted.clj`)
