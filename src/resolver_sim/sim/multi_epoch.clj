@@ -179,20 +179,20 @@
          fee-per-trial       (econ/calculate-fee (:escrow-size decayed-params 10000)
                                                  (:resolver-fee-bps decayed-params 150))
          epoch-fees-collected (long (* (if use-shared? n-trials (* 2 n-trials)) fee-per-trial))
-          effective-bond-loss-fn
-          (fn [t]
-            (let [slashed? (:slashed? t false)
-                  frozen?  (:frozen? t false)
-                  escaped? (:escaped? t false)
-                  pending? (:slashing-pending? t false)]
+         effective-bond-loss-fn
+         (fn [t]
+           (let [slashed? (:slashed? t false)
+                 frozen?  (:frozen? t false)
+                 escaped? (:escaped? t false)
+                 pending? (:slashing-pending? t false)]
               ;; Mirrors resolve-dispute: escaped trials lose nothing, frozen
               ;; trials owe the loss immediately (even if pending), and
               ;; unfrozen pending losses are deferred.
-              (cond
-                (and slashed? frozen? escaped?) 0
-                frozen? (get t :bond-loss 0)
-                pending? 0
-                :else (get t :bond-loss 0))))
+             (cond
+               (and slashed? frozen? escaped?) 0
+               frozen? (get t :bond-loss 0)
+               pending? 0
+               :else (get t :bond-loss 0))))
          epoch-bond-loss (reduce + 0 (map effective-bond-loss-fn all-trials))
          epoch-fraud-upside  (reduce + 0 (map #(get % :fraud-upside 0) all-trials))
 

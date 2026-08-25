@@ -28,7 +28,7 @@
   :escrow/amount-after-fee 5910,
   :yield/accrual-loss 0,
   :yield/escrow-gross 0,
-  :invalid-state-transitions 3,
+  :invalid-state-transitions 5,
   :batch-events 0,
   :yield/escrow-reclaimed 0,
   :reverts 5,

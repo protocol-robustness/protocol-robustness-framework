@@ -42,7 +42,7 @@
                      scenario-ids
                      (count scenario-ids))))
                 (:benchmarks pack-data))))))
-        (:packs registry)))))
+       (:packs registry)))))
 
 (defn- allocate-smoke-output-root []
   (let [configured-root (paths/benchmark-smoke-dir)]

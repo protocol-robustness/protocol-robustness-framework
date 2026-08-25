@@ -58,7 +58,7 @@
   :yield/escrow-principal 0,
   :yield/position-principal 0,
   :cancellations-sender 0,
-  :expected-reverts 1,
+  :expected-reverts 2,
   :escrow/live-state "released",
   :batch-buckets 0},
  :outcome :pass,

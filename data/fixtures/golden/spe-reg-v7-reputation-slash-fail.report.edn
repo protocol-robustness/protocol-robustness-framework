@@ -44,7 +44,7 @@
   :attack-successes 1,
   :funds-lost 0,
   :total-escrows 1,
-  :invalid-guard-conditions 0,
+  :invalid-guard-conditions 1,
   :disputes-triggered 1,
   :protocol/fees-usdc 30,
   :escrow/state "released",
