@@ -1,5 +1,5 @@
 (ns resolver-sim.benchmark.governed-authority-state-test
-  (:require [clojure.test :refer [deftest is]]
+  (:require [clojure.test :refer [deftest is testing]]
             [resolver-sim.benchmark.governed-authority-resolution :as resolution]
             [resolver-sim.benchmark.governed-authority-state :as state]))
 
@@ -30,15 +30,25 @@
 
 (defn- basis [purpose state-root anchor]
   (resolution/build-resolution-basis
-   {:resolution/purpose purpose :chain-instance-genesis/root (hash-ref "1")
-    :resolution/state-before-root state-root :resolution/anchor-root anchor
-    :review-round/hash (hash-ref "6")}))
+    {:resolution/purpose purpose :chain-instance-genesis/root (hash-ref "1")
+     :resolution/state-before-root state-root :resolution/anchor-root anchor
+     :review-round/hash (hash-ref "6")}))
+
+(defn- basis-v2
+  "V2 basis commits a recognized resolver root - required for current-admission."
+  [purpose state-root anchor]
+  (resolution/build-resolution-basis-v2
+    {:resolution/purpose purpose :chain-instance-genesis/root (hash-ref "1")
+     :resolution/state-before-root state-root :resolution/anchor-root anchor
+     :review-round/hash (hash-ref "6")
+     :authority-resolver/root
+     (:governed-authority-resolver/root resolution/default-resolver)}))
 
 (deftest authenticated-state-resolution
   (let [s0 (hash-ref "b")
         e0 (state/build-envelope (envelope s0 nil 0))
         store (state/new-store e0 (material s0))
-        b0 (basis :current-admission s0 (:authoritative-state-envelope/root e0))]
+        b0 (basis-v2 :current-admission s0 (:authoritative-state-envelope/root e0))]
     (is (:resolved? (state/resolve-governed-authority-context store b0)))
     (let [s1 (hash-ref "c")
           e1 (state/build-envelope
@@ -49,7 +59,31 @@
              (:reason (state/resolve-governed-authority-context store b0))))
       (is (:resolved? (state/resolve-governed-authority-context
                        store (basis :transition-replay s0
-                                    (:authoritative-state-envelope/root e1))))))))
+                                    (:authoritative-state-envelope/root e1)))))
+      (is (:resolved? (state/resolve-governed-authority-context
+                       store (basis-v2 :historical-audit s0
+                                       (:authoritative-state-envelope/root e1))))))))
+
+(deftest current-admission-rejects-v1-basis
+  (testing "V1 basis is rejected for live current-admission (live downgrade blocked)"
+    (let [s0 (hash-ref "b")
+          e0 (state/build-envelope (envelope s0 nil 0))
+          store (state/new-store e0 (material s0))
+          v1-admission (basis :current-admission s0 (:authoritative-state-envelope/root e0))]
+      (is (not (:valid? (resolution/validate-resolution-basis-any v1-admission)))
+          "validate-resolution-basis-any rejects V1 for current-admission")
+      (is (some #(re-find #"current-admission requires" %)
+                (:errors (resolution/validate-resolution-basis-any v1-admission)))
+          "rejection cites the current-admission v2 requirement")
+      (is (= :resolution-basis-invalid
+             (:reason (state/resolve-governed-authority-context store v1-admission)))
+          "state resolution rejects V1 current-admission at the basis gate")
+      (is (:valid? (resolution/validate-resolution-basis-any
+                     (basis :transition-replay s0 (:authoritative-state-envelope/root e0))))
+          "V1 remains accepted for transition-replay (historical compatibility)")
+      (is (:valid? (resolution/validate-resolution-basis-any
+                     (basis :historical-audit s0 (:authoritative-state-envelope/root e0))))
+          "V1 remains accepted for historical-audit (historical compatibility)"))))
 
 (deftest rejects-state-and-material-substitution
   (let [s0 (hash-ref "b")

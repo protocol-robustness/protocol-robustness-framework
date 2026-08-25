@@ -103,6 +103,98 @@
     (is (:valid? (sut/validate-resolution-basis basis))
         "V1 remains verifiable for historical artifacts")))
 
+(deftest resolver-registry-is-derived
+  (testing "known-resolver-roots is derived from known-descriptors, not a disconnected literal"
+    (let [r1 sut/default-resolver
+          r1-root (:governed-authority-resolver/root r1)
+          r2 (sut/build-resolver-descriptor
+              {:resolver/id :governed-review-authority
+               :resolver/contract :governed-authority-resolution.v1
+               :resolver/profile :state-addressed
+               :resolver/version 2})
+          r2-root (:governed-authority-resolver/root r2)]
+      (is (contains? sut/known-resolver-roots r1-root)
+          "R1 root is recognized")
+      (is (not (contains? sut/known-resolver-roots r2-root))
+          "R2 root is not recognized — registry derived from known-descriptors only")
+      (is (= #{r1-root} sut/known-resolver-roots)
+          "registry contains exactly the re-rooted known descriptors"))))
+
+(deftest recognized-resolver-self-validates
+  (testing "recognized descriptor self-validates to the committed root"
+    (let [r1 sut/default-resolver
+          r1-root (:governed-authority-resolver/root r1)]
+      (is (some? (sut/recognized-resolver-descriptor r1-root))
+          "recognized root yields a descriptor")
+      (is (= r1 (sut/recognized-resolver-descriptor r1-root))
+          "recognized descriptor is the original descriptor")
+      (is (= r1-root (sut/resolver-root (sut/recognized-resolver-descriptor r1-root)))
+          "recognized descriptor re-roots to exactly the committed root"))
+    (is (nil? (sut/recognized-resolver-descriptor (hash-ref "z")))
+        "unknown root yields no descriptor")))
+
+(deftest anti-substitution-resolver-dispatch-boundary
+  (testing "a basis committing resolver R1 cannot dispatch an implementation for R2"
+    (let [r1 sut/default-resolver
+          r1-root (:governed-authority-resolver/root r1)
+          r2 (sut/build-resolver-descriptor
+              {:resolver/id :governed-review-authority
+               :resolver/contract :governed-authority-resolution.v1
+               :resolver/profile :state-addressed
+               :resolver/version 2})
+          r2-root (:governed-authority-resolver/root r2)
+          r1-basis (sut/build-resolution-basis-v2
+                    (assoc basis-input :authority-resolver/root r1-root))]
+      (testing "committing R1's root produces a valid V2 basis"
+        (is (:valid? (sut/validate-resolution-basis-v2 r1-basis))))
+      (testing "the dispatch boundary resolves R1's root to R1, never R2"
+        (is (= r1 (sut/recognized-resolver-descriptor r1-root))
+            "recognized-descriptor returns R1 for R1's root (not R2)")
+        (is (= r1-root (sut/resolver-root (sut/recognized-resolver-descriptor r1-root)))
+            "recognized descriptor self-validates to committed root"))
+      (testing "R2 is structurally distinct and not dispatchable under R1"
+        (is (not= r1-root r2-root)
+            "R1 and R2 produce distinct descriptor roots")
+        (is (not= r1-root (sut/resolver-root r2))
+            "R2 descriptor does not self-validate to R1 root")
+        (is (nil? (sut/recognized-resolver-descriptor r2-root))
+            "R2 root yields no recognized descriptor — R2 cannot be dispatched"))
+      (testing "a basis committing R2's root is rejected (unknown resolver)"
+        (let [rejected (sut/validate-resolution-basis-v2
+                        (-> r1-basis
+                            (assoc :authority-resolver/root r2-root)
+                            (dissoc :resolution-basis/root)
+                            (assoc :artifact/schema sut/resolution-basis-v2-schema)))]
+          (is (not (:valid? rejected))
+              "basis with R2's root is rejected")
+          (is (some #(re-find #"unknown" %) (:errors rejected))
+              "rejection cites unrecognized resolver root"))))))
+
+(deftest current-admission-requires-v2
+  (testing "V1 is accepted for historical purposes but V2 is required for current-admission"
+    (let [v1-historical (sut/build-resolution-basis
+                         (assoc basis-input :resolution/purpose :historical-audit))
+          v1-replay (sut/build-resolution-basis
+                     (assoc basis-input :resolution/purpose :transition-replay))
+          v1-admission (sut/build-resolution-basis
+                        (assoc basis-input :resolution/purpose :current-admission))
+          v2-admission (sut/build-resolution-basis-v2
+                        (assoc basis-input
+                               :resolution/purpose :current-admission
+                               :authority-resolver/root
+                               (:governed-authority-resolver/root sut/default-resolver)))]
+      (is (:valid? (sut/validate-resolution-basis-any v1-historical))
+          "V1 accepted for historical-audit")
+      (is (:valid? (sut/validate-resolution-basis-any v1-replay))
+          "V1 accepted for transition-replay")
+      (is (not (:valid? (sut/validate-resolution-basis-any v1-admission)))
+          "V1 rejected for current-admission — live downgrade blocked")
+      (is (some #(re-find #"current-admission requires" %)
+                (:errors (sut/validate-resolution-basis-any v1-admission)))
+          "rejection cites the v2 requirement")
+      (is (:valid? (sut/validate-resolution-basis-any v2-admission))
+          "V2 accepted for current-admission"))))
+
 (deftest stable-failure-taxonomy
   (is (contains? sut/failure-classes :state-unavailable))
   (is (contains? sut/failure-classes :round-not-found-at-state))

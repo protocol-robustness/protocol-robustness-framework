@@ -120,7 +120,44 @@
                               :resolver/profile :state-addressed
                               :resolver/version 1}))
 
-(def known-resolver-roots #{(:governed-authority-resolver/root default-resolver)})
+(def known-descriptors
+  "Known governed-authority resolver descriptors. This is the single source of
+   truth for recognized semantic resolver identity; `known-resolver-roots` and
+   `known-resolver-map` are derived by re-rooting each descriptor, so descriptor
+   definition and registry membership cannot drift."
+  #{default-resolver})
+
+(def ^:private known-resolver-map
+  "Root → descriptor mapping derived from `known-descriptors`. A descriptor is
+   retained only when its committed `:governed-authority-resolver/root` matches
+   the recomputed `resolver-root`, guaranteeing self-validation at the dispatch
+   boundary."
+  (into {}
+        (for [d known-descriptors
+              :when (= (resolver-root d)
+                       (:governed-authority-resolver/root d))]
+          [(:governed-authority-resolver/root d) d])))
+
+(def known-resolver-roots
+  "Set of recognized resolver roots, derived from `known-descriptors` by
+   re-rooting. A root is recognized only when a descriptor in
+   `known-descriptors` self-validates to it."
+  (set (keys known-resolver-map)))
+
+(defn recognized-resolver-descriptor
+  "Return the recognized resolver descriptor for a committed resolver root.
+   Returns nil for unknown roots. For recognized roots, returns the descriptor
+   only when it self-validates to the requested root:
+   `(= root (resolver-root descriptor))`.
+
+   This is the dispatch boundary between a committed V2 resolution basis and the
+   resolver implementation: the descriptor dispatched for a committed root must be
+   the descriptor that actually roots to it, which prevents a basis that commits
+   R1 from dispatching an implementation for R2."
+  [root]
+  (when-let [descriptor (get known-resolver-map root)]
+    (when (= root (resolver-root descriptor))
+      descriptor)))
 
 (defn validate-resolution-basis
   "Validate a closed resolution question. Operation intent is deliberately not
@@ -162,11 +199,17 @@
 (defn validate-resolution-basis-v2 [basis]
   (let [base (validate-closed-rooted basis resolution-basis-v2-schema basis-v2-fields
                                      :resolution-basis/root resolution-basis-v2-domain)
+        root (:authority-resolver/root basis)
         errors (cond-> (:errors base)
-                 (and (map? basis) (not (contains? resolution-purposes (:resolution/purpose basis))))
+                 (and (map? basis)
+                      (not (contains? resolution-purposes (:resolution/purpose basis))))
                  (conj ":resolution/purpose is invalid")
-                 (and (map? basis) (not (contains? known-resolver-roots (:authority-resolver/root basis))))
-                 (conj ":authority-resolver/root is unknown"))]
+                 (and (map? basis) (not (contains? known-resolver-roots root)))
+                 (conj ":authority-resolver/root is unknown")
+                 (and (map? basis)
+                      (contains? known-resolver-roots root)
+                      (nil? (recognized-resolver-descriptor root)))
+                 (conj ":authority-resolver/root descriptor failed self-validation"))]
     {:valid? (empty? errors) :errors (vec errors)}))
 
 (defn build-resolution-basis-v2 [basis]
@@ -177,9 +220,24 @@
                (throw (ex-info "governed-authority-resolution-basis.v2 is invalid" result)))
              (root resolution-basis-v2-domain :resolution-basis/root base)))))
 
-(defn validate-resolution-basis-any [basis]
+(defn validate-resolution-basis-any
+  "Validate a resolution basis under the schema declared by the artifact.
+   V1 remains acceptable for `:historical-audit` and `:transition-replay`
+   (backward compatibility with historical artifacts). V2 is required for
+   `:current-admission`: a live admission cannot silently downgrade to a basis
+   that lacks a committed resolver identity. Historical replay and audit retain
+   V1 compatibility; live current-admission does not."
+  [basis]
   (case (:artifact/schema basis)
-    "governed-authority-resolution-basis.v1" (validate-resolution-basis basis)
+    "governed-authority-resolution-basis.v1"
+    (let [result (validate-resolution-basis basis)]
+      (if (and (:valid? result)
+               (= :current-admission (:resolution/purpose basis)))
+        (assoc result
+               :valid? false
+               :errors (conj (:errors result)
+                             "current-admission requires governed-authority-resolution-basis.v2"))
+        result))
     "governed-authority-resolution-basis.v2" (validate-resolution-basis-v2 basis)
     {:valid? false :errors ["unsupported resolution basis schema"]}))
 
