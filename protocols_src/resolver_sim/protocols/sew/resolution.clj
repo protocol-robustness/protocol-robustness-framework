@@ -147,6 +147,32 @@
 ;; Internal: slashing helpers
 ;; ---------------------------------------------------------------------------
 
+(defn- resolver-epoch-state
+  "Resolve [epoch-start epoch-slashed] for a resolver, resetting the per-epoch
+   slash accumulator when a new epoch has begun.
+
+   Invariant 28 (slash-epoch-cap-respected?) limits how much a resolver may be
+   slashed within a single epoch.  The accumulator lived in
+   :resolver-epoch-slashed <addr> :amount, but its :epoch-start was never
+   written or compared, so the cap never reset: a resolver slashed once became
+   permanently un-slashable (permanent one-time cap instead of a per-epoch cap).
+   An epoch is :slash-epoch-duration-seconds (default: one freeze period,
+   (* :freeze-duration-days (time-ctx/tick-seconds world))) measured from
+   :epoch-start.  An unset epoch-start (nil) is initialised to the current block
+   time and the existing accumulator is preserved."
+  [world resolver]
+  (let [duration   (get-in world [:params :slash-epoch-duration-seconds]
+                            (* (get-in world [:params :freeze-duration-days] 3)
+                               (time-ctx/tick-seconds world)))
+        block-time (time-ctx/block-ts world)
+        start      (get-in world [:resolver-epoch-slashed resolver :epoch-start])
+        amt        (get-in world [:resolver-epoch-slashed resolver :amount] 0)]
+    (if (nil? start)
+      [block-time amt]
+      (if (>= (- block-time start) duration)
+        [block-time 0]
+        [start amt]))))
+
 (defn- make-reversal-slash-entry
   [slash-id slash-kind slash-level prev-resolver prev-stake slash-bps slash-amt token workflow-id status now appeal-deadline reversal-prob
    & {:keys [authorization-provenance]}]
@@ -387,8 +413,7 @@
    Audit trail: reversed slashes are recorded as :reversed-with-credit with the
    resolving level and timestamp preserved."
   [world workflow-id current-is-release]
-  (let [current-level (t/dispute-level world workflow-id)
-        token (:token (t/get-transfer world workflow-id))]
+  (let [current-level (t/dispute-level world workflow-id)]
     (if (< current-level 2)
       world
       (let [possibly-vindicated (range 0 (dec current-level))]
@@ -398,52 +423,93 @@
                         was-reversed?     (and original-decision next-decision
                                                (not= (:is-release original-decision) (:is-release next-decision)))
                         vindicated?       (and original-decision
-                                               (= (:is-release original-decision) current-is-release))]
-                     (if (and was-reversed? vindicated?)
-                       (let [slash-id    (get-in w [:slash-by-context [workflow-id :reversal rev-level]])
-                             pending     (get-in w [:pending-fraud-slashes slash-id])
-                             history     (get-in w [:reversal-slash-history slash-id])
-                             ;; Track 1 reversals are :executed in :pending-fraud-slashes;
-                             ;; Track 2 reversals that expired unappealed became
-                             ;; :expired-executed in :reversal-slash-history.  Both
-                             ;; are reversible on vindication.
-                             slash-entry (or (when (and pending
-                                                      (= :executed (:status pending))
-                                                      (= :reversal (:reason pending)))
-                                               pending)
-                                             (when (and history
-                                                        (= :expired-executed (:status history))
-                                                        (= :reversal (:reason history)))
-                                               history))]
-                         (if slash-entry
-                           (let [resolver (:resolver slash-entry)
-                                 amount   (:amount slash-entry)
-                                 now      (time-ctx/block-ts w)
-                                 target   (if (and pending (= :executed (:status pending)))
-                                           :pending-fraud-slashes
-                                           :reversal-slash-history)]
-                             (if (pos? amount)
-                               (let [current-slash-total (get-in w [:resolver-slash-total resolver] 0)]
-                                 (if (>= current-slash-total amount)
-                                   (-> w
-                                       (update-in [:resolver-stakes resolver] (fnil + 0) amount)
-                                       (update-in [:resolver-slash-total resolver] (fnil - 0) amount)
-                                       (update-in [:slash-credit-liabilities resolver] (fnil + 0) amount)
-                                       (assoc-in [target slash-id :status] :reversed-with-credit)
-                                       (assoc-in [target slash-id :reversed-by-level] current-level)
-                                       (assoc-in [target slash-id :reversed-at] now))
-                                   (do (log/warn! :slash-reversal-underflow
-                                                  {:slash-id slash-id :resolver resolver
-                                                   :amount amount :current current-slash-total})
-                                       w)))
-                               (do (log/warn! :invalid-slash-reversal
-                                              {:slash-id slash-id :resolver resolver
-                                               :amount amount})
-                                   w)))
-                           w))
-                       w)))
-                world
-                possibly-vindicated)))))
+                                              (= (:is-release original-decision) current-is-release))]
+                      (if (and was-reversed? vindicated?)
+                        (let [slash-id    (get-in w [:slash-by-context [workflow-id :reversal rev-level]])
+                              pending     (get-in w [:pending-fraud-slashes slash-id])
+                              history     (get-in w [:reversal-slash-history slash-id])
+                              ;; A reversed decision that is later VINDICATED must
+                              ;; have any reversal slash on that resolver cancelled,
+                              ;; whatever its current state:
+                              ;;   - :executed (Track 1) or :expired-executed (Track 2
+                              ;;     already enforced) -> stake was debited; credit it
+                              ;;     back as :reversed-with-credit.
+                              ;;   - :pending / :appealed (Track 2, appeal window
+                              ;;     still open) -> never enforced; void it as
+                              ;;     :reversed so it can never be executed.  Leaving a
+                              ;;     pending reversal slash alive here would let a
+                              ;;     vindicated resolver be slashed once the window
+                              ;;     lapsed — an unjust penalty (Bug #1).
+                              slash-entry (or (when (and pending
+                                                       (#{:executed :expired-executed :pending :appealed}
+                                                          (:status pending))
+                                                       (= :reversal (:reason pending)))
+                                                pending)
+                                              (when (and history
+                                                         (#{:executed :expired-executed :pending :appealed}
+                                                            (:status history))
+                                                         (= :reversal (:reason history)))
+                                                history))]
+                          (if slash-entry
+                            (let [resolver (:resolver slash-entry)
+                                  amount   (:amount slash-entry)
+                                  status   (:status slash-entry)
+                                  enforced? (#{:executed :expired-executed} status)
+                                  now      (time-ctx/block-ts w)
+                                  target   (if pending :pending-fraud-slashes :reversal-slash-history)]
+                              (cond
+                                ;; Already-debited stake: credit it back.
+                                (and enforced? (pos? amount))
+                                (let [current-slash-total (get-in w [:resolver-slash-total resolver] 0)]
+                                  (if (>= current-slash-total amount)
+                                    (-> w
+                                        (update-in [:resolver-stakes resolver] (fnil + 0) amount)
+                                        (update-in [:resolver-slash-total resolver] (fnil - 0) amount)
+                                        (update-in [:slash-credit-liabilities resolver] (fnil + 0) amount)
+                                        (assoc-in [target slash-id :status] :reversed-with-credit)
+                                        (assoc-in [target slash-id :reversed-by-level] current-level)
+                                        (assoc-in [target slash-id :reversed-at] now))
+                                    (do (log/warn! :slash-reversal-underflow
+                                                   {:slash-id slash-id :resolver resolver
+                                                    :amount amount :current current-slash-total})
+                                        w)))
+
+                                ;; Enforced but non-positive amount: no-op (preserve
+                                ;; existing behaviour/tests — nothing to credit).
+                                enforced?
+                                (do (log/warn! :invalid-slash-reversal
+                                               {:slash-id slash-id :resolver resolver
+                                                :amount amount})
+                                    w)
+
+                                ;; Not yet enforced (pending/appealed): void the
+                                ;; reversal slash so a vindicated resolver is never
+                                ;; slashed.  If an appeal bond was posted, return it.
+                                :else
+                                (let [bond-held (or (:appeal-bond-held slash-entry) 0)
+                                      custody   (get-in w [:appeal-bond-custody slash-id])
+                                      bond-token (or (:token custody) (:token slash-entry))
+                                      wf-id     (or (:workflow-id custody) (:workflow-id slash-entry) workflow-id)]
+                                  (cond-> (-> w
+                                              (assoc-in [target slash-id :status] :reversed)
+                                              (assoc-in [target slash-id :reversed-by-level] current-level)
+                                              (assoc-in [target slash-id :reversed-at] now)
+                                              (assoc-in [target slash-id :reversal-vindicated?] true))
+                                    (pos? bond-held)
+                                    (-> (acct/sub-held bond-token bond-held
+                                                       {:action "reverse-reversal-slash-on-vindication"
+                                                        :reason :appeal-bond-returned
+                                                        :extra {:held/action "reverse-reversal-slash-on-vindication"
+                                                                :held/workflow-id wf-id
+                                                                :held/slash-id slash-id
+                                                                :held/actor resolver}})
+                                        (acct/record-claimable-v2 wf-id :bond/refund resolver bond-held)
+                                        (update :appeal-bond-custody dissoc slash-id)
+                                        (assoc-in [target slash-id :appeal-bond-held] 0))))))
+                            w))
+                          w)))
+                 world
+                 possibly-vindicated)))))
 
 (defn submit-evidence
   "Record that new evidence was submitted for workflow-id (Track 2 reversal slashing).
@@ -638,6 +704,8 @@
   (if (get-in world [:circuit-breaker :active?] false)
     (t/fail :circuit-breaker-active)
     (t/ok true)))
+
+(declare pick-eligible-superseded-pending)
 
 ;; ---------------------------------------------------------------------------
 ;; execute-resolution
@@ -873,21 +941,18 @@
 (defn execute-pending-settlement
   "Execute a deferred settlement after the appeal window has closed.
 
-   When no active pending settlement exists but a superseded one is
-   authoritative under the canonical recovery policy (sm/eligible-superseded-pending —
-   same-level newest wins; cross-level liveness recovery while still :disputed),
-   execution proceeds from that recovered decision and the result records
-   :settlement/recovered-from-superseded with the originating level and
-   supersession reason. The keeper's automate-timed-actions dispatches on the
-   SAME rule via sm/pending-settlement-executable?, so a settlement that is
-   admissible here is also admissible for automated execution."
+   When no active pending settlement exists but a superseded one has been
+   recovered by pick-eligible-superseded-pending (escalation or challenge that
+   produced no replacement decision), execution proceeds from that recovered
+   decision and the result records :settlement/recovered-from-superseded with the
+   originating level and supersession reason."
   [world workflow-id]
   (if-not (t/valid-workflow-id? world workflow-id)
     (guard-fail :invalid-workflow-id :workflow-id workflow-id)
     (let [active-pending (t/get-pending world workflow-id)
           now-ts         (time-ctx/block-ts world)
           fallback-entry (when-not (:exists active-pending)
-                           (sm/eligible-superseded-pending world workflow-id))
+                           (pick-eligible-superseded-pending world workflow-id now-ts))
           pending        (if (:exists active-pending)
                            active-pending
                            (some-> fallback-entry :pending))]
@@ -998,6 +1063,38 @@
                       (fn [v] (take-last max-superseded-pending-per-workflow v)))
            (update :pending-settlements dissoc workflow-id))
        world))))
+
+(defn- pick-eligible-superseded-pending
+  "Select the superseded pending entry that is authoritative for the CURRENT
+   escrow state. Returns the archived entry map ({:pending ... :level ...}) or nil.
+
+   A superseded decision is authoritative while the dispute remains at the level
+   at which it was superseded; among same-level entries only the most recently
+   superseded decision is authoritative (older ones were cancelled by it), and an
+   older decision must not execute just because its deadline passed earlier.
+
+   When no decision exists at the current active level — no active pending and no
+   same-level superseded entry — the most recently superseded decision across all
+   levels is recovered so that an escalation or challenge that never produces a
+   replacement decision cannot stall settlement indefinitely (liveness). The
+   caller's guards still require the recovered decision's deadline to have elapsed
+   and preserve all normal settlement validation. If a newer replacement decision
+   exists (active pending, or a same-level superseded entry), it is preferred and
+   no older decision is recovered. Cross-level recovery applies only while the
+   escrow is still :disputed — a terminal escrow has nothing to settle, so no
+   entry is returned from another level."
+  [world workflow-id _now-ts]
+  (let [entries       (get-in world [:superseded-pending-settlements workflow-id] [])
+        current-level (t/dispute-level world workflow-id)
+        same-level    (seq (filter #(= current-level (:level %)) entries))
+        disputed?     (= :disputed (t/escrow-state world workflow-id))
+        ordered       (fn [es] (last (sort-by (fn [e] [(:superseded-at e 0)
+                                                       (:appeal-deadline (:pending e) 0)])
+                                             es)))]
+    (cond
+      same-level    (ordered same-level)
+      (and disputed? (seq entries)) (ordered entries)
+      :else nil)))
 
 ;; ---------------------------------------------------------------------------
 ;; challenge-resolution (Phase L)
@@ -1151,14 +1248,6 @@
 
 (defn automate-timed-actions
   "Dispatch timed keeper actions for workflow-id.
-
-   Priority 1 gates on sm/pending-settlement-executable?, which applies the
-   SAME canonical eligibility rule as a direct execute-pending-settlement call
-   (sm/eligible-superseded-pending): an active pending past its appeal window,
-   or — when no replacement decision was ever produced at the current level —
-   the authoritative superseded decision (cross-level liveness recovery).
-   Keepers may add operational filters (batching, retries, scheduling) but do
-   not see different protocol eligibility than direct callers.
 
    Returns {:ok true :world world' :action kw} — even when action is :none,
    to simplify caller logic."
@@ -1446,7 +1535,7 @@
              amount          (:amount pending)
               current-stake   (reg/get-stake world resolver)
               epoch-cap-bps   (get-in world [:params :slash-epoch-cap-bps] 2000)
-              epoch-slashed   (get-in world [:resolver-epoch-slashed resolver :amount] 0)
+              [epoch-start epoch-slashed] (resolver-epoch-state world resolver)
               total-epoch     (+ epoch-slashed amount)
               ;; Epoch basis is the slashable stake BEFORE this slash: live stake
               ;; plus already-recorded epoch debits.  Using live stake alone
@@ -1483,6 +1572,7 @@
                   world'          (-> world-slashed
                                       (assoc-in [:resolver-frozen-until resolver] freeze-until)
                                       (assoc-in [:resolver-epoch-slashed resolver :amount] epoch-after)
+                                      (assoc-in [:resolver-epoch-slashed resolver :epoch-start] epoch-start)
                                      (update-unavailability resolver true)
                                       (lc/cleanup-orphaned-slashes workflow-id))
                  allocation-input {:slash-obligation amount
@@ -1718,12 +1808,6 @@ action-hash-at  (hc/hash-with-intent {:hash/intent :action-at}
                             :incident-id incident-id :incident-hash incident-hash}})))
 
 (defn propose-fraud-group-slash
-  "Propose an appealable, pro-rata fraud slash against a liable resolver group.
-
-   The member stakes are snapshotted at proposal time.  Execution uses that
-   immutable, canonically ordered snapshot, preventing intermediate mutations
-   from changing liability shares.  `authorization` and `provenance` are
-   retained verbatim for the governance/audit layer."
   [world workflow-id caller liable-resolvers amount liability-justification authorization provenance]
   (let [wf-id (t/normalize-workflow-id workflow-id)
         incident-result (resolve-fraud-incident-ref world wf-id (:incident-ref liability-justification))
@@ -1759,7 +1843,6 @@ action-hash-at  (hc/hash-with-intent {:hash/intent :action-at}
           (some #(or (nil? %) (= "" %)) member-ids)
           (reject :invalid-resolver-addr)
 
-          ;; A group fraud slash must remain tied to the dispute decision.
           (not (some #(or (= dispute-resolver %) (= resolved-by %)) member-ids))
           (reject :slash-resolver-mismatch)
 
@@ -1786,31 +1869,23 @@ action-hash-at  (hc/hash-with-intent {:hash/intent :action-at}
                               {:id id
                                :slashable-stake stake
                                :available-slashable stake})))
-                      (sort-by (comp canonical-resolver-order :id))
-                      vec)
-                 max-bps (get-in world [:params :max-slash-per-offense-bps] 5000)
-                 ;; Per-offense cap (mirrors propose-fraud-slash): no member may be
-                 ;; allocated more than :max-slash-per-offense-bps (default 50%) of
-                 ;; their stake.  Compute the same pro-rata allocation used at
-                 ;; execution and reject if any member's share exceeds it.
-                 alloc (sew-econ/calculate-sew-slash-allocation
-                        {:slash-obligation amount
-                         :liable-parties snapshot-members
-                         :basis :slashable-stake
-                         :cap-field :available-slashable
-                         :slash-policy {:type :fraud-group
-                                        :ordering :canonical-resolver-id-ascending}})
-                 over-capped (filter (fn [{:keys [id paid]}]
-                                       (let [stake (get-in world [:resolver-stakes id] 0)]
-                                         (> (* paid 10000) (* stake max-bps))))
-                                     (:allocations alloc))
-                 ;; The group is incident-scoped, not a separately mutable
-                ;; committee entity.  The slash ID is its canonical identity;
-                ;; this hash commits to the immutable membership and liability
-                ;; basis used by every later appeal and execution step.
+                     (sort-by (comp canonical-resolver-order :id))
+                     vec)
+                max-bps (get-in world [:params :max-slash-per-offense-bps] 5000)
+                alloc (sew-econ/calculate-sew-slash-allocation
+                       {:slash-obligation amount
+                        :liable-parties snapshot-members
+                        :basis :slashable-stake
+                        :cap-field :available-slashable
+                        :slash-policy {:type :fraud-group
+                                       :ordering :canonical-resolver-id-ascending}})
+                over-capped (filter (fn [{:keys [id paid]}]
+                                      (let [stake (get-in world [:resolver-stakes id] 0)]
+                                        (> (* paid 10000) (* stake max-bps))))
+                                    (:allocations alloc))
                 member-snapshot-hash
                 (hc/hash-with-intent {:hash/intent :provenance}
-                                                     {:liable-group/member-snapshot snapshot-members})
+                                      {:liable-group/member-snapshot snapshot-members})
                 entry (append-authorization-provenance
                        {:slash/id slash-id
                         :slash/workflow-id wf-id
@@ -1835,10 +1910,10 @@ action-hash-at  (hc/hash-with-intent {:hash/intent :action-at}
                         :policy-ordering :canonical-resolver-id-ascending}
                        "propose-fraud-group-slash"
                        provenance)
-                 world' (t/insert-slash world entry)]
-             (if (seq over-capped)
-               (reject :slash-exceeds-max-per-offense)
-               (assoc (t/ok world') :slash-id slash-id)))))))
+                world' (t/insert-slash world entry)]
+            (if (seq over-capped)
+              (reject :slash-exceeds-max-per-offense)
+              (assoc (t/ok world') :slash-id slash-id))))))))
 
 (defn appeal-fraud-group-slash
   "Appeal one member's immutable allocation in a pending fraud-group slash."
@@ -2003,7 +2078,7 @@ action-hash-at  (hc/hash-with-intent {:hash/intent :action-at}
 
                       :else
                       (let [current-stake (reg/get-stake world id)
-                            epoch-slashed (get-in world [:resolver-epoch-slashed id :amount] 0)
+                            [epoch-start epoch-slashed] (resolver-epoch-state world id)
                             epoch-basis (+ current-stake epoch-slashed)
                             active-dispute? (resolver-has-other-active-disputes? world id workflow-id)
                             projected (+ epoch-slashed paid)]
@@ -2023,6 +2098,7 @@ action-hash-at  (hc/hash-with-intent {:hash/intent :action-at}
                                 w (-> (:world r)
                                       (assoc-in [:resolver-frozen-until id] freeze-until)
                                       (update-in [:resolver-epoch-slashed id :amount] (fnil + 0) paid)
+                                      (assoc-in [:resolver-epoch-slashed id :epoch-start] epoch-start)
                                       (update-unavailability id true))]
                             (cap/capture-event-evidence!
                              :resolver-frozen
