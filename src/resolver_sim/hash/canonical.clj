@@ -64,6 +64,7 @@
    :manifest        "MANIFEST_V1"
    :provenance      "PROVENANCE_V1"
    :bundle-root     "BUNDLE_ROOT_V1"
+   :reproducibility "BENCHMARK_REPRODUCIBILITY_V1"
    :evidence-content "EVIDENCE_CONTENT_V1"
    :sensitivity-sentinel-decision "SENSITIVITY_SENTINEL_DECISION_V1"
    :state-diff       "STATE_DIFF_V1"

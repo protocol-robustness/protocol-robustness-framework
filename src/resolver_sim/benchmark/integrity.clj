@@ -139,20 +139,6 @@
       (nil? v) :current
       :else :unsupported)))
 
-(defn- scheme-hash
-  "Compute the bundle-root commitment hash for exactly one scheme, over
-  hashable-evidence (which already excludes post-hash fields incl.
-  :evidence/commitment-version). Mirrors the writer's projection so the
-  recomputation is exact."
-  [bundle scheme]
-  (let [base (canonical-projection bundle)]
-    (case scheme
-      :current (hc/hash-with-intent {:hash/intent :bundle-root} base)
-      :legacy-v1 (hc/hash-with-intent {:hash/intent :bundle-root}
-                                      (into (sorted-map) (dissoc (hashable-evidence bundle)
-                                                                 :run/manifest
-                                                                 :benchmark-certification))))))
-
 (defn canonical-projection
   "THE explicit canonical projection committed by the :current bundle-root
    scheme: hashable-evidence over a sorted top-level map. The canonical
@@ -170,6 +156,20 @@
    writer-inline composition; see canonical-projection."
   [bundle]
   (hc/hash-with-intent {:hash/intent :bundle-root} (canonical-projection bundle)))
+
+(defn- scheme-hash
+  "Compute the bundle-root commitment hash for exactly one scheme, over
+  hashable-evidence (which already excludes post-hash fields incl.
+  :evidence/commitment-version). Mirrors the writer's projection so the
+  recomputation is exact."
+  [bundle scheme]
+  (let [base (canonical-projection bundle)]
+    (case scheme
+      :current (hc/hash-with-intent {:hash/intent :bundle-root} base)
+      :legacy-v1 (hc/hash-with-intent {:hash/intent :bundle-root}
+                                      (into (sorted-map) (dissoc (hashable-evidence bundle)
+                                                                 :run/manifest
+                                                                 :benchmark-certification))))))
 
 (defn verify-bundle-hash
   "Fail-closed integrity check: recompute the committed :evidence/hash against

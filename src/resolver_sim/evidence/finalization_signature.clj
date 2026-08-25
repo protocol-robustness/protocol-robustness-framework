@@ -1,5 +1,6 @@
 (ns resolver-sim.evidence.finalization-signature
-  "(ns resolver-sim.evidence.finalization-signature)Detached Ed25519 signatures for evidence-finalization.v2 payloads."
+  "Detached Ed25519 signatures for evidence-finalization.v2 payloads.
+Private keys never enter bundles."
   (:require [buddy.core.codecs :as codecs]
             [clojure.data.json :as json]
             [clojure.java.io :as io])
@@ -10,21 +11,23 @@
 (def schema-version "attestation-signature.v1")
 (def payload-type "application/vnd.prf.evidence-finalization.v2+json")
 
-;; ── Generic envelope core ─────────────────────────────────────────────────────
+;; ── Generic detached-envelope core ───────────────────────────────────────────
 ;;
-;; Wire format shared by every detached attestation in the repo:
-;;   Ed25519 over UTF-8 bytes of  "<payload-type>\n<payload-hash>"
+;; One wire format for every detached attestation in the repo:
+;;   Ed25519 over UTF-8 bytes of "<payload-type>\n<payload-hash>"
 ;;   where payload-hash is a typed "sha256:<64 hex>" reference.
 ;;
-;; The fixed constants above describe the evidence-finalization profile; other
+;; The constants above describe the evidence-finalization profile. Other
 ;; producers (e.g. benchmark final-evidence attestation) reuse these generic
-;; functions with their own schema-version/payload-type so there is exactly one
-;; signature convention, not one per subsystem.
+;; functions with their own schema-version/payload-type so the repo has a
+;; single signature convention, not one per subsystem.
 
 (def ^:private sha256-ref-pattern #"^sha256:[0-9a-f]{64}$")
 (def ^:private signature-hex-pattern #"^[0-9a-f]{128}$")
 
-(defn signing-bytes* [payload-type payload-hash]
+(defn signing-bytes*
+  "Bytes signed under a given payload type."
+  [payload-type payload-hash]
   (.getBytes (str payload-type "\n" payload-hash) "UTF-8"))
 
 (defn validate-envelope*
@@ -37,14 +40,14 @@
                  (not= "Ed25519" (get-in envelope [:signature :algorithm])) (conj :unsupported-algorithm)
                  (not (string? (get-in envelope [:signature :key-id]))) (conj :invalid-key-id)
                  (not (re-matches signature-hex-pattern (get-in envelope [:signature :value]))) (conj :invalid-signature-value)
-                 (when subject-schema-version
-                   (not= subject-schema-version (get-in envelope [:payload :subject :kind]))) (conj :unsupported-subject-kind)]
-    {:valid? (empty? errors) :errors errors})))
+                 (and subject-schema-version
+                      (not= subject-schema-version (get-in envelope [:payload :subject :kind]))) (conj :unsupported-subject-kind))]
+    {:valid? (empty? errors) :errors errors}))
 
 (defn build-envelope*
-  "Build a detached Ed25519 envelope under an explicit profile. `config`:
-   {:envelope-schema-version :payload-type :payload-schema-version
-    :subject-kind} — see validate-envelope* for consumed keys."
+  "Build a detached Ed25519 envelope under an explicit profile. Config keys:
+   :envelope-schema-version, :payload-type, :payload-schema-version,
+   :subject-kind."
   ([config payload-hash key-id private-key]
    (build-envelope* config payload-hash key-id private-key nil))
   ([{:keys [envelope-schema-version payload-type payload-schema-version subject-kind]}
@@ -67,10 +70,10 @@
 
 (defn verify-envelope*
   "Verify a detached envelope produced by build-envelope* under the same
-   profile config. The signing bytes are derived from the envelope's own
-   declared payload-type, so verification never re-guesses the profile."
-  [{:keys [envelope-schema-version] :as _config} envelope public-key]
-  (let [shape (validate-envelope* _config envelope)]
+   profile config. Signing bytes are derived from the envelope's own declared
+   payload-type, so verification never re-guesses the profile."
+  [{:keys [envelope-schema-version] :as config} envelope public-key]
+  (let [shape (validate-envelope* config envelope)]
     (if-not (:valid? shape)
       (assoc shape :reason :malformed-envelope)
       (try
@@ -82,16 +85,22 @@
           (if (.verify verifier (codecs/hex->bytes (get-in envelope [:signature :value])))
             {:valid? true :key-id (get-in envelope [:signature :key-id])}
             {:valid? false :reason :invalid-signature}))
-        (catch Exception e {:valid? false :reason :signature-verification-error
-                            :detail (.getMessage e)}))))
+        (catch Exception e
+          {:valid? false :reason :signature-verification-error
+           :detail (.getMessage e)})))))
+
+;; ── evidence-finalization.v2 profile (original API, delegating) ──────────────
 
 (defn signing-bytes [payload-hash]
   (signing-bytes* payload-type payload-hash))
 
 (defn validate-envelope [envelope]
+  ;; NOTE: no :subject-schema-version constraint here — the legacy profile
+  ;; allows callers to replace the whole :subject map via build-envelope's
+  ;; subject argument. New producers should use validate-envelope* with an
+  ;; explicit :subject-schema-version.
   (validate-envelope* {:envelope-schema-version schema-version
-                       :payload-type payload-type
-                       :subject-schema-version "run-evidence-finalization.v1"}
+                       :payload-type payload-type}
                       envelope))
 
 (defn build-envelope
@@ -109,11 +118,9 @@
                      :payload-type payload-type}
                     envelope public-key))
 
-;; ── evidence-finalization.v2 profile (original, delegating) ──────────────────
-
-(defn- sha256-ref [file]
-
-(defn- atomic-write! [path content]
+(defn atomic-write!
+  "Write `content` to `path` atomically (temp file + rename)."
+  [path content]
   (let [target (io/file path)
         temp (io/file (.getParentFile target) (str "." (.getName target) ".tmp-" (UUID/randomUUID)))]
     (.mkdirs (.getParentFile target))
