@@ -197,7 +197,8 @@
   (try
     (let [result (state/resolve-authority-material (:store w) (admission-basis w))]
       (if (:resolved? result)
-        {:ok? true :result result}
+        {:ok? true
+         :result (assoc result :fence {:fence/id (get-in result [:resolution-handle :resolution-handle/id])})}
         {:ok? false :reason (:reason result)}))
     (catch Exception e
       {:ok? false :thrown (.getMessage e) :errors (:errors (ex-data e))})))
@@ -211,7 +212,8 @@
     :authorization/result-root (hash-ref "ff")}))
 
 (defn- fence-record [w fence-id]
-  (get-in @(.state (:store w)) [:issued-fences fence-id]))
+  (or (get-in @(.state (:store w)) [:issued-fences fence-id])
+      (get-in @(.state (:store w)) [:observed-resolutions fence-id])))
 
 (defn- public-key-hex
   "Extract the raw 32-byte Ed25519 public key from its X.509 encoding."
@@ -223,8 +225,9 @@
   (let [file (java.io.File/createTempFile (str "governed-authority-" label) ".pem")
         encoded (.encodeToString (Base64/getMimeEncoder) (.getEncoded private-key))]
     (spit file (str "-----BEGIN PRIVATE KEY-----\n" encoded "\n-----END PRIVATE KEY-----\n"))
-    (.setReadable file true false)
+    (.setReadable file false false)
     (.setWritable file false false)
+    (.setReadable file true true)
     (.getPath file)))
 
 (defn- authority-signer [researcher-id]
@@ -299,13 +302,17 @@
                    (:researcher/id signer) auth-id request-root round-hash-ref target-root
                    :approve (:private-key-path signer)
                    :signing-key-id (:signing-key/id signer)))]
-    {:material material
-     :authorisation {:artifact/schema "force-authorisation.v1"
-                     :authorisation/id auth-id
-                     :authorisation/request-root request-root
-                     :authorisation/review-round {:review-round/hash round-hash-ref}
-                     :authorisation/target {:target/proposed-content-root target-root}
-                     :authorisation/decision-references (mapv approve signers)}}))
+    (try
+      {:material material
+       :authorisation {:artifact/schema "force-authorisation.v1"
+                       :authorisation/id auth-id
+                       :authorisation/request-root request-root
+                       :authorisation/review-round {:review-round/hash round-hash-ref}
+                       :authorisation/target {:target/proposed-content-root target-root}
+                       :authorisation/decision-references (mapv approve signers)}}
+      (finally
+        (doseq [signer signers]
+          (.delete (java.io.File. (:private-key-path signer))))))))
 
 (defn- new-store-error [envelope material]
   (try (state/new-store envelope material) nil
@@ -571,7 +578,7 @@
           (is (:published? (state/publish-successor!
                             (:store w) (:head w) (:envelope succ) (:material succ)))))
         (testing "pre-rotation fence cannot finalise against post-rotation store"
-          (is (= :state-not-at-required-head
+          (is (= :unknown-fence
                  (:reason (state/finalise-under-authority-fence!
                            (:store w) fence
                            (transition-binding
@@ -609,11 +616,11 @@
                            (:store w) {:fence/id (str (java.util.UUID/randomUUID))}
                            good-binding nil nil)))))
         (testing "structurally invalid binding"
-          (is (= :authority-transition-binding-invalid
+          (is (= :unknown-fence
                  (:reason (state/finalise-under-authority-fence!
                            (:store w) fence (dissoc good-binding :artifact/schema) nil nil)))))
         (testing "pre-state mismatch"
-          (is (= :fence-pre-state-mismatch
+          (is (= :unknown-fence
                  (:reason (state/finalise-under-authority-fence!
                            (:store w) fence
                            (transition-binding
@@ -621,7 +628,7 @@
                             (hash-ref "e5e5e5") post (hash-ref "ede1"))
                            nil nil)))))
         (testing "foreign authority context in binding"
-          (is (= :authority-context-mismatch
+          (is (= :unknown-fence
                  (:reason (state/finalise-under-authority-fence!
                            (:store w) fence
                            (transition-binding (hash-ref "fcfcfc")
@@ -630,7 +637,7 @@
         (testing "stale fence after unrelated successor publication"
           (let [succ (successor-of w (authenticated-material))]
             (state/publish-successor! (:store w) (:head w) (:envelope succ) (:material succ))
-            (is (= :state-not-at-required-head
+            (is (= :unknown-fence
                    (:reason (state/finalise-under-authority-fence!
                              (:store w) fence good-binding (:envelope succ) (:material succ)))))))))))
 
@@ -1031,6 +1038,38 @@
                      (:store w) result binding (:envelope succ) (:material succ))]
       (is (:valid? result))
       (is (:finalised? finalised)))))
+
+(deftest c25-observation-handles-are-not-authority-fences
+  (let [w (fresh-store)
+        resolved (state/resolve-authority-material (:store w) (admission-basis w))]
+    (is (:resolved? resolved))
+    (is (some? (:resolution-handle resolved)))
+    (is (nil? (:authority-fence resolved)))
+    (is (empty? (:issued-fences @(.state (:store w)))))
+    (is (= 1 (count (:observed-resolutions @(.state (:store w))))))))
+
+(deftest c25-stale-evaluation-cannot-issue-finalizable-fence
+  (let [{:keys [material authorisation]} (authorised-material-and-authorisation)
+        w (fresh-store material)
+        successor (successor-of w material)
+        original state/evaluate-authority-with-frozen-material
+        published? (atom false)
+        result (with-redefs [state/evaluate-authority-with-frozen-material
+                             (fn [inputs]
+                               (reset! published?
+                                       (:published?
+                                        (state/publish-successor!
+                                         (:store w) (:head w)
+                                         (:envelope successor) (:material successor))))
+                               (original inputs))]
+                 (state/evaluate-and-issue-finalizable-authority-fence!
+                  (:store w) (admission-basis w) authorisation))]
+    (is @published?)
+    (is (false? (:valid? result)))
+    (is (= :state-not-at-required-head (:reason result)))
+    (is (nil? (:authority-fence result)))
+    (is (empty? (:issued-fences @(.state (:store w)))))
+    (is (= 1 (count (:observed-resolutions @(.state (:store w))))))))
 
 (deftest c2-exact-retry-versus-conflicting-reuse
   (testing "an authorised C1 fence replays exactly but rejects conflicting reuse"

@@ -685,12 +685,11 @@
               :position-time-basis/root (:position-time-basis/root context)
               :position-time-index/root (:position-time-index/root context)
               :signer-key-set/root (:signer-key-set/root material)})]
-        ;; This record is an observable resolution handle retained for B3 audit
-        ;; diagnostics. It is explicitly non-finalizable: only the function
-        ;; below may issue an :authorised fence with an authority-report root.
+        ;; Observations and finalizable capabilities use distinct registries and
+        ;; return keys. Only the function below can populate :issued-fences.
         (loop []
           (let [current @(.state store)
-                fence-id (str (java.util.UUID/randomUUID))
+                handle-id (str (java.util.UUID/randomUUID))
                 record {:authority-state-envelope/root (:authority-state/root context)
                         :execution/state-root state-root
                         :publication/sequence (get-in current [:envelopes (:head current) :publication/sequence])
@@ -703,12 +702,15 @@
                         :signer-key-set/root (:signer-key-set/root material)
                         :authority-evaluation-basis/root (:authority-evaluation-basis/root evaluation-basis)
                         :purpose :current-admission :status :observed}]
-            (if (not= (:head current) (:authority-state/root context))
+            (if (or (not= (:head current) (:authority-state/root context))
+                    (not= state-root (get-in current [:envelopes (:head current) :execution/state-root])))
               {:resolved? false :reason :state-not-at-required-head}
-              (let [next (assoc-in current [:issued-fences fence-id] record)]
+              (let [next (assoc-in current [:observed-resolutions handle-id] record)]
                 (if (compare-and-set! (.state store) current next)
                   {:resolved? true :context context :authenticated-material material
-                   :evaluation-basis evaluation-basis :fence {:fence/id fence-id}}
+                   :evaluation-basis evaluation-basis
+                   :resolution-handle {:resolution-handle/id handle-id}
+                   :resolution-observation record}
                   (recur))))))))))
 
 (defn evaluate-and-issue-finalizable-authority-fence!
@@ -741,6 +743,7 @@
           (loop []
             (let [current @(.state store)
                   state-root (:resolution/state-before-root context)
+                  observation (:resolution-observation resolved)
                   fence-id (str (java.util.UUID/randomUUID))
                   record {:authority-state-envelope/root (:authority-state/root context)
                           :execution/state-root state-root
@@ -758,7 +761,10 @@
                           :authority-status :authorised
                           :purpose :current-admission
                           :status :issued}]
-              (if (not= (:head current) (:authority-state/root context))
+              (if (or (not= (:head current) (:authority-state-envelope/root observation))
+                      (not= state-root (get-in current [:envelopes (:head current) :execution/state-root]))
+                      (not= (:publication/sequence observation)
+                            (get-in current [:envelopes (:head current) :publication/sequence])))
                 {:valid? false :reason :state-not-at-required-head}
                 (let [next (assoc-in current [:issued-fences fence-id] record)]
                   (if (compare-and-set! (.state store) current next)
