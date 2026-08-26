@@ -26,6 +26,7 @@
    :review-round/hash (:review-round/hash basis)
    :review-round/root (hash-ref "9")
    :position-time-basis/root (hash-ref "a")
+   :position-time-index/root (hash-ref "d")
    :review-governance-admissibility/root (hash-ref "b")
    :control-plane-evidence/root (hash-ref "c")})
 

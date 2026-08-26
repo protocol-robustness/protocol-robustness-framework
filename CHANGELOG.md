@@ -27,6 +27,10 @@
 - **Resolved contexts are now built by explicit closed projection.** `resolved-review-authority-context.v1` construction takes exactly the artifact's committed roots from the envelope/material and never merges operational `:authority-material/*` bodies or key-set material into the context artifact.
 - **Review-round material roots are canonical sha256 references.** The store re-roots the authenticated review-round body under `:governed-authority-review-round-v1` instead of carrying the decorated `"review-round:"` identity string, matching the reference format of every other material root and of `resolved-review-authority-context.v1`.
 
+### Governed transition authorization — C2.5 report-bound fences
+
+- **Finalizable current-admission fences now require a store-evaluated authorised report.** `evaluate-and-issue-finalizable-authority-fence!` evaluates only frozen, authenticated material and issues a store-owned fence only for `:authorised` authority reports. Its issued record commits the exact `:authority-report/root`; C1 delegates to this operation, and C2 rejects non-authorised results before finalization. Resolution-only handles remain non-finalizable observations, preserving B3 diagnostics without granting admission authority. Atomic successor/binding publication, stale-head rejection, and exact-retry behavior remain owned by `AuthorityStateStore`. (`src/resolver_sim/benchmark/governed_authority_state.clj`, `src/resolver_sim/assurance/governed_authority_consumer.clj`, `test/resolver_sim/benchmark/governed_authority_state_test.clj`)
+
 ### Governed-authority state — B3 evaluator correction and C1/C2 consumer primitives
 
 - **Corrected `evaluate-authority-with-frozen-material` to pass `:authorisation`.** The frozen-material evaluator now forwards the full authorisation artifact into `evaluate-governed-authority`, so the evaluator operates on the actual force-authorization rather than an incomplete invocation.

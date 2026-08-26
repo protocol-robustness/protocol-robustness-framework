@@ -9,6 +9,7 @@
             [resolver-sim.benchmark.review-governance-evidence :as evidence]
             [resolver-sim.benchmark.governed-authority-resolution :as resolution]
             [resolver-sim.benchmark.review-round :as rr]
+            [resolver-sim.assurance.three-member-authority :as authority]
             [resolver-sim.signed-external-decision :as sed]
             [resolver-sim.hash.canonical :as hc]
             [resolver-sim.hash.reference :as ref]))
@@ -663,48 +664,106 @@
                         :review-governance-admissibility/root (:review-governance-admissibility/root material)})})))
 
 (defn resolve-authority-material
-  "Issue a store-owned fence only for a current-admission V2 resolution. The
-    fence binds the resolved semantic context, the exact issuance material
-    roots, and the governed-authority evaluation basis joining them."
+  "Resolve only the frozen, authenticated material for a V2 current-admission
+   question. Resolution is deliberately not a finalization capability: a
+   finalizable authority fence is issued only after the store evaluates an
+   authorised report over this material."
   [store basis]
   (let [result (resolve-governed-authority-context store basis)]
     (if-not (and (:resolved? result) (= :current-admission (:resolution/purpose basis))
                  (= resolution/resolution-basis-v2-schema (:artifact/schema basis)))
       (assoc result :reason (or (:reason result) :current-admission-fence-required))
-      (loop []
-        (let [current @(.state store)
-              context (:context result)
-              state-root (:resolution/state-before-root context)
-              material (get-in current [:material state-root])
-              evaluation-basis (evaluation-basis
-                                {:resolved-review-authority-context/root
-                                 (:resolved-review-authority-context/root context)
-                                 :review-round/root (:review-round/root context)
-                                 :review-governance/root (:review-governance/root context)
-                                 :position-time-basis/root (:position-time-basis/root context)
-                                 :position-time-index/root (:position-time-index/root context)
-                                 :signer-key-set/root (:signer-key-set/root material)})
-              fence-id (str (java.util.UUID/randomUUID))
-              record {:authority-state-envelope/root (:authority-state/root context)
-                      :execution/state-root state-root
-                      :publication/sequence (get-in current [:envelopes (:head current) :publication/sequence])
-                      :resolved-review-authority-context/root (:resolved-review-authority-context/root context)
-                      :resolution-basis/root (:resolution-basis/root basis)
-                      :review-round/root (:review-round/root context)
-                      :review-governance/root (:review-governance/root context)
-                      :position-time-basis/root (:position-time-basis/root context)
-                      :position-time-index/root (:position-time-index/root context)
-                      :signer-key-set/root (:signer-key-set/root material)
-                      :authority-evaluation-basis/root (:authority-evaluation-basis/root evaluation-basis)
-                      :purpose :current-admission :status :issued}]
-          (if (not= (:head current) (:authority-state/root context))
-            {:resolved? false :reason :state-not-at-required-head}
-            (let [next (assoc-in current [:issued-fences fence-id] record)]
-              (if (compare-and-set! (.state store) current next)
-                {:resolved? true :context context :authenticated-material material
-                 :evaluation-basis evaluation-basis
-                 :fence {:fence/id fence-id}}
-                (recur)))))))))
+      (let [context (:context result)
+            state-root (:resolution/state-before-root context)
+            material (get-in @(.state store) [:material state-root])
+            evaluation-basis
+            (evaluation-basis
+             {:resolved-review-authority-context/root
+              (:resolved-review-authority-context/root context)
+              :review-round/root (:review-round/root context)
+              :review-governance/root (:review-governance/root context)
+              :position-time-basis/root (:position-time-basis/root context)
+              :position-time-index/root (:position-time-index/root context)
+              :signer-key-set/root (:signer-key-set/root material)})]
+        ;; This record is an observable resolution handle retained for B3 audit
+        ;; diagnostics. It is explicitly non-finalizable: only the function
+        ;; below may issue an :authorised fence with an authority-report root.
+        (loop []
+          (let [current @(.state store)
+                fence-id (str (java.util.UUID/randomUUID))
+                record {:authority-state-envelope/root (:authority-state/root context)
+                        :execution/state-root state-root
+                        :publication/sequence (get-in current [:envelopes (:head current) :publication/sequence])
+                        :resolved-review-authority-context/root (:resolved-review-authority-context/root context)
+                        :resolution-basis/root (:resolution-basis/root basis)
+                        :review-round/root (:review-round/root context)
+                        :review-governance/root (:review-governance/root context)
+                        :position-time-basis/root (:position-time-basis/root context)
+                        :position-time-index/root (:position-time-index/root context)
+                        :signer-key-set/root (:signer-key-set/root material)
+                        :authority-evaluation-basis/root (:authority-evaluation-basis/root evaluation-basis)
+                        :purpose :current-admission :status :observed}]
+            (if (not= (:head current) (:authority-state/root context))
+              {:resolved? false :reason :state-not-at-required-head}
+              (let [next (assoc-in current [:issued-fences fence-id] record)]
+                (if (compare-and-set! (.state store) current next)
+                  {:resolved? true :context context :authenticated-material material
+                   :evaluation-basis evaluation-basis :fence {:fence/id fence-id}}
+                  (recur))))))))))
+
+(defn evaluate-and-issue-finalizable-authority-fence!
+  "Evaluate a V2 current-admission request from frozen store material and issue
+   a store-owned finalization capability only for an `:authorised` report.
+   The report root is recorded by the same CAS that issues the fence, so callers
+   cannot turn an observation or a non-authorised report into authority."
+  [store basis authorisation]
+  (let [resolved (resolve-authority-material store basis)]
+    (if-not (:resolved? resolved)
+      {:valid? false :reason (:reason resolved)}
+      (let [context (:context resolved)
+            material (:authenticated-material resolved)
+            report (evaluate-authority-with-frozen-material
+                    {:authorisation authorisation
+                     :review-round (:authority-material/review-round material)
+                     :review-governance (:authority-material/review-governance material)
+                     :position-time-index (:authority-material/position-time-index material)
+                     :signer-key-set (:authority-material/signer-key-set material)})
+            report-root (authority/authority-report-root report)
+            result {:valid? (= :authorised (:authority-status report))
+                    :authority-report report
+                    :authority-report-root report-root
+                    :governance-root (:governance-root report)
+                    :governed-review-round-hash
+                    (get-in authorisation [:authorisation/review-round :review-round/hash])
+                    :resolved-review-authority-context context}]
+        (if-not (:valid? result)
+          (assoc result :reason :authority-not-authorised)
+          (loop []
+            (let [current @(.state store)
+                  state-root (:resolution/state-before-root context)
+                  fence-id (str (java.util.UUID/randomUUID))
+                  record {:authority-state-envelope/root (:authority-state/root context)
+                          :execution/state-root state-root
+                          :publication/sequence (get-in current [:envelopes (:head current) :publication/sequence])
+                          :resolved-review-authority-context/root (:resolved-review-authority-context/root context)
+                          :resolution-basis/root (:resolution-basis/root basis)
+                          :review-round/root (:review-round/root context)
+                          :review-governance/root (:review-governance/root context)
+                          :position-time-basis/root (:position-time-basis/root context)
+                          :position-time-index/root (:position-time-index/root context)
+                          :signer-key-set/root (:signer-key-set/root material)
+                          :authority-evaluation-basis/root
+                          (get-in resolved [:evaluation-basis :authority-evaluation-basis/root])
+                          :authority-report/root report-root
+                          :authority-status :authorised
+                          :purpose :current-admission
+                          :status :issued}]
+              (if (not= (:head current) (:authority-state/root context))
+                {:valid? false :reason :state-not-at-required-head}
+                (let [next (assoc-in current [:issued-fences fence-id] record)]
+                  (if (compare-and-set! (.state store) current next)
+                    (assoc result :authority-fence {:fence/id fence-id})
+                    (recur)))))))))))
 
 (defn finalise-under-authority-fence!
   "Atomically consume an issued fence with successor and authority binding.
@@ -723,13 +782,16 @@
         (not= (:head current) (:authority-state-envelope/root record)) {:finalised? false :reason :state-not-at-required-head}
         (not= (:execution/state-root record) (:transaction/state-before-root binding)) {:finalised? false :reason :fence-pre-state-mismatch}
         (not= (:resolved-review-authority-context/root record) (:resolved-review-authority-context/root binding)) {:finalised? false :reason :authority-context-mismatch}
+        (not= :authorised (:authority-status record)) {:finalised? false :reason :authority-report-not-authorised}
+        (not (ref/valid-sha256-ref? (:authority-report/root record))) {:finalised? false :reason :authority-report-binding-missing}
         :else (let [envelope (build-envelope successor-envelope)
                     successor-material (require-authenticated-material! successor-material)
                     _ (when-not (= (:chain-instance-genesis/root envelope)
                                    (:chain-instance-genesis/root successor-material))
                         (throw (ex-info "successor material chain does not match successor envelope" {})))
                     root (:authoritative-state-envelope/root envelope)
-                    result {:finalised? true :envelope envelope :authority-binding binding}
+                    result {:finalised? true :envelope envelope :authority-binding binding
+                            :authority-report-root (:authority-report/root record)}
                     next (-> current (assoc :head root) (assoc-in [:envelopes root] envelope)
                              (assoc-in [:by-state (:execution/state-root envelope)] root)
                              (assoc-in [:material (:execution/state-root envelope)] successor-material)

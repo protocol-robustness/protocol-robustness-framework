@@ -15,30 +15,17 @@
   "Authoritative V2-only consumer. Uses store-authenticated B3 material and a
    store-issued fence; it never consults legacy resolver, key, or time callbacks."
   [authority-store basis authorisation]
-  (let [resolved (authority-state/resolve-authority-material authority-store basis)]
-    (if-not (:resolved? resolved)
-      {:valid? false :reason (:reason resolved)}
-      (let [material (:authenticated-material resolved)
-            report (authority-state/evaluate-authority-with-frozen-material
-                    {:authorisation authorisation
-                     :review-round (:authority-material/review-round material)
-                     :review-governance (:authority-material/review-governance material)
-                     :position-time-index (:authority-material/position-time-index material)
-                     :signer-key-set (:authority-material/signer-key-set material)})]
-        {:valid? (= :authorised (:authority-status report))
-         :authority-report report
-         :authority-report-root (authority/authority-report-root report)
-         :governance-root (:governance-root report)
-         :governed-review-round-hash (get-in authorisation [:authorisation/review-round :review-round/hash])
-         :resolved-review-authority-context (:context resolved)
-         :authority-fence (:fence resolved)}))))
+  (authority-state/evaluate-and-issue-finalizable-authority-fence!
+   authority-store basis authorisation))
 
 (defn finalise-governed-authority-current!
   "C2 finalization boundary. Only a fence returned by the V2 current consumer is
    accepted; publication, binding, and fence retirement remain store-atomic."
   [authority-store authority-result binding successor-envelope successor-material]
-  (if-not (:authority-fence authority-result)
-    {:finalised? false :reason :missing-authority-fence}
+  (cond
+    (not (:valid? authority-result)) {:finalised? false :reason :authority-not-authorised}
+    (not (:authority-fence authority-result)) {:finalised? false :reason :missing-authority-fence}
+    :else
     (authority-state/finalise-under-authority-fence!
      authority-store (:authority-fence authority-result) binding
      successor-envelope successor-material)))

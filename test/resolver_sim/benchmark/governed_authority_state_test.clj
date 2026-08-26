@@ -6,7 +6,9 @@
             [resolver-sim.benchmark.review-governance :as governance]
             [resolver-sim.benchmark.review-governance-evidence :as evidence]
             [resolver-sim.assurance.governed-authority-consumer :as gac]
-            [resolver-sim.benchmark.researcher-force-authorisation :as rfa]))
+            [resolver-sim.benchmark.researcher-force-authorisation :as rfa])
+  (:import [java.security KeyPairGenerator]
+           [java.util Base64]))
 
 (def ^:private not-rooted-msg "authority material is not rooted and authenticated")
 (def ^:private runtime-value-msg "authority material contains runtime or mutable value")
@@ -211,6 +213,100 @@
 (defn- fence-record [w fence-id]
   (get-in @(.state (:store w)) [:issued-fences fence-id]))
 
+(defn- public-key-hex
+  "Extract the raw 32-byte Ed25519 public key from its X.509 encoding."
+  [public-key]
+  (apply str (map #(format "%02x" (bit-and % 0xff))
+                  (take-last 32 (.getEncoded public-key)))))
+
+(defn- write-private-key-file! [label private-key]
+  (let [file (java.io.File/createTempFile (str "governed-authority-" label) ".pem")
+        encoded (.encodeToString (Base64/getMimeEncoder) (.getEncoded private-key))]
+    (spit file (str "-----BEGIN PRIVATE KEY-----\n" encoded "\n-----END PRIVATE KEY-----\n"))
+    (.setReadable file true false)
+    (.setWritable file false false)
+    (.getPath file)))
+
+(defn- authority-signer [researcher-id]
+  (let [pair (.generateKeyPair (KeyPairGenerator/getInstance "Ed25519"))
+        key-id (str researcher-id "-key")]
+    {:researcher/id researcher-id
+     :signing-key/id key-id
+     :signing-key/algorithm :ed25519
+     :signing-key/public-key (public-key-hex (.getPublic pair))
+     :private-key-path (write-private-key-file! researcher-id (.getPrivate pair))}))
+
+(defn- authorised-material-and-authorisation []
+  "Build a governed 3-of-2 authority fixture with real Ed25519 approvals."
+  (let [signers (mapv authority-signer ["r1" "r2" "r3"])
+        entries (mapv #(select-keys % [:researcher/id :signing-key/id
+                                       :signing-key/algorithm :signing-key/public-key])
+                      signers)
+        ks {:artifact/schema state/signer-key-set-schema :signer-key-set/entries entries}
+        governance-body {:schema-version "review-governance.v1"
+                         :governance/epoch 0
+                         :governance/roles #{:reviewer/a :reviewer/b :reviewer/c}
+                         :governance/principals
+                         (mapv (fn [signer]
+                                 (let [researcher-id (:researcher/id signer)
+                                       key-id (:signing-key/id signer)]
+                                   {:principal/id researcher-id :status :active
+                                    :principal/independence-group researcher-id
+                                    :principal/independence-basis-root (hash-ref "ab")
+                                    :principal/keys [{:key/id key-id :status :active
+                                                      :key/algorithm (:signing-key/algorithm signer)
+                                                      :key/public-key (:signing-key/public-key signer)}]}))
+                               signers)
+                         :governance/members
+                         (mapv (fn [signer]
+                                 (let [researcher-id (:researcher/id signer)]
+                                   {:reviewer/member-id researcher-id :principal/id researcher-id
+                                    :status :active
+                                    :granted-roles #{:reviewer/a :reviewer/b :reviewer/c}}))
+                               signers)
+                         :governance/policies [{:policy/id "p1" :member-count 3 :threshold 2
+                                                :required-roles #{:reviewer/a :reviewer/b :reviewer/c}
+                                                :role-cardinality :unique
+                                                :equivocation-policy :invalid-seat}]}
+        rb (assoc (round-body)
+                  :review-round/governance-root (governance/governance-root governance-body)
+                  :review-round/members
+                  (mapv (fn [signer role]
+                          {:researcher/id (:researcher/id signer) :role role})
+                        signers [:reviewer/a :reviewer/b :reviewer/c]))
+        round-root (state/review-round-material-root rb)
+        pti (position-time-index-body round-root)
+        material {:chain-instance-genesis/root genesis-ref
+                  :chain-configuration/root config-ref
+                  :review-governance/root (governance/governance-root governance-body)
+                  :review-governance-activation/root activation-ref
+                  :control-plane-evidence/root control-evidence-ref
+                  :review-governance-admissibility/root admissibility-ref
+                  :review-round/hash round-hash-ref
+                  :review-round/root round-root
+                  :position-time-basis/root test-ptb-root
+                  :position-time-index/root (state/position-time-index-root pti)
+                  :signer-key-set/root (state/signer-key-set-root ks)
+                  :authority-material/review-round rb
+                  :authority-material/review-governance governance-body
+                  :authority-material/position-time-index pti
+                  :authority-material/signer-key-set ks}
+        request-root (hash-ref "ab")
+        target-root (hash-ref "cd")
+        auth-id :authorisation/authorised-fixture
+        approve (fn [signer]
+                  (rfa/build-signed-decision-v2
+                   (:researcher/id signer) auth-id request-root round-hash-ref target-root
+                   :approve (:private-key-path signer)
+                   :signing-key-id (:signing-key/id signer)))]
+    {:material material
+     :authorisation {:artifact/schema "force-authorisation.v1"
+                     :authorisation/id auth-id
+                     :authorisation/request-root request-root
+                     :authorisation/review-round {:review-round/hash round-hash-ref}
+                     :authorisation/target {:target/proposed-content-root target-root}
+                     :authorisation/decision-references (mapv approve signers)}}))
+
 (defn- new-store-error [envelope material]
   (try (state/new-store envelope material) nil
        (catch Exception e (.getMessage e))))
@@ -383,7 +479,7 @@
       (let [{:keys [context fence]} (:result issued)
             rec (fence-record w (:fence/id fence))]
         (is (some? rec) "issued fence id resolves to a registry record")
-        (is (= :issued (:status rec)))
+        (is (= :observed (:status rec)))
         (is (= :current-admission (:purpose rec)))
         (is (= (:authority-state/root context) (:authority-state-envelope/root rec)))
         (is (= (:resolution/state-before-root context) (:execution/state-root rec)))
@@ -541,12 +637,15 @@
 ;; ── priority 10: atomic successor + binding + fence terminalization ───────
 
 (deftest atomic-successor-binding-terminalization
-  (let [w (fresh-store)
-        issued (issue-fence w)]
-    (is (:ok? issued) "prerequisite: fence issuance on an authenticated store")
-    (when (:ok? issued)
-      (let [{:keys [context fence]} (:result issued)
-            succ (successor-of w (authenticated-material))
+  (let [{:keys [material authorisation]} (authorised-material-and-authorisation)
+        w (fresh-store material)
+        issued (gac/verify-governed-authority-current
+                (:store w) (admission-basis w) authorisation)]
+    (is (:valid? issued) "prerequisite: authorised report issues a finalizable fence")
+    (when (:valid? issued)
+      (let [context (:resolved-review-authority-context issued)
+            fence (:authority-fence issued)
+            succ (successor-of w material)
             binding (transition-binding
                      (:resolved-review-authority-context/root context)
                      (:state-root w) (:state-root succ) (hash-ref "ede1"))
@@ -853,14 +952,30 @@
       (is (false? (:valid? result))
           "V1 basis does not yield a resolved material store"))))
 
-(deftest c1-current-admission-fence-issued
-  (testing "B3 store issues a fence on successful current-admission V2 resolution"
-    (let [w (fresh-store)
-          basis (admission-basis w)
-          issued (state/resolve-authority-material (:store w) basis)]
-      (is (:resolved? issued))
-      (is (some? (:fence issued))
-          "store-issued fence is present"))))
+(deftest c25-state-api-issues-finalizable-fence-only-for-authorised-report
+  (let [{:keys [material authorisation]} (authorised-material-and-authorisation)
+        w (fresh-store material)
+        result (state/evaluate-and-issue-finalizable-authority-fence!
+                (:store w) (admission-basis w) authorisation)
+        fence (:authority-fence result)
+        rec (when fence (fence-record w (:fence/id fence)))]
+    (is (= :authorised (get-in result [:authority-report :authority-status])))
+    (is (some? fence))
+    (is (= (:authority-report-root result) (:authority-report/root rec)))))
+
+(deftest c1-authorised-report-gets-finalizable-fence
+  (testing "C1 emits a fence only after the frozen-material report is authorised"
+    (let [{:keys [material authorisation]} (authorised-material-and-authorisation)
+          w (fresh-store material)
+          result (gac/verify-governed-authority-current
+                  (:store w) (admission-basis w) authorisation)
+          fence (:authority-fence result)
+          rec (when fence (fence-record w (:fence/id fence)))]
+      (is (:valid? result))
+      (is (= :authorised (get-in result [:authority-report :authority-status])))
+      (is (some? fence) "only an authorised report receives a finalizable fence")
+      (is (= (:authority-report-root result) (:authority-report/root rec))
+          "the issued-fence record commits the evaluated authority report root"))))
 
 (deftest c1-v2-basis-consumes-frozen-material-only
   (testing "evaluate-authority-with-frozen-material derives lookups from the
@@ -877,74 +992,69 @@
       (is (contains? result :authority-status)
           "report contains authority-status"))))
 
-(deftest c1-v2-basis-fails-without-envelope-material
-  (testing "V2 basis with non-current state is rejected"
+(deftest c1-invalid-report-gets-no-fence-and-cannot-finalise
+  (testing "C1 does not expose the resolution fence for a non-authorised report"
     (let [w (fresh-store)
-          basis (admission-basis w)]
-      ;; The store was created fresh, so the admission basis should resolve
-      (let [resolved (state/resolve-authority-material (:store w) basis)]
-        (is (:resolved? resolved)
-            "V2 current-admission basis resolves on a fresh store")
-        (is (some? (:fence resolved))
-            "fence is issued"))))
+          basis (admission-basis w)
+          result (gac/verify-governed-authority-current
+                  (:store w) basis (sample-authorisation))]
+      (is (false? (:valid? result)))
+      (is (= :not-authorised (get-in result [:authority-report :authority-status])))
+      (is (nil? (:authority-fence result)))
+      (is (= :authority-not-authorised
+             (:reason (gac/finalise-governed-authority-current!
+                       (:store w) result nil nil nil)))))))
 
 ;; ── C2: fenced finalization entry point ────────────────────────────────────────
 
-  (deftest c2-missing-fence-rejected
-    (testing "finalise-governed-authority-current rejects missing fence"
-      (let [w (fresh-store)
-            basis (admission-basis w)
-            resolved (state/resolve-authority-material (:store w) basis)
-          ;; Strip the fence to simulate missing fence
-            authority-result (dissoc resolved :fence)]
-        (is (= :missing-authority-fence
-               (:reason (gac/finalise-governed-authority-current!
-                         (:store w) authority-result nil nil nil)))))))
+(deftest c2-invalid-result-rejected
+  (testing "finalise-governed-authority-current rejects a non-authorised C1 result"
+    (let [w (fresh-store)
+          result (gac/verify-governed-authority-current
+                  (:store w) (admission-basis w) (sample-authorisation))]
+      (is (= :authority-not-authorised
+             (:reason (gac/finalise-governed-authority-current!
+                       (:store w) result nil nil nil)))))))
 
-  (deftest c2-successor-publication-between-resolution-and-finalization
-    (testing "a successor can be published between resolution and finalization"
-      (let [w (fresh-store)
-            basis (admission-basis w)
-            resolved (state/resolve-authority-material (:store w) basis)
-            material (:material w)
-            context (:context resolved)]
-        (is (:resolved? resolved))
-        (is (some? (:fence resolved)))
-        (let [binding (transition-binding
-                       (:resolved-review-authority-context/root context)
-                       (:state-root w) (hash-ref "aa99") (hash-ref "ede1"))
-              succ (successor-of w material)
-            ;; The fence from the first resolution is consumed
-              fin-result (gac/finalise-governed-authority-current!
-                          (:store w) resolved binding
-                          (:envelope succ) (:material succ))]
-          (is (:finalised? fin-result)
-              "finalization succeeds with valid fence and successor")))))
+(deftest c2-authorised-fence-finalises-successor
+  (testing "the finalizable fence from an authorised C1 report finalises"
+    (let [{:keys [material authorisation]} (authorised-material-and-authorisation)
+          w (fresh-store material)
+          result (gac/verify-governed-authority-current
+                  (:store w) (admission-basis w) authorisation)
+          context (:resolved-review-authority-context result)
+          succ (successor-of w material)
+          binding (transition-binding
+                   (:resolved-review-authority-context/root context)
+                   (:state-root w) (:state-root succ) (hash-ref "ede1"))
+          finalised (gac/finalise-governed-authority-current!
+                     (:store w) result binding (:envelope succ) (:material succ))]
+      (is (:valid? result))
+      (is (:finalised? finalised)))))
 
-  (deftest c2-exact-retry-versus-conflicting-reuse
-    (testing "exact retry returns original result; conflicting fence reuse rejected"
-      (let [w (fresh-store)
-            basis (admission-basis w)
-            resolved (state/resolve-authority-material (:store w) basis)
-            material (:material w)
-            context (:context resolved)
-            fence (:fence resolved)
-            binding (transition-binding
-                     (:resolved-review-authority-context/root context)
-                     (:state-root w) (hash-ref "aa99") (hash-ref "ede1"))
-            succ (successor-of w material)]
-        (testing "exact retry returns same result"
-          (let [r1 (gac/finalise-governed-authority-current!
-                    (:store w) resolved binding (:envelope succ) (:material succ))
-                r2 (gac/finalise-governed-authority-current!
-                    (:store w) resolved binding (:envelope succ) (:material succ))]
-            (is (= (:finalised? r1) (:finalised? r2))
-                "retry yields same status")))
-        (testing "conflicting fence reuse is rejected"
-          (let [material2 (authenticated-material)
-                succ2 (successor-of w material2)
-                r (gac/finalise-governed-authority-current!
-                   (:store w) {:fence fence} binding
-                   (:envelope succ2) (:material succ2))]
-            (is (false? (:finalised? r))
-                "conflicting finalization is rejected")))))))
+(deftest c2-exact-retry-versus-conflicting-reuse
+  (testing "an authorised C1 fence replays exactly but rejects conflicting reuse"
+    (let [{:keys [material authorisation]} (authorised-material-and-authorisation)
+          w (fresh-store material)
+          result (gac/verify-governed-authority-current
+                  (:store w) (admission-basis w) authorisation)
+          context (:resolved-review-authority-context result)
+          binding (transition-binding
+                   (:resolved-review-authority-context/root context)
+                   (:state-root w) (hash-ref "aa99") (hash-ref "ede1"))
+          succ (successor-of w material)]
+      (testing "exact retry returns the original result"
+        (let [r1 (gac/finalise-governed-authority-current!
+                  (:store w) result binding (:envelope succ) (:material succ))
+              r2 (gac/finalise-governed-authority-current!
+                  (:store w) result binding (:envelope succ) (:material succ))]
+          (is (= r1 r2))))
+      (testing "conflicting reuse is rejected"
+        (let [succ2 (successor-of w material)
+              conflicting (transition-binding
+                           (:resolved-review-authority-context/root context)
+                           (:state-root w) (:state-root succ2) (hash-ref "dfd1"))]
+          (is (= :fence-already-consumed
+                 (:reason (gac/finalise-governed-authority-current!
+                           (:store w) result conflicting
+                           (:envelope succ2) (:material succ2))))))))))
