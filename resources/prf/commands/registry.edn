@@ -460,6 +460,7 @@
    :command/options [{:name "--run-root" :type :string :doc "Fresh canonical benchmark package root"}
                       {:name "--sensitivity-profile" :type :string :doc "Canonical bundle profile: public or internal"}
                       {:name "--claim-registry" :type :string :doc "External benchmark claim registry (auditor-supplied). Precedence: --claim-registry > PRF_BENCHMARKS_CLAIM_REGISTRY > repository default. Fails closed if the registry is invalid."}
+                      {:name "--research-pack" :type :string :doc "Frozen research-benchmark-pack.v1 EDN plan; validated before canonical execution."}
                       {:name "--parallelism" :type :integer :doc "Bounded local worker count; positive integer, default 1"}
                       {:name "--chunk-size" :type :integer :doc "Deterministic work items per local chunk; positive integer, default 1"}
                       {:name "--output" :type :string :doc "Legacy standalone evidence output path"}
@@ -480,6 +481,7 @@
    :command/options [{:name "--run-root" :type :string :doc "Fresh canonical benchmark package root"}
                      {:name "--sensitivity-profile" :type :string :doc "Canonical bundle profile: public or internal"}
                      {:name "--claim-registry" :type :string :doc "External benchmark claim registry (auditor-supplied). Precedence: --claim-registry > PRF_BENCHMARKS_CLAIM_REGISTRY > repository default. Fails closed if the registry is invalid."}
+                     {:name "--research-pack" :type :string :doc "Frozen research-benchmark-pack.v1 EDN plan; validated before canonical execution."}
                      {:name "--parallelism" :type :integer :doc "Explicit local scenario-worker count; positive integer, honored exactly (never clamped). Omitted: bounded automatic default min(resolved-scenario-count, command parallel ceiling)"}
                      {:name "--chunk-size" :type :integer :doc "Deterministic work items per local chunk; positive integer, default 1"}
                      {:name "--execution-budget" :type :integer :doc "Shared Semaphore K bounding TOTAL concurrent execution (outer workers consume, inner claimants borrow spare); positive integer, default unbounded"}
@@ -1102,6 +1104,47 @@
     :command/outputs []
     :command/positional-args {:min 0 :max 1}
      :command/description "Compose allocation-assurance-certificate.v1 from a kernel run."}
+
+   {:command/id :research-create :command/path ["research" "create"] :command/title "Create research command"
+    :command/category :research :command/surface :prf :command/backstop-tier :manual :command/jar-availability :native :command/runtime :jvm
+    :command/options [{:name "--input" :type :string :required true} {:name "--output" :type :string :required true}]
+    :command/outputs [] :command/positional-args {:min 0 :max 0}
+    :command/description "Build and persist an authoritative research-command.v2 from EDN."}
+   {:command/id :research-assign :command/path ["research" "assign"] :command/title "Create research assignment"
+    :command/category :research :command/surface :prf :command/backstop-tier :manual :command/jar-availability :native :command/runtime :jvm
+    :command/options [{:name "--input" :type :string :required true} {:name "--output" :type :string :required true}]
+    :command/outputs [] :command/positional-args {:min 0 :max 0}
+    :command/description "Build and persist a hash-bound research assignment from EDN."}
+   {:command/id :research-run :command/path ["research" "run"] :command/title "Record research execution"
+    :command/category :research :command/surface :prf :command/backstop-tier :manual :command/jar-availability :native :command/runtime :jvm
+    :command/options [{:name "--input" :type :string :required true} {:name "--output" :type :string :required true}]
+    :command/outputs [] :command/positional-args {:min 0 :max 0}
+    :command/description "Record a verified research execution over an existing canonical benchmark outcome."}
+   {:command/id :research-submit :command/path ["research" "submit"] :command/title "Submit research execution"
+    :command/category :research :command/surface :prf :command/backstop-tier :manual :command/jar-availability :native :command/runtime :jvm
+    :command/options [{:name "--input" :type :string :required true}]
+    :command/outputs [] :command/positional-args {:min 0 :max 0}
+    :command/description "Verify and admit an in-band or out-of-band research execution."}
+   {:command/id :research-verify :command/path ["research" "verify"] :command/title "Verify research closure"
+    :command/category :research :command/surface :prf :command/backstop-tier :manual :command/jar-availability :native :command/runtime :jvm
+    :command/options [{:name "--input" :type :string :required true}]
+    :command/outputs [] :command/positional-args {:min 0 :max 0}
+    :command/description "Verify execution bindings and research-analysis closure."}
+   {:command/id :research-reproduce :command/path ["research" "reproduce"] :command/title "Reproduce research execution"
+    :command/category :research :command/surface :prf :command/backstop-tier :manual :command/jar-availability :native :command/runtime :jvm
+    :command/options [{:name "--input" :type :string :required true}]
+    :command/outputs [] :command/positional-args {:min 0 :max 0}
+    :command/description "Compare exact-environment or independent-conforming reproduction contexts."}
+   {:command/id :research-diff :command/path ["research" "diff"] :command/title "Differential research analysis"
+    :command/category :research :command/surface :prf :command/backstop-tier :manual :command/jar-availability :native :command/runtime :jvm
+    :command/options [{:name "--input" :type :string :required true}]
+    :command/outputs [] :command/positional-args {:min 0 :max 0}
+    :command/description "Compare canonical research semantics while excluding runtime-only variation."}
+   {:command/id :research-inspect :command/path ["research" "inspect"] :command/title "Inspect research roots"
+    :command/category :research :command/surface :prf :command/backstop-tier :manual :command/jar-availability :native :command/runtime :jvm
+    :command/options [{:name "--input" :type :string :required true}]
+    :command/outputs [] :command/positional-args {:min 0 :max 0}
+    :command/description "Read-only validation and root-oriented inspection of a research execution."}
 
    {:command/id :researcher-disagree
     :command/path ["researcher" "disagree"]

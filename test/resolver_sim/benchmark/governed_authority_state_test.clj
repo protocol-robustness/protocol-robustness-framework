@@ -2,7 +2,10 @@
   (:require [clojure.test :refer [deftest is testing]]
             [resolver-sim.benchmark.governed-authority-resolution :as resolution]
             [resolver-sim.benchmark.governed-authority-state :as state]
+            [resolver-sim.benchmark.configuration-transition-authorization :as c3a]
             [resolver-sim.benchmark.review-round :as rr]
+            [resolver-sim.genesis :as genesis]
+            [resolver-sim.configuration-head :as configuration-head]
             [resolver-sim.benchmark.review-governance :as governance]
             [resolver-sim.benchmark.review-governance-evidence :as evidence]
             [resolver-sim.assurance.governed-authority-consumer :as gac]
@@ -141,6 +144,45 @@
    :publication/sequence sequence
    :publication/predecessor-root predecessor})
 
+(deftest authoritative-envelope-v2-binds-canonical-head-state-root
+  (let [material (authenticated-material)
+        head-a (configuration-head/current-head (configuration-head/new-store config-ref 1))
+        head-b (configuration-head/initial-head config-ref 2)
+        base (store-envelope (hash-ref "a1") nil 0 material)
+        envelope (state/build-envelope-v2 base head-a)]
+    (is (state/verify-envelope-v2 envelope head-a))
+    (is (= (:configuration-head-state/root head-a) (:configuration-head/root envelope)))
+    (is (= envelope (state/build-envelope-v2 base head-a)))
+    (is (not= (:configuration-head-state/root head-a) (:configuration-head-state/root head-b)))
+    (is (false? (state/verify-envelope-v2 envelope head-b)))
+    (is (false? (state/verify-envelope-v2 envelope
+                                          (assoc head-a :configuration/head-root (hash-ref "fe")))))
+    (is (false? (state/verify-envelope-v2
+                 (assoc envelope :configuration-head/root (hash-ref "88")) head-a)))
+    (is (= state/envelope-schema (:artifact/schema (state/build-envelope base))))))
+
+(deftest authoritative-store-v2-retains-canonical-head-state
+  (let [material (authenticated-material)
+        head-a (configuration-head/current-head (configuration-head/new-store config-ref 1))
+        envelope-a (state/build-envelope-v2 (store-envelope (hash-ref "a2") nil 0 material) head-a)
+        store (state/new-store-v2 envelope-a head-a material)
+        head-b-base (assoc head-a
+                           :configuration/epoch 2
+                           :configuration/sequence 1
+                           :configuration/predecessor-head-root (:configuration-head-state/root head-a)
+                           :configuration/activation-transition-root (hash-ref "ab"))
+        head-b (assoc head-b-base :configuration-head-state/root (configuration-head/head-state-root head-b-base))
+        envelope-b (state/build-envelope-v2
+                    (store-envelope (hash-ref "a3") (:authoritative-state-envelope/root envelope-a) 1 material)
+                    head-b)]
+    (is (= head-a (get-in @(.state store) [:configuration-head-states (:configuration-head/root envelope-a)])))
+    (is (thrown? clojure.lang.ExceptionInfo
+                 (state/new-store-v2
+                  (state/build-envelope (store-envelope (hash-ref "a4") nil 0 material))
+                  head-a material)))
+    (is (:published? (state/publish-successor-v2! store (:authoritative-state-envelope/root envelope-a) envelope-b head-b material)))
+    (is (= head-b (get-in @(.state store) [:configuration-head-states (:configuration-head/root envelope-b)])))))
+
 (defn- fresh-store
   ([] (fresh-store (authenticated-material)))
   ([material]
@@ -239,80 +281,82 @@
      :signing-key/public-key (public-key-hex (.getPublic pair))
      :private-key-path (write-private-key-file! researcher-id (.getPrivate pair))}))
 
-(defn- authorised-material-and-authorisation []
+(defn- authorised-material-and-authorisation
   "Build a governed 3-of-2 authority fixture with real Ed25519 approvals."
-  (let [signers (mapv authority-signer ["r1" "r2" "r3"])
-        entries (mapv #(select-keys % [:researcher/id :signing-key/id
-                                       :signing-key/algorithm :signing-key/public-key])
-                      signers)
-        ks {:artifact/schema state/signer-key-set-schema :signer-key-set/entries entries}
-        governance-body {:schema-version "review-governance.v1"
-                         :governance/epoch 0
-                         :governance/roles #{:reviewer/a :reviewer/b :reviewer/c}
-                         :governance/principals
-                         (mapv (fn [signer]
-                                 (let [researcher-id (:researcher/id signer)
-                                       key-id (:signing-key/id signer)]
-                                   {:principal/id researcher-id :status :active
-                                    :principal/independence-group researcher-id
-                                    :principal/independence-basis-root (hash-ref "ab")
-                                    :principal/keys [{:key/id key-id :status :active
-                                                      :key/algorithm (:signing-key/algorithm signer)
-                                                      :key/public-key (:signing-key/public-key signer)}]}))
-                               signers)
-                         :governance/members
-                         (mapv (fn [signer]
-                                 (let [researcher-id (:researcher/id signer)]
-                                   {:reviewer/member-id researcher-id :principal/id researcher-id
-                                    :status :active
-                                    :granted-roles #{:reviewer/a :reviewer/b :reviewer/c}}))
-                               signers)
-                         :governance/policies [{:policy/id "p1" :member-count 3 :threshold 2
-                                                :required-roles #{:reviewer/a :reviewer/b :reviewer/c}
-                                                :role-cardinality :unique
-                                                :equivocation-policy :invalid-seat}]}
-        rb (assoc (round-body)
-                  :review-round/governance-root (governance/governance-root governance-body)
-                  :review-round/members
-                  (mapv (fn [signer role]
-                          {:researcher/id (:researcher/id signer) :role role})
-                        signers [:reviewer/a :reviewer/b :reviewer/c]))
-        round-root (state/review-round-material-root rb)
-        pti (position-time-index-body round-root)
-        material {:chain-instance-genesis/root genesis-ref
-                  :chain-configuration/root config-ref
-                  :review-governance/root (governance/governance-root governance-body)
-                  :review-governance-activation/root activation-ref
-                  :control-plane-evidence/root control-evidence-ref
-                  :review-governance-admissibility/root admissibility-ref
-                  :review-round/hash round-hash-ref
-                  :review-round/root round-root
-                  :position-time-basis/root test-ptb-root
-                  :position-time-index/root (state/position-time-index-root pti)
-                  :signer-key-set/root (state/signer-key-set-root ks)
-                  :authority-material/review-round rb
-                  :authority-material/review-governance governance-body
-                  :authority-material/position-time-index pti
-                  :authority-material/signer-key-set ks}
-        request-root (hash-ref "ab")
-        target-root (hash-ref "cd")
-        auth-id :authorisation/authorised-fixture
-        approve (fn [signer]
-                  (rfa/build-signed-decision-v2
-                   (:researcher/id signer) auth-id request-root round-hash-ref target-root
-                   :approve (:private-key-path signer)
-                   :signing-key-id (:signing-key/id signer)))]
-    (try
-      {:material material
-       :authorisation {:artifact/schema "force-authorisation.v1"
-                       :authorisation/id auth-id
-                       :authorisation/request-root request-root
-                       :authorisation/review-round {:review-round/hash round-hash-ref}
-                       :authorisation/target {:target/proposed-content-root target-root}
-                       :authorisation/decision-references (mapv approve signers)}}
-      (finally
-        (doseq [signer signers]
-          (.delete (java.io.File. (:private-key-path signer))))))))
+  ([] (authorised-material-and-authorisation nil))
+  ([authorization-target-root]
+   (let [signers (mapv authority-signer ["r1" "r2" "r3"])
+         entries (mapv #(select-keys % [:researcher/id :signing-key/id
+                                        :signing-key/algorithm :signing-key/public-key])
+                       signers)
+         ks {:artifact/schema state/signer-key-set-schema :signer-key-set/entries entries}
+         governance-body {:schema-version "review-governance.v1"
+                          :governance/epoch 0
+                          :governance/roles #{:reviewer/a :reviewer/b :reviewer/c}
+                          :governance/principals
+                          (mapv (fn [signer]
+                                  (let [researcher-id (:researcher/id signer)
+                                        key-id (:signing-key/id signer)]
+                                    {:principal/id researcher-id :status :active
+                                     :principal/independence-group researcher-id
+                                     :principal/independence-basis-root (hash-ref "ab")
+                                     :principal/keys [{:key/id key-id :status :active
+                                                       :key/algorithm (:signing-key/algorithm signer)
+                                                       :key/public-key (:signing-key/public-key signer)}]}))
+                                signers)
+                          :governance/members
+                          (mapv (fn [signer]
+                                  (let [researcher-id (:researcher/id signer)]
+                                    {:reviewer/member-id researcher-id :principal/id researcher-id
+                                     :status :active
+                                     :granted-roles #{:reviewer/a :reviewer/b :reviewer/c}}))
+                                signers)
+                          :governance/policies [{:policy/id "p1" :member-count 3 :threshold 2
+                                                 :required-roles #{:reviewer/a :reviewer/b :reviewer/c}
+                                                 :role-cardinality :unique
+                                                 :equivocation-policy :invalid-seat}]}
+         rb (assoc (round-body)
+                   :review-round/governance-root (governance/governance-root governance-body)
+                   :review-round/members
+                   (mapv (fn [signer role]
+                           {:researcher/id (:researcher/id signer) :role role})
+                         signers [:reviewer/a :reviewer/b :reviewer/c]))
+         round-root (state/review-round-material-root rb)
+         pti (position-time-index-body round-root)
+         material {:chain-instance-genesis/root genesis-ref
+                   :chain-configuration/root config-ref
+                   :review-governance/root (governance/governance-root governance-body)
+                   :review-governance-activation/root activation-ref
+                   :control-plane-evidence/root control-evidence-ref
+                   :review-governance-admissibility/root admissibility-ref
+                   :review-round/hash round-hash-ref
+                   :review-round/root round-root
+                   :position-time-basis/root test-ptb-root
+                   :position-time-index/root (state/position-time-index-root pti)
+                   :signer-key-set/root (state/signer-key-set-root ks)
+                   :authority-material/review-round rb
+                   :authority-material/review-governance governance-body
+                   :authority-material/position-time-index pti
+                   :authority-material/signer-key-set ks}
+         request-root (hash-ref "ab")
+         target-root (or authorization-target-root (hash-ref "cd"))
+         auth-id :authorisation/authorised-fixture
+         approve (fn [signer]
+                   (rfa/build-signed-decision-v2
+                    (:researcher/id signer) auth-id request-root round-hash-ref target-root
+                    :approve (:private-key-path signer)
+                    :signing-key-id (:signing-key/id signer)))]
+     (try
+       {:material material
+        :authorisation {:artifact/schema "force-authorisation.v1"
+                        :authorisation/id auth-id
+                        :authorisation/request-root request-root
+                        :authorisation/review-round {:review-round/hash round-hash-ref}
+                        :authorisation/target {:target/proposed-content-root target-root}
+                        :authorisation/decision-references (mapv approve signers)}}
+       (finally
+         (doseq [signer signers]
+           (.delete (java.io.File. (:private-key-path signer)))))))))
 
 (defn- new-store-error [envelope material]
   (try (state/new-store envelope material) nil
@@ -325,6 +369,108 @@
     {:state-root state-root
      :envelope (state/build-envelope (store-envelope state-root pred seq+ material))
      :material material}))
+
+(defn- c3-transition []
+  {:transition/schema genesis/chain-configuration-transition-schema
+   :protocol/genesis-root (hash-ref "aa")
+   :target {:target/type :chain-instance :target/root (hash-ref "bb")}
+   :configuration/parent-root config-ref
+   :configuration/new-root (hash-ref "cc")
+   :verifier-registry/root (hash-ref "dd")
+   :epoch 1})
+
+(deftest c3a-exact-transition-and-predecessor-state-are-required
+  (let [transition (c3-transition)
+        transition-root (genesis/chain-configuration-transition-root transition)
+        {:keys [material authorisation]} (authorised-material-and-authorisation transition-root)
+        w (fresh-store material)
+        resolved (state/resolve-authority-material (:store w) (admission-basis w))
+        witness {:predecessor-envelope (:envelope w)
+                 :predecessor-material material
+                 :configuration-transition transition
+                 :authorisation authorisation
+                 :resolved-review-authority-context-root
+                 (get-in resolved [:context :resolved-review-authority-context/root])}
+        candidate (c3a/build-evidence-candidate witness)
+        evidence (c3a/build-verified-evidence witness)
+        wrong-parent-transition (assoc transition :configuration/parent-root (hash-ref "12"))
+        non-authorised {:artifact/schema "force-authorisation.v1"
+                        :authorisation/id "c3a-non-authorised"
+                        :authorisation/request-root (hash-ref "ab")
+                        :authorisation/review-round {:review-round/hash round-hash-ref}
+                        :authorisation/target {:target/proposed-content-root transition-root}
+                        :authorisation/decision-references []}
+        verify? #(-> (c3a/verify-evidence %) :valid?)]
+    (is (verify? (assoc witness :evidence candidate)))
+    (is (verify? (assoc witness :evidence evidence)))
+    (is (false? (verify? (assoc witness :evidence candidate
+                                :authorisation (assoc-in authorisation
+                                                         [:authorisation/target :target/proposed-content-root]
+                                                         (hash-ref "ef"))))))
+    (is (thrown? clojure.lang.ExceptionInfo
+                 (c3a/build-verified-evidence
+                  (assoc witness :configuration-transition
+                         (assoc transition :configuration/new-root (hash-ref "ee"))))))
+    (is (false? (verify? (assoc witness :evidence
+                                (assoc candidate :authorization-subject/kind :other-kind)))))
+    (is (false? (verify? (assoc witness :evidence
+                                (assoc candidate :authorization-subject/root (hash-ref "de"))))))
+    (is (false? (verify? (assoc witness :evidence
+                                (assoc candidate :authority-report/root (hash-ref "aa"))))))
+    (is (false? (verify? (assoc witness :evidence
+                                (assoc candidate :authority-evaluation-basis/root (hash-ref "bb"))))))
+    (is (false? (verify? (assoc witness :evidence evidence
+                                :configuration-transition (assoc transition :configuration/new-root (hash-ref "ee"))))))
+    (is (false? (verify? (assoc witness :evidence evidence
+                                :predecessor-envelope
+                                (assoc (:envelope w) :execution/state-root (hash-ref "ff"))))))
+    (is (false? (verify? (assoc witness :evidence evidence
+                                :configuration-transition wrong-parent-transition))))
+    (is (false? (verify? (assoc witness :evidence evidence
+                                :predecessor-envelope
+                                (assoc (:envelope w) :configuration-head/root (hash-ref "13"))))))
+    (is (false? (verify? (assoc witness :evidence evidence
+                                :predecessor-material
+                                (assoc material :review-governance/root (hash-ref "14"))))))
+    (is (false? (verify? (assoc witness :evidence evidence
+                                :predecessor-material
+                                (assoc-in material [:authority-material/signer-key-set
+                                                    :signer-key-set/entries 0 :signing-key/public-key]
+                                          (hash-ref "15"))))))
+    (is (false? (verify? (assoc witness :evidence evidence
+                                :predecessor-material
+                                (assoc-in material [:authority-material/position-time-index
+                                                    :position-time-index/entries]
+                                          [{:position/root (hash-ref "16")
+                                            :review-position-acceptance/root (hash-ref "17")
+                                            :position-time/accepted-at "0"}])))))
+    (is (false? (verify? (assoc witness :evidence evidence :authorisation non-authorised))))
+    (is (thrown? clojure.lang.ExceptionInfo
+                 (c3a/build-verified-evidence (assoc witness :authorisation non-authorised))))
+    (is (nil? (:authority-fence candidate)))))
+
+(deftest c3a-v2-predecessor-binds-retained-canonical-head
+  (let [transition (c3-transition)
+        transition-root (genesis/chain-configuration-transition-root transition)
+        {:keys [material authorisation]} (authorised-material-and-authorisation transition-root)
+        head-state (configuration-head/current-head (configuration-head/new-store config-ref 1))
+        envelope (state/build-envelope-v2 (store-envelope (hash-ref "a5") nil 0 material) head-state)
+        store (state/new-store-v2 envelope head-state material)
+        resolved (state/resolve-authority-material store
+                                                   (admission-basis {:state-root (:execution/state-root envelope)
+                                                                     :head (:authoritative-state-envelope/root envelope)}))
+        witness {:predecessor-envelope envelope
+                 :predecessor-head-state head-state
+                 :predecessor-material material
+                 :configuration-transition transition
+                 :authorisation authorisation
+                 :resolved-review-authority-context-root
+                 (get-in resolved [:context :resolved-review-authority-context/root])}
+        evidence (c3a/build-verified-evidence witness)]
+    (is (:resolved? resolved))
+    (is (:valid? (c3a/verify-evidence (assoc witness :evidence evidence))))
+    (is (= (:configuration-head-state/root head-state)
+           (:predecessor-configuration-head/root evidence)))))
 
 ;; ── priority 1: signer-key body/root substitution ─────────────────────────
 

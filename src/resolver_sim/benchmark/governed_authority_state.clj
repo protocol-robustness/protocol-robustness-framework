@@ -9,13 +9,16 @@
             [resolver-sim.benchmark.review-governance-evidence :as evidence]
             [resolver-sim.benchmark.governed-authority-resolution :as resolution]
             [resolver-sim.benchmark.review-round :as rr]
+            [resolver-sim.configuration-head :as configuration-head]
             [resolver-sim.assurance.three-member-authority :as authority]
             [resolver-sim.signed-external-decision :as sed]
             [resolver-sim.hash.canonical :as hc]
             [resolver-sim.hash.reference :as ref]))
 
 (def ^:const envelope-schema "authoritative-state-envelope.v1")
+(def ^:const envelope-v2-schema "authoritative-state-envelope.v2")
 (def ^:const envelope-domain :authoritative-state-envelope-v1)
+(def ^:const envelope-v2-domain :authoritative-state-envelope-v2)
 
 (def envelope-fields
   #{:artifact/schema :chain-instance-genesis/root :execution/state-root
@@ -65,6 +68,42 @@
       (when-not (ref/valid-sha256-ref? (get base field))
         (throw (ex-info "authority envelope root field is invalid" {:field field}))))
     (assoc base :authoritative-state-envelope/root (root base))))
+
+(defn- envelope-v2-root [envelope]
+  (ref/sha256-ref
+   (hc/domain-hash envelope-v2-domain
+                   (hc/project-canonical-safe
+                    (dissoc envelope :authoritative-state-envelope/root)))))
+
+(defn build-envelope-v2
+  "Production V2 builder. The configuration-head commitment is derived solely
+   from an actual valid configuration-head-state.v1 body."
+  [envelope head-state]
+  (when (and (contains? envelope :artifact/schema)
+             (not= envelope-v2-schema (:artifact/schema envelope)))
+    (throw (ex-info "v1 envelope cannot be admitted as v2" {})))
+  (when-not (configuration-head/valid-head-state? head-state)
+    (throw (ex-info "configuration head state is invalid" {})))
+  (let [base (assoc envelope
+                    :artifact/schema envelope-v2-schema
+                    :configuration-head/root (configuration-head/head-state-root head-state))]
+    (doseq [field (disj envelope-fields :artifact/schema :publication/sequence
+                        :publication/predecessor-root)]
+      (when-not (ref/valid-sha256-ref? (get base field))
+        (throw (ex-info "authority envelope v2 root field is invalid" {:field field}))))
+    (assoc base :authoritative-state-envelope/root (envelope-v2-root base))))
+
+(defn verify-envelope-v2
+  "Verify the V2 envelope/head body join. The committed head root must be the
+   canonical root of the supplied head-state and its active configuration must
+   be the envelope configuration."
+  [envelope head-state]
+  (and (= envelope-v2-schema (:artifact/schema envelope))
+       (= envelope-fields (set (keys (dissoc envelope :authoritative-state-envelope/root))))
+       (configuration-head/valid-head-state? head-state)
+       (= (:configuration-head/root envelope) (configuration-head/head-state-root head-state))
+       (= (:chain-configuration/root envelope) (:configuration/head-root head-state))
+       (= (:authoritative-state-envelope/root envelope) (envelope-v2-root envelope))))
 
 (deftype AuthorityStateStore [state])
 
@@ -585,6 +624,56 @@
                                  :envelopes {(:authoritative-state-envelope/root envelope) envelope}
                                  :by-state {state-root (:authoritative-state-envelope/root envelope)}
                                  :material {state-root material}}))))
+
+(defn new-store-v2
+  "Construct a V2 authority store only from a verified canonical configuration
+   head-state body. V1 envelopes are never inferred or upgraded here."
+  [envelope head-state material]
+  (let [envelope (build-envelope-v2 envelope head-state)
+        material (require-authenticated-material! material)
+        state-root (:execution/state-root envelope)
+        head-root (:configuration-head/root envelope)]
+    (when-not (and (verify-envelope-v2 envelope head-state)
+                   (= (:chain-instance-genesis/root envelope)
+                      (:chain-instance-genesis/root material))
+                   (= (:chain-configuration/root envelope)
+                      (:chain-configuration/root material))
+                   (= (:review-governance/root envelope)
+                      (:review-governance/root material)))
+      (throw (ex-info "v2 authority envelope/material join is invalid" {})))
+    (AuthorityStateStore. (atom {:head (:authoritative-state-envelope/root envelope)
+                                 :envelopes {(:authoritative-state-envelope/root envelope) envelope}
+                                 :by-state {state-root (:authoritative-state-envelope/root envelope)}
+                                 :material {state-root material}
+                                 :configuration-head-states {head-root head-state}}))))
+
+(defn publish-successor-v2!
+  "Publish a V2 successor only when both the authoritative envelope and its
+   canonical head-state body verify and join authenticated material."
+  [store expected-head envelope head-state material]
+  (let [envelope (build-envelope-v2 envelope head-state)
+        material (require-authenticated-material! material)
+        root (:authoritative-state-envelope/root envelope)
+        head-root (:configuration-head/root envelope)]
+    (when-not (and (verify-envelope-v2 envelope head-state)
+                   (= (:chain-instance-genesis/root envelope) (:chain-instance-genesis/root material))
+                   (= (:chain-configuration/root envelope) (:chain-configuration/root material))
+                   (= (:review-governance/root envelope) (:review-governance/root material)))
+      (throw (ex-info "v2 successor envelope/material join is invalid" {})))
+    (loop []
+      (let [current @(.state store)]
+        (cond
+          (not= expected-head (:head current)) {:published? false :reason :state-not-at-required-head}
+          (not= expected-head (:publication/predecessor-root envelope)) {:published? false :reason :authority-state-membership-unproven}
+          :else (let [next (-> current
+                               (assoc :head root)
+                               (assoc-in [:envelopes root] envelope)
+                               (assoc-in [:by-state (:execution/state-root envelope)] root)
+                               (assoc-in [:material (:execution/state-root envelope)] material)
+                               (assoc-in [:configuration-head-states head-root] head-state))]
+                  (if (compare-and-set! (.state store) current next)
+                    {:published? true :envelope envelope}
+                    (recur))))))))
 
 (defn publish-successor!
   "Atomically publish a successor envelope and its active material. The supplied

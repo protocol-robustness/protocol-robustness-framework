@@ -151,6 +151,7 @@
    :resolved-review-authority-context-v1 "RESOLVED_REVIEW_AUTHORITY_CONTEXT_V1"
    :governed-authority-transition-binding-v1 "GOVERNED_AUTHORITY_TRANSITION_BINDING_V1"
    :authoritative-state-envelope-v1 "AUTHORITATIVE_STATE_ENVELOPE_V1"
+   :authoritative-state-envelope-v2 "AUTHORITATIVE_STATE_ENVELOPE_V2"
    :governed-authority-resolver-v1 "GOVERNED_AUTHORITY_RESOLVER_V1"
    :governed-authority-resolution-basis-v2 "GOVERNED_AUTHORITY_RESOLUTION_BASIS_V2"
    :governed-authority-signer-key-set-v1 "GOVERNED_AUTHORITY_SIGNER_KEY_SET_V1"
@@ -174,6 +175,8 @@
    :incentive-model "INCENTIVE_MODEL_V1"
    :incentive-deviation-domain "INCENTIVE_DEVIATION_DOMAIN_V1"
    :research-analysis-closure "RESEARCH_ANALYSIS_CLOSURE_V1"
+   :research-execution "RESEARCH_EXECUTION_V1"
+   :research-benchmark-pack "RESEARCH_BENCHMARK_PACK_V1"
    :creation-provenance "CREATION_PROVENANCE_V1"
    :source-creation "SOURCE_CREATION_V1"
    :trust-sequence-definition "TRUST_SEQUENCE_DEFINITION_V1"
@@ -348,6 +351,7 @@
    :prf-chain-configuration-transition-v1 "PRF_CHAIN_CONFIGURATION_TRANSITION_V1"
    :configuration-head-state-v1 "CONFIGURATION_HEAD_STATE_V1"
    :configuration-head-activation-v1 "CONFIGURATION_HEAD_ACTIVATION_V1"
+   :configuration-transition-authorization-evidence-v1 "CONFIGURATION_TRANSITION_AUTHORIZATION_EVIDENCE_V1"
    :prf-chain-configuration-change-identity-v1 "prf.chain-configuration-change-identity.v1"
    :prf-verifier-registry-v1          "PRF_VERIFIER_REGISTRY_V1"
    :prf-verification-basis-v1          "PRF_VERIFICATION_BASIS_V1"
@@ -2913,6 +2917,28 @@ name (an alias)."
     :intent/includes    #{:trace/schema-version :trace/purpose :trace/component-count
                           :trace/components}
     :intent/excludes    #{:trace/root :timestamps :runtime-values :functions}
+    :intent/projection-fn project-identity
+    :intent/version     1}
+
+   :research-execution
+   {:intent/name        :research-execution
+    :intent/domain-tag  "RESEARCH_EXECUTION_V1"
+    :intent/description "Exact researcher execution identity binding portable command, assignment, resolved composition, ordered trace, and outcome"
+    :intent/includes    #{:research-execution/command-root :research-execution/assignment-root
+                          :research-execution/composition-root :research-execution/trace-root
+                          :research-execution/outcome-root :research-execution/classification}
+    :intent/excludes    #{:research-execution/root :timestamps :runtime-values :functions}
+    :intent/projection-fn project-identity
+    :intent/version     1}
+
+   :research-benchmark-pack
+   {:intent/name        :research-benchmark-pack
+    :intent/domain-tag  "RESEARCH_BENCHMARK_PACK_V1"
+    :intent/description "Frozen exact research benchmark member plan with resolved extension composition"
+    :intent/includes    #{:research-pack/command-root :research-pack/assignment-root
+                          :research-pack/plan-root :research-pack/members
+                          :research-pack/composition-root :research-pack/resolution-root}
+    :intent/excludes    #{:research-pack/root :runtime-values :functions :timestamps}
     :intent/projection-fn project-identity
     :intent/version     1}
 

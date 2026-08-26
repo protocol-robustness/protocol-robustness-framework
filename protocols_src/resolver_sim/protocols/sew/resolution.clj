@@ -1838,7 +1838,7 @@ action-hash-at  (hc/hash-with-intent {:hash/intent :action-at}
                  world' (t/insert-slash world entry)]
              (if (seq over-capped)
                (reject :slash-exceeds-max-per-offense)
-               (assoc (t/ok world') :slash-id slash-id)))))))
+               (assoc (t/ok world') :slash-id slash-id))))))))
 
 (defn appeal-fraud-group-slash
   "Appeal one member's immutable allocation in a pending fraud-group slash."

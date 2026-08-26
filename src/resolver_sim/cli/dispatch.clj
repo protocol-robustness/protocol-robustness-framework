@@ -83,6 +83,14 @@
    :allocation-verify-proposal 'resolver-sim.commands.allocation/verify-proposal
    :allocation-vectors 'resolver-sim.commands.allocation/vectors
    :allocation-issue-certificate 'resolver-sim.commands.allocation/issue-certificate
+   :research-create 'resolver-sim.commands.research/create
+   :research-assign 'resolver-sim.commands.research/assign
+   :research-run 'resolver-sim.commands.research/run
+   :research-submit 'resolver-sim.commands.research/submit
+   :research-verify 'resolver-sim.commands.research/verify
+   :research-reproduce 'resolver-sim.commands.research/reproduce
+   :research-diff 'resolver-sim.commands.research/diff
+   :research-inspect 'resolver-sim.commands.research/inspect
    :researcher-disagree 'resolver-sim.commands.researcher/disagree
    :researcher-approve 'resolver-sim.commands.researcher/approve
    :researcher-check 'resolver-sim.commands.researcher/check
@@ -174,6 +182,7 @@
    ["-a" "--audit" "Scenario report format: audit"]
    [nil "--suite NAME" "Suite name"]
    [nil "--pack NAME" "Benchmark pack name"]
+   [nil "--research-pack FILE" "Frozen research-benchmark-pack.v1 EDN plan for canonical benchmark execution"]
    [nil "--fast" "Run fast tier only"]
    [nil "--full" "Run full tier"]
    [nil "--strict" "Strict validation mode"]

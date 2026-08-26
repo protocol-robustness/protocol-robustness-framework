@@ -10,6 +10,7 @@
             [resolver-sim.benchmark.hardening :as hardening]
             [resolver-sim.benchmark.claim-registry :as claim-registry]
             [resolver-sim.benchmark.integrity :as integrity]
+            [resolver-sim.benchmark.research-pack :as research-pack]
             [resolver-sim.hash.canonical :as canonical]
             [resolver-sim.hash.reference :as hash-ref]
             [resolver-sim.commands.benchmark-conclusion :as conclusion]
@@ -79,6 +80,7 @@
   (cond
     (= path "benchmark/definition.edn") "benchmark-definition"
     (= path "benchmark/execution-plan.edn") "execution-plan"
+    (= path "benchmark/research-pack.edn") "research-pack"
     (= path "manifest/run.json") "run-manifest"
     (= path "benchmark/evidence/evidence.edn") "benchmark-evidence"
     (= path "benchmark/assertions/conservation.json") "conservation-artifact"
@@ -282,6 +284,8 @@
                       "benchmark_finalization" {"ref" "benchmark/finalization.json" "sha256" (sha-ref finalization)}
                       "benchmark_assurance" {"ref" "benchmark/assertions/benchmark-assurance.json" "sha256" (sha-ref assurance)}
                       "conservation" {"ref" "benchmark/assertions/conservation.json" "sha256" (sha-ref conservation)}
+                      "evidence_content_registry" {"ref" "benchmark/evidence/content-registry.json"
+                                                   "sha256" (sha-ref content)}
                       "limitations" limitations
                       "creation_provenance" (name creation-provenance)
                       "creation_provenance_hash" (str creation-provenance-hash)
@@ -346,7 +350,12 @@
         :artifact_registry_ref paths/artifacts-registry
         :artifact_registry_sha256 (hash-ref/sha256-ref (lifecycle/sha256-file registry))
         :registry_validation_ref paths/artifacts-validation
-        :registry_validation_sha256 (hash-ref/sha256-ref (lifecycle/sha256-file validation))}))))
+        :registry_validation_sha256 (hash-ref/sha256-ref (lifecycle/sha256-file validation))
+        ;; Completion binds the immutable package index that closes every
+        ;; indexed artifact, including an optional frozen research pack.
+        :run_package_index_ref paths/run-package-index
+        :run_package_index_sha256 (sha-ref package-index-file)
+        :run_package_index_bytes (.length package-index-file)}))))
 
 (defn- write-verdict-policy! [context evidence conclusion]
   (let [root (io/file (str (:run/root context)))
@@ -418,7 +427,9 @@
                          :canonical-integrity (ref "benchmark/assertions/canonical-integrity.json")
                          :verdict-policy (ref "manifest/verdict-policy.json")
                          :forensic-status (ref "benchmark/assertions/forensic-claims-status.json")}
-                        witness-artifacts)})))
+                        witness-artifacts
+                        (when (:research-pack/file context)
+                          {:research-pack (ref "benchmark/research-pack.edn")}))})))
 
 (defn- invoke! [benchmark-id {:keys [output key scenario-output-dir benchmark-index-path execution-plan-path
                                      parallelism chunk-size claimant-parallelism claimant-parallel-threshold
@@ -541,6 +552,13 @@
                                         (map #(select-keys % ["logical_id" "source_kind" "path" "sha256"])
                                              inputs))))))
 
+(defn- research-pack-input [context]
+  (when-let [file (:research-pack/file context)]
+    {"logical_id" "research-benchmark-pack"
+     "source_kind" "research-benchmark-pack"
+     "path" "benchmark/research-pack.edn"
+     "sha256" (sha-ref file)}))
+
 (defn- input-set [context evidence]
   (let [root (.toPath (io/file (str (:run/root context))))
         relative-path (fn [file]
@@ -563,6 +581,8 @@
                    "path" "benchmark/execution-plan.edn"
                    "sha256" (sha-ref (:benchmark/plan-file context))}
                   (claim-registry-input context)]
+                 (cond-> []
+                   (:research-pack/file context) (conj (research-pack-input context)))
                  (map input-entry (:results evidence))))))
 
 (defn claim-registry-input
@@ -638,6 +658,37 @@
                 (into-array StandardCopyOption [StandardCopyOption/REPLACE_EXISTING StandardCopyOption/ATOMIC_MOVE]))
     value))
 
+(defn- load-research-pack!
+  "Load a portable frozen plan from an explicit EDN path. Its composition root
+   is committed by the plan; the attached composition projection is checked
+   before it reaches the shared runner."
+  [path]
+  (when path
+    (let [pack (edn/read-string (slurp (io/file path)))
+          composition (:research-pack/composition pack)]
+      (when-not (and (map? pack)
+                     (= (:research-pack/root pack) (research-pack/pack-root pack))
+                     (map? composition)
+                     (= (:research-pack/composition-root pack)
+                        (:semantic-composition/root composition)))
+        (throw (ex-info "Research pack is malformed or its roots do not match"
+                        {:reason :research-pack-invalid-persisted-plan
+                         :path path})))
+      pack)))
+
+(defn- snapshot-research-pack!
+  "Validate and snapshot a frozen plan before any runner work. The same
+   portable artifact used for execution enters the package closure."
+  [context pack]
+  (when pack
+    (when-not (= (:research-pack/root pack) (research-pack/pack-root pack))
+      (throw (ex-info "Research pack root does not match its canonical plan"
+                      {:reason :research-pack-root-mismatch})))
+    (let [target (io/file (str (:run/root context)) "benchmark/research-pack.edn")]
+      (io/make-parents target)
+      (spit target (pr-str pack))
+      target)))
+
 (defn run-with-root!
   "Run a canonical benchmark root. Optional overrides replace phase functions
    for integration failure testing without bypassing root ownership/locking.
@@ -661,7 +712,9 @@
         quiescence-failed? (atom false)]
     (try
       (benchmark-run/initialize! context)
-      (let [benchmark-conclusion (atom nil)
+      (let [research-pack-file (snapshot-research-pack! context (:research-pack overrides))
+            context (cond-> context research-pack-file (assoc :research-pack/file research-pack-file))
+            benchmark-conclusion (atom nil)
             {:keys [execution]} (orchestration/run!
                                  context
                                  (merge
@@ -676,7 +729,8 @@
                                                                                   :claimant-parallelism (:execution/claimant-parallelism context)
                                                                                   :claimant-parallel-threshold (:execution/claimant-parallel-threshold context)
                                                                                   :budget (:execution/budget context)
-                                                                                  :quiescence-timeout-seconds (:execution/quiescence-timeout-seconds context)})]
+                                                                                  :quiescence-timeout-seconds (:execution/quiescence-timeout-seconds context)
+                                                                                  :research-pack (:research-pack overrides)})]
                                                 (when-not (:evidence result)
                                                   (throw (ex-info "Benchmark execution produced no evidence; finalization aborted"
                                                                   {:benchmark benchmark-id :exit-code (:exit-code result)})))
@@ -794,10 +848,14 @@
     claimant work borrows spare capacity rather than multiplying threads
     unbounded."
   [{:keys [output key run-root sensitivity-profile claim-registry execution-budget
-           parallel-ceiling quiescence-timeout-seconds] :as opts}]
+           parallel-ceiling quiescence-timeout-seconds research-pack] :as opts}]
   (let [benchmark-id (or (first (:cmd/args opts))
                          (:benchmark-id opts)
                          (:benchmark opts))
+        loaded-research-pack (try
+                               (load-research-pack! research-pack)
+                               (catch Exception e
+                                 {:research-pack/load-error (.getMessage e)}))
         parallel-command? (= "parallel-benchmark-run" (:cmd/path opts))
         effective-parallelism (effective-parallelism parallel-command?
                                                      (:parallelism opts)
@@ -824,6 +882,9 @@
     (cond
       registry-error
       registry-error
+
+      (:research-pack/load-error loaded-research-pack)
+      {:exit-code 2 :message (:research-pack/load-error loaded-research-pack)}
 
       (nil? benchmark-id)
       {:exit-code 2 :message "Usage: prf-runner-sew.jar run-benchmark <benchmark-id> --run-root DIR"}
@@ -870,7 +931,8 @@
                                                                     (hardening/claimant-parallel-threshold))
                          :execution/budget effective-execution-budget
                          :execution/quiescence-timeout-seconds (hardening/quiescence-timeout-seconds
-                                                                quiescence-timeout-seconds)}))
+                                                                quiescence-timeout-seconds)
+                         :research-pack loaded-research-pack}))
 
       output
       (let [result (invoke! benchmark-id {:output output :key key

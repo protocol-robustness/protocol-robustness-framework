@@ -6,6 +6,7 @@
             [resolver-sim.benchmark.cli :as benchmark-cli]
             [resolver-sim.benchmark.verify :as benchmark-verify]
             [resolver-sim.benchmark.runner :as runner]
+            [resolver-sim.benchmark.research-pack :as research-pack]
             [resolver-sim.commands.run-benchmark :as command]
             [resolver-sim.economics.payoffs :as payoffs]
             [resolver-sim.evidence.node :as evidence-node])
@@ -311,3 +312,43 @@
               (is (= "failed"
                      (get (benchmark-verify/verify! (.getPath staged-worker-failure-root)) "status"))))))
         (delete-tree! fixture-root)))))
+
+(deftest frozen-research-pack-is-bound-by-input-set-and-package-closure
+  (let [fixture-root (temp-dir)
+        run-root (io/file fixture-root "research-pack-package")
+        manifest (write-dummy-fixture! fixture-root)
+        benchmark-id "benchmark/test-research-pack-closure"
+        composition-root "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+        plan {:schema-version research-pack/schema-version
+              :research-pack/id :research/dummy-pack
+              :research-pack/command-root "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+              :research-pack/assignment-root "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+              :research-pack/plan-root "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
+              :research-pack/members [{:member/id :member/core
+                                       :member/contract "benchmark.v1"
+                                       :member/input-root "sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+                                       :member/parameters-root "sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+                                       :member/expected-outputs {}}]
+              :research-pack/requested-capabilities []
+              :research-pack/reducer-contract research-pack/reducer-contract
+              :research-pack/composition-root composition-root
+              :research-pack/resolution-root "sha256:1111111111111111111111111111111111111111111111111111111111111111"}
+        pack (assoc plan :research-pack/root (research-pack/pack-root plan)
+                    :research-pack/composition {:semantic-composition/root composition-root})]
+    (try
+      (with-redefs [benchmark-cli/resolve-benchmark-manifest (constantly manifest)]
+        (let [result (command/run-with-root! benchmark-id (.getPath run-root) nil :public
+                                             {:execution/parallelism 1 :execution/chunk-size 1
+                                              :research-pack pack})
+              pack-file (io/file run-root "benchmark/research-pack.edn")
+              assurance (json/read-str (slurp (io/file run-root "benchmark/assertions/benchmark-assurance.json")))]
+          (is (zero? (:exit-code result)))
+          (is (.isFile pack-file))
+          (is (some #(= "research-benchmark-pack" (get % "source_kind"))
+                    (get assurance "input_set")))
+          (is (= "passed" (get (benchmark-verify/verify! (.getPath run-root)) "status")))
+          (spit pack-file (pr-str (assoc (edn/read-string (slurp pack-file))
+                                         :research-pack/plan-root "sha256:9999999999999999999999999999999999999999999999999999999999999999")))
+          (is (= "failed" (get (benchmark-verify/verify! (.getPath run-root)) "status"))
+              "input-set and package closure reject post-publication pack substitution")))
+      (finally (delete-tree! fixture-root)))))
