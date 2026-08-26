@@ -10,6 +10,7 @@
             [resolver-sim.benchmark.hardening :as hardening]
             [resolver-sim.benchmark.claim-registry :as claim-registry]
             [resolver-sim.benchmark.integrity :as integrity]
+            [resolver-sim.benchmark.research-pack :as research-pack]
             [resolver-sim.hash.canonical :as canonical]
             [resolver-sim.hash.reference :as hash-ref]
             [resolver-sim.commands.benchmark-conclusion :as conclusion]
@@ -79,6 +80,7 @@
   (cond
     (= path "benchmark/definition.edn") "benchmark-definition"
     (= path "benchmark/execution-plan.edn") "execution-plan"
+    (= path "benchmark/research-pack.edn") "research-pack"
     (= path "manifest/run.json") "run-manifest"
     (= path "benchmark/evidence/evidence.edn") "benchmark-evidence"
     (= path "benchmark/assertions/conservation.json") "conservation-artifact"
@@ -541,6 +543,13 @@
                                         (map #(select-keys % ["logical_id" "source_kind" "path" "sha256"])
                                              inputs))))))
 
+(defn- research-pack-input [context]
+  (when-let [file (:research-pack/file context)]
+    {"logical_id" "research-benchmark-pack"
+     "source_kind" "research-benchmark-pack"
+     "path" "benchmark/research-pack.edn"
+     "sha256" (sha-ref file)}))
+
 (defn- input-set [context evidence]
   (let [root (.toPath (io/file (str (:run/root context))))
         relative-path (fn [file]
@@ -563,6 +572,8 @@
                    "path" "benchmark/execution-plan.edn"
                    "sha256" (sha-ref (:benchmark/plan-file context))}
                   (claim-registry-input context)]
+                 (cond-> []
+                   (:research-pack/file context) (conj (research-pack-input context)))
                  (map input-entry (:results evidence))))))
 
 (defn claim-registry-input
@@ -638,6 +649,21 @@
                 (into-array StandardCopyOption [StandardCopyOption/REPLACE_EXISTING StandardCopyOption/ATOMIC_MOVE]))
     value))
 
+(defn- snapshot-research-pack!
+  "Validate and snapshot a frozen pack before any runner work.  The detached
+   composition record is execution-only; its rooted canonical plan is what
+   enters package closure."
+  [context pack]
+  (when pack
+    (let [persisted (dissoc pack :research-pack/composition)]
+      (when-not (= (:research-pack/root persisted) (research-pack/pack-root persisted))
+        (throw (ex-info "Research pack root does not match its canonical plan"
+                        {:reason :research-pack-root-mismatch})))
+      (let [target (io/file (str (:run/root context)) "benchmark/research-pack.edn")]
+        (io/make-parents target)
+        (spit target (pr-str persisted))
+        target))))
+
 (defn run-with-root!
   "Run a canonical benchmark root. Optional overrides replace phase functions
    for integration failure testing without bypassing root ownership/locking.
@@ -661,7 +687,9 @@
         quiescence-failed? (atom false)]
     (try
       (benchmark-run/initialize! context)
-      (let [benchmark-conclusion (atom nil)
+      (let [research-pack-file (snapshot-research-pack! context (:research-pack overrides))
+            context (cond-> context research-pack-file (assoc :research-pack/file research-pack-file))
+            benchmark-conclusion (atom nil)
             {:keys [execution]} (orchestration/run!
                                  context
                                  (merge
@@ -676,7 +704,8 @@
                                                                                   :claimant-parallelism (:execution/claimant-parallelism context)
                                                                                   :claimant-parallel-threshold (:execution/claimant-parallel-threshold context)
                                                                                   :budget (:execution/budget context)
-                                                                                  :quiescence-timeout-seconds (:execution/quiescence-timeout-seconds context)})]
+                                                                                  :quiescence-timeout-seconds (:execution/quiescence-timeout-seconds context)
+                                                                                  :research-pack (:research-pack overrides)})]
                                                 (when-not (:evidence result)
                                                   (throw (ex-info "Benchmark execution produced no evidence; finalization aborted"
                                                                   {:benchmark benchmark-id :exit-code (:exit-code result)})))
