@@ -318,23 +318,20 @@
         run-root (io/file fixture-root "research-pack-package")
         manifest (write-dummy-fixture! fixture-root)
         benchmark-id "benchmark/test-research-pack-closure"
-        composition-root "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
-        plan {:schema-version research-pack/schema-version
-              :research-pack/id :research/dummy-pack
-              :research-pack/command-root "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
-              :research-pack/assignment-root "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
-              :research-pack/plan-root "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
-              :research-pack/members [{:member/id :member/core
-                                       :member/contract "benchmark.v1"
-                                       :member/input-root "sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
-                                       :member/parameters-root "sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
-                                       :member/expected-outputs {}}]
-              :research-pack/requested-capabilities []
-              :research-pack/reducer-contract research-pack/reducer-contract
-              :research-pack/composition-root composition-root
-              :research-pack/resolution-root "sha256:1111111111111111111111111111111111111111111111111111111111111111"}
-        pack (assoc plan :research-pack/root (research-pack/pack-root plan)
-                    :research-pack/composition {:semantic-composition/root composition-root})]
+        pack (research-pack/freeze-pack
+              {:pack-id :research/dummy-pack
+               :command-root "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+               :assignment-root "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+               :plan-root "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
+               :members [{:member/id :member/core
+                          :member/contract "benchmark.v1"
+                          :member/input-root "sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+                          :member/parameters-root "sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+                          :member/expected-outputs {}}]
+               :requested-capabilities []
+               :profile :development
+               :resolution-options {:schemas {} :effect-schemas {}}
+               :extension-map {}})]
     (try
       (with-redefs [benchmark-cli/resolve-benchmark-manifest (constantly manifest)]
         (let [result (command/run-with-root! benchmark-id (.getPath run-root) nil :public

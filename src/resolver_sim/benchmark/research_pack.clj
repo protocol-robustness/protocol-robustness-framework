@@ -13,14 +13,34 @@
 
 (defn- root? [x] (hash-ref/valid-sha256-ref? x))
 
+(defn- capability-key?
+  [value]
+  (and (vector? value)
+       (= 2 (count value))
+       (every? keyword? value)))
+
+(defn- extension-member?
+  [member]
+  (contains? member :member/capability))
+
+(defn- valid-member?
+  [member]
+  (let [provider-roots (:member/provider-package-roots member)]
+    (and (map? member)
+         (keyword? (:member/id member))
+         (string? (:member/contract member))
+         (root? (:member/input-root member))
+         (root? (:member/parameters-root member))
+         (map? (:member/expected-outputs member))
+         (or (not (extension-member? member))
+             (and (capability-key? (:member/capability member))
+                  (or (not (contains? member :member/provider-package-roots))
+                      (and (vector? provider-roots)
+                           (seq provider-roots)
+                           (every? string? provider-roots))))))))
+
 (defn- canonical-members [members]
-  (when-not (and (vector? members) (seq members)
-                 (every? #(and (map? %) (keyword? (:member/id %))
-                               (string? (:member/contract %))
-                               (root? (:member/input-root %))
-                               (root? (:member/parameters-root %))
-                               (map? (:member/expected-outputs %)))
-                         members))
+  (when-not (and (vector? members) (seq members) (every? valid-member? members))
     (throw (ex-info "Research pack members are malformed"
                     {:error :research-pack/invalid-member})))
   (let [ordered (vec (sort-by :member/id members))]
@@ -28,6 +48,25 @@
       (throw (ex-info "Research pack member ids must be unique"
                       {:error :research-pack/duplicate-member-id})))
     ordered))
+
+(defn- resolved-members
+  "Derive exact provider package roots for extension-contributed members from
+   the authoritative capability-resolution snapshot. Member declarations name
+   only a semantic capability; they never nominate a provider."
+  [members capability-providers]
+  (mapv (fn [member]
+          (if-not (extension-member? member)
+            member
+            (let [providers (get-in capability-providers
+                                    [(:member/capability member) :providers])
+                  roots (mapv :package-root providers)]
+              (when-not (seq roots)
+                (throw (ex-info "Extension benchmark member capability is unresolved"
+                                {:error :research-pack/unavailable-extension-member
+                                 :member/id (:member/id member)
+                                 :member/capability (:member/capability member)})))
+              (assoc member :member/provider-package-roots roots))))
+        members))
 
 (defn pack-root [pack]
   (hash-ref/sha256-ref
@@ -54,6 +93,9 @@
                       {:error :research-pack/unavailable-or-unsupported-extension
                        :violations (:violations resolved)})))
     (let [comp (:composition resolved)
+          members (canonical-members
+                   (resolved-members members
+                                     (:extensions/capability-providers (:resolution comp))))
           base {:schema-version schema-version
                 :research-pack/id pack-id
                 :research-pack/command-root command-root
@@ -65,13 +107,12 @@
                 :research-pack/composition-root (composition/composition-root comp)
                 :research-pack/resolution-root (composition/resolution-root comp)}]
       (assoc base :research-pack/root (pack-root base)
-             :research-pack/composition (into {} comp)))))
+             :research-pack/composition (composition/portable-body comp)))))
 
 (defn validate-pack
-  "Fail-closed verification of a frozen plan against the extension-map snapshot
-   that it claims to use. Re-resolution detects removed, ambiguous, or
-   substituted providers and extension members injected after freeze."
-  [pack extension-map resolution-options]
+  "Verify a persisted frozen plan using only its closed portable composition.
+   Current provider availability is intentionally checked separately."
+  [pack]
   (let [errors (atom [])
         members (:research-pack/members pack)]
     (when-not (= schema-version (:schema-version pack))
@@ -84,18 +125,40 @@
     (when-not (= (:research-pack/root pack) (pack-root pack))
       (swap! errors conj :research-pack/root-mismatch))
     (try
+      (let [portable (composition/verify-portable! (:research-pack/composition pack))]
+        (when-not (= (:research-pack/composition-root pack)
+                     (:semantic-composition/root portable))
+          (swap! errors conj :research-pack/composition-substitution))
+        (when-not (= (:research-pack/resolution-root pack)
+                     (:semantic-composition/resolution-root portable))
+          (swap! errors conj :research-pack/resolution-substitution))
+        (let [derived-members (canonical-members
+                               (resolved-members members
+                                                 (:semantic-composition/capability-providers portable)))]
+          (when-not (= members derived-members)
+            (swap! errors conj :research-pack/member-provider-substitution))))
+      (catch Exception _
+        (swap! errors conj :research-pack/invalid-portable-composition)))
+    {:valid? (empty? @errors) :errors (vec @errors)}))
+
+(defn verify-execution-environment
+  "Check whether an already-valid frozen pack can run in an explicitly supplied
+   current extension environment. This never changes historical pack validity."
+  [pack extension-map resolution-options]
+  (let [artifact (validate-pack pack)]
+    (if-not (:valid? artifact)
+      {:ready? false :classification :invalid-pack :verification artifact}
       (let [result (composition/compose-authoritative :development
                                                       (:research-pack/requested-capabilities pack)
                                                       resolution-options extension-map)]
         (if-not (:valid? result)
-          (swap! errors conj :research-pack/unavailable-or-unsupported-extension)
-          (let [comp (:composition result)]
-            (when-not (= (:research-pack/composition-root pack)
-                         (composition/composition-root comp))
-              (swap! errors conj :research-pack/composition-substitution))
-            (when-not (= (:research-pack/resolution-root pack)
-                         (composition/resolution-root comp))
-              (swap! errors conj :research-pack/resolution-substitution)))))
-      (catch Exception _
-        (swap! errors conj :research-pack/unavailable-or-unsupported-extension)))
-    {:valid? (empty? @errors) :errors (vec @errors)}))
+          {:ready? false :classification :unavailable :verification artifact
+           :violations (:violations result)}
+          (let [members (canonical-members
+                         (resolved-members (:research-pack/members pack)
+                                           (:extensions/capability-providers
+                                            (:resolution (:composition result)))))]
+            (if (= members (:research-pack/members pack))
+              {:ready? true :classification :ready :verification artifact}
+              {:ready? false :classification :execution-environment-mismatch
+               :verification artifact})))))))

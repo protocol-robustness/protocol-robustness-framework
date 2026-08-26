@@ -11,6 +11,7 @@
             [resolver-sim.benchmark.claim-registry :as claim-registry]
             [resolver-sim.benchmark.integrity :as integrity]
             [resolver-sim.benchmark.research-pack :as research-pack]
+            [resolver-sim.composition.semantic :as semantic-composition]
             [resolver-sim.hash.canonical :as canonical]
             [resolver-sim.hash.reference :as hash-ref]
             [resolver-sim.commands.benchmark-conclusion :as conclusion]
@@ -665,12 +666,16 @@
   [path]
   (when path
     (let [pack (edn/read-string (slurp (io/file path)))
-          composition (:research-pack/composition pack)]
+          composition (:research-pack/composition pack)
+          verified-composition (try (semantic-composition/verify-portable! composition)
+                                    (catch Exception e
+                                      (throw (ex-info "Research pack has invalid portable composition"
+                                                      {:reason :research-pack-invalid-persisted-plan
+                                                       :path path} e))))]
       (when-not (and (map? pack)
                      (= (:research-pack/root pack) (research-pack/pack-root pack))
-                     (map? composition)
                      (= (:research-pack/composition-root pack)
-                        (:semantic-composition/root composition)))
+                        (:semantic-composition/root verified-composition)))
         (throw (ex-info "Research pack is malformed or its roots do not match"
                         {:reason :research-pack-invalid-persisted-plan
                          :path path})))
@@ -681,9 +686,15 @@
    portable artifact used for execution enters the package closure."
   [context pack]
   (when pack
-    (when-not (= (:research-pack/root pack) (research-pack/pack-root pack))
-      (throw (ex-info "Research pack root does not match its canonical plan"
-                      {:reason :research-pack-root-mismatch})))
+    (let [portable (semantic-composition/verify-portable!
+                    (:research-pack/composition pack))]
+      (when-not (and (= (:research-pack/root pack) (research-pack/pack-root pack))
+                     (= (:research-pack/composition-root pack)
+                        (:semantic-composition/root portable))
+                     (= (:research-pack/resolution-root pack)
+                        (:semantic-composition/resolution-root portable)))
+        (throw (ex-info "Research pack does not match its verified portable composition"
+                        {:reason :research-pack-invalid-persisted-plan}))))
     (let [target (io/file (str (:run/root context)) "benchmark/research-pack.edn")]
       (io/make-parents target)
       (spit target (pr-str pack))
