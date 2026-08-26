@@ -191,7 +191,7 @@
    governed-round projection required by rr/governed-round?: chain-configuration
    root, governance root, epoch, constitution time, policy id and hash, plus the
    base identity fields and the schema version."
-  #{:artifact/schema :benchmark/content-root :review-round/members
+  #{:artifact/schema :schema-version :benchmark/content-root :review-round/members
     :review-round/membership-frozen-at :review-round/policy-root
     :review-round/purpose
     :review-round/chain-configuration-root :review-round/governance-root
@@ -212,6 +212,8 @@
             missing (set/difference review-round-material-fields have)]
         (when-not (= review-round-material-schema (:artifact/schema round))
           (report! (str ":artifact/schema must be " review-round-material-schema)))
+        (when-not (= rr/governed-schema-version (:schema-version round))
+          (report! (str ":schema-version must be " rr/governed-schema-version)))
         (when (seq extra)
           (report! (str "review-round material has unknown keys: " (sort-by str extra))))
         (when (seq missing)
@@ -457,7 +459,7 @@
    Delegates to `resolver-sim.assurance.three-member-authority/evaluate-governed-authority`
    with internally-derived resolvers, replacing the legacy external key resolver
    boundary."
-  [{:keys [review-round review-governance position-time-index signer-key-set]}]
+  [{:keys [authorisation review-round review-governance position-time-index signer-key-set]}]
   {:pre [(map? review-round) (map? review-governance)
          (map? position-time-index) (map? signer-key-set)]}
   (let [signature-valid?
@@ -468,6 +470,7 @@
             (:valid? result)))]
     ((ns-resolve (find-ns 'resolver-sim.assurance.three-member-authority)
                  'evaluate-governed-authority)
+     :authorisation authorisation
      :review-round review-round
      :governance review-governance
      :governance-current? (fn [_ _] true)

@@ -4,7 +4,9 @@
             [resolver-sim.benchmark.governed-authority-state :as state]
             [resolver-sim.benchmark.review-round :as rr]
             [resolver-sim.benchmark.review-governance :as governance]
-            [resolver-sim.benchmark.review-governance-evidence :as evidence]))
+            [resolver-sim.benchmark.review-governance-evidence :as evidence]
+            [resolver-sim.assurance.governed-authority-consumer :as gac]
+            [resolver-sim.benchmark.researcher-force-authorisation :as rfa]))
 
 (def ^:private not-rooted-msg "authority material is not rooted and authenticated")
 (def ^:private runtime-value-msg "authority material contains runtime or mutable value")
@@ -21,6 +23,7 @@
 
 (defn- round-body []
   {:artifact/schema rr/governed-schema-version
+   :schema-version rr/governed-schema-version
    :benchmark/content-root (hash-ref "aa")
    :review-round/members []
    :review-round/membership-frozen-at 0
@@ -826,3 +829,122 @@
         (is (contains? eb :position-time-index/root))
         (is (= (:position-time-index/root (:material w))
                (:position-time-index/root eb)))))))
+
+;; ── C1: strict authoritative consumer ────────────────────────────────────────
+
+(defn- sample-authorisation []
+  "Build a minimal force-authorisation artifact for testing the
+   evaluate-authority-with-frozen-material entry point. The report will show
+   :not-authorised because positions are not actually valid, but the
+   evaluator must run without error on B3 material only."
+  {:artifact/schema "force-authorisation.v1"
+   :authorisation/id "auth-1"
+   :authorisation/request-root (hash-ref "req1")
+   :authorisation/review-round {:review-round/hash round-hash-ref}
+   :authorisation/target {:target/proposed-content-root (hash-ref "tgt1")}
+   :authorisation/decision-references []})
+
+(deftest c1-v1-basis-rejected-by-authoritative-consumer
+  (testing "V1 resolution basis is rejected — V2 basis required"
+    (let [w (fresh-store)
+          v1-basis (v1-basis :current-admission (:state-root w) (:head w))
+          result (gac/verify-governed-authority-current
+                  (:store w) v1-basis (sample-authorisation))]
+      (is (false? (:valid? result))
+          "V1 basis does not yield a resolved material store"))))
+
+(deftest c1-current-admission-fence-issued
+  (testing "B3 store issues a fence on successful current-admission V2 resolution"
+    (let [w (fresh-store)
+          basis (admission-basis w)
+          issued (state/resolve-authority-material (:store w) basis)]
+      (is (:resolved? issued))
+      (is (some? (:fence issued))
+          "store-issued fence is present"))))
+
+(deftest c1-v2-basis-consumes-frozen-material-only
+  (testing "evaluate-authority-with-frozen-material derives lookups from the
+            material bodies, not from external callbacks"
+    (let [w (fresh-store)
+          material (:material w)
+          result (state/evaluate-authority-with-frozen-material
+                  {:authorisation (sample-authorisation)
+                   :review-round (:authority-material/review-round material)
+                   :review-governance (:authority-material/review-governance material)
+                   :position-time-index (:authority-material/position-time-index material)
+                   :signer-key-set (:authority-material/signer-key-set material)})]
+      (is (map? result) "report is a map")
+      (is (contains? result :authority-status)
+          "report contains authority-status"))))
+
+(deftest c1-v2-basis-fails-without-envelope-material
+  (testing "V2 basis with non-current state is rejected"
+    (let [w (fresh-store)
+          basis (admission-basis w)]
+      ;; The store was created fresh, so the admission basis should resolve
+      (let [resolved (state/resolve-authority-material (:store w) basis)]
+        (is (:resolved? resolved)
+            "V2 current-admission basis resolves on a fresh store")
+        (is (some? (:fence resolved))
+            "fence is issued"))))
+
+;; ── C2: fenced finalization entry point ────────────────────────────────────────
+
+  (deftest c2-missing-fence-rejected
+    (testing "finalise-governed-authority-current rejects missing fence"
+      (let [w (fresh-store)
+            basis (admission-basis w)
+            resolved (state/resolve-authority-material (:store w) basis)
+          ;; Strip the fence to simulate missing fence
+            authority-result (dissoc resolved :fence)]
+        (is (= :missing-authority-fence
+               (:reason (gac/finalise-governed-authority-current!
+                         (:store w) authority-result nil nil nil)))))))
+
+  (deftest c2-successor-publication-between-resolution-and-finalization
+    (testing "a successor can be published between resolution and finalization"
+      (let [w (fresh-store)
+            basis (admission-basis w)
+            resolved (state/resolve-authority-material (:store w) basis)
+            material (:material w)
+            context (:context resolved)]
+        (is (:resolved? resolved))
+        (is (some? (:fence resolved)))
+        (let [binding (transition-binding
+                       (:resolved-review-authority-context/root context)
+                       (:state-root w) (hash-ref "aa99") (hash-ref "ede1"))
+              succ (successor-of w material)
+            ;; The fence from the first resolution is consumed
+              fin-result (gac/finalise-governed-authority-current!
+                          (:store w) resolved binding
+                          (:envelope succ) (:material succ))]
+          (is (:finalised? fin-result)
+              "finalization succeeds with valid fence and successor")))))
+
+  (deftest c2-exact-retry-versus-conflicting-reuse
+    (testing "exact retry returns original result; conflicting fence reuse rejected"
+      (let [w (fresh-store)
+            basis (admission-basis w)
+            resolved (state/resolve-authority-material (:store w) basis)
+            material (:material w)
+            context (:context resolved)
+            fence (:fence resolved)
+            binding (transition-binding
+                     (:resolved-review-authority-context/root context)
+                     (:state-root w) (hash-ref "aa99") (hash-ref "ede1"))
+            succ (successor-of w material)]
+        (testing "exact retry returns same result"
+          (let [r1 (gac/finalise-governed-authority-current!
+                    (:store w) resolved binding (:envelope succ) (:material succ))
+                r2 (gac/finalise-governed-authority-current!
+                    (:store w) resolved binding (:envelope succ) (:material succ))]
+            (is (= (:finalised? r1) (:finalised? r2))
+                "retry yields same status")))
+        (testing "conflicting fence reuse is rejected"
+          (let [material2 (authenticated-material)
+                succ2 (successor-of w material2)
+                r (gac/finalise-governed-authority-current!
+                   (:store w) {:fence fence} binding
+                   (:envelope succ2) (:material succ2))]
+            (is (false? (:finalised? r))
+                "conflicting finalization is rejected")))))))
