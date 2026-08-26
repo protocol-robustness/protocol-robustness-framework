@@ -51,7 +51,8 @@
     :resolution/state-before-root :authority-state/root
     :chain-configuration/root :review-governance/root
     :review-governance-activation/root :review-round/hash :review-round/root
-    :position-time-basis/root :review-governance-admissibility/root
+    :position-time-basis/root :position-time-index/root
+    :review-governance-admissibility/root
     :control-plane-evidence/root})
 
 (def ^:private binding-fields

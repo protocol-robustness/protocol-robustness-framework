@@ -156,6 +156,7 @@
    :governed-authority-signer-key-set-v1 "GOVERNED_AUTHORITY_SIGNER_KEY_SET_V1"
    :governed-authority-review-round-v1 "GOVERNED_AUTHORITY_REVIEW_ROUND_V1"
    :governed-authority-evaluation-basis-v1 "GOVERNED_AUTHORITY_EVALUATION_BASIS_V1"
+   :governed-authority-position-time-index-v1 "GOVERNED_AUTHORITY_POSITION_TIME_INDEX_V1"
    :researcher-run-report "RESEARCHER_RUN_REPORT_V1"
    :researcher-position "RESEARCHER_POSITION_V1"
    :three-member-certificate "THREE_MEMBER_CERTIFICATE_V1"

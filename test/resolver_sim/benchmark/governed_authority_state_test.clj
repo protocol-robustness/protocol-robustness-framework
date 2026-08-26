@@ -2,6 +2,7 @@
   (:require [clojure.test :refer [deftest is testing]]
             [resolver-sim.benchmark.governed-authority-resolution :as resolution]
             [resolver-sim.benchmark.governed-authority-state :as state]
+            [resolver-sim.benchmark.review-round :as rr]
             [resolver-sim.benchmark.review-governance :as governance]
             [resolver-sim.benchmark.review-governance-evidence :as evidence]))
 
@@ -19,25 +20,94 @@
 (def ^:private round-hash-ref (hash-ref "77"))
 
 (defn- round-body []
-  {:benchmark/content-root (hash-ref "aa")
+  {:artifact/schema rr/governed-schema-version
+   :benchmark/content-root (hash-ref "aa")
    :review-round/members []
    :review-round/membership-frozen-at 0
    :review-round/policy-root (hash-ref "bb")
-   :review-round/purpose :model-admission})
+   :review-round/purpose :model-admission
+   :review-round/chain-configuration-root config-ref
+   :review-round/governance-root (hash-ref "cc")
+   :review-round/governance-epoch 0
+   :review-round/constituted-at 0
+   :review-round/policy-id "p1"
+   :review-round/policy-hash (hash-ref "dd")})
 
-(defn- governance-body []
-  {:schema-version "review-governance.v1"})
+(def ^:private test-public-key
+  "deadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef")
 
-(defn- position-time-body []
-  {:schema-version "position-time-basis.v1" :position-acceptance-roots []})
+(defn- key-entry
+  "Build a single signer-key-set entry with researcher-id r1 and the given key-id."
+  [key-id]
+  {:researcher/id "r1"
+   :signing-key/id key-id
+   :signing-key/algorithm :ed25519
+   :signing-key/public-key test-public-key})
 
-(defn- key-set [keys]
-  {:artifact/schema state/signer-key-set-schema :signer-key-set/keys keys})
+(defn- key-set
+  "Build a governed-authority-signer-key-set.v1 with the given key-ids under
+    researcher r1."
+  ([key-ids]
+   {:artifact/schema state/signer-key-set-schema
+    :signer-key-set/entries (mapv key-entry key-ids)})
+  ([]
+   (key-set ["k1" "k2"])))
+
+(defn- governance-body [key-ids]
+  "Build a valid review-governance.v1 body whose active principal r1 owns the
+    given key-ids."
+  {:schema-version "review-governance.v1"
+   :governance/epoch 0
+   :governance/roles #{:reviewer}
+   :governance/principals [{:principal/id "r1"
+                            :status :active
+                            :principal/independence-group "g1"
+                            :principal/independence-basis-root (hash-ref "ab")
+                            :principal/keys (mapv (fn [kid]
+                                                    {:key/id kid
+                                                     :status :active
+                                                     :key/algorithm :ed25519
+                                                     :key/public-key test-public-key})
+                                                  key-ids)}]
+   :governance/members [{:reviewer/member-id "r1"
+                         :principal/id "r1"
+                         :status :active
+                         :granted-roles #{:reviewer}}]
+   :governance/policies [{:policy/id "p1"
+                          :member-count 3
+                          :threshold 2
+                          :required-roles #{:reviewer}
+                          :role-cardinality :unique
+                          :equivocation-policy :invalid-seat}]})
+
+(def ^:private test-ptb-root
+  (evidence/position-time-basis-root
+   {:schema-version "position-time-basis.v1"
+    :position-acceptance-roots []}))
+
+(defn- position-time-index-body [round-root]
+  "Build a valid governed-authority-position-time-index.v1 body cross-referencing
+    the given round root and an empty position-time-basis root."
+  {:artifact/schema state/position-time-index-schema
+   :position-time-basis/root test-ptb-root
+   :review-round/root round-root
+   :position-time-index/entries []})
 
 (defn- authenticated-material
-  ([] (authenticated-material (key-set [(hash-ref "k1") (hash-ref "k2")])))
+  "Build authenticated authority material with the default key-set, or with the
+    given key-set. An optional governance body can be supplied to decouple the
+    governance root from the signer-key-set identity (used by interchangeability
+    characterization tests)."
+  ([]
+   (authenticated-material (key-set) nil))
   ([ks]
-   (let [rb (round-body) gb (governance-body) pb (position-time-body)]
+   (authenticated-material ks nil))
+  ([ks gb-override]
+   (let [key-ids (map :signing-key/id (:signer-key-set/entries ks))
+         rb (round-body)
+         gb (or gb-override (governance-body key-ids))
+         round-root (state/review-round-material-root rb)
+         pti (position-time-index-body round-root)]
      {:chain-instance-genesis/root genesis-ref
       :chain-configuration/root config-ref
       :review-governance/root (governance/governance-root gb)
@@ -45,22 +115,24 @@
       :control-plane-evidence/root control-evidence-ref
       :review-governance-admissibility/root admissibility-ref
       :review-round/hash round-hash-ref
-      :review-round/root (state/review-round-material-root rb)
-      :position-time-basis/root (evidence/position-time-basis-root pb)
+      :review-round/root round-root
+      :position-time-basis/root test-ptb-root
+      :position-time-index/root (state/position-time-index-root pti)
       :signer-key-set/root (state/signer-key-set-root ks)
       :authority-material/review-round rb
       :authority-material/review-governance gb
-      :authority-material/position-time-basis pb
+      :authority-material/position-time-index pti
       :authority-material/signer-key-set ks})))
 
-(defn- store-envelope [state-root predecessor sequence]
+(defn- store-envelope [state-root predecessor sequence material]
   {:chain-instance-genesis/root genesis-ref
    :execution/state-root state-root
    :chain-configuration/root config-ref
-   :review-governance/root (governance/governance-root (governance-body))
+   :review-governance/root (or (:review-governance/root material) (hash-ref "00"))
    :review-governance-activation/root activation-ref
    :configuration-head/root (hash-ref "88")
    :control-plane-evidence/root control-evidence-ref
+   :position-time-index/root (or (:position-time-index/root material) (hash-ref "ee"))
    :publication/sequence sequence
    :publication/predecessor-root predecessor})
 
@@ -68,7 +140,7 @@
   ([] (fresh-store (authenticated-material)))
   ([material]
    (let [state-root (hash-ref "aa00")
-         envelope (state/build-envelope (store-envelope state-root nil 0))]
+         envelope (state/build-envelope (store-envelope state-root nil 0 material))]
      {:store (state/new-store envelope material)
       :state-root state-root
       :envelope envelope
@@ -145,7 +217,7 @@
         seq+ (inc (:publication/sequence (:envelope w)))
         state-root (hash-ref "aa01")]
     {:state-root state-root
-     :envelope (state/build-envelope (store-envelope state-root pred seq+))
+     :envelope (state/build-envelope (store-envelope state-root pred seq+ material))
      :material material}))
 
 ;; ── priority 1: signer-key body/root substitution ─────────────────────────
@@ -159,24 +231,24 @@
              (new-store-error
               envelope
               (update-in (:material w)
-                         [:authority-material/signer-key-set :signer-key-set/keys]
-                         conj (hash-ref "rogue"))))))
+                         [:authority-material/signer-key-set :signer-key-set/entries]
+                         conj (key-entry "rogue"))))))
     (testing "signing key element swapped, declared root kept"
       (is (= not-rooted-msg
              (new-store-error
               envelope
               (assoc-in (:material w)
-                        [:authority-material/signer-key-set :signer-key-set/keys 0]
-                        (hash-ref "evil"))))))
+                        [:authority-material/signer-key-set :signer-key-set/entries 0]
+                        (key-entry "evil"))))))
     (testing "entire body replaced by a differently-rooted set, old root kept"
       (is (= not-rooted-msg
              (new-store-error
               envelope
               (assoc (:material w)
                      :authority-material/signer-key-set
-                     (key-set [(hash-ref "z1") (hash-ref "z2")]))))))
+                     (key-set ["z1" "z2"]))))))
     (testing "body schema tampered"
-      (is (= "governed signer-key-set is invalid"
+      (is (= not-rooted-msg
              (new-store-error
               envelope
               (assoc-in (:material w)
@@ -216,13 +288,13 @@
 
 (deftest position-time-body-root-substitution-rejected
   (let [{:keys [envelope material]} (fresh-store)]
-    (testing "acceptance roots reordered/tampered, declared root kept"
+    (testing "position-time-basis root swapped inside index body, declared root kept"
       (is (= not-rooted-msg
              (new-store-error
               envelope
               (assoc-in material
-                        [:authority-material/position-time-basis :position-acceptance-roots]
-                        [(hash-ref "phantom")])))))))
+                        [:authority-material/position-time-index :position-time-basis/root]
+                        (hash-ref "phantom"))))))))
 
 ;; ── priority 5: missing bodies with correct-looking roots ─────────────────
 
@@ -230,14 +302,14 @@
   (let [{:keys [envelope material]} (fresh-store)]
     (doseq [body-key [:authority-material/review-round
                       :authority-material/review-governance
-                      :authority-material/position-time-basis
+                      :authority-material/position-time-index
                       :authority-material/signer-key-set]]
       (testing (str "missing " (name body-key) " with root fields retained")
         (is (= not-rooted-msg (new-store-error envelope (dissoc material body-key))))))
     (testing "all bodies stripped, every declared root retained"
       (let [stripped (apply dissoc material [:authority-material/review-round
                                              :authority-material/review-governance
-                                             :authority-material/position-time-basis
+                                             :authority-material/position-time-index
                                              :authority-material/signer-key-set])]
         (is (= not-rooted-msg (new-store-error envelope stripped)))))
     (testing "non-map body standing in for an authenticated body"
@@ -248,11 +320,11 @@
 
 (deftest runtime-values-rejected-in-authenticated-material-and-publication
   (let [{:keys [envelope] :as w} (fresh-store)]
-    (testing "callback inside the signer-key-set keys vector"
+    (testing "callback inside the signer-key-set entries vector"
       (is (= runtime-value-msg
              (new-store-error
               envelope
-              (assoc-in (:material w) [:authority-material/signer-key-set :signer-key-set/keys 0]
+              (assoc-in (:material w) [:authority-material/signer-key-set :signer-key-set/entries 0]
                         (fn [] :rogue))))))
     (testing "callback inside the review-round body"
       (is (= runtime-value-msg
@@ -319,6 +391,7 @@
         (doseq [[k v] [[:review-round/root (:review-round/root material)]
                        [:review-governance/root (:review-governance/root material)]
                        [:position-time-basis/root (:position-time-basis/root material)]
+                       [:position-time-index/root (:position-time-index/root material)]
                        [:signer-key-set/root (:signer-key-set/root material)]]]
           (is (= v (get rec k)) (str "fence pins exact issuance value of " k)))
         (is (= (:authority-evaluation-basis/root
@@ -328,6 +401,7 @@
                   :review-round/root (:review-round/root material)
                   :review-governance/root (:review-governance/root material)
                   :position-time-basis/root (:position-time-basis/root material)
+                  :position-time-index/root (:position-time-index/root material)
                   :signer-key-set/root (:signer-key-set/root material)}))
                (:authority-evaluation-basis/root rec))
             "fence binds the evaluation basis joining the context and key set")
@@ -336,11 +410,12 @@
 ;; ── priority 8 + transplant A: fences are store-instance and key-set bound ─
 
 (deftest fences-not-interchangeable-across-stores-or-key-sets
-  (let [ks-a (key-set [(hash-ref "kA1") (hash-ref "kA2")])
-        ks-b (key-set [(hash-ref "kB1") (hash-ref "kB2")])
-        wa (fresh-store (authenticated-material ks-a))
+  (let [shared-governance (governance-body ["k1" "k2"])
+        ks-a (key-set ["k1" "k2"])
+        ks-b (key-set ["k1"])
+        wa (fresh-store (authenticated-material ks-a shared-governance))
         ;; Store B: same envelope content, different authenticated key set
-        wb (fresh-store (authenticated-material ks-b))
+        wb (fresh-store (authenticated-material ks-b shared-governance))
         fa (issue-fence wa)
         fb (issue-fence wb)]
     (is (:ok? fa) "prerequisite: store A issues a fence")
@@ -384,8 +459,8 @@
 ;; ── transplant B: rotation after issuance stales outstanding fences ───────
 
 (deftest key-set-rotation-rejects-finalisation-of-pre-rotation-fence
-  (let [ks-1 (key-set [(hash-ref "k1") (hash-ref "k2")])
-        ks-2 (key-set [(hash-ref "k2a") (hash-ref "k2b")])
+  (let [ks-1 (key-set ["k1" "k2"])
+        ks-2 (key-set ["k2a" "k2b"])
         w (fresh-store (authenticated-material ks-1))
         issued (issue-fence w)]
     (is (:ok? issued) "prerequisite: fence issued while K1 applies")
@@ -514,18 +589,20 @@
 
 (deftest authenticated-state-resolution
   (let [s0 (hash-ref "b0")
-        e0 (state/build-envelope (store-envelope s0 nil 0))
-        store (state/new-store e0 (authenticated-material))
+        mat0 (authenticated-material)
+        e0 (state/build-envelope (store-envelope s0 nil 0 mat0))
+        store (state/new-store e0 mat0)
         w {:store store :state-root s0 :envelope e0
            :head (:authoritative-state-envelope/root e0)}
         b0 (admission-basis w)]
     (is (:resolved? (state/resolve-governed-authority-context store b0)))
     (let [s1 (hash-ref "c1")
+          mat1 (authenticated-material)
           e1 (state/build-envelope
-              (store-envelope s1 (:authoritative-state-envelope/root e0) 1))]
+              (store-envelope s1 (:authoritative-state-envelope/root e0) 1 mat1))]
       (is (:published?
            (state/publish-successor!
-            store (:authoritative-state-envelope/root e0) e1 (authenticated-material))))
+            store (:authoritative-state-envelope/root e0) e1 mat1)))
       (is (= :state-not-at-required-head
              (:reason (state/resolve-governed-authority-context store b0))))
       (is (:resolved?
@@ -569,3 +646,183 @@
                  (admission-basis (assoc w :store different-round-store)))
                 (catch Exception e
                   {:reason ::unexpected-throw :throw (.getMessage e)}))))))))
+
+;; ── B3: position-time-index as 5th material body ──────────────────────────
+
+(deftest position-time-index-root-in-envelope
+  (let [{:keys [envelope material]} (fresh-store)]
+    (testing "envelope carries position-time-index/root"
+      (is (contains? envelope :position-time-index/root)))
+    (testing "envelope root matches material position-time-index root"
+      (is (= (:position-time-index/root material)
+             (:position-time-index/root envelope))))
+    (testing "envelope includes position-time-index/root in closed fields"
+      (is (contains? state/envelope-fields :position-time-index/root)))))
+
+(deftest resolved-context-includes-position-time-index
+  (let [w (fresh-store)
+        r (resolve* w)]
+    (is (:resolved? r) "prerequisite: authenticated store resolves")
+    (when (:resolved? r)
+      (let [ctx (:context r)]
+        (is (contains? ctx :position-time-index/root)
+            "resolved context includes position-time-index/root")
+        (is (= (:position-time-index/root (:material w))
+               (:position-time-index/root ctx))
+            "context position-time-index/root matches material")))))
+
+(deftest fence-record-pins-position-time-index-root
+  (let [w (fresh-store)
+        issued (issue-fence w)]
+    (is (:ok? issued) "prerequisite: fence issuance on an authenticated store")
+    (when (:ok? issued)
+      (let [fence (:fence (:result issued))
+            rec (fence-record w (:fence/id fence))]
+        (is (= (:position-time-index/root (:material w))
+               (:position-time-index/root rec))
+            "fence record pins position-time-index/root from issuance")))))
+
+;; ── B3: rich signer-key-set entries ──────────────────────────────────────────
+
+(deftest signer-key-set-uses-rich-entries
+  (let [w (fresh-store)
+        ks (:authority-material/signer-key-set (:material w))]
+    (testing "entries vector is populated, not the legacy keys vector"
+      (is (vector? (:signer-key-set/entries ks)))
+      (is (seq (:signer-key-set/entries ks)))
+      (is (not (contains? ks :signer-key-set/keys))))
+    (testing "each entry has closed fields"
+      (doseq [entry (:signer-key-set/entries ks)]
+        (is (= #{:researcher/id :signing-key/id :signing-key/algorithm
+                 :signing-key/public-key}
+               (set (keys entry))))
+        (is (= :ed25519 (:signing-key/algorithm entry)))
+        (is (re-matches #"[0-9a-f]{64}" (:signing-key/public-key entry)))
+        (is (= "r1" (:researcher/id entry)))))
+    (testing "root is computed over the entries body"
+      (is (= (state/signer-key-set-root ks)
+             (:signer-key-set/root (:material w)))))))
+
+(deftest signer-key-entry-requires-researcher-and-key-ids
+  (let [entry {:researcher/id "r1"
+               :signing-key/id "k1"
+               :signing-key/algorithm :ed25519
+               :signing-key/public-key "deadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef"}]
+    (is (:valid? (state/validate-signer-key-set
+                  {:artifact/schema state/signer-key-set-schema
+                   :signer-key-set/entries [entry]})))))
+
+(deftest signer-key-entry-rejects-unknown-fields
+  (let [bad-entry {:researcher/id "r1"
+                   :signing-key/id "k1"
+                   :signing-key/algorithm :ed25519
+                   :signing-key/public-key "deadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef"
+                   :signing-key/evil true}]
+    (is (false? (:valid? (state/validate-signer-key-set
+                          {:artifact/schema state/signer-key-set-schema
+                           :signer-key-set/entries [bad-entry]}))))))
+
+(deftest signer-key-entry-rejects-bad-public-key
+  (let [bad-entry {:researcher/id "r1"
+                   :signing-key/id "k1"
+                   :signing-key/algorithm :ed25519
+                   :signing-key/public-key "not-hex"}]
+    (is (false? (:valid? (state/validate-signer-key-set
+                          {:artifact/schema state/signer-key-set-schema
+                           :signer-key-set/entries [bad-entry]}))))))
+
+(deftest signer-key-set-rejects-duplicate-researcher-key-pairs
+  (let [entry {:researcher/id "r1"
+               :signing-key/id "k1"
+               :signing-key/algorithm :ed25519
+               :signing-key/public-key "deadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef"}
+        ks {:artifact/schema state/signer-key-set-schema
+            :signer-key-set/entries [entry entry]}]
+    (is (false? (:valid? (state/validate-signer-key-set ks)))))
+  (testing "same key-id under different researchers is allowed"
+    (let [e1 {:researcher/id "r1"
+              :signing-key/id "k1"
+              :signing-key/algorithm :ed25519
+              :signing-key/public-key "deadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef"}
+          e2 {:researcher/id "r2"
+              :signing-key/id "k1"
+              :signing-key/algorithm :ed25519
+              :signing-key/public-key "deadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef"}
+          ks {:artifact/schema state/signer-key-set-schema
+              :signer-key-set/entries [e1 e2]}]
+      (is (:valid? (state/validate-signer-key-set ks))))))
+
+;; ── B3: eligibility cross-check ──────────────────────────────────────────────
+
+(deftest ineligible-signer-key-rejected-at-construction
+  (let [gb (governance-body ["k1"])
+        ks (key-set ["k1" "unknown-key"])]
+    (testing "key-set references a key not in the governance body"
+      (is (false? (:eligible? (state/signer-key-eligible-in-governance? ks gb)))
+          "key 'unknown-key' is not eligible")),
+    (let [material (assoc (authenticated-material (key-set ["k1"]))
+                          :authority-material/signer-key-set ks
+                          :signer-key-set/root (state/signer-key-set-root ks))]
+      (is (= not-rooted-msg
+             (new-store-error (:envelope (fresh-store)) material))
+          "store construction rejects material with ineligible signer key"))))
+
+(deftest eligible-key-lookup
+  (let [gb (governance-body ["k1" "k2"])]
+    (is (true? (boolean (governance/position-key-valid? gb "r1" "k1"))))
+    (is (true? (boolean (governance/position-key-valid? gb "r1" "k2"))))
+    (is (false? (boolean (governance/position-key-valid? gb "r1" "k3"))))))
+
+;; ── B3: store-derived lookups ────────────────────────────────────────────────
+
+(deftest store-derived-public-key-lookup
+  (let [w (fresh-store)
+        ks (:authority-material/signer-key-set (:material w))]
+    (testing "lookup returns the public key for a known researcher/key pair"
+      (is (= test-public-key
+             (state/lookup-signing-public-key ks "r1" "k1"))))
+    (testing "lookup returns nil for an unknown key-id"
+      (is (nil? (state/lookup-signing-public-key ks "r1" "unknown"))))))
+
+(deftest store-derived-position-acceptance-time-lookup
+  (let [w (fresh-store)
+        pti (:authority-material/position-time-index (:material w))]
+    (testing "lookup returns nil for an empty index"
+      (is (nil? (state/lookup-position-acceptance-time pti (hash-ref "aa")))))))
+
+;; ── B3: closed-shape rejection of unknown material keys ──────────────────────
+
+(deftest unknown-top-level-material-keys-rejected
+  (let [{:keys [envelope material]} (fresh-store)]
+    (testing "extra top-level key in material is rejected"
+      (is (= not-rooted-msg
+             (new-store-error envelope (assoc material :extraneous :value)))))
+    (testing "extra top-level key with runtime value is rejected by freeze"
+      (is (= runtime-value-msg
+             (new-store-error envelope
+                              (assoc material :extraneous (fn [] :rogue)))))))
+  (testing "extra nested key in signer-key-set body is rejected"
+    (let [w (fresh-store)]
+      (is (= not-rooted-msg
+             (new-store-error (:envelope w)
+                              (assoc-in (:material w)
+                                        [:authority-material/signer-key-set :signer-key-set/entries 0 :rogue]
+                                        true))))))
+  (testing "extra nested key in position-time-index body is rejected"
+    (let [w (fresh-store)]
+      (is (= not-rooted-msg
+             (new-store-error (:envelope w)
+                              (assoc-in (:material w)
+                                        [:authority-material/position-time-index :rogue]
+                                        true)))))))
+
+(deftest evaluation-basis-includes-position-time-index
+  (let [w (fresh-store)
+        issued (issue-fence w)]
+    (is (:ok? issued) "prerequisite: fence issuance succeeds")
+    (when (:ok? issued)
+      (let [eb (:evaluation-basis (:result issued))]
+        (is (= state/evaluation-basis-schema (:artifact/schema eb)))
+        (is (contains? eb :position-time-index/root))
+        (is (= (:position-time-index/root (:material w))
+               (:position-time-index/root eb)))))))

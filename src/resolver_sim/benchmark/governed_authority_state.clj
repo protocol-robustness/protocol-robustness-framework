@@ -8,18 +8,20 @@
             [resolver-sim.benchmark.review-governance :as governance]
             [resolver-sim.benchmark.review-governance-evidence :as evidence]
             [resolver-sim.benchmark.governed-authority-resolution :as resolution]
+            [resolver-sim.benchmark.review-round :as rr]
+            [resolver-sim.signed-external-decision :as sed]
             [resolver-sim.hash.canonical :as hc]
             [resolver-sim.hash.reference :as ref]))
 
 (def ^:const envelope-schema "authoritative-state-envelope.v1")
 (def ^:const envelope-domain :authoritative-state-envelope-v1)
 
-(def ^:private envelope-fields
+(def envelope-fields
   #{:artifact/schema :chain-instance-genesis/root :execution/state-root
     :chain-configuration/root :review-governance/root
     :review-governance-activation/root :configuration-head/root
     :control-plane-evidence/root :publication/sequence
-    :publication/predecessor-root})
+    :publication/predecessor-root :position-time-index/root})
 
 (defn- root [value]
   (ref/sha256-ref
@@ -65,9 +67,13 @@
 
 (deftype AuthorityStateStore [state])
 
-(def ^:const signer-key-set-schema "governed-authority-signer-key-set.v1")
-
-(defn- freeze-data [value]
+(defn- freeze-data
+  "Recursively freeze a value into canonical-safe form, rejecting callbacks,
+    functions, and any non-canonical mutable/runtime objects. Maps are rebuilt
+    preserving key order; duplicate keys in the textual source are already
+    resolved by the reader, but duplicate entries in vectors are detected by
+    closed-shape validators on the bodies."
+  [value]
   (cond
     (or (nil? value) (boolean? value) (string? value) (keyword? value)
         (integer? value) (ratio? value)) value
@@ -80,48 +86,410 @@
 (defn- freeze-material [material]
   (freeze-data material))
 
-(defn signer-key-set-root [key-set]
-  (let [base (select-keys key-set [:artifact/schema :signer-key-set/keys])]
-    (when-not (and (= signer-key-set-schema (:artifact/schema base))
-                   (vector? (:signer-key-set/keys base)))
-      (throw (ex-info "governed signer-key-set is invalid" {})))
-    (ref/sha256-ref
-     (hc/domain-hash :governed-authority-signer-key-set-v1
-                     (hc/project-canonical-safe base)))))
+(def ^:const signer-key-set-schema "governed-authority-signer-key-set.v1")
+(def ^:const signer-key-algorithm :ed25519)
+
+(def ^:private signer-key-entry-fields
+  "Closed entry fields of a signer-key-set entry: researcher identity, signing-key
+    identity, algorithm, and public-key material. No path or alias is accepted —
+    only the material itself so that no externally resolved reference can enter
+    the canonical root."
+  #{:researcher/id :signing-key/id :signing-key/algorithm :signing-key/public-key})
+
+(def ^:private signer-key-set-fields
+  "Closed top-level shape of governed-authority-signer-key-set.v1."
+  #{:artifact/schema :signer-key-set/entries})
+
+(defn- validate-signer-key-entry
+  "Closed-shape validation for a single signer-key-set entry."
+  [entry]
+  (let [errors (atom [])
+        report! #(swap! errors conj %)]
+    (when-not (map? entry)
+      (report! "signer-key-set entry must be a map"))
+    (when (map? entry)
+      (let [have (set (keys entry))
+            extra (set/difference have signer-key-entry-fields)
+            missing (set/difference signer-key-entry-fields have)]
+        (when (seq extra)
+          (report! (str "signer-key entry has unknown keys: " (sort-by str extra))))
+        (when (seq missing)
+          (report! (str "signer-key entry missing keys: " (sort-by str missing))))
+        (when-not (string? (:researcher/id entry))
+          (report! ":researcher/id must be a string"))
+        (when-not (string? (:signing-key/id entry))
+          (report! ":signing-key/id must be a string"))
+        (when-not (= signer-key-algorithm (:signing-key/algorithm entry))
+          (report! (str ":signing-key/algorithm must be " signer-key-algorithm)))
+        (when-not (and (string? (:signing-key/public-key entry))
+                       (re-matches #"[0-9a-f]{64}" (:signing-key/public-key entry)))
+          (report! ":signing-key/public-key must be a 64-char lowercase hex string"))))
+    {:valid? (empty? @errors) :errors (vec @errors)}))
+
+(defn validate-signer-key-set
+  "Closed-shape validation for a signer-key-set: no unknown top-level keys,
+    each entry closed, unique researcher/key-pair enforcement (no duplicate
+    [researcher-id, signing-key-id] pairs)."
+  [key-set]
+  (let [errors (atom [])
+        report! #(swap! errors conj %)]
+    (when-not (map? key-set)
+      (report! "signer-key-set must be a map"))
+    (when (map? key-set)
+      (let [have (set (keys key-set))
+            extra (set/difference have signer-key-set-fields)
+            missing (set/difference signer-key-set-fields have)]
+        (when-not (= signer-key-set-schema (:artifact/schema key-set))
+          (report! (str "artifact/schema must be " signer-key-set-schema)))
+        (when (seq extra)
+          (report! (str "signer-key-set has unknown keys: " (sort-by str extra))))
+        (when (seq missing)
+          (report! (str "signer-key-set missing keys: " (sort-by str missing))))
+        (when-let [entries (:signer-key-set/entries key-set)]
+          (when-not (vector? entries)
+            (report! ":signer-key-set/entries must be a vector"))
+          (when (vector? entries)
+            (doseq [entry entries]
+              (let [entry-validation (validate-signer-key-entry entry)]
+                (when-not (:valid? entry-validation)
+                  (doseq [e (:errors entry-validation)]
+                    (report! (str "signer-key entry: " e))))))
+            (let [pairs (map (juxt :researcher/id :signing-key/id) entries)]
+              (when (not= (count pairs) (count (set pairs)))
+                (report! "signer-key-set has duplicate researcher/key-pair entries")))))))
+    {:valid? (empty? @errors) :errors (vec @errors)}))
+
+(defn signer-key-set-root
+  "Compute the canonical SHA-256 root of a governed-authority-signer-key-set.v1.
+
+    Validates strict closed-shape first (fail-closed); a caller-supplied
+    expected root may be passed as the second argument and is rejected on
+    mismatch."
+  ([key-set]
+   (let [validation (validate-signer-key-set key-set)]
+     (when-not (:valid? validation)
+       (throw (ex-info "governed signer-key-set is invalid"
+                       {:errors (:errors validation)})))
+     (let [base (select-keys key-set [:artifact/schema :signer-key-set/entries])]
+       (ref/sha256-ref
+        (hc/domain-hash :governed-authority-signer-key-set-v1
+                        (hc/project-canonical-safe base))))))
+  ([key-set expected]
+   (let [computed (signer-key-set-root key-set)]
+     (when (and (some? expected) (not= computed expected))
+       (throw (ex-info "caller-supplied signer-key-set root does not match computed root"
+                       {:type :signer-key-set/root-mismatch
+                        :declared expected
+                        :computed computed})))
+     computed)))
 
 (def ^:const review-round-material-domain :governed-authority-review-round-v1)
+(def ^:const review-round-material-schema rr/governed-schema-version)
+
+(def ^:private review-round-material-fields
+  "Closed field set of the authenticated review-round body. Includes the full
+   governed-round projection required by rr/governed-round?: chain-configuration
+   root, governance root, epoch, constitution time, policy id and hash, plus the
+   base identity fields and the schema version."
+  #{:artifact/schema :benchmark/content-root :review-round/members
+    :review-round/membership-frozen-at :review-round/policy-root
+    :review-round/purpose
+    :review-round/chain-configuration-root :review-round/governance-root
+    :review-round/governance-epoch :review-round/constituted-at
+    :review-round/policy-id :review-round/policy-hash})
+
+(defn- validate-review-round-material
+  "Closed-shape validation for the review-round body: rejects unknown top-level
+     keys, missing required keys, and wrong schema version."
+  [round]
+  (let [errors (atom [])
+        report! #(swap! errors conj %)]
+    (when-not (map? round)
+      (report! "review-round material must be a map"))
+    (when (map? round)
+      (let [have (set (keys round))
+            extra (set/difference have review-round-material-fields)
+            missing (set/difference review-round-material-fields have)]
+        (when-not (= review-round-material-schema (:artifact/schema round))
+          (report! (str ":artifact/schema must be " review-round-material-schema)))
+        (when (seq extra)
+          (report! (str "review-round material has unknown keys: " (sort-by str extra))))
+        (when (seq missing)
+          (report! (str "review-round material missing keys: " (sort-by str missing))))))
+    {:valid? (empty? @errors) :errors (vec @errors)}))
 
 (defn review-round-material-root
   "Canonical store-level root of an authenticated review-round body. Commits
-   the round identity projection as a canonical sha256 reference so the root
-   representation matches every other material root."
+     the full governed-round identity projection as a canonical sha256
+     reference so the root representation matches every other material root.
+     Uses rr/round-identity-input to produce the v2 governance-aware projection.
+     Validates strict closed-shape first (fail-closed)."
   [round]
   (when-not (map? round)
     (throw (ex-info "governed review-round material is invalid" {})))
-  (let [base (select-keys round [:benchmark/content-root
-                                 :review-round/members
-                                 :review-round/membership-frozen-at
-                                 :review-round/policy-root
-                                 :review-round/purpose])]
-    (ref/sha256-ref
-     (hc/domain-hash review-round-material-domain
-                     (hc/project-canonical-safe base)))))
+  (let [validation (validate-review-round-material round)]
+    (when-not (:valid? validation)
+      (throw (ex-info "governed review-round material is invalid"
+                      {:type :review-round-material/invalid
+                       :errors (:errors validation)})))
+    (let [identity-input (rr/round-identity-input round (:review-round/members round))]
+      (ref/sha256-ref
+       (hc/domain-hash review-round-material-domain
+                       (hc/project-canonical-safe identity-input))))))
+
+;; ── Canonical position-time index artifact ──────────────────────────
+
+(def ^:const position-time-index-schema "governed-authority-position-time-index.v1")
+(def ^:const position-time-index-domain :governed-authority-position-time-index-v1)
+
+(def ^:private position-time-index-entry-fields
+  "Closed entry fields: committed position root, acceptance root, and accepted
+    time. The mapping is from position-root to (acceptance-root, accepted-at)."
+  #{:position/root :review-position-acceptance/root :position-time/accepted-at})
+
+(def ^:private position-time-index-fields
+  "Closed top-level shape of governed-authority-position-time-index.v1.
+    Cross-references the existing position-time-basis commitment and the
+    review-round identity so the index cannot drift from the frozen round."
+  #{:artifact/schema :position-time-basis/root :review-round/root
+    :position-time-index/entries})
+
+(defn- validate-position-time-index-entry [entry]
+  (let [errors (atom [])
+        report! #(swap! errors conj %)]
+    (when-not (map? entry)
+      (report! "position-time-index entry must be a map"))
+    (when (map? entry)
+      (let [have (set (keys entry))
+            extra (set/difference have position-time-index-entry-fields)
+            missing (set/difference position-time-index-entry-fields have)]
+        (when (seq extra)
+          (report! (str "position-time-index entry has unknown keys: " (sort-by str extra))))
+        (when (seq missing)
+          (report! (str "position-time-index entry missing keys: " (sort-by str missing))))
+        (when-not (ref/valid-sha256-ref? (:position/root entry))
+          (report! ":position/root must be a valid sha256 reference"))
+        (when-not (ref/valid-sha256-ref? (:review-position-acceptance/root entry))
+          (report! ":review-position-acceptance/root must be a valid sha256 reference"))
+        (when-not (integer? (:position-time/accepted-at entry))
+          (report! ":position-time/accepted-at must be an integer"))))
+    {:valid? (empty? @errors) :errors (vec @errors)}))
+
+(defn validate-position-time-index
+  "Closed-shape validation for a position-time index: no unknown top-level keys,
+    entry fields closed, unique position roots, and cross-reference roots are
+    valid sha256 references."
+  [index]
+  (let [errors (atom [])
+        report! #(swap! errors conj %)]
+    (when-not (map? index)
+      (report! "position-time-index must be a map"))
+    (when (map? index)
+      (let [have (set (keys index))
+            extra (set/difference have position-time-index-fields)
+            missing (set/difference position-time-index-fields have)]
+        (when-not (= position-time-index-schema (:artifact/schema index))
+          (report! (str "artifact/schema must be " position-time-index-schema)))
+        (when (seq extra)
+          (report! (str "position-time-index has unknown keys: " (sort-by str extra))))
+        (when (seq missing)
+          (report! (str "position-time-index missing keys: " (sort-by str missing))))
+        (when-not (ref/valid-sha256-ref? (:position-time-basis/root index))
+          (report! ":position-time-basis/root must be a valid sha256 reference"))
+        (when-not (ref/valid-sha256-ref? (:review-round/root index))
+          (report! ":review-round/root must be a valid sha256 reference"))
+        (when-let [entries (:position-time-index/entries index)]
+          (when-not (vector? entries)
+            (report! ":position-time-index/entries must be a vector"))
+          (when (vector? entries)
+            (doseq [entry entries]
+              (let [entry-validation (validate-position-time-index-entry entry)]
+                (when-not (:valid? entry-validation)
+                  (doseq [e (:errors entry-validation)]
+                    (report! (str "position-time-index entry: " e))))))
+            (let [position-roots (map :position/root entries)]
+              (when (not= (count position-roots) (count (set position-roots)))
+                (report! "position-time-index has duplicate position roots")))))))
+    {:valid? (empty? @errors) :errors (vec @errors)}))
+
+(defn position-time-index-root
+  "Compute the canonical SHA-256 root of a governed-authority-position-time-index.v1.
+    Validates strict closed-shape first (fail-closed); a caller-supplied
+    expected root may be passed as the second argument and is rejected on
+    mismatch."
+  ([index]
+   (let [validation (validate-position-time-index index)]
+     (when-not (:valid? validation)
+       (throw (ex-info "governed position-time-index is invalid"
+                       {:errors (:errors validation)})))
+     (let [base (select-keys index [:artifact/schema :position-time-basis/root
+                                    :review-round/root :position-time-index/entries])]
+       (ref/sha256-ref
+        (hc/domain-hash position-time-index-domain
+                        (hc/project-canonical-safe base))))))
+  ([index expected]
+   (let [computed (position-time-index-root index)]
+     (when (and (some? expected) (not= computed expected))
+       (throw (ex-info "caller-supplied position-time-index root does not match computed root"
+                       {:type :position-time-index/root-mismatch
+                        :declared expected
+                        :computed computed})))
+     computed)))
+
+;; ── Governance eligibility cross-check ────────────────────────────────
+
+(defn signer-key-eligible-in-governance?
+  "Verify that every signer-key-set entry is governance-eligible under the
+    frozen governance body: each researcher id is a known governed member, each
+    signing-key id is an active eligible key for that member's principal.
+    Returns {:eligible? bool :errors [...]}."
+  [key-set governance]
+  (let [errors (atom [])
+        report! #(swap! errors conj %)]
+    (when-not (map? key-set)
+      (report! "signer-key-set must be a map"))
+    (when-not (map? governance)
+      (report! "governance body must be a map"))
+    (when (and (map? key-set) (map? governance))
+      (when-let [valid (seq (:signer-key-set/entries key-set))]
+        (doseq [entry valid]
+          (let [researcher-id (:researcher/id entry)
+                key-id (:signing-key/id entry)]
+            (when-not (governance/principal-by-id governance researcher-id)
+              (report! (str "researcher " researcher-id " is not a known principal in governance")))
+            (when-not (governance/position-key-valid? governance researcher-id key-id)
+              (report! (str "signing-key " key-id " is not eligible for researcher " researcher-id)))))))
+    {:eligible? (empty? @errors) :errors (vec @errors)}))
+
+;; ── Store-derived lookups (no caller-supplied keys) ──────────────────
+
+(defn lookup-signing-public-key
+  "Store-derived public-key lookup only. Looks up the public key material for a
+    given researcher-id and signing-key-id from the frozen signer-key-set body.
+    Returns the hex public-key string or nil when no match exists."
+  [signer-key-set researcher-id signing-key-id]
+  (some->> (:signer-key-set/entries signer-key-set)
+           (some (fn [entry]
+                   (when (and (= (:researcher/id entry) researcher-id)
+                              (= (:signing-key/id entry) signing-key-id))
+                     (:signing-key/public-key entry))))))
+
+(defn lookup-position-acceptance-time
+  "Store-derived time lookup only. Looks up the accepted-at time for a given
+    position root from the frozen position-time-index body. Returns the integer
+     timestamp or nil when no match exists."
+  [position-time-index position-root]
+  (some->> (:position-time-index/entries position-time-index)
+           (some (fn [entry]
+                   (when (= (:position/root entry) position-root)
+                     (:position-time/accepted-at entry))))))
+
+;; ── B3 signature verification (signer-key-set entry-driven) ─────────────
+
+(defn- verify-decision-signature-with-entries
+  "Verify a single decision reference's signature against a signer-key-set entry.
+
+   signer-key-set — the frozen governed-authority-signer-key-set.v1 body
+     (with :signer-key-set/entries)
+   decision-ref   — the decision reference map containing
+     :researcher/id, :signing-key/id, :decision/hash, and :signature
+
+   The public key is looked up directly from the signer-key-set entries by
+   [researcher-id, signing-key-id]. Fails closed when the key is not found
+   or the signature does not verify."
+  [signer-key-set decision-ref]
+  (let [researcher-id (:researcher/id decision-ref)
+        key-id (:signing-key/id decision-ref)
+        public-key-hex (lookup-signing-public-key signer-key-set researcher-id key-id)]
+    (cond
+      (nil? public-key-hex)
+      {:valid? false :reason (str "signer-key not found for researcher " researcher-id " key " key-id)}
+
+      (not= signer-key-algorithm (:signing-key/algorithm
+                                  (some #(when (and (= (:researcher/id %) researcher-id)
+                                                    (= (:signing-key/id %) key-id)) %)
+                                        (:signer-key-set/entries signer-key-set))))
+      {:valid? false :reason "signing-key algorithm mismatch"}
+
+      :else
+      (let [stripped-hash (subs (:decision/hash decision-ref) (count "sha256:"))
+            sig-value (get-in decision-ref [:signature :value])]
+        (if (sed/ed25519-verify-bytes
+             (.getBytes stripped-hash) sig-value public-key-hex)
+          {:valid? true}
+          {:valid? false :reason "signature does not verify"})))))
+
+(defn verify-decision-signatures-with-singer-key-set
+  "Verify signatures for all decision references using the B3 signer-key-set.
+
+   Replaces the legacy `public-key-resolver` approach with direct entry
+   lookup from the frozen signer-key-set body. Returns:
+     {:valid? bool
+      :results [{:researcher/id ... :signing-key/id ... :valid? bool :reason str}]}."
+  [signer-key-set authorisation]
+  (let [results (mapv
+                 (fn [d]
+                   (let [r (verify-decision-signature-with-entries signer-key-set d)]
+                     (merge {:researcher/id (:researcher/id d)
+                             :signing-key/id (:signing-key/id d)}
+                            r)))
+                 (:authorisation/decision-references authorisation))]
+    {:valid? (every? :valid? results)
+     :results results}))
+
+;; ── B3 governed-authority evaluator entry point ──────────────────────────
+
+(defn evaluate-authority-with-frozen-material
+  "Governed-authority evaluator entry point that derives all lookup functions
+   internally from frozen authority material.
+
+   Consumes:
+     {:review-round full-governed-round
+      :review-governance ...
+      :position-time-index ...
+      :signer-key-set ...}
+
+   Derives:
+   - researcher-public-key-resolver: (researcher-id signing-key-id) -> hex public key
+   - position-time-resolver: position-root -> accepted-at integer
+   - governance-current?: always true (frozen material is assumed current)
+
+   Delegates to `resolver-sim.assurance.three-member-authority/evaluate-governed-authority`
+   with internally-derived resolvers, replacing the legacy external key resolver
+   boundary."
+  [{:keys [review-round review-governance position-time-index signer-key-set]}]
+  {:pre [(map? review-round) (map? review-governance)
+         (map? position-time-index) (map? signer-key-set)]}
+  (let [signature-valid?
+        (fn [position]
+          (let [result (verify-decision-signature-with-entries
+                        signer-key-set
+                        position)]
+            (:valid? result)))]
+    ((ns-resolve (find-ns 'resolver-sim.assurance.three-member-authority)
+                 'evaluate-governed-authority)
+     :review-round review-round
+     :governance review-governance
+     :governance-current? (fn [_ _] true)
+     :signature-valid? signature-valid?)))
 
 (def ^:const evaluation-basis-schema "governed-authority-evaluation-basis.v1")
 
 (def ^:const evaluation-basis-fields
   #{:resolved-review-authority-context/root :review-round/root
-    :review-governance/root :position-time-basis/root :signer-key-set/root})
+    :review-governance/root :position-time-basis/root
+    :position-time-index/root :signer-key-set/root})
 
 (defn evaluation-basis
   "Join the resolved semantic authority context with the authenticated
-   verification/key basis. The join is versioned and domain-separated so
-   historical evidence can name the exact evaluation basis that justified a
-   decision instead of relying on a transient store registry."
+    verification/key basis. The join is versioned and domain-separated so
+    historical evidence can name the exact evaluation basis that justified a
+    decision instead of relying on a transient store registry."
   [parts]
   (let [base (select-keys parts [:resolved-review-authority-context/root
                                  :review-round/root :review-governance/root
-                                 :position-time-basis/root :signer-key-set/root])]
+                                 :position-time-basis/root :position-time-index/root
+                                 :signer-key-set/root])]
     (when-not (and (= (count base) (count evaluation-basis-fields))
                    (every? #(ref/valid-sha256-ref? (get base %))
                            evaluation-basis-fields))
@@ -134,20 +502,59 @@
               (hc/domain-hash :governed-authority-evaluation-basis-v1
                               (hc/project-canonical-safe schema-base)))))))
 
-(defn- authenticated-material? [material]
-  (and (map? material)
-       (map? (:authority-material/review-round material))
-       (map? (:authority-material/review-governance material))
-       (map? (:authority-material/position-time-basis material))
-       (map? (:authority-material/signer-key-set material))
-       (= (:review-round/root material)
-          (review-round-material-root (:authority-material/review-round material)))
-       (= (:review-governance/root material)
-          (governance/governance-root (:authority-material/review-governance material)))
-       (= (:position-time-basis/root material)
-          (evidence/position-time-basis-root (:authority-material/position-time-basis material)))
-       (= (:signer-key-set/root material)
-          (signer-key-set-root (:authority-material/signer-key-set material)))))
+(def ^:private authority-material-fields
+  "Closed top-level field set of authenticated authority material.
+    Root fields commit the material bodies; authority-material/* fields carry
+    the frozen bodies themselves.  Unknown keys are rejected."
+  #{:chain-instance-genesis/root :chain-configuration/root
+    :review-governance/root :review-governance-activation/root
+    :control-plane-evidence/root :review-governance-admissibility/root
+    :review-round/hash :review-round/root
+    :position-time-basis/root :position-time-index/root
+    :signer-key-set/root
+    :authority-material/review-round :authority-material/review-governance
+    :authority-material/position-time-index :authority-material/signer-key-set})
+
+(defn- authenticated-material?
+  "Closed-shape gate on authority material: no unknown top-level keys, all bodies
+    present and closed-validated, all declared roots recomputed and matched,
+    eligibility cross-checked, and position-time-index roots bound to the
+    frozen basis and round."
+  [material]
+  (let [have (if (map? material) (set (keys material)) #{})
+        extra (set/difference have authority-material-fields)]
+    (and (map? material)
+         (empty? extra)
+         (every? #(contains? have %) authority-material-fields)
+         (map? (:authority-material/review-round material))
+         (map? (:authority-material/review-governance material))
+         (map? (:authority-material/position-time-index material))
+         (map? (:authority-material/signer-key-set material))
+         (:valid? (validate-review-round-material
+                   (:authority-material/review-round material)))
+         (:valid? (governance/validate-governance
+                   (:authority-material/review-governance material)))
+         (:valid? (validate-position-time-index
+                   (:authority-material/position-time-index material)))
+         (:valid? (validate-signer-key-set
+                   (:authority-material/signer-key-set material)))
+         (:eligible? (signer-key-eligible-in-governance?
+                      (:authority-material/signer-key-set material)
+                      (:authority-material/review-governance material)))
+         (= (:signer-key-set/root material)
+            (signer-key-set-root (:authority-material/signer-key-set material)))
+         (= (:review-governance/root material)
+            (governance/governance-root (:authority-material/review-governance material)))
+         (= (:review-round/root material)
+            (review-round-material-root (:authority-material/review-round material)))
+         (= (:position-time-index/root material)
+            (position-time-index-root (:authority-material/position-time-index material)))
+         (= (:position-time-basis/root material)
+            (get-in (:authority-material/position-time-index material)
+                    [:position-time-basis/root]))
+         (= (:review-round/root material)
+            (get-in (:authority-material/position-time-index material)
+                    [:review-round/root])))))
 
 (defn- require-authenticated-material!
   "The single publication gate shared by initial construction and every
@@ -233,7 +640,8 @@
       (not (every? true? [(= (:chain-configuration/root envelope) (:chain-configuration/root material))
                           (= (:review-governance/root envelope) (:review-governance/root material))
                           (= (:review-governance-activation/root envelope) (:review-governance-activation/root material))
-                          (= (:control-plane-evidence/root envelope) (:control-plane-evidence/root material))]))
+                          (= (:control-plane-evidence/root envelope) (:control-plane-evidence/root material))
+                          (= (:position-time-index/root envelope) (:position-time-index/root material))]))
       {:resolved? false :reason :authority-state-membership-unproven}
       :else {:resolved? true
              :context (resolution/build-resolved-context
@@ -248,6 +656,7 @@
                         :review-round/hash (:review-round/hash material)
                         :review-round/root (:review-round/root material)
                         :position-time-basis/root (:position-time-basis/root material)
+                        :position-time-index/root (:position-time-index/root material)
                         :review-governance-admissibility/root (:review-governance-admissibility/root material)})})))
 
 (defn resolve-authority-material
@@ -270,6 +679,7 @@
                                  :review-round/root (:review-round/root context)
                                  :review-governance/root (:review-governance/root context)
                                  :position-time-basis/root (:position-time-basis/root context)
+                                 :position-time-index/root (:position-time-index/root context)
                                  :signer-key-set/root (:signer-key-set/root material)})
               fence-id (str (java.util.UUID/randomUUID))
               record {:authority-state-envelope/root (:authority-state/root context)
@@ -280,6 +690,7 @@
                       :review-round/root (:review-round/root context)
                       :review-governance/root (:review-governance/root context)
                       :position-time-basis/root (:position-time-basis/root context)
+                      :position-time-index/root (:position-time-index/root context)
                       :signer-key-set/root (:signer-key-set/root material)
                       :authority-evaluation-basis/root (:authority-evaluation-basis/root evaluation-basis)
                       :purpose :current-admission :status :issued}]
