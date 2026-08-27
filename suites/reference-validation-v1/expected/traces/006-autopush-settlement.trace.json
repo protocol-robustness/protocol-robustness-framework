@@ -154,7 +154,7 @@
    "resolution_actor":"resolver",
    "authorized_participant":true},
   "timing":{"auto_cancel_triggered":false}},
- "trace_kind":["dispute-resolution"],
+ "trace_kind":["dispute-resolution", "authorization"],
  "terminal_projection_hash":
  "3b6050d86aa564e9b3320d853e27200cfeaddc405bc8a0b00f79fffe90f9bebc",
  "appeal_window_duration":0,

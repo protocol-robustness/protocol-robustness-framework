@@ -221,7 +221,7 @@
    "resolution_actor":"resolver",
    "authorized_participant":true},
   "timing":{"auto_cancel_triggered":false}},
- "trace_kind":["dispute-resolution", "adversarial"],
+ "trace_kind":["dispute-resolution", "authorization", "adversarial"],
  "terminal_projection_hash":
  "acb4e0265cf3331b9c2c63a4d3e426e15ddb001d8c132a85426f6d27559cb26a",
  "appeal_window_duration":0,
