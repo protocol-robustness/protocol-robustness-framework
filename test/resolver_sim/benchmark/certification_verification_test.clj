@@ -118,6 +118,58 @@
       (is (= :fail (get-in r [:checks :claim-closure]))
           "closure must reject a :fail required claim under the default profile"))))
 
+(deftest duplicate-required-claim-with-failing-outcome-fails-closure
+  (testing "every scenario-scoped evaluation for a required claim must be permitted"
+    (let [manifest (make-manifest)
+          claims [{:claim/id :claim/a :claim/outcome :pass
+                   :claim/scope :scenario :scenario/id "S1"}
+                  {:claim/id :claim/a :claim/outcome :fail
+                   :claim/scope :scenario :scenario/id "S2"}]
+          evidence (make-evidence :manifest manifest
+                                  :certification (make-cert manifest claims)
+                                  :claim-results claims)
+          result (cv/verify-benchmark-certification evidence)]
+      (is (false? (:verified? result)))
+      (is (= :fail (get-in result [:checks :claim-closure])))
+      (is (= [{:claim/id :claim/a :claim/outcome :fail
+               :claim/scope :scenario :scenario/id "S2"}]
+             (get-in (some #(when (= :claim-closure (:check/id %)) %)
+                           (:failures result))
+                     [:check/reason :rejected]))))))
+
+(deftest required-claim-with-nil-outcome-fails-closure
+  (testing "nil and unknown outcomes are not implicitly permitted"
+    (let [manifest (make-manifest)
+          claims [{:claim/id :claim/a :claim/outcome nil
+                   :claim/scope :scenario :scenario/id "S1"}]
+          evidence (make-evidence :manifest manifest
+                                  :certification (make-cert manifest claims)
+                                  :claim-results claims)
+          result (cv/verify-benchmark-certification evidence)]
+      (is (false? (:verified? result)))
+      (is (= :fail (get-in result [:checks :claim-closure])))
+      (is (= [{:claim/id :claim/a :claim/outcome nil
+               :claim/scope :scenario :scenario/id "S1"}]
+             (get-in (some #(when (= :claim-closure (:check/id %)) %)
+                           (:failures result))
+                     [:check/reason :rejected]))))))
+
+(deftest duplicate-permitted-required-claim-outcomes-remain-valid
+  (testing "scenario-scoped duplicates remain valid when each outcome is explicitly permitted"
+    (let [manifest (make-manifest)
+          claims [{:claim/id :claim/a :claim/outcome :not-applicable
+                   :claim/scope :scenario :scenario/id "S1"}
+                  {:claim/id :claim/a :claim/outcome :not-applicable
+                   :claim/scope :scenario :scenario/id "S2"}]
+          evidence (make-evidence :manifest manifest
+                                  :certification (make-cert manifest claims)
+                                  :claim-results claims)
+          permissive (assoc-in cv/default-verification-profile
+                               [:profile/claim-outcome-acceptance :not-applicable] :permit)
+          result (cv/verify-benchmark-certification evidence permissive)]
+      (is (true? (:verified? result)))
+      (is (= :pass (get-in result [:checks :claim-closure]))))))
+
 (deftest removing-a-required-claim-fails-verification
   (testing "a required claim that vanishes from the results is detected (no count masking)"
     (let [manifest (make-manifest [:claim/a :claim/b])

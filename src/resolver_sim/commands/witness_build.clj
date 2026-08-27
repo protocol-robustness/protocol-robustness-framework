@@ -181,7 +181,13 @@
             scenario-chain (let [records (vals (:evidence-index/by-content-hash raw-index))]
                              (chain/verify-scenario-chain records))
             chain-valid? (= :verified (:chain/status scenario-chain))
-            chain-head (when chain-valid? (:chain/head-hash scenario-chain))
+            registry-membership (wv/verified-scenario-chain-membership scenario-chain registry)
+            _ (when-not (:evidence-chain/membership-valid? registry-membership)
+                (throw (ex-info "Witness build rejected: verified scenario-chain evidence is missing from registry"
+                                {:chain-status (:chain/status scenario-chain)
+                                 :missing-registry-hashes
+                                 (:evidence-chain/missing-registry-hashes registry-membership)})))
+            chain-head (:chain/head-hash scenario-chain)
             final-index (wv/finalise-evidence-index raw-index (:registry-hash registry) chain-head)
             evidence-map (:evidence-index/by-content-hash raw-index)
             step-ev-types (:step-evidence-types adapter)

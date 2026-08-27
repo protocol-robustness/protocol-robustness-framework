@@ -129,6 +129,22 @@
            (tamper! root) (is (false? (get-in (verify/verify! root) ["checks" check])) label)
            (finally (delete-tree! root))))))
 
+(deftest verifier-rejects-conclusion-overclaim-and-sealed-evidence-mutation
+  (testing "conclusion outcome must reconcile with derived evidence status"
+    (let [root (temp-root)]
+      (try
+        (fixture! root)
+        (write-json! (io/file root "benchmark/conclusion.json") {"outcome" "fail"})
+        (is (false? (get-in (verify/verify! root) ["checks" "conclusion-semantic-outcome"])))
+        (finally (delete-tree! root)))))
+  (testing "mutating sealed evidence is rejected by its package binding"
+    (let [root (temp-root)]
+      (try
+        (fixture! root)
+        (spit (io/file root "benchmark/evidence/evidence.edn") "{:tampered true}")
+        (is (false? (get-in (verify/verify! root) ["checks" "completion-first-package-index"])))
+        (finally (delete-tree! root))))))
+
 (deftest verifier-detected-creation-provenance-commitment
   (testing "positive: valid fixture passes creation-provenance commitment"
     (let [root (temp-root)]

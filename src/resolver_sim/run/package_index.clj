@@ -14,6 +14,7 @@
             [resolver-sim.commands.run-lifecycle :as lifecycle]
             [resolver-sim.commands.scenario-value-at-risk :as value-at-risk]
             [resolver-sim.commands.scenario-manifest :as scenario-manifest]
+            [resolver-sim.commands.benchmark-conclusion :as benchmark-conclusion]
             [resolver-sim.evidence.finalization :as finalization]
             [resolver-sim.evidence.node :as evidence-node]
             [resolver-sim.forensic.execution-dag :as execution-dag]
@@ -1024,15 +1025,70 @@
 (defn validate-runnability [run-root]
   (validate-runnability-from-context (resolve-validation-context run-root)))
 
+(defn- benchmark-semantic-report
+  "Derive benchmark semantics from completion-sealed artifact references, then
+   reconcile optional completion status and the conclusion declaration."
+  [run-root completion index]
+  (let [artifacts (:artifacts index)
+        evidence-file (when-let [ref (get-in artifacts [:benchmark-evidence :ref])]
+                        (contained-file (str run-root) ref))
+        conclusion-file (when-let [ref (get-in artifacts [:benchmark-conclusion :ref])]
+                          (contained-file (str run-root) ref))
+        evidence (try
+                   (when (and evidence-file (.isFile evidence-file))
+                     (edn/read-string (slurp evidence-file)))
+                   (catch Exception _ nil))
+        conclusion (try
+                     (when (and conclusion-file (.isFile conclusion-file))
+                       (json/read-str (slurp conclusion-file)))
+                     (catch Exception _ nil))
+        derived (when evidence (benchmark-conclusion/derive-semantic-status evidence))
+        declared-completion (get completion "semantic_status")
+        declared-conclusion (get conclusion "outcome")
+        reasons (vec (concat
+                      (when-not evidence
+                        [(reason :package/benchmark-evidence-unreadable)])
+                      (when-not derived
+                        [(reason :package/benchmark-semantic-undetermined)])
+                      (when-not (string? declared-conclusion)
+                        [(reason :package/benchmark-conclusion-outcome-missing)])
+                      (when (and derived (string? declared-conclusion)
+                                 (not= derived declared-conclusion))
+                        [(reason :package/benchmark-conclusion-semantic-mismatch
+                                 :derived derived :declared declared-conclusion)])
+                      ;; Older completion records may omit this redundant field.
+                      ;; Its absence does not replace the evidence-derived result,
+                      ;; but a supplied value must reconcile with it.
+                      (when (and (contains? completion "semantic_status") derived
+                                 (not= derived declared-completion))
+                        [(reason :package/completion-semantic-mismatch
+                                 :derived derived :declared declared-completion)])))]
+    {:derived-semantic-status derived
+     :declared-completion-status declared-completion
+     :declared-conclusion-status declared-conclusion
+     :valid? (empty? reasons)
+     :reasons reasons}))
+
 (defn validate-semantic-result [run-root]
   (let [ctx (resolve-validation-context run-root)
-        data (:completion ctx)
-        pass? (= "pass" (get data "semantic_status"))
+        index (get-in ctx [:package-index :index])
+        benchmark? (= :benchmark (:run/type index))
+        report (when (and benchmark? (empty? (:reasons ctx)))
+                 (benchmark-semantic-report run-root (:completion ctx) index))
+        derived-status (if benchmark?
+                         (:derived-semantic-status report)
+                         (get-in ctx [:completion "semantic_status"]))
+        pass? (= "pass" derived-status)
         reasons (vec (concat (:reasons ctx)
-                             (when (and (empty? (:reasons ctx)) (not pass?))
+                             (:reasons report)
+                             (when (and (empty? (:reasons ctx))
+                                        (not pass?))
                                [(reason :package/semantic-not-pass
-                                        :actual (get data "semantic_status"))])))]
-    {:semantic-pass? (and (empty? reasons) pass?) :reasons reasons}))
+                                        :actual derived-status)])))]
+    {:semantic-pass? (and (empty? reasons) pass?)
+     :derived-semantic-status derived-status
+     :semantic-report report
+     :reasons reasons}))
 
 (defn validate-release-eligibility [run-root]
   (let [ctx (resolve-validation-context run-root)

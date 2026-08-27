@@ -10,6 +10,7 @@
    skipped or return :not-run when their dependencies fail."
   (:require [clojure.java.io :as io]
             [clojure.data.json :as json]
+            [clojure.set :as set]
             [resolver-sim.hash.canonical :as hc]
             [resolver-sim.assurance.trust-sequence-definition :as tsd]
             [resolver-sim.assurance.procedure-evidence :as pev]
@@ -347,9 +348,27 @@
      :evidence-index/all-chain-self-hashes all-self-hashes
      :evidence-index/status :unverified}))
 
+(defn verified-scenario-chain-membership
+  "Derive registry membership from a verified scenario chain.
+
+   Only chain records accepted by `verify-scenario-chain` contribute membership.
+   This prevents a self-consistent registry from authorising a witness when it
+   omits evidence that is present in the verified scenario chain."
+  [scenario-chain evidence-registry]
+  (let [chain-verified? (= :verified (:chain/status scenario-chain))
+        chain-hashes (set (:chain/reachable-hashes scenario-chain))
+        registry-hashes (set (:evidence-hashes evidence-registry))
+        missing-hashes (set/difference chain-hashes registry-hashes)]
+    {:evidence-chain/membership-valid? (and chain-verified? (empty? missing-hashes))
+     :evidence-chain/chain-hashes chain-hashes
+     :evidence-chain/registry-hashes registry-hashes
+     :evidence-chain/missing-registry-hashes missing-hashes}))
+
 (defn finalise-evidence-index
   "Mark an evidence index as chain-verified and annotate with chain metadata.
-   Returns an evidence-index with :evidence-index/status :chain-verified."
+   Call only after the verified scenario-chain records have been shown to be
+   registered. Returns an evidence-index with :evidence-index/status
+   :chain-verified."
   [evidence-index registry-root chain-head]
   (assoc evidence-index
          :evidence-index/status :chain-verified
@@ -391,8 +410,12 @@
 
         chain-valid? (= :verified (:chain/status scenario-chain))
         chain-head (when chain-valid? (:chain/head-hash scenario-chain))
+        registry-membership (verified-scenario-chain-membership scenario-chain evidence-registry)
+        membership-valid? (:evidence-chain/membership-valid? registry-membership)
         registry-root (:registry-hash evidence-registry)
-        final-index (finalise-evidence-index raw-index registry-root chain-head)
+        final-index (if (and registry-valid? membership-valid?)
+                      (finalise-evidence-index raw-index registry-root chain-head)
+                      raw-index)
 
         ;; Run pure witness verifier
         witness-result (verify-witness witness definition final-index
@@ -410,7 +433,14 @@
                               :chain-head chain-head
                               :reachable-hashes (:chain/reachable-hashes scenario-chain))
                         (fail :evidence-chain/chain-invalid
-                              (pr-str (:chain/errors scenario-chain))))]
+                              (pr-str (:chain/errors scenario-chain))))
+                      (if membership-valid?
+                        (pass :evidence-chain/verified-chain-records-registered
+                              :chain-hashes (:evidence-chain/chain-hashes registry-membership))
+                        (fail :evidence-chain/verified-chain-records-missing-from-registry
+                              (str "verified chain hashes missing from registry: "
+                                   (:evidence-chain/missing-registry-hashes registry-membership))
+                              :missing-hashes (:evidence-chain/missing-registry-hashes registry-membership)))]
 
         all-checks (vec (concat chain-checks (:checks witness-result)))
         failures (filter #(= :fail (:check/status %)) all-checks)]

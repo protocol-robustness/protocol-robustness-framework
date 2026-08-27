@@ -3,9 +3,10 @@
 
    Two graph types are supported:
 
-   **Evidence chains** (linear hash chains):
-     A chain has a vector of `:reachable-hashes` — the hashes reachable from
-     the chain head.  A hash is reachable if it appears in that vector.
+   **Evidence-chain inventories**:
+     `:chain/reachable-hashes` is an inventory of hashes, not proof of a chain
+     head, tail, ordering, or link reachability. A hash is present when it
+     appears in that inventory.
 
    **Execution DAGs** (directed acyclic graphs):
      A DAG has `:dag/nodes` and `:dag/edges`.  A node is reachable from
@@ -73,34 +74,44 @@
 
 ;; ── DAG reachability ─────────────────────────────────────────────────────────
 
-(defn- build-adjacency
-  "Build {node-id #{child-ids}} from DAG edges.
-   Accepts a DAG map or a raw edge vector.
-   Returns a map (possibly empty)."
+(defn- dag-edges-for-traversal
+  "Return edges eligible for traversal.
+
+   A map-form DAG that declares `:dag/nodes` traverses only edges whose
+   endpoints are declared nodes. This keeps malformed ghost endpoints from
+   creating utility reachability paths; `dag-structural-errors` still reports
+   those malformed edges. A raw edge vector remains an explicitly unvalidated
+   traversal utility and therefore uses every supplied edge."
   [dag-or-edges]
   (let [edges (cond
                 (nil? dag-or-edges) []
                 (:dag/edges dag-or-edges) (:dag/edges dag-or-edges)
                 (sequential? dag-or-edges) dag-or-edges
                 :else [])]
-    (reduce (fn [m {:edge/keys [from to]}]
-              (-> m
-                  (update from (fnil conj #{}) to)))
-            {} edges)))
+    (if (and (map? dag-or-edges) (contains? dag-or-edges :dag/nodes))
+      (let [declared-ids (set (map :node/id (:dag/nodes dag-or-edges)))]
+        (filter #(and (contains? declared-ids (:edge/from %))
+                      (contains? declared-ids (:edge/to %)))
+                edges))
+      edges)))
+
+(defn- build-adjacency
+  "Build {node-id #{child-ids}} from eligible DAG edges.
+   Map-form DAGs traverse only declared endpoints; raw edge vectors are
+   explicitly unvalidated utility input. Returns a map (possibly empty)."
+  [dag-or-edges]
+  (reduce (fn [m {:edge/keys [from to]}]
+            (update m from (fnil conj #{}) to))
+          {} (dag-edges-for-traversal dag-or-edges)))
 
 (defn- build-adjacency-bidi
   "Like build-adjacency but also adds reverse edges (undirected traversal)."
   [dag-or-edges]
-  (let [edges (cond
-                (nil? dag-or-edges) []
-                (:dag/edges dag-or-edges) (:dag/edges dag-or-edges)
-                (sequential? dag-or-edges) dag-or-edges
-                :else [])]
-    (reduce (fn [m {:edge/keys [from to]}]
-              (-> m
-                  (update from (fnil conj #{}) to)
-                  (update to (fnil conj #{}) from)))
-            {} edges)))
+  (reduce (fn [m {:edge/keys [from to]}]
+            (-> m
+                (update from (fnil conj #{}) to)
+                (update to (fnil conj #{}) from)))
+          {} (dag-edges-for-traversal dag-or-edges)))
 
 (defn- bfs-reachable
   "BFS from start, return set of all reachable node ids.
@@ -168,17 +179,25 @@
 (defn dag-reachable?
   "True when to-id is reachable from from-id in the DAG.
 
+   Map-form DAGs require both IDs to be declared and traverse only declared
+   endpoints. Raw edge vectors remain explicitly unvalidated traversal input.
+
    Short-circuits:
-     - same node → true
+     - same declared node → true
      - nil inputs → false
      - direct edge (from adjacency) → true
      - otherwise → BFS traversal"
   ([dag from-id to-id]
    (dag-reachable? dag from-id to-id nil))
   ([dag from-id to-id _opts]
-   (let [adj (build-adjacency dag)]
+   (let [declared-ids (when (and (map? dag) (contains? dag :dag/nodes))
+                        (set (map :node/id (:dag/nodes dag))))
+         adj (build-adjacency dag)]
      (cond
        (or (nil? from-id) (nil? to-id)) false
+       (and declared-ids
+            (or (not (contains? declared-ids from-id))
+                (not (contains? declared-ids to-id)))) false
        (= from-id to-id) true
        (contains? (get adj from-id #{}) to-id) true
        :else (contains? (bfs-reachable adj from-id) to-id)))))
@@ -264,29 +283,27 @@
   "Return a structured report for a DAG or chain.
 
    For DAGs:
-     :node-count        — total nodes
-     :edge-count        — total edges
-     :disconnected      — nodes not reachable from the first node
-     :weakly-connected? — all nodes reachable when edges are treated as undirected
-     :components        — weakly connected component sizes
+     :node-count                 — total declared nodes
+     :edge-count                 — total supplied edges
+     :roots                      — declared nodes without a declared predecessor
+     :unreachable-from-roots     — declared nodes unreachable from every root
+     :weakly-connected?          — all nodes share one undirected component
+     :components                 — weakly connected component sizes
 
-   For chains:
-     :hash-count        — number of reachable hashes
-     :chain-gaps        — hashes referenced but not in reachable set (when check-set provided)
-     :head-hash         — first hash in reachable set
-     :tail-hash         — last hash in reachable set"
+   For chain inventories:
+     :hash-count        — number of inventory hashes
+     :chain-gaps        — hashes referenced but absent from inventory (when check-set provided)
+     :head-hash/:tail-hash are always nil: inventory ordering is not chain proof."
   [structure & {:keys [check-set]}]
   (cond
     (or (:dag/nodes structure) (:dag/edges structure))
     (let [nodes (:dag/nodes structure [])
           edges (:dag/edges structure [])
           ids (set (map :node/id nodes))
-          adj (build-adjacency edges)
-          rev-adj (build-adjacency-bidi edges)
-          start-id (first (sort ids))
-          reachable (if start-id (bfs-reachable adj start-id) #{})
-          undirected-reachable (if start-id (bfs-reachable rev-adj start-id) #{})
-          roots (set/difference ids (set (map :edge/to edges)))
+          traversal-edges (dag-edges-for-traversal structure)
+          adj (build-adjacency structure)
+          rev-adj (build-adjacency-bidi structure)
+          roots (set/difference ids (set (map :edge/to traversal-edges)))
           root-reachable (reduce set/union #{}
                                  (map #(bfs-reachable adj %) roots))
           errors (dag-structural-errors structure)
@@ -304,17 +321,17 @@
        :node-count (count nodes)
        :edge-count (count edges)
        :roots (vec (sort roots))
-       :disconnected (vec (sort (set/difference ids reachable)))
        :unreachable-from-roots (vec (sort (set/difference ids root-reachable)))
-       :weakly-connected? (= (count ids) (count undirected-reachable))
+       :weakly-connected? (<= (count components) 1)
        :components (vec components)})
 
     (or (:chain/reachable-hashes structure)
         (vector? structure)
         (set? structure))
-    (let [ordered? (or (vector? (:chain/reachable-hashes structure))
-                       (vector? structure))
-          hashes (if (vector? (:chain/reachable-hashes structure))
+    (let [inventory? (and (map? structure)
+                          (contains? structure :chain/reachable-hashes))
+          ordered? (and (not inventory?) (vector? structure))
+          hashes (if inventory?
                    (:chain/reachable-hashes structure)
                    (if (vector? structure) structure (sort structure)))
           rset (set hashes)
@@ -324,8 +341,8 @@
        :valid? true
        :ordered? ordered?
        :hash-count (count hashes)
-       :head-hash (when ordered? (first hashes))
-       :tail-hash (when ordered? (last hashes))
+       :head-hash nil
+       :tail-hash nil
        :chain-gaps gaps
        :gaps? (boolean (seq gaps))})
 

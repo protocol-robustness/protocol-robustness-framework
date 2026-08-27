@@ -2,6 +2,7 @@
   (:require [clojure.test :refer [deftest is testing]]
             [resolver-sim.benchmark.packs.partial-fill.pro-rata-allocation-evidence :as alloc-ev]
             [resolver-sim.benchmark.packs.partial-fill.pro-rata-application-evidence :as app-ev]
+            [resolver-sim.benchmark.packs.partial-fill.evidence :as pf-ev]
             [resolver-sim.benchmark.packs.partial-fill.pro-rata-execution-evidence :as exec-ev]
             [resolver-sim.pro-rata.allocation :as alloc]
             [resolver-sim.hash.canonical :as hc]
@@ -256,6 +257,59 @@
     (is (:current-amount-continuous? v))
     (is (= :not-observed (:status cont))
         "terminal scenario: continuity status must be :not-observed, not failure")))
+
+(deftest application-profile-accepts-matching-producer-write-back
+  (let [position {:position/id :pos-p1
+                  :position/current-amount 40
+                  :deferred-position {:position/id :pos-p1-deferred
+                                      :position/current-amount 40
+                                      :position/status :active}}
+        world-after {:yield/withdrawn {:usdc {:p1 40}}
+                     :yield/positions {:p1 position}}
+        application-artifact
+        {:propagation-id :prop/test
+         :participants
+         [{:participant-id :p1
+           :position-before {:deferred-position {:position/status :closed
+                                                 :position/current-amount 0}}
+           :position-before-hash "sha256:before"
+           :position-after position
+           :position-after-hash (str "sha256:" (hc/domain-hash :state-projection position))
+           :withdrawn {:token :usdc :before 100 :delta 60 :after 40}}]}
+        write-back (pf-ev/derive-state-write-back application-artifact world-after)
+        profile (app-ev/build-pro-rata-application-evidence
+                 {:allocation-evidence-hash "sha256:alloc-ev"
+                  :propagation shared-propag
+                  :application app-with-accounting
+                  :world-before world-before
+                  :world-after world-after
+                  :state-write-back-evidence write-back
+                  :continuity-evidence cont-evidence-terminal
+                  :evidence-ladder evidence-ladder-full
+                  :operational-outcome op-pos-partial})
+        verification (:evidence-profile/verification profile)]
+    (is (true? (get-in write-back [0 :verified?])))
+    (is (true? (:authoritative-state-write-back-verified? verification)))))
+
+(deftest application-profile-requires-all-write-back-projections
+  (let [base-args {:allocation-evidence-hash "sha256:alloc-ev"
+                   :propagation shared-propag
+                   :application app-with-accounting
+                   :world-before world-before
+                   :world-after world-after-accounting-only
+                   :continuity-evidence cont-evidence-terminal
+                   :evidence-ladder evidence-ladder-full
+                   :operational-outcome op-pos-partial}]
+    (doseq [[label mismatch-path]
+            [[:withdrawn [:withdrawn :verified?]]
+             [:position [:position :verified?]]
+             [:deferred-position [:deferred-position :verified?]]]]
+      (let [write-back (assoc-in wb-verified-deferred (into [0] mismatch-path) false)
+            profile (app-ev/build-pro-rata-application-evidence
+                     (assoc base-args :state-write-back-evidence write-back))]
+        (is (false? (:authoritative-state-write-back-verified?
+                     (:evidence-profile/verification profile)))
+            (str label " mismatch must fail authoritative write-back verification"))))))
 
 (deftest app-stale-next-precondition
   (let [profile (app-ev/build-pro-rata-application-evidence

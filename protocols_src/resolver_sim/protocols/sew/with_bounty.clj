@@ -26,7 +26,8 @@
 
    Resulting available-actions derive from the resulting Sew world state, not
    from direct extension injection."
-  (:require [resolver-sim.economics.bounty-payable :as bp]
+  (:require [resolver-sim.assurance.custody :as custody]
+            [resolver-sim.economics.bounty-payable :as bp]
             [resolver-sim.economics.bounty-payable-backing :as bpb]
             [resolver-sim.economics.effects :as effects]
             [resolver-sim.economics.with-bounty.application-plan :as wb-plan]
@@ -217,11 +218,14 @@
 ;; ── idempotent replay state verification ─────────────────────────────────
 
 (defn- custody-reservation-matches?
-  "True when an adjustment and its stored artifact are the exact custody
-   reservation projected from a planned custody effect."
+  "True when an adjustment and its stored custody artifact are valid and the
+   adjustment has the exact plan-derived reservation fields."
   [world effect adjustment]
   (let [id (:held-adjustment/id adjustment)
-        artifact (get-in world [:held-artifacts id])]
+        artifact (get-in world [:held-artifacts id])
+        expected-artifact (try
+                            (custody/build-held-custody-artifact adjustment)
+                            (catch Exception _ nil))]
     (and (= {:held/direction (effects/effect-held-direction effect)
              :token (:effect/token effect)
              :amount (:effect/amount effect)
@@ -236,7 +240,7 @@
                           :held/account :held/reason :owner/address
                           :parameter/context :parameter/address]))
          (= id (:held-adjustment/id artifact))
-         (string? (:artifact/hash artifact)))))
+         (= expected-artifact artifact))))
 
 (defn- custody-reservations-complete?
   "Match planned custody effects one-for-one with exact, artifact-backed held
@@ -249,26 +253,40 @@
       (let [[before matches] (split-with #(not (custody-reservation-matches?
                                                 world effect %))
                                          available)]
-        (if-let [match (first matches)]
+        (if (first matches)
           (recur (rest effects) (into (vec before) (rest matches)))
           false))
       true)))
 
 (defn- applied-state-complete?
-  "True when the world actually carries the state a successful application of
-   this plan would have produced: the payable, its backing, the derived
-   claimable amount, and exact artifact-backed custody reservations."
+  "True only when the idempotent world contains the exact payable and backing
+   derived from this plan, verified through their existing artifact verifiers,
+   plus the derived claimable and artifact-backed custody reservations."
   [world plan]
   (let [obligation (obligation-effect plan)
         obligation-id (:plan/obligation-id plan)
         amount (:obligation/amount obligation)
         beneficiary (canonical-address (:obligation/owner obligation))
+        expected-payable (bp/build-bounty-payable
+                          {:payable/id obligation-id
+                           :distribution-root (:plan/base-operation-root plan)
+                           :beneficiary beneficiary
+                           :amount amount
+                           :kind (:obligation/type obligation)
+                           :lifecycle :pending-backing})
+        expected-backing (bpb/build-bounty-payable-backing
+                          {:payable-root (:payable/hash expected-payable)
+                           :payable-id obligation-id
+                           :distribution-root (:plan/base-operation-root plan)
+                           :amount amount
+                           :source-allocations (reserve-source-allocations plan obligation)
+                           :kind :funding-deduction-restricted})
         payable (get-in world [:with-bounty/payables obligation-id])
-        backing (when payable
-                  (some #(= (:payable/hash payable) (:backing/payable-root %))
-                        (vals (:with-bounty/backings world {}))))]
-    (and payable
-         backing
+        backing (get-in world [:with-bounty/backings (:backing/id expected-backing)])]
+    (and (= expected-payable payable)
+         (:valid? (bp/verify-bounty-payable payable))
+         (= expected-backing backing)
+         (:valid? (bpb/verify-bounty-payable-backing backing))
          (= amount (get-in world [:claimable-v2 obligation-id
                                   claimable-domain beneficiary]))
          (custody-reservations-complete? world (custody-effects plan)))))

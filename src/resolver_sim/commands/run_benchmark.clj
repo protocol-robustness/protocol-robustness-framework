@@ -659,42 +659,43 @@
                 (into-array StandardCopyOption [StandardCopyOption/REPLACE_EXISTING StandardCopyOption/ATOMIC_MOVE]))
     value))
 
+(defn- validate-persisted-research-pack
+  "Dispatch persisted-pack verification by its declared schema. Both branches
+   verify before run initialization; v2 additionally verifies its closed-form
+   extension-resolution snapshot and three-way resolution join."
+  [pack]
+  (if-not (map? pack)
+    {:valid? false :errors [:research-pack/invalid-pack]}
+    (case (:schema-version pack)
+      "research-benchmark-pack.v1" (research-pack/validate-pack pack)
+      "research-benchmark-pack.v2" (research-pack/validate-pack-v2 pack)
+      {:valid? false :errors [:research-pack/unsupported-schema]})))
+
+(defn- ensure-valid-persisted-research-pack!
+  [pack details]
+  (let [verification (validate-persisted-research-pack pack)]
+    (when-not (:valid? verification)
+      (throw (ex-info "Research pack is malformed or its roots do not match"
+                      (merge {:reason :research-pack-invalid-persisted-plan
+                              :errors (:errors verification)}
+                             details))))
+    pack))
+
 (defn- load-research-pack!
-  "Load a portable frozen plan from an explicit EDN path. Its composition root
-   is committed by the plan; the attached composition projection is checked
-   before it reaches the shared runner."
+  "Load and verify a portable frozen plan from an explicit EDN path before it
+   reaches the shared runner."
   [path]
   (when path
-    (let [pack (edn/read-string (slurp (io/file path)))
-          composition (:research-pack/composition pack)
-          verified-composition (try (semantic-composition/verify-portable! composition)
-                                    (catch Exception e
-                                      (throw (ex-info "Research pack has invalid portable composition"
-                                                      {:reason :research-pack-invalid-persisted-plan
-                                                       :path path} e))))]
-      (when-not (and (map? pack)
-                     (= (:research-pack/root pack) (research-pack/pack-root pack))
-                     (= (:research-pack/composition-root pack)
-                        (:semantic-composition/root verified-composition)))
-        (throw (ex-info "Research pack is malformed or its roots do not match"
-                        {:reason :research-pack-invalid-persisted-plan
-                         :path path})))
-      pack)))
+    (ensure-valid-persisted-research-pack!
+     (edn/read-string (slurp (io/file path)))
+     {:path path})))
 
 (defn- snapshot-research-pack!
-  "Validate and snapshot a frozen plan before any runner work. The same
-   portable artifact used for execution enters the package closure."
+  "Verify and snapshot a frozen plan before any runner work. The same portable
+   artifact used for execution enters the package closure."
   [context pack]
   (when pack
-    (let [portable (semantic-composition/verify-portable!
-                    (:research-pack/composition pack))]
-      (when-not (and (= (:research-pack/root pack) (research-pack/pack-root pack))
-                     (= (:research-pack/composition-root pack)
-                        (:semantic-composition/root portable))
-                     (= (:research-pack/resolution-root pack)
-                        (:semantic-composition/resolution-root portable)))
-        (throw (ex-info "Research pack does not match its verified portable composition"
-                        {:reason :research-pack-invalid-persisted-plan}))))
+    (ensure-valid-persisted-research-pack! pack {})
     (let [target (io/file (str (:run/root context)) "benchmark/research-pack.edn")]
       (io/make-parents target)
       (spit target (pr-str pack))
@@ -706,9 +707,10 @@
    When a claim-registry-path was selected for the run, bind it via
    with-claim-registry so evidence commits provenance about the actual file."
   [benchmark-id run-root key sensitivity-profile overrides]
+  (when-let [pack (:research-pack overrides)]
+    (ensure-valid-persisted-research-pack! pack {}))
   (let [context (assoc (benchmark-run/build-run-context benchmark-id run-root ".")
                        :sensitivity/profile sensitivity-profile
-                       :claim-registry/path *claim-registry-path*
                        :execution/parallelism (or (:execution/parallelism overrides) 1)
                        :execution/chunk-size (or (:execution/chunk-size overrides) 1)
                        ;; Runtime-only settings: do not add these to context files,

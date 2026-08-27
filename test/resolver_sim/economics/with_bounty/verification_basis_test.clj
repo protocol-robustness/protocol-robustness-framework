@@ -63,3 +63,11 @@
                      (assoc sample-basis :basis/unknown "extra")))))
   (is (not (:valid? (basis/verify-verification-basis
                      (assoc sample-basis :basis/root "ignored"))))))
+
+(deftest documented-basis-roots-are-required
+  (doseq [field [:basis/artifact-root
+                 :basis/environment-root
+                 :basis/classification-policy-root]]
+    (is (not (:valid? (basis/validate-verification-basis
+                       (assoc sample-basis field nil))))
+        (str field " must be mandatory"))))

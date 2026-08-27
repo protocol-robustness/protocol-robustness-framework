@@ -519,6 +519,43 @@
        :trace value
        :issues []})))
 
+(def ^:const command-trace-v3-schema-version "research-command-trace.v3")
+
+(def ^:const command-trace-v3-purpose
+  :research-command-executable-provenance)
+
+(defn- valid-executable-provenance?
+  [provenance]
+  (every? hash-ref/valid-sha256-ref?
+          ((juxt :command/root
+                 :command/combination-root
+                 :command/concatenation-chain-root)
+           provenance)))
+
+(defn build-command-trace-v3
+  "Build an ordered trace binding a research-command.v2 identity to verified
+   executable-command provenance. The components are exactly command hash,
+   CC3 command root, include-combination root, and concatenation-chain root."
+  [{:keys [research-command executable-command-provenance]}]
+  (when-not (:valid? (validate-command research-command))
+    (throw (ex-info "research-command-trace.v3 requires a valid research command"
+                    {:error :trace/invalid-component})))
+  (when-not (valid-executable-provenance? executable-command-provenance)
+    (throw (ex-info "research-command-trace.v3 requires rooted executable provenance"
+                    {:error :trace/invalid-executable-provenance})))
+  (let [components [(:command/hash research-command)
+                    (:command/root executable-command-provenance)
+                    (:command/combination-root executable-command-provenance)
+                    (:command/concatenation-chain-root executable-command-provenance)]
+        options {:purpose command-trace-v3-purpose
+                 :expected-component-count (count components)}]
+    {:trace/schema-version command-trace-v3-schema-version
+     :trace/purpose command-trace-v3-purpose
+     :trace/component-count (count components)
+     :trace/components components
+     :trace/root (hash-ref/sha256-ref (seq/sequence-hash options components))
+     :trace/commitment (seq/canonical-sequence-bytes options components)}))
+
 (defn command-trace-metrics-v2
   "Derive research-command trace metrics using the v2 trace root.
 

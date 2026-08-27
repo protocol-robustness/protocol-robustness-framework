@@ -124,20 +124,20 @@
   (let [v1 (freeze-pack inputs)
         resolved (composition/compose-authoritative (or profile :development)
                                                     (vec (sort requested-capabilities))
-                                                    resolution-options extension-map)
-        comp (:composition resolved)
-        material (:resolution comp)
-        base (-> v1
-                 (dissoc :research-pack/root :research-pack/composition)
-                 (assoc :schema-version schema-version-v2
-                        :research-pack/resolution material))]
+                                                    resolution-options extension-map)]
     (when-not (:valid? resolved)
       (throw (ex-info "Research pack v2 extension resolution failed"
                       {:error :research-pack/unavailable-or-unsupported-extension
                        :violations (:violations resolved)})))
-    (assoc base
-           :research-pack/root (pack-root-v2 base)
-           :research-pack/composition (composition/portable-body comp))))
+    (let [comp (:composition resolved)
+          material (:resolution comp)
+          base (-> v1
+                   (dissoc :research-pack/root :research-pack/composition)
+                   (assoc :schema-version schema-version-v2
+                          :research-pack/resolution material))]
+      (assoc base
+             :research-pack/root (pack-root-v2 base)
+             :research-pack/composition (composition/portable-body comp)))))
 
 (defn validate-pack-v2
   "Closed-form v2 verification: verify the embedded resolution through its

@@ -126,12 +126,15 @@
                                      (remove #(contains? certification %)) vec)
         uncovered-claims (remove evaluated-set required-ids)
         extra-claims (remove required-set evaluated-set)
-        rejected-claims (->> required-ids
-                             (keep (fn [id]
-                                     (when-let [outcome (:claim/outcome
-                                                         (first (filter #(= id (:claim/id %)) claim-results)))]
-                                       (when-not (= :permit (get acceptance outcome))
-                                         {:claim/id id :claim/outcome outcome})))) vec)]
+        rejected-claims (->> claim-results
+                             (filter #(contains? required-set (:claim/id %)))
+                             (keep (fn [claim-result]
+                                     (when-not (= :permit
+                                                  (get acceptance (:claim/outcome claim-result)))
+                                       (select-keys claim-result
+                                                    [:claim/id :claim/outcome
+                                                     :claim/scope :scenario/id]))))
+                             vec)]
     (-> {:checks {} :failures []}
         (add-check :evidence/integrity (:hash-ok? bundle-check)
                    {:bundle/reason (:reason bundle-check)

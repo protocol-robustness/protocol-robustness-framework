@@ -33,6 +33,22 @@
     :resolution-options {:schemas {} :effect-schemas {}}
     :extension-map {}}))
 
+(defn- frozen-pack-v2 []
+  (research-pack/freeze-pack-v2
+   {:pack-id :test/research-pack
+    :command-root (root :command)
+    :assignment-root (root :assignment)
+    :plan-root (root :plan)
+    :members [{:member/id :test/member
+               :member/contract "test.member.v1"
+               :member/input-root (root :input)
+               :member/parameters-root (root :parameters)
+               :member/expected-outputs {}}]
+    :requested-capabilities []
+    :profile :development
+    :resolution-options {:schemas {} :effect-schemas {}}
+    :extension-map {}}))
+
 (defn- write-edn! [file value]
   (spit file (pr-str value))
   (.getPath file))
@@ -60,6 +76,26 @@
     #(command/run {:cmd/args ["benchmark/test"]
                    :run-root (.getPath run-root)
                    :research-pack pack-file})))
+
+(deftest persisted-v2-research-pack-is-validated-before-run-creation
+  (let [temp (.toFile (java.nio.file.Files/createTempDirectory "research-pack-v2-cli" (make-array java.nio.file.attribute.FileAttribute 0)))
+        run-root (io/file temp "canonical-run")
+        calls (atom 0)]
+    (try
+      (let [pack (frozen-pack-v2)
+            valid-file (write-edn! (io/file temp "valid-v2.edn") pack)
+            invalid-file (write-edn!
+                          (io/file temp "invalid-v2-resolution.edn")
+                          (assoc-in pack [:research-pack/resolution
+                                          :extensions/capability-providers]
+                                    {:attacker/capability {:providers []}}))]
+        (is (= 2 (:exit-code (run-with-pack invalid-file run-root calls))))
+        (is (zero? @calls))
+        (is (not (.exists run-root)))
+        (is (zero? (:exit-code (run-with-pack valid-file run-root calls))))
+        (is (= 1 @calls)))
+      (finally
+        (delete-tree! temp)))))
 
 (deftest persisted-research-pack-is-validated-before-run-creation
   (let [temp (.toFile (java.nio.file.Files/createTempDirectory "research-pack-cli" (make-array java.nio.file.attribute.FileAttribute 0)))

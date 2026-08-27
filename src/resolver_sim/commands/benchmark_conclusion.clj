@@ -21,7 +21,13 @@
   (merge {:pass 0 :fail 0 :inconclusive 0 :not-exercised 0 :not-implemented 0}
          (frequencies (map :claim/outcome claim-results))))
 
-(defn- classify [evidence]
+(defn derive-semantic-result
+  "Read-only, deterministic semantic derivation for benchmark evidence.
+
+   This is the public evaluation boundary for benchmark conclusions. Consumers
+   must reuse this result rather than reimplementing the producer's claim,
+   scenario, and invariant classification rules."
+  [evidence]
   (let [metrics (:metrics evidence)
         manifest (:benchmark evidence)
         required (set (or (:benchmark/required-claims manifest)
@@ -43,9 +49,14 @@
           (pos? (:not-implemented counts))) [:inconclusive "required-claim-not-conclusively-evaluated" counts]
       :else [:pass "all-scenarios-and-required-claims-passed" counts])))
 
+(defn derive-semantic-status
+  "Return the derived benchmark semantic status as the persisted wire value."
+  [evidence]
+  (name (first (derive-semantic-result evidence))))
+
 (defn write! [context evidence]
   (let [file (io/file (str (:benchmark/evidence-file context)))
-        [outcome reason claims] (classify evidence)
+        [outcome reason claims] (derive-semantic-result evidence)
         metrics (:metrics evidence)
         invariants (:invariant-summary evidence)
         manifest (:benchmark evidence)

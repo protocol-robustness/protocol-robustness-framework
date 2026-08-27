@@ -94,7 +94,8 @@
                      (every? (fn [wb]
                                (and (true? (:verified? wb))
                                     (true? (get-in wb [:withdrawn :verified?]))
-                                    (true? (get-in wb [:position :verified?]))))
+                                    (true? (get-in wb [:position :verified?]))
+                                    (true? (get-in wb [:deferred-position :verified?]))))
                              state-write-back-evidence))
           ;; ── Deferred current-amount (from evidence ladder) ────────────
           ladder-levels (mapcat :levels evidence-ladder)

@@ -4,6 +4,7 @@
             [clojure.edn :as edn]
             [clojure.java.io :as io]
             [resolver-sim.benchmark.conservation :as conservation]
+            [resolver-sim.commands.benchmark-conclusion :as benchmark-conclusion]
             [resolver-sim.benchmark.integrity :as integrity]
             [resolver-sim.commands.run-lifecycle :as lifecycle]
             [resolver-sim.evidence.node :as evidence-node]
@@ -220,6 +221,8 @@
             registry (read-json registry-file)
             content-registry (try (read-json content-registry-file) (catch Exception _ nil))
             evidence (edn/read-string (slurp (io/file root "benchmark/evidence/evidence.edn")))
+            derived-semantic-status (benchmark-conclusion/derive-semantic-status evidence)
+            conclusion (try (read-json conclusion-file) (catch Exception _ nil))
             canonical-integrity (read-json canonical-integrity-file)
             forensic-status (read-json forensic-status-file)
             verdict-policy-artifact (read-json verdict-policy-file)
@@ -275,7 +278,11 @@
                     "completion-closure-commitment" (= (get completion "closure_commitment")
                                                        (closure-commitment
                                                         (:benchmark/execution-closure evidence)))
-                    "completion-semantic-outcome" (= (get completion "semantic_status") (get-in assurance ["conclusion" "outcome"]))
+                    "completion-semantic-outcome" (or (not (contains? completion "semantic_status"))
+                                                      (= (get completion "semantic_status") derived-semantic-status))
+                    "conclusion-semantic-outcome" (= (get conclusion "outcome") derived-semantic-status)
+                    "assurance-semantic-outcome" (= (get-in assurance ["conclusion" "outcome"])
+                                                    derived-semantic-status)
                     "completion-registry-hash" (= (get completion "artifact_registry_sha256") (sha-ref registry-file))
                     "completion-validation-hash" (= (get completion "registry_validation_sha256") (sha-ref validation-file))
                     "evidence-content-registry-hash" (= (get finalization "evidence_content_registry_sha256") (sha-ref content-registry-file))

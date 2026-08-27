@@ -40,6 +40,9 @@
 (defn- freeze [package]
   (research-pack/freeze-pack (inputs (extension-map package))))
 
+(defn- reroot-v2 [pack]
+  (assoc pack :research-pack/root (research-pack/pack-root-v2 pack)))
+
 (deftest extension-member-is-resolved-frozen-and-portably-verifiable
   (let [pack (freeze fixtures/scaled-share-pack)
         member (first (:research-pack/members pack))
@@ -85,18 +88,48 @@
     (is (thrown? clojure.lang.ExceptionInfo
                  (research-pack/freeze-pack (inputs ambiguous))))))
 
-(deftest v2-pack-verifies-embedded-resolution-and-nested-tamper-ladder
+(deftest v2-pack-verifies-the-three-way-resolution-join
   (let [pack (research-pack/freeze-pack-v2
               (inputs (extension-map fixtures/scaled-share-pack)))
-        member-path [:research-pack/members 0 :member/provider-package-roots]
-        changed-member (assoc-in pack member-path ["changed-provider"])
-        changed-resolution (assoc-in pack [:research-pack/resolution :extensions/resolution-root]
-                                     "changed-resolution")]
+        changed-member (-> (assoc-in pack [:research-pack/members 0 :member/provider-package-roots]
+                                     ["changed-provider"])
+                           reroot-v2)
+        changed-resolution-root (-> (assoc pack :research-pack/resolution-root "changed-resolution")
+                                    reroot-v2)
+        changed-resolution-body
+        (-> (assoc-in pack [:research-pack/resolution
+                            :extensions/capability-providers
+                            capability
+                            :providers 0
+                            :package-root]
+                      "changed-provider")
+            reroot-v2)]
     (is (:valid? (research-pack/validate-pack-v2 pack)))
-    (is (false? (:valid? (research-pack/validate-pack-v2 changed-member))))
-    (is (false? (:valid? (research-pack/validate-pack-v2 changed-resolution))))
+    (is (= [:research-pack/member-provider-substitution]
+           (:errors (research-pack/validate-pack-v2 changed-member))))
+    (is (some #{:research-pack/resolution-substitution}
+              (:errors (research-pack/validate-pack-v2 changed-resolution-root))))
+    (is (= [:research-pack/invalid-portable-resolution]
+           (:errors (research-pack/validate-pack-v2 changed-resolution-body))))
     (is (false? (:valid? (research-pack/validate-pack-v2
                           (assoc pack :research-pack/root "changed-pack-root")))))))
+
+(deftest v2-pack-distinguishes-artifact-validity-from-execution-readiness
+  (let [pack (research-pack/freeze-pack-v2
+              (inputs (extension-map fixtures/scaled-share-pack)))
+        opts (:resolution-options (inputs {}))]
+    (is (:valid? (research-pack/validate-pack-v2 pack)))
+    (is (= :ready (:classification
+                   (research-pack/verify-execution-environment-v2
+                    pack (extension-map fixtures/scaled-share-pack) opts))))
+    (is (= :execution-environment-mismatch
+           (:classification
+            (research-pack/verify-execution-environment-v2
+             pack (extension-map fixtures/alt-scaled-share-pack) opts))))
+    (is (= :unavailable
+           (:classification
+            (research-pack/verify-execution-environment-v2
+             pack (registry/empty-extension-map) opts))))))
 
 (deftest frozen-pack-member-set-cannot-be-rewritten-after-freeze
   (let [pack (freeze fixtures/scaled-share-pack)
