@@ -22,7 +22,7 @@
 
 (def ^:private tmp-dir
   (str (Files/createTempDirectory "final-evidence-boundary"
-                                 (make-array FileAttribute 0))))
+                                  (make-array FileAttribute 0))))
 
 (defn- path-in-tmp [name]
   (str tmp-dir "/" name))
@@ -95,12 +95,12 @@
         ;; reorder result-map keys; keep the checks VECTOR order (vectors are
         ;; ordered content — reversing one must and does change the root)
         b3 (update-in b1 [:results 0] (fn [r] (apply array-map
-                                                    (interleave [:checks :scenario/evidence-root
-                                                                 :scenario/id :outcome]
-                                                                [(:checks r)
-                                                                 (:scenario/evidence-root r)
-                                                                 (:scenario/id r)
-                                                                 (:outcome r)]))))
+                                                     (interleave [:checks :scenario/evidence-root
+                                                                  :scenario/id :outcome]
+                                                                 [(:checks r)
+                                                                  (:scenario/evidence-root r)
+                                                                  (:scenario/id r)
+                                                                  (:outcome r)]))))
         h1 (integrity/bundle-root-hash (#'runner/normalize-runtime-values b1))
         h2 (integrity/bundle-root-hash (#'runner/normalize-runtime-values b2))
         h3 (integrity/bundle-root-hash (#'runner/normalize-runtime-values b3))]

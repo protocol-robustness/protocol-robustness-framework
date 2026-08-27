@@ -42,6 +42,22 @@
       (is (= :rejected (:status stale)))
       (is (= :configuration-head-mismatch (:reason stale))))))
 
+(deftest pure-successor-derivation-matches-legacy-activation
+  (let [c0 genesis/chain-configuration-v0-fixture
+        c1 (successor-config)
+        t (transition c0 c1 2)
+        store (head/new-store (genesis/chain-configuration-root c0) 1)
+        prior (head/current-head store)
+        derived (head/derive-successor-head prior t c0 c1)
+        committed (head/activate! store {:transition t :parent-configuration c0 :new-configuration c1
+                                         :expected-head-root (:configuration-head-state/root prior)
+                                         :authorized-transition-root (genesis/chain-configuration-transition-root t)})]
+    (is (= :committed (:status derived)))
+    (is (= (:configuration/head derived) (get-in committed [:public-result :configuration/head])))
+    (is (= (:configuration-head-state/root (:configuration/head derived))
+           (:configuration-head-state/root (get-in committed [:public-result :configuration/head]))))
+    (is (= derived (head/derive-successor-head prior t c0 c1)))))
+
 (deftest activation-rejects-parent-epoch-and-authorization-substitution
   (let [c0 genesis/chain-configuration-v0-fixture
         c1 (successor-config)

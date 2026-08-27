@@ -19,6 +19,7 @@
             [resolver-sim.assurance.custody :as custody]
             [resolver-sim.assurance.force-authorisation :as force-auth]
             [resolver-sim.composition.combination :as combination]
+            [resolver-sim.benchmark.review.three-member-certificate :as tmc]
             [resolver-sim.resubmission.chain :as chain]
             [resolver-sim.resubmission.store :as store]))
 
@@ -370,6 +371,48 @@
     "multi-epoch decision stability — "
     [:strong {:style {:color (if holds? "#16a34a" "#dc2626")}}
      (if holds? "HOLDS ✓" "VIOLATED ✕")]]))
+
+;; ## Not admitted before certification
+;;
+;; A three-member research certificate is not created merely because three
+;; artifacts were supplied. `pre-certificate-checks` first requires a frozen,
+;; valid three-member round and one report, position, and canonical-index entry
+;; for every member. This is a certificate-input admission gate: it belongs in
+;; this inspection notebook, not in the public product-demo story.
+
+^{:nextjournal.clerk/visibility {:code :hide :result :hide}}
+(def incomplete-certificate-cell
+  {:review-round {:benchmark/content-root "sha256:demo-content"
+                  :review-round/id "rr:incomplete"
+                  :review-round/purpose :model-admission}
+   :reports []
+   :positions []})
+
+^{:nextjournal.clerk/visibility {:code :hide :result :show}}
+(def incomplete-certificate-check
+  (tmc/pre-certificate-checks incomplete-certificate-cell))
+
+^{:nextjournal.clerk/visibility {:code :fold :result :show}}
+(clerk/table
+ {:head ["Certificate input requirement" "Result for incomplete cell"]
+  :rows [["frozen, valid three-member round"
+          (if (:pre-certificate-valid? incomplete-certificate-check) "present" "NOT ADMITTED")]
+         ["one report per member"
+          (if (some #(clojure.string/includes? % "reports must contain")
+                    (:errors incomplete-certificate-check)) "missing — rejected" "present")]
+         ["one position per member"
+          (if (some #(clojure.string/includes? % "positions must contain")
+                    (:errors incomplete-certificate-check)) "missing — rejected" "present")]
+         ["canonical index bound to the round"
+          (if (some #(clojure.string/includes? % "canonical-indices")
+                    (:errors incomplete-certificate-check)) "missing or invalid — rejected" "present")]]})
+
+;; The exact errors are exposed for reviewer inspection. The builder refuses to
+;; construct a certificate from this cell; it does not silently infer missing
+;; members or repair mismatched provenance.
+
+^{:nextjournal.clerk/visibility {:code :fold :result :show}}
+(clerk/code (:errors incomplete-certificate-check))
 
 ;; ## How to use this boundary
 ;;

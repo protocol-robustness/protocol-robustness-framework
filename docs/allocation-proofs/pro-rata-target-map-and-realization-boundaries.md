@@ -1,0 +1,74 @@
+# Pro-rata target-map and proposed-realization boundaries
+
+This additive milestone preserves `pro-rata-effect-compilation.v1` and
+`protocol-effect-realization.v1` roots unchanged.
+
+## New contracts
+
+- `allocation-quantity-target-map.v1` binds allocation subjects and mapping
+  roles to canonical quantity roots. The initial profile is one-to-one by
+  `[subject, role]` and quantity root.
+- `canonical-quantity-native-location-map.v1` separately binds canonical
+  quantities to exact native map leaf paths. Native storage locations are not
+  part of the protocol-neutral target map.
+- `allocation-quantity-target-map-validation.v1` binds target map, realized
+  allocation, scope, adapter descriptor, mapping profile, native-before root,
+  and native-location map.
+- `pro-rata-effect-compilation.v2` explicitly requires allocation policy,
+  target-map, and mapping-profile roots. Allocation policy is mandatory rather
+  than implicitly inferred from the allocation result.
+- `core-authorized-proposed-realization.v1` derives its exact native write set
+  from validated locations and normalized effects, then verifies a proposed
+  native-after model changes only those exact leaves.
+
+## Extension context
+
+`adapter-execution-context.v1` explicitly commits either `:core` or
+`:extension` source. Extension mode requires resolution and capability roots (`:extension/capability-root`)
+and fails closed when absent. This slice validates their closed structural
+shape only; it does **not** establish that an extension was activated or
+approved by chain configuration. A later authorization wrapper must bind that
+claim to the existing extension-resolution and configuration machinery.
+
+## Non-claims
+
+Native-after is a proposed/modelled reconstruction. These contracts perform no
+persistence, write-back, read-back, transaction, or historical-execution
+attestation. `protocol-effect-realization.v1` remains unchanged and does not
+by itself prove this newer core-authorized construction path.
+
+## Stage A: SEW aggregate held-credit mapping
+
+`allocation-quantity-target-map.v2` and its validation v2 add the committed
+`:allocation-target-map/many-to-one.v1` profile without changing v1's
+one-to-one/injective behavior. Resolved Alice/Bob allocation rows can map to
+one canonical aggregate USDC custody quantity, whose subject is the aggregate
+SEW custody holder and whose scope is the token-level aggregate ledger domain.
+Allocation round scope remains a separate committed mapping fact.
+
+`sew/aggregate-held-credit.v1` compiles positive, uncapped, all-active,
+same-asset credits through existing canonical delta normalization, producing
+one aggregate credit delta. The sole native authoritative location is
+`[:held-ledger/index :by-token :USDC]`.
+
+## Stage B: aggregate numeric modeled realization
+
+`aggregate-numeric-custody-realization.v1` adds a typed, modeled numeric-only
+assurance artifact. It binds the existing Stage A descriptor, target-map
+validation, aggregate compilation, canonical transition, aggregate quantity,
+full native-before root, before/after numeric projection roots, authoritative
+location, numeric frame semantics, and the core-derived exact two-leaf write
+set.
+
+For token `T`, the authoritative leaf is recovered from the validated
+native-location map as `[:held-ledger/index :by-token T]`; the only approved
+mirror is derived by the core as `[:total-held T]`. Both values must be present,
+non-negative, and equal before reconstruction. The candidate updates both to
+the canonical after amount and rejects every diff outside those exact leaves.
+
+The numeric candidate is explicitly not a complete legacy SEW state. It does
+not commit a full native-after root, adjustment history, custody artifacts,
+persistence, write-back, read-back, transaction execution, or external
+execution history. Stage C may compare its complete modeled after-state by
+reprojecting the numeric leaves to this Stage B numeric-after projection; it
+need not equal the Stage B candidate's full native state.

@@ -285,6 +285,38 @@
            :resolution (build-snapshot nodes edges runtime-profile
                                        schemas effect-schemas)})))))
 
+(def ^:private portable-resolution-keys
+  #{:extensions/resolution-version
+    :extensions/packages
+    :extensions/capabilities
+    :extensions/capability-providers
+    :extensions/dependencies
+    :extensions/schema-roots
+    :extensions/effect-schema-roots
+    :extensions/runtime-profile
+    :extensions/resolution-root})
+
+(defn verify-portable!
+  "Verify untrusted persisted extension-resolution.v1 material using the exact
+   existing resolution snapshot projection. This performs no registry lookup or
+   re-resolution; callers receive the verified closed material on success."
+  [resolution]
+  (when-not (and (map? resolution)
+                 (= portable-resolution-keys (set (keys resolution))))
+    (throw (ex-info "Portable extension resolution has invalid shape"
+                    {:error :extensions/invalid-portable-resolution-shape})))
+  (when-not (= resolution-version (:extensions/resolution-version resolution))
+    (throw (ex-info "Portable extension resolution has unsupported version"
+                    {:error :extensions/unsupported-resolution-version})))
+  (let [computed (hc/domain-hash resolution-domain-tag
+                                 (dissoc resolution :extensions/resolution-root))]
+    (when-not (= computed (:extensions/resolution-root resolution))
+      (throw (ex-info "Portable extension resolution root mismatch"
+                      {:error :extensions/resolution-root-mismatch
+                       :declared (:extensions/resolution-root resolution)
+                       :computed computed})))
+    resolution))
+
 (defn resolution-root
   "Content-addressed root of a resolution snapshot."
   [resolution]

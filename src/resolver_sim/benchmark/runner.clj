@@ -671,6 +671,7 @@
             :execution/id execution-id
             :execution/ordinal ordinal
             :execution/descriptor descriptor
+            :semantic-composition-root (:semantic-composition-root plan-entry)
             :case/key (case-set/case-key-for-execution ordinal)
             :benchmark/run-index repetition-index
             :benchmark/run-count run-count
@@ -1202,13 +1203,40 @@
            (hc/hash-with-intent {:hash/intent :benchmark-certification}
                                 certification))))
 
+(defn- materialize-research-pack-sources!
+  "Create detached scenario sources whose contents commit the frozen research
+   pack's resolved composition before execution planning. The generated files
+   become ordinary runner inputs, so their hashes enter the existing input-set
+   and package closure without a second publication path."
+  [scenarios staging-root research-pack]
+  (if-not research-pack
+    scenarios
+    (let [composition (:research-pack/composition research-pack)
+          composition-root (:research-pack/composition-root research-pack)]
+      (when-not (and (map? composition) (string? composition-root))
+        (throw (ex-info "Frozen research pack lacks resolved composition"
+                        {:reason :research-pack-missing-composition})))
+      (let [target-root (io/file staging-root "research-pack-inputs")]
+        (.mkdirs target-root)
+        (mapv (fn [ordinal source]
+                (let [scenario (edn/read-string (slurp (input-source/open-stream source)))
+                      target (io/file target-root (str ordinal ".edn"))
+                      materialized (assoc scenario
+                                          :execution-mode :authoritative
+                                          :semantic-composition (into {} composition))]
+                  (spit target (pr-str materialized))
+                  (assoc (input-source/source (.getPath target))
+                         :input/ref (:input/ref source)
+                         :input/display-name (:input/display-name source))))
+              (range) scenarios)))))
+
 (defn run-benchmark
   ([manifest-path] (run-benchmark manifest-path default-adapter {}))
   ([manifest-path adapter] (run-benchmark manifest-path adapter {}))
   ([manifest-path adapter {:keys [scenario-output-dir benchmark-index-path execution-plan-path
                                   parallelism chunk-size execution/claimant-parallelism
                                   execution/claimant-parallel-threshold execution/budget
-                                  execution/quiescence-timeout-seconds creation/provenance]}]
+                                  execution/quiescence-timeout-seconds creation/provenance research-pack]}]
    (let [adapter (if scenario-output-dir
                    (->SewAdapter scenario-output-dir (or parallelism 1) (or chunk-size 1))
                    adapter)
@@ -1217,16 +1245,22 @@
              (throw (ex-info "Benchmark manifest missing :benchmark/id"
                              {:manifest manifest-path})))
          repo-meta (repo/metadata)
-         scenarios (adapter/load-scenarios adapter manifest)
+         staging-root (when scenario-output-dir
+                        (str (io/file (.getParentFile (io/file scenario-output-dir))
+                                      ".staging" "benchmark-executions")))
+         scenarios (materialize-research-pack-sources!
+                    (adapter/load-scenarios adapter manifest) staging-root research-pack)
          _ (when (empty? scenarios)
              (throw (ex-info "Benchmark manifest resolved zero scenarios"
                              {:manifest manifest-path
                               :scenario-suite (:benchmark/scenario-suite manifest)
                               :scenario-suites (:scenario-suites manifest)})))
-         initial-plan (build-execution-plan manifest scenarios)
-         staging-root (when scenario-output-dir
-                        (str (io/file (.getParentFile (io/file scenario-output-dir))
-                                      ".staging" "benchmark-executions")))
+         initial-plan (let [plan (build-execution-plan manifest scenarios)]
+                        (if research-pack
+                          (mapv #(assoc % :semantic-composition-root
+                                        (:research-pack/composition-root research-pack))
+                                plan)
+                          plan))
          frozen-inputs (freeze-plan-inputs! initial-plan manifest scenarios staging-root)
          plan (:plan frozen-inputs)
          source-by-id (:source-by-id frozen-inputs)

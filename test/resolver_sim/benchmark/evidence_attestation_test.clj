@@ -13,7 +13,7 @@
 
 (def ^:private tmp-dir
   (str (Files/createTempDirectory "evidence-attestation"
-                                 (make-array java.nio.file.attribute.FileAttribute 0))))
+                                  (make-array java.nio.file.attribute.FileAttribute 0))))
 
 (defn- keypair []
   (.generateKeyPair (KeyPairGenerator/getInstance "Ed25519")))

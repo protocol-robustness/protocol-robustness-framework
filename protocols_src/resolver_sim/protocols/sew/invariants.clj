@@ -2039,9 +2039,19 @@
    the invariant reconstructs that basis from live stake plus epoch debits."
   [world]
   (let [epoch-cap-bps (get-in world [:params :slash-epoch-cap-bps] 2000)
+        duration   (get-in world [:params :slash-epoch-duration-seconds]
+                          (* (get-in world [:params :freeze-duration-days] 3)
+                             (time-ctx/tick-seconds world)))
+        block-time (time-ctx/block-ts world)
         violations
         (for [[addr epoch-data] (:resolver-epoch-slashed world {})
-              :let [epoch-amt (:amount epoch-data 0)
+              :let [start    (:epoch-start epoch-data 0)
+                    raw-amt  (:amount epoch-data 0)
+                    ;; Reset-aware: once a new epoch has begun the accumulator no
+                    ;; longer counts toward the per-epoch cap.
+                    epoch-amt (if (and (some? start) (>= (- block-time start) duration))
+                                0
+                                raw-amt)
                     stake (get (:resolver-stakes world) addr 0)
                     slashable-basis (+ stake epoch-amt)]
               :when (pos? slashable-basis)

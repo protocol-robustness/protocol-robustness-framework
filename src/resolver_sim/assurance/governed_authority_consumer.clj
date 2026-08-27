@@ -3,11 +3,32 @@
    authority. It resolves only context-owned inputs and binds roots from a
    freshly recomputed report; event payloads are deliberately absent."
   (:require [resolver-sim.assurance.three-member-authority :as authority]
+            [resolver-sim.benchmark.governed-authority-state :as authority-state]
             [resolver-sim.benchmark.researcher-force-authorisation :as rfa]))
 
-(defn- resolved-artifact [resolver reference]
+(defn- resolved-artifact
+  [resolver reference]
   (when (and (fn? resolver) (some? reference))
     (try (resolver reference) (catch Exception _ nil))))
+
+(defn verify-governed-authority-current
+  "Authoritative V2-only consumer. Uses store-authenticated B3 material and a
+   store-issued fence; it never consults legacy resolver, key, or time callbacks."
+  [authority-store basis authorisation]
+  (authority-state/evaluate-and-issue-finalizable-authority-fence!
+   authority-store basis authorisation))
+
+(defn finalise-governed-authority-current!
+  "C2 finalization boundary. Only a fence returned by the V2 current consumer is
+   accepted; publication, binding, and fence retirement remain store-atomic."
+  [authority-store authority-result binding successor-envelope successor-material]
+  (cond
+    (not (:valid? authority-result)) {:finalised? false :reason :authority-not-authorised}
+    (not (:authority-fence authority-result)) {:finalised? false :reason :missing-authority-fence}
+    :else
+    (authority-state/finalise-under-authority-fence!
+     authority-store (:authority-fence authority-result) binding
+     successor-envelope successor-material)))
 
 (defn verify-governed-authority
   "Return canonical governed authority bindings, or {:valid? false}. `context`

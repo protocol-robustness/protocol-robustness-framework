@@ -223,13 +223,20 @@
   [resolution]
   (:extensions/packages resolution))
 
+(defn- composition-root-from-portable-body
+  "Derive a semantic-composition root from the exact portable identity
+   projection. This is shared by the trusted constructor and the untrusted
+   portable-material verifier so they cannot drift."
+  [body]
+  (hc/domain-hash composition-domain-tag
+                  (hc/project-canonical-safe
+                   (dissoc body :semantic-composition/root))))
+
 (defn- compose-root
   "Compute the canonical composition root from all committed fields."
   [base]
-  (let [safe (hc/project-canonical-safe base)]
-    (assoc base :semantic-composition/root
-           (hc/domain-hash composition-domain-tag
-                           (dissoc safe :semantic-composition/root)))))
+  (assoc base :semantic-composition/root
+         (composition-root-from-portable-body base)))
 
 (defrecord SemanticComposition
            [profile
@@ -388,6 +395,155 @@
   "The content-addressed semantic-composition root."
   [composition]
   (:root composition))
+
+(def ^:private portable-keys
+  #{:semantic-composition/version :semantic-composition/profile
+    :semantic-composition/requested-capabilities :semantic-composition/resolution-root
+    :semantic-composition/packages :semantic-composition/capabilities
+    :semantic-composition/dependencies :semantic-composition/selected-capabilities
+    :semantic-composition/provider-package-roots :semantic-composition/action-modules
+    :semantic-composition/state-modules :semantic-composition/invariant-modules
+    :semantic-composition/policy-bindings :semantic-composition/root})
+
+(defn portable-body
+  "Return the exact canonical semantic-composition body suitable for persistence."
+  [composition]
+  {:semantic-composition/version semantic-composition-version
+   :semantic-composition/profile (:profile composition)
+   :semantic-composition/requested-capabilities (:requested-capabilities composition)
+   :semantic-composition/resolution-root (:resolution-root composition)
+   :semantic-composition/packages (:packages composition)
+   :semantic-composition/capabilities (:capabilities composition)
+   :semantic-composition/dependencies (:dependencies composition)
+   :semantic-composition/selected-capabilities (:selected-capabilities composition)
+   :semantic-composition/provider-package-roots (:provider-package-roots composition)
+   :semantic-composition/action-modules (:action-modules composition)
+   :semantic-composition/state-modules (:state-modules composition)
+   :semantic-composition/invariant-modules (:invariant-modules composition)
+   :semantic-composition/policy-bindings (:policy-bindings composition)
+   :semantic-composition/root (composition-root composition)})
+
+(defn- portable-capability-key?
+  [value]
+  (and (vector? value)
+       (= 2 (count value))
+       (every? keyword? value)))
+
+(defn- distinct-vector?
+  [value]
+  (and (vector? value) (= (count value) (count (distinct value)))))
+
+(defn- portable-structure-errors
+  "Return errors detectable from the persisted material alone. In particular,
+   this does not re-resolve capabilities or consult an extension registry: a
+   frozen portable body must be a complete closed-form materialization."
+  [body]
+  (let [requested (:semantic-composition/requested-capabilities body)
+        selected (:semantic-composition/selected-capabilities body)
+        packages (:semantic-composition/packages body)
+        capabilities (:semantic-composition/capabilities body)
+        dependencies (:semantic-composition/dependencies body)
+        provider-roots (:semantic-composition/provider-package-roots body)
+        actions (:semantic-composition/action-modules body)
+        states (:semantic-composition/state-modules body)
+        invariants (:semantic-composition/invariant-modules body)
+        policy-bindings (:semantic-composition/policy-bindings body)
+        package-roots (when (map? packages)
+                        (into #{} (keep :package-root) (vals packages)))
+        selected-keys (when (set? selected) selected)
+        module-violations (when (and (set? selected) (vector? actions)
+                                     (vector? states) (vector? invariants))
+                            (validate-modules selected actions states invariants))]
+    (cond-> []
+      (not (keyword? (:semantic-composition/profile body)))
+      (conj :semantic-composition/invalid-profile)
+      (not (string? (:semantic-composition/resolution-root body)))
+      (conj :semantic-composition/invalid-resolution-root)
+      (not (and (distinct-vector? requested)
+                (every? portable-capability-key? requested)))
+      (conj :semantic-composition/invalid-requested-capabilities)
+      (not (set? selected))
+      (conj :semantic-composition/invalid-selected-capabilities)
+      (and (set? selected) (not (every? portable-capability-key? selected)))
+      (conj :semantic-composition/invalid-selected-capability)
+      (not (map? packages))
+      (conj :semantic-composition/invalid-packages)
+      (and (map? packages)
+           (not (every? (fn [[id package]]
+                          (and (keyword? id)
+                               (map? package)
+                               (= id (:package/id package))
+                               (string? (:package/version package))
+                               (string? (:package-root package))
+                               (contains? package :sealed)))
+                        packages)))
+      (conj :semantic-composition/invalid-package-entry)
+      (not (map? capabilities))
+      (conj :semantic-composition/invalid-capabilities)
+      (and (map? capabilities)
+           (not (every? (fn [[key descriptor]]
+                          (and (portable-capability-key? key)
+                               (map? descriptor)
+                               (= key [(:capability/kind descriptor)
+                                       (:capability/id descriptor)])))
+                        capabilities)))
+      (conj :semantic-composition/invalid-capability-entry)
+      (and (set? selected-keys) (map? capabilities)
+           (not= selected-keys (set (keys capabilities))))
+      (conj :semantic-composition/selected-capability-mismatch)
+      (and (set? selected-keys)
+           (not (every? selected-keys requested)))
+      (conj :semantic-composition/requested-capability-missing)
+      (not (and (vector? dependencies)
+                (every? (fn [edge]
+                          (and (map? edge)
+                               (portable-capability-key? (:from edge))
+                               (portable-capability-key? (:to edge))))
+                        dependencies)))
+      (conj :semantic-composition/invalid-dependencies)
+      (and (vector? dependencies) (set? selected-keys)
+           (not (every? #(and (selected-keys (:from %))
+                              (selected-keys (:to %)))
+                        dependencies)))
+      (conj :semantic-composition/dependency-capability-mismatch)
+      (not (set? provider-roots))
+      (conj :semantic-composition/invalid-provider-package-roots)
+      (and (set? provider-roots) (not (every? string? provider-roots)))
+      (conj :semantic-composition/invalid-provider-package-root)
+      (and package-roots (set? provider-roots) (not= package-roots provider-roots))
+      (conj :semantic-composition/provider-package-root-mismatch)
+      (not (and (vector? actions) (vector? states) (vector? invariants)))
+      (conj :semantic-composition/invalid-module-entry)
+      (not (map? policy-bindings))
+      (conj :semantic-composition/invalid-policy-bindings)
+      (seq module-violations)
+      (conj :semantic-composition/module-consistency-failure))))
+
+(defn verify-portable!
+  "Verify untrusted persisted composition material and return its canonical body.
+
+   This is the deserialization trust boundary for semantic-composition.v1. It
+   validates a closed shape and closed form using only `body`, then recomputes
+   the root over the exact constructor projection. It never performs extension
+   lookup, provider re-resolution, or ambient recovery."
+  [body]
+  (when-not (and (map? body) (= portable-keys (set (keys body))))
+    (throw (ex-info "Portable semantic composition has invalid shape"
+                    {:error :semantic-composition/invalid-portable-shape})))
+  (when-not (= semantic-composition-version (:semantic-composition/version body))
+    (throw (ex-info "Portable semantic composition has unsupported version"
+                    {:error :semantic-composition/unsupported-version})))
+  (when-let [errors (seq (portable-structure-errors body))]
+    (throw (ex-info "Portable semantic composition has invalid closed form"
+                    {:error :semantic-composition/invalid-portable-material
+                     :errors (vec errors)})))
+  (let [root (composition-root-from-portable-body body)]
+    (when-not (= root (:semantic-composition/root body))
+      (throw (ex-info "Portable semantic composition root mismatch"
+                      {:error :semantic-composition/root-mismatch
+                       :declared (:semantic-composition/root body) :computed root})))
+    body))
+
 (defn- build*
   "Unchecked constructor backing build. Normalizes module descriptors,
    derives the composition root over the canonical-safe projection of the

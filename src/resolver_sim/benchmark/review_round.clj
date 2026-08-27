@@ -34,7 +34,7 @@
   [round]
   (= governed-schema-version (:schema-version round)))
 
-(defn- round-identity-input [ctx members]
+(defn round-identity-input [ctx members]
   (let [base {:benchmark/content-root (:benchmark/content-root ctx)
               :members (member-identity-projection (vec (sort-by :researcher/id members)))
               :membership-frozen-at (:review-round/membership-frozen-at ctx)
@@ -234,7 +234,7 @@
 
 ;; ── Identity projection ───────────────────────────────────────────────────
 
-(defn- member-identity-projection
+(defn member-identity-projection
   "Project member maps for review-round identity hashing.
    Excludes :review-member/key so that keyed and unkeyed rounds with
    identical researcher membership share the same identity hash.
