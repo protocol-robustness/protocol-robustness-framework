@@ -6,6 +6,7 @@
             [resolver-sim.benchmark.review-round :as rr]
             [resolver-sim.genesis :as genesis]
             [resolver-sim.configuration-head :as configuration-head]
+            [resolver-sim.benchmark.configuration-activation-publication :as c3b]
             [resolver-sim.benchmark.review-governance :as governance]
             [resolver-sim.benchmark.review-governance-evidence :as evidence]
             [resolver-sim.assurance.governed-authority-consumer :as gac]
@@ -370,6 +371,20 @@
      :envelope (state/build-envelope (store-envelope state-root pred seq+ material))
      :material material}))
 
+(defn- material-for-configuration
+  ([configuration-root] (material-for-configuration (authenticated-material) configuration-root))
+  ([material configuration-root]
+   (let [round (assoc (:authority-material/review-round material)
+                      :review-round/chain-configuration-root configuration-root)
+         round-root (state/review-round-material-root round)
+         index (position-time-index-body round-root)]
+     (assoc material
+            :chain-configuration/root configuration-root
+            :review-round/root round-root
+            :position-time-index/root (state/position-time-index-root index)
+            :authority-material/review-round round
+            :authority-material/position-time-index index))))
+
 (defn- c3-transition []
   {:transition/schema genesis/chain-configuration-transition-schema
    :protocol/genesis-root (hash-ref "aa")
@@ -471,6 +486,68 @@
     (is (:valid? (c3a/verify-evidence (assoc witness :evidence evidence))))
     (is (= (:configuration-head-state/root head-state)
            (:predecessor-configuration-head/root evidence)))))
+
+(deftest canonical-c3b-happy-path
+  (let [c0 genesis/chain-configuration-v0-fixture
+        c0-root (genesis/chain-configuration-root c0)
+        c1 (assoc c0 :verifier-registry/root (hash-ref "ac"))
+        c1-root (genesis/chain-configuration-root c1)
+        transition {:transition/schema genesis/chain-configuration-transition-schema
+                    :protocol/genesis-root genesis/protocol-genesis-fixture-root
+                    :target {:target/type :chain-instance
+                             :target/root genesis/chain-instance-genesis-ethereum-fixture-root}
+                    :configuration/parent-root c0-root
+                    :configuration/new-root c1-root
+                    :verifier-registry/root (:verifier-registry/root c1)
+                    :epoch 2}
+        transition-root (genesis/chain-configuration-transition-root transition)
+        {:keys [material authorisation]} (authorised-material-and-authorisation transition-root)
+        predecessor-material (material-for-configuration material c0-root)
+        successor-material (material-for-configuration material c1-root)
+        h0 (configuration-head/current-head (configuration-head/new-store c0-root 1))
+        e0 (state/build-envelope-v2
+            (assoc (store-envelope (hash-ref "a6") nil 0 predecessor-material)
+                   :chain-configuration/root c0-root)
+            h0)
+        store (state/new-store-v2 e0 h0 predecessor-material)
+        basis (admission-basis {:state-root (:execution/state-root e0)
+                                :head (:authoritative-state-envelope/root e0)})
+        resolved (state/resolve-authority-material store basis)
+        witness {:predecessor-envelope e0 :predecessor-head-state h0
+                 :predecessor-material predecessor-material
+                 :configuration-transition transition :authorisation authorisation
+                 :resolved-review-authority-context-root
+                 (get-in resolved [:context :resolved-review-authority-context/root])}
+        evidence (c3a/build-verified-evidence witness)
+        request {:authorization-evidence evidence :authorization-witness witness
+                 :transition transition :parent-configuration c0
+                 :successor-configuration c1
+                 :successor-envelope (assoc (store-envelope (hash-ref "a7")
+                                                            (:authoritative-state-envelope/root e0)
+                                                            1 successor-material)
+                                            :chain-configuration/root c1-root)
+                 :successor-material successor-material}
+        result (c3b/activate-under-verified-transition-authorization! store request)
+        e1 (:envelope result) h1 (:head-state result) lineage (:lineage result)
+        before-replay @(.state store)
+        replay (c3b/activate-under-verified-transition-authorization! store request)]
+    (is (= c0-root (:configuration/parent-root transition)))
+    (is (= c1-root (:configuration/new-root transition)))
+    (is (= c0-root (:configuration/head-root h0)))
+    (is (= (:configuration-head-state/root h0) (:configuration-head/root e0)))
+    (is (= transition-root (get-in authorisation [:authorisation/target :target/proposed-content-root])))
+    (is (= transition-root (:configuration-transition/root evidence)))
+    (is (:activated? result))
+    (is (= (:authoritative-state-envelope/root e1) (:head @(.state store))))
+    (is (= h1 (get-in @(.state store) [:configuration-head-states (:configuration-head/root e1)])))
+    (is (= (:configuration-head-state/root h1) (:configuration-head/root e1)))
+    (is (:valid? (c3b/verify-activation-lineage
+                  {:lineage lineage :predecessor-envelope e0 :predecessor-head-state h0
+                   :authorization-evidence evidence :authorization-witness witness
+                   :transition transition :parent-configuration c0 :successor-configuration c1
+                   :successor-envelope e1 :successor-head-state h1})))
+    (is (false? (:activated? replay)))
+    (is (= before-replay @(.state store)))))
 
 ;; ── priority 1: signer-key body/root substitution ─────────────────────────
 

@@ -62,10 +62,12 @@
 (defn- effects-root [effects]
   (ref/sha256-ref (hc/domain-hash :configuration-head-activation-v1 effects)))
 
-(defn- apply-activation [state {:keys [transition parent-configuration new-configuration
-                                       expected-head-root authorized-transition-root]}]
-  (let [head (:configuration/current-head state)
-        transition-root (try (genesis/chain-configuration-transition-root transition)
+(defn derive-successor-head
+  "Pure canonical configuration-head transition. Returns either `{:status
+   :committed :configuration/head ... :configuration/activation ...}` or an
+   existing stable rejection reason. It has no authorization or store/CAS input."
+  [head transition parent-configuration new-configuration]
+  (let [transition-root (try (genesis/chain-configuration-transition-root transition)
                              (catch Exception _ nil))
         parent-root (try (genesis/chain-configuration-root parent-configuration)
                          (catch Exception _ nil))
@@ -74,10 +76,6 @@
     (cond
       (not (valid-head-state? head)) {:status :rejected :reason :configuration-head-invalid}
       (nil? transition-root) {:status :rejected :reason :configuration-transition-invalid}
-      ;; The root is the output of the existing governance authorization path.
-      ;; This primitive deliberately does not reimplement or replace it.
-      (not= transition-root authorized-transition-root) {:status :rejected :reason :transition-not-authorized}
-      (not= (:configuration-head-state/root head) expected-head-root) {:status :rejected :reason :configuration-head-mismatch}
       (not= (:configuration/head-root head) (:configuration/parent-root transition)) {:status :rejected :reason :transition-parent-not-current-head}
       (not= parent-root (:configuration/parent-root transition)) {:status :rejected :reason :transition-parent-configuration-mismatch}
       (not= new-root (:configuration/new-root transition)) {:status :rejected :reason :transition-new-configuration-mismatch}
@@ -97,15 +95,35 @@
                              :configuration/epoch (:epoch transition)
                              :configuration/activation-transition-root transition-root}
             activation (assoc activation-base :configuration-head-activation/root (activation-root activation-base))
-            next-state {:configuration/current-head next-head
-                        :configuration/commit-index (inc (:configuration/commit-index state))}
             effects [{:effect/type :configuration-head-activated
                       :configuration/previous-head-root (:configuration-head-state/root head)
                       :configuration/new-head-root (:configuration-head-state/root next-head)
                       :configuration/activation-root (:configuration-head-activation/root activation)}]]
-        {:status :committed :state next-state
-         :public-result {:configuration/head next-head :configuration/activation activation}
+        {:status :committed
+         :configuration/head next-head
+         :configuration/activation activation
          :effects effects
+         :transition-root transition-root}))))
+
+(defn- apply-activation [state {:keys [transition parent-configuration new-configuration
+                                       expected-head-root authorized-transition-root]}]
+  (let [head (:configuration/current-head state)
+        transition-root (try (genesis/chain-configuration-transition-root transition)
+                             (catch Exception _ nil))
+        derived (derive-successor-head head transition parent-configuration new-configuration)]
+    (cond
+      (not= (:configuration-head-state/root head) expected-head-root)
+      {:status :rejected :reason :configuration-head-mismatch}
+      (not= transition-root authorized-transition-root)
+      {:status :rejected :reason :transition-not-authorized}
+      (not= :committed (:status derived)) derived
+      :else
+      (let [next-state {:configuration/current-head (:configuration/head derived)
+                        :configuration/commit-index (inc (:configuration/commit-index state))}]
+        {:status :committed :state next-state
+         :public-result {:configuration/head (:configuration/head derived)
+                         :configuration/activation (:configuration/activation derived)}
+         :effects (:effects derived)
          :ordering-input {:transaction/action :prf.configuration/activate-head
                           :transaction/scope :chain-configuration
                           :transaction/conflict-key [:chain-configuration-head]

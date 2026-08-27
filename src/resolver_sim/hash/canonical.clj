@@ -353,6 +353,7 @@
    :configuration-head-state-v1 "CONFIGURATION_HEAD_STATE_V1"
    :configuration-head-activation-v1 "CONFIGURATION_HEAD_ACTIVATION_V1"
    :configuration-transition-authorization-evidence-v1 "CONFIGURATION_TRANSITION_AUTHORIZATION_EVIDENCE_V1"
+   :configuration-activation-lineage-v1 "CONFIGURATION_ACTIVATION_LINEAGE_V1"
    :prf-chain-configuration-change-identity-v1 "prf.chain-configuration-change-identity.v1"
    :prf-verifier-registry-v1          "PRF_VERIFIER_REGISTRY_V1"
    :prf-verification-basis-v1          "PRF_VERIFICATION_BASIS_V1"
