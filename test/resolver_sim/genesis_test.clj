@@ -3,6 +3,8 @@
             [clojure.string :as str]
             [clojure.data.json :as json]
             [resolver-sim.genesis :as g]
+            [resolver-sim.benchmark.authority-semantics-policy :as semantics-policy]
+            [resolver-sim.benchmark.governed-authority-semantics :as semantics]
             [resolver-sim.hash.canonical :as canonical]
             [resolver-sim.hash.reference :as hash-ref])
   (:import [clojure.lang ExceptionInfo]))
@@ -117,6 +119,34 @@
           root2 (g/chain-configuration-root g/chain-configuration-fixture)]
       (is (= root1 root2)
           "Same configuration content must produce the same root"))))
+
+(defn- v2-config [base]
+  (assoc base
+         :configuration/schema g/chain-configuration-v2-schema
+         :authority-semantics-policy/root
+         (:authority-semantics-policy/root
+          (semantics-policy/build-policy
+           {:authority-semantics/root
+            (:governed-authority-semantics/root semantics/default-semantics)}))))
+
+(deftest test-chain-configuration-v2-is-closed-and-versioned
+  (let [v2 (v2-config g/chain-configuration-fixture)
+        root (g/chain-configuration-root v2)]
+    (is (g/chain-configuration-v2? v2))
+    (is (g/supported-chain-configuration? v2))
+    (is (= root (g/chain-configuration-root (into {} (reverse v2)))))
+    (is (not= root g/chain-configuration-fixture-root))
+    (is (false? (g/chain-configuration-v2?
+                 (dissoc v2 :authority-semantics-policy/root))))
+    (is (false? (g/supported-chain-configuration?
+                 (assoc v2 :configuration/schema "chain-configuration.v3"))))))
+
+(deftest test-chain-configuration-v1-contract-remains-explicit
+  (let [v2 (v2-config g/chain-configuration-fixture)]
+    (is (= config-root (g/chain-configuration-root g/chain-configuration-fixture)))
+    (is (false? (:valid? (g/validate-chain-configuration v2))))
+    (is (false? (g/supported-chain-configuration?
+                 (assoc g/chain-configuration-fixture :configuration/schema "chain-configuration.v3"))))))
 
 ;; ── chain-configuration-transition.v1: direct target tests ──────────────
 

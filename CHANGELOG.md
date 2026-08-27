@@ -2,6 +2,14 @@
 
 ## [Unreleased]
 
+### Governed-authority finalisation — D3 durable receipt readback
+
+- **Added detached CAS persistence for `governed-authority-result-receipt.v1`.** Receipts are persisted as canonical EDN under their semantic receipt roots only after receipt-root verification. Fresh-store reads dispatch on the receipt schema, reject unsupported schemas, re-verify the receipt and address, and independently resolve/recompute C/P/S lineage from an explicit root-to-body resolver or dependency map; tampered bytes, wrong addresses, missing dependencies, and substituted bodies fail closed. (`src/resolver_sim/benchmark/governed_authority_result_receipt_store.clj`, `test/resolver_sim/benchmark/governed_authority_result_receipt_store_test.clj`)
+
+### Governed-authority finalisation — D2 receipts
+
+- **Added `governed-authority-result-receipt.v1`.** Successful fenced finalisation now atomically creates and indexes a closed, self-rooted receipt binding predecessor/successor authority-envelope roots, transition before/after state roots, authority report/context/binding roots, and available pre/successor configuration, semantics-policy, and semantics roots. Finalisation now rejects a successor whose execution state differs from the transition post-state or whose publication predecessor differs from the fenced pre-envelope, without mutating the store. Exact retries return the original receipt-bearing terminal result; legacy finalization remains supported when C/P/S semantics are unavailable. (`src/resolver_sim/benchmark/governed_authority_result_receipt.clj`, `src/resolver_sim/benchmark/governed_authority_state.clj`)
+
 ### Research execution lifecycle
 
 - **Added closed-form extension-resolution verification and research-pack v2.** `extensions.resolution/verify-portable!` verifies the existing `extension-resolution.v1` snapshot projection and root without registry lookup. `research-benchmark-pack.v2` commits that verified resolution material, derives extension-member provider package roots exclusively from it, and keeps historical pack validity separate from explicit current-environment readiness. V1 semantic-composition and research-pack roots remain unchanged. (`src/resolver_sim/extensions/resolution.clj`, `src/resolver_sim/benchmark/research_pack.clj`)
@@ -23,6 +31,24 @@
 - **Added semantic resolver identity and a V2 resolution basis.** `governed-authority-resolver.v1` is a closed, self-rooted descriptor over resolver id, contract, profile, and version only; it excludes runtime implementation and deployment provenance. `governed-authority-resolution-basis.v2` commits exactly one recognized `:authority-resolver/root`, preventing equivalent-looking authority contexts from silently crossing resolver-contract versions. V1 basis verification remains available for historical artifacts. (`src/resolver_sim/benchmark/governed_authority_resolution.clj`, `test/resolver_sim/benchmark/governed_authority_resolution_test.clj`, `src/resolver_sim/hash/canonical.clj`)
 
 - **Stabilized resolver identity dispatch and V1/V2 enforcement.** Resolver roots are now derived by re-rooting canonical descriptors in `known-descriptors` (single source of truth), so registry membership cannot drift from definition. `recognized-resolver-descriptor` dispatches a committed root to the descriptor that self-validates to it, preventing a basis that commits resolver root R1 from dispatching an implementation for R2. `validate-resolution-basis-v2` enforces that a committed `:authority-resolver/root` is recognized and that its descriptor self-validates to that root. `validate-resolution-basis-any` rejects V1 basis for `:current-admission` (live downgrade blocked) while preserving V1 acceptability for `:transition-replay` and `:historical-audit`. (`src/resolver_sim/benchmark/governed_authority_resolution.clj`, `test/resolver_sim/benchmark/governed_authority_resolution_test.clj`, `test/resolver_sim/benchmark/governed_authority_state_test.clj`)
+
+### Configuration-selected authority semantics — C4f authoritative consumer
+
+- **Added `verify-governed-authority-current-under-authoritative-configuration`.** The public C4f entry point accepts `[authority-store basis authorisation]` and delegates exclusively to the store-owned current-semantics issuer. It resolves current retained configuration, semantics policy, and governed-authority semantics (`C/P/S`) and returns a fence bound to those roots; legacy stores or unavailable semantics fail closed without issuing a fence. (`src/resolver_sim/assurance/governed_authority_consumer.clj`, `test/resolver_sim/benchmark/governed_authority_state_test.clj`)
+
+### Configuration-selected authority semantics — C4d/C4e retained resolution
+
+- **Extended C3b activation publication for C4 successor semantics.** C3b requests may supply the actual successor `chain-configuration.v2`, authority-semantics policy, and semantics bodies; publication derives and verifies the `E/H → C → P → S` joins, then retains all successor bodies atomically with E1/H1/material/lineage. Invalid or stale requests leave the authoritative snapshot unchanged, while legacy C3b publication remains available. (`src/resolver_sim/benchmark/configuration_activation_publication.clj`, `src/resolver_sim/benchmark/authority_semantics_state.clj`)
+
+- **Added store-owned C4 semantics admission and resolution for V2 authority state.** `new-store-v2-with-authority-semantics` validates and derives the exact `E/H → C → P → S` joins from configuration, policy, and C4a descriptor bodies before retaining them with the newly created V2 authority store. `resolve-current-authority-semantics` returns only the bodies retained for the current authoritative envelope and independently rechecks all joins; callers cannot nominate alternate policy or semantics bodies. Semantics-bound fence issuance remains a separate C4f slice. (`src/resolver_sim/benchmark/authority_semantics_state.clj`, `test/resolver_sim/benchmark/governed_authority_state_test.clj`)
+
+### Configuration-selected authority semantics — C4b/C4c policy and configuration identity
+
+- **Added rooted authority-semantics policy and `chain-configuration.v2`.** `authority-semantics-policy.v1` commits exactly one C4a `:authority-semantics/root` without duplicating resolver/profile fields. `chain-configuration.v2` preserves every V1 configuration commitment and adds `:authority-semantics-policy/root` under a distinct canonical domain. Explicit configuration root dispatch supports only closed V1 or V2 bodies; V1 validation and golden roots are unchanged. The existing pure configuration-head derivation now obtains canonical configuration roots through this explicit dispatch, allowing a V1→V2 successor while rejecting unknown schemas. Store retention and C1 semantics consumption remain deferred to later C4 slices. (`src/resolver_sim/benchmark/authority_semantics_policy.clj`, `src/resolver_sim/genesis.clj`, `src/resolver_sim/hash/canonical.clj`)
+
+### Governed-authority semantics — C4a explicit dispatch
+
+- **Added `governed-authority-semantics.v1` and fail-closed semantic dispatch.** The closed, rooted descriptor commits the recognized governed-authority resolver root and the frozen-material evaluator, signature-verification, position-time, and governance-evaluation profile identities. `evaluate-authority-with-semantics` accepts only the exact rooted, supported V1 descriptor and dispatches exclusively to the existing frozen-material evaluator; unknown, unrooted, mismatched, or unsupported descriptors return a non-authorised unavailable-semantics result. This establishes an explicit C1 semantics input without yet claiming configuration authorization of that input. (`src/resolver_sim/benchmark/governed_authority_semantics.clj`, `test/resolver_sim/benchmark/governed_authority_state_test.clj`, `src/resolver_sim/hash/canonical.clj`)
 
 ### State-addressed governed-authority resolution — Stage B authenticated state view
 

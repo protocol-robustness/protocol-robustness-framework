@@ -420,6 +420,11 @@
   "Schema identifier for chain-configuration.v1."
   "chain-configuration.v1")
 
+(def ^:const chain-configuration-v2-schema
+  "Schema identifier for chain-configuration.v2. V2 preserves V1 commitments
+   and selects a rooted authority-semantics policy."
+  "chain-configuration.v2")
+
 (def ^:private chain-configuration-root-fields
   "sha256 reference fields of chain-configuration.v1 (identity-bearing roots)."
   [:module-registry/root :verifier-registry/root
@@ -466,6 +471,49 @@
   "Quick boolean structural validity check for chain-configuration.v1."
   [config]
   (:valid? (validate-chain-configuration config)))
+
+(def chain-configuration-v2-fields
+  "Closed canonical field set of chain-configuration.v2."
+  (set hc/chain-configuration-v2-fields))
+
+(defn validate-chain-configuration-v2
+  "Strict closed-shape validator for chain-configuration.v2. V1 validation and
+   roots remain unchanged; V2 additionally requires its rooted semantics policy."
+  [config]
+  (let [errors (atom [])
+        report! (fn [msg] (swap! errors conj msg))
+        expect chain-configuration-v2-fields]
+    (when-not (map? config)
+      (report! "chain-configuration must be a map"))
+    (when (map? config)
+      (when-not (= chain-configuration-v2-schema (:configuration/schema config))
+        (report! (str "configuration/schema must be " chain-configuration-v2-schema
+                      ", got " (pr-str (:configuration/schema config)))))
+      (let [have (set (keys config))
+            extra (set/difference have expect)
+            missing (set/difference expect have)]
+        (when (seq extra) (report! (str "unknown top-level keys: " (sort extra))))
+        (when (seq missing) (report! (str "missing required keys: " (sort missing))))
+        (doseq [f (conj chain-configuration-root-fields :authority-semantics-policy/root)]
+          (let [v (get config f)]
+            (cond
+              (nil? v) (report! (str f " must not be nil"))
+              (not (hash-ref/valid-sha256-ref? v))
+              (report! (str f " must be a valid sha256 reference, got " (pr-str v))))))))
+    {:valid? (empty? @errors) :errors (vec @errors)}))
+
+(defn chain-configuration-v2?
+  "True only for a valid, closed chain-configuration.v2 body."
+  [config]
+  (:valid? (validate-chain-configuration-v2 config)))
+
+(defn supported-chain-configuration?
+  "True for an explicitly supported, valid configuration schema."
+  [config]
+  (case (:configuration/schema config)
+    "chain-configuration.v1" (chain-configuration-valid? config)
+    "chain-configuration.v2" (chain-configuration-v2? config)
+    false))
 
 (def chain-configuration-fields
   "Explicit, reusable set of the canonical configuration field surface.
@@ -532,26 +580,39 @@
   [config]
   (hc/project-chain-configuration config :prf-chain-configuration-v1))
 
+(defn chain-configuration-v2-projection
+  "Explicit versioned projection of chain-configuration.v2."
+  [config]
+  (hc/project-chain-configuration-v2 config :prf-chain-configuration-v2))
+
 (defn chain-configuration-root
-  "Compute the canonical SHA-256 chain-configuration.v1 root as
-   sha256:<64 lowercase hex>."
+  "Compute the canonical root of an explicitly supported configuration schema.
+   V1 projection/root behavior is preserved byte-for-byte; V2 adds a distinct
+   domain-separated projection carrying its authority-semantics policy root."
   ([config]
-   (let [v (validate-chain-configuration config)]
-     (when-not (:valid? v)
-       (throw (ex-info "chain-configuration.v1 is invalid"
-                       {:type :configuration/invalid
-                        :schema chain-configuration-schema
-                        :errors (:errors v)}))))
-   (hash-ref/sha256-ref
-    (hc/domain-hash :prf-chain-configuration-v1
-                    (chain-configuration-projection config))))
+   (let [[validation domain projection schema]
+         (case (:configuration/schema config)
+           "chain-configuration.v1" [(validate-chain-configuration config)
+                                     :prf-chain-configuration-v1
+                                     chain-configuration-projection
+                                     chain-configuration-schema]
+           "chain-configuration.v2" [(validate-chain-configuration-v2 config)
+                                     :prf-chain-configuration-v2
+                                     chain-configuration-v2-projection
+                                     chain-configuration-v2-schema]
+           [{:valid? false :errors ["unsupported chain-configuration schema"]}
+            nil nil (:configuration/schema config)])]
+     (when-not (:valid? validation)
+       (throw (ex-info "chain configuration is invalid"
+                       {:type :configuration/invalid :schema schema
+                        :errors (:errors validation)})))
+     (hash-ref/sha256-ref (hc/domain-hash domain (projection config)))))
   ([config expected]
    (let [computed (chain-configuration-root config)]
      (when (and (some? expected) (not= computed expected))
        (throw (ex-info "caller-supplied chain-configuration root does not match computed root"
                        {:type :configuration/root-mismatch
-                        :declared expected
-                        :computed computed})))
+                        :declared expected :computed computed})))
      computed)))
 
 ;; ──────────────────────────────────────────────────────────────────────────────

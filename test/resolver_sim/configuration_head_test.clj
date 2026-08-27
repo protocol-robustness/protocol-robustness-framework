@@ -1,6 +1,8 @@
 (ns resolver-sim.configuration-head-test
   (:require [clojure.test :refer [deftest is testing]]
             [resolver-sim.configuration-head :as head]
+            [resolver-sim.benchmark.authority-semantics-policy :as policy]
+            [resolver-sim.benchmark.governed-authority-semantics :as semantics]
             [resolver-sim.genesis :as genesis]))
 
 (defn- successor-config []
@@ -16,6 +18,33 @@
    :configuration/new-root (genesis/chain-configuration-root new)
    :verifier-registry/root (:verifier-registry/root new)
    :epoch epoch})
+
+(defn- v2-config [base]
+  (assoc base
+         :configuration/schema genesis/chain-configuration-v2-schema
+         :authority-semantics-policy/root
+         (:authority-semantics-policy/root
+          (policy/build-policy
+           {:authority-semantics/root
+            (:governed-authority-semantics/root semantics/default-semantics)}))))
+
+(deftest versioned-configuration-roots-flow-through-pure-head-derivation
+  (let [c0 genesis/chain-configuration-v0-fixture
+        c1 (v2-config (successor-config))
+        t (transition c0 c1 2)
+        h0 (head/current-head (head/new-store (genesis/chain-configuration-root c0) 1))
+        derived (head/derive-successor-head h0 t c0 c1)]
+    (is (= :committed (:status derived)))
+    (is (= (genesis/chain-configuration-root c1)
+           (get-in derived [:configuration/head :configuration/head-root])))
+    (is (= derived (head/derive-successor-head h0 t c0 c1))))
+  (testing "unknown schemas fail through the existing parent/new mismatch path"
+    (let [c0 genesis/chain-configuration-v0-fixture
+          unknown (assoc (successor-config) :configuration/schema "chain-configuration.v3")
+          t (transition c0 (successor-config) 2)
+          h0 (head/current-head (head/new-store (genesis/chain-configuration-root c0) 1))]
+      (is (= :transition-new-configuration-mismatch
+             (:reason (head/derive-successor-head h0 t c0 unknown)))))))
 
 (deftest activation-is-fenced-to-one-current-head
   (let [c0 genesis/chain-configuration-v0-fixture

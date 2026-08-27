@@ -4,6 +4,7 @@
    freshly recomputed report; event payloads are deliberately absent."
   (:require [resolver-sim.assurance.three-member-authority :as authority]
             [resolver-sim.benchmark.governed-authority-state :as authority-state]
+            [resolver-sim.benchmark.authority-semantics-state :as authority-semantics-state]
             [resolver-sim.benchmark.researcher-force-authorisation :as rfa]))
 
 (defn- resolved-artifact
@@ -16,6 +17,13 @@
    store-issued fence; it never consults legacy resolver, key, or time callbacks."
   [authority-store basis authorisation]
   (authority-state/evaluate-and-issue-finalizable-authority-fence!
+   authority-store basis authorisation))
+
+(defn verify-governed-authority-current-under-authoritative-configuration
+  "C4f authoritative consumer. Resolves current C/P/S only from retained
+   authority-store state and returns the store-issued semantics-bound fence."
+  [authority-store basis authorisation]
+  (authority-semantics-state/evaluate-and-issue-current-authority-fence!
    authority-store basis authorisation))
 
 (defn finalise-governed-authority-current!
