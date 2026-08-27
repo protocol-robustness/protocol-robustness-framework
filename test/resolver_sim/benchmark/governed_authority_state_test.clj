@@ -5,6 +5,7 @@
             [resolver-sim.benchmark.configuration-transition-authorization :as c3a]
             [resolver-sim.benchmark.review-round :as rr]
             [resolver-sim.genesis :as genesis]
+            [resolver-sim.configuration-head :as configuration-head]
             [resolver-sim.benchmark.review-governance :as governance]
             [resolver-sim.benchmark.review-governance-evidence :as evidence]
             [resolver-sim.assurance.governed-authority-consumer :as gac]
@@ -142,6 +143,45 @@
    :position-time-index/root (or (:position-time-index/root material) (hash-ref "ee"))
    :publication/sequence sequence
    :publication/predecessor-root predecessor})
+
+(deftest authoritative-envelope-v2-binds-canonical-head-state-root
+  (let [material (authenticated-material)
+        head-a (configuration-head/current-head (configuration-head/new-store config-ref 1))
+        head-b (configuration-head/initial-head config-ref 2)
+        base (store-envelope (hash-ref "a1") nil 0 material)
+        envelope (state/build-envelope-v2 base head-a)]
+    (is (state/verify-envelope-v2 envelope head-a))
+    (is (= (:configuration-head-state/root head-a) (:configuration-head/root envelope)))
+    (is (= envelope (state/build-envelope-v2 base head-a)))
+    (is (not= (:configuration-head-state/root head-a) (:configuration-head-state/root head-b)))
+    (is (false? (state/verify-envelope-v2 envelope head-b)))
+    (is (false? (state/verify-envelope-v2 envelope
+                                          (assoc head-a :configuration/head-root (hash-ref "fe")))))
+    (is (false? (state/verify-envelope-v2
+                 (assoc envelope :configuration-head/root (hash-ref "88")) head-a)))
+    (is (= state/envelope-schema (:artifact/schema (state/build-envelope base))))))
+
+(deftest authoritative-store-v2-retains-canonical-head-state
+  (let [material (authenticated-material)
+        head-a (configuration-head/current-head (configuration-head/new-store config-ref 1))
+        envelope-a (state/build-envelope-v2 (store-envelope (hash-ref "a2") nil 0 material) head-a)
+        store (state/new-store-v2 envelope-a head-a material)
+        head-b-base (assoc head-a
+                           :configuration/epoch 2
+                           :configuration/sequence 1
+                           :configuration/predecessor-head-root (:configuration-head-state/root head-a)
+                           :configuration/activation-transition-root (hash-ref "ab"))
+        head-b (assoc head-b-base :configuration-head-state/root (configuration-head/head-state-root head-b-base))
+        envelope-b (state/build-envelope-v2
+                    (store-envelope (hash-ref "a3") (:authoritative-state-envelope/root envelope-a) 1 material)
+                    head-b)]
+    (is (= head-a (get-in @(.state store) [:configuration-head-states (:configuration-head/root envelope-a)])))
+    (is (thrown? clojure.lang.ExceptionInfo
+                 (state/new-store-v2
+                  (state/build-envelope (store-envelope (hash-ref "a4") nil 0 material))
+                  head-a material)))
+    (is (:published? (state/publish-successor-v2! store (:authoritative-state-envelope/root envelope-a) envelope-b head-b material)))
+    (is (= head-b (get-in @(.state store) [:configuration-head-states (:configuration-head/root envelope-b)])))))
 
 (defn- fresh-store
   ([] (fresh-store (authenticated-material)))
@@ -408,6 +448,29 @@
     (is (thrown? clojure.lang.ExceptionInfo
                  (c3a/build-verified-evidence (assoc witness :authorisation non-authorised))))
     (is (nil? (:authority-fence candidate)))))
+
+(deftest c3a-v2-predecessor-binds-retained-canonical-head
+  (let [transition (c3-transition)
+        transition-root (genesis/chain-configuration-transition-root transition)
+        {:keys [material authorisation]} (authorised-material-and-authorisation transition-root)
+        head-state (configuration-head/current-head (configuration-head/new-store config-ref 1))
+        envelope (state/build-envelope-v2 (store-envelope (hash-ref "a5") nil 0 material) head-state)
+        store (state/new-store-v2 envelope head-state material)
+        resolved (state/resolve-authority-material store
+                                                   (admission-basis {:state-root (:execution/state-root envelope)
+                                                                     :head (:authoritative-state-envelope/root envelope)}))
+        witness {:predecessor-envelope envelope
+                 :predecessor-head-state head-state
+                 :predecessor-material material
+                 :configuration-transition transition
+                 :authorisation authorisation
+                 :resolved-review-authority-context-root
+                 (get-in resolved [:context :resolved-review-authority-context/root])}
+        evidence (c3a/build-verified-evidence witness)]
+    (is (:resolved? resolved))
+    (is (:valid? (c3a/verify-evidence (assoc witness :evidence evidence))))
+    (is (= (:configuration-head-state/root head-state)
+           (:predecessor-configuration-head/root evidence)))))
 
 ;; ── priority 1: signer-key body/root substitution ─────────────────────────
 

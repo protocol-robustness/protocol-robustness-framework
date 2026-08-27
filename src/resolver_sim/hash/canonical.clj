@@ -151,6 +151,7 @@
    :resolved-review-authority-context-v1 "RESOLVED_REVIEW_AUTHORITY_CONTEXT_V1"
    :governed-authority-transition-binding-v1 "GOVERNED_AUTHORITY_TRANSITION_BINDING_V1"
    :authoritative-state-envelope-v1 "AUTHORITATIVE_STATE_ENVELOPE_V1"
+   :authoritative-state-envelope-v2 "AUTHORITATIVE_STATE_ENVELOPE_V2"
    :governed-authority-resolver-v1 "GOVERNED_AUTHORITY_RESOLVER_V1"
    :governed-authority-resolution-basis-v2 "GOVERNED_AUTHORITY_RESOLUTION_BASIS_V2"
    :governed-authority-signer-key-set-v1 "GOVERNED_AUTHORITY_SIGNER_KEY_SET_V1"

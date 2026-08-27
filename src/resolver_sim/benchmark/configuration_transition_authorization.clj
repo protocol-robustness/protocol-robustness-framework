@@ -46,11 +46,16 @@
   "Recompute C3a evidence from frozen predecessor material. `witness` contains
   the rooted artifact plus uncommitted verifier inputs; those inputs never enter
   the evidence projection except through independently recomputed roots."
-  [{:keys [evidence predecessor-envelope predecessor-material configuration-transition authorisation]}]
+  [{:keys [evidence predecessor-envelope predecessor-head-state predecessor-material configuration-transition authorisation]}]
   (try
-    (let [envelope (state/build-envelope predecessor-envelope)
+    (let [v2? (= state/envelope-v2-schema (:artifact/schema predecessor-envelope))
+          envelope (if v2?
+                     (state/build-envelope-v2 predecessor-envelope predecessor-head-state)
+                     (state/build-envelope predecessor-envelope))
           envelope-root (:authoritative-state-envelope/root envelope)
-          _ (state/new-store envelope predecessor-material)
+          _ (if v2?
+              (state/new-store-v2 envelope predecessor-head-state predecessor-material)
+              (state/new-store envelope predecessor-material))
           transition-root (genesis/chain-configuration-transition-root configuration-transition)
           report (state/evaluate-authority-with-frozen-material
                   {:authorisation authorisation
@@ -91,9 +96,11 @@
   "Construct a rooted C3a candidate from frozen predecessor inputs. This is not
   an admission API: callers must pass the result through `verify-evidence`.
   Production construction uses `build-verified-evidence`."
-  [{:keys [predecessor-envelope predecessor-material configuration-transition authorisation
+  [{:keys [predecessor-envelope predecessor-head-state predecessor-material configuration-transition authorisation
            resolved-review-authority-context-root]}]
-  (let [envelope (state/build-envelope predecessor-envelope)
+  (let [envelope (if (= state/envelope-v2-schema (:artifact/schema predecessor-envelope))
+                   (state/build-envelope-v2 predecessor-envelope predecessor-head-state)
+                   (state/build-envelope predecessor-envelope))
         transition-root (genesis/chain-configuration-transition-root configuration-transition)
         report (state/evaluate-authority-with-frozen-material
                 {:authorisation authorisation
