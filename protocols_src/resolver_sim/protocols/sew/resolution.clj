@@ -242,7 +242,7 @@
 
 (defn- guard-fail [error-kw & {:as ctx}]
   (attr/log-with-attr :debug "guard/rejected" (assoc ctx :error error-kw))
-  (let [result (assoc (t/fail error-kw) :guard-context ctx)
+    (let [result (assoc (t/fail error-kw) :guard-context ctx :world (:world ctx))
         subject-type (or (:subject-type ctx) :guard)
         subject-id (or (:subject-id ctx) (:workflow-id ctx) (:resolver ctx) "unknown")]
     (attr/with-attribution {:subject/type subject-type
@@ -757,12 +757,13 @@
     (attr/log-annotated! :debug "Submitting resolution" ctx {:caller caller})
     (cond
       (not (t/valid-workflow-id? world workflow-id))
-      (guard-fail :invalid-workflow-id :workflow-id workflow-id)
+      (guard-fail :invalid-workflow-id :workflow-id workflow-id :world world)
 
        (not= :disputed (t/escrow-state world workflow-id))
        (guard-fail :transfer-not-in-dispute
                    :escrow-state (t/escrow-state world workflow-id)
-                   :workflow-id workflow-id)
+                   :workflow-id workflow-id
+                   :world world)
 
        ;; Kleros ruling 0 (refuse to arbitrate) makes the escrow terminal until
        ;; its max-dispute-duration timeout triggers auto-cancel.  Any follow-up
@@ -772,7 +773,8 @@
        (get-in world [:escrow-transfers workflow-id :resolution/refused] false)
        (guard-fail :resolution-already-refused
                    :workflow-id workflow-id
-                   :resolution-source resolution-source)
+                   :resolution-source resolution-source
+                   :world world)
 
        :else
        (let [world          (if (:exists (t/get-pending world workflow-id))
@@ -848,12 +850,13 @@
         custom-exclusive? (and (some? custom-resolver) (not= "" custom-resolver))]
     (cond
       (not (t/valid-workflow-id? world workflow-id))
-      (guard-fail :invalid-workflow-id :workflow-id workflow-id)
+      (guard-fail :invalid-workflow-id :workflow-id workflow-id :world world)
 
       (not= :disputed (t/escrow-state world workflow-id))
       (guard-fail :transfer-not-in-dispute
                   :escrow-state (t/escrow-state world workflow-id)
-                  :workflow-id workflow-id)
+                  :workflow-id workflow-id
+                  :world world)
 
        ;; Priority 1: custom-resolver is exclusive before the response window
        ;; expires.  After expiry, the original resolver's authority is revoked
@@ -863,11 +866,12 @@
        (and custom-exclusive?
             (not response-window-expired?)
             (not= caller custom-resolver))
-       (guard-fail :not-authorized-resolver
-                   :caller caller
-                   :resolution-mode :custom-resolver
-                   :dispute-level (t/dispute-level world workflow-id)
-                   :workflow-id workflow-id)
+        (guard-fail :not-authorized-resolver
+                    :caller caller
+                    :resolution-mode :custom-resolver
+                    :dispute-level (t/dispute-level world workflow-id)
+                    :workflow-id workflow-id
+                    :world world)
 
        ;; Before the response window expires, require standard authorization
        ;; (assigned resolver, module-authorized, or custom-resolver above).
@@ -875,10 +879,11 @@
        ;; may resolve.
        (and (not response-window-expired?)
             (not (auth/authorized-resolver? world workflow-id caller resolution-module-fn)))
-       (guard-fail :not-authorized-resolver
-                   :caller caller
-                   :dispute-level (t/dispute-level world workflow-id)
-                   :workflow-id workflow-id)
+        (guard-fail :not-authorized-resolver
+                    :caller caller
+                    :dispute-level (t/dispute-level world workflow-id)
+                    :workflow-id workflow-id
+                    :world world)
 
       :else
       (apply-resolution-transition world workflow-id caller is-release
@@ -903,18 +908,20 @@
   [world workflow-id caller resolution-hash resolution-module-fn]
   (cond
     (not (t/valid-workflow-id? world workflow-id))
-    (guard-fail :invalid-workflow-id :workflow-id workflow-id)
+    (guard-fail :invalid-workflow-id :workflow-id workflow-id :world world)
 
     (not= :disputed (t/escrow-state world workflow-id))
-    (guard-fail :transfer-not-in-dispute
-                :escrow-state (t/escrow-state world workflow-id)
-                :workflow-id workflow-id)
+     (guard-fail :transfer-not-in-dispute
+                 :escrow-state (t/escrow-state world workflow-id)
+                 :workflow-id workflow-id
+                 :world world)
 
     (not (auth/authorized-resolver? world workflow-id caller resolution-module-fn))
-    (guard-fail :not-authorized-resolver
-                :caller caller
-                :dispute-level (t/dispute-level world workflow-id)
-                :workflow-id workflow-id)
+     (guard-fail :not-authorized-resolver
+                 :caller caller
+                 :dispute-level (t/dispute-level world workflow-id)
+                 :workflow-id workflow-id
+                 :world world)
 
     :else
     (let [world (lc/accrue-yield world workflow-id)
@@ -948,7 +955,7 @@
    originating level and supersession reason."
   [world workflow-id]
   (if-not (t/valid-workflow-id? world workflow-id)
-    (guard-fail :invalid-workflow-id :workflow-id workflow-id)
+    (guard-fail :invalid-workflow-id :workflow-id workflow-id :world world)
     (let [active-pending (t/get-pending world workflow-id)
           now-ts         (time-ctx/block-ts world)
           fallback-entry (when-not (:exists active-pending)
@@ -961,23 +968,26 @@
          ;; max-dispute-duration timeout; a lingering pending settlement must
          ;; not be executable.
          (get-in world [:escrow-transfers workflow-id :resolution/refused] false)
-         (guard-fail :resolution-already-refused
-                     :workflow-id workflow-id
-                     :action :execute-pending-settlement)
+          (guard-fail :resolution-already-refused
+                      :workflow-id workflow-id
+                      :action :execute-pending-settlement
+                      :world world)
 
          (not (:exists pending))
-         (guard-fail :no-pending-settlement :workflow-id workflow-id)
+         (guard-fail :no-pending-settlement :workflow-id workflow-id :world world)
 
          (not= :disputed (t/escrow-state world workflow-id))
-         (guard-fail :transfer-not-in-dispute
-                     :escrow-state (t/escrow-state world workflow-id)
-                     :workflow-id workflow-id)
+          (guard-fail :transfer-not-in-dispute
+                      :escrow-state (t/escrow-state world workflow-id)
+                      :workflow-id workflow-id
+                      :world world)
 
         (< now-ts (:appeal-deadline pending))
-        (guard-fail :appeal-window-not-expired
-                    :block-time now-ts
-                    :appeal-deadline (:appeal-deadline pending)
-                    :workflow-id workflow-id)
+         (guard-fail :appeal-window-not-expired
+                     :block-time now-ts
+                     :appeal-deadline (:appeal-deadline pending)
+                     :workflow-id workflow-id
+                     :world world)
 
         ;; Yield readiness guard: block settlement if yield position has
         ;; positive yield but last-accrual-time is set and behind current
@@ -990,12 +1000,13 @@
                (pos? (+ (:unrealized-yield pos 0) (:realized-yield pos 0)))
                (some? last-accrual)
                (< last-accrual now-ts)))
-        (guard-fail :yield-position-unsettled
-                    :workflow-id workflow-id
-                    :block-time now-ts
-                    :last-accrual-time (get-in world [:yield/positions (t/escrow-yield-owner-id workflow-id) :last-accrual-time])
-                    :unrealized-yield (get-in world [:yield/positions (t/escrow-yield-owner-id workflow-id) :unrealized-yield])
-                    :realized-yield (get-in world [:yield/positions (t/escrow-yield-owner-id workflow-id) :realized-yield]))
+         (guard-fail :yield-position-unsettled
+                     :workflow-id workflow-id
+                     :block-time now-ts
+                     :last-accrual-time (get-in world [:yield/positions (t/escrow-yield-owner-id workflow-id) :last-accrual-time])
+                     :unrealized-yield (get-in world [:yield/positions (t/escrow-yield-owner-id workflow-id) :unrealized-yield])
+                     :realized-yield (get-in world [:yield/positions (t/escrow-yield-owner-id workflow-id) :realized-yield])
+                     :world world)
 
         :else
         (let [;; Read any force-authorisation provenance stored on the resolution
@@ -1016,10 +1027,11 @@
                    owner-id (t/escrow-yield-owner-id workflow-id)
                    pos (get-in world' [:yield/positions owner-id])]
                (if (and pos (:active (:status pos)))
-                 (guard-fail :yield-position-still-active-after-settlement
-                             :workflow-id workflow-id
-                             :position-status (:status pos)
-                             :owner-id owner-id)
+                  (guard-fail :yield-position-still-active-after-settlement
+                              :workflow-id workflow-id
+                              :position-status (:status pos)
+                              :owner-id owner-id
+                              :world world)
                  (if recovered-meta
                    (assoc (t/ok world') :extra {:settlement/recovered-from-superseded recovered-meta})
                    (t/ok world'))))
@@ -1129,33 +1141,37 @@
   (let [current-level (t/dispute-level world workflow-id)]
     (cond
       (not (t/valid-workflow-id? world workflow-id))
-      (guard-fail :invalid-workflow-id :workflow-id workflow-id)
+      (guard-fail :invalid-workflow-id :workflow-id workflow-id :world world)
 
       (not= :disputed (t/escrow-state world workflow-id))
       (guard-fail :transfer-not-in-dispute
                   :escrow-state (t/escrow-state world workflow-id)
-                  :workflow-id workflow-id)
+                  :workflow-id workflow-id
+                  :world world)
 
       (t/final-round? world workflow-id)
       (guard-fail :escalation-not-allowed
                   :dispute-level current-level
-                  :workflow-id workflow-id)
+                  :workflow-id workflow-id
+                  :world world)
 
       (not (:exists (t/get-pending world workflow-id)))
       (guard-fail :no-resolution-to-challenge
                   :pending-exists false
                   :dispute-level current-level
-                  :workflow-id workflow-id)
+                  :workflow-id workflow-id
+                  :world world)
 
       ;; Appeal window has closed — the pending settlement is now executable.
       (>= (time-ctx/block-ts world) (:appeal-deadline (t/get-pending world workflow-id)))
       (guard-fail :appeal-window-expired
                   :block-time (time-ctx/block-ts world)
                   :appeal-deadline (:appeal-deadline (t/get-pending world workflow-id))
-                  :workflow-id workflow-id)
+                  :workflow-id workflow-id
+                  :world world)
 
       (nil? escalation-fn)
-      (guard-fail :escalation-not-configured :workflow-id workflow-id)
+      (guard-fail :escalation-not-configured :workflow-id workflow-id :world world)
 
       (escalation-cooldown-violated? world caller current-level)
       (guard-fail :escalation-cooldown-active
@@ -1164,7 +1180,8 @@
                   :last-escalation-block-time
                   (get-in world [:last-escalation-block-time-per-addr caller current-level])
                   :cooldown-seconds escalation-cooldown-seconds
-                  :workflow-id workflow-id)
+                  :workflow-id workflow-id
+                  :world world)
 
      :else
      (let [esc-result    (escalation-fn world workflow-id caller current-level)]
@@ -1349,21 +1366,23 @@
   (let [current-level (t/dispute-level world workflow-id)]
     (cond
       (not (t/valid-workflow-id? world workflow-id))
-      (guard-fail :invalid-workflow-id :workflow-id workflow-id)
+      (guard-fail :invalid-workflow-id :workflow-id workflow-id :world world)
 
       (not= :disputed (t/escrow-state world workflow-id))
       (guard-fail :transfer-not-in-dispute
                   :escrow-state (t/escrow-state world workflow-id)
-                  :workflow-id workflow-id)
+                  :workflow-id workflow-id
+                  :world world)
 
       (let [et (t/get-transfer world workflow-id)]
         (and (not= caller (:from et)) (not= caller (:to et))))
-      (guard-fail :not-participant :caller caller :workflow-id workflow-id)
+      (guard-fail :not-participant :caller caller :workflow-id workflow-id :world world)
 
       (t/final-round? world workflow-id)
       (guard-fail :escalation-not-allowed
                   :dispute-level current-level
-                  :workflow-id workflow-id)
+                  :workflow-id workflow-id
+                  :world world)
 
     ;; Escalation is an appeal: a resolver must have already submitted a
     ;; resolution (creating a pending settlement) before a party may escalate.
@@ -1373,17 +1392,19 @@
       (guard-fail :no-resolution-to-appeal
                   :pending-exists false
                   :dispute-level current-level
-                  :workflow-id workflow-id)
+                  :workflow-id workflow-id
+                  :world world)
 
       ;; Appeal window has closed — the pending settlement is now executable.
       (>= (time-ctx/block-ts world) (:appeal-deadline (t/get-pending world workflow-id)))
       (guard-fail :appeal-window-expired
                   :block-time (time-ctx/block-ts world)
                   :appeal-deadline (:appeal-deadline (t/get-pending world workflow-id))
-                  :workflow-id workflow-id)
+                  :workflow-id workflow-id
+                  :world world)
 
       (nil? escalation-fn)
-      (guard-fail :escalation-not-configured :workflow-id workflow-id)
+      (guard-fail :escalation-not-configured :workflow-id workflow-id :world world)
 
       (escalation-cooldown-violated? world caller current-level)
       (guard-fail :escalation-cooldown-active
@@ -1392,7 +1413,8 @@
                   :last-escalation-block-time
                   (get-in world [:last-escalation-block-time-per-addr caller current-level])
                   :cooldown-seconds escalation-cooldown-seconds
-                  :workflow-id workflow-id)
+                  :workflow-id workflow-id
+                  :world world)
 
       :else
       (let [esc-result    (escalation-fn world workflow-id caller current-level)]

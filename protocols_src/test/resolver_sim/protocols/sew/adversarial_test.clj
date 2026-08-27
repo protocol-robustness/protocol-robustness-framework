@@ -84,17 +84,25 @@
      {:world (:world dr) :wf-id wf-id})))
 
 (defn- make-resolved
-  "Create, dispute, resolve (release), then execute the pending settlement —
-   producing a terminal :released escrow.  With a zero appeal window the
-   pending settlement is immediately executable, so the keeper step follows
-   in the same transition."
+  "Create, dispute, resolve (release), producing a terminal :released escrow.
+   With a zero appeal window the resolution finalizes immediately, so there is
+   no pending settlement to execute — the resolved world is already terminal."
   [world]
   (let [{:keys [world wf-id]} (make-disputed world)
         rr (res/execute-resolution world wf-id r0 true "0xhash" nil)]
     (when-not (:ok rr) (throw (ex-info "execute-resolution failed" rr)))
     (let [ep (res/execute-pending-settlement (:world rr) wf-id)]
-      (when-not (:ok ep) (throw (ex-info "execute-pending-settlement failed" ep)))
-      {:world (:world ep) :wf-id wf-id})))
+      (cond
+        (:ok ep)
+        {:world (:world ep) :wf-id wf-id}
+
+        ;; Zero appeal window: resolution finalized immediately, no pending
+        ;; settlement exists. The resolved world is already terminal.
+        (#{:no-pending-settlement :transfer-not-in-dispute} (:error ep))
+        {:world (:world rr) :wf-id wf-id}
+
+        :else
+        (throw (ex-info "execute-pending-settlement failed" ep))))))
 
 (defn- make-pending
   "Create, dispute, then submit resolution that defers into appeal window.
@@ -317,19 +325,16 @@
                 {:world w0 :wf-ids []}
                 (range n))
         _     (is (invariants-hold? world) "solvency after disputes")]
-    ;; Resolve half as release, half as refund, then execute each pending
-    ;; settlement (zero appeal window — immediately executable).
+    ;; Resolve half as release, half as refund.  With a zero appeal window each
+    ;; resolution finalizes immediately, so there is no pending settlement step.
     (let [final-world
           (reduce (fn [w [i wf]]
                     (let [is-release (even? i)
                           rr (res/execute-resolution w wf r0 is-release "0xhash" nil)]
-                      (is (true? (:ok rr)) (str "resolution of wf " wf " failed"))
+                      (is (true? (:ok rr)) (str "resolution of wf " wf " failed " (:error rr)))
                       (is (transition-holds? w (:world rr)))
-                      (let [w-resolved (:world rr)
-                            ep (res/execute-pending-settlement w-resolved wf)]
-                        (is (true? (:ok ep)) (str "pending execution of wf " wf " failed"))
-                        (is (transition-holds? w-resolved (:world ep)))
-                        (:world ep))))
+                      ;; Zero appeal window: resolution finalizes immediately.
+                      (:world rr)))
                   world
                   (map-indexed vector wf-ids))]
       (is (invariants-hold? final-world) "solvency after all resolutions")
@@ -360,12 +365,11 @@
         w-both (:world dr-b)
         held-a-before (get-in w-both [:total-held token] 0)
         held-b-before (get-in w-both [:total-held token-b] 0)
-        ;; Resolve only escrow A, then execute its pending settlement
+        ;; Resolve only escrow A.  With a zero appeal window the resolution
+        ;; finalizes immediately, so there is no pending settlement to execute.
         rr-a  (res/execute-resolution w-both wf-a r0 true "0xhash" nil)
         _     (is (true? (:ok rr-a)))
-        ep-a  (res/execute-pending-settlement (:world rr-a) wf-a)
-        _     (is (true? (:ok ep-a)))
-        w-after (:world ep-a)]
+        w-after (:world rr-a)]
     ;; Token B held must be unchanged
     (is (= held-b-before (get-in w-after [:total-held token-b] 0))
         "DAI total-held must not change when USDC escrow resolves")
