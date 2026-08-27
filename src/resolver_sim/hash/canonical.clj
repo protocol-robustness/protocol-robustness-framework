@@ -177,6 +177,7 @@
    :research-analysis-closure "RESEARCH_ANALYSIS_CLOSURE_V1"
    :research-execution "RESEARCH_EXECUTION_V1"
    :research-benchmark-pack "RESEARCH_BENCHMARK_PACK_V1"
+   :research-benchmark-pack-v2 "RESEARCH_BENCHMARK_PACK_V2"
    :creation-provenance "CREATION_PROVENANCE_V1"
    :source-creation "SOURCE_CREATION_V1"
    :trust-sequence-definition "TRUST_SEQUENCE_DEFINITION_V1"

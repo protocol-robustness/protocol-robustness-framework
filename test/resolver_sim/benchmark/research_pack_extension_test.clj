@@ -85,6 +85,19 @@
     (is (thrown? clojure.lang.ExceptionInfo
                  (research-pack/freeze-pack (inputs ambiguous))))))
 
+(deftest v2-pack-verifies-embedded-resolution-and-nested-tamper-ladder
+  (let [pack (research-pack/freeze-pack-v2
+              (inputs (extension-map fixtures/scaled-share-pack)))
+        member-path [:research-pack/members 0 :member/provider-package-roots]
+        changed-member (assoc-in pack member-path ["changed-provider"])
+        changed-resolution (assoc-in pack [:research-pack/resolution :extensions/resolution-root]
+                                     "changed-resolution")]
+    (is (:valid? (research-pack/validate-pack-v2 pack)))
+    (is (false? (:valid? (research-pack/validate-pack-v2 changed-member))))
+    (is (false? (:valid? (research-pack/validate-pack-v2 changed-resolution))))
+    (is (false? (:valid? (research-pack/validate-pack-v2
+                          (assoc pack :research-pack/root "changed-pack-root")))))))
+
 (deftest frozen-pack-member-set-cannot-be-rewritten-after-freeze
   (let [pack (freeze fixtures/scaled-share-pack)
         member (first (:research-pack/members pack))

@@ -12,6 +12,10 @@
 (defn- body []
   (semantic/portable-body (composition)))
 
+(deftest semantic-composition-v1-historical-root-is-stable
+  (is (= "f6ea51337ae057f232d183215db400026079e280c2ef16071af6ad5e4cf53b59"
+         (:semantic-composition/root (body)))))
+
 (deftest constructor-and-portable-verifier-share-one-identity-projection
   (let [constructed (composition)
         portable (body)

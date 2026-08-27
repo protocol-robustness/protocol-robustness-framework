@@ -218,11 +218,6 @@
   [resolution]
   (:extensions/dependencies resolution))
 
-(defn- committed-capability-providers
-  "Project exact resolved provider package identities per capability."
-  [resolution]
-  (:extensions/capability-providers resolution))
-
 (defn- committed-packages
   "Project resolved provider packages."
   [resolution]
@@ -250,7 +245,6 @@
             packages
             capabilities
             dependencies
-            capability-providers
             selected-capabilities
             provider-package-roots
             action-modules
@@ -299,7 +293,6 @@
                               (committed-packages resolution)
                               (committed-capabilities resolution)
                               (committed-dependencies resolution)
-                              (committed-capability-providers resolution)
                               selected
                               (provider-package-roots resolution)
                               action-modules
@@ -314,7 +307,6 @@
                            :semantic-composition/packages (committed-packages resolution)
                            :semantic-composition/capabilities (committed-capabilities resolution)
                            :semantic-composition/dependencies (committed-dependencies resolution)
-                           :semantic-composition/capability-providers (committed-capability-providers resolution)
                            :semantic-composition/selected-capabilities selected
                            :semantic-composition/provider-package-roots (provider-package-roots resolution)
                            :semantic-composition/action-modules action-modules
@@ -408,8 +400,7 @@
   #{:semantic-composition/version :semantic-composition/profile
     :semantic-composition/requested-capabilities :semantic-composition/resolution-root
     :semantic-composition/packages :semantic-composition/capabilities
-    :semantic-composition/dependencies :semantic-composition/capability-providers
-    :semantic-composition/selected-capabilities
+    :semantic-composition/dependencies :semantic-composition/selected-capabilities
     :semantic-composition/provider-package-roots :semantic-composition/action-modules
     :semantic-composition/state-modules :semantic-composition/invariant-modules
     :semantic-composition/policy-bindings :semantic-composition/root})
@@ -424,7 +415,6 @@
    :semantic-composition/packages (:packages composition)
    :semantic-composition/capabilities (:capabilities composition)
    :semantic-composition/dependencies (:dependencies composition)
-   :semantic-composition/capability-providers (:capability-providers composition)
    :semantic-composition/selected-capabilities (:selected-capabilities composition)
    :semantic-composition/provider-package-roots (:provider-package-roots composition)
    :semantic-composition/action-modules (:action-modules composition)
@@ -453,7 +443,6 @@
         packages (:semantic-composition/packages body)
         capabilities (:semantic-composition/capabilities body)
         dependencies (:semantic-composition/dependencies body)
-        capability-providers (:semantic-composition/capability-providers body)
         provider-roots (:semantic-composition/provider-package-roots body)
         actions (:semantic-composition/action-modules body)
         states (:semantic-composition/state-modules body)
@@ -491,11 +480,6 @@
       (conj :semantic-composition/invalid-package-entry)
       (not (map? capabilities))
       (conj :semantic-composition/invalid-capabilities)
-      (not (map? capability-providers))
-      (conj :semantic-composition/invalid-capability-providers)
-      (and (map? capability-providers) (map? capabilities)
-           (not= (set (keys capabilities)) (set (keys capability-providers))))
-      (conj :semantic-composition/capability-provider-mismatch)
       (and (map? capabilities)
            (not (every? (fn [[key descriptor]]
                           (and (portable-capability-key? key)
@@ -593,7 +577,7 @@
                   (hc/domain-hash composition-domain-tag
                                   (hc/project-canonical-safe base)))]
     (-> (->SemanticComposition
-         profile [] resolution-root nil nil nil nil selected nil
+         profile [] resolution-root nil nil nil selected nil
          actions state-mods invariants
          {:force-authorisation (get policy-bindings :force-authorisation)}
          root)
@@ -676,7 +660,6 @@
          packages
          capabilities
          dependencies
-         nil
          (set selected)
          provider-roots
          action-modules
