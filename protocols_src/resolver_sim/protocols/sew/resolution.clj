@@ -328,17 +328,23 @@
                     bounty-bps      (:challenge-bounty-bps snap 0)]
             (if-not (pos? slash-amt)
               world
-              (let [slash-id (t/allocate-slash-id world)
-                    entry    (make-reversal-slash-entry slash-id :reversal slash-level
-                                                        prev-resolver prev-stake slash-bps
-                                                        slash-amt token workflow-id
-                                                        (if new-evidence? :pending :executed)
-                                                        now (if new-evidence? (+ now appeal-window) 0)
-                                                        reversal-prob)
-                    world'   (if new-evidence?
-                               world
-                               (:world (reg/slash-resolver-stake world prev-resolver slash-amt challenger bounty-bps workflow-id true)))]
-                (t/insert-slash world' entry)))))))))))
+                 (let [slash-id       (t/allocate-slash-id world)
+                       slash-result   (when-not new-evidence?
+                                        (reg/slash-resolver-stake world prev-resolver slash-amt challenger bounty-bps workflow-id true))
+                       actual-amount  (or (:total-slashed slash-result) slash-amt)
+                       actual-from-stake (or (:slashed-from-stake slash-result) actual-amount)
+                       entry          (make-reversal-slash-entry slash-id :reversal slash-level
+                                                                 prev-resolver prev-stake slash-bps
+                                                                 slash-amt token workflow-id
+                                                                 (if new-evidence? :pending :executed)
+                                                                 now (if new-evidence? (+ now appeal-window) 0)
+                                                                 reversal-prob)
+                       entry          (cond-> entry
+                                        (not new-evidence?)
+                                        (assoc :actual-amount actual-amount
+                                               :actual-from-stake actual-from-stake))
+                       world'         (or (:world slash-result) world)]
+                   (t/insert-slash world' entry)))))))))))
 
 (defn force-reversal-slash
   "Force a reversal slash on a workflow without going through the full resolution
@@ -389,10 +395,16 @@
                                                     now (if (= :immediate track) 0 (+ now appeal-window))
                                                     reversal-prob
                                                     :authorization-provenance authorization-provenance)
-                world'   (if (= :immediate track)
-                           (:world (reg/slash-resolver-stake world prev-resolver slash-amt nil 0 workflow-id))
-                           world)]
-            (t/insert-slash world' entry)))))))
+                 slash-result      (when (= :immediate track)
+                                       (reg/slash-resolver-stake world prev-resolver slash-amt nil 0 workflow-id))
+                 actual-amount     (or (:total-slashed slash-result) slash-amt)
+                 actual-from-stake (or (:slashed-from-stake slash-result) actual-amount)
+                 entry             (cond-> entry
+                                     (= :immediate track)
+                                     (assoc :actual-amount actual-amount
+                                            :actual-from-stake actual-from-stake))
+                 world'            (or (:world slash-result) world)]
+             (t/insert-slash world' entry)))))))
 
 (defn- reverse-reversal-slash-on-vindication
   "When a higher-level resolution agrees with a lower-level decision that was
@@ -451,9 +463,16 @@
                                                          (= :reversal (:reason history)))
                                                 history))]
                           (if slash-entry
-                            (let [resolver (:resolver slash-entry)
-                                  amount   (:amount slash-entry)
-                                  status   (:status slash-entry)
+                             (let [resolver (:resolver slash-entry)
+                                   ;; Amount actually debited at enforcement time.
+                                   ;; When the resolver's stake was clamped (e.g. a
+                                   ;; concurrent slash drained it below the nominal
+                                   ;; penalty), the debited amount is recorded on the
+                                   ;; entry as :actual-amount.  Fall back to the
+                                   ;; nominal :amount for entries created before this
+                                   ;; field existed.
+                                   amount   (or (:actual-amount slash-entry) (:amount slash-entry))
+                                   status   (:status slash-entry)
                                   enforced? (#{:executed :expired-executed} status)
                                   now      (time-ctx/block-ts w)
                                   target   (if pending :pending-fraud-slashes :reversal-slash-history)]

@@ -1041,30 +1041,35 @@
                             (= :reversal (:slash/kind slash))
                             (<= (:appeal-deadline slash 0) now-ts)))
             expired  (filter expired? (:pending-fraud-slashes world {}))]
-        (reduce (fn [w [slash-id slash]]
-                  (let [resolver   (:resolver slash)
-                        amount     (:amount slash)
-                        can-slash? (and (some? resolver)
-                                        (pos? amount)
-                                        (pos? (reg/get-stake w resolver)))
-                        bounty-bps (or (:challenge-bounty-bps (t/get-snapshot w workflow-id) 0) 0)
-                        w'         (if can-slash?
-                                     (:world (reg/slash-resolver-stake
-                                               w resolver amount nil bounty-bps
-                                               workflow-id true))
-                                     w)]
-                    (-> w'
-                        (update :reversal-slash-history
-                                (fnil into {})
-                                {slash-id (assoc slash
-                                                 :status (if can-slash?
-                                                           :expired-executed
-                                                           :expired-cleaned-up)
-                                                 :cleanup-at now-ts
-                                                 :cleanup-reason :appeal-window-expired)})
-                        (update :pending-fraud-slashes dissoc slash-id))))
-                world
-                expired))
+                 (reduce (fn [w [slash-id slash]]
+                           (let [resolver   (:resolver slash)
+                                 amount     (:amount slash)
+                                 can-slash? (and (some? resolver)
+                                                 (pos? amount)
+                                                 (pos? (reg/get-stake w resolver)))
+                                 bounty-bps (or (:challenge-bounty-bps (t/get-snapshot w workflow-id) 0) 0)
+                                 slash-result (when can-slash?
+                                                (reg/slash-resolver-stake
+                                                  w resolver amount nil bounty-bps
+                                                  workflow-id true))
+                                 w'         (if can-slash? (:world slash-result) w)
+                                 actual-amount (when can-slash? (:total-slashed slash-result))
+                                 actual-from-stake (when can-slash? (:slashed-from-stake slash-result))]
+                             (-> w'
+                                 (update :reversal-slash-history
+                                         (fnil into {})
+                                         {slash-id (cond-> (assoc slash
+                                                          :status (if can-slash?
+                                                                    :expired-executed
+                                                                    :expired-cleaned-up)
+                                                          :cleanup-at now-ts
+                                                          :cleanup-reason :appeal-window-expired)
+                                           actual-amount
+                                           (assoc :actual-amount actual-amount
+                                                  :actual-from-stake actual-from-stake))})
+                                 (update :pending-fraud-slashes dissoc slash-id))))
+                         world
+                         expired))
       world)))
 
 ;; ---------------------------------------------------------------------------

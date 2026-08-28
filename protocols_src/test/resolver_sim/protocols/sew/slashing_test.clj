@@ -1685,8 +1685,87 @@
             "expired-executed Track-2 reversal stake is credited on vindication")
         (is (= 0 (get-in result [:resolver-slash-total "0xRes"])))
         (is (= 10 (get-in result [:slash-credit-liabilities "0xRes"])))
+         (is (= :reversed-with-credit
+                (get-in result [:reversal-slash-history slash-id :status])))))))
+
+(deftest reversal-slash-credit-uses-actual-amount-when-clamped
+  (testing "clamped reversal slash credits the ACTUAL debited amount, not the nominal basis"
+    (let [workflow-id 42
+          slash-id 0
+          ;; Nominal slash basis is 100, but only 30 could be debited because the
+          ;; resolver's stake was clamped at execution.
+          world (-> {:dispute-levels {workflow-id 2}
+                     :escrow-transfers {workflow-id {:token :USDC}}
+                     :previous-decisions {workflow-id {0 {:is-release true}
+                                                       1 {:is-release false}}}
+                     :pending-fraud-slashes {}
+                     :slash-by-context {[workflow-id :reversal 0] slash-id}
+                     :reversal-slash-history {slash-id {:status :expired-executed
+                                                         :reason :reversal
+                                                         :resolver "0xRes"
+                                                         :amount 100
+                                                         :actual-amount 30
+                                                         :actual-from-stake 30}}
+                     :next-slash-id 1
+                     ;; Resolver was fully debited: started at 30, slashed 30 -> 0.
+                     :resolver-stakes {"0xRes" 0}
+                     :resolver-slash-total {"0xRes" 30}
+                     :slash-credit-liabilities {}}
+                    )]
+      (let [result (#'res/reverse-reversal-slash-on-vindication world workflow-id true)]
+        ;; Buggy behaviour would credit the nominal 100 -> stake 100, liabilities 100.
+        (is (= 30 (get-in result [:resolver-stakes "0xRes"]))
+            "stake restored by the ACTUAL debited amount (30), not the nominal basis (100)")
+        (is (= 0 (get-in result [:resolver-slash-total "0xRes"])))
+        (is (= 30 (get-in result [:slash-credit-liabilities "0xRes"]))
+            "liability reflects the actual debited amount (30), not the nominal basis (100)")
         (is (= :reversed-with-credit
                (get-in result [:reversal-slash-history slash-id :status])))))))
+
+(deftest reversal-slash-credit-clamped-track2
+  (testing "Track-2 reversal slash under clamped stake records :actual-amount and credits only that"
+    (let [res "0xRes" workflow-id 42
+          ;; Resolver stake is only 100, so the nominal 250 penalty (1000 * 0.25)
+          ;; must clamp to the 100 actually debited at enforcement time.
+          world0 (-> (t/empty-world 1000)
+                     (reg/register-stake res 100))
+          slash-id 0
+          entry {:resolver res
+                 :basis-amount 1000
+                 :basis-kind :stake
+                 :slash-bps 2500
+                 :amount 250
+                 :token :USDC
+                 :workflow-id workflow-id
+                 :reason :reversal
+                 :status :pending
+                 :proposed-at 0
+                 :appeal-deadline 0
+                 :appeal-bond-held 0
+                 :contest-deadline 0
+                 :reversal-detection-probability 0.0}
+          w-pending (-> world0
+                        (assoc-in [:escrow-transfers workflow-id] {:token :USDC :escrow-state :released})
+                        (assoc-in [:dispute-levels workflow-id] 2)
+                        (assoc-in [:previous-decisions workflow-id]
+                                  {0 {:is-release true} 1 {:is-release false}})
+                        (insert-test-slash workflow-id :reversal 0 entry))
+          stake-before-expiry (reg/get-stake w-pending res)
+          ;; Finalize (released) -> cleanup-orphaned-slashes enforces the expired pending slash.
+          w-final (lc/cleanup-orphaned-slashes w-pending workflow-id)
+          archived (get-in w-final [:reversal-slash-history slash-id])
+          actual (get archived :actual-amount)
+          stake-after-expiry (reg/get-stake w-final res)
+          ;; Vindicate: higher level agrees with res's original decision (is-release true).
+          w-vind (#'res/reverse-reversal-slash-on-vindication w-final workflow-id true)
+          stake-after-vind (reg/get-stake w-vind res)]
+      (is (= 100 stake-before-expiry) "resolver stake is below the nominal slash basis")
+      (is (= :expired-executed (:status archived)) "Track-2 reversal slash enforced at expiry")
+      (is (= 100 actual) ":actual-amount records the clamped debit (100), not the nominal 250")
+      (is (= 0 stake-after-expiry) "stake fully debited by the clamped amount")
+      (is (= 100 stake-after-vind)
+          "vindication restores the ACTUAL debited amount (100), not the nominal 250")
+      (is (= :reversed-with-credit (get-in w-vind [:reversal-slash-history slash-id :status]))))))
 
 (deftest fraud-group-member-cannot-appeal-for-another-member
   (let [r-a "0xA" r-b "0xB"
