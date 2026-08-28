@@ -63,7 +63,7 @@
   (let [backend (fresh-cas)
         inputs (c4-dependencies)
         artifact (c4-receipt inputs)]
-    (receipt-store/persist-receipt! backend artifact)
+    (receipt-store/persist-receipt! backend artifact (:dependencies inputs))
     {:backend backend
      :inputs inputs
      :artifact artifact
@@ -103,6 +103,19 @@
                         :artifact/schema "unknown-receipt.v1")]
     (is (= :unsupported-receipt-schema
            (failure-reason #(receipt-store/persist-receipt! backend artifact))))))
+
+(deftest dependency-verifying-persistence-rejects-substituted-lineage-before-cas
+  (let [backend (fresh-cas)
+        inputs (c4-dependencies)
+        artifact (c4-receipt inputs)
+        substituted (assoc (:configuration inputs)
+                           :verifier-registry/root (hash-ref "8"))
+        dependencies (assoc (:dependencies inputs)
+                            (:configuration-root inputs) substituted)]
+    (is (= :dependency-root-mismatch
+           (failure-reason #(receipt-store/persist-receipt! backend artifact dependencies))))
+    (is (nil? (cas/resolve-artifact backend
+                                    (:governed-authority-result-receipt/root artifact))))))
 
 (deftest detached-readback-rejects-missing-dependency
   (let [{:keys [backend root]} (persisted-c4)]

@@ -51,8 +51,9 @@
      successor-envelope successor-material)))
 
 (defn verify-governed-authority
-  "Return canonical governed authority bindings, or {:valid? false}. `context`
-   must provide :researcher-force-authorisation-governed-authority-context-resolver.
+  "Legacy, non-finalizable callback consumer. Return canonical governed authority
+   bindings, or {:valid? false}; its result must not be used to finalize state.
+   `context` must provide :researcher-force-authorisation-governed-authority-context-resolver.
    Its result contains only trusted control-plane values: :review-round,
    :review-governance, :position-time-resolver, and :governance-current?."
   [context authorisation round-hash]
