@@ -58,7 +58,8 @@
   [authority-store {:keys [authorization-evidence authorization-witness transition
                            parent-configuration successor-configuration
                            successor-envelope successor-material
-                           successor-semantics-policy successor-semantics]}]
+                           successor-semantics-policy successor-semantics
+                           successor-allocation-entitlement-policy]}]
   (let [current @(.state authority-store)
         e0-root (:head current)
         e0 (get-in current [:envelopes e0-root])
@@ -72,6 +73,9 @@
         transition-root (try (genesis/chain-configuration-transition-root transition)
                              (catch Exception _ nil))
         c4-request? (or successor-semantics-policy successor-semantics)
+        v3-successor? (= genesis/chain-configuration-v3-schema
+                         (:configuration/schema successor-configuration))
+        entitlement-request? (some? successor-allocation-entitlement-policy)
         derived (when (and (:valid? verified)
                            (= transition-root (:configuration-transition/root authorization-evidence)))
                   (head/derive-successor-head h0 transition parent-configuration successor-configuration))]
@@ -86,6 +90,13 @@
       {:activated? false :reason :configuration-transition-authorization-mismatch}
       (and c4-request? (not (and successor-semantics-policy successor-semantics)))
       {:activated? false :reason :successor-authority-semantics-incomplete}
+      (and v3-successor?
+           (not (and successor-semantics-policy
+                     successor-semantics
+                     successor-allocation-entitlement-policy)))
+      {:activated? false :reason :successor-allocation-entitlement-incomplete}
+      (and (not v3-successor?) entitlement-request?)
+      {:activated? false :reason :allocation-entitlement-policy-not-supported-by-successor}
       (not= :committed (:status derived))
       {:activated? false :reason (:reason derived)}
       :else
@@ -107,12 +118,20 @@
                           :successor-authoritative-state/root e1-root}
             lineage (assoc lineage-base :configuration-activation-lineage/root (lineage-root lineage-base))
             published (try
-                        (semantics-state/publish-successor-v2-with-authority-semantics!
-                         authority-store e0-root e1 h1 successor-material
-                         (when c4-request? successor-configuration)
-                         successor-semantics-policy successor-semantics lineage)
+                        (if v3-successor?
+                          (semantics-state/publish-successor-v3-with-authority-semantics-and-allocation-entitlement!
+                           authority-store e0-root e1 h1 successor-material successor-configuration
+                           successor-semantics-policy successor-semantics
+                           successor-allocation-entitlement-policy lineage)
+                          (semantics-state/publish-successor-v2-with-authority-semantics!
+                           authority-store e0-root e1 h1 successor-material
+                           (when c4-request? successor-configuration)
+                           successor-semantics-policy successor-semantics lineage))
                         (catch Exception _
-                          {:published? false :reason :successor-authority-semantics-invalid}))]
+                          {:published? false
+                           :reason (if v3-successor?
+                                     :successor-allocation-entitlement-invalid
+                                     :successor-authority-semantics-invalid)}))]
         (if (:published? published)
           {:activated? true :envelope e1 :head-state h1 :lineage lineage}
           (if (= :state-not-at-required-head (:reason published))

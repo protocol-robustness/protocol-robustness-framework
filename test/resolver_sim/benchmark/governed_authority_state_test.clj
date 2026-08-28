@@ -5,6 +5,7 @@
             [resolver-sim.benchmark.governed-authority-result-receipt :as result-receipt]
             [resolver-sim.benchmark.governed-authority-result-receipt-store :as receipt-store]
             [resolver-sim.benchmark.governed-authority-semantics :as semantics]
+            [resolver-sim.benchmark.allocation-entitlement-policy :as entitlement-policy]
             [resolver-sim.benchmark.authority-semantics-policy :as semantics-policy]
             [resolver-sim.benchmark.authority-semantics-state :as semantics-state]
             [resolver-sim.benchmark.configuration-transition-authorization :as c3a]
@@ -1348,6 +1349,130 @@
      :c0-root c0-root :c1-root c1-root :e0 e0 :h0 h0
      :transition transition :witness witness :evidence evidence :request request}))
 
+(defn- canonical-v3-c3b-fixture []
+  (let [{c0-v2 :configuration p0 :policy s0 :semantics} (c4-configuration)
+        entitlement-0 (entitlement-policy/build-policy
+                       {:allocation-policy/root (hash-ref "a")
+                        :asset/root (hash-ref "b")
+                        :protocol-instance/root (hash-ref "c")
+                        :custody-subject/root (hash-ref "d")
+                        :custody-scope/root (hash-ref "e")
+                        :allocation-entitlement/profile :allocation-entitlement/fixed-domain-v1})
+        c0 (assoc c0-v2
+                  :configuration/schema genesis/chain-configuration-v3-schema
+                  :allocation-entitlement-policy/root
+                  (:allocation-entitlement-policy/root entitlement-0))
+        c0-root (genesis/chain-configuration-root c0)
+        p1 (semantics-policy/build-policy
+            {:authority-semantics/root (:governed-authority-semantics/root s0)})
+        entitlement-1 (entitlement-policy/build-policy
+                       {:allocation-policy/root (hash-ref "1")
+                        :asset/root (hash-ref "2")
+                        :protocol-instance/root (hash-ref "3")
+                        :custody-subject/root (hash-ref "4")
+                        :custody-scope/root (hash-ref "5")
+                        :allocation-entitlement/profile :allocation-entitlement/fixed-domain-v1})
+        c1 (assoc c0
+                  :verifier-registry/root (hash-ref "6")
+                  :authority-semantics-policy/root (:authority-semantics-policy/root p1)
+                  :allocation-entitlement-policy/root
+                  (:allocation-entitlement-policy/root entitlement-1))
+        c1-root (genesis/chain-configuration-root c1)
+        transition {:transition/schema genesis/chain-configuration-transition-schema
+                    :protocol/genesis-root genesis/protocol-genesis-fixture-root
+                    :target {:target/type :chain-instance
+                             :target/root genesis/chain-instance-genesis-ethereum-fixture-root}
+                    :configuration/parent-root c0-root
+                    :configuration/new-root c1-root
+                    :verifier-registry/root (:verifier-registry/root c1)
+                    :epoch 2}
+        transition-root (genesis/chain-configuration-transition-root transition)
+        {:keys [material authorisation]} (authorised-material-and-authorisation transition-root)
+        predecessor-material (material-for-configuration material c0-root)
+        successor-material (material-for-configuration material c1-root)
+        h0 (configuration-head/current-head (configuration-head/new-store c0-root 1))
+        e0 (state/build-envelope-v2
+            (assoc (store-envelope (hash-ref "7") nil 0 predecessor-material)
+                   :chain-configuration/root c0-root)
+            h0)
+        store (semantics-state/new-store-v3-with-authority-semantics-and-allocation-entitlement
+               e0 h0 predecessor-material c0 p0 s0 entitlement-0)
+        resolved (state/resolve-authority-material
+                  store
+                  (admission-basis {:state-root (:execution/state-root e0)
+                                    :head (:authoritative-state-envelope/root e0)}))
+        witness {:predecessor-envelope e0
+                 :predecessor-head-state h0
+                 :predecessor-material predecessor-material
+                 :configuration-transition transition
+                 :authorisation authorisation
+                 :resolved-review-authority-context-root
+                 (get-in resolved [:context :resolved-review-authority-context/root])}
+        evidence (c3a/build-verified-evidence witness)
+        request {:authorization-evidence evidence
+                 :authorization-witness witness
+                 :transition transition
+                 :parent-configuration c0
+                 :successor-configuration c1
+                 :successor-envelope
+                 (assoc (store-envelope (hash-ref "8")
+                                        (:authoritative-state-envelope/root e0)
+                                        1
+                                        successor-material)
+                        :chain-configuration/root c1-root)
+                 :successor-material successor-material
+                 :successor-semantics-policy p1
+                 :successor-semantics s0
+                 :successor-allocation-entitlement-policy entitlement-1}]
+    {:store store :c0 c0 :c1 c1 :entitlement-0 entitlement-0
+     :entitlement-1 entitlement-1 :c0-root c0-root :c1-root c1-root
+     :request request}))
+
+(deftest c3b-v3-activation-retains-governed-allocation-entitlement-policy
+  (let [{:keys [store c0 entitlement-0 entitlement-1 c1 c1-root request]}
+        (canonical-v3-c3b-fixture)
+        result (c3b/activate-under-verified-transition-authorization! store request)
+        snapshot @(.state store)
+        resolved (semantics-state/resolve-current-authority-semantics-and-allocation-entitlement store)
+        replay (c3b/activate-under-verified-transition-authorization! store request)]
+    (is (:activated? result))
+    (is (= c1-root (:chain-configuration/root (:envelope result))))
+    (is (= c1 (:configuration resolved)))
+    (is (= entitlement-1 (:allocation-entitlement-policy resolved)))
+    (is (= entitlement-1 (get-in snapshot [:allocation-entitlement-policies
+                                           (:allocation-entitlement-policy/root entitlement-1)])))
+    ;; Historical C0/E0 bodies remain retained; current resolution is not used to
+    ;; reinterpret prior configuration facts.
+    (is (= c0 (get-in snapshot [:chain-configurations
+                                (genesis/chain-configuration-root c0)])))
+    (is (= entitlement-0 (get-in snapshot [:allocation-entitlement-policies
+                                           (:allocation-entitlement-policy/root entitlement-0)])))
+    (is (false? (:activated? replay)))
+    (is (contains? #{:configuration-transition-authorization-invalid
+                     :state-not-at-required-head}
+                   (:reason replay)))))
+
+(deftest c3b-v3-requires-and-verifies-entitlement-policy-body
+  (doseq [[label mutate expected-reason]
+          [[:missing #(dissoc % :successor-allocation-entitlement-policy)
+            :successor-allocation-entitlement-incomplete]
+           [:policy #(assoc % :successor-allocation-entitlement-policy
+                            (assoc (:successor-allocation-entitlement-policy %)
+                                   :asset/root (hash-ref "9")))
+            :successor-allocation-entitlement-invalid]
+           [:configuration #(assoc % :successor-configuration
+                                   (assoc (:successor-configuration %)
+                                          :allocation-entitlement-policy/root
+                                          (hash-ref "f")))
+            nil]]]
+    (let [{:keys [store request]} (canonical-v3-c3b-fixture)
+          before @(.state store)
+          result (c3b/activate-under-verified-transition-authorization! store (mutate request))]
+      (is (false? (:activated? result)) (str label " rejects"))
+      (when expected-reason
+        (is (= expected-reason (:reason result)) (str label " reason")))
+      (is (= before @(.state store)) (str label " publishes nothing")))))
+
 (deftest canonical-c4-c3b-retains-successor-authority-semantics-chain
   (let [{:keys [store c0 c1 p1 s1 c1-root e0 h0 transition witness evidence request]}
         (canonical-c4-c3b-fixture)
@@ -1616,6 +1741,49 @@
       (swap! (.state store) assoc :authority-semantics-policies {})
       (is (false? (:resolved? (semantics-state/resolve-current-authority-semantics store))))
       (is (empty? (:issued-fences @(.state store)))))))
+
+(deftest v3-resolution-uses-current-retained-configuration-and-policy-bodies
+  (let [authority-policy (semantics-policy/build-policy
+                          {:authority-semantics/root
+                           (:governed-authority-semantics/root semantics/default-semantics)})
+        entitlement (entitlement-policy/build-policy
+                     {:allocation-policy/root (hash-ref "a")
+                      :asset/root (hash-ref "b")
+                      :protocol-instance/root (hash-ref "c")
+                      :custody-subject/root (hash-ref "d")
+                      :custody-scope/root (hash-ref "e")
+                      :allocation-entitlement/profile :allocation-entitlement/fixed-domain-v1})
+        configuration (assoc genesis/chain-configuration-fixture
+                             :configuration/schema genesis/chain-configuration-v3-schema
+                             :authority-semantics-policy/root
+                             (:authority-semantics-policy/root authority-policy)
+                             :allocation-entitlement-policy/root
+                             (:allocation-entitlement-policy/root entitlement))
+        configuration-root (genesis/chain-configuration-root configuration)
+        material (assoc (authenticated-material) :chain-configuration/root configuration-root)
+        h0 (configuration-head/current-head (configuration-head/new-store configuration-root 1))
+        envelope (state/build-envelope-v2
+                  (assoc (store-envelope (hash-ref "f") nil 0 material)
+                         :chain-configuration/root configuration-root)
+                  h0)
+        store (semantics-state/new-store-v3-with-authority-semantics-and-allocation-entitlement
+               envelope h0 material configuration authority-policy semantics/default-semantics entitlement)]
+    (is (= entitlement
+           (:allocation-entitlement-policy
+            (semantics-state/resolve-current-authority-semantics-and-allocation-entitlement store))))
+    (swap! (.state store)
+           assoc-in [:chain-configurations configuration-root]
+           (assoc configuration :allocation-entitlement-policy/root (hash-ref "substituted")))
+    (is (= :allocation-entitlement-unavailable
+           (:reason (semantics-state/resolve-current-authority-semantics-and-allocation-entitlement store))))
+    (swap! (.state store)
+           assoc-in [:chain-configurations configuration-root] configuration)
+    (swap! (.state store)
+           assoc-in [:allocation-entitlement-policies
+                     (:allocation-entitlement-policy/root entitlement)]
+           (assoc entitlement :allocation-entitlement-policy/root (hash-ref "mismatch")))
+    (is (= :allocation-entitlement-unavailable
+           (:reason (semantics-state/resolve-current-authority-semantics-and-allocation-entitlement store))))))
 
 (deftest c4-store-rejects-transplanted-configuration-policy-or-semantics
   (let [{:keys [configuration policy semantics]} (c4-configuration)

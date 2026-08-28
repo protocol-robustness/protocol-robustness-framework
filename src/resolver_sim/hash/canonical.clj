@@ -352,7 +352,9 @@
    :prf-chain-instance-genesis-v1     "PRF_CHAIN_INSTANCE_GENESIS_V1"
    :prf-chain-configuration-v1        "PRF_CHAIN_CONFIGURATION_V1"
    :prf-chain-configuration-v2        "PRF_CHAIN_CONFIGURATION_V2"
+   :prf-chain-configuration-v3        "PRF_CHAIN_CONFIGURATION_V3"
    :authority-semantics-policy-v1 "AUTHORITY_SEMANTICS_POLICY_V1"
+   :allocation-entitlement-policy-v1 "ALLOCATION_ENTITLEMENT_POLICY_V1"
    :prf-chain-configuration-transition-v1 "PRF_CHAIN_CONFIGURATION_TRANSITION_V1"
    :configuration-head-state-v1 "CONFIGURATION_HEAD_STATE_V1"
    :configuration-head-activation-v1 "CONFIGURATION_HEAD_ACTIVATION_V1"
@@ -1932,6 +1934,11 @@
    commitment and adds the exact semantics policy selected by configuration."
   (conj chain-configuration-fields :authority-semantics-policy/root))
 
+(def chain-configuration-v3-fields
+  "Ordered identity fields of chain-configuration.v3. V3 preserves every V2
+   commitment and adds the exact allocation-entitlement policy selection."
+  (conj chain-configuration-v2-fields :allocation-entitlement-policy/root))
+
 (def chain-configuration-transition-fields
   "Ordered identity fields of chain-configuration-transition.v1 (top level)."
   [:transition/schema
@@ -1957,6 +1964,11 @@
   "Canonical projection of chain-configuration.v2."
   [value _intent]
   (project-canonical-safe (select-keys value chain-configuration-v2-fields)))
+
+(defn project-chain-configuration-v3
+  "Canonical projection of chain-configuration.v3."
+  [value _intent]
+  (project-canonical-safe (select-keys value chain-configuration-v3-fields)))
 
 (defn project-chain-configuration-transition
   "Canonical projection of chain-configuration-transition.v1: exactly the canonical
@@ -3013,6 +3025,21 @@ name (an alias)."
                           :interoperability-policy/root}
     :intent/excludes    #{:runtime-values :functions :deployment-metadata :timestamps}
     :intent/projection-fn project-chain-configuration
+    :intent/version     1}
+
+   :prf-chain-configuration-v3
+   {:intent/name        :prf-chain-configuration-v3
+    :intent/domain-tag  "PRF_CHAIN_CONFIGURATION_V3"
+    :intent/description "Canonical SHA-256 identity of a chain-configuration.v3 semantic configuration state"
+    :intent/includes    #{:configuration/schema
+                          :module-registry/root :verifier-registry/root
+                          :evidence-policy/root :escrow-template-registry/root
+                          :parameter-policy/root :governance-policy/root
+                          :interoperability-policy/root
+                          :authority-semantics-policy/root
+                          :allocation-entitlement-policy/root}
+    :intent/excludes    #{:runtime-values :functions :deployment-metadata :timestamps}
+    :intent/projection-fn project-chain-configuration-v3
     :intent/version     1}
 
    :prf-chain-configuration-transition-v1

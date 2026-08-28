@@ -1,6 +1,7 @@
 (ns resolver-sim.benchmark.authority-semantics-state
   "C4d/C4e store-owned configuration semantics admission and resolution."
-  (:require [resolver-sim.benchmark.authority-semantics-policy :as policy]
+  (:require [resolver-sim.benchmark.allocation-entitlement-policy :as entitlement-policy]
+            [resolver-sim.benchmark.authority-semantics-policy :as policy]
 
             [resolver-sim.benchmark.governed-authority-state :as state]
             [resolver-sim.genesis :as genesis]))
@@ -87,6 +88,78 @@
               {:published? true :envelope envelope}
               (recur))))))))
 
+(defn- verify-admission-v3!
+  [envelope head-state configuration semantics-policy descriptor entitlement]
+  (let [{:keys [configuration-root policy-root semantics-root]}
+        (verify-admission! envelope head-state configuration semantics-policy descriptor)
+        entitlement-validation (entitlement-policy/validate-policy entitlement)
+        entitlement-root (:allocation-entitlement-policy/root entitlement)]
+    (when-not (and (= genesis/chain-configuration-v3-schema
+                      (:configuration/schema configuration))
+                   (= entitlement-root
+                      (:allocation-entitlement-policy/root configuration))
+                   (:valid? entitlement-validation))
+      (throw (ex-info "v3 allocation entitlement admission is invalid" {})))
+    {:configuration-root configuration-root
+     :policy-root policy-root
+     :semantics-root semantics-root
+     :entitlement-policy-root entitlement-root}))
+
+(defn new-store-v3-with-authority-semantics-and-allocation-entitlement
+  "Admit a V3 store after proving retained E/H → C → P → S and C → entitlement
+   policy joins. Resolution later uses these retained bodies, never caller input."
+  [envelope head-state material configuration semantics-policy descriptor entitlement]
+  (let [{:keys [configuration-root policy-root semantics-root entitlement-policy-root]}
+        (verify-admission-v3! envelope head-state configuration semantics-policy descriptor entitlement)
+        store (state/new-store-v2 envelope head-state material)]
+    (swap! (.state store)
+           assoc :chain-configurations {configuration-root configuration}
+           :authority-semantics-policies {policy-root semantics-policy}
+           :governed-authority-semantics {semantics-root descriptor}
+           :allocation-entitlement-policies {entitlement-policy-root entitlement})
+    store))
+
+(defn publish-successor-v3-with-authority-semantics-and-allocation-entitlement!
+  "Atomically publish a V3 successor and retain verified C/P/S and entitlement
+   policy bodies. This is separate from the V2 publication path."
+  [store expected-head envelope head-state material configuration semantics-policy
+   descriptor entitlement lineage]
+  (let [{:keys [configuration-root policy-root semantics-root entitlement-policy-root]}
+        (verify-admission-v3! envelope head-state configuration semantics-policy descriptor entitlement)
+        envelope (state/build-envelope-v2 envelope head-state)
+        envelope-root (:authoritative-state-envelope/root envelope)
+        state-root (:execution/state-root envelope)
+        head-root (:configuration-head/root envelope)]
+    (when-not (and (state/verify-envelope-v2 envelope head-state)
+                   (= (:chain-instance-genesis/root envelope)
+                      (:chain-instance-genesis/root material))
+                   (= configuration-root (:chain-configuration/root material)))
+      (throw (ex-info "v3 successor envelope/material join is invalid" {})))
+    (loop []
+      (let [current @(.state store)]
+        (cond
+          (not= expected-head (:head current))
+          {:published? false :reason :state-not-at-required-head}
+
+          (not= expected-head (:publication/predecessor-root envelope))
+          {:published? false :reason :authority-state-membership-unproven}
+
+          :else
+          (let [next (-> current
+                         (assoc :head envelope-root)
+                         (assoc-in [:envelopes envelope-root] envelope)
+                         (assoc-in [:by-state state-root] envelope-root)
+                         (assoc-in [:material state-root] material)
+                         (assoc-in [:configuration-head-states head-root] head-state)
+                         (assoc-in [:activation-lineage envelope-root] lineage)
+                         (assoc-in [:chain-configurations configuration-root] configuration)
+                         (assoc-in [:authority-semantics-policies policy-root] semantics-policy)
+                         (assoc-in [:governed-authority-semantics semantics-root] descriptor)
+                         (assoc-in [:allocation-entitlement-policies entitlement-policy-root] entitlement))]
+            (if (compare-and-set! (.state store) current next)
+              {:published? true :envelope envelope}
+              (recur))))))))
+
 (declare resolve-current-authority-semantics)
 
 (defn evaluate-and-issue-current-authority-fence!
@@ -127,3 +200,34 @@
        :semantics/root (:semantics-root admission)})
     (catch Exception _
       {:resolved? false :reason :authority-semantics-unavailable})))
+
+(defn resolve-current-authority-semantics-and-allocation-entitlement
+  "Resolve V3 C → authority-semantics P/S plus the entitlement-policy body only
+  from retained bodies associated with the current authoritative envelope."
+  [store]
+  (try
+    (let [snapshot @(.state store)
+          envelope-root (:head snapshot)
+          envelope (get-in snapshot [:envelopes envelope-root])
+          head-state (get-in snapshot [:configuration-head-states (:configuration-head/root envelope)])
+          configuration-root (:chain-configuration/root envelope)
+          configuration (get-in snapshot [:chain-configurations configuration-root])
+          authority-policy-root (:authority-semantics-policy/root configuration)
+          semantics-policy (get-in snapshot [:authority-semantics-policies authority-policy-root])
+          semantics-root (:authority-semantics/root semantics-policy)
+          descriptor (get-in snapshot [:governed-authority-semantics semantics-root])
+          entitlement-root (:allocation-entitlement-policy/root configuration)
+          entitlement (get-in snapshot [:allocation-entitlement-policies entitlement-root])
+          admission (verify-admission-v3! envelope head-state configuration semantics-policy descriptor entitlement)]
+      {:resolved? true
+       :authoritative-state/root envelope-root
+       :configuration configuration
+       :configuration/root (:configuration-root admission)
+       :policy semantics-policy
+       :policy/root (:policy-root admission)
+       :semantics descriptor
+       :semantics/root (:semantics-root admission)
+       :allocation-entitlement-policy entitlement
+       :allocation-entitlement-policy/root (:entitlement-policy-root admission)})
+    (catch Exception _
+      {:resolved? false :reason :allocation-entitlement-unavailable})))

@@ -425,6 +425,11 @@
    and selects a rooted authority-semantics policy."
   "chain-configuration.v2")
 
+(def ^:const chain-configuration-v3-schema
+  "Schema identifier for chain-configuration.v3. V3 preserves V2 commitments
+   and additionally selects a rooted allocation-entitlement policy."
+  "chain-configuration.v3")
+
 (def ^:private chain-configuration-root-fields
   "sha256 reference fields of chain-configuration.v1 (identity-bearing roots)."
   [:module-registry/root :verifier-registry/root
@@ -507,12 +512,50 @@
   [config]
   (:valid? (validate-chain-configuration-v2 config)))
 
+(def chain-configuration-v3-fields
+  "Closed canonical field set of chain-configuration.v3."
+  (set hc/chain-configuration-v3-fields))
+
+(defn validate-chain-configuration-v3
+  "Strict closed-shape validator for chain-configuration.v3. V3 retains both
+   the authority-semantics and allocation-entitlement policy selections."
+  [config]
+  (let [errors (atom [])
+        report! (fn [msg] (swap! errors conj msg))
+        expect chain-configuration-v3-fields]
+    (when-not (map? config)
+      (report! "chain-configuration must be a map"))
+    (when (map? config)
+      (when-not (= chain-configuration-v3-schema (:configuration/schema config))
+        (report! (str "configuration/schema must be " chain-configuration-v3-schema
+                      ", got " (pr-str (:configuration/schema config)))))
+      (let [have (set (keys config))
+            extra (set/difference have expect)
+            missing (set/difference expect have)]
+        (when (seq extra) (report! (str "unknown top-level keys: " (sort extra))))
+        (when (seq missing) (report! (str "missing required keys: " (sort missing))))
+        (doseq [f (conj chain-configuration-root-fields
+                        :authority-semantics-policy/root
+                        :allocation-entitlement-policy/root)]
+          (let [v (get config f)]
+            (cond
+              (nil? v) (report! (str f " must not be nil"))
+              (not (hash-ref/valid-sha256-ref? v))
+              (report! (str f " must be a valid sha256 reference, got " (pr-str v))))))))
+    {:valid? (empty? @errors) :errors (vec @errors)}))
+
+(defn chain-configuration-v3?
+  "True only for a valid, closed chain-configuration.v3 body."
+  [config]
+  (:valid? (validate-chain-configuration-v3 config)))
+
 (defn supported-chain-configuration?
   "True for an explicitly supported, valid configuration schema."
   [config]
   (case (:configuration/schema config)
     "chain-configuration.v1" (chain-configuration-valid? config)
     "chain-configuration.v2" (chain-configuration-v2? config)
+    "chain-configuration.v3" (chain-configuration-v3? config)
     false))
 
 (def chain-configuration-fields
@@ -585,6 +628,11 @@
   [config]
   (hc/project-chain-configuration-v2 config :prf-chain-configuration-v2))
 
+(defn chain-configuration-v3-projection
+  "Explicit versioned projection of chain-configuration.v3."
+  [config]
+  (hc/project-chain-configuration-v3 config :prf-chain-configuration-v3))
+
 (defn chain-configuration-root
   "Compute the canonical root of an explicitly supported configuration schema.
    V1 projection/root behavior is preserved byte-for-byte; V2 adds a distinct
@@ -600,6 +648,10 @@
                                      :prf-chain-configuration-v2
                                      chain-configuration-v2-projection
                                      chain-configuration-v2-schema]
+           "chain-configuration.v3" [(validate-chain-configuration-v3 config)
+                                     :prf-chain-configuration-v3
+                                     chain-configuration-v3-projection
+                                     chain-configuration-v3-schema]
            [{:valid? false :errors ["unsupported chain-configuration schema"]}
             nil nil (:configuration/schema config)])]
      (when-not (:valid? validation)
