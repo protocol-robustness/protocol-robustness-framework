@@ -230,9 +230,9 @@
       {:policy/id :research/three-member-force-authorisation
        :policy/version 1 :policy/schema-version "fa-policy.v1"
        :policy/hash "sha256:fa-policy"}
-      :authorisation/review-round
-      {:review-round/id (:review-round/id review-round)
-       :review-round/hash "sha256:demo-round-hash"}
+       :authorisation/review-round
+       {:review-round/id (:review-round/id review-round)
+        :review-round/hash (:review-round/hash review-round)}
       :authorisation/request-root "sha256:demo-request"
       :authorisation/target
       {:target/kind :benchmark-branch

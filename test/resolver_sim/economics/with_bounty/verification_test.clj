@@ -2,6 +2,8 @@
   "Stage B: structural verification accompanies every with-bounty artifact
    (ADR-0006 D8). These are structural checks, never independent verification."
   (:require [clojure.test :refer [deftest is]]
+            [resolver-sim.economics.bounty-payable :as bp]
+            [resolver-sim.economics.bounty-payable-backing :as bpb]
             [resolver-sim.economics.with-bounty.policy :as policy]
             [resolver-sim.economics.with-bounty.proof :as proof]
             [resolver-sim.economics.with-bounty.transition-evidence :as wb-transition]
@@ -124,6 +126,33 @@
                        (assoc receipt :extensions/resolution-root
                               (apply str (repeat 64 "e")))
                        plan))))))
+
+(deftest application-world-rejects-mutated-payable-and-backing-artifacts
+  (let [payable (bp/build-bounty-payable
+                 {:payable/id "obligation-1"
+                  :distribution-root "sha256:distribution"
+                  :beneficiary "researcher/alice"
+                  :amount 100
+                  :kind :bounty-payable})
+        backing (bpb/build-bounty-payable-backing
+                 {:payable-root (:payable/hash payable)
+                  :payable-id (:payable/id payable)
+                  :distribution-root (:payable/distribution-root payable)
+                  :amount (:payable/amount payable)
+                  :source-allocations {:bounty-reserve 100}})
+        world {:with-bounty/payables {(:payable/id payable) payable}
+               :with-bounty/backings {(:backing/id backing) backing}
+               :claimable-v2 {(:payable/id payable)
+                              {:liability/bounty-payable
+                               {(:payable/beneficiary payable) (:payable/amount payable)}}}}]
+    (is (:valid? (verification/verify-application-world world)))
+    (is (not (:valid? (verification/verify-application-world
+                       (assoc-in world [:with-bounty/payables (:payable/id payable)
+                                        :payable/amount] 99)))))
+    (is (not (:valid? (verification/verify-application-world
+                       (assoc-in world [:with-bounty/backings (:backing/id backing)
+                                        :backing/source-allocations]
+                                 {:bounty-reserve 99})))))))
 
 (deftest transition-plan-reconciliation
   (let [applied (proof/evaluate-bounty

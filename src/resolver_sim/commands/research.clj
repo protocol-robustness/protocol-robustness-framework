@@ -5,16 +5,63 @@
             [clojure.pprint :as pprint]
             [resolver-sim.benchmark.research-assignment :as assignment]
             [resolver-sim.benchmark.research-command :as command]
-            [resolver-sim.benchmark.research-workflow :as workflow]))
+            [resolver-sim.benchmark.research-workflow :as workflow]
+            [resolver-sim.composition.semantic :as composition]))
+
+(defn- restore-composition [context]
+  (if-let [portable (:semantic-composition context)]
+    (let [verified (composition/verify-portable! portable)]
+      (assoc context :semantic-composition
+             (assoc verified
+                    :profile (:semantic-composition/profile verified)
+                    :requested-capabilities (:semantic-composition/requested-capabilities verified)
+                    :resolution-root (:semantic-composition/resolution-root verified)
+                    :packages (:semantic-composition/packages verified)
+                    :capabilities (:semantic-composition/capabilities verified)
+                    :dependencies (:semantic-composition/dependencies verified)
+                    :selected-capabilities (:semantic-composition/selected-capabilities verified)
+                    :provider-package-roots (:semantic-composition/provider-package-roots verified)
+                    :action-modules (:semantic-composition/action-modules verified)
+                    :state-modules (:semantic-composition/state-modules verified)
+                    :invariant-modules (:semantic-composition/invariant-modules verified)
+                    :policy-bindings (:semantic-composition/policy-bindings verified)
+                    :root (:semantic-composition/root verified))))
+    context))
+
+(defn- restore-workflow-input [input]
+  (cond-> (restore-composition input)
+    (:left input) (update :left restore-workflow-input)
+    (:right input) (update :right restore-workflow-input)
+    (:original input) (update :original restore-workflow-input)
+    (:reproduced input) (update :reproduced restore-workflow-input)))
 
 (defn- read-edn! [path]
   (when-not path (throw (ex-info "--input is required" {:exit-code 2})))
-  (edn/read-string (slurp (if (= "-" path) *in* (io/file path)))))
+  (restore-workflow-input (edn/read-string (slurp (if (= "-" path) *in* (io/file path))))))
+
+(defn- portable-result [value]
+  (cond-> value
+    (get-in value [:research-execution/trace :trace/commitment])
+    (update :research-execution/trace dissoc :trace/commitment)))
 
 (defn- write-result! [path value]
-  (if path
-    (with-open [writer (io/writer path)] (pprint/pprint value writer))
-    (pprint/pprint value)))
+  (let [value (portable-result value)]
+    (if path
+      (with-open [writer (io/writer path)] (pprint/pprint value writer))
+      (pprint/pprint value))))
+
+(def ^:private non-success-classifications
+  #{:unsupported :unavailable :failed})
+
+(defn- admitted-success? [result]
+  (and (= :accepted (:submission/status result))
+       (not (contains? non-success-classifications
+                       (:submission/execution-classification result)))))
+
+(defn- verified-success? [result]
+  (and (:verified? result)
+       (not (contains? non-success-classifications
+                       (get-in result [:submission :submission/execution-classification])))))
 
 (defn- invoke [opts f success? output-required?]
   (try
@@ -45,10 +92,10 @@
   (invoke opts workflow/record-execution (constantly true) true))
 
 (defn submit [opts]
-  (invoke opts workflow/submit #(= :accepted (:submission/status %)) false))
+  (invoke opts workflow/submit admitted-success? false))
 
 (defn verify [opts]
-  (invoke opts workflow/verify :verified? false))
+  (invoke opts workflow/verify verified-success? false))
 
 (defn reproduce [opts]
   (invoke opts (fn [{:keys [mode original reproduced]}]

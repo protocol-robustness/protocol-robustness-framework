@@ -19,6 +19,7 @@
             [resolver-sim.yield.partial-fill :as partial-fill]
             [resolver-sim.yield.strategic-partial-fill :as strategic-partial-fill]
             [resolver-sim.config.paths :as paths]
+            [resolver-sim.hash.canonical :as hc]
             [resolver-sim.validation.classes :as classes]
             [resolver-sim.validation.gate :as gate]
             [resolver-sim.io.edn :as ppedn]))
@@ -257,8 +258,17 @@
   [claim-spec mechanism-level result]
   (let [assurance-level (or (:claim/assurance-level claim-spec) :assurance/evidence)
         decisions (:partial-fill-decisions result)
-        stmt-root (:scenario/realized-allocation-statements-root result)
         statements (:scenario/realized-allocation-statements-data result)
+        derived-stmt-root (when (seq statements)
+                            (hc/domain-hash :evidence-collection
+                                            (vec (sort (map :statement/root statements)))))
+        derived-evidence-root
+        (hc/hash-with-intent
+         {:hash/intent :evidence-content}
+         (cond-> (select-keys result [:events-processed :outcome :halt-reason])
+           derived-stmt-root
+           (assoc :realized-allocation-statements-root derived-stmt-root)))
+        stmt-root (:scenario/realized-allocation-statements-root result)
         statement-by-decision (into {} (keep (fn [s]
                                                (when-let [id (:decision/id s)] [id s])))
                                     statements)
@@ -286,7 +296,12 @@
                              :reason (:reason profile)}}))
               (or decisions []))
         binding (:scenario/realized-statement-binding result)
-        binding-ok? (proof-admission/valid-scenario-statement-binding? binding)
+        ;; This establishes provenance relative to the supplied benchmark result
+        ;; only; it does not authenticate execution or admit the scenario.
+        binding-ok? (and (proof-admission/valid-scenario-statement-binding? binding)
+                         (= (:scenario/id result) (:scenario-id binding))
+                         (= derived-evidence-root (:evidence-content-root binding))
+                         (= derived-stmt-root (:statements-root binding)))
         ;; Explicit per-statement mapping. A proof for one statement never
         ;; covers the scenario collection unless every committed statement has
         ;; exactly one independently admitted proof tuple.
@@ -325,6 +340,10 @@
                                 (if binding-ok? :pass :fail)
                                 :pass)
                       :details {:binding-root (:binding-root binding)
+                                :evidence-content-root (:evidence-content-root binding)
+                                :derived-evidence-content-root derived-evidence-root
+                                :statements-root (:statements-root binding)
+                                :derived-statements-root derived-stmt-root
                                 :required? cryptographic?}}
                      {:check/id :sp1-proof-verified
                       :status (if cryptographic?

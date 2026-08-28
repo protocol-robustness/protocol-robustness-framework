@@ -7,7 +7,10 @@
    — recomputing committed roots and validating shapes. They are NOT
    independent verification and must not be labelled as such (ADR-0006 D6);
    implementation replay and verifier composition are Stage C."
-  (:require [resolver-sim.economics.effects :as effects]
+  (:require [resolver-sim.assurance.custody :as custody]
+            [resolver-sim.economics.bounty-payable :as bp]
+            [resolver-sim.economics.bounty-payable-backing :as bpb]
+            [resolver-sim.economics.effects :as effects]
             [resolver-sim.economics.with-bounty.application-plan :as wb-plan]
             [resolver-sim.economics.with-bounty.policy :as policy]
             [resolver-sim.economics.with-bounty.transition-evidence :as wb-transition]))
@@ -157,21 +160,46 @@
       {:valid? false :violations violations}
       {:valid? true})))
 
+(defn- custody-artifact-valid?
+  [world adjustment]
+  (let [artifact (get-in world [:held-artifacts (:held-adjustment/id adjustment)])]
+    (= artifact (when adjustment (custody/build-held-custody-artifact adjustment)))))
+
 (defn verify-application-world
-  "Reconciliation of a with-bounty application result world: every payable is
-   backed by a backing referencing its root, no backing is orphaned, and each
-   payable's claimable amount is present under its obligation id. The claimable
-   domain is protocol-specific and supplied by the caller."
+  "Reconcile a with-bounty application world using the payable, backing, and
+   held-custody artifact verifiers. Every payable must have exactly one valid,
+   amount- and distribution-matching backing with source allocations summing to
+   its amount; every such payable must have its exact derived claimable amount.
+   The claimable domain is protocol-specific and supplied by the caller."
   [world & [opts]]
   (let [domain (or (:claimable/domain opts) :liability/bounty-payable)
         payables (vals (:with-bounty/payables world {}))
         backings (vals (:with-bounty/backings world {}))
         payable-roots (set (map :payable/hash payables))
         backing-payable-roots (map :backing/payable-root backings)
+        invalid-payables (into [] (remove #(-> % bp/verify-bounty-payable :valid?) payables))
+        invalid-backings (into [] (remove #(-> % bpb/verify-bounty-payable-backing :valid?) backings))
+        invalid-custody (into [] (remove #(custody-artifact-valid? world %)
+                                         (:held-adjustments world [])))
         unbacked (into [] (remove #(some #{%} backing-payable-roots)) payable-roots)
         orphan-backings (into []
                               (remove #(contains? payable-roots (:backing/payable-root %)))
                               backings)
+        inconsistent-backings
+        (into []
+              (filter (fn [backing]
+                        (let [payable (some #(when (= (:payable/hash %)
+                                                      (:backing/payable-root backing))
+                                               %)
+                                            payables)]
+                          (and payable
+                               (or (not= (:payable/id payable) (:backing/payable-id backing))
+                                   (not= (:payable/distribution-root payable)
+                                         (:backing/distribution-root backing))
+                                   (not= (:payable/amount payable) (:backing/amount backing))
+                                   (not= (:backing/amount backing)
+                                         (bpb/backing-amount-reconciliation backing))))))
+                      backings))
         claimable-missing? (not (every? (fn [p]
                                           (= (:payable/amount p)
                                              (get-in world [:claimable-v2 (:payable/id p)
@@ -179,6 +207,18 @@
                                                             (:payable/beneficiary p)])))
                                         payables))
         violations (cond-> []
+                     (seq invalid-payables)
+                     (conj {:violation/id :violation/invalid-payable-artifacts
+                            :details {:payables invalid-payables}})
+
+                     (seq invalid-backings)
+                     (conj {:violation/id :violation/invalid-backing-artifacts
+                            :details {:backings invalid-backings}})
+
+                     (seq invalid-custody)
+                     (conj {:violation/id :violation/invalid-custody-artifacts
+                            :details {:adjustments invalid-custody}})
+
                      (seq unbacked)
                      (conj {:violation/id :violation/payable-without-backing
                             :details {:payable-roots unbacked}})
@@ -187,6 +227,10 @@
                      (conj {:violation/id :violation/backing-without-payable
                             :details {:backings orphan-backings}})
 
+                     (seq inconsistent-backings)
+                     (conj {:violation/id :violation/backing-payable-reconciliation-failed
+                            :details {:backings inconsistent-backings}})
+
                      claimable-missing?
                      (conj {:violation/id :violation/claimable-not-derived
                             :details {}}))]
@@ -194,10 +238,11 @@
       {:valid? false :violations violations}
       {:valid? true})))
 
-(defn verify-transition-binds-world
-  "Reconciliation: every custody adjustment root in the transition evidence
-   resolves to an actual held-custody artifact in the world, and every
-   payable/backing root referenced by the transition exists in the world."
+(defn reconcile-transition-artifacts-with-world
+  "Membership reconciliation only: every custody adjustment root in transition
+   evidence resolves to a world artifact, and every referenced payable/backing
+   root exists in the world. This does not prove a state transition; it does not
+   replay the protocol transition."
   [transition world]
   (let [custody-roots (:custody/adjustment-roots transition [])
         unbound-artifacts (into []

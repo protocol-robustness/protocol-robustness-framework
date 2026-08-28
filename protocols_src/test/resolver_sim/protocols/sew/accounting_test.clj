@@ -1247,7 +1247,7 @@
   "A single-claim force-authorisation world whose grant scope matches the scope
    derived by a force-authorised sub-held. Callers override record fields to
    isolate one guard path."
-  [auth-id & {:keys [status consumed? starts-at expires-at scope scope-hash]
+  [auth-id & {:keys [status consumed? starts-at expires-at scope scope-hash scope-kind]
               :or {status :active}}]
   (let [scope (or scope
                   {:authorization/id auth-id
@@ -1271,18 +1271,20 @@
                        :authorization/scope scope
                        :authorization/scope-hash (or scope-hash
                                                      (hash/domain-hash "force-authorisation-scope" scope))}
-                (some? expires-at) (assoc :expires-at (long expires-at)))}}))
+                  (some? scope-kind) (assoc :authorization/scope-kind scope-kind)
+                  (some? expires-at) (assoc :expires-at (long expires-at)))}}))
 
 (defn- fa-sub-held!
   "Run a force-authorised sub-held against a guard world and return the ex-data
    :type (or nil on success)."
-  [world auth-id & {:keys [provenance-scope-hash]}]
-  (let [auth-prov {:authorization/type :force-authorisation
-                   :authorization/id auth-id
-                   :authorization/scope-hash
-                   (or provenance-scope-hash
-                       (hash/domain-hash "force-authorisation-scope"
-                                         (get-in world [:force-authorisations auth-id :authorization/scope])))}]
+  [world auth-id & {:keys [provenance-scope-hash provenance-scope-kind]}]
+  (let [auth-prov (cond-> {:authorization/type :force-authorisation
+                           :authorization/id auth-id
+                           :authorization/scope-hash
+                           (or provenance-scope-hash
+                               (hash/domain-hash "force-authorisation-scope"
+                                                 (get-in world [:force-authorisations auth-id :authorization/scope])))}
+                    provenance-scope-kind (assoc :authorization/scope-kind provenance-scope-kind))]
     (try
       (ac/sub-held world usdc 40
                    {:action "finalize-released"
@@ -1316,10 +1318,64 @@
     (testing "grant scope-hash that does not authenticate the derived scope is rejected"
       (is (= :authorization/grant-scope-hash-mismatch
              (fa-sub-held! (fa-guard-world auth-id :scope-hash "0xdifferent") auth-id))))
-    (testing "provenance scope-hash that does not match the grant is rejected"
-      (is (= :authorization/provenance-scope-mismatch
+     (testing "provenance scope-hash that does not match the grant is rejected"
+       (is (= :authorization/provenance-scope-mismatch
+              (fa-sub-held! (fa-guard-world auth-id) auth-id
+                            :provenance-scope-hash "0xforged-provenance"))))))
+
+(deftest force-authorisation-guard-rejects-scope-kind-bypass
+  "Regression: caller-supplied scope-kind must not select the validation branch.
+   The scope-kind is derived from the persisted record.  An unknown or
+   mismatched provenance scope-kind is rejected before any scope validation,
+   closing the bypass where an attacker could skip the single-claim
+   record-vs-scope-map comparison."
+  (let [auth-id "fa-guard-scope-kind"]
+    (testing "single-claim record + provenance :related-claims is rejected"
+      (is (= :authorization/scope-kind-mismatch
              (fa-sub-held! (fa-guard-world auth-id) auth-id
-                           :provenance-scope-hash "0xforged-provenance"))))))
+                           :provenance-scope-kind :related-claims))))
+    (testing "related-claims record + provenance :single-claim is rejected"
+      (is (= :authorization/scope-kind-mismatch
+             (fa-sub-held! (fa-guard-world auth-id :scope-kind :related-claims) auth-id
+                           :provenance-scope-kind :single-claim))))
+    (testing "single-claim record + provenance unknown scope-kind is rejected"
+      (is (= :authorization/scope-kind-mismatch
+             (fa-sub-held! (fa-guard-world auth-id) auth-id
+                           :provenance-scope-kind :other))))
+    (testing "related-claims record + provenance unknown scope-kind is rejected"
+      (is (= :authorization/scope-kind-mismatch
+             (fa-sub-held! (fa-guard-world auth-id :scope-kind :related-claims) auth-id
+                           :provenance-scope-kind :other))))
+    (testing "record with unknown scope-kind is rejected (fail-closed)"
+      (is (= :authorization/unsupported-scope-kind
+             (fa-sub-held! (fa-guard-world auth-id :scope-kind :bogus) auth-id))))))
+
+(deftest force-authorisation-guard-scope-check-holds-regardless-of-provenance-scope-kind
+  "The single-claim record-vs-scope-map comparison must always run for a
+   single-claim record, regardless of the provenance scope-kind.  With the
+   provenance agreement check, only a matching :single-claim provenance
+   reaches the scope validation — and it still catches a scope drift."
+  (let [auth-id "fa-guard-scope-drift"
+        record-scope {:authorization/id auth-id
+                      :authorization/type :force-authorisation
+                      :held/direction :out
+                      :token usdc
+                      :amount 50
+                      :held/account :escrow-principal
+                      :owner/address bob
+                      :held/reason :force-authorised-release
+                      :held/workflow-id 42}
+        record-hash (hash/domain-hash "force-authorisation-scope" record-scope)
+        world (fa-guard-world auth-id :scope record-scope :scope-hash record-hash)
+        provenance-hash (hash/domain-hash "force-authorisation-scope"
+                                          (get-in world [:force-authorisations auth-id :authorization/scope]))]
+    (testing "single-claim record with drifted actual scope is rejected"
+      (is (some? (fa-sub-held! world auth-id
+                               :provenance-scope-hash provenance-hash))))
+    (testing "the rejection is a grant-scope-mismatch (record scope != scope-map)"
+      (is (= :authorization/grant-scope-mismatch
+             (fa-sub-held! world auth-id
+                           :provenance-scope-hash provenance-hash))))))
 
 (deftest force-authorisation-guard-rejects-re-consumption
   (testing "a record already present in the consumed registry is rejected"

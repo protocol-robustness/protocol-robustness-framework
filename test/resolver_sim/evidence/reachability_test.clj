@@ -59,9 +59,11 @@
                {:edge/from :c :edge/to :f}]})
 
 (deftest dag-reachable-same-node
-  (testing "same node is trivially reachable"
+  (testing "same declared node is trivially reachable"
     (is (true? (r/dag-reachable? sample-dag :a :a)))
-    (is (true? (r/dag-reachable? sample-dag :f :f)))))
+    (is (true? (r/dag-reachable? sample-dag :f :f))))
+  (testing "equal undeclared IDs in a map-form DAG are not reachable"
+    (is (false? (r/dag-reachable? sample-dag :undeclared :undeclared)))))
 
 (deftest dag-reachable-nil-inputs
   (testing "nil inputs return false"
@@ -84,6 +86,25 @@
     (is (false? (r/dag-reachable? sample-dag :f :a)))
     (is (false? (r/dag-reachable? sample-dag :e :b)))
     (is (false? (r/dag-reachable? sample-dag :c :a)))))
+
+(deftest dag-reachability-ignores-ghost-endpoint-injection
+  (let [mutated {:dag/nodes [{:node/id :a} {:node/id :f}]
+                 :dag/edges [{:edge/from :a :edge/to :ghost}
+                             {:edge/from :ghost :edge/to :f}]}]
+    (testing "undeclared endpoints remain structural errors"
+      (is (some #{:dag/edge-endpoint-undeclared}
+                (r/dag-structural-errors mutated))))
+    (testing "ghost edges cannot create a path through a declared DAG"
+      (is (false? (r/dag-reachable? mutated :a :ghost)))
+      (is (false? (r/dag-reachable? mutated :ghost :f)))
+      (is (false? (r/dag-reachable? mutated :a :f))))))
+
+(deftest raw-edge-vector-reachability-is-unvalidated-utility
+  (testing "raw edge vectors retain traversal behavior without node declaration"
+    (is (true? (r/dag-reachable? [{:edge/from :a :edge/to :ghost}
+                                  {:edge/from :ghost :edge/to :f}]
+                                 :a
+                                 :f)))))
 
 (deftest dag-ancestors
   (testing "dag-ancestors returns nodes that can reach from-id (inclusive)"
@@ -130,8 +151,9 @@
     (let [report (r/reachability-report sample-chain)]
       (is (= :chain (:type report)))
       (is (= 5 (:hash-count report)))
-      (is (= "a" (:head-hash report)))
-      (is (= "e" (:tail-hash report))))))
+      (is (false? (:ordered? report)))
+      (is (nil? (:head-hash report)))
+      (is (nil? (:tail-hash report))))))
 
 (deftest report-chain-with-gaps
   (testing "reachability-report detects gaps"
@@ -145,7 +167,7 @@
       (is (= :dag (:type report)))
       (is (= 6 (:node-count report)))
       (is (= 5 (:edge-count report)))
-      (is (empty? (:disconnected report)))
+      (is (not (contains? report :disconnected)))
       (is (true? (:weakly-connected? report))))))
 
 (deftest report-reports-dag-structural-invalidity
@@ -165,13 +187,22 @@
     (is (nil? (:head-hash report)))
     (is (nil? (:tail-hash report)))))
 
-(deftest report-dag-disconnected
-  (testing "reachability-report detects disconnected DAG"
-    (let [disconnected-dag {:dag/nodes [{:node/id :a} {:node/id :b} {:node/id :x}]
-                            :dag/edges [{:edge/from :a :edge/to :b}]}
-          report (r/reachability-report disconnected-dag)]
-      (is (false? (:weakly-connected? report)))
-      (is (= [:x] (:disconnected report))))))
+(deftest report-dag-connectivity-does-not-depend-on-node-sort-order
+  (let [root-after-child {:dag/nodes [{:node/id :a} {:node/id :z}]
+                          :dag/edges [{:edge/from :z :edge/to :a}]}
+        multiple-roots {:dag/nodes [{:node/id :a} {:node/id :b} {:node/id :z}]
+                        :dag/edges [{:edge/from :z :edge/to :a}]}
+        root-after-child-report (r/reachability-report root-after-child)
+        multiple-roots-report (r/reachability-report multiple-roots)]
+    (testing "a root that sorts after its child still covers its child"
+      (is (= [:z] (:roots root-after-child-report)))
+      (is (empty? (:unreachable-from-roots root-after-child-report)))
+      (is (true? (:weakly-connected? root-after-child-report))))
+    (testing "multiple roots are reported without selecting an arbitrary root"
+      (is (= [:b :z] (:roots multiple-roots-report)))
+      (is (empty? (:unreachable-from-roots multiple-roots-report)))
+      (is (false? (:weakly-connected? multiple-roots-report)))
+      (is (not (contains? multiple-roots-report :disconnected))))))
 
 ;; ── Edge cases ───────────────────────────────────────────────────────────────
 
@@ -182,6 +213,6 @@
       (is (= #{:a} (r/dag-descendants dag :a))))))
 
 (deftest self-loop-in-dag
-  (testing "DAG with self-reachable"
+  (testing "only declared DAG nodes are self-reachable"
     (is (true? (r/dag-reachable? sample-dag :a :a)))
-    (is (true? (r/dag-reachable? sample-dag :nonexistent :nonexistent)))))
+    (is (false? (r/dag-reachable? sample-dag :nonexistent :nonexistent)))))

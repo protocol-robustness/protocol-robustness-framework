@@ -32,10 +32,11 @@
     (is (= (pr/public-result-root r1) (pr/public-result-root r2)))
     (is (not= (pr/public-result-root r1) (pr/public-result-root different)))))
 
-(deftest missing-and-extra-public-fields-fail
+(deftest missing-extra-and-unknown-status-public-fields-fail
   (let [projection (pr/public-result-projection (applied-result))]
     (is (not (:valid? (pr/validate-public-result (dissoc projection :status)))))
-    (is (not (:valid? (pr/validate-public-result (assoc projection :diagnostic/extra "x")))))))
+    (is (not (:valid? (pr/validate-public-result (assoc projection :diagnostic/extra "x")))))
+    (is (not (:valid? (pr/validate-public-result (assoc projection :status :fabricated)))))))
 
 (deftest skipped-result-projects-stable-classification
   (let [skipped (proof/evaluate-bounty {:event/context {:review/finalised? false}

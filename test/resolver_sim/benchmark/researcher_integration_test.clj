@@ -241,7 +241,7 @@
                                       :policy/version 1
                                       :policy/schema-version "fa-policy.v1"
                                       :policy/hash "sha256:policy"}
-               :authorisation/review-round {:review-round/id "rr:t"
+               :authorisation/review-round {:review-round/id "sha256:round"
                                             :review-round/hash "sha256:round"}
                :authorisation/request-root "sha256:req"
                :authorisation/target {:target/kind :benchmark-branch
@@ -251,17 +251,47 @@
                :authorisation/decision-references
                [{:researcher/id "a" :decision :approve
                  :decision/hash "sha256:mock1"
-                 :signature {:algorithm :ed25519 :value "x" :signed-at "now"}}
+                 :signature {:algorithm :ed25519 :value "siga" :signed-at "now"}}
                 {:researcher/id "d" :decision :approve
                  :decision/hash "sha256:mock2"
-                 :signature {:algorithm :ed25519 :value "y" :signed-at "now"}}]
+                 :signature {:algorithm :ed25519 :value "sigb" :signed-at "now"}}]
                :authorisation/threshold {:required 2 :eligible 3}})
-        round {:review-round/id "rr:t" :review-round/hash "sha256:round"
+        round {:review-round/id "sha256:round" :review-round/hash "sha256:round"
                :review-round/members [{:researcher/id "a" :role :model-steward}
                                       {:researcher/id "b" :role :independent-reproducer}
                                       {:researcher/id "c" :role :adversarial-reviewer}]}
         result (rfa/verify-against-round round auth)]
     (is (not (:valid? result)) "non-member 'd' should be detected by verify-against-round")))
+
+(deftest verify-against-round-detects-round-reference-mismatch
+  (let [auth (rfa/build-authorisation
+              {:authorisation/id :authorisation/test
+               :authorisation/policy {:policy/id :research/three-member
+                                      :policy/version 1
+                                      :policy/schema-version "fa-policy.v1"
+                                      :policy/hash "sha256:policy"}
+               :authorisation/review-round {:review-round/id "sha256:round"
+                                            :review-round/hash "sha256:round-wrong"}
+               :authorisation/request-root "sha256:req"
+               :authorisation/target {:target/kind :benchmark-branch
+                                      :target/baseline-content-root "sha256:base"
+                                      :target/branch-descriptor-hash "sha256:br"
+                                      :target/proposed-content-root "sha256:prop"}
+               :authorisation/decision-references
+               [{:researcher/id "a" :decision :approve
+                 :decision/hash "sha256:mock1"
+                 :signature {:algorithm :ed25519 :value "siga" :signed-at "now"}}
+                {:researcher/id "b" :decision :approve
+                 :decision/hash "sha256:mock2"
+                 :signature {:algorithm :ed25519 :value "sigb" :signed-at "now"}}]
+               :authorisation/threshold {:required 2 :eligible 3}})
+        round {:review-round/id "sha256:round" :review-round/hash "sha256:round"
+               :review-round/members [{:researcher/id "a" :role :model-steward}
+                                      {:researcher/id "b" :role :independent-reproducer}
+                                      {:researcher/id "c" :role :adversarial-reviewer}]}
+        result (rfa/verify-against-round round auth)]
+    (is (not (:valid? result)) "round hash mismatch should be detected")
+    (is (some #(re-find #"review-round/hash mismatch" %) (:errors result)))))
 
 (deftest pre-application-checks-accepts-complete-manifest
   (let [result (om/pre-application-checks (om/build-manifest base-input))]
@@ -807,7 +837,7 @@
 
 (def ^:private fa-round-artifact
   "A resolved review-round artifact for cross-artifact verification."
-  {:review-round/id :review-round/fa-lifecycle
+  {:review-round/id "sha256:test-round-hash"
    :review-round/hash "sha256:test-round-hash"
    :benchmark/content-root "sha256:content"
    :review-round/members

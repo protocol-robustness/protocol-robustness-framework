@@ -66,6 +66,44 @@
   "Fields required in :authorisation/review-round reference map."
   #{:review-round/id :review-round/hash})
 
+(defn verify-round-reference
+  "Verify that an authorisation's review-round reference matches the resolved
+   review-round body.
+
+   Checks:
+     1. The reference's :review-round/id matches the resolved round's id
+     2. The reference's :review-round/hash matches the resolved round's hash
+     3. The resolved round's id and hash are equal (closed-form identity —
+        the current schema derives both from the same round-root)
+
+   reference        — the :authorisation/review-round map from the auth artifact
+   resolved-round    — the fully resolved review-round map
+
+   Returns {:valid? true} or {:valid? false :errors [string]}."
+  [reference resolved-round]
+  (let [errors (atom [])]
+    (when (or (nil? reference) (nil? resolved-round))
+      (swap! errors conj "round reference or resolved-round is nil"))
+    (when (and (map? reference) (map? resolved-round))
+      (when-not (= (:review-round/id reference)
+                   (:review-round/id resolved-round))
+        (swap! errors conj (str "review-round/id mismatch: reference "
+                                (:review-round/id reference)
+                                " vs resolved "
+                                (:review-round/id resolved-round))))
+      (when-not (= (:review-round/hash reference)
+                   (:review-round/hash resolved-round))
+        (swap! errors conj (str "review-round/hash mismatch: reference "
+                                (:review-round/hash reference)
+                                " vs resolved "
+                                (:review-round/hash resolved-round))))
+      (when-not (= (:review-round/id resolved-round)
+                   (:review-round/hash resolved-round))
+        (swap! errors conj "resolved review-round id does not equal hash")))
+    (if (seq @errors)
+      {:valid? false :errors @errors}
+      {:valid? true})))
+
 (def ^:const target-required-fields
   "Fields required in :authorisation/target map."
   #{:target/kind :target/baseline-content-root
@@ -796,12 +834,13 @@
    authorisation   — the force-authorisation artifact
 
    Checks:
-      1. :authorisation/review-round hash matches the resolved round's hash
-      2. All researchers in decision-references are members of the round
-      3. No researcher appears in both approvals and dissents
-      4. When the round is keyed, optional :review-member/key on decision-refs
+      0. :authorisation/review-round reference matches the resolved round
+         (id, hash, and resolved id == resolved hash)
+      1. All researchers in decision-references are members of the round
+      2. No researcher appears in both approvals and dissents
+      3. When the round is keyed, optional :review-member/key on decision-refs
          must match the derived key (or derive if absent)
-      5. When the round is NOT keyed, :review-member/key on a decision-ref
+      4. When the round is NOT keyed, :review-member/key on a decision-ref
          is rejected as :member-key-unresolvable
 
    Returns {:valid? bool :errors [string] :reasons [{:reason kw ...}]}.
@@ -814,6 +853,12 @@
         member-ids (set (map :researcher/id (:review-round/members review-round)))
         decision-refs (:authorisation/decision-references authorisation)
         decider-ids (map :researcher/id decision-refs)]
+    (let [ref-check (verify-round-reference
+                     (:authorisation/review-round authorisation)
+                     review-round)]
+      (when-not (:valid? ref-check)
+        (swap! errors conj (str "review-round reference mismatch: "
+                                (clojure.string/join ", " (:errors ref-check))))))
     ;; Check all deciders are members
     (doseq [id decider-ids]
       (when-not (contains? member-ids id)
@@ -1601,10 +1646,18 @@
             policy (when policy-hash (package-resolver policy-hash))
             _ (when-not policy (swap! errors conj "policy not found"))
             _ (swap! checks assoc :policy-resolved? (some? policy))
-            round-hash (get-in auth [:authorisation/review-round :review-round/hash])
+            round-ref (get-in auth [:authorisation/review-round])
+            round-hash (:review-round/hash round-ref)
             round (when round-hash (package-resolver round-hash))
             _ (when-not round (swap! errors conj "review-round not found"))
-            _ (swap! checks assoc :round-resolved? (some? round))
+            round-ref-check (when (and round round-ref)
+                              (verify-round-reference round-ref round))
+            _ (when (and round round-ref round-ref-check
+                         (not (:valid? round-ref-check)))
+                (swap! errors conj (str "review-round reference mismatch: "
+                                        (clojure.string/join ", " (:errors round-ref-check)))))
+            _ (swap! checks assoc :round-resolved? (some? round)
+                     :round-reference-valid? (or (nil? round-ref-check) (true? (:valid? round-ref-check))))
             res-hash (:reservation-hash fa-sec)
             reservation (when res-hash (package-resolver res-hash))
             _ (when-not reservation (swap! errors conj "reservation not found"))

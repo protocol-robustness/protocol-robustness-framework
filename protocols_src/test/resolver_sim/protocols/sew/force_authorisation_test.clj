@@ -236,7 +236,7 @@
         plan-root (test-root :plan)
         policy {"member_count" 2 "threshold" 2 "single_use?" true
                 "preserve_dissent?" true "policy_sha256" policy-hash}
-        round {:review-round/id :review-round/sew-p0 :review-round/hash round-hash
+        round {:review-round/id round-hash :review-round/hash round-hash
                :review-round/members [{:researcher/id "researcher-a"}
                                       {:researcher/id "researcher-b"}]}
         decisions [{:researcher/id "researcher-a" :decision :approve
@@ -250,7 +250,7 @@
                         :authorisation/policy {:policy/id :sew/p0 :policy/version 1
                                                :policy/schema-version "force-authorisation-policy.v1"
                                                :policy/hash policy-hash}
-                        :authorisation/review-round {:review-round/id :review-round/sew-p0
+                        :authorisation/review-round {:review-round/id round-hash
                                                      :review-round/hash round-hash}
                         :authorisation/request-root request-root
                         :authorisation/target {:target/kind :governance-mandated
@@ -324,8 +324,8 @@
                :authorisation/policy {:policy/id :sew/p1 :policy/version 1
                                       :policy/schema-version "force-authorisation-policy.v1"
                                       :policy/hash policy-hash}
-               :authorisation/review-round {:review-round/id :review-round/sew-p1
-                                            :review-round/hash round-hash}
+                :authorisation/review-round {:review-round/id round-hash
+                                             :review-round/hash round-hash}
                :authorisation/request-root request-root
                :authorisation/target {:target/kind :governance-mandated
                                       :target/baseline-content-root (test-root :p1-base)
@@ -349,7 +349,7 @@
                      :research-assignment/plan-root (test-root :p1-plan)})
         policy {"member_count" 2 "threshold" 2 "single_use?" true
                 "preserve_dissent?" true "policy_sha256" policy-hash}
-        round {:review-round/id :review-round/sew-p1 :review-round/hash round-hash
+        round {:review-round/id round-hash :review-round/hash round-hash
                :review-round/members [{:researcher/id "researcher-a"}
                                       {:researcher/id "researcher-b"}]}
         context (assoc gov-ctx

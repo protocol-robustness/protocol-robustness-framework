@@ -383,9 +383,15 @@
         (let [policy-ref (get-in auth [:authorisation/policy :policy/hash])
               policy (when policy-ref (package-resolver policy-ref))]
           (when-not policy (swap! errors conj (str "policy not found: " policy-ref)))
-          (let [round-ref (get-in auth [:authorisation/review-round :review-round/hash])
-                round (when round-ref (package-resolver round-ref))]
-            (when-not round (swap! errors conj (str "review-round not found: " round-ref)))
+          (let [round-ref (get-in auth [:authorisation/review-round])
+                round-ref-hash (:review-round/hash round-ref)
+                round (when round-ref-hash (package-resolver round-ref-hash))
+                round-ref-check (when (and round round-ref)
+                                  (rfa/verify-round-reference round-ref round))]
+            (when-not round (swap! errors conj (str "review-round not found: " round-ref-hash)))
+            (when (and round round-ref (not (:valid? round-ref-check)))
+              (swap! errors conj (str "review-round reference mismatch: "
+                                      (clojure.string/join ", " (:errors round-ref-check)))))
             (let [res-hash (:reservation-hash fa-sec)
                   reservation (when res-hash (package-resolver res-hash))]
               (when-not reservation (swap! errors conj (str "reservation not found: " res-hash)))
@@ -396,6 +402,7 @@
                        :authorisation-resolved? (some? auth)
                        :policy-resolved? (some? policy)
                        :round-resolved? (some? round)
+                       :round-reference-valid? (or (nil? round-ref-check) (true? (:valid? round-ref-check)))
                        :reservation-resolved? (some? reservation)
                        :receipt-resolved? (some? receipt))
                 (when (and auth policy round reservation receipt)

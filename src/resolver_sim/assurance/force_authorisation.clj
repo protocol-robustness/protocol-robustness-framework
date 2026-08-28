@@ -1,8 +1,16 @@
 (ns resolver-sim.assurance.force-authorisation
-  "Protocol-independent validation for force-authorisation lifecycle.
+  "Protocol-independent single-scope force-authorisation lifecycle validation.
 
    Accepts authorization records, consumption registries, and scope maps
    as plain data. Returns validation result maps.
+
+   SCOPE: This namespace validates force-authorisation lifecycle for SINGLE-CLAIM
+   grants only — status, consumption, timing, and scope-hash/scope equality.
+   It does NOT model :authorization/scope-kind or related-claims semantics
+   (relationship membership, per-member consumption, record/provenance
+   relationship binding).  Those remain a protocol-layer concern in the Sew
+   adapter's ensure-force-authorisation-usable!, which derives its scope-kind
+   branch from the persisted record, not caller-supplied provenance.
 
    BOUNDARY GUARD — This namespace MUST NOT import or depend on:
      - resolver-sim.protocols.sew       (Sew protocol adapter)
@@ -166,7 +174,7 @@
   {:code code :detail detail})
 
 (defn verify-authorisation-usable
-  "Validate that an authorization record is usable for a given scope.
+  "Validate that an authorization record is usable for a given single scope.
    Returns {:valid? true} or {:valid? false :errors [...]}.
 
    Accepts:
@@ -177,9 +185,23 @@
      scope-map          — the scope being requested
      now-ts             — current block time for timing checks
 
-   This is the protocol-independent extraction of
-   protocols_src/.../accounting.clj's ensure-force-authorisation-usable!,
-   refactored to accept data maps instead of reading from a Sew world."
+   This is a SINGLE-SCOPE force-authorisation lifecycle validator.  It covers
+   the lifecycle checks (status, consumed?, timing, scope-hash, scope equality)
+   but does NOT model :authorization/scope-kind or related-claims semantics:
+     - relationship existence/activity
+     - member identity membership
+     - member scope-hash authorization
+     - per-member consumption
+     - record/provenance relationship binding
+
+   Sew's related-claims enforcement remains a protocol-layer concern in
+   protocols_src/.../accounting.clj's ensure-force-authorisation-usable!, which
+   selects its validation branch from the persisted record's scope-kind — not
+   caller-supplied provenance.
+
+   To model related-claims semantics, extend this namespace with an explicit
+   closed :single-claim / :related-claims mode that receives the necessary
+   relationship state."
   [record consumption-registry scope-map now-ts]
   (let [errors (cond-> []
                  (nil? record)

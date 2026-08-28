@@ -69,28 +69,42 @@
     (not= expected actual)))
 
 (defn- ensure-force-authorisation-usable!
-  "Guard a forced custody adjustment with the persisted authorization record.
+   "Guard a forced custody adjustment with the persisted authorization record.
 
-   The caller-supplied provenance is evidence only; it is never authority on
-   its own.  For a single claim, the active record must commit to precisely the
-   scope derived from this adjustment.  Related-claims retain their explicit
-   member-scope consumption model.
+    The caller-supplied provenance is evidence only; it is never authority on
+    its own.  The scope-kind is derived from the persisted record, not
+    provenance — an unknown or mismatched provenance scope-kind is rejected.
+    For a single claim, the active record must commit to precisely the
+    scope derived from this adjustment.  Related-claims retain their explicit
+    member-scope consumption model.
 
-   Does NOT short-circuit for idempotent replay — that is handled at the outer
-   command layer."
-  [world auth-provenance scope-map]
-  (let [auth-id (:authorization/id auth-provenance)
-        scope-kind (:authorization/scope-kind auth-provenance :single-claim)
-        record (get-in world [:force-authorisations auth-id])
-        now (time-ctx/block-ts world)]
-    (when-not record
-      (throw (ex-info "force-authorisation record not found"
-                      {:type :authorization/not-found
-                       :authorization/id auth-id})))
-    (when-not (= :active (:authorization/status record))
+    Does NOT short-circuit for idempotent replay — that is handled at the outer
+    command layer."
+   [world auth-provenance scope-map]
+   (let [auth-id (:authorization/id auth-provenance)
+         record (get-in world [:force-authorisations auth-id])
+         record-scope-kind (:authorization/scope-kind record :single-claim)
+         now (time-ctx/block-ts world)]
+     (when-not record
+       (throw (ex-info "force-authorisation record not found"
+                       {:type :authorization/not-found
+                        :authorization/id auth-id})))
+     (when-not (contains? #{:single-claim :related-claims} record-scope-kind)
+       (throw (ex-info "force-authorisation record has unsupported scope-kind"
+                       {:type :authorization/unsupported-scope-kind
+                        :authorization/id auth-id
+                        :scope-kind record-scope-kind})))
+     (when-not (= record-scope-kind
+                  (:authorization/scope-kind auth-provenance :single-claim))
+       (throw (ex-info "force-authorisation provenance scope-kind does not match record"
+                       {:type :authorization/scope-kind-mismatch
+                        :authorization/id auth-id
+                        :record-scope-kind record-scope-kind
+                        :provenance-scope-kind (:authorization/scope-kind auth-provenance :single-claim)})))
+     (when-not (= :active (:authorization/status record))
       (throw (ex-info (let [s (:authorization/status record)]
                         (cond
-                          (and (= :consumed s) (= :related-claims scope-kind))
+                           (and (= :consumed s) (= :related-claims record-scope-kind))
                           "force-authorisation related-claims members already consumed"
                           (= :consumed s)
                           "force-authorisation record already consumed"
@@ -117,11 +131,11 @@
                        :authorization/id auth-id
                        :expires-at (:expires-at record)
                        :now now})))
-    (when (= :related-claims scope-kind)
-      (when-not (= :related-claims (:authorization/scope-kind record))
-        (throw (ex-info "force-authorisation record is not a related-claims grant"
-                        {:type :authorization/related-claims-scope-kind-mismatch
-                         :authorization/id auth-id})))
+     (when (= :related-claims record-scope-kind)
+       (when-not (= :related-claims (:authorization/scope-kind record))
+         (throw (ex-info "force-authorisation record is not a related-claims grant"
+                         {:type :authorization/related-claims-scope-kind-mismatch
+                          :authorization/id auth-id})))
       (when-not (and (= (:relationship/id record) (:relationship/id auth-provenance))
                      (= (:relationship/hash record) (:relationship/hash auth-provenance))
                      (= (set (:member-scope-hashes record))
@@ -129,7 +143,7 @@
         (throw (ex-info "related-claims authorization provenance differs from grant"
                         {:type :authorization/related-claims-grant-mismatch
                          :authorization/id auth-id}))))
-    (when (= :single-claim scope-kind)
+     (when (= :single-claim record-scope-kind)
       (let [record-scope (:authorization/scope record)
             record-hash (:authorization/scope-hash record)
             derived-hash (force-authorisation-scope-hash scope-map)]
@@ -154,8 +168,8 @@
                           {:type :authorization/provenance-scope-mismatch
                            :authorization/id auth-id
                            :granted-scope-hash record-hash
-                           :provenance-scope-hash (:authorization/scope-hash auth-provenance)})))))
-    (if (= :related-claims scope-kind)
+                            :provenance-scope-hash (:authorization/scope-hash auth-provenance)})))))
+    (if (= :related-claims record-scope-kind)
       ;; Related-claims: per-member consumption tracking
       (let [rel-id (:relationship/id auth-provenance)
             rel (when rel-id (rc/get-related-claims world rel-id))]
@@ -241,7 +255,8 @@
 (defn- mark-force-authorisation-consumed
   [world auth-provenance adjustment]
   (let [auth-id (:authorization/id auth-provenance)
-        scope-kind (:authorization/scope-kind auth-provenance :single-claim)
+        record (get-in world [:force-authorisations auth-id])
+        record-scope-kind (:authorization/scope-kind record :single-claim)
         base {:consumed? true
               :authorization/id auth-id
               :authorization/type (:authorization/type auth-provenance)
@@ -253,7 +268,7 @@
               :workflow-id (:held/workflow-id adjustment)
               :held/reason (:held/reason adjustment)
               :consumed/action (:held/action adjustment)}]
-    (if (= :related-claims scope-kind)
+    (if (= :related-claims record-scope-kind)
       ;; Per-member consumption: add member scope hash to consumed set. The
       ;; grant remains active while members remain, then becomes terminally consumed.
       ;; `:consumed-relationship-member-hashes` records each consumed member's
@@ -504,7 +519,7 @@
                                  :held/reason reason}
                                 (select-keys (or extra {}) [:held/workflow-id])
                                 (parameter-attribution-scope context address))
-            position-bound? (if (= :related-claims (:authorization/scope-kind authorization-provenance))
+            position-bound? (if (= :related-claims (:authorization/scope-kind record :single-claim))
                               (contains? (set (:member-scope-hashes record))
                                          (force-authorisation-scope-hash
                                           (held-adjustment/project-held-adjustment-scope scope-fields)))

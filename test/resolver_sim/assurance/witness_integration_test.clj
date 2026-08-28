@@ -1,10 +1,9 @@
 (ns resolver-sim.assurance.witness-integration-test
   "Gate 1: verify-witness-from-finalised-evidence integration tests.
    Uses persisted evidence files, evidence-registry.json and chain-cursor-final.json."
-  (:require [clojure.test :refer [deftest is testing]]
+  (:require [clojure.test :refer [deftest is]]
             [clojure.java.io :as io]
             [clojure.data.json :as json]
-            [clojure.edn :as edn]
             [resolver-sim.assurance.trust-sequence-definition :as tsd]
             [resolver-sim.assurance.procedure-execution-witness :as pew]
             [resolver-sim.assurance.witness-verifier :as wv]
@@ -163,6 +162,23 @@
          :auth-id auth-id
          :evidence-records [ev1 ev2 ev3]}))))
 
+(defn- write-builder-context!
+  [fixture registry]
+  (let [artifact-dir (:temp-dir fixture)
+        registry-file (str artifact-dir "/evidence-registry.json")
+        cursor-file (str artifact-dir "/chain-cursor-final.json")
+        index-file (str artifact-dir "/benchmark/index.edn")]
+    (write-json registry-file registry)
+    (write-json cursor-file (:cursor fixture))
+    (io/make-parents (io/file index-file))
+    (spit index-file
+          (pr-str {:executions
+                   [{:scenario/evidence-root artifact-dir
+                     :scenario/artifacts {:scenario/artifact-dir artifact-dir
+                                          :scenario/evidence-registry registry-file
+                                          :scenario/chain-cursor cursor-file}}]}))
+    {:benchmark/index-file index-file}))
+
 (defn- cleanup-fixture [f]
   (when-let [d (io/file (:temp-dir f))]
     (when (.isDirectory d)
@@ -198,6 +214,39 @@
                   (filter #(= :pass (:check/status %)) (:checks result))))
         (is (some #(= :procedure-witness/correlation-matches-planned-instance (:check/code %))
                   (filter #(= :pass (:check/status %)) (:checks result)))))
+      (finally (cleanup-fixture fx)))))
+
+(deftest re-rooted-registry-omitting-verified-chain-record-is-rejected
+  (let [fx (build-valid-fixture)]
+    (try
+      (let [context (write-builder-context! fx (:registry fx))
+            valid-build (#'wb/build-witness-from-scenario
+                         context (:definition fx) sew-adapter (:auth-id fx))
+            incomplete-registry (build-evidence-registry
+                                 [(first (:evidence-records fx))
+                                  (last (:evidence-records fx))]
+                                 (run-id))
+            _ (write-builder-context! fx incomplete-registry)
+            verification (wv/verify-witness-from-finalised-evidence
+                          (:witness fx) (:definition fx) (:ev-dir fx)
+                          incomplete-registry (:cursor fx)
+                          {:evidence-adapter sew-adapter
+                           :expected-correlation-id (:auth-id fx)})]
+        (is (some? (:witness valid-build))
+            "a registry containing every verified chain record permits construction")
+        (is (try
+              (#'wb/build-witness-from-scenario
+               context (:definition fx) sew-adapter (:auth-id fx))
+              false
+              (catch clojure.lang.ExceptionInfo e
+                (boolean (re-find #"verified scenario-chain evidence is missing from registry"
+                                  (.getMessage e)))))
+            "construction rejects a valid re-rooted registry that omits chain evidence")
+        (is (not (:valid? verification)))
+        (is (= :unverified (:evidence-index/status verification)))
+        (is (some #(= :evidence-chain/verified-chain-records-missing-from-registry
+                      (:check/code %))
+                  (filter #(= :fail (:check/status %)) (:checks verification)))))
       (finally (cleanup-fixture fx)))))
 
 (deftest registry-hash-corruption-fails-at-evidence-layer

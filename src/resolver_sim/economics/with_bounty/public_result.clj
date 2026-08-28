@@ -11,6 +11,10 @@
 (def public-result-domain-tag
   :with-bounty-public-result-v1)
 
+(def public-result-statuses
+  "Closed evaluator status vocabulary for with-bounty public results."
+  #{:invalid-policy :resolution-failed :skipped :failed :applied})
+
 (def public-result-fields
   [:status
    :composition/policy-root
@@ -54,6 +58,8 @@
                               (vec (filter #(not (string? (get projection %)))
                                            applied-roots)))
         errors (cond-> []
+                 (not (contains? public-result-statuses (:status projection)))
+                 (conj [:invalid-status (:status projection)])
                  (seq extra) (conj [:extra-fields extra])
                  (seq missing) (conj [:missing-fields missing])
                  (seq non-strings) (conj [:non-string-roots non-strings])

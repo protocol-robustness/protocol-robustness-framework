@@ -12,6 +12,8 @@
             [resolver-sim.benchmark.game-theory-validation :as sut]
             [resolver-sim.benchmark.strategic-claim-validation :as scv]
             [resolver-sim.benchmark.strategic-property-results :as spr]
+            [resolver-sim.allocation.proof-admission :as proof-admission]
+            [resolver-sim.hash.canonical :as hc]
             [resolver-sim.validation.gate :as gate]
             [resolver-sim.yield.strategic-partial-fill :as strategic-partial-fill]))
 
@@ -521,6 +523,51 @@
       (is (= [:partial-fill/claimant-monotonicity
               :partial-fill/claimant-split-merge-sybil]
              (get-in gate-result [:scope :deviation-set-ids]))))))
+
+(deftest scenario-statement-binding-requires-result-derived-provenance
+  (let [statement-root (apply str (repeat 64 "a"))
+        statements [{:decision/id "decision-1"
+                     :statement/root statement-root}]
+        statements-root (hc/domain-hash :evidence-collection [statement-root])
+        result-base {:scenario/id "scenario-1"
+                     :events-processed 1
+                     :outcome :pass
+                     :halt-reason nil
+                     :scenario/realized-allocation-statements-data statements
+                     :scenario/realized-allocation-statements-root statements-root}
+        evidence-root (hc/hash-with-intent
+                       {:hash/intent :evidence-content}
+                       {:events-processed 1
+                        :outcome :pass
+                        :halt-reason nil
+                        :realized-allocation-statements-root statements-root})
+        binding (fn [evidence-root statements-root]
+                  (let [binding {:scenario-id "scenario-1"
+                                 :evidence-content-root evidence-root
+                                 :statements-root statements-root}]
+                    (assoc binding :binding-root
+                           (proof-admission/scenario-statement-binding-root binding))))
+        claim-spec {:claim/assurance-level :assurance/cryptographic-computation}
+        checks-for (fn [binding]
+                     (:checks (#'scv/scenario-check-results
+                               claim-spec
+                               :allocation/shortfall
+                               (assoc result-base
+                                      :scenario/evidence-root evidence-root
+                                      :scenario/realized-statement-binding binding))))
+        binding-status (fn [checks]
+                         (:status (some #(when (= :scenario-statement-binding-valid
+                                                  (:check/id %))
+                                           %)
+                                        checks)))]
+    (testing "a binding to the result-derived roots passes provenance validation"
+      (is (= :pass (binding-status (checks-for (binding evidence-root statements-root))))))
+    (testing "a self-consistent binding with a forged evidence root fails provenance validation"
+      (is (= :fail (binding-status (checks-for (binding (apply str (repeat 64 "b"))
+                                                 statements-root))))))
+    (testing "a self-consistent binding with a forged statements root fails provenance validation"
+      (is (= :fail (binding-status (checks-for (binding evidence-root
+                                                 (apply str (repeat 64 "c"))))))))))
 
 (deftest folk-theorem-catalogue-accurately-reports-multi-epoch-only-coverage
   (let [concepts (:equilibrium-concepts (sut/list-game-theory-checks))

@@ -6,6 +6,7 @@
             [resolver-sim.benchmark.research-assignment :as assignment]
             [resolver-sim.benchmark.research-command :as command]
             [resolver-sim.benchmark.research-workflow :as workflow]
+            [resolver-sim.composition.command-lineage :as lineage]
             [resolver-sim.composition.semantic :as composition]
             [resolver-sim.hash.canonical :as hc]
             [resolver-sim.hash.reference :as hash-ref]))
@@ -144,3 +145,58 @@
     (is (empty? (:comparison/forbidden-canonical-differences same)))
     (is (not (:comparison/equivalent? different)))
     (contains? (:comparison/canonical-differences different) :output-roots)))
+
+(defn- cc3-provenance-source []
+  (let [state-a (root :cc3-state-a)
+        state-b (root :cc3-state-b)
+        state-c (root :cc3-state-c)
+        command (fn [action input resulting]
+                  (lineage/build-command
+                   {:command/action action
+                    :command/input-state-root input
+                    :command/resulting-state-root resulting
+                    :command/built-with-includes [{:kind :shared-state :ref input}]}))
+        commands [(command :research/a state-a state-b)
+                  (command :research/b state-b state-c)
+                  (command :research/c state-c state-a)]]
+    {:commands commands
+     :concatenations (lineage/build-concatenation-chain commands)
+     :combination (lineage/build-combination
+                   (:command/built-with-includes (peek commands)))}))
+
+(defn- v2-context []
+  (let [context (dissoc (fixture) :execution)
+        source (cc3-provenance-source)
+        execution (workflow/record-execution-v2
+                   (assoc context :executable-command-provenance-input source))]
+    (assoc context
+           :executable-command-provenance-input source
+           :execution execution)))
+
+(deftest cc3-provenance-is-bound-into-research-execution-v2
+  (let [context (v2-context)
+        execution (:execution context)
+        trace (:research-execution/trace execution)
+        source (:executable-command-provenance-input context)
+        reordered (assoc source :concatenations (vec (reverse (:concatenations source))))
+        broken-concatenation (assoc (first (:concatenations source))
+                                    :concatenation/join-state
+                                    (root :broken-join))
+        broken-concatenation (assoc broken-concatenation
+                                    :concatenation/root
+                                    (lineage/concatenation-root broken-concatenation))
+        broken (assoc source :concatenations
+                      (assoc (:concatenations source) 0 broken-concatenation))
+        substituted-combination (lineage/build-combination
+                                 [{:kind :shared-state :ref (root :substituted-include)}])
+        substituted (assoc source :combination substituted-combination)]
+    (is (= workflow/schema-version-v2 (:schema-version execution)))
+    (is (= command/command-trace-v3-schema-version (:trace/schema-version trace)))
+    (is (= 4 (:trace/component-count trace)))
+    (is (= :accepted (:submission/status (workflow/submit context))))
+    (is (= :rejected (:submission/status
+                      (workflow/submit (assoc context :executable-command-provenance-input substituted)))))
+    (is (= :rejected (:submission/status
+                      (workflow/submit (assoc context :executable-command-provenance-input reordered)))))
+    (is (= :rejected (:submission/status
+                      (workflow/submit (assoc context :executable-command-provenance-input broken)))))))

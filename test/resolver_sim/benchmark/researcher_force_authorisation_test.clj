@@ -38,7 +38,7 @@
    :policy/hash "sha256:policy-hash"})
 
 (def sample-round-ref
-  {:review-round/id :review-round/test
+  {:review-round/id "sha256:round-hash"
    :review-round/hash "sha256:round-hash"})
 
 (def sample-target
@@ -163,7 +163,7 @@
 ;; ── Cross-artifact verification ──────────────────────────────────────────
 
 (deftest verify-against-round-valid
-  (let [round {:review-round/id :review-round/test
+  (let [round {:review-round/id "sha256:round-hash"
                :review-round/hash "sha256:round-hash"
                :review-round/members [{:researcher/id "researcher-a" :role :model-steward}
                                       {:researcher/id "researcher-b" :role :independent-reproducer}
@@ -175,7 +175,7 @@
     (is (:valid? result))))
 
 (deftest verify-against-round-rejects-non-member
-  (let [round {:review-round/id :review-round/test
+  (let [round {:review-round/id "sha256:round-hash"
                :review-round/hash "sha256:round-hash"
                :review-round/members [{:researcher/id "researcher-a" :role :model-steward}
                                       {:researcher/id "researcher-b" :role :independent-reproducer}]}
@@ -285,7 +285,7 @@
 ;; ── Member-key cross-check tests ───────────────────────────────────────────
 
 (def ^:private unkeyed-round
-  {:review-round/id :review-round/test
+  {:review-round/id "sha256:unkeyed-round-hash"
    :review-round/hash "sha256:unkeyed-round-hash"
    :benchmark/content-root "sha256:cr"
    :review-round/purpose :model-admission
@@ -297,7 +297,7 @@
    :review-round/policy-root "sha256:policy"})
 
 (def ^:private keyed-round
-  {:review-round/id :review-round/test-keyed
+  {:review-round/id "sha256:keyed-round-hash"
    :review-round/hash "sha256:keyed-round-hash"
    :benchmark/content-root "sha256:cr"
    :review-round/purpose :model-admission
@@ -351,6 +351,65 @@
     (is (:valid? result))
     (is (not (contains? result :approval-member-keys))
         "unkeyed round should not emit key vectors")))
+
+;; ── Round reference reconciliation ───────────────────────────────────────────
+
+(deftest verify-round-reference-matching
+  (let [reference {:review-round/id "sha256:round"
+                   :review-round/hash "sha256:round"}
+        resolved {:review-round/id "sha256:round"
+                  :review-round/hash "sha256:round"}]
+    (let [result (rfa/verify-round-reference reference resolved)]
+      (is (:valid? result)))))
+
+(deftest verify-round-reference-rejects-substituted-id
+  (let [reference {:review-round/id "sha256:round"
+                   :review-round/hash "sha256:round"}
+        resolved {:review-round/id "sha256:other-round"
+                  :review-round/hash "sha256:round"}]
+    (let [result (rfa/verify-round-reference reference resolved)]
+      (is (not (:valid? result)))
+      (is (some #(re-find #"review-round/id mismatch" %) (:errors result))))))
+
+(deftest verify-round-reference-rejects-substituted-hash
+  (let [reference {:review-round/id "sha256:round"
+                   :review-round/hash "sha256:round"}
+        resolved {:review-round/id "sha256:round"
+                  :review-round/hash "sha256:other-hash"}]
+    (let [result (rfa/verify-round-reference reference resolved)]
+      (is (not (:valid? result)))
+      (is (some #(re-find #"review-round/hash mismatch" %) (:errors result))))))
+
+(deftest verify-round-reference-rejects-id-not-equal-to-hash
+  (let [reference {:review-round/id "sha256:round"
+                   :review-round/hash "sha256:round"}
+        resolved {:review-round/id :round-keyword
+                  :review-round/hash "sha256:round"}]
+    (let [result (rfa/verify-round-reference reference resolved)]
+      (is (not (:valid? result)))
+      (is (some #(re-find #"id does not equal hash" %) (:errors result))))))
+
+(deftest verify-against-round-rejects-substituted-round-id
+  (let [round {:review-round/id "sha256:round-hash"
+               :review-round/hash "sha256:round-hash"
+               :review-round/members [{:researcher/id "researcher-a" :role :model-steward}
+                                      {:researcher/id "researcher-b" :role :independent-reproducer}]}
+        auth (assoc-in (build-auth) [:authorisation/review-round :review-round/id]
+                       "sha256:substituted-id")
+        result (rfa/verify-against-round round auth)]
+    (is (not (:valid? result)))
+    (is (some #(re-find #"round reference mismatch" %) (:errors result)))))
+
+(deftest verify-against-round-rejects-substituted-round-hash
+  (let [round {:review-round/id "sha256:round-hash"
+               :review-round/hash "sha256:round-hash"
+               :review-round/members [{:researcher/id "researcher-a" :role :model-steward}
+                                      {:researcher/id "researcher-b" :role :independent-reproducer}]}
+        auth (assoc-in (build-auth) [:authorisation/review-round :review-round/hash]
+                       "sha256:substituted-hash")
+        result (rfa/verify-against-round round auth)]
+    (is (not (:valid? result)))
+    (is (some #(re-find #"round reference mismatch" %) (:errors result)))))
 
 (deftest force-authorisation-summary-key-vectors
   (let [auth (build-auth :decisions [(mock-decision "researcher-a" :approve)

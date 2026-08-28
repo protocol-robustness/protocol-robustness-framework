@@ -193,7 +193,7 @@
                                       :policy/version 1
                                       :policy/schema-version "fa-policy.v1"
                                       :policy/hash "sha256:policy"}
-               :authorisation/review-round {:review-round/id :rr/pkg
+               :authorisation/review-round {:review-round/id "sha256:round"
                                             :review-round/hash "sha256:round"}
                :authorisation/request-root "sha256:request"
                :authorisation/target {:target/kind :benchmark-branch
@@ -238,7 +238,7 @@
         evidence-profile (fa-ev/build-force-authorised-execution-evidence
                           {:authorisation auth
                            :policy {"policy_sha256" "sha256:policy"}
-                           :review-round {:review-round/id :rr/pkg
+                           :review-round {:review-round/id "sha256:round"
                                           :review-round/hash "sha256:round"
                                           :review-round/members
                                           [{:researcher/id "a" :role :steward}
@@ -250,7 +250,7 @@
         policy-artifact {"policy_sha256" "sha256:policy"
                          "schema_version" "force-authorisation-policy.v1"
                          "member_count" 3 "threshold" 2}
-        round-artifact {:review-round/id :rr/pkg
+        round-artifact {:review-round/id "sha256:round"
                         :review-round/hash "sha256:round"
                         :review-round/members
                         [{:researcher/id "a" :role :steward}

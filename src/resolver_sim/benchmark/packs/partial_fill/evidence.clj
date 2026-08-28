@@ -13,10 +13,15 @@
 ;; ── State write-back evidence ─────────────────────────────────────────────
 
 (defn derive-state-write-back
-  "Derive authoritative state-write-back evidence from the application artifact
-   and the final world state. Does not require modifying liquid-lending
-   transition code — this is an additive projection at the benchmark layer.
-   
+  "Derive state-write-back evidence by comparing selected application outputs
+   with their corresponding final-world projections. Does not require modifying
+   liquid-lending transition code — this is an additive projection at the
+   benchmark layer.
+
+   :verified? is true only when the withdrawn, position, and deferred-position
+   projections all match. This verifies selected final-world projections; it
+   does not claim external persistence or readback.
+
    Returns nil when the application artifact or final world cannot supply
    the required fields."
   [application-artifact final-world]
@@ -45,7 +50,16 @@
                after-hash (:position-after-hash participant)
                deferred (:deferred-position position-after)
                prior-deferred (:deferred-position
-                               (:position-before participant))]
+                               (:position-before participant))
+               withdrawn-verified? (= final-world-withdrawn after)
+               position-verified? (and after-hash
+                                       final-world-pos-hash
+                                       (= after-hash final-world-pos-hash))
+               deferred-verified? (and deferred
+                                       (= (:position/current-amount deferred)
+                                          (get-in final-world-position
+                                                  [:deferred-position
+                                                   :position/current-amount])))]
            {:participant/id participant-id
             :token token
             :withdrawn
@@ -53,14 +67,12 @@
              :delta delta
              :after after
              :final-world-value final-world-withdrawn
-             :verified? (= final-world-withdrawn after)}
+             :verified? withdrawn-verified?}
             :position
             {:before-hash (:position-before-hash participant)
              :after-hash after-hash
              :final-world-position-hash final-world-pos-hash
-             :verified? (and after-hash
-                             final-world-pos-hash
-                             (= after-hash final-world-pos-hash))}
+             :verified? position-verified?}
             :deferred-position
             {:prior-closed? (and prior-deferred
                                  (= :closed (:position/status prior-deferred)))
@@ -69,11 +81,10 @@
              :final-world-current-amount (get-in final-world-position
                                                  [:deferred-position
                                                   :position/current-amount])
-             :verified? (and deferred
-                             (= (:position/current-amount deferred)
-                                (get-in final-world-position
-                                        [:deferred-position
-                                         :position/current-amount])))}}))
+             :verified? deferred-verified?}
+            :verified? (and withdrawn-verified?
+                            position-verified?
+                            deferred-verified?)}))
        participants))))
 
 ;; ── Propagation/application reference collection ──────────────────────────

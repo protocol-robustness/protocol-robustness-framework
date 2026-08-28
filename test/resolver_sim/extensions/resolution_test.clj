@@ -1,7 +1,8 @@
 (ns resolver-sim.extensions.resolution-test
   "Phase 1: frozen resolution — transitive closure, failure conditions, and
    the content-addressed resolution root."
-  (:require [clojure.test :refer [deftest is]]
+  (:require [clojure.edn :as edn]
+            [clojure.test :refer [deftest is]]
             [resolver-sim.economics.effects :as effects]
             [resolver-sim.extensions.core :as core]
             [resolver-sim.extensions.fixtures :as fx]
@@ -133,6 +134,25 @@
     (is (not (:valid? r)))
     (is (some #(= :extensions/error-invalid-requested-capability (:violation/id %))
               (:violations r)))))
+
+(deftest portable-resolution-verification-is-closed-form-and-rooted
+  (let [snapshot (:resolution
+                  (res/resolve-requested
+                   (reg/register-package (reg/empty-extension-map) fx/scaled-share-pack)
+                   [[:arithmetic/profile :prf/scaled-share-v1]]
+                   {:schemas fx/schemas}))
+        portable (edn/read-string (pr-str snapshot))
+        capability [:arithmetic/profile :prf/scaled-share-v1]
+        changed-provider (assoc-in portable
+                                   [:extensions/capability-providers capability :providers 0 :package-root]
+                                   "changed-provider-root")]
+    (is (= portable (res/verify-portable! portable)))
+    (doseq [candidate [(assoc portable :attacker/unknown true)
+                       (dissoc portable :extensions/packages)
+                       (assoc portable :extensions/resolution-version 999)
+                       changed-provider]]
+      (is (thrown? clojure.lang.ExceptionInfo
+                   (res/verify-portable! candidate))))))
 
 (deftest resolution-root-deterministic-and-sensitive
   (let [base (res/resolve-requested (reg/register-package (reg/empty-extension-map)

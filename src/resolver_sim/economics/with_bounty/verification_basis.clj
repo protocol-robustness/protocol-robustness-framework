@@ -68,12 +68,12 @@
     (let [known (set (conj basis-projection-fields :basis/root))
           unknown (vec (sort (remove known (keys basis))))
           required-roots [:basis/subject-root :basis/package-root
-                          :basis/verification-contract
-                          :basis/entrypoint
+                          :basis/artifact-root
                           :basis/dependency-lockfile-root
                           :basis/runtime-root
+                          :basis/environment-root
                           :basis/vector-set-root
-                          :basis/expected-public-result-schema]
+                          :basis/classification-policy-root]
           missing (vec (remove #(string? (get basis %)) required-roots))
           errors (cond-> []
                    (not= schema-version (:schema-version basis))
