@@ -259,7 +259,20 @@
        (when (:world ctx)
          {:world-before (:world ctx)
           :world-after (:world ctx)})))
-    result))
+     result))
+
+(defn- reversal-slash-exists?
+  "True when a reversal-type slash (kind `:reversal` or `:force-reversal`) already
+   targets `workflow-id` at `slash-level`.
+
+   Both the automatic reversal path (handle-reversal-slashing) and
+   force-reversal-slash must consult this same guard.  Otherwise mixing the two
+   code paths can double-penalize a resolver for the same reversed decision: a
+   `:reversal` slash already debited would not block a later `force-reversal`,
+   and vice-versa."
+  [world workflow-id slash-level]
+  (or (get-in world [:slash-by-context [workflow-id :reversal slash-level]])
+      (get-in world [:slash-by-context [workflow-id :force-reversal slash-level]])))
 
 (defn- handle-reversal-slashing
   "Handles the outcome of a reversed decision.
@@ -306,14 +319,14 @@
              ;; reversed decision).  The scan is restricted to :reversal kind: an
              ;; unrelated pending/appealed FRAUD slash must not suppress the
              ;; reversal penalty for a decision that was just reversed.
-             (if (or (get-in world [:slash-by-context [workflow-id :reversal slash-level]])
-                     (some (fn [[_id entry]]
-                             (and (#{:reversal} (:slash/kind entry))
-                                  (= (:workflow-id entry) workflow-id)
-                                  (= (:resolver entry) prev-resolver)
-                                  (#{:pending :appealed} (:status entry))))
-                           (get world :pending-fraud-slashes {})))
-               world
+              (if (or (reversal-slash-exists? world workflow-id slash-level)
+                      (some (fn [[_id entry]]
+                              (and (#{:reversal :force-reversal} (:slash/kind entry))
+                                   (= (:workflow-id entry) workflow-id)
+                                   (= (:resolver entry) prev-resolver)
+                                   (#{:pending :appealed} (:status entry))))
+                            (get world :pending-fraud-slashes {})))
+                world
               (let [snap            (t/get-snapshot world workflow-id)
                     et              (t/get-transfer world workflow-id)
                     token           (:token et "USDC")
@@ -369,14 +382,21 @@
   ;; immediate-track slashes never enter :pending-fraud-slashes — they execute
   ;; directly via slash-resolver-stake.  :slash-by-context captures both tracks
   ;; uniformly and avoids creating a separate dedup map.
-  (let [slash-level 0]
-    (if (get-in world [:slash-by-context [workflow-id :force-reversal slash-level]])
+  (let [slash-level 0
+        level       (t/dispute-level world workflow-id)
+        prev-decision (when (pos? level)
+                        (get-in world [:previous-decisions workflow-id (dec level)]))
+        prev-resolver (or (:resolver prev-decision)
+                          (get-in world [:escrow-transfers workflow-id :sender]))]
+    (if (or (reversal-slash-exists? world workflow-id slash-level)
+            (some (fn [[_id entry]]
+                    (and (#{:reversal :force-reversal} (:slash/kind entry))
+                         (= (:workflow-id entry) workflow-id)
+                         (= (:resolver entry) prev-resolver)
+                         (#{:pending :appealed} (:status entry))))
+                  (get world :pending-fraud-slashes {})))
       world
-      (let [level       (t/dispute-level world workflow-id)
-            prev-decision (when (pos? level)
-                            (get-in world [:previous-decisions workflow-id (dec level)]))
-            prev-resolver (or (:resolver prev-decision) (get-in world [:escrow-transfers workflow-id :sender]))
-            snap          (t/get-snapshot world workflow-id)
+      (let [snap          (t/get-snapshot world workflow-id)
             et            (t/get-transfer world workflow-id)
             token         (:token et "USDC")
             bps           (long (or slash-bps (:reversal-slash-bps snap 0)))
@@ -2216,8 +2236,12 @@ action-hash-at  (hc/hash-with-intent {:hash/intent :action-at}
       (nil? pending)
       (t/fail :slash-not-found)
 
-      (not= (:slash/workflow-id pending) _workflow-id)
-      (t/fail :slash-workflow-mismatch)
+       (not= (:slash/workflow-id pending) _workflow-id)
+       (t/fail :slash-workflow-mismatch)
+
+       (= :fraud-group (:slash/kind pending))
+       (t/fail :use-resolve-fraud-group-appeal)
+
 
       (nil? authorization-provenance)
       (t/fail :missing-authorization-provenance)

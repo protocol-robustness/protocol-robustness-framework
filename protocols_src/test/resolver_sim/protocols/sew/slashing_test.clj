@@ -1431,9 +1431,34 @@
       (is (false? (:ok r)))
       (is (= :slash-already-reversed (:error r))))))
 
+(defn- force-reversal-basis-world
+  "A minimal world in which force-reversal-slash can run standalone: the resolver
+   that made the superseded decision is resolvable, there is a relevant snapshot,
+   and the dispute level is > 0.  Crucially it contains NO pre-existing reversal
+   slash, so it exercises the helper's own behaviour rather than the
+   reversal/force-reversal idempotency contract (covered by the
+   *-skips-when-* tests below)."
+  ([stake] (force-reversal-basis-world stake 2500))
+  ([stake bps]
+   (let [res        "0xResolver"
+         workflow-id 42
+         snap       (snap-fix/escrow-snapshot {:reversal-slash-bps bps
+                                               :appeal-window-duration 120
+                                               :challenge-window-duration 120
+                                               :max-dispute-level 2
+                                               :dispute-resolver res})
+         world0     (-> (t/empty-world 1000)
+                        (reg/register-stake res stake)
+                        (assoc-in [:escrow-transfers workflow-id] {:token :USDC :sender res})
+                        (assoc-in [:module-snapshots workflow-id] snap)
+                        (assoc-in [:dispute-levels workflow-id] 1)
+                        (assoc-in [:previous-decisions workflow-id]
+                                  {0 {:is-release true :resolver res}}))]
+     {:world world0 :workflow-id workflow-id :resolver res})))
+
 (deftest force-reversal-slash-immediate
   (testing "force-reversal-slash produces an executed slash entry"
-    (let [{:keys [world workflow-id]} (rev-fx/build-reversal-world)
+    (let [{:keys [world workflow-id]} (force-reversal-basis-world 1000)
           w (res/force-reversal-slash world workflow-id :track :immediate)
           slash-entry (slash-for w workflow-id :force-reversal 0)]
       (is (some? slash-entry) "force-reversal slash entry should exist")
@@ -1443,7 +1468,7 @@
 
 (deftest force-reversal-slash-pending
   (testing "force-reversal-slash produces a pending slash entry"
-    (let [{:keys [world workflow-id]} (rev-fx/build-reversal-world)
+    (let [{:keys [world workflow-id]} (force-reversal-basis-world 1000)
           w (res/force-reversal-slash world workflow-id :track :pending)
           slash-entry (slash-for w workflow-id :force-reversal 0)]
       (is (some? slash-entry) "force-reversal slash entry should exist")
@@ -1462,6 +1487,75 @@
       (is (some? slash-entry) "custom bps override should produce a slash entry")
       (is (= :executed (:status slash-entry)) "immediate track should be executed")
       (is (pos? (:amount slash-entry)) "slash amount should be positive"))))
+
+(deftest force-reversal-slash-skips-when-reversal-exists
+  (testing "force-reversal-slash must not double-penalize when a :reversal slash already covers the resolver/level"
+    (let [res "0xRes" workflow-id 42
+          world0 (-> (t/empty-world 1000)
+                     (reg/register-stake res 1000)
+                     (assoc-in [:module-snapshots workflow-id]
+                               (snap-fix/escrow-snapshot {:reversal-slash-bps 2500}))
+                     (assoc-in [:dispute-levels workflow-id] 1)
+                     (assoc-in [:previous-decisions workflow-id]
+                               {0 {:is-release true :resolver res}}))
+          entry {:resolver res
+                 :basis-amount 1000 :basis-kind :stake
+                 :slash-bps 2500 :amount 250 :token :USDC
+                 :workflow-id workflow-id :reason :reversal
+                 :status :pending :proposed-at 0 :appeal-deadline 100
+                 :appeal-bond-held 0 :contest-deadline 0
+                 :reversal-detection-probability 0.0}
+          w-base (insert-test-slash world0 workflow-id :reversal 0 entry)
+          before-count (count (get w-base :pending-fraud-slashes))
+          w-force (res/force-reversal-slash w-base workflow-id :slash-bps 2500 :track :pending)
+          after-count (count (get w-force :pending-fraud-slashes))]
+      (is (= before-count after-count) "force-reversal did not add a second slash")
+      (is (nil? (get-in w-force [:slash-by-context [workflow-id :force-reversal 0]]))
+          "no :force-reversal entry created for an already-penalized resolver/level"))))
+
+(deftest handle-reversal-slashing-skips-when-force-reversal-exists
+  (testing "handle-reversal-slashing must not double-penalize when a :force-reversal slash already covers the resolver/level"
+    (let [res "0xRes" workflow-id 42
+          world0 (-> (t/empty-world 1000)
+                     (reg/register-stake res 1000)
+                     (assoc-in [:module-snapshots workflow-id]
+                               (snap-fix/escrow-snapshot {:reversal-slash-bps 2500}))
+                     (assoc-in [:dispute-levels workflow-id] 1)
+                     (assoc-in [:previous-decisions workflow-id]
+                               {0 {:is-release true :resolver res}}))
+          force-entry {:resolver res
+                       :basis-amount 1000 :basis-kind :stake
+                       :slash-bps 2500 :amount 250 :token :USDC
+                       :workflow-id workflow-id :reason :reversal
+                       :status :pending :proposed-at 0 :appeal-deadline 100
+                       :appeal-bond-held 0 :contest-deadline 0
+                       :reversal-detection-probability 0.0}
+          w-base (insert-test-slash world0 workflow-id :force-reversal 0 force-entry)
+          before-count (count (get w-base :pending-fraud-slashes))
+          w-after (#'res/handle-reversal-slashing w-base workflow-id false)
+          after-count (count (get w-after :pending-fraud-slashes))]
+      (is (= before-count after-count) "handle-reversal-slashing did not add a second slash")
+      (is (nil? (get-in w-after [:slash-by-context [workflow-id :reversal 0]]))
+          "no :reversal entry created for an already-penalized resolver/level")
+      (is (= 1000 (reg/get-stake w-after res))
+          "resolver stake unchanged (no double penalty)"))))
+
+(deftest resolve-appeal-fraud-group-returns-clean-error
+  (testing "resolve-appeal on a :fraud-group slash returns a typed failure, not an exception"
+    (let [r-a "0xA" r-b "0xB"
+          world0 (-> (t/empty-world 1000) (reg/register-stake r-a 100) (reg/register-stake r-b 300))
+          {:keys [world workflow-id]} (world-ready-for-fraud-slash-propose
+                                       world0 "0xBuyer" "USDC" "0xSeller" r-b 1000
+                                       (snap-fix/escrow-snapshot {:appeal-window-duration 10}))
+          proposed (propose-test-fraud-group-slash world workflow-id "0xGov" [r-a r-b] 200 "test-fraud-group"
+                                                   {:authorization/type :governance}
+                                                   {:provenance/source :test})
+          slash-id (:slash-id proposed)
+          appealed (:world (res/appeal-fraud-group-slash (:world proposed) workflow-id r-a slash-id))]
+      (let [result (res/resolve-appeal appealed workflow-id "0xGov" false slash-id
+                                       :authorization-provenance {:authorization/type :governance})]
+        (is (false? (:ok result)))
+        (is (= :use-resolve-fraud-group-appeal (:error result)))))))
 
 (deftest execute-fraud-slash-emits-allocation-evidence
   (testing "execute-fraud-slash computes and emits pro-rata allocation evidence"
