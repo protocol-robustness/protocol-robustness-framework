@@ -3,6 +3,7 @@
             [resolver-sim.benchmark.governed-authority-resolution :as resolution]
             [resolver-sim.benchmark.governed-authority-state :as state]
             [resolver-sim.benchmark.governed-authority-result-receipt :as result-receipt]
+            [resolver-sim.benchmark.governed-authority-result-receipt-store :as receipt-store]
             [resolver-sim.benchmark.governed-authority-semantics :as semantics]
             [resolver-sim.benchmark.authority-semantics-policy :as semantics-policy]
             [resolver-sim.benchmark.authority-semantics-state :as semantics-state]
@@ -14,7 +15,8 @@
             [resolver-sim.benchmark.review-governance :as governance]
             [resolver-sim.benchmark.review-governance-evidence :as evidence]
             [resolver-sim.assurance.governed-authority-consumer :as gac]
-            [resolver-sim.benchmark.researcher-force-authorisation :as rfa])
+            [resolver-sim.benchmark.researcher-force-authorisation :as rfa]
+            [resolver-sim.io.content-addressed-store :as cas])
   (:import [java.security KeyPairGenerator]
            [java.util Base64]))
 
@@ -408,10 +410,18 @@
                  :predecessor-material material
                  :configuration-transition transition
                  :authorisation authorisation
+                 :resolution-basis (admission-basis w)
                  :resolved-review-authority-context-root
                  (get-in resolved [:context :resolved-review-authority-context/root])}
         candidate (c3a/build-evidence-candidate witness)
         evidence (c3a/build-verified-evidence witness)
+        transplanted-basis
+        (resolution/build-resolution-basis-v2
+         (assoc (select-keys (admission-basis w)
+                             [:resolution/purpose :chain-instance-genesis/root
+                              :resolution/state-before-root :resolution/anchor-root
+                              :review-round/hash :authority-resolver/root])
+                :resolution/state-before-root (hash-ref "ca")))
         wrong-parent-transition (assoc transition :configuration/parent-root (hash-ref "12"))
         non-authorised {:artifact/schema "force-authorisation.v1"
                         :authorisation/id "c3a-non-authorised"
@@ -448,6 +458,10 @@
     (is (false? (verify? (assoc witness :evidence evidence
                                 :predecessor-envelope
                                 (assoc (:envelope w) :configuration-head/root (hash-ref "13"))))))
+    (is (thrown? clojure.lang.ExceptionInfo
+                 (c3a/build-evidence-candidate
+                  (assoc witness :resolution-basis transplanted-basis)))
+        "a syntactically valid context root cannot be transplanted under another predecessor basis")
     (is (false? (verify? (assoc witness :evidence evidence
                                 :predecessor-material
                                 (assoc material :review-governance/root (hash-ref "14"))))))
@@ -483,6 +497,8 @@
                  :predecessor-material material
                  :configuration-transition transition
                  :authorisation authorisation
+                 :resolution-basis (admission-basis {:state-root (:execution/state-root envelope)
+                                                     :head (:authoritative-state-envelope/root envelope)})
                  :resolved-review-authority-context-root
                  (get-in resolved [:context :resolved-review-authority-context/root])}
         evidence (c3a/build-verified-evidence witness)]
@@ -513,6 +529,8 @@
                                                                            :head (:authoritative-state-envelope/root e0)}))
         witness {:predecessor-envelope e0 :predecessor-head-state h0 :predecessor-material predecessor-material
                  :configuration-transition transition :authorisation authorisation
+                 :resolution-basis (admission-basis {:state-root (:execution/state-root e0)
+                                                     :head (:authoritative-state-envelope/root e0)})
                  :resolved-review-authority-context-root (get-in resolved [:context :resolved-review-authority-context/root])}
         evidence (c3a/build-verified-evidence witness)
         request {:authorization-evidence evidence :authorization-witness witness :transition transition
@@ -1308,6 +1326,7 @@
                  :predecessor-material predecessor-material
                  :configuration-transition transition
                  :authorisation authorisation
+                 :resolution-basis (admission-basis w)
                  :resolved-review-authority-context-root
                  (get-in resolved [:context :resolved-review-authority-context/root])}
         evidence (c3a/build-verified-evidence witness)
@@ -1435,6 +1454,33 @@
     (is (= semantics (:semantics resolved)))
     (is (= configuration-root (:configuration/root resolved)))
     (is (= (:governed-authority-semantics/root semantics) (:semantics/root resolved)))))
+
+(deftest direct-cps-substitution-cannot-issue-a-fence
+  (let [{:keys [store c0 p0 s0 e0 request]} (canonical-c4-c3b-fixture)
+        w {:store store
+           :state-root (:execution/state-root e0)
+           :head (:authoritative-state-envelope/root e0)}
+        authorisation (:authorisation (:authorization-witness request))]
+    (doseq [[label supplied-semantics supplied-provenance]
+            [[:semantics
+              (assoc s0 :governed-authority-semantics/root (hash-ref "substituted-s"))
+              {:chain-configuration/root (genesis/chain-configuration-root c0)
+               :authority-semantics-policy/root (:authority-semantics-policy/root p0)}]
+             [:policy s0
+              {:chain-configuration/root (genesis/chain-configuration-root c0)
+               :authority-semantics-policy/root (hash-ref "substituted-p")}]
+             [:configuration s0
+              {:chain-configuration/root (hash-ref "substituted-c")
+               :authority-semantics-policy/root (:authority-semantics-policy/root p0)}]]]
+      (let [before @(.state store)
+            result (state/evaluate-and-issue-finalizable-authority-fence!
+                    store (admission-basis w) authorisation supplied-semantics
+                    supplied-provenance)]
+        (is (false? (:valid? result)) (str label " is rejected"))
+        (is (= :authority-semantics-provenance-invalid (:reason result))
+            (str label " reports provenance failure"))
+        (is (nil? (:authority-fence result)) (str label " issues no fence"))
+        (is (= before @(.state store)) (str label " mutates nothing"))))))
 
 (deftest c4f-issued-fence-commits-store-derived-semantics
   (let [{:keys [configuration policy semantics]} (c4-configuration)
@@ -1824,3 +1870,143 @@
                  (:reason (gac/finalise-governed-authority-current!
                            (:store w) result conflicting
                            (:envelope succ2) (:material succ2))))))))))
+
+(defn- d4-successor [fixture]
+  (let [store (:store fixture)
+        e1 (get-in @(.state store) [:envelopes (:head @(.state store))])
+        material (get-in @(.state store) [:material (:execution/state-root e1)])]
+    {:envelope (assoc (store-envelope (hash-ref "d4e2")
+                                      (:authoritative-state-envelope/root e1)
+                                      (inc (:publication/sequence e1))
+                                      material)
+                      :artifact/schema state/envelope-v2-schema
+                      :chain-configuration/root (:chain-configuration/root e1))
+     :material material}))
+
+(deftest d4-v2-stale-finalisation-cas-leaves-no-t1-residue
+  (let [{:keys [store request]} (canonical-c4-c3b-fixture)
+        activation (c3b/activate-under-verified-transition-authorization! store request)
+        e1 (:envelope activation)
+        w {:store store
+           :state-root (:execution/state-root e1)
+           :head (:authoritative-state-envelope/root e1)}
+        authorisation (:authorisation (:authorization-witness request))
+        t1-issued
+        (gac/verify-governed-authority-current-under-authoritative-configuration
+         store (admission-basis w) authorisation)
+        t2-issued
+        (gac/verify-governed-authority-current-under-authoritative-configuration
+         store (admission-basis w) authorisation)
+        t1-successor (d4-successor {:store store})
+        t2-successor (update (d4-successor {:store store})
+                             :envelope assoc :execution/state-root (hash-ref "d4a2"))
+        t1-binding
+        (transition-binding
+         (get-in t1-issued [:resolved-review-authority-context
+                            :resolved-review-authority-context/root])
+         (:execution/state-root e1) (:execution/state-root (:envelope t1-successor))
+         (hash-ref "d4a1"))
+        t2-binding
+        (transition-binding
+         (get-in t2-issued [:resolved-review-authority-context
+                            :resolved-review-authority-context/root])
+         (:execution/state-root e1) (:execution/state-root (:envelope t2-successor))
+         (hash-ref "d4b2"))
+        original-build state/build-envelope-v2
+        advanced? (atom false)
+        after-t2 (atom nil)
+        t1-result
+        (with-redefs [state/build-envelope-v2
+                      (fn [envelope head-state]
+                        (when (compare-and-set! advanced? false true)
+                          (let [t2-result
+                                (gac/finalise-governed-authority-current-under-authoritative-configuration!
+                                 store t2-issued t2-binding
+                                 (:envelope t2-successor) (:material t2-successor))]
+                            (is (:finalised? t2-result) "T2 advances authoritatively")
+                            (reset! after-t2 @(.state store))))
+                        (original-build envelope head-state))]
+          (gac/finalise-governed-authority-current-under-authoritative-configuration!
+           store t1-issued t1-binding
+           (:envelope t1-successor) (:material t1-successor)))]
+    (is (:valid? t1-issued) "T1 has an E1-issued fence")
+    (is (:valid? t2-issued) "T2 has an E1-issued fence")
+    (is @advanced? "T2 interleaves immediately before T1's final CAS")
+    (is (= :state-not-at-required-head (:reason t1-result)))
+    (is (= @after-t2 @(.state store)) "T1 leaves the post-T2 store unchanged")
+    (is (nil? (get-in @after-t2 [:envelopes
+                                 (:authoritative-state-envelope/root
+                                  (original-build (:envelope t1-successor)
+                                                  (get-in @after-t2
+                                                          [:configuration-head-states
+                                                           (:configuration-head/root e1)])))])))
+    (is (nil? (get-in @after-t2 [:material (:execution/state-root (:envelope t1-successor))])))
+    (is (nil? (get-in @after-t2 [:governed-authority-result-receipt-by-binding
+                                 (:governed-authority-transition-binding/root t1-binding)])))
+    (is (= :issued
+           (get-in @after-t2 [:issued-fences
+                              (get-in t1-issued [:authority-fence :fence/id]) :status])))))
+
+(deftest d4-finalisation-retains-current-authoritative-configuration
+  (let [{:keys [store c1 p1 s1 request]} (canonical-c4-c3b-fixture)
+        activation (c3b/activate-under-verified-transition-authorization! store request)
+        e1 (:envelope activation)
+        w {:store store :state-root (:execution/state-root e1)
+           :head (:authoritative-state-envelope/root e1)}
+        issued (gac/verify-governed-authority-current-under-authoritative-configuration
+                store (admission-basis w) (:authorisation (:authorization-witness request)))
+        successor (d4-successor {:store store})
+        binding (transition-binding
+                 (get-in issued [:resolved-review-authority-context
+                                 :resolved-review-authority-context/root])
+                 (:execution/state-root e1) (:execution/state-root (:envelope successor))
+                 (hash-ref "d4"))
+        result (gac/finalise-governed-authority-current-under-authoritative-configuration!
+                store issued binding (:envelope successor) (:material successor))
+        receipt (:governed-authority-result-receipt result)
+        backend (cas/create-store (str (java.nio.file.Files/createTempDirectory
+                                        "d4-receipt-"
+                                        (make-array java.nio.file.attribute.FileAttribute 0))))
+        dependencies {(genesis/chain-configuration-root c1) c1
+                      (:authority-semantics-policy/root p1) p1
+                      (:governed-authority-semantics/root s1) s1}]
+    (is (:valid? issued))
+    (is (:finalised? result))
+    (is (= state/envelope-v2-schema (get-in result [:envelope :artifact/schema])))
+    (is (= (:configuration-head/root e1) (get-in result [:envelope :configuration-head/root])))
+    (is (= (:chain-configuration/root e1) (get-in result [:envelope :chain-configuration/root])))
+    (is (result-receipt/verify-receipt receipt))
+    (receipt-store/persist-receipt! backend receipt dependencies)
+    (is (= receipt (receipt-store/read-receipt!
+                    (cas/create-store (:root backend))
+                    (:governed-authority-result-receipt/root receipt) dependencies)))
+    (is (= result
+           (gac/finalise-governed-authority-current-under-authoritative-configuration!
+            store issued binding (:envelope successor) (:material successor))))
+    (doseq [[label mutate reason]
+            [[:different-config #(assoc % :chain-configuration/root (hash-ref "da"))
+              :successor-configuration-mismatch]
+             [:v1-successor #(assoc % :artifact/schema state/envelope-schema)
+              :authoritative-v2-successor-required]
+             [:post-substitution #(assoc % :execution/state-root (hash-ref "db"))
+              :fence-post-state-mismatch]
+             [:predecessor-substitution #(assoc % :publication/predecessor-root (hash-ref "dc"))
+              :fence-predecessor-mismatch]]]
+      (let [{:keys [store request]} (canonical-c4-c3b-fixture)
+            activation (c3b/activate-under-verified-transition-authorization! store request)
+            e1 (:envelope activation)
+            issued (gac/verify-governed-authority-current-under-authoritative-configuration
+                    store (admission-basis {:store store :state-root (:execution/state-root e1)
+                                            :head (:authoritative-state-envelope/root e1)})
+                    (:authorisation (:authorization-witness request)))
+            successor (d4-successor {:store store})
+            binding (transition-binding
+                     (get-in issued [:resolved-review-authority-context
+                                     :resolved-review-authority-context/root])
+                     (:execution/state-root e1) (:execution/state-root (:envelope successor))
+                     (hash-ref "d5"))
+            before @(.state store)
+            rejected (gac/finalise-governed-authority-current-under-authoritative-configuration!
+                      store issued binding (mutate (:envelope successor)) (:material successor))]
+        (is (= reason (:reason rejected)) (name label))
+        (is (= before @(.state store)) (str label " has no mutation"))))))

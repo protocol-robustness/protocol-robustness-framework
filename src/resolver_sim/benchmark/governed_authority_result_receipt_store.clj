@@ -105,15 +105,21 @@
     artifact))
 
 (defn persist-receipt!
-  "Verify a governed-authority result receipt and persist canonical EDN under its
-   semantic receipt root. Unsupported schemas and invalid roots fail before CAS
-   insertion."
-  [store artifact]
-  (let [artifact (verify-receipt! artifact)
-        root (:governed-authority-result-receipt/root artifact)]
-    (cas/put-if-absent! store {:hash-reference root
-                               :artifact artifact
-                               :verify receipt/verify-receipt})))
+  "Persist a governed-authority receipt under its semantic root.
+
+   The two-argument form is archive-only: it verifies the self-rooted receipt
+   but cannot establish detached C/P/S availability. Supply `dependencies` to
+   the three-argument form to verify the complete detached lineage before CAS
+   insertion. Readback always verifies dependencies explicitly."
+  ([store artifact]
+   (let [artifact (verify-receipt! artifact)
+         root (:governed-authority-result-receipt/root artifact)]
+     (cas/put-if-absent! store {:hash-reference root
+                                :artifact artifact
+                                :verify receipt/verify-receipt})))
+  ([store artifact dependencies]
+   (let [artifact (verify-receipt-with-dependencies! artifact dependencies)]
+     (persist-receipt! store artifact))))
 
 (defn read-receipt!
   "Read a receipt from CAS and verify its semantic address, schema, receipt body,

@@ -509,8 +509,7 @@
                         signer-key-set
                         position)]
             (:valid? result)))]
-    ((ns-resolve (find-ns 'resolver-sim.assurance.three-member-authority)
-                 'evaluate-governed-authority)
+    (authority/evaluate-governed-authority
      :authorisation authorisation
      :review-round review-round
      :governance review-governance
@@ -803,6 +802,42 @@
                    :resolution-observation record}
                   (recur))))))))))
 
+(defn- retained-authority-semantics
+  "Resolve and validate the C4 C/P/S chain from one authoritative snapshot.
+   Runtime resolution avoids a namespace cycle: the C4 admission layer depends
+   on this store, while this issuer must independently reprove its retained
+   bodies at the CAS boundary."
+  [snapshot]
+  (let [envelope (get-in snapshot [:envelopes (:head snapshot)])
+        head-state (get-in snapshot [:configuration-head-states
+                                     (:configuration-head/root envelope)])
+        configuration-root (:chain-configuration/root envelope)
+        configuration (get-in snapshot [:chain-configurations configuration-root])
+        policy-root (:authority-semantics-policy/root configuration)
+        policy (get-in snapshot [:authority-semantics-policies policy-root])
+        semantics-root (:authority-semantics/root policy)
+        semantics (get-in snapshot [:governed-authority-semantics semantics-root])
+        configuration-root-fn (requiring-resolve
+                               'resolver-sim.genesis/chain-configuration-root)
+        ;; authority-semantics-policy depends on governed-authority-semantics,
+        ;; which depends on this namespace; keep this runtime edge to avoid a
+        ;; namespace cycle while retaining the CAS-bound verification below.
+        policy-selection-fn (requiring-resolve
+                             'resolver-sim.benchmark.authority-semantics-policy/verify-policy-selection)]
+    (when (and (= envelope-v2-schema (:artifact/schema envelope))
+               (configuration-head/valid-head-state? head-state)
+               (= (:configuration-head/root envelope)
+                  (configuration-head/head-state-root head-state))
+               (= configuration-root (:configuration/head-root head-state))
+               (= configuration-root (configuration-root-fn configuration))
+               (= policy-root (:authority-semantics-policy/root configuration))
+               (= semantics-root (:authority-semantics/root policy))
+               (:valid? (policy-selection-fn policy semantics)))
+      {:configuration/root configuration-root
+       :policy/root policy-root
+       :semantics/root semantics-root
+       :semantics semantics})))
+
 (defn evaluate-and-issue-finalizable-authority-fence!
   "Evaluate a V2 current-admission request from frozen store material and issue
    a store-owned finalization capability only for an `:authorised` report.
@@ -813,66 +848,88 @@
   ([store basis authorisation authority-semantics]
    (evaluate-and-issue-finalizable-authority-fence! store basis authorisation authority-semantics nil))
   ([store basis authorisation authority-semantics authority-provenance]
-   (let [resolved (resolve-authority-material store basis)]
-     (if-not (:resolved? resolved)
-       {:valid? false :reason (:reason resolved)}
-       (let [context (:context resolved)
-             material (:authenticated-material resolved)
-             inputs {:authorisation authorisation
-                     :review-round (:authority-material/review-round material)
-                     :review-governance (:authority-material/review-governance material)
-                     :position-time-index (:authority-material/position-time-index material)
-                     :signer-key-set (:authority-material/signer-key-set material)}
-             report (if authority-semantics
-                      ((requiring-resolve 'resolver-sim.benchmark.governed-authority-semantics/evaluate-authority-with-semantics)
-                       authority-semantics inputs)
-                      (evaluate-authority-with-frozen-material inputs))
-             report-root (authority/authority-report-root report)
-             result {:valid? (= :authorised (:authority-status report))
-                     :authority-report report
-                     :authority-report-root report-root
-                     :governance-root (:governance-root report)
-                     :governed-review-round-hash
-                     (get-in authorisation [:authorisation/review-round :review-round/hash])
-                     :resolved-review-authority-context context}]
-         (if-not (:valid? result)
-           (assoc result :reason :authority-not-authorised)
-           (loop []
-             (let [current @(.state store)
-                   state-root (:resolution/state-before-root context)
-                   observation (:resolution-observation resolved)
-                   fence-id (str (java.util.UUID/randomUUID))
-                   record {:authority-state-envelope/root (:authority-state/root context)
-                           :execution/state-root state-root
-                           :publication/sequence (get-in current [:envelopes (:head current) :publication/sequence])
-                           :resolved-review-authority-context/root (:resolved-review-authority-context/root context)
-                           :resolution-basis/root (:resolution-basis/root basis)
-                           :review-round/root (:review-round/root context)
-                           :review-governance/root (:review-governance/root context)
-                           :position-time-basis/root (:position-time-basis/root context)
-                           :position-time-index/root (:position-time-index/root context)
-                           :signer-key-set/root (:signer-key-set/root material)
-                           :authority-evaluation-basis/root
-                           (get-in resolved [:evaluation-basis :authority-evaluation-basis/root])
-                           :authority-report/root report-root
-                           :authority-status :authorised
-                           :purpose :current-admission
-                           :authority-semantics/root (when authority-semantics (:governed-authority-semantics/root authority-semantics))
-                           :chain-configuration/root (:chain-configuration/root authority-provenance)
-                           :authority-semantics-policy/root (:authority-semantics-policy/root authority-provenance)
-                           :status :issued}]
-               (if (or (not= (:head current) (:authority-state-envelope/root observation))
-                       (not= state-root (get-in current [:envelopes (:head current) :execution/state-root]))
-                       (not= (:publication/sequence observation)
-                             (get-in current [:envelopes (:head current) :publication/sequence])))
-                 {:valid? false :reason :state-not-at-required-head}
-                 (let [next (assoc-in current [:issued-fences fence-id] record)]
-                   (if (compare-and-set! (.state store) current next)
-                     (assoc result :authority-fence {:fence/id fence-id}
-                            :authority-semantics/root (when authority-semantics (:governed-authority-semantics/root authority-semantics))
-                            :chain-configuration/root (:chain-configuration/root authority-provenance)
-                            :authority-semantics-policy/root (:authority-semantics-policy/root authority-provenance))
-                     (recur))))))))))))
+   (let [initial-retained-semantics (when authority-semantics
+                                      (retained-authority-semantics @(.state store)))]
+     (if (and authority-semantics
+              (not (and (= authority-semantics (:semantics initial-retained-semantics))
+                        (= authority-provenance
+                           {:chain-configuration/root (:configuration/root initial-retained-semantics)
+                            :authority-semantics-policy/root (:policy/root initial-retained-semantics)}))))
+       {:valid? false :reason :authority-semantics-provenance-invalid}
+       (let [resolved (resolve-authority-material store basis)]
+         (if-not (:resolved? resolved)
+           {:valid? false :reason (:reason resolved)}
+           (let [context (:context resolved)
+                 material (:authenticated-material resolved)
+                 inputs {:authorisation authorisation
+                         :review-round (:authority-material/review-round material)
+                         :review-governance (:authority-material/review-governance material)
+                         :position-time-index (:authority-material/position-time-index material)
+                         :signer-key-set (:authority-material/signer-key-set material)}
+                 report (if authority-semantics
+                          ((requiring-resolve 'resolver-sim.benchmark.governed-authority-semantics/evaluate-authority-with-semantics)
+                           authority-semantics inputs)
+                          (evaluate-authority-with-frozen-material inputs))
+                 report-root (authority/authority-report-root report)
+                 result {:valid? (= :authorised (:authority-status report))
+                         :authority-report report
+                         :authority-report-root report-root
+                         :governance-root (:governance-root report)
+                         :governed-review-round-hash
+                         (get-in authorisation [:authorisation/review-round :review-round/hash])
+                         :resolved-review-authority-context context}]
+             (if-not (:valid? result)
+               (assoc result :reason :authority-not-authorised)
+               (loop []
+                 (let [current @(.state store)
+                       state-root (:resolution/state-before-root context)
+                       observation (:resolution-observation resolved)
+                       fence-id (str (java.util.UUID/randomUUID))
+                       record {:authority-state-envelope/root (:authority-state/root context)
+                               :execution/state-root state-root
+                               :publication/sequence (get-in current [:envelopes (:head current) :publication/sequence])
+                               :resolved-review-authority-context/root (:resolved-review-authority-context/root context)
+                               :resolution-basis/root (:resolution-basis/root basis)
+                               :review-round/root (:review-round/root context)
+                               :review-governance/root (:review-governance/root context)
+                               :position-time-basis/root (:position-time-basis/root context)
+                               :position-time-index/root (:position-time-index/root context)
+                               :signer-key-set/root (:signer-key-set/root material)
+                               :authority-evaluation-basis/root
+                               (get-in resolved [:evaluation-basis :authority-evaluation-basis/root])
+                               :authority-report/root report-root
+                               :authority-status :authorised
+                               :purpose :current-admission
+                               :authority-semantics/root (when authority-semantics (:governed-authority-semantics/root authority-semantics))
+                               :chain-configuration/root (:chain-configuration/root authority-provenance)
+                               :authority-semantics-policy/root (:authority-semantics-policy/root authority-provenance)
+                               :status :issued}]
+                   (let [retained-semantics (when authority-semantics
+                                              (retained-authority-semantics current))
+                         semantics-match?
+                         (or (nil? authority-semantics)
+                             (and (= authority-semantics (:semantics retained-semantics))
+                                  (= authority-provenance
+                                     {:chain-configuration/root (:configuration/root retained-semantics)
+                                      :authority-semantics-policy/root (:policy/root retained-semantics)})))]
+                     (cond
+                       (or (not= (:head current) (:authority-state-envelope/root observation))
+                           (not= state-root (get-in current [:envelopes (:head current) :execution/state-root]))
+                           (not= (:publication/sequence observation)
+                                 (get-in current [:envelopes (:head current) :publication/sequence])))
+                       {:valid? false :reason :state-not-at-required-head}
+
+                       (not semantics-match?)
+                       {:valid? false :reason :authority-semantics-provenance-invalid}
+
+                       :else
+                       (let [next (assoc-in current [:issued-fences fence-id] record)]
+                         (if (compare-and-set! (.state store) current next)
+                           (assoc result :authority-fence {:fence/id fence-id}
+                                  :authority-semantics/root (when authority-semantics (:governed-authority-semantics/root authority-semantics))
+                                  :chain-configuration/root (:chain-configuration/root authority-provenance)
+                                  :authority-semantics-policy/root (:authority-semantics-policy/root authority-provenance))
+                           (recur)))))))))))))))
 
 (defn- finalisation-receipt [snapshot record pre-envelope successor-envelope binding]
   (let [successor-configuration-root (:chain-configuration/root successor-envelope)
@@ -957,3 +1014,101 @@
                                                   :governed-authority-result-receipt/root receipt-root
                                                   :result result)))]
                     (if (compare-and-set! (.state store) current next) result (recur)))))))))
+
+(defn finalise-under-authority-fence-v2!
+  "D4 finalization under a C4f-issued fence. The current V2 E1/H1/C1/P1/S1
+   lineage is retained by the store: callers provide only successor execution
+   envelope/material candidates, never replacement configuration semantics.
+   E2 is rebuilt with the exact retained H1 and must retain its active C1."
+  [store fence binding successor-envelope successor-material]
+  (loop []
+    (let [current @(.state store)
+          fence-id (:fence/id fence)
+          record (get-in current [:issued-fences fence-id])
+          current-envelope (get-in current [:envelopes (:head current)])
+          head-state (get-in current [:configuration-head-states
+                                      (:configuration-head/root current-envelope)])
+          configuration-root (:chain-configuration/root current-envelope)
+          configuration (get-in current [:chain-configurations configuration-root])
+          policy-root (:authority-semantics-policy/root configuration)
+          policy (get-in current [:authority-semantics-policies policy-root])
+          semantics-root (:authority-semantics/root policy)
+          semantics (get-in current [:governed-authority-semantics semantics-root])]
+      (cond
+        (nil? record) {:finalised? false :reason :unknown-fence}
+        (= :consumed (:status record))
+        (if (= (:transition-binding/root record)
+               (:governed-authority-transition-binding/root binding))
+          (:result record)
+          {:finalised? false :reason :fence-already-consumed})
+        (not (and (= envelope-v2-schema (:artifact/schema current-envelope))
+                  (configuration-head/valid-head-state? head-state)
+                  (= (:configuration-head/root current-envelope)
+                     (configuration-head/head-state-root head-state))
+                  (= configuration-root (:configuration/head-root head-state))
+                  configuration policy semantics
+                  (= policy-root (:authority-semantics-policy/root configuration))
+                  (= semantics-root (:authority-semantics/root policy))
+                  (= configuration-root (:chain-configuration/root record))
+                  (= policy-root (:authority-semantics-policy/root record))
+                  (= semantics-root (:authority-semantics/root record))))
+        {:finalised? false :reason :authority-semantics-provenance-invalid}
+        (not (:valid? (resolution/validate-transition-binding binding)))
+        {:finalised? false :reason :authority-transition-binding-invalid}
+        (not= (:head current) (:authority-state-envelope/root record))
+        {:finalised? false :reason :state-not-at-required-head}
+        (not= (:execution/state-root record) (:transaction/state-before-root binding))
+        {:finalised? false :reason :fence-pre-state-mismatch}
+        (not= (:resolved-review-authority-context/root record)
+              (:resolved-review-authority-context/root binding))
+        {:finalised? false :reason :authority-context-mismatch}
+        (not= :authorised (:authority-status record))
+        {:finalised? false :reason :authority-report-not-authorised}
+        (not (ref/valid-sha256-ref? (:authority-report/root record)))
+        {:finalised? false :reason :authority-report-binding-missing}
+        (not= envelope-v2-schema (:artifact/schema successor-envelope))
+        {:finalised? false :reason :authoritative-v2-successor-required}
+        (not= configuration-root (:chain-configuration/root successor-envelope))
+        {:finalised? false :reason :successor-configuration-mismatch}
+        :else
+        (let [envelope (build-envelope-v2 successor-envelope head-state)]
+          (cond
+            (not= (:transaction/state-after-root binding) (:execution/state-root envelope))
+            {:finalised? false :reason :fence-post-state-mismatch}
+            (not= (:publication/predecessor-root envelope)
+                  (:authority-state-envelope/root record))
+            {:finalised? false :reason :fence-predecessor-mismatch}
+            :else
+            (let [successor-material (require-authenticated-material! successor-material)]
+              (cond
+                (not= configuration-root (:chain-configuration/root successor-material))
+                {:finalised? false :reason :successor-configuration-mismatch}
+                (not= (:chain-instance-genesis/root envelope)
+                      (:chain-instance-genesis/root successor-material))
+                {:finalised? false :reason :successor-material-chain-mismatch}
+                :else
+                (let [root (:authoritative-state-envelope/root envelope)
+                      receipt (finalisation-receipt current record current-envelope envelope binding)
+                      receipt-root (:governed-authority-result-receipt/root receipt)
+                      result {:finalised? true :envelope envelope :authority-binding binding
+                              :authority-report-root (:authority-report/root record)
+                              :governed-authority-result-receipt receipt}
+                      next (-> current
+                               (assoc :head root)
+                               (assoc-in [:envelopes root] envelope)
+                               (assoc-in [:by-state (:execution/state-root envelope)] root)
+                               (assoc-in [:material (:execution/state-root envelope)] successor-material)
+                               (assoc-in [:configuration-head-states (:configuration-head/root envelope)] head-state)
+                               (assoc-in [:authority-bindings root] binding)
+                               (assoc-in [:governed-authority-result-receipts receipt-root] receipt)
+                               (assoc-in [:governed-authority-result-receipt-by-binding
+                                          (:governed-authority-transition-binding/root binding)] receipt-root)
+                               (assoc-in [:issued-fences fence-id]
+                                         (assoc record :status :consumed
+                                                :transition-binding/root (:governed-authority-transition-binding/root binding)
+                                                :successor-envelope/root root
+                                                :governed-authority-result-receipt/root receipt-root
+                                                :result result)))]
+                  (if (compare-and-set! (.state store) current next)
+                    result
+                    (recur)))))))))))
