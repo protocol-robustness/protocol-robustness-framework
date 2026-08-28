@@ -2,7 +2,11 @@
 
 ## [Unreleased]
 
-+### Governed-authority finalisation — D3 durable receipt readback
+### Governed-authority finalisation — D4 authoritative configuration fence
+
+- **Added C4f-bound V2 finalisation.** `finalise-under-authority-fence-v2!` and the public `finalise-governed-authority-current-under-authoritative-configuration!` finalize only against the current V2 envelope and its exact retained configuration-head state. The successor is rebuilt with that head, retains the active configuration and C/P/S lineage, and rejects V1 successors or caller substitutions without mutation; receipt, indexes, fence consumption, and successor publication remain one CAS with exact retry. V2 C4 receipts now require successor C/P/S lineage during verification. (`src/resolver_sim/benchmark/governed_authority_state.clj`, `src/resolver_sim/assurance/governed_authority_consumer.clj`, `src/resolver_sim/benchmark/governed_authority_result_receipt.clj`)
+
+### Governed-authority finalisation — D3 durable receipt readback
 +
 +- **Added detached CAS persistence for `governed-authority-result-receipt.v1`.** Receipts are persisted as canonical EDN under their semantic receipt roots only after receipt-root verification. Fresh-store reads dispatch on the receipt schema, reject unsupported schemas, re-verify the receipt and address, and independently resolve/recompute C/P/S lineage from an explicit root-to-body resolver or dependency map; tampered bytes, wrong addresses, missing dependencies, and substituted bodies fail closed. (`src/resolver_sim/benchmark/governed_authority_result_receipt_store.clj`, `test/resolver_sim/benchmark/governed_authority_result_receipt_store_test.clj`)
 +

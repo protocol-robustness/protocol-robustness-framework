@@ -53,6 +53,12 @@
                             (disj receipt-fields :artifact/schema)))
                  (conj "receipt root field is invalid")
                  (and (map? receipt)
+                      (or (:pre-authority-semantics-policy/root receipt)
+                          (:pre-governed-authority-semantics/root receipt))
+                      (not (and (:successor-authority-semantics-policy/root receipt)
+                                (:successor-governed-authority-semantics/root receipt))))
+                 (conj "C4 receipt requires successor C/P/S lineage")
+                 (and (map? receipt)
                       (not (ref/valid-sha256-ref?
                             (:governed-authority-result-receipt/root receipt))))
                  (conj "receipt self root is invalid")

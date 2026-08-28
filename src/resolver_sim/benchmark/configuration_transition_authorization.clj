@@ -2,8 +2,7 @@
   "C3a: frozen predecessor-state evidence that governance authorised one exact
   chain-configuration transition. This namespace constructs and verifies evidence
  (ns resolver-sim.benchmark.configuration-transition-authorization) only; it deliberately does not activate a configuration head."
-  (:require [clojure.set :as set]
-            [resolver-sim.assurance.three-member-authority :as authority]
+  (:require [resolver-sim.assurance.three-member-authority :as authority]
             [resolver-sim.benchmark.governed-authority-state :as state]
             [resolver-sim.genesis :as genesis]
             [resolver-sim.hash.canonical :as hc]

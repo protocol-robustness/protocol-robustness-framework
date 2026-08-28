@@ -3,6 +3,7 @@
             [resolver-sim.benchmark.governed-authority-resolution :as resolution]
             [resolver-sim.benchmark.governed-authority-state :as state]
             [resolver-sim.benchmark.governed-authority-result-receipt :as result-receipt]
+            [resolver-sim.benchmark.governed-authority-result-receipt-store :as receipt-store]
             [resolver-sim.benchmark.governed-authority-semantics :as semantics]
             [resolver-sim.benchmark.authority-semantics-policy :as semantics-policy]
             [resolver-sim.benchmark.authority-semantics-state :as semantics-state]
@@ -14,7 +15,8 @@
             [resolver-sim.benchmark.review-governance :as governance]
             [resolver-sim.benchmark.review-governance-evidence :as evidence]
             [resolver-sim.assurance.governed-authority-consumer :as gac]
-            [resolver-sim.benchmark.researcher-force-authorisation :as rfa])
+            [resolver-sim.benchmark.researcher-force-authorisation :as rfa]
+            [resolver-sim.io.content-addressed-store :as cas])
   (:import [java.security KeyPairGenerator]
            [java.util Base64]))
 
@@ -1824,3 +1826,79 @@
                  (:reason (gac/finalise-governed-authority-current!
                            (:store w) result conflicting
                            (:envelope succ2) (:material succ2))))))))))
+
+(defn- d4-successor [fixture]
+  (let [store (:store fixture)
+        e1 (get-in @(.state store) [:envelopes (:head @(.state store))])
+        material (get-in @(.state store) [:material (:execution/state-root e1)])]
+    {:envelope (assoc (store-envelope (hash-ref "d4e2")
+                                      (:authoritative-state-envelope/root e1)
+                                      (inc (:publication/sequence e1))
+                                      material)
+                      :artifact/schema state/envelope-v2-schema
+                      :chain-configuration/root (:chain-configuration/root e1))
+     :material material}))
+
+(deftest d4-finalisation-retains-current-authoritative-configuration
+  (let [{:keys [store c1 p1 s1 request]} (canonical-c4-c3b-fixture)
+        activation (c3b/activate-under-verified-transition-authorization! store request)
+        e1 (:envelope activation)
+        w {:store store :state-root (:execution/state-root e1)
+           :head (:authoritative-state-envelope/root e1)}
+        issued (gac/verify-governed-authority-current-under-authoritative-configuration
+                store (admission-basis w) (:authorisation (:authorization-witness request)))
+        successor (d4-successor {:store store})
+        binding (transition-binding
+                 (get-in issued [:resolved-review-authority-context
+                                 :resolved-review-authority-context/root])
+                 (:execution/state-root e1) (:execution/state-root (:envelope successor))
+                 (hash-ref "d4"))
+        result (gac/finalise-governed-authority-current-under-authoritative-configuration!
+                store issued binding (:envelope successor) (:material successor))
+        receipt (:governed-authority-result-receipt result)
+        backend (cas/create-store (str (java.nio.file.Files/createTempDirectory
+                                        "d4-receipt-"
+                                        (make-array java.nio.file.attribute.FileAttribute 0))))
+        dependencies {(genesis/chain-configuration-root c1) c1
+                      (:authority-semantics-policy/root p1) p1
+                      (:governed-authority-semantics/root s1) s1}]
+    (is (:valid? issued))
+    (is (:finalised? result))
+    (is (= state/envelope-v2-schema (get-in result [:envelope :artifact/schema])))
+    (is (= (:configuration-head/root e1) (get-in result [:envelope :configuration-head/root])))
+    (is (= (:chain-configuration/root e1) (get-in result [:envelope :chain-configuration/root])))
+    (is (result-receipt/verify-receipt receipt))
+    (receipt-store/persist-receipt! backend receipt)
+    (is (= receipt (receipt-store/read-receipt!
+                    (cas/create-store (:root backend))
+                    (:governed-authority-result-receipt/root receipt) dependencies)))
+    (is (= result
+           (gac/finalise-governed-authority-current-under-authoritative-configuration!
+            store issued binding (:envelope successor) (:material successor))))
+    (doseq [[label mutate reason]
+            [[:different-config #(assoc % :chain-configuration/root (hash-ref "da"))
+              :successor-configuration-mismatch]
+             [:v1-successor #(assoc % :artifact/schema state/envelope-schema)
+              :authoritative-v2-successor-required]
+             [:post-substitution #(assoc % :execution/state-root (hash-ref "db"))
+              :fence-post-state-mismatch]
+             [:predecessor-substitution #(assoc % :publication/predecessor-root (hash-ref "dc"))
+              :fence-predecessor-mismatch]]]
+      (let [{:keys [store request]} (canonical-c4-c3b-fixture)
+            activation (c3b/activate-under-verified-transition-authorization! store request)
+            e1 (:envelope activation)
+            issued (gac/verify-governed-authority-current-under-authoritative-configuration
+                    store (admission-basis {:store store :state-root (:execution/state-root e1)
+                                            :head (:authoritative-state-envelope/root e1)})
+                    (:authorisation (:authorization-witness request)))
+            successor (d4-successor {:store store})
+            binding (transition-binding
+                     (get-in issued [:resolved-review-authority-context
+                                     :resolved-review-authority-context/root])
+                     (:execution/state-root e1) (:execution/state-root (:envelope successor))
+                     (hash-ref "d5"))
+            before @(.state store)
+            rejected (gac/finalise-governed-authority-current-under-authoritative-configuration!
+                      store issued binding (mutate (:envelope successor)) (:material successor))]
+        (is (= reason (:reason rejected)) (name label))
+        (is (= before @(.state store)) (str label " has no mutation"))))))

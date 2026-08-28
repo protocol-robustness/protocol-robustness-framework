@@ -957,3 +957,101 @@
                                                   :governed-authority-result-receipt/root receipt-root
                                                   :result result)))]
                     (if (compare-and-set! (.state store) current next) result (recur)))))))))
+
+(defn finalise-under-authority-fence-v2!
+  "D4 finalization under a C4f-issued fence. The current V2 E1/H1/C1/P1/S1
+   lineage is retained by the store: callers provide only successor execution
+   envelope/material candidates, never replacement configuration semantics.
+   E2 is rebuilt with the exact retained H1 and must retain its active C1."
+  [store fence binding successor-envelope successor-material]
+  (loop []
+    (let [current @(.state store)
+          fence-id (:fence/id fence)
+          record (get-in current [:issued-fences fence-id])
+          current-envelope (get-in current [:envelopes (:head current)])
+          head-state (get-in current [:configuration-head-states
+                                      (:configuration-head/root current-envelope)])
+          configuration-root (:chain-configuration/root current-envelope)
+          configuration (get-in current [:chain-configurations configuration-root])
+          policy-root (:authority-semantics-policy/root configuration)
+          policy (get-in current [:authority-semantics-policies policy-root])
+          semantics-root (:authority-semantics/root policy)
+          semantics (get-in current [:governed-authority-semantics semantics-root])]
+      (cond
+        (nil? record) {:finalised? false :reason :unknown-fence}
+        (= :consumed (:status record))
+        (if (= (:transition-binding/root record)
+               (:governed-authority-transition-binding/root binding))
+          (:result record)
+          {:finalised? false :reason :fence-already-consumed})
+        (not (and (= envelope-v2-schema (:artifact/schema current-envelope))
+                  (configuration-head/valid-head-state? head-state)
+                  (= (:configuration-head/root current-envelope)
+                     (configuration-head/head-state-root head-state))
+                  (= configuration-root (:configuration/head-root head-state))
+                  configuration policy semantics
+                  (= policy-root (:authority-semantics-policy/root configuration))
+                  (= semantics-root (:authority-semantics/root policy))
+                  (= configuration-root (:chain-configuration/root record))
+                  (= policy-root (:authority-semantics-policy/root record))
+                  (= semantics-root (:authority-semantics/root record))))
+        {:finalised? false :reason :authority-semantics-provenance-invalid}
+        (not (:valid? (resolution/validate-transition-binding binding)))
+        {:finalised? false :reason :authority-transition-binding-invalid}
+        (not= (:head current) (:authority-state-envelope/root record))
+        {:finalised? false :reason :state-not-at-required-head}
+        (not= (:execution/state-root record) (:transaction/state-before-root binding))
+        {:finalised? false :reason :fence-pre-state-mismatch}
+        (not= (:resolved-review-authority-context/root record)
+              (:resolved-review-authority-context/root binding))
+        {:finalised? false :reason :authority-context-mismatch}
+        (not= :authorised (:authority-status record))
+        {:finalised? false :reason :authority-report-not-authorised}
+        (not (ref/valid-sha256-ref? (:authority-report/root record)))
+        {:finalised? false :reason :authority-report-binding-missing}
+        (not= envelope-v2-schema (:artifact/schema successor-envelope))
+        {:finalised? false :reason :authoritative-v2-successor-required}
+        (not= configuration-root (:chain-configuration/root successor-envelope))
+        {:finalised? false :reason :successor-configuration-mismatch}
+        :else
+        (let [envelope (build-envelope-v2 successor-envelope head-state)]
+          (cond
+            (not= (:transaction/state-after-root binding) (:execution/state-root envelope))
+            {:finalised? false :reason :fence-post-state-mismatch}
+            (not= (:publication/predecessor-root envelope)
+                  (:authority-state-envelope/root record))
+            {:finalised? false :reason :fence-predecessor-mismatch}
+            :else
+            (let [successor-material (require-authenticated-material! successor-material)]
+              (cond
+                (not= configuration-root (:chain-configuration/root successor-material))
+                {:finalised? false :reason :successor-configuration-mismatch}
+                (not= (:chain-instance-genesis/root envelope)
+                      (:chain-instance-genesis/root successor-material))
+                {:finalised? false :reason :successor-material-chain-mismatch}
+                :else
+                (let [root (:authoritative-state-envelope/root envelope)
+                      receipt (finalisation-receipt current record current-envelope envelope binding)
+                      receipt-root (:governed-authority-result-receipt/root receipt)
+                      result {:finalised? true :envelope envelope :authority-binding binding
+                              :authority-report-root (:authority-report/root record)
+                              :governed-authority-result-receipt receipt}
+                      next (-> current
+                               (assoc :head root)
+                               (assoc-in [:envelopes root] envelope)
+                               (assoc-in [:by-state (:execution/state-root envelope)] root)
+                               (assoc-in [:material (:execution/state-root envelope)] successor-material)
+                               (assoc-in [:configuration-head-states (:configuration-head/root envelope)] head-state)
+                               (assoc-in [:authority-bindings root] binding)
+                               (assoc-in [:governed-authority-result-receipts receipt-root] receipt)
+                               (assoc-in [:governed-authority-result-receipt-by-binding
+                                          (:governed-authority-transition-binding/root binding)] receipt-root)
+                               (assoc-in [:issued-fences fence-id]
+                                         (assoc record :status :consumed
+                                                :transition-binding/root (:governed-authority-transition-binding/root binding)
+                                                :successor-envelope/root root
+                                                :governed-authority-result-receipt/root receipt-root
+                                                :result result)))]
+                  (if (compare-and-set! (.state store) current next)
+                    result
+                    (recur)))))))))))
