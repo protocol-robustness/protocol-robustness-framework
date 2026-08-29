@@ -2,6 +2,7 @@
   "C4d/C4e store-owned configuration semantics admission and resolution."
   (:require [resolver-sim.benchmark.allocation-entitlement-policy :as entitlement-policy]
             [resolver-sim.benchmark.authority-semantics-policy :as policy]
+            [resolver-sim.benchmark.governed-authority-authorisation :as governed-authorisation]
 
             [resolver-sim.benchmark.governed-authority-state :as state]
             [resolver-sim.genesis :as genesis]))
@@ -176,13 +177,18 @@
   "C4f authoritative issuer. Resolves S from current retained C/P/S and passes
    it into the store-owned issuer so report and fence bind S in one CAS."
   [store basis authorisation]
-  (let [resolved (resolve-current-authority-semantics store)]
-    (if-not (:resolved? resolved)
-      {:valid? false :reason (:reason resolved)}
-      (state/evaluate-and-issue-finalizable-authority-fence!
-       store basis authorisation (:semantics resolved)
-       {:chain-configuration/root (:configuration/root resolved)
-        :authority-semantics-policy/root (:policy/root resolved)}))))
+  (let [authorisation-validation
+        (governed-authorisation/validate-authorisation authorisation)]
+    (if-not (:valid? authorisation-validation)
+      {:valid? false :reason :governed-authority-authorisation-invalid
+       :errors (:errors authorisation-validation)}
+      (let [resolved (resolve-current-authority-semantics store)]
+        (if-not (:resolved? resolved)
+          {:valid? false :reason (:reason resolved)}
+          (state/evaluate-and-issue-finalizable-authority-fence!
+           store basis authorisation (:semantics resolved)
+           {:chain-configuration/root (:configuration/root resolved)
+            :authority-semantics-policy/root (:policy/root resolved)}))))))
 
 (defn resolve-current-authority-semantics
   "Resolve C → P → S only from bodies retained with the current V2 authority

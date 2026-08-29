@@ -6,6 +6,7 @@
             [resolver-sim.hash.reference :as hash-ref]))
 
 (def schema-version "cancellation-operation.v1")
+(def schema-v2 "cancellation-operation.v2")
 
 (defn- populated? [v] (and (some? v) (not (and (string? v) (str/blank? v)))))
 (def required-paths
@@ -25,7 +26,7 @@
 (defn missing-operation-fields [op] (->> required-paths (remove #(populated? (get-in op %))) vec))
 (defn invalid-operation-references [op] (->> root-paths (filter #(populated? (get-in op %))) (remove #(hash-ref/valid-sha256-ref? (get-in op %))) vec))
 (defn operation-complete? [op]
-  (and (map? op) (= schema-version (:operation/schema op)) (= :cancellation/execution (:operation/purpose op))
+  (and (map? op) (contains? #{schema-version schema-v2} (:operation/schema op)) (= :cancellation/execution (:operation/purpose op))
        (= :ordinary (get-in op [:authorization :kind]))
        (= :applied (get-in op [:execution :status]))
        (empty? (missing-operation-fields op)) (empty? (invalid-operation-references op))

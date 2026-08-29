@@ -6,6 +6,7 @@
             [resolver-sim.cancellation.ordinary-planner :as planner]
             [resolver-sim.cancellation.semantic :as semantic]
             [resolver-sim.cancellation.sew-escrow-snapshot :as snapshot]
+            [resolver-sim.cancellation.state-roles :as roles]
             [resolver-sim.assurance.canonical-force-authorisation :as cfa]
             [resolver-sim.signed-external-decision :as signed]
             [resolver-sim.support.ed25519 :as keys]))
@@ -441,3 +442,116 @@
     (is (false? (admission/admission-root-valid?
                  (assoc result :admission/reasons [:fake/bogus-blocker])))
         "tampering :admission/reasons breaks the root — confirms projection binding")))
+
+;; ============================================================================
+;; V2 typed cancellation state-role regression
+;;
+;; V1 (cancellation-operation.v1) treats :state-before-root and
+;; :lifecycle-head-root as opaque sha256 refs — any valid ref resolves via
+;; {:artifact/root root}, so role substitution passes admission.
+;;
+;; V2 (cancellation-operation.v2) activates typed validation through
+;; resolver-sim.cancellation.state-roles. The typed validators reject
+;; role substitution because the artifact's :artifact/schema and :cancellation/
+;; fields must match the expected role projection.
+;; ============================================================================
+
+(defn- v2-op-from [op]
+  (assoc op :operation/schema operation/schema-v2))
+
+(defn- rehash-v2-op [op]
+  (rehash-op (v2-op-from op)))
+
+(defn- build-typed-state-before [subject-id snapshot-root]
+  (roles/build-state-before
+   {:cancellation/subject-id subject-id
+    :cancellation/snapshot-root snapshot-root}))
+
+(defn- build-typed-lifecycle-head [subject-id state-before-root]
+  (roles/build-lifecycle-head
+   {:cancellation/subject-id subject-id
+    :cancellation/represented-state-before-root state-before-root}))
+
+(deftest check5-v2-rejects-lifecycle-head-root-as-state-before
+  (testing "V2 rejects lifecycle-head root used as state-before (schema mismatch)"
+    (let [ctx (base-setup)
+          op (:op ctx)
+          snap-root (get-in op [:target :snapshot-root])
+          sb-root (get-in op [:target :state-before-root])
+          ;; Build a typed lifecycle-head artifact
+          typed-sb (build-typed-state-before "escrow-7" snap-root)
+          typed-sb-root (:cancellation-state-before/root typed-sb)
+          typed-lh (build-typed-lifecycle-head "escrow-7" typed-sb-root)
+          typed-lh-root (:cancellation-lifecycle-head/root typed-lh)
+          ;; Try to use lifecycle-head root as state-before (role substitution)
+          sub-op (-> op
+                    (assoc-in [:target :state-before-root] typed-lh-root)
+                    (assoc-in [:target :lifecycle-head-root] typed-lh-root))
+          v2-op (rehash-v2-op sub-op)
+          resolve-art (fn [r] (cond
+                               (= r typed-sb-root) typed-sb
+                               (= r typed-lh-root) typed-lh
+                               :else (get-in ctx [:artifacts r])))
+          result (admission/admit
+                  {:operation v2-op
+                   :resolve-artifact resolve-art
+                   :trust-policy (:trust-policy ctx)
+                   :key->principal (:key->principal ctx)})]
+      (is (false? (:admitted? result))
+          "V2 rejects lifecycle-head root used as state-before")
+      (is (some #(= :state-before/invalid-artifact %) (:blocking-reasons result))
+          "blocking reason is state-before/invalid-artifact due to schema mismatch"))))
+
+(deftest check5-v2-rejects-state-before-root-as-lifecycle-head
+  (testing "V2 rejects state-before root used as lifecycle-head (schema mismatch)"
+    (let [ctx (base-setup)
+          op (:op ctx)
+          snap-root (get-in op [:target :snapshot-root])
+          ;; Build a typed state-before artifact
+          typed-sb (build-typed-state-before "escrow-7" snap-root)
+          typed-sb-root (:cancellation-state-before/root typed-sb)
+          ;; Try to use state-before root as lifecycle-head (role substitution)
+          sub-op (-> op
+                    (assoc-in [:target :state-before-root] typed-sb-root)
+                    (assoc-in [:target :lifecycle-head-root] typed-sb-root))
+          v2-op (rehash-v2-op sub-op)
+          resolve-art (fn [r] (cond
+                               (= r typed-sb-root) typed-sb
+                               :else (get-in ctx [:artifacts r])))
+          result (admission/admit
+                  {:operation v2-op
+                   :resolve-artifact resolve-art
+                   :trust-policy (:trust-policy ctx)
+                   :key->principal (:key->principal ctx)})]
+      (is (false? (:admitted? result))
+          "V2 rejects state-before root used as lifecycle-head")
+      (is (some #(= :lifecycle-head/invalid-artifact %) (:blocking-reasons result))
+          "blocking reason is lifecycle-head/invalid-artifact due to schema mismatch"))))
+
+(deftest check5-v2-accepts-correctly-typed-artifacts
+  (testing "V2 admits when typed artifacts are correctly constructed"
+    (let [ctx (base-setup)
+          op (:op ctx)
+          snap-root (get-in op [:target :snapshot-root])
+          ;; Build correctly typed artifacts
+          typed-sb (build-typed-state-before "escrow-7" snap-root)
+          typed-sb-root (:cancellation-state-before/root typed-sb)
+          typed-lh (build-typed-lifecycle-head "escrow-7" typed-sb-root)
+          v2-op (-> op
+                   (assoc-in [:target :state-before-root] typed-sb-root)
+                   (assoc-in [:target :lifecycle-head-root]
+                             (:cancellation-lifecycle-head/root typed-lh)))
+          v2-op (rehash-v2-op v2-op)
+          resolve-art (fn [r] (cond
+                               (= r typed-sb-root) typed-sb
+                               (= r (:cancellation-lifecycle-head/root typed-lh)) typed-lh
+                               :else (get-in ctx [:artifacts r])))
+          result (admission/admit
+                  {:operation v2-op
+                   :resolve-artifact resolve-art
+                   :trust-policy (:trust-policy ctx)
+                   :key->principal (:key->principal ctx)})]
+      (is (true? (:admitted? result))
+          "V2 admits when typed artifacts are correctly constructed")
+      (is (empty? (:blocking-reasons result))
+          "no blocking reasons for correctly typed artifacts"))))

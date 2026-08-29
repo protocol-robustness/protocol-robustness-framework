@@ -2,6 +2,24 @@
 
 ## [Unreleased]
 
+### XTDB operations and replay-boundary documentation
+
+- **Documented XTDB's current optional telemetry role.** The operations guide now identifies explicit trial and temporal-replay write paths, latest versus valid-time reads, no-datasource behavior, service-loss/partial-write implications, and the distinction between XTDB historical analysis and protocol event-time semantics. It also reviews why the protocol scenario replay and with-bounty implementation replay are separate contracts. (`docs/operations/XTDB_USAGE.md`, `docs/README.md`)
+
+### Governed-authority evaluation-basis read-side verification — P1r1b
+
+- **Exposed detached verification for `governed-authority-evaluation-basis.v1`.** `evaluation-basis-root`, `validate-evaluation-basis`, and `verify-evaluation-basis` now share the constructor’s existing six-root projection and `GOVERNED_AUTHORITY_EVALUATION_BASIS_V1` semantic root. `read-evaluation-basis` resolves a body from configured-C4 issuance retention by semantic root and revalidates its exact schema, root, and dependency-reference shapes without evaluating authority semantics. Unknown fields/schemas, missing fields, invalid substituted roots, and wrong self roots fail closed. Storage-byte identity remains outside this contract. (`src/resolver_sim/benchmark/governed_authority_state.clj`, `test/resolver_sim/benchmark/governed_authority_state_test.clj`)
+
+### Governed-authority report ratification — P1r1a-report
+
+- **Ratified configured C4 authoritative issuance on A.v1 → report.v1.** The configured C4 issuer now rejects raw or malformed inputs unless `governed-authority-authorisation.v1` self-validates to its domain-separated semantic root. It evaluates the unchanged selected C4 semantics, projects the exact evaluator result into `three-member-authority-report.v1`, and binds the issued fence to that new report root. Its issuance CAS retains root-addressable A.v1, report.v1, evaluation-basis, and resolved-context bodies alongside the already retained E/H, authenticated material, and C/P/S bodies. Legacy non-configured evaluator paths remain explicitly separate compatibility/research behavior. This establishes the post-ratification rule: changes to either authoritative artifact require a new version. (`src/resolver_sim/benchmark/governed_authority_state.clj`, `src/resolver_sim/benchmark/authority_semantics_state.clj`, `test/resolver_sim/benchmark/governed_authority_state_test.clj`)
+
+- **Added closed `three-member-authority-report.v1`.** `project-evaluator-report` is the explicit migration seam from `evaluate-three-member-authority` into a closed report artifact. It retains the evaluator’s complete authoritative result and provenance projection, projects every report-visible V1/V2 position into closed schemas, closes invalid-position reasons, duplicate/equivocation records, and constitution output, and preserves evaluator-established vector order. `report-root`, `validate-report`, and `verify-report` use the new `THREE_MEMBER_AUTHORITY_REPORT_V1` domain-separated semantic identity; it is intentionally distinct from both the legacy unversioned report root and any storage-byte identity. (`src/resolver_sim/benchmark/three_member_authority_report.clj`, `test/resolver_sim/benchmark/three_member_authority_report_test.clj`)
+
+### Authority-state durability — verified material projection prerequisite
+
+- **Exported pure authenticated authority-material verification.** `verify-authenticated-material` reuses the production publication gate to freeze and re-verify the closed material shape, every embedded body/root, position-time bindings, and governance/key eligibility without store mutation. Durable P1 projections can now derive material identity only from independently verified material rather than caller assertions. (`src/resolver_sim/benchmark/governed_authority_state.clj`)
+
 ### Authority-state durability — P1a rooted snapshot closure
 
 - **Added `authority-state-snapshot.v1` and its exact dependency manifest.** The closed snapshot commits store/chain identity, publication version, the current E/H/C/P/S/material identities, and roots for activation, fence, terminal-result, and receipt indexes. A current snapshot is eligible only when its self-rooted manifest names exactly its required immutable dependency closure, every body can be read and root-verified, and a profile-specific semantic join verifier accepts the complete closure. Corrupt or missing current closure dependencies fail closed; no fallback to historical snapshots is implicit. (`src/resolver_sim/benchmark/authority_state_snapshot.clj`, `test/resolver_sim/benchmark/authority_state_snapshot_test.clj`)

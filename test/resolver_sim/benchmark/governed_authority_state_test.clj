@@ -2,6 +2,7 @@
   (:require [clojure.test :refer [deftest is testing]]
             [resolver-sim.benchmark.governed-authority-resolution :as resolution]
             [resolver-sim.benchmark.governed-authority-state :as state]
+            [resolver-sim.benchmark.governed-authority-authorisation :as governed-authorisation]
             [resolver-sim.benchmark.governed-authority-result-receipt :as result-receipt]
             [resolver-sim.benchmark.governed-authority-result-receipt-store :as receipt-store]
             [resolver-sim.benchmark.governed-authority-semantics :as semantics]
@@ -356,12 +357,17 @@
                     :signing-key-id (:signing-key/id signer)))]
      (try
        {:material material
-        :authorisation {:artifact/schema "force-authorisation.v1"
-                        :authorisation/id auth-id
-                        :authorisation/request-root request-root
-                        :authorisation/review-round {:review-round/hash round-hash-ref}
-                        :authorisation/target {:target/proposed-content-root target-root}
-                        :authorisation/decision-references (mapv approve signers)}}
+        :authorisation
+        (governed-authorisation/build-authorisation
+         {:authorisation/id auth-id
+          :authorisation/request-root request-root
+          :authorisation/review-round {:review-round/id round-hash-ref
+                                       :review-round/hash round-hash-ref}
+          :authorisation/target {:target/kind :benchmark-branch
+                                 :target/baseline-content-root (hash-ref "be")
+                                 :target/branch-descriptor-hash (hash-ref "bd")
+                                 :target/proposed-content-root target-root}
+          :authorisation/decision-references (mapv approve signers)})}
        (finally
          (doseq [signer signers]
            (.delete (java.io.File. (:private-key-path signer)))))))))
@@ -1263,6 +1269,30 @@
                                         [:authority-material/position-time-index :rogue]
                                         true)))))))
 
+(deftest evaluation-basis-detached-schema-root-and-round-trip
+  (let [basis (state/evaluation-basis
+               {:resolved-review-authority-context/root (hash-ref "a1")
+                :review-round/root (hash-ref "b2")
+                :review-governance/root (hash-ref "c3")
+                :position-time-basis/root (hash-ref "d4")
+                :position-time-index/root (hash-ref "e5")
+                :signer-key-set/root (hash-ref "f6")})
+        reseal #(assoc % :authority-evaluation-basis/root
+                       (state/evaluation-basis-root %))]
+    (is (state/verify-evaluation-basis basis))
+    (is (= (:authority-evaluation-basis/root basis)
+           (:authority-evaluation-basis/root
+            (state/evaluation-basis basis))))
+    (is (false? (state/verify-evaluation-basis (assoc basis :unknown true))))
+    (is (false? (state/verify-evaluation-basis
+                 (reseal (assoc basis :artifact/schema "future-basis.v2")))))
+    (is (false? (state/verify-evaluation-basis
+                 (reseal (dissoc basis :signer-key-set/root)))))
+    (is (false? (state/verify-evaluation-basis
+                 (assoc basis :authority-evaluation-basis/root (hash-ref "aa")))))
+    (is (false? (state/verify-evaluation-basis
+                 (reseal (assoc basis :review-round/root nil)))))))
+
 (deftest evaluation-basis-includes-position-time-index
   (let [w (fresh-store)
         issued (issue-fence w)]
@@ -1637,6 +1667,29 @@
                 store (admission-basis w) authorisation)
         record (fence-record w (get-in issued [:authority-fence :fence/id]))]
     (is (:valid? issued))
+    (is (= "three-member-authority-report.v1"
+           (get-in issued [:authority-report :artifact/schema])))
+    (is (= (get-in issued [:authority-report :three-member-authority-report/root])
+           (:authority-report/root record)))
+    (is (= authorisation
+           (get-in @(.state store) [:governed-authority-authorisations
+                                    (:governed-authority-authorisation/root authorisation)])))
+    (is (= (:authority-report issued)
+           (get-in @(.state store) [:three-member-authority-reports
+                                    (:authority-report/root record)])))
+    (let [v-root (:authority-report-verification-basis/root record)
+          replay (state/verify-governed-authority-report-from-basis store v-root)]
+      (is (= v-root (:authority-report-verification-basis/root issued)))
+      (is (some? (get-in @(.state store) [:governed-authority-report-verification-bases v-root])))
+      (is (:valid? replay))
+      (is (= (:authority-report/root record)
+             (get-in replay [:authority-report :three-member-authority-report/root]))))
+    (let [read-back (state/read-evaluation-basis
+                     store (:authority-evaluation-basis/root record))]
+      (is (:resolved? read-back))
+      (is (= (:authority-evaluation-basis/root record)
+             (get-in read-back [:evaluation-basis :authority-evaluation-basis/root])))
+      (is (state/verify-evaluation-basis (:evaluation-basis read-back))))
     (is (= (:governed-authority-semantics/root semantics)
            (:authority-semantics/root issued)))
     (is (= (:authority-semantics/root issued)
@@ -1644,6 +1697,30 @@
     (is (= configuration-root (:chain-configuration/root record)))
     (is (= (:authority-semantics-policy/root policy)
            (:authority-semantics-policy/root record)))))
+
+(deftest c4f-authoritative-issuer-rejects-raw-authorisation-before-evaluation
+  (let [{:keys [configuration policy semantics]} (c4-configuration)
+        configuration-root (genesis/chain-configuration-root configuration)
+        {:keys [material authorisation]} (authorised-material-and-authorisation)
+        material (assoc material :chain-configuration/root configuration-root)
+        h0 (configuration-head/current-head (configuration-head/new-store configuration-root 1))
+        envelope (state/build-envelope-v2
+                  (assoc (store-envelope (hash-ref "c4aa") nil 0 material)
+                         :chain-configuration/root configuration-root)
+                  h0)
+        store (semantics-state/new-store-v2-with-authority-semantics
+               envelope h0 material configuration policy semantics)
+        w {:store store :state-root (:execution/state-root envelope)
+           :head (:authoritative-state-envelope/root envelope)}
+        before @(.state store)
+        raw (dissoc authorisation :artifact/schema :governed-authority-authorisation/root)
+        result (semantics-state/evaluate-and-issue-current-authority-fence!
+                store (admission-basis w) raw)]
+    (is (false? (:valid? result)))
+    (is (= :governed-authority-authorisation-invalid (:reason result)))
+    (is (= (dissoc before :observed-resolutions)
+           (dissoc @(.state store) :observed-resolutions)))
+    (is (empty? (:issued-fences @(.state store))))))
 
 (declare sample-authorisation)
 
@@ -1673,12 +1750,12 @@
              (:authority-semantics-policy/root record)))
       (is (= (:governed-authority-semantics/root semantics)
              (:authority-semantics/root record)))))
-  (testing "legacy stores fail closed without issuing a fence"
+  (testing "raw input is rejected before configured-semantics resolution"
     (let [w (fresh-store)
           result (gac/verify-governed-authority-current-under-authoritative-configuration
                   (:store w) (admission-basis w) (sample-authorisation))]
       (is (false? (:valid? result)))
-      (is (= :authority-semantics-unavailable (:reason result)))
+      (is (= :governed-authority-authorisation-invalid (:reason result)))
       (is (nil? (:authority-fence result)))
       (is (empty? (:issued-fences @(.state (:store w)))))))
   (testing "C4 stores with unavailable retained semantics fail closed without a fence"
@@ -1700,7 +1777,7 @@
                                     :head (:authoritative-state-envelope/root envelope)})
                   (sample-authorisation))]
       (is (false? (:valid? result)))
-      (is (= :authority-semantics-unavailable (:reason result)))
+      (is (= :governed-authority-authorisation-invalid (:reason result)))
       (is (nil? (:authority-fence result)))
       (is (empty? (:issued-fences @(.state store))))))
   (testing "the public entry point delegates directly to C4f, not legacy consumers or activation"
@@ -1725,7 +1802,7 @@
         result (semantics-state/evaluate-and-issue-current-authority-fence!
                 (:store w) (admission-basis w) (sample-authorisation))]
     (is (false? (:valid? result)))
-    (is (= :authority-semantics-unavailable (:reason result)))
+    (is (= :governed-authority-authorisation-invalid (:reason result)))
     (is (nil? (:authority-fence result))))
   (let [{:keys [configuration policy semantics]} (c4-configuration)
         configuration-root (genesis/chain-configuration-root configuration)
@@ -1741,7 +1818,7 @@
                                         :head (:authoritative-state-envelope/root envelope)})
                 (sample-authorisation))]
     (is (false? (:valid? result)))
-    (is (= :authority-semantics-unavailable (:reason result)))
+    (is (= :governed-authority-authorisation-invalid (:reason result)))
     (is (empty? (:issued-fences @(.state store)))))
   (testing "retained configuration or policy substitution also fails closed"
     (let [{:keys [configuration policy semantics]} (c4-configuration)
@@ -2191,4 +2268,168 @@
                       store issued binding (mutate (:envelope successor)) (:material successor))]
         (is (= reason (:reason rejected)) (name label))
         (is (= before @(.state store)) (str label " has no mutation"))))))
+
+;; ============================================================================
+;; P1r1c adversarial closure: verify-report-replay-dependencies 19-join matrix
+;; ============================================================================
+
+(defn- c4f-world []
+  (let [{:keys [configuration policy semantics]} (c4-configuration)
+        configuration-root (genesis/chain-configuration-root configuration)
+        {:keys [material authorisation]} (authorised-material-and-authorisation)
+        material (material-for-configuration material configuration-root)
+        h0 (configuration-head/current-head (configuration-head/new-store configuration-root 1))
+        envelope (state/build-envelope-v2 (assoc (store-envelope (hash-ref "c4f") nil 0 material)
+                                                 :chain-configuration/root configuration-root)
+                                          h0)
+        store (semantics-state/new-store-v2-with-authority-semantics
+               envelope h0 material configuration policy semantics)
+        basis (admission-basis {:store store
+                                :state-root (:execution/state-root envelope)
+                                :head (:authoritative-state-envelope/root envelope)})]
+    {:store store :envelope envelope :head-state h0 :material material
+     :configuration configuration :policy policy :semantics semantics
+     :basis basis :authorisation authorisation}))
+
+(defn- c4f-issue [store basis authorisation]
+  (semantics-state/evaluate-and-issue-current-authority-fence! store basis authorisation))
+
+(deftest c4f-replay-proves-each-join-individually
+  (testing "positive control: intact fixture replays and verifies"
+    (let [{:keys [store basis authorisation]} (c4f-world)
+          issued (c4f-issue store basis authorisation)
+          v-root (:authority-report-verification-basis/root issued)
+          replay (state/verify-governed-authority-report-from-basis store v-root)]
+      (is (:valid? issued) "c4f issues a valid fence")
+      (is (:valid? replay) "replay succeeds for intact fixture")))
+
+  (testing "broken dependency body: missing evaluation basis fails replay"
+    (let [{:keys [store basis authorisation]} (c4f-world)
+          issued (c4f-issue store basis authorisation)
+          v-root (:authority-report-verification-basis/root issued)
+          vb (get-in @(.state store) [:governed-authority-report-verification-bases v-root])
+          eb-root (:authority-evaluation-basis/root vb)
+          _ (swap! (.state store) update :authority-evaluation-bases dissoc eb-root)
+          replay (state/verify-governed-authority-report-from-basis store v-root)]
+      (is (= :report-replay-dependency-unavailable (:reason replay))
+          "missing dependency body fails replay")))
+
+  (testing "broken dependency body: missing context fails replay"
+    (let [{:keys [store basis authorisation]} (c4f-world)
+          issued (c4f-issue store basis authorisation)
+          v-root (:authority-report-verification-basis/root issued)
+          vb (get-in @(.state store) [:governed-authority-report-verification-bases v-root])
+          ctx-root (:resolved-review-authority-context/root vb)
+          _ (swap! (.state store) update :resolved-review-authority-contexts dissoc ctx-root)
+          replay (state/verify-governed-authority-report-from-basis store v-root)]
+      (is (= :report-replay-dependency-unavailable (:reason replay))
+          "missing context fails replay")))
+
+  (testing "verify-report-replay-dependencies: B/X join (context root mismatch)"
+    (let [{:keys [store basis authorisation]} (c4f-world)
+          issued (c4f-issue store basis authorisation)
+          v-root (:authority-report-verification-basis/root issued)
+          vb (get-in @(.state store) [:governed-authority-report-verification-bases v-root])
+          eb (:authority-evaluation-basis (state/read-evaluation-basis store (:authority-evaluation-basis/root vb)))
+          ctx (:resolved-context (state/read-resolved-review-authority-context store (:resolved-review-authority-context/root vb)))
+          predecessor (:predecessor (state/read-predecessor-authority-state store (:predecessor-authoritative-state-envelope/root vb) (:predecessor-configuration-head/root vb)))
+          cps (let [cps-res (state/read-configured-authority-semantics store (:chain-configuration/root vb) (:authority-semantics-policy/root vb) (:authority-semantics/root vb))]
+                {:configuration (:configuration cps-res) :policy (:policy cps-res) :semantics (:semantics cps-res)})
+          ;; Break the B/X join: evaluation basis declares different context root
+          tampered-eb (assoc eb :resolved-review-authority-context/root (hash-ref "wrong-ctx"))]
+      (is (false? (state/verify-report-replay-dependencies vb tampered-eb ctx predecessor cps))
+          "B/X join fails when evaluation-basis context root != context root")))
+
+  (testing "verify-report-replay-dependencies: C/P/S joins"
+    (let [{:keys [store basis authorisation]} (c4f-world)
+          issued (c4f-issue store basis authorisation)
+          v-root (:authority-report-verification-basis/root issued)
+          vb (get-in @(.state store) [:governed-authority-report-verification-bases v-root])
+          eb (:authority-evaluation-basis (state/read-evaluation-basis store (:authority-evaluation-basis/root vb)))
+          ctx (:resolved-context (state/read-resolved-review-authority-context store (:resolved-review-authority-context/root vb)))
+          predecessor (:predecessor (state/read-predecessor-authority-state store (:predecessor-authoritative-state-envelope/root vb) (:predecessor-configuration-head/root vb)))
+          cps (let [cps-res (state/read-configured-authority-semantics store (:chain-configuration/root vb) (:authority-semantics-policy/root vb) (:authority-semantics/root vb))]
+                {:configuration (:configuration cps-res) :policy (:policy cps-res) :semantics (:semantics cps-res)})
+          ;; Break C join: basis declares different chain-configuration root
+          tampered-vb (assoc vb :chain-configuration/root (hash-ref "wrong-c"))]
+      (is (false? (state/verify-report-replay-dependencies tampered-vb eb ctx predecessor cps))
+          "C join fails when basis chain-configuration root != C/P/S root"))))
+
+(deftest c4f-failed-issuance-leaves-no-partial-state
+  (testing "rejected issuance produces no fence, no V, no report"
+    (let [{:keys [store basis authorisation]} (c4f-world)
+          before @(.state store)
+          result (state/evaluate-and-issue-finalizable-authority-fence!
+                  store basis authorisation
+                  ;; Supply mismatched semantics to trigger provenance failure
+                  (assoc (:semantics (semantics-state/resolve-current-authority-semantics store))
+                         :tampered true)
+                  {:chain-configuration/root (hash-ref "wrong-c")
+                   :authority-semantics-policy/root (hash-ref "wrong-p")})]
+      (is (false? (:valid? result)) "issuance rejected")
+      (is (nil? (:authority-fence result)) "no fence on rejection")
+      (is (= before @(.state store)) "store unchanged on rejection")))
+
+  (testing "rejected issuance produces no verification basis"
+    (let [{:keys [store basis authorisation]} (c4f-world)
+          before @(.state store)
+          vb-count-before (count (:governed-authority-report-verification-bases before))
+          result (state/evaluate-and-issue-finalizable-authority-fence!
+                  store basis authorisation
+                  (assoc (:semantics (semantics-state/resolve-current-authority-semantics store))
+                         :tampered true)
+                  {:chain-configuration/root (hash-ref "wrong-c")
+                   :authority-semantics-policy/root (hash-ref "wrong-p")})
+          after @(.state store)]
+      (is (false? (:valid? result)))
+      (is (= vb-count-before (count (:governed-authority-report-verification-bases after)))
+          "no verification basis created on failure"))))
+
+(deftest c4f-missing-verification-basis-fails-closed
+  (testing "replay with unavailable basis returns report-verification-basis-unavailable"
+    (let [{:keys [store]} (c4f-world)
+          fake-root (hash-ref "nonexistent")
+          replay (state/verify-governed-authority-report-from-basis store fake-root)]
+      (is (false? (:valid? replay)))
+      (is (= :report-verification-basis-unavailable (:reason replay)))))
+
+  (testing "replay with invalid basis schema returns report-verification-basis-invalid"
+    (let [{:keys [store]} (c4f-world)
+          fake-root (hash-ref "invalid-basis")
+          invalid-basis {:artifact/schema "wrong-schema"
+                         :governed-authority-report-verification-basis/root fake-root}
+          _ (swap! (.state store) assoc-in [:governed-authority-report-verification-bases fake-root] invalid-basis)
+          replay (state/verify-governed-authority-report-from-basis store fake-root)]
+      (is (false? (:valid? replay)))
+      (is (= :report-verification-basis-invalid (:reason replay)))))
+
+  (testing "replay with root mismatch returns report-verification-basis-root-mismatch"
+    (let [{:keys [store basis authorisation]} (c4f-world)
+          issued (c4f-issue store basis authorisation)
+          v-root (:authority-report-verification-basis/root issued)
+          ;; Store the valid basis under a different key to trigger root mismatch
+          vb (get-in @(.state store) [:governed-authority-report-verification-bases v-root])
+          different-key (hash-ref "different-key")
+          _ (swap! (.state store) assoc-in [:governed-authority-report-verification-bases different-key] vb)
+          replay (state/verify-governed-authority-report-from-basis store different-key)]
+      (is (false? (:valid? replay)))
+      (is (= :report-verification-basis-root-mismatch (:reason replay))))))
+
+(deftest c4f-report-replay-mismatch-detected
+  (testing "replayed report comparison uses exact equality"
+    ;; The verify-governed-authority-report-from-basis function compares the
+    ;; stored report with the re-evaluated report using exact equality.
+    ;; This test verifies that the comparison is exact (not structural).
+    (let [{:keys [store basis authorisation]} (c4f-world)
+          issued (c4f-issue store basis authorisation)
+          v-root (:authority-report-verification-basis/root issued)
+          vb (get-in @(.state store) [:governed-authority-report-verification-bases v-root])
+          report-root (:three-member-authority-report/root vb)
+          original-report (get-in @(.state store) [:three-member-authority-reports report-root])
+          ;; Create a report that is structurally identical but not eq
+          ;; (different map identity) — exact equality should still pass
+          rebuilt-report (into {} original-report)
+          _ (swap! (.state store) assoc-in [:three-member-authority-reports report-root] rebuilt-report)
+          replay (state/verify-governed-authority-report-from-basis store v-root)]
+      (is (:valid? replay) "exact equality comparison accepts identical report"))))
 

@@ -322,6 +322,7 @@ run_unit() {
     resolver-sim.benchmark.game-theory-validation-test \
     resolver-sim.benchmark.packs.partial-fill.evidence-test \
     resolver-sim.benchmark.researcher-decision-v2-test \
+    resolver-sim.benchmark.legacy-authorisation-input-capture-test \
     resolver-sim.benchmark.decision-subject-test \
      resolver-sim.benchmark.review-aggregate-check-test \
      resolver-sim.benchmark.integrity-scheme-test \

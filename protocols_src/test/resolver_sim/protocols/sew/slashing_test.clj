@@ -2118,3 +2118,63 @@
           "same-epoch second slash is blocked by the cap")
       (is (nil? (:error ex3))
           "after an epoch elapses the cap resets and slashing is allowed again"))))
+
+(deftest resolve-appeal-competing-outcome-at-most-one-wins
+  (testing "two competing resolve-appeal outcomes against the same pre-state"
+    (let [resolver-addr "0xRes"
+          gov "0xGov"
+          snap (snap-fix/escrow-snapshot {:appeal-window-duration 100
+                                          :appeal-bond-amount 0})
+          world0 (reg/register-stake (t/empty-world 1000) resolver-addr 1000)
+          {:keys [world workflow-id]}
+          (world-ready-for-fraud-slash-propose world0 "0xBuyer" "USDC" "0xSeller" resolver-addr 1000 snap)
+          world1 (-> (res/propose-fraud-slash world workflow-id gov resolver-addr 100) :world)
+          world2 (-> (res/appeal-slash world1 workflow-id resolver-addr) :world)
+          prov {:authorization/type :governance :authorization/basis :test}
+          ;; Competing outcome 1: appeal upheld (slash reversed)
+          upheld-result (res/resolve-appeal world2 workflow-id gov true workflow-id
+                                           :authorization-provenance prov)
+          ;; Competing outcome 2: appeal rejected (slash deferred)
+          rejected-result (res/resolve-appeal world2 workflow-id gov false workflow-id
+                                             :authorization-provenance prov)]
+      (is (true? (:ok upheld-result)) "upheld outcome succeeds on pre-state")
+      (is (true? (:ok rejected-result)) "rejected outcome also succeeds on pre-state")
+      (is (= :reversed (get-in (:world upheld-result) [:pending-fraud-slashes workflow-id :status]))
+          "upheld sets slash status to :reversed")
+      (is (= :pending (get-in (:world rejected-result) [:pending-fraud-slashes workflow-id :status]))
+          "rejected sets slash status to :pending")
+      ;; Apply upheld first, then try rejected on the post-state
+      (let [post-upheld (:world upheld-result)
+            retry-rejected (res/resolve-appeal post-upheld workflow-id gov false workflow-id
+                                              :authorization-provenance prov)]
+        (is (false? (:ok retry-rejected)) "rejected outcome fails on post-upheld state")
+        (is (= :no-active-appeal (:error retry-rejected))
+            "second attempt returns :no-active-appeal"))
+      ;; Apply rejected first, then try upheld on the post-state
+      (let [post-rejected (:world rejected-result)
+            retry-upheld (res/resolve-appeal post-rejected workflow-id gov true workflow-id
+                                            :authorization-provenance prov)]
+        (is (false? (:ok retry-upheld)) "upheld outcome fails on post-rejected state")
+        (is (= :no-active-appeal (:error retry-upheld))
+            "second attempt returns :no-active-appeal")))))
+
+(deftest resolve-appeal-idempotent-replay-produces-same-result
+  (testing "exact retry of resolve-appeal on the same state is idempotent"
+    (let [resolver-addr "0xRes"
+          gov "0xGov"
+          snap (snap-fix/escrow-snapshot {:appeal-window-duration 100
+                                          :appeal-bond-amount 0})
+          world0 (reg/register-stake (t/empty-world 1000) resolver-addr 1000)
+          {:keys [world workflow-id]}
+          (world-ready-for-fraud-slash-propose world0 "0xBuyer" "USDC" "0xSeller" resolver-addr 1000 snap)
+          world1 (-> (res/propose-fraud-slash world workflow-id gov resolver-addr 100) :world)
+          world2 (-> (res/appeal-slash world1 workflow-id resolver-addr) :world)
+          prov {:authorization/type :governance :authorization/basis :test}
+          result1 (res/resolve-appeal world2 workflow-id gov true workflow-id
+                                     :authorization-provenance prov)
+          result2 (res/resolve-appeal world2 workflow-id gov true workflow-id
+                                     :authorization-provenance prov)]
+      (is (true? (:ok result1)) "first resolve succeeds")
+      (is (true? (:ok result2)) "identical replay on same state also succeeds")
+      (is (= (:world result1) (:world result2))
+          "identical replay produces the same world state"))))

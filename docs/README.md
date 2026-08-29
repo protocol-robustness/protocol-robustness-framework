@@ -228,6 +228,7 @@ Primary project framing and status live in the root `../README.md`.
 | `reference/REGISTRIES.md` | Operational catalogue of protocol, command, scenario, benchmark, semantic, and evidence registries |
 | `../schemas/README.md` | Machine-readable schema catalog |
 | `operations/LOCAL_SERVICES.md` | Local XTDB and forensic-runner operational guidance |
+| `operations/XTDB_USAGE.md` | Current XTDB read/write paths, time semantics, offline behavior, and replay-boundary review |
 
 ## Notebooks
 

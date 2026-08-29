@@ -6,6 +6,7 @@
             [resolver-sim.cancellation.sew-escrow-snapshot :as snapshot]
             [resolver-sim.cancellation.party-command :as command]
             [resolver-sim.cancellation.ordinary-planner :as planner]
+            [resolver-sim.cancellation.state-roles :as roles]
             [resolver-sim.hash.canonical :as hc]
             [resolver-sim.hash.reference :as hash-ref]))
 
@@ -24,12 +25,14 @@
 (defn- artifact-root [artifact]
   (some #(get artifact %)
         [:artifact/root :snapshot/root :policy/root :effects/root
-         :execution-effects/root :evaluation/root :preconditions/root]))
+         :execution-effects/root :evaluation/root :preconditions/root
+         :cancellation-state-before/root :cancellation-lifecycle-head/root]))
 
 (defn- resolved-stage [resolver role root valid?]
   (let [artifact (resolve-root resolver root)
         root-valid? (= root (artifact-root artifact))
-        semantic-valid? (and artifact (valid? artifact))]
+        validation (and artifact (valid? artifact))
+        semantic-valid? (if (map? validation) (:valid? validation) (boolean validation))]
     {:role role
      :root root
      :resolved? (some? artifact)
@@ -72,9 +75,17 @@
         policy-stage (resolved-stage resolve-artifact :policy (:policy roots) semantic/policy-root-valid?)
         derived-stage (resolved-stage resolve-artifact :derived-effects (:derived-effects roots) semantic/derived-effects-root-valid?)
         execution-stage (resolved-stage resolve-artifact :execution-effects (:execution-effects roots) semantic/execution-effects-root-valid?)
-        opaque-stages (into {}
-                            (for [[role root] (select-keys roots [:state-before :lifecycle-head :evaluation-inputs :preconditions :authorization :state-after])]
-                              [role (opaque-stage resolve-artifact role root)]))
+        v2? (= operation/schema-v2 (:operation/schema operation))
+        state-before-stage (if v2?
+                             (resolved-stage resolve-artifact :state-before (:state-before roots) roles/validate-state-before)
+                             (opaque-stage resolve-artifact :state-before (:state-before roots)))
+        lifecycle-head-stage (if v2?
+                               (resolved-stage resolve-artifact :lifecycle-head (:lifecycle-head roots) roles/validate-lifecycle-head)
+                               (opaque-stage resolve-artifact :lifecycle-head (:lifecycle-head roots)))
+        opaque-stages (merge {:state-before state-before-stage :lifecycle-head lifecycle-head-stage}
+                             (into {}
+                                   (for [[role root] (select-keys roots [:evaluation-inputs :preconditions :authorization :state-after])]
+                                     [role (opaque-stage resolve-artifact role root)])))
         stages (merge opaque-stages {:snapshot snapshot-stage :policy policy-stage
                                      :derived-effects derived-stage :execution-effects execution-stage})
         resolved-state-before (get stages :state-before)
@@ -145,8 +156,13 @@
                                            (when (and (:available? r) (not (:derived-effects-valid? r))) :operation/derived-effects-mismatch)
                                            (when (and (:available? r) (not (:execution-effects-valid? r))) :operation/execution-effects-mismatch)
                                            (when (and (:available? r) (not (:authorized? r))) :authority/forbidden)])))
+        lifecycle-join-valid? (or (not v2?)
+                                  (let [head (resolve-root resolve-artifact (:lifecycle-head roots))]
+                                    (= (:cancellation/represented-state-before-root head)
+                                       (:state-before roots))))
         blocking-reasons (vec (concat
                                (when-not (get-in verification [:operation :valid?]) [:operation/root-invalid])
+                               (when-not lifecycle-join-valid? [:lifecycle-head/state-before-mismatch])
                                root-reasons
                                (when-not (:verified? authority) [:authority/forbidden])
                                recomputed-reasons))

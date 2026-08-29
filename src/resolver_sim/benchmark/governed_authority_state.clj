@@ -9,6 +9,9 @@
             [resolver-sim.benchmark.review-governance-evidence :as evidence]
             [resolver-sim.benchmark.governed-authority-resolution :as resolution]
             [resolver-sim.benchmark.governed-authority-result-receipt :as result-receipt]
+            [resolver-sim.benchmark.governed-authority-authorisation :as governed-authorisation]
+            [resolver-sim.benchmark.three-member-authority-report :as authority-report]
+
             [resolver-sim.benchmark.review-round :as rr]
             [resolver-sim.configuration-head :as configuration-head]
             [resolver-sim.assurance.three-member-authority :as authority]
@@ -516,6 +519,47 @@
      :governance-current? (fn [_ _] true)
      :signature-valid? signature-valid?)))
 
+(def ^:const report-verification-basis-schema "governed-authority-report-verification-basis.v1")
+(def ^:const report-verification-basis-domain :governed-authority-report-verification-basis-v1)
+(def ^:const report-verification-basis-fields
+  #{:artifact/schema :governed-authority-authorisation/root
+    :resolved-review-authority-context/root :authority-evaluation-basis/root
+    :predecessor-authoritative-state-envelope/root :predecessor-configuration-head/root
+    :chain-configuration/root :authority-semantics-policy/root
+    :authority-semantics/root :three-member-authority-report/root})
+
+(defn report-verification-basis-root [basis]
+  (ref/sha256-ref (hc/domain-hash report-verification-basis-domain
+                                  (hc/project-canonical-safe
+                                   (dissoc basis :governed-authority-report-verification-basis/root)))))
+
+(defn validate-report-verification-basis [basis]
+  (let [expected (conj report-verification-basis-fields
+                       :governed-authority-report-verification-basis/root)
+        errors (cond-> []
+                 (not (map? basis)) (conj "report verification basis must be a map")
+                 (and (map? basis) (not= expected (set (keys basis))))
+                 (conj "report verification basis has missing or unknown keys")
+                 (and (map? basis) (not= report-verification-basis-schema (:artifact/schema basis)))
+                 (conj "report verification basis schema is unsupported")
+                 (and (map? basis) (not (every? #(ref/valid-sha256-ref? (get basis %))
+                                                (disj report-verification-basis-fields :artifact/schema))))
+                 (conj "report verification basis has invalid dependency root")
+                 (and (map? basis) (not= (:governed-authority-report-verification-basis/root basis)
+                                         (report-verification-basis-root basis)))
+                 (conj "report verification basis root mismatch"))]
+    {:valid? (empty? errors) :errors errors}))
+
+(defn build-report-verification-basis [basis]
+  (let [candidate (assoc (select-keys basis (disj report-verification-basis-fields :artifact/schema))
+                         :artifact/schema report-verification-basis-schema)
+        result (assoc candidate :governed-authority-report-verification-basis/root
+                      (report-verification-basis-root candidate))]
+    (when-not (:valid? (validate-report-verification-basis result))
+      (throw (ex-info "report verification basis is invalid"
+                      (validate-report-verification-basis result))))
+    result))
+
 (def ^:const evaluation-basis-schema "governed-authority-evaluation-basis.v1")
 
 (def ^:const evaluation-basis-fields
@@ -523,27 +567,113 @@
     :review-governance/root :position-time-basis/root
     :position-time-index/root :signer-key-set/root})
 
+(defn evaluation-basis-root
+  "Domain-separated semantic root for the exact closed evaluation-basis.v1
+   projection. This is intentionally not a storage-byte identity."
+  [basis]
+  (ref/sha256-ref
+   (hc/domain-hash :governed-authority-evaluation-basis-v1
+                   (hc/project-canonical-safe
+                    (dissoc basis :authority-evaluation-basis/root)))))
+
+(defn validate-evaluation-basis
+  "Validate only the intrinsic closed evaluation-basis.v1 contract: schema,
+   exact fields, six dependency-reference shapes, and the self-recomputed
+   semantic root. The referenced bodies and authority semantics are external
+   dependencies and are deliberately not re-evaluated here."
+  [basis]
+  (let [expected (conj evaluation-basis-fields :artifact/schema
+                       :authority-evaluation-basis/root)
+        errors (cond-> []
+                 (not (map? basis)) (conj "evaluation basis must be a map")
+                 (and (map? basis) (not= expected (set (keys basis))))
+                 (conj "evaluation basis has missing or unknown keys")
+                 (and (map? basis) (not= evaluation-basis-schema (:artifact/schema basis)))
+                 (conj "evaluation basis schema is unsupported")
+                 (and (map? basis)
+                      (not (every? #(ref/valid-sha256-ref? (get basis %))
+                                   evaluation-basis-fields)))
+                 (conj "evaluation basis contains an invalid dependency root")
+                 (and (map? basis)
+                      (not= (:authority-evaluation-basis/root basis)
+                            (evaluation-basis-root basis)))
+                 (conj "evaluation basis root mismatch"))]
+    {:valid? (empty? errors) :errors errors}))
+
+(defn verify-evaluation-basis [basis]
+  (:valid? (validate-evaluation-basis basis)))
+
 (defn evaluation-basis
-  "Join the resolved semantic authority context with the authenticated
-    verification/key basis. The join is versioned and domain-separated so
-    historical evidence can name the exact evaluation basis that justified a
-    decision instead of relying on a transient store registry."
+  "Construct the existing closed evaluation-basis.v1 projection. Construction
+   delegates to the same root and validation path used by detached readers."
   [parts]
-  (let [base (select-keys parts [:resolved-review-authority-context/root
-                                 :review-round/root :review-governance/root
-                                 :position-time-basis/root :position-time-index/root
-                                 :signer-key-set/root])]
-    (when-not (and (= (count base) (count evaluation-basis-fields))
-                   (every? #(ref/valid-sha256-ref? (get base %))
-                           evaluation-basis-fields))
-      (throw (ex-info "governed-authority-evaluation-basis is invalid"
-                      {:missing (set/difference evaluation-basis-fields
-                                                (set (keys base)))})))
-    (let [schema-base (assoc base :artifact/schema evaluation-basis-schema)]
-      (assoc schema-base :authority-evaluation-basis/root
-             (ref/sha256-ref
-              (hc/domain-hash :governed-authority-evaluation-basis-v1
-                              (hc/project-canonical-safe schema-base)))))))
+  (let [base (select-keys parts evaluation-basis-fields)
+        candidate (assoc base :artifact/schema evaluation-basis-schema)
+        basis (assoc candidate :authority-evaluation-basis/root
+                     (evaluation-basis-root candidate))
+        validation (validate-evaluation-basis basis)]
+    (when-not (:valid? validation)
+      (throw (ex-info "governed-authority-evaluation-basis is invalid" validation)))
+    basis))
+
+(defn read-governed-authority-authorisation
+  [store authorisation-root]
+  (let [authorisation (get-in @(.state store) [:governed-authority-authorisations authorisation-root])
+        validation (when authorisation (governed-authorisation/validate-authorisation authorisation))]
+    (cond
+      (not (ref/valid-sha256-ref? authorisation-root)) {:resolved? false :reason :authorisation-root-invalid}
+      (nil? authorisation) {:resolved? false :reason :authorisation-unavailable}
+      (not (:valid? validation)) {:resolved? false :reason :authorisation-invalid :errors (:errors validation)}
+      (not= authorisation-root (:governed-authority-authorisation/root authorisation))
+      {:resolved? false :reason :authorisation-root-mismatch}
+      :else {:resolved? true :authorisation authorisation})))
+
+(defn read-three-member-authority-report
+  [store report-root]
+  (let [report (get-in @(.state store) [:three-member-authority-reports report-root])]
+    (cond
+      (not (ref/valid-sha256-ref? report-root)) {:resolved? false :reason :authority-report-root-invalid}
+      (nil? report) {:resolved? false :reason :authority-report-unavailable}
+      (not (authority-report/verify-report report)) {:resolved? false :reason :authority-report-invalid}
+      (not= report-root (:three-member-authority-report/root report))
+      {:resolved? false :reason :authority-report-root-mismatch}
+      :else {:resolved? true :authority-report report})))
+
+(defn read-resolved-review-authority-context
+  "Resolve a retained resolved-context by semantic root and run its existing
+   closed rooted validator. This establishes only context integrity, not its
+   predecessor-state membership."
+  [store context-root]
+  (let [context (get-in @(.state store) [:resolved-review-authority-contexts context-root])
+        validation (when context (resolution/validate-resolved-context context))]
+    (cond
+      (not (ref/valid-sha256-ref? context-root)) {:resolved? false :reason :resolved-context-root-invalid}
+      (nil? context) {:resolved? false :reason :resolved-context-unavailable}
+      (not (:valid? validation)) {:resolved? false :reason :resolved-context-invalid :errors (:errors validation)}
+      (not= context-root (:resolved-review-authority-context/root context))
+      {:resolved? false :reason :resolved-context-root-mismatch}
+      :else {:resolved? true :resolved-context context})))
+
+(defn read-evaluation-basis
+  "Resolve one retained evaluation-basis body by its semantic root and verify
+   the exact root/body join. This is an in-memory read-side contract; later P1
+   physical storage may use a distinct byte checksum but must preserve this
+   semantic lookup and recomputation rule."
+  [store basis-root]
+  (cond
+    (not (ref/valid-sha256-ref? basis-root))
+    {:resolved? false :reason :evaluation-basis-root-invalid}
+
+    :else
+    (let [basis (get-in @(.state store) [:authority-evaluation-bases basis-root])
+          validation (when basis (validate-evaluation-basis basis))]
+      (cond
+        (nil? basis) {:resolved? false :reason :evaluation-basis-unavailable}
+        (not (:valid? validation)) {:resolved? false :reason :evaluation-basis-invalid
+                                    :errors (:errors validation)}
+        (not= basis-root (:authority-evaluation-basis/root basis))
+        {:resolved? false :reason :evaluation-basis-root-mismatch}
+        :else {:resolved? true :evaluation-basis basis}))))
 
 (def ^:private authority-material-fields
   "Closed top-level field set of authenticated authority material.
@@ -599,15 +729,24 @@
             (get-in (:authority-material/position-time-index material)
                     [:review-round/root])))))
 
-(defn- require-authenticated-material!
-  "The single publication gate shared by initial construction and every
-   successor path: freeze, then prove the closed authenticated shape and its
-   recomputed roots before anything may enter the store."
+(defn verify-authenticated-material
+  "Pure read-side verifier for the exact closed authority-material contract.
+  Returns the frozen canonical material only after every embedded body, declared
+  root, and governance/key eligibility join is recomputed. Durable projections
+  use this instead of trusting a caller-supplied material identity."
   [material]
   (let [material (freeze-material material)]
     (when-not (authenticated-material? material)
-      (throw (ex-info "authority material is not rooted and authenticated" {})))
+      (throw (ex-info "authority material is not rooted and authenticated"
+                      {:reason :authority-material-invalid})))
     material))
+
+(defn- require-authenticated-material!
+  "The single publication gate shared by initial construction and every
+  successor path: freeze, then prove the closed authenticated shape and its
+  recomputed roots before anything may enter the store."
+  [material]
+  (verify-authenticated-material material))
 
 (defn new-store
   "Construct an authenticated authority-state store from one published envelope
@@ -708,6 +847,156 @@
           (contains? seen root) false
           :else (recur (:publication/predecessor-root (get envelopes root))
                        (conj seen root)))))
+
+(defn read-configured-authority-semantics
+  "Resolve C → P → S only from root-keyed retained bodies, re-root every body,
+   and require the configured policy selection. Runtime support is separately
+   reported: a valid configuration never authorizes an unknown implementation."
+  [store configuration-root policy-root semantics-root]
+  (let [snapshot @(.state store)
+        configuration (get-in snapshot [:chain-configurations configuration-root])
+        policy (get-in snapshot [:authority-semantics-policies policy-root])
+        semantics (get-in snapshot [:governed-authority-semantics semantics-root])
+        configuration-root-fn (requiring-resolve 'resolver-sim.genesis/chain-configuration-root)
+        policy-validate-fn (requiring-resolve 'resolver-sim.benchmark.authority-semantics-policy/validate-policy)
+        policy-selection-fn (requiring-resolve 'resolver-sim.benchmark.authority-semantics-policy/verify-policy-selection)
+        semantics-validate-fn (requiring-resolve 'resolver-sim.benchmark.governed-authority-semantics/validate-semantics)
+        default-semantics (requiring-resolve 'resolver-sim.benchmark.governed-authority-semantics/default-semantics)
+        configuration-valid? (try (= configuration-root (configuration-root-fn configuration))
+                                  (catch Exception _ false))
+        policy-valid? (and policy (:valid? (policy-validate-fn policy))
+                           (= policy-root (:authority-semantics-policy/root policy)))
+        semantics-valid? (and semantics (:valid? (semantics-validate-fn semantics))
+                              (= semantics-root (:governed-authority-semantics/root semantics)))]
+    (cond
+      (not (every? ref/valid-sha256-ref? [configuration-root policy-root semantics-root]))
+      {:resolved? false :reason :configured-semantics-root-invalid}
+      (or (nil? configuration) (nil? policy) (nil? semantics))
+      {:resolved? false :reason :configured-semantics-unavailable}
+      (not configuration-valid?) {:resolved? false :reason :chain-configuration-invalid}
+      (not policy-valid?) {:resolved? false :reason :authority-semantics-policy-invalid}
+      (not semantics-valid?) {:resolved? false :reason :governed-authority-semantics-invalid}
+      (not= policy-root (:authority-semantics-policy/root configuration))
+      {:resolved? false :reason :configuration-policy-mismatch}
+      (not (:valid? (policy-selection-fn policy semantics)))
+      {:resolved? false :reason :policy-semantics-mismatch}
+      ;; The existing dispatcher has no callback extension and rejects every
+      ;; descriptor except its known default semantic profile.
+      (not= semantics @default-semantics)
+      {:resolved? false :reason :authority-semantics-runtime-unsupported}
+      :else {:resolved? true :configuration configuration :policy policy :semantics semantics})))
+
+(declare read-governed-authority-authorisation read-three-member-authority-report
+         read-resolved-review-authority-context read-evaluation-basis
+         read-predecessor-authority-state read-configured-authority-semantics)
+
+(defn verify-report-replay-dependencies
+  "Prove the historical B/X/E/H/material/C/P/S joins before evaluator replay."
+  [basis evaluation-basis context predecessor cps]
+  (let [material (:authenticated-material predecessor)
+        envelope (:envelope predecessor)
+        head (:head-state predecessor)
+        checks [(= (:resolved-review-authority-context/root evaluation-basis)
+                   (:resolved-review-authority-context/root context))
+                (= (:review-round/root evaluation-basis) (:review-round/root material))
+                (= (:review-governance/root evaluation-basis) (:review-governance/root material))
+                (= (:position-time-basis/root evaluation-basis) (:position-time-basis/root material))
+                (= (:position-time-index/root evaluation-basis) (:position-time-index/root material))
+                (= (:signer-key-set/root evaluation-basis) (:signer-key-set/root material))
+                (= (:predecessor-authoritative-state-envelope/root basis)
+                   (:authoritative-state-envelope/root envelope))
+                (= (:predecessor-configuration-head/root basis) (:configuration-head/root envelope))
+                (= (:configuration-head/root envelope) (:configuration-head-state/root head))
+                (= (:resolution/state-before-root context) (:execution/state-root envelope))
+                (= (:authority-state/root context) (:authoritative-state-envelope/root envelope))
+                (= (:chain-configuration/root context) (:chain-configuration/root envelope))
+                (= (:chain-configuration/root basis) (:chain-configuration/root envelope))
+                (= (:chain-configuration/root basis) (:configuration/head-root head))
+                (= (:chain-configuration/root basis) (:chain-configuration/root material))
+                (= (:review-governance/root context) (:review-governance/root material))
+                (= (:review-round/root context) (:review-round/root material))
+                ;; C is verified by its recomputed root in the C/P/S reader;
+                ;; configuration bodies intentionally do not carry a self-root.
+                (= (:authority-semantics-policy/root basis) (:authority-semantics-policy/root (:policy cps)))
+                (= (:authority-semantics/root basis) (:governed-authority-semantics/root (:semantics cps)))]]
+    (every? true? checks)))
+
+(defn verify-governed-authority-report-from-basis
+  "Detached, callback-free replay of one ratified configured authority report."
+  [store verification-basis-root]
+  (let [basis (get-in @(.state store) [:governed-authority-report-verification-bases verification-basis-root])]
+    (cond
+      (nil? basis) {:valid? false :reason :report-verification-basis-unavailable
+                    :available-roots (keys (get @(.state store) :governed-authority-report-verification-bases {}))
+                    :requested-root verification-basis-root}
+      (not (:valid? (validate-report-verification-basis basis))) {:valid? false :reason :report-verification-basis-invalid}
+      (not= verification-basis-root (:governed-authority-report-verification-basis/root basis)) {:valid? false :reason :report-verification-basis-root-mismatch}
+      :else
+      (let [a (read-governed-authority-authorisation store (:governed-authority-authorisation/root basis))
+            r (read-three-member-authority-report store (:three-member-authority-report/root basis))
+            x (read-resolved-review-authority-context store (:resolved-review-authority-context/root basis))
+            b (read-evaluation-basis store (:authority-evaluation-basis/root basis))
+            e (read-predecessor-authority-state store (:predecessor-authoritative-state-envelope/root basis)
+                                                (:predecessor-configuration-head/root basis))
+            cps (read-configured-authority-semantics store (:chain-configuration/root basis)
+                                                     (:authority-semantics-policy/root basis)
+                                                     (:authority-semantics/root basis))]
+        (if-not (every? :resolved? [a r x b e cps])
+          {:valid? false :reason :report-replay-dependency-unavailable
+           :dependencies {:authorisation a :report r :context x :evaluation-basis b
+                          :predecessor e :configured-semantics cps}}
+          (if-not (verify-report-replay-dependencies basis (:evaluation-basis b)
+                                                     (:resolved-context x) e cps)
+            {:valid? false :reason :report-replay-join-invalid
+             :join-inputs {:basis basis :evaluation-basis (:evaluation-basis b)
+                           :context (:resolved-context x)}}
+            (let [evaluate (requiring-resolve 'resolver-sim.benchmark.governed-authority-semantics/evaluate-authority-with-semantics)
+                  material (:authenticated-material e)
+                  replayed (authority-report/build-report
+                            (evaluate (:semantics cps)
+                                      {:authorisation (:authorisation a)
+                                       :review-round (:authority-material/review-round material)
+                                       :review-governance (:authority-material/review-governance material)
+                                       :position-time-index (:authority-material/position-time-index material)
+                                       :signer-key-set (:authority-material/signer-key-set material)}))]
+              (if (and (= replayed (:authority-report r))
+                       (= (:three-member-authority-report/root replayed)
+                          (get-in r [:authority-report :three-member-authority-report/root])))
+                {:valid? true :authority-report replayed}
+                {:valid? false :reason :report-replay-mismatch
+                 :stored (:authority-report r)
+                 :replayed replayed
+                 :different-keys (vec (filter #(not= (get (:authority-report r) %)
+                                                     (get replayed %))
+                                              (set (concat (keys (:authority-report r))
+                                                           (keys replayed)))))}))))))))
+
+(defn read-predecessor-authority-state
+  "Read an exact retained V2 predecessor E/H/material tuple. Envelope and head
+   verification plus their existing join are checked; material is then passed
+   through the public authenticated-material verifier."
+  [store envelope-root head-root]
+  (let [snapshot @(.state store)
+        envelope (get-in snapshot [:envelopes envelope-root])
+        head (get-in snapshot [:configuration-head-states head-root])
+        material (when envelope (get-in snapshot [:material (:execution/state-root envelope)]))]
+    (cond
+      (or (not (ref/valid-sha256-ref? envelope-root))
+          (not (ref/valid-sha256-ref? head-root)))
+      {:resolved? false :reason :predecessor-root-invalid}
+      (or (nil? envelope) (nil? head) (nil? material))
+      {:resolved? false :reason :predecessor-unavailable}
+      (not (and (verify-envelope-v2 envelope head)
+                (= envelope-root (:authoritative-state-envelope/root envelope))
+                (= head-root (:configuration-head/root envelope))))
+      {:resolved? false :reason :predecessor-envelope-head-invalid}
+      :else
+      (try
+        (let [verified-material (verify-authenticated-material material)]
+          {:resolved? true :envelope envelope :head-state head
+           :authenticated-material verified-material})
+        (catch Exception _
+          {:resolved? false :reason :predecessor-material-invalid})))))
 
 (defn resolve-governed-authority-context
   "Resolve a Stage A basis through an authenticated envelope store. Current
@@ -861,75 +1150,147 @@
            {:valid? false :reason (:reason resolved)}
            (let [context (:context resolved)
                  material (:authenticated-material resolved)
-                 inputs {:authorisation authorisation
-                         :review-round (:authority-material/review-round material)
-                         :review-governance (:authority-material/review-governance material)
-                         :position-time-index (:authority-material/position-time-index material)
-                         :signer-key-set (:authority-material/signer-key-set material)}
-                 report (if authority-semantics
-                          ((requiring-resolve 'resolver-sim.benchmark.governed-authority-semantics/evaluate-authority-with-semantics)
-                           authority-semantics inputs)
-                          (evaluate-authority-with-frozen-material inputs))
-                 report-root (authority/authority-report-root report)
-                 result {:valid? (= :authorised (:authority-status report))
-                         :authority-report report
-                         :authority-report-root report-root
-                         :governance-root (:governance-root report)
-                         :governed-review-round-hash
-                         (get-in authorisation [:authorisation/review-round :review-round/hash])
-                         :resolved-review-authority-context context}]
-             (if-not (:valid? result)
-               (assoc result :reason :authority-not-authorised)
-               (loop []
-                 (let [current @(.state store)
-                       state-root (:resolution/state-before-root context)
-                       observation (:resolution-observation resolved)
-                       fence-id (str (java.util.UUID/randomUUID))
-                       record {:authority-state-envelope/root (:authority-state/root context)
-                               :execution/state-root state-root
-                               :publication/sequence (get-in current [:envelopes (:head current) :publication/sequence])
-                               :resolved-review-authority-context/root (:resolved-review-authority-context/root context)
-                               :resolution-basis/root (:resolution-basis/root basis)
-                               :review-round/root (:review-round/root context)
-                               :review-governance/root (:review-governance/root context)
-                               :position-time-basis/root (:position-time-basis/root context)
-                               :position-time-index/root (:position-time-index/root context)
-                               :signer-key-set/root (:signer-key-set/root material)
-                               :authority-evaluation-basis/root
-                               (get-in resolved [:evaluation-basis :authority-evaluation-basis/root])
-                               :authority-report/root report-root
-                               :authority-status :authorised
-                               :purpose :current-admission
-                               :authority-semantics/root (when authority-semantics (:governed-authority-semantics/root authority-semantics))
-                               :chain-configuration/root (:chain-configuration/root authority-provenance)
-                               :authority-semantics-policy/root (:authority-semantics-policy/root authority-provenance)
-                               :status :issued}]
-                   (let [retained-semantics (when authority-semantics
-                                              (retained-authority-semantics current))
-                         semantics-match?
-                         (or (nil? authority-semantics)
-                             (and (= authority-semantics (:semantics retained-semantics))
-                                  (= authority-provenance
-                                     {:chain-configuration/root (:configuration/root retained-semantics)
-                                      :authority-semantics-policy/root (:policy/root retained-semantics)})))]
-                     (cond
-                       (or (not= (:head current) (:authority-state-envelope/root observation))
-                           (not= state-root (get-in current [:envelopes (:head current) :execution/state-root]))
-                           (not= (:publication/sequence observation)
-                                 (get-in current [:envelopes (:head current) :publication/sequence])))
-                       {:valid? false :reason :state-not-at-required-head}
+                 ;; Configured C4 issuance is the ratified boundary. Legacy
+                 ;; raw-input evaluation remains available only through callers
+                 ;; that do not select configured authority semantics.
+                 authorisation-validation (when authority-semantics
+                                            (governed-authorisation/validate-authorisation authorisation))]
+             (if (and authority-semantics (not (:valid? authorisation-validation)))
+               {:valid? false :reason :governed-authority-authorisation-invalid
+                :errors (:errors authorisation-validation)}
+               (let [inputs {:authorisation authorisation
+                             :review-round (:authority-material/review-round material)
+                             :review-governance (:authority-material/review-governance material)
+                             :position-time-index (:authority-material/position-time-index material)
+                             :signer-key-set (:authority-material/signer-key-set material)}
+                     evaluator-report (if authority-semantics
+                                        ((requiring-resolve 'resolver-sim.benchmark.governed-authority-semantics/evaluate-authority-with-semantics)
+                                         authority-semantics inputs)
+                                        (evaluate-authority-with-frozen-material inputs))
+                     ;; Never bind a configured fence to the legacy report root.
+                     ;; The v1 projection preserves evaluator-established order.
+                     report (if authority-semantics
+                              (authority-report/build-report evaluator-report)
+                              evaluator-report)
+                     report-root (if authority-semantics
+                                   (:three-member-authority-report/root report)
+                                   (authority/authority-report-root report))
+                     result {:valid? (= :authorised (:authority-status report))
+                             :authority-report report
+                             :authority-report-root report-root
+                             :governance-root (:governance-root report)
+                             :governed-review-round-hash
+                             (get-in authorisation [:authorisation/review-round :review-round/hash])
+                             :resolved-review-authority-context context}]
+                 (if-not (:valid? result)
+                   (assoc result :reason :authority-not-authorised)
+                   (loop []
+                     (let [current @(.state store)
+                           state-root (:resolution/state-before-root context)
+                           observation (:resolution-observation resolved)
+                           fence-id (str (java.util.UUID/randomUUID))
+                           predecessor-envelope (get-in current [:envelopes (:authority-state/root context)])
+                           verification-basis (when authority-semantics
+                                                (let [vb-result (build-report-verification-basis
+                                                                 {:governed-authority-authorisation/root
+                                                                  (:governed-authority-authorisation/root authorisation)
+                                                                  :resolved-review-authority-context/root
+                                                                  (:resolved-review-authority-context/root context)
+                                                                  :authority-evaluation-basis/root
+                                                                  (:authority-evaluation-basis/root (:evaluation-basis resolved))
+                                                                  :predecessor-authoritative-state-envelope/root
+                                                                  (:authoritative-state-envelope/root predecessor-envelope)
+                                                                  :predecessor-configuration-head/root
+                                                                  (:configuration-head/root predecessor-envelope)
+                                                                  :chain-configuration/root (:chain-configuration/root authority-provenance)
+                                                                  :authority-semantics-policy/root (:authority-semantics-policy/root authority-provenance)
+                                                                  :authority-semantics/root (:governed-authority-semantics/root authority-semantics)
+                                                                  :three-member-authority-report/root report-root})]
+                                                  vb-result))
+                           verification-basis-root (:governed-authority-report-verification-basis/root verification-basis)
+                           record {:authority-state-envelope/root (:authority-state/root context)
+                                   :execution/state-root state-root
+                                   :publication/sequence (get-in current [:envelopes (:head current) :publication/sequence])
+                                   :resolved-review-authority-context/root (:resolved-review-authority-context/root context)
+                                   :resolution-basis/root (:resolution-basis/root basis)
+                                   :review-round/root (:review-round/root context)
+                                   :review-governance/root (:review-governance/root context)
+                                   :position-time-basis/root (:position-time-basis/root context)
+                                   :position-time-index/root (:position-time-index/root context)
+                                   :signer-key-set/root (:signer-key-set/root material)
+                                   :authority-evaluation-basis/root
+                                   (get-in resolved [:evaluation-basis :authority-evaluation-basis/root])
+                                   :authority-report/root report-root
+                                   :authority-report-verification-basis/root verification-basis-root
+                                   :authority-status :authorised
+                                   :purpose :current-admission
+                                   :authority-semantics/root (when authority-semantics (:governed-authority-semantics/root authority-semantics))
+                                   :chain-configuration/root (:chain-configuration/root authority-provenance)
+                                   :authority-semantics-policy/root (:authority-semantics-policy/root authority-provenance)
+                                   :status :issued}]
+                       (let [retained-semantics (when authority-semantics
+                                                  (retained-authority-semantics current))
+                             semantics-match?
+                             (or (nil? authority-semantics)
+                                 (and (= authority-semantics (:semantics retained-semantics))
+                                      (= authority-provenance
+                                         {:chain-configuration/root (:configuration/root retained-semantics)
+                                          :authority-semantics-policy/root (:policy/root retained-semantics)})))]
+                         (cond
+                           (or (not= (:head current) (:authority-state-envelope/root observation))
+                               (not= state-root (get-in current [:envelopes (:head current) :execution/state-root]))
+                               (not= (:publication/sequence observation)
+                                     (get-in current [:envelopes (:head current) :publication/sequence])))
+                           {:valid? false :reason :state-not-at-required-head}
 
-                       (not semantics-match?)
-                       {:valid? false :reason :authority-semantics-provenance-invalid}
+                           (not semantics-match?)
+                           {:valid? false :reason :authority-semantics-provenance-invalid}
 
-                       :else
-                       (let [next (assoc-in current [:issued-fences fence-id] record)]
-                         (if (compare-and-set! (.state store) current next)
-                           (assoc result :authority-fence {:fence/id fence-id}
-                                  :authority-semantics/root (when authority-semantics (:governed-authority-semantics/root authority-semantics))
-                                  :chain-configuration/root (:chain-configuration/root authority-provenance)
-                                  :authority-semantics-policy/root (:authority-semantics-policy/root authority-provenance))
-                           (recur)))))))))))))))
+                           :else
+                           (let [base-next (cond-> (assoc-in current [:issued-fences fence-id] record)
+                                             authority-semantics
+                                             (assoc-in [:governed-authority-authorisations
+                                                        (:governed-authority-authorisation/root authorisation)] authorisation)
+
+                                             authority-semantics
+                                             (assoc-in [:three-member-authority-reports report-root] report)
+
+                                             authority-semantics
+                                             (assoc-in [:authority-evaluation-bases
+                                                        (:authority-evaluation-basis/root (:evaluation-basis resolved))]
+                                                       (:evaluation-basis resolved))
+
+                                             authority-semantics
+                                             (assoc-in [:resolved-review-authority-contexts
+                                                        (:resolved-review-authority-context/root context)] context)
+
+                                             authority-semantics
+                                             (assoc-in [:governed-authority-report-verification-bases
+                                                        verification-basis-root] verification-basis))
+                                 next (if authority-semantics
+                                        (assoc-in base-next
+                                                  [:governed-authority-report-verification-bases
+                                                   verification-basis-root]
+                                                  verification-basis)
+                                        base-next)]
+                             (let [replay (when authority-semantics
+                                            (verify-governed-authority-report-from-basis
+                                             (AuthorityStateStore. (atom next))
+                                             verification-basis-root))]
+                               (cond
+                                 (and authority-semantics (not (:valid? replay)))
+                                 {:valid? false :reason :authority-report-replay-invalid
+                                  :replay-reason (:reason replay)
+                                  :replay replay}
+
+                                 (compare-and-set! (.state store) current next)
+                                 (assoc result :authority-fence {:fence/id fence-id}
+                                        :authority-report-verification-basis/root verification-basis-root
+                                        :authority-semantics/root (when authority-semantics (:governed-authority-semantics/root authority-semantics))
+                                        :chain-configuration/root (:chain-configuration/root authority-provenance)
+                                        :authority-semantics-policy/root (:authority-semantics-policy/root authority-provenance))
+
+                                 :else (recur))))))))))))))))))
 
 (defn- finalisation-receipt [snapshot record pre-envelope successor-envelope binding]
   (let [successor-configuration-root (:chain-configuration/root successor-envelope)
