@@ -316,6 +316,135 @@
                    xtdb/opts)))
 
 ;; ---------------------------------------------------------------------------
+;; Temporal evidence tables — reads
+;; ---------------------------------------------------------------------------
+
+(defn- decode-ts [value]
+  (cond
+    (nil? value) nil
+    (instance? java.util.Date value) value
+    :else (xtdb/parse-ts (str value))))
+
+(defn- temporal-row [row]
+  {:temporal/id         (:_id row)
+   :temporal/run-id     (:run_id row)
+   :temporal/valid-from (decode-ts (:_valid_from row))})
+
+(defn- temporal-run-row [row]
+  (merge (temporal-row row)
+         {:temporal/batch-id    (some-> (:batch_id row) keyword)
+          :temporal/protocol-id (:protocol_id row)
+          :temporal/suite-id    (some-> (:suite_id row) keyword)
+          :temporal/scenario-id (some-> (:scenario_id row) keyword)
+          :temporal/seed        (:seed row)
+          :temporal/git-sha     (:git_sha row)
+          :temporal/outcome     (some-> (:outcome row) keyword)
+          :temporal/metrics     (xtdb/parse-edn (:metrics_edn row))}))
+
+(defn- temporal-step-row [row]
+  (merge (temporal-row row)
+         {:temporal/step-index     (:step_index row)
+          :temporal/action         (some-> (:action row) keyword)
+          :temporal/result         (some-> (:result row) keyword)
+          :temporal/time-before    (xtdb/parse-edn (:time_before_edn row))
+          :temporal/time-advance   (xtdb/parse-edn (:time_advance_edn row))
+          :temporal/time-after     (xtdb/parse-edn (:time_after_edn row))
+          :temporal/projection-hash (:projection_hash row)}))
+
+(defn- temporal-invariant-row [row]
+  (merge (temporal-row row)
+         {:temporal/step-index (:step_index row)
+          :temporal/invariant  (some-> (:invariant row) keyword)
+          :temporal/holds?     (boolean (:holds row))
+          :temporal/severity   (some-> (:severity row) keyword)
+          :temporal/violations (xtdb/parse-edn (:violations_edn row))}))
+
+(defn- temporal-coverage-row [row]
+  (merge (temporal-row row)
+         {:temporal/coverage (xtdb/parse-edn (:coverage_edn row))}))
+
+(defn- temporal-query [ds table decoder order-by valid-at]
+  (if (nil? ds)
+    []
+    (let [as-of (if valid-at
+                  (str " FOR VALID_TIME AS OF TIMESTAMP '" (inst->iso valid-at) "'")
+                  "")
+          sql (str "SELECT * FROM " table as-of " ORDER BY " order-by " ASC")]
+      (mapv decoder (jdbc/execute! ds [sql] xtdb/opts)))))
+
+(defn temporal-runs
+  "Return current temporal runs, ordered by valid time then id."
+  [ds]
+  (temporal-query ds "sim_temporal_runs" temporal-run-row "_valid_from, _id" nil))
+
+(defn temporal-runs-at
+  "Return temporal runs visible at valid-at, ordered by valid time then id."
+  [ds valid-at]
+  (temporal-query ds "sim_temporal_runs" temporal-run-row "_valid_from, _id" valid-at))
+
+(defn temporal-steps-for-run
+  "Return current steps for run-id, ordered by step index then id."
+  [ds run-id]
+  (if (nil? ds) []
+      (let [rows (jdbc/execute! ds ["SELECT * FROM sim_temporal_steps WHERE run_id = ? ORDER BY step_index ASC, _id ASC" run-id] xtdb/opts)]
+        (mapv temporal-step-row rows))))
+
+(defn temporal-steps-for-run-at
+  "Return steps for run-id visible at valid-at."
+  [ds run-id valid-at]
+  (if (nil? ds) []
+      (let [sql (str "SELECT * FROM sim_temporal_steps FOR VALID_TIME AS OF TIMESTAMP '" (inst->iso valid-at) "' WHERE run_id = ? ORDER BY step_index ASC, _id ASC")]
+        (mapv temporal-step-row (jdbc/execute! ds [sql run-id] xtdb/opts)))))
+
+(defn temporal-invariants-for-run
+  "Return current invariant evaluations for run-id, ordered by step index then id."
+  [ds run-id]
+  (if (nil? ds) []
+      (mapv temporal-invariant-row
+            (jdbc/execute! ds ["SELECT * FROM sim_temporal_invariants WHERE run_id = ? ORDER BY step_index ASC, _id ASC" run-id] xtdb/opts))))
+
+(defn temporal-invariants-for-run-at
+  "Return invariant evaluations for run-id visible at valid-at."
+  [ds run-id valid-at]
+  (if (nil? ds) []
+      (let [sql (str "SELECT * FROM sim_temporal_invariants FOR VALID_TIME AS OF TIMESTAMP '" (inst->iso valid-at) "' WHERE run_id = ? ORDER BY step_index ASC, _id ASC")]
+        (mapv temporal-invariant-row (jdbc/execute! ds [sql run-id] xtdb/opts)))))
+
+(defn temporal-coverage-for-run
+  "Return current coverage rows for run-id, ordered by valid time then id."
+  [ds run-id]
+  (if (nil? ds) []
+      (mapv temporal-coverage-row
+            (jdbc/execute! ds ["SELECT * FROM sim_temporal_coverage WHERE run_id = ? ORDER BY _valid_from ASC, _id ASC" run-id] xtdb/opts))))
+
+(defn temporal-coverage-for-run-at
+  "Return coverage rows for run-id visible at valid-at."
+  [ds run-id valid-at]
+  (if (nil? ds) []
+      (let [sql (str "SELECT * FROM sim_temporal_coverage FOR VALID_TIME AS OF TIMESTAMP '" (inst->iso valid-at) "' WHERE run_id = ? ORDER BY _valid_from ASC, _id ASC")]
+        (mapv temporal-coverage-row (jdbc/execute! ds [sql run-id] xtdb/opts)))))
+
+(defn temporal-run-detail
+  "Return a current run and its temporal evidence, or {} for nil ds/missing run."
+  [ds run-id]
+  (if-let [run (first (filter #(= run-id (:temporal/id %)) (temporal-runs ds)))]
+    {:run run
+     :steps (temporal-steps-for-run ds run-id)
+     :invariants (temporal-invariants-for-run ds run-id)
+     :coverage (temporal-coverage-for-run ds run-id)}
+    {}))
+
+(defn temporal-run-detail-at
+  "Return a run and its evidence visible at valid-at, or {} when absent."
+  [ds run-id valid-at]
+  (if-let [run (first (filter #(= run-id (:temporal/id %)) (temporal-runs-at ds valid-at)))]
+    {:run run
+     :steps (temporal-steps-for-run-at ds run-id valid-at)
+     :invariants (temporal-invariants-for-run-at ds run-id valid-at)
+     :coverage (temporal-coverage-for-run-at ds run-id valid-at)}
+    {}))
+
+;; ---------------------------------------------------------------------------
 ;; Aggregate helpers (pure — no database required)
 ;; ---------------------------------------------------------------------------
 

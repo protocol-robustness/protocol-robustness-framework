@@ -144,7 +144,13 @@
           rules))
 
 (defn maybe-record-temporal!
-  "Invoke optional :recorder from :temporal-evidence when collection is enabled."
+  "Invoke optional :recorder from :temporal-evidence when collection is enabled.
+
+   `outcome` is the replay-kernel terminal outcome after expected-error analysis
+   (see resolver-sim.db.temporal/record-from-replay!). It is recorded at the
+   kernel boundary, before the expectations/theory finalization that
+   `replay-events` applies to the returned result. It is intentionally the
+   kernel outcome, not the externally finalized scenario outcome."
   [temporal-cfg temporal-enabled? scenario-id outcome world metrics trace]
   (when (and temporal-enabled? (:recorder temporal-cfg))
     ((:recorder temporal-cfg)

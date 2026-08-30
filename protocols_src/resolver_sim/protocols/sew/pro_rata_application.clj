@@ -1,6 +1,7 @@
 (ns resolver-sim.protocols.sew.pro-rata-application
   "Batch application boundary for a fully authorized Sew pro-rata held credit."
   (:require [resolver-sim.protocols.sew.accounting :as accounting]
+            [resolver-sim.protocols.sew.held-mutation-admission :as held-admission]
             [resolver-sim.hash.canonical :as hash]
             [resolver-sim.accounting.held-adjustment :as held-adjustment]
             [resolver-sim.pro-rata.application :as application]
@@ -66,10 +67,11 @@
   (let [before-count (count (:held-adjustments world))
         protocol-effects (:effects refinement-artifact)
         world' (reduce (fn [w {:keys [effect]}]
-                         (accounting/add-held w (:effect/token effect) (:effect/amount effect)
-                                              {:action "add-held" :reason (:held/kind effect)
-                                               :account (:effect/account effect)
-                                               :extra (select-keys effect [:owner/address :parameter/context :parameter/address])}))
+                         (held-admission/admit-and-add-held! w (:effect/token effect) (:effect/amount effect)
+                                                              {:action "add-held" :reason (:held/kind effect)
+                                                               :account (:effect/account effect)
+                                                               :extra (select-keys effect [:owner/address :parameter/context :parameter/address])}
+                                                              {:operation-id :sew/pro-rata-held-credit}))
                        world protocol-effects)
         adjustments (vec (drop before-count (:held-adjustments world')))
         actual-roots (application-roots world world' adjustments)
@@ -100,10 +102,11 @@
    Returns the resulting world-state map. Pure: does not mutate anything."
   [world protocol-effects]
   (reduce (fn [w {:keys [effect]}]
-            (accounting/add-held w (:effect/token effect) (:effect/amount effect)
-                                 {:action "add-held" :reason (:held/kind effect)
-                                  :account (:effect/account effect)
-                                  :extra (select-keys effect [:owner/address :parameter/context :parameter/address])}))
+            (held-admission/admit-and-add-held! w (:effect/token effect) (:effect/amount effect)
+                                                 {:action "add-held" :reason (:held/kind effect)
+                                                  :account (:effect/account effect)
+                                                  :extra (select-keys effect [:owner/address :parameter/context :parameter/address])}
+                                                 {:operation-id :sew/pro-rata-held-credit}))
           world protocol-effects))
 
 (defn application-transition-valid?

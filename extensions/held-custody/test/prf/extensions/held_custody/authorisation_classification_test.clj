@@ -17,6 +17,7 @@
    consumption semantics, tie-breakers, and vocabulary."
   (:require [clojure.test :refer [deftest is testing]]
             [resolver-sim.assurance.force-authorisation :as fa]
+            [resolver-sim.sensitivity.sentinel :as sentinel]
             [prf.extensions.held-custody.authorisation-classification :as gate]
             [prf.extensions.held-custody.mutation :as mut]))
 
@@ -204,7 +205,7 @@
         "a sub-held permit fails against the add-held scope through the same validator"))
   (testing "forbidden-action? delegates to the sensitivity sentinel, not a local re-derivation"
     (is (= (gate/forbidden-action? :add-held)
-           (resolver-sim.sensitivity.sentinel/remote-authority-required-artifact?
+           (sentinel/remote-authority-required-artifact?
             {:held/action :add-held})))))
 
 ;; ── consumption semantics ───────────────────────────────────────────────────
@@ -266,14 +267,56 @@
       (is (= :ordinary (:classification r)))
       (is (true? (:force-auth-ignored? r))))))
 
-(deftest multiple-candidate-selection-is-deterministic-and-not-caller-selectable
-  (testing "candidate selection sorts by authorization/id and is deterministic"
-    (let [a (assoc add-permit :authorization/id "permit-a")
-          b (assoc add-permit :authorization/id "permit-b")]
-      (is (= (:authorization/id a) (:authorization/id (gate/select-permit [b a])))
-          "first-by-id, not caller order")
-      (is (= (:authorization/id a) (:authorization/id (gate/select-permit [a b]))))))
-  (testing "selection cannot make a generic/wrong-scope permit satisfy a forbidden operation"
+(deftest ambiguity-fails-closed-when-multiple-usable-permits
+  (testing "one valid permit -> forbidden-authorized"
+    (let [r (gate/classify-operation
+             {:action :add-held :scope add-scope :permits [add-permit]
+              :consumption-registry {} :now-ts 500 :authoritative-config enabled-config})]
+      (is (= :forbidden-authorized (:classification r)))
+      (is (= 1 (:usable-permit-count r)))))
+  (testing "two distinct usable permits -> :ambiguous-force-authorisation (fail closed),
+            not a silent first-by-id choice"
+    (let [p2 (assoc add-permit :authorization/id "permit-second")
+          r (gate/classify-operation
+             {:action :add-held :scope add-scope :permits [add-permit p2]
+              :consumption-registry {} :now-ts 500 :authoritative-config enabled-config})]
+      (is (= :ambiguous-force-authorisation (:classification r)))
+      (is (= 2 (:usable-permit-count r)))
+      (is (some #{:ambiguous-force-authorisation} (:blocking-reasons r)))
+      (is (= 2 (count (:usable-permits r))))
+      (is (= 2 (count (set (:usable-permits r))))
+          "the two distinct usable permit ids are both surfaced, never silently collapsed to one")))
+  (testing "candidate order does not change the outcome (deterministic ambiguity)"
+    (let [p2 (assoc add-permit :authorization/id "permit-second")
+          forward (gate/classify-operation
+                   {:action :add-held :scope add-scope :permits [add-permit p2]
+                    :consumption-registry {} :now-ts 500
+                    :authoritative-config enabled-config})
+          reverse (gate/classify-operation
+                   {:action :add-held :scope add-scope :permits [p2 add-permit]
+                    :consumption-registry {} :now-ts 500
+                    :authoritative-config enabled-config})]
+      (is (= (:classification forward) (:classification reverse)))
+      (is (= :ambiguous-force-authorisation (:classification reverse)))))
+  (testing "a wrong-scope second permit does not create ambiguity; only exact usable permits count"
+    (let [wrong (permit-for (assoc add-scope :amount 999))
+          r (gate/classify-operation
+             {:action :add-held :scope add-scope :permits [add-permit wrong]
+              :consumption-registry {} :now-ts 500 :authoritative-config enabled-config})]
+      (is (= :forbidden-authorized (:classification r)))
+      (is (= 1 (:usable-permit-count r))))))
+
+(deftest ambiguity-fails-closed-when-multiple-usable-permits-via-permit-shorthand
+  (testing "two distinct usable permits supplied through :permits are ambiguous even when
+            the collection has two exact matches"
+    (let [p2 (assoc add-permit :authorization/id "permit-second")
+          r (gate/classify-operation
+             {:action :add-held :scope add-scope :permits [add-permit p2]
+              :consumption-registry {} :now-ts 500 :authoritative-config enabled-config})]
+      (is (= :ambiguous-force-authorisation (:classification r))))))
+
+(deftest selection-cannot-make-a-generic-or-wrong-scope-permit-satisfy-a-forbidden-operation
+  (testing "a single wrong-scope permit stays :forbidden (no generic fallback)"
     (let [r (gate/classify-operation
              {:action :add-held :scope add-scope :permit sub-permit
               :consumption-registry {} :now-ts 500 :authoritative-config enabled-config})]
@@ -294,8 +337,9 @@
 ;; ── vocabulary ──────────────────────────────────────────────────────────────
 
 (deftest vocabulary-is-exact
-  (testing "only three classifications exist"
-    (is (= #{:forbidden :forbidden-authorized :ordinary}
+  (testing "only four classifications exist"
+    (is (= #{:forbidden :forbidden-authorized :ordinary
+             :ambiguous-force-authorisation}
            (set (keys gate/vocabulary)))))
   (testing "forbidden-authorized requires exact verified authorization + enabled override"
     (let [valid (gate/classify-operation

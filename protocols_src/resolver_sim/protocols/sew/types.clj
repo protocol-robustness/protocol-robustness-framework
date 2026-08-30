@@ -514,6 +514,19 @@
   (let [wf-id (normalize-workflow-id workflow-id)]
     (get-in world [:escrow-transfers wf-id :escrow-state])))
 
+(defn dispute-active?
+  "True when the authoritative escrow lifecycle state for workflow-id is :disputed.
+
+   This is the canonical DISPUTE_ACTIVE(world, workflow) proposition.  It reads
+   only the authoritative escrow-state marker and deliberately ignores retained
+   dispute metadata (:dispute-levels, :dispute-resolver, :pending-settlements,
+   :dispute-timestamps).  Retained metadata must not make an escrow
+   dispute-active; only the lifecycle state can.  Refinements such as resolver
+   existence, pending-settlement presence, or deadline elapse are properties of
+   an active dispute, not its definition."
+  [world workflow-id]
+  (= :disputed (escrow-state world workflow-id)))
+
 (def terminal-states
   "Set of terminal (absorbing) escrow states derived from allowed-transitions.
    Single authoritative source — all downstream code MUST reference this def

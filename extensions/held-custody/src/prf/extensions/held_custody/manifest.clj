@@ -16,7 +16,11 @@
   (:require [prf.extensions.held-custody.mutation :as mutation]
             [prf.extensions.held-custody.aggregate :as aggregate]
             [prf.extensions.held-custody.authorisation-classification
-             :as authorisation-classification]))
+             :as authorisation-classification]
+            [prf.extensions.held-custody.authoritative-gate
+             :as authoritative-gate]
+            [prf.extensions.held-custody.semantic-admission
+             :as semantic-admission]))
 
 (def capability
   "Capability descriptor for the held-custody mutation evidence capability."
@@ -41,6 +45,35 @@
      :capability/id :prf/envelope}
     {:capability/kind :prf/force-authorisation
      :capability/id :force-authorisation/scope-verification}]})
+
+(def override-admission-capability
+  "Declared, versioned capability for the exceptional held-custody override
+   admission. This is the extension-contributed provider that CORE resolves
+   through the capability/extension-resolution boundary (not an ad-hoc map key).
+
+   The entrypoint is `override-admission`: given authoritative override inputs
+   ({:scope :permits :consumption-registry :now-ts :configuration-head
+   :extension-resolution}) it returns {:admission :proceed-force-authorised
+   :permit <exact>} or {:admission :reject :classification ...}. It has no
+   declared dependencies, so it resolves cleanly in an otherwise-empty
+   extension-map for the override request."
+  {:capability/kind :assurance/force-authorisation
+   :capability/id :held-custody/override-admission-v1
+   :capability/version 1
+   :capability/contract-version 1
+   :entrypoint 'prf.extensions.held-custody.semantic-admission/override-admission
+   :input-schema :prf/held-custody-override-admission-input.v1
+   :output-schema :prf/held-custody-override-admission-result.v1
+   :verification/contract :prf/held-custody-override-admission-verification.v1
+   :composition-contract
+   {:composition-contract/version 1
+    :composition/input {:schema-ref :prf/held-custody-override-admission-input.v1
+                        :semantic-type :override-admission
+                        :cardinality :one}
+    :composition/output {:schema-ref :prf/held-custody-override-admission-result.v1
+                         :semantic-type :override-decision
+                         :cardinality :one}}
+   :declared-dependencies []})
 
 (def historical-read-contract
   "Permanent, machine-readable historical-read contract for this package.
@@ -84,8 +117,8 @@
    :extension/version "0.1.0"
    :extension/api-version 1
    :extension/manifest-version 1
-   :extension/capabilities [capability]
-   :extension/historical-read historical-read-contract})
+:extension/capabilities [capability override-admission-capability]
+    :extension/historical-read historical-read-contract})
 
 (defn extension
   "Capability map returned by the manifest entrypoint. Names and shapes match
@@ -102,4 +135,10 @@
     :classify-operation authorisation-classification/classify-operation
     :forbidden-action? authorisation-classification/forbidden-action?
     :override-enabled? authorisation-classification/override-enabled?
-    :select-permit authorisation-classification/select-permit})
+    :usable-permits authorisation-classification/usable-permits
+    :classify-under-current-configuration
+    authoritative-gate/classify-under-current-configuration
+    :override-enabled-under-configuration
+    authoritative-gate/override-enabled-under-configuration
+    :semantic-operation-class semantic-admission/semantic-operation-class
+    :override-admission semantic-admission/override-admission})

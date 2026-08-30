@@ -33,7 +33,8 @@
             [resolver-sim.economics.with-bounty.application-plan :as wb-plan]
             [resolver-sim.economics.with-bounty.transition-evidence :as wb-transition]
             [resolver-sim.hash.canonical :as hc]
-            [resolver-sim.protocols.sew.accounting :as act]))
+            [resolver-sim.protocols.sew.accounting :as act]
+            [resolver-sim.protocols.sew.held-mutation-admission :as held-admission]))
 
 (def adapter-held-actions
   "The held-custody ACTIONS this adapter is entitled to execute (its producer
@@ -164,7 +165,8 @@
                            (when (:owner/address effect)
                              {:owner/address (:owner/address effect)})))]
       (case action
-        "add-held" (act/add-held world token amount opts)
+        "add-held" (held-admission/admit-and-add-held! world token amount opts
+                                                       {:operation-id :sew/bounty-custody-reserve})
         "sub-held" (act/sub-held world token amount opts)))))
 
 (defn- custody-artifact-binding

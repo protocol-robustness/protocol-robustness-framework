@@ -165,6 +165,83 @@
         (is (false? (:ok r)))
         (is (= :transfer-not-in-dispute (:error r)))))))
 
+(defn- resolved-ready-world
+  "Disputed world carrying every operational dispute satellite plus historical
+   provenance, so transition-to-resolved can be audited for what it clears vs
+   retains.  Guard terminal-transfer-done? holds: no other live escrow and no
+   held amount for this token."
+  ([]
+   (resolved-ready-world 1000))
+  ([block-time]
+   (-> (disputed-world block-time)
+       (assoc-in [:dispute-levels 0] 1)
+       (assoc-in [:escrow-transfers 0 :dispute-resolver] carol)
+       (assoc-in [:pending-settlements 0]
+                 (t/make-pending-settlement
+                  {:exists true :is-release true
+                   :appeal-deadline (+ block-time 100)
+                   :resolution-hash "0xabc"})))))
+
+(deftest transition-to-resolved-clears-operational-satellites
+  (let [r (sm/transition-to-resolved (resolved-ready-world) 0)]
+    (is (true? (:ok r)))
+    (is (= :resolved (t/escrow-state (:world r) 0)))
+    (is (nil? (get-in (:world r) [:pending-settlements 0]))
+        "pending-settlement must be cleared on terminalization")
+    (is (nil? (get-in (:world r) [:dispute-timestamps 0]))
+        "dispute timestamp must be cleared on terminalization")))
+
+(deftest transition-to-resolved-retains-historical-provenance
+  (let [r (sm/transition-to-resolved (resolved-ready-world) 0)]
+    (is (true? (:ok r)))
+    (is (= 1 (get-in (:world r) [:dispute-levels 0]))
+        "dispute-level is historical provenance and must be retained")
+    (is (= carol (get-in (:world r) [:escrow-transfers 0 :dispute-resolver]))
+        "dispute-resolver is historical provenance and must be retained")))
+
+;; ---------------------------------------------------------------------------
+;; dispute-active?
+;; ---------------------------------------------------------------------------
+
+(deftest dispute-active-true-only-for-disputed
+  (is (true? (t/dispute-active? (disputed-world) 0))
+      ":disputed escrow is dispute-active")
+  (doseq [state (conj (disj t/terminal-states :resolved) :pending :none)]
+    (testing (str "state " state)
+      (is (false? (t/dispute-active?
+                   (assoc-in (base-world) [:escrow-transfers 0 :escrow-state] state)
+                   0))))))
+
+(deftest dispute-active-ignores-retained-metadata
+  (testing "retained dispute metadata cannot make a terminal escrow dispute-active"
+    (let [w (-> (assoc-in (base-world) [:escrow-transfers 0 :escrow-state] :resolved)
+                (assoc-in [:dispute-levels 0] 2)
+                (assoc-in [:escrow-transfers 0 :dispute-resolver] carol)
+                (assoc-in [:pending-settlements 0]
+                          (t/make-pending-settlement
+                           {:exists true :is-release true
+                            :appeal-deadline 9999 :resolution-hash "0xabc"}))
+                (assoc-in [:dispute-timestamps 0] 500))]
+      (is (false? (t/dispute-active? w 0))
+          "escrow-state is the sole source of dispute-activity truth"))))
+
+(deftest dispute-active-true-without-satellites
+  (testing "a freshly raised :disputed escrow with no pending settlement,
+            dispute timestamp, or level is still dispute-active"
+    (let [w (-> (base-world)
+                (assoc-in [:escrow-transfers 0 :escrow-state] :disputed)
+                (assoc-in [:escrow-transfers 0 :sender-status] :raise-dispute))]
+      (is (true? (t/dispute-active? w 0))
+          "dispute activity does not depend on satellite presence")
+      (is (nil? (get-in w [:pending-settlements 0])))
+      (is (nil? (get-in w [:dispute-timestamps 0])))
+      (is (nil? (get-in w [:dispute-levels 0])))
+      (testing "operational predicates fail closed without satellites"
+        (is (not (sm/pending-settlement-executable? w 0))
+            "no pending settlement → not executable")
+        (is (not (sm/dispute-timeout-exceeded? w 0))
+            "no dispute timestamp → timeout not exceeded")))))
+
 ;; ---------------------------------------------------------------------------
 ;; mutual-cancel setters
 ;; ---------------------------------------------------------------------------

@@ -90,7 +90,16 @@
 
 (defn record-from-replay!
   "Temporal recorder callback for contract-model replay.
-   Invoked at scenario terminal states when :temporal-evidence :recorder is set."
+   Invoked at scenario terminal states when :temporal-evidence :recorder is set.
+
+   OUTCOME BOUNDARY. `outcome` is the replay-kernel terminal outcome AFTER
+   expected-error analysis — the outcome determined by `run-simulation-loop`
+   (e.g. `:pass` for a nominal pass, `:fail` for an expected-error mismatch or
+   an invariant halt). It is recorded at the kernel boundary and does NOT
+   include the later `finalize-scenario-result` expectations/theory layer that
+   `replay-events` applies after the kernel returns. The temporal `:outcome`
+   field is therefore the kernel outcome, not necessarily the externally
+   finalized scenario outcome."
   [ds temporal-cfg scenario-id outcome world metrics trace]
   (record-temporal-run!
    ds

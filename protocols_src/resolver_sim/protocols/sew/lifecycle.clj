@@ -16,6 +16,7 @@
   (:require [resolver-sim.protocols.sew.types         :as t]
             [resolver-sim.protocols.sew.state-machine :as sm]
             [resolver-sim.protocols.sew.accounting    :as acct]
+            [resolver-sim.protocols.sew.held-mutation-admission :as held-admission]
             [resolver-sim.protocols.sew.registry      :as reg]
             [resolver-sim.protocols.sew.economics     :as sew-econ]
             [resolver-sim.accounting.held-adjustment  :as held-adj]
@@ -116,10 +117,12 @@
                   yield-delta (- yield-after yield-before)]
               (-> world'
                   (cond-> (pos? yield-delta)
-                    (acct/add-held tok yield-delta {:action "accrue-resolver-yield"
-                                                    :reason :resolver-yield-accrued
-                                                    :extra {:held/resolver resolver-addr
-                                                            :held/owner-id owner-id}})
+                    (held-admission/admit-and-add-held! tok yield-delta
+                      {:action "accrue-resolver-yield"
+                       :reason :resolver-yield-accrued
+                       :extra {:held/resolver resolver-addr
+                               :held/owner-id owner-id}}
+                      {:operation-id :sew/resolver-yield-accrued})
                     (neg? yield-delta)
                     (acct/sub-held tok (- yield-delta) {:action "accrue-resolver-yield"
                                                         :reason :resolver-yield-loss
@@ -157,10 +160,11 @@
                          {:action "reserve-deferred-yield"
                           :reason :deferred-yield-reclassified-out
                           :extra {:held/workflow-id workflow-id}})
-          (acct/add-held token required
-                         {:action "reserve-deferred-yield"
-                          :reason :deferred-yield-reserved
-                          :extra {:held/workflow-id workflow-id}})))))
+          (held-admission/admit-and-add-held! token required
+            {:action "reserve-deferred-yield"
+             :reason :deferred-yield-reserved
+             :extra {:held/workflow-id workflow-id}}
+            {:operation-id :sew/deferred-yield-reserved})))))
 
 (defn- finalize
   "Internal: transition escrow to terminal state, release accounting.
@@ -676,7 +680,7 @@
                                               (t/make-escrow-settings settings))
                                     (assoc-in [:module-snapshots workflow-id] snapshot)
                                      (update-in [:total-principal-deposited token] (fnil + 0) amount)
-                                     (acct/add-held token
+                                     (held-admission/admit-and-add-held! token
                                                     afa
                                                     {:action "create-escrow"
                                                      :reason :escrow-principal-deposited
@@ -684,7 +688,8 @@
                                                              :held/workflow-id workflow-id
                                                              :owner/address caller
                                                              :held/from caller
-                                                             :held/to to}})
+                                                             :held/to to}}
+                                                    {:operation-id :sew/escrow-principal-deposited})
                                      (acct/record-fee token fee)
                                     (update-in [:total-fot-fees token] (fnil + 0) (- amount afa fee)))
                  ;; Trigger yield deposit if module is configured
@@ -1138,7 +1143,7 @@
     (not (t/valid-workflow-id? world workflow-id))
     (t/fail :invalid-workflow-id)
 
-    (not= :disputed (t/escrow-state world workflow-id))
+    (not (t/dispute-active? world workflow-id))
     (t/fail :transfer-not-in-dispute)
 
     (:exists (t/get-pending world workflow-id))
@@ -1166,7 +1171,7 @@
     (not (t/valid-workflow-id? world workflow-id))
     (t/fail :invalid-workflow-id)
 
-    (not= :disputed (t/escrow-state world workflow-id))
+    (not (t/dispute-active? world workflow-id))
     (t/fail :transfer-not-in-dispute)
 
     (:exists (t/get-pending world workflow-id))
@@ -1268,10 +1273,11 @@
                     ;; total-yield-generated internally — do NOT double-count here.
                     world'' (cond-> world'
                               (pos? yield-delta)
-                              (acct/add-held tok yield-delta
-                                             {:action "yield-accrual"
-                                              :reason :yield-accrued
-                                              :extra {:held/workflow-id workflow-id}})
+                              (held-admission/admit-and-add-held! tok yield-delta
+                                {:action "yield-accrual"
+                                 :reason :yield-accrued
+                                 :extra {:held/workflow-id workflow-id}}
+                                {:operation-id :sew/yield-accrued})
                               (neg? yield-delta)
                               ((fn [w]
                                  (let [deduct-amount (- yield-delta)

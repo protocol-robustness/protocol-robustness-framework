@@ -75,9 +75,9 @@
    `:transition` and `:invariant-failure`; `:none` permits nothing."
   [flags evidence-type]
   (case (:evidence-mode flags :all)
-    :all       true
+    :all true
     :essential (#{:transition :invariant-failure} evidence-type)
-    :none      false))
+    :none false))
 
 (defn apply-action-with-evidence
   "Dispatch an action through the protocol layer and emit a content-hashed
@@ -97,7 +97,7 @@
         pre-world world
         result (proto/dispatch-action protocol context world event)
         post-world (:world result)
-        flags  (or (:replay-flags context) replay-flags/default-replay-flags)
+        flags (or (:replay-flags context) replay-flags/default-replay-flags)
         evidence (when (and (map? post-world)
                             (evidence-mode-allows? flags :transition))
                    (try
@@ -135,8 +135,8 @@
                                        :result (if (:holds? r) :pass :fail)})
                                     (sort-by key results))))
           single-results (when (map? inv-single) (extract-results inv-single))
-          trans-results  (when (map? inv-trans) (extract-results inv-trans))
-          all-results    (remove nil? (concat single-results trans-results))
+          trans-results (when (map? inv-trans) (extract-results inv-trans))
+          all-results (remove nil? (concat single-results trans-results))
           passed (count (filter #(= :pass (:result %)) all-results))
           failed (count (filter #(= :fail (:result %)) all-results))]
       {:step step
@@ -260,32 +260,32 @@
                                (= (:op/type event) :scenario/end)))
                     (proto/compute-projection protocol world-before)
                     [nil nil])
-        tags      (if (satisfies? proto/EconomicModel protocol)
-                    (proto/classify-event protocol event :rejected :batch-conflict)
-                    #{})]
-    {:seq               (:seq event)
-     :time              (:time event)
-     :time-before       {:block-ts (:block-time world-before)}
-     :time-after        {:block-ts (:time event)}
-     :agent             (:agent event)
-     :action            (:action event)
-     :params            (:params event)
-     :transition/id     (analysis/action->transition-id (:action event))
-     :result            :rejected
-     :error             :batch-conflict
-     :reject-phase      :batch-commit
-     :reject-class      :batch-conflict
-     :commit-policy     batch-commit-policy
-     :preflight-status  preflight-status
-     :commit-status     :rejected
-     :conflict-domain   conflict-domain
+        tags (if (satisfies? proto/EconomicModel protocol)
+               (proto/classify-event protocol event :rejected :batch-conflict)
+               #{})]
+    {:seq (:seq event)
+     :time (:time event)
+     :time-before {:block-ts (:block-time world-before)}
+     :time-after {:block-ts (:time event)}
+     :agent (:agent event)
+     :action (:action event)
+     :params (:params event)
+     :transition/id (analysis/action->transition-id (:action event))
+     :result :rejected
+     :error :batch-conflict
+     :reject-phase :batch-commit
+     :reject-class :batch-conflict
+     :commit-policy batch-commit-policy
+     :preflight-status preflight-status
+     :commit-status :rejected
+     :conflict-domain conflict-domain
      :conflict-with-seq conflict-with-seq
-     :event-tags        tags
-     :invariants-ok?    true
-     :violations        nil
-     :world             (proto/world-snapshot protocol world-before)
-     :projection        proj
-     :projection-hash   ph}))
+     :event-tags tags
+     :invariants-ok? true
+     :violations nil
+     :world (proto/world-snapshot protocol world-before)
+     :projection proj
+     :projection-hash ph}))
 
 ;; ---------------------------------------------------------------------------
 ;; Step Processing (Kernel)
@@ -306,31 +306,31 @@
   (let [[proj ph] (if (satisfies? proto/AnalysisModule protocol)
                     (proto/compute-projection protocol world)
                     [nil nil])
-        tags      (if (satisfies? proto/EconomicModel protocol)
-                    (proto/classify-event protocol event :rejected error)
-                    #{})]
-    {:ok?    true
-     :world  world
-     :trace-entry {:seq             (:seq event)
-                   :time            event-time
-                   :time-before     time-before
-                   :time-after      {:block-ts now}
-                   :agent           (:agent event)
-                   :action          (:action event)
-                   :params          (:params event)
-                   :save-id-as      (:save-id-as event)
-                   :transition/id   (analysis/action->transition-id (:action event))
-                   :result          :rejected
-                   :error           error
+        tags (if (satisfies? proto/EconomicModel protocol)
+               (proto/classify-event protocol event :rejected error)
+               #{})]
+    {:ok? true
+     :world world
+     :trace-entry {:seq (:seq event)
+                   :time event-time
+                   :time-before time-before
+                   :time-after {:block-ts now}
+                   :agent (:agent event)
+                   :action (:action event)
+                   :params (:params event)
+                   :save-id-as (:save-id-as event)
+                   :transition/id (analysis/action->transition-id (:action event))
+                   :result :rejected
+                   :error error
                    :temporal-rule-id rule-id
-                   :extra           nil
-                   :guard-context   guard-context
-                   :event-tags      tags
+                   :extra nil
+                   :guard-context guard-context
+                   :event-tags tags
                    :invariant-phase :temporal-rule
-                   :invariants-ok?  true
-                   :violations      nil
-                   :world           (proto/world-snapshot protocol world)
-                   :projection      proj
+                   :invariants-ok? true
+                   :violations nil
+                   :world (proto/world-snapshot protocol world)
+                   :projection proj
                    :projection-hash ph}
      :halted? false}))
 
@@ -339,14 +339,14 @@
    Wraps dispatch in with-attribution so downstream yield accrual, invariant
    checks, and logging automatically carry event-level context."
   [protocol context world event]
-  (let [flags        (or (:replay-flags context) replay-flags/default-replay-flags)
+  (let [flags (or (:replay-flags context) replay-flags/default-replay-flags)
         temporal-on? (let [v (:temporal-enabled? flags)] (if (nil? v) true (boolean v)))
-        check-inv?   (:check-invariants? flags true)
-        event-time   (:time event)
-        now          (time-ctx/block-ts world)
-        time-before  {:block-ts now}
-        run-id       (:run-id context)
-        rules        (temporal/effective-temporal-rules context)
+        check-inv? (:check-invariants? flags true)
+        event-time (:time event)
+        now (time-ctx/block-ts world)
+        time-before {:block-ts now}
+        run-id (:run-id context)
+        rules (temporal/effective-temporal-rules context)
         temporal-failure (when temporal-on?
                            (temporal/evaluate-temporal-rules rules
                                                              {:event-time event-time
@@ -382,35 +382,35 @@
                                (:error advance) (:rule-id advance) (:guard-context advance))
 
       (let [{world-t :world} advance
-            time-after       {:block-ts (time-ctx/block-ts world-t)}
-            result     (attr/with-attribution
-                         {:ctx/scenario-id (get-in world [:params :scenario-id])
-                          :ctx/run-id      run-id
-                          :ctx/event-index (:seq event)
-                          :ctx/event-type  (:action event)}
-                         (try
-                           (apply-action-with-evidence protocol context world-t event)
-                           (catch Exception e
-                             (attr/log-with-attr :error "dispatch exception"
-                                                 {:error (.getMessage e)
-                                                  :scenario-step (:seq event)
-                                                  :action (:action event)})
-                             (.printStackTrace e)
-                             {:ok false :error :dispatch-exception :evidence nil
-                              :detail {:message (.getMessage e)
-                                       :stack   (with-out-str (st/print-stack-trace e))}})))
-            ok?        (:ok result)
+            time-after {:block-ts (time-ctx/block-ts world-t)}
+            result (attr/with-attribution
+                     {:ctx/scenario-id (get-in world [:params :scenario-id])
+                      :ctx/run-id run-id
+                      :ctx/event-index (:seq event)
+                      :ctx/event-type (:action event)}
+                     (try
+                       (apply-action-with-evidence protocol context world-t event)
+                       (catch Exception e
+                         (attr/log-with-attr :error "dispatch exception"
+                                             {:error (.getMessage e)
+                                              :scenario-step (:seq event)
+                                              :action (:action event)})
+                         (.printStackTrace e)
+                         {:ok false :error :dispatch-exception :evidence nil
+                          :detail {:message (.getMessage e)
+                                   :stack (with-out-str (st/print-stack-trace e))}})))
+            ok? (:ok result)
             world-next (if (and ok? (:world result)) (:world result) world-t)
 
             inv-single (when (and ok? check-inv?)
                          (proto/check-invariants-single protocol world-next))
-            inv-trans  (when (and ok? check-inv?)
-                         (proto/check-invariants-transition protocol world-t world-next))
-            violated?  (and ok? check-inv?
-                            (not (and (:ok? inv-single) (:ok? inv-trans))))
+            inv-trans (when (and ok? check-inv?)
+                        (proto/check-invariants-transition protocol world-t world-next))
+            violated? (and ok? check-inv?
+                           (not (and (:ok? inv-single) (:ok? inv-trans))))
             all-violations (when violated?
                              (merge (when-not (:ok? inv-single) (:violations inv-single))
-                                    (when-not (:ok? inv-trans)  (:violations inv-trans))))]
+                                    (when-not (:ok? inv-trans) (:violations inv-trans))))]
 
         ;; Assemble base runtime context from values available before projection.
         ;; Invariant attestation uses this; projection fields are enriched below.
@@ -423,23 +423,23 @@
             (emit-invariant-attestation! replay-ctx inv-single inv-trans
                                          (and ok? check-inv?)))
 
-          (let [result-kw    (cond violated? :invariant-violated ok? :ok :else :rejected)
-                error-kw     (when-not ok? (:error result))
-                event-tags   (if (satisfies? proto/EconomicModel protocol)
-                               (proto/classify-event protocol event result-kw error-kw)
-                               #{})
-                final-world  (if violated? world-t world-next)
-                [proj ph]    (if (satisfies? proto/AnalysisModule protocol)
-                               (proto/compute-projection protocol final-world)
-                               [nil nil])
-                metadata     (if (satisfies? proto/AnalysisModule protocol)
-                               (proto/classify-transition protocol (:action event) result-kw)
-                               nil)
-                yield-delta  (when (and ok? (yield-accounting-action? (:action event)))
-                               (yield-accounting-delta world-t final-world))
-                yield-node   (when (and yield-delta
-                                        (evidence-mode-allows? flags :execution-node))
-                               (emit-yield-execution-node! event yield-delta))]
+          (let [result-kw (cond violated? :invariant-violated ok? :ok :else :rejected)
+                error-kw (when-not ok? (:error result))
+                event-tags (if (satisfies? proto/EconomicModel protocol)
+                             (proto/classify-event protocol event result-kw error-kw)
+                             #{})
+                final-world (if violated? world-t world-next)
+                [proj ph] (if (satisfies? proto/AnalysisModule protocol)
+                            (proto/compute-projection protocol final-world)
+                            [nil nil])
+                metadata (if (satisfies? proto/AnalysisModule protocol)
+                           (proto/classify-transition protocol (:action event) result-kw)
+                           nil)
+                yield-delta (when (and ok? (yield-accounting-action? (:action event)))
+                              (yield-accounting-delta world-t final-world))
+                yield-node (when (and yield-delta
+                                      (evidence-mode-allows? flags :execution-node))
+                             (emit-yield-execution-node! event yield-delta))]
             ;; Enrich context with projection fields once available
             (let [projection-ctx (assoc replay-ctx
                                         :ctx/projection-hash ph
@@ -450,36 +450,36 @@
               ;; Emit projection evidence (best-effort, :all evidence-mode only)
               (when (and ph (evidence-mode-allows? flags :projection))
                 (emit-projection-evidence! projection-ctx))
-              {:ok?    (and ok? (not violated?))
-               :world  final-world
+              {:ok? (and ok? (not violated?))
+               :world final-world
                :trace-entry
-               {:seq             (:seq event)
-                :time            event-time
-                :time-before     time-before
-                :time-after      time-after
-                :agent           (:agent event)
-                :action          (:action event)
-                :params          (:params event)
-                :save-id-as      (:save-id-as event)
-                :transition/id   (analysis/action->transition-id (:action event))
+               {:seq (:seq event)
+                :time event-time
+                :time-before time-before
+                :time-after time-after
+                :agent (:agent event)
+                :action (:action event)
+                :params (:params event)
+                :save-id-as (:save-id-as event)
+                :transition/id (analysis/action->transition-id (:action event))
                 :transition/hash (:ctx/evidence-hash replay-ctx)
-                :result          result-kw
-                :error           error-kw
-                :extra           (:extra result)
-                :detail          (:detail result)
-                :event-tags      event-tags
+                :result result-kw
+                :error error-kw
+                :extra (:extra result)
+                :detail (:detail result)
+                :event-tags event-tags
                 :invariant-phase :post-event
-                :invariants-ok?  (if (and ok? check-inv?)
-                                   (and (:ok? inv-single) (:ok? inv-trans))
-                                   true)
-                :violations      all-violations
-                :trace-metadata  metadata
+                :invariants-ok? (if (and ok? check-inv?)
+                                  (and (:ok? inv-single) (:ok? inv-trans))
+                                  true)
+                :violations all-violations
+                :trace-metadata metadata
                 :yield/accounting-delta yield-delta
                 :yield/execution-node-hash (:node-hash yield-node)
-                :world           (proto/world-snapshot protocol final-world)
-                :projection      proj
+                :world (proto/world-snapshot protocol final-world)
+                :projection proj
                 :projection-hash (:ctx/projection-hash projection-ctx)
-                :guard-context   (:guard-context result)}
+                :guard-context (:guard-context result)}
                :halted? violated?})))))))
 
 ;; ---------------------------------------------------------------------------
@@ -527,36 +527,37 @@
                      (seq (proto/open-entities protocol world)))]
           (if open
             {:outcome :fail :scenario-id scenario-id :events-processed (count trace) :halt-reason :open-entities-at-end :detail {:open-entities (vec open)} :trace trace :metrics metrics :agents agents :protocol protocol :last-valid-world world}
-            (do
-              (temporal/maybe-record-temporal! temporal-cfg temporal-enabled? scenario-id :pass world metrics trace)
-              (let [expected-error-analysis (analysis/analyze-expected-errors scenario trace)
-                    expected-errors-mismatch? (and strict-expected-errors?
-                                                   (not (:ok? expected-error-analysis)))
-                    outcome (if expected-errors-mismatch? :fail :pass)
-                    halt-reason (when expected-errors-mismatch? :expected-error-mismatch)]
-                (attr/with-attribution
-                  {:ctx/scenario-id scenario-id
-                   :ctx/run-id run-id}
-                  (attr/log-with-attr :info "scenario/end" {:id scenario-id :outcome outcome}))
-                {:context/version "1.0"
-                 :context/source {:scenario-id scenario-id :run-id run-id}
-                 :execution {:mode (execution-mode scenario)
-                             :batch-policy (when (= :deterministic-batch (execution-mode scenario))
-                                             batch-commit-policy)}
-                 :outcome outcome
-                 :events-processed (count trace)
-                 :halt-reason halt-reason
-                 :expected-error-analysis expected-error-analysis
-                 :trace trace
-                 :metrics metrics
-                 :states states
-                 :agents agents
-                 :protocol protocol
-                 :world world
-                 :world-checkpoints world-checkpoints
-                 :checkpoint-log checkpoint-log
-                 :diagnostics diagnostics
-                 :id-alias-map id-alias-map}))))
+            (let [expected-error-analysis (analysis/analyze-expected-errors scenario trace)
+                  expected-errors-mismatch? (and strict-expected-errors?
+                                                 (not (:ok? expected-error-analysis)))
+                  outcome (if expected-errors-mismatch? :fail :pass)
+                  halt-reason (when expected-errors-mismatch? :expected-error-mismatch)]
+              ;; Temporal recording must follow expected-error analysis so the
+              ;; persisted outcome equals the returned final replay outcome.
+              (temporal/maybe-record-temporal! temporal-cfg temporal-enabled? scenario-id outcome world metrics trace)
+              (attr/with-attribution
+                {:ctx/scenario-id scenario-id
+                 :ctx/run-id run-id}
+                (attr/log-with-attr :info "scenario/end" {:id scenario-id :outcome outcome}))
+              {:context/version "1.0"
+               :context/source {:scenario-id scenario-id :run-id run-id}
+               :execution {:mode (execution-mode scenario)
+                           :batch-policy (when (= :deterministic-batch (execution-mode scenario))
+                                           batch-commit-policy)}
+               :outcome outcome
+               :events-processed (count trace)
+               :halt-reason halt-reason
+               :expected-error-analysis expected-error-analysis
+               :trace trace
+               :metrics metrics
+               :states states
+               :agents agents
+               :protocol protocol
+               :world world
+               :world-checkpoints world-checkpoints
+               :checkpoint-log checkpoint-log
+               :diagnostics diagnostics
+               :id-alias-map id-alias-map})))
         (if (= :deterministic-batch (execution-mode scenario))
           (let [[bucket rest-events] (group-same-time-bucket events)
                 base-world world
@@ -667,20 +668,20 @@
                 {:outcome :fail :scenario-id scenario-id :events-processed (count (:trace batch-result)) :halt-reason :invariant-violation :trace (:trace batch-result) :metrics (:metrics batch-result) :execution {:mode :deterministic-batch :batch-policy batch-commit-policy} :protocol protocol :world-checkpoints (:world-checkpoints batch-result) :last-valid-world (:world batch-result)})
               (let [post-single (when check-inv?
                                   (proto/check-invariants-single protocol (:world batch-result)))
-                    post-trans  (when check-inv?
-                                  (proto/check-invariants-transition protocol base-world (:world batch-result)))
-                    post-ok?    (if check-inv?
-                                  (and (:ok? post-single) (:ok? post-trans))
-                                  true)
-                    post-entry  {:seq             (str "batch-" batch-time)
-                                 :time            batch-time
-                                 :result          (if post-ok? :ok :invariant-violated)
-                                 :invariant-phase :post-batch
-                                 :invariants-ok?  post-ok?
-                                 :violations      (when-not post-ok?
-                                                    (merge (when-not (:ok? post-single) (:violations post-single))
-                                                           (when-not (:ok? post-trans) (:violations post-trans))))
-                                 :world           (proto/world-snapshot protocol (:world batch-result))}
+                    post-trans (when check-inv?
+                                 (proto/check-invariants-transition protocol base-world (:world batch-result)))
+                    post-ok? (if check-inv?
+                               (and (:ok? post-single) (:ok? post-trans))
+                               true)
+                    post-entry {:seq (str "batch-" batch-time)
+                                :time batch-time
+                                :result (if post-ok? :ok :invariant-violated)
+                                :invariant-phase :post-batch
+                                :invariants-ok? post-ok?
+                                :violations (when-not post-ok?
+                                              (merge (when-not (:ok? post-single) (:violations post-single))
+                                                     (when-not (:ok? post-trans) (:violations post-trans))))
+                                :world (proto/world-snapshot protocol (:world batch-result))}
                     trace' (conj (:trace batch-result) post-entry)
                     metrics'' (if post-ok?
                                 (:metrics batch-result)

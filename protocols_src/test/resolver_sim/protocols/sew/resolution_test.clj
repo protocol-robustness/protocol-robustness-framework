@@ -150,6 +150,32 @@
     (is (false? (:ok r)))
     (is (= :transfer-not-in-dispute (:error r)))))
 
+(deftest execute-resolution-clears-operational-satellites-on-finalize
+  (testing "a final-round resolution that leaves :disputed clears operational
+            satellites while retaining historical dispute provenance"
+    (let [w (-> (base-world 0)
+                (assoc-in [:pending-settlements 0]
+                          (t/make-pending-settlement {:exists true :is-release true
+                                                      :appeal-deadline 2000
+                                                      :resolution-hash "0xprev"}))
+                (assoc-in [:dispute-levels 0] 1))
+          r (res/execute-resolution w 0 resolver true "0xhash" direct-resolver-fn)]
+      (is (true? (:ok r)))
+      (is (contains? t/terminal-states (t/escrow-state (:world r) 0))
+          "resolution finalizes to a terminal state")
+      (is (false? (t/dispute-active? (:world r) 0))
+          "terminal escrow is no longer dispute-active")
+      (is (nil? (get-in (:world r) [:pending-settlements 0]))
+          "active pending settlement cleared on finalization")
+      (is (nil? (get-in (:world r) [:dispute-timestamps 0]))
+          "dispute timestamp cleared on finalization")
+      (is (= 1 (get-in (:world r) [:dispute-levels 0]))
+          "dispute level retained as historical provenance")
+      (is (= resolver (get-in (:world r) [:escrow-transfers 0 :dispute-resolver]))
+          "dispute resolver retained as historical provenance")
+      (is (seq (get-in (:world r) [:superseded-pending-settlements 0]))
+          "superseded pending retained as archived historical record"))))
+
 (defn- world-with-pending
   "World with a pending settlement set, block-time at/after deadline."
   [block-time appeal-deadline is-release]

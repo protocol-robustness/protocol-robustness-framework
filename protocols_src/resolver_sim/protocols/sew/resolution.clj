@@ -12,6 +12,7 @@
             [resolver-sim.protocols.sew.state-machine :as sm]
             [resolver-sim.protocols.sew.authority     :as auth]
             [resolver-sim.protocols.sew.accounting    :as acct]
+            [resolver-sim.protocols.sew.held-mutation-admission :as held-admission]
             [resolver-sim.protocols.sew.registry      :as reg]
             [resolver-sim.protocols.sew.lifecycle     :as lc]
             [resolver-sim.protocols.sew.yield.policy  :as yield-policy]
@@ -84,7 +85,7 @@
     (not (t/valid-workflow-id? world workflow-id))
     (t/fail :invalid-workflow-id)
 
-    (not= :disputed (t/escrow-state world workflow-id))
+    (not (t/dispute-active? world workflow-id))
     (t/fail :transfer-not-in-dispute)
 
     (:exists (t/get-pending world workflow-id))
@@ -560,7 +561,7 @@
   (cond
     (not (t/valid-workflow-id? world workflow-id))
     (t/fail :invalid-workflow-id)
-    (not= :disputed (t/escrow-state world workflow-id))
+    (not (t/dispute-active? world workflow-id))
     (t/fail :transfer-not-in-dispute)
     :else
     (let [snap       (t/get-snapshot world workflow-id)
@@ -798,7 +799,7 @@
       (not (t/valid-workflow-id? world workflow-id))
       (guard-fail :invalid-workflow-id :workflow-id workflow-id :world world)
 
-       (not= :disputed (t/escrow-state world workflow-id))
+       (not (t/dispute-active? world workflow-id))
        (guard-fail :transfer-not-in-dispute
                    :escrow-state (t/escrow-state world workflow-id)
                    :workflow-id workflow-id
@@ -891,7 +892,7 @@
       (not (t/valid-workflow-id? world workflow-id))
       (guard-fail :invalid-workflow-id :workflow-id workflow-id :world world)
 
-      (not= :disputed (t/escrow-state world workflow-id))
+      (not (t/dispute-active? world workflow-id))
       (guard-fail :transfer-not-in-dispute
                   :escrow-state (t/escrow-state world workflow-id)
                   :workflow-id workflow-id
@@ -949,7 +950,7 @@
     (not (t/valid-workflow-id? world workflow-id))
     (guard-fail :invalid-workflow-id :workflow-id workflow-id :world world)
 
-    (not= :disputed (t/escrow-state world workflow-id))
+    (not (t/dispute-active? world workflow-id))
      (guard-fail :transfer-not-in-dispute
                  :escrow-state (t/escrow-state world workflow-id)
                  :workflow-id workflow-id
@@ -1015,7 +1016,7 @@
          (not (:exists pending))
          (guard-fail :no-pending-settlement :workflow-id workflow-id :world world)
 
-         (not= :disputed (t/escrow-state world workflow-id))
+         (not (t/dispute-active? world workflow-id))
           (guard-fail :transfer-not-in-dispute
                       :escrow-state (t/escrow-state world workflow-id)
                       :workflow-id workflow-id
@@ -1138,7 +1139,7 @@
   (let [entries       (get-in world [:superseded-pending-settlements workflow-id] [])
         current-level (t/dispute-level world workflow-id)
         same-level    (seq (filter #(= current-level (:level %)) entries))
-        disputed?     (= :disputed (t/escrow-state world workflow-id))
+        disputed?     (t/dispute-active? world workflow-id)
         ordered       (fn [es] (last (sort-by (fn [e] [(:superseded-at e 0)
                                                        (:appeal-deadline (:pending e) 0)])
                                              es)))]
@@ -1182,7 +1183,7 @@
       (not (t/valid-workflow-id? world workflow-id))
       (guard-fail :invalid-workflow-id :workflow-id workflow-id :world world)
 
-      (not= :disputed (t/escrow-state world workflow-id))
+      (not (t/dispute-active? world workflow-id))
       (guard-fail :transfer-not-in-dispute
                   :escrow-state (t/escrow-state world workflow-id)
                   :workflow-id workflow-id
@@ -1407,7 +1408,7 @@
       (not (t/valid-workflow-id? world workflow-id))
       (guard-fail :invalid-workflow-id :workflow-id workflow-id :world world)
 
-      (not= :disputed (t/escrow-state world workflow-id))
+      (not (t/dispute-active? world workflow-id))
       (guard-fail :transfer-not-in-dispute
                   :escrow-state (t/escrow-state world workflow-id)
                   :workflow-id workflow-id
@@ -2011,14 +2012,15 @@ action-hash-at  (hc/hash-with-intent {:hash/intent :action-at}
                                                                                      :appealed-at (time-ctx/block-ts world)})
                                 (assoc-in [:appeal-bond-custody slash-id caller] custody))
                      (pos? bond-amount)
-                     (-> (acct/add-held token bond-amount
+                     (-> (held-admission/admit-and-add-held! token bond-amount
                                          {:action "appeal-fraud-group-slash"
                                           :reason :appeal-bond-posted
                                           :authorization-provenance authorization-provenance
                                           :extra {:held/action "appeal-fraud-group-slash"
                                                   :held/workflow-id workflow-id
                                                   :held/slash-id slash-id
-                                                  :held/actor caller}})
+                                                  :held/actor caller}}
+                                         {:operation-id :sew/appeal-bond-posted})
                          (update-in [:total-bonds-posted token] (fnil + 0) bond-amount)
                          (update-in [:bond-posted-by-workflow workflow-id] (fnil + 0) bond-amount)))]
         (t/ok world')))))
@@ -2440,25 +2442,27 @@ action-hash-at  (hc/hash-with-intent {:hash/intent :action-at}
                                                           [{:authorization/action "appeal-slash"
                                                             :authorization/provenance authorization-provenance}]))))
                              authorization-provenance
-                             (acct/add-held token
-                                            bond-amount
-                                            {:action "appeal-slash"
-                                             :authorization-provenance authorization-provenance
-                                             :reason :appeal-bond-posted
-                                             :extra {:held/action "appeal-slash"
-                                                     :held/workflow-id workflow-id
-                                                     :held/slash-id slash-id
-                                                     :held/actor caller}})
+(held-admission/admit-and-add-held! token
+                                             bond-amount
+                                             {:action "appeal-slash"
+                                              :authorization-provenance authorization-provenance
+                                              :reason :appeal-bond-posted
+                                              :extra {:held/action "appeal-slash"
+                                                      :held/workflow-id workflow-id
+                                                      :held/slash-id slash-id
+                                                      :held/actor caller}}
+                                             {:operation-id :sew/appeal-bond-posted})
 
-                             (not authorization-provenance)
-                             (acct/add-held token
-                                            bond-amount
-                                            {:action "appeal-slash"
-                                             :reason :appeal-bond-posted
-                                             :extra {:held/action "appeal-slash"
-                                                     :held/workflow-id workflow-id
-                                                     :held/slash-id slash-id
-                                                     :held/actor caller}})
+(not authorization-provenance)
+                             (held-admission/admit-and-add-held! token
+                                             bond-amount
+                                             {:action "appeal-slash"
+                                              :reason :appeal-bond-posted
+                                              :extra {:held/action "appeal-slash"
+                                                      :held/workflow-id workflow-id
+                                                      :held/slash-id slash-id
+                                                      :held/actor caller}}
+                                             {:operation-id :sew/appeal-bond-posted})
 
                              true
                              (update-in [:total-bonds-posted token] (fnil + 0) bond-amount)

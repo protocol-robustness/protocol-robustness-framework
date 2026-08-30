@@ -3,7 +3,13 @@
 
    Curiosities are observations: they neither issue an authority fence nor grant
    authority. Currentness is derived from authenticated authority-store state,
-   never accepted as a caller assertion."
+   never accepted as a caller assertion.
+
+   This namespace owns curiosity semantics: IDs, closed dispatch, result/status
+   semantics, and safety classification. A use case's required curiosities are
+   owned by its committed definition (:concept/required-curiosities); the
+   in-file bootstrap declaration is transitional compatibility data reconciled
+   by resolve-use-case-required-curiosities."
   (:require [resolver-sim.benchmark.governed-authority-state :as authority-state]
             [resolver-sim.benchmark.packs.partial-fill.pro-rata-execution-evidence :as execution-evidence]))
 
@@ -17,15 +23,45 @@
   #{currently-authorized-chain-configuration-root
     current-write-back-operationally-verified})
 
-(def use-case-required-curiosities
-  "The declared curiosity requirements of the two currently implemented
-   admission use cases. These IDs are also carried by external use-case
-   definitions through :concept/required-curiosities."
+(def bootstrap-use-case-required-curiosities
+  "Transitional compatibility data for use cases that do not yet have committed
+   :concept/required-curiosities definitions in an external use-case registry.
+
+   This is NOT the authoritative long-term owner of use-case requirements: a
+   committed use-case definition owns its required curiosities. The bootstrap
+   declaration exists so `resolve-use-case-required-curiosities` can reconcile
+   it with a committed declaration, and it is deleted once a migration-equivalence
+   test proves each entry is redundant with the committed definition."
   {:resubmission/new-chain
    #{currently-authorized-chain-configuration-root}
    :governed-authority/current-admission
    #{currently-authorized-chain-configuration-root
      current-write-back-operationally-verified}})
+
+(defn resolve-use-case-required-curiosities
+  "Resolve one use case's required curiosities from its bootstrap declaration
+   and its committed/external declaration, if any. Both inputs must already be
+   validated sets of keyword curiosity IDs, so disagreement is semantic, not
+   representational.
+
+   Neither present → no curiosity requirements. Bootstrap only → bootstrap
+   requirements. External only → external requirements. Both and equal → the
+   committed/external requirements. Both and unequal → fail closed. There is no
+   union, no precedence on disagreement, and no silent fallback."
+  [bootstrap-declarations external-declarations use-case-id]
+  (let [bootstrap (or (get bootstrap-declarations use-case-id) #{})
+        external (or (get external-declarations use-case-id) #{})]
+    (cond
+      (and (empty? bootstrap) (empty? external)) #{}
+      (empty? external) bootstrap
+      (empty? bootstrap) external
+      (= bootstrap external) external
+      :else
+      (throw (ex-info "curiosity requirements disagree between bootstrap and committed declarations"
+                      {:error/code :curiosity-requirements/disagreement
+                       :use-case/id use-case-id
+                       :bootstrap/required-curiosities bootstrap
+                       :declared/required-curiosities external})))))
 
 (defn- result
   [id status & {:as values}]

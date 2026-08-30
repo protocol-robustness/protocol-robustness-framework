@@ -192,7 +192,7 @@
    {:from         #{:disputed}
     :to           :resolved
     :guards       [:terminal-transfer-done?]
-    :effects      []
+    :effects      [:clear-pending-settlement :clear-dispute-timestamp]
     :state-error  :transfer-not-in-dispute
     :guard-error  {:terminal-transfer-done? :resolution-without-settlement}}})
 
@@ -242,7 +242,15 @@
 
     :record-dispute-timestamp
     (fn [world workflow-id _]
-      (assoc-in world [:dispute-timestamps workflow-id] (time-ctx/block-ts world)))}})
+      (assoc-in world [:dispute-timestamps workflow-id] (time-ctx/block-ts world)))
+
+    :clear-pending-settlement
+    (fn [world workflow-id _]
+      (update world :pending-settlements dissoc workflow-id))
+
+    :clear-dispute-timestamp
+    (fn [world workflow-id _]
+      (update world :dispute-timestamps dissoc workflow-id))}})
 
 (defn- run-guards [world workflow-id caller txn]
   (reduce (fn [_ g-kw]
@@ -442,10 +450,9 @@
    auto-cancel-time to block automated cancel, locking the escrow until
    max-dispute-duration elapses."
   [world workflow-id]
-  (let [state  (t/escrow-state world workflow-id)
-        et     (t/get-transfer world workflow-id)
-        ts     (:auto-cancel-time et)]
-    (and (= :disputed state)
+  (let [et (t/get-transfer world workflow-id)
+        ts (:auto-cancel-time et)]
+    (and (t/dispute-active? world workflow-id)
          (pos? ts)
          (dl/deadline-expired? (time-ctx/block-ts world) ts)
          ;; Must not have a pending settlement (don't override resolver)
@@ -455,12 +462,11 @@
   "True when max-dispute-duration has elapsed since raiseDispute and
    no pending-settlement exists."
   [world workflow-id]
-  (let [state    (t/escrow-state world workflow-id)
-        ts       (get-in world [:dispute-timestamps workflow-id] 0)
+  (let [ts       (get-in world [:dispute-timestamps workflow-id] 0)
         snap     (t/get-snapshot world workflow-id)
         max-dur  (get snap :max-dispute-duration 0)
         pending  (t/get-pending world workflow-id)]
-    (and (= :disputed state)
+    (and (t/dispute-active? world workflow-id)
          (not (:exists pending))
          (pos? ts)
          (pos? max-dur)
@@ -491,12 +497,11 @@
    :resolver-response (see deadline-for in sew.clj) so the temporal layer can
    observe the window for enforcement/evidence."
   [world workflow-id]
-  (let [state     (t/escrow-state world workflow-id)
-        ts        (get-in world [:dispute-timestamps workflow-id] 0)
+  (let [ts        (get-in world [:dispute-timestamps workflow-id] 0)
         snap      (t/get-snapshot world workflow-id)
         window    (get snap :resolver-response-window 0)
         pending   (t/get-pending world workflow-id)]
-    (and (= :disputed state)
+    (and (t/dispute-active? world workflow-id)
          (not (:exists pending))
          (pos? ts)
          (pos? window)
@@ -508,12 +513,11 @@
    Kleros ruling 0 (refuse to arbitrate) leaves the escrow in :disputed state
    with no pending settlement.  The timeout path is the only settlement mechanism."
   [world workflow-id]
-  (let [state   (t/escrow-state world workflow-id)
-        ts      (get-in world [:dispute-timestamps workflow-id] 0)
+  (let [ts      (get-in world [:dispute-timestamps workflow-id] 0)
         snap    (t/get-snapshot world workflow-id)
         max-dur (get snap :max-dispute-duration 0)
         refused (get-in world [:escrow-transfers workflow-id :resolution/refused] false)]
-    (and (= :disputed state)
+    (and (t/dispute-active? world workflow-id)
          refused
          (pos? ts)
          (pos? max-dur)
@@ -550,7 +554,7 @@
   (let [entries       (get-in world [:superseded-pending-settlements workflow-id] [])
         current-level (t/dispute-level world workflow-id)
         same-level    (seq (filter #(= current-level (:level %)) entries))
-        disputed?     (= :disputed (t/escrow-state world workflow-id))
+        disputed?     (t/dispute-active? world workflow-id)
         ordered       (fn [es] (last (sort-by (fn [e] [(:superseded-at e 0)
                                                        (:appeal-deadline (:pending e) 0)])
                                               es)))]
@@ -574,10 +578,9 @@
   retries, scheduling) but must not narrow protocol eligibility: who invokes
   settlement does not change which transitions are admissible."
   [world workflow-id]
-  (let [state   (t/escrow-state world workflow-id)
-        now-ts  (time-ctx/block-ts world)
+  (let [now-ts  (time-ctx/block-ts world)
         pending (t/get-pending world workflow-id)]
-    (and (= :disputed state)
+    (and (t/dispute-active? world workflow-id)
          (if (:exists pending)
            (dl/deadline-expired? now-ts (:appeal-deadline pending))
            (when-let [entry (eligible-superseded-pending world workflow-id)]
