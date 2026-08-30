@@ -1,6 +1,7 @@
 (ns resolver-sim.protocols.sew.related-claims-test
   (:require [clojure.test :refer [deftest is testing]]
             [resolver-sim.protocols.sew :as sew]
+            [resolver-sim.protocols.sew.accounting :as acct]
             [resolver-sim.protocols.sew.types :as t]
             [resolver-sim.protocols.sew.lifecycle :as lc]
             [resolver-sim.protocols.sew.related-claims :as rc]
@@ -315,8 +316,7 @@
           violation (first (:violations
                             (inv/related-claims-hash-matches-members? corrupted-world)))]
       (is (= {:relationship/id (:relationship-id result)
-              :expected (:relationship/hash (get-in world'
-                                                     [:related-claims (:relationship-id result)]))
+              :reasons #{:relationship-hash-mismatch}
               :actual "corrupted-hash"
               :members (get-in world' [:related-claims (:relationship-id result)
                                        :relationship/members])}
@@ -640,3 +640,371 @@
           "a manually attached assurance flag cannot satisfy the strict predicate (creator provenance is not address-bound)")
       (is (= (:relationship/hash rec) (:relationship/hash upgraded))
           "attaching the flag does not alter the committed hash — it is outside the committed provenance, so it cannot upgrade the artifact"))))
+
+;; ============================================================================
+;; P0 — Related-claims regression tests for historical hash-version invariant
+;;
+;; These tests protect against later implementation changes silently
+;; invalidating historical semantics. They cover:
+;;   - V1/V2/V3 positive cases (historical replay)
+;;   - Historical body/version replay
+;;   - Wrong-version/body/root combinations
+;;   - Invariant-verification regressions for the version-awareness bug
+;; ============================================================================
+
+(def members-a [{:claim/kind :sew/workflow :workflow/id 0 :claim/scope-hash "a"}])
+(def members-b [{:claim/kind :sew/workflow :workflow/id 1 :claim/scope-hash "b"}])
+(def provenance-gov {:actor/type :governance :actor/address gov})
+(def provenance-other {:actor/address "0xOther"})
+
+;; ── V1/V2/V3 positive cases ──────────────────────────────────────────────
+
+(deftest p0-related-claims-v1-positive-case
+  (testing "V1 artifact: members-only hash, no provenance or semantics"
+    (let [v1 {:related-claims/version rc/related-claims-version
+              :relationship/members members-a
+              :relationship/hash (rc/related-claims-hash-v1 members-a)
+              :relationship/status :active}]
+      (is (:valid? (rc/verify-related-claims-hash v1)))
+      (is (true? (:holds? (inv/related-claims-hash-matches-members? {:related-claims {0 v1}})))))))
+
+(deftest p0-related-claims-v2-positive-case
+  (testing "V2 artifact: members + creator provenance, no semantics in hash"
+    (let [v2 {:related-claims/version rc/related-claims-version-v2
+              :relationship/members members-a
+              :relationship/semantics #{:audit-only}
+              :relationship/creator-provenance provenance-gov
+              :relationship/hash (rc/related-claims-hash-v2 members-a provenance-gov)
+              :relationship/status :active}]
+      (is (:valid? (rc/verify-related-claims-hash v2)))
+      (is (true? (:holds? (inv/related-claims-hash-matches-members? {:related-claims {0 v2}})))))))
+
+(deftest p0-related-claims-v3-positive-case
+  (testing "V3 artifact: members + creator provenance + semantics"
+    (let [v3 {:related-claims/version rc/related-claims-version-v3
+              :relationship/members members-a
+              :relationship/semantics #{:audit-only}
+              :relationship/creator-provenance provenance-gov
+              :relationship/hash (rc/related-claims-hash-v3 members-a provenance-gov #{:audit-only})
+              :relationship/status :active}]
+      (is (:valid? (rc/verify-related-claims-hash v3)))
+      (is (true? (:holds? (inv/related-claims-hash-matches-members? {:related-claims {0 v3}})))))))
+
+;; ── Historical body/version replay ────────────────────────────────────────
+
+(deftest p0-related-claims-historical-replay-v1
+  (testing "V1 historical replay: same members always produces same hash"
+    (let [h1 (rc/related-claims-hash-v1 members-a)
+          h2 (rc/related-claims-hash-v1 members-a)]
+      (is (= h1 h2) "V1 hash is deterministic"))
+    (let [h1 (rc/related-claims-hash-v1 members-a)
+          h2 (rc/related-claims-hash-v1 members-b)]
+      (is (not= h1 h2) "V1 hash changes when members change"))))
+
+(deftest p0-related-claims-historical-replay-v2
+  (testing "V2 historical replay: members + provenance determine hash"
+    (let [h1 (rc/related-claims-hash-v2 members-a provenance-gov)
+          h2 (rc/related-claims-hash-v2 members-a provenance-gov)]
+      (is (= h1 h2) "V2 hash is deterministic"))
+    (let [h1 (rc/related-claims-hash-v2 members-a provenance-gov)
+          h2 (rc/related-claims-hash-v2 members-a provenance-other)]
+      (is (not= h1 h2) "V2 hash changes when creator provenance changes"))
+    (let [h1 (rc/related-claims-hash-v2 members-a provenance-gov)
+          h2 (rc/related-claims-hash-v2 members-b provenance-gov)]
+      (is (not= h1 h2) "V2 hash changes when members change"))))
+
+(deftest p0-related-claims-historical-replay-v3
+  (testing "V3 historical replay: members + provenance + semantics determine hash"
+    (let [h1 (rc/related-claims-hash-v3 members-a provenance-gov #{:audit-only})
+          h2 (rc/related-claims-hash-v3 members-a provenance-gov #{:audit-only})]
+      (is (= h1 h2) "V3 hash is deterministic"))
+    (let [h1 (rc/related-claims-hash-v3 members-a provenance-gov #{:audit-only})
+          h2 (rc/related-claims-hash-v3 members-a provenance-other #{:audit-only})]
+      (is (not= h1 h2) "V3 hash changes when creator provenance changes"))
+    (let [h1 (rc/related-claims-hash-v3 members-a provenance-gov #{:audit-only})
+          h2 (rc/related-claims-hash-v3 members-b provenance-gov #{:audit-only})]
+      (is (not= h1 h2) "V3 hash changes when members change"))
+    (let [h1 (rc/related-claims-hash-v3 members-a provenance-gov #{:audit-only})
+          h2 (rc/related-claims-hash-v3 members-a provenance-gov #{:shared-evidence})]
+      (is (not= h1 h2) "V3 hash changes when semantics change"))))
+
+;; ── Wrong-version/body/root combinations ──────────────────────────────────
+
+(deftest p0-related-claims-wrong-version-combinations
+  (testing "V1 hash declared as V2 fails"
+    (let [rel {:related-claims/version rc/related-claims-version-v2
+               :relationship/members members-a
+               :relationship/hash (rc/related-claims-hash-v1 members-a)
+               :relationship/status :active}]
+      (is (false? (:valid? (rc/verify-related-claims-hash rel))))
+      (is (contains? (:reasons (rc/verify-related-claims-hash rel)) :relationship-hash-mismatch))))
+  (testing "V2 hash declared as V1 fails"
+    (let [rel {:related-claims/version rc/related-claims-version
+               :relationship/members members-a
+               :relationship/hash (rc/related-claims-hash-v2 members-a provenance-gov)
+               :relationship/status :active}]
+      (is (false? (:valid? (rc/verify-related-claims-hash rel))))
+      (is (contains? (:reasons (rc/verify-related-claims-hash rel)) :relationship-hash-mismatch))))
+  (testing "V3 hash declared as V2 fails"
+    (let [rel {:related-claims/version rc/related-claims-version-v2
+               :relationship/members members-a
+               :relationship/semantics #{:audit-only}
+               :relationship/creator-provenance provenance-gov
+               :relationship/hash (rc/related-claims-hash-v3 members-a provenance-gov #{:audit-only})
+               :relationship/status :active}]
+      (is (false? (:valid? (rc/verify-related-claims-hash rel))))
+      (is (contains? (:reasons (rc/verify-related-claims-hash rel)) :relationship-hash-mismatch)))))
+
+(deftest p0-related-claims-version-mutation-without-commitment-change
+  (testing "changing version without changing hash fails"
+    (let [v3 {:related-claims/version rc/related-claims-version-v3
+              :relationship/members members-a
+              :relationship/semantics #{:audit-only}
+              :relationship/creator-provenance provenance-gov
+              :relationship/hash (rc/related-claims-hash-v3 members-a provenance-gov #{:audit-only})
+              :relationship/status :active}
+          ;; Change version to V2 but keep V3 hash
+          v2-with-v3-hash (assoc v3 :related-claims/version rc/related-claims-version-v2)]
+      (is (false? (:valid? (rc/verify-related-claims-hash v2-with-v3-hash))))
+      (is (contains? (:reasons (rc/verify-related-claims-hash v2-with-v3-hash)) :relationship-hash-mismatch)))))
+
+(deftest p0-related-claims-unknown-version-fails-closed
+  (testing "unknown future version fails closed with :unsupported-relationship-version"
+    (let [rel {:related-claims/version 99
+               :relationship/members members-a
+               :relationship/hash (rc/related-claims-hash-v3 members-a provenance-gov #{:audit-only})
+               :relationship/status :active}]
+      (is (false? (:valid? (rc/verify-related-claims-hash rel))))
+      (is (contains? (:reasons (rc/verify-related-claims-hash rel)) :unsupported-relationship-version)))))
+
+;; ── Invariant-verification regressions ────────────────────────────────────
+
+(deftest p0-related-claims-invariant-version-aware-regression
+  (testing "invariant uses version-aware verification, not V3-only reconstruction"
+    ;; This is the regression test for the bug fix: the invariant must delegate
+    ;; to verify-related-claims-hash rather than reimplementing V3-only hash.
+    (let [v1 {:related-claims/version rc/related-claims-version
+              :relationship/members members-a
+              :relationship/hash (rc/related-claims-hash-v1 members-a)
+              :relationship/status :active}
+          v2 {:related-claims/version rc/related-claims-version-v2
+              :relationship/members members-a
+              :relationship/semantics #{:audit-only}
+              :relationship/creator-provenance provenance-gov
+              :relationship/hash (rc/related-claims-hash-v2 members-a provenance-gov)
+              :relationship/status :active}
+          v3 {:related-claims/version rc/related-claims-version-v3
+              :relationship/members members-a
+              :relationship/semantics #{:audit-only}
+              :relationship/creator-provenance provenance-gov
+              :relationship/hash (rc/related-claims-hash-v3 members-a provenance-gov #{:audit-only})
+              :relationship/status :active}
+          world {:related-claims {0 v1 1 v2 2 v3}}]
+      (is (true? (:holds? (inv/related-claims-hash-matches-members? world)))
+          "all versions survive invariant when hashes match their version contract"))))
+
+(deftest p0-related-claims-invariant-detects-all-tamered-versions
+  (testing "invariant detects tampering across all versions"
+    (let [v1 {:related-claims/version rc/related-claims-version
+              :relationship/members members-a
+              :relationship/hash "tampered"
+              :relationship/status :active}
+          v2 {:related-claims/version rc/related-claims-version-v2
+              :relationship/members members-a
+              :relationship/semantics #{:audit-only}
+              :relationship/creator-provenance provenance-gov
+              :relationship/hash "tampered"
+              :relationship/status :active}
+          v3 {:related-claims/version rc/related-claims-version-v3
+              :relationship/members members-a
+              :relationship/semantics #{:audit-only}
+              :relationship/creator-provenance provenance-gov
+              :relationship/hash "tampered"
+              :relationship/status :active}
+          world {:related-claims {0 v1 1 v2 2 v3}}]
+      (is (false? (:holds? (inv/related-claims-hash-matches-members? world))))
+      (is (= 3 (count (:violations (inv/related-claims-hash-matches-members? world))))))))
+
+;; ── Member identity independence ──────────────────────────────────────────
+
+(deftest p0-related-claims-member-identity-independent-of-semantics
+  (testing "member identity is determined by claim/kind + workflow/id, not scope-hash"
+    (let [m1 {:claim/kind :sew/workflow :workflow/id 0 :claim/scope-hash "hash-a"}
+          m2 {:claim/kind :sew/workflow :workflow/id 0 :claim/scope-hash "hash-b"}
+          m3 {:claim/kind :sew/workflow :workflow/id 1 :claim/scope-hash "hash-a"}]
+      (is (= (rc/related-claims-member-hash m1) (rc/related-claims-member-hash m2))
+          "same claim/kind + workflow/id = same member identity regardless of scope-hash")
+      (is (not= (rc/related-claims-member-hash m1) (rc/related-claims-member-hash m3))
+          "different workflow/id = different member identity"))))
+
+(deftest p0-related-claims-member-identity-reordering-invariant
+  (testing "V1 hash is invariant under member reordering"
+    (let [members-1 [{:claim/kind :sew/workflow :workflow/id 0 :claim/scope-hash "a"}
+                     {:claim/kind :sew/workflow :workflow/id 1 :claim/scope-hash "b"}]
+          members-2 [{:claim/kind :sew/workflow :workflow/id 1 :claim/scope-hash "b"}
+                     {:claim/kind :sew/workflow :workflow/id 0 :claim/scope-hash "a"}]]
+      (is (= (rc/related-claims-hash-v1 members-1) (rc/related-claims-hash-v1 members-2))
+          "V1 hash is sorted by (workflow/id, claim/kind) — reordering is invariant"))))
+
+;; ============================================================================
+;; P1 — Related-claims lifecycle: audit-only + force-auth consumption closure
+;;
+;; End-to-end example showing:
+;;   workflow A ─┐
+;;               ├─ related-claims R (:audit-only)
+;;   workflow B ─┘
+;;
+;;   force-authorisation F
+;;          ↓
+;;   operation on A
+;;          ↓
+;;   consumption record commits:
+;;     adjustment-specific scope, member(A), relationship R
+;;          ↓
+;;   world invariant proves member(A) ∈ R
+;;
+;;   Then explicitly show that:
+;;   B remains independently settleable/finalizable
+;;   because R is :audit-only.
+;; ============================================================================
+
+(deftest p1-related-claims-lifecycle-audit-only-force-auth-closure
+  (testing "full lifecycle: related-claims → audit-only → force-auth → consumption → closure"
+    (let [;; ── Step 1: Create two workflows A and B ──
+          w0 (world-with-escrows 2)
+          w1 (lc/create-escrow w0 alice usdc bob 2000 (t/make-escrow-settings {}) snap)
+          world-after-escrows (:world w1)
+          wf-a 0
+          wf-b 1
+
+          ;; ── Step 2: Create related-claims R (:audit-only) linking A and B ──
+          rc-result (rc/create-related-claims! world-after-escrows
+                       {:type :same-incident
+                        :members [{:claim/kind :sew/workflow :workflow/id wf-a}
+                                  {:claim/kind :sew/workflow :workflow/id wf-b}]
+                        :reason "same incident test"
+                        :created-by test-creator})
+          world-after-rc (:world rc-result)
+          rel-id (:relationship-id rc-result)
+          rel (rc/get-related-claims world-after-rc rel-id)
+
+          ;; Verify R is :audit-only
+          _ (is (= #{:audit-only} (:relationship/semantics rel))
+                "relationship R has :audit-only semantics")
+
+          ;; ── Step 3: Compute stable member identities ──
+          member-a (rc/related-claims-member-hash {:claim/kind :sew/workflow :workflow/id wf-a})
+          member-b (rc/related-claims-member-hash {:claim/kind :sew/workflow :workflow/id wf-b})
+
+          ;; ── Step 4: Verify member(A) ∈ R and member(B) ∈ R (membership proof) ──
+          member-idents (set (map rc/related-claims-member-hash (:relationship/members rel)))
+          _ (is (contains? member-idents member-a) "member(A) is in relationship R")
+          _ (is (contains? member-idents member-b) "member(B) is in relationship R")
+
+          ;; ── Step 5: Create force-authorisation F for operation on A ──
+          ;; The grant commits to the relationship and authorizes specific member scopes
+          auth-id "fa-related-claims-test"
+          w2 (-> world-after-rc
+                 (assoc-in [:force-authorisations auth-id]
+                           {:authorization/id auth-id
+                            :authorization/type :force-authorisation
+                            :authorization/status :active
+                            :consumed? false
+                            :starts-at 0
+                            :authorization/scope-kind :related-claims
+                            :relationship/id rel-id
+                            :relationship/hash (:relationship/hash rel)
+                            :member-scope-hashes [member-a member-b]
+                            :authorization/scope member-a
+                            :authorization/scope-hash member-a})
+                 (assoc :next-force-authorisation-id 1))
+
+          ;; ── Step 6: Simulate consumption record ──
+          ;; After operation on A, consumption commits: scope, member(A), relationship R
+          consumption-record {:consumed? true
+                              :authorization/id auth-id
+                              :authorization/type :force-authorisation
+                              :authorization/scope-kind :related-claims
+                              :authorization/scope-hash member-a
+                              :relationship/id rel-id
+                              :relationship/hash (:relationship/hash rel)
+                              :member-scope-hashes [member-a member-b]
+                              :member-count 1
+                              :consumed-members #{member-a}}
+          w3 (assoc-in w2 [:force-authorisations/consumed auth-id] consumption-record)
+
+          ;; ── Step 7: Verify force-auth is now consumed (closure) ──
+          consumed-auth (get-in w3 [:force-authorisations/consumed auth-id])
+          _ (is (true? (:consumed? consumed-auth))
+                "force-authorisation F is consumed after operation")
+          _ (is (contains? (:consumed-members consumed-auth) member-a)
+                "consumption record tracks member(A)")
+          _ (is (= rel-id (:relationship/id consumed-auth))
+                "consumption record references relationship R")
+
+          ;; ── Step 8: B remains independently settleable (audit-only doesn't block) ──
+          finality-check (inv/related-claims-do-not-block-finality? w3)
+          _ (is (true? (:holds? finality-check))
+                ":audit-only semantics do not block finality for B")
+
+          ;; ── Step 9: B's escrow state is unaffected by R ──
+          escrow-b (get-in w3 [:escrow-transfers wf-b])
+          _ (is (not= :released (:escrow-state escrow-b))
+                "workflow B remains in non-terminal state (not affected by R)")
+          _ (is (not= :refunded (:escrow-state escrow-b))
+                "workflow B not refunded (R is audit-only, no settlement coupling)")]
+
+      ;; The full lifecycle: R created → F granted → A operated → F consumed → B unaffected
+      (is (true? (:holds? (inv/related-claims-hash-matches-members? w3)))
+          "related-claims invariant still holds after consumption"))))
+
+(deftest p1-related-claims-member-identity-distinct-from-relationship
+  (testing "related-claims-member identity is independent from relationship semantics"
+    (let [;; Member identity is stable, framework-neutral
+          m {:claim/kind :sew/workflow :workflow/id 0}
+          member-id (rc/related-claims-member-hash m)
+
+          ;; Same member in different relationships with different semantics
+          rel-a {:related-claims/version rc/related-claims-version-v3
+                 :relationship/members [m]
+                 :relationship/semantics #{:audit-only}
+                 :relationship/hash "hash-a"
+                 :relationship/status :active}
+          rel-b {:related-claims/version rc/related-claims-version-v3
+                 :relationship/members [m]
+                 :relationship/semantics #{:shared-evidence}
+                 :relationship/hash "hash-b"
+                 :relationship/status :active}
+
+          ;; Member identity is the same regardless of which relationship it's in
+          member-in-a (rc/related-claims-member-hash (first (:relationship/members rel-a)))
+          member-in-b (rc/related-claims-member-hash (first (:relationship/members rel-b)))]
+      (is (= member-id member-in-a member-in-b)
+          "member identity is stable across relationships and semantics"))))
+
+(deftest p1-related-claims-relationship-not-authorization
+  (testing "related-claims relationship is not an authorization primitive"
+    (let [w0 (world-with-escrows 2)
+          rc-result (rc/create-related-claims! w0
+                       {:type :same-incident
+                        :members [{:claim/kind :sew/workflow :workflow/id 0}
+                                  {:claim/kind :sew/workflow :workflow/id 1}]
+                        :reason "test"
+                        :created-by test-creator})
+          world' (:world rc-result)
+          rel-id (:relationship-id rc-result)
+          rel (rc/get-related-claims world' rel-id)]
+
+      ;; Relationship existence does not create force-authorisation
+      (is (empty? (get world' :force-authorisations))
+          "creating related-claims does not create force-authorisation")
+
+      ;; Relationship is content-addressed, not executable
+      (is (some? (:relationship/hash rel))
+          "relationship has content-addressed hash")
+      (is (not (contains? rel :authorization/id))
+          "relationship does not carry authorization identity")
+
+      ;; Relationship semantics are deliberately weak (:audit-only)
+      (is (= #{:audit-only} (:relationship/semantics rel))
+          "relationship semantics are :audit-only (not settlement/finality coupling)"))))

@@ -65,10 +65,12 @@
         e0 (get-in current [:envelopes e0-root])
         h0-root (:configuration-head/root e0)
         h0 (get-in current [:configuration-head-states h0-root])
+        m0 (get-in current [:material (:execution/state-root e0)])
         version (:publication/sequence e0)
         witness (assoc authorization-witness
                        :predecessor-envelope e0
-                       :predecessor-head-state h0)
+                       :predecessor-head-state h0
+                       :predecessor-material m0)
         verified (c3a/verify-evidence (assoc witness :evidence authorization-evidence))
         transition-root (try (genesis/chain-configuration-transition-root transition)
                              (catch Exception _ nil))

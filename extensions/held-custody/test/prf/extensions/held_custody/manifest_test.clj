@@ -35,10 +35,14 @@
 (deftest entrypoint-returns-the-capability-map
   (let [capability-map (manifest/extension)]
     (is (= #{:build-member :check-member :build-summary :recompute-summary
-             :check-aggregate :supported-actions}
+             :check-aggregate :supported-actions
+             :classify-operation :forbidden-action? :override-enabled?
+             :select-permit}
            (set (keys capability-map))))
     (is (= #{:add-held :sub-held :finalize-released :refund-held}
            (set (:supported-actions capability-map))))
     (is (fn? (:build-member capability-map)))
     (is (fn? (:check-member capability-map)))
-    (is (fn? (:check-aggregate capability-map)))))
+    (is (fn? (:check-aggregate capability-map)))
+    (is (fn? (:classify-operation capability-map)))
+    (is (fn? (:forbidden-action? capability-map)))))

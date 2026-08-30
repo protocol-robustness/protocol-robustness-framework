@@ -11,6 +11,18 @@
 
 (def registry-schema :prf/use-case-registry.v1)
 
+(declare fail)
+
+(defn- required-curiosities! [definition registry-file use-case-id]
+  (let [curiosities (:concept/required-curiosities definition)]
+    (when (some? curiosities)
+      (when-not (and (set? curiosities) (every? keyword? curiosities))
+        (fail "Use-case :concept/required-curiosities must be a set of keywords"
+              {:registry/path (.getPath registry-file)
+               :use-case/id use-case-id
+               :concept/required-curiosities curiosities})))
+    (or curiosities #{})))
+
 (defn- fail [message data]
   (throw (ex-info message (assoc data :error :use-cases/invalid-registry))))
 
@@ -86,7 +98,10 @@
                            (fail "Use-case entry ID does not match definition" {:registry/path (.getPath registry-file) :use-case/id id :concept/id (:concept/id definition)}))
                          (when-not (= :use-case (:concept/type definition))
                            (fail "Use-case definition must declare :concept/type :use-case" {:registry/path (.getPath registry-file) :use-case/id id :concept/type (:concept/type definition)}))
-                         {:use-case/id id :definition/ref ref :definition definition}))
+                         {:use-case/id id
+                          :definition/ref ref
+                          :definition definition
+                          :required-curiosities (required-curiosities! definition registry-file id)}))
                      (:use-cases registry))
         ids (mapv :use-case/id loaded)
         integrity (concepts/registry-integrity-violations
@@ -110,7 +125,15 @@
        :use-case-registry/path (.getPath registry-file)
        :use-case-registry/root (hash-ref/sha256-ref (canonical/domain-hash :use-case-registry-v1 root-input))
        :use-case-registry/count (count loaded)
+       :use-case-registry/required-curiosities
+       (into {} (map (juxt :use-case/id :required-curiosities) loaded))
        :use-cases (mapv :definition loaded)})))
+
+(defn required-curiosities
+  "Return the explicitly declared curiosity IDs for one loaded use case.
+   Missing declarations resolve to the empty set; no curiosity is inferred."
+  [loaded use-case-id]
+  (get-in loaded [:use-case-registry/required-curiosities use-case-id] #{}))
 
 (defn use-case-index [loaded]
   (into {} (map (juxt :concept/id identity) (:use-cases loaded))))

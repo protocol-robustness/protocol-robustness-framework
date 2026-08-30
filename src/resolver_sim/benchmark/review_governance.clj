@@ -208,9 +208,21 @@
      :independence independence-results
      :errors (vec errors)}))
 
+(defn member-signing-key
+  "Return an active signing key owned by an active member's resolved principal
+   in this immutable governance root, or nil when no such key exists."
+  [governance member-id signing-key-id]
+  (when-let [member (member-by-id governance member-id)]
+    (when-let [principal (principal-by-id governance (:principal/id member))]
+      (when (and (active? (:status member)) (active? (:status principal)))
+        (some #(when (and (= signing-key-id (:key/id %))
+                          (active? (:status %)))
+                 %)
+              (:principal/keys principal))))))
+
 (defn position-key-valid?
   "Check that the concrete position key is active and belongs to the governed
    member in this pinned root.  P0 uses root-scoped, not signing-time, key
    eligibility; rotation/retirement requires a governance-root transition."
   [governance member-id signing-key-id]
-  (contains? (or (eligible-key-ids governance member-id) #{}) signing-key-id))
+  (boolean (member-signing-key governance member-id signing-key-id)))

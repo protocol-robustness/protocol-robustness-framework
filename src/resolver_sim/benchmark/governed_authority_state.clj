@@ -382,10 +382,10 @@
 ;; ── Governance eligibility cross-check ────────────────────────────────
 
 (defn signer-key-eligible-in-governance?
-  "Verify that every signer-key-set entry is governance-eligible under the
-    frozen governance body: each researcher id is a known governed member, each
-    signing-key id is an active eligible key for that member's principal.
-    Returns {:eligible? bool :errors [...]}."
+  "Verify that every signer-key-set entry exactly matches the active key owned
+   by its governed member's resolved principal in the frozen governance body.
+   The committed key ID, algorithm, and public-key material must all agree.
+   Returns {:eligible? bool :errors [...]}."
   [key-set governance]
   (let [errors (atom [])
         report! #(swap! errors conj %)]
@@ -394,14 +394,22 @@
     (when-not (map? governance)
       (report! "governance body must be a map"))
     (when (and (map? key-set) (map? governance))
-      (when-let [valid (seq (:signer-key-set/entries key-set))]
-        (doseq [entry valid]
-          (let [researcher-id (:researcher/id entry)
-                key-id (:signing-key/id entry)]
-            (when-not (governance/principal-by-id governance researcher-id)
-              (report! (str "researcher " researcher-id " is not a known principal in governance")))
-            (when-not (governance/position-key-valid? governance researcher-id key-id)
-              (report! (str "signing-key " key-id " is not eligible for researcher " researcher-id)))))))
+      (when-let [entries (seq (:signer-key-set/entries key-set))]
+        (doseq [entry entries]
+          (let [member-id (:researcher/id entry)
+                key-id (:signing-key/id entry)
+                member (governance/member-by-id governance member-id)
+                signing-key (governance/member-signing-key governance member-id key-id)]
+            (when-not member
+              (report! (str "researcher " member-id " is not a known member in governance")))
+            (when-not signing-key
+              (report! (str "signing-key " key-id " is not eligible for researcher " member-id)))
+            (when (and signing-key
+                       (not= (select-keys entry [:signing-key/algorithm :signing-key/public-key])
+                             {:signing-key/algorithm (:key/algorithm signing-key)
+                              :signing-key/public-key (:key/public-key signing-key)}))
+              (report! (str "signing-key " key-id
+                            " material does not match governance for researcher " member-id)))))))
     {:eligible? (empty? @errors) :errors (vec @errors)}))
 
 ;; ── Store-derived lookups (no caller-supplied keys) ──────────────────

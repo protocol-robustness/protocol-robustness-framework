@@ -50,6 +50,34 @@
     (is (thrown-with-msg? clojure.lang.ExceptionInfo #"schema validation"
                           (registry/load-use-case-registry path)))))
 
+(deftest declared-curiosities-are-surfaced-without-inference
+  (let [dir (temp-dir)
+        content (assoc (read-string (definition :acme/a))
+                       :concept/required-curiosities
+                       #{:currently-authorized-chain-configuration-root
+                         :current-write-back-operationally-verified})
+        _ (write! dir "definitions/a.edn" (pr-str content))
+        path (write! dir "registry.edn" (pr-str {:schema/id :prf/use-case-registry.v1
+                                                 :registry/id "acme"
+                                                 :registry/version "1"
+                                                 :use-cases [{:use-case/id :acme/a
+                                                              :definition/ref "definitions/a.edn"}]}))
+        loaded (registry/load-use-case-registry path)]
+    (is (= (:concept/required-curiosities content)
+           (registry/required-curiosities loaded :acme/a)))
+    (is (= #{} (registry/required-curiosities loaded :acme/missing))))
+  (let [dir (temp-dir)
+        content (assoc (read-string (definition :acme/a))
+                       :concept/required-curiosities [:not-a-set])
+        _ (write! dir "definitions/a.edn" (pr-str content))
+        path (write! dir "registry.edn" (pr-str {:schema/id :prf/use-case-registry.v1
+                                                 :registry/id "acme"
+                                                 :registry/version "1"
+                                                 :use-cases [{:use-case/id :acme/a
+                                                              :definition/ref "definitions/a.edn"}]}))]
+    (is (thrown-with-msg? clojure.lang.ExceptionInfo #"required-curiosities"
+                          (registry/load-use-case-registry path)))))
+
 (deftest definition-changes-change-the-committed-root
   (let [dir (temp-dir)
         definition-path (write! dir "definitions/a.edn" (definition :acme/a))

@@ -594,6 +594,35 @@
       (is (false? (:activated? result)) (str label " rejects"))
       (is (= before @(.state store)) (str label " publishes nothing")))))
 
+(deftest c3b-rejects-witness-material-not-retained-under-real-e0
+  (let [{:keys [store witness request]} (canonical-c3b-fixture)
+        retained-material (:predecessor-material witness)
+        alternate-key-set (update (:authority-material/signer-key-set retained-material)
+                                  :signer-key-set/entries
+                                  #(vec (reverse %)))
+        alternate-material (-> retained-material
+                               (assoc :authority-material/signer-key-set alternate-key-set)
+                               (assoc :signer-key-set/root
+                                      (state/signer-key-set-root alternate-key-set)))
+        alternate-witness (assoc witness :predecessor-material alternate-material)
+        alternate-evidence (c3a/build-verified-evidence alternate-witness)
+        alternate-request (assoc request
+                                 :authorization-witness alternate-witness
+                                 :authorization-evidence alternate-evidence)
+        before @(.state store)
+        result (c3b/activate-under-verified-transition-authorization! store alternate-request)]
+    (is (:valid? (c3a/verify-evidence
+                  (assoc alternate-witness :evidence alternate-evidence)))
+        "precondition: the alternate material is internally authenticated and C3a-valid")
+    (is (not= (:signer-key-set/root retained-material)
+              (:signer-key-set/root alternate-material))
+        "precondition: the alternate signer-key-set has a distinct evaluation basis")
+    (is (false? (:activated? result))
+        "activation rejects C3a evidence produced from material not retained under real E0")
+    (is (= :configuration-transition-authorization-invalid (:reason result)))
+    (is (= before @(.state store))
+        "rejection publishes no successor artifacts")))
+
 (deftest c3b-stale-composed-publication-publishes-no-t1-artifacts
   (let [{:keys [store request]} (canonical-c3b-fixture)
         original c3a/verify-evidence
@@ -1219,6 +1248,56 @@
     (is (true? (boolean (governance/position-key-valid? gb "r1" "k1"))))
     (is (true? (boolean (governance/position-key-valid? gb "r1" "k2"))))
     (is (false? (boolean (governance/position-key-valid? gb "r1" "k3"))))))
+
+(deftest signer-key-eligibility-resolves-member-to-distinct-principal
+  (let [ks {:artifact/schema state/signer-key-set-schema
+            :signer-key-set/entries [(key-entry "k1")]}
+        gb (-> (governance-body ["k1"])
+               (assoc-in [:governance/members 0 :reviewer/member-id] "r1-member")
+               (assoc-in [:governance/members 0 :principal/id] "r1-principal")
+               (assoc-in [:governance/principals 0 :principal/id] "r1-principal"))
+        member-ks (assoc-in ks [:signer-key-set/entries 0 :researcher/id] "r1-member")
+        material (authenticated-material member-ks gb)]
+    (is (:eligible? (state/signer-key-eligible-in-governance? member-ks gb))
+        "a signer researcher ID is resolved as a member ID, not as a principal ID")
+    (is (nil? (governance/principal-by-id gb "r1-member"))
+        "regression precondition: member and principal IDs are distinct")
+    (is (nil? (new-store-error (:envelope (fresh-store)) material))
+        "the authenticated-material construction gate accepts the canonical member path")))
+
+(deftest signer-key-set-rejects-replacement-public-key-before-authority-evaluation
+  (let [{:keys [material authorisation]} (authorised-material-and-authorisation)
+        pair (.generateKeyPair (KeyPairGenerator/getInstance "Ed25519"))
+        private-key-path (write-private-key-file! "replacement" (.getPrivate pair))
+        replacement-key (public-key-hex (.getPublic pair))
+        replacement-decision (rfa/build-signed-decision-v2
+                              "r1" (:authorisation/id authorisation)
+                              (:authorisation/request-root authorisation)
+                              (get-in authorisation [:authorisation/review-round :review-round/hash])
+                              (get-in authorisation [:authorisation/target :target/proposed-content-root])
+                              :approve private-key-path :signing-key-id "r1-key")
+        replacement-key-set (assoc-in (:authority-material/signer-key-set material)
+                                      [:signer-key-set/entries 0 :signing-key/public-key]
+                                      replacement-key)
+        replacement-material (-> material
+                                 (assoc :authority-material/signer-key-set replacement-key-set)
+                                 (assoc :signer-key-set/root
+                                        (state/signer-key-set-root replacement-key-set)))
+        replacement-authorisation
+        (assoc-in authorisation [:authorisation/decision-references 0] replacement-decision)]
+    (try
+      (is (:valid? (state/verify-decision-signatures-with-singer-key-set
+                    replacement-key-set replacement-authorisation))
+          "precondition: the replacement private key signs successfully under the substituted key set")
+      (is (false? (:eligible? (state/signer-key-eligible-in-governance?
+                               replacement-key-set
+                               (:authority-material/review-governance material))))
+          "same member and key ID cannot substitute different governance-committed public-key material")
+      (is (= not-rooted-msg
+             (new-store-error (:envelope (fresh-store)) replacement-material))
+          "the authenticated construction gate rejects the substitution before authority evaluation")
+      (finally
+        (.delete (java.io.File. private-key-path))))))
 
 ;; ── B3: store-derived lookups ────────────────────────────────────────────────
 

@@ -2,6 +2,18 @@
 
 ## [Unreleased]
 
+### Curiosity V1
+
+- **Added closed, read-only curiosity resolution for current admission.** `:currently-authorized-chain-configuration-root` derives the root only from authenticated current authority-store context, while `:current-write-back-operationally-verified` reports the existing V2 operational write-back fact only after evidence validation. Both return one structured non-authoritative result contract; stale, absent, invalid-evidence, and unknown requests fail closed without issuing a fence, granting authority, or mutating state. External use-case registries can explicitly surface `:concept/required-curiosities` without inference. (`src/resolver_sim/benchmark/curiosity.clj`, `src/resolver_sim/use_cases/registry.clj`)
+
+### Authoritative configuration activation
+
+- **Bound C3a verification to the real predecessor material retained under the current authority-state envelope.** `activate-under-verified-transition-authorization!` now replaces witness-supplied predecessor envelope, configuration-head state, and authority material from one authoritative-store snapshot before evaluating C3a. A separately authenticated evaluation/signing basis that is not the material retained for the real predecessor can no longer authorize activation. (`src/resolver_sim/benchmark/configuration_activation_publication.clj`, `test/resolver_sim/benchmark/governed_authority_state_test.clj`)
+
+### Governed signer-key authorization
+
+- **Hardened signer-key-set authorization against identity and key-material substitution.** Authenticated authority material now resolves each signer `:researcher/id` as a governed member before resolving its principal, and requires the signer key ID, Ed25519 algorithm, and public-key bytes to exactly match that member principal’s active governance-committed key. A separately rooted signer-key set can no longer substitute a different valid public key under an eligible key ID. (`src/resolver_sim/benchmark/review_governance.clj`, `src/resolver_sim/benchmark/governed_authority_state.clj`, `test/resolver_sim/benchmark/governed_authority_state_test.clj`)
+
 ### Authority-state durability — P1a rooted snapshot closure
 
 - **Added `authority-state-snapshot.v1` and its exact dependency manifest.** The closed snapshot commits store/chain identity, publication version, the current E/H/C/P/S/material identities, and roots for activation, fence, terminal-result, and receipt indexes. A current snapshot is eligible only when its self-rooted manifest names exactly its required immutable dependency closure, every body can be read and root-verified, and a profile-specific semantic join verifier accepts the complete closure. Corrupt or missing current closure dependencies fail closed; no fallback to historical snapshots is implicit. (`src/resolver_sim/benchmark/authority_state_snapshot.clj`, `test/resolver_sim/benchmark/authority_state_snapshot_test.clj`)

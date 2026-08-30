@@ -2443,20 +2443,20 @@
      :violations (vec violations)}))
 
 (defn related-claims-hash-matches-members?
-  "Every active relationship's stored hash must match re-derivation from its
-   current members AND its committed creator provenance. Detects data corruption
-   or mutation (including creator provenance attached outside the hash)."
+  "Every active relationship's stored hash must match the canonical reconstruction
+   for its declared schema version. Delegates to verify-related-claims-hash, which
+   is version-aware: V1/V2/V3 each reconstruct using their own contract. World
+   invariants consume authoritative artifact verification rather than reimplementing
+   artifact canonicalization."
   [world]
   (let [violations
         (for [[rel-id rel] (:related-claims world {})
               :when (= :active (:relationship/status rel))
-              :let [expected (rc/related-claims-hash (:relationship/members rel)
-                                                     (:relationship/creator-provenance rel))
-                    actual (:relationship/hash rel)]
-              :when (not= expected actual)]
+              :let [verification (rc/verify-related-claims-hash rel)]
+              :when (not (:valid? verification))]
           {:relationship/id rel-id
-           :expected expected
-           :actual actual
+           :reasons (:reasons verification)
+           :actual (:relationship/hash rel)
            :members (:relationship/members rel)})]
     {:holds? (empty? violations)
      :violations (vec violations)}))

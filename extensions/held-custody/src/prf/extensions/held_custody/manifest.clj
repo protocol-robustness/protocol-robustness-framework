@@ -14,7 +14,9 @@
      - resolver-sim.protocols.sew
      - any form under protocols_src/"
   (:require [prf.extensions.held-custody.mutation :as mutation]
-            [prf.extensions.held-custody.aggregate :as aggregate]))
+            [prf.extensions.held-custody.aggregate :as aggregate]
+            [prf.extensions.held-custody.authorisation-classification
+             :as authorisation-classification]))
 
 (def capability
   "Capability descriptor for the held-custody mutation evidence capability."
@@ -91,9 +93,13 @@
    Entrypoints are recorded as symbols in Phase 1; Var resolution and runtime
    dispatch are deferred."
   []
-  {:build-member mutation/build-force-auth-held-mutation
-   :check-member mutation/check-force-auth-held-mutation
-   :build-summary aggregate/build-held-mutation-summary
-   :recompute-summary aggregate/recompute-held-mutation-summary
-   :check-aggregate aggregate/check-held-mutation-aggregate
-   :supported-actions mutation/supported-actions})
+{:build-member mutation/build-force-auth-held-mutation
+    :check-member mutation/check-force-auth-held-mutation
+    :build-summary aggregate/build-held-mutation-summary
+    :recompute-summary aggregate/recompute-held-mutation-summary
+    :check-aggregate aggregate/check-held-mutation-aggregate
+    :supported-actions mutation/supported-actions
+    :classify-operation authorisation-classification/classify-operation
+    :forbidden-action? authorisation-classification/forbidden-action?
+    :override-enabled? authorisation-classification/override-enabled?
+    :select-permit authorisation-classification/select-permit})
