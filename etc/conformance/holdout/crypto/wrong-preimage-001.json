@@ -11,7 +11,8 @@
       "key/status": "active",
       "key/authorised-kinds": [
         "evidence-package"
-      ]
+      ],
+      "key/public-key": "302a300506032b657003210001fba18106ddb4da019e7bd658e3de8ab8c59e47e345c6caddca4e3e67ec75db"
     }
   },
   "valid-at": 1000,

@@ -95,8 +95,8 @@
 
 (defn key-status-at
   "Resolve a signer key's status at `valid-at` from a trust policy.
-   policy {:trust-policy/root ... :keys {<signer-id> {:key/id :key/status
-           :key/valid-from :key/valid-until :key/status-effective-at
+policy {:trust-policy/root ... :keys {<signer-id> {:key/id :key/public-key
+            :key/status :key/valid-from :key/valid-until :key/status-effective-at
            :key/authorised-kinds #{...}}}}
 
    Historical semantics: a bare `:revoked` status governs at all times
@@ -128,47 +128,83 @@
       (contains? kinds artifact-kind)
       (boolean (some #(= artifact-kind %) kinds)))))
 
+(defn- byte-array?
+  "True for a non-nil byte[] (rejects absent/malformed committed keys)."
+  [x]
+  (and (some? x) (instance? (Class/forName "[B") x)))
+
+(defn- keys-equal?
+  "Content equality for byte[] keys (Clojure `=` on distinct byte arrays is
+   reference identity, so explicit Arrays/equals is required)."
+  [a b]
+  (and (byte-array? a) (byte-array? b)
+       (java.util.Arrays/equals ^bytes a ^bytes b)))
+
 ;; ---------------------------------------------------------------------------
 ;; Signature verification receipt
 ;; ---------------------------------------------------------------------------
 
 (defn verify-signature
-  "Verify a signature and build a signature-verification receipt.
+  "Verify a signature and build a signature-verification receipt (AUTH-K1).
+
+   Verification identity is selected EXCLUSIVELY by the committed key in the
+   trust-policy entry for the signer identity — never by a caller-supplied
+   public key:
+
+     presented-signer-id
+        → committed signer entry (:trust-policy/keys <signer-id>)
+        → committed :key/public-key
+        → cryptographic verification
+
+   `:signer/public-key` is retained only as compatibility/redundant evidence.
+   When supplied it MUST exactly equal the committed key; a substituted public
+   key therefore fails even when it produces a cryptographically valid
+   signature.  When omitted, verification proceeds from the committed key
+   alone.
+
+   Fail-closed on: unknown algorithm; cryptographically invalid; domain
+   mismatch; unresolved signer; absent or malformed committed :key/public-key;
+   presented public key ≠ committed key; revoked/expired/not-yet-valid key; key
+   not authorised for the artifact kind.
 
    Input map keys:
      :subject/id :subject/root
      :signature/algorithm :signature/value (bytes or hex string)
      :signature/preimage (canonical preimage — bytes or string)
      :signature/domain :prf-evidence-package.v1
-     :signer/id :signer/public-key (bytes)
-     :trust-policy/root :trust-policy/keys {signer-id {...}}
+     :signer/id :signer/public-key (bytes, optional redundant evidence)
+     :trust-policy/root :trust-policy/keys {signer-id {:key/id :key/public-key ...}}
      :valid-at
      :artifact-kind
      :verification/implementation-root
-     :profile/root :environment/root
-
-   Fail-closed on: unknown algorithm; cryptographically invalid; domain
-   mismatch; unresolved signer; revoked/expired/not-yet-valid key; key not
-   authorised for the artifact kind."
+     :profile/root :environment/root"
   [m]
   (let [algorithm (:signature/algorithm m)
         value (:signature/value m)
         preimage (:signature/preimage m)
         domain (:signature/domain m)
         signer-id (:signer/id m)
-        public-key (:signer/public-key m)
         trust-policy-keys (:trust-policy/keys m)
         valid-at (:valid-at m)
         artifact-kind (:artifact-kind m)
         impl (get algorithm-registry algorithm)
-        cryptographically-valid? (and impl
-                                      ((:verify impl) public-key preimage value))
+        key-entry (get trust-policy-keys signer-id)
+        committed-key (:key/public-key key-entry)
+        committed-key-valid? (and (byte-array? committed-key)
+                                  (pos? (alength ^bytes committed-key)))
+        presented-key (:signer/public-key m)
+        presented-matches? (or (nil? presented-key)
+                               (keys-equal? presented-key committed-key))
+        key-binding-ok? (and committed-key-valid? presented-matches?)
+        cryptographically-valid? (and impl committed-key-valid?
+                                      ((:verify impl) committed-key preimage value))
         key-status (key-status-at {:keys trust-policy-keys} signer-id valid-at)
         signer-resolved? (:resolved? key-status)
         status-ok? (and signer-resolved? (= :active (:status key-status)))
         authorised? (key-authorized-for-kind? {:keys trust-policy-keys}
                                               signer-id artifact-kind)
-        pass? (and cryptographically-valid?
+        pass? (and key-binding-ok?
+                   cryptographically-valid?
                    (contains? #{:prf-evidence-package.v1 :prf-trace.v1 :prf-benchmark.v1}
                               domain)
                    status-ok?
@@ -184,6 +220,8 @@
                  :signer/id signer-id
                  :trust-policy/root (:trust-policy/root m)
                  :key-status (:status key-status)
+                 :key-binding/committed? committed-key-valid?
+                 :key-binding/presented-matches? presented-matches?
                  :valid-at valid-at
                  :cryptographically-valid? cryptographically-valid?
                  :authorised? authorised?

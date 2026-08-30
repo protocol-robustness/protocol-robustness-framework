@@ -2,6 +2,12 @@
 
 ## [Unreleased]
 
+### Conformance signature verification — AUTH-K1 committed-key binding
+
+- **`conformance.crypto/verify-signature` now selects the verification identity exclusively from the committed trust-policy key.** Verification resolves `presented-signer-id → committed entry → committed :key/public-key → verify`; the caller-supplied `:signer/public-key` is retained only as redundant evidence and must exactly equal the committed key. A substituted public key now fails even when it produces a mathematically valid signature, closing the identity-substitution hole in verification semantics. Trust-policy key entries gain a required `:key/public-key`, and absent/malformed committed-key material fails closed. (`src/resolver_sim/conformance/crypto.clj`)
+- **Added equivalent anti-substitution coverage for the reference `signed-external-decision` verifier**, which already derives the verification key solely from the committed `:key/public` resolved by `:key-id`. (`test/resolver_sim/signed_external_decision_test.clj`)
+- **The signature-verification receipt now records `:key-binding/committed?` and `:key-binding/presented-matches?`**, changing the `conformance.signature-verification/v1` receipt root. (`src/resolver_sim/conformance/crypto.clj`)
+
 ### Execution temporal final-outcome persistence
 
 - **Temporal run outcome is the replay-kernel outcome after expected-error analysis.** The sequential replay kernel recorded temporal evidence (`maybe-record-temporal!`) with a hardcoded `:pass` before expected-error analysis ran. When `:strict-expected-errors?` turned a nominal execution into a `:fail` (`:expected-error-mismatch`), the persisted temporal run outcome was `:pass` while the returned kernel outcome was `:fail`. Recording now happens after `analyze-expected-errors` determines the outcome, so a nominal pass persists `:pass`, an expected-error mismatch persists `:fail`, and a satisfied expected error persists `:pass`. The temporal `:outcome` is the replay-kernel terminal outcome at the boundary where the recorder is invoked; it deliberately excludes the later expectations/theory finalization (`finalize-scenario-result`) that `replay-events` applies to the returned result. (`src/resolver_sim/contract_model/replay/execution.clj`, `src/resolver_sim/db/temporal.clj`, `src/resolver_sim/contract_model/replay/temporal.clj`)

@@ -33,6 +33,7 @@
                                      (map (fn [[sid info]]
                                             [sid (-> info
                                                      (update :key/status keyword)
+                                                     (update :key/public-key unhex)
                                                      (update :key/authorised-kinds #(mapv keyword %)))])
                                           ks)))))]
     {:status (if (= :pass (:verification/status (crypto/verify-signature m))) "pass" "rejected")

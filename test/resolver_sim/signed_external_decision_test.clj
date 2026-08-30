@@ -62,6 +62,19 @@
     (is (false? (:valid? v)))
     (is (= :untrusted-key (:reason v)))))
 
+(deftest signed-by-attacker-key-naming-committed-key-id-fails
+  (testing "a signature made by a different private key but naming the committed
+            key-id fails — signing identity cannot be substituted for a
+            mathematically valid attacker signature"
+    (let [kp   (fx/keypair)          ; committed key in the policy
+          attk (fx/keypair :attacker)
+          signed (sed/sign-envelope {:sentinel/decision :block} domain
+                                    (:private-key attk) (:key/id kp))
+          v (sed/verify-envelope signed domain (fx/trust-policy kp) :sensitivity-sentinel)]
+      (is (false? (:valid? v)))
+      (is (= :invalid-signature (:reason v))
+          "the committed public key rejects the attacker signature"))))
+
 (deftest missing-signature-rejected
   (let [kp (fx/keypair)
         v (sed/verify-envelope {:sentinel/decision :block} domain (fx/trust-policy kp) :sensitivity-sentinel)]

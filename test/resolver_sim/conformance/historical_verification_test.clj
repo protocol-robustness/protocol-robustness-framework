@@ -54,11 +54,13 @@
                 :artifact-kind :evidence-package
                 :verification/implementation-root "sha256:impl"}
           prospective (assoc base :trust-policy/keys
-                             {:signer-a {:key/id :key-1 :key/status :revoked
+                             {:signer-a {:key/id :key-1 :key/public-key (:public-key-bytes kp)
+                                         :key/status :revoked
                                          :key/status-effective-at 2000
                                          :key/authorised-kinds #{:evidence-package}}})
           retrospective (assoc base :trust-policy/keys
-                               {:signer-a {:key/id :key-1 :key/status :revoked
+                               {:signer-a {:key/id :key-1 :key/public-key (:public-key-bytes kp)
+                                           :key/status :revoked
                                            :key/authorised-kinds #{:evidence-package}}})]
       (testing "signed at 1000, revoked effective 2000 -> historical result pass"
         (is (= :pass (:verification/status (crypto/verify-signature prospective)))))
