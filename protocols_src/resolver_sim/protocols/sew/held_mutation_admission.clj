@@ -86,6 +86,7 @@
                        :classification (:classification decision)
                        :semantic-operation-class (:semantic-operation-class decision)
                        :operation-id (:operation-id decision)
+                       :reason (:reason decision)
                        :blocking-reasons (:blocking-reasons decision)})))))
 
 (defn admit-and-add-held!

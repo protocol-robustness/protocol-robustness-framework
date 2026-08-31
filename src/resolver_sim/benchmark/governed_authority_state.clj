@@ -591,9 +591,9 @@
       (not constituted?)                    :principal-not-constituted
       (nil? key-id)                         :missing-signing-key-id
       (nil? (lookup-signing-public-key signer-key-set principal-id key-id))
-                                            :key-not-found
+      :key-not-found
       (not (governance/position-key-valid? review-governance principal-id key-id))
-                                            :key-not-governance-eligible
+      :key-not-governance-eligible
       :else                                 :resolved)))
 
 (defn key-resolution
@@ -954,33 +954,33 @@
            {:valid? false :reason (:reason resolved)}
            (let [context (:context resolved)
                  material (:authenticated-material resolved)
-inputs {:authorisation authorisation
-                          :review-round (:authority-material/review-round material)
-                          :review-governance (:authority-material/review-governance material)
-                          :position-time-index (:authority-material/position-time-index material)
-                          :signer-key-set (:authority-material/signer-key-set material)}
-                  key-resolution-result
-                  (key-resolution
-                   {:authority-state/root (:authority-state/root context)
-                    :review-governance (:review-governance inputs)
-                    :signer-key-set (:signer-key-set inputs)
-                    :review-round (:review-round inputs)
-                    :positions (:authorisation/decision-references authorisation)})
-                  key-resolution-root
-                  (:governed-authority-key-resolution/root key-resolution-result)
-                  report (if authority-semantics
-                           ((requiring-resolve 'resolver-sim.benchmark.governed-authority-semantics/evaluate-authority-with-semantics)
-                            authority-semantics inputs)
-                           (evaluate-authority-with-frozen-material inputs))
-                  report-root (authority/authority-report-root report)
-                  result {:valid? (= :authorised (:authority-status report))
-                          :authority-report report
-                          :authority-report-root report-root
-                          :governed-authority-key-resolution/root key-resolution-root
-                          :governance-root (:governance-root report)
-                          :governed-review-round-hash
-                          (get-in authorisation [:authorisation/review-round :review-round/hash])
-                          :resolved-review-authority-context context}]
+                 inputs {:authorisation authorisation
+                         :review-round (:authority-material/review-round material)
+                         :review-governance (:authority-material/review-governance material)
+                         :position-time-index (:authority-material/position-time-index material)
+                         :signer-key-set (:authority-material/signer-key-set material)}
+                 key-resolution-result
+                 (key-resolution
+                  {:authority-state/root (:authority-state/root context)
+                   :review-governance (:review-governance inputs)
+                   :signer-key-set (:signer-key-set inputs)
+                   :review-round (:review-round inputs)
+                   :positions (:authorisation/decision-references authorisation)})
+                 key-resolution-root
+                 (:governed-authority-key-resolution/root key-resolution-result)
+                 report (if authority-semantics
+                          ((requiring-resolve 'resolver-sim.benchmark.governed-authority-semantics/evaluate-authority-with-semantics)
+                           authority-semantics inputs)
+                          (evaluate-authority-with-frozen-material inputs))
+                 report-root (authority/authority-report-root report)
+                 result {:valid? (= :authorised (:authority-status report))
+                         :authority-report report
+                         :authority-report-root report-root
+                         :governed-authority-key-resolution/root key-resolution-root
+                         :governance-root (:governance-root report)
+                         :governed-review-round-hash
+                         (get-in authorisation [:authorisation/review-round :review-round/hash])
+                         :resolved-review-authority-context context}]
              (if-not (:valid? result)
                (assoc result :reason :authority-not-authorised)
                (loop []
@@ -997,11 +997,11 @@ inputs {:authorisation authorisation
                                :review-governance/root (:review-governance/root context)
                                :position-time-basis/root (:position-time-basis/root context)
                                :position-time-index/root (:position-time-index/root context)
-:signer-key-set/root (:signer-key-set/root material)
-                                :authority-evaluation-basis/root
-                                (get-in resolved [:evaluation-basis :authority-evaluation-basis/root])
-                                :governed-authority-key-resolution/root key-resolution-root
-                                :authority-report/root report-root
+                               :signer-key-set/root (:signer-key-set/root material)
+                               :authority-evaluation-basis/root
+                               (get-in resolved [:evaluation-basis :authority-evaluation-basis/root])
+                               :governed-authority-key-resolution/root key-resolution-root
+                               :authority-report/root report-root
                                :authority-status :authorised
                                :purpose :current-admission
                                :authority-semantics/root (when authority-semantics (:governed-authority-semantics/root authority-semantics))
@@ -1043,10 +1043,10 @@ inputs {:authorisation authorisation
       :post-authoritative-state-envelope/root (:authoritative-state-envelope/root successor-envelope)
       :transaction/state-before-root (:transaction/state-before-root binding)
       :transaction/state-after-root (:transaction/state-after-root binding)
-:authority-report/root (:authority-report/root record)
-       :governed-authority-key-resolution/root
-       (:governed-authority-key-resolution/root record)
-       :resolved-review-authority-context/root (:resolved-review-authority-context/root record)
+      :authority-report/root (:authority-report/root record)
+      :governed-authority-key-resolution/root
+      (:governed-authority-key-resolution/root record)
+      :resolved-review-authority-context/root (:resolved-review-authority-context/root record)
       :governed-authority-transition-binding/root
       (:governed-authority-transition-binding/root binding)
       :pre-chain-configuration/root (:chain-configuration/root pre-envelope)

@@ -17,6 +17,7 @@ Key workbenches include:
 | `notebooks/invariant_failures.clj` | Invariant failure inspector — per-scenario violation drilldown, trace replay, failure classification | Engineers debugging invariant regressions |
 | `notebooks/game_theory_artifact.clj` | Game theory — validation story with equilibrium analysis | Protocol researchers |
 | `notebooks/workbench_v2.clj` | Adversarial validation workbench (v2) — generalized scenario exploration | Engineers, security researchers |
+| `notebooks/xtdb_temporal_explorer.clj` | XTDB Temporal Explorer — bitemporal “effective then” vs “known then” queries, immutable correction history, replay failure archaeology, explicit-scope execution convergence | Engineers, operators, adopters |
 
 ---
 
@@ -43,6 +44,30 @@ clojure -M:clerk-build notebooks/dispute_resolution.clj
 ```
 
 This writes a self-contained HTML artifact to `public/build/`.
+
+### XTDB Temporal Explorer (one command)
+
+The explorer demonstrates completion-gated execution indexing, replay failure
+archaeology, bitemporal “effective then” vs “known then” queries, immutable
+correction history, and explicit-scope execution convergence — over a small,
+curated, rebuildable dataset seeded into a live XTDB.
+
+```bash
+bb explorer:demo
+```
+
+This starts XTDB, waits until it is healthy, seeds the curated explorer
+dataset, and serves the notebook in your browser. For manual steps instead:
+
+```bash
+make xtdb          # or: bb xtdb:up
+bb explorer:seed
+clojure -X:clerk :paths '["notebooks/xtdb_temporal_explorer.clj"]'
+```
+
+`bb explorer:seed` truncates and repopulates the explorer `sim_*` tables; it is
+destructive by design (demo data only) and never modifies a completed/rooted PRF
+artifact. See `dev/resolver_sim/db/explorer_seed.clj` for the exact seeded cases.
 
 ---
 

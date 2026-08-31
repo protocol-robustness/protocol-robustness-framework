@@ -186,10 +186,17 @@
          [:div {:style {:font-family "monospace" :font-size "11px" :color "#888" :margin-bottom "10px"}}
           "Same run identity, same completed/rooted PRF artifact. Only the *derived index observation* changed. "
           "XTDB system time records the correction; the authoritative artifact never changed."]
-         (htable ["field" "as known then" "as known now"]
-                 [["outcome" (get-in diff [:then :execution/status]) (get-in diff [:now :execution/status])]
-                  ["result root" (get-in diff [:then :execution/bundle_root]) (get-in diff [:now :execution/bundle_root])]
-                  ["system from" (:execution/_system_from (:then diff)) (:execution/_system_from (:now diff))]])
+         (htable ["field" "as known then" "best known now"]
+                 [["result root" (get-in diff [:then :execution/bundle_root]) (get-in diff [:now :execution/bundle_root])]
+                  ["outcome" (get-in diff [:then :execution/status]) (get-in diff [:now :execution/status])]])
+         [:div {:style {:margin-top "12px" :font-family "monospace" :font-size "11px" :color "#0d7a8a"}}
+          (str "Changed indexed fields: "
+               (clojure.string/join ", "
+                                    (map (fn [k] (last (clojure.string/split (name k) #"/")))
+                                         (:content-changed-keys diff))))]
+         [:div {:style {:margin-top "4px" :font-family "monospace" :font-size "11px" :color "#888"}}
+          (str "System-time interval: " (:execution/_system_from (:then diff))
+               " → " (:execution/_system_from (:now diff)))]
          [:div {:style {:margin-top "12px" :padding "12px" :border-radius "8px"
                         :border "1px solid #b58900" :background "#3a2f0a" :color "#f5d782"
                         :font-family "monospace" :font-size "11px"}}

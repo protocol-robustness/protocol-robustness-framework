@@ -139,6 +139,34 @@
 
 (defn- as-of-ts [s] (java.util.Date. (.toEpochMilli (java.time.Instant/parse s))))
 
+(defn- insert-execution-run-row!
+  "TEST-ONLY direct insert of one sim_execution_runs row, mirroring the private
+   projection insert so the system-time correction test can write a
+   deliberately-incorrect observation that the real projection later corrects."
+  [ds row]
+  (jdbc/execute!
+   ds
+   [(str "INSERT INTO sim_execution_runs"
+         " (_id, run_type, status, semantic_status, benchmark_id, scenario_id, execution_id,"
+         "  package_index_root, bundle_root, input_set_root, semantic_composition_root,"
+         "  completion_sha256, package_index_sha256, package_index_bytes, _valid_from) VALUES ("
+         (xtdb/sql-str (:run-id row)) ", "
+         (xtdb/sql-str (:run-type row)) ", "
+         (xtdb/sql-str (:status row)) ", "
+         (xtdb/sql-str (:semantic-status row)) ", "
+         (xtdb/sql-str (:benchmark-id row)) ", "
+         (xtdb/sql-str (:scenario-id row)) ", "
+         (xtdb/sql-str (:execution-id row)) ", "
+         (xtdb/sql-str (:package-index-root row)) ", "
+         (xtdb/sql-str (:bundle-root row)) ", "
+         (xtdb/sql-str (:input-set-root row)) ", "
+         (xtdb/sql-str (:semantic-composition-root row)) ", "
+         (xtdb/sql-str (:completion-sha256 row)) ", "
+         (xtdb/sql-str (:package-index-sha256 row)) ", "
+         (xtdb/sql-long (:package-index-bytes row)) ", "
+         (xtdb/sql-ts (:valid-from row))
+         ")")]))
+
 (def ^:private sample-executions
   [{:execution/id "exec-1" :case/key "case-1" :scenario/id "scenario-1"
     :benchmark/run-index 0 :benchmark/run-count 2 :execution/status "completed"
@@ -233,8 +261,10 @@
           root (build-completed-package! id "sha256:result-correct")
           correct (ep/resolve-projection root)
           incorrect (assoc-in correct [:run :bundle-root] "sha256:INDEX-ERROR-WRONG")]
-      ;; t1: the index first showed the wrong derived root.
-      (ep/insert-run! *ds* (:run incorrect))
+      ;; t1: the index first showed the wrong derived root. `insert-run!` is
+      ;; private, so this writes the deliberately-incorrect observation directly
+      ;; (the same demo-only bypass the explorer seed uses).
+      (insert-execution-run-row! *ds* (:run incorrect))
       ;; t2: the authoritative projection corrects it (same _id → new system-time version).
       (ep/project-run! *ds* root)
       (let [hist (sort-by :execution/_system_from

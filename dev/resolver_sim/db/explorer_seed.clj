@@ -180,16 +180,53 @@
 
 ;; ---------------------------------------------------------------------------
 ;; Synthetic non-authoritative index correction
+;;
+;; This is the ONE deliberate bypass of the normal
+;;   validated artifact → deterministic projection → persistence
+;; path, and it is dev-only. It writes an INCORRECT derived-index observation
+;; directly (mirroring the private insert SQL) so XTDB system time can record
+;; its later correction. Keeping the direct insert here — rather than exposing a
+;; public production insert on `db.execution-projection` — makes the unsafe
+;; boundary obvious and local to the demo seed.
 ;; ---------------------------------------------------------------------------
+
+(defn- insert-execution-run-row!
+  "DEMO-ONLY direct insert of one sim_execution_runs row. Mirrors the private
+   projection insert so the seed can write an intentionally-incorrect index
+   observation that the real projection later corrects. Never call from src/."
+  [ds row]
+  (jdbc/execute!
+   ds
+   [(str "INSERT INTO sim_execution_runs"
+         " (_id, run_type, status, semantic_status, benchmark_id, scenario_id, execution_id,"
+         "  package_index_root, bundle_root, input_set_root, semantic_composition_root,"
+         "  completion_sha256, package_index_sha256, package_index_bytes, _valid_from) VALUES ("
+         (xtdb/sql-str (:run-id row)) ", "
+         (xtdb/sql-str (:run-type row)) ", "
+         (xtdb/sql-str (:status row)) ", "
+         (xtdb/sql-str (:semantic-status row)) ", "
+         (xtdb/sql-str (:benchmark-id row)) ", "
+         (xtdb/sql-str (:scenario-id row)) ", "
+         (xtdb/sql-str (:execution-id row)) ", "
+         (xtdb/sql-str (:package-index-root row)) ", "
+         (xtdb/sql-str (:bundle-root row)) ", "
+         (xtdb/sql-str (:input-set-root row)) ", "
+         (xtdb/sql-str (:semantic-composition-root row)) ", "
+         (xtdb/sql-str (:completion-sha256 row)) ", "
+         (xtdb/sql-str (:package-index-sha256 row)) ", "
+         (xtdb/sql-long (:package-index-bytes row)) ", "
+         (xtdb/sql-ts (:valid-from row))
+         ")")]))
 
 (defn seed-synthetic-index-correction!
   "Demonstrate XTDB system time.
 
    The completed/rooted PRF artifact is UNCHANGED. This deliberately writes an
-   INCORRECT derived-index observation for a run, then projects the correct
-   observation for the same run identity. XTDB system time records both; the
-   correct projection becomes current. This models correction of the derived
-   index, never mutation of the authoritative artifact."
+   INCORRECT derived-index observation for a run (via the demo-only direct
+   insert above), then projects the correct observation for the same run
+   identity. XTDB system time records both; the correct projection becomes
+   current. This models correction of the derived index, never mutation of the
+   authoritative artifact."
   [ds]
   (let [run-id "run-synthetic-correction"
         root   (build-completed-package! run-id "sha256:result-correct"
@@ -198,8 +235,8 @@
         correct-projection (ep/resolve-projection root)
         ;; Incorrect index observation: same run identity, wrong derived root.
         incorrect-row (assoc-in correct-projection [:run :bundle-root] "sha256:INDEX-ERROR-WRONG-ROOT")]
-    ;; t1: the index first showed the wrong derived root.
-    (ep/insert-run! ds (:run incorrect-row))
+    ;; t1: the index first showed the wrong derived root (demo-only bypass).
+    (insert-execution-run-row! ds (:run incorrect-row))
     ;; t2: the authoritative projection corrects it (same _id → new system-time version).
     (ep/project-run! ds root)))
 

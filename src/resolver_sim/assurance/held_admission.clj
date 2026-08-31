@@ -95,6 +95,38 @@
   "The [capability-kind capability-id] key of the override capability."
   [(:capability/kind override-capability) (:capability/id override-capability)])
 
+(def exceptional-override-reason-class
+  "Stable admission-level semantic classification for each concrete exceptional
+   override resolution failure.
+
+   Two stable semantics:
+     :exceptional-override-capability-unavailable — an otherwise acceptable
+       authority/capability could not be obtained (no unique usable capability
+       could be selected; the provider could not be reached).
+     :exceptional-override-capability-invalid     — something was supplied or
+       resolved, but it fails the authority contract (malformed input, an
+       unrooted/foreign resolution, or an authority mismatch).
+
+   This taxonomy is part of the admission contract. Fails closed: a granular
+   reason with no explicit classification here cannot silently fall through to a
+   generic umbrella (see classify-exceptional-override-reason)."
+  {:resolution-invalid        :exceptional-override-capability-invalid
+   :resolution-unrooted       :exceptional-override-capability-invalid
+   :capability-wrong-identity :exceptional-override-capability-invalid
+   :capability-absent         :exceptional-override-capability-unavailable
+   :ambiguous-providers       :exceptional-override-capability-unavailable
+   :provider-unavailable      :exceptional-override-capability-unavailable})
+
+(defn classify-exceptional-override-reason
+  "Map a concrete resolution failure to its stable semantic classification. An
+   unclassified granular reason is an internal contract violation: it throws
+   rather than silently downgrading to a generic umbrella."
+  [reason]
+  (or (get exceptional-override-reason-class reason)
+      (throw (ex-info "Exceptional override resolution failure has no semantic classification"
+                      {:type :held-custody/admission-classification-error
+                       :reason reason}))))
+
 (defn- normalize-extension-resolution
   "Normalize a caller-supplied extension-resolution to {:valid? bool
    :resolution <snapshot>}. Accepts the resolve-requested result
@@ -216,6 +248,9 @@
                                        disabled / consumed / not-selected /
                                        unavailable)
      :never-overrideable             -> {:admission :reject}
+   A :reject decision carries a stable semantic :reason
+   (:exceptional-override-capability-unavailable | :exceptional-override-capability-invalid)
+   alongside the concrete resolution failure in :blocking-reasons.
    Rejected classifications change nothing (no mutation, no consumption)."
   [{:keys [operation-id scope permits consumption-registry now-ts
            configuration-head extension-resolution]}]
@@ -241,7 +276,8 @@
            :semantic-operation-class :force-authorisation-override
            :operation-id operation-id
            :classification :forbidden
-           :blocking-reasons [(or reason :exceptional-override-capability-unavailable)]}
+           :reason (classify-exceptional-override-reason reason)
+           :blocking-reasons [reason]}
           (implementation
            {:scope scope
             :permits permits

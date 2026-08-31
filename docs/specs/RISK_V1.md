@@ -171,13 +171,56 @@ issued fences together). Configuration activation and `finalise-risk-fence!`
 `compare-and-set!` the **same** atom, so the head check and the business-state
 commit are one atomic update. There is no separate `ConfigurationHeadStore` and
 no copied head representation across stores, so a configuration activation can
-never race *between* the head check and the business commit. Under real threads
-the two serialize: either the finalize commits under head H1 (its admission
-record is bound to H1's root; a concurrent stale activation is rejected), or
-the activation wins and the finalize re-reads the new head and rejects
+never race *between* the head check and the business commit.
+
+**The guarantee is structural, not conventional.** It rests on three facts that
+hold by construction: (a) the head and the business state live in the same
+atomic primitive; (b) both competing actions serialize through that one CAS
+domain; (c) the head check and the business mutation are a single state
+transition. Under real threads the two serialize: either the finalize commits
+under head H1 (its admission record is bound to H1's root), or the activation
+wins and the finalize re-reads the new head and rejects
 (`:state-not-at-required-head`). A committed admission is never observed bound
-to a later head. (Verified by a 200-iteration concurrent activate-vs-finalize
-stress test.)
+to a later head.
+
+Temporal meaning: currentness is evaluated **at the commit boundary**, not
+continuously afterward. A commit under H1 permanently records H1/C1/P1; a later
+governed activation to H2 is a distinct, correct event and does not make the
+historical admission stale.
+
+The 200-iteration concurrent activate-vs-finalize test in `admission_test.clj`
+is **adversarial regression evidence only** — it exercises the CAS boundary
+under real threads but is not the primary justification for atomicity. The
+justification is the structural fact (one state atom, one CAS primitive, head
+check + business mutation in one transition).
+
+## Risk V1 semantic freeze
+
+The following are frozen **contract-level** semantics. Do not modify them
+opportunistically; expand through new versions/extensions instead:
+
+- **`risk-projection.v1`** — loss-bearing exposure; `current` / `after` /
+  per-row `peak`; conservative aggregate peak; open overlapping domain
+  attribution; exact source-state binding; derived, non-authoritative.
+- **`risk-limit-policy.v1`** — sole risk authority artifact; global / selected-
+  domain / member-concentration limits; mandatory under `chain-configuration.v4`.
+- **`risk-limit-evaluation.v1`** — derived evidence; exact policy + projection
+  roots; fail-closed.
+- **Protected pro-rata admission** — candidate projection derived internally;
+  current config derived from the authoritative head; policy derived from
+  configuration; issue/finalize fence; same atomicity domain.
+- **Assurance claim** — Risk V1 provides governed, state-bound exposure limits
+  for protected protocol operation: the exact candidate operation is evaluated
+  against the exact risk-limit policy committed by the authoritative
+  configuration applicable at commit, and stale authority cannot finalize.
+- **Lineage invariant** — head → configuration → risk policy → exact candidate
+  projection → evaluation → atomic commit contains **no caller-asserted
+  authority gap**. Named invariant, not emergent behavior.
+
+Frozen here refers to the observable contract (shapes, roots, semantics, the
+V4 authority relationship, and the currentness/atomicity guarantee). Reopening
+any of these requires a new version (e.g. `risk-limit-policy.v2`) or an explicit
+freeze revision, never an in-place mutation of V1.
 
 ## Assurance ladder (Risk V1)
 

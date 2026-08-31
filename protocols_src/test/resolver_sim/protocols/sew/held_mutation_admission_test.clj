@@ -18,6 +18,7 @@
             [resolver-sim.configuration-head :as configuration-head]
             [resolver-sim.extensions.registry :as registry]
             [resolver-sim.extensions.resolution :as resolution]
+            [resolver-sim.hash.canonical :as hc]
             [resolver-sim.assurance.held-override-selection :as selection]
             [resolver-sim.assurance.held-override-publication :as publication]
             [resolver-sim.protocols.sew.types :as types]
@@ -81,6 +82,27 @@
      (registry/register-package (registry/empty-extension-map) manifest/package)
      [override-capability-key]
      {:schemas schemas})))
+
+(defn- re-root
+  "Recompute the resolution-root of a tampered snapshot so it remains root-valid
+   (the same projection `verify-portable!` uses)."
+  [snapshot]
+  (let [root (hc/domain-hash
+              "EXTENSION_RESOLUTION_V1"
+              (dissoc snapshot :extensions/resolution-root))]
+    (assoc snapshot :extensions/resolution-root root)))
+
+(defn- provider-unavailable-resolution
+  "A root-valid extension-resolution that selects the override capability but
+   points its entrypoint at an unresolvable namespace, so the provider cannot be
+   reached (genuine capability unavailability, not malformed caller input)."
+  []
+  (let [snapshot (:resolution (extension-resolution))
+        caps (:extensions/capabilities snapshot)
+        tampered (assoc snapshot :extensions/capabilities
+                        (update caps override-capability-key assoc
+                                :entrypoint "nonexistent.ns/override-admission"))]
+    {:valid? true :resolution (re-root tampered)}))
 
 (defn- world-with-grant [permit]
   (assoc (types/empty-world)
@@ -200,4 +222,36 @@
             (catch clojure.lang.ExceptionInfo _
               (reset! threw? true)))
           (is (true? @threw?) "consumed permit rejects before mutation")
+          (is (= before (world-equality world))))))))
+
+(deftest rejected-admission-preserves-semantic-reason-across-boundary
+  "Regression: the stable semantic :reason computed by `admit-held-mutation` must
+   survive the throwing wrapper (`admit-and-add-held!`), alongside the concrete
+   granular cause in :blocking-reasons. Without this, program logic could branch
+   on :reason only to find it dropped one layer later."
+  (with-package-registered
+    (fn []
+      (let [token :USDC
+            amount 100
+            extra {:owner/address "0xrecipient" :held/workflow-id 0}
+            permit (force-auth-permit "fa-unavailable" token amount :in fa-reason extra)
+            world (world-with-grant permit)
+            before (world-equality world)
+            ex (try
+                 (admission/admit-and-add-held!
+                  world token amount
+                  {:action "add-held" :reason fa-reason :extra extra}
+                  {:operation-id :held-custody/force-auth-mutation
+                   :scope (scope-map-accounting-derives
+                           "fa-unavailable" token amount :in fa-reason extra)
+                   :permits [permit]
+                   :consumption-registry {}
+                   :now-ts 500
+                   :configuration-head (current-head)
+                   :extension-resolution (provider-unavailable-resolution)})
+                 (catch clojure.lang.ExceptionInfo e e))]
+        (testing "the required exceptional capability is genuinely unavailable"
+          (is (= :exceptional-override-capability-unavailable (:reason (ex-data ex))))
+          (is (some #{:provider-unavailable} (:blocking-reasons (ex-data ex)))))
+        (testing "no mutation or consumption occurred"
           (is (= before (world-equality world))))))))

@@ -22,18 +22,24 @@
         (is (= [] (:result-roots none)))))))
 
 (deftest execution-run-knowledge-diff-composes-queries
-  (testing "then (as-known-at) vs now (valid-at) with changed-keys"
+  (testing "then (as-known-at) vs now (valid-at), separating content from temporal-metadata changes"
     (with-redefs [ep/execution-runs-as-known-at
-                  (fn [_ds _t] [{:execution/_id "r" :execution/bundle_root "THEN" :execution/status "pass"}])
+                  (fn [_ds _t] [{:execution/_id "r" :execution/bundle_root "THEN" :execution/status "pass"
+                                 :execution/_system_from :t1}])
                   ep/execution-runs-valid-at
-                  (fn [_ds _t] [{:execution/_id "r" :execution/bundle_root "NOW" :execution/status "pass"}])]
+                  (fn [_ds _t] [{:execution/_id "r" :execution/bundle_root "NOW" :execution/status "pass"
+                                 :execution/_system_from :t2}])]
       (let [diff (sut/execution-run-knowledge-diff
                   nil {:execution-run/id "r"
                        :valid-at (java.util.Date.)
                        :known-at (java.util.Date.)})]
         (is (= "THEN" (get-in diff [:then :execution/bundle_root])))
         (is (= "NOW" (get-in diff [:now :execution/bundle_root])))
-        (is (= [:execution/bundle_root] (:changed-keys diff)))
+        (is (= [:execution/bundle_root :execution/_system_from] (:changed-keys diff)))
+        (is (= [:execution/bundle_root] (:content-changed-keys diff))
+            "only the content change (bundle_root) is a content change")
+        (is (= [:execution/_system_from] (:temporal-metadata-changed-keys diff))
+            "the system-time bound is reported as temporal metadata, not content")
         (is (not (some #{:execution/status} (:changed-keys diff)))))))
 
   (testing "returns {} when the run is absent from either snapshot"

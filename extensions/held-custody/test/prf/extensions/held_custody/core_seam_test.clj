@@ -158,11 +158,12 @@
 (deftest seam-fails-closed-on-selection-defects
   "Slice B fail-closed matrix: a root-valid resolution that does not authoritatively
    select the exact pinned override capability cannot authorize exceptional
-   execution."
+   execution. Each rejection carries the stable semantic :reason plus the concrete
+   granular cause in :blocking-reasons."
   (let [s (scope :in 100)
         permit (permit-for s)
         caps (fn [snapshot] (:extensions/capabilities snapshot))
-        reject-with (fn [reason extension-resolution]
+        reject-with (fn [reason semantic extension-resolution]
                       (let [d (admission/admit-held-mutation
                                {:operation-id :held-custody/force-auth-mutation
                                 :scope s :permits [permit]
@@ -170,15 +171,16 @@
                                 :configuration-head (current-head)
                                 :extension-resolution extension-resolution})]
                         (is (= :reject (:admission d)))
-                        (is (some #{reason} (:blocking-reasons d)))))]
+                        (is (some #{reason} (:blocking-reasons d)))
+                        (is (= semantic (:reason d)))))]
     (testing "capability absent from a rooted snapshot"
-      (reject-with :capability-absent
+      (reject-with :capability-absent :exceptional-override-capability-unavailable
                    {:valid? true
                     :resolution (re-root (assoc (base-snapshot)
                                                 :extensions/capabilities
                                                 (dissoc (caps (base-snapshot)) override-capability-key)))}))
     (testing "wrong capability version / contract"
-      (reject-with :capability-wrong-identity
+      (reject-with :capability-wrong-identity :exceptional-override-capability-invalid
                    {:valid? true
                     :resolution (re-root (assoc (base-snapshot)
                                                 :extensions/capabilities
@@ -186,7 +188,7 @@
                                                         override-capability-key
                                                         assoc :capability/version 2)))}))
     (testing "duplicate/ambiguous providers"
-      (reject-with :ambiguous-providers
+      (reject-with :ambiguous-providers :exceptional-override-capability-unavailable
                    {:valid? true
                     :resolution (re-root (assoc (base-snapshot)
                                                 :extensions/capability-providers
@@ -194,7 +196,7 @@
                                                            [:extensions/capability-providers override-capability-key :providers]
                                                            conj {:package-root (str "sha256:" (apply str (repeat 64 "z")))})))}))
     (testing "selected provider unavailable (unresolvable entrypoint)"
-      (reject-with :provider-unavailable
+      (reject-with :provider-unavailable :exceptional-override-capability-unavailable
                    {:valid? true
                     :resolution (re-root (assoc (base-snapshot)
                                                 :extensions/capabilities
@@ -202,7 +204,7 @@
                                                         override-capability-key
                                                         assoc :entrypoint "nonexistent.ns/override-admission")))}))
     (testing "tampered (unrooted) resolution"
-      (reject-with :resolution-unrooted
+      (reject-with :resolution-unrooted :exceptional-override-capability-invalid
                    {:valid? true
                     :resolution (assoc (base-snapshot)
                                        :extensions/resolution-root

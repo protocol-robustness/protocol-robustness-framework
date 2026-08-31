@@ -18,8 +18,11 @@
             [resolver-sim.assurance.admission-fixed-point :as afp]
             [resolver-sim.assurance.custody :as custody]
             [resolver-sim.assurance.force-authorisation :as force-auth]
+            [resolver-sim.assurance.held-admission :as held-admission]
             [resolver-sim.composition.combination :as combination]
             [resolver-sim.benchmark.review.three-member-certificate :as tmc]
+            [resolver-sim.extensions.resolution :as resolution]
+            [resolver-sim.hash.canonical :as hc]
             [resolver-sim.resubmission.chain :as chain]
             [resolver-sim.resubmission.store :as store]))
 
@@ -434,5 +437,122 @@
                   :border (str "1px solid " (if holds? "#86efac" "#fca5a5"))
                   :border-radius "8px" :padding "12px 16px" :font-family "monospace"}}
     "generic admission boundaries produce the expected result — "
+    [:strong {:style {:color (if holds? "#16a34a" "#dc2626")}}
+     (if holds? "HOLDS ✓" "VIOLATED ✕")]]))
+
+;; ## Fail-closed authority resolution
+;;
+;; A different admission property: when the application requests the exceptional
+;; override/update path, the required authoritative capability must actually be
+;; obtainable. If the capability is correctly identified but its provider cannot
+;; be reached, admission fails closed — the permit alone does not manufacture
+;; authority. This is the "unavailability never becomes authority" guarantee.
+;;
+;; The framework resolves the override capability from an EXPLICIT, ROOTED
+;; extension-resolution snapshot (the same `resolve-requested` projection core
+;; uses), never the global live registry. Here we construct a root-valid snapshot
+;; that pins the exact capability identity but points its entrypoint at an
+;; unresolvable namespace, so the selected provider is genuinely unavailable.
+
+^{:nextjournal.clerk/visibility {:code :hide :result :hide}}
+(def override-capability-key
+  [:assurance/force-authorisation :held-custody/override-admission-v1])
+
+^{:nextjournal.clerk/visibility {:code :hide :result :hide}}
+(def override-capability-identity
+  {:capability/kind :assurance/force-authorisation
+   :capability/id :held-custody/override-admission-v1
+   :capability/version 1
+   :capability/contract-version 1
+   :verification/contract :prf/held-custody-override-admission-verification.v1})
+
+^{:nextjournal.clerk/visibility {:code :hide :result :hide}}
+(defn- rooted-resolution-with-unavailable-provider
+  "A root-valid extension-resolution snapshot that authoritatively pins the exact
+   override capability identity but whose provider entrypoint is unresolvable, so
+   the capability is correctly identified yet cannot be obtained."
+  []
+  (let [capability (assoc override-capability-identity
+                          :entrypoint "nonexistent.ns/override-admission")
+        base {:extensions/resolution-version 1
+              :extensions/packages {}
+              :extensions/capabilities {override-capability-key capability}
+              :extensions/capability-providers
+              {override-capability-key
+               {:providers [{:package/id :prf.extensions/held-custody
+                             :package/version 1
+                             :package-root (str "sha256:" (apply str (repeat 64 "1")))
+                             :sealed true}]}}
+              :extensions/dependencies []
+              :extensions/schema-roots {}
+              :extensions/effect-schema-roots {}
+              :extensions/runtime-profile {}}
+        root (hc/domain-hash "EXTENSION_RESOLUTION_V1" base)]
+    (assoc base :extensions/resolution-root root)))
+
+^{:nextjournal.clerk/visibility {:code :hide :result :hide}}
+(defn- authority-admission
+  "Admit the requested exceptional override against the rooted resolution."
+  [extension-resolution]
+  (held-admission/admit-held-mutation
+   {:operation-id :held-custody/force-auth-mutation
+    :scope {:authorization/id "permit-example" :authorization/type :force-authorisation
+            :held/direction :in :token :USDC :amount 100 :held/account :escrow-principal
+            :owner/address "0xExampleUser" :held/reason :escrow-principal-deposited}
+    :permits [{:authorization/id "permit-example"
+               :authorization/type :force-authorisation
+               :authorization/status :active :consumed? false
+               :authorization/scope-hash "sha256:0000000000000000000000000000000000000000000000000000000000000000"}]
+    :extension-resolution extension-resolution}))
+
+^{:nextjournal.clerk/visibility {:code :hide :result :hide}}
+(def authority-unavailable-result
+  (let [snapshot (rooted-resolution-with-unavailable-provider)
+        root-valid? (try (resolution/verify-portable! snapshot) true
+                         (catch Throwable _ false))
+        d (authority-admission snapshot)]
+    {:root-valid? root-valid?
+     :admitted? (= :proceed-force-authorised (:admission d))
+     :reason (:reason d)
+     :blocking-reasons (:blocking-reasons d)}))
+
+;; The requested exceptional/update capability is correctly identified but its
+;; provider cannot be reached:
+
+;; | Requested authoritative update | Result |
+;; | --- | --- |
+;; | Required capability available | continue admission |
+;; | Required capability unavailable | **NOT ADMITTED** |
+
+^{:nextjournal.clerk/visibility {:code :hide :result :show}}
+(clerk/table
+ {:head ["Property" "Value"]
+  :rows [["Root-valid resolution" (if (:root-valid? authority-unavailable-result) "✓" "✕")]
+         ["Admitted?" (if (:admitted? authority-unavailable-result) "✓" "✕ NOT ADMITTED")]
+         ["Semantic reason" (name (:reason authority-unavailable-result))]
+         ["Concrete cause" (mapv name (:blocking-reasons authority-unavailable-result))]]})
+
+;; The decision carries **two levels**:
+;;
+;; - `:reason` — the stable admission-level semantic classification
+;;   (`:exceptional-override-capability-unavailable`).
+;; - `:blocking-reasons` — the concrete diagnostic explaining it
+;;   (`:provider-unavailable`).
+;;
+;; The two are deliberately not flattened together. A program can branch on the
+;; stable `:reason`; an operator inspecting a failure reads the concrete cause in
+;; `:blocking-reasons`. And crucially, the permit was otherwise well-formed — its
+;; presence alone cannot turn a genuine capability unavailability into admission.
+
+^{:nextjournal.clerk/visibility {:code :hide :result :show}}
+(clerk/html
+ (let [holds? (and (not (:admitted? authority-unavailable-result))
+                   (= :exceptional-override-capability-unavailable
+                      (:reason authority-unavailable-result))
+                   (= [:provider-unavailable] (:blocking-reasons authority-unavailable-result)))]
+   [:div {:style {:background (if holds? "#f0fdf4" "#fef2f2")
+                  :border (str "1px solid " (if holds? "#86efac" "#fca5a5"))
+                  :border-radius "8px" :padding "12px 16px" :font-family "monospace"}}
+    "unavailability never becomes authority — "
     [:strong {:style {:color (if holds? "#16a34a" "#dc2626")}}
      (if holds? "HOLDS ✓" "VIOLATED ✕")]]))

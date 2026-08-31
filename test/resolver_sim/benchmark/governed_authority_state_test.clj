@@ -2271,7 +2271,6 @@
         (is (= reason (:reason rejected)) (name label))
         (is (= before @(.state store)) (str label " has no mutation"))))))
 
-
 ;; ---------------------------------------------------------------------------
 ;; AUTH-K2 resolved-key-authority projection
 ;; ---------------------------------------------------------------------------

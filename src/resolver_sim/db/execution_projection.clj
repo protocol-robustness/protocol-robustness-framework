@@ -136,12 +136,9 @@
   [run-root]
   (build-projection (package-index/resolve-validation-context run-root)))
 
-(defn insert-run!
+(defn- insert-run!
   "Low-level writer for one sim_execution_runs row (XTDB upsert by `_id`).
-
-   Used by `project-run!` and by the demonstrative explorer seed to write an
-   explicit index observation (including a synthetic non-authoritative
-   correction) without duplicating the insert SQL."
+   Used internally by `project-run!`; not public API."
   [ds row]
   (jdbc/execute! ds
                  [(str "INSERT INTO sim_execution_runs"
@@ -165,10 +162,9 @@
                        (xtdb/sql-ts (:valid-from row))
                        ")")]))
 
-(defn insert-benchmark!
+(defn- insert-benchmark!
   "Low-level writer for one sim_benchmark_executions row (XTDB upsert by `_id`).
-
-   Used by `project-run!`; exposed for the demonstrative explorer seed."
+   Used internally by `project-run!`; not public API."
   [ds row]
   (jdbc/execute! ds
                  [(str "INSERT INTO sim_benchmark_executions"

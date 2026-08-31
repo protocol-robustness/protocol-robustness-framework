@@ -789,14 +789,19 @@ test:community {:doc "Run community participation tests"
                     (clojure "-M" "-e" "(require 'resolver-sim.db.store 'resolver-sim.db.xtdb) (resolver-sim.db.store/truncate! (resolver-sim.db.xtdb/->datasource))")
                     (clojure "-M:telemetry-seed" "20"))}
 
-  explorer:seed
-  {:doc "Reset and seed XTDB with the demonstrative XTDB Temporal Explorer dataset
+explorer:seed
+   {:doc "Reset and seed XTDB with the demonstrative XTDB Temporal Explorer dataset
          (execution + temporal + synthetic index-correction history)."
-   :task (shell "clojure" "-M:explorer-seed")}
+    :task (shell "clojure" "-M:explorer-seed")}
 
   explorer:reset-seed
-  {:doc "Truncate only the explorer sim_* tables (execution + temporal)."
-   :task (shell "clojure" "-M:explorer-seed" "reset")}
+   {:doc "Truncate only the explorer sim_* tables (execution + temporal)."
+    :task (shell "clojure" "-M:explorer-seed" "reset")}
+
+  explorer:demo
+   {:doc "One-command XTDB Temporal Explorer demo: start XTDB, wait until healthy,
+         seed the curated dataset, then serve the notebook via Clerk."
+    :task (shell "bash" "-c" "make xtdb && until [ \"$(docker inspect -f '{{.State.Health.Status}}' config-xtdb-1 2>/dev/null)\" = healthy ]; do sleep 2; done && bb explorer:seed && clojure -X:clerk :paths '[\"notebooks/xtdb_temporal_explorer.clj\"]'")}
 
   test:forensic-python {:doc "Run forensic Python unit tests (verify.py, preflight.py, etc.)"
                         :task (shell "python3" "-m" "pytest" "test/forensic_python/" "-v")}

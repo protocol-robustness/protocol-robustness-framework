@@ -1,4 +1,4 @@
-;; # Can a Committed Evidence Record Be Changed?
+;; # Can a Committed Evidence Record Be Silently Changed?
 ;;
 ;; One integrity question, one user-supplied example, one consequence.
 ;;
@@ -105,6 +105,19 @@
 ;; This mutated evidence remains locally well-formed, but is no longer the evidence
 ;; that was committed. Its content no longer recomputes to the committed hash.
 
+;; A committed artifact is **not** an object that can be edited in place. Changing
+;; the committed contents in place is not the same as creating an authorised
+;; successor:
+;;
+;; - old commitment + different contents → integrity failure
+;; - old commitment + authorised update operation + new evidence + new commitment
+;;   → potentially valid successor
+;;
+;; An application may define a legitimate update or successor mechanism, but that
+;; mechanism must produce whatever new evidence, commitment, and authorisation its
+;; policy requires. The availability of such an update mechanism does not change
+;; whether the *old* commitment matches the supplied evidence.
+
 ^{:nextjournal.clerk/visibility {:code :hide :result :show}}
 (clerk/html (demo-views/technical-proof demo-result))
 
@@ -121,9 +134,17 @@
 ;; | Canonicalize supplied custody evidence and recompute its verification | Choose the escrow facts: domain data, amount, actors, and intended mutation |
 ;; | Reject evidence whose committed hash no longer recomputes | Decide what to do after rejection |
 ;; | Provide generic admission primitives | Define a product's authorization, reservation, cancellation, pro-rata, or dispute policy |
+;; | Reject contents that do not reproduce their commitment | Define whether and how legitimate successor records/updates may be produced |
+;; | Fail closed when a required authoritative capability is unavailable | Decide whether that capability is required for the application's operation |
 ;;
 ;; The failed check is evidence of an integrity mismatch. It is **not** a
 ;; framework prescription for the application's next action.
+
+;; A legitimate successor may depend on an application or framework admission
+;; capability. If that required capability cannot be established, its absence does
+;; not authorize mutation of the existing commitment — the framework does not own
+;; the application's update process, and it never manufactures authority from
+;; unavailability. In short: **unavailability never becomes authority.**
 
 ^{:nextjournal.clerk/visibility {:code :hide :result :show}}
 (clerk/html
@@ -136,10 +157,24 @@
                    (= expected-failures actual-failures))]
    [:div {:style {:background "#f8fafc" :border "1px solid #cbd5e1"
                   :borderRadius "8px" :padding "12px 16px" :fontFamily "monospace"}}
-    "Demo result: expected integrity rejection observed"
-    [:br]
-    [:strong {:style {:color (if holds? "#16a34a" "#dc2626")}}
-     (if holds? "HOLDS ✓" "HOLDS ✕")]]))
+"Demo result: expected integrity rejection observed"
+     [:br]
+     [:strong {:style {:color (if holds? "#16a34a" "#dc2626")}}
+      (if holds? "HOLDS ✓" "HOLDS ✕")]]))
+
+;; ## The progression
+;;
+;; The demonstrated property and the availability principle are distinct:
+;;
+;; 1. **Commitment** — the original artifact is admitted.
+;; 2. **Mutation** — a plausible changed artifact is not admitted; the committed
+;;    hash no longer matches.
+;; 3. **Fixed point** — serialization stability cannot wash away the mismatch.
+;; 4. **Update availability** — a legitimate update must use an
+;;    application/admission-defined path; if its required authority/capability is
+;;    unavailable, admission fails closed.
+;; 5. **Consequence** — neither mutation nor infrastructure unavailability
+;;    manufactures authority.
 
 ;; ## Fixed-point stability
 

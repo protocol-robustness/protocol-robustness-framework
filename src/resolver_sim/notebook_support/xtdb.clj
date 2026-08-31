@@ -6,13 +6,24 @@
    is always against an explicit caller-supplied scope."
   (:require [resolver-sim.db.execution-projection :as ep]))
 
+(def ^:private temporal-column-keys
+  "XTDB-managed bitemporal bounds, excluded from content-changed-keys."
+  #{:execution/_valid_from :execution/_valid_to
+    :execution/_system_from :execution/_system_to})
+
 (defn execution-run-knowledge-diff
   "Compare one execution run's index observation AS KNOWN at `known-at`
    (system time) vs BEST-KNOWN-NOW effective at `valid-at` (valid time).
 
    Input keys: :execution-run/id, :valid-at, :known-at (both java.util.Date).
-   Returns {:then {...} :now {...} :changed-keys [...]}, or {} when the run is
-   absent from either snapshot."
+   Returns, or {} when the run is absent from either snapshot:
+     :then, :now                     — the two snapshots
+     :changed-keys                   — all changed keys (content + temporal)
+     :content-changed-keys           — changed keys excluding the four XTDB
+                                       temporal bounds (what the indexed
+                                       assertion actually changed)
+     :temporal-metadata-changed-keys — the XTDB temporal bounds that changed
+                                       (e.g. _system_from between versions)"
   [ds {:keys [execution-run/id valid-at known-at]}]
   (let [then (first (filter #(= id (:execution/_id %))
                             (ep/execution-runs-as-known-at ds known-at)))
@@ -22,7 +33,11 @@
                           (filter (fn [k] (not= (get then k) (get now k))))
                           vec)]
     (if (and then now)
-      {:then then :now now :changed-keys changed-keys}
+      {:then then
+       :now now
+       :changed-keys changed-keys
+       :content-changed-keys (vec (remove temporal-column-keys changed-keys))
+       :temporal-metadata-changed-keys (vec (filter temporal-column-keys changed-keys))}
       {})))
 
 (def ^:private scope->row-key

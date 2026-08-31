@@ -48,7 +48,9 @@
       (is (= :reject (:admission d)))
       (is (= :forbidden (:classification d)))
       (is (some #{:resolution-invalid}
-                (:blocking-reasons d))))
+                (:blocking-reasons d)))
+      (is (= :exceptional-override-capability-invalid (:reason d))
+          "malformed/missing resolution input classifies as capability-invalid, not unavailable"))
     (testing "a permit cannot satisfy the override when the package is absent"
       (let [d (admission/admit-held-mutation
                {:operation-id :held-custody/force-auth-mutation
@@ -57,3 +59,16 @@
         (is (= :reject (:admission d)))
         (is (some #{:resolution-invalid}
                   (:blocking-reasons d)))))))
+
+(deftest exceptional-override-reason-class-mapping-is-closed
+  (testing "every concrete resolution failure has an explicit semantic classification"
+    (is (= {:resolution-invalid        :exceptional-override-capability-invalid
+            :resolution-unrooted       :exceptional-override-capability-invalid
+            :capability-wrong-identity :exceptional-override-capability-invalid
+            :capability-absent         :exceptional-override-capability-unavailable
+            :ambiguous-providers       :exceptional-override-capability-unavailable
+            :provider-unavailable      :exceptional-override-capability-unavailable}
+           admission/exceptional-override-reason-class)))
+  (testing "an unclassified granular reason fails closed (no generic umbrella fallback)"
+    (is (thrown? clojure.lang.ExceptionInfo
+                 (admission/classify-exceptional-override-reason :some-future-reason)))))
