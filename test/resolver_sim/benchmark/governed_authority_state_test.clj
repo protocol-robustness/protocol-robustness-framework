@@ -1286,7 +1286,7 @@
         replacement-authorisation
         (assoc-in authorisation [:authorisation/decision-references 0] replacement-decision)]
     (try
-      (is (:valid? (state/verify-decision-signatures-with-singer-key-set
+      (is (:valid? (state/verify-decision-signatures-with-signer-key-set
                     replacement-key-set replacement-authorisation))
           "precondition: the replacement private key signs successfully under the substituted key set")
       (is (false? (:eligible? (state/signer-key-eligible-in-governance?
@@ -2271,3 +2271,198 @@
         (is (= reason (:reason rejected)) (name label))
         (is (= before @(.state store)) (str label " has no mutation"))))))
 
+
+;; ---------------------------------------------------------------------------
+;; AUTH-K2 resolved-key-authority projection
+;; ---------------------------------------------------------------------------
+
+(defn- pos [researcher key-id]
+  {:researcher/id researcher :signing-key/id key-id})
+
+(defn- round-members [members]
+  (assoc (round-body) :review-round/members members))
+
+(defn- authority-bodies
+  "Build review-round, review-governance, and signer-key-set over a
+   principal→keys map and a round member list."
+  [principal-keys members]
+  (let [round (round-members members)
+        gov {:schema-version "review-governance.v1"
+             :governance/epoch 0
+             :governance/roles #{:reviewer}
+             :governance/principals
+             (mapv (fn [[pid keys]]
+                     {:principal/id pid :status :active
+                      :principal/independence-group pid
+                      :principal/independence-basis-root (hash-ref "ab")
+                      :principal/keys (mapv (fn [kid]
+                                              {:key/id kid :status :active
+                                               :key/algorithm :ed25519
+                                               :key/public-key test-public-key})
+                                            keys)})
+                   principal-keys)
+             :governance/members
+             (mapv (fn [[pid _]]
+                     {:reviewer/member-id pid :principal/id pid
+                      :status :active :granted-roles #{:reviewer}})
+                   principal-keys)
+             :governance/policies [{:policy/id "p1" :member-count 3 :threshold 2
+                                    :required-roles #{:reviewer}
+                                    :role-cardinality :unique
+                                    :equivocation-policy :invalid-seat}]}
+        ks {:artifact/schema state/signer-key-set-schema
+            :signer-key-set/entries
+            (vec (mapcat (fn [[pid keys]]
+                           (mapv (fn [kid]
+                                   {:researcher/id pid :signing-key/id kid
+                                    :signing-key/algorithm :ed25519
+                                    :signing-key/public-key test-public-key})
+                                 keys))
+                         principal-keys))}]
+    {:review-round round :review-governance gov :signer-key-set ks}))
+
+(defn- resolve-keys [bodies positions]
+  (state/key-resolution
+   {:authority-state/root (hash-ref "aa00")
+    :review-governance (:review-governance bodies)
+    :signer-key-set (:signer-key-set bodies)
+    :review-round (:review-round bodies)
+    :positions positions}))
+
+(defn- resolution-statuses [result]
+  (mapv :resolution/status (:key-resolution/entries result)))
+
+(defn- sha256-ref? [s]
+  (boolean (re-matches #"sha256:[0-9a-f]{64}" s)))
+
+(deftest k2-resolution-correct-principal-key-and-purpose-resolves
+  (testing "correct principal + correct committed key + committed round purpose"
+    (let [bodies (authority-bodies [["r1" ["k1"]] ["r2" ["k2"]] ["r3" ["k3"]]]
+                                   [{:researcher/id "r1"} {:researcher/id "r2"} {:researcher/id "r3"}])
+          result (resolve-keys bodies [(pos "r1" "k1") (pos "r2" "k2") (pos "r3" "k3")])]
+      (is (= [:resolved :resolved :resolved] (resolution-statuses result)))
+      (is (= :model-admission (:purpose result))
+          "purpose is the committed round purpose, never caller-asserted")
+      (is (sha256-ref? (:governed-authority-key-resolution/root result))))))
+
+(deftest k2-resolution-another-principals-committed-key-rejected
+  (testing "correct principal + another principal's valid committed key"
+    (let [bodies (authority-bodies [["r1" ["k1"]] ["r2" ["k2"]]]
+                                   [{:researcher/id "r1"} {:researcher/id "r2"}])
+          result (resolve-keys bodies [(pos "r1" "k2")])] ; k2 is r2's committed key
+      (is (= [:key-not-found] (resolution-statuses result))))))
+
+(deftest k2-resolution-purpose-not-caller-controlled
+  (testing "purpose is derived from the committed round; the resolution accepts none"
+    (let [bodies (authority-bodies [["r1" ["k1"]]] [{:researcher/id "r1"}])
+          result (resolve-keys bodies [(pos "r1" "k1")])]
+      (is (= :model-admission (:purpose result)))
+      (is (= [:resolved] (resolution-statuses result))))))
+
+(deftest k2-resolution-key-outside-committed-key-set-rejected
+  (testing "a governance-eligible key absent from the committed signer-key-set
+            (different key-set root / state) cannot resolve"
+    (let [bodies (authority-bodies [["r1" ["k1" "k2"]]] [{:researcher/id "r1"}])
+          ;; governance authorizes k1 and k2, but the committed signer-key-set
+          ;; only commits k1 (k2 belongs to a different key-set/state)
+          bodies (assoc-in bodies [:signer-key-set :signer-key-set/entries]
+                           [{:researcher/id "r1" :signing-key/id "k1"
+                             :signing-key/algorithm :ed25519
+                             :signing-key/public-key test-public-key}])
+          result (resolve-keys bodies [(pos "r1" "k2")])]
+      (is (= [:key-not-found] (resolution-statuses result))
+          "governance-eligible but uncommitted ⇒ not resolvable under this state"))))
+
+(deftest k2-stale-predecessor-state-cannot-authorize-current-admission
+  (testing "current-admission against a stale predecessor state is rejected"
+    (let [w0 (fresh-store)
+          succ (successor-of w0 (:material w0))
+          _ (state/publish-successor! (:store w0) (:head w0) (:envelope succ) (:material succ))
+          w1 {:store (:store w0) :state-root (:state-root succ) :head (:head succ)}
+          basis (admission-basis w0 (:state-root w0) (:head w0))
+          r (state/resolve-governed-authority-context (:store w1) basis)]
+      (is (false? (:resolved? r)))
+      (is (= :state-not-at-required-head (:reason r))))))
+
+(deftest k2-resolution-multiple-keys-per-principal
+  (testing "multiple committed, governance-eligible keys for one principal remain
+            valid when their exact key-id is referenced"
+    (let [bodies (authority-bodies [["r1" ["k1" "k2"]]] [{:researcher/id "r1"}])
+          result (resolve-keys bodies [(pos "r1" "k1") (pos "r1" "k2")])]
+      (is (= [:resolved :resolved] (resolution-statuses result))))))
+
+(defn- material-with-constituted-round
+  "Authenticated material whose round constitutes r1 as a member and whose
+   signer-key-set/governance commit r1 with the given key-ids."
+  [key-ids]
+  (let [ks (key-set key-ids)
+        rb (assoc (round-body) :review-round/members [{:researcher/id "r1" :role :reviewer}])
+        gb (governance-body key-ids)
+        round-root (state/review-round-material-root rb)
+        pti (position-time-index-body round-root)]
+    {:chain-instance-genesis/root genesis-ref
+     :chain-configuration/root config-ref
+     :review-governance/root (governance/governance-root gb)
+     :review-governance-activation/root activation-ref
+     :control-plane-evidence/root control-evidence-ref
+     :review-governance-admissibility/root admissibility-ref
+     :review-round/hash round-hash-ref
+     :review-round/root round-root
+     :position-time-basis/root test-ptb-root
+     :position-time-index/root (state/position-time-index-root pti)
+     :signer-key-set/root (state/signer-key-set-root ks)
+     :authority-material/review-round rb
+     :authority-material/review-governance gb
+     :authority-material/position-time-index pti
+     :authority-material/signer-key-set ks}))
+
+(deftest k2-historical-replay-resolves-prior-state-key
+  (testing "after a governed transition rotates the key (S0: r1→k1, S1: r1→k2),
+            historical replay against the exact prior authoritative state still
+            resolves the historically applicable key"
+    (let [material-prior (material-with-constituted-round ["k1"])
+          material-succ  (material-with-constituted-round ["k2"])
+          w0 (fresh-store material-prior)
+          succ (successor-of w0 material-succ)
+          _ (state/publish-successor! (:store w0) (:head w0) (:envelope succ) material-succ)
+          w1 {:store (:store w0) :state-root (:state-root succ) :head (:head succ)}
+          basis (audit-basis-v2 (:state-root w0)
+                                (:authoritative-state-envelope/root (:envelope succ)))
+          resolved (state/resolve-governed-authority-context (:store w1) basis)
+          k-prior (state/key-resolution
+                   {:authority-state/root (:state-root w0)
+                    :review-governance (:authority-material/review-governance material-prior)
+                    :signer-key-set (:authority-material/signer-key-set material-prior)
+                    :review-round (:authority-material/review-round material-prior)
+                    :positions [(pos "r1" "k1")]})]
+      (is (:resolved? resolved) "historical-audit basis resolves against the ancestor state")
+      (is (= [:resolved] (resolution-statuses k-prior))
+          "the prior state's committed key still resolves on historical replay"))))
+
+(deftest k2-resolution-root-anti-transplant
+  (testing "same governance/round/state roots but different signer references yield
+            a different key-resolution root — a fence/receipt cannot be transplanted"
+    (let [bodies (authority-bodies [["r1" ["k1"]] ["r2" ["k2"]] ["r3" ["k3"]]]
+                                   [{:researcher/id "r1"} {:researcher/id "r2"} {:researcher/id "r3"}])
+          a (resolve-keys bodies [(pos "r1" "k1") (pos "r2" "k2")])
+          b (resolve-keys bodies [(pos "r1" "k1") (pos "r3" "k3")])]
+      (is (= [:resolved :resolved] (resolution-statuses a)))
+      (is (= [:resolved :resolved] (resolution-statuses b)))
+      (is (not= (:governed-authority-key-resolution/root a)
+                (:governed-authority-key-resolution/root b))
+          "same source roots + different signer refs ⇒ different resolution root"))))
+
+(deftest k2-end-to-end-fence-binds-committed-key-resolution
+  (testing "a fence issued for an authorised report carries the committed AUTH-K2
+            key-resolution root, bound to the same store record"
+    (let [{:keys [material authorisation]} (authorised-material-and-authorisation)
+          w (fresh-store material)
+          issued (state/evaluate-and-issue-finalizable-authority-fence!
+                  (:store w) (admission-basis w) authorisation)
+          rec (when-let [fence (:authority-fence issued)]
+                (fence-record w (:fence/id fence)))]
+      (is (:valid? issued))
+      (is (some? (:authority-fence issued)))
+      (is (sha256-ref? (:governed-authority-key-resolution/root issued)))
+      (is (= (:governed-authority-key-resolution/root issued)
+             (:governed-authority-key-resolution/root rec))))))

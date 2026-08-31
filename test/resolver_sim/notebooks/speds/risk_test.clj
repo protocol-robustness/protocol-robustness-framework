@@ -1,5 +1,5 @@
 (ns resolver-sim.notebooks.speds.risk-test
-  "P1: Scenario Risk Projection (risk-projection.v1).
+  "P1: Scenario Risk Projection (risk-observation.v1).
    Verifies the exit criteria: canonical rows name their evidence object and
    field, deltas are derived not invented, coverage never hides unmeasured
    scenarios, corpus statistics are not dressed up as VaR, verification
@@ -211,14 +211,14 @@
       (is (= :failed (:chain-verification (:evidence tampered))))
       (is (seq (:invalid-scenarios bad-detail)))
       (is (= (:rows (:projection clean)) (:rows (:projection tampered))))
-      (is (= (:risk-projection/root clean) (:risk-projection/root tampered))
+      (is (= (:risk-observation/root clean) (:risk-observation/root tampered))
           "evidence status is outside the semantic root; tampered chain status must not change the risk claim"))))
 
 (deftest root-commitment-re-verifies
-  (testing "recomputed commitment matches the stored risk-projection root"
+  (testing "recomputed commitment matches the stored risk-observation root"
     (let [p (risk/project (bundle-dirs))]
       (is (= :pass (:status (risk/verify-root p))))
-      (is (str/starts-with? (:canonical/hash (:risk-projection/root p)) "sha256:")))))
+      (is (str/starts-with? (:canonical/hash (:risk-observation/root p)) "sha256:")))))
 
 (deftest mutation-removing-a-node-changes-rows-and-root
   (testing "dropping a release node reduces rows, changes metrics, and the root moves"
@@ -232,7 +232,7 @@
                     (filter #(= "scn-a" (:scenario/id %))))]
       (is (= 2 (count rows)))
       (is (= [nil 1970] (mapv :delta rows)))
-      (is (not= (:risk-projection/root full) (:risk-projection/root reduced)))
+      (is (not= (:risk-observation/root full) (:risk-observation/root reduced)))
       (is (= :pass (:status (risk/verify-root reduced)))))))
 
 (deftest risk-card-renders-honestly

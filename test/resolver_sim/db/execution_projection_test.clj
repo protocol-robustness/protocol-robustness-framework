@@ -67,6 +67,26 @@
          (sut/comparison-scope {:benchmark-id "b" :scenario-id "s" :use-case "u"
                                 :run-id "r" :as-of :t :ignored true}))))
 
+(deftest bitemporal-query-vocabulary-is-offline-safe
+  (testing "the system-time/history query vocabulary honours the nil-ds offline contract"
+    (let [now (java.util.Date.)]
+      (is (= [] (sut/execution-runs-valid-at nil now)))
+      (is (= [] (sut/execution-runs-as-known-at nil now)))
+      (is (= [] (sut/execution-runs-history nil)))
+      (is (= [] (sut/benchmark-executions-valid-at nil "b" now)))
+      (is (= [] (sut/benchmark-executions-as-known-at nil "b" now)))
+      (is (= [] (sut/benchmark-executions-history nil "b"))))))
+
+(deftest bitemporal-clause-helpers-produce-expected-xtdb-sql
+  (testing "the shared clause helpers own FOR ... formatting from a timestamp value"
+    (let [t (java.util.Date. 0)]
+      (is (= "FOR VALID_TIME AS OF TIMESTAMP '1970-01-01T00:00:00Z'"
+             (xtdb/valid-as-of t)))
+      (is (= "FOR SYSTEM_TIME AS OF TIMESTAMP '1970-01-01T00:00:00Z'"
+             (xtdb/system-as-of t)))
+      (is (= "FOR ALL SYSTEM_TIME" xtdb/all-system-time))
+      (is (= "FOR ALL VALID_TIME" xtdb/all-valid-time)))))
+
 ;; ---------------------------------------------------------------------------
 ;; Invalid-source return semantics
 ;;

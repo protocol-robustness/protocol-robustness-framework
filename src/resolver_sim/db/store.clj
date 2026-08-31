@@ -372,6 +372,56 @@
           sql (str "SELECT * FROM " table as-of " ORDER BY " order-by " ASC")]
       (mapv decoder (jdbc/execute! ds [sql] xtdb/opts)))))
 
+(defn- temporal-bounds [row]
+  {:temporal/valid-to   (decode-ts (:_valid_to row))
+   :temporal/system-from (decode-ts (:_system_from row))
+   :temporal/system-to  (decode-ts (:_system_to row))})
+
+(defn- temporal-run-history-row [row]
+  (merge (temporal-run-row row) (temporal-bounds row)))
+
+;; Bitemporal run vocabulary (explicit, non-ambiguous):
+;;   temporal-runs-valid-at      FOR VALID_TIME AS OF  — effective at T, best-known now
+;;   temporal-runs-as-known-at   FOR SYSTEM_TIME AS OF — what the index knew at T
+;;   temporal-runs-history       FOR ALL SYSTEM_TIME   — every system-time version
+
+(defn temporal-runs-valid-at
+  "What temporal runs are effective at `valid-at`, best-known now
+   (FOR VALID_TIME AS OF). :temporal/* maps include the four temporal bounds."
+  [ds valid-at]
+  (if (nil? ds)
+    []
+    (mapv temporal-run-history-row
+          (jdbc/execute! ds
+                         [(str "SELECT * , _valid_to, _system_from, _system_to FROM sim_temporal_runs "
+                               (xtdb/valid-as-of valid-at)
+                               " ORDER BY _valid_from ASC, _id ASC")]
+                         xtdb/opts))))
+
+(defn temporal-runs-as-known-at
+  "What temporal runs the index knew at `known-at` (FOR SYSTEM_TIME AS OF)."
+  [ds known-at]
+  (if (nil? ds)
+    []
+    (mapv temporal-run-history-row
+          (jdbc/execute! ds
+                         [(str "SELECT * , _valid_to, _system_from, _system_to FROM sim_temporal_runs "
+                               (xtdb/system-as-of known-at)
+                               " ORDER BY _valid_from ASC, _id ASC")]
+                         xtdb/opts))))
+
+(defn temporal-runs-history
+  "Every system-time version of temporal runs (FOR ALL SYSTEM_TIME)."
+  [ds]
+  (if (nil? ds)
+    []
+    (mapv temporal-run-history-row
+          (jdbc/execute! ds
+                         [(str "SELECT * , _valid_to, _system_from, _system_to FROM sim_temporal_runs "
+                               xtdb/all-system-time
+                               " ORDER BY _system_from ASC, _id ASC")]
+                         xtdb/opts))))
+
 (defn temporal-runs
   "Return current temporal runs, ordered by valid time then id."
   [ds]

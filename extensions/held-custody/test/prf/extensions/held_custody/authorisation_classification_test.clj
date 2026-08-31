@@ -62,16 +62,16 @@
 
 (deftest add-held-and-sub-held-are-distinct-authorization-subjects
   (testing "the gate distinguishes add-held (forbidden) from sub-held (ordinary)"
-    (is (gate/forbidden-action? :add-held))
-    (is (not (gate/forbidden-action? :sub-held)))
-    (is (not (gate/forbidden-action? :finalize-released)))
-    (is (not (gate/forbidden-action? :refund-held))))
+    (is (gate/override-eligible-operation? :held-custody/force-auth-mutation))
+    (is (not (gate/override-eligible-operation? :sew/escrow-principal-deposited)))
+    (is (not (gate/override-eligible-operation? :sew/escrow-principal-deposited)))
+    (is (not (gate/override-eligible-operation? :sew/escrow-principal-deposited))))
   (testing "no generic held-change permission authorizes both directions"
     (let [add (gate/classify-operation
-               {:action :add-held :scope add-scope :permit add-permit
+               {:operation-id :held-custody/force-auth-mutation :scope add-scope :permit add-permit
                 :consumption-registry {} :now-ts 500 :authoritative-config enabled-config})
           sub (gate/classify-operation
-               {:action :sub-held :scope sub-scope :permit nil
+               {:operation-id :sew/escrow-principal-deposited :scope sub-scope :permit nil
                 :authoritative-config enabled-config})]
       (is (= :forbidden-authorized (:classification add)))
       (is (= :ordinary (:classification sub)))))
@@ -83,7 +83,7 @@
   (testing "a wrong amount is an exact-scope mismatch -> forbidden, not authorized"
     (let [wrong (permit-for (assoc add-scope :amount 99))
           r (gate/classify-operation
-             {:action :add-held :scope add-scope :permit wrong
+             {:operation-id :held-custody/force-auth-mutation :scope add-scope :permit wrong
               :consumption-registry {} :now-ts 500 :authoritative-config enabled-config})]
       (is (= :forbidden (:classification r)))
       (is (not (:usable-permit? r)))
@@ -92,17 +92,17 @@
     (is (= :forbidden-authorized
            (:classification
             (gate/classify-operation
-             {:action :add-held :scope add-scope :permit add-permit
+             {:operation-id :held-custody/force-auth-mutation :scope add-scope :permit add-permit
               :consumption-registry {} :now-ts 500 :authoritative-config enabled-config}))))))
 
 (deftest force-authorisation-for-add-held-cannot-be-replayed-for-sub-held
   (testing "a force authorisation for add-held cannot authorize sub-held, and vice versa"
     (let [r-add-from-sub (gate/classify-operation
-                          {:action :add-held :scope add-scope :permit sub-permit
+                          {:operation-id :held-custody/force-auth-mutation :scope add-scope :permit sub-permit
                            :consumption-registry {} :now-ts 500
                            :authoritative-config enabled-config})
           r-sub-from-add (gate/classify-operation
-                          {:action :sub-held :scope sub-scope :permit add-permit
+                          {:operation-id :sew/escrow-principal-deposited :scope sub-scope :permit add-permit
                            :consumption-registry {} :now-ts 500
                            :authoritative-config enabled-config})]
       (is (= :forbidden (:classification r-add-from-sub))
@@ -116,7 +116,7 @@
 (deftest forbidden-add-held-cannot-execute-without-exact-force-authorisation
   (testing "a forbidden (add-held) operation with no permit is :forbidden"
     (let [r (gate/classify-operation
-             {:action :add-held :scope add-scope :permit nil
+             {:operation-id :held-custody/force-auth-mutation :scope add-scope :permit nil
               :consumption-registry {} :now-ts 500 :authoritative-config enabled-config})]
       (is (= :forbidden (:classification r)))
       (is (some #{:missing-force-authorisation} (:blocking-reasons r)))))
@@ -124,18 +124,18 @@
     (is (= :forbidden
            (:classification
             (gate/classify-operation
-             {:action :add-held :scope add-scope :permit nil
+             {:operation-id :held-custody/force-auth-mutation :scope add-scope :permit nil
               :authoritative-config enabled-config}))))
     (is (= :forbidden
            (:classification
             (gate/classify-operation
-             {:action :add-held :scope add-scope :permit nil
+             {:operation-id :held-custody/force-auth-mutation :scope add-scope :permit nil
               :authoritative-config enabled-config}))))))
 
 (deftest forbidden-authorized-derives-from-verified-force-authorisation
   (testing "forbidden-authorized is NOT a caller-provided enum/status"
     (let [r (gate/classify-operation
-             {:action :add-held :scope add-scope :permit add-permit
+             {:operation-id :held-custody/force-auth-mutation :scope add-scope :permit add-permit
               :consumption-registry {} :now-ts 500 :authoritative-config enabled-config})]
       (is (= :forbidden-authorized (:classification r)))
       (is (true? (:usable-permit? r)))
@@ -146,7 +146,7 @@
   (testing "a permit with only a present authorization field (no usable verification) stays forbidden"
     (let [stub {:authorization/id "permit-x" :authorization/type :force-authorisation}
           r (gate/classify-operation
-             {:action :add-held :scope add-scope :permit stub
+             {:operation-id :held-custody/force-auth-mutation :scope add-scope :permit stub
               :consumption-registry {} :now-ts 500 :authoritative-config enabled-config})]
       (is (= :forbidden (:classification r)))
       (is (not (:usable-permit? r))))))
@@ -165,7 +165,7 @@
 (deftest governance-disable-makes-valid-force-authorisation-unusable
   (testing "disabling the override keeps an otherwise-valid permit forbidden"
     (let [r (gate/classify-operation
-             {:action :add-held :scope add-scope :permit add-permit
+             {:operation-id :held-custody/force-auth-mutation :scope add-scope :permit add-permit
               :consumption-registry {} :now-ts 500 :authoritative-config disabled-config})]
       (is (= :forbidden (:classification r)))
       (is (true? (:valid?
@@ -174,7 +174,7 @@
       (is (some #{:force-authorisation-override-disabled} (:blocking-reasons r)))))
   (testing "the gate reads configuration from authoritative state, not the permit/request"
     (let [r (gate/classify-operation
-             {:action :add-held :scope add-scope :permit add-permit
+             {:operation-id :held-custody/force-auth-mutation :scope add-scope :permit add-permit
               :consumption-registry {} :now-ts 500 :authoritative-config nil})]
       (is (= :forbidden (:classification r)))
       (is (some #{:force-authorisation-override-disabled} (:blocking-reasons r))))))
@@ -185,12 +185,12 @@
     (is (= :forbidden
            (:classification
             (gate/classify-operation
-             {:action :add-held :scope add-scope :permit add-permit
+             {:operation-id :held-custody/force-auth-mutation :scope add-scope :permit add-permit
               :consumption-registry {} :now-ts 500 :authoritative-config disabled-config}))))
     (is (= :forbidden-authorized
            (:classification
             (gate/classify-operation
-             {:action :add-held :scope add-scope :permit add-permit
+             {:operation-id :held-custody/force-auth-mutation :scope add-scope :permit add-permit
               :consumption-registry {} :now-ts 500 :authoritative-config enabled-config}))))))
 
 ;; ── extension architecture ──────────────────────────────────────────────────
@@ -203,10 +203,15 @@
     (is (true? (:valid? (fa/verify-authorisation-usable add-permit {} add-scope 500))))
     (is (false? (:valid? (fa/verify-authorisation-usable sub-permit {} add-scope 500)))
         "a sub-held permit fails against the add-held scope through the same validator"))
-  (testing "forbidden-action? delegates to the sensitivity sentinel, not a local re-derivation"
-    (is (= (gate/forbidden-action? :add-held)
-           (sentinel/remote-authority-required-artifact?
-            {:held/action :add-held})))))
+  (testing "override-eligibility is semantic, NOT derived from the disclosure sentinel"
+    (is (gate/override-eligible-operation? :held-custody/force-auth-mutation))
+    (is (not (gate/override-eligible-operation? :sew/escrow-principal-deposited)))
+    (testing "an ordinary add-held ingress stays ordinary even though the sentinel flags
+              :add-held for DISCLOSURE — a disclosure-policy change must not alter
+              mutation authority"
+      (is (sentinel/remote-authority-required-artifact? {:held/action :add-held}))
+      (is (not (gate/override-eligible-operation? :sew/escrow-principal-deposited))
+          "disclosure sensitivity is decoupled from authorization"))))
 
 ;; ── consumption semantics ───────────────────────────────────────────────────
 
@@ -214,14 +219,14 @@
   (testing "a consumed permit cannot be replayed for the same single-use authority"
     (let [consumed (assoc add-permit :consumed? true)
           r (gate/classify-operation
-             {:action :add-held :scope add-scope :permit consumed
+             {:operation-id :held-custody/force-auth-mutation :scope add-scope :permit consumed
               :consumption-registry {} :now-ts 500 :authoritative-config enabled-config})]
       (is (= :forbidden (:classification r)))
       (is (some #{:authorisation-already-consumed} (:blocking-reasons r)))))
   (testing "a permit in the consumption registry cannot be replayed"
     (let [registry {(:authorization/id add-permit) {:consumed-at 400}}
           r (gate/classify-operation
-             {:action :add-held :scope add-scope :permit add-permit
+             {:operation-id :held-custody/force-auth-mutation :scope add-scope :permit add-permit
               :consumption-registry registry :now-ts 500
               :authoritative-config enabled-config})]
       (is (= :forbidden (:classification r)))
@@ -230,14 +235,14 @@
 (deftest stale-at-commit-cannot-execute
   (testing "a permit valid at an earlier time but expired at commit time fails closed"
     (let [r (gate/classify-operation
-             {:action :add-held :scope add-scope :permit add-permit
+             {:operation-id :held-custody/force-auth-mutation :scope add-scope :permit add-permit
               :consumption-registry {} :now-ts 5000 :authoritative-config enabled-config})]
       (is (= :forbidden (:classification r)))
       (is (some #{:authorisation-expired} (:blocking-reasons r)))))
   (testing "a permit not yet started fails closed"
     (let [future (assoc add-permit :starts-at 2000 :expires-at 3000)
           r (gate/classify-operation
-             {:action :add-held :scope add-scope :permit future
+             {:operation-id :held-custody/force-auth-mutation :scope add-scope :permit future
               :consumption-registry {} :now-ts 500 :authoritative-config enabled-config})]
       (is (= :forbidden (:classification r)))
       (is (some #{:authorisation-not-yet-started} (:blocking-reasons r))))))
@@ -245,11 +250,11 @@
 (deftest failed-attempts-do-not-consume
   (testing "the gate is a pure classifier and never consumes; a failed attempt leaves the permit usable"
     (let [failed (gate/classify-operation
-                  {:action :add-held :scope (assoc add-scope :amount 999)
+                  {:operation-id :held-custody/force-auth-mutation :scope (assoc add-scope :amount 999)
                    :permit add-permit :consumption-registry {} :now-ts 500
                    :authoritative-config enabled-config})
           retry (gate/classify-operation
-                 {:action :add-held :scope add-scope :permit add-permit
+                 {:operation-id :held-custody/force-auth-mutation :scope add-scope :permit add-permit
                   :consumption-registry {} :now-ts 500
                   :authoritative-config enabled-config})]
       (is (= :forbidden (:classification failed)))
@@ -262,7 +267,7 @@
   (testing "when both a normal (ordinary) path and force-authorisation could apply,
             the ordinary path wins and force-authorisation is ignored, not consumed"
     (let [r (gate/classify-operation
-             {:action :sub-held :scope sub-scope :permit add-permit
+             {:operation-id :sew/escrow-principal-deposited :scope sub-scope :permit add-permit
               :consumption-registry {} :now-ts 500 :authoritative-config enabled-config})]
       (is (= :ordinary (:classification r)))
       (is (true? (:force-auth-ignored? r))))))
@@ -270,7 +275,7 @@
 (deftest ambiguity-fails-closed-when-multiple-usable-permits
   (testing "one valid permit -> forbidden-authorized"
     (let [r (gate/classify-operation
-             {:action :add-held :scope add-scope :permits [add-permit]
+             {:operation-id :held-custody/force-auth-mutation :scope add-scope :permits [add-permit]
               :consumption-registry {} :now-ts 500 :authoritative-config enabled-config})]
       (is (= :forbidden-authorized (:classification r)))
       (is (= 1 (:usable-permit-count r)))))
@@ -278,7 +283,7 @@
             not a silent first-by-id choice"
     (let [p2 (assoc add-permit :authorization/id "permit-second")
           r (gate/classify-operation
-             {:action :add-held :scope add-scope :permits [add-permit p2]
+             {:operation-id :held-custody/force-auth-mutation :scope add-scope :permits [add-permit p2]
               :consumption-registry {} :now-ts 500 :authoritative-config enabled-config})]
       (is (= :ambiguous-force-authorisation (:classification r)))
       (is (= 2 (:usable-permit-count r)))
@@ -289,11 +294,11 @@
   (testing "candidate order does not change the outcome (deterministic ambiguity)"
     (let [p2 (assoc add-permit :authorization/id "permit-second")
           forward (gate/classify-operation
-                   {:action :add-held :scope add-scope :permits [add-permit p2]
+                   {:operation-id :held-custody/force-auth-mutation :scope add-scope :permits [add-permit p2]
                     :consumption-registry {} :now-ts 500
                     :authoritative-config enabled-config})
           reverse (gate/classify-operation
-                   {:action :add-held :scope add-scope :permits [p2 add-permit]
+                   {:operation-id :held-custody/force-auth-mutation :scope add-scope :permits [p2 add-permit]
                     :consumption-registry {} :now-ts 500
                     :authoritative-config enabled-config})]
       (is (= (:classification forward) (:classification reverse)))
@@ -301,7 +306,7 @@
   (testing "a wrong-scope second permit does not create ambiguity; only exact usable permits count"
     (let [wrong (permit-for (assoc add-scope :amount 999))
           r (gate/classify-operation
-             {:action :add-held :scope add-scope :permits [add-permit wrong]
+             {:operation-id :held-custody/force-auth-mutation :scope add-scope :permits [add-permit wrong]
               :consumption-registry {} :now-ts 500 :authoritative-config enabled-config})]
       (is (= :forbidden-authorized (:classification r)))
       (is (= 1 (:usable-permit-count r))))))
@@ -311,14 +316,14 @@
             the collection has two exact matches"
     (let [p2 (assoc add-permit :authorization/id "permit-second")
           r (gate/classify-operation
-             {:action :add-held :scope add-scope :permits [add-permit p2]
+             {:operation-id :held-custody/force-auth-mutation :scope add-scope :permits [add-permit p2]
               :consumption-registry {} :now-ts 500 :authoritative-config enabled-config})]
       (is (= :ambiguous-force-authorisation (:classification r))))))
 
 (deftest selection-cannot-make-a-generic-or-wrong-scope-permit-satisfy-a-forbidden-operation
   (testing "a single wrong-scope permit stays :forbidden (no generic fallback)"
     (let [r (gate/classify-operation
-             {:action :add-held :scope add-scope :permit sub-permit
+             {:operation-id :held-custody/force-auth-mutation :scope add-scope :permit sub-permit
               :consumption-registry {} :now-ts 500 :authoritative-config enabled-config})]
       (is (= :forbidden (:classification r)))
       (is (not (:usable-permit? r))))))
@@ -328,7 +333,7 @@
             operation; sub-held stays :ordinary with the force-auth ignored, not consumed,
             and never becomes :forbidden-authorized"
     (let [r (gate/classify-operation
-             {:action :sub-held :scope sub-scope :permit add-permit
+             {:operation-id :sew/escrow-principal-deposited :scope sub-scope :permit add-permit
               :consumption-registry {} :now-ts 500 :authoritative-config enabled-config})]
       (is (= :ordinary (:classification r)))
       (is (true? (:force-auth-ignored? r)))
@@ -343,11 +348,11 @@
            (set (keys gate/vocabulary)))))
   (testing "forbidden-authorized requires exact verified authorization + enabled override"
     (let [valid (gate/classify-operation
-                 {:action :add-held :scope add-scope :permit add-permit
+                 {:operation-id :held-custody/force-auth-mutation :scope add-scope :permit add-permit
                   :consumption-registry {} :now-ts 500
                   :authoritative-config enabled-config})
           not-valid (gate/classify-operation
-                     {:action :add-held :scope add-scope :permit add-permit
+                     {:operation-id :held-custody/force-auth-mutation :scope add-scope :permit add-permit
                       :consumption-registry {} :now-ts 500
                       :authoritative-config disabled-config})]
       (is (= :forbidden-authorized (:classification valid)))

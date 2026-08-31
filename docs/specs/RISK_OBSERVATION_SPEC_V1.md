@@ -1,17 +1,19 @@
-# RISK_PROJECTION_SPEC_V1
+# RISK_OBSERVATION_SPEC_V1
 
 Status: Implemented v1 (P0–P4).
 
 Reference implementation:
-`src/resolver_sim/notebook_support/speds/risk.clj` (risk-projection model),
+`src/resolver_sim/notebook_support/speds/risk.clj` (risk-observation model),
 `src/resolver_sim/notebook_support/speds/risk_render.clj` (risk card),
 `src/resolver_sim/notebook_support/speds/var.clj` (distribution + VaR model),
 `src/resolver_sim/notebook_support/speds/var_render.clj` (VaR card),
 `scripts/scenarios/generate_risk_projection.clj` (generator, `bb risk:projection`).
 
 This artifact is a [Projection Artifact](PROJECTION_ARTIFACT_SPEC_V1.md) of type
-risk projection: a canonical, deterministic, evidence-backed view of ONE observed
-risk quantity across the scenario universe of an event-evidence bundle.
+risk observation: a canonical, deterministic, evidence-backed view of ONE observed
+risk quantity across the scenario universe of an event-evidence bundle. It is an
+observational/historical artifact, distinct from the generic loss-bearing
+exposure kernel `risk-projection.v1` (`resolver-sim.risk.*`).
 
 ---
 
@@ -24,7 +26,7 @@ event evidence (observed fields)
 scenario risk observations (rows, :derived from observed fields)
         │
         ▼
-risk-projection.v1            ────────────────► risk card (presentation, OUTSIDE root)
+risk-observation.v1           ────────────────► risk card (presentation, OUTSIDE root)
         │
         ▼
 probability / portfolio model  (P4, deferred)
@@ -131,7 +133,7 @@ of a scenario has `:delta nil`.
 ## 5. Artifact structure
 
 ```
-{:schema                       "risk-projection.v1"
+{:schema                       "risk-observation.v1"
  :projection-id                <16 hex chars of the domain hash>
  :context                      {:bundle-dir ... :trace-dir ... :run-id ...}
  :source                       {:evidence-roots [sha256:...]
@@ -155,7 +157,7 @@ of a scenario has `:delta nil`.
                                 :chain-verification :not-measured
                                 :world-transition-verification :not-measured
                                 :verification-root nil}
- :risk-projection/root         {:canonical/bytes <hex>
+ :risk-observation/root        {:canonical/bytes <hex>
                                 :canonical/hash <sha256:...>}}
 ```
 
@@ -223,7 +225,7 @@ verified, independent of the risk values they carry.
 
 ## 7. Commitment
 
-`:risk-projection/root` commits the **semantic** artifact only:
+`:risk-observation/root` commits the **semantic** artifact only:
 
 ```
 {:schema, :source, :projection, :coverage,
@@ -237,9 +239,9 @@ Excluded from the commitment (outside the root):
 - `:projection-id`
 - the rendered risk card
 
-Commitment scheme: `sha256("RISK_PROJECTION_V1" || canonical-bytes(body))`,
+Commitment scheme: `sha256("RISK_OBSERVATION_V1" || canonical-bytes(body))`,
 produced by `resolver-sim.hash.canonical/domain-hash` with the string domain tag
-`RISK_PROJECTION_V1`, returned as a `sha256:` reference via
+`RISK_OBSERVATION_V1`, returned as a `sha256:` reference via
 `resolver-sim.hash.reference/sha256-ref`. Re-verification recomputes the
 commitment from the artifact's own semantic fields (`verify-root`); the generator
 refuses to write if the root does not re-verify.
@@ -263,13 +265,13 @@ P3/P4 status is reported honestly by the artifact (`:evidence/* :not-measured`,
 
 ## 9. P4 — Scenario distribution and VaR projection
 
-P4 introduces TWO canonical artifacts strictly downstream of risk-projection.v1.
+P4 introduces TWO canonical artifacts strictly downstream of risk-observation.v1.
 The projection itself never emits VaR numbers; its `:distribution-policy/status`
 stays `:not-measured`.
 
 ### 9.1 Scenario distribution (`scenario-distribution.v1`)
 
-The explicit probability/weighting boundary. Consumes a risk-projection.v1 and
+The explicit probability/weighting boundary. Consumes a risk-observation.v1 and
 declares:
 
 - `:model` — `empirical-scenario-distribution.v1`
@@ -284,7 +286,7 @@ declares:
 
 ### 9.2 VaR projection (`var-projection.v1`)
 
-Consumes a risk-projection.v1 and exactly one scenario-distribution.v1. Emits
+Consumes a risk-observation.v1 and exactly one scenario-distribution.v1. Emits
 VaR claims ONLY here:
 
 - `:var/p95`, `:var/p99` — weighted empirical quantiles
@@ -302,7 +304,7 @@ VaR claims ONLY here:
 ### 9.3 Data flow
 
 ```
-risk-projection.v1 ─────────────────────────► risk card
+risk-observation.v1 ─────────────────────────► risk card
       │
       ▼
 scenario-distribution.v1   (empirical, uniform weights)

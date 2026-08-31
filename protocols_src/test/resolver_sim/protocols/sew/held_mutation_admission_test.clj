@@ -18,6 +18,8 @@
             [resolver-sim.configuration-head :as configuration-head]
             [resolver-sim.extensions.registry :as registry]
             [resolver-sim.extensions.resolution :as resolution]
+            [resolver-sim.assurance.held-override-selection :as selection]
+            [resolver-sim.assurance.held-override-publication :as publication]
             [resolver-sim.protocols.sew.types :as types]
             [resolver-sim.protocols.sew.held-mutation-admission :as admission]
             [prf.extensions.held-custody.manifest :as manifest]))
@@ -26,6 +28,15 @@
   [:assurance/force-authorisation :held-custody/override-admission-v1])
 
 (def fa-reason :replay-fixture-setup)
+
+(defn- current-head []
+  (configuration-head/initial-head (str "sha256:" (apply str (repeat 64 "a"))) 1))
+
+(defn- historical-selection []
+  (selection/build-selection override-capability-key
+                             {:package/id :prf.extensions/held-custody
+                              :package-root "sha256:held-custody-pkg"}
+                             (:configuration-head-state/root (current-head))))
 
 (defn- scope-map-accounting-derives
   "The exact :authorization/scope accounting derives for a force-auth add-held,
@@ -60,9 +71,6 @@
      :authorization/scope sm
      :starts-at 0
      :expires-at 1000}))
-
-(defn- current-head []
-  (configuration-head/initial-head (str "sha256:" (apply str (repeat 64 "a"))) 1))
 
 (defn- extension-resolution []
   (let [root (str "sha256:" (apply str (repeat 64 "a")))
@@ -110,7 +118,11 @@
                             :consumption-registry {}
                             :now-ts 500
                             :configuration-head (current-head)
-                            :extension-resolution (extension-resolution)}
+                            :extension-resolution (extension-resolution)
+                            :held-override/selection (historical-selection)
+                            :held-override/provider-root "sha256:held-custody-pkg"
+                            :held-override/capability-key override-capability-key
+                            :held-override/capability-version 1}
             world' (admission/admit-and-add-held!
                     world token amount
                     {:action "add-held" :reason fa-reason :extra extra}
@@ -125,7 +137,14 @@
           (is (= :force-authorisation
                  (get-in world' [:held-adjustments 0 :authorization/provenance :authorization/type]))))
         (testing "total-held reflects the ingress"
-          (is (= amount (get-in world' [:total-held token]))))))))
+          (is (= amount (get-in world' [:total-held token]))))
+        (testing "the successor state commits the lineage root and retains the historical bodies"
+          (is (string? (:held-override/lineage-root world')))
+          (is (contains? (:held-override/bodies world') (:held-override/lineage-root world'))))
+        (testing "historically auditable END-TO-END from the authoritative result only"
+          (let [audit (publication/audit-from-successor world')]
+            (is (true? (:audited? audit))
+                (pr-str audit))))))))
 
 (deftest rejected-admission-changes-nothing
   (with-package-registered

@@ -583,7 +583,7 @@ Depending on the workflow, generated evidence may include:
 Generate a canonical, evidence-backed view of escrow exposure across a scenario
 corpus, with an explicit — and honestly separated — VaR pipeline:
 
-- `risk-projection.v1` — time-indexed `escrow/total-held` exposure series with
+- `risk-observation.v1` (formerly risk-projection.v1) — time-indexed `escrow/total-held` exposure series with
   per-row evidence provenance (evidence hash + exact field path), scenario-local
   deltas, measured/not-measured coverage, and corpus-safe metrics. Chain
   verification is `:verified`; content-hash recomputation and world-transition
@@ -596,7 +596,9 @@ corpus, with an explicit — and honestly separated — VaR pipeline:
 
 Every artifact commits a canonical root that re-verifies; rendering is outside
 the commitment. Generate the full set with `bb risk:projection`. Spec:
-`docs/specs/RISK_PROJECTION_SPEC_V1.md`.
+`docs/specs/RISK_OBSERVATION_SPEC_V1.md`. The generic risk kernel
+(`risk-projection.v1`, `risk-limit-policy.v1`, `risk-limit-evaluation.v1`) is
+documented in `docs/specs/RISK_V1.md`.
 
 #### Independent output verification
 

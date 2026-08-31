@@ -133,7 +133,8 @@
     :check-aggregate aggregate/check-held-mutation-aggregate
     :supported-actions mutation/supported-actions
     :classify-operation authorisation-classification/classify-operation
-    :forbidden-action? authorisation-classification/forbidden-action?
+    :override-eligible-operation?
+    authorisation-classification/override-eligible-operation?
     :override-enabled? authorisation-classification/override-enabled?
     :usable-permits authorisation-classification/usable-permits
     :classify-under-current-configuration

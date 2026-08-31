@@ -19,10 +19,13 @@
    usability is delegated to the authoritative core validator
    resolver-sim.assurance.force-authorisation/verify-authorisation-usable — the
    same engine the force-authorisation extension's scope-verification facade
-   forwards to. Remote-authority-required classification is delegated to the
-   sensitivity sentinel. The override-enabled posture MUST be resolved by the
-   caller from authoritative governance/configuration state, never from the
-   request payload; the gate fails closed when it is absent or ambiguous.
+   forwards to. Override-eligibility is a property of the SEMANTIC OPERATION
+   (held-admission/semantic-operation-class), never of :in/:out, add-held/sub-held,
+   or disclosure sensitivity. The disclosure/evidence sentinel is deliberately
+   NOT consulted for authority: a disclosure-policy change must not alter mutation
+   authority. The override-enabled posture MUST be resolved by the caller from
+   authoritative governance/configuration state, never from the request payload;
+   the gate fails closed when it is absent or ambiguous.
 
    Multiple simultaneously usable permits are NOT silently resolved by a lexical
    tie-breaker: unless permit ordering is itself part of the governed semantic
@@ -41,8 +44,7 @@
      - any form under protocols_src/
      - resolver-sim.evidence.force-authorisation (deleted legacy core domain)"
   (:require [resolver-sim.assurance.force-authorisation :as fa]
-            [resolver-sim.sensitivity.sentinel :as sentinel]
-            [prf.extensions.held-custody.mutation :as mutation]))
+            [resolver-sim.assurance.held-admission :as held-admission]))
 
 (def vocabulary
   "The classification vocabulary. :forbidden-authorized is reserved for an
@@ -69,13 +71,15 @@
 
 (declare candidate-permits)
 
-(defn forbidden-action?
-  "True when the held-custody action is remote-authority-required (forbidden by
-   default): it may only execute through force-authorisation. Delegates to the
-   sensitivity sentinel, the authoritative classifier. add-held is forbidden;
-   sub-held / finalize-released / refund-held are not."
-  [action]
-  (sentinel/remote-authority-required-artifact? {:held/action action}))
+(defn override-eligible-operation?
+  "True when a SEMANTIC OPERATION requires an exceptional governed override
+   (is force-authorisation-override eligible). Override-eligibility is a property
+   of the semantic operation, never of :in/:out, add-held/sub-held, or disclosure
+   sensitivity. The disclosure/evidence sentinel is deliberately NOT consulted:
+   a disclosure-policy change must never alter mutation authority."
+  [operation-id]
+  (= :force-authorisation-override
+     (held-admission/semantic-operation-class operation-id)))
 
 (defn override-enabled?
   "Resolve the governed override-enabled posture from AUTHORITATIVE
@@ -120,15 +124,14 @@
    disabled / missing. Delegates to the authoritative validator for lifecycle
    reasons; with multiple unusable candidates, distinct reasons are unioned so
    the operator sees the full failure surface."
-  [{:keys [action scope permits permit consumption-registry now-ts
+  [{:keys [operation-id scope permits permit consumption-registry now-ts
            authoritative-config]}]
-  (let [action (mutation/normalize-action action)
-        remote? (and (some? action) (forbidden-action? action))
+  (let [override-eligible? (override-eligible-operation? operation-id)
         enabled? (override-enabled? authoritative-config)
         candidates (candidate-permits permits permit)]
     (cond
-      (nil? action) [:unknown-action]
-      (not remote?) []
+      (nil? operation-id) [:unknown-operation]
+      (not override-eligible?) []
       (not (true? enabled?)) [:force-authorisation-override-disabled]
       (empty? candidates) [:missing-force-authorisation]
       :else
@@ -151,7 +154,10 @@
   "Classify a proposed held-custody operation under the forbidden/authorized gate.
 
    opts:
-     :action               :add-held | :sub-held | :finalize-released | :refund-held
+     :operation-id          semantic operation identity (held-admission
+                            semantic-operation-classes); the ONLY authority input.
+     :action                :add-held | :sub-held | ... (accounting effect only,
+                            NOT an authority input).
      :scope                the exact authorized scope being requested
      :permits              the candidate force-authorisation permit collection
      :permit               convenience: a single permit candidate (treated as
@@ -162,46 +168,49 @@
                            AUTHORITATIVE source (never the request payload)
 
    Returns {:classification <kw>
-            :forbidden-action? bool
+            :override-eligible? bool
             :override-enabled? bool
             :usable-permit? bool
             :usable-permit-count int
             :blocking-reasons [kw]}.
 
+   Override-eligibility is a property of the SEMANTIC OPERATION, never of
+   :in/:out, add-held/sub-held, or disclosure sensitivity. add-held / sub-held
+   are purely accounting effects.
+
    Precedence (explicit, deterministic, ambiguity fails closed):
-     1. Unknown action                                      -> :forbidden
-     2. Ordinary (non-remote-authority-required) action     -> :ordinary
+     1. Unknown operation                                    -> :forbidden
+     2. Ordinary (non-override-eligible) operation           -> :ordinary
         (force-auth ignored, not consumed)
-     3. Forbidden action + override disabled/absent         -> :forbidden
-     4. Forbidden action + override enabled, no permits     -> :forbidden
-     5. Forbidden action + zero exact usable permits        -> :forbidden
-     6. Forbidden action + exactly one exact usable permit  -> :forbidden-authorized
-     7. Forbidden action + >1 distinct exact usable permits -> :ambiguous-force-authorisation"
-  [{:keys [action scope permit consumption-registry now-ts authoritative-config
-           permits]
+     3. Override operation + override disabled/absent        -> :forbidden
+     4. Override operation + override enabled, no permits    -> :forbidden
+     5. Override operation + zero exact usable permits       -> :forbidden
+     6. Override operation + exactly one exact usable permit -> :forbidden-authorized
+     7. Override operation + >1 distinct exact usable permits -> :ambiguous-force-authorisation"
+  [{:keys [operation-id scope permit consumption-registry now-ts
+           authoritative-config permits]
     :as opts}]
-  (let [action (mutation/normalize-action action)
-        remote? (and (some? action) (forbidden-action? action))
+  (let [override-eligible? (override-eligible-operation? operation-id)
         enabled? (override-enabled? authoritative-config)
         registry (or consumption-registry {})
         now (or now-ts 0)
         candidates (candidate-permits permits permit)
-        usable (if (and remote? (true? enabled?) (seq candidates))
+        usable (if (and override-eligible? (true? enabled?) (seq candidates))
                  (usable-permits candidates scope registry now)
                  [])
         usable-count (count usable)]
     (cond
-      (nil? action)
+      (nil? operation-id)
       {:classification :forbidden
-       :forbidden-action? false
+       :override-eligible? false
        :override-enabled? enabled?
        :usable-permit? false
        :usable-permit-count 0
-       :blocking-reasons [:unknown-action]}
+       :blocking-reasons [:unknown-operation]}
 
-      (not remote?)
+      (not override-eligible?)
       {:classification :ordinary
-       :forbidden-action? false
+       :override-eligible? false
        :override-enabled? enabled?
        :usable-permit? false
        :usable-permit-count 0
@@ -210,7 +219,7 @@
 
       (not (true? enabled?))
       {:classification :forbidden
-       :forbidden-action? true
+       :override-eligible? true
        :override-enabled? enabled?
        :usable-permit? false
        :usable-permit-count 0
@@ -218,7 +227,7 @@
 
       (not (seq candidates))
       {:classification :forbidden
-       :forbidden-action? true
+       :override-eligible? true
        :override-enabled? true
        :usable-permit? false
        :usable-permit-count 0
@@ -226,7 +235,7 @@
 
       (zero? usable-count)
       {:classification :forbidden
-       :forbidden-action? true
+       :override-eligible? true
        :override-enabled? true
        :usable-permit? false
        :usable-permit-count 0
@@ -234,7 +243,7 @@
 
       (= 1 usable-count)
       {:classification :forbidden-authorized
-       :forbidden-action? true
+       :override-eligible? true
        :override-enabled? true
        :usable-permit? true
        :usable-permit-count 1
@@ -242,7 +251,7 @@
 
       :else
       {:classification :ambiguous-force-authorisation
-       :forbidden-action? true
+       :override-eligible? true
        :override-enabled? true
        :usable-permit? true
        :usable-permit-count usable-count

@@ -1,7 +1,7 @@
 (ns resolver-sim.notebook-support.speds.var
   "P4: Explicit distribution + VaR projection.
 
-   TWO canonical artifacts, both strictly downstream of risk-projection.v1:
+   TWO canonical artifacts, both strictly downstream of risk-observation.v1:
 
      scenario-distribution.v1
        An explicit probability/weighting artifact over ONE declared outcome
@@ -10,7 +10,7 @@
        the user drew: a p95/p99 has NO VaR semantics without it.
 
      var-projection.v1
-       Consumes a risk-projection.v1 and exactly one scenario-distribution.v1,
+       Consumes a risk-observation.v1 and exactly one scenario-distribution.v1,
        and only then emits :var/p95, :var/p99, expected shortfall, and tail
        attribution. VaR claims exist nowhere else.
 
@@ -22,7 +22,7 @@
       market outcomes. This is stated in :interpretation and rendered on the
       card.
 
-   2. VaR CLAIMS LIVE ONLY IN var-projection.v1. risk-projection.v1 keeps its
+   2. VaR CLAIMS LIVE ONLY IN var-projection.v1. risk-observation.v1 keeps its
       :distribution-policy/status :not-measured; it never emits VaR numbers.
 
    3. NOT-MEASURED SCENARIOS ARE EXCLUDED FROM THE DISTRIBUTION. Only measured
@@ -77,7 +77,7 @@
    :source source})
 
 (defn build-distribution
-  "Build scenario-distribution.v1 from a risk-projection over one outcome.
+  "Build scenario-distribution.v1 from a risk-observation over one outcome.
 
    v1 supports the empirical model only: uniform weights (weight 1) over the
    measured scenarios that carry the outcome value. Not-measured scenarios are
@@ -98,9 +98,9 @@
                                                                               (:scenario/id s)))
                                                            per-scenario)))}
         basis       (str "uniform empirical weights over the measured scenarios "
-                         "of risk-projection " (:projection-id proj))
-        source      {:risk-projection-id (:projection-id proj)
-                     :risk-projection-root (get-in proj [:risk-projection/root :canonical/hash])}
+                         "of risk-observation " (:projection-id proj))
+        source      {:risk-observation-id (:projection-id proj)
+                     :risk-observation-root (get-in proj [:risk-observation/root :canonical/hash])}
         normalization-root {:scenario-count n
                             :sum-weights n
                             :normalization "uniform (weight 1/N)"}
@@ -114,7 +114,7 @@
                                            :source source})]
     {:schema distribution-schema
      :distribution-id (subs (canonical/domain-hash distribution-domain-tag content) 0 16)
-     :context {:risk-projection-id (:projection-id proj)}
+     :context {:risk-observation-id (:projection-id proj)}
      :model model
      :outcome outcome
      :quantity risk/quantity-label
@@ -130,7 +130,7 @@
 ;; ──────────────────────────────────────────────────────────────────────────
 
 (defn- weighted-outcomes
-  "Join a distribution's weights with the outcome values from a risk-projection,
+  "Join a distribution's weights with the outcome values from a risk-observation,
    sorted by (value, scenario-id). Scenarios in the distribution that the
    projection no longer carries are dropped (reported via coverage mismatch)."
   [proj distribution]
@@ -193,7 +193,7 @@
    :metrics metrics})
 
 (defn build-var-projection
-  "Build var-projection.v1 from a risk-projection and one scenario-distribution.
+  "Build var-projection.v1 from a risk-observation and one scenario-distribution.
    Emits :var/p95, :var/p99, expected shortfall, and tail attribution over the
    DECLARED weighted distribution only."
   [proj distribution]
@@ -219,8 +219,8 @@
                   {:basis (if (and (some? v99) (seq (tail-attribution v99 weighted)))
                             :derived :not-measured)
                    :scenarios (tail-attribution v99 weighted)}}
-        source   {:risk-projection-id (:projection-id proj)
-                  :risk-projection-root (get-in proj [:risk-projection/root :canonical/hash])
+        source   {:risk-observation-id (:projection-id proj)
+                  :risk-observation-root (get-in proj [:risk-observation/root :canonical/hash])
                   :distribution-id (:distribution-id distribution)
                   :distribution-root (get-in distribution [:distribution/root :canonical/hash])}
         dist-ref {:model (:model distribution)
@@ -249,7 +249,7 @@
                               :metrics metrics})]
     {:schema var-schema
      :var/id (subs (canonical/domain-hash var-domain-tag content) 0 16)
-     :context {:risk-projection-id (:projection-id proj)
+     :context {:risk-observation-id (:projection-id proj)
                :distribution-id (:distribution-id distribution)}
      :outcome (:outcome distribution)
      :quantity risk/quantity-label

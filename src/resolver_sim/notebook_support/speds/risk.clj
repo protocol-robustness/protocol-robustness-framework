@@ -1,9 +1,11 @@
 (ns resolver-sim.notebook-support.speds.risk
-  "P1: Scenario Risk Projection (risk-projection.v1).
+  "P1: Scenario Risk Observation (risk-observation.v1).
 
-   A canonical, deterministic, evidence-backed projection of ONE observed risk
+   A canonical, deterministic, evidence-backed OBSERVATION of ONE observed risk
    quantity — the escrow module's aggregate `total-held` — across the scenario
-   universe of an event-evidence bundle.
+   universe of an event-evidence bundle. This is an observational/historical
+   artifact (scenario `total-held` series), distinct from the generic
+   loss-bearing exposure kernel (resolver-sim.risk.*, risk-projection.v1).
 
    Boundaries (do not cross):
 
@@ -38,13 +40,13 @@
             [resolver-sim.hash.canonical :as canonical]
             [resolver-sim.hash.reference :as hash-ref]))
 
-(def schema-version "risk-projection.v1")
+(def schema-version "risk-observation.v1")
 
 (def root-domain-tag
-  "Domain-separated canonical hash tag for the risk projection commitment.
+  "Domain-separated canonical hash tag for the risk observation commitment.
    Deliberately distinct from :projection-evidence; a string tag is used so
    this namespace does not mutate the shared domain-tags authority."
-  "RISK_PROJECTION_V1")
+  "RISK_OBSERVATION_V1")
 
 (def quantity
   "The single observed risk quantity in v1: total value held by the escrow
@@ -296,7 +298,7 @@
 ;; ──────────────────────────────────────────────────────────────────────────
 
 (defn committable-content
-  "The canonical semantic body that the :risk-projection/root commits.
+  "The canonical semantic body that the :risk-observation/root commits.
    Rendering (cards), verification status, context, and the root itself are
    deliberately OUTSIDE this body so presentation evolution can never change
    the risk claim."
@@ -320,7 +322,7 @@
                      (canonical/domain-hash root-domain-tag content))})
 
 (defn project
-  "Build a deterministic risk-projection.v1 over an event-evidence bundle.
+  "Build a deterministic risk-observation.v1 over an event-evidence bundle.
 
    opts :: {:bundle-dir <dir of event-evidence JSONs>
             :trace-dir  <dir of .trace.json files, optional>
@@ -387,7 +389,7 @@
                            :var-claims-absent true}
      :metrics metrics
      :evidence evidence
-     :risk-projection/root root}))
+     :risk-observation/root root}))
 
 ;; ──────────────────────────────────────────────────────────────────────────
 ;; Verification
@@ -405,11 +407,11 @@
      :metrics (:metrics artifact)})))
 
 (defn verify-root
-  "Re-verify an artifact's :risk-projection/root against its own semantic
+  "Re-verify an artifact's :risk-observation/root against its own semantic
    fields. Returns {:status :pass} when the recomputed commitment matches, or
    {:status :fail :reason <key>} otherwise."
   [artifact]
-  (let [stored (:risk-projection/root artifact)
+  (let [stored (:risk-observation/root artifact)
         fresh  (recompute-root artifact)]
     (cond
       (nil? stored) {:status :fail :reason :missing-root}

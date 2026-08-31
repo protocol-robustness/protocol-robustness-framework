@@ -23,6 +23,7 @@
    resolution, or exact-scope verification. It only turns an admission decision
    into either the low-level accounting mutation or a pre-mutation rejection."
   (:require [resolver-sim.assurance.held-admission :as admission]
+            [resolver-sim.assurance.held-override-publication :as publication]
             [resolver-sim.protocols.sew.accounting :as accounting]))
 
 (defn- permit-provenance
@@ -36,31 +37,48 @@
    :authorization/type (:authorization/type permit)
    :authorization/scope-hash (:authorization/scope-hash permit)})
 
-(defn admit-and-add-held!
-  "Sanctioned production held-ingress: admit then apply.
+(defn- apply-accounting-and-publish!
+  "Admit then apply a held mutation (add-held or sub-held) via the low-level
+   accounting primitive, and — for an override — build + commit the held-override
+   lineage so the successor retains it and is discoverable.
 
-   world       — Sew world-state (immutable, returned transformed).
-   token       — held token.
-   amount      — non-negative held amount.
-   accounting-opts — opts passed verbatim to accounting/add-held (:action :reason
-                     :extra ...). For an ordinary ingress this is unchanged.
-   admission-opts — opts for the core admission boundary (:operation-id :scope
-                     :permits :consumption-registry :now-ts :configuration-head
-                     :extension-resolution).
-
-   Throws before mutation on any :reject admission."
-  [world token amount accounting-opts admission-opts]
+   accounting-fn is the low-level primitive (accounting/add-held or
+   accounting/sub-held). Semantic authority comes from admission-opts
+   :operation-id (never the accounting direction or the action name)."
+  [accounting-fn world token amount accounting-opts admission-opts]
   (let [decision (admission/admit-held-mutation admission-opts)]
     (case (:admission decision)
       :proceed-ordinary
-      (accounting/add-held world token amount accounting-opts)
+      (accounting-fn world token amount accounting-opts)
 
       :proceed-force-authorised
-      (accounting/add-held
-       world token amount
-       (assoc accounting-opts
-              :authorization-provenance
-              (permit-provenance (:permit decision))))
+      (let [world' (accounting-fn
+                    world token amount
+                    (assoc accounting-opts
+                           :authorization-provenance
+                           (permit-provenance (:permit decision))))
+            permit (:permit decision)
+            j0 (last (:held-adjustments world'))
+            x0 (get-in world' [:force-authorisations/consumed
+                               (:authorization/id permit)])
+            publication' (publication/build-override-publication
+                          {:state-after world'
+                           :held-adjustment j0
+                           :consumption-record x0
+                           :predecessor-configuration-head
+                           (:configuration-head admission-opts)
+                           :extension-selection
+                           (:held-override/selection admission-opts)
+                           :extension-resolution
+                           (:extension-resolution admission-opts)
+                           :provider-package-root
+                           (:held-override/provider-root admission-opts)
+                           :capability-key
+                           (:held-override/capability-key admission-opts)
+                           :capability-version
+                           (:held-override/capability-version admission-opts)
+                           :permit permit})]
+        (publication/commit world' publication'))
 
       :reject
       (throw (ex-info "held-custody mutation admission rejected before mutation"
@@ -69,3 +87,19 @@
                        :semantic-operation-class (:semantic-operation-class decision)
                        :operation-id (:operation-id decision)
                        :blocking-reasons (:blocking-reasons decision)})))))
+
+(defn admit-and-add-held!
+  "Sanctioned production held-ingress (add-held, :in). See apply-accounting-and-publish!."
+  [world token amount accounting-opts admission-opts]
+  (apply-accounting-and-publish! accounting/add-held world token amount
+                                 accounting-opts admission-opts))
+
+(defn admit-and-sub-held!
+  "Sanctioned production held-egress (sub-held, :out). Semantic authority is
+   determined by the operation (ordinary release/refund vs
+   :force-authorisation-override egress), never by sub-held/:out itself. Same
+   accounting primitive as ordinary egress; override egress verifies the exact
+   :out scope and consumes the exact permit once, then retains the lineage."
+  [world token amount accounting-opts admission-opts]
+  (apply-accounting-and-publish! accounting/sub-held world token amount
+                                 accounting-opts admission-opts))

@@ -119,7 +119,7 @@
                     :borderTop "1px solid #004D59"
                     :fontFamily (get tokens/typography :font/mono)
                     :fontSize "9px" :color (palette :sys/structural)}}
-      (str "risk-projection: " (:risk-projection-id source) " · "
+      (str "risk-observation: " (:risk-observation-id source) " · "
            "distribution: " (:distribution-id source) " · "
            "var root: " (:canonical/hash root))]]))
 

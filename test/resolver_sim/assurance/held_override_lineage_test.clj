@@ -74,7 +74,8 @@
    :capability-version 1
    :permit (permit-for (scope :in 100))
    :held-adjustment {:artifact/hash "sha256:adj-historical"}
-   :consumption-record {:authorization/id "permit-hist" :consumed? true}})
+   :consumption-record {:authorization/id "permit-hist" :consumed? true}
+   :successor-state-root "sha256:successor-state"})
 
 (deftest lineage-conserves-exactly-with-historical-inputs
   (testing "a lineage built from the historical inputs is exactly conserved"
@@ -129,3 +130,71 @@
                           :lineage/predecessor-head-root
                           (str "sha256:" (apply str (repeat 64 "0"))))]
         (is (false? (:conserved? (lineage/verify-lineage (assoc inputs :lineage forged)))))))))
+
+(deftest lineage-completeness
+  "HELD_OVERRIDE_LINEAGE_COMPLETENESS: override mutation exists iff an exact valid,
+   retained, discoverable, body-complete lineage exists."
+  (let [l (lineage/build-lineage (base-inputs))
+        inputs (assoc (base-inputs) :lineage l)]
+    (testing "mutation + valid + retained + discoverable + bodies -> complete"
+      (is (true? (:complete?
+                  (lineage/verify-lineage-completeness
+                   (assoc inputs :mutation-exists? true
+                          :lineage-retained? true
+                          :lineage-discoverable? true
+                          :bodies-retained? true))))))
+    (testing "committed override WITHOUT a retained lineage -> incomplete"
+      (is (false? (:complete?
+                   (lineage/verify-lineage-completeness
+                    (assoc inputs :mutation-exists? true
+                           :lineage-retained? false
+                           :lineage-discoverable? false
+                           :bodies-retained? false))))))
+    (testing "retained lineage for effects NOT committed -> incomplete"
+      (is (false? (:complete?
+                   (lineage/verify-lineage-completeness
+                    (assoc inputs :mutation-exists? false
+                           :lineage-retained? true
+                           :lineage-discoverable? true
+                           :bodies-retained? true))))))
+    (testing "missing historical body -> incomplete"
+      (is (false? (:complete?
+                   (lineage/verify-lineage-completeness
+                    (assoc inputs :mutation-exists? true
+                           :lineage-retained? true
+                           :lineage-discoverable? true
+                           :bodies-retained? false))))))))
+
+(deftest state-after-binding
+  "HELD_OVERRIDE_STATE_AFTER_BINDING: the lineage's consequence roots must equal
+   exactly what the published successor state commits; a lineage transplanted onto
+   a different successor fails."
+  (let [l (lineage/build-lineage (base-inputs))
+        succ-root (:lineage/successor-root l)
+        adj-root (:lineage/adjustment-root l)
+        cons-root (:lineage/consumption-root l)
+        pred-root (:lineage/predecessor-head-root l)]
+    (testing "binding holds when the successor state commits the exact lineage roots"
+      (is (true? (:bound?
+                  (lineage/verify-state-after-binding
+                   {:lineage l
+                    :predecessor-state-root pred-root
+                    :successor-state-root succ-root
+                    :successor-adjustment-root adj-root
+                    :successor-consumption-root cons-root})))))
+    (testing "a lineage transplanted onto a DIFFERENT successor state fails binding"
+      (is (false? (:bound?
+                   (lineage/verify-state-after-binding
+                    {:lineage l
+                     :predecessor-state-root pred-root
+                     :successor-state-root (str "sha256:" (apply str (repeat 64 "c")))
+                     :successor-adjustment-root adj-root
+                     :successor-consumption-root cons-root})))))
+    (testing "a lineage naming effects from another execution fails binding"
+      (is (false? (:bound?
+                   (lineage/verify-state-after-binding
+                    {:lineage l
+                     :predecessor-state-root pred-root
+                     :successor-state-root succ-root
+                     :successor-adjustment-root (str "sha256:" (apply str (repeat 64 "d")))
+                     :successor-consumption-root (str "sha256:" (apply str (repeat 64 "e")))})))))))

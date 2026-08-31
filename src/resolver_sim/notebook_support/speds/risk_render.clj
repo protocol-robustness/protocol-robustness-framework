@@ -1,11 +1,11 @@
 (ns resolver-sim.notebook-support.speds.risk-render
-  "P1: Renderer for risk-projection.v1 — the scenario risk card.
+  "P1: Renderer for risk-observation.v1 — the scenario risk card.
 
    Renders ONLY what the projection asserts. A value that the projection marks
    :not-measured (VaR p95/p99, evidence integrity, chain verification, world
    transition verification) renders explicitly as NOT MEASURED — it is never
    dressed up as a checked guarantee. This renderer is presentation-only and
-   never participates in the :risk-projection/root commitment."
+   never participates in the :risk-observation/root commitment."
   (:require [hiccup.core :as hiccup]
             [clojure.string :as str]
             [resolver-sim.notebook-support.speds.tokens :as tokens]))
@@ -53,10 +53,10 @@
                (str v) :verified))
 
 (defn render-card
-  "Render a risk-projection.v1 map as a Hiccup risk card."
+  "Render a risk-observation.v1 map as a Hiccup risk card."
   [{:keys [schema projection-id context source projection coverage
            aggregation-policy distribution-policy metrics evidence
-           risk-projection/root]}]
+           risk-observation/root]}]
   (let [cov coverage
         per-scenario (:per-scenario metrics)
         worst (:worst-observed-scenario metrics)]

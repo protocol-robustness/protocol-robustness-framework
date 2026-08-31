@@ -59,8 +59,7 @@
                 :extensions/capabilities
                 {[:assurance/force-authorisation :held-custody/override-admission-v1]
                  {:capability/kind :assurance/force-authorisation
-                  :capability/id :held-custody/override-admission-v1}}}
-   })
+                  :capability/id :held-custody/override-admission-v1}}}})
 
 (defn- resolution-without-override-capability []
   {:valid? true
@@ -100,7 +99,7 @@
             :forbidden-authorized"
     (let [r (auth/classify-under-current-configuration
              (current-head) (extension-resolution)
-             {:action :add-held :scope add-scope :permit add-permit
+             {:operation-id :held-custody/force-auth-mutation :scope add-scope :permit add-permit
               :consumption-registry {} :now-ts 500})]
       (is (= :forbidden-authorized (:classification r)))
       (is (true? (:override-enabled? r)))
@@ -111,7 +110,7 @@
             :forbidden"
     (let [r (auth/classify-under-current-configuration
              (current-head) (resolution-without-override-capability)
-             {:action :add-held :scope add-scope :permit add-permit
+             {:operation-id :held-custody/force-auth-mutation :scope add-scope :permit add-permit
               :consumption-registry {} :now-ts 500})]
       (is (= :forbidden (:classification r)))
       (is (false? (:override-enabled? r)))
@@ -123,7 +122,7 @@
   (testing "an invalid/stale configuration head fails closed even with an exact permit"
     (let [r (auth/classify-under-current-configuration
              {} (extension-resolution)
-             {:action :add-held :scope add-scope :permit add-permit
+             {:operation-id :held-custody/force-auth-mutation :scope add-scope :permit add-permit
               :consumption-registry {} :now-ts 500})]
       (is (= :forbidden (:classification r)))
       (is (false? (:override-enabled? r)))
@@ -133,24 +132,25 @@
   (testing "missing extension resolution -> :forbidden even with an exact permit"
     (let [r (auth/classify-under-current-configuration
              (current-head) nil
-             {:action :add-held :scope add-scope :permit add-permit
+             {:operation-id :held-custody/force-auth-mutation :scope add-scope :permit add-permit
               :consumption-registry {} :now-ts 500})]
       (is (= :forbidden (:classification r)))
       (is (false? (:override-enabled? r)))))
   (testing "ambiguous extension resolution (:valid? false) -> :forbidden"
     (let [r (auth/classify-under-current-configuration
              (current-head) (invalid-resolution)
-             {:action :add-held :scope add-scope :permit add-permit
+             {:operation-id :held-custody/force-auth-mutation :scope add-scope :permit add-permit
               :consumption-registry {} :now-ts 500})]
       (is (= :forbidden (:classification r)))
       (is (false? (:override-enabled? r))))))
 
 (deftest ordinary-sub-held-stays-ordinary-under-authoritative-configuration
   (testing "sub-held remains :ordinary; presented force-auth is ignored, not consumed"
-    (let [r (auth/classify-under-current-configuration
-             (current-head) (extension-resolution)
-             {:action :sub-held :scope (scope :sub-held :out 40)
-              :permit add-permit :consumption-registry {} :now-ts 500})]
+    (let [r (gate/classify-operation
+             {:operation-id :sew/escrow-principal-deposited
+              :scope (scope :sub-held :out 40)
+              :permit add-permit :consumption-registry {} :now-ts 500
+              :authoritative-config {:force-authorisation/override-enabled true}})]
       (is (= :ordinary (:classification r)))
       (is (true? (:force-auth-ignored? r))))))
 
@@ -160,6 +160,7 @@
     (is (= :forbidden-authorized
            (:classification
             (gate/classify-operation
-             {:action :add-held :scope add-scope :permit add-permit
+             {:operation-id :held-custody/force-auth-mutation
+              :scope add-scope :permit add-permit
               :consumption-registry {} :now-ts 500
               :authoritative-config {:force-authorisation/override-enabled true}}))))))

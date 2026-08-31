@@ -43,6 +43,7 @@
     :transaction/state-before-root (hash-ref "c")
     :transaction/state-after-root (hash-ref "d")
     :authority-report/root (hash-ref "e")
+    :governed-authority-key-resolution/root (hash-ref "0")
     :resolved-review-authority-context/root (hash-ref "f")
     :governed-authority-transition-binding/root (hash-ref "1")
     :pre-chain-configuration/root configuration-root

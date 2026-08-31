@@ -136,7 +136,13 @@
   [run-root]
   (build-projection (package-index/resolve-validation-context run-root)))
 
-(defn- insert-run! [ds row]
+(defn insert-run!
+  "Low-level writer for one sim_execution_runs row (XTDB upsert by `_id`).
+
+   Used by `project-run!` and by the demonstrative explorer seed to write an
+   explicit index observation (including a synthetic non-authoritative
+   correction) without duplicating the insert SQL."
+  [ds row]
   (jdbc/execute! ds
                  [(str "INSERT INTO sim_execution_runs"
                        " (_id, run_type, status, semantic_status, benchmark_id, scenario_id, execution_id,"
@@ -159,7 +165,11 @@
                        (xtdb/sql-ts (:valid-from row))
                        ")")]))
 
-(defn- insert-benchmark! [ds row]
+(defn insert-benchmark!
+  "Low-level writer for one sim_benchmark_executions row (XTDB upsert by `_id`).
+
+   Used by `project-run!`; exposed for the demonstrative explorer seed."
+  [ds row]
   (jdbc/execute! ds
                  [(str "INSERT INTO sim_benchmark_executions"
                        " (_id, run_id, benchmark_id, scenario_id, case_key, run_index, run_count, status, outcome, halt_reason,"
@@ -258,6 +268,74 @@
 (def benchmark-rows benchmark-executions)
 (def by-scenario executions-by-scenario)
 (def by-use-case executions-by-use-case)
+
+;; ---------------------------------------------------------------------------
+;; Bitemporal query vocabulary
+;;
+;; Explicit, non-ambiguous bitemporal naming so the model is teachable:
+;;   *-valid-at      FOR VALID_TIME AS OF  — what is effective at T, best-known now
+;;   *-as-known-at   FOR SYSTEM_TIME AS OF — what the database knew at T
+;;   *-history       FOR ALL SYSTEM_TIME   — every system-time version
+;; Each selects the four temporal bounds so history/bitemporal views can render
+;; _valid_from/_valid_to/_system_from/_system_to.
+;; ---------------------------------------------------------------------------
+
+(def ^:private temporal-cols
+  ", _valid_to, _system_from, _system_to")
+
+(defn execution-runs-valid-at
+  "What is effective at `valid-at` using today's best-known history
+   (FOR VALID_TIME AS OF). Explicit bitemporal synonym."
+  [ds valid-at]
+  (query-rows ds (str "SELECT *" temporal-cols " FROM sim_execution_runs "
+                      (xtdb/valid-as-of valid-at)
+                      " ORDER BY _valid_from DESC, _id DESC")))
+
+(defn execution-runs-as-known-at
+  "What the index knew at `known-at` (FOR SYSTEM_TIME AS OF)."
+  [ds known-at]
+  (query-rows ds (str "SELECT *" temporal-cols " FROM sim_execution_runs "
+                      (xtdb/system-as-of known-at)
+                      " ORDER BY _valid_from DESC, _id DESC")))
+
+(defn execution-runs-history
+  "Every system-time version of each run (FOR ALL SYSTEM_TIME)."
+  [ds]
+  (query-rows ds (str "SELECT *" temporal-cols " FROM sim_execution_runs "
+                      xtdb/all-system-time
+                      " ORDER BY _system_from ASC, _id ASC")))
+
+(defn benchmark-executions-valid-at
+  "What benchmark executions are effective at `valid-at`, best-known now
+   (FOR VALID_TIME AS OF). Explicit bitemporal synonym."
+  [ds benchmark-id valid-at]
+  (if-not ds
+    []
+    (query-rows ds (str "SELECT *" temporal-cols " FROM sim_benchmark_executions "
+                        (xtdb/valid-as-of valid-at)
+                        " WHERE benchmark_id = " (xtdb/sql-str benchmark-id)
+                        " ORDER BY _id ASC"))))
+
+(defn benchmark-executions-as-known-at
+  "What the index knew about benchmark executions at `known-at`
+   (FOR SYSTEM_TIME AS OF)."
+  [ds benchmark-id known-at]
+  (if-not ds
+    []
+    (query-rows ds (str "SELECT *" temporal-cols " FROM sim_benchmark_executions "
+                        (xtdb/system-as-of known-at)
+                        " WHERE benchmark_id = " (xtdb/sql-str benchmark-id)
+                        " ORDER BY _id ASC"))))
+
+(defn benchmark-executions-history
+  "Every system-time version of benchmark executions (FOR ALL SYSTEM_TIME)."
+  [ds benchmark-id]
+  (if-not ds
+    []
+    (query-rows ds (str "SELECT *" temporal-cols " FROM sim_benchmark_executions "
+                        xtdb/all-system-time
+                        " WHERE benchmark_id = " (xtdb/sql-str benchmark-id)
+                        " ORDER BY _system_from ASC, _id ASC"))))
 
 (defn comparison-scope
   "Normalize an explicit caller-supplied comparison scope; no equivalence is inferred."

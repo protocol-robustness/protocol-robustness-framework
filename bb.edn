@@ -129,6 +129,18 @@ check:ownership
           source of truth for the unit namespace list."
     :task (shell "scripts/with-test-artifact-lock.sh" "./scripts/test.sh" "unit")}
 
+   test:risk
+   {:doc "Run generic risk kernel + authority + admission tests"
+    :task (shell "clojure" "-M:test" "-e"
+                 "(require (quote resolver-sim.risk.risk-kernel-test)
+                           (quote resolver-sim.risk.authority-test)
+                           (quote resolver-sim.risk.admission-test))
+                  (let [{:keys [fail error]} (clojure.test/run-tests
+                                               (quote resolver-sim.risk.risk-kernel-test)
+                                               (quote resolver-sim.risk.authority-test)
+                                               (quote resolver-sim.risk.admission-test))]
+                    (when (pos? (+ fail error)) (System/exit 1)))")}
+
    test:evidence
    {:doc "Run evidence-chain unit tests (node, chain, registry, attestation, integrity, qol) with noop capture"
     :task (shell "env" "PARALLEL_TEST_LEAK_CHECK=1" "clojure" "-M:test:with-sew" "-m" "scripts.parallel-test-runner" "--noop-capture"
@@ -220,7 +232,7 @@ check:ownership
                    "-M" "-m" "resolver-sim.validation.scenario-registry")}
 
   risk:projection
-  {:doc "Generate risk-projection.v1 artifact + risk card over the latest event-evidence bundle"
+  {:doc "Generate risk-observation.v1 (SPEDS scenario risk observation) artifact + risk card over the latest event-evidence bundle"
    :task (clojure {:dir "." :extra-deps {}}
                   "-M:test" "-m" "scripts.scenarios.generate-risk-projection")}
 
@@ -777,6 +789,15 @@ test:community {:doc "Run community participation tests"
                     (clojure "-M" "-e" "(require 'resolver-sim.db.store 'resolver-sim.db.xtdb) (resolver-sim.db.store/truncate! (resolver-sim.db.xtdb/->datasource))")
                     (clojure "-M:telemetry-seed" "20"))}
 
+  explorer:seed
+  {:doc "Reset and seed XTDB with the demonstrative XTDB Temporal Explorer dataset
+         (execution + temporal + synthetic index-correction history)."
+   :task (shell "clojure" "-M:explorer-seed")}
+
+  explorer:reset-seed
+  {:doc "Truncate only the explorer sim_* tables (execution + temporal)."
+   :task (shell "clojure" "-M:explorer-seed" "reset")}
+
   test:forensic-python {:doc "Run forensic Python unit tests (verify.py, preflight.py, etc.)"
                         :task (shell "python3" "-m" "pytest" "test/forensic_python/" "-v")}
 
@@ -827,11 +848,16 @@ test:community {:doc "Run community participation tests"
   postgres:psql {:doc "Open an interactive psql shell in the PostgreSQL container"
                  :task (shell "docker exec -it config-postgres-1 psql -U ${PRG_POSTGRES_USER:-postgres} -d ${PRG_POSTGRES_DB:-postgres}")}
 
-  postgres:migrate {:doc "Apply forward-only migrations (idempotent). Requires DATABASE_URL or uses the dev compose default."
-                    :task (shell "sh" "-c" "cd /home/user/Code/.workspaces/agent-c && export DATABASE_URL='${DATABASE_URL:-jdbc:postgresql://localhost:5433/postgres?user=postgres&password=postgres}' && clojure -M -m resolver-sim.db.migrate")}
+postgres:migrate {:doc "Apply forward-only migrations (idempotent). Requires DATABASE_URL or uses the dev compose default."
+                     :task (shell "sh" "-c" "cd /home/user/Code/.workspaces/agent-c && export DATABASE_URL=\"${DATABASE_URL:-jdbc:postgresql://localhost:5433/postgres?user=postgres&password=postgres}\" && clojure -M -m resolver-sim.db.migrate")}
 
-  test:integration:postgres {:doc "Run PostgreSQL admission adapter + real migration tests"
-                             :task (shell "sh" "-c" "cd /home/user/Code/.workspaces/agent-c && export DATABASE_URL='${DATABASE_URL:-jdbc:postgresql://localhost:5433/postgres?user=postgres&password=postgres}' && clojure -M:test -e '(require (quote resolver-sim.resubmission.postgres-admission-store-test)) (clojure.test/run-tests (quote resolver-sim.resubmission.postgres-admission-store-test))'")}
+test:integration:postgres {:doc "Run PostgreSQL admission adapter + real migration tests"
+                               :task (shell "sh" "-c" "cd /home/user/Code/.workspaces/agent-c && export DATABASE_URL=\"${DATABASE_URL:-jdbc:postgresql://localhost:5433/postgres?user=postgres&password=postgres}\" && clojure -M:test -e '(require (quote resolver-sim.resubmission.postgres-admission-store-test)) (clojure.test/run-tests (quote resolver-sim.resubmission.postgres-admission-store-test))'")}
+
+   test:integration:xtdb {:doc "Run live XTDB integration tests (execution projection persistence,
+                                  idempotence, replacement, valid-time AS-OF, system-time history).
+                                  Requires XTDB on localhost:5432 (make xtdb)."
+                          :task (shell "sh" "-c" "cd /home/user/Code/.workspaces/agent-c && clojure -M:test -e '(require (quote resolver-sim.db.execution-projection-integration-test)) (clojure.test/run-tests (quote resolver-sim.db.execution-projection-integration-test))'")}
 
   notebook:focus
   {:doc "Focus the provenance notebook on a specific run-id."

@@ -15,10 +15,10 @@
             [resolver-sim.notebook-support.speds.var-render :as render]))
 
 (defn- fake-proj
-  "A minimal risk-projection-shaped map for model tests."
+  "A minimal risk-observation-shaped map for model tests."
   [per-scenario]
   {:projection-id "fake-proj"
-   :risk-projection/root {:canonical/hash "sha256:fake"}
+   :risk-observation/root {:canonical/hash "sha256:fake"}
    :coverage {:scenario-count (count per-scenario)
               :measured-scenario-count (count per-scenario)
               :not-measured-scenario-count 0
@@ -69,7 +69,7 @@
       (is (= 2 (count (:scenario-weights d)))))))
 
 (deftest var-claims-exist-only-in-var-projection
-  (testing "risk-projection keeps distribution :not-measured; VaR appears only downstream"
+  (testing "risk-observation keeps distribution :not-measured; VaR appears only downstream"
     (let [proj (fake-proj [(scenario "s1" 100 0)])
           d (var/build-distribution proj :per-scenario-peak-exposure)
           v (var/build-var-projection proj d)]
@@ -164,7 +164,7 @@
      :trace-dir (.getAbsolutePath tr)}))
 
 (deftest integration-pipeline-over-bundle
-  (testing "risk-projection -> distribution -> var-projection over a real bundle"
+  (testing "risk-observation -> distribution -> var-projection over a real bundle"
     (let [proj (risk/project (bundle-dirs))
           d (var/build-distribution proj :per-scenario-peak-exposure)
           v (var/build-var-projection proj d)]

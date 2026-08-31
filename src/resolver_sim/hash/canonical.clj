@@ -157,6 +157,7 @@
    :governed-authority-semantics-v1 "GOVERNED_AUTHORITY_SEMANTICS_V1"
    :governed-authority-resolution-basis-v2 "GOVERNED_AUTHORITY_RESOLUTION_BASIS_V2"
    :governed-authority-signer-key-set-v1 "GOVERNED_AUTHORITY_SIGNER_KEY_SET_V1"
+   :governed-authority-key-resolution-v1 "GOVERNED_AUTHORITY_KEY_RESOLUTION_V1"
    :governed-authority-review-round-v1 "GOVERNED_AUTHORITY_REVIEW_ROUND_V1"
    :governed-authority-evaluation-basis-v1 "GOVERNED_AUTHORITY_EVALUATION_BASIS_V1"
    :governed-authority-position-time-index-v1 "GOVERNED_AUTHORITY_POSITION_TIME_INDEX_V1"
@@ -274,8 +275,9 @@
    :extension-capability-descriptor-v1 "EXTENSION_CAPABILITY_DESCRIPTOR_V1"
    :extension-package-manifest-v1     "EXTENSION_PACKAGE_MANIFEST_V1"
    :held-custody-override-selection   "HELD_CUSTODY_OVERRIDE_SELECTION_V1"
-    :held-override-lineage-v1          "HELD_OVERRIDE_LINEAGE_V1"
-    :held-override-consumption         "HELD_OVERRIDE_CONSUMPTION_V1"
+   :held-override-lineage-v1          "HELD_OVERRIDE_LINEAGE_V1"
+   :held-override-consumption         "HELD_OVERRIDE_CONSUMPTION_V1"
+   :held-override-successor-state     "HELD_OVERRIDE_SUCCESSOR_STATE_V1"
    :benchmark-conservation-v1         "BENCHMARK_CONSERVATION_V1"
    :benchmark-input-set-v1            "BENCHMARK_INPUT_SET_V1"
    :benchmark-content-registry-v1     "BENCHMARK_CONTENT_REGISTRY_V1"
@@ -356,6 +358,7 @@
    :prf-chain-configuration-v1        "PRF_CHAIN_CONFIGURATION_V1"
    :prf-chain-configuration-v2        "PRF_CHAIN_CONFIGURATION_V2"
    :prf-chain-configuration-v3        "PRF_CHAIN_CONFIGURATION_V3"
+   :prf-chain-configuration-v4        "PRF_CHAIN_CONFIGURATION_V4"
    :authority-semantics-policy-v1 "AUTHORITY_SEMANTICS_POLICY_V1"
    :allocation-entitlement-policy-v1 "ALLOCATION_ENTITLEMENT_POLICY_V1"
    :prf-chain-configuration-transition-v1 "PRF_CHAIN_CONFIGURATION_TRANSITION_V1"
@@ -367,6 +370,9 @@
    :authority-state-snapshot-v1 "AUTHORITY_STATE_SNAPSHOT_V1"
    :governed-authority-result-receipt-v1 "GOVERNED_AUTHORITY_RESULT_RECEIPT_V1"
    :prf-chain-configuration-change-identity-v1 "prf.chain-configuration-change-identity.v1"
+   :prf-risk-projection-v1            "prf.risk-projection.v1"
+   :prf-risk-limit-policy-v1          "prf.risk-limit-policy.v1"
+   :prf-risk-limit-evaluation-v1      "prf.risk-limit-evaluation.v1"
    :prf-verifier-registry-v1          "PRF_VERIFIER_REGISTRY_V1"
    :prf-verification-basis-v1          "PRF_VERIFICATION_BASIS_V1"
    :prf-verification-result-v1         "PRF_VERIFICATION_RESULT_V1"
@@ -1944,6 +1950,13 @@
    commitment and adds the exact allocation-entitlement policy selection."
   (conj chain-configuration-v2-fields :allocation-entitlement-policy/root))
 
+(def chain-configuration-v4-fields
+  "Ordered identity fields of chain-configuration.v4. V4 preserves every V3
+   commitment and adds the exact authoritative risk-limit policy selection.
+   The risk-limit policy root is MANDATORY in V4: a configuration without it
+   is rejected, never silently treated as risk controls disabled."
+  (conj chain-configuration-v3-fields :risk-limit-policy/root))
+
 (def chain-configuration-transition-fields
   "Ordered identity fields of chain-configuration-transition.v1 (top level)."
   [:transition/schema
@@ -1974,6 +1987,11 @@
   "Canonical projection of chain-configuration.v3."
   [value _intent]
   (project-canonical-safe (select-keys value chain-configuration-v3-fields)))
+
+(defn project-chain-configuration-v4
+  "Canonical projection of chain-configuration.v4."
+  [value _intent]
+  (project-canonical-safe (select-keys value chain-configuration-v4-fields)))
 
 (defn project-chain-configuration-transition
   "Canonical projection of chain-configuration-transition.v1: exactly the canonical
@@ -3045,6 +3063,22 @@ name (an alias)."
                           :allocation-entitlement-policy/root}
     :intent/excludes    #{:runtime-values :functions :deployment-metadata :timestamps}
     :intent/projection-fn project-chain-configuration-v3
+    :intent/version     1}
+
+   :prf-chain-configuration-v4
+   {:intent/name        :prf-chain-configuration-v4
+    :intent/domain-tag  "PRF_CHAIN_CONFIGURATION_V4"
+    :intent/description "Canonical SHA-256 identity of a chain-configuration.v4 semantic configuration state"
+    :intent/includes    #{:configuration/schema
+                          :module-registry/root :verifier-registry/root
+                          :evidence-policy/root :escrow-template-registry/root
+                          :parameter-policy/root :governance-policy/root
+                          :interoperability-policy/root
+                          :authority-semantics-policy/root
+                          :allocation-entitlement-policy/root
+                          :risk-limit-policy/root}
+    :intent/excludes    #{:runtime-values :functions :deployment-metadata :timestamps}
+    :intent/projection-fn project-chain-configuration-v4
     :intent/version     1}
 
    :prf-chain-configuration-transition-v1

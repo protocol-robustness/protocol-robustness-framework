@@ -430,6 +430,13 @@
    and additionally selects a rooted allocation-entitlement policy."
   "chain-configuration.v3")
 
+(def ^:const chain-configuration-v4-schema
+  "Schema identifier for chain-configuration.v4. V4 preserves V3 commitments
+   and additionally selects the authoritative risk-limit policy. The
+   :risk-limit-policy/root field is MANDATORY: a V4 configuration without it is
+   rejected, never silently treated as risk controls disabled."
+  "chain-configuration.v4")
+
 (def ^:private chain-configuration-root-fields
   "sha256 reference fields of chain-configuration.v1 (identity-bearing roots)."
   [:module-registry/root :verifier-registry/root
@@ -549,6 +556,46 @@
   [config]
   (:valid? (validate-chain-configuration-v3 config)))
 
+(def chain-configuration-v4-fields
+  "Closed canonical field set of chain-configuration.v4."
+  (set hc/chain-configuration-v4-fields))
+
+(defn validate-chain-configuration-v4
+  "Strict closed-shape validator for chain-configuration.v4. V4 retains the V1/V2/V3
+   selections and requires the authoritative :risk-limit-policy/root. A body
+   missing or mis-rooted on that field is rejected; there is no optional
+   risk-controls-disabled mode."
+  [config]
+  (let [errors (atom [])
+        report! (fn [msg] (swap! errors conj msg))
+        expect chain-configuration-v4-fields]
+    (when-not (map? config)
+      (report! "chain-configuration must be a map"))
+    (when (map? config)
+      (when-not (= chain-configuration-v4-schema (:configuration/schema config))
+        (report! (str "configuration/schema must be " chain-configuration-v4-schema
+                      ", got " (pr-str (:configuration/schema config)))))
+      (let [have (set (keys config))
+            extra (set/difference have expect)
+            missing (set/difference expect have)]
+        (when (seq extra) (report! (str "unknown top-level keys: " (sort extra))))
+        (when (seq missing) (report! (str "missing required keys: " (sort missing))))
+        (doseq [f (conj chain-configuration-root-fields
+                        :authority-semantics-policy/root
+                        :allocation-entitlement-policy/root
+                        :risk-limit-policy/root)]
+          (let [v (get config f)]
+            (cond
+              (nil? v) (report! (str f " must not be nil"))
+              (not (hash-ref/valid-sha256-ref? v))
+              (report! (str f " must be a valid sha256 reference, got " (pr-str v))))))))
+    {:valid? (empty? @errors) :errors (vec @errors)}))
+
+(defn chain-configuration-v4?
+  "True only for a valid, closed chain-configuration.v4 body."
+  [config]
+  (:valid? (validate-chain-configuration-v4 config)))
+
 (defn supported-chain-configuration?
   "True for an explicitly supported, valid configuration schema."
   [config]
@@ -556,6 +603,7 @@
     "chain-configuration.v1" (chain-configuration-valid? config)
     "chain-configuration.v2" (chain-configuration-v2? config)
     "chain-configuration.v3" (chain-configuration-v3? config)
+    "chain-configuration.v4" (chain-configuration-v4? config)
     false))
 
 (def chain-configuration-fields
@@ -633,6 +681,11 @@
   [config]
   (hc/project-chain-configuration-v3 config :prf-chain-configuration-v3))
 
+(defn chain-configuration-v4-projection
+  "Explicit versioned projection of chain-configuration.v4."
+  [config]
+  (hc/project-chain-configuration-v4 config :prf-chain-configuration-v4))
+
 (defn chain-configuration-root
   "Compute the canonical root of an explicitly supported configuration schema.
    V1 projection/root behavior is preserved byte-for-byte; V2 adds a distinct
@@ -652,6 +705,10 @@
                                      :prf-chain-configuration-v3
                                      chain-configuration-v3-projection
                                      chain-configuration-v3-schema]
+           "chain-configuration.v4" [(validate-chain-configuration-v4 config)
+                                     :prf-chain-configuration-v4
+                                     chain-configuration-v4-projection
+                                     chain-configuration-v4-schema]
            [{:valid? false :errors ["unsupported chain-configuration schema"]}
             nil nil (:configuration/schema config)])]
      (when-not (:valid? validation)
@@ -883,6 +940,29 @@
   "Canonical root of chain-configuration-fixture (computed at load for reuse by
    the transition fixtures)."
   (chain-configuration-root chain-configuration-fixture))
+
+(def chain-configuration-v4-fixture
+  "Canonical chain-configuration.v4 fixture. Preserves every V1/V2/V3
+   commitment and selects the authoritative risk-limit policy root. The risk
+   policy root is a deterministic opaque fixture reference (the validator
+   requires only a well-formed sha256 reference); authority admission tests
+   construct V4 configurations whose :risk-limit-policy/root is the recomputed
+   root of a real policy body resolved from the store."
+  {:configuration/schema chain-configuration-v4-schema
+   :module-registry/root (fixture-ref "module-registry.v1")
+   :verifier-registry/root (fixture-ref "verifier-registry.v1")
+   :evidence-policy/root (fixture-ref "evidence-policy.v1")
+   :escrow-template-registry/root (fixture-ref "escrow-template-registry.v1")
+   :parameter-policy/root (fixture-ref "parameter-policy.v1")
+   :governance-policy/root (fixture-ref "governance-policy.v1")
+   :interoperability-policy/root (fixture-ref "interoperability-policy.v1")
+   :authority-semantics-policy/root (fixture-ref "authority-semantics-policy.v1")
+   :allocation-entitlement-policy/root (fixture-ref "allocation-entitlement-policy.v1")
+   :risk-limit-policy/root (fixture-ref "risk-limit-policy.v1")})
+
+(def chain-configuration-v4-fixture-root
+  "Canonical root of chain-configuration-v4-fixture."
+  (chain-configuration-root chain-configuration-v4-fixture))
 
 (def chain-configuration-transition-direct-fixture
   "Canonical chain-configuration-transition.v1 fixture with a direct

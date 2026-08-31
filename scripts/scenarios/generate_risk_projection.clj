@@ -1,7 +1,7 @@
 (ns scripts.scenarios.generate-risk-projection
   "Generate the full P0–P4 risk artifact set over an event-evidence bundle:
 
-     risk-projection.v1        (exposure series, corpus-safe metrics)
+     risk-observation.v1       (observed exposure series, corpus-safe metrics)
      scenario-distribution.v1  (explicit empirical weighting, per outcome)
      var-projection.v1         (VaR p95/p99, ES, tail attribution, per outcome)
 
@@ -83,7 +83,7 @@
                                   :run-id "generator"})
         risk-verify (risk/verify-root projection)]
     (when (not= :pass (:status risk-verify))
-      (fail! (str "risk-projection root verification FAILED: " risk-verify)))
+      (fail! (str "risk-observation root verification FAILED: " risk-verify)))
     (io/make-parents (io/file output-dir "risk-projection.edn"))
     (spit (io/file output-dir "risk-projection.edn")
           (pr-str projection))
@@ -104,7 +104,7 @@
     (println (str "bundle:  " bundle-dir))
     (println (str "traces:  " trace-dir))
     (println (str "rows:    " (count (:rows (:projection projection)))))
-    (println (str "root:    " (get-in projection [:risk-projection/root :canonical/hash])))
+    (println (str "root:    " (get-in projection [:risk-observation/root :canonical/hash])))
     (println (str "wrote:   " output-dir "/risk-projection.edn  + risk-card.html"))
     (println (str "wrote:   " output-dir "/distribution.{exposure,loss}.edn"))
     (println (str "wrote:   " output-dir "/var-projection.{exposure,loss}.edn  + var-card.*.html"))

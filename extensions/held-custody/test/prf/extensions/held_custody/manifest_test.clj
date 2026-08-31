@@ -36,7 +36,7 @@
   (let [capability-map (manifest/extension)]
     (is (= #{:build-member :check-member :build-summary :recompute-summary
              :check-aggregate :supported-actions
-             :classify-operation :forbidden-action? :override-enabled?
+             :classify-operation :override-eligible-operation? :override-enabled?
              :usable-permits
              :classify-under-current-configuration
              :override-enabled-under-configuration
@@ -48,4 +48,4 @@
     (is (fn? (:check-member capability-map)))
     (is (fn? (:check-aggregate capability-map)))
     (is (fn? (:classify-operation capability-map)))
-    (is (fn? (:forbidden-action? capability-map)))))
+    (is (fn? (:override-eligible-operation? capability-map)))))

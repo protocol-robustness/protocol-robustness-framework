@@ -57,13 +57,18 @@
    extension-contributed operation classes are a future, non-implemented
    authority expansion)."
   {:held-custody/force-auth-mutation :force-authorisation-override
+   :held-custody/force-authorised-release :force-authorisation-override
+   :held-custody/force-authorised-refund :force-authorisation-override
    :sew/escrow-principal-deposited   :ordinary
    :sew/appeal-bond-posted           :ordinary
    :sew/resolver-yield-accrued       :ordinary
    :sew/deferred-yield-reserved      :ordinary
    :sew/yield-accrued                :ordinary
    :sew/bounty-custody-reserve       :ordinary
-   :sew/pro-rata-held-credit         :ordinary})
+   :sew/pro-rata-held-credit         :ordinary
+   :sew/ordinary-release            :ordinary
+   :sew/ordinary-refund             :ordinary
+   :sew/ordinary-settlement         :ordinary})
 
 (defn semantic-operation-class
   "Admission class for a semantic operation identity. Fails closed: an unknown
@@ -242,5 +247,6 @@
             :permits permits
             :consumption-registry consumption-registry
             :now-ts now-ts
+            :operation-id operation-id
             :configuration-head configuration-head
             :extension-resolution extension-resolution}))))))

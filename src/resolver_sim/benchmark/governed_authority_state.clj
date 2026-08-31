@@ -470,7 +470,7 @@
           {:valid? true}
           {:valid? false :reason "signature does not verify"})))))
 
-(defn verify-decision-signatures-with-singer-key-set
+(defn verify-decision-signatures-with-signer-key-set
   "Verify signatures for all decision references using the B3 signer-key-set.
 
    Replaces the legacy `public-key-resolver` approach with direct entry
@@ -552,6 +552,91 @@
              (ref/sha256-ref
               (hc/domain-hash :governed-authority-evaluation-basis-v1
                               (hc/project-canonical-safe schema-base)))))))
+
+;; ── AUTH-K2 resolved-key-authority projection ──────────────────────────────
+
+(def ^:const key-resolution-schema "governed-authority-key-resolution.v1")
+
+(def key-resolution-statuses
+  "Closed resolution statuses for a referenced [principal, signing-key-id] under
+   the exact authenticated authority state.
+
+   IMPORTANT: `:resolved` means the referenced principal/key pair resolves
+   successfully under the committed signer-key-set, governance, round, purpose,
+   and authority state.  It does NOT independently grant authority, and it does
+   NOT imply the complete governed-authority evaluation is `:authorised` —
+   other authority conditions (quorum, concurrence, constitution, freshness,
+   equivocation) may still fail.  This projection is not an authorization
+   token; the authority fence is the capability boundary."
+  #{:resolved :missing-signing-key-id :key-not-found
+    :key-not-governance-eligible :principal-not-constituted})
+
+(defn- resolve-position-status
+  "AUTH-K2 resolution status for a single decision reference, derived from
+   committed material only — never caller-asserted.
+
+     principal constituted for the round purpose
+       → [principal, signing-key-id] present in the signer-key-set
+       → signing-key governance-eligible for that principal
+       → :resolved
+
+   All source roots, membership, purpose, and eligibility are derived from the
+   committed bodies; a caller cannot inject any of them."
+  [review-round review-governance signer-key-set position]
+  (let [principal-id (:researcher/id position)
+        key-id (:signing-key/id position)
+        constituted? (contains? (set (map :researcher/id (:review-round/members review-round)))
+                                principal-id)]
+    (cond
+      (not constituted?)                    :principal-not-constituted
+      (nil? key-id)                         :missing-signing-key-id
+      (nil? (lookup-signing-public-key signer-key-set principal-id key-id))
+                                            :key-not-found
+      (not (governance/position-key-valid? review-governance principal-id key-id))
+                                            :key-not-governance-eligible
+      :else                                 :resolved)))
+
+(defn key-resolution
+  "AUTH-K2 resolved-key-authority projection.
+
+   Binds each referenced [principal, signing-key-id] to its committed
+   resolution status under the exact governance, signer-key-set, review-round,
+   authority-state roots and the round's semantic purpose.  Multiple eligible
+   keys per principal are permitted; a position names its exact signing-key-id.
+
+   Input (all committed material — no caller-asserted roots/status/purpose):
+     :authority-state/root
+     :review-governance  (body)
+     :signer-key-set     (body)
+     :review-round       (body)
+     :positions          (authorisation decision references)
+
+   Returns the closed projection with a recomputable content-addressed root, so
+   a consumer can recompute and compare rather than trust stored resolution.
+
+   The projection records per-key resolution; it is not itself an authority
+   grant.  Whether the overall decision is authorised is decided by the
+   governed-authority report, and the fence is the capability boundary."
+  [{:keys [review-governance signer-key-set review-round positions] :as parts}]
+  (let [state-root (:authority-state/root parts)
+        body {:artifact/schema key-resolution-schema
+              :authority-state/root state-root
+              :review-governance/root (governance/governance-root review-governance)
+              :signer-key-set/root (signer-key-set-root signer-key-set)
+              :review-round/root (rr/review-round-root review-round)
+              :purpose (:review-round/purpose review-round)
+              :key-resolution/entries
+              (mapv (fn [p]
+                      {:principal/id (:researcher/id p)
+                       :signing-key/id (:signing-key/id p)
+                       :resolution/status
+                       (resolve-position-status review-round review-governance
+                                                signer-key-set p)})
+                    positions)}]
+    (assoc body :governed-authority-key-resolution/root
+           (ref/sha256-ref
+            (hc/domain-hash :governed-authority-key-resolution-v1
+                            (hc/project-canonical-safe body))))))
 
 (def ^:private authority-material-fields
   "Closed top-level field set of authenticated authority material.
@@ -869,23 +954,33 @@
            {:valid? false :reason (:reason resolved)}
            (let [context (:context resolved)
                  material (:authenticated-material resolved)
-                 inputs {:authorisation authorisation
-                         :review-round (:authority-material/review-round material)
-                         :review-governance (:authority-material/review-governance material)
-                         :position-time-index (:authority-material/position-time-index material)
-                         :signer-key-set (:authority-material/signer-key-set material)}
-                 report (if authority-semantics
-                          ((requiring-resolve 'resolver-sim.benchmark.governed-authority-semantics/evaluate-authority-with-semantics)
-                           authority-semantics inputs)
-                          (evaluate-authority-with-frozen-material inputs))
-                 report-root (authority/authority-report-root report)
-                 result {:valid? (= :authorised (:authority-status report))
-                         :authority-report report
-                         :authority-report-root report-root
-                         :governance-root (:governance-root report)
-                         :governed-review-round-hash
-                         (get-in authorisation [:authorisation/review-round :review-round/hash])
-                         :resolved-review-authority-context context}]
+inputs {:authorisation authorisation
+                          :review-round (:authority-material/review-round material)
+                          :review-governance (:authority-material/review-governance material)
+                          :position-time-index (:authority-material/position-time-index material)
+                          :signer-key-set (:authority-material/signer-key-set material)}
+                  key-resolution-result
+                  (key-resolution
+                   {:authority-state/root (:authority-state/root context)
+                    :review-governance (:review-governance inputs)
+                    :signer-key-set (:signer-key-set inputs)
+                    :review-round (:review-round inputs)
+                    :positions (:authorisation/decision-references authorisation)})
+                  key-resolution-root
+                  (:governed-authority-key-resolution/root key-resolution-result)
+                  report (if authority-semantics
+                           ((requiring-resolve 'resolver-sim.benchmark.governed-authority-semantics/evaluate-authority-with-semantics)
+                            authority-semantics inputs)
+                           (evaluate-authority-with-frozen-material inputs))
+                  report-root (authority/authority-report-root report)
+                  result {:valid? (= :authorised (:authority-status report))
+                          :authority-report report
+                          :authority-report-root report-root
+                          :governed-authority-key-resolution/root key-resolution-root
+                          :governance-root (:governance-root report)
+                          :governed-review-round-hash
+                          (get-in authorisation [:authorisation/review-round :review-round/hash])
+                          :resolved-review-authority-context context}]
              (if-not (:valid? result)
                (assoc result :reason :authority-not-authorised)
                (loop []
@@ -902,10 +997,11 @@
                                :review-governance/root (:review-governance/root context)
                                :position-time-basis/root (:position-time-basis/root context)
                                :position-time-index/root (:position-time-index/root context)
-                               :signer-key-set/root (:signer-key-set/root material)
-                               :authority-evaluation-basis/root
-                               (get-in resolved [:evaluation-basis :authority-evaluation-basis/root])
-                               :authority-report/root report-root
+:signer-key-set/root (:signer-key-set/root material)
+                                :authority-evaluation-basis/root
+                                (get-in resolved [:evaluation-basis :authority-evaluation-basis/root])
+                                :governed-authority-key-resolution/root key-resolution-root
+                                :authority-report/root report-root
                                :authority-status :authorised
                                :purpose :current-admission
                                :authority-semantics/root (when authority-semantics (:governed-authority-semantics/root authority-semantics))
@@ -947,8 +1043,10 @@
       :post-authoritative-state-envelope/root (:authoritative-state-envelope/root successor-envelope)
       :transaction/state-before-root (:transaction/state-before-root binding)
       :transaction/state-after-root (:transaction/state-after-root binding)
-      :authority-report/root (:authority-report/root record)
-      :resolved-review-authority-context/root (:resolved-review-authority-context/root record)
+:authority-report/root (:authority-report/root record)
+       :governed-authority-key-resolution/root
+       (:governed-authority-key-resolution/root record)
+       :resolved-review-authority-context/root (:resolved-review-authority-context/root record)
       :governed-authority-transition-binding/root
       (:governed-authority-transition-binding/root binding)
       :pre-chain-configuration/root (:chain-configuration/root pre-envelope)

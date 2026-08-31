@@ -112,3 +112,36 @@
   [d]
   (let [inst (if d (.toInstant ^java.util.Date d) (.toInstant ^java.util.Date epoch))]
     (str "TIMESTAMP '" (.format java.time.format.DateTimeFormatter/ISO_INSTANT inst) "'")))
+
+;; ---------------------------------------------------------------------------
+;; Bitemporal query clauses
+;;
+;; XTDB is bitemporal: every row has an independent valid-time timeline (when a
+;; fact is effective in the domain, "as best known") and system-time timeline
+;; (when the database learned it, "as we knew it then"). These helpers own the
+;; FOR ... clause formatting so callers pass a normalized timestamp value, never
+;; an arbitrary preformatted SQL fragment.
+;; ---------------------------------------------------------------------------
+
+(defn- as-of-clause [dimension ^java.util.Date d]
+  (str "FOR " dimension " AS OF TIMESTAMP '"
+       (.format java.time.format.DateTimeFormatter/ISO_INSTANT (.toInstant d)) "'"))
+
+(defn valid-as-of
+  "FOR VALID_TIME AS OF <instant>. 'What is effective at T, using today's
+   best-known history.'"
+  ^String [^java.util.Date d]
+  (as-of-clause "VALID_TIME" d))
+
+(defn system-as-of
+  "FOR SYSTEM_TIME AS OF <instant>. 'What did the database know at T?'"
+  ^String [^java.util.Date d]
+  (as-of-clause "SYSTEM_TIME" d))
+
+(def all-system-time
+  "FOR ALL SYSTEM_TIME — show every system-time version."
+  "FOR ALL SYSTEM_TIME")
+
+(def all-valid-time
+  "FOR ALL VALID_TIME — show every valid-time version."
+  "FOR ALL VALID_TIME")

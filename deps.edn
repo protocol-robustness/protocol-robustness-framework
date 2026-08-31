@@ -297,6 +297,17 @@
    :telemetry-seed
    {:main-opts ["-m" "resolver-sim.db.telemetry-seed"]}
 
+   :explorer-seed
+   {:extra-paths [:paths/dev :paths/protocols]
+    :extra-deps {nrepl/nrepl                 {:mvn/version "1.3.1"}
+                 cider/cider-nrepl           {:mvn/version "0.57.0"}
+                 djblue/portal               {:mvn/version "0.59.1"}
+                 org.clojure/tools.namespace {:mvn/version "1.5.0"}
+                 mvxcvi/puget                {:mvn/version "1.3.4"}
+                 fipp/fipp                   {:mvn/version "0.6.27"}
+                 org.clojure/data.json       {:mvn/version "2.5.1"}}
+    :main-opts ["-m" "resolver-sim.db.explorer-seed"]}
+
    ;; Intentionally not path-grouped: base-replacing runner classpath.
    ;; See #NNN for normalization constraints.
    :runner/replay-core

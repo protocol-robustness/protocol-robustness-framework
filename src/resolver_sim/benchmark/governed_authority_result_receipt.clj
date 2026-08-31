@@ -14,6 +14,7 @@
     :transaction/state-before-root
     :transaction/state-after-root
     :authority-report/root
+    :governed-authority-key-resolution/root
     :resolved-review-authority-context/root
     :governed-authority-transition-binding/root
     :pre-chain-configuration/root

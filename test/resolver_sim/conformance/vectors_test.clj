@@ -35,12 +35,12 @@
                 :signature/preimage preimage
                 :signature/domain :prf-evidence-package.v1
                 :signer/id :signer-a :signer/public-key pk
-:trust-policy/root "sha256:policy"
-                 :trust-policy/keys {:signer-a {:key/id :key-1 :key/public-key pk
-                                                :key/status :active
-                                                :key/authorised-kinds #{:evidence-package}}}
-                 :valid-at 1000 :artifact-kind :evidence-package
-                 :verification/implementation-root "sha256:impl"})]
+                :trust-policy/root "sha256:policy"
+                :trust-policy/keys {:signer-a {:key/id :key-1 :key/public-key pk
+                                               :key/status :active
+                                               :key/authorised-kinds #{:evidence-package}}}
+                :valid-at 1000 :artifact-kind :evidence-package
+                :verification/implementation-root "sha256:impl"})]
     (is (= :pass (:verification/status valid)))
     (let [wrong-preimage (crypto/verify-signature
                           (assoc (select-keys

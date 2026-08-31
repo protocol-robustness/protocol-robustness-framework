@@ -48,6 +48,16 @@
     :reason :force-authorisation-gated
     :class :force-authorisation-override
     :note "the exceptional force-authorisation add-held mutation; forbidden by default"}
+   :held-custody/force-authorised-release
+   {:action :sub-held
+    :direction :out
+    :class :force-authorisation-override
+    :note "exceptional forced RELEASE egress (sub-held :out); governed override required"}
+   :held-custody/force-authorised-refund
+   {:action :sub-held
+    :direction :out
+    :class :force-authorisation-override
+    :note "exceptional forced REFUND egress (sub-held :out); governed override required"}
    :sew/escrow-principal-deposited
    {:action :add-held
     :reason :escrow-principal-deposited
@@ -77,7 +87,22 @@
    {:action :add-held
     :reason :custody-held-adjustment
     :class :ordinary
-    :note "with-bounty custody reserve (:prf.effect/custody-held-adjustment); ordinary"}})
+    :note "with-bounty custody reserve (:prf.effect/custody-held-adjustment); ordinary"}
+   :sew/ordinary-release
+   {:action :sub-held
+    :direction :out
+    :class :ordinary
+    :note "ordinary release egress (sub-held :out); ordinary semantic authority"}
+   :sew/ordinary-refund
+   {:action :sub-held
+    :direction :out
+    :class :ordinary
+    :note "ordinary refund egress (sub-held :out); ordinary semantic authority"}
+   :sew/ordinary-settlement
+   {:action :sub-held
+    :direction :out
+    :class :ordinary
+    :note "ordinary settlement egress (sub-held :out); ordinary semantic authority"}})
 
 (defn semantic-operation-class
   "Admission class for a semantic operation identity. Fails closed: an unknown
@@ -110,10 +135,10 @@
    re-implement exact-scope verification (it delegates to the authoritative
    gate + core validator)."
   [{:keys [scope permits consumption-registry now-ts
-           configuration-head extension-resolution]}]
+           configuration-head extension-resolution operation-id]}]
   (let [classified (authoritative-gate/classify-under-current-configuration
                     configuration-head extension-resolution
-                    {:action :add-held
+                    {:operation-id (or operation-id :held-custody/force-auth-mutation)
                      :scope scope
                      :permits permits
                      :consumption-registry consumption-registry
@@ -193,7 +218,7 @@
       :force-authorisation-override
       (let [classified (authoritative-gate/classify-under-current-configuration
                         configuration-head extension-resolution
-                        {:action :add-held
+                        {:operation-id operation-id
                          :scope scope
                          :permits permits
                          :consumption-registry registry

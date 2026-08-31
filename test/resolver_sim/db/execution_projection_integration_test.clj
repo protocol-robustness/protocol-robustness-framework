@@ -28,7 +28,8 @@
             [resolver-sim.db.execution-projection :as ep]
             [resolver-sim.db.xtdb :as xtdb]
             [resolver-sim.io.paths :as paths]
-            [resolver-sim.run.package-index :as package-index]))
+            [resolver-sim.run.package-index :as package-index])
+  (:import [java.util UUID]))
 
 ;; ---------------------------------------------------------------------------
 ;; Fixture — shared datasource + per-suite cleanup
@@ -48,8 +49,27 @@
   (try (jdbc/execute! ds [(str "DELETE FROM " table)])
        (catch Exception _ nil)))
 
+(defn- wait-for-xtdb!
+  "Wait (up to timeout-ms) for the XTDB pgwire endpoint to accept a connection.
+   XTDB's container can be up before its pgwire listener is ready; the JDBC
+   driver then fails the auth handshake with EOF/connection-reset. Retrying a
+   trivial query until it succeeds makes the suite robust to that startup race."
+  [ds timeout-ms]
+  (let [deadline (+ (System/currentTimeMillis) (long timeout-ms))]
+    (loop []
+      (let [ok (try (jdbc/execute! ds ["SELECT 1"])
+                    true
+                    (catch Throwable _ false))]
+        (cond
+          ok true
+          (>= (System/currentTimeMillis) deadline)
+          (throw (ex-info "XTDB not reachable on localhost:5432 (run `make xtdb` and wait for healthy)."
+                          {:error :xtdb-unreachable}))
+          :else (do (Thread/sleep 2000) (recur)))))))
+
 (defn xtdb-fixture [f]
   (let [ds (xtdb/->datasource)]
+    (wait-for-xtdb! ds 60000)
     (binding [*ds* ds]
       (try
         (f)
@@ -206,3 +226,25 @@
       (let [future (ep/as-of *ds* (as-of-ts "2030-01-01T00:00:00Z"))
             mine   (filter #(= "run-integ-asof" (:execution/_id %)) future)]
         (is (= 1 (count mine)) "the projected row is visible AS OF a later valid time")))))
+
+(deftest system-time-records-a-derived-index-correction
+  (testing "an incorrect index observation corrected by the projection appears in system-time history"
+    (let [id   (str "run-integ-correction-" (UUID/randomUUID))
+          root (build-completed-package! id "sha256:result-correct")
+          correct (ep/resolve-projection root)
+          incorrect (assoc-in correct [:run :bundle-root] "sha256:INDEX-ERROR-WRONG")]
+      ;; t1: the index first showed the wrong derived root.
+      (ep/insert-run! *ds* (:run incorrect))
+      ;; t2: the authoritative projection corrects it (same _id → new system-time version).
+      (ep/project-run! *ds* root)
+      (let [hist (sort-by :execution/_system_from
+                          (filter #(= id (:execution/_id %))
+                                  (ep/execution-runs-history *ds*)))]
+        (is (= ["sha256:INDEX-ERROR-WRONG" "sha256:result-correct"]
+               (mapv :execution/bundle_root hist))
+            "history shows the incorrect observation followed by the corrected one")
+        (is (= 2 (count hist)) "two system-time versions, not one"))
+      (let [current (first (filter #(= id (:execution/_id %))
+                                   (ep/execution-runs-valid-at *ds* (java.util.Date.))))]
+        (is (= "sha256:result-correct" (:execution/bundle_root current))
+            "the current (best-known) row is the corrected projection")))))

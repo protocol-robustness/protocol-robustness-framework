@@ -71,7 +71,7 @@ particular run used it.
 
 ## Risk and VaR boundary
 
-`risk-projection.v1` is an evidence-backed, scenario-separated representation of
+`risk-observation.v1` (formerly risk-projection.v1) is an evidence-backed, scenario-separated representation of
 `escrow/total-held`: rows retain evidence provenance, scenario-local deltas,
 sequence, event time when trace-joined, and measured/not-measured coverage. Its
 chain verification may be verified while world-transition recomputation remains

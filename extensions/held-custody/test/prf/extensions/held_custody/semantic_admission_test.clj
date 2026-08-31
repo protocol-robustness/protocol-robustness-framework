@@ -91,9 +91,18 @@
            (admission/semantic-operation-class :sew/yield-accrued)))
     (is (= :ordinary
            (admission/semantic-operation-class :sew/bounty-custody-reserve))))
-  (testing "every classified add-held operation is documented as such"
-    (is (every? #(= :add-held (:action (admission/semantic-operation %)))
-                (keys admission/semantic-operation-classes))))
+  (testing "every classified operation is documented with its accounting action and class"
+    (is (every? #(and (:action (admission/semantic-operation %))
+                      (:class (admission/semantic-operation %)))
+                (keys admission/semantic-operation-classes)))
+    (is (contains? #{:add-held :sub-held} (:action (admission/semantic-operation :held-custody/force-authorised-release))))
+    (is (= :force-authorisation-override
+           (admission/semantic-operation-class :held-custody/force-authorised-release)))
+    (is (= :force-authorisation-override
+           (admission/semantic-operation-class :held-custody/force-authorised-refund)))
+    (is (= :ordinary (admission/semantic-operation-class :sew/ordinary-release)))
+    (is (= :ordinary (admission/semantic-operation-class :sew/ordinary-refund)))
+    (is (= :ordinary (admission/semantic-operation-class :sew/ordinary-settlement))))
   (testing "an unknown operation fails closed to :never-overrideable"
     (is (= :never-overrideable (admission/semantic-operation-class :some/new-operation)))))
 

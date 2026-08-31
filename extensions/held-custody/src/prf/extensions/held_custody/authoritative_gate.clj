@@ -74,9 +74,11 @@
    configuration-head   — the current authoritative configuration-head-state.v1.
    extension-resolution — the authoritative extension resolution result
                           (resolve-requested), or a compatible map.
-   opts                 — the pure classifier's opts minus :authoritative-config:
-                          :action :scope :permits|:permit :consumption-registry
-                          :now-ts.
+opts                 — the pure classifier's opts: :operation-id :scope
+                           :permits|:permit :consumption-registry :now-ts.
+                           :operation-id determines override-eligibility (semantic,
+                           never :in/:out or the action name). :authoritative-config
+                           is supplied here.
 
    Returns the pure classifier result, with :override-enabled? reflecting the
    authoritative posture. Fails closed on invalid/stale configuration or

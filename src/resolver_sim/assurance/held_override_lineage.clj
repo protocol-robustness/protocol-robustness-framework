@@ -78,10 +78,12 @@
      held-adjustment                — the resulting held adjustment (must carry
                                       :artifact/hash).
      consumption-record             — the resulting force-authorisation consumption
-                                      record."
+                                      record.
+     successor-state-root           — the exact published successor authoritative
+                                      state root (binds state-after to this lineage)."
   [{:keys [predecessor-configuration-head extension-selection extension-resolution
            provider-package-root capability-key capability-version
-           permit held-adjustment consumption-record]}]
+           permit held-adjustment consumption-record successor-state-root]}]
   (let [base {:lineage/schema lineage-schema
               :lineage/predecessor-head-root
               (:configuration-head-state/root predecessor-configuration-head)
@@ -95,7 +97,8 @@
               :lineage/permit-id (:authorization/id permit)
               :lineage/permit-scope-root (:authorization/scope-hash permit)
               :lineage/adjustment-root (:artifact/hash held-adjustment)
-              :lineage/consumption-root (consumption-root consumption-record)}]
+              :lineage/consumption-root (consumption-root consumption-record)
+              :lineage/successor-root successor-state-root}]
     (assoc base :lineage/root (lineage-root base))))
 
 (defn verify-lineage
@@ -130,3 +133,66 @@
   [lineage]
   (and (map? lineage)
        (some? (:lineage/predecessor-head-root lineage))))
+
+(defn verify-lineage-completeness
+  "HELD_OVERRIDE_LINEAGE_COMPLETENESS.
+
+   An authoritative exceptional held mutation exists
+     <=>  an exact valid held-override-lineage exists
+       ∧  the lineage is retained
+       ∧  the lineage is discoverable from the successor authoritative state
+       ∧  all addressed historical bodies needed to verify it are retained.
+
+   `mutation-exists?` is the protocol/world fact that an override held mutation
+   was committed. The four retention/discoverability/body-retention facts are
+   provided by the storage layer. Completeness holds only when they coincide —
+   a committed override without a retained, discoverable, body-complete valid
+   lineage (or a retained lineage for effects not committed) fails closed.
+
+   Returns {:complete? bool :valid-lineage? bool :lineage-retained? bool
+            :lineage-discoverable? bool :bodies-retained? bool}."
+  [{:keys [mutation-exists? lineage-retained? lineage-discoverable?
+           bodies-retained?] :as inputs}]
+  (let [valid? (:conserved? (verify-lineage inputs))
+        complete? (and mutation-exists?
+                       valid?
+                       lineage-retained?
+                       lineage-discoverable?
+                       bodies-retained?)]
+    {:complete? complete?
+     :mutation-exists? mutation-exists?
+     :valid-lineage? valid?
+     :lineage-retained? (boolean lineage-retained?)
+     :lineage-discoverable? (boolean lineage-discoverable?)
+     :bodies-retained? (boolean bodies-retained?)}))
+
+(defn verify-state-after-binding
+  "HELD_OVERRIDE_STATE_AFTER_BINDING.
+
+   The lineage's committed consequence roots must equal EXACTLY what the
+   published successor authoritative state commits, and the predecessor/successor
+   roots must match:
+
+     L0.adjustment-root   == adjustment committed by successor state
+     L0.consumption-root  == consumption committed by successor state
+     L0.predecessor-root  == predecessor authoritative state/head
+     L0.successor-root    == exact published successor state
+
+   This prevents a correctly-authorized lineage from being attached to a
+   DIFFERENT successor state (transplantation).
+
+   Returns {:bound? true} or {:bound? false :mismatches [path...]}."
+  [{:keys [lineage predecessor-state-root successor-state-root
+           successor-adjustment-root successor-consumption-root]}]
+  (let [checks {:lineage/predecessor-root
+                (= (:lineage/predecessor-head-root lineage) predecessor-state-root)
+                :lineage/adjustment-root
+                (= (:lineage/adjustment-root lineage) successor-adjustment-root)
+                :lineage/consumption-root
+                (= (:lineage/consumption-root lineage) successor-consumption-root)
+                :lineage/successor-root
+                (= (:lineage/successor-root lineage) successor-state-root)}]
+    (if (every? true? (vals checks))
+      {:bound? true}
+      {:bound? false
+       :mismatches (vec (keep (fn [[k v]] (when-not v k)) checks))})))
