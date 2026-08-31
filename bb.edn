@@ -791,17 +791,32 @@ test:community {:doc "Run community participation tests"
 
 explorer:seed
    {:doc "Reset and seed XTDB with the demonstrative XTDB Temporal Explorer dataset
-         (execution + temporal + synthetic index-correction history)."
-    :task (shell "clojure" "-M:explorer-seed")}
+         (execution + temporal + synthetic index-correction history).
+         DESTRUCTIVE: requires PRF_EXPLORER_DEMO=1 and the local composed XTDB."
+    :task (shell "bash" "-c" "test \"$PRF_EXPLORER_DEMO\" = 1 || { echo 'explorer:seed is destructive — set PRF_EXPLORER_DEMO=1 to confirm demo mode against the local composed XTDB'; exit 1; }; clojure -M:explorer-seed")}
 
   explorer:reset-seed
-   {:doc "Truncate only the explorer sim_* tables (execution + temporal)."
-    :task (shell "clojure" "-M:explorer-seed" "reset")}
+   {:doc "Truncate only the explorer sim_* tables (execution + temporal). DESTRUCTIVE."
+    :task (shell "bash" "-c" "test \"$PRF_EXPLORER_DEMO\" = 1 || { echo 'explorer:reset-seed is destructive — set PRF_EXPLORER_DEMO=1 to confirm demo mode'; exit 1; }; clojure -M:explorer-seed reset")}
 
   explorer:demo
    {:doc "One-command XTDB Temporal Explorer demo: start XTDB, wait until healthy,
-         seed the curated dataset, then serve the notebook via Clerk."
-    :task (shell "bash" "-c" "make xtdb && until [ \"$(docker inspect -f '{{.State.Health.Status}}' config-xtdb-1 2>/dev/null)\" = healthy ]; do sleep 2; done && bb explorer:seed && clojure -X:clerk :paths '[\"notebooks/xtdb_temporal_explorer.clj\"]'")}
+         seed the curated dataset, then serve the notebook via Clerk. DESTRUCTIVE."
+    :task (shell "bash" "-c" "test \"$PRF_EXPLORER_DEMO\" = 1 || { echo 'explorer:demo reseeds XTDB — set PRF_EXPLORER_DEMO=1 to confirm demo mode'; exit 1; }; make xtdb && until [ \"$(docker inspect -f '{{.State.Health.Status}}' config-xtdb-1 2>/dev/null)\" = healthy ]; do sleep 2; done && bb explorer:seed && clojure -X:clerk :paths '[\"notebooks/xtdb_temporal_explorer.clj\"]'")}
+
+  explorer:metabase
+   {:doc "Idempotent Metabase provisioning for the PRF / XTDB Explorer external demo:
+         start XTDB, seed the explorer dataset, start Metabase (analytics profile),
+         ensure admin setup + read-only XTDB datasource + collection + saved native-SQL
+         questions + 4-tab dashboard, then print the dashboard URL. DESTRUCTIVE (reseeds XTDB)."
+    :task (shell "bash" "-c" "test \"$PRF_EXPLORER_DEMO\" = 1 || { echo 'explorer:metabase reseeds XTDB — set PRF_EXPLORER_DEMO=1 to confirm demo mode against the local composed XTDB'; exit 1; }; make xtdb && until [ \"$(docker inspect -f '{{.State.Health.Status}}' config-xtdb-1 2>/dev/null)\" = healthy ]; do sleep 2; done && bb explorer:seed && docker compose -f config/docker-compose.yaml --profile analytics up -d metabase && until curl -sf http://localhost:3000/api/health | grep -q '\"status\":\"ok\"'; do sleep 3; done && clojure -M:explorer-metabase")}
+
+  explorer:metabase:check
+   {:doc "Read-only contract smoke: assert the provisioned External Explorer holds
+         (datasource, collection, dashboard = 4 tabs / 17 cards, current=8 runs,
+         history>=2 correction versions, as-known-then=WRONG-ROOT,
+         best-known-now=correct-root)."
+    :task (shell "bash" "-c" "make xtdb && until [ \"$(docker inspect -f '{{.State.Health.Status}}' config-xtdb-1 2>/dev/null)\" = healthy ]; do sleep 2; done && docker compose -f config/docker-compose.yaml --profile analytics up -d metabase && until curl -sf http://localhost:3000/api/health | grep -q '\"status\":\"ok\"'; do sleep 3; done && clojure -M:explorer-metabase check")}
 
   test:forensic-python {:doc "Run forensic Python unit tests (verify.py, preflight.py, etc.)"
                         :task (shell "python3" "-m" "pytest" "test/forensic_python/" "-v")}

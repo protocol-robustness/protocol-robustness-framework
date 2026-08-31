@@ -7,7 +7,7 @@
   (:require [resolver-sim.db.execution-projection :as ep]))
 
 (def ^:private temporal-column-keys
-  "XTDB-managed bitemporal bounds, excluded from content-changed-keys."
+  "XTDB-managed bitemporal bounds, excluded from `:changed-keys`."
   #{:execution/_valid_from :execution/_valid_to
     :execution/_system_from :execution/_system_to})
 
@@ -18,26 +18,26 @@
    Input keys: :execution-run/id, :valid-at, :known-at (both java.util.Date).
    Returns, or {} when the run is absent from either snapshot:
      :then, :now                     — the two snapshots
-     :changed-keys                   — all changed keys (content + temporal)
-     :content-changed-keys           — changed keys excluding the four XTDB
-                                       temporal bounds (what the indexed
-                                       assertion actually changed)
+     :changed-keys                   — projection-CONTENT changes only (the four
+                                       XTDB temporal bounds are excluded, so this
+                                       describes what the indexed assertion
+                                       actually changed)
      :temporal-metadata-changed-keys — the XTDB temporal bounds that changed
-                                       (e.g. _system_from between versions)"
+                                       (e.g. _system_from between versions),
+                                       exposed separately as provenance"
   [ds {:keys [execution-run/id valid-at known-at]}]
   (let [then (first (filter #(= id (:execution/_id %))
                             (ep/execution-runs-as-known-at ds known-at)))
         now  (first (filter #(= id (:execution/_id %))
                             (ep/execution-runs-valid-at ds valid-at)))
-        changed-keys (->> (keys then)
-                          (filter (fn [k] (not= (get then k) (get now k))))
-                          vec)]
+        all-changed (->> (keys then)
+                         (filter (fn [k] (not= (get then k) (get now k))))
+                         vec)]
     (if (and then now)
       {:then then
        :now now
-       :changed-keys changed-keys
-       :content-changed-keys (vec (remove temporal-column-keys changed-keys))
-       :temporal-metadata-changed-keys (vec (filter temporal-column-keys changed-keys))}
+       :changed-keys (vec (remove temporal-column-keys all-changed))
+       :temporal-metadata-changed-keys (vec (filter temporal-column-keys all-changed))}
       {})))
 
 (def ^:private scope->row-key

@@ -37,6 +37,13 @@
   ([]          (->datasource {}))
   ([overrides] (jdbc/get-datasource (merge defaults overrides))))
 
+(defn datasource-defaults
+  "The default XTDB pgwire connection parameters (host / port / db / user).
+   Useful for tooling that must verify it is targeting the expected composed
+   local XTDB before running a destructive operation."
+  []
+  defaults)
+
 ;; ---------------------------------------------------------------------------
 ;; Type coercion utilities
 ;; ---------------------------------------------------------------------------

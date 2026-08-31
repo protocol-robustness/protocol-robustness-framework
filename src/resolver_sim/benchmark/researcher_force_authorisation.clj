@@ -44,6 +44,13 @@
    values or field summaries."
   "researcher-decision.v2")
 
+(def ^:const decision-k3-schema-version
+  "Signed-decision container version whose semantic subject remains
+   researcher-decision.v2. AUTH-K3 changes only what is signed (the fixed K3
+   signing digest over a governed-authority-signing-request.v1), not the
+   decision-v2 identity. The v2 decision/root is preserved as :subject/root."
+  "researcher-decision.k3")
+
 (def ^:const decision-statuses
   "Immutable decision statuses. These reflect the final determination
    of the collected signed decisions — not runtime state."
@@ -288,6 +295,23 @@
    RESEARCHER_DECISION_V2 domain separator."
   [preimage]
   (hash-ref/sha256-ref (hc/domain-hash :researcher-decision-v2 preimage)))
+
+(defn decision-v2-root
+  "Recompute the content-addressed researcher-decision.v2 root from a decision
+   reference's embedded fields. This is the AUTH-K3 semantic :subject/root —
+   exposed so request derivation does not trust a caller-supplied subject root.
+   The v2 preimage identity is unchanged."
+  [decision-ref]
+  (compute-decision-v2-hash
+   (decision-v2-preimage
+    (:researcher/id decision-ref)
+    (:authorisation/id decision-ref)
+    (:authorisation/request-root decision-ref)
+    (:review-round/hash decision-ref)
+    (:outcome/root decision-ref)
+    (:decision decision-ref)
+    (:dissent/reason decision-ref)
+    (:signing-key/id decision-ref))))
 
 (defn build-signed-decision-v2
   "Build a researcher-decision.v2 signed position.

@@ -10,6 +10,7 @@
             [resolver-sim.benchmark.governed-authority-resolution :as resolution]
             [resolver-sim.benchmark.governed-authority-result-receipt :as result-receipt]
             [resolver-sim.benchmark.review-round :as rr]
+            [resolver-sim.benchmark.governed-authority-signing-request :as k3]
             [resolver-sim.configuration-head :as configuration-head]
             [resolver-sim.assurance.three-member-authority :as authority]
             [resolver-sim.signed-external-decision :as sed]
@@ -441,34 +442,47 @@
   "Verify a single decision reference's signature against a signer-key-set entry.
 
    signer-key-set — the frozen governed-authority-signer-key-set.v1 body
-     (with :signer-key-set/entries)
    decision-ref   — the decision reference map containing
      :researcher/id, :signing-key/id, :decision/hash, and :signature
+   authority-ctx  — optional {:authority-state/root ... :authority-material ...}
+     required to recompute the K3 signing request from committed material.
 
-   The public key is looked up directly from the signer-key-set entries by
-   [researcher-id, signing-key-id]. Fails closed when the key is not found
-   or the signature does not verify."
-  [signer-key-set decision-ref]
-  (let [researcher-id (:researcher/id decision-ref)
-        key-id (:signing-key/id decision-ref)
-        public-key-hex (lookup-signing-public-key signer-key-set researcher-id key-id)]
-    (cond
-      (nil? public-key-hex)
-      {:valid? false :reason (str "signer-key not found for researcher " researcher-id " key " key-id)}
+   v1/v2: public key looked up by [researcher-id, signing-key-id]; signature
+   verified over the stripped decision hash (unchanged historical meaning).
 
-      (not= signer-key-algorithm (:signing-key/algorithm
-                                  (some #(when (and (= (:researcher/id %) researcher-id)
-                                                    (= (:signing-key/id %) key-id)) %)
-                                        (:signer-key-set/entries signer-key-set))))
-      {:valid? false :reason "signing-key algorithm mismatch"}
+   K3 (researcher-decision.k3): the signature is verified over the fixed K3
+   signing digest reconstructed from committed material + decision semantics.
+   Fails closed when the authority context is absent."
+  ([signer-key-set decision-ref]
+   (verify-decision-signature-with-entries signer-key-set decision-ref nil))
+  ([signer-key-set decision-ref authority-ctx]
+   (if (= k3/decision-k3-schema (:schema-version decision-ref))
+     (if authority-ctx
+       (let [{:keys [authority-material] :as ctx} authority-ctx
+             result (k3/verify-signed-decision-k3-with-material
+                     decision-ref (:authority-state/root ctx) authority-material)]
+         {:valid? (:valid? result) :reason (:reason result)})
+       {:valid? false :reason "k3 verification requires authority context"})
+     (let [researcher-id (:researcher/id decision-ref)
+           key-id (:signing-key/id decision-ref)
+           public-key-hex (lookup-signing-public-key signer-key-set researcher-id key-id)]
+       (cond
+         (nil? public-key-hex)
+         {:valid? false :reason (str "signer-key not found for researcher " researcher-id " key " key-id)}
 
-      :else
-      (let [stripped-hash (subs (:decision/hash decision-ref) (count "sha256:"))
-            sig-value (get-in decision-ref [:signature :value])]
-        (if (sed/ed25519-verify-bytes
-             (.getBytes stripped-hash) sig-value public-key-hex)
-          {:valid? true}
-          {:valid? false :reason "signature does not verify"})))))
+         (not= signer-key-algorithm (:signing-key/algorithm
+                                     (some #(when (and (= (:researcher/id %) researcher-id)
+                                                       (= (:signing-key/id %) key-id)) %)
+                                           (:signer-key-set/entries signer-key-set))))
+         {:valid? false :reason "signing-key algorithm mismatch"}
+
+         :else
+         (let [stripped-hash (subs (:decision/hash decision-ref) (count "sha256:"))
+               sig-value (get-in decision-ref [:signature :value])]
+           (if (sed/ed25519-verify-bytes
+                (.getBytes stripped-hash) sig-value public-key-hex)
+             {:valid? true}
+             {:valid? false :reason "signature does not verify"})))))))
 
 (defn verify-decision-signatures-with-signer-key-set
   "Verify signatures for all decision references using the B3 signer-key-set.
@@ -476,17 +490,56 @@
    Replaces the legacy `public-key-resolver` approach with direct entry
    lookup from the frozen signer-key-set body. Returns:
      {:valid? bool
-      :results [{:researcher/id ... :signing-key/id ... :valid? bool :reason str}]}."
-  [signer-key-set authorisation]
-  (let [results (mapv
-                 (fn [d]
-                   (let [r (verify-decision-signature-with-entries signer-key-set d)]
-                     (merge {:researcher/id (:researcher/id d)
-                             :signing-key/id (:signing-key/id d)}
-                            r)))
-                 (:authorisation/decision-references authorisation))]
-    {:valid? (every? :valid? results)
-     :results results}))
+      :results [{:researcher/id ... :signing-key/id ... :valid? bool :reason str}]}.
+
+   An optional authority-ctx {:authority-state/root :authority-material} is
+   required for K3 decisions; absent context fails them closed."
+  ([signer-key-set authorisation]
+   (verify-decision-signatures-with-signer-key-set signer-key-set authorisation nil))
+  ([signer-key-set authorisation authority-ctx]
+   (let [results (mapv
+                  (fn [d]
+                    (let [r (verify-decision-signature-with-entries
+                             signer-key-set d authority-ctx)]
+                      (merge {:researcher/id (:researcher/id d)
+                              :signing-key/id (:signing-key/id d)}
+                             r)))
+                  (:authorisation/decision-references authorisation))]
+     {:valid? (every? :valid? results)
+      :results results})))
+
+(defn verify-authoritative-signed-decision-k3
+  "AUTHORITATIVE K3 verification (AUTH-K3-V).
+
+   Resolves the authenticated retained material for the decision's
+   :authority-state/root from the authoritative store — never from the caller —
+   then verifies K3-K1 (via k3/verify-signed-decision-k3-with-material) and K2
+   per-decision eligibility (key present in the committed signer-key-set,
+   governance-eligible, principal constituted) under the exact state.
+
+   Returns {:valid? bool :reason kw :subject/root :request/root}. A caller
+   cannot supply authority material directly; only store-retained (authenticated)
+   material at the committed state root is authoritative."
+  [store decision-ref]
+  (let [state-root (:authority-state/root decision-ref)
+        material (get-in @(.state store) [:material state-root])]
+    (if-not material
+      {:valid? false :reason :state-unavailable :authority-state/root state-root}
+      (let [k1 (k3/verify-signed-decision-k3-with-material decision-ref state-root material)]
+        (if-not (:valid? k1)
+          k1
+          (let [principal-id (:researcher/id decision-ref)
+                key-id (:signing-key/id decision-ref)
+                gov (:authority-material/review-governance material)
+                round (:authority-material/review-round material)
+                ks (:authority-material/signer-key-set material)
+                k2-eligible? (and (some? (lookup-signing-public-key ks principal-id key-id))
+                                  (governance/position-key-valid? gov principal-id key-id)
+                                  (contains? (set (map :researcher/id (:review-round/members round)))
+                                             principal-id))]
+            (if k2-eligible?
+              k1
+              {:valid? false :reason :k2-ineligible})))))))
 
 ;; ── B3 governed-authority evaluator entry point ──────────────────────────
 
@@ -508,14 +561,17 @@
    Delegates to `resolver-sim.assurance.three-member-authority/evaluate-governed-authority`
    with internally-derived resolvers, replacing the legacy external key resolver
    boundary."
-  [{:keys [authorisation review-round review-governance position-time-index signer-key-set]}]
+  [{:keys [authorisation review-round review-governance position-time-index signer-key-set
+           authority-material] :as inputs}]
   {:pre [(map? review-round) (map? review-governance)
          (map? position-time-index) (map? signer-key-set)]}
-  (let [signature-valid?
+  (let [authority-ctx (when (:authority-state/root inputs)
+                        {:authority-state/root (:authority-state/root inputs)
+                         :authority-material authority-material})
+        signature-valid?
         (fn [position]
           (let [result (verify-decision-signature-with-entries
-                        signer-key-set
-                        position)]
+                        signer-key-set position authority-ctx)]
             (:valid? result)))]
     (authority/evaluate-governed-authority
      :authorisation authorisation
@@ -958,7 +1014,9 @@
                          :review-round (:authority-material/review-round material)
                          :review-governance (:authority-material/review-governance material)
                          :position-time-index (:authority-material/position-time-index material)
-                         :signer-key-set (:authority-material/signer-key-set material)}
+                         :signer-key-set (:authority-material/signer-key-set material)
+                         :authority-state/root (:authority-state/root context)
+                         :authority-material material}
                  key-resolution-result
                  (key-resolution
                   {:authority-state/root (:authority-state/root context)

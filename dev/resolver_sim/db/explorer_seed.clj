@@ -244,7 +244,24 @@
 ;; Entry point
 ;; ---------------------------------------------------------------------------
 
+(def ^:private expected-demo-host "localhost")
+(def ^:private expected-demo-port 5432)
+
+(defn- demo-mode-ok?
+  "The explorer seed is DESTRUCTIVE (it truncates sim_* tables). It must only run
+   against the local composed demo XTDB. Require an explicit opt-in
+   (`PRF_EXPLORER_DEMO=1`) AND the expected localhost:5432 compose target so it
+   can never accidentally erase/rewrite a non-demo XTDB."
+  []
+  (and (= "1" (System/getenv "PRF_EXPLORER_DEMO"))
+       (= expected-demo-host (get (xtdb/datasource-defaults) :host))
+       (= expected-demo-port (get (xtdb/datasource-defaults) :port))))
+
 (defn -main [& args]
+  (when-not (demo-mode-ok?)
+    (throw (ex-info "Explorer seed refused: destructive demo seed requires PRF_EXPLORER_DEMO=1 and the local composed XTDB (localhost:5432)."
+                    {:code :explorer-seed/guard-failed
+                     :prf-explorer-demo (System/getenv "PRF_EXPLORER_DEMO")})))
   (let [ds (xtdb/->datasource)]
     (reset-seed! ds)
     (when-not (= "reset" (first args))

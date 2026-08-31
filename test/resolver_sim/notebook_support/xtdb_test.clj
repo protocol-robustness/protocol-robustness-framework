@@ -35,11 +35,10 @@
                        :known-at (java.util.Date.)})]
         (is (= "THEN" (get-in diff [:then :execution/bundle_root])))
         (is (= "NOW" (get-in diff [:now :execution/bundle_root])))
-        (is (= [:execution/bundle_root :execution/_system_from] (:changed-keys diff)))
-        (is (= [:execution/bundle_root] (:content-changed-keys diff))
-            "only the content change (bundle_root) is a content change")
+        (is (= [:execution/bundle_root] (:changed-keys diff))
+            "changed-keys describes projection-content changes, excluding XTDB temporal metadata")
         (is (= [:execution/_system_from] (:temporal-metadata-changed-keys diff))
-            "the system-time bound is reported as temporal metadata, not content")
+            "the system-time bound is reported separately as temporal metadata")
         (is (not (some #{:execution/status} (:changed-keys diff)))))))
 
   (testing "returns {} when the run is absent from either snapshot"

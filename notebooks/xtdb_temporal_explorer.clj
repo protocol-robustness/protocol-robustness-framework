@@ -193,7 +193,7 @@
           (str "Changed indexed fields: "
                (clojure.string/join ", "
                                     (map (fn [k] (last (clojure.string/split (name k) #"/")))
-                                         (:content-changed-keys diff))))]
+                                         (:changed-keys diff))))]
          [:div {:style {:margin-top "4px" :font-family "monospace" :font-size "11px" :color "#888"}}
           (str "System-time interval: " (:execution/_system_from (:then diff))
                " → " (:execution/_system_from (:now diff)))]

@@ -69,6 +69,19 @@ clojure -X:clerk :paths '["notebooks/xtdb_temporal_explorer.clj"]'
 destructive by design (demo data only) and never modifies a completed/rooted PRF
 artifact. See `dev/resolver_sim/db/explorer_seed.clj` for the exact seeded cases.
 
+**Three headline demonstrations:**
+
+1. **Time Travel** — the same run identity, best-known-now vs as-known-at: XTDB
+   system time records a synthetic *derived-index* correction (`bundle_root`
+   changed) while the completed/rooted artifact never changed. This is
+   `FOR SYSTEM_TIME AS OF` / `FOR ALL SYSTEM_TIME`.
+2. **Failure Archaeology** — drill a failed run into its temporal replay: step →
+   action → invariant → violation → halt/outcome → root/evidence checksum.
+3. **Root Convergence / Divergence** — two explicitly comparable executions:
+   same result root (CONVERGENT) or distinct result roots (DIVERGENT), grouped
+   only under an explicit caller-supplied scope (no inferred semantic
+   equivalence).
+
 ---
 
 ## Evidence model

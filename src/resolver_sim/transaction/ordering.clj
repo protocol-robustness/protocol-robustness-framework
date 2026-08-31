@@ -80,6 +80,9 @@
 (def ^:const ordering-v2-schema "transaction-ordering.v2")
 (def ^:const ordering-v2-domain :prf-transaction-ordering-v2)
 
+(def ^:const ordering-v3-schema "transaction-ordering.v3")
+(def ^:const ordering-v3-domain :prf-transaction-ordering-v3)
+
 (def ^:const change-identity-domain
   "Domain tag for the internally-derived, chain-scoped change identity."
   :prf-transaction-ordering-change-identity-v1)
@@ -105,6 +108,8 @@
    [:transaction/effects-root :transaction/effects-root]
    [:transaction/input-root :transaction/input-root]
    [:transaction/change-identity :transaction/change-identity]
+   [:transaction/application-receipt-root :transaction/application-receipt-root]
+   [:transaction/realization-root :transaction/realization-root]
    [:transaction/previous-transaction-hash :transaction/previous-transaction-hash]])
 
 ;; ── schema dispatch ───────────────────────────────────────────────────────────
@@ -118,6 +123,12 @@
   "True when `ordering` declares the transaction-ordering.v2 schema."
   [ordering]
   (= ordering-v2-schema (ordering-schema-of ordering)))
+
+(defn v3?
+  "True when `ordering` declares the transaction-ordering.v3 schema (economic
+   application publication ordering)."
+  [ordering]
+  (= ordering-v3-schema (ordering-schema-of ordering)))
 
 ;; ── unsigned projections (versioned — v1 is never perturbed by v2 additions) ──
 
@@ -135,19 +146,32 @@
   [ordering]
   (dissoc ordering :transaction-ordering/hash))
 
+(defn unsigned-ordering-projection-v3
+  "v3 unsigned projection: the v2 projection additionally commits
+   :transaction/application-receipt-root and :transaction/realization-root
+   (the economic application publication roots). Only the self ordering hash
+   is excluded."
+  [ordering]
+  (dissoc ordering :transaction-ordering/hash))
+
 (defn unsigned-ordering-projection
   "Schema-dispatched unsigned projection. v1 path is byte-identical to
-   unsigned-ordering-projection-v1; v2 adds input-root/change-identity coverage."
+   unsigned-ordering-projection-v1; v2 adds input-root/change-identity
+   coverage; v3 adds the economic application publication roots."
   [ordering]
-  (if (v2? ordering)
-    (unsigned-ordering-projection-v2 ordering)
-    (unsigned-ordering-projection-v1 ordering)))
+  (cond
+    (v3? ordering) (unsigned-ordering-projection-v3 ordering)
+    (v2? ordering) (unsigned-ordering-projection-v2 ordering)
+    :else (unsigned-ordering-projection-v1 ordering)))
 
 ;; ── hashing and change identity ───────────────────────────────────────────────
 
 (defn- ordering-domain-for
   [ordering]
-  (if (v2? ordering) ordering-v2-domain ordering-domain))
+  (cond
+    (v3? ordering) ordering-v3-domain
+    (v2? ordering) ordering-v2-domain
+    :else ordering-domain))
 
 (defn ordering-hash
   "Content-derived identity of a transaction-ordering record. Schema-dispatched
@@ -200,15 +224,16 @@
   [inputs]
   (let [schema (ordering-schema-of inputs)
         base (merge {:transaction-ordering/schema schema} inputs)]
-    (if (= schema ordering-v2-schema)
-      ;; v2: change-identity is DERIVED internally (authoritative producer); a
+    (cond
+      (or (= schema ordering-v2-schema) (= schema ordering-v3-schema))
+      ;; v2/v3: change-identity is DERIVED internally (authoritative producer); a
       ;; stale value carried through a projection is overwritten, not rejected.
       ;; Independent rejection of a mismatched committed identity lives in
       ;; verify-ordering (recompute + compare).
-      (let [v2 (assoc base :transaction/change-identity (change-identity-hash base))]
-        (assoc v2 :transaction-ordering/hash (ordering-hash v2)))
+      (let [versioned (assoc base :transaction/change-identity (change-identity-hash base))]
+        (assoc versioned :transaction-ordering/hash (ordering-hash versioned)))
       ;; v1: unchanged
-      (assoc base :transaction-ordering/hash (ordering-hash base)))))
+      :else (assoc base :transaction-ordering/hash (ordering-hash base)))))
 
 ;; ── verification ───────────────────────────────────────────────────────────────
 
@@ -241,25 +266,23 @@
    basis and rejects `:change-identity-mismatch`."
   [ordering]
   (let [schema (ordering-schema-of ordering)
-        supported #{ordering-schema ordering-v2-schema}
-        required (if (= schema ordering-v2-schema)
-                   (into [:transaction-ordering/schema
-                          :transaction/action
-                          :transaction/scope
-                          :transaction/conflict-key
-                          :transaction/commit-index
-                          :transaction/state-before-root
-                          :transaction/state-after-root
-                          :transaction/effects-root]
-                         [:transaction/input-root :transaction/change-identity])
-                   [:transaction-ordering/schema
-                    :transaction/action
-                    :transaction/scope
-                    :transaction/conflict-key
-                    :transaction/commit-index
-                    :transaction/state-before-root
-                    :transaction/state-after-root
-                    :transaction/effects-root])
+        supported #{ordering-schema ordering-v2-schema ordering-v3-schema}
+        v2-extra [:transaction/input-root :transaction/change-identity]
+        v3-extra (into v2-extra
+                       [:transaction/application-receipt-root
+                        :transaction/realization-root])
+        base-required [:transaction-ordering/schema
+                       :transaction/action
+                       :transaction/scope
+                       :transaction/conflict-key
+                       :transaction/commit-index
+                       :transaction/state-before-root
+                       :transaction/state-after-root
+                       :transaction/effects-root]
+        required (cond
+                   (= schema ordering-v3-schema) (into base-required v3-extra)
+                   (= schema ordering-v2-schema) (into base-required v2-extra)
+                   :else base-required)
         missing (remove #(some? (get ordering %)) required)
         bad-roots (malformed-root-fields ordering)]
     (cond
@@ -270,13 +293,13 @@
       (not (contains? supported schema))
       {:valid? false :reason :ordering-schema-mismatch
        :detail (str "expected schema " ordering-schema " or " ordering-v2-schema
-                    " got " schema)}
+                    " or " ordering-v3-schema " got " schema)}
 
       (seq bad-roots)
       {:valid? false :reason :malformed-root-reference
        :detail (str "malformed sha256 root reference(s): " (pr-str bad-roots))}
 
-      (and (= schema ordering-v2-schema)
+      (and (contains? #{ordering-v2-schema ordering-v3-schema} schema)
            (not= (:transaction/change-identity ordering)
                  (change-identity-hash ordering)))
       {:valid? false :reason :change-identity-mismatch
