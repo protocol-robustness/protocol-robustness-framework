@@ -532,8 +532,35 @@ test:quick
          These keys must only be mutated through canonical accounting paths."
    :task (shell "clojure" "-M:test" "-m" "scripts.scenarios.check-direct-writes")}
 
-  validate {:doc "Structural validation pipeline: lint + notebook + SPEDS."
-            :task (clojure "-M:cli/sew" "validate")}
+   validate {:doc "Structural validation pipeline: lint + notebook + SPEDS."
+             :task (clojure "-M:cli/sew" "validate")}
+
+   doctor
+   {:doc "Report the PRF research environment: toolchain, project revision, working tree, researcher paths, and whether canonical classpaths resolve."
+    :requires ([babashka.fs :as fs]
+               [babashka.process :as p]
+               [clojure.edn :as edn]
+               [clojure.string :as str])
+    :task
+    (let [clj (p/sh {:continue true} "clojure" "--version")
+          jv (p/sh {:continue true} "java" "-version")
+          jj (p/sh {:continue true} "jj" "log" "-r" "@" "-n" "1" "--no-pager")
+          user-deps (slurp (str (System/getProperty "user.home") "/.clojure/deps.edn"))
+          proj-deps (slurp "deps.edn")
+          researcher-paths (get-in (edn/read-string user-deps) [:aliases :researcher/paths])]
+      (println "PRF research environment")
+      (println "------------------------")
+      (println (str "Clojure CLI        " (if (zero? (:exit clj)) "✓" "✗")))
+      (println (str "Java               " (if (zero? (:exit jv)) "✓" "✗")))
+      (println (str "jj (revision)      " (if (zero? (:exit jj)) "✓" "✗")))
+      (when (zero? (:exit jj))
+        (println (str "  latest change:   " (str/trim (:out jj)))))
+      (println (str "researcher paths   " (if (seq researcher-paths) (pr-str researcher-paths) "none"))))
+    }
+
+   example
+   {:doc "Run the canonical 'reorder the evidence' example: the framework's research loop (definition -> canonical identity -> rooted result -> verification) with no DB or external infrastructure. Requires no extensions. Exits non-zero if any committed expectation fails."
+    :task (shell "clojure" "-M" "-m" "resolver-sim.demos.reorder-chain.cli" "--check")}
 
    scenario:run
    {:doc "Compatibility alias for `run:scenario`. Accepts multiple refs."

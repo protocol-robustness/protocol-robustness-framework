@@ -9,6 +9,7 @@
             [resolver-sim.benchmark.execution-identity :as execution-identity]
             [resolver-sim.benchmark.case-set :as case-set]
             [resolver-sim.benchmark.hardening :as hardening]
+            [resolver-sim.benchmark.research-execution-projection :as research-projection]
             [resolver-sim.concepts.benchmark :as benchmark-concepts]
             [resolver-sim.evidence.chain :as chain]
             [resolver-sim.evidence.config :as evidence-config]
@@ -672,6 +673,10 @@
             :execution/ordinal ordinal
             :execution/descriptor descriptor
             :semantic-composition-root (:semantic-composition-root plan-entry)
+            :research-definition/root (:research-definition/root plan-entry)
+            :research-case-axis/root (:research-case-axis/root plan-entry)
+            :research-case/key (:research-case/key plan-entry)
+            :research-execution-projection/root (:research-execution-projection/root plan-entry)
             :case/key (case-set/case-key-for-execution ordinal)
             :benchmark/run-index repetition-index
             :benchmark/run-count run-count
@@ -1236,7 +1241,8 @@
   ([manifest-path adapter {:keys [scenario-output-dir benchmark-index-path execution-plan-path
                                   parallelism chunk-size execution/claimant-parallelism
                                   execution/claimant-parallel-threshold execution/budget
-                                  execution/quiescence-timeout-seconds creation/provenance research-pack]}]
+                                  execution/quiescence-timeout-seconds creation/provenance
+                                  research-pack research-context]}]
    (let [adapter (if scenario-output-dir
                    (->SewAdapter scenario-output-dir (or parallelism 1) (or chunk-size 1))
                    adapter)
@@ -1255,12 +1261,22 @@
                              {:manifest manifest-path
                               :scenario-suite (:benchmark/scenario-suite manifest)
                               :scenario-suites (:scenario-suites manifest)})))
-         initial-plan (let [plan (build-execution-plan manifest scenarios)]
-                        (if research-pack
-                          (mapv #(assoc % :semantic-composition-root
-                                        (:research-pack/composition-root research-pack))
-                                plan)
-                          plan))
+         initial-plan (let [plan (build-execution-plan manifest scenarios)
+                            plan (if research-pack
+                                   (mapv #(assoc % :semantic-composition-root
+                                                 (:research-pack/composition-root research-pack))
+                                         plan)
+                                   plan)
+                            plan (if research-context
+                                   ;; Optional research lineage: build + verify the
+                                   ;; semantic→execution projection P, annotate plan
+                                   ;; entries with D/C/research-case-key/P, and commit a
+                                   ;; lineage-sensitive plan root. The runner never
+                                   ;; interprets D itself — it consumes the annotated plan.
+                                   (:plan (research-projection/prepare-research-plan
+                                           research-context plan))
+                                   plan)]
+                        plan)
          frozen-inputs (freeze-plan-inputs! initial-plan manifest scenarios staging-root)
          plan (:plan frozen-inputs)
          source-by-id (:source-by-id frozen-inputs)

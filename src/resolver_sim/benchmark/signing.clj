@@ -33,10 +33,12 @@
                         {:path path}))
         (throw e)))))
 
-(defn- load-ssh-public-key [path]
-  (let [content (str/trim (slurp path))
-        ;; Format: ssh-ed25519 AAA... user@host
-        parts (str/split content #"\s+")
+(defn parse-ssh-public-key-content
+  "Parse an Ed25519 public key from OpenSSH 'ssh-ed25519 <b64>' content.
+   Deterministic for a given key; no filesystem path involved."
+  [content]
+  (let [;; Format: ssh-ed25519 AAA... user@host
+        parts (str/split (str/trim content) #"\s+")
         b64 (if (> (count parts) 1) (second parts) (first parts))
         bytes (codecs/b64->bytes b64)
         params (OpenSSHPublicKeyUtil/parsePublicKey bytes)]
@@ -46,6 +48,40 @@
             kf (KeyFactory/getInstance "Ed25519")]
         (.generatePublic kf spec))
       (throw (ex-info "Key is not an Ed25519 public key" {:class (class params)})))))
+
+(defn- parse-pkcs8-public-key-content
+  "Parse an Ed25519 public key from PKCS#8 'BEGIN PUBLIC KEY' PEM content
+   (X.509 SubjectPublicKeyInfo) without touching the filesystem."
+  [content]
+  (let [body (apply str
+                    (keep (fn [line]
+                            (let [l (str/trim line)]
+                              (when-not (or (str/blank? l)
+                                            (str/starts-with? l "-----"))
+                                l)))
+                          (str/split-lines content)))
+        bytes (codecs/b64->bytes body)
+        spec (X509EncodedKeySpec. bytes)
+        kf (KeyFactory/getInstance "Ed25519")]
+    (.generatePublic kf spec)))
+
+(defn parse-public-key-content
+  "Parse an Ed25519 public key from its content string (OpenSSH 'ssh-ed25519'
+   line or PKCS#8 'BEGIN PUBLIC KEY').  Deterministic for a given key; the
+   admission/verification paths use this so they never depend on a local
+   filesystem path."
+  [content]
+  (let [trimmed (str/trim content)]
+    (cond
+      (str/starts-with? trimmed "ssh-ed25519")
+      (parse-ssh-public-key-content trimmed)
+
+      (str/includes? trimmed "BEGIN PUBLIC KEY")
+      (parse-pkcs8-public-key-content trimmed)
+
+      :else
+      (throw (ex-info "Unsupported public key content format"
+                      {:format (some-> trimmed (subs 0 (min 40 (count trimmed))))})))))
 
 (defn- load-private-key [path password]
   (let [content (try (slurp path)
@@ -61,15 +97,7 @@
                      (catch Exception e
                        (log/warn! :public-key-read-failed {:path path :error (.getMessage e)})
                        ""))]
-    (cond
-      (str/starts-with? content "ssh-ed25519")
-      (load-ssh-public-key path)
-
-      (str/includes? content "BEGIN PUBLIC KEY")
-      (keys/public-key path)
-
-      :else
-      (keys/public-key path))))
+    (parse-public-key-content content)))
 
 (defn load-private-key!
   "Load an Ed25519 private key for an explicitly local signing workflow.
@@ -86,3 +114,17 @@
   (let [pub-key (load-public-key public-key-path)
         signature (codecs/hex->bytes signature-hex)]
     (dsa/verify (codecs/str->bytes hash) signature {:alg :eddsa :key pub-key})))
+
+(defn verify-signature-with-public-key
+  "Verify an Ed25519 signature against an in-memory public key object.
+   No filesystem path involved."
+  [hash signature-hex public-key]
+  (let [signature (codecs/hex->bytes signature-hex)]
+    (dsa/verify (codecs/str->bytes hash) signature {:alg :eddsa :key public-key})))
+
+(defn verify-signature-with-public-key-content
+  "Verify an Ed25519 signature against a public key given as content
+   (OpenSSH 'ssh-ed25519 <b64>' or PKCS#8).  Machine-independent."
+  [hash signature-hex public-key-content]
+  (verify-signature-with-public-key
+   hash signature-hex (parse-public-key-content public-key-content)))

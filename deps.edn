@@ -39,7 +39,12 @@
     :paths/dev           ["dev" "test"]              ;; = dev + test
     :paths/notebooks     ["notebooks"]
     :paths/src           ["src"]
-
+:paths/held-custody          ["extensions/held-custody/src" "extensions/held-custody/test"]
+    :paths/held-custody-rt       ["extensions/held-custody/src"]
+    :paths/force-authorisation   ["extensions/force-authorisation/src" "extensions/force-authorisation/test"]
+    :paths/force-authorisation-rt ["extensions/force-authorisation/src"]
+    :paths/all           ["src" "test" "protocols_src" "protocols_src/test" "notebooks" "dev" "scripts"
+                          :paths/held-custody :paths/force-authorisation]
     ;; Researchers: opt-in local paths (defined in ~/.clojure/deps.edn as
     ;; :researcher/paths, e.g. {:aliases {:researcher/paths [".researcher/src"]}}).
     ;; Compose with: clojure -M:test:researcher/env  (see .researcher/ note)
@@ -66,27 +71,26 @@
    {:extra-paths [:paths/scripts]
     :extra-deps {org.clojure/tools.namespace {:mvn/version "1.5.0"}}}
 
+
    ;; ── Optional evidence extension: held-custody mutation ─────────────────
    ;; Package-shaped extension under extensions/held-custody/. The default
    ;; classpath excludes both extension source and test roots; enable
    ;; explicitly with these aliases. The production/runtime alias omits the
    ;; test path.
    :extension/held-custody
-   {:extra-paths ["extensions/held-custody/src"
-                  "extensions/held-custody/test"]}
+   {:extra-paths [:paths/held-custody]}
 
-   :extension/held-custody/runtime
-   {:extra-paths ["extensions/held-custody/src"]}
+   :extension/held-custody-rt
+   {:extra-paths [:paths/held-custody-rt]}
 
    ;; Optional force-authorisation capability package. This package is opt-in:
    ;; its pure scope verifier can satisfy held-custody's declared dependency,
    ;; while Sew keeps the transactional adapter during the staged extraction.
    :extension/force-authorisation
-   {:extra-paths ["extensions/force-authorisation/src"
-                  "extensions/force-authorisation/test"]}
+   {:extra-paths [:paths/force-authorisation]}
 
-   :extension/force-authorisation/runtime
-   {:extra-paths ["extensions/force-authorisation/src"]}
+   :extension/force-authorisation-rt
+   {:extra-paths [:paths/force-authorisation-rt]}
 
    ;; flow-storm
 ;;   {:1.12-storm {:classpath-overrides {org.clojure/clojure nil}
@@ -117,7 +121,7 @@
                  mvxcvi/puget                {:mvn/version "1.3.4"}
                  fipp/fipp                   {:mvn/version "0.6.27"}
                  org.clojure/tools.trace     {:mvn/version "0.7.11"}
-                 org.clojure/data.json       {:mvn/version "2.5.1"}}
+                 org.clojure/data.json       {:mvn/version "2.4.0"}}
     :main-opts ["-m" "nrepl.cmdline" "--bind" "localhost" "--port" "7888" "--middleware" "[cider.nrepl/cider-middleware]"]}
 
    ;; Classpath-only dev environment for smoke checks and one-off evals.
@@ -130,7 +134,7 @@
                  org.clojure/tools.namespace {:mvn/version "1.5.0"}
                  mvxcvi/puget                {:mvn/version "1.3.4"}
                  fipp/fipp                   {:mvn/version "0.6.27"}
-                 org.clojure/data.json       {:mvn/version "2.5.1"}}}
+                 org.clojure/data.json       {:mvn/version "2.4.0"}}}
 
    ;; Project nREPL starting point for editor/agent use.
    ;; Uses port 0 to avoid stale-port collisions; inspect .nrepl-port or use
@@ -144,10 +148,10 @@
                  org.clojure/tools.namespace {:mvn/version "1.5.0"}
                  mvxcvi/puget                {:mvn/version "1.3.4"}
                  fipp/fipp                   {:mvn/version "0.6.27"}
-                 org.clojure/data.json       {:mvn/version "2.5.1"}}
+                 org.clojure/data.json       {:mvn/version "2.4.0"}}
     :main-opts ["-m" "nrepl.cmdline"
                 "--bind" "localhost"
-                "--port" "7888"
+                "--port" "0"
                 "--middleware" "[cider.nrepl/cider-middleware]"]}
 
    ;; Fully loaded terminal REPL.
@@ -159,7 +163,7 @@
      mvxcvi/puget                {:mvn/version "1.3.4"}
      fipp/fipp                   {:mvn/version "0.6.27"}
      org.clojure/tools.trace     {:mvn/version "0.7.11"}
-     org.clojure/data.json       {:mvn/version "2.5.1"}
+     org.clojure/data.json       {:mvn/version "2.4.0"}
      com.bhauman/rebel-readline  {:mvn/version "0.1.4"}}
     :main-opts
     ["-m" "rebel-readline.main"]}
@@ -290,8 +294,10 @@
     :exec-args {:paths ["notebooks/report.clj"]}}
 
    :observability
-   {:git/url "https://github.com/nextjournal/clerk"
-    :git/sha "8772a0889218274384a30e79165b4c194b59560f"
+   {:override-deps
+    {io.github.nextjournal/clerk
+     {:git/url "https://github.com/nextjournal/clerk"
+      :git/sha "8772a0889218274384a30e79165b4c194b59560f"}}
     :main-opts ["-m" "notebooks.serve"]}
 
    :telemetry-seed
@@ -305,7 +311,7 @@
                  org.clojure/tools.namespace {:mvn/version "1.5.0"}
                  mvxcvi/puget                {:mvn/version "1.3.4"}
                  fipp/fipp                   {:mvn/version "0.6.27"}
-                 org.clojure/data.json       {:mvn/version "2.5.1"}}
+                 org.clojure/data.json       {:mvn/version "2.4.0"}}
     :main-opts ["-m" "resolver-sim.db.explorer-seed"]}
 
    :explorer-metabase
@@ -316,7 +322,7 @@
                  org.clojure/tools.namespace {:mvn/version "1.5.0"}
                  mvxcvi/puget                {:mvn/version "1.3.4"}
                  fipp/fipp                   {:mvn/version "0.6.27"}
-                 org.clojure/data.json       {:mvn/version "2.5.1"}}
+                 org.clojure/data.json       {:mvn/version "2.4.0"}}
     :main-opts ["-m" "resolver-sim.db.metabase-provision"]}
 
    ;; Intentionally not path-grouped: base-replacing runner classpath.
@@ -349,19 +355,8 @@
    {:extra-paths [:paths/scripts]
     :main-opts ["-m" "scripts.scenarios.speds-generate-comparator-shadow"]}
 
-   :notebooks
-   {:extra-paths ["."]}
-
    :search-docs
    {:extra-paths [:paths/scripts]
     :main-opts ["-m" "scripts.search_docs_sentinel.run"]}
 
-   ;; MCP (Model Context Protocol) support for LLM integration
-   ;; Usage: clojure -Tmcp start :config-profile :cli-assist
-   ;; Or: clojure -Tmcp start :config-profile :nrepl
-    :mcp
-    {:extra-deps {io.github.mschmitt/clojure-mcp {:mvn/version "0.2.0"}
-                  org.clojure/tools.namespace {:mvn/version "1.5.0"}
-                  org.clojure/tools.trace {:mvn/version "0.7.11"}}
-     :extra-paths [:paths/src :paths/dev :paths/protocols]
-     :main-opts ["-m" "clojure-mcp.main"]}}}
+}}

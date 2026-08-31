@@ -201,44 +201,87 @@
 
 (defn- txt [tag default] {:type "text" :name tag :display_name (name tag) :default default})
 
-(def questions
-  "Native SQL questions grouped by dashboard tab."
-  [{:tab "Overview" :name "PRF / Overview / Completed execution count"
-    :query "SELECT COUNT(*) AS completed FROM sim_execution_runs"}
-   {:tab "Overview" :name "PRF / Overview / Failure count"
-    :query "SELECT COUNT(*) AS failed FROM sim_benchmark_executions WHERE outcome IN ('failed','error')"}
-   {:tab "Overview" :name "PRF / Overview / Benchmark case count"
-    :query "SELECT COUNT(*) AS benchmark_cases FROM sim_benchmark_executions"}
-   {:tab "Overview" :name "PRF / Overview / Distinct result roots"
-    :query "SELECT COUNT(DISTINCT bundle_root) AS distinct_roots FROM sim_execution_runs"}
-   {:tab "Overview" :name "PRF / Overview / Recent executions"
-    :query "SELECT _id, scenario_id, bundle_root, status FROM sim_execution_runs ORDER BY _id DESC LIMIT 10"}
+;; ---------------------------------------------------------------------------
+;; Presentation layer: human-readable story titles
+;;
+;; The XTDB rows keep their canonical fixture ids; this only relabels them in
+;; the Metabase layer (SQL CASE), so no canonical data is touched.
+;; ---------------------------------------------------------------------------
 
-   {:tab "Time Travel" :name "PRF / Time Travel / Run best-known-now"
-    :query "SELECT _id, scenario_id, bundle_root, status FROM sim_execution_runs WHERE _id = {{run_id}}"
-    :tags {"run_id" (txt "run_id" "run-synthetic-correction")}}
-   {:tab "Time Travel" :name "PRF / Time Travel / Run as-known-then"
-    :query "SELECT _id, bundle_root, _system_from, _system_to FROM sim_execution_runs FOR SYSTEM_TIME AS OF CAST({{known_at}} AS TIMESTAMP WITH TIME ZONE) WHERE _id = {{run_id}}"
+(def scenario-titles
+  {"scenario-success" "Protected Execution — Pass"
+   "scenario-failure" "Execution — Failed at Step (Invariant)"
+   "scenario-expected-error" "Expected Rejection — Scenario Pass"
+   "scenario-convergent" "Convergent Execution Pair"
+   "scenario-divergent" "Divergent Execution Pair"
+   "scenario-correction" "Derived Index Correction"})
+
+(def run-titles
+  {"run-conv-A" "Execution A"
+   "run-conv-B" "Execution B"
+   "run-div-A" "Execution A"
+   "run-div-B" "Execution B"
+   "run-synthetic-correction" "Derived Index Correction"})
+
+(defn- title-sql
+  "SQL CASE that maps `col` values to a human-readable title (presentation only)."
+  [col title-map]
+  (str "CASE " col
+       (apply str (map (fn [[k v]] (str " WHEN " (xtdb/sql-str k) " THEN " (xtdb/sql-str v))) title-map))
+       " ELSE " col " END"))
+
+(def questions
+  "Story-first native SQL questions grouped by dashboard tab. Each surfaces a
+   human title + a short verdict first, with evidence fields alongside."
+  [{:tab "Overview" :name "PRF / Overview / What completed?"
+    :query (str "SELECT " (title-sql "scenario_id" scenario-titles) " AS story_title, "
+                "_id AS run_id, bundle_root, status FROM sim_execution_runs ORDER BY story_title, _id")}
+   {:tab "Overview" :name "PRF / Overview / What failed?"
+    :query (str "SELECT " (title-sql "scenario_id" scenario-titles) " AS story_title, "
+                "run_id, scenario_id, outcome, halt_reason FROM sim_benchmark_executions "
+                "WHERE outcome IN ('failed','error') ORDER BY story_title")}
+   {:tab "Overview" :name "PRF / Overview / Where did executions converge?"
+    :query (str "SELECT " (title-sql "_id" run-titles) " AS execution, bundle_root AS result_root "
+                "FROM sim_execution_runs WHERE scenario_id='scenario-convergent' ORDER BY execution")}
+   {:tab "Overview" :name "PRF / Overview / Where did they diverge?"
+    :query (str "SELECT " (title-sql "_id" run-titles) " AS execution, bundle_root AS result_root "
+                "FROM sim_execution_runs WHERE scenario_id='scenario-divergent' ORDER BY execution")}
+   {:tab "Overview" :name "PRF / Overview / What indexed knowledge changed?"
+    :query (str "SELECT " (title-sql "_id" run-titles) " AS story_title, bundle_root AS indexed_root, _system_from "
+                "FROM sim_execution_runs FOR ALL SYSTEM_TIME WHERE _id='run-synthetic-correction' ORDER BY _system_from")}
+   {:tab "Overview" :name "PRF / Overview / Expected rejection (scenario pass)"
+    :query (str "SELECT 'Expected Rejection' AS story_title, step_index AS step, action, result "
+                "FROM sim_temporal_steps WHERE run_id='temporal-expected-error' AND result='rejected'")}
+
+   {:tab "Time Travel" :name "PRF / Time Travel / Derived Index Correction — As Known Then"
+    :query (str "SELECT 'AS KNOWN THEN' AS view, _id AS run_id, bundle_root AS indexed_root, _system_from "
+                "FROM sim_execution_runs FOR SYSTEM_TIME AS OF CAST({{known_at}} AS TIMESTAMP WITH TIME ZONE) WHERE _id = {{run_id}}")
     :tags {"run_id" (txt "run_id" "run-synthetic-correction")
            "known_at" (txt "known_at" (or correction-known-at-default "2030-01-01T00:00:00.000Z"))}}
-   {:tab "Time Travel" :name "PRF / Time Travel / Run full history"
-    :query "SELECT _id, bundle_root, _valid_from, _valid_to, _system_from, _system_to FROM sim_execution_runs FOR ALL SYSTEM_TIME WHERE _id = {{run_id}} ORDER BY _system_from"
+   {:tab "Time Travel" :name "PRF / Time Travel / Derived Index Correction — Best Known Now"
+    :query "SELECT 'BEST KNOWN NOW' AS view, _id AS run_id, bundle_root AS indexed_root, status FROM sim_execution_runs WHERE _id = {{run_id}}"
+    :tags {"run_id" (txt "run_id" "run-synthetic-correction")}}
+   {:tab "Time Travel" :name "PRF / Time Travel / Full history (evidence)"
+    :query "SELECT _id AS run_id, bundle_root AS indexed_root, _valid_from, _valid_to, _system_from, _system_to FROM sim_execution_runs FOR ALL SYSTEM_TIME WHERE _id = {{run_id}} ORDER BY _system_from"
     :tags {"run_id" (txt "run_id" "run-synthetic-correction")}}
 
-   {:tab "Failure Archaeology" :name "PRF / Failure / Temporal runs"
-    :query "SELECT _id, scenario_id, outcome FROM sim_temporal_runs ORDER BY _id"}
-   {:tab "Failure Archaeology" :name "PRF / Failure / Run steps"
-    :query "SELECT step_index, action, result, time_after_edn FROM sim_temporal_steps WHERE run_id = {{run_id}} ORDER BY step_index"
+   {:tab "Failure Archaeology" :name "PRF / Failure / Summary"
+    :query (str "SELECT " (title-sql "scenario_id" scenario-titles) " AS story_title, _id AS temporal_run, scenario_id, outcome "
+                "FROM sim_temporal_runs WHERE _id='temporal-failure'")}
+   {:tab "Failure Archaeology" :name "PRF / Failure / Step timeline"
+    :query "SELECT step_index AS step, action, result, time_after_edn AS time_after FROM sim_temporal_steps WHERE run_id = {{run_id}} ORDER BY step_index"
     :tags {"run_id" (txt "run_id" "temporal-failure")}}
-   {:tab "Failure Archaeology" :name "PRF / Failure / Run invariants"
-    :query "SELECT step_index, invariant, holds, severity, violations_edn FROM sim_temporal_invariants WHERE run_id = {{run_id}} ORDER BY step_index"
+   {:tab "Failure Archaeology" :name "PRF / Failure / Failed invariant"
+    :query "SELECT step_index AS step, invariant, holds, severity, violations_edn AS violation FROM sim_temporal_invariants WHERE run_id = {{run_id}} AND holds = false ORDER BY step_index"
     :tags {"run_id" (txt "run_id" "temporal-failure")}}
 
-   {:tab "Root Convergence" :name "PRF / Comparison / Executions by result root"
-    :query "SELECT _id, scenario_id, bundle_root FROM sim_execution_runs ORDER BY bundle_root, _id"}
-   {:tab "Root Convergence" :name "PRF / Comparison / Runs in scenario"
-    :query "SELECT _id, scenario_id, bundle_root FROM sim_execution_runs WHERE scenario_id = {{scenario_id}} ORDER BY _id"
-    :tags {"scenario_id" (txt "scenario_id" "scenario-divergent")}}])
+   {:tab "Root Convergence" :name "PRF / Convergence / Comparable executions (explicit scope)"
+    :query (str "SELECT " (title-sql "_id" run-titles) " AS execution, scenario_id AS scope, bundle_root AS result_root, "
+                "CASE scenario_id WHEN 'scenario-convergent' THEN 'CONVERGENT' WHEN 'scenario-divergent' THEN 'DIVERGENT' ELSE '—' END AS verdict "
+                "FROM sim_execution_runs WHERE scenario_id IN ('scenario-convergent','scenario-divergent') ORDER BY scenario_id, execution")}
+   {:tab "Root Convergence" :name "PRF / Convergence / Runs in scenario"
+    :query "SELECT _id AS run_id, scenario_id AS scope, bundle_root AS result_root FROM sim_execution_runs WHERE scenario_id = {{scenario_id}} ORDER BY _id"
+    :tags {"scenario_id" (txt "scenario_id" "scenario-convergent")}}])
 
 ;; ---------------------------------------------------------------------------
 ;; Dashboard (v0.58: whole-dashboard PUT)
@@ -372,9 +415,9 @@
 
 (defn check!
   "Read-only contract smoke: assert the provisioned External Explorer holds.
-   Establishes datasource + collection + dashboard (4 tabs / 17 cards) and that
-   the hero temporal answers are correct (current=8, history>=2, as-known-then=
-   WRONG-ROOT, best-known-now=correct-root)."
+   Establishes datasource + collection + dashboard (4 tabs / 18 cards) and that
+   the hero temporal answers are correct (What completed?=8 runs, history>=2,
+   as-known-then=WRONG-ROOT, best-known-now=correct-root)."
   []
   (let [session (ensure-admin!)
         dbs (:data (call! :get "/api/database" {:session session}))
@@ -388,21 +431,21 @@
         _ (assert dash "dashboard missing")
         detail (dashboard-detail session (:id dash))
         _ (assert (= 4 (count (:tabs detail))) (str "expected 4 tabs, got " (count (:tabs detail))))
-        _ (assert (= 17 (count (:dashcards detail))) (str "expected 17 cards, got " (count (:dashcards detail))))
-        cur-rows (get-in (run-card session (find-card-by-name session col-id "PRF / Overview / Completed execution count"))
-                         [:data :rows 0 0])
+        _ (assert (= 18 (count (:dashcards detail))) (str "expected 18 cards, got " (count (:dashcards detail))))
+        cur-rows (count (get-in (run-card session (find-card-by-name session col-id "PRF / Overview / What completed?"))
+                                [:data :rows]))
         _ (assert (= 8 cur-rows) (str "expected 8 runs, got " cur-rows))
-        fh-rows (get-in (run-card session (find-card-by-name session col-id "PRF / Time Travel / Run full history"))
+        fh-rows (get-in (run-card session (find-card-by-name session col-id "PRF / Time Travel / Full history (evidence)"))
                         [:data :rows])
         _ (assert (>= (count fh-rows) 2) "expected >=2 correction history versions")
-        ak-root (get-in (run-card session (find-card-by-name session col-id "PRF / Time Travel / Run as-known-then"))
-                        [:data :rows 0 1])
+        ak-root (get-in (run-card session (find-card-by-name session col-id "PRF / Time Travel / Derived Index Correction — As Known Then"))
+                        [:data :rows 0 2])
         _ (assert (str/includes? (str ak-root) "INDEX-ERROR") (str "expected as-known-then wrong root, got " ak-root))
-        now-root (get-in (run-card session (find-card-by-name session col-id "PRF / Time Travel / Run best-known-now"))
+        now-root (get-in (run-card session (find-card-by-name session col-id "PRF / Time Travel / Derived Index Correction — Best Known Now"))
                          [:data :rows 0 2])
         _ (assert (str/includes? (str now-root) "result-correct") (str "expected best-known-now correct root, got " now-root))]
     (println "Metabase External Explorer contract OK:")
-    (println "  datasource / collection / dashboard (4 tabs, 17 cards): OK")
+    (println "  datasource / collection / dashboard (4 tabs, 18 cards): OK")
     (println "  current runs:" cur-rows)
     (println "  correction history versions:" (count fh-rows))
     (println "  as-known-then ->" ak-root)

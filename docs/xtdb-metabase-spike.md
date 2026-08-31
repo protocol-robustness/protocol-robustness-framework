@@ -36,20 +36,63 @@ Two complementary demo surfaces:
 - **Metabase** — an ordinary external data tool, proving the XTDB data is freely
   explorable by anyone with a SQL editor.
 
-## Dashboard (4 tabs)
+## Dashboard (4 tabs, story-first)
 
-- **Overview** — completed/failure/benchmark/distinct-root counts + recent executions.
-- **Time Travel (HERO)** — run as-known-then (`FOR SYSTEM_TIME AS OF`), best-known-now,
-  and full system-time history with the four temporal bounds; parameterized by
-  `run_id` and `known_at`. Default shows the synthetic index-correction
-  `INDEX-ERROR-WRONG-ROOT → result-correct`.
-- **Failure Archaeology (HERO)** — temporal runs → ordered steps → invariants,
-  parameterized by `run_id`.
-- **Root Convergence** — executions grouped by result root under an explicit
-  scenario scope (CONVERGENT / DIVERGENT; no inferred equivalence).
+The Metabase layer maps fixture ids to human-readable titles via SQL `CASE` (the
+XTDB rows keep their canonical ids). Each card leads with a story title/verdict
+and keeps raw evidence (`run_id`, roots, temporal bounds) as drill-down columns.
+
+- **Overview** — question-centric: *What completed?* / *What failed?* /
+  *Where did executions converge?* / *Where did they diverge?* /
+  *What indexed knowledge changed?* / *Expected rejection (scenario pass)*.
+- **Time Travel (HERO)** — *Derived Index Correction*: **As Known Then**
+  (`FOR SYSTEM_TIME AS OF`, wrong indexed root) vs **Best Known Now** (correct
+  root), parameterized by `run_id` + `known_at`, plus full system-time history
+  with the four temporal bounds. Shows `INDEX-ERROR-WRONG-ROOT → result-correct`
+  while the underlying completed/rooted artifact is unchanged.
+- **Failure Archaeology (HERO)** — *Execution — Failed at Step (Invariant)*:
+  Summary (story + outcome) → ordered Step timeline → Failed invariant
+  (step/invariant/holds/severity/violation), parameterized by `run_id`.
+- **Root Convergence** — *Comparable executions (explicit scope)*: Execution A/B
+  with explicit `scenario_id` scope, `result_root`, and a `CONVERGENT` /
+  `DIVERGENT` verdict (no inferred semantic equivalence).
 
 Every tab carries a persistent "Derived evidence index — rows are projections
 over completed/rooted PRF artifacts; XTDB does not confer authority" notice.
+
+## Demo V2: story vs evidence layer
+
+The Demo V2 pass made the presentation story-first without touching canonical
+data:
+
+- **Story layer** (Metabase SQL/titles): human title, short interpretation,
+  `CONVERGENT / DIVERGENT / FAILED / CORRECTED` verdict.
+- **Evidence layer** (drill-down columns): run ID, scenario ID, package/bundle/
+  result roots, temporal bounds, raw XTDB fields.
+
+Reused / synthetic:
+- **Reused (real mechanics):** the temporal replays exercise the real Sew replay
+  kernel / invariant machinery; the execution projection + completion gate are
+  real.
+- **Intentionally synthetic:** the seeded scenarios are fixture packages
+  (`scenario-success`, `scenario-convergent`, `run-synthetic-correction`, etc.)
+  built for the demo — there is no "Protected Pro-Rata" or "Disputed Escrow"
+  fixture in the current seed, so the SQL `CASE` titles describe what the data
+  actually is (e.g. "Convergent Execution Pair", "Execution — Failed at Step
+  (Invariant)", "Derived Index Correction"). The convergent pair is labelled
+  "Execution A"/"Execution B" (not Serial/Parallel — the fixtures carry no such
+  context).
+- **Expected rejection:** the `temporal-expected-error` replay now records
+  outcome `pass`, representing an operation rejected where that rejection is the
+  expected result (so the scenario passes). The Overview card shows the rejected
+  step/action.
+
+Semantics that could NOT be made human-readable without changing canonical data:
+- Execution-package valid time (epoch fallback) — see "Hero vs capability"
+  below; no fabricated valid-time story was added.
+- A genuine "Protected Pro-Rata — Serial/Parallel" narrative requires real
+  pro-rata fixtures (not present); the current demo presents the convergent
+  pair generically rather than invent serial/parallel context.
 
 ## Key compatibility findings
 

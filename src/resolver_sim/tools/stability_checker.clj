@@ -12,7 +12,7 @@
             [clojure.walk :as walk]
             [resolver-sim.hash.canonical :as hc]
             [resolver-sim.config.paths :as paths]
-            [resolver-sim.io.content_addressed_store :as store])
+            [resolver-sim.io.content-addressed-store :as store])
   (:import [java.time ZoneId]
            [java.time.format DateTimeFormatter]))
 
@@ -33,9 +33,10 @@
 
 (defn- normalize-manifest-for-self-hash [manifest]
   (walk/postwalk (fn [form]
-                   (if (map? form)
-                     (dissoc form :stability/hash)
-                     form))
+                   (cond
+                     (map? form) (dissoc form :stability/hash)
+                     (instance? java.util.Date form) (.toString (.toInstant ^java.util.Date form))
+                     :else form))
                  manifest))
 
 (defn- compute-entry-hash

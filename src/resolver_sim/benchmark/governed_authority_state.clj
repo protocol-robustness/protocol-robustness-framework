@@ -1085,7 +1085,12 @@
                        {:valid? false :reason :authority-semantics-provenance-invalid}
 
                        :else
-                       (let [next (assoc-in current [:issued-fences fence-id] record)]
+                       (let [next (-> current
+                                      (assoc-in [:issued-fences fence-id] record)
+                           ;; AUTH-DERIVED-EVIDENCE-CLOSURE: retain the exact
+                           ;; report body so derived finalization can recover O
+                           ;; from the authoritative state, not external delivery.
+                                      (assoc-in [:authority-reports report-root] report))]
                          (if (compare-and-set! (.state store) current next)
                            (assoc result :authority-fence {:fence/id fence-id}
                                   :authority-semantics/root (when authority-semantics (:governed-authority-semantics/root authority-semantics))
@@ -1118,6 +1123,22 @@
                         (:authority-semantics-policy/root successor-configuration)
                         :authority-semantics/root])})))
 
+(defn derived-only-lineage-state? [state]
+  (boolean (get-in state [:authoritative-lineage/profile :derived-only])))
+
+(defn derived-only-lineage? [store]
+  (derived-only-lineage-state? @(.state store)))
+
+(defn declare-derived-only-lineage!
+  "Declare the current authoritative lineage as high-assurance / derived-only.
+   Once declared, the legacy caller-rooting finalizers reject any mutation
+   before it occurs (AUTH-LINEAGE-CONSERVATION for the high-assurance profile),
+   so a derived-only lineage can never be advanced by a caller-selected
+   successor."
+  [store]
+  (swap! (.state store) assoc-in [:authoritative-lineage/profile :derived-only] true)
+  store)
+
 (defn finalise-under-authority-fence!
   "Atomically consume an issued fence with successor and authority binding.
     Exact retry returns the original terminal result; conflicting reuse rejects.
@@ -1131,6 +1152,8 @@
         (= :consumed (:status record))
         (if (= (:transition-binding/root record) (:governed-authority-transition-binding/root binding))
           (:result record) {:finalised? false :reason :fence-already-consumed})
+        (derived-only-lineage-state? current)
+        {:finalised? false :reason :derived-only-lineage-rejects-legacy-finalization}
         (not (:valid? (resolution/validate-transition-binding binding))) {:finalised? false :reason :authority-transition-binding-invalid}
         (not= (:head current) (:authority-state-envelope/root record)) {:finalised? false :reason :state-not-at-required-head}
         (not= (:execution/state-root record) (:transaction/state-before-root binding)) {:finalised? false :reason :fence-pre-state-mismatch}
@@ -1205,6 +1228,8 @@
                (:governed-authority-transition-binding/root binding))
           (:result record)
           {:finalised? false :reason :fence-already-consumed})
+        (derived-only-lineage-state? current)
+        {:finalised? false :reason :derived-only-lineage-rejects-legacy-finalization}
         (not (and (= envelope-v2-schema (:artifact/schema current-envelope))
                   (configuration-head/valid-head-state? head-state)
                   (= (:configuration-head/root current-envelope)

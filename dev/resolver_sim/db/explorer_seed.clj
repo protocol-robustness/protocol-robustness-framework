@@ -171,9 +171,10 @@
    [{:step-index 2 :invariant :disposition :holds? true :severity :time :violations [] :block-time 2200}
     {:step-index 3 :invariant :held-credit :holds? false :severity :time
      :violations [{:reason :credit-mismatch :expected 100 :actual 75}] :block-time 2300}])
-  ;; C: expected-error replay (rejected entry, kernel outcome :fail)
+  ;; C: expected-rejection replay — an operation is rejected but that rejection
+  ;;    is the EXPECTED result, so the scenario passes (:pass, not a failure).
   (seed-temporal-run!
-   ds "temporal-expected-error" "scenario-expected-error" :fail 3000
+   ds "temporal-expected-error" "scenario-expected-error" :pass 3000
    [{:step-index 0 :action :initialize :result :ok :block-time 3000}
     {:step-index 1 :action :execute_pending_settlement :result :rejected :block-time 3100}]
    [{:step-index 1 :invariant :conservation :holds? true :severity :time :violations [] :block-time 3100}]))
