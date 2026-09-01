@@ -9,6 +9,10 @@
 
 # Generated simulation output (canonical root)
 results/
+
+# Generated, profile-specific source/dependency views. Authoritative profile
+# definitions remain under profiles/; regenerate these via bb profile:view.
+.profile-view/
 !data/fixtures/protocol/*.edn
 !data/fixtures/states/*.edn
 !data/fixtures/actors/*.edn

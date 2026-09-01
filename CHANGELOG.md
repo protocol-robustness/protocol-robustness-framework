@@ -28,6 +28,22 @@
 
 - **Froze `governed-authority-derived-transition.v1`** at `data/fixtures/authority/governed-authority-derived-transition.v1.edn`, with language-independent input/output roots for the canonical transition definition, exact predecessor bundle, authorised target, derived material state, configuration head, successor envelope, content transition, transition binding, and derived result receipt. The fixture records adversarial boundaries for noncanonical T, caller-selected S1/M1/H1, and legacy receipts. Legacy K2 finalization remains historically valid under its original caller-bound state-after semantics, but is not admissible for a lineage requiring derived configuration-adoption finalization.
 
+### Claimant runtime-options profile
+
+- Promoted `pro-rata-claimant-options` and `pro-rata-full` to supported runtime-only profiles. They reuse the existing `resolver-sim.execution.context` claimant controls (`claimant-parallelism`, `claimant-parallel-threshold`, and `quiescence-timeout-seconds`) without adding source components; generated views emit resolved runtime options and a runtime-profile hash. The claimant-options profile has the same 287-file source closure as pro-rata, while full composition adds bounty and assurance as declared components. (`profiles/`, `scripts/profile_view.clj`)
+
+### Profile closure diff and reporting
+
+- Added `bb profile:diff <left> <right>` and enriched profile descriptions with owned namespace counts, transitive source-file counts, and namespace-group summaries. `pro-rata → pro-rata-bounty` now reports the added bounty component, two owned namespaces, eight transitive source files, and the 287 → 295 closure change. (`scripts/profile_view.clj`, `bb.edn`)
+
+### research-observation.v2 analytical subject
+
+- Added `research-observation.v2`, which signs and aggregates researcher positions over a composed observation-basis root (`execution/artifact root + research-analysis-closure root`) without changing intrinsic execution identity. Same basis with differing positions is disagreement; different basis roots are not comparable. (`src/resolver_sim/benchmark/research_observation_v2.clj`)
+
+### Constrained composition profiles
+
+- **Added generated profile source views** for framework, Sew core, pro-rata, and pro-rata+bounty compositions. Authoritative `profiles/*.edn` descriptors resolve component dependencies into a symlinked `.profile-view/<profile>/` with a generated constrained `deps.edn`; `bb profile:{describe,view,check,test}` exposes the resolved composition and verifies declared namespaces load while excluded bounty namespaces are absent. Claimant-options and the maximum-composition profile are explicitly unavailable until a physical claimant-options implementation boundary exists. (`profiles/`, `scripts/profile_view.clj`)
+
 ### Minimal governed research observations
 
 - **Extended the observation basis with the verified research-analysis closure root.** The Iteration 3 projection now composes execution/held-custody artifact `H`, force-authorisation scope, and analysis closure `A`; same `H` plus different `A` yields a distinct research subject. Two governed researchers can therefore disagree (`[1 -1]`) about the same exact analytical subject without changing execution identity. (`src/resolver_sim/benchmark/research_observation.clj`)

@@ -1,0 +1,5 @@
+{:profile/id :prf/framework-v1
+ :profile/version 1
+ :profile/status :supported
+ :profile/protocol nil
+ :profile/components [:prf/framework-v1]}

@@ -1,0 +1,13 @@
+{:profile/id :prf/pro-rata-full-v1
+ :profile/version 1
+ :profile/status :supported
+ :profile/extends :prf/pro-rata-bounty-v1
+ :profile/runtime-features [:prf/claimant-options-v1]
+ :profile/runtime
+ {:runtime/type :prf/claimant-options-v1
+  :runtime/options
+  {:execution/claimant-parallelism 4
+   :execution/claimant-parallel-threshold 1
+   :execution/quiescence-timeout-seconds 30}}
+ :profile/assurance-features [:prf/pro-rata-verifier-v1]
+ :profile/components [:prf/pro-rata-verifier-v1]}

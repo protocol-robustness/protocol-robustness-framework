@@ -1,5 +1,25 @@
 {:tasks
-{sim:run {:doc "Run a simulation with EDN params"
+{profile:describe
+  {:doc "Print the resolved component closure for a named profile. Usage: bb profile:describe <profile-name>"
+   :task (apply shell "bb" "scripts/profile_view.clj" "describe" *command-line-args*)}
+
+  profile:diff
+  {:doc "Compare resolved component/source closures. Usage: bb profile:diff <left-profile> <right-profile>"
+   :task (apply shell "bb" "scripts/profile_view.clj" "diff" *command-line-args*)}
+
+  profile:view
+  {:doc "Generate the constrained symlink workspace for a supported profile. Usage: bb profile:view <profile-name>"
+   :task (apply shell "bb" "scripts/profile_view.clj" "view" *command-line-args*)}
+
+  profile:check
+  {:doc "Generate a profile view and verify declared namespaces load while excluded bounty namespaces are absent. Usage: bb profile:check <profile-name>"
+   :task (apply shell "bb" "scripts/profile_view.clj" "check" *command-line-args*)}
+
+  profile:test
+  {:doc "Compatibility alias for profile boundary/load checking. Usage: bb profile:test <profile-name>"
+   :task (apply shell "bb" "profile:check" *command-line-args*)}
+
+  sim:run {:doc "Run a simulation with EDN params"
             :task (apply clojure {:dir "." :extra-deps {}} "-M:run:with-sew" *command-line-args*)}
 
   public-claims:generate

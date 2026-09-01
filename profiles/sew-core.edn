@@ -1,0 +1,5 @@
+{:profile/id :prf/sew-core-v1
+ :profile/version 1
+ :profile/status :supported
+ :profile/protocol :prf.protocol/sew
+ :profile/components [:prf/sew-core-v1]}

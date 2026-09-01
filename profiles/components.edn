@@ -1,0 +1,78 @@
+{:components
+ {:prf/framework-v1
+  {:component/plane :framework
+   :component/owned-namespaces
+   [resolver-sim.hash.canonical
+    resolver-sim.core.phases
+    resolver-sim.io.scenario-runner
+    resolver-sim.server.grpc
+    resolver-sim.io.diff-runner]
+   :component/entry-namespaces
+   [resolver-sim.hash.canonical
+    resolver-sim.core.phases
+    resolver-sim.io.scenario-runner
+    resolver-sim.server.grpc
+    resolver-sim.io.diff-runner]
+   :component/material
+   [{:path "config" :kind :runtime-configuration}]}
+
+  :prf/sew-core-v1
+  {:component/plane :protocol
+   :component/requires [:prf/framework-v1]
+   :component/owned-namespaces
+   [resolver-sim.protocols.sew]
+   :component/entry-namespaces
+   [resolver-sim.protocols.sew]}
+
+  :prf/ideal-pro-rata-v1
+  {:component/plane :semantic
+   :component/requires [:prf/framework-v1 :prf/sew-core-v1]
+   :component/owned-namespaces
+   [resolver-sim.pro-rata.allocation
+    resolver-sim.protocols.sew.pro-rata-application]
+   :component/entry-namespaces
+   [resolver-sim.pro-rata.allocation
+    resolver-sim.protocols.sew.pro-rata-application]
+   :component/material
+   [{:path "resources/test-vectors/pro-rata" :kind :conformance-vector}
+    {:path "test/fixtures/pro-rata" :kind :test-fixture}]}
+
+  :prf/bounty-v1
+  {:component/plane :semantic
+   :component/absence-enforced? true
+   :component/requires [:prf/ideal-pro-rata-v1]
+   :component/owned-namespaces
+   [resolver-sim.economics.with-bounty.composition
+    resolver-sim.protocols.sew.with-bounty]
+   :component/entry-namespaces
+   [resolver-sim.economics.with-bounty.composition
+    resolver-sim.protocols.sew.with-bounty]
+   :component/material
+   [{:path "test/resolver_sim/economics/with_bounty" :kind :test-source}
+    {:path "protocols_src/test/resolver_sim/protocols/sew/with_bounty_test.clj"
+     :kind :test-source}]}
+
+  :prf/pro-rata-verifier-v1
+  {:component/plane :assurance
+   :component/requires [:prf/ideal-pro-rata-v1]
+   :component/owned-namespaces
+   [resolver-sim.pro-rata.exact-verifier]
+   :component/entry-namespaces
+   [resolver-sim.pro-rata.exact-verifier]
+   :component/material
+   [{:path "coprocessor/core" :kind :rust-crate}]}}
+
+ ;; Claimant options is an implemented runtime capability, but not a source or
+ ;; package component. Its profile selects the existing execution abstraction
+ ;; and concrete runtime settings without adding material to the source view.
+ :runtime-capabilities
+ {:prf/claimant-options-v1
+  {:runtime/type :prf/claimant-options-v1
+   :runtime/status :supported
+   :runtime/implementation 'resolver-sim.execution.context/with-claimant-options
+   :runtime/options-keys
+   [:execution/claimant-parallelism
+    :execution/claimant-parallel-threshold
+    :execution/quiescence-timeout-seconds]
+   :runtime/source-component? false
+   :runtime/reason :existing-runtime-abstraction}}}
