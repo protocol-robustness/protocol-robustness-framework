@@ -1111,7 +1111,15 @@
     (.update digest ba)
     (.digest digest)))
 
-(defn- bytes->hex
+(defn bytes->hex
+  "Convert a byte array to a lowercase hex string."
+  [^bytes ba]
+  (let [sb (StringBuilder.)]
+    (doseq [b ba]
+      (.append sb (format "%02x" (bit-and (int b) 0xFF))))
+    (.toString sb)))
+
+(defn- bytes->hex-legacy
   "Convert a byte array to a lowercase hex string."
   [^bytes ba]
   (let [sb (StringBuilder.)]
@@ -1208,12 +1216,27 @@
                      :scheme (:scheme-version scheme)
                      :algorithm (:algorithm scheme)}))))
 
+(defn domain-hash-preimage-bytes
+  "Return the exact bytes hashed by domain-hash: UTF-8 domain tag directly
+   concatenated with canonical typed value bytes (no length frame)."
+  [domain-tag v]
+  (let [tag-str (if (instance? String domain-tag)
+                  domain-tag
+                  (or (domain-tags domain-tag)
+                      (throw (ex-info "Unknown domain tag" {:domain-tag domain-tag}))))]
+    (ba-concat (utf8-bytes tag-str) (canonical-bytes v))))
+
+(defn domain-hash-digest
+  "Return the raw SHA-256 digest bytes for a domain-separated value."
+  [domain-tag v]
+  (hash-bytes (domain-hash-preimage-bytes domain-tag v)))
+
 (defn domain-hash-with-scheme
-  "Compute a domain-separated canonical hash under an explicit scheme.
+  "Compute a domain-separated hash under an explicit scheme.
    HASH = SCHEME(DOMAIN_TAG || CANONICAL_BYTES), where SCHEME is resolved via
    validate-hash-scheme! and dispatched by hash-bytes-with-scheme. Today the
    sole registered scheme (canonical-hash-scheme.v1) instantiates SCHEME as
-   SHA-256. Returns a 64-char hex string."
+   SHA-256. Returns a 64-character hex string."
   [scheme domain-tag v]
   (let [tag-str (if (instance? String domain-tag)
                   domain-tag

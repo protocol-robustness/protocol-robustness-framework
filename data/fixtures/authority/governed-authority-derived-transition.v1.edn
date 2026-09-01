@@ -1,0 +1,20 @@
+{:vector/version "governed-authority-derived-transition.v1"
+ :description "Portable golden vector for K2 authorization -> exact derived state-after -> custody replay."
+ :inputs {:transition-definition/root "sha256:5b724bf5683d5a4cc03af72acac9e92df070e902ecd28fb304777be3b41ad679"
+          :predecessor-envelope/root "sha256:556a7c20eee08805119359fe50d052a1d42e8c5e5140c7596920a0c08718eeb3"
+          :predecessor-material/root "sha256:dd8d3d7ed2597c193944706ff65b617e5605d74fad62d6b3fb82eaa5496aa0a4"
+          :authority-report/root "sha256:9c0de65043f050bbfb4284efe8de474a3f7032ec38913f3ca7c6f16dbaac62fd"
+          :authorised-target/root "sha256:785f9b5c1a92ba54bd8f6dcaef3e416f4ab8e3b7f708310e92535c640ddbbc6d"}
+ :outputs {:authoritative-material-state/root "sha256:676c364582da5624c12c07bfa77752c35e40be976d5ca65bc42cd318bf0ca2c8"
+           :successor-configuration-head/root "sha256:2bed11670a34ee84541a238541c2346ee5cc3bcc0abcd6c4d27d67fdc61eafd6"
+           :successor-envelope/root "sha256:85c029065480a033c0c2dd0ca3951180122c6b73da1e86a66b26643f4e9fbd70"
+           :governed-authority-content-transition/root "sha256:eaa39f43fd3024546e3914928366f429c0a8258e2ea562908607b74077f0cd76"
+           :authoritative-transition-binding/root "sha256:19e95bbc1cfcca1cd4561ec89437bdb0c4755c8bed813b883a4908a8a7d95e26"
+           :derived-result-receipt/root "sha256:d7658122d0a75884bcd46158d45213f2d99c69b5a61e9c327780ddcac0007224"
+           :publication/sequence 1
+           :publication/predecessor-root "sha256:556a7c20eee08805119359fe50d052a1d42e8c5e5140c7596920a0c08718eeb3"}
+ :adversarial-boundaries {:noncanonical-transition-definition :reject
+                          :caller-selected-successor :reject
+                          :caller-selected-material :reject
+                          :caller-selected-configuration-head :reject
+                          :legacy-receipt-for-derived-profile :reject}}

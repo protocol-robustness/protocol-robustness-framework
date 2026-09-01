@@ -2,9 +2,23 @@
 
 ## [Unreleased]
 
+### Derived execution-attempt receipts
+
+- **Added `execution-command.v1`, `execution-attempt.v1`, and `execution-attempt-receipt.v1` as a derived lifecycle strand.** A receipt root is computed only from the canonical command and observed attempt; callers cannot assert an `:attempt-receipt-hash`. Execution hints are classified explicitly: runtime-only hints do not enter semantic identity, while semantic parameters are committed. XTDB-aware observation bases can optionally commit the derived receipt root for research over an execution lifecycle. (`src/resolver_sim/benchmark/execution_attempt_receipt.clj`, `src/resolver_sim/benchmark/research_observation.clj`)
+
+### Researcher distinctness assurance projection
+
+- **Added optional researcher distinctness reporting to three-member certificates.** When governed researcher bindings or an explicit policy are supplied, certificates report submitted researcher count, distinct researcher count, distinct signing-key count, and distinct principal count separately. The initial policy requires three distinct researchers; it does not infer independence or collapse key/principal cardinalities into a universal uniqueness claim. Legacy certificate output and roots remain unchanged when no distinctness input is supplied. (`src/resolver_sim/benchmark/review/three_member_certificate.clj`)
+
+### Frozen governed-authority derived-transition vector
+
+- **Froze `governed-authority-derived-transition.v1`** at `data/fixtures/authority/governed-authority-derived-transition.v1.edn`, with language-independent input/output roots for the canonical transition definition, exact predecessor bundle, authorised target, derived material state, configuration head, successor envelope, content transition, transition binding, and derived result receipt. The fixture records adversarial boundaries for noncanonical T, caller-selected S1/M1/H1, and legacy receipts. Legacy K2 finalization remains historically valid under its original caller-bound state-after semantics, but is not admissible for a lineage requiring derived configuration-adoption finalization.
+
 ### Minimal governed research observations
 
-- **Added `research-observation.v1`**, a closed, canonically signed statement for an integer researcher position over an exact existing held-custody artifact root. Verification resolves the claimed `[researcher/id, signing-key/id]` only from the existing frozen governed signer-key-set and verifies Ed25519 over the canonical statement. The two-observation aggregator requires distinct researchers and reports `:agreement`, `:disagreement`, or `:not-comparable`; differing subject roots are explicitly not a disagreement. No observation-basis artifact, researcher/key registry, query semantics, or composition layer is introduced. (`src/resolver_sim/benchmark/research_observation.clj`)
+- **Extended the observation basis with the verified research-analysis closure root.** The Iteration 3 projection now composes execution/held-custody artifact `H`, force-authorisation scope, and analysis closure `A`; same `H` plus different `A` yields a distinct research subject. Two governed researchers can therefore disagree (`[1 -1]`) about the same exact analytical subject without changing execution identity. (`src/resolver_sim/benchmark/research_observation.clj`)
+
+- **Added `research-observation-basis.v1` as a compact composition projection.** It derives an observation-basis root from exactly the existing held-custody artifact root and force-authorisation scope hash; `research-observation.v1` signs that basis root plus an integer position. Verification resolves `[researcher/id, signing-key/id]` only from the existing frozen governed signer-key-set and verifies Ed25519 over the canonical statement. The two-observation aggregator requires distinct researchers and reports `:agreement`, `:disagreement`, or `:not-comparable`; changing either constituent produces a distinct basis and different roots are never treated as disagreement. No stateful observation-basis registry or query/composition layer is introduced. (`src/resolver_sim/benchmark/research_observation.clj`)
 
 ### deps.edn researcher-command surface + tooling fixes
 

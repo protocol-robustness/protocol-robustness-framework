@@ -148,6 +148,26 @@
 (deftest caller-selected-successor-not-an-input
   (testing "derive-governed-successor has no successor/state-after parameter"
     (is (nil? (some #{:successor/root :state-after/root} (:params (meta #'gt/derive-governed-successor)))))))
+(deftest frozen-derived-transition-golden-vector
+  (let [S0 (s0-fixture) O (o-fixture)
+        derived (gt/derive-governed-successor gt/transition-definition-root S0 O)
+        ct (gt/content-transition derived S0 O)
+        binding (gt/build-authoritative-transition-binding
+                 (:execution/state-root (:envelope S0)) derived (hr "cc")
+                 (:proposed-content-root O))]
+    (is (= "sha256:5b724bf5683d5a4cc03af72acac9e92df070e902ecd28fb304777be3b41ad679"
+           gt/transition-definition-root))
+    (is (= "sha256:556a7c20eee08805119359fe50d052a1d42e8c5e5140c7596920a0c08718eeb3"
+           (:authoritative-state-envelope/root (:envelope S0))))
+    (is (= "sha256:676c364582da5624c12c07bfa77752c35e40be976d5ca65bc42cd318bf0ca2c8"
+           (:state-after/root derived)))
+    (is (= "sha256:2bed11670a34ee84541a238541c2346ee5cc3bcc0abcd6c4d27d67fdc61eafd6"
+           (:configuration-head/root ct)))
+    (is (= "sha256:eaa39f43fd3024546e3914928366f429c0a8258e2ea562908607b74077f0cd76"
+           (:governed-authority-content-transition/root ct)))
+    (is (= "sha256:19e95bbc1cfcca1cd4561ec89437bdb0c4755c8bed813b883a4908a8a7d95e26"
+           (:governed-authority-transition-binding/root binding)))))
+
 (deftest material-state-projection-hardening
   (testing "excluded implementation state (cache/index/history/observations) does not change material-state-root"
     (let [m (:material (s0-fixture))

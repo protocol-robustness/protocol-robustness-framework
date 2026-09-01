@@ -1051,4 +1051,20 @@
       (is (:pre-certificate-valid? checks))
       (is (nil? (:support-divergence checks))))))
 
+(deftest distinct-researcher-key-principal-counts-remain-separate
+  (let [summary (tmc/distinct-researcher-summary
+                 [{:researcher/id "17"}
+                  {:researcher/id "22"}
+                  {:researcher/id "31"}]
+                 [{:researcher/id "17" :signing-key/id "k1" :principal/id "p1"}
+                  {:researcher/id "22" :signing-key/id "k2" :principal/id "p1"}
+                  {:researcher/id "31" :signing-key/id "k3" :principal/id "p2"}])]
+    (is (= {:researcher-count 3
+            :distinct-researcher-count 3
+            :distinct-key-count 3
+            :distinct-principal-count 2}
+           summary))
+    (is (tmc/distinct-researchers-qualify? summary))
+    (is (not (tmc/distinct-researchers-qualify?
+              summary {:required-distinct-researchers 4})))))
 

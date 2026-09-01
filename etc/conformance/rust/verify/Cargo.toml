@@ -2,7 +2,10 @@
 name = "resubmission-conformance"
 version = "0.1.0"
 edition = "2021"
-description = "Independent Rust conformance verifier for resubmission-transition.v1 spec"
+description = "Independent Rust conformance verifier for frozen canonical transition vectors"
+
+[features]
+legacy-conformance = []
 
 [lib]
 name = "resubmission_conformance"

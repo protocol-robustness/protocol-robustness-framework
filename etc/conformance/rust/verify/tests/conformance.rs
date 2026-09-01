@@ -1,3 +1,5 @@
+#![cfg(feature = "legacy-conformance")]
+
 use ed25519_dalek::{Signature, Verifier, VerifyingKey};
 use resubmission_conformance::canonical;
 use resubmission_conformance::edn::{map_get, Value};

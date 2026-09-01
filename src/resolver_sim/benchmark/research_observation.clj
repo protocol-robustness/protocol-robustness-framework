@@ -10,11 +10,77 @@
             [resolver-sim.signed-external-decision :as sed]))
 
 (def ^:const schema-version "research-observation.v1")
-(def ^:const subject-kind :sew/held-custody-artifact)
+(def ^:const basis-schema-version "research-observation-basis.v1")
+(def ^:const basis-domain "research-observation-basis.v1")
+(def ^:const temporal-basis-schema-version "research-observation-xtdb-basis.v1")
+(def ^:const temporal-basis-domain "research-observation-xtdb-basis.v1")
 
 (def ^:private observation-fields
   #{:artifact/schema :researcher/id :signing-key/id
-    :observation/subject-kind :observation/subject-root :position/value})
+    :observation-basis/root :position/value})
+
+(defn observation-basis
+  "Build the compact composition of exact protocol and research facts.
+   The optional analysis root is the verified research-analysis-closure root.
+   This is a projection, not a new stateful artifact or registry entry."
+  ([artifact-root authorization-scope-hash]
+   (observation-basis artifact-root authorization-scope-hash nil))
+  ([artifact-root authorization-scope-hash analysis-closure-root]
+   (when-not (and (string? artifact-root)
+                  (re-matches #"(?:sha256:)?[0-9a-f]{64}" artifact-root)
+                  (string? authorization-scope-hash)
+                  (re-matches #"(?:sha256:)?[0-9a-f]{64}" authorization-scope-hash)
+                  (or (nil? analysis-closure-root)
+                      (and (string? analysis-closure-root)
+                           (re-matches #"(?:sha256:)?[0-9a-f]{64}" analysis-closure-root))))
+     (throw (ex-info "invalid research observation basis constituents"
+                     {:subject/root artifact-root
+                      :authorization/scope-hash authorization-scope-hash
+                      :research-analysis-closure/root analysis-closure-root})))
+   (hc/domain-hash basis-domain
+                   (cond-> {:subject/root artifact-root
+                            :authorization/scope-hash authorization-scope-hash}
+                     analysis-closure-root
+                     (assoc :research-analysis-closure/root analysis-closure-root)))))
+
+(defn canonical-query
+  "Canonical, structured XTDB query semantics. Query text is accepted only as
+   an explicit semantic value; callers should prefer a map describing the
+   relation, temporal clause, predicates, ordering, and projection."
+  [query]
+  (when-not (or (string? query) (map? query) (vector? query))
+    (throw (ex-info "invalid XTDB query semantics" {:query query})))
+  (hc/project-canonical-safe query))
+
+(defn xtdb-observation-basis
+  "Build an additive XTDB-aware observation basis.
+
+   `query` is canonical query semantics, not merely an SQL display string.
+   `xtdb-basis` is the authoritative relation/cutpoint basis (for example a
+   valid-time or system-time cutpoint plus the committed source root). The
+   optional result-root is included only when the researcher attests to the
+   returned data; omit it when testing whether the datastore returns a result.
+   Same query with a different authoritative XTDB basis always produces a
+   different root."
+  ([subject-root authorization-scope-hash query xtdb-basis]
+   (xtdb-observation-basis subject-root authorization-scope-hash query xtdb-basis nil nil))
+  ([subject-root authorization-scope-hash query xtdb-basis result-root]
+   (xtdb-observation-basis subject-root authorization-scope-hash query xtdb-basis result-root nil))
+  ([subject-root authorization-scope-hash query xtdb-basis result-root receipt-root]
+   (let [base (observation-basis subject-root authorization-scope-hash)
+         body (cond-> {:schema-version temporal-basis-schema-version
+                       :observation-basis/root base
+                       :query/semantics (canonical-query query)
+                       :xtdb/basis (hc/project-canonical-safe xtdb-basis)}
+                result-root (assoc :result/root result-root)
+                receipt-root (assoc :execution/receipt-root receipt-root))]
+     (when-not (and (map? xtdb-basis)
+                    (or (nil? result-root)
+                        (and (string? result-root)
+                             (re-matches #"(?:sha256:)?[0-9a-f]{64}" result-root))))
+       (throw (ex-info "invalid XTDB observation basis" {:xtdb/basis xtdb-basis
+                                                         :result/root result-root})))
+     (hc/domain-hash temporal-basis-domain body))))
 
 (defn observation-statement
   "Build the closed, canonical statement a researcher signs."
@@ -22,8 +88,7 @@
   {:artifact/schema schema-version
    :researcher/id (:researcher/id input)
    :signing-key/id (:signing-key/id input)
-   :observation/subject-kind subject-kind
-   :observation/subject-root (:observation/subject-root input)
+   :observation-basis/root (:observation-basis/root input)
    :position/value (:position/value input)})
 
 (defn valid-observation-statement?
@@ -33,8 +98,7 @@
        (= schema-version (:artifact/schema statement))
        (string? (:researcher/id statement))
        (string? (:signing-key/id statement))
-       (= subject-kind (:observation/subject-kind statement))
-       (boolean (re-matches #"sha256:[0-9a-f]{64}" (:observation/subject-root statement)))
+       (boolean (re-matches #"(?:sha256:)?[0-9a-f]{64}" (:observation-basis/root statement)))
        (integer? (:position/value statement))))
 
 (defn signing-bytes
@@ -90,9 +154,9 @@
        :signing-key/id (:signing-key/id statement)})))
 
 (defn aggregate-observations
-  "Evaluate exactly two governed observations of one artifact.
+  "Evaluate exactly two governed observations of one compact observation basis.
 
-   Different subject roots produce `:not-comparable`, never a disagreement.
+   Different basis roots produce `:not-comparable`, never a disagreement.
    Invalid signatures or researcher/key bindings produce `:invalid` before any
    position comparison."
   [signer-key-set observations]
@@ -100,7 +164,7 @@
         verifications (mapv #(verify-observation signer-key-set %) observations)
         statements (mapv #(dissoc % :signature) observations)
         researcher-ids (mapv :researcher/id statements)
-        roots (set (map :observation/subject-root statements))]
+        roots (set (map :observation-basis/root statements))]
     (cond
       (not= 2 (count observations))
       {:status :invalid :reason :requires-exactly-two-observations
@@ -119,6 +183,6 @@
       :else
       (let [positions (mapv :position/value statements)]
         {:status (if (apply = positions) :agreement :disagreement)
-         :subject-root (first roots)
+         :observation-basis/root (first roots)
          :positions positions
          :verifications verifications}))))

@@ -63,6 +63,28 @@
    endorsement (supporting) or rejection (dissenting)."
   #{:publish-with-qualification})
 
+(def ^:const default-distinct-researcher-policy
+  {:required-distinct-researchers 3})
+
+(defn distinct-researcher-summary
+  "Report researcher, signing-key, and principal cardinalities separately.
+   Key/principal identities are supplied by the governed binding projection;
+   absent bindings are not silently treated as distinct identities."
+  [reports researcher-bindings]
+  (let [researchers (map :researcher/id reports)
+        bindings (vec (or researcher-bindings []))]
+    {:researcher-count (count researchers)
+     :distinct-researcher-count (count (set researchers))
+     :distinct-key-count (count (set (keep :signing-key/id bindings)))
+     :distinct-principal-count (count (set (keep :principal/id bindings)))}))
+
+(defn distinct-researchers-qualify?
+  "Minimal 5A policy: only distinct researcher count is required."
+  ([summary] (distinct-researchers-qualify? summary default-distinct-researcher-policy))
+  ([summary policy]
+   (>= (:distinct-researcher-count summary)
+       (:required-distinct-researchers policy))))
+
 (def ^:const qualifying-target-statuses
   "Theorem/conclusion target statuses expressing assessment-with-qualification."
   #{:qualified})
@@ -643,7 +665,7 @@
    certificate root (consensus member lists, :member-positions, and
    :certificate/inputs are all emitted in canonical member order)."
   [{:keys [review-round reports positions force-authorisations disagreements canonical-indices
-           supersedes-certificate-root]
+           supersedes-certificate-root researcher-bindings distinct-researcher-policy]
     :or {force-authorisations [] disagreements []}}]
   ;; Every certificate carries the exact resolved source inputs.  This makes
   ;; loaded semantic validation possible without trusting summary fields.  The
@@ -672,7 +694,9 @@
           model-dims model-dimensions
           incentive-dims incentive-dimensions
           other-dims other-dimensions
-          support-divergence (:support-divergence pre-checks)]
+          support-divergence (:support-divergence pre-checks)
+          researcher-summary (distinct-researcher-summary reports researcher-bindings)
+          researcher-policy (or distinct-researcher-policy default-distinct-researcher-policy)]
       (let [body {:schema-version schema-version
                   :benchmark/content-root (:benchmark/content-root review-round)
                   :review-round/id (:review-round/id review-round)
@@ -739,7 +763,13 @@
         ;; v2→v3 fixture hashes), while making divergence an explicit committed
         ;; relationship when it occurs.
         (cond-> (assoc body :support-divergence support-divergence)
-          (nil? support-divergence) (dissoc :support-divergence))))))
+          (nil? support-divergence) (dissoc :support-divergence)
+          (or (seq researcher-bindings) distinct-researcher-policy)
+          (assoc :researcher-distinctness
+                 (assoc researcher-summary
+                        :policy researcher-policy
+                        :qualifies? (distinct-researchers-qualify?
+                                     researcher-summary researcher-policy))))))))
 
 (defn finalise-certificate!
   "Compute the certificate hash and return the finalised certificate.

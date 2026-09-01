@@ -49,12 +49,12 @@
      :workflow-id workflow-id
      :authorization-id authorization-id}))
 
-(defn- signed-observation [signer root position]
+(defn- signed-observation [signer basis-root position]
   (observation/sign-observation
    (observation/observation-statement
     {:researcher/id (:researcher/id signer)
      :signing-key/id (:signing-key/id signer)
-     :observation/subject-root root
+     :observation-basis/root basis-root
      :position/value position})
    (:private-key signer)))
 
@@ -64,8 +64,11 @@
         r2 (signer "22" "k2")
         key-set (signer-key-set [r1 r2])
         h (:artifact/hash artifact)
-        r1-observation (signed-observation r1 h 1)
-        r2-observation (signed-observation r2 h 1)
+        scope-hash (get-in (last (get-in execution [:world :held-adjustments]))
+                           [:authorization/provenance :authorization/scope-hash])
+        basis (observation/observation-basis h scope-hash)
+        r1-observation (signed-observation r1 basis 1)
+        r2-observation (signed-observation r2 basis 1)
         result (observation/aggregate-observations key-set [r1-observation r2-observation])]
     (testing "the real persisted authorization produces the observed canonical artifact"
       (is (:ok grant))
@@ -76,7 +79,7 @@
       (is (:valid? (observation/verify-observation key-set r1-observation)))
       (is (:valid? (observation/verify-observation key-set r2-observation))))
     (is (= :agreement (:status result)))
-    (is (= h (:subject-root result)))
+    (is (= basis (:observation-basis/root result)))
     (is (= [1 1] (:positions result)))))
 
 (deftest observation-aggregation-distinguishes-disagreement-from-different-subjects
@@ -87,15 +90,48 @@
         h (:artifact/hash artifact)
         h2 (:artifact/hash (custody/build-held-custody-artifact
                             (assoc adjustment :held-adjustment/id "separate-observed-adjustment")))
+        scope-hash (get-in adjustment [:authorization/provenance :authorization/scope-hash])
+        basis (observation/observation-basis h scope-hash)
+        different-scope (observation/observation-basis h "sha256:1111111111111111111111111111111111111111111111111111111111111111")
+        different-artifact (observation/observation-basis h2 scope-hash)
         disagreement (observation/aggregate-observations
-                      key-set [(signed-observation r1 h 1)
-                               (signed-observation r2 h -1)])
-        different-subjects (observation/aggregate-observations
-                            key-set [(signed-observation r1 h 1)
-                                     (signed-observation r2 h2 1)])]
+                      key-set [(signed-observation r1 basis 1)
+                               (signed-observation r2 basis -1)])
+        different-scope-result (observation/aggregate-observations
+                                key-set [(signed-observation r1 basis 1)
+                                         (signed-observation r2 different-scope 1)])
+        different-artifact-result (observation/aggregate-observations
+                                   key-set [(signed-observation r1 basis 1)
+                                            (signed-observation r2 different-artifact 1)])]
     (is (= :disagreement (:status disagreement)))
-    (is (= :not-comparable (:status different-subjects)))
-    (is (= :different-subject-roots (:reason different-subjects)))))
+    (is (= :not-comparable (:status different-scope-result)))
+    (is (= :different-subject-roots (:reason different-scope-result)))
+    (is (= :not-comparable (:status different-artifact-result)))
+    (is (= :different-subject-roots (:reason different-artifact-result)))
+    (is (not= basis different-scope))
+    (is (not= basis different-artifact))))
+
+(deftest same-execution-and-analysis-support-genuine-disagreement
+  (let [{:keys [artifact adjustment]} (force-authorised-artifact)
+        r1 (signer "17" "k1")
+        r2 (signer "22" "k2")
+        key-set (signer-key-set [r1 r2])
+        h (:artifact/hash artifact)
+        scope-hash (get-in adjustment [:authorization/provenance :authorization/scope-hash])
+        analysis-root "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+        alternate-analysis-root "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+        basis (observation/observation-basis h scope-hash analysis-root)
+        alternate-basis (observation/observation-basis h scope-hash alternate-analysis-root)
+        result (observation/aggregate-observations
+                key-set [(signed-observation r1 basis 1)
+                         (signed-observation r2 basis -1)])]
+    (is (= :disagreement (:status result)))
+    (is (= basis (:observation-basis/root result)))
+    (is (not= basis alternate-basis))
+    (is (= :not-comparable
+           (:status (observation/aggregate-observations
+                     key-set [(signed-observation r1 basis 1)
+                              (signed-observation r2 alternate-basis -1)]))))))
 
 (deftest forged-researcher-identity-with-another-governed-key-is-rejected
   (let [{:keys [artifact]} (force-authorised-artifact)
@@ -106,11 +142,38 @@
                 (observation/observation-statement
                  {:researcher/id "17"
                   :signing-key/id "k1"
-                  :observation/subject-root (:artifact/hash artifact)
+                  :observation-basis/root
+                  (observation/observation-basis
+                   (:artifact/hash artifact)
+                   "sha256:2222222222222222222222222222222222222222222222222222222222222222")
                   :position/value 1})
                 (:private-key r2))]
     (is (= :signature-invalid
            (:reason (observation/verify-observation key-set forged))))))
+
+(deftest xtdb-observation-basis-commits-query-and-authoritative-cutpoint
+  (let [subject "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+        scope "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+        query {:from :sim_execution_runs
+               :temporal {:kind :valid-time :as-of "2026-01-01T00:00:00Z"}
+               :where [[:benchmark/id "b1"]]
+               :order-by [:_id]
+               :select [:execution/id :outcome/root]}
+        basis-a {:relation :sim_execution_runs
+                 :cutpoint {:kind :valid-time :at "2026-01-01T00:00:00Z"}
+                 :source-root "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"}
+        basis-b (assoc basis-a :cutpoint {:kind :valid-time :at "2026-01-02T00:00:00Z"})
+        result "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
+        data-observation (observation/xtdb-observation-basis subject scope query basis-a result)
+        datastore-observation (observation/xtdb-observation-basis subject scope query basis-a)
+        changed-cutpoint (observation/xtdb-observation-basis subject scope query basis-b result)]
+    (is (not= data-observation datastore-observation)
+        "attesting to returned data commits the result root")
+    (is (not= data-observation changed-cutpoint)
+        "same query with a different XTDB basis is not the same observation")
+    (is (not= datastore-observation
+              (observation/xtdb-observation-basis subject scope (assoc query :order-by [:_valid_from]) basis-a))
+        "query semantics, not only query text, are committed")))
 
 (deftest force-authorisation-scope-is-derived-from-the-executed-adjustment
   (let [{:keys [world context workflow-id authorization-id]} (force-authorised-artifact)
