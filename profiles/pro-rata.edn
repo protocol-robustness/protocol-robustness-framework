@@ -3,4 +3,10 @@
  :profile/status :supported
  :profile/extends :prf/sew-core-v1
  :profile/semantic-features [:prf/ideal-pro-rata-v1]
+ :profile/runtime
+ {:runtime/type :prf/claimant-options-v1
+  :runtime/options
+  {:execution/claimant-parallelism 1
+   :execution/claimant-parallel-threshold 16
+   :execution/quiescence-timeout-seconds 30}}
  :profile/components [:prf/ideal-pro-rata-v1]}

@@ -9,6 +9,7 @@
   (:require [resolver-sim.config.defaults :as config-defaults]
             [resolver-sim.definitions.passive-registries :as registries]
             [resolver-sim.execution.budget :as budget]
+            [resolver-sim.execution.realization :as realization]
             [resolver-sim.hash.canonical :as hc]
             [resolver-sim.pro-rata.exact-verifier :as exact-verifier]
             [resolver-sim.pro-rata.progress :as progress]
@@ -120,9 +121,13 @@
     (when-not (pos? requested)
       (throw (ex-info "Pro-rata claimant parallelism must be positive"
                       {:parallelism requested})))
-    (if (or observer (< item-count *pro-rata-parallel-threshold*))
-      1
-      requested)))
+    (let [[effective reason] (cond
+                               (= requested 1) [1 :requested-serial]
+                               observer [1 :observer-requires-serial]
+                               (< item-count *pro-rata-parallel-threshold*) [1 :below-claimant-threshold]
+                               :else [requested :parallel-eligible])]
+      (realization/record! {:candidate-parallelism effective :reason reason})
+      effective)))
 
 (declare run-claimant-tasks! claimant-quiesce!)
 
@@ -143,19 +148,26 @@
      (if budgeted
        (let [acquired (budget/acquire-many! parallelism)]
          (try
-           (if (< acquired 2)
-             (mapv f values)
-             (run-claimant-tasks! acquired quiescence-timeout-seconds f values))
+           (do
+             (realization/record! {:budget-limited? (< acquired parallelism)
+                                   :realized-parallelism acquired})
+             (if (< acquired 2)
+               (mapv f values)
+               (run-claimant-tasks! acquired quiescence-timeout-seconds f values)))
            (finally
              (budget/release-many! acquired))))
-       (if (<= parallelism 1)
-         (mapv f values)
-         (run-claimant-tasks! parallelism quiescence-timeout-seconds f values))))))
+       (do
+         (realization/record! {:budget-limited? false
+                               :realized-parallelism parallelism})
+         (if (<= parallelism 1)
+           (mapv f values)
+           (run-claimant-tasks! parallelism quiescence-timeout-seconds f values)))))))
 
 (defn- run-claimant-tasks!
   "Run claimant-local tasks on a bounded fresh pool with size `parallelism`,
    collecting results in stable order and quiescing authoritatively."
   [parallelism quiescence-timeout-seconds f values]
+  (realization/record-executor-dispatch! parallelism)
   (let [executor (Executors/newFixedThreadPool (int parallelism))]
     (try
       (let [futures (mapv (fn [value]
@@ -188,7 +200,8 @@
               {:quiescence/status (:status q)
                :quiescence/remaining-tasks (:remaining-tasks q)
                :quiescence/timeout-seconds timeout
-               :executor-parallelism parallelism})))))
+               :executor-parallelism parallelism})))
+    (realization/record-quiesced!)))
 
 (defn- registry-entry
   [entries id]
@@ -419,9 +432,10 @@
                   allocated))
               (range) floors)))))
 
-(defn allocate-pro-rata
-  "Allocate an integer amount pro-rata across abstract weighted items.
+(defn- allocate-pro-rata*
+  "Unscoped semantic implementation for one pro-rata allocation.
 
+   Public entry points establish realization scope around this function.
    Inputs are intentionally generic. Protocol-specific namespaces should adapt
    their domain data into {:id ... :weight ... :cap ...} items before calling.
 
@@ -509,6 +523,13 @@
                                 :status :completed
                                 :phase :completed})
     result))
+
+(defn allocate-pro-rata [request]
+  (let [state (realization/open)]
+    (binding [realization/*claimant-execution-realization* state]
+      (let [result (allocate-pro-rata* request)]
+        (realization/complete! state)
+        result))))
 
 (defn- residual-cap-fn
   "Return the remaining capacity for an item after prior allocation passes."
@@ -673,8 +694,8 @@
                            (inc pass-num)
                            pass-records)))))))))))
 
-(defn allocate-pro-rata-with-redistribution
-  "Allocate with cap redistribution using an active-set algorithm.
+(defn- allocate-pro-rata-with-redistribution*
+  "Unscoped semantic implementation for cap redistribution.
 
    Rows that cannot receive their current exact quota because of a cap are
    committed at that cap, removed, and the remaining availability is recomputed
@@ -710,7 +731,7 @@
                 ;; to the committed rows pro-rata by weight (largest remainder)
                 ;; so per-row :unmet sums exactly to the aggregate shortfall and
                 ;; no obligation vanishes from the committed rows.
-                share-allocation (allocate-pro-rata
+                share-allocation (allocate-pro-rata*
                                   {:amount remaining
                                    :items (vals committed)
                                    :id-fn :id :weight-fn :weight
@@ -817,7 +838,7 @@
                                                 :cap (cap-of item)}]) capped)))
                        (conj passes (assoc pass :committed-by-cap committed-amount
                                            :available-after-caps (- remaining committed-amount)))))
-              (let [final-result (allocate-pro-rata
+              (let [final-result (allocate-pro-rata*
                                   {:amount remaining :items active :id-fn id-fn
                                    :weight-fn weight-fn :cap-fn cap-fn :rounding rounding
                                    :remainder-policy :unallocated
@@ -924,6 +945,13 @@
        :policy policy
        :source (or source {})
        :metadata (or metadata {})})))
+
+(defn allocate-pro-rata-with-redistribution [request]
+  (let [state (realization/open)]
+    (binding [realization/*claimant-execution-realization* state]
+      (let [result (allocate-pro-rata-with-redistribution* request)]
+        (realization/complete! state)
+        result))))
 
 (defn evaluate-pro-rata-allocation
   "Evaluate a normalized, data-only pro-rata request without persistence.

@@ -1,6 +1,8 @@
 (ns resolver-sim.economics.claimant-quiescence-test
   (:require [clojure.test :refer [deftest is testing]]
             [resolver-sim.economics.payoffs :as payoffs]
+            [resolver-sim.execution.realization :as realization]
+            [resolver-sim.execution.runtime-profile :as runtime-profile]
             [resolver-sim.util.thread-quiescence :as quiesce])
   (:import [java.util.concurrent CountDownLatch TimeUnit]))
 
@@ -142,6 +144,57 @@
         (is (= [expected-default expected-default] timeouts)
             "both claimant phases used the config-resolved default when no explicit timeout was provided")
         (is (pos? (first timeouts)) "the resolved default is a positive integer")))))
+
+(deftest claimant-execution-failure-preserves-original-exception-and-emits-no-observation
+  (let [emitted (atom [])
+        profile (runtime-profile/build {:execution/claimant-parallelism 2
+                                        :execution/claimant-parallel-threshold 1
+                                        :execution/quiescence-timeout-seconds 5})
+        failure (binding [payoffs/*pro-rata-parallel-threshold* 1
+                          realization/*claimant-execution-runtime-profile-root* (:runtime-profile/root profile)
+                          realization/*claimant-execution-observation-sink* #(swap! emitted conj %)]
+                  (try
+                    (payoffs/allocate-pro-rata {:amount 1
+                                                :items [{:id :bad} {:id :other}]
+                                                :parallelism 2
+                                                :weight-fn (fn [item]
+                                                             (if (= :bad (:id item))
+                                                               (throw (ex-info "original claimant failure" {:id :bad}))
+                                                               1))})
+                    nil
+                    (catch Throwable e e)))]
+    (is (re-find #"original claimant failure"
+                 (str (or (some-> failure ex-cause .getMessage) (.getMessage failure)))))
+    (is (empty? @emitted))))
+
+(deftest claimant-execution-failure-emits-no-observation
+  (let [latch (CountDownLatch. 1)
+        stop? (atom false)
+        emitted (atom [])
+        profile (runtime-profile/build {:execution/claimant-parallelism 2
+                                        :execution/claimant-parallel-threshold 1
+                                        :execution/quiescence-timeout-seconds 1})
+        task (make-stuck-executor-task latch stop?)
+        original-quiesce quiesce/quiesce-executor!
+        failure (binding [payoffs/*pro-rata-parallel-threshold* 1
+                          realization/*claimant-execution-runtime-profile-root* (:runtime-profile/root profile)
+                          realization/*claimant-execution-observation-sink* #(swap! emitted conj %)]
+                  (with-redefs [quiesce/quiesce-executor!
+                                (fn
+                                  ([executor] (original-quiesce executor 1))
+                                  ([executor _timeout-seconds] (original-quiesce executor 1)))]
+                    (try
+                      (payoffs/allocate-pro-rata
+                       {:amount 2
+                        :items [{:id :fast-fail} {:id :stuck}]
+                        :parallelism 2
+                        :weight-fn #(task (:id %))})
+                      nil
+                      (catch Throwable e e))))]
+    (is (quiesce/quiescence-failed? failure))
+    (is (empty? @emitted) "failed public execution never finalizes or emits")
+    (reset! stop? true)
+    (.countDown latch)))
 
 (deftest claimant-executor-succeeds-when-workers-finish
   (testing "ordered-detached-mapv returns results when all workers finish promptly"

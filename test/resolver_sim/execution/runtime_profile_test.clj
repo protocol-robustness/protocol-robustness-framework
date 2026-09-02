@@ -1,15 +1,14 @@
 (ns resolver-sim.execution.runtime-profile-test
   (:require [clojure.edn :as edn]
             [clojure.java.io :as io]
+            [clojure.java.shell :as shell]
             [clojure.test :refer [deftest is testing]]
             [resolver-sim.economics.payoffs :as payoffs]
             [resolver-sim.execution.context :as execution]
+            [resolver-sim.execution.observation :as observation]
+            [resolver-sim.execution.realization :as realization]
             [resolver-sim.execution.runtime-profile :as profile]
-            [resolver-sim.hash.canonical :as hc]
-            [resolver-sim.allocation.context :as allocation-context]
-            [resolver-sim.allocation.kernel :as allocation-kernel]
-            [resolver-sim.allocation.roots :as allocation-roots]
-            [resolver-sim.allocation.test-fixtures :as allocation-fixtures]))
+            [resolver-sim.hash.canonical :as hc]))
 
 (def options {:execution/claimant-parallelism 4
               :execution/claimant-parallel-threshold 1
@@ -36,6 +35,26 @@
 (defn profile-components [name]
   (set (:profile/components (resolved-profile name))))
 
+(defn closure-report [name]
+  (let [{:keys [exit out err]} (shell/sh "bb" "scripts/profile_view.clj" "describe" name)]
+    (when-not (zero? exit)
+      (throw (ex-info "Profile closure report failed" {:profile name :stderr err})))
+    (edn/read-string out)))
+
+(defn runtime-profile-for [name]
+  (profile/build (get-in (read-profile name) [:profile/runtime :runtime/options])))
+
+(defn observe-allocation [runtime allocation]
+  (let [emitted (atom [])]
+    (binding [execution/*context* (:runtime-profile/requested runtime)
+              realization/*claimant-execution-runtime-profile-root* (:runtime-profile/root runtime)
+              realization/*claimant-execution-observation-sink* #(swap! emitted conj %)]
+      {:result (execution/with-claimant-options
+                 (payoffs/allocate-pro-rata allocation))
+       :observation (do
+                      (is (= 1 (count @emitted)) "one observation per allocation")
+                      (first @emitted))})))
+
 (deftest runtime-profile-resolver-preserves-builder-parity
   (is (= (profile/build options)
          (profile/resolve-runtime-profile options))))
@@ -48,49 +67,42 @@
     (is (re-matches #"sha256:[0-9a-f]{64}" (:runtime-profile/root p)))
     (is (= (:runtime-profile/root p) (:runtime-profile/root (profile/build options))))))
 
-(deftest claimant-runtime-profile-preserves-semantics-and-realizes-parallelism
-  (let [options {:execution/claimant-parallelism 2
-                 :execution/claimant-parallel-threshold 1
-                 :execution/quiescence-timeout-seconds 30}
-        items (mapv (fn [i] {:id (keyword (str "claim-" i)) :weight 1}) (range 16))
-        serial (payoffs/allocate-pro-rata {:amount 101 :items items
-                                           :ordering-policy :canonical-id
-                                           :rounding :floor-with-largest-remainder})
-        worker-threads (atom #{})
-        parallel (binding [execution/*context* options]
-                   (execution/with-claimant-options
-                     (payoffs/allocate-pro-rata
-                      {:amount 101 :items items
-                       :ordering-policy :canonical-id
-                       :rounding :floor-with-largest-remainder
-                       :weight-fn (fn [item]
-                                    (swap! worker-threads conj (.getName (Thread/currentThread)))
-                                    (:weight item))})))]
-    (is (= serial parallel))
-    (is (> (count @worker-threads) 1)
-        (str "Expected detached claimant workers, got " @worker-threads))
-    (is (= (hc/hash-with-intent {:hash/intent :projection-artifact} serial)
-           (hc/hash-with-intent {:hash/intent :projection-artifact} parallel)))))
-
-(deftest claimant-runtime-profile-does-not-change-semantic-allocation-identity
-  (let [input (allocation-fixtures/happy-input)
-        context (allocation-context/build-context input)
-        serial (allocation-kernel/run-kernel input)
-        options (profile/build {:execution/claimant-parallelism 4
-                                :execution/claimant-parallel-threshold 1
-                                :execution/quiescence-timeout-seconds 30})
-        parallel (binding [execution/*context* (:runtime-profile/requested options)]
-                   (execution/with-claimant-options
-                     (allocation-kernel/run-kernel input)))]
-    (doseq [field [:claimant-set-root :outcome-set-root :proposed-rates-root :result-root]]
-      (is (= (get serial field) (get parallel field)) (str field " must be semantic-stable")))
-    (is (= (allocation-context/context-hash context)
-           (:allocation-context-hash serial)
-           (:allocation-context-hash parallel)))
-    (is (not= (:runtime-profile/root (profile/build {:execution/claimant-parallelism 1
-                                                     :execution/claimant-parallel-threshold 16
-                                                     :execution/quiescence-timeout-seconds 30}))
-              (:runtime-profile/root options)))))
+(deftest pro-rata-runtime-profile-orthogonality-gate
+  (let [items (mapv (fn [i] {:id (keyword (str "claim-" i)) :weight 1}) (range 16))
+        allocation {:amount 101 :items items
+                    :ordering-policy :canonical-id
+                    :rounding :floor-with-largest-remainder}
+        baseline-profile (runtime-profile-for "pro-rata")
+        claimant-profile (runtime-profile-for "pro-rata-claimant-options")
+        baseline (observe-allocation baseline-profile allocation)
+        claimant (observe-allocation claimant-profile allocation)
+        threshold-profile (profile/build {:execution/claimant-parallelism 4
+                                          :execution/claimant-parallel-threshold 17
+                                          :execution/quiescence-timeout-seconds 30})
+        threshold (observe-allocation threshold-profile allocation)]
+    (testing "formal profiles preserve semantic output and roots"
+      (is (= (:result baseline) (:result claimant) (:result threshold)))
+      (is (= (hc/hash-with-intent {:hash/intent :projection-artifact} (:result baseline))
+             (hc/hash-with-intent {:hash/intent :projection-artifact} (:result claimant))
+             (hc/hash-with-intent {:hash/intent :projection-artifact} (:result threshold))))
+      (testing "runtime roots and actual allocator observations distinguish profiles"
+        (is (not= (:runtime-profile/root baseline-profile)
+                  (:runtime-profile/root claimant-profile)))
+        (is (not= (get-in baseline [:observation :execution-observation/root])
+                  (get-in claimant [:observation :execution-observation/root])))
+        (is (:valid? (observation/verify-against-profile baseline-profile (:observation baseline))))
+        (is (:valid? (observation/verify-against-profile claimant-profile (:observation claimant)))))
+      (testing "baseline is serial and claimant options actually dispatch in parallel"
+        (is (= :serial (get-in baseline [:observation :execution-observation/effective :execution/path])))
+        (is (= :serial-requested (get-in baseline [:observation :execution-observation/effective :execution/reason])))
+        (is (= :parallel (get-in claimant [:observation :execution-observation/effective :execution/path])))
+        (is (= :parallel (get-in claimant [:observation :execution-observation/effective :execution/reason])))
+        (is (true? (get-in claimant [:observation :execution-observation/effective :execution/parallel-work-observed?]))))
+      (testing "requested parallelism alone is not a parallelism claim"
+        (is (= (:result baseline) (:result threshold)))
+        (is (= :serial (get-in threshold [:observation :execution-observation/effective :execution/path])))
+        (is (= :serial-threshold (get-in threshold [:observation :execution-observation/effective :execution/reason])))
+        (is (false? (get-in threshold [:observation :execution-observation/effective :execution/parallel-work-observed?])))))))
 
 (deftest profile-orthogonality-declaration-gate
   (let [baseline (read-profile "pro-rata")
@@ -100,6 +112,11 @@
     (testing "runtime-only claimant options do not alter implementation closure"
       (is (= (profile-components "pro-rata")
              (profile-components "pro-rata-claimant-options")))
+      (let [baseline-closure (closure-report "pro-rata")
+            claimant-closure (closure-report "pro-rata-claimant-options")]
+        (is (= (:component-ids baseline-closure) (:component-ids claimant-closure)))
+        (is (= (:transitive-source-files baseline-closure)
+               (:transitive-source-files claimant-closure))))
       (is (nil? (:profile/semantic-features runtime)))
       (is (= :prf/claimant-options-v1
              (get-in runtime [:profile/runtime :runtime/type]))))

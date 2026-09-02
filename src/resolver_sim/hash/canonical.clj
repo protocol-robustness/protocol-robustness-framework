@@ -188,6 +188,7 @@
    :incentive-deviation-domain "INCENTIVE_DEVIATION_DOMAIN_V1"
    :research-analysis-closure "RESEARCH_ANALYSIS_CLOSURE_V1"
    :runtime-profile "RUNTIME_PROFILE_V1"
+   :claimant-execution-observation "CLAIMANT_EXECUTION_OBSERVATION_V1"
    :research-execution "RESEARCH_EXECUTION_V1"
    :research-benchmark-pack "RESEARCH_BENCHMARK_PACK_V1"
    :research-benchmark-pack-v2 "RESEARCH_BENCHMARK_PACK_V2"

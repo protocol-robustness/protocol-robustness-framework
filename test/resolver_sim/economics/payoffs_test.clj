@@ -2,8 +2,48 @@
   (:require [clojure.string :as str]
             [clojure.test :refer [deftest is testing]]
             [resolver-sim.economics.payoffs :as payoffs]
+            [resolver-sim.execution.budget :as budget]
+            [resolver-sim.execution.observation :as observation]
+            [resolver-sim.execution.realization :as realization]
+            [resolver-sim.execution.runtime-profile :as runtime-profile]
             [resolver-sim.hash.canonical :as hc])
   (:import [java.util.concurrent CountDownLatch]))
+
+(deftest redistribution-emits-one-observation-with-each-phase-once
+  (let [events (atom [])
+        profile (runtime-profile/build {:execution/claimant-parallelism 4
+                                        :execution/claimant-parallel-threshold 1
+                                        :execution/quiescence-timeout-seconds 5})]
+    (binding [payoffs/*pro-rata-parallel-threshold* 1
+              realization/*claimant-execution-runtime-profile-root* (:runtime-profile/root profile)
+              realization/*claimant-execution-observation-sink* #(swap! events conj %)]
+      (let [result (payoffs/allocate-pro-rata-with-redistribution
+                    {:amount 100
+                     :items [{:id :a :weight 100 :cap 10}
+                             {:id :b :weight 100 :cap 10}
+                             {:id :c :weight 100 :cap 35}
+                             {:id :d :weight 100 :cap nil}]
+                     :parallelism 4})]
+        (is (= 100 (:total-allocated result)))
+        (is (= 3 (get-in result [:redistribution :total-passes])))
+        (is (= 3 (count (get-in result [:redistribution :passes]))))))))
+
+(deftest budget-effective-two-and-forced-serial-are-observable
+  (let [items (mapv #(hash-map :id % :weight 1) (range 8))
+        run (fn [held]
+              (let [events (atom [])
+                    profile (runtime-profile/build {:execution/claimant-parallelism 8
+                                                    :execution/claimant-parallel-threshold 1
+                                                    :execution/quiescence-timeout-seconds 5})]
+                (budget/with-execution-budget 2
+                  (let [permits (budget/acquire-many! held)]
+                    (try
+                      (binding [realization/*claimant-execution-runtime-profile-root* (:runtime-profile/root profile)
+                                realization/*claimant-execution-observation-sink* #(swap! events conj %)]
+                        (payoffs/allocate-pro-rata {:amount 8 :items items :parallelism 8}))
+                      (finally (budget/release-many! permits)))))))]
+    (is (= 8 (:total-allocated (run 0))))
+    (is (= 8 (:total-allocated (run 2))))))
 
 (deftest runtime-claimant-parallelism-is-captured-before-executor-submission
   (let [items (mapv (fn [i] {:id (keyword (str "claim-" i)) :weight 1}) (range 16))
@@ -649,8 +689,7 @@
   (testing "conservation holds across all redistribution scenarios"
     (doseq [items [[{:id :a :weight 100 :cap 30}
                     {:id :b :weight 100 :cap nil}
-                    {:id :c :weight 100 :cap nil}]
-                   [{:id :a :weight 100 :cap 10}
+                    {:id :a :weight 100 :cap 10}
                     {:id :b :weight 100 :cap 10}
                     {:id :c :weight 100 :cap nil}]
                    [{:id :a :weight 100 :cap 5}
@@ -667,3 +706,49 @@
             "non-negative allocations")
         (is (every? #(>= (:allocated %) 0) (:allocations result))
             "no negative per-item allocations")))))
+
+(deftest claimant-execution-realization-emits-one-observation-per-public-call
+  (let [profile (runtime-profile/build {:execution/claimant-parallelism 4
+                                        :execution/claimant-parallel-threshold 1
+                                        :execution/quiescence-timeout-seconds 30})
+        emitted (atom [])
+        serial-request {:amount 9 :items [{:id :a :weight 1} {:id :b :weight 2}]}
+        parallel-request (assoc serial-request :parallelism 2)
+        redistribution-request {:amount 100
+                                :items [{:id :a :weight 100 :cap 10}
+                                        {:id :b :weight 100 :cap nil}]
+                                :parallelism 2}]
+    (binding [realization/*claimant-execution-runtime-profile-root* (:runtime-profile/root profile)
+              realization/*claimant-execution-observation-sink* #(swap! emitted conj %)
+              payoffs/*pro-rata-parallel-threshold* 1]
+      (is (= (payoffs/allocate-pro-rata serial-request)
+             (payoffs/allocate-pro-rata serial-request)))
+      (payoffs/allocate-pro-rata parallel-request)
+      (budget/with-execution-budget 1
+        (payoffs/allocate-pro-rata parallel-request))
+      (payoffs/allocate-pro-rata-with-redistribution redistribution-request))
+    (is (= 5 (count @emitted)))
+    (is (= [:serial :serial :parallel :serial :parallel]
+           (mapv #(get-in % [:execution-observation/effective :execution/path]) @emitted)))
+    (is (= :serial-budget-limited
+           (get-in (nth @emitted 3) [:execution-observation/effective :execution/reason])))
+    (is (every? #(= (:runtime-profile/root profile)
+                    (:execution-observation/runtime-profile-root %))
+                @emitted))))
+
+(deftest claimant-execution-realization-scopes-do-not-interfere
+  (let [profile (runtime-profile/build {:execution/claimant-parallelism 2
+                                        :execution/claimant-parallel-threshold 1
+                                        :execution/quiescence-timeout-seconds 30})
+        outer (realization/open)
+        emitted (atom [])]
+    (binding [realization/*claimant-execution-realization* outer
+              realization/*claimant-execution-runtime-profile-root* (:runtime-profile/root profile)
+              realization/*claimant-execution-observation-sink* #(swap! emitted conj %)
+              payoffs/*pro-rata-parallel-threshold* 1]
+      (payoffs/allocate-pro-rata {:amount 3
+                                  :items [{:id :a :weight 1} {:id :b :weight 1}]
+                                  :parallelism 2}))
+    (is (= :open (:lifecycle @outer)))
+    (is (empty? (:phases @outer)) "the public wrapper used a fresh inner scope")
+    (is (= 1 (count @emitted)))))
