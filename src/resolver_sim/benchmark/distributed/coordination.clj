@@ -21,6 +21,13 @@
                     {:reason :invalid-coordination-request :field name :value value})))
   value)
 
+(defn- root! [name value]
+  (nonblank! name value)
+  (when-not (hash-ref/valid-sha256-ref? value)
+    (throw (ex-info "Distributed benchmark coordination requires a valid SHA-256 reference"
+                    {:reason :invalid-coordination-root :field name :value value})))
+  value)
+
 (defn- positive! [name value]
   (when-not (and (integer? value) (pos? value))
     (throw (ex-info "Distributed benchmark coordination requires a positive integer"
@@ -46,8 +53,8 @@
   (let [descriptors
         (mapv (fn [{:keys [chunk-id expected-input-root expected-work-root]}]
                 (nonblank! :chunk-id chunk-id)
-                (nonblank! :expected-input-root expected-input-root)
-                (nonblank! :expected-work-root expected-work-root)
+                (root! :expected-input-root expected-input-root)
+                (root! :expected-work-root expected-work-root)
                 {:chunk/id chunk-id
                  :chunk/expected-input-root expected-input-root
                  :chunk/expected-execution-root expected-work-root})
@@ -91,8 +98,8 @@
    exact retry. Chunk descriptors require stable input and execution roots."
   [ds {:keys [run-id run-plan-root execution-plan-root chunks]}]
   (nonblank! :run-id run-id)
-  (nonblank! :run-plan-root run-plan-root)
-  (nonblank! :execution-plan-root execution-plan-root)
+  (root! :run-plan-root run-plan-root)
+  (root! :execution-plan-root execution-plan-root)
   (let [chunks (canonical-chunks! chunks)
         root (chunk-set-root chunks)
         expected-count (count chunks)]
@@ -169,6 +176,7 @@
           {:outcome :leased
            :run-id (:run_id row) :chunk-id (:chunk_id row)
            :execution-plan-root (:execution_plan_root row)
+           :expected-input-root (:expected_input_root row)
            :expected-work-root (:expected_work_root row)
            :worker-id (:worker_id row) :fence (:fence row) :attempt (:attempt row)
            :lease-expires-at (:lease_expires_at row)})))))
@@ -177,14 +185,21 @@
   "Accept a detached result only under the current run state, lease, and fence.
    Exact accepted-result replays are idempotent; sensitivity level is accepted
    provenance and therefore part of that immutable identity."
-  [ds {:keys [run-id execution-plan-root chunk-id expected-work-root worker-id fence
+  [ds {:keys [run-id execution-plan-root chunk-id expected-input-root expected-work-root worker-id fence
               result-root result-manifest-root result-ref sensitivity-root sensitivity-level]}]
   (doseq [[k v] [[:run-id run-id] [:execution-plan-root execution-plan-root]
-                 [:chunk-id chunk-id] [:expected-work-root expected-work-root]
+                 [:chunk-id chunk-id] [:expected-input-root expected-input-root]
+                 [:expected-work-root expected-work-root]
                  [:worker-id worker-id] [:result-root result-root]
                  [:result-manifest-root result-manifest-root] [:result-ref result-ref]
                  [:sensitivity-root sensitivity-root]]]
     (nonblank! k v))
+  (root! :execution-plan-root execution-plan-root)
+  (root! :expected-input-root expected-input-root)
+  (root! :expected-work-root expected-work-root)
+  (root! :result-root result-root)
+  (root! :result-manifest-root result-manifest-root)
+  (root! :sensitivity-root sensitivity-root)
   (positive! :fence fence)
   (sensitivity-level! sensitivity-level)
   (jdbc/with-transaction [tx ds]
@@ -201,6 +216,8 @@
         (= "failed" (:coordination_status run)) {:outcome :rejected :reason :run-failed}
         (not= execution-plan-root (:execution_plan_root row))
         {:outcome :rejected :reason :execution-plan-root-mismatch}
+        (not= expected-input-root (:expected_input_root row))
+        {:outcome :rejected :reason :expected-input-root-mismatch}
         (not= expected-work-root (:expected_work_root row))
         {:outcome :rejected :reason :expected-work-root-mismatch}
         (= "completed" (:status row))
@@ -298,6 +315,7 @@
     (when (= "completed" (:status row))
       {:outcome :completed :run-id run-id :chunk-id chunk-id
        :execution-plan-root (:execution_plan_root row)
+       :expected-input-root (:expected_input_root row)
        :expected-work-root (:expected_work_root row)
        :result-root (:result_root row) :result-manifest-root (:result_manifest_root row)
        :result-ref (:result_ref row) :sensitivity-root (:sensitivity_root row)
