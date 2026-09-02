@@ -488,15 +488,18 @@
             :effects [...] (committed only)
             :ordering-input {...} (committed only)}."
   [state command]
-  (let [action (:transaction/action command)]
-    (case action
-      :prf.resubmission/admit-child
-      (admit-child state (:transaction/input command))
+  (let [action (:transaction/action command)
+        result (case action
+                 :prf.resubmission/admit-child
+                 (admit-child state (:transaction/input command))
 
-      :prf.resubmission/apply-disposition
-      (apply-disposition state (:transaction/input command))
+                 :prf.resubmission/apply-disposition
+                 (apply-disposition state (:transaction/input command))
 
-      :prf.resubmission/apply-authoritative-disposition
-      (apply-authoritative-disposition state (:transaction/input command))
+                 :prf.resubmission/apply-authoritative-disposition
+                 (apply-authoritative-disposition state (:transaction/input command))
 
-      {:status :rejected :reason :unknown-action})))
+                 {:status :rejected :reason :unknown-action})]
+    (cond-> result
+      (= :committed (:status result))
+      (assoc :committed-command command))))

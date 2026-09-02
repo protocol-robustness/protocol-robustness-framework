@@ -252,6 +252,36 @@
                     field)))
               authoritative-fields)))
 
+(defn- malformed-value-fields
+  "Fields whose present values do not satisfy the transaction-ordering shape."
+  [ordering]
+  (cond-> []
+    (and (some? (:transaction/action ordering))
+         (not (or (keyword? (:transaction/action ordering))
+                  (string? (:transaction/action ordering)))))
+    (conj :transaction/action)
+
+    (and (some? (:transaction/scope ordering))
+         (not (keyword? (:transaction/scope ordering))))
+    (conj :transaction/scope)
+
+    (and (some? (:transaction/conflict-key ordering))
+         (not (vector? (:transaction/conflict-key ordering))))
+    (conj :transaction/conflict-key)
+
+    (and (some? (:transaction/commit-index ordering))
+         (not (and (integer? (:transaction/commit-index ordering))
+                   (not (neg? (:transaction/commit-index ordering))))))
+    (conj :transaction/commit-index)
+
+    (and (some? (:transaction/expected ordering))
+         (not (map? (:transaction/expected ordering))))
+    (conj :transaction/expected)
+
+    (and (some? (:transaction/observed ordering))
+         (not (map? (:transaction/observed ordering))))
+    (conj :transaction/observed)))
+
 (defn verify-ordering
   "Recompute the ordering hash and compare. Returns {:valid? bool :reason kw
    :detail str}.
@@ -284,7 +314,8 @@
                    (= schema ordering-v2-schema) (into base-required v2-extra)
                    :else base-required)
         missing (remove #(some? (get ordering %)) required)
-        bad-roots (malformed-root-fields ordering)]
+        bad-roots (malformed-root-fields ordering)
+        bad-values (malformed-value-fields ordering)]
     (cond
       (seq missing)
       {:valid? false :reason :missing-required-fields
@@ -298,6 +329,10 @@
       (seq bad-roots)
       {:valid? false :reason :malformed-root-reference
        :detail (str "malformed sha256 root reference(s): " (pr-str bad-roots))}
+
+      (seq bad-values)
+      {:valid? false :reason :malformed-ordering-field
+       :detail (str "malformed transaction-ordering field(s): " (pr-str bad-values))}
 
       (and (contains? #{ordering-v2-schema ordering-v3-schema} schema)
            (not= (:transaction/change-identity ordering)

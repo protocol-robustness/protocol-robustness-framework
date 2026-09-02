@@ -10,7 +10,9 @@
 (def ^:dynamic *ds* nil)
 (def ^:private url "jdbc:postgresql://localhost:5433/postgres?user=postgres&password=postgres")
 (defn- db-url [] (or (System/getenv "DATABASE_URL") url))
-(defn- root [ch] (str "sha256:" (apply str (repeat 64 ch))))
+(defn- root [ch]
+  (let [digit (format "%x" (mod (int (first ch)) 16))]
+    (str "sha256:" (apply str (repeat 64 digit)))))
 (defn- run [] {:run-id "distributed-test-run"
                :run-plan-root (root "a") :execution-plan-root (root "b")
                :chunks [{:chunk-id "chunk-0001" :expected-input-root (root "c")
@@ -21,7 +23,8 @@
   ([lease result] (completion lease result :sensitivity/public))
   ([lease result sensitivity-level]
    {:run-id (:run-id lease) :execution-plan-root (:execution-plan-root lease)
-    :chunk-id (:chunk-id lease) :expected-work-root (:expected-work-root lease)
+    :chunk-id (:chunk-id lease) :expected-input-root (:expected-input-root lease)
+    :expected-work-root (:expected-work-root lease)
     :worker-id (:worker-id lease) :fence (:fence lease)
     :result-root (root result) :result-manifest-root (root "m")
     :result-ref (str result "/detached-result.edn")
@@ -69,19 +72,31 @@
                  (coord/register-run! *ds*
                                       (assoc-in (run) [:chunks 1 :expected-work-root] (root "9")))))))
 
+(deftest invalid-roots-are-rejected-at-registration
+  (is (thrown? clojure.lang.ExceptionInfo
+               (coord/register-run! *ds* (assoc (run) :execution-plan-root "not-a-root"))))
+  (is (thrown? clojure.lang.ExceptionInfo
+               (coord/register-run! *ds*
+                                    (assoc-in (run) [:chunks 0 :expected-input-root] "not-a-root")))))
+
 (deftest fixed-claims-are-fenced-and-completion-is-strictly-bound
   (coord/register-run! *ds* (run))
   (let [first (coord/claim-chunk! *ds* {:run-id "distributed-test-run" :worker-id "worker-a" :lease-ms 60000})
         complete (coord/complete-chunk! *ds* (completion first "r"))
         retry (coord/complete-chunk! *ds* (completion first "r"))
-        conflict (coord/complete-chunk! *ds* (completion first "x"))]
+        conflict (coord/complete-chunk! *ds* (completion first "x"))
+        input-conflict (coord/complete-chunk! *ds* (assoc (completion first "r")
+                                                          :expected-input-root (root "9")))]
     (is (= :leased (:outcome first)))
     (is (= 1 (:fence first)))
+    (is (= (root "c") (:expected-input-root first)))
     (is (= :completed (:outcome complete)))
     (is (= :idempotent-completion (:outcome retry)))
     (is (= :completed-result-conflict (:reason conflict)))
-    (is (= (:result-root complete)
-           (:result-root (coord/resolve-chunk-completion! *ds* "distributed-test-run" (:chunk-id first)))))))
+    (is (= :completed-result-conflict (:reason input-conflict)))
+    (let [resolved (coord/resolve-chunk-completion! *ds* "distributed-test-run" (:chunk-id first))]
+      (is (= (:result-root complete) (:result-root resolved)))
+      (is (= (root "c") (:expected-input-root resolved))))))
 
 (deftest sensitivity-level-is-required-valid-and-part-of-completion-identity
   (coord/register-run! *ds* (run))

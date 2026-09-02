@@ -62,8 +62,16 @@
   "resubmission-chain-genesis.v2")
 
 (def ^:const resubmission-chain-configuration-schema
-  "Schema identifier for resubmission-chain-configuration.v1."
+  "Historical schema identifier for resubmission-chain-configuration.v1."
   "resubmission-chain-configuration.v1")
+
+(def ^:const resubmission-chain-configuration-v2-schema
+  "Schema identifier for configuration with attempt-acceptance authority."
+  "resubmission-chain-configuration.v2")
+
+(def ^:const resubmission-chain-configuration-v3-schema
+  "Schema identifier for configuration with complete acceptance authority."
+  "resubmission-chain-configuration.v3")
 
 ;; ── Configuration validation ──────────────────────────────────────────
 
@@ -82,15 +90,27 @@
   [config]
   (let [errors (atom [])
         report! (fn [msg] (swap! errors conj msg))
-        expect (set hc/resubmission-chain-configuration-fields)]
+        schema (:configuration/schema config)
+        expect (case schema
+                 "resubmission-chain-configuration.v1"
+                 (set hc/resubmission-chain-configuration-v1-fields)
+
+                 "resubmission-chain-configuration.v2"
+                 (set hc/resubmission-chain-configuration-v2-fields)
+
+                 "resubmission-chain-configuration.v3"
+                 (set hc/resubmission-chain-configuration-v3-fields)
+
+                 (set hc/resubmission-chain-configuration-v1-fields))]
     (when-not (map? config)
       (report! "resubmission-chain-configuration must be a map"))
     (when (map? config)
-      (when-not (= resubmission-chain-configuration-schema
-                   (get config :configuration/schema))
-        (report! (str "configuration/schema must be "
-                      resubmission-chain-configuration-schema
-                      ", got " (pr-str (:configuration/schema config)))))
+      (when-not (contains? #{resubmission-chain-configuration-schema
+                             resubmission-chain-configuration-v2-schema
+                             resubmission-chain-configuration-v3-schema}
+                           schema)
+        (report! (str "configuration/schema must be a supported version, got "
+                      (pr-str schema))))
       (let [have (set (keys config))
             extra (set/difference have expect)
             missing (set/difference expect have)]
@@ -104,13 +124,37 @@
                 :when (contains? (set (keys config)) f)]
           (when-not (or (nil? v) (string? v))
             (report! (str f " must be a string or nil, got "
-                          (some-> v class .getName)))))))
+                          (some-> v class .getName)))))
+        (when (contains? #{resubmission-chain-configuration-v2-schema
+                           resubmission-chain-configuration-v3-schema}
+                         schema)
+          (let [root (:attempt-acceptance-definition/root config)]
+            (when-not (hash-ref/valid-sha256-ref? root)
+              (report! ":attempt-acceptance-definition/root must be a canonical sha256 reference"))))
+        (when (= resubmission-chain-configuration-v3-schema schema)
+          (let [root (:attempt-acceptance-authority-basis/root config)]
+            (when-not (hash-ref/valid-sha256-ref? root)
+              (report! ":attempt-acceptance-authority-basis/root must be a canonical sha256 reference"))))))
     {:valid? (empty? @errors) :errors (vec @errors)}))
 
 (defn resubmission-chain-configuration-valid?
-  "Quick boolean structural validity check for resubmission-chain-configuration.v1."
+  "Quick boolean structural validity check for supported configuration versions."
   [config]
   (:valid? (validate-resubmission-chain-configuration config)))
+
+(defn authorized-attempt-acceptance-definition-root
+  "Return the definition root authorized by a V2 configuration, or nil for V1.
+   V1 never gains evaluation authority through an implicit default."
+  [config]
+  (when (contains? #{resubmission-chain-configuration-v2-schema
+                     resubmission-chain-configuration-v3-schema}
+                   (:configuration/schema config))
+    (:attempt-acceptance-definition/root config)))
+
+(defn authorized-attempt-acceptance-authority-basis-root [config]
+  (when (= resubmission-chain-configuration-v3-schema
+           (:configuration/schema config))
+    (:attempt-acceptance-authority-basis/root config)))
 
 (defn resubmission-chain-configuration-root
   "Compute the canonical SHA-256 root of a

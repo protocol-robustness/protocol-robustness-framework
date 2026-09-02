@@ -157,6 +157,7 @@
    :governed-authority-semantics-v1 "GOVERNED_AUTHORITY_SEMANTICS_V1"
    :governed-authority-resolution-basis-v2 "GOVERNED_AUTHORITY_RESOLUTION_BASIS_V2"
    :governed-authority-signer-key-set-v1 "GOVERNED_AUTHORITY_SIGNER_KEY_SET_V1"
+   :governed-researcher-decision-submission-v1 "GOVERNED_RESEARCHER_DECISION_SUBMISSION_V1"
    :governed-authority-key-resolution-v1 "GOVERNED_AUTHORITY_KEY_RESOLUTION_V1"
    :governed-authority-signing-request-v1 "GOVERNED_AUTHORITY_SIGNING_REQUEST_V1"
    :governed-authority-transition-definition-v1 "GOVERNED_AUTHORITY_TRANSITION_DEFINITION_V1"
@@ -187,6 +188,9 @@
    :incentive-model "INCENTIVE_MODEL_V1"
    :incentive-deviation-domain "INCENTIVE_DEVIATION_DOMAIN_V1"
    :research-analysis-closure "RESEARCH_ANALYSIS_CLOSURE_V1"
+   :research-analysis-output "RESEARCH_ANALYSIS_OUTPUT_V1"
+   :research-analysis-verification "RESEARCH_ANALYSIS_VERIFICATION_V1"
+   :research-analytical-claim "RESEARCH_ANALYTICAL_CLAIM_V1"
    :runtime-profile "RUNTIME_PROFILE_V1"
    :claimant-execution-observation "CLAIMANT_EXECUTION_OBSERVATION_V1"
    :research-execution "RESEARCH_EXECUTION_V1"
@@ -349,6 +353,20 @@
    :conformance-validation-subject-v1 "conformance.validation-subject.v1"
    :force-authorisation-scope         "force-authorisation-scope"
    :prf-attempt-disposition-v1        "prf.attempt-disposition.v1"
+   :prf-attempt-acceptance-definition-v1 "prf.attempt-acceptance-definition.v1"
+   :prf-attempt-acceptance-authority-basis-v1 "prf.attempt-acceptance-authority-basis.v1"
+   :prf-attempt-publisher-authority-v1 "prf.attempt-publisher-authority.v1"
+   :prf-attempt-submission-registry-v1 "prf.attempt-submission-registry.v1"
+   :prf-attempt-results-artifact-v1 "prf.attempt-results-artifact.v1"
+   :prf-attempt-publisher-statement-v1 "prf.attempt-publisher-statement.v1"
+   :prf-attempt-publisher-envelope-v1 "prf.attempt-publisher-envelope.v1"
+   :prf-attempt-execution-evidence-subject-v1 "prf.attempt-execution-evidence-subject.v1"
+   :prf-attempt-certificate-verification-subject-v1 "prf.attempt-certificate-verification-subject.v1"
+   :prf-acceptance-evaluation-v1      "prf.acceptance-evaluation.v1"
+   :prf-acceptance-finding-v1         "prf.acceptance-finding.v1"
+   :prf-authority-registries-verifiable-v1 "prf.authority-registries-verifiable.v1"
+   :prf-verifier-registry-selection-v1    "prf.verifier-registry-selection.v1"
+   :prf-results-binding-v1                 "prf.results-binding.v1"
    :prf-researcher-resubmission-v1    "prf.researcher-resubmission.v1"
    :prf-resubmission-chain-state-v1   "prf.resubmission-chain-state.v1"
    :prf-resubmission-family-v1        "prf.resubmission-family.v1"
@@ -2056,13 +2074,30 @@
 ;; chain-identity commitment basis, and a genesis artifact that declares
 ;; the family, initial configuration, and initial state root.
 
-(def resubmission-chain-configuration-fields
-  "Ordered identity fields of resubmission-chain-configuration.v1.
-   All values are trusted canonical references: authority public keys
-   as hex strings (nil when absent), never silent defaults."
+(def resubmission-chain-configuration-v1-fields
+  "Ordered identity fields of the historical resubmission-chain-configuration.v1."
   [:configuration/schema
    :disposition-authority/public-key
    :receipt-authority/public-key])
+
+(def resubmission-chain-configuration-v2-fields
+  "Ordered identity fields of resubmission-chain-configuration.v2."
+  [:configuration/schema
+   :disposition-authority/public-key
+   :receipt-authority/public-key
+   :attempt-acceptance-definition/root])
+
+(def resubmission-chain-configuration-v3-fields
+  "Ordered identity fields of resubmission-chain-configuration.v3."
+  [:configuration/schema
+   :disposition-authority/public-key
+   :receipt-authority/public-key
+   :attempt-acceptance-definition/root
+   :attempt-acceptance-authority-basis/root])
+
+(def resubmission-chain-configuration-fields
+  "Compatibility alias for the immutable V1 configuration field set."
+  resubmission-chain-configuration-v1-fields)
 
 (def resubmission-chain-identity-fields
   "The identity-relevant basis for deriving a resubmission chain-id.
@@ -2096,11 +2131,22 @@
    :initial-state/root])
 
 (defn project-resubmission-chain-configuration
-  "Canonical projection of resubmission-chain-configuration.v1: exactly the
-   canonical identity fields, projected canonical-safe. Unknown keys never enter
-   the preimage (they are rejected by the closed validator before hashing)."
+  "Canonical projection selected by configuration schema. V1 remains byte-for-
+   byte compatible with its historical field set; V2 additionally commits the
+   authorized attempt-acceptance-definition root."
   [value _intent]
-  (project-canonical-safe (select-keys value resubmission-chain-configuration-fields)))
+  (let [fields (case (:configuration/schema value)
+                 "resubmission-chain-configuration.v1"
+                 resubmission-chain-configuration-v1-fields
+
+                 "resubmission-chain-configuration.v2"
+                 resubmission-chain-configuration-v2-fields
+
+                 "resubmission-chain-configuration.v3"
+                 resubmission-chain-configuration-v3-fields
+
+                 [])]
+    (project-canonical-safe (select-keys value fields))))
 
 (defn project-resubmission-chain-identity
   "Canonical projection of the resubmission-chain-identity.v1 commitment basis:

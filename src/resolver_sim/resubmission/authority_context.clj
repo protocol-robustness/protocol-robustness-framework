@@ -133,6 +133,9 @@
              (when (not= (count actions) (count (set actions)))
                (report! (str :authority/permitted-actions
                              " contains duplicates: " (pr-str actions))))
+             (when (not= actions (vec (sort-by str actions)))
+               (report! (str :authority/permitted-actions
+                             " must be in canonical order: " (pr-str actions))))
              (doseq [a actions]
                (when-not (contains? permitted-action-vocabulary a)
                  (report! (str :authority/permitted-actions
@@ -159,7 +162,7 @@
      {:valid? (empty? @errors) :errors (vec @errors)})))
 
 (defn authority-context-valid?
-  "Quick boolean structural validity check (without root cross-check)."
+  "Boolean validity check including validation of a supplied context root."
   [ctx]
   (:valid? (validate-authority-context ctx)))
 

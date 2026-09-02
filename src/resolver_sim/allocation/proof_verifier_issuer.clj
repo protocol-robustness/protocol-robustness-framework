@@ -74,6 +74,9 @@
             (throw (ex-info "persisted bundle is not admissible for issuance" bundle-result)))
         artifact (artifact-from artifact-path)
         input-result (persisted/verify-persisted-input artifact-path artifact)
+        _ (when-not (:valid? input-result)
+            (throw (ex-info "persisted realization input is not admissible for issuance"
+                            input-result)))
         decision (run-verifier! verifier-bin artifact-path)
         _ (when-not (decision-matches-artifact? artifact decision)
             (throw (ex-info "independent verifier decision does not match artifact" {:decision decision})))

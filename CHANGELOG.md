@@ -2,9 +2,42 @@
 
 ## [Unreleased]
 
+### Research-analysis execution and assurance boundary
+
+- Added rooted `research-analysis-output.v1`, `research-analysis-verification.v1`, and `research-analytical-claim.v1`. The generic verifier checks reproducible input/output binding and may report a concrete counterexample, but cannot promote engine output into either declared-domain or general proof status. `research-analysis-closure.v1` remains a provenance/closure verifier and continues not to assert general IC. (`src/resolver_sim/benchmark/research_analysis.clj`)
+
+### Structured claim-consumption validation errors
+
+- Claim-consumption receipt validation now returns stable `:error-codes` alongside the existing human-readable `:errors`, without removing the prior message field. (`src/resolver_sim/allocation/claim_consumption_receipt.clj`)
+
+### Configuration-authorized acceptance evaluation
+
+- Added `resubmission-chain-configuration.v2`, which commits an authorized `:attempt-acceptance-definition/root` while preserving historical V1 configuration roots exactly. Added rooted `attempt-acceptance-definition.v1` and `acceptance-evaluation.v1`: a configuration-selected closed check set deterministically derives detailed check results, findings, and acceptance outcome from resolved submitted-bundle and submission-basis artifacts. V1 configurations have no implicit attempt-evaluation authority. (`src/resolver_sim/resubmission/genesis.clj`, `src/resolver_sim/resubmission/acceptance_evaluation.clj`)
+
+### Atomic committed-transaction replay records
+
+- Resubmission stores now atomically retain a minimal replay record, keyed by the committed `transaction-ordering` hash, alongside each successful chain-state CAS. `resolve-committed-transaction` exposes the exact pre-state, command, and ordering for independent replay without making the journal part of the canonical chain-state root. (`src/resolver_sim/resubmission/committed_transaction.clj`, `src/resolver_sim/resubmission/store.clj`)
+
+### Executable distribution and local-key admission
+
+- Added the rooted `execution-binding.v1` contract, committing `execution-plan/root` and `executable-distribution/root`. Coordinated execution establishes this binding before fixed-chunk derivation, independently preflights executor-observed material before callbacks/submission, and carries the verified observed distribution root through authorization, finalization, and completion; worker/attempt/lease/fence identity remains excluded.
+
+- Corrected `benchmark-executable-distribution.v2`: the reusable distribution root commits the executable artifact root and a closed, versioned, default-normalized semantic claimant-options projection/root, while excluding execution-plan and local placement controls (local key, capacity, and budget). Distribution verification now reports `distribution-preflight` statuses; runner and remote transport wiring remain unchanged. (`src/resolver_sim/benchmark/distributed/executable_distribution.clj`, `src/resolver_sim/benchmark/distributed/chunk_execution.clj`)
+- Added `benchmark-executable-distribution.v1`: a rooted commitment to an execution-plan root and canonical local-key capacity/budget entries. Workers can verify distinct expected and observed distribution shapes before any entry executes; unresolved, invalid, or mismatched observations fail closed. The local coordinator now optionally returns the non-leasing `{:claim/status :unavailable :reason :execution/local-capacity-exceeded ...}` refusal when a local key's active leases meet its declared capacity/budget. Existing claims without local-key limits retain their prior coordination semantics. (`src/resolver_sim/benchmark/distributed/executable_distribution.clj`, `src/resolver_sim/benchmark/distributed/local_coordinator.clj`, `src/resolver_sim/benchmark/distributed/chunk_execution.clj`)
+
+### Distributed fixed-chunk input-root binding
+
+- Fixed distributed chunk coordination so committed input roots are returned on claims, required and checked on completion, and preserved during completion recovery. Run, chunk, result, and sensitivity roots now require valid SHA-256 references at the coordination boundary. (`src/resolver_sim/benchmark/distributed/coordination.clj`, `test/resolver_sim/benchmark/distributed/postgres_coordination_test.clj`)
+- Added `benchmark-detached-chunk-result.v1`, a closed self-rooted manifest that binds a fixed chunk's run/execution-plan, input/work roots, ordered executions, staged artifact-manifest roots, result root, and sensitivity root. The runner has not yet been routed through this artifact or the coordination abstraction. (`src/resolver_sim/benchmark/distributed/chunk_result.clj`, `test/resolver_sim/benchmark/distributed/chunk_result_test.clj`)
+- Added pure fixed-chunk derivation, a topology-neutral coordination lifecycle, an in-memory coordinator, and a closed `execute-chunk!` seam. Canonical local benchmark execution now derives, registers, claims, authorizes, executes, verifies detached results, completes, and terminalizes fixed chunks through one shared bounded scheduler; PostgreSQL remains an alternative backend and is not wired into the runner. (`src/resolver_sim/benchmark/runner.clj`, `src/resolver_sim/benchmark/distributed/fixed_chunks.clj`, `src/resolver_sim/benchmark/distributed/local_coordinator.clj`, `src/resolver_sim/benchmark/distributed/chunk_execution.clj`)
+
 ### EF review assurance layering
 
 - Clarified that `S-DR-001-basic-release-ruling` is a minimal replay/orientation trace rather than standalone high-assurance evidence. Added reviewer-facing assurance layers for positive outcomes, evidence/finality, timing boundaries, accounting stress, adversarial resolution, semantic negative controls, and multi-execution custody, including the boundary between byte-synced and Solidity-replayed traces. (`docs/review/EF_REVIEW_GUIDE.md`, `docs/review/SCENARIO_REVIEW_HIGHLIGHTS.md`)
+
+### Governed researcher decision submission
+
+- **Added the non-authorising `submit-decision!` boundary.** It accepts only a complete-outcome `researcher-decision.v2` against one root-verified frozen authority-material bundle, reconstructs and verifies the canonical signed decision with the exact constituted governed key, then immutably retains the accepted body by content root. V1 decisions, caller-supplied authority bodies, duplicate-seat conflicts, stale/mismatched keys, and request/round/outcome substitutions fail closed. Submission is explicitly distinct from threshold evaluation, fence issuance, and authority consumption. (`src/resolver_sim/benchmark/decision_submission.clj`)
 
 ### Governed researcher threshold authenticity
 

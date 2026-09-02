@@ -160,8 +160,13 @@
     (when-not (= schema-version (:schema-version receipt))
       (swap! errors conj (str "expected schema-version " schema-version
                               " got " (:schema-version receipt))))
-    (when-not (some? (:claim-consumption/id receipt))
-      (swap! errors conj "missing :claim-consumption/id"))
+    (let [id (:claim-consumption/id receipt)]
+      (cond
+        (nil? id)
+        (swap! errors conj "missing :claim-consumption/id")
+
+        (not (keyword? id))
+        (swap! errors conj ":claim-consumption/id must be a keyword")))
     (when-not (some? (:claim/id receipt))
       (swap! errors conj "missing :claim/id"))
     (when-not (hash-ref/valid-sha256-ref? (:allocation/result-root receipt))
@@ -178,15 +183,39 @@
     (when-not (some? (:claim-consumption/consumption-key receipt))
       (swap! errors conj "missing :claim-consumption/consumption-key"))
     (let [status (:claim-consumption/status receipt)
-          rule (get receipt-status-rules status)]
+          rule (get receipt-status-rules status)
+          terminal-evidence-hash (:claim-consumption/terminal-evidence-hash receipt)]
       (when (and rule (= :required (:terminal-evidence rule))
-                 (nil? (:claim-consumption/terminal-evidence-hash receipt)))
+                 (nil? terminal-evidence-hash))
         (swap! errors conj (str "status " status
-                                " requires :claim-consumption/terminal-evidence-hash"))))
+                                " requires :claim-consumption/terminal-evidence-hash")))
+      (when (and (some? terminal-evidence-hash)
+                 (not (hash-ref/valid-sha256-ref? terminal-evidence-hash)))
+        (swap! errors conj "invalid :claim-consumption/terminal-evidence-hash")))
+    (when-not (some? (:claim-consumption/hash receipt))
+      (swap! errors conj "missing :claim-consumption/hash"))
     (when (and (some? (:claim-consumption/hash receipt))
                (not= (:claim-consumption/hash receipt)
                      (str "sha256:" (hc/domain-hash :claim-consumption-receipt
                                                     (dissoc receipt
                                                             :claim-consumption/hash)))))
       (swap! errors conj "claim-consumption/hash mismatch"))
-    {:valid? (empty? @errors) :errors (vec @errors)}))
+    {:valid? (empty? @errors)
+     :errors (vec @errors)
+     :error-codes (mapv (fn [error]
+                          (cond
+                            (str/starts-with? error "expected schema-version") :invalid-schema-version
+                            (str/starts-with? error "missing :claim-consumption/id") :missing-consumption-id
+                            (str/starts-with? error ":claim-consumption/id must") :invalid-consumption-id
+                            (str/starts-with? error "missing :claim/id") :missing-claim-id
+                            (str/starts-with? error "invalid :allocation/result-root") :invalid-result-root
+                            (str/starts-with? error "claim/amount must") :invalid-claim-amount
+                            (str/starts-with? error "invalid :claim-consumption/consumed-claimable-hash") :invalid-consumed-claimable-hash
+                            (str/starts-with? error "invalid :claim-consumption/status") :invalid-status
+                            (str/starts-with? error "missing :claim-consumption/consumption-key") :missing-consumption-key
+                            (str/includes? error "requires :claim-consumption/terminal-evidence-hash") :missing-terminal-evidence
+                            (str/starts-with? error "invalid :claim-consumption/terminal-evidence-hash") :invalid-terminal-evidence
+                            (= error "missing :claim-consumption/hash") :missing-receipt-hash
+                            (= error "claim-consumption/hash mismatch") :receipt-hash-mismatch
+                            :else :invalid-receipt))
+                        @errors)}))

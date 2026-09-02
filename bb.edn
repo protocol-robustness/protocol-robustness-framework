@@ -127,6 +127,11 @@ check:ownership
     :task (shell "bash" "-c"
             "PRF_ARTIFACT_DIR=results/test-artifacts-$(date -u +%Y%m%dT%H%M%SZ)-$$ ./scripts/test.sh all")}
 
+   test:parallel:all
+   {:doc "Run all test.sh targets in parallel where independent; reference-validation remains serialized. Uses isolated per-target artifacts."
+    :task (shell "scripts/with-test-artifact-lock.sh" "bash" "-c"
+            "PARALLEL_TARGETS=1 ./scripts/test.sh all")}
+
     test:framework:parallel
      {:doc "Run framework unit tests in parallel with noop evidence capture"
      :task (shell "env" "PARALLEL_TEST_LEAK_CHECK=1" "clojure" "-M:test" "-m" "scripts.parallel-test-runner" "--noop-capture"

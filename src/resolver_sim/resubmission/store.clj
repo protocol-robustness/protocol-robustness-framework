@@ -20,7 +20,8 @@
        projection, so state-after-root is stable;
      - a signed attempt receipt commits the resulting
        :transaction-ordering/hash (receipt issuance is a later slice)."
-  (:require [resolver-sim.resubmission.transition :as transition]
+  (:require [resolver-sim.resubmission.committed-transaction :as committed-transaction]
+            [resolver-sim.resubmission.transition :as transition]
             [resolver-sim.resubmission.genesis :as genesis]
             [resolver-sim.transaction.ordering :as ordering]
             [resolver-sim.transaction.protocol :as protocol]))
@@ -59,8 +60,21 @@
                       final-state (assoc (:state result)
                                          :transaction/last-hash
                                          (:transaction-ordering/hash ordering))
-                      new-current (assoc current conflict-key
-                                         {:state final-state :version (inc version)})]
+                      transaction-record
+                      (committed-transaction/build-record
+                       state (:committed-command result) ordering)
+                      record-validation
+                      (committed-transaction/validate-record transaction-record)
+                      _ (when-not (:valid? record-validation)
+                          (throw (ex-info "committed transaction record is invalid"
+                                          {:type :transaction-record/invalid
+                                           :errors (:errors record-validation)})))
+                      ordering-hash (:transaction-ordering/hash ordering)
+                      new-current (-> current
+                                      (assoc conflict-key
+                                             {:state final-state :version (inc version)})
+                                      (assoc-in [:committed-transactions ordering-hash]
+                                                transaction-record))]
                   (if (compare-and-set! state-atom current new-current)
                     (assoc result :transaction-ordering ordering)
                     (recur)))))))))))
@@ -145,6 +159,13 @@
                        (.authority-context store)
                        (assoc :chain/disposition-authority-context (.authority-context store)))})]
     state))
+
+(defn resolve-committed-transaction
+  "Resolve the store-owned replay record for an atomically committed ordering.
+   The transaction-ordering hash is the sole lookup identity; journal entries
+   are stored in the outer CAS envelope and are never part of protocol state."
+  [store ordering-hash]
+  (get-in @(.state-atom store) [:committed-transactions ordering-hash]))
 
 (defn chain-head
   "The current chain head receipt hash (nil before the first attempt)."
