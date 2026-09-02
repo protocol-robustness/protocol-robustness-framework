@@ -18,6 +18,12 @@
   (doseq [entry (reverse (file-seq file))]
     (.delete entry)))
 
+(defn- sha256-ref [s]
+  (let [digest (java.security.MessageDigest/getInstance "SHA-256")]
+    (.update digest (.getBytes s "UTF-8"))
+    (str "sha256:" (apply str (map #(format "%02x" (bit-and % 0xff))
+                                   (.digest digest))))))
+
 (defn- artifact-bytes [root]
   (into (sorted-map)
         (for [file (file-seq (io/file root))
@@ -49,7 +55,7 @@
     (.await ^CountDownLatch start-barrier))
   (let [scenario-id (-> (:input/display-name source)
                         (clojure.string/replace #"\.edn$" ""))
-        semantic-root (str "sha256:semantic-" scenario-id)
+        semantic-root (sha256-ref (str "semantic-" scenario-id))
         replay-result {:outcome :pass
                        :pass? true
                        :events-processed 1
@@ -113,7 +119,7 @@
         (testing "parallel execution restores the frozen plan order and semantic roots"
           (is (= (result-projection serial) (result-projection parallel)))
           (is (= [1 2 3 4] (mapv :execution/ordinal (:results parallel))))
-          (is (= (mapv (comp #(str "sha256:semantic-" %) :scenario/id)
+          (is (= (mapv (comp #(sha256-ref (str "semantic-" %)) :scenario/id)
                        (:results parallel))
                  (mapv :scenario/evidence-root (:results parallel)))))
         (testing "the bounded executor uses more than one worker for two chunks"

@@ -748,13 +748,21 @@
             (get-in (:authority-material/position-time-index material)
                     [:review-round/root])))))
 
+(defn authenticated-authority-material?
+  "True only for the closed frozen authority-material bundle whose governance,
+   signer-key-set, review-round, and position-time roots recompute exactly.
+   This is the read-only admission predicate for consumers such as detached
+   decision submission; it does not publish material or grant authority."
+  [material]
+  (authenticated-material? material))
+
 (defn- require-authenticated-material!
   "The single publication gate shared by initial construction and every
    successor path: freeze, then prove the closed authenticated shape and its
    recomputed roots before anything may enter the store."
   [material]
   (let [material (freeze-material material)]
-    (when-not (authenticated-material? material)
+    (when-not (authenticated-authority-material? material)
       (throw (ex-info "authority material is not rooted and authenticated" {})))
     material))
 

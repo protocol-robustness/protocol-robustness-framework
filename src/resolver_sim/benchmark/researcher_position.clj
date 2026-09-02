@@ -44,8 +44,9 @@
 
 (def ^:const target-kinds
   "Controlled vocabulary for position target kinds.
-   A position may target a theorem, conclusion, or model dimension."
-  #{:theorem :conclusion :dimension})
+   A position may target a theorem, conclusion, verified research claim, or
+   model dimension."
+  #{:theorem :conclusion :research-claim :dimension})
 
 (def ^:const target-statuses
   "Controlled vocabulary for theorem/conclusion target statuses.
@@ -106,8 +107,8 @@
                                 :qualifications [string]}
 
     Optional:
-    position/targets        — vector of theorem/conclusion targets:
-                               [{:kind :theorem|:conclusion
+    position/targets        — vector of theorem/conclusion/research-claim targets:
+                               [{:kind :theorem|:conclusion|:research-claim
                                  :id keyword
                                  :hash sha256
                                  :status keyword

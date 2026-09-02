@@ -68,6 +68,24 @@ PARALLEL_TARGET_JOBS="${PARALLEL_TARGET_JOBS:-4}"
 if [ "$MODE" = "fast" ] || [ "$MODE" = "ci" ]; then
   FAST_MODE=true
 fi
+
+# Resolve the canonical `all` target set once. Execution mode must not change
+# which targets `all` means.
+all_target_pairs() {
+  ALL_TARGETS=(suites unit lab generators invariants contracts coverage triage)
+  if [ "$FAST_MODE" = false ]; then
+    ALL_TARGETS=(monte-carlo "${ALL_TARGETS[@]}")
+  fi
+  ALL_TARGET_PAIRS=()
+  local target
+  for target in "${ALL_TARGETS[@]}"; do
+    case "$target" in
+      coverage) func=run_coverage_gates ;;
+      *) func="run_${target//-/_}" ;;
+    esac
+    ALL_TARGET_PAIRS+=("${target}:${func}")
+  done
+}
 if [ -n "${PRF_ARTIFACT_DIR:-}" ]; then
   ARTIFACT_DIR="$PRF_ARTIFACT_DIR"
 else
@@ -1192,49 +1210,20 @@ case "$MODE" in
       echo "Starting full test suite..."
       echo "========================================"
 
+      all_target_pairs
       if [ "$PARALLEL_TARGETS" = "1" ]; then
-        # Run independent targets concurrently (longest first). Each target gets
-        # its own isolated artifact subdir; reference-validation runs last as it
-        # manages its own make-driven outputs.
-        run_targets_parallel \
-          "monte-carlo:run_monte_carlo" \
-          "suites:run_suites" \
-          "unit:run_unit" \
-          "lab:run_lab" \
-          "generators:run_generators" \
-          "invariants:run_invariants" \
-          "contracts:run_contracts" \
-          "coverage:run_coverage_gates" \
-          "triage:run_triage"
+        # Strategy changes; the resolved target set does not.
+        run_targets_parallel "${ALL_TARGET_PAIRS[@]}"
         FAILURES=$((FAILURES + $?))
         echo ""
         run_target reference-validation run_reference_validation || FAILURES=$((FAILURES + 1))
       else
-        run_target unit run_unit || FAILURES=$((FAILURES + 1))
-        echo ""
-        run_target lab run_lab || FAILURES=$((FAILURES + 1))
-        echo ""
-        run_target generators run_generators || FAILURES=$((FAILURES + 1))
-        echo ""
-        run_target contracts run_contracts || FAILURES=$((FAILURES + 1))
-        echo ""
-        run_target invariants run_invariants || FAILURES=$((FAILURES + 1))
-        echo ""
-        run_target suites run_suites || FAILURES=$((FAILURES + 1))
-        echo ""
-        run_target reference-validation run_reference_validation || FAILURES=$((FAILURES + 1))
-        echo ""
-        run_target coverage run_coverage_gates || FAILURES=$((FAILURES + 1))
-        echo ""
-        run_target triage run_triage || FAILURES=$((FAILURES + 1))
-        echo ""
-
-        # Skip slow tests in fast mode
-        if [ "$FAST_MODE" = true ]; then
-          echo "  [$(date +%H:%M:%S)] ⏩ Skipping monte-carlo (slow test) in fast mode"
-        else
-          run_target monte-carlo run_monte_carlo || FAILURES=$((FAILURES + 1))
-        fi
+        for pair in "${ALL_TARGET_PAIRS[@]}"; do
+          target="${pair%%:*}"
+          func="${pair#*:}"
+          run_target "$target" "$func" || FAILURES=$((FAILURES + 1))
+          echo ""
+        done
       fi
 
       echo ""

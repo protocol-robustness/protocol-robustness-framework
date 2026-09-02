@@ -16,6 +16,7 @@
             [resolver-sim.benchmark.review-governance :as governance]
             [resolver-sim.benchmark.review-governance-evidence :as evidence]
             [resolver-sim.assurance.governed-authority-consumer :as gac]
+            [resolver-sim.benchmark.decision-submission :as submission]
             [resolver-sim.benchmark.researcher-force-authorisation :as rfa]
             [resolver-sim.io.content-addressed-store :as cas])
   (:import [java.security KeyPairGenerator]
@@ -2012,6 +2013,97 @@
                                 (assoc-in (second decisions) [:signature :value] "00")
                                 (nth decisions 2)])]
         (is (= :not-authorised (:authority-status (evaluate two-invalid))))))))
+
+(deftest governed-decision-submission-retains-only-authentic-frozen-positions
+  (let [{:keys [material authorisation]} (authorised-material-and-authorisation)
+        decisions (:authorisation/decision-references authorisation)
+        submit-input (fn [decision authority-material]
+                       {:decision decision
+                        :authorisation-id (:authorisation/id authorisation)
+                        :request-root (:authorisation/request-root authorisation)
+                        :outcome-root (get-in authorisation
+                                              [:authorisation/target :target/proposed-content-root])
+                        :authority-material authority-material})
+        retained (atom {})
+        decision-a (first decisions)
+        decision-b (second decisions)
+        altered-a (assoc-in decision-a [:signature :signed-at] "2026-01-01T00:00:00Z")
+        rotated-pair (.generateKeyPair (KeyPairGenerator/getInstance "Ed25519"))
+        rotated-public-key (public-key-hex (.getPublic rotated-pair))
+        rotated-governance
+        (-> (:authority-material/review-governance material)
+            (assoc-in [:governance/principals 0 :principal/keys 0 :key/public-key]
+                      rotated-public-key))
+        rotated-key-set
+        (-> (:authority-material/signer-key-set material)
+            (assoc-in [:signer-key-set/entries 0 :signing-key/public-key]
+                      rotated-public-key))
+        rotated-round
+        (assoc (:authority-material/review-round material)
+               :review-round/governance-root (governance/governance-root rotated-governance))
+        rotated-round-root (state/review-round-material-root rotated-round)
+        rotated-index (position-time-index-body rotated-round-root)
+        rotated-material
+        (assoc material
+               :review-governance/root (governance/governance-root rotated-governance)
+               :signer-key-set/root (state/signer-key-set-root rotated-key-set)
+               :review-round/root rotated-round-root
+               :position-time-index/root (state/position-time-index-root rotated-index)
+               :authority-material/review-governance rotated-governance
+               :authority-material/signer-key-set rotated-key-set
+               :authority-material/review-round rotated-round
+               :authority-material/position-time-index rotated-index)]
+    (testing "only a complete root-verified authority bundle admits a detached decision"
+      (is (= :authority-material-unavailable
+             (:reason (submission/submit-decision!
+                       retained
+                       (dissoc (submit-input decision-a material) :authority-material))))
+          "caller-selected round/governance/key bodies are not an authority source")
+      (is (= :unsupported-decision-version
+             (:reason (submission/submit-decision!
+                       (atom {})
+                       (submit-input (dissoc decision-a :schema-version) material)))))
+      (is (= :authorisation-id-mismatch
+             (:reason (submission/submit-decision!
+                       (atom {})
+                       (submit-input (assoc decision-a :authorisation/id :other) material)))))
+      (is (= :request-mismatch
+             (:reason (submission/submit-decision!
+                       (atom {})
+                       (submit-input (assoc decision-a :authorisation/request-root (hash-ref "other"))
+                                     material)))))
+      (is (= :round-mismatch
+             (:reason (submission/submit-decision!
+                       (atom {})
+                       (submit-input (assoc decision-a :review-round/hash (hash-ref "other")) material)))))
+      (is (= :outcome-mismatch
+             (:reason (submission/submit-decision!
+                       (atom {})
+                       (submit-input (assoc decision-a :outcome/root (hash-ref "other")) material)))))
+      (is (= :accepted (:status (submission/submit-decision!
+                                 retained (submit-input decision-a material)))))
+      (is (= [decision-a] (submission/decision-set retained))))
+    (testing "retention is idempotent and cannot itself issue threshold authority"
+      (is (= :duplicate (:status (submission/submit-decision!
+                                  retained (submit-input decision-a material)))))
+      (is (= :seat-equivocation
+             (:reason (submission/submit-decision!
+                       retained (submit-input altered-a material)))))
+      (is (nil? (:issued-fences @retained))
+          "the submission store has no threshold/fence authority state"))
+    (testing "cryptographically authentic under G0 is not authoritative under G1"
+      (let [fresh-store (atom {})
+            result (submission/submit-decision!
+                    fresh-store (submit-input decision-a rotated-material))]
+        (is (= :rejected (:status result)))
+        (is (= :signature-invalid (:reason result))
+            "A0's valid G0 signature cannot verify against G1's exact active A1 key")
+        (is (empty? (submission/decision-set fresh-store)))))
+    (testing "a second distinct authentic seat may be retained but not auto-authorised"
+      (is (= :accepted (:status (submission/submit-decision!
+                                 retained (submit-input decision-b material)))))
+      (is (= [decision-a decision-b] (submission/decision-set retained)))
+      (is (nil? (:issued-fences @retained))))))
 
 (deftest c4a-v1-semantics-dispatch-conforms-to-frozen-material-evaluator
   (testing "the closed V1 descriptor dispatches exactly the legacy C1 evaluator"

@@ -227,3 +227,17 @@
                          :outcome-hash "sha256:outcome"
                          :dimensions {:reproduction {:status :reproduced}}})]
       (is (not= (:position/hash with-root) (:position/hash without-root))))))
+
+(deftest build-position-with-research-claim-target
+  (let [pos (rp/build-position
+             {:benchmark/content-root "sha256:content"
+              :researcher/id "researcher-a"
+              :outcome-hash "sha256:outcome"
+              :dimensions {:publication {:status :publish}}
+              :position/targets [{:kind :research-claim
+                                  :id :claim/incentive-compatibility
+                                  :hash "sha256:research-claim"
+                                  :status :qualified}]})]
+    (is (rp/position-valid? pos))
+    (is (= :qualified
+           (rp/target-status pos :research-claim :claim/incentive-compatibility)))))

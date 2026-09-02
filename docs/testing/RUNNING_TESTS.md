@@ -65,7 +65,8 @@ lock:
 
 | Task | Artifact dir | Lock | Runs alongside |
 |---|---|---|---|
-| `bb test` | `results/test-artifacts` | Yes | — (serial only) |
+| `bb test` | `results/test-artifacts` | Yes | — (serial target execution) |
+| `bb test:parallel:all` | `results/test-artifacts` (per-target subdirs) | Yes | — (target-level parallel; reference-validation serialized) |
 | `bb test:concurrent` | `results/test-artifacts-<timestamp>` | No | Anything |
 | `bb backstop` | `results/test-artifacts` | Yes | — (serial only) |
 | `bb backstop:concurrent` | `results/backstop-artifacts` | No | Anything |
@@ -169,6 +170,8 @@ targets complete (non-blocking, best-effort):
 results/test-artifacts/test-run.json         # schema: test-run.v1
 results/test-artifacts/test-artifacts.json   # schema: test-artifacts.v1.2
 ```
+
+`bb test` runs the complete `scripts/test.sh all` gate sequentially. `bb test:parallel:all` runs the same resolved `all` target set with opt-in target-level parallelism (`PARALLEL_TARGETS=1`), capped by `PARALLEL_TARGET_JOBS` (default 4), and then runs `reference-validation` serially. It changes execution strategy, not target selection. It does not provide a global CPU/resource budget across nested test workers.
 
 `test-artifacts.json` is built by `scripts/evidence/consolidate_test_artifacts.py`
 from the canonical artifact dir (sequential mode) or from the per-target dirs

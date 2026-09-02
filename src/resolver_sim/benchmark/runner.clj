@@ -7,6 +7,13 @@
             [resolver-sim.benchmark.claims :as benchmark-claims]
             [resolver-sim.benchmark.coverage :as benchmark-coverage]
             [resolver-sim.benchmark.execution-identity :as execution-identity]
+            [resolver-sim.benchmark.distributed.artifact-manifest :as artifact-manifest]
+            [resolver-sim.benchmark.distributed.fixed-chunks :as fixed-chunks]
+            [resolver-sim.benchmark.distributed.execution-binding :as execution-binding]
+            [resolver-sim.benchmark.distributed.executable-distribution :as executable-distribution]
+            [resolver-sim.benchmark.distributed.chunk-execution :as chunk-execution]
+            [resolver-sim.benchmark.distributed.local-coordinator :as local-coordinator]
+            [resolver-sim.benchmark.distributed.sensitivity :as distributed-sensitivity]
             [resolver-sim.benchmark.case-set :as case-set]
             [resolver-sim.benchmark.hardening :as hardening]
             [resolver-sim.benchmark.research-execution-projection :as research-projection]
@@ -391,8 +398,9 @@
                                             (when (= rel "raw/replay-output.edn") semantic-root)}))))
                              (sort-by :artifact/relative-path)
                              vec)]
-          {:artifact/manifest-version "benchmark-artifact-manifest.v1"
-           :artifacts artifacts})))))
+          (artifact-manifest/rooted-manifest
+           {:artifact/manifest-version artifact-manifest/schema
+            :artifacts artifacts}))))))
 
 (defn- reconcile-artifact-manifests!
   "Pure artifact-manifest reconciliation enforced by the coordinator before any
@@ -778,22 +786,11 @@
                      (proto-of (get source-by-id (:execution/id entry)))])
                   plan))))
 
-(defn- execute-entries-bounded!
-  "Schedule one bounded task per frozen execution-plan entry on a fixed pool,
-   observe completion in completion order via ExecutorCompletionService, store
-   results by execution id, and fail fast on the first worker failure (cancelling
-   outstanding work). After all work completes (or is cancelled) the executor is
-   quiesced authoritatively via quiesce-executor!; reduction proceeds only if
-   termination is authoritative.
-
-   Lane scheduling (P1-G): all executions share one fixed pool. Safe executions
-   run freely (parallel). Exclusive-protocol executions serialize through a single
-   global lane gate (a Semaphore(1)) so (a) each exclusive protocol's own
-   executions never overlap, and (b) incompatible executions of different exclusive
-   protocols never run concurrently — while safe work still overlaps even when
-   exclusive work is present. The gate is interrupt-interoperable: a cancelled
-   exclusive worker awaiting the gate releases promptly."
-  [suite-kw source-by-id run-count staging-root parallelism allow-dirty? frozen-protocol-adapters runtime-execution-context exclusive-protocol-ids protocol-by-id plan]
+(defn- execute-entry-tasks-bounded!
+  "Run pre-authorized entry tasks through the shared bounded scheduler.
+   Task descriptors retain the plan entry and may carry claim context; the
+   scheduler treats that context as opaque and returns results in plan order."
+  [parallelism runtime-execution-context exclusive-protocol-ids protocol-by-id task-descriptors task-fn]
   (let [parallelism (long (or parallelism 1))
         _ (when-not (pos? parallelism)
             (throw (ex-info "Benchmark parallelism must be positive" {:parallelism parallelism})))
@@ -802,7 +799,8 @@
         exclusive-gate (java.util.concurrent.Semaphore. 1)
         timeout-seconds (or (:execution/quiescence-timeout-seconds runtime-execution-context)
                             (hardening/quiescence-timeout-seconds))
-        failure (atom nil)]
+        failure (atom nil)
+        plan (mapv :entry task-descriptors)]
     (try
       (report-operational-phase! :parallel-determine-started
                                  {:execution-count (count plan)
@@ -811,51 +809,37 @@
                                                                                      (get protocol-by-id (:execution/id e))))
                                                                   plan))
                                   :exclusive-protocol-ids (vec (sort exclusive-protocol-ids))})
-      (let [submit-task (fn [plan-entry]
-                          {:entry plan-entry
+      (let [submit-task (fn [descriptor]
+                          {:entry (:entry descriptor)
                            :future (.submit completion
                                             ^Callable
                                             (reify Callable
                                               (call [_]
-                                                (if (contains? exclusive-protocol-ids
-                                                               (get protocol-by-id (:execution/id plan-entry)))
-                                                  (try
-                                                    (.acquire exclusive-gate)
-                                                    (execute-execution suite-kw source-by-id run-count
-                                                                       staging-root allow-dirty?
-                                                                       frozen-protocol-adapters
-                                                                       runtime-execution-context
-                                                                       plan-entry)
-                                                    (finally
-                                                      (.release exclusive-gate)))
-                                                  (execute-execution suite-kw source-by-id run-count
-                                                                     staging-root allow-dirty?
-                                                                     frozen-protocol-adapters
-                                                                     runtime-execution-context
-                                                                     plan-entry)))))})
-            submitted (mapv submit-task plan)
+                                                (let [exclusive? (contains? exclusive-protocol-ids
+                                                                            (get protocol-by-id
+                                                                                 (:execution/id (:entry descriptor))))]
+                                                  (if exclusive?
+                                                    (try
+                                                      (.acquire exclusive-gate)
+                                                      (task-fn descriptor)
+                                                      (finally (.release exclusive-gate)))
+                                                    (task-fn descriptor))))))})
+            submitted (mapv submit-task task-descriptors)
             results (atom {})]
-        (doseq [_ (range (count submitted))
-                :while (nil? @failure)]
+        (doseq [_ (range (count submitted)) :while (nil? @failure)]
           (let [future (.take completion)
-                result (try
-                         (.get future)
-                         (catch InterruptedException _
-                           (throw (ex-info "Parallel execution interrupted"
-                                           {:reason :execution-interrupted})))
-                         (catch java.util.concurrent.CancellationException _
-                           (reset! failure {:reason :execution-cancelled})
-                           nil)
-                         (catch java.util.concurrent.ExecutionException e
-                           (reset! failure {:reason :benchmark-execution-failed
-                                            :cause (.getCause e)})
-                           nil))]
+                result (try (.get future)
+                            (catch InterruptedException _
+                              (throw (ex-info "Parallel execution interrupted"
+                                              {:reason :execution-interrupted})))
+                            (catch java.util.concurrent.CancellationException _
+                              (reset! failure {:reason :execution-cancelled}) nil)
+                            (catch java.util.concurrent.ExecutionException e
+                              (reset! failure {:reason :benchmark-execution-failed
+                                               :cause (.getCause e)}) nil))]
             (when (and result (nil? @failure))
               (swap! results assoc (:execution/id result) result))))
-        (if-let [{:keys [cause reason]} @failure]
-          ;; Fail fast: cancel all outstanding work, then quiesce authoritatively.
-          ;; Reduction/publication must not proceed unless worker termination is
-          ;; confirmed as :terminated; otherwise fail closed with a quiescence error.
+        (if-let [{:keys [cause]} @failure]
           (do
             (doseq [task submitted]
               (.cancel ^java.util.concurrent.Future (:future task) true))
@@ -873,6 +857,139 @@
                      :execution/quiescence-timeout-seconds timeout-seconds
                      :parallelism parallelism
                      :worker-failure @failure}))))))))
+
+(defn- execute-entries-bounded!
+  "Compatibility wrapper for the existing benchmark execution scheduler."
+  [suite-kw source-by-id run-count staging-root parallelism allow-dirty?
+   frozen-protocol-adapters runtime-execution-context exclusive-protocol-ids
+   protocol-by-id plan]
+  (execute-entry-tasks-bounded!
+   parallelism runtime-execution-context exclusive-protocol-ids protocol-by-id
+   (mapv (fn [entry] {:entry entry}) plan)
+   (fn [{:keys [entry]}]
+     (execute-execution suite-kw source-by-id run-count staging-root allow-dirty?
+                        frozen-protocol-adapters runtime-execution-context entry))))
+
+(defn- execute-plan-coordinated!
+  [suite-kw plan source-by-id run-count staging-root parallelism chunk-size
+   frozen-protocol-adapters runtime-execution-context exclusive-protocol-ids]
+  (let [allow-dirty? chain/*allow-dirty*
+        coordinator (:benchmark/coordinator runtime-execution-context)
+        run-id (or (:benchmark/run-id runtime-execution-context)
+                   (str "benchmark-" (subs (str (:execution/id (first plan))) 0 16)))
+        sensitivity-root (or (:benchmark/sensitivity-root runtime-execution-context)
+                             (distributed-sensitivity/default-root))
+        execution-plan-root (fixed-chunks/execution-plan-root plan)
+        expected-distribution (or (:benchmark/executable-distribution runtime-execution-context)
+                                  (when-let [artifact-root (:benchmark/executable-artifact-root runtime-execution-context)]
+                                    (executable-distribution/build-distribution
+                                     {:executable-artifact/root artifact-root
+                                      :semantic-claimant-options
+                                      (:benchmark/semantic-claimant-options runtime-execution-context)})))
+        binding (when expected-distribution
+                  (execution-binding/build-binding
+                   {:execution-plan/root execution-plan-root
+                    :executable-distribution/root
+                    (:executable-distribution/root expected-distribution)}))
+        _ (when-not binding
+            (throw (ex-info "Execution distribution binding is unavailable"
+                            {:reason :execution/distribution-preflight-unresolved
+                             :execution-plan/root execution-plan-root})))
+        observed-distribution (let [resolve-observed
+                                    (:benchmark/resolve-executable-distribution runtime-execution-context)]
+                                (cond
+                                  (fn? resolve-observed)
+                                  (resolve-observed runtime-execution-context)
+
+                                  ;; The local artifact root is an immutable,
+                                  ;; deterministic source of observed material;
+                                  ;; it is not copied from the expected binding.
+                                  (:benchmark/executable-artifact-root runtime-execution-context)
+                                  (executable-distribution/build-distribution
+                                   {:executable-artifact/root
+                                    (:benchmark/executable-artifact-root runtime-execution-context)
+                                    :semantic-claimant-options
+                                    (:benchmark/semantic-claimant-options runtime-execution-context)})
+
+                                  :else nil))
+        preflight (executable-distribution/distribution-preflight
+                   {:expected (executable-distribution/expected-shape expected-distribution)
+                    :observed observed-distribution})
+        _ (when-not (= :verified (:distribution-preflight/status preflight))
+            (throw (ex-info "Execution distribution preflight rejected the worker environment"
+                            preflight)))
+        verified-observed-distribution (:observed preflight)
+        fixed-set (fixed-chunks/derive-fixed-chunk-set
+                   plan {:chunk-size (long (or chunk-size 1))
+                         :sensitivity-root sensitivity-root
+                         :executable-distribution-root
+                         (:executable-distribution/root binding)})]
+    (local-coordinator/register-run! coordinator run-id fixed-set)
+    ;; Claim the complete fixed set before submitting any worker task. This is
+    ;; the admission boundary: no unclaimed work can enter the scheduler.
+    (let [claims (mapv (fn [_]
+                         (or (local-coordinator/claim-chunk!
+                              coordinator run-id {:lease-ms 600000})
+                             (throw (ex-info "Coordinator could not claim fixed chunk"
+                                             {:run-id run-id}))))
+                       (:chunks fixed-set))
+          entries-by-id (into {} (map (juxt :execution/id identity) plan))
+          ;; Authorization is the admission boundary. Build closed handles before
+          ;; submitting any task; workers receive only their authorized handle.
+          handles (mapv (fn [claim]
+                          (chunk-execution/authorize-chunk!
+                           {:claimed-chunk claim
+                            :resolved-executions (mapv entries-by-id (:chunk/execution-ids claim))
+                            :sensitivity-root sensitivity-root
+                            :expected-executable-distribution
+                            (executable-distribution/expected-shape expected-distribution)
+                            :observed-executable-distribution verified-observed-distribution}))
+                        claims)
+          descriptors (vec (mapcat (fn [handle]
+                                     (map (fn [execution-id]
+                                            {:entry (get entries-by-id execution-id)
+                                             :authorized-chunk-handle handle})
+                                          (:chunk/execution-ids (:claimed-chunk handle))))
+                                   handles))
+          results (execute-entry-tasks-bounded!
+                   parallelism runtime-execution-context exclusive-protocol-ids
+                   (derive-protocol-by-id plan source-by-id) descriptors
+                   (fn [{:keys [entry authorized-chunk-handle]}]
+                     (when-not (some #{(:execution/id entry)}
+                                     (:chunk/execution-ids (:claimed-chunk authorized-chunk-handle)))
+                       (throw (ex-info "Scheduler task is outside its authorized chunk"
+                                       {:execution/id (:execution/id entry)
+                                        :chunk/id (:chunk/id (:claimed-chunk authorized-chunk-handle))})))
+                     (let [result (execute-execution suite-kw source-by-id run-count
+                                                     staging-root allow-dirty?
+                                                     frozen-protocol-adapters
+                                                     runtime-execution-context entry)]
+                       result)))]
+      (doseq [handle handles]
+        (let [claim (:claimed-chunk handle)
+              ids (set (:chunk/execution-ids claim))
+              rows (filter #(contains? ids (:execution/id %)) results)
+              manifest (chunk-execution/finalize-chunk!
+                        handle (mapv (fn [row]
+                                       {:execution/id (:execution/id row)
+                                        :staged-artifact-manifest/root
+                                        (get-in row [:scenario/artifact-manifest :artifact-manifest/root])})
+                                     rows))
+              completion (local-coordinator/complete-chunk!
+                          coordinator run-id
+                          {:chunk-id (:chunk/id claim)
+                           :lease-token (:lease/token claim)
+                           :fence (:fence claim)
+                           :detached-chunk-result manifest})]
+          (when-not (#{:completed :idempotent-completion} (:outcome completion))
+            (throw (ex-info "Coordinator rejected chunk completion"
+                            {:run-id run-id :chunk-id (:chunk/id claim)
+                             :completion completion})))))
+      (let [terminal (local-coordinator/mark-run-execution-complete! coordinator run-id)]
+        (when-not (= :execution-complete (:outcome terminal))
+          (throw (ex-info "Coordinator could not terminalize benchmark run"
+                          {:run-id run-id :terminal terminal}))))
+      results)))
 
 (defn- execute-plan-bounded!
   ([suite-kw plan source-by-id run-count staging-root parallelism chunk-size]
@@ -894,9 +1011,13 @@
                                  :chunk-size (long (or chunk-size 1))
                                  :parallelism (long (or parallelism 1))
                                  :exclusive-protocol-ids (vec (sort exclusive-ids))})
-     (execute-entries-bounded! suite-kw source-by-id run-count staging-root
-                               parallelism allow-dirty? frozen-protocol-adapters
-                               runtime-execution-context exclusive-ids protocol-by-id plan))))
+     (if (:benchmark/coordinator runtime-execution-context)
+       (execute-plan-coordinated! suite-kw plan source-by-id run-count staging-root
+                                  parallelism chunk-size frozen-protocol-adapters
+                                  runtime-execution-context exclusive-ids)
+       (execute-entries-bounded! suite-kw source-by-id run-count staging-root
+                                 parallelism allow-dirty? frozen-protocol-adapters
+                                 runtime-execution-context exclusive-ids protocol-by-id plan)))))
 
 (defn- publish-staged-executions!
   "Coordinator-only canonical publication of detached worker staging.
@@ -1242,7 +1363,8 @@
                                   parallelism chunk-size execution/claimant-parallelism
                                   execution/claimant-parallel-threshold execution/budget
                                   execution/quiescence-timeout-seconds creation/provenance
-                                  research-pack research-context]}]
+                                  research-pack research-context benchmark/coordinator
+                                  benchmark/run-id benchmark/sensitivity-root]}]
    (let [adapter (if scenario-output-dir
                    (->SewAdapter scenario-output-dir (or parallelism 1) (or chunk-size 1))
                    adapter)
@@ -1293,12 +1415,18 @@
          validated-ctx (execution-context/validate-context
                         {:execution/claimant-parallelism claimant-parallelism
                          :execution/claimant-parallel-threshold claimant-parallel-threshold})
+         coordinator (or coordinator
+                         (when (instance? SewAdapter adapter)
+                           (local-coordinator/local-coordinator)))
          runtime-execution-context (cond-> validated-ctx
                                      budget (assoc :execution/shared-budget
                                                    (java.util.concurrent.Semaphore.
                                                     (int budget)))
                                      :always (assoc :execution/quiescence-timeout-seconds
-                                                    resolved-quiescence-seconds))
+                                                    resolved-quiescence-seconds)
+                                     coordinator (assoc :benchmark/coordinator coordinator)
+                                     run-id (assoc :benchmark/run-id run-id)
+                                     sensitivity-root (assoc :benchmark/sensitivity-root sensitivity-root))
          _ (report-operational-phase! :plan-frozen
                                       {:benchmark-id (:benchmark/id manifest)
                                        :scenario-count (count scenarios)
