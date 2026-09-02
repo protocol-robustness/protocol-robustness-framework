@@ -61,7 +61,7 @@
    :execution) are validated semantically by admission stages, not here."
   #{:operation/schema :operation/purpose :event/id :protocol/id
     :target :request :policy :evaluation :preconditions/root
-    :authorization :execution :operation/root})
+    :transition-definition/root :authorization :execution :operation/root})
 
 (defn statement-verdict
   "Decide whether `candidate` may be consumed AS a cancellation-operation.v1

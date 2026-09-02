@@ -93,12 +93,20 @@ input snapshots and execution plan
 
 | Input | Review purpose |
 |---|---|
-| `S-DR-001-basic-release-ruling.edn` | Straightforward successful lifecycle. |
+| `S-DR-001-basic-release-ruling.edn` | Minimal successful lifecycle and replay orientation; not standalone high-assurance evidence. |
 | `S-DR-084-evidence-after-settlement-rejected.edn` | Safe control: late evidence after settlement is rejected and the finalized workflow remains unchanged. |
 | `S-NC-001-freeze-active-dispute-negative-control.edn` | Intentional semantic-failure control: a successful slash transition leaves a frozen resolver assigned to an active dispute, violating a protocol invariant. |
 | `Y06_multi-party-pro-rata-shortfall.edn` | Atomic shared-pool constrained allocation with deterministic pro-rata handling. |
 | `DR-N-002-reversal-slash-appeal-rejected.edn` | Appeal/slashing adversarial path for focused manual review. |
 | `force-authorisation-custody-v1` | Multi-execution benchmark with conservation and assurance finalization. |
+
+The corpus is intentionally layered. High-assurance review should combine the
+positive lifecycle traces with the rejected-interaction, timing-boundary,
+accounting, adversarial, and semantic-negative-control inputs; no individual
+trace should be described as proving the entire protocol. The Solidity manifest
+also distinguishes byte-synced traces from contract-replayed traces, so a
+scenario that uses unsupported evidence, yield, stake, or escalation actions
+must not be presented as cross-implementation equivalence evidence.
 
 ### Force-authorisation custody benchmark scope
 

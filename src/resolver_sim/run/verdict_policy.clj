@@ -3,7 +3,6 @@
   (:require [clojure.data.json :as json]
             [clojure.java.io :as io]
             [clojure.set :as set]
-            [resolver-sim.benchmark.researcher-force-authorisation :as researcher-fa]
             [resolver-sim.commands.run-lifecycle :as lifecycle]
             [resolver-sim.hash.canonical :as canonical]
             [resolver-sim.hash.reference :as hash-ref]
@@ -376,7 +375,6 @@
                           "supersedes_policy_sha256" prev-hash
                           "supersession_reason" reason)
           pre-artifact (build-artifact pre-hash)
-          successor-policy-hash (get pre-artifact "policy_sha256")
           ss-policy (get existing "supersession_policy")
           computed-classes (compute-change-classes
                             (dissoc existing "policy_sha256")
@@ -409,20 +407,19 @@
                 (when-not (:valid? fa-verify)
                   (throw (ex-info "Force-authorisation policy is not valid"
                                   {:errors (:errors fa-verify)}))))
-              ;; Verify authorization instance is structurally valid
-              (when-not (researcher-fa/authorisation-valid? instance)
-                (throw (ex-info "Force-authorisation instance is not valid"
-                                {:instance instance})))
-              (when-not (researcher-fa/authorisation-approved? instance)
-                (throw (ex-info "Force-authorisation instance is not approved"
-                                {:status (researcher-fa/authorisation-status instance)})))
-              ;; Build scope hash that binds this operation to the authorization
-              (let [scope-map {:operation "policy/supersede"
-                               :policy-family-id (get existing "policy_family_id")
-                               :predecessor-policy-hash prev-hash
-                               :proposed-policy-hash successor-policy-hash
-                               :change-classes computed-classes}
-                    instance-hash (hash-ref/sha256-ref (canonical/domain-hash
+              ;; This run-layer policy artifact does not carry an authenticated
+              ;; governed-authority store/basis.  Its locally-derived
+              ;; :approved status counts raw decision values and therefore MUST
+              ;; NOT be used to authorise a researcher 2-of-3 decision.  A
+              ;; caller requiring researcher authority must use the governed
+              ;; authority consumer, which derives each verifier key from the
+              ;; frozen review governance and signer-key-set before threshold
+              ;; counting.
+              (when (= "research-force-authorisation" auth-required)
+                (throw (ex-info "Researcher force-authorisation requires the governed authority consumer"
+                                {:authorization-required auth-required
+                                 :reason :authority-material-unavailable})))
+              (let [instance-hash (hash-ref/sha256-ref (canonical/domain-hash
                                                         "PRF_AUTHORISATION_INSTANCE_V1"
                                                         (dissoc instance :authorisation/approvals :authorisation/dissents)))
                     updated (assoc pre-hash

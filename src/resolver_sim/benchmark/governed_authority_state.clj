@@ -438,7 +438,7 @@
 
 ;; ── B3 signature verification (signer-key-set entry-driven) ─────────────
 
-(defn- verify-decision-signature-with-entries
+(defn verify-decision-signature-with-entries
   "Verify a single decision reference's signature against a signer-key-set entry.
 
    signer-key-set — the frozen governed-authority-signer-key-set.v1 body

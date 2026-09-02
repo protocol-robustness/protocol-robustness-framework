@@ -2,6 +2,20 @@
 
 ## [Unreleased]
 
+### EF review assurance layering
+
+- Clarified that `S-DR-001-basic-release-ruling` is a minimal replay/orientation trace rather than standalone high-assurance evidence. Added reviewer-facing assurance layers for positive outcomes, evidence/finality, timing boundaries, accounting stress, adversarial resolution, semantic negative controls, and multi-execution custody, including the boundary between byte-synced and Solidity-replayed traces. (`docs/review/EF_REVIEW_GUIDE.md`, `docs/review/SCENARIO_REVIEW_HIGHLIGHTS.md`)
+
+### Governed researcher threshold authenticity
+
+- **Closed the run-policy researcher-authorisation bypass.** `verdict-policy/supersede` no longer treats the force-authorisation artifact’s locally derived `:approved` status as authority: that status counts supplied decision values but has no frozen governed key material. Researcher-authorised supersession now fails closed unless performed through the governed-authority consumer, where each countable position is cryptographically verified against its exact active governance-committed signer key before the 2-of-3 threshold is evaluated. Real-Ed25519 regressions cover duplicate-seat counting, signer-label substitution, malformed signatures, and signed request/outcome substitutions. Solidity remains a consumer of an already-authorised rooted result; it does not independently verify researcher Ed25519 signatures. (`src/resolver_sim/run/verdict_policy.clj`, `test/resolver_sim/benchmark/governed_authority_state_test.clj`)
+
+### Cancellation transition-join fix + concrete fixture
+
+- **Fixed `:receipt-command-mismatch` check in `verify-join`.** The check was comparing `terminator/command/root` against `receipt/termination/predecessor-root`, but `build-termination-receipt` sets `predecessor-root` to `head/command/root` — so the check always failed for a valid termination (head root ≠ terminator root). The check now compares `head/command/root` against `receipt/predecessor-root`, matching the canonical commitment. (`src/resolver_sim/cancellation/transition_join.clj`)
+- **Added concrete authoritative cancellation fixture** (`data/fixtures/golden/cancellation-transition-join-fixture.v1.edn`) with real SHA-256 roots computed from live command-lineage (head + cancel-and-terminate terminator), termination receipt, cancellation-operation.v1, transition subject, and transition result — replacing placeholder roots in the earlier tests.
+- **Added substitution-attack test suite** (`test/resolver_sim/cancellation/transition_join_fixture_test.clj`) covering: field-checked root swaps in the subject (state-before, authorization) and result (effects, state-after, receipt), content-addressed-but-not-join-checked roots (preconditions, transition-definition, subject-root-in-result), stale-terminator and cross-lineage receipt rejection, operation-root tamper detection, and two-fixture cross-context rejection. Known gaps in `verify-join` scope are documented in-test.
+
 ### Derived execution-attempt receipts
 
 - **Added `execution-command.v1`, `execution-attempt.v1`, and `execution-attempt-receipt.v1` as a derived lifecycle strand.** A receipt root is computed only from the canonical command and observed attempt; callers cannot assert an `:attempt-receipt-hash`. Execution hints are classified explicitly: runtime-only hints do not enter semantic identity, while semantic parameters are committed. XTDB-aware observation bases can optionally commit the derived receipt root for research over an execution lifecycle. (`src/resolver_sim/benchmark/execution_attempt_receipt.clj`, `src/resolver_sim/benchmark/research_observation.clj`)

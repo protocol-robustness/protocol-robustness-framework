@@ -15,12 +15,14 @@
    [:request :caller/id] [:request :action] [:request :requested-at]
    [:policy :id] [:policy :root] [:evaluation :inputs-root] [:evaluation :base-decision]
    [:evaluation :decision] [:evaluation :decision :derived-effects-root]
-   [:preconditions/root] [:authorization :kind] [:authorization :root]
+   [:preconditions/root]
+   [:authorization :kind] [:authorization :root]
    [:execution :status] [:execution :effects-root] [:execution :state-after-root]])
 (def root-paths
   [[:target :snapshot-root] [:target :state-before-root] [:target :lifecycle-head-root]
    [:policy :root] [:evaluation :inputs-root]
-   [:evaluation :decision :derived-effects-root] [:preconditions/root] [:authorization :root]
+   [:evaluation :decision :derived-effects-root] [:preconditions/root]
+   [:authorization :root]
    [:execution :effects-root] [:execution :state-after-root]])
 (defn missing-operation-fields [op] (->> required-paths (remove #(populated? (get-in op %))) vec))
 (defn invalid-operation-references [op] (->> root-paths (filter #(populated? (get-in op %))) (remove #(hash-ref/valid-sha256-ref? (get-in op %))) vec))

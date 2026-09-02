@@ -17,13 +17,44 @@ summary below.
    run finalization to examine the event and evidence path.
 5. Treat this document and generated diagnostics as navigation aids only.
 
+## Assurance layering
+
+`S-DR-001-basic-release-ruling` is intentionally the minimal happy path. It is
+useful for orientation and replay smoke-testing, but it is not standalone
+high-assurance evidence: it contains no evidence submission, rejected action,
+appeal, timing boundary, adversarial actor, or shortfall.
+
+Treat the EF review corpus as layered evidence rather than as one scenario that
+proves every property:
+
+| Layer | Review input | Assurance question |
+|---|---|---|
+| Positive lifecycle | `S-DR-001-basic-release-ruling` and `S-DR-002-basic-refund-ruling` | Can both terminal outcomes complete deterministically? |
+| Evidence and finality | `S-DR-084-evidence-after-settlement-rejected` | Are late interactions rejected without changing finalized state? |
+| Timing and race boundaries | `S47a`, `S47b`, `S57`, or `S74` | Are deadline and ordering rules correct at the boundary? |
+| Accounting stress | `Y06_multi-party-pro-rata-shortfall` | Are constrained allocation, residual, and conservation results explicit? |
+| Adversarial resolution | `DR-N-002-reversal-slash-appeal-rejected` | Does the appeal/slashing path preserve its safety invariants? |
+| Semantic negative control | `S-NC-001-freeze-active-dispute-negative-control` | Can the package distinguish semantic failure from lifecycle/package failure? |
+| Multi-execution custody | `force-authorisation-custody-v1` | Are custody and conservation claims preserved across executions? |
+
+This is trace-bounded assurance, not a general proof of protocol correctness,
+deployed-contract security, production solvency, signer independence, or
+operational availability. A stronger single “representative lifecycle” should
+be added only when its actions are supported by the Solidity replay harness;
+otherwise keep it as Clojure/package evidence and label the cross-implementation
+boundary explicitly.
+
 ## High-value claim evaluation
 
 Prioritize claims and invariant results that answer whether execution preserved:
 
 | Review concept | Typical Sew claim / invariant | What to inspect |
 |---|---|---|
+| Lifecycle correctness | state-transition validity, terminal-state immutability | The complete event sequence, accepted/rejected results, and terminal projection. |
 | Conservation-aware accounting | `:conservation-of-funds`, `:solvency`, `:held-non-negative` | Before/after custody, held balances, payouts, and the claim/invariant result for the relevant transition. |
+| Evidence admissibility | evidence scope, timing, and chain-integrity claims | Evidence subject/workflow, policy decision, canonical roots, and post-finality rejection. |
+| Temporal correctness | deadline, timeout, and ordering claims | Timestamps, inclusive/exclusive boundary semantics, and competing actions. |
+| Idempotence and replay | terminal payout exclusivity and duplicate-event handling | Repeated settlement/resolution attempts and whether custody changes only once. |
 | Settlement finality | `:settlement-finality`, `:no-state-change-after-finalization` where applicable | The finalized state, any later attempted transition, and whether the later event was rejected or changed state. |
 | Authorization and custody | resolver authority, `:no-unauthorized-release`, single-resolution payout checks | Caller identity, transition result, recipient, and custody movement. |
 | Reversal and appeal behavior | reversal/slash execution and appeal-related claims | The decision being reviewed, reversal/appeal transition, post-transition state, and any violated claim. |

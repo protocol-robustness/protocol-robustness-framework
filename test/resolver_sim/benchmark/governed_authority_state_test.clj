@@ -1965,6 +1965,54 @@
    :position-time-index (:authority-material/position-time-index material)
    :signer-key-set (:authority-material/signer-key-set material)})
 
+(deftest counted-researcher-decision-authenticity
+  (let [{:keys [material authorisation]} (authorised-material-and-authorisation)
+        evaluate #(state/evaluate-authority-with-frozen-material
+                   (frozen-evaluation-inputs material %))
+        decisions (:authorisation/decision-references authorisation)
+        only-a (assoc authorisation :authorisation/decision-references [(first decisions)])
+        a-and-c (assoc authorisation :authorisation/decision-references
+                       [(first decisions) (nth decisions 2)])
+        a-twice (assoc authorisation :authorisation/decision-references
+                       [(first decisions) (first decisions)])
+        b-key-labelled-a (assoc authorisation :authorisation/decision-references
+                                [(first decisions)
+                                 (assoc (second decisions) :researcher/id "r1")])
+        garbage-signature (assoc authorisation :authorisation/decision-references
+                                 [(first decisions)
+                                  (assoc-in (second decisions) [:signature :value] "00")
+                                  (nth decisions 2)])
+        changed-request (assoc authorisation :authorisation/decision-references
+                               [(first decisions)
+                                (assoc (second decisions)
+                                       :authorisation/request-root (hash-ref "other-request"))
+                                (nth decisions 2)])
+        changed-outcome (assoc authorisation :authorisation/decision-references
+                               [(first decisions)
+                                (assoc (second decisions) :outcome/root (hash-ref "other-outcome"))
+                                (nth decisions 2)])]
+    (testing "two genuine distinct governed signatures count"
+      (is (= :authorised (:authority-status (evaluate a-and-c)))))
+    (testing "one seat cannot satisfy 2-of-3 by duplicate submission"
+      (is (= :not-authorised (:authority-status (evaluate only-a))))
+      (is (= :not-authorised (:authority-status (evaluate a-twice)))))
+    (testing "unverifiable or re-labelled signatures contribute zero"
+      (is (= :not-authorised (:authority-status (evaluate b-key-labelled-a))))
+      ;; A and C remain authentic, so B's garbage signature cannot prevent
+      ;; their independent 2-of-3 authority.
+      (is (= :authorised (:authority-status (evaluate garbage-signature)))))
+    (testing "signed request and outcome substitutions do not count"
+      ;; A and C remain valid in each case; the substituted B position is
+      ;; rejected before threshold counting.
+      (is (= :authorised (:authority-status (evaluate changed-request))))
+      (is (= :authorised (:authority-status (evaluate changed-outcome)))))
+    (testing "two invalid positions leave one authentic approval below threshold"
+      (let [two-invalid (assoc authorisation :authorisation/decision-references
+                               [(assoc-in (first decisions) [:signature :value] "00")
+                                (assoc-in (second decisions) [:signature :value] "00")
+                                (nth decisions 2)])]
+        (is (= :not-authorised (:authority-status (evaluate two-invalid))))))))
+
 (deftest c4a-v1-semantics-dispatch-conforms-to-frozen-material-evaluator
   (testing "the closed V1 descriptor dispatches exactly the legacy C1 evaluator"
     (let [{:keys [material authorisation]} (authorised-material-and-authorisation)
