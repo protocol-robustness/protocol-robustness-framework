@@ -6,6 +6,7 @@
   (:require [clojure.edn :as edn]
             [clojure.test :refer [are deftest is testing]]
             [resolver-sim.hash.canonical :as hc]
+            [resolver-sim.resubmission.committed-transaction :as committed-transaction]
             [resolver-sim.resubmission.disposition :as disposition]
             [resolver-sim.resubmission.receipt :as receipt]
             [resolver-sim.resubmission.store :as store]
@@ -326,6 +327,64 @@
       (is (not= (:transaction/state-before-root o1) (:transaction/state-after-root o1)))
       (is (= (:transaction/state-after-root o1) (:transaction/state-before-root o2)))
       (is (= (transition/state-root s2) (:transaction/state-after-root o2))))))
+
+(deftest committed-transaction-journal
+  (testing "a successful CAS atomically exposes a replayable record by ordering hash"
+    (let [s (store/new-resubmission-store family)
+          command (admit-cmd :child "sha256:R1" :seq 1 :basis "sha256:B1"
+                             :link "sha256:L1" :idem "sha256:I1")
+          result (protocol/transact! s nil nil
+                                     (fn [state] (transition/apply-action state command)))
+          ordering (:transaction-ordering result)
+          record (store/resolve-committed-transaction
+                  s (:transaction-ordering/hash ordering))]
+      (is (= :committed (:status result)))
+      (is (some? record))
+      (is (= command (:transaction-record/command record)))
+      (is (= ordering (:transaction-record/ordering record)))
+      (is (true? (:valid? (committed-transaction/validate-record record))))))
+  (testing "rejected transitions create no committed transaction record"
+    (let [s (store/new-resubmission-store family)
+          rejected (protocol/transact! s nil nil
+                                       (fn [state]
+                                         (transition/apply-action
+                                          state
+                                          {:transaction/action :bogus/action
+                                           :transaction/input {}})))]
+      (is (= :rejected (:status rejected)))
+      (is (nil? (store/resolve-committed-transaction s "sha256:missing")))))
+  (testing "the journal is outside the canonical protocol state"
+    (let [s (store/new-resubmission-store family)
+          before (store/state-of s)
+          before-root (transition/state-root before)
+          result (protocol/transact! s nil nil
+                                     (fn [state]
+                                       (transition/apply-action
+                                        state
+                                        (admit-cmd :child "sha256:R1" :seq 1 :basis "sha256:B1"
+                                                   :link "sha256:L1" :idem "sha256:I1"))))
+          ordering (:transaction-ordering result)
+          record (store/resolve-committed-transaction
+                  s (:transaction-ordering/hash ordering))]
+      (is (= before-root (:transaction/state-before-root ordering)))
+      (is (= (transition/state-root (:transaction-record/state-before record))
+             (:transaction/state-before-root ordering)))
+      (is (= (transition/state-root (store/state-of s))
+             (:transaction/state-after-root ordering)))))
+  (testing "successive records retain the exact predecessor-linked commands"
+    (let [s (store/new-resubmission-store family)
+          c1 (admit-cmd :child "sha256:R1" :seq 1 :basis "sha256:B1" :link "sha256:L1" :idem "sha256:I1")
+          r1 (protocol/transact! s nil nil (fn [state] (transition/apply-action state c1)))
+          c2 (admit-cmd :child "sha256:R2" :seq 2 :parent "sha256:R1" :basis "sha256:B2" :link "sha256:L2" :idem "sha256:I2")
+          r2 (protocol/transact! s nil nil (fn [state] (transition/apply-action state c2)))
+          o1 (:transaction-ordering r1)
+          o2 (:transaction-ordering r2)
+          record2 (store/resolve-committed-transaction s (:transaction-ordering/hash o2))]
+      (is (= c2 (:transaction-record/command record2)))
+      (is (= (:transaction-ordering/hash o1)
+             (get-in record2 [:transaction-record/ordering
+                              :transaction/previous-transaction-hash])))
+      (is (true? (:valid? (committed-transaction/validate-record record2)))))))
 
 (deftest verify-ordering-chain-prior-state-fixed-point
   (testing "a committed chain verifies the prior-state fixed-point linkage"
