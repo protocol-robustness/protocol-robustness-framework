@@ -318,3 +318,40 @@
       (let [{:keys [authority-basis configuration]} (fixture)]
         (is (= (:attempt-acceptance-authority-basis/root authority-basis)
                (:attempt-acceptance-authority-basis/root configuration)))))))
+
+(deftest historical-validity-survives-authority-rotation-current-admission-does-not
+  (let [{:keys [resolver configuration submitted-bundle-root bodies]} (fixture)
+        evaluation-a (evaluation/build-evaluation resolver configuration submitted-bundle-root)
+        extension-root-b (root :extension-resolution-b)
+        authority-basis-b (authority-basis/build
+                           {:authority-basis/verifier-registry-root verifier-registry-root
+                            :authority-basis/publisher-authority-root publisher-authority-root
+                            :authority-basis/extension-resolution-root extension-root-b})
+        configuration-b (assoc configuration
+                               :attempt-acceptance-authority-basis/root
+                               (:attempt-acceptance-authority-basis/root authority-basis-b))
+        config-root-b (genesis/resubmission-chain-configuration-root configuration-b)
+        resolver-bodies (assoc bodies
+                               extension-root-b {}
+                               (:attempt-acceptance-authority-basis/root authority-basis-b)
+                               authority-basis-b)
+        resolver-b (assoc resolver
+                          :resolve-artifact resolver-bodies
+                          :resolve-configuration (fn [configuration-root]
+                                                   (when (= configuration-root config-root-b)
+                                                     configuration-b)))
+        evaluation-b (evaluation/build-evaluation resolver-b configuration-b submitted-bundle-root)
+        admission-a {:authority/configuration-root
+                     (get-in evaluation-a [:evaluation/basis :configuration/root])}
+        admission-b {:authority/configuration-root config-root-b}]
+    (testing "before rotation, A is historically valid and current for admission"
+      (is (:valid? (evaluation/validate-acceptance-evaluation resolver evaluation-a)))
+      (is (:valid? (evaluation/validate-evaluation-current-for-admission admission-a evaluation-a))))
+    (testing "after rotation, A remains historically valid but is not current"
+      (is (:valid? (evaluation/validate-acceptance-evaluation resolver evaluation-a)))
+      (is (false? (:valid? (evaluation/validate-evaluation-current-for-admission
+                            admission-b evaluation-a)))))
+    (testing "the successor evaluation is current for admission"
+      (is (:valid? (evaluation/validate-acceptance-evaluation resolver-b evaluation-b)))
+      (is (:valid? (evaluation/validate-evaluation-current-for-admission
+                    admission-b evaluation-b))))))

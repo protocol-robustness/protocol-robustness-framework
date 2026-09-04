@@ -100,7 +100,16 @@
 
 (defn- load-definition-with-sequence [sequence]
   (let [dir (temp-dir)
-        content (assoc (read-string (definition :acme/a)) :use-case/sequence sequence)
+        content (assoc (read-string (definition :acme/a))
+                       :use-case/sequence sequence
+                       :use-case/step-capabilities
+                       (mapv (fn [step]
+                               {:sequence.step/id (:sequence.step/id step)
+                                :capability {:capability/kind :acme/examination
+                                             :capability/id :acme/check
+                                             :capability/version 1}})
+                             (remove #(= :not-implemented (:sequence.step/status %))
+                                     (:sequence/steps sequence))))
         _ (write! dir "definitions/a.edn" (pr-str content))
         path (write! dir "registry.edn" (pr-str {:schema/id :prf/use-case-registry.v1
                                                  :registry/id "acme"

@@ -127,7 +127,34 @@
  :use-case/allowed-capabilities
  [{:capability/kind :economics/allocation
    :capability/id :prf/pro-rata-allocation
+   :capability/version 1}
+  {:capability/kind :validation/examination
+   :capability/id :prf/integer-domain
+   :capability/version 1}
+  {:capability/kind :validation/examination
+   :capability/id :prf/exact-capacity
+   :capability/version 1}
+  {:capability/kind :verification/admission
+   :capability/id :prf/proof-admission
    :capability/version 1}]
+
+ :use-case/step-capabilities
+ [{:sequence.step/id :compute-proportional-allocation
+   :capability {:capability/kind :economics/allocation
+                :capability/id :prf/pro-rata-allocation
+                :capability/version 1}}
+  {:sequence.step/id :examine-integer-domain
+   :capability {:capability/kind :validation/examination
+                :capability/id :prf/integer-domain
+                :capability/version 1}}
+  {:sequence.step/id :examine-exact-capacity
+   :capability {:capability/kind :validation/examination
+                :capability/id :prf/exact-capacity
+                :capability/version 1}}
+  {:sequence.step/id :admit-proof-statement
+   :capability {:capability/kind :verification/admission
+                :capability/id :prf/proof-admission
+                :capability/version 1}}]
 
  :use-case/sequence
  {:sequence/schema :prf/sequence.v1

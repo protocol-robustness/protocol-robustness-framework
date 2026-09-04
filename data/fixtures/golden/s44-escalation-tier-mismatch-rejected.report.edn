@@ -1,5 +1,5 @@
 {:golden-schema-version "2.0",
- :suite-id :suites/equivalence-auth-paths,
+ :suite-id :suites/dr3-critical,
  :trace-id "s44-escalation-tier-mismatch-rejected",
  :final-state-hash
  "207457c27d6a4e61fbfb9a70625e83428a8565367e27e9d5a087b4025f23a8b6",
