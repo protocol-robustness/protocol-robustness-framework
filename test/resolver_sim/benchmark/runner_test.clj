@@ -22,6 +22,12 @@
 
 (declare temp-dir!)
 
+(def ^:private deterministic-executable-artifact-root
+  "sha256:1111111111111111111111111111111111111111111111111111111111111111")
+
+(defn- deterministic-input-root [digit]
+  (str "sha256:" (apply str (repeat 64 digit))))
+
 (deftest scenario-output-packages-are-isolated-per-execution
   (let [root (doto (java.io.File/createTempFile "benchmark-artifacts-" "")
                (.delete)
@@ -69,10 +75,14 @@
         (doseq [file (reverse (file-seq root))] (.delete file))))))
 
 (deftest execution-plan-chunking-is-deterministic-and-non-semantic
-  (let [plan [{:execution/ordinal 1 :execution/id "sha256:one"}
-              {:execution/ordinal 2 :execution/id "sha256:two"}
-              {:execution/ordinal 3 :execution/id "sha256:three"}
-              {:execution/ordinal 4 :execution/id "sha256:four"}]
+  (let [plan [{:execution/ordinal 1 :execution/id "sha256:one"
+               :scenario/input-root (deterministic-input-root "1")}
+              {:execution/ordinal 2 :execution/id "sha256:two"
+               :scenario/input-root (deterministic-input-root "2")}
+              {:execution/ordinal 3 :execution/id "sha256:three"
+               :scenario/input-root (deterministic-input-root "3")}
+              {:execution/ordinal 4 :execution/id "sha256:four"
+               :scenario/input-root (deterministic-input-root "4")}]
         chunks (runner/execution-chunks plan 3)]
     (is (= [["sha256:one" "sha256:two" "sha256:three"]
             ["sha256:four"]]
@@ -205,7 +215,10 @@
     (with-redefs [repo/metadata (fn [] {:repo {:commit "test-commit" :dirty? false}})
                   vcs/source-provenance clean-source-provenance]
       (let [manifest-path "benchmarks/packs/sew/dispute-liveness-v1.edn"
-            evidence (runner/run-benchmark manifest-path)]
+            evidence (runner/run-benchmark manifest-path runner/default-adapter
+                                           {:scenario-output-dir (.getPath (temp-dir!))
+                                            :benchmark/executable-artifact-root
+                                            deterministic-executable-artifact-root})]
         (is (contains? evidence :benchmark))
         (is (contains? evidence :repo))
         (is (contains? evidence :evidence/hash))
@@ -216,7 +229,10 @@
     (with-redefs [repo/metadata (fn [] {:repo {:commit "test-commit" :dirty? false}})
                   vcs/source-provenance clean-source-provenance]
       (let [manifest-path "benchmarks/packs/sew/escrow-dispute-v1.edn"
-            evidence (runner/run-benchmark manifest-path)]
+            evidence (runner/run-benchmark manifest-path runner/default-adapter
+                                           {:scenario-output-dir (.getPath (temp-dir!))
+                                            :benchmark/executable-artifact-root
+                                            deterministic-executable-artifact-root})]
         (is (contains? evidence :benchmark) "Evidence should contain :benchmark")
         (is (contains? evidence :repo) "Evidence should contain :repo")
         (is (contains? evidence :evidence/hash) "Evidence should contain :evidence/hash")
@@ -250,7 +266,12 @@
   (testing "Evidence bundle matches BENCHMARK_RESULT_SPEC_V1 shape"
     (with-redefs [repo/metadata (fn [] {:repo {:commit "test-commit" :dirty? false}})
                   vcs/source-provenance clean-source-provenance]
-      (let [evidence (runner/run-benchmark "benchmarks/packs/sew/escrow-dispute-v1.edn")]
+      (let [evidence (runner/run-benchmark
+                      "benchmarks/packs/sew/escrow-dispute-v1.edn"
+                      runner/default-adapter
+                      {:scenario-output-dir (.getPath (temp-dir!))
+                       :benchmark/executable-artifact-root
+                       deterministic-executable-artifact-root})]
       ;; Core shape
         (is (contains? evidence :benchmark) ":benchmark key present")
         (is (contains? evidence :repo) ":repo key present")
@@ -288,7 +309,12 @@
                                                   :metrics {:invariant-results {}}
                                                   :world {:status :ok}})
                   sew-inv/check-all (fn [_world] {:results {}})]
-      (let [evidence (runner/run-benchmark "benchmarks/packs/prf-core/deterministic-replay-v1.edn")
+      (let [evidence (runner/run-benchmark
+                      "benchmarks/packs/prf-core/deterministic-replay-v1.edn"
+                      runner/default-adapter
+                      {:scenario-output-dir (.getPath (temp-dir!))
+                       :benchmark/executable-artifact-root
+                       deterministic-executable-artifact-root})
             claim-results (:claim-results evidence)
             claim-outcomes (into {} (map (juxt :claim/id :claim/outcome)) claim-results)]
         (is (= 130 (count (:results evidence)))
@@ -483,7 +509,10 @@
                     (range n))
         sources (mapv #(input-source/source (.getPath %)) files)
         benchmark {:benchmark/claims []}
-        plan (runner/build-execution-plan benchmark sources)
+        plan (mapv (fn [entry]
+                     (assoc entry :scenario/input-root
+                            (:input/content-hash (:execution/descriptor entry))))
+                   (runner/build-execution-plan benchmark sources))
         source-by-id (into {} (map (fn [e s] [(:execution/id e) s]) plan sources))]
     {:root root :plan plan :source-by-id source-by-id}))
 

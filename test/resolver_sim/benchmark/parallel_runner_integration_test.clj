@@ -32,6 +32,9 @@
           [(str (.relativize (.toPath (io/file root)) (.toPath file)))
            (vec (java.nio.file.Files/readAllBytes (.toPath file)))])))
 
+(def ^:private deterministic-executable-artifact-root
+  "sha256:2222222222222222222222222222222222222222222222222222222222222222")
+
 (defn- clean-source-provenance []
   {:git-commit-sha "sha256:parallel-runner-test-commit"
    :source/hash "sha256:parallel-runner-test-source"
@@ -107,7 +110,9 @@
                    #(runner/run-benchmark (.getPath manifest-file) runner/default-adapter
                                           {:scenario-output-dir output
                                            :parallelism parallelism
-                                           :chunk-size chunk-size}))))]
+                                           :chunk-size chunk-size
+                                           :benchmark/executable-artifact-root
+                                           deterministic-executable-artifact-root}))))]
     (try
       (let [serial (run! serial-output 1 1 serial-threads)
             parallel (run! parallel-output 2 2 parallel-threads)
@@ -172,7 +177,10 @@
                                        (partial deterministic-worker (atom #{}) nil)}
                         #(runner/run-benchmark (.getPath manifest-file) runner/default-adapter
                                                {:scenario-output-dir serial-output
-                                                :parallelism 1 :chunk-size 1})))]
+                                                :parallelism 1
+                                                :chunk-size 1
+                                                :benchmark/executable-artifact-root
+                                                deterministic-executable-artifact-root})))]
     (try
       (let [serial (run-serial!)
             ;; The runner remains on this thread, so executor tasks receive the
@@ -196,7 +204,10 @@
                         #'resolver-sim.benchmark.runner/execute-scenario controlled-worker}
                        #(runner/run-benchmark (.getPath manifest-file) runner/default-adapter
                                               {:scenario-output-dir reverse-output
-                                               :parallelism 4 :chunk-size 1}))
+                                               :parallelism 4
+                                               :chunk-size 1
+                                               :benchmark/executable-artifact-root
+                                               deterministic-executable-artifact-root}))
             _ (.join releaser 10000)
             projection (fn [evidence]
                          (mapv #(select-keys % [:execution/id :execution/ordinal
@@ -249,7 +260,9 @@
                (runner/run-benchmark (.getPath manifest-file) runner/default-adapter
                                      {:scenario-output-dir output
                                       :parallelism parallelism
-                                      :chunk-size 1}))]
+                                      :chunk-size 1
+                                      :benchmark/executable-artifact-root
+                                      deterministic-executable-artifact-root}))]
     (try
       (let [serial (run! serial-output 1)
             parallel (run! parallel-output 2)
