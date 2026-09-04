@@ -423,6 +423,7 @@
    :programme-evidence-v1             "PROGRAMME_EVIDENCE_V1"
    :programme-receipt-v1              "PROGRAMME_RECEIPT_V1"
    :use-case-registry-v1              "USE_CASE_REGISTRY_V1"
+   :use-case-definition-v1            "USE_CASE_DEFINITION_V1"
    :use-case-application-v1           "USE_CASE_APPLICATION_V1"
    :capability-invocation-binding-v1  "CAPABILITY_INVOCATION_BINDING_V1"
    :corpus-registry                   "corpus-registry"

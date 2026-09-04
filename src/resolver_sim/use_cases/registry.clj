@@ -82,6 +82,34 @@
                                   :sequence.step/after after
                                   :preceding-step-ids preceding-ids})))))))))
 
+(defn implemented-step-ids
+  "Ordered IDs of use-case steps that V1 applications must realize."
+  [definition]
+  (->> (get-in definition [:use-case/sequence :sequence/steps])
+       (remove #(= :not-implemented (:sequence.step/status %)))
+       (mapv :sequence.step/id)))
+
+(defn- capability-identity? [capability]
+  (and (map? capability)
+       (keyword? (:capability/kind capability))
+       (keyword? (:capability/id capability))
+       (pos-int? (:capability/version capability))))
+
+(defn- step-capabilities! [definition registry-file use-case-id]
+  (when (:use-case/sequence definition)
+    (let [requirements (:use-case/step-capabilities definition)
+          expected (implemented-step-ids definition)
+          actual (mapv :sequence.step/id requirements)]
+      (when-not (and (vector? requirements) (= expected actual))
+        (fail "Use-case step capabilities must exactly cover implemented steps in sequence order"
+              {:registry/path (.getPath registry-file) :use-case/id use-case-id
+               :expected-step-ids expected :actual-step-ids actual}))
+      (doseq [requirement requirements]
+        (when-not (capability-identity? (:capability requirement))
+          (fail "Use-case step capability requires a declarative capability identity"
+                {:registry/path (.getPath registry-file) :use-case/id use-case-id
+                 :step-capability requirement}))))))
+
 (defn- allowed-capabilities! [definition registry-file use-case-id]
   (when-let [capabilities (:use-case/allowed-capabilities definition)]
     (when-not (vector? capabilities)
@@ -155,6 +183,13 @@
     (sequential? value) (mapv canonical-root-value value)
     :else value))
 
+(defn definition-root
+  "Authoritative root of one canonical use-case definition."
+  [definition]
+  (hash-ref/sha256-ref
+   (canonical/domain-hash :use-case-definition-v1
+                          (canonical-root-value definition))))
+
 (defn- validate-registry! [registry registry-file]
   (when-not (= registry-schema (:schema/id registry))
     (fail "Unsupported use-case registry schema"
@@ -192,6 +227,7 @@
                            (fail "Use-case definition must declare :concept/type :use-case" {:registry/path (.getPath registry-file) :use-case/id id :concept/type (:concept/type definition)}))
                          (validate-sequence! definition registry-file id)
                          (allowed-capabilities! definition registry-file id)
+                         (step-capabilities! definition registry-file id)
                          {:use-case/id id
                           :definition/ref ref
                           :definition definition
