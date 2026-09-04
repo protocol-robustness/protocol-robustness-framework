@@ -35,15 +35,28 @@
                     profile (runtime-profile/build {:execution/claimant-parallelism 8
                                                     :execution/claimant-parallel-threshold 1
                                                     :execution/quiescence-timeout-seconds 5})]
-                (budget/with-execution-budget 2
-                  (let [permits (budget/acquire-many! held)]
-                    (try
-                      (binding [realization/*claimant-execution-runtime-profile-root* (:runtime-profile/root profile)
-                                realization/*claimant-execution-observation-sink* #(swap! events conj %)]
-                        (payoffs/allocate-pro-rata {:amount 8 :items items :parallelism 8}))
-                      (finally (budget/release-many! permits)))))))]
-    (is (= 8 (:total-allocated (run 0))))
-    (is (= 8 (:total-allocated (run 2))))))
+                (let [result (budget/with-execution-budget 2
+                               (let [permits (budget/acquire-many! held)]
+                                 (try
+                                   (binding [payoffs/*pro-rata-parallel-threshold* 1
+                                             realization/*claimant-execution-runtime-profile-root* (:runtime-profile/root profile)
+                                             realization/*claimant-execution-observation-sink* #(swap! events conj %)]
+                                     (payoffs/allocate-pro-rata {:amount 8 :items items :parallelism 8}))
+                                   (finally (budget/release-many! permits)))))]
+                  {:result result :events @events})))]
+    (let [r0 (run 0)
+          r2 (run 2)]
+      (is (= 8 (:total-allocated (:result r0))))
+      (is (= 8 (:total-allocated (:result r2))))
+      (is (= :parallel
+             (get-in (first (:events r0)) [:execution-observation/effective :execution/path]))
+          "budget of two with no held permits allows parallel claimant execution")
+      (is (= :serial
+             (get-in (first (:events r2)) [:execution-observation/effective :execution/path]))
+          "two held permits exhaust the budget, forcing serial execution")
+      (is (= :serial-budget-limited
+             (get-in (first (:events r2)) [:execution-observation/effective :execution/reason]))
+          "exhausted budget is distinguishable from below-threshold serial"))))
 
 (deftest runtime-claimant-parallelism-is-captured-before-executor-submission
   (let [items (mapv (fn [i] {:id (keyword (str "claim-" i)) :weight 1}) (range 16))

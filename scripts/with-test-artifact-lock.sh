@@ -5,7 +5,10 @@
 #
 # Prevents cross-process clobbering of results/test-artifacts/ and adjacent
 # shared test output paths when multiple CI jobs or ad-hoc tasks write to
-# them concurrently (e.g. nb-ok vs test:notebooks vs test:framework).
+# them concurrently (e.g. test:unit vs test:suites vs test:generators).
+# NOTE: read-only notebook checks (bb validate's nb-ok, test:notebooks,
+# test:speds) do NOT need this lock — they only load namespaces / write to
+# per-run temp dirs.
 #
 # Does NOT address:
 #   - Slow scenario replay times (SPEDS, invariants).

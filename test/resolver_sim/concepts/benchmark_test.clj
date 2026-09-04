@@ -33,6 +33,29 @@
     (is (= :ecommerce/purchase (get-in resolved [:resolved-entries 0 :concept :concept/id])))
     (is (empty? (:unknown-concept-ids resolved)))))
 
+(deftest external-pro-rata-allocation-use-case-remains-outside-framework-registration
+  (let [loaded (use-cases/load-use-case-registry
+                "examples/use-cases/pro-rata-allocation/registry.edn")
+        resolved (benchmark-concepts/resolve-benchmark-concepts
+                  [:user/pro-rata-allocation]
+                  {:use-case-registry loaded})
+        use-case (get-in resolved [:resolved-entries 0 :concept])]
+    (is (= :external (:use-case-registry/source loaded)))
+    (is (= :external-use-case
+           (get-in resolved [:resolved-entries 0 :concept/source])))
+    (is (= :prf/sequence.v1
+           (get-in use-case [:use-case/sequence :sequence/schema])))
+    (is (= [:compute-proportional-allocation
+            :examine-integer-domain
+            :examine-exact-capacity
+            :admit-proof-statement
+            :deferred-consecutive-injectivity]
+           (mapv :sequence.step/id
+                 (get-in use-case [:use-case/sequence :sequence/steps]))))
+    (is (= :not-implemented
+           (get-in use-case [:use-case/sequence :sequence/steps 4 :sequence.step/status])))
+    (is (empty? (:unknown-concept-ids resolved)))))
+
 (deftest missing-related-concepts-detects-unresolved-links
   (testing "related concept validation reports unresolved ids"
     (is (= [{:from :concept/a :to :concept/missing}]

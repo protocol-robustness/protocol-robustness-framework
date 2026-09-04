@@ -10,8 +10,100 @@
             [resolver-sim.concepts.registry :as concepts]))
 
 (def registry-schema :prf/use-case-registry.v1)
+(def sequence-schema :prf/sequence.v1)
+(def sequence-step-statuses #{:not-implemented})
 
 (declare fail)
+
+(defn- valid-keyword-collection? [value]
+  (and (or (set? value) (vector? value))
+       (every? keyword? value)))
+
+(defn- sequence-error! [registry-file use-case-id message data]
+  (fail (str "Use-case :use-case/sequence " message)
+        (merge {:registry/path (.getPath registry-file)
+                :use-case/id use-case-id}
+               data)))
+
+(defn- validate-sequence! [definition registry-file use-case-id]
+  (when-let [sequence (:use-case/sequence definition)]
+    (when-not (map? sequence)
+      (sequence-error! registry-file use-case-id "must be a map"
+                       {:use-case/sequence sequence}))
+    (when-not (= sequence-schema (:sequence/schema sequence))
+      (sequence-error! registry-file use-case-id "has an unsupported schema"
+                       {:expected sequence-schema
+                        :actual (:sequence/schema sequence)}))
+    (when-not (keyword? (:sequence/id sequence))
+      (sequence-error! registry-file use-case-id "must have a keyword :sequence/id"
+                       {:sequence/id (:sequence/id sequence)}))
+    (when-not (pos-int? (:sequence/version sequence))
+      (sequence-error! registry-file use-case-id "must have a positive integer :sequence/version"
+                       {:sequence/version (:sequence/version sequence)}))
+    (let [steps (:sequence/steps sequence)]
+      (when-not (and (vector? steps) (seq steps))
+        (sequence-error! registry-file use-case-id "must have a non-empty vector :sequence/steps"
+                         {:sequence/steps steps}))
+      (let [step-ids (mapv :sequence.step/id steps)]
+        (when-not (every? keyword? step-ids)
+          (sequence-error! registry-file use-case-id "steps must have keyword :sequence.step/id values"
+                           {:sequence.step/ids step-ids}))
+        (when-not (= (count step-ids) (count (set step-ids)))
+          (sequence-error! registry-file use-case-id "step IDs must be unique"
+                           {:sequence.step/ids step-ids}))
+        (doseq [[index step] (map-indexed vector steps)]
+          (when-not (map? step)
+            (sequence-error! registry-file use-case-id "steps must be maps"
+                             {:sequence.step/index index :sequence.step step}))
+          (when-not (keyword? (:sequence.step/examination step))
+            (sequence-error! registry-file use-case-id "steps must have keyword :sequence.step/examination values"
+                             {:sequence.step/id (:sequence.step/id step)}))
+          (when (contains? step :sequence.step/evidence)
+            (when-not (valid-keyword-collection? (:sequence.step/evidence step))
+              (sequence-error! registry-file use-case-id "step evidence must be a set or vector of keywords"
+                               {:sequence.step/id (:sequence.step/id step)
+                                :sequence.step/evidence (:sequence.step/evidence step)})))
+          (when (contains? step :sequence.step/status)
+            (when-not (contains? sequence-step-statuses (:sequence.step/status step))
+              (sequence-error! registry-file use-case-id "step status is unsupported"
+                               {:sequence.step/id (:sequence.step/id step)
+                                :sequence.step/status (:sequence.step/status step)
+                                :supported-statuses sequence-step-statuses})))
+          (let [after (:sequence.step/after step)
+                preceding-ids (set (take index step-ids))]
+            (when (contains? step :sequence.step/after)
+              (when-not (valid-keyword-collection? after)
+                (sequence-error! registry-file use-case-id "step dependencies must be a set or vector of keywords"
+                                 {:sequence.step/id (:sequence.step/id step)
+                                  :sequence.step/after after}))
+              (when-not (every? preceding-ids after)
+                (sequence-error! registry-file use-case-id "step dependencies must reference preceding steps"
+                                 {:sequence.step/id (:sequence.step/id step)
+                                  :sequence.step/after after
+                                  :preceding-step-ids preceding-ids})))))))))
+
+(defn- allowed-capabilities! [definition registry-file use-case-id]
+  (when-let [capabilities (:use-case/allowed-capabilities definition)]
+    (when-not (vector? capabilities)
+      (fail "Use-case :use-case/allowed-capabilities must be a vector"
+            {:registry/path (.getPath registry-file)
+             :use-case/id use-case-id
+             :use-case/allowed-capabilities capabilities}))
+    (doseq [capability capabilities]
+      (when-not (and (map? capability)
+                     (keyword? (:capability/kind capability))
+                     (keyword? (:capability/id capability))
+                     (pos-int? (:capability/version capability)))
+        (fail "Use-case allowed capabilities require kind, ID, and positive version"
+              {:registry/path (.getPath registry-file)
+               :use-case/id use-case-id
+               :use-case/allowed-capability capability})))
+    (when-not (= (count capabilities)
+                 (count (set (map #(select-keys % [:capability/kind :capability/id]) capabilities))))
+      (fail "Use-case allowed capability identities must be unique"
+            {:registry/path (.getPath registry-file)
+             :use-case/id use-case-id
+             :use-case/allowed-capabilities capabilities}))))
 
 (defn- required-curiosities! [definition registry-file use-case-id]
   (let [curiosities (:concept/required-curiosities definition)]
@@ -98,6 +190,8 @@
                            (fail "Use-case entry ID does not match definition" {:registry/path (.getPath registry-file) :use-case/id id :concept/id (:concept/id definition)}))
                          (when-not (= :use-case (:concept/type definition))
                            (fail "Use-case definition must declare :concept/type :use-case" {:registry/path (.getPath registry-file) :use-case/id id :concept/type (:concept/type definition)}))
+                         (validate-sequence! definition registry-file id)
+                         (allowed-capabilities! definition registry-file id)
                          {:use-case/id id
                           :definition/ref ref
                           :definition definition

@@ -2,11 +2,13 @@
   "Build the two supported PRF distributions.
 
    Variants:
-     :prf — framework and unified CLI, with no Sew implementation or corpus
+     :prf — strict framework profile/view library, with no executable entry point
+     :prf-runnable — framework plus the unified CLI bootstrapper
      :sew — Sew-enabled runner (corpus packaging migrates separately)
 
    Usage:
      clojure -T:build uberjar :variant prf
+     clojure -T:build uberjar :variant prf-runnable
      clojure -T:build uberjar :variant sew"
   (:require [clojure.data.json :as json]
             [clojure.edn :as edn]
@@ -131,13 +133,14 @@
                   (instance? clojure.lang.Symbol variant) (keyword (name variant))
                   :else (throw (ex-info "Unsupported variant type"
                                         {:variant variant :type (type variant)
-                                         :supported [:prf :sew]})))
-        _ (when-not (#{:prf :sew} variant)
-            (throw (ex-info "Unknown JAR build variant" {:variant variant :supported [:prf :sew]})))
+                                         :supported [:prf :prf-runnable :sew]})))
+        _ (when-not (#{:prf :prf-runnable :sew} variant)
+            (throw (ex-info "Unknown JAR build variant" {:variant variant :supported [:prf :prf-runnable :sew]})))
         vname (name variant)
         is-prf (= variant :prf)
+        is-prf-runnable (= variant :prf-runnable)
         is-sew (= variant :sew)
-        main-cls (or main "resolver-sim.cli.main")
+        main-cls (when-not is-prf (or main "resolver-sim.cli.main"))
         lib (symbol (str "resolver-sim/prf-runner-" vname))
 
         ;; Build deps file for clean classpath
@@ -169,20 +172,34 @@ core-deps-str (pr-str
                                org.postgresql/postgresql {:mvn/version "42.7.2"}
                                metosin/malli {:mvn/version "0.17.0"}}
                         :paths ["src" "protocols_src" "resources"]})
-        deps-str (if is-prf core-deps-str sew-deps-str)
+        deps-str (if (or is-prf is-prf-runnable) core-deps-str sew-deps-str)
         deps-path (str (System/getProperty "java.io.tmpdir")
                        "/prf-build-deps-" (System/nanoTime) ".edn")
         _ (spit deps-path deps-str)
         basis (b/create-basis {:project deps-path})
-        src-dirs (if is-prf ["src" "resources" "scenarios"] ["src" "protocols_src" "resources" "scenarios"])
+        src-dirs (cond
+                           is-prf [".profile-view/framework"]
+                           is-prf-runnable ["src" "resources" "scenarios"]
+                           :else ["src" "protocols_src" "resources" "scenarios"])
         class-dir (str (System/getProperty "java.io.tmpdir")
                        "/prf-build-" (System/nanoTime))
-        jar-file (if is-prf "target/prf.jar" (str "target/prf-runner-" vname "-" version ".jar"))
-        uber-file (if is-prf "target/prf-uber.jar" (str "target/prf-runner-" vname "-" version "-uber.jar"))]
+        jar-file (cond is-prf "target/prf.jar"
+                     is-prf-runnable "target/prf-runnable.jar"
+                     :else (str "target/prf-runner-" vname "-" version ".jar"))
+        uber-file (cond is-prf nil
+                       is-prf-runnable "target/prf-runnable.jar"
+                       :else (str "target/prf-runner-" vname "-" version "-uber.jar"))]
 
     (println "\n=== Build: prf-runner-" vname " ===")
     (printf "  Main class: %s\n" main-cls)
     (printf "  Source dirs: %s\n" (pr-str src-dirs))
+
+    (when is-prf
+      (println "  Generating strict framework profile view...")
+      (let [result (shell/sh "bb" "profile:view" "framework")]
+        (when-not (zero? (:exit result))
+          (throw (ex-info "Framework profile view generation failed"
+                          {:exit (:exit result) :out (:out result) :err (:err result)})))))
 
     ;; Copy source + resources to class dir
     (println "\n  Copying source...")
@@ -201,7 +218,7 @@ core-deps-str (pr-str
     ;; so copy each dir into a subdirectory of class-dir).
     ;; data/ and config/ are classpath resources accessed via io/resource
     ;; (not listed in the build :paths since they live at repository root).
-    (doseq [extra-dir ["data" "config" "resources/prf"]]
+    (doseq [extra-dir (if is-prf [] ["data" "config" "resources/prf"])]
       (let [d (java.io.File. extra-dir)]
         (when (.exists d)
           (printf "    %s/ -> class-dir/%s/\n" extra-dir extra-dir)
@@ -227,9 +244,17 @@ core-deps-str (pr-str
     ;; PRF variant: AOT compile the unified CLI bootstrapper (no protocol deps),
     ;; then build standalone uberjar with Main-Class pointing at it.
     ;; Sew variant: source-only build using clojure.main as Main-Class.
-    (let [prf-build? (= variant :prf)]
-    (if prf-build?
-      ;; PRF variant: AOT compile the unified CLI bootstrapper (no protocol deps),
+    (let [prf-build? (= variant :prf-runnable)]
+    (if is-prf
+      ;; Strict framework library: profile/view sources only, no Main-Class.
+      (do
+        (println "  Building framework library JAR (no Main-Class)...")
+        (b/jar {:class-dir class-dir
+                :jar-file jar-file
+                :lib lib
+                :version version}))
+      (if prf-build?
+      ;; PRF runnable variant: AOT compile the unified CLI bootstrapper (no protocol deps),
       ;; then build standalone uberjar with Main-Class pointing at it.
       (let [main-sym 'resolver-sim.cli-bootstrap
             bs-deps (pr-str '{:deps {org.clojure/clojure {:mvn/version "1.12.0"}}
@@ -245,7 +270,7 @@ core-deps-str (pr-str
         (io/delete-file bs-deps-path)
         (println "  Building CLI uberjar (Main-Class:" main-sym ")...")
         (b/uber {:class-dir class-dir
-                 :uber-file "target/prf.jar"
+                 :uber-file jar-file
                  :basis basis
                  :main main-sym}))
       ;; Sew variant: source-only build using clojure.main as Main-Class.
@@ -262,13 +287,15 @@ core-deps-str (pr-str
         (b/uber {:class-dir class-dir
                  :uber-file uber-file
                  :basis basis
-                 :main main-sym}))))
+                 :main main-sym})))))
 
     (when is-sew
           (validate-built-sew-jar! uber-file))
 
         (let [actual-main (if is-sew 'clojure.main main-cls)]
-          (doseq [file (if is-prf ["target/prf.jar"] [jar-file uber-file])]
+          (doseq [file (cond is-prf [jar-file]
+                             is-prf-runnable [jar-file]
+                             :else [jar-file uber-file])]
             (write-distribution-provenance! file variant actual-main)))
 
         ;; Cleanup
@@ -277,13 +304,18 @@ core-deps-str (pr-str
 
     ;; Report
     (println "\n=== Results ===")
-    (doseq [f (if is-prf ["target/prf.jar"] [jar-file uber-file])]
+    (doseq [f (cond is-prf [jar-file]
+                           is-prf-runnable [jar-file]
+                           :else [jar-file uber-file])]
       (let [jf (java.io.File. f)]
         (when (.exists jf)
           (printf "  %-50s %d KB\n" (.getName jf) (quot (.length jf) 1024)))))
-    (if is-prf
-      (printf "\n  AOT bootstrapper compiled for JAR Main-Class.\n")
-      (printf "\n  Source-only JAR with clojure.main as Main-Class.\n"))
+    (cond is-prf
+          (printf "\n  Framework profile/view library JAR with no Main-Class.\n")
+          is-prf-runnable
+          (printf "\n  AOT bootstrapper compiled for JAR Main-Class.\n")
+          :else
+          (printf "\n  Source-only JAR with clojure.main as Main-Class.\n"))
     (println "  Done.\n")
     (flush)))
 

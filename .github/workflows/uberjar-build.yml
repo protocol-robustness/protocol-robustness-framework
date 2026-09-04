@@ -34,11 +34,16 @@ jobs:
       - name: Verify packaged JAR portability and benchmark corpus
         timeout-minutes: 20
         run: bash scripts/portability-smoke-test.sh
-      - name: Upload prf jar
+      - name: Upload prf framework library
         uses: actions/upload-artifact@v4
         with:
-          name: prf-runner-prf
+          name: prf-framework
           path: target/prf.jar
+      - name: Upload prf runnable jar
+        uses: actions/upload-artifact@v4
+        with:
+          name: prf-runnable
+          path: target/prf-runnable.jar
       - name: Upload sew jar
         uses: actions/upload-artifact@v4
         with:

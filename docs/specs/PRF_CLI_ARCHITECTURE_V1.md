@@ -109,10 +109,10 @@ bb build:cli      # Build only the CLI jar
 ### 4.3 Usage
 
 ```bash
-java -jar target/prf.jar help                      # List commands
-java -jar target/prf.jar backstop                   # Run default backstop
-java -jar target/prf.jar evidence validate          # Validate evidence
-java -jar target/prf.jar run-scenario --scenario S01  # Run a scenario
+java -jar target/prf-runnable.jar help                      # List commands
+java -jar target/prf-runnable.jar backstop                   # Run default backstop
+java -jar target/prf-runnable.jar evidence validate          # Validate evidence
+java -jar target/prf-runnable.jar run-scenario --scenario S01  # Run a scenario
 ```
 
 ## 5. Command Registry

@@ -26,10 +26,8 @@
   [{:keys [strict? json?] :as opts}]
   (println "Structural validation...")
   (let [lint-ok   (ok? "Lint (src:test)" #(sh "clojure" "-M:lint/core"))
-        nb-ok     (ok? "Notebook namespace check"
-                       #(sh "scripts/with-test-artifact-lock.sh" "clojure"
-                            "-M:with-sew"
-                            "-e" "(require (quote [resolver-sim.notebook-support.checks]) (quote [notebooks.report])) (System/exit 0)"))
+        nb-ok     (ok? "Notebook support checks"
+                       #(do (require '[resolver-sim.notebook-support.checks]) 0))
         all-nb-ok (ok? "All notebooks load" #(sh "bb" "test:notebooks"))
         speds-ok  (ok? "SPEDS tests" #(sh "bb" "test:speds"))]
     (if (and lint-ok nb-ok all-nb-ok speds-ok)

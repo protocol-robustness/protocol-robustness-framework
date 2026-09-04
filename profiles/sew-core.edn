@@ -2,4 +2,4 @@
  :profile/version 1
  :profile/status :supported
  :profile/protocol :prf.protocol/sew
- :profile/components [:prf/sew-core-v1]}
+ :profile/components [:prf/runner-v1 :prf/sew-core-v1]}

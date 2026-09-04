@@ -3,18 +3,34 @@
   {:component/plane :framework
    :component/owned-namespaces
    [resolver-sim.hash.canonical
-    resolver-sim.core.phases
+    resolver-sim.hash.reference
+    resolver-sim.evidence.node
+    resolver-sim.config.defaults
+    resolver-sim.execution.budget]
+   :component/entry-namespaces
+   [resolver-sim.hash.canonical
+    resolver-sim.hash.reference
+    resolver-sim.evidence.node
+    resolver-sim.config.defaults
+    resolver-sim.execution.budget]
+   :component/material
+   [{:path "config" :kind :runtime-configuration}]}
+
+  ;; Runnable/application assembly is deliberately separate from the portable
+  ;; framework base. It may compose protocol and semantic implementations.
+  :prf/runner-v1
+  {:component/plane :runner
+   :component/requires [:prf/framework-v1]
+   :component/owned-namespaces
+   [resolver-sim.core.phases
     resolver-sim.io.scenario-runner
     resolver-sim.server.grpc
     resolver-sim.io.diff-runner]
    :component/entry-namespaces
-   [resolver-sim.hash.canonical
-    resolver-sim.core.phases
+   [resolver-sim.core.phases
     resolver-sim.io.scenario-runner
     resolver-sim.server.grpc
-    resolver-sim.io.diff-runner]
-   :component/material
-   [{:path "config" :kind :runtime-configuration}]}
+    resolver-sim.io.diff-runner]}
 
   :prf/sew-core-v1
   {:component/plane :protocol

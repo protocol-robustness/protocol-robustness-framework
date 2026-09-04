@@ -120,7 +120,8 @@ Yield-shortfall and broader protocol-robustness profiles remain experimental unl
 
 PRF can be built as either:
 
-- `prf.jar` — the protocol-agnostic framework and unified verification CLI;
+- `prf.jar` — the non-runnable, protocol-agnostic framework library;
+- `prf-runnable.jar` — the runnable PRF framework and unified verification CLI;
 - `prf-runner-sew` — PRF bundled with the Sew reference implementation, scenarios, benchmarks, and suites.
 
 Development and builds require a JVM, the Clojure CLI, and [Babashka](https://babashka.org/). The built JARs require only a JVM at runtime.
@@ -175,7 +176,7 @@ bb run:scenario \
 Verification is performed independently from scenario execution:
 
 ```bash
-java -jar target/prf.jar \
+java -jar target/prf-runnable.jar \
   verify-scenario \
   --run-root /tmp/prf-scenario
 ```
@@ -195,7 +196,7 @@ java -jar target/prf-runner-sew-0.1.0-uber.jar \
 Verify the resulting benchmark package:
 
 ```bash
-java -jar target/prf.jar \
+java -jar target/prf-runnable.jar \
   verify-benchmark \
   --run-root /tmp/prf-benchmark
 ```
@@ -213,7 +214,7 @@ bb benchmark:run \
 List the available standalone commands:
 
 ```bash
-java -jar target/prf.jar help
+java -jar target/prf-runnable.jar help
 ```
 
 For a guided introduction, continue with:
@@ -266,10 +267,11 @@ The same separation is preserved in the standalone builds:
 
 | Distribution     | Contents                                                     | Intended use                                       |
 | ---------------- | ------------------------------------------------------------ | -------------------------------------------------- |
-| `prf.jar`        | Framework core and unified verification CLI; no Sew implementation or corpus | External inputs and protocol-agnostic verification |
+| `prf.jar`        | Non-runnable framework library; no CLI, Sew implementation, or corpus | Portable framework dependency |
+| `prf-runnable.jar` | Framework plus the unified verification CLI and current runnable closure | External inputs and protocol-agnostic CLI verification |
 | `prf-runner-sew` | Framework plus the Sew implementation, scenarios, benchmarks, and suites | Canonical Sew execution and reference validation   |
 
-The framework-only distribution can inspect and verify compatible persisted artifacts without embedding the protocol implementation that produced them. The Sew runner contains the additional domain semantics required to execute canonical Sew scenarios and benchmarks.
+The framework-only library can be consumed by applications that inspect and verify compatible persisted artifacts without embedding the protocol implementation that produced them. The Sew runner contains the additional domain semantics required to execute canonical Sew scenarios and benchmarks.
 
 ### Current reference implementations
 
@@ -375,7 +377,7 @@ or, for development:
 Verification is a separate operation from execution. The framework-only CLI reads the persisted run package and checks its declared structure, commitments, and assurance outputs.
 
 ```bash
-java -jar target/prf.jar \
+java -jar target/prf-runnable.jar \
   verify-scenario \
   --run-root /tmp/prf-scenario
 ```
@@ -430,7 +432,7 @@ For another benchmark, replace the identifier with:
 Verify the persisted benchmark output independently:
 
 ```bash
-java -jar target/prf.jar \
+java -jar target/prf-runnable.jar \
   verify-benchmark \
   --run-root /tmp/prf-benchmark
 ```
@@ -444,20 +446,20 @@ The benchmark verifier should report whether the package is structurally complet
 List the commands exposed by the framework CLI:
 
 ```bash
-java -jar target/prf.jar help
+java -jar target/prf-runnable.jar help
 ```
 
 List command-specific help where supported:
 
 ```bash
-java -jar target/prf.jar <COMMAND> --help
+java -jar target/prf-runnable.jar <COMMAND> --help
 ```
 
 Examples:
 
 ```bash
-java -jar target/prf.jar verify-scenario --help
-java -jar target/prf.jar verify-benchmark --help
+java -jar target/prf-runnable.jar verify-scenario --help
+java -jar target/prf-runnable.jar verify-benchmark --help
 ```
 
 ### Sign distributions
@@ -492,7 +494,7 @@ java -jar target/prf-runner-sew-0.1.0-uber.jar \
   classpath:scenarios/edn/S-DR-084-evidence-after-settlement-rejected.edn \
   --run-root /tmp/prf-scenario
 
-java -jar target/prf.jar \
+java -jar target/prf-runnable.jar \
   verify-scenario \
   --run-root /tmp/prf-scenario
 ```

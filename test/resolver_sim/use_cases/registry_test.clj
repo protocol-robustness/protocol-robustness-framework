@@ -85,3 +85,44 @@
         first-root (:use-case-registry/root (registry/load-use-case-registry path))]
     (spit definition-path (str/replace (definition :acme/a) "Example" "Changed"))
     (is (not= first-root (:use-case-registry/root (registry/load-use-case-registry path))))))
+
+(defn- valid-sequence []
+  {:sequence/schema :prf/sequence.v1
+   :sequence/id :acme/example-sequence
+   :sequence/version 1
+   :sequence/steps [{:sequence.step/id :first
+                     :sequence.step/examination :examination/a
+                     :sequence.step/evidence #{:evidence/a}}
+                    {:sequence.step/id :second
+                     :sequence.step/after [:first]
+                     :sequence.step/examination :examination/b
+                     :sequence.step/status :not-implemented}]})
+
+(defn- load-definition-with-sequence [sequence]
+  (let [dir (temp-dir)
+        content (assoc (read-string (definition :acme/a)) :use-case/sequence sequence)
+        _ (write! dir "definitions/a.edn" (pr-str content))
+        path (write! dir "registry.edn" (pr-str {:schema/id :prf/use-case-registry.v1
+                                                 :registry/id "acme"
+                                                 :registry/version "1"
+                                                 :use-cases [{:use-case/id :acme/a
+                                                              :definition/ref "definitions/a.edn"}]}))]
+    (registry/load-use-case-registry path)))
+
+(deftest optional-sequence-v1-is-validated-structurally
+  (testing "a well-formed user-defined sequence is retained without semantic interpretation"
+    (is (= (valid-sequence)
+           (get-in (load-definition-with-sequence (valid-sequence))
+                   [:use-cases 0 :use-case/sequence]))))
+  (testing "invalid structural fields fail closed"
+    (doseq [[label sequence]
+            [["schema" (assoc (valid-sequence) :sequence/schema :acme/sequence.v2)]
+             ["version" (assoc (valid-sequence) :sequence/version 0)]
+             ["empty steps" (assoc (valid-sequence) :sequence/steps [])]
+             ["duplicate step IDs" (assoc-in (valid-sequence) [:sequence/steps 1 :sequence.step/id] :first)]
+             ["forward dependency" (assoc-in (valid-sequence) [:sequence/steps 0 :sequence.step/after] [:second])]
+             ["unknown status" (assoc-in (valid-sequence) [:sequence/steps 1 :sequence.step/status] :completed)]
+             ["invalid evidence" (assoc-in (valid-sequence) [:sequence/steps 0 :sequence.step/evidence] [:not-a-keyword "string"])]]]
+      (is (thrown-with-msg? clojure.lang.ExceptionInfo #"use-case/sequence"
+                            (load-definition-with-sequence sequence))
+          label))))

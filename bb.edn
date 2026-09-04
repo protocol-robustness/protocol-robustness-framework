@@ -37,7 +37,7 @@ Usage: bb run:scenario <scenario-id> [--run-root <dir>] [--report-format <summar
        --save-output is rejected; use a dedicated export command instead."
    :task (apply clojure "-M:with-sew" "-m" "resolver-sim.commands.scenario" *command-line-args*)}
 
-   cli {:doc "Run a registered command through the unified CLI (same as prf.jar).
+   cli {:doc "Run a registered command through the unified CLI (same as prf-runnable.jar).
 Usage: bb cli <command-path> [args]
 Example: bb cli scenario list --search yield"
         :task (apply clojure "-M:with-sew" "-m" "resolver-sim.cli.main" *command-line-args*)}
@@ -233,7 +233,7 @@ check:ownership
                          :task (shell "scripts/with-test-artifact-lock.sh" "./scripts/test.sh" "yield-scenarios")}
 
   test:speds {:doc "Run SPEDS visual narrative tests"
-              :task (shell "scripts/with-test-artifact-lock.sh" "clojure" "-M:test:with-sew" "-e"
+              :task (shell "clojure" "-M:test:with-sew" "-e"
                            "(require (quote resolver-sim.notebooks.speds.findings-comparator-test)
                                       (quote resolver-sim.notebooks.speds.issues-shadow-report-test)
                                       (quote resolver-sim.notebooks.speds.core-test)
@@ -371,7 +371,7 @@ test:invariants {:doc "Run canonical deterministic invariant target (S01–S41)"
                 :task (shell "scripts/with-test-artifact-lock.sh" "./scripts/test.sh" "triage")}
 
    test:notebooks {:doc "Load every notebook namespace to verify it compiles"
-                    :task (shell "scripts/with-test-artifact-lock.sh" "clojure" "-M:with-sew" "-m" "scripts.test-notebooks")}
+                    :task (shell "clojure" "-M:with-sew" "-m" "scripts.test-notebooks")}
 
 
    demo:reorder-chain
@@ -1264,22 +1264,26 @@ Usage: bb forensic:mailbox:keygen --runner-id <id> --out <dir>"
   ;; ── Build ──────────────────────────────────────────────────────────────
 
   build:prf
-  {:doc "Build prf.jar — framework-only unified CLI distribution."
+  {:doc "Build prf.jar — strict framework profile/view library (no Main-Class)."
    :task (clojure "-T:build" "uberjar" ":variant" "prf")}
+
+  build:prf-runnable
+  {:doc "Build prf-runnable.jar — runnable framework CLI distribution."
+   :task (clojure "-T:build" "uberjar" ":variant" "prf-runnable")}
 
   build:sew
   {:doc "Build prf-runner-sew uberjar — Sew-enabled distribution."
    :task (clojure "-T:build" "uberjar" ":variant" "sew")}
 
   build
-  {:doc "Build the two supported distributions: prf and sew."
-   :depends [build:prf build:sew]}
+  {:doc "Build the supported distributions: prf library, prf-runnable CLI, and sew."
+   :depends [build:prf build:prf-runnable build:sew]}
 
   build:attest
   {:doc "Build both supported JARs, run the packaged-JAR smoke gate, and emit fail-closed default-build attestation bundles under target/."
    :depends [build]
    :task (clojure "-M" "-m" "resolver-sim.build.default-attestation-cli"
-                  "all" "target/prf.jar" "target/prf-runner-sew-0.1.0-uber.jar" "target")}
+                  "all" "target/prf-runnable.jar" "target/prf-runner-sew-0.1.0-uber.jar" "target")}
 
   build:attest:sign
   {:doc "Locally sign a default-build attestation bundle. Usage: bb build:attest:sign <bundle.edn> <prf|sew> <key-id> <private-key> <release-metadata.edn>"

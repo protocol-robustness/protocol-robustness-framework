@@ -13,7 +13,8 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
-PRF_JAR_PATH="$PROJECT_DIR/target/prf.jar"
+PRF_LIBRARY_JAR_PATH="$PROJECT_DIR/target/prf.jar"
+PRF_RUNNABLE_JAR_PATH="$PROJECT_DIR/target/prf-runnable.jar"
 SEW_JAR_PATH="$PROJECT_DIR/target/prf-runner-sew-0.1.0-uber.jar"
 TEMP_DIR="$(mktemp -d)"
 CWD_DIR="$TEMP_DIR/external-cwd"
@@ -51,9 +52,13 @@ verify_completion_hashes() {
   test "$validation_hash" = "$(sha256sum "$root/$validation_ref" | awk '{print $1}')"
 }
 
-if [ ! -f "$PRF_JAR_PATH" ]; then
-  echo "Building framework-only JAR..."
+if [ ! -f "$PRF_LIBRARY_JAR_PATH" ]; then
+  echo "Building framework library JAR..."
   (cd "$PROJECT_DIR" && clojure -T:build uberjar :variant prf)
+fi
+if [ ! -f "$PRF_RUNNABLE_JAR_PATH" ]; then
+  echo "Building runnable framework JAR..."
+  (cd "$PROJECT_DIR" && clojure -T:build uberjar :variant prf-runnable)
 fi
 if [ ! -f "$SEW_JAR_PATH" ]; then
   echo "Building Sew uberjar..."
@@ -63,18 +68,26 @@ fi
 mkdir -p "$CWD_DIR"
 
 echo "=== Supported JAR release acceptance ==="
-echo "PRF JAR: $PRF_JAR_PATH"
+echo "PRF library JAR: $PRF_LIBRARY_JAR_PATH"
+echo "PRF runnable JAR: $PRF_RUNNABLE_JAR_PATH"
 echo "Sew JAR: $SEW_JAR_PATH"
+
+# Framework library purity is independent from executable acceptance.
+unzip -p "$PRF_LIBRARY_JAR_PATH" META-INF/MANIFEST.MF | grep -qv '^Main-Class:'
+if jar tf "$PRF_LIBRARY_JAR_PATH" | grep -qE 'resolver_sim/(cli|core|io/(scenario_runner|diff_runner)|server|pro_rata|protocols/sew|research/sew)/'; then
+  echo "FAIL: framework library contains runner, protocol, or semantic namespaces" >&2
+  exit 1
+fi
 echo "External CWD: $CWD_DIR"
 
 (
   cd "$CWD_DIR"
-  java -jar "$PRF_JAR_PATH" help > "$TEMP_DIR/prf-help.txt"
+  java -jar "$PRF_RUNNABLE_JAR_PATH" help > "$TEMP_DIR/prf-help.txt"
   grep -q "PRF CLI" "$TEMP_DIR/prf-help.txt"
   # `commands validate` resolves every native handler. Registry validation
   # deliberately excludes :external wrapper commands, which are checked via
   # their bb-task parity rather than treated as JAR capabilities.
-  java -jar "$PRF_JAR_PATH" commands validate > "$TEMP_DIR/prf-commands-validate.txt"
+  java -jar "$PRF_RUNNABLE_JAR_PATH" commands validate > "$TEMP_DIR/prf-commands-validate.txt"
   grep -q "Command registry valid" "$TEMP_DIR/prf-commands-validate.txt"
   if grep -q "run-scenario\|run-benchmark" "$TEMP_DIR/prf-help.txt"; then
     echo "FAIL: framework-only JAR advertises Sew commands" >&2
@@ -119,7 +132,8 @@ if [ -n "$(find "$CWD_DIR" -mindepth 1 -maxdepth 1 -print -quit)" ]; then
   exit 1
 fi
 
-echo "PASS: framework-only JAR has the unified CLI and does not advertise Sew commands"
+echo "PASS: framework library is non-runnable and contains no runner/protocol/semantic namespaces"
+echo "PASS: runnable PRF JAR has the CLI and does not advertise Sew commands"
 echo "PASS: full Sew JAR validates the packaged benchmark corpus and runs bundled scenario and benchmark without CWD scatter"
 echo "PASS: completion records commit to final registry and validation report hashes"
 echo "PASS: built Sew JAR verifies completed scenario evidence-chain and benchmark assurance bundles"

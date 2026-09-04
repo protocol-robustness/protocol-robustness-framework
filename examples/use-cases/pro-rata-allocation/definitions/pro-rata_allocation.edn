@@ -1,0 +1,156 @@
+{:concept/id :user/pro-rata-allocation
+ :concept/type :use-case
+ :concept/layer :stakeholder
+ :concept/name "Proportional pro-rata allocation admission"
+ :concept/summary
+ "A user-defined allocation use case that examines whether a proportional
+  pro-rata result is in the integer domain, has the exact requested capacity,
+  and is eligible for proof admission. The sequence is illustrative: it names
+  which evidence must be examined, but does not itself execute allocation or
+  grant authority."
+
+ :concept/stakeholder-question
+ "Can an allocator demonstrate that the exact integer allocation is
+  proportional, capacity-exact, and backed by an admissible proof statement?"
+
+ :concept/protocols #{:protocol/prf}
+ :concept/maturity :illustrative
+ :concept/support-status :partially-supported
+
+ :concept/roles
+ {:allocation-requester
+  {:description "Supplies the fixed claimant population, policy, and capacity."
+   :maps-to [:protocol.actor/requester]}
+  :allocation-verifier
+  {:description "Checks the allocation statement and any admitted proof artifact."
+   :maps-to [:protocol.actor/verifier]}}
+
+ :concept/entities
+ {:allocation-request
+  {:description "The canonical claimant/request-set, allocation policy, and capacity basis."
+   :maps-to [:protocol.entity/allocation-request]}
+  :allocation-result
+  {:description "The deterministic integer allocation result and its canonical root."
+   :maps-to [:protocol.entity/allocation-result]}
+  :proof-statement
+  {:description "The realized allocation statement examined by proof-admission checks."
+   :maps-to [:protocol.entity/realized-allocation-statement]}
+  :admission-result
+  {:description "The fail-closed result of proof-admission validation."
+   :maps-to [:protocol.entity/proof-admission]}}
+
+ :concept/actions
+ {:allocate-pro-rata
+  {:description "Compute the exact deterministic pro-rata allocation."
+   :maps-to [:protocol.action/pro-rata-allocation]}
+  :examine-integer-domain
+  {:description "Verify every committed allocation amount is an integer-domain value."
+   :maps-to [:protocol.action/check-integer-domain]}
+  :examine-exact-capacity
+  {:description "Verify allocated total equals the committed capacity exactly."
+   :maps-to [:protocol.action/check-exact-capacity]}
+  :admit-proof
+  {:description "Run fail-closed proof-admission checks over the realized statement."
+   :maps-to [:protocol.action/admit-proof]}}
+
+ :concept/outcomes
+ {:allocation-admitted
+  {:description "The allocation passes the selected examinations and any required proof-admission checks."
+   :maps-to [:protocol.outcome/admitted]}
+  :integer-domain-rejected
+  {:description "At least one allocated value is outside the required integer domain."
+   :maps-to [:protocol.outcome/rejected]}
+  :capacity-rejected
+  {:description "The allocation total differs from exact committed capacity."
+   :maps-to [:protocol.outcome/rejected]}
+  :proof-not-admitted
+  {:description "Proof-admission checks reject the artifact or statement binding."
+   :maps-to [:protocol.outcome/rejected]}
+  :consecutive-injectivity-unavailable
+  {:description "No claim is made for prop-consecutive-injective: the condition is intentionally deferred."
+   :maps-to []}}
+
+ :concept/failure-modes
+ [{:failure/id :integer-domain-violation
+   :failure/name "Non-integer allocation"
+   :failure/summary "An allocation amount is outside the configured integer domain."
+   :protocol-mechanisms [:pro-rata/integer-domain]
+   :stakeholder-impact "The result cannot be represented or applied as the selected exact allocation."}
+  {:failure/id :capacity-mismatch
+   :failure/name "Exact-capacity mismatch"
+   :failure/summary "The allocated total is either above or below the committed capacity."
+   :protocol-mechanisms [:allocation.assertion/outcomes-exact-capacity]
+   :stakeholder-impact "The result violates the allocation request's conserved capacity."}
+  {:failure/id :proof-admission-rejection
+   :failure/name "Proof admission rejected"
+   :failure/summary "A caller assertion is insufficient; the statement/artifact identity contract does not validate."
+   :protocol-mechanisms [:allocation/proof-admission]
+   :stakeholder-impact "The allocation cannot be graduated on the claimed cryptographic basis."}]
+
+ :concept/metrics
+ {:allocated-claimant-count
+  {:description "Count of claimants with committed allocation rows."
+   :source :allocation-result
+   :domain {:kind :integer :unit :claimants}}
+  :allocated-total
+  {:description "Sum of committed integer allocation amounts."
+   :source :allocation-result
+   :domain {:kind :integer :unit :base-units}}
+  :capacity-delta
+  {:description "Allocated total minus committed capacity; acceptance requires zero."
+   :source :derived
+   :domain {:kind :integer :unit :base-units}}}
+
+ :concept/assumptions
+ ["The claimant/request-set, allocation policy, and capacity are fixed before examination."
+  "Proportionality is evaluated against the selected exact pro-rata policy and its committed inputs."
+  "Proof admission remains fail-closed: a caller-supplied verification flag is not evidence."
+  "The sequence is user-defined material loaded only through an explicit use-case registry path."]
+
+ :concept/out-of-scope
+ ["Randomized allocation or a stochastic realization."
+  "On-chain admission or settlement execution."
+  "prop-consecutive-injective, which remains a deferred downstream no-collapse/no-alias/no-reuse condition."]
+
+ :concept/known-gaps
+ ["The user-defined sequence declares examination order but is not yet executable by a generic sequence runner."
+  "prop-consecutive-injective is deliberately not claimed as proven by this use case."]
+
+ :concept/evidence
+ {:claims #{:pro-rata/integer-domain
+            :allocation.assertion/outcomes-exact-capacity
+            :allocation/proof-admission}
+  :examples #{:a-vs-b-plus-c-happy-path
+              :a-vs-b-plus-c-over-capacity-outcome
+              :a-vs-b-plus-c-under-capacity-outcome}}
+
+ :use-case/allowed-capabilities
+ [{:capability/kind :economics/allocation
+   :capability/id :prf/pro-rata-allocation
+   :capability/version 1}]
+
+ :use-case/sequence
+ {:sequence/schema :prf/sequence.v1
+  :sequence/id :user/pro-rata-allocation-admission
+  :sequence/version 1
+  :sequence/steps
+  [{:sequence.step/id :compute-proportional-allocation
+    :sequence.step/examination :proportional-pro-rata
+    :sequence.step/evidence #{:allocation-context/root :allocation-result/root}}
+   {:sequence.step/id :examine-integer-domain
+    :sequence.step/after [:compute-proportional-allocation]
+    :sequence.step/examination :integer-domain
+    :sequence.step/evidence #{:pro-rata/integer-domain}}
+   {:sequence.step/id :examine-exact-capacity
+    :sequence.step/after [:examine-integer-domain]
+    :sequence.step/examination :exact-capacity
+    :sequence.step/evidence #{:allocation.assertion/outcomes-exact-capacity}}
+   {:sequence.step/id :admit-proof-statement
+    :sequence.step/after [:examine-exact-capacity]
+    :sequence.step/examination :proof-admission
+    :sequence.step/evidence #{:allocation/proof-admission}}
+   {:sequence.step/id :deferred-consecutive-injectivity
+    :sequence.step/after [:admit-proof-statement]
+    :sequence.step/examination :prop-consecutive-injective
+    :sequence.step/status :not-implemented
+    :sequence.step/reason :deferred-downstream-condition}]}}

@@ -69,6 +69,22 @@
            (str/replace "." "/"))
        ".clj"))
 
+(defn namespace-owner
+  "Return the component owning a namespace via longest-prefix matching."
+  [components ns-sym]
+  (let [ns-name (str ns-sym)]
+    (->> components
+         (keep (fn [[component-id component]]
+                 (some (fn [owned]
+                         (let [prefix (str owned)]
+                           (when (or (= ns-name prefix)
+                                     (str/starts-with? ns-name (str prefix ".")))
+                             [prefix component-id])))
+                       (:component/owned-namespaces component))))
+         (sort-by (comp count first) >)
+         first
+         second)))
+
 (defn source-file [ns-sym]
   (let [relative (ns->relative-path ns-sym)]
     (some (fn [root]
@@ -157,6 +173,35 @@
      :components (select-keys components selected)
      :component-ids (vec (sort selected))}))
 
+(defn boundary-crossings [name]
+  (let [{:keys [components component-ids]} (resolved-profile name)
+        permitted (set component-ids)
+        origins (mapcat (fn [[component-id component]]
+                          (map (fn [entry] [component-id entry])
+                               (:component/entry-namespaces component))) components)
+        all-components (:components (read-edn (fs/path profiles-dir "components.edn")))]
+    (loop [pending (mapv (fn [[owner ns]] {:owner owner :path [ns]}) origins)
+           seen #{}
+           crossings #{}]
+      (if-let [{:keys [owner path]} (peek pending)]
+        (let [pending (pop pending)
+              ns-sym (peek path)
+              key [owner ns-sym]]
+          (if (contains? seen key)
+            (recur pending seen crossings)
+            (let [target (namespace-owner all-components ns-sym)]
+              (if (and target (not (contains? permitted target)))
+                (recur pending (conj seen key)
+                       (conj crossings {:origin-component owner
+                                        :undeclared-component target
+                                        :dependency-path path
+                                        :first-crossing-edge [(nth path (- (count path) 2)) ns-sym]}))
+                (let [source (source-file ns-sym)
+                      required (if source (required-namespaces source) #{})]
+                  (recur (into pending (map #(assoc {:owner owner} :path (conj path %)) required))
+                         (conj seen key) crossings))))))
+        (vec (sort-by (juxt :origin-component :undeclared-component :dependency-path) crossings))))))
+
 (defn closure-report [name]
   (let [{:keys [components component-ids]} (resolved-profile name)
         owned (set (mapcat :component/owned-namespaces (vals components)))
@@ -240,13 +285,17 @@
                        (remove #(contains? selected-ids (key %)))
                        (mapcat val)
                        set)
+        framework-forbidden (when (= name "framework")
+                              #{'resolver-sim.protocols.sew
+                                'resolver-sim.pro-rata.allocation
+                                'resolver-sim.research.sew.adversarial.trust-floor})
         present? #(namespace-present? view-root %)]
     (doseq [ns-sym expected]
       (when-not (present? ns-sym)
         (throw (ex-info "Selected namespace absent from profile view" {:namespace ns-sym}))))
-    (doseq [ns-sym forbidden]
+    (doseq [ns-sym (concat forbidden framework-forbidden)]
       (when (and (not (contains? expected ns-sym)) (present? ns-sym))
-        (throw (ex-info "Excluded bounty namespace leaked into profile view"
+        (throw (ex-info "Excluded namespace leaked into profile view"
                         {:namespace ns-sym :profile name}))))
     (let [{:keys [exit]} (process/shell {:dir (str view-root) :continue true}
                                         "clojure" "-M" "-e"
@@ -257,7 +306,8 @@
     (println "Profile boundary and load checks passed:" name)))
 
 (defn describe! [name]
-  (prn (merge (resolved-profile name) (closure-report name))))
+  (prn (assoc (merge (resolved-profile name) (closure-report name))
+              :boundary-crossings (boundary-crossings name))))
 
 (let [[command name right] *command-line-args*]
   (case command

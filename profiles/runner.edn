@@ -1,0 +1,7 @@
+;; Runnable application/runner composition. The portable framework profile
+;; remains intentionally separate and minimal.
+{:profile/id :prf/runner-v1
+ :profile/version 1
+ :profile/status :supported
+ :profile/extends :prf/framework-v1
+ :profile/components [:prf/runner-v1]}
