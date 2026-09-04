@@ -9,6 +9,7 @@
    - explicit coverage gaps"
   (:require [clojure.data.json :as json]
             [clojure.java.io :as io]
+            [clojure.set :as set]
             [clojure.string :as str]
             [resolver-sim.benchmark.runner :as runner]
             [resolver-sim.allocation.proof-admission :as proof-admission]
@@ -47,6 +48,9 @@
                              :partial-fill/per-claim-conservation}
     :deviation-set-ids #{:partial-fill/claimant-monotonicity
                          :partial-fill/claimant-split-merge-sybil}
+    ;; Transformations are diagnostic evidence-generation methods by default.
+    ;; Gate-relevant strategic properties must be named explicitly here.
+    :strategic-property-ids #{}
     :required-threat-tags #{"shortfall"}
     :match-dimensions #{:allocation/partial-fill
                         :allocation/shortfall}}
@@ -125,9 +129,34 @@
 
 (def ^:private artifact-kind :game-theoretic-validation)
 
-(def ^:private artifact-version "game-theoretic-validation.artifact.v1")
+(def ^:private artifact-version "game-theoretic-validation.artifact.v2")
 
 (def ^:private allowed-level-verdicts #{:pass :fail :uncovered})
+
+(def ^:private allowed-artifact-keys
+  "Closed shape for the outer game-theoretic-validation artifact.
+   Unknown keys are rejected to prevent silent contract drift."
+  #{:artifact/kind
+    :artifact/version
+    :claim/id
+    :claim/title
+    :claim/description
+    :claim/interpretation
+    :claim/validation-classes
+    :benchmark/id
+    :benchmark/scenario-suite
+    :benchmark/manifest-path
+    :matched-scenarios
+    :level-verdicts
+    :coverage-gaps
+    :strategic-property-results
+    :strategic-declared-property-results
+    :strategic-model
+    :strategic-epistemic-scope
+    :strategic-deviation-scope
+    :gates
+    :gates-summary
+    :summary})
 
 (defn- sha-256-hex?
   [s]
@@ -506,8 +535,10 @@
   (when (seq (:deviation-set-ids claim-spec))
     (let [resolved (resolve-deviation-set-ids (:deviation-set-ids claim-spec))]
       (assoc resolved
+             :declared-property-ids (set (:strategic-property-ids claim-spec))
              :artifact (strategic-partial-fill/validate-strategic-properties
-                        :deviations (:deviations resolved))))))
+                        :deviations (:deviations resolved)
+                        :declared-property-ids (set (:strategic-property-ids claim-spec)))))))
 
 (defn- strategic-claim-artifact
   [claim-spec manifest evidence]
@@ -545,10 +576,23 @@
                              (:mechanism-levels claim-spec))
         strategic-validation (strategic-validation-for-claim claim-spec)
         strategic-artifact (:artifact strategic-validation)
+        strategic-model (or (:strategic-model strategic-artifact)
+                            {:mechanism :yield/partial-fill
+                             :payoff-model :unestablished
+                             :scope-kind :not-applicable})
+        strategic-epistemic-scope
+        (or (:epistemic-scope strategic-artifact)
+            {:scope/kind :bounded-exhaustive
+             :scope/universal-claim? false
+             :scope/falsification? true
+             :scope/limitations [:no-strategic-evaluation-artifact]})
         strategic-properties (or (:properties strategic-artifact) [])
         strategic-property-results (spr/strategic-properties->results strategic-artifact)
+        declared-strategic-property-results
+        (filterv #(= :declared-property (:property-role %)) strategic-property-results)
         strategic-deviation-results (spr/strategic-properties->deviation-results
-                                     strategic-artifact)
+                                     {:properties (filterv #(= :declared-property (:property-role %))
+                                                           strategic-properties)})
         level-verdicts (if (seq strategic-properties)
                          (mapv (fn [entry]
                                  (if (= :allocation/partial-fill (:mechanism-level entry))
@@ -574,7 +618,7 @@
         integrity-verdicts (keep :integrity-gate level-verdicts)
         validation-classes (->> (concat
                                  (keep :validation-class all-check-results)
-                                 (keep :validation-class strategic-property-results))
+                                 (keep :validation-class declared-strategic-property-results))
                                 distinct
                                 (sort-by (fn [c] (.indexOf classes/class-order c)))
                                 vec)
@@ -612,14 +656,14 @@
      :claim/title (:claim/title claim-spec)
      :claim/description (:claim/description claim-spec)
      :claim/interpretation
-     (if (:deviation-set-ids claim-spec)
-       "Pass means the claim was not falsified by the matched scenarios and the
-        declared deviation sets on the evaluated evidence. It is bounded and
-        evidence-scoped: it does not prove the claim over the full strategy space,
-        unexercised mechanisms, or undeclared deviation sets."
-       "Pass means the claim was not falsified by the matched scenarios on the
-        evaluated evidence. It is bounded and evidence-scoped: it does not prove
-        the claim over the full strategy space or unexercised mechanisms.")
+     (if (seq (:strategic-property-ids claim-spec))
+       "Pass means the explicitly declared strategic properties were not falsified
+        by bounded evaluation under the declared model. Diagnostic transformations
+        are observations only and do not determine the strategic gate. This is not
+        an equilibrium proof over the full strategy space."
+       "Pass means matched scenario evidence satisfied the declared non-strategic
+        checks. Any diagnostic transformation observations are non-gating and do
+        not establish a strategic property or equilibrium claim.")
      :claim/validation-classes validation-classes
      :benchmark/id (:benchmark/id manifest)
      :benchmark/scenario-suite suite-key
@@ -628,10 +672,15 @@
      :level-verdicts level-verdicts
      :coverage-gaps coverage-gaps
      :strategic-property-results strategic-property-results
+     :strategic-declared-property-results declared-strategic-property-results
+     :strategic-model strategic-model
+     :strategic-epistemic-scope strategic-epistemic-scope
      :strategic-deviation-scope (when strategic-validation
                                   {:deviation-set-ids (:deviation-set-ids strategic-validation)
                                    :contract-ids (:contract-ids strategic-validation)
-                                   :deviations (vec (sort (:deviations strategic-validation)))})
+                                   :deviations (vec (sort (:deviations strategic-validation)))
+                                   :declared-property-ids
+                                   (vec (sort (:declared-property-ids strategic-validation)))})
      :gates {:integrity (first integrity-verdicts)
              :economic-model economic-model-gate
              :strategic strategic-gate}
@@ -671,10 +720,29 @@
                     {:expected artifact-version
                      :actual (:artifact/version artifact)})))
   (doseq [k [:claim/id :benchmark/id :benchmark/scenario-suite
-             :matched-scenarios :level-verdicts :coverage-gaps :summary]]
+             :matched-scenarios :level-verdicts :coverage-gaps :summary
+             :strategic-model :strategic-epistemic-scope
+             :strategic-deviation-scope :strategic-property-results
+             :strategic-declared-property-results]]
     (when-not (contains? artifact k)
       (throw (ex-info "Strategic claim artifact missing required key"
                       {:missing-key k}))))
+  (let [unknown (set/difference (set (keys artifact)) allowed-artifact-keys)]
+    (when (seq unknown)
+      (throw (ex-info "Strategic claim artifact contains unknown keys (closed shape)"
+                      {:unknown-keys (vec (sort unknown))
+                       :allowed-keys (vec (sort allowed-artifact-keys))}))))
+  (when-not (and (= :bounded-exhaustive
+                    (get-in artifact [:strategic-epistemic-scope :scope/kind]))
+                 (false? (get-in artifact [:strategic-epistemic-scope :scope/universal-claim?]))
+                 (keyword? (get-in artifact [:strategic-model :mechanism])))
+    (throw (ex-info "Invalid strategic epistemic contract"
+                    {:strategic-model (:strategic-model artifact)
+                     :strategic-epistemic-scope (:strategic-epistemic-scope artifact)})))
+  (doseq [entry (:strategic-declared-property-results artifact)]
+    (when-not (= :declared-property (:property-role entry))
+      (throw (ex-info "Non-declared property entered strategic gate projection"
+                      {:entry entry}))))
   (doseq [entry (:level-verdicts artifact)]
     (when-not (contains? allowed-level-verdicts (:verdict entry))
       (throw (ex-info "Invalid level verdict in strategic claim artifact"

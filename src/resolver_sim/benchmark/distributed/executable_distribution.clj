@@ -8,10 +8,18 @@
 (def ^:private domain-tag "PRF_BENCHMARK_EXECUTABLE_DISTRIBUTION_V2")
 (def ^:private semantic-options-domain-tag
   "PRF_BENCHMARK_SEMANTIC_CLAIMANT_OPTIONS_V1")
-(def semantic-claimant-option-fields
+;; Execution capacity, scheduling, and timeout controls affect only how work is
+;; performed. They are accepted as runtime profile inputs but never committed
+;; into executable-distribution identity.
+(def ^:private runtime-claimant-option-fields
   #{:execution/claimant-parallelism
     :execution/claimant-parallel-threshold
     :execution/quiescence-timeout-seconds})
+
+;; Reserved for claimant/economic options whose contract changes benchmark
+;; semantics. It is intentionally empty until such a closed semantic contract
+;; exists.
+(def semantic-claimant-option-fields #{})
 
 (defn semantic-claimant-options-root [options]
   (hash-ref/sha256-ref
@@ -22,11 +30,14 @@
    Unknown keys are rejected rather than silently omitted from the commitment."
   [options]
   (let [options (or options {})]
-    (when-not (every? semantic-claimant-option-fields (keys options))
-      (throw (ex-info "Unknown semantic claimant option"
-                      {:reason :invalid-semantic-claimant-option
+    (when-not (every? #(or (contains? semantic-claimant-option-fields %)
+                           (contains? runtime-claimant-option-fields %))
+                      (keys options))
+      (throw (ex-info "Unknown claimant option"
+                      {:reason :invalid-claimant-option
                        :options options
-                       :allowed semantic-claimant-option-fields})))
+                       :allowed (into semantic-claimant-option-fields
+                                      runtime-claimant-option-fields)})))
     (select-keys (execution/validate-context options)
                  semantic-claimant-option-fields)))
 

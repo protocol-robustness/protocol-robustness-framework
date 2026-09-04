@@ -30,12 +30,13 @@
              (sut/build-distribution {:execution-plan/root (root "a")
                                       :executable-artifact/root (root "c")
                                       :semantic-claimant-options base-options}))))
-  (is (not= (:executable-distribution/root distribution)
-            (:executable-distribution/root
-             (sut/build-distribution {:executable-artifact/root (root "b")
-                                      :semantic-claimant-options
-                                      (assoc base-options
-                                             :execution/claimant-parallelism 4)})))))
+  (is (= (:executable-distribution/root distribution)
+         (:executable-distribution/root
+          (sut/build-distribution {:executable-artifact/root (root "b")
+                                   :semantic-claimant-options
+                                   (assoc base-options
+                                          :execution/claimant-parallelism 4)})))
+      "runtime claimant capacity must not change executable identity"))
 
 (deftest semantic-options-defaults-normalize-and-unknown-options-reject
   (let [defaults (sut/build-distribution {:executable-artifact/root (root "b")})

@@ -348,11 +348,10 @@
                             (v2-pos "researcher-b" :approve outcome-a)
                             (v2-pos "researcher-c" :approve outcome-a)])
         result (rac/check-aggregate-three-member-classifications round report)]
-    (is (= :authorised (:authority-status report))
-        "default :invalid-seat policy excludes the equivocator and two valid
-         supporters remain")
-    (is (:holds? result)
-        "a legitimate equivocation exclusion is preserved, not a violation")))
+    (is (= :not-authorised (:authority-status report))
+        "duplicate identities fail the authority identity-separation requirement")
+    (is (not (:holds? result))
+        "the aggregate check preserves the identity-separation failure")))
 
 (deftest run-review-aggregate-checks-composes-all
   (let [round (make-keyed-round)
@@ -495,9 +494,10 @@
                               (v2-pos "researcher-b" :approve outcome-a)
                               (v2-pos "researcher-c" :approve outcome-a)])
           result (rac/check-aggregate-three-member-classifications round report)]
-      (is (= :authorised (:authority-status report)))
-      (is (:holds? result))
-      (is (empty? (:violations result))))))
+      (is (= :not-authorised (:authority-status report)))
+      (is (not (:holds? result)))
+      (is (some #(= ::rac/identity-separation-mismatch (:kind %))
+                (:violations result))))))
 
 (deftest classifications-hold-for-legitimate-duplicate-seat
   (testing "a legitimate identical duplicate submission is preserved (never
@@ -511,17 +511,17 @@
                               (v2-pos "researcher-c" :dissent outcome-a)])
           result (rac/check-aggregate-three-member-classifications round report)
           aggregate (rac/run-review-aggregate-checks round nil report)]
-      (is (= :authorised (:authority-status report))
-          "two valid supporters (one duplicate copy) reach authority")
+      (is (= :not-authorised (:authority-status report))
+          "duplicate submissions fail the authority identity-separation requirement")
       (is (= 2 (:counted-support report))
           "the duplicate counts once, never as an extra vote")
       (is (= 1 (count (:duplicate-seat-positions report)))
           "the duplicate copy is preserved in the report")
-      (is (:holds? result))
-      (is (empty? (:violations result))
-          "the aggregate classification check must not reject a preserved duplicate")
-      (is (:holds? aggregate)
-          "the aggregate runner must hold on a legitimate duplicate-seat report")
+      (is (not (:holds? result)))
+      (is (some #(= ::rac/identity-separation-mismatch (:kind %))
+                (:violations result)))
+      (is (not (:holds? aggregate))
+          "the aggregate runner must preserve the authority identity failure")
       (is (not-any? #(contains? #{::rac/position-category-overlap
                                   ::rac/member-category-overlap
                                   ::rac/excluded-position-counted}

@@ -113,19 +113,19 @@
     (testing "artifact summary and claim identity"
       (is (= (if (get-in artifact [:summary :valid?]) 0 1) exit-code))
       (is (= :game-theoretic-validation (:artifact/kind artifact)))
-      (is (= "game-theoretic-validation.artifact.v1" (:artifact/version artifact)))
+      (is (= "game-theoretic-validation.artifact.v2" (:artifact/version artifact)))
       (is (= :claim/pro-rata-shortfall-conservation (:claim/id artifact)))
       (is (= 2 (get-in artifact [:summary :matched-scenario-count])))
       (is (true? (get-in artifact [:summary :valid?]))))
 
     (testing "artifact scopes its claim strength"
       (is (string? (:claim/interpretation artifact)))
-      (is (re-find #"not falsified" (:claim/interpretation artifact)))
+      (is (re-find #"non-gating" (:claim/interpretation artifact)))
       (is (vector? (:claim/validation-classes artifact)))
       (is (contains? (set (:claim/validation-classes artifact))
                      :validation.class/algebraic-integrity))
-      (is (contains? (set (:claim/validation-classes artifact))
-                     :validation.class/deviation-resistance)))
+      (is (not (contains? (set (:claim/validation-classes artifact))
+                          :validation.class/deviation-resistance))))
 
     (testing "matched scenarios carry auditable reasons and evidence references"
       (is (= #{"S-DR-043-payout-shortfall-deferred"
@@ -163,7 +163,7 @@
       (let [json-artifact (json/read-str (slurp (second output-files)))]
         (is (= "game-theoretic-validation"
                (get json-artifact "kind")))
-        (is (= "game-theoretic-validation.artifact.v1"
+        (is (= "game-theoretic-validation.artifact.v2"
                (get json-artifact "version")))
         (is (= "Pro-rata shortfall conservation"
                (get json-artifact "title")))))))
@@ -213,7 +213,7 @@
       (let [json-artifact (json/read-str (slurp (second output-files)))]
         (is (= "game-theoretic-validation"
                (get json-artifact "kind")))
-        (is (= "game-theoretic-validation.artifact.v1"
+        (is (= "game-theoretic-validation.artifact.v2"
                (get json-artifact "version")))))))
 
 (deftest unknown-equilibrium-suite-is-rejected
@@ -281,15 +281,14 @@
            :claim-id :claim/pro-rata-shortfall-conservation
            :out-dir out-dir))
         strategic-results (:strategic-property-results artifact)]
-    (testing "a violated strategic property surfaces as a property-violated result"
-      (is (some #(and (= :allocation/exact-merge-invariance (:property %))
-                      (= :fail (:status %))
-                      (= :property-violated (:reason %)))
+    (testing "a diagnostic counterexample remains visible but is non-gating"
+      (is (some #(= :allocation/exact-merge-invariance (:property %))
                 strategic-results))
-      (is (= :violated (get-in artifact [:gates :strategic :verdict])))
-      (is (= :strategic-violated (:gates-summary artifact)))
-      (is (false? (get-in artifact [:summary :valid?])))
-      (is (= 1 (get-in artifact [:summary :strategic-property-violations])))
+      (is (= :verified (get-in artifact [:gates :strategic :verdict])))
+      (is (= :all-pass (:gates-summary artifact)))
+      (is (true? (get-in artifact [:summary :valid?])))
+      (is (= 0 (get-in artifact [:summary :strategic-property-violations])))
+      (is (= [] (:strategic-declared-property-results artifact)))
       (is (= 1 (get-in artifact [:summary :strategic-property-count]))))))
 
 (deftest strategic-property-verified-keeps-artifact-valid
@@ -459,10 +458,10 @@
                            :status :pending
                            :state-count 100 :violation-count 0}]})]
           (sut/run-strategic-claim-validation :out-dir out-dir))]
-    (testing "an inconclusive strategic property fails the artifact closed, not open"
-      (is (= :strategic-inconclusive (:gates-summary artifact)))
-      (is (= :inconclusive (get-in artifact [:gates :strategic :verdict])))
-      (is (false? (get-in artifact [:summary :valid?]))))))
+    (testing "an inconclusive diagnostic observation is non-gating"
+      (is (= :all-pass (:gates-summary artifact)))
+      (is (= :verified (get-in artifact [:gates :strategic :verdict])))
+      (is (true? (get-in artifact [:summary :valid?]))))))
 
 (deftest real-strategic-properties-propagate-through-adapter-and-gate
   (let [artifact (strategic-partial-fill/validate-strategic-properties
@@ -653,3 +652,385 @@
     (is (= 1 exit-code))
     (is (= :fail (:verdict level)))
     (is (some #(= :fail (:status %)) (:check-results level)))))
+
+;; ---------------------------------------------------------------------------
+;; Epistemic-contract coverage tests
+;; ---------------------------------------------------------------------------
+
+(deftest inner-artifact-emits-epistemic-scope-and-strategic-model
+  (let [artifact (strategic-partial-fill/validate-strategic-properties
+                  :deviations [:split :merge :permute :sybil :inflate]
+                  :max-states 10)]
+    (testing "inner artifact carries a well-formed epistemic-scope"
+      (let [scope (:epistemic-scope artifact)]
+        (is (map? scope))
+        (is (= :bounded-exhaustive (:scope/kind scope)))
+        (is (false? (:scope/universal-claim? scope)))
+        (is (true? (:scope/falsification? scope)))
+        (is (= :validation-scope (:scope/coverage scope)))
+        (is (vector? (:scope/limitations scope)))
+        (is (set? (set (:scope/limitations scope))))
+        (is (contains? (set (:scope/limitations scope)) :bounded-domain))
+        (is (contains? (set (:scope/limitations scope)) :bounded-transformation-set))
+        (is (contains? (set (:scope/limitations scope)) :no-equilibrium-proof))))
+
+    (testing "inner artifact carries a well-formed strategic-model"
+      (let [model (:strategic-model artifact)]
+        (is (map? model))
+        (is (= :yield/partial-fill (:mechanism model)))
+        (is (= :pro-rata (:allocation-mode model)))
+        (is (keyword? (:payoff-model model)))
+        (is (keyword? (:scope-kind model)))
+        (is (vector? (:rounding-policies model)))
+        (is (vector? (:actions model)))
+        (is (vector? (:claims-unmodeled model)))
+        (is (contains? (set (:actions model)) :split))
+        (is (contains? (set (:actions model)) :merge))
+        (is (contains? (set (:actions model)) :permute))
+        (is (contains? (set (:actions model)) :sybil-split))
+        (is (contains? (set (:actions model)) :inflate-request))
+        (is (contains? (set (:actions model)) :honest-request))))))
+
+(deftest diagnostic-transform-metadata-attached-to-each-property
+  (let [artifact (strategic-partial-fill/validate-strategic-properties
+                  :deviations [:split :merge :permute :sybil :inflate]
+                  :max-states 10)]
+    (testing "every property entry carries a diagnostic-transform map"
+      (doseq [prop (:properties artifact)]
+        (is (map? (:diagnostic-transform prop))
+            (str "property " (:property prop) " must have diagnostic-transform"))
+        (is (= :diagnostic-transform
+               (get-in prop [:diagnostic-transform :role]))
+            (str "property " (:property prop) " transform role must be :diagnostic-transform"))
+        (is (= :bounded-counterexample-search
+               (get-in prop [:diagnostic-transform :semantic-purpose]))
+            (str "property " (:property prop) " transform purpose must be :bounded-counterexample-search"))))
+
+    (testing "diagnostic-transform id matches expected deviation keyword"
+      (let [by-prop (into {} (map (juxt :property identity)) (:properties artifact))]
+        (is (= :split (get-in by-prop [:strategy/split-invariance :diagnostic-transform :id])))
+        (is (= :merge (get-in by-prop [:allocation/exact-merge-invariance :diagnostic-transform :id])))
+        (is (= :permute (get-in by-prop [:strategy/permutation-invariance :diagnostic-transform :id])))
+        (is (= :sybil (get-in by-prop [:strategy/sybil-invariance :diagnostic-transform :id])))
+        (is (= :inflate (get-in by-prop [:strategy/request-monotonicity :diagnostic-transform :id])))))))
+
+(deftest diagnostic-transformations-are-non-gating-observations
+  (let [out-dir (str (System/getProperty "java.io.tmpdir")
+                     "/prf-game-theory-diagnostic-non-gating")
+        manifest {:benchmark/id :benchmark/prf-shortfall-allocation-v0
+                  :benchmark/scenario-suite :suite/sew-shortfall-allocation-v0
+                  :benchmark/scenarios [{:scenario/id "S-DR-043-payout-shortfall-deferred"
+                                         :dimension :allocation/partial-fill
+                                         :claim :allocation-complete}
+                                        {:scenario/id "S103_negative-yield-shortfall-cascade"
+                                         :dimension :allocation/shortfall
+                                         :claim :conservation}]}
+        scenario-043 {:scenario-id "s-dr-043-payout-shortfall-deferred"
+                      :scenario-title "Payout shortfall deferred"
+                      :scenario-purpose "Partial fill should defer the remainder."
+                      :threat-tags ["dispute-resolution" "shortfall" "yield"]}
+        scenario-103 {:scenario-id "s103-negative-yield-shortfall-cascade"
+                      :title "Negative Yield and Liquidity Shortfall Cascade"
+                      :purpose "yield-stress"
+                      :threat-tags ["negative-yield" "shortfall" "deferred-recovery"]}
+        evidence {:results [{:file "scenarios/edn/S-DR-043-payout-shortfall-deferred.edn"
+                             :simulator/scenario-path "scenarios/edn/S-DR-043-payout-shortfall-deferred.edn"
+                             :outcome :pass
+                             :halt-reason nil
+                             :scenario/evidence-root (apply str (repeat 64 "a"))
+                             :partial-fill-decisions [valid-partial-fill-decision]
+                             :invariant-results [{:id :inv/a :result :pass}]}
+                            {:file "scenarios/edn/S103_negative-yield-shortfall-cascade.edn"
+                             :simulator/scenario-path "scenarios/edn/S103_negative-yield-shortfall-cascade.edn"
+                             :outcome :pass
+                             :halt-reason nil
+                             :scenario/evidence-root (apply str (repeat 64 "b"))
+                             :invariant-results [{:id :inv/b :result :pass}]}]}
+        {:keys [artifact]}
+        (with-redefs [resolver-sim.benchmark.runner/load-manifest (fn [_] manifest)
+                      resolver-sim.benchmark.runner/run-benchmark (fn [_] evidence)
+                      resolver-sim.scenario.suites/suite-paths
+                      (fn [_]
+                        ["scenarios/edn/S-DR-043-payout-shortfall-deferred.edn"
+                         "scenarios/edn/S103_negative-yield-shortfall-cascade.edn"])
+                      resolver-sim.io.scenarios/load-scenario-file
+                      (fn [path]
+                        (case path
+                          "scenarios/edn/S-DR-043-payout-shortfall-deferred.edn" scenario-043
+                          "scenarios/edn/S103_negative-yield-shortfall-cascade.edn" scenario-103
+                          (throw (ex-info "unexpected scenario path" {:path path}))))
+                      resolver-sim.yield.strategic-partial-fill/validate-strategic-properties
+                      (fn [& _]
+                        {:summary {:states-examined 100}
+                         :properties
+                         [{:property :strategy/split-invariance
+                           :status :verified :verdict :verified
+                           :state-count 100 :violation-count 0
+                           :property-role :declared-property
+                           :diagnostic-transform {:id :split
+                                                  :role :diagnostic-transform
+                                                  :semantic-purpose :bounded-counterexample-search}}
+                          {:property :allocation/exact-merge-invariance
+                           :status :violated :verdict :violated
+                           :state-count 100 :violation-count 1
+                           :property-role :diagnostic-observation
+                           :diagnostic-transform {:id :merge
+                                                  :role :diagnostic-transform
+                                                  :semantic-purpose :bounded-counterexample-search}
+                           :counterexample {:claims [1 1 1] :liquidity 1}}]})]
+          (sut/run-strategic-claim-validation :claim-id :claim/pro-rata-shortfall-conservation
+                                              :out-dir out-dir))]
+    (testing "diagnostic-observation results are visible but do not enter the gate"
+      (let [all-results (:strategic-property-results artifact)
+            declared-results (:strategic-declared-property-results artifact)
+            diagnostic-results (filter #(= :diagnostic-observation (:property-role %)) all-results)
+            declared-only (filter #(= :declared-property (:property-role %)) all-results)]
+        ;; diagnostic observation is visible
+        (is (= 1 (count diagnostic-results)))
+        (is (= :allocation/exact-merge-invariance
+               (:property (first diagnostic-results))))
+        ;; but only declared properties enter the gate projection
+        (is (= 1 (count declared-only)))
+        (is (= [:strategy/split-invariance]
+               (mapv :property declared-only))))
+      ;; gate passes because diagnostic violation is non-gating
+      (is (= :verified (get-in artifact [:gates :strategic :verdict])))
+      (is (= :all-pass (:gates-summary artifact)))
+      (is (true? (get-in artifact [:summary :valid?]))))))
+
+(deftest outer-artifact-has-closed-shape-validation
+  (let [out-dir (str (System/getProperty "java.io.tmpdir")
+                     "/prf-game-theory-closed-shape")
+        manifest {:benchmark/id :benchmark/prf-shortfall-allocation-v0
+                  :benchmark/scenario-suite :suite/sew-shortfall-allocation-v0
+                  :benchmark/scenarios [{:scenario/id "S-DR-043-payout-shortfall-deferred"
+                                         :dimension :allocation/partial-fill
+                                         :claim :allocation-complete}]}
+        scenario-043 {:scenario-id "s-dr-043-payout-shortfall-deferred"
+                      :scenario-title "Payout shortfall deferred"
+                      :scenario-purpose "Partial fill should defer the remainder."
+                      :threat-tags ["dispute-resolution" "shortfall" "yield"]}
+        evidence {:results [{:file "scenarios/edn/S-DR-043-payout-shortfall-deferred.edn"
+                             :simulator/scenario-path "scenarios/edn/S-DR-043-payout-shortfall-deferred.edn"
+                             :outcome :pass
+                             :halt-reason nil
+                             :scenario/evidence-root (apply str (repeat 64 "a"))
+                             :partial-fill-decisions [valid-partial-fill-decision]
+                             :invariant-results [{:id :inv/a :result :pass}]}]}]
+    (testing "valid artifact passes closed-shape validation"
+      (let [{:keys [artifact]}
+            (with-redefs [resolver-sim.benchmark.runner/load-manifest (fn [_] manifest)
+                          resolver-sim.benchmark.runner/run-benchmark (fn [_] evidence)
+                          resolver-sim.scenario.suites/suite-paths
+                          (fn [_] ["scenarios/edn/S-DR-043-payout-shortfall-deferred.edn"])
+                          resolver-sim.io.scenarios/load-scenario-file
+                          (fn [path] scenario-043)
+                          resolver-sim.yield.strategic-partial-fill/validate-strategic-properties
+                          (fn [& _]
+                            {:summary {:states-examined 100}
+                             :properties
+                             [{:property :strategy/split-invariance
+                               :status :verified :verdict :verified
+                               :state-count 100 :violation-count 0}]})]
+              (sut/run-strategic-claim-validation :claim-id :claim/pro-rata-shortfall-conservation
+                                                  :out-dir out-dir))]
+        (is (map? artifact))
+        (is (= :game-theoretic-validation (:artifact/kind artifact)))))
+
+    (testing "artifact with unknown keys is rejected"
+      (let [tampered-artifact {:artifact/kind :game-theoretic-validation
+                               :artifact/version "game-theoretic-validation.artifact.v2"
+                               :claim/id :claim/test
+                               :benchmark/id :benchmark/test
+                               :benchmark/scenario-suite :suite/test
+                               :matched-scenarios []
+                               :level-verdicts []
+                               :coverage-gaps []
+                               :summary {}
+                               :strategic-model {:mechanism :yield/partial-fill}
+                               :strategic-epistemic-scope {:scope/kind :bounded-exhaustive
+                                                           :scope/universal-claim? false}
+                               :strategic-deviation-scope {}
+                               :strategic-property-results []
+                               :strategic-declared-property-results []
+                               :unknown/surprise-field "should not be here"
+                               :other/extra-key 42}]
+        (is (thrown-with-msg?
+             clojure.lang.ExceptionInfo
+             #"unknown keys"
+             (#'scv/validate-artifact! tampered-artifact)))))))
+
+(deftest claim-level-epistemic-contract-fields-are-well-formed
+  (let [out-dir (str (System/getProperty "java.io.tmpdir")
+                     "/prf-game-theory-epistemic-contract")
+        manifest {:benchmark/id :benchmark/prf-shortfall-allocation-v0
+                  :benchmark/scenario-suite :suite/sew-shortfall-allocation-v0
+                  :benchmark/scenarios [{:scenario/id "S-DR-043-payout-shortfall-deferred"
+                                         :dimension :allocation/partial-fill
+                                         :claim :allocation-complete}
+                                        {:scenario/id "S103_negative-yield-shortfall-cascade"
+                                         :dimension :allocation/shortfall
+                                         :claim :conservation}]}
+        scenario-043 {:scenario-id "s-dr-043-payout-shortfall-deferred"
+                      :scenario-title "Payout shortfall deferred"
+                      :scenario-purpose "Partial fill should defer the remainder."
+                      :threat-tags ["dispute-resolution" "shortfall" "yield"]}
+        scenario-103 {:scenario-id "s103-negative-yield-shortfall-cascade"
+                      :title "Negative Yield and Liquidity Shortfall Cascade"
+                      :purpose "yield-stress"
+                      :threat-tags ["negative-yield" "shortfall" "deferred-recovery"]}
+        evidence {:results [{:file "scenarios/edn/S-DR-043-payout-shortfall-deferred.edn"
+                             :simulator/scenario-path "scenarios/edn/S-DR-043-payout-shortfall-deferred.edn"
+                             :outcome :pass
+                             :halt-reason nil
+                             :scenario/evidence-root (apply str (repeat 64 "a"))
+                             :partial-fill-decisions [valid-partial-fill-decision]
+                             :invariant-results [{:id :inv/a :result :pass}]}
+                            {:file "scenarios/edn/S103_negative-yield-shortfall-cascade.edn"
+                             :simulator/scenario-path "scenarios/edn/S103_negative-yield-shortfall-cascade.edn"
+                             :outcome :pass
+                             :halt-reason nil
+                             :scenario/evidence-root (apply str (repeat 64 "b"))
+                             :invariant-results [{:id :inv/b :result :pass}]}]}
+        {:keys [artifact]}
+        (with-redefs [resolver-sim.benchmark.runner/load-manifest (fn [_] manifest)
+                      resolver-sim.benchmark.runner/run-benchmark (fn [_] evidence)
+                      resolver-sim.scenario.suites/suite-paths
+                      (fn [_]
+                        ["scenarios/edn/S-DR-043-payout-shortfall-deferred.edn"
+                         "scenarios/edn/S103_negative-yield-shortfall-cascade.edn"])
+                      resolver-sim.io.scenarios/load-scenario-file
+                      (fn [path]
+                        (case path
+                          "scenarios/edn/S-DR-043-payout-shortfall-deferred.edn" scenario-043
+                          "scenarios/edn/S103_negative-yield-shortfall-cascade.edn" scenario-103
+                          (throw (ex-info "unexpected scenario path" {:path path}))))
+                      resolver-sim.yield.strategic-partial-fill/validate-strategic-properties
+                      (fn [& _]
+                        {:summary {:states-examined 100}
+                         :properties
+                         [{:property :strategy/split-invariance
+                           :status :verified :verdict :verified
+                           :state-count 100 :violation-count 0
+                           :property-role :declared-property}]})]
+          (sut/run-strategic-claim-validation :claim-id :claim/pro-rata-shortfall-conservation
+                                              :out-dir out-dir))]
+    (testing "strategic-model is present and well-formed"
+      (is (map? (:strategic-model artifact)))
+      (is (= :yield/partial-fill (get-in artifact [:strategic-model :mechanism])))
+      (is (keyword? (get-in artifact [:strategic-model :payoff-model])))
+      (is (keyword? (get-in artifact [:strategic-model :scope-kind]))))
+
+    (testing "strategic-epistemic-scope is present and well-formed"
+      (is (map? (:strategic-epistemic-scope artifact)))
+      (is (= :bounded-exhaustive
+             (get-in artifact [:strategic-epistemic-scope :scope/kind])))
+      (is (false?
+           (get-in artifact [:strategic-epistemic-scope :scope/universal-claim?])))
+      (is (vector?
+           (get-in artifact [:strategic-epistemic-scope :scope/limitations]))))
+
+    (testing "strategic-deviation-scope is present for deviation-resistance claims"
+      (is (map? (:strategic-deviation-scope artifact)))
+      (is (vector? (:deviation-set-ids (:strategic-deviation-scope artifact))))
+      (is (vector? (:contract-ids (:strategic-deviation-scope artifact))))
+      (is (vector? (:deviations (:strategic-deviation-scope artifact))))
+      (is (vector? (:declared-property-ids (:strategic-deviation-scope artifact))))
+      (is (every? keyword? (:deviations (:strategic-deviation-scope artifact))))
+      (is (= (vec (sort (:deviations (:strategic-deviation-scope artifact))))
+             (:deviations (:strategic-deviation-scope artifact)))
+          "deviations vector is canonically sorted"))
+
+    (testing "strategic-epistemic-scope passes the epistemic contract check"
+      (is (= :bounded-exhaustive
+             (get-in artifact [:strategic-epistemic-scope :scope/kind])))
+      (is (false?
+           (get-in artifact [:strategic-epistemic-scope :scope/universal-claim?])))
+      (is (keyword?
+           (get-in artifact [:strategic-model :mechanism]))))
+
+    (testing "diagnostic transformations appear in interpretation as non-gating"
+      (is (string? (:claim/interpretation artifact)))
+      (is (re-find #"diagnostic transformation observations are non-gating"
+                   (:claim/interpretation artifact))))))
+
+(deftest claim-without-deviation-sets-lacks-strategic-deviation-scope
+  (let [out-dir (str (System/getProperty "java.io.tmpdir")
+                     "/prf-game-theory-no-deviation-scope")
+        manifest {:benchmark/id :benchmark/prf-shortfall-allocation-v0
+                  :benchmark/scenario-suite :suite/sew-shortfall-allocation-v0
+                  :benchmark/scenarios [{:scenario/id "S-DR-043-payout-shortfall-deferred"
+                                         :dimension :allocation/partial-fill
+                                         :claim :allocation-complete}]}
+        scenario-043 {:scenario-id "s-dr-043-payout-shortfall-deferred"
+                      :scenario-title "Payout shortfall deferred"
+                      :scenario-purpose "Partial fill should defer the remainder."
+                      :threat-tags ["dispute-resolution" "shortfall" "yield"]}
+        evidence {:results [{:file "scenarios/edn/S-DR-043-payout-shortfall-deferred.edn"
+                             :simulator/scenario-path "scenarios/edn/S-DR-043-payout-shortfall-deferred.edn"
+                             :outcome :pass
+                             :halt-reason nil
+                             :scenario/evidence-root (apply str (repeat 64 "a"))
+                             :partial-fill-decisions [valid-partial-fill-decision]
+                             :invariant-results [{:id :inv/a :result :pass}]}]}
+        {:keys [artifact]}
+        (with-redefs [resolver-sim.benchmark.runner/load-manifest (fn [_] manifest)
+                      resolver-sim.benchmark.runner/run-benchmark (fn [_] evidence)
+                      resolver-sim.scenario.suites/suite-paths
+                      (fn [_] ["scenarios/edn/S-DR-043-payout-shortfall-deferred.edn"])
+                      resolver-sim.io.scenarios/load-scenario-file
+                      (fn [path] scenario-043)
+                      resolver-sim.yield.strategic-partial-fill/validate-strategic-properties
+                      (fn [& _]
+                        {:summary {:states-examined 100}
+                         :properties []})]
+          (sut/run-strategic-claim-validation :claim-id :claim/partial-fill-rounding-integrity
+                                              :out-dir out-dir))]
+    (testing "rounding claim has no strategic-deviation-scope"
+      (is (nil? (:strategic-deviation-scope artifact)))
+      (is (zero? (get-in artifact [:summary :strategic-property-count])))
+      (is (= [] (:strategic-property-results artifact))))
+
+    (testing "strategic-epistemic-scope still present as fallback"
+      (is (map? (:strategic-epistemic-scope artifact)))
+      (is (= :bounded-exhaustive
+             (get-in artifact [:strategic-epistemic-scope :scope/kind]))))
+
+    (testing "strategic-model still present as fallback"
+      (is (map? (:strategic-model artifact)))
+      (is (= :yield/partial-fill
+             (get-in artifact [:strategic-model :mechanism]))))))
+
+(deftest diagnostic-transform-semantic-purpose-is-bounded-counterexample-search
+  (let [artifact (strategic-partial-fill/validate-strategic-properties
+                  :deviations [:split :merge :permute :sybil :inflate]
+                  :max-states 10)
+        adapter-results (spr/strategic-properties->results artifact)
+        deviation-results (spr/strategic-properties->deviation-results artifact)]
+    (testing "adapter preserves diagnostic-transform metadata on results"
+      (doseq [result adapter-results]
+        (is (map? (:diagnostic-transform result))
+            (str "result " (:property result) " must carry diagnostic-transform"))
+        (is (= :diagnostic-transform
+               (get-in result [:diagnostic-transform :role])))
+        (is (= :bounded-counterexample-search
+               (get-in result [:diagnostic-transform :semantic-purpose])))))
+
+    (testing "adapter preserves diagnostic-transform metadata on deviation-results"
+      (doseq [dr deviation-results]
+        (is (map? (:diagnostic-transform dr))
+            (str "deviation-result " (:property dr) " must carry diagnostic-transform"))
+        (is (= :diagnostic-transform
+               (get-in dr [:diagnostic-transform :role])))
+        (is (= :bounded-counterexample-search
+               (get-in dr [:diagnostic-transform :semantic-purpose])))))
+
+    (testing "property-role distinguishes declared from diagnostic"
+      (let [by-prop (into {} (map (juxt :property identity)) adapter-results)]
+        ;; The real validator marks all as :diagnostic-observation by default
+        ;; unless :declared-property-ids is supplied
+        (doseq [result adapter-results]
+          (is (contains? #{:declared-property :diagnostic-observation}
+                         (:property-role result))
+              (str "property " (:property result)
+                   " must have a recognized property-role")))))))

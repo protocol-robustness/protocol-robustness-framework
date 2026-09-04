@@ -36,6 +36,22 @@
       (#{:violated :fail} verdict) :violated
       :else :inconclusive)))
 
+(defn- evidence-metadata
+  [entry]
+  (let [declared? (= :declared-property (:property-role entry))
+        status (entry-status entry)]
+    {:evidence/kind :bounded-deviation-search
+     :evaluation/status (case status
+                          :verified :no-counterexample-found
+                          :violated :counterexample-found
+                          :inconclusive :inconclusive)
+     :claim/status (if-not declared?
+                     :unestablished
+                     (case status
+                       :verified :bounded-empirical-evidence
+                       :violated :counterexample-found
+                       :inconclusive :inconclusive))}))
+
 (defn- offending-evidence
   "Collect counterexample material for a violated property entry."
   [entry]
@@ -58,6 +74,7 @@
   (mapv (fn [entry]
           (let [property (:property entry)
                 class (validation-class-for property)
+                metadata (select-keys entry [:property-role :diagnostic-transform])
                 state-count (long (or (:state-count entry)
                                       (get-in artifact [:summary :distinct-states-examined]
                                               (get-in artifact [:summary :states-examined] 0))))
@@ -67,18 +84,27 @@
                 expected {:state-count state-count :violation-count 0}]
             (case (entry-status entry)
               :verified
-              (eq-result/pass-result property basis observed expected
-                                     :validation-class class)
+              (merge (assoc (eq-result/pass-result property basis observed expected
+                                                   :validation-class class)
+                            :property-role (:property-role metadata)
+                            :diagnostic-transform (:diagnostic-transform metadata))
+                     (evidence-metadata entry))
 
               :violated
-              (eq-result/fail-result property basis observed expected
-                                     (offending-evidence entry)
-                                     :validation-class class)
+              (merge (assoc (eq-result/fail-result property basis observed expected
+                                                   (offending-evidence entry)
+                                                   :validation-class class)
+                            :property-role (:property-role metadata)
+                            :diagnostic-transform (:diagnostic-transform metadata))
+                     (evidence-metadata entry))
 
               :inconclusive
-              (eq-result/inconclusive-result property basis :inconclusive-strategic-property
-                                             :detail entry
-                                             :validation-class class))))
+              (merge (assoc (eq-result/inconclusive-result property basis :inconclusive-strategic-property
+                                                           :detail entry
+                                                           :validation-class class)
+                            :property-role (:property-role metadata)
+                            :diagnostic-transform (:diagnostic-transform metadata))
+                     (evidence-metadata entry)))))
         (:properties artifact)))
 
 (defn strategic-properties->deviation-results
@@ -87,9 +113,10 @@
    {:property kw :verdict :verified|:violated}."
   [artifact]
   (mapv (fn [entry]
-          {:property (:property entry)
-           :verdict (case (entry-status entry)
-                      :verified :verified
-                      :violated :violated
-                      :inconclusive)})
+          (merge {:property (:property entry)
+                  :verdict (case (entry-status entry)
+                             :verified :verified
+                             :violated :violated
+                             :inconclusive)}
+                 (select-keys entry [:property-role :diagnostic-transform])))
         (:properties artifact)))
