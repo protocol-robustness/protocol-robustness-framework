@@ -1,6 +1,5 @@
 (ns resolver-sim.resubmission.acceptance-authority-basis
-  (:require [clojure.set :as set]
-            [resolver-sim.hash.canonical :as hc]
+  (:require [resolver-sim.hash.canonical :as hc]
             [resolver-sim.hash.reference :as ref]
             [resolver-sim.resubmission.publisher-authority :as publisher]))
 

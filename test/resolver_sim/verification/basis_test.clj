@@ -160,3 +160,55 @@
     (let [rejected (basis/verify-result-selection extensions alt-resolution b result)]
       (is (not (:valid? rejected)))
       (is (= :verification/resolution-root-mismatch (:reason rejected))))))
+
+(deftest result-rejects-wrong-descriptor-root
+  (testing "a result whose verifier-ref descriptor-root differs from the
+            selected verifier is rejected as unselected"
+    (let [extensions (build-verifier-extensions)
+          resolution (resolve-verifier extensions)
+          b (build-authority-basis extensions resolution)
+          selected (registry/select-verifier extensions verifier-subject)
+          result (build-authority-result b selected)
+          wrong-descriptor (subs "sha256:1111111111111111111111111111111111111111111111111111111111111111" 7)
+          tampered (basis/build-result
+                    (assoc (dissoc result :verification-result/schema :verification/result-root)
+                           :verification/verifier-ref
+                           {:capability/kind :evidence/verifier
+                            :capability/id :fixture/governed-authority-verifier
+                            :descriptor-root wrong-descriptor}))]
+      (is (= :verification/unselected-verifier
+             (:reason (basis/verify-result-selection extensions resolution b tampered)))))))
+
+(deftest result-rejects-wrong-capability-id-in-verifier-ref
+  (testing "a result whose verifier-ref capability-id differs from the
+            selected verifier is rejected as unselected"
+    (let [extensions (build-verifier-extensions)
+          resolution (resolve-verifier extensions)
+          b (build-authority-basis extensions resolution)
+          selected (registry/select-verifier extensions verifier-subject)
+          result (build-authority-result b selected)
+          tampered (basis/build-result
+                    (assoc (dissoc result :verification-result/schema :verification/result-root)
+                           :verification/verifier-ref
+                           {:capability/kind :evidence/verifier
+                            :capability/id :fixture/wrong-verifier
+                            :descriptor-root (get-in selected [:entry :descriptor-root])}))]
+      (is (= :verification/unselected-verifier
+             (:reason (basis/verify-result-selection extensions resolution b tampered)))))))
+
+(deftest verifier-selection-fails-for-empty-extension-map
+  (testing "an extension-map with no verifier for the subject causes
+            verify-result-selection to surface :extensions/error-no-registered-verifier"
+    (let [extensions (build-verifier-extensions)
+          resolution (resolve-verifier extensions)
+          b (build-authority-basis extensions resolution)
+          selected (registry/select-verifier extensions verifier-subject)
+          result (build-authority-result b selected)
+          ;; build a matching extension-map that produces the same registry root
+          ;; but has no verifier for the subject (register a different capability)
+          no-verifier-ext (-> (registry/empty-extension-map)
+                              (registry/register-package fx/rate-with-cap-pack))]
+      (is (not (:valid? (registry/select-verifier no-verifier-ext verifier-subject)))
+          "no-verifier extension-map has no registered verifier for the subject")
+      (is (= :extensions/error-no-registered-verifier
+             (:reason (registry/select-verifier no-verifier-ext verifier-subject)))))))

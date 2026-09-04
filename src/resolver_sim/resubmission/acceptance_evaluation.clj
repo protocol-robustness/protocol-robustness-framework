@@ -111,8 +111,8 @@
                      statement submitted-bundle-root)) :publisher-bundle-mismatch
                (not (publisher-statement/envelope-binds-statement? envelope statement))
                :publisher-envelope-mismatch
-               (not authentic?) :publisher-signature-invalid
                (nil? entry) :publisher-not-authorized
+               (not authentic?) :publisher-signature-invalid
                (not= (:principal/id entry) (:publisher/principal-id statement))
                :publisher-principal-mismatch
                :else :ok)}))
@@ -195,14 +195,14 @@
       (result :prf.resubmission.acceptance/submission-registry-integrity-v1
               :submission-registry :unavailable)
 
+      (not (submission-registry/valid? body))
+      (result :prf.resubmission.acceptance/submission-registry-integrity-v1
+              :submission-registry :malformed)
+
       (not= root (:attempt-submission-registry/root body))
       (result :prf.resubmission.acceptance/submission-registry-integrity-v1
               :submission-registry :root-mismatch :expected root
               :observed (:attempt-submission-registry/root body))
-
-      (not (submission-registry/valid? body))
-      (result :prf.resubmission.acceptance/submission-registry-integrity-v1
-              :submission-registry :malformed)
 
       (seq mismatches)
       (result :prf.resubmission.acceptance/submission-registry-integrity-v1
@@ -392,10 +392,11 @@
 (defn finding-id [check-result]
   (hash-ref/sha256-ref
    (hc/domain-hash :prf-acceptance-finding-v1
-                   (select-keys check-result [:check/id :check/subject :check/status
-                                              :expected :observed :missing
-                                              :verifier-registry-status :publisher-authority-status
-                                              :submission-registry-status]))))
+                   (hc/project-canonical-safe
+                    (select-keys check-result [:check/id :check/subject :check/status
+                                               :expected :observed :missing
+                                               :verifier-registry-status :publisher-authority-status
+                                               :submission-registry-status])))))
 
 (defn findings-for [check-results]
   (->> check-results
@@ -532,8 +533,8 @@
   (let [basis (:evaluation/basis evaluation)]
     {:artifact/schema (:artifact/schema evaluation)
      :evaluation/basis (hc/project-canonical-safe (select-keys basis evaluation-basis-fields))
-     :evaluation/check-results (:evaluation/check-results evaluation)
-     :evaluation/findings (:evaluation/findings evaluation)
+     :evaluation/check-results (hc/project-canonical-safe (:evaluation/check-results evaluation))
+     :evaluation/findings (hc/project-canonical-safe (:evaluation/findings evaluation))
      :evaluation/outcome (:evaluation/outcome evaluation)}))
 
 (defn evaluation-root [evaluation]

@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Strategic partial-fill epistemic scope
+
+- Added explicit strategic evidence vocabulary: bounded deviation searches now distinguish evidence kind, evaluation status, and claim status; diagnostic observations remain non-gating and unestablished by default. Added `game-theoretic-validation.artifact.v2` for strategic claim artifacts. V2 commits the strategic model, epistemic scope, declared strategic-property projection, and diagnostic transformation scope. Diagnostic transformations are non-gating observations by default; only explicitly declared strategic properties enter the strategic gate. (`src/resolver_sim/yield/strategic_partial_fill.clj`, `src/resolver_sim/benchmark/strategic_property_results.clj`, `src/resolver_sim/benchmark/strategic_claim_validation.clj`)
+
 ### Research-analysis execution and assurance boundary
 
 - Added rooted `research-analysis-output.v1`, `research-analysis-verification.v1`, and `research-analytical-claim.v1`. The generic verifier checks reproducible input/output binding and may report a concrete counterexample, but cannot promote engine output into either declared-domain or general proof status. `research-analysis-closure.v1` remains a provenance/closure verifier and continues not to assert general IC. (`src/resolver_sim/benchmark/research_analysis.clj`)
@@ -13,6 +17,8 @@
 ### Configuration-authorized acceptance evaluation
 
 - Added `resubmission-chain-configuration.v2`, which commits an authorized `:attempt-acceptance-definition/root` while preserving historical V1 configuration roots exactly. Added rooted `attempt-acceptance-definition.v1` and `acceptance-evaluation.v1`: a configuration-selected closed check set deterministically derives detailed check results, findings, and acceptance outcome from resolved submitted-bundle and submission-basis artifacts. V1 configurations have no implicit attempt-evaluation authority. (`src/resolver_sim/resubmission/genesis.clj`, `src/resolver_sim/resubmission/acceptance_evaluation.clj`)
+
+- Extended the acceptance boundary with configuration-authorized historical verifier/publisher authority snapshots, authenticated publisher statements bound to the submitted-bundle root, typed certificate and execution-evidence subjects, and canonical results bindings for certificate and execution-evidence roots. Historical evaluation remains independent of current authority state; current admission compatibility remains a separate predicate. (`src/resolver_sim/resubmission/acceptance_authority_basis.clj`, `src/resolver_sim/resubmission/publisher_authority.clj`, `src/resolver_sim/resubmission/publisher_statement.clj`, `src/resolver_sim/resubmission/acceptance_evaluation.clj`, `src/resolver_sim/resubmission/results_artifact.clj`)
 
 ### Atomic committed-transaction replay records
 

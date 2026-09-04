@@ -321,6 +321,81 @@
                                                                    :shortage-units
                                                                    :carry]))})))))
 
+(declare partial-fill-closed-form-checks)
+
+(defn semantic-reconstruction
+  "Independently reconstruct a no-row pro-rata decision from semantic inputs.
+
+   This verifier intentionally uses the exact-math allocator directly rather than
+   invoking the decision producer. Row/cap and non-pro-rata inputs are reported
+   as unsupported until their mechanism-specific reference models are defined.
+   The result is verifier output and is not part of the decision hash preimage."
+  [{:keys [available requested policy rows]} decision]
+  (let [unsupported (cond
+                      rows :rows-not-yet-supported
+                      (not= :pro-rata (:mode policy :pro-rata)) :mechanism-not-yet-supported
+                      :else nil)
+        rounding-policy (:rounding-policy policy :floor-and-carry)
+        claims (mapv (fn [[k v]] {:key k :amount (long v)})
+                     (sort-by (comp rounding-tie-key first) (seq requested)))
+        allocation (when-not unsupported
+                     (case rounding-policy
+                       :floor (m/floor-alloc available claims)
+                       :largest-remainder (m/largest-remainder-alloc available claims)
+                       :principal-protective-floor
+                       (m/principal-protective-floor-alloc available claims
+                                                           (fn [c] (= :principal (:key c))))
+                       :adversarial-rounding (m/adversarial-rounding available claims)
+                       (m/floor-and-carry-alloc available claims)))
+        expected (when allocation
+                   (let [filled (into {} (map (fn [a] [(:key a) (:filled a)])
+                                              (:allocations allocation)))]
+                     {:settlement-mode (if (<= (sum-requested requested) available)
+                                         :full-fill :partial-fill)
+                      :requested requested
+                      :filled filled
+                      :deferred (into {}
+                                      (map (fn [[k v]]
+                                             [k (max 0 (- (long v) (long (get filled k 0))))])
+                                           requested))
+                      :haircut {}
+                      :unrealized {}}))
+        fields [:settlement-mode :requested :filled :deferred :haircut :unrealized]
+        mismatches (if unsupported
+                     [{:reason unsupported}]
+                     (vec (keep (fn [field]
+                                  (let [expected-value (get expected field)
+                                        actual-value (get decision field)]
+                                    (when (not= expected-value actual-value)
+                                      {:field field :expected expected-value :actual actual-value})))
+                                fields)))]
+    {:valid? (empty? mismatches)
+     :supported? (nil? unsupported)
+     :reason unsupported
+     :expected expected
+     :actual (select-keys decision fields)
+     :mismatches mismatches
+     :scope {:kind :independent-semantic-reconstruction
+             :producer-independent? true
+             :mechanism :yield/partial-fill
+             :mode (:mode policy :pro-rata)
+             :rounding-policy rounding-policy
+             :rows-supported? false}}))
+
+(defn verify-semantic-decision
+  "Verify a supplied simple pro-rata decision against authoritative semantic inputs.
+   Structural checks and semantic reconstruction remain separate result surfaces."
+  [input decision]
+  (let [closed-form (try
+                      (partial-fill-closed-form-checks decision)
+                      (catch clojure.lang.ExceptionInfo e
+                        (:check-results (ex-data e))))
+        reconstruction (semantic-reconstruction input decision)
+        closed-form-valid? (every? #(= :pass (:status %)) closed-form)]
+    {:valid? (and closed-form-valid? (:valid? reconstruction))
+     :closed-form {:valid? closed-form-valid? :checks closed-form}
+     :semantic-reconstruction reconstruction}))
+
 (defn calculate-fulfillment-principal-first
   "Principal-first fill: principal claims are satisfied in full before any
    yield claims are filled.

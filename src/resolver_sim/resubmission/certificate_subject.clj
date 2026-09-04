@@ -3,7 +3,7 @@
   (:require [resolver-sim.hash.canonical :as hc]
             [resolver-sim.hash.reference :as ref]))
 
-(def domain :prf-attempt-certificate-verification-subject-v1)
+(def domain :prf-results-binding-v1)
 
 (def schema "attempt-certificate-verification-subject.v1")
 
@@ -17,6 +17,12 @@
                  :subject/submitted-bundle-root submitted-bundle-root
                  :subject/verification-profile verification-profile}]
     (assoc subject :subject/root (root subject))))
+
+(defn verifier-selection-subject [subject]
+  {:capability/kind :prf.resubmission/certificate-verification
+   :capability/id :prf.resubmission/certificate-v1
+   :capability/contract-version 1
+   :subject/root (:subject/root subject)})
 
 (defn binds-artifacts? [subject certificate-root results-root submitted-bundle-root]
   (and (= #{:subject/schema :subject/certificate-root :subject/results-root

@@ -37,6 +37,12 @@
                  :subject/verification-profile profile}]
     (assoc subject :subject/root (root subject))))
 
+(defn verifier-selection-subject [subject]
+  {:capability/kind :prf.resubmission/execution-evidence-verification
+   :capability/id :prf.resubmission/execution-evidence-v1
+   :capability/contract-version 1
+   :subject/root (:subject/root subject)})
+
 (defn binds-artifacts?
   [subject evidence-root results-root bundle-root]
   (and (valid? subject)

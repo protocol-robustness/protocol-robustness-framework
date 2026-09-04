@@ -308,6 +308,19 @@
 ;; Full strategic validation
 ;; ---------------------------------------------------------------------------
 
+(defn- diagnostic-transform-for-property
+  [property]
+  (some (fn [[transform properties]]
+          (when (contains? properties property)
+            {:id transform
+             :role :diagnostic-transform
+             :semantic-purpose :bounded-counterexample-search}))
+        [[:split #{:strategy/split-invariance}]
+         [:merge #{:allocation/exact-merge-invariance}]
+         [:permute #{:strategy/permutation-invariance}]
+         [:sybil #{:strategy/sybil-invariance}]
+         [:inflate #{:strategy/request-monotonicity}]]))
+
 (defn validate-strategic-properties
   "Run all strategic invariance checks across enumerated states.
    Returns {:properties [...] :summary {...}}.
@@ -323,8 +336,10 @@
      states.  The artifact reports this precisely via :state-policy-evaluations,
      :distinct-states-examined, :policies, and :max-state-policy-evaluations.
    - :contract-id — deviation contract id; when set, deviations are derived
-     from the contract and :deviations option is ignored"
-  [& {:keys [scope policies deviations max-states contract-id]
+     from the contract and :deviations option is ignored
+   - :declared-property-ids — strategic properties the caller explicitly makes
+     gate-relevant; all other transformation results are diagnostic observations"
+  [& {:keys [scope policies deviations max-states contract-id declared-property-ids]
       :or {scope default-scope
            policies (enumerate-policies)
            max-states 500}}]
@@ -332,6 +347,7 @@
         deviations (or (when contract (dc/deviations-in-contract contract-id))
                        (vec deviations)
                        (:deviations default-scope))
+        declared-property-ids (set declared-property-ids)
         results (atom [])
         state-policy-count (atom 0)
         distinct-states (atom #{})
@@ -420,13 +436,40 @@
       {:artifact/kind :strategic-closed-form-validation
        :mechanism :yield/partial-fill
        :contract-id contract-id
+       :strategic-model {:mechanism :yield/partial-fill
+                         :allocation-mode :pro-rata
+                         :rounding-policies policy-identifiers
+                         :actions [:honest-request
+                                   :split
+                                   :merge
+                                   :permute
+                                   :sybil-split
+                                   :inflate-request]
+                         :payoff-model :allocated-amount-only
+                         :scope-kind :bounded-enumeration
+                         :claims-unmodeled [:fees
+                                            :timing
+                                            :recovery-risk
+                                            :side-payments
+                                            :continuation-values]}
        :validation-scope {:dimensions (:dimensions scope)
                           :sampling (:sampling scope)
                           :policies policy-identifiers
                           :max-state-policy-evaluations max-states
                           :state-policy-evaluations state-policy-evaluations
                           :distinct-states-examined distinct-states-examined
-                          :states-examined state-policy-evaluations}
+                          :states-examined state-policy-evaluations
+                          :diagnostic-transformations (vec (sort deviations))
+                          :declared-property-ids (vec (sort declared-property-ids))}
+       :epistemic-scope {:scope/kind :bounded-exhaustive
+                         :scope/universal-claim? false
+                         :scope/falsification? true
+                         :scope/coverage :validation-scope
+                         :scope/limitations [:bounded-domain
+                                             :bounded-policy-set
+                                             :bounded-transformation-set
+                                             :no-equilibrium-proof
+                                             :no-concurrency-assurance]}
        :properties (->> (mapcat :checks @results)
                         (group-by :property)
                         (mapv (fn [[prop results]]
@@ -436,6 +479,13 @@
                                                                (get-in r [:state :liquidity])])
                                                       results)]
                                   {:property prop
+                                   :property-role (if (contains? declared-property-ids prop)
+                                                    :declared-property
+                                                    :diagnostic-observation)
+                                   :diagnostic-transform (diagnostic-transform-for-property prop)
+                                   :evaluation/status (if (= :verified verdict)
+                                                        :no-counterexample-found
+                                                        :counterexample-found)
                                    :status verdict
                                    :verdict verdict
                                    :violation-count (count (filter #(= :violated (:verdict %)) results))

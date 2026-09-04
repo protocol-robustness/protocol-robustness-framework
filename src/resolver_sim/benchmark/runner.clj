@@ -1365,7 +1365,9 @@
                                   execution/quiescence-timeout-seconds creation/provenance
                                   research-pack research-context benchmark/coordinator
                                   benchmark/run-id benchmark/sensitivity-root
-                                  benchmark/executable-artifact-root]}]
+                                  benchmark/executable-artifact-root
+                                  benchmark/executable-distribution
+                                  benchmark/resolve-executable-distribution]}]
    (let [adapter (if scenario-output-dir
                    (->SewAdapter scenario-output-dir (or parallelism 1) (or chunk-size 1))
                    adapter)
@@ -1430,7 +1432,13 @@
                                      sensitivity-root (assoc :benchmark/sensitivity-root sensitivity-root)
                                      executable-artifact-root
                                      (assoc :benchmark/executable-artifact-root
-                                            executable-artifact-root))
+                                            executable-artifact-root)
+                                     executable-distribution
+                                     (assoc :benchmark/executable-distribution
+                                            executable-distribution)
+                                     resolve-executable-distribution
+                                     (assoc :benchmark/resolve-executable-distribution
+                                            resolve-executable-distribution))
          _ (report-operational-phase! :plan-frozen
                                       {:benchmark-id (:benchmark/id manifest)
                                        :scenario-count (count scenarios)

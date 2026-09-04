@@ -362,6 +362,7 @@
    :prf-attempt-publisher-envelope-v1 "prf.attempt-publisher-envelope.v1"
    :prf-attempt-execution-evidence-subject-v1 "prf.attempt-execution-evidence-subject.v1"
    :prf-attempt-certificate-verification-subject-v1 "prf.attempt-certificate-verification-subject.v1"
+   :prf-acceptance-attempt-subject-v1 "prf.acceptance-attempt-subject.v1"
    :prf-acceptance-evaluation-v1      "prf.acceptance-evaluation.v1"
    :prf-acceptance-finding-v1         "prf.acceptance-finding.v1"
    :prf-authority-registries-verifiable-v1 "prf.authority-registries-verifiable.v1"
