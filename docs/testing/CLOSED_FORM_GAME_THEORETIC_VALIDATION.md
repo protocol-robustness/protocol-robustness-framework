@@ -355,6 +355,29 @@ The `:evaluation/status` and `:claim/status` fields are independent:
   `:claim/status :bounded-empirical-evidence` (empirical evidence for the
   declared claim within the bounded scope).
 
+### Normative status vocabulary
+
+The codebase uses two distinct status concepts that must not be confused:
+
+**`:not-applicable`** — a closed-form check status. The check logically cannot
+apply in the current context (e.g., `:partial-fill/principal-first-priority`
+when the mode is `:pro-rata`). `:not-applicable` counts as a pass in gate
+evaluation (`gate/pass-statuses`). It is NEVER a `:claim/status` or
+`:evaluation/status` value.
+
+**`:unestablished`** — a claim-level status for diagnostic observations. The
+test ran and produced a result, but the result is not being used to establish
+a claim. A diagnostic observation with `:evaluation/status
+:no-counterexample-found` still has `:claim/status :unestablished` — the
+search found no counterexample, but the result doesn't establish the claim
+because it's a diagnostic observation, not a declared property.
+
+**Diagnostic non-gating**: Diagnostic observations enter the strategic gate
+and can cause gate violation (if they fail). However, they do NOT establish
+claims — their `:claim/status` is always `:unestablished` regardless of
+outcome. Only declared properties produce `:bounded-empirical-evidence` claim
+status.
+
 ### V2 artifact closed shape
 
 The V2 artifact is validated against a closed shape — unknown top-level keys are
