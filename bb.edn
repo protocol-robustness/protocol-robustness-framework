@@ -240,6 +240,15 @@ check:ownership
                      (when (or (pos? (:fail summary)) (pos? (:error summary)))
                        (System/exit 1)))")}
 
+   test:semantic-admission
+  {:doc "Run semantic admission boundary tests (Gate 1-A)"
+   :task (clojure {:dir "."} "-M:test:with-sew" "-e"
+                  "(require (quote resolver-sim.pro-rata.semantic-admission-test))
+                   (let [summary (clojure.test/run-tests
+                                  (quote resolver-sim.pro-rata.semantic-admission-test))]
+                     (when (or (pos? (:fail summary)) (pos? (:error summary)))
+                       (System/exit 1)))")}
+
    test:yield {:doc "Run yield protocol unit tests only"
               :task (shell "scripts/with-test-artifact-lock.sh" "./scripts/test.sh" "yield")}
 

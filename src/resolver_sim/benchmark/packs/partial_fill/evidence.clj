@@ -535,10 +535,10 @@
         root-ok? (or (nil? committed-root)
                      (if scoped? scope-root-ok? content-root-ok?))
         hash-ok? (every? (fn [d]
-                            (and (string? (:decision/hash d))
-                                 (try (partial-fill/decision-hash-valid? d)
-                                      (catch Exception _ false))))
-                          decisions)
+                           (and (string? (:decision/hash d))
+                                (try (partial-fill/decision-hash-valid? d)
+                                     (catch Exception _ false))))
+                         decisions)
         semantic-results (mapv (fn [d]
                                  (let [input {:available (long (get-in d [:evidence :available-liquidity] 0))
                                               :requested (:requested d)
@@ -550,7 +550,7 @@
                                                   {:code :semantic-reconstruction-rejected
                                                    :admission/status (:admission/status r)
                                                    :mismatches (get-in r [:semantic-reconstruction :mismatches])})))
-                                   semantic-results)
+                                  semantic-results)
         amount-violations (into [] (mapcat amount-violations decisions))
         reconcile-violations (into [] (mapcat per-claim-reconciliation-violations decisions))
         capacity-violations (into [] (mapcat capacity-violations decisions))
@@ -577,10 +577,10 @@
                              [{:code :root-mismatch
                                :committed-root committed-root
                                :recomputed-root unscoped-root}]))
-                          (when-not hash-ok?
-                            [{:code :invalid-decision-hash}])
-                          semantic-violations
-                          membership-violations
+                         (when-not hash-ok?
+                           [{:code :invalid-decision-hash}])
+                         semantic-violations
+                         membership-violations
                          amount-violations
                          reconcile-violations
                          capacity-violations

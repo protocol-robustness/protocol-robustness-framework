@@ -6,7 +6,7 @@
 (def ^:const schema "benchmark-fixed-chunk-set.v1")
 (def ^:private run-plan-domain "PRF_BENCHMARK_RUN_PLAN_V1")
 (def ^:private execution-plan-domain "PRF_BENCHMARK_EXECUTION_PLAN_V1")
-(def ^:private chunk-domain "PRF_BENCHMARK_FIXED_CHUNK_V1")
+
 (def ^:private chunk-set-domain "PRF_BENCHMARK_FIXED_CHUNK_SET_V1")
 
 (defn- root [domain value]
@@ -47,6 +47,19 @@
 (defn execution-plan-root [plan]
   (root execution-plan-domain (mapv canonical-plan-entry plan)))
 
+(defn chunk-set-root
+  "Reconstruct the canonical identity of a fixed chunk set from its committed
+   derivation inputs and public chunk descriptors."
+  [chunk-set]
+  (root chunk-set-domain
+        {:chunk-set/schema schema
+         :run-plan/root (:run-plan/root chunk-set)
+         :execution-plan/root (:execution-plan/root chunk-set)
+         :chunk-size (:chunk-size chunk-set)
+         :sensitivity/root (:sensitivity/root chunk-set)
+         :executable-distribution/root (:executable-distribution/root chunk-set)
+         :chunks (mapv #(dissoc % :chunk/work-items) (:chunks chunk-set))}))
+
 (defn derive-fixed-chunk-set
   "Derive the complete, ordered fixed chunk descriptor set from a frozen plan.
 
@@ -77,16 +90,11 @@
                           :chunk/execution-ids (mapv :execution/id entries)
                           :chunk/work-items entries}))
                      (range) (partition-all chunk-size plan))
-        chunk-set-root (root chunk-set-domain
-                             {:chunk-set/schema schema
-                              :run-plan/root run-plan-root
-                              :execution-plan/root execution-plan-root
-                              :sensitivity/root sensitivity-root
-                              :executable-distribution/root executable-distribution-root
-                              :chunks (mapv #(dissoc % :chunk/work-items) chunks)})]
-    {:chunk-set/schema schema
-     :run-plan/root run-plan-root
-     :execution-plan/root execution-plan-root
-     :sensitivity/root sensitivity-root
-     :chunk-set/root chunk-set-root
-     :chunks chunks}))
+        chunk-set {:chunk-set/schema schema
+                   :run-plan/root run-plan-root
+                   :execution-plan/root execution-plan-root
+                   :chunk-size chunk-size
+                   :sensitivity/root sensitivity-root
+                   :executable-distribution/root executable-distribution-root
+                   :chunks chunks}]
+    (assoc chunk-set :chunk-set/root (chunk-set-root chunk-set))))

@@ -214,3 +214,151 @@
             "results count matches property count")
         (is (= raw-count (count dev-results))
             "deviation-results count matches property count")))))
+
+;; ---------------------------------------------------------------------------
+;; Gate 2: :not-applicable vs :unestablished distinction
+;; ---------------------------------------------------------------------------
+
+(deftest not-applicable-and-unestablished-are-distinct-concepts
+  (testing ":not-applicable is a check-level status; :unestablished is a claim-level status"
+    (let [;; declared + verified: claim/status = :bounded-empirical-evidence
+          declared-verified (first (spr/strategic-properties->results declared-property-artifact))
+          ;; diagnostic + verified: claim/status = :unestablished
+          diagnostic-verified (first (spr/strategic-properties->results
+                                      {:summary {:states-examined 100}
+                                       :properties
+                                       [{:property :strategy/split-invariance
+                                         :status :verified :verdict :verified
+                                         :state-count 100 :violation-count 0
+                                         :property-role :diagnostic-observation}]}))]
+      ;; :unestablished only appears in claim/status for diagnostic observations
+      (is (= :unestablished (:claim/status diagnostic-verified))
+          "diagnostic observation claim status is :unestablished")
+      (is (not= :unestablished (:claim/status declared-verified))
+          "declared property claim status is NOT :unestablished")
+      ;; :not-applicable does NOT appear in property result maps
+      ;; (it's a closed-form check status, not a property-level status)
+      (is (not= :not-applicable (:claim/status declared-verified))
+          ":not-applicable is not a claim/status value")
+      (is (not= :not-applicable (:claim/status diagnostic-verified))
+          ":not-applicable is not a claim/status value")
+      (is (not= :not-applicable (:evaluation/status declared-verified))
+          ":not-applicable is not an evaluation/status value")
+      (is (not= :not-applicable (:evaluation/status diagnostic-verified))
+          ":not-applicable is not an evaluation/status value"))))
+
+(deftest not-applicable-is-pass-status-in-gate
+  (testing ":not-applicable counts as a pass in gate evaluation"
+    (is (contains? gate/pass-statuses :not-applicable)
+        ":not-applicable is in gate/pass-statuses")
+    (is (not (contains? gate/block-statuses :not-applicable))
+        ":not-applicable is NOT in gate/block-statuses")))
+
+(deftest unestablished-is-not-a-gate-status
+  (testing ":unestablished is not used as a gate check status"
+    (is (not (contains? gate/pass-statuses :unestablished))
+        ":unestablished is NOT in gate/pass-statuses")
+    (is (not (contains? gate/block-statuses :unestablished))
+        ":unestablished is NOT in gate/block-statuses")))
+
+;; ---------------------------------------------------------------------------
+;; Gate 2: Diagnostic-non-gating at artifact level
+;; ---------------------------------------------------------------------------
+
+(deftest diagnostic-violation-does-not-prevent-artifact-admission
+  (testing "diagnostic observation violation doesn't prevent artifact-level admission"
+    (let [;; Mix of declared (verified) and diagnostic (violated)
+          mixed-artifact {:summary {:states-examined 100}
+                          :properties
+                          [{:property :strategy/split-invariance
+                            :status :verified :verdict :verified
+                            :state-count 100 :violation-count 0
+                            :property-role :declared-property}
+                           {:property :allocation/exact-merge-invariance
+                            :status :violated :verdict :violated
+                            :state-count 100 :violation-count 1
+                            :property-role :diagnostic-observation
+                            :counterexample {:claims [1] :liquidity 1}}]}
+          results (spr/strategic-properties->results mixed-artifact)
+          declared-results (filterv #(= :declared-property (:property-role %)) results)
+          diagnostic-results (filterv #(= :diagnostic-observation (:property-role %)) results)]
+      ;; declared properties are verified
+      (is (every? #(= :pass (:status %)) declared-results)
+          "declared properties pass")
+      ;; diagnostic observations can fail without preventing admission
+      (is (some #(= :fail (:status %)) diagnostic-results)
+          "diagnostic observation fails")
+      ;; claim/status for diagnostic is always :unestablished regardless of outcome
+      (is (every? #(= :unestablished (:claim/status %)) diagnostic-results)
+          "diagnostic claim status is always :unestablished"))))
+
+(deftest diagnostic-pass-does-not-establish-claim
+  (testing "diagnostic observation pass does NOT establish a claim"
+    (let [results (spr/strategic-properties->results
+                   {:summary {:states-examined 100}
+                    :properties
+                    [{:property :strategy/split-invariance
+                      :status :verified :verdict :verified
+                      :state-count 100 :violation-count 0
+                      :property-role :diagnostic-observation}]})
+          r (first results)]
+      ;; Even though the property passed, claim/status is still :unestablished
+      (is (= :pass (:status r)) "property passes")
+      (is (= :no-counterexample-found (:evaluation/status r))
+          "evaluation says no counterexample found")
+      (is (= :unestablished (:claim/status r))
+          "but claim is NOT established — it's :unestablished"))))
+
+;; ---------------------------------------------------------------------------
+;; Gate 2: Declared-only gate subjects
+;; ---------------------------------------------------------------------------
+
+(deftest only-declared-properties-establish-claims
+  (testing "only declared properties produce bounded-empirical-evidence claim status"
+    (let [declared (first (spr/strategic-properties->results declared-property-artifact))
+          diagnostic (first (spr/strategic-properties->results diagnostic-observation-artifact))]
+      (is (= :bounded-empirical-evidence (:claim/status declared))
+          "declared property establishes claim")
+      (is (= :unestablished (:claim/status diagnostic))
+          "diagnostic observation does NOT establish claim"))))
+
+(deftest deviation-results-enter-gate-regardless-of-role
+  (testing "both declared and diagnostic deviation results enter the gate"
+    (let [mixed-dev (spr/strategic-properties->results
+                     {:summary {:states-examined 100}
+                      :properties
+                      [{:property :strategy/split-invariance
+                        :status :verified :verdict :verified
+                        :state-count 100 :violation-count 0
+                        :property-role :declared-property}
+                       {:property :allocation/exact-merge-invariance
+                        :status :verified :verdict :verified
+                        :state-count 100 :violation-count 0
+                        :property-role :diagnostic-observation}]})
+          g (gate/evaluate-strategic-gate
+             {:gate :economic-model :verdict :pass}
+             mixed-dev [])]
+      ;; Both properties appear in gate properties
+      (is (= 2 (count (:properties g)))
+          "both declared and diagnostic enter gate")
+      (is (some #(= :declared-property (:property-role %))
+                (:properties g))
+          "declared property is in gate properties")
+      (is (some #(= :diagnostic-observation (:property-role %))
+                (:properties g))
+          "diagnostic observation is in gate properties"))))
+
+(deftest diagnostic-violation-blocks-gate-but-not-claim
+  (testing "diagnostic violation blocks the strategic gate but doesn't establish a claim"
+    (let [dev-results (spr/strategic-properties->deviation-results diagnostic-observation-artifact)
+          g (gate/evaluate-strategic-gate
+             {:gate :economic-model :verdict :pass}
+             dev-results [])]
+      ;; Gate is violated because diagnostic observation violated
+      (is (= :violated (:verdict g))
+          "gate is violated")
+      ;; But the claim status is still :unestablished
+      (let [results (spr/strategic-properties->results diagnostic-observation-artifact)
+            diag-result (first (filter #(= :diagnostic-observation (:property-role %)) results))]
+        (is (= :unestablished (:claim/status diag-result))
+            "diagnostic claim is :unestablished even though gate is violated")))))

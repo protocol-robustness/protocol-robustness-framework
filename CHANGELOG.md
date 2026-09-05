@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Exact-address derivation accessibility foundation
+
+- Added explicit root and state address constructors plus exact retrieval, domain-dispatched address verification, committed reproduction-basis inspection, derived replay verification, and cycle-safe backward derivation tracing. The layer deliberately makes no semantic-validity, authority, or currentness claim. Fixed chunk sets now commit and expose `:chunk-size` and `:executable-distribution/root` as reproduction inputs; canonical effects state application is replayable, while effects compilation explicitly reports its uncommitted target-mapping contract gap. (`src/resolver_sim/accessibility/derivation.clj`, `src/resolver_sim/benchmark/distributed/fixed_chunks.clj`)
+
 ### Strategic partial-fill semantic admission boundary
 
 - Added an ephemeral `resolver-sim.pro-rata.semantic-admission` boundary for simple no-row pro-rata decisions. It composes closed-form checks with independent semantic reconstruction and reports `:admitted`, `:rejected`, or explicit `:unsupported` scope without changing decision hashes. (`src/resolver_sim/pro_rata/semantic_admission.clj`)
@@ -18,6 +22,15 @@
 ### Structured claim-consumption validation errors
 
 - Claim-consumption receipt validation now returns stable `:error-codes` alongside the existing human-readable `:errors`, without removing the prior message field. (`src/resolver_sim/allocation/claim_consumption_receipt.clj`)
+
+### P1A in-memory receipt-obligation lifecycle
+
+- Added `resubmission-receipt-obligation.v1`, anchored to the committed transaction ordering and frozen receipt/attempt-subject contract. Successful configured admissions now atomically create one pending obligation alongside chain state and the committed replay record; conditional pending-to-issued updates converge equivalent concurrent issuers and reject conflicts. Added a framework-neutral recovery worker over retained committed state. This is P1A current-store semantics only and does not claim process-restart or multi-process persistence (P1B). (`src/resolver_sim/resubmission/receipt_obligation.clj`, `src/resolver_sim/resubmission/receipt_worker.clj`, `src/resolver_sim/resubmission/store.clj`)
+
+### Canonical acceptance attempt subject and receipt V2 boundary
+
+- Defined the P0-B.1 `acceptance-attempt-subject.v1` as the closed identity of a historical acceptance evaluation, submitted-bundle root, and existing use-case application root. Admission reservations/fences and committed transaction identity remain separate; retry-local coordination cannot change the attempt subject.
+- Completed the V2 issuance and verification wiring: `decide-v2` in `resolver-sim.commands.resubmission-issue` connects the issuance request to the canonical application target, reconstructs and binds the attempt subject from the evaluation root, submitted-bundle root, and request-matched application target, and emits `submission-attempt-receipt.v2` signed under the V2 domain. V2 receipt verification dispatches to `verify-receipt-signature-v2` and `receipt-binds-attempt-subject?`, both of which independently re-derive the attempt subject root. Added end-to-end signed tests covering the happy-path issuance and the target-mismatch rejection path. (`src/resolver_sim/commands/resubmission_issue.clj`, `src/resolver_sim/resubmission/issuance.clj`, `src/resolver_sim/resubmission/receipt.clj`, `test/resolver_sim/resubmission/issuance_test.clj`)
 
 ### Configuration-authorized acceptance evaluation
 

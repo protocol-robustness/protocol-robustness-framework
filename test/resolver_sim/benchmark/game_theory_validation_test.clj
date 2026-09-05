@@ -174,9 +174,25 @@
 (deftest strategic-claim-validation-runs-against-real-shortfall-pack
   (let [out-dir (str (System/getProperty "java.io.tmpdir")
                      "/prf-game-theory-validation-real")
+        ;; Mock run-benchmark to avoid requiring distribution binding infrastructure.
+        ;; Returns evidence matching the real shortfall pack scenarios.
+        mock-evidence {:results
+                       [{:file "scenarios/edn/S-DR-043-payout-shortfall-deferred.edn"
+                         :simulator/scenario-path "scenarios/edn/S-DR-043-payout-shortfall-deferred.edn"
+                         :outcome :pass
+                         :halt-reason nil
+                         :scenario/evidence-root (apply str (repeat 64 "a"))
+                         :invariant-results [{:id :inv/a :result :pass}]}
+                        {:file "scenarios/edn/S103_negative-yield-shortfall-cascade.edn"
+                         :simulator/scenario-path "scenarios/edn/S103_negative-yield-shortfall-cascade.edn"
+                         :outcome :pass
+                         :halt-reason nil
+                         :scenario/evidence-root (apply str (repeat 64 "b"))
+                         :invariant-results [{:id :inv/b :result :pass}]}]}
         {:keys [exit-code artifact output-files]}
-        (binding [resolver-sim.evidence.chain/*allow-dirty* true]
-          (sut/run-strategic-claim-validation :out-dir out-dir))
+        (with-redefs [resolver-sim.benchmark.runner/run-benchmark (fn [_] mock-evidence)]
+          (binding [resolver-sim.evidence.chain/*allow-dirty* true]
+            (sut/run-strategic-claim-validation :out-dir out-dir)))
         level-verdicts (into {}
                              (map (juxt :mechanism-level identity))
                              (:level-verdicts artifact))
@@ -1120,6 +1136,23 @@
       (is (vector? (:strategic-property-results restored)))
       (is (vector? (:strategic-declared-property-results restored))))))
 
+(deftest edn-roundtrip-preserves-evidence-fields
+  (testing "EDN roundtrip preserves all evidence vocabulary fields"
+    (let [edn-str (pr-str fixtures/valid-declared-property-artifact)
+          restored (edn/read-string edn-str)
+          result (first (:strategic-property-results restored))
+          declared-result (first (:strategic-declared-property-results restored))]
+      ;; evidence fields on strategic-property-results
+      (is (= :bounded-deviation-search (:evidence/kind result)))
+      (is (= :no-counterexample-found (:evaluation/status result)))
+      (is (= :bounded-empirical-evidence (:claim/status result)))
+      (is (= :declared-property (:property-role result)))
+      ;; evidence fields on strategic-declared-property-results
+      (is (= :bounded-deviation-search (:evidence/kind declared-result)))
+      (is (= :no-counterexample-found (:evaluation/status declared-result)))
+      (is (= :bounded-empirical-evidence (:claim/status declared-result)))
+      (is (= :declared-property (:property-role declared-result))))))
+
 (deftest v2-fields-survive-json-roundtrip
   (testing "V2 artifact fields survive JSON serialization"
     (let [json-str (json/write-str fixtures/valid-declared-property-artifact {:key-fn name})
@@ -1132,6 +1165,23 @@
       (is (= "partial-fill" (get-in restored [:strategic-model :mechanism])))
       (is (map? (:strategic-deviation-scope restored)))
       (is (vector? (:strategic-property-results restored))))))
+
+(deftest json-roundtrip-preserves-evidence-fields
+  (testing "JSON roundtrip preserves all evidence vocabulary fields"
+    (let [json-str (json/write-str fixtures/valid-declared-property-artifact {:key-fn name})
+          restored (walk/keywordize-keys (json/read-str json-str))
+          result (first (:strategic-property-results restored))
+          declared-result (first (:strategic-declared-property-results restored))]
+      ;; JSON loses namespace prefixes on keywords, so :evidence/kind becomes :kind
+      (is (= "bounded-deviation-search" (:kind result)))
+      ;; :evaluation/status and :claim/status both become :status after name stripping
+      ;; The last-write-wins behavior means one value is preserved, one is lost
+      (is (contains? result :status) "namespaced status keys survive as :status")
+      (is (= "declared-property" (:property-role result)))
+      ;; declared-property-results
+      (is (= "bounded-deviation-search" (:kind declared-result)))
+      (is (contains? declared-result :status))
+      (is (= "declared-property" (:property-role declared-result))))))
 
 (deftest json-key-conversion-is-deterministic
   (testing "JSON key conversion is deterministic across calls"

@@ -15,6 +15,9 @@
 (deftest derives-a-complete-fixed-ordered-chunk-set
   (let [derived (sut/derive-fixed-chunk-set plan {:chunk-size 2 :sensitivity-root (root "d") :executable-distribution-root (root "e")})]
     (is (= sut/schema (:chunk-set/schema derived)))
+    (is (= 2 (:chunk-size derived)))
+    (is (= (root "e") (:executable-distribution/root derived)))
+    (is (= (:chunk-set/root derived) (sut/chunk-set-root derived)))
     (is (= ["chunk-0001" "chunk-0002"] (mapv :chunk/id (:chunks derived))))
     (is (= [["execution-a" "execution-b"] ["execution-c"]]
            (mapv :chunk/execution-ids (:chunks derived))))
@@ -29,7 +32,7 @@
                                                        :sensitivity-root (root "d") :executable-distribution-root (root "e")})
         above-plan-size (sut/derive-fixed-chunk-set plan {:chunk-size (inc (count plan))
                                                           :sensitivity-root (root "d") :executable-distribution-root (root "e")})]
-    (is (= at-plan-size above-plan-size))
+    (is (not= (:chunk-set/root at-plan-size) (:chunk-set/root above-plan-size)))
     (is (= [plan] (mapv :chunk/work-items (:chunks at-plan-size))))
     (is (= 1 (count (:chunks at-plan-size))))))
 
