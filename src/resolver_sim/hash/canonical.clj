@@ -364,6 +364,7 @@
    :prf-attempt-certificate-verification-subject-v1 "prf.attempt-certificate-verification-subject.v1"
    :prf-acceptance-attempt-subject-v1 "prf.acceptance-attempt-subject.v1"
    :prf-acceptance-evaluation-v1      "prf.acceptance-evaluation.v1"
+   :prf-acceptance-evaluation-v2      "prf.acceptance-evaluation.v2"
    :prf-acceptance-finding-v1         "prf.acceptance-finding.v1"
    :prf-authority-registries-verifiable-v1 "prf.authority-registries-verifiable.v1"
    :prf-verifier-registry-selection-v1    "prf.verifier-registry-selection.v1"

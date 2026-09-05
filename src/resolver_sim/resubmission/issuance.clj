@@ -15,7 +15,8 @@
     These helpers are pure. The signer authority
     (resolver-sim.commands.resubmission-issue) independently re-derives the
     transition from the presented pre-state and command, then issues here."
-  (:require [resolver-sim.transaction.ordering :as ordering]))
+  (:require [resolver-sim.transaction.ordering :as ordering]
+            [resolver-sim.resubmission.attempt-subject :as attempt-subject]))
 
 (defn admission-status-for
   "Map a pure transition :status to the receipt's :attempt-receipt/chain
@@ -24,6 +25,24 @@
   (case transition-status
     :committed :admitted
     :not-admitted))
+
+(defn receipt-binds-attempt-subject?
+  "True when a receipt explicitly attests the canonical attempt subject root.
+   Reservation and fence fields are intentionally ignored."
+  [receipt subject]
+  (and (attempt-subject/valid? subject)
+       (= (:attempt/subject-root subject)
+          (:attempt-receipt/attempt-subject-root receipt))))
+
+(defn bind-attempt-subject
+  "Bind a validated canonical attempt subject to a receipt candidate. The
+   subject root is semantic identity; reservation and fence data remain in the
+   separate chain/admission block."
+  [candidate subject]
+  (when-not (attempt-subject/valid? subject)
+    (throw (ex-info "invalid attempt subject" {:reason :invalid-attempt-subject})))
+  (assoc candidate :attempt-receipt/attempt-subject-root
+         (:attempt/subject-root subject)))
 
 (defn receipt-candidate
   "Attach the :attempt-receipt/chain block to a candidate receipt.
@@ -39,13 +58,14 @@
       :parent-receipt-hash str|nil
       :transaction-ordering-hash str}"
   [candidate {:keys [admission-status family-id sequence parent-receipt-hash
-                     transaction-ordering-hash]}]
-  (assoc candidate :attempt-receipt/chain
-         {:admission-status admission-status
-          :family-id family-id
-          :sequence sequence
-          :parent-receipt-hash parent-receipt-hash
-          :transaction-ordering-hash transaction-ordering-hash}))
+                     transaction-ordering-hash attempt-subject]}]
+  (cond-> (assoc candidate :attempt-receipt/chain
+                 {:admission-status admission-status
+                  :family-id family-id
+                  :sequence sequence
+                  :parent-receipt-hash parent-receipt-hash
+                  :transaction-ordering-hash transaction-ordering-hash})
+    attempt-subject (bind-attempt-subject attempt-subject)))
 
 (defn transition-outcome-matches?
   "The receipt's claimed admission status must be consistent with the pure

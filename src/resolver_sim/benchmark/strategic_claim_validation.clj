@@ -158,6 +158,40 @@
     :gates-summary
     :summary})
 
+(def ^:private known-strategic-property-ids
+  "All strategic property IDs recognized by the adapter."
+  #{:strategy/split-invariance
+    :strategy/permutation-invariance
+    :strategy/sybil-invariance
+    :strategy/request-monotonicity
+    :allocation/exact-merge-invariance})
+
+(defn validate-claim-catalog!
+  "Validate the strategic claim catalog for internal consistency.
+   Returns a vector of error strings. Empty means valid."
+  []
+  (let [errors (atom [])]
+    (doseq [[claim-id claim] strategic-claim-catalog]
+      (let [strategic-property-ids (set (:strategic-property-ids claim))
+            mechanism-levels (set (:mechanism-levels claim))]
+        ;; 1. strategic properties not in the model
+        (doseq [pid strategic-property-ids]
+          (when-not (contains? known-strategic-property-ids pid)
+            (swap! errors conj
+                   (str claim-id ": strategic property " pid " is not recognized"))))
+        ;; 2. duplicate or unknown strategic-property-ids
+        (when (and strategic-property-ids
+                   (not= (count (:strategic-property-ids claim))
+                         (count strategic-property-ids)))
+          (swap! errors conj
+                 (str claim-id ": :strategic-property-ids contains duplicates")))
+        ;; 3. mechanism-level validation (mechanism-levels must be non-empty keywords)
+        (doseq [ml mechanism-levels]
+          (when-not (keyword? ml)
+            (swap! errors conj
+                   (str claim-id ": mechanism-level " (pr-str ml) " is not a keyword"))))))
+    (vec @errors)))
+
 (defn- sha-256-hex?
   [s]
   (boolean (and (string? s) (re-matches #"[0-9a-f]{64}" s))))

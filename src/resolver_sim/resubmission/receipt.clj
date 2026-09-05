@@ -23,7 +23,8 @@
       :resubmission-eligibility :eligible :lifecycle-status :active}"
   (:require [resolver-sim.hash.canonical :as hc]
             [resolver-sim.signed-external-decision :as sed]
-            [resolver-sim.hash.reference :as hash-ref]))
+            [resolver-sim.hash.reference :as hash-ref]
+            [resolver-sim.resubmission.attempt-subject :as attempt-subject]))
 
 (def ^:const receipt-schema "submission-attempt-receipt.v1")
 (def ^:const receipt-domain :prf-submission-attempt-receipt-v1)
@@ -94,6 +95,14 @@
       :else
       {:valid? true :reason :ok :detail (:attempt-receipt/id receipt)})))
 
+(defn receipt-binds-attempt-subject?
+  "Verify the receipt's explicit attempt-subject root against a reconstructed
+   canonical subject. This is independent of receipt signature verification."
+  [receipt subject]
+  (and (attempt-subject/valid? subject)
+       (= (:attempt/subject-root subject)
+          (:attempt-receipt/attempt-subject-root receipt))))
+
 (defn valid-root-shape?
   "True when a receipt root entry is {:root/schema str :status kw :hash str}."
   [root]
@@ -109,6 +118,9 @@
   (and (map? receipt)
        (= receipt-schema (:attempt-receipt/schema receipt))
        (string? (:attempt-receipt/submitted-bundle-root receipt))
+       (or (not (contains? receipt :attempt-receipt/attempt-subject-root))
+           (hash-ref/valid-sha256-ref?
+            (:attempt-receipt/attempt-subject-root receipt)))
        (contains? outcomes (:attempt-receipt/outcome receipt))
        (contains? finalities (:attempt-receipt/finality receipt))
        (contains? resubmission-eligibilities (:attempt-receipt/resubmission-eligibility receipt))

@@ -130,7 +130,8 @@
     resolver-sim.benchmark.force-authorised-execution-evidence-v2-test
     resolver-sim.benchmark.sew-pre-application-test
     resolver-sim.protocols.sew.slashing-test
-    resolver-sim.protocols.sew.evidence.slashing-test])
+    resolver-sim.protocols.sew.evidence.slashing-test
+    resolver-sim.pro-rata.semantic-admission-test])
 
 ;; ── Slow scenario test namespaces (full replay, evidence chain assertions) ──
 

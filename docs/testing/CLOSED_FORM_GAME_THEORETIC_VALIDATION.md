@@ -300,6 +300,76 @@ as evidence that the named closed-form property passed.
 
 ---
 
+## Normative Assurance Terminology
+
+The validation architecture produces different kinds of evidence. Each has a
+precise meaning and should not be conflated with another.
+
+| Evidence kind | What it establishes | Produced by |
+|--------------|---------------------|-------------|
+| **Invariant evidence** | Algebraic correctness of a concrete settlement decision | Closed-form checks (`partial_fill.clj`) |
+| **Independent derivability evidence** | Semantic reconstruction is independently derivable | Semantic reconstruction (future) |
+| **Empirical evidence** | No counterexample found within a bounded state × policy enumeration | Strategic property validation (`strategic_partial_fill.clj`) |
+| **Single-trace proxy** | Equilibrium property holds for a specific execution trace | Equilibrium validators (`equilibrium.clj`) |
+| **Cross-scenario consistency** | Mechanism-level properties hold across matched scenario evidence | Strategic claim validation (`strategic_claim_validation.clj`) |
+
+### What bounded deviation search does NOT establish
+
+- **No counterexample is not a theorem.** A verified strategic property means
+  no violation was found within the enumerated states and policies. It does not
+  constitute an equilibrium proof or a general guarantee.
+- **Diagnostic transformations are non-gating by default.** Only explicitly
+  declared strategic properties enter the strategic gate. Transformation results
+  are observations only — they surface known violations for audit but do not
+  determine the gate verdict.
+- **Equilibrium proof is not currently claimed.** The architecture does not
+  produce or claim equilibrium proofs. Repeated-game analysis (e.g. grim-trigger
+  deterrence) is catalogued but not wired to decision evidence.
+- **Concurrency is separate state-transition assurance.** Concurrency safety
+  (e.g. under parallel settlement) is a separate assurance layer, not covered by
+  the current bounded enumeration.
+- **Lineage is separate history-aware assurance.** Historical chain-state
+  lineage and rollback resistance are separate concerns, not covered by the
+  current per-decision validation.
+- **Authenticity is separate authority/provenance assurance.** Authority and
+  provenance verification (e.g. governed-key signatures, publisher statements)
+  are separate layers that feed into but are not produced by the strategic
+  validation.
+
+### Evidence vocabulary on the V2 artifact
+
+The V2 artifact attaches structured evidence metadata to each strategic property
+result:
+
+| Field | Values | Meaning |
+|-------|--------|---------|
+| `:evidence/kind` | `:bounded-deviation-search` | The evidence was produced by bounded enumeration |
+| `:evaluation/status` | `:no-counterexample-found`, `:counterexample-found`, `:inconclusive` | Result of the bounded search |
+| `:claim/status` | `:bounded-empirical-evidence`, `:counterexample-found`, `:unestablished`, `:inconclusive` | What the result establishes for the claim |
+| `:property-role` | `:declared-property`, `:diagnostic-observation` | Whether the property entered the gate |
+
+The `:evaluation/status` and `:claim/status` fields are independent:
+- A diagnostic observation with `:evaluation/status :no-counterexample-found`
+  has `:claim/status :unestablished` (not empirical evidence for any claim).
+- A declared property with `:evaluation/status :no-counterexample-found` has
+  `:claim/status :bounded-empirical-evidence` (empirical evidence for the
+  declared claim within the bounded scope).
+
+### V2 artifact closed shape
+
+The V2 artifact is validated against a closed shape — unknown top-level keys are
+rejected to prevent silent contract drift. The allowed keys are:
+
+`:artifact/kind`, `:artifact/version`, `:claim/id`, `:claim/title`,
+`:claim/description`, `:claim/interpretation`, `:claim/validation-classes`,
+`:benchmark/id`, `:benchmark/scenario-suite`, `:benchmark/manifest-path`,
+`:matched-scenarios`, `:level-verdicts`, `:coverage-gaps`,
+`:strategic-property-results`, `:strategic-declared-property-results`,
+`:strategic-model`, `:strategic-epistemic-scope`, `:strategic-deviation-scope`,
+`:gates`, `:gates-summary`, `:summary`
+
+---
+
 ## Redistribution Engine (`src/resolver_sim/economics/payoffs.clj`)
 
 ### Iterative Capping
@@ -379,8 +449,21 @@ Registered in `yield-provider-scenario-ids`. Replays with `:outcome :pass`.
 | `pro_rata_characterization_test.clj` | 39 | LRA allocator, redistribution, caps, conservation |
 | `payoffs_test.clj` | 23 | Pro-rata allocation, iterative redistribution |
 | `equilibrium_test.clj` | 72 | All mechanism properties + equilibrium concepts |
-| `game_theory_validation_test.clj` | 12 | Strategic claim artifact emission, matching, level verdicts, catalog scope, strategic-property result propagation, inconclusive fail-closed behavior |
+| `strategic_partial_fill_test.clj` | 15 | Epistemic scope, strategic model, diagnostic transforms, invariance checks |
+| `strategic_property_results_test.clj` | 14 | Evidence contract (evidence/kind, evaluation/status, claim/status), adapter projections, gate compatibility |
+| `game_theory_validation_test.clj` | 30 | Artifact emission, V2 contract, epistemic contract, catalog validation, result-projection consistency, JSON/EDN roundtrip |
+| `gate_test.clj` | 14 | Strategic gate evaluation, contract provenance, scope recording |
+| `fixtures/artifact_contracts.clj` | — | Reusable valid/invalid V2 artifact fixtures |
 | `invariants_test.clj` | partial | Shortfall-splits, shortfall-detected (segmented from pre-existing ns issue) |
+
+### Running strategic contract tests
+
+```bash
+bb test:strategic-contract
+```
+
+This runs the focused strategic partial-fill, adapter, game-theory validation,
+and gate tests without the full unit suite.
 
 ---
 
@@ -394,9 +477,12 @@ Registered in `yield-provider-scenario-ids`. Replays with `:outcome :pass`.
 | `src/resolver_sim/yield/invariant_catalog.clj` | Invariant metadata registry |
 | `src/resolver_sim/economics/payoffs.clj` | Pro-rata allocator with iterative redistribution |
 | `src/resolver_sim/yield/exact_math.clj` | Largest-remainder allocator primitive |
+| `src/resolver_sim/yield/strategic_partial_fill.clj` | Bounded strategic property enumeration and validation |
 | `src/resolver_sim/scenario/equilibrium.clj` | Equilibrium validators including pro-rata-fairness |
-| `src/resolver_sim/benchmark/strategic_claim_validation.clj` | Strategic claim catalog (6 claims) and artifact builder |
+| `src/resolver_sim/benchmark/strategic_property_results.clj` | Adapter: raw verdicts → structured evidence vocabulary → gate results |
+| `src/resolver_sim/benchmark/strategic_claim_validation.clj` | Strategic claim catalog, V2 artifact builder, closed-shape validation |
 | `src/resolver_sim/benchmark/game_theory_validation.clj` | Orchestration: equilibrium suites, held-custody, strategic claims |
+| `src/resolver_sim/validation/gate.clj` | Integrity, economic-model, and strategic gate evaluation |
 | `benchmarks/packs/prf-core/shortfall-allocation-v0.edn` | Benchmark pack for all strategic claims (4 scenarios) |
 | `benchmarks/mechanisms/shortfall-v1.edn` | Mechanism-to-claim mapping (pro-rata-fairness corrected) |
 | `scenarios/Y06_multi-party-pro-rata-shortfall.json` | Multi-party shortfall scenario |

@@ -20,6 +20,8 @@
 
 (def ^:const definition-schema "attempt-acceptance-definition.v1")
 (def ^:const evaluation-schema "acceptance-evaluation.v1")
+(def ^:const evaluation-v2-schema "acceptance-evaluation.v2")
+(def ^:const evaluation-domain-v2 :prf-acceptance-evaluation-v2)
 (def ^:const definition-domain :prf-attempt-acceptance-definition-v1)
 (def ^:const evaluation-domain :prf-acceptance-evaluation-v1)
 
@@ -422,52 +424,55 @@
    - verifier-registry
    - publisher-authority
    - submission-registry"
-  [resolver configuration submitted-bundle-root]
-  (let [definition-root (genesis/authorized-attempt-acceptance-definition-root configuration)
-        authority-basis-root (genesis/authorized-attempt-acceptance-authority-basis-root configuration)
-        resolve-artifact (:resolve-artifact resolver)
-        definition (when (and definition-root resolve-artifact)
-                     (resolve-artifact definition-root))
-        authority-basis (when (and authority-basis-root resolve-artifact)
-                          (resolve-artifact authority-basis-root))
-        submitted-bundle (when resolve-artifact (resolve-artifact submitted-bundle-root))
-        publisher-envelope-root (:publisher-envelope-hash submitted-bundle)
-        publisher-envelope (when (and resolve-artifact publisher-envelope-root)
-                             (resolve-artifact publisher-envelope-root))
-        publisher-statement-root (:publisher-envelope/statement-root publisher-envelope)
-        publisher-statement (when (and resolve-artifact publisher-statement-root)
-                              (resolve-artifact publisher-statement-root))
-        submission-registry-root (:registry-root submitted-bundle)
-        submission-registry (when (and resolve-artifact submission-registry-root)
-                              (resolve-artifact submission-registry-root))
-        submission-basis-root (:submission-basis-root submitted-bundle)
-        submission-basis (when (and resolve-artifact submission-basis-root)
-                           (resolve-artifact submission-basis-root))
-        authority-registries (when (and authority-basis resolve-artifact)
-                               (authority-basis/resolve-registries resolver authority-basis))]
-    {:configuration {:root (genesis/resubmission-chain-configuration-root configuration)
-                     :body configuration}
-     :attempt-acceptance-definition {:root definition-root :body definition}
-     :attempt-acceptance-authority-basis {:root authority-basis-root :body authority-basis}
-     :attempt-acceptance-authority-registries authority-registries
-     :submitted-bundle {:root submitted-bundle-root :body submitted-bundle}
-     :publisher-envelope {:root publisher-envelope-root :body publisher-envelope}
-     :publisher-statement {:root publisher-statement-root :body publisher-statement}
-     :certificate-subject
-     (certificate-subject/build
-      (hash-ref/sha256-ref (hc/domain-hash :evidence-record (:certificate submission-basis)))
-      (get-in submission-basis [:results-artifact :results/certificate-root])
-      submitted-bundle-root
-      :prf.resubmission/certificate-v1)
-     :execution-evidence-subject
-     (execution-subject/build
-      (hash-ref/sha256-ref (hc/domain-hash :evidence-record (:execution-evidence submission-basis)))
-      (get-in submission-basis [:results-artifact :results/execution-evidence-root])
-      submitted-bundle-root
-      :prf.resubmission/execution-evidence-v1
-      :prf.resubmission/execution-evidence-v1)
-     :submission-registry {:root submission-registry-root :body submission-registry}
-     :submission-basis {:root submission-basis-root :body submission-basis}}))
+  ([resolver configuration submitted-bundle-root]
+   (resolve-evaluation-basis resolver configuration submitted-bundle-root nil))
+  ([resolver configuration submitted-bundle-root use-case-application-root]
+   (let [definition-root (genesis/authorized-attempt-acceptance-definition-root configuration)
+         authority-basis-root (genesis/authorized-attempt-acceptance-authority-basis-root configuration)
+         resolve-artifact (:resolve-artifact resolver)
+         definition (when (and definition-root resolve-artifact)
+                      (resolve-artifact definition-root))
+         authority-basis (when (and authority-basis-root resolve-artifact)
+                           (resolve-artifact authority-basis-root))
+         submitted-bundle (when resolve-artifact (resolve-artifact submitted-bundle-root))
+         publisher-envelope-root (:publisher-envelope-hash submitted-bundle)
+         publisher-envelope (when (and resolve-artifact publisher-envelope-root)
+                              (resolve-artifact publisher-envelope-root))
+         publisher-statement-root (:publisher-envelope/statement-root publisher-envelope)
+         publisher-statement (when (and resolve-artifact publisher-statement-root)
+                               (resolve-artifact publisher-statement-root))
+         submission-registry-root (:registry-root submitted-bundle)
+         submission-registry (when (and resolve-artifact submission-registry-root)
+                               (resolve-artifact submission-registry-root))
+         submission-basis-root (:submission-basis-root submitted-bundle)
+         submission-basis (when (and resolve-artifact submission-basis-root)
+                            (resolve-artifact submission-basis-root))
+         authority-registries (when (and authority-basis resolve-artifact)
+                                (authority-basis/resolve-registries resolver authority-basis))]
+     {:configuration {:root (genesis/resubmission-chain-configuration-root configuration)
+                      :body configuration}
+      :attempt-acceptance-definition {:root definition-root :body definition}
+      :attempt-acceptance-authority-basis {:root authority-basis-root :body authority-basis}
+      :attempt-acceptance-authority-registries authority-registries
+      :submitted-bundle {:root submitted-bundle-root :body submitted-bundle}
+      :publisher-envelope {:root publisher-envelope-root :body publisher-envelope}
+      :publisher-statement {:root publisher-statement-root :body publisher-statement}
+      :certificate-subject
+      (certificate-subject/build
+       (hash-ref/sha256-ref (hc/domain-hash :evidence-record (:certificate submission-basis)))
+       (get-in submission-basis [:results-artifact :results/certificate-root])
+       submitted-bundle-root
+       :prf.resubmission/certificate-v1)
+      :execution-evidence-subject
+      (execution-subject/build
+       (hash-ref/sha256-ref (hc/domain-hash :evidence-record (:execution-evidence submission-basis)))
+       (get-in submission-basis [:results-artifact :results/execution-evidence-root])
+       submitted-bundle-root
+       :prf.resubmission/execution-evidence-v1
+       :prf.resubmission/execution-evidence-v1)
+      :submission-registry {:root submission-registry-root :body submission-registry}
+      :submission-basis {:root submission-basis-root :body submission-basis}
+      :use-case-application {:root use-case-application-root}})))
 
 (defn evaluate
   "Pure deterministic evaluation. A definition not matching the configuration
@@ -486,7 +491,8 @@
                (:attempt-acceptance-definition/root definition))
     (throw (ex-info "acceptance definition is not configuration-authorized"
                     {:reason :unauthorized-acceptance-definition})))
-  (let [authority-basis (get-in resolved [:attempt-acceptance-authority-basis :body])
+  (let [application-root (get-in resolved [:use-case-application :root])
+        authority-basis (get-in resolved [:attempt-acceptance-authority-basis :body])
         authority-basis-root (get-in resolved [:attempt-acceptance-authority-basis :root])
         v3-config? (some? authority-basis-root)]
     (when v3-config?
@@ -511,12 +517,17 @@
                     (check resolved)))
                 definition-check-ids)
           findings (findings-for check-results)]
-      {:artifact/schema evaluation-schema
+      (when (and application-root
+                 (not (hash-ref/valid-sha256-ref? application-root)))
+        (throw (ex-info "invalid use-case application root"
+                        {:reason :invalid-use-case-application-root})))
+      {:artifact/schema (if application-root evaluation-v2-schema evaluation-schema)
        :evaluation/basis {:configuration/root (get-in resolved [:configuration :root])
                           :attempt-acceptance-definition/root (get-in resolved [:attempt-acceptance-definition :root])
                           :attempt-acceptance-authority-basis/root authority-basis-root
                           :submitted-bundle/root (get-in resolved [:submitted-bundle :root])
-                          :submission-basis/root (get-in resolved [:submission-basis :root])}
+                          :submission-basis/root (get-in resolved [:submission-basis :root])
+                          :use-case-application/root application-root}
        :evaluation/check-results check-results
        :evaluation/findings findings
        :evaluation/outcome (outcome-for check-results)})))
@@ -530,21 +541,32 @@
    :submission-basis/root])
 
 (defn evaluation-projection [evaluation]
-  (let [basis (:evaluation/basis evaluation)]
+  (let [basis (:evaluation/basis evaluation)
+        fields (if (= evaluation-v2-schema (:artifact/schema evaluation))
+                 (conj evaluation-basis-fields :use-case-application/root)
+                 evaluation-basis-fields)]
     {:artifact/schema (:artifact/schema evaluation)
-     :evaluation/basis (hc/project-canonical-safe (select-keys basis evaluation-basis-fields))
+     :evaluation/basis (hc/project-canonical-safe (select-keys basis fields))
      :evaluation/check-results (hc/project-canonical-safe (:evaluation/check-results evaluation))
      :evaluation/findings (hc/project-canonical-safe (:evaluation/findings evaluation))
      :evaluation/outcome (:evaluation/outcome evaluation)}))
 
 (defn evaluation-root [evaluation]
-  (hash-ref/sha256-ref (hc/domain-hash evaluation-domain (evaluation-projection evaluation))))
+  (hash-ref/sha256-ref
+   (hc/domain-hash (if (= evaluation-v2-schema (:artifact/schema evaluation))
+                     evaluation-domain-v2
+                     evaluation-domain)
+                   (evaluation-projection evaluation))))
 
-(defn build-evaluation [resolver configuration submitted-bundle-root]
-  (let [resolved (resolve-evaluation-basis resolver configuration submitted-bundle-root)
-        definition (get-in resolved [:attempt-acceptance-definition :body])
-        evaluation (evaluate resolved definition)]
-    (assoc evaluation :acceptance-evaluation/root (evaluation-root evaluation))))
+(defn build-evaluation
+  ([resolver configuration submitted-bundle-root]
+   (build-evaluation resolver configuration submitted-bundle-root nil))
+  ([resolver configuration submitted-bundle-root use-case-application-root]
+   (let [resolved (resolve-evaluation-basis resolver configuration submitted-bundle-root
+                                            use-case-application-root)
+         definition (get-in resolved [:attempt-acceptance-definition :body])
+         evaluation (evaluate resolved definition)]
+     (assoc evaluation :acceptance-evaluation/root (evaluation-root evaluation)))))
 
 (defn validate-acceptance-evaluation
   "Historically validate an evaluation using the configuration root retained in
@@ -555,7 +577,9 @@
     (let [configuration-root (get-in evaluation [:evaluation/basis :configuration/root])
           configuration ((:resolve-configuration resolver) configuration-root)
           expected (build-evaluation resolver configuration
-                                     (get-in evaluation [:evaluation/basis :submitted-bundle/root]))]
+                                     (get-in evaluation [:evaluation/basis :submitted-bundle/root])
+                                     (when (= evaluation-v2-schema (:artifact/schema evaluation))
+                                       (get-in evaluation [:evaluation/basis :use-case-application/root])))]
       {:valid? (= expected evaluation)
        :reason (if (= expected evaluation) :ok :evaluation-mismatch)})
     (catch clojure.lang.ExceptionInfo e

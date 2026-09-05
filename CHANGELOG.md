@@ -2,6 +2,11 @@
 
 ## [Unreleased]
 
+### Strategic partial-fill semantic admission boundary
+
+- Added an ephemeral `resolver-sim.pro-rata.semantic-admission` boundary for simple no-row pro-rata decisions. It composes closed-form checks with independent semantic reconstruction and reports `:admitted`, `:rejected`, or explicit `:unsupported` scope without changing decision hashes. (`src/resolver_sim/pro_rata/semantic_admission.clj`)
+- Comprehensive Gate 1-A test coverage: conservation-preserving allocation mutation (the critical attack where wrong allocation + preserved conservation + recomputed hash passes closed-form but is rejected by reconstruction), altered fill amounts, rounding policy mismatch, input ordering independence, rounding tie determinism, full vs partial fill settlement mode, malformed inputs (zero available, empty request, single claimant), duplicate identity collapse, runtime-option independence, namespace isolation (no producer allocation aliases), and ephemeral output contract (no evidence nodes, no hash mutation). (`test/resolver_sim/pro_rata/semantic_admission_test.clj`)
+
 ### Strategic partial-fill epistemic scope
 
 - Added explicit strategic evidence vocabulary: bounded deviation searches now distinguish evidence kind, evaluation status, and claim status; diagnostic observations remain non-gating and unestablished by default. Added `game-theoretic-validation.artifact.v2` for strategic claim artifacts. V2 commits the strategic model, epistemic scope, declared strategic-property projection, and diagnostic transformation scope. Diagnostic transformations are non-gating observations by default; only explicitly declared strategic properties enter the strategic gate. (`src/resolver_sim/yield/strategic_partial_fill.clj`, `src/resolver_sim/benchmark/strategic_property_results.clj`, `src/resolver_sim/benchmark/strategic_claim_validation.clj`)

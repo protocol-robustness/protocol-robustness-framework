@@ -13,6 +13,7 @@
             [resolver-sim.run.verdict-policy :as verdict-policy]
             [resolver-sim.provenance.commitment :as prov-commit]
             [resolver-sim.pro-rata.allocation :as allocation]
+            [resolver-sim.pro-rata.semantic-admission :as semantic-admission]
             [resolver-sim.validation.integration.artifact-registry :as artifact-registry]
             [resolver-sim.yield.partial-fill :as partial-fill]))
 
@@ -117,14 +118,20 @@
                             closed-form (try
                                           (partial-fill/partial-fill-closed-form-checks decision)
                                           (catch clojure.lang.ExceptionInfo e
-                                            (:check-results (ex-data e))))]
+                                            (:check-results (ex-data e))))
+                            semantic-input {:available (long (get-in decision [:evidence :available-liquidity] 0))
+                                            :requested (:requested decision)
+                                            :policy (:policy decision)}
+                            semantic-result (semantic-admission/verify-semantic-decision
+                                             semantic-input decision)]
                         (and projection
                              hash-valid?
                              (= (:decision/hash decision) (:decision_sha256 projection))
                              (= (reduce + 0 (vals (:requested decision))) (:total_requested projection))
                              (= (reduce + 0 (vals (:filled decision))) (:total_filled projection))
                              (= (reduce + 0 (vals (:deferred decision))) (:total_deferred projection))
-                             (every? #(not= :fail (:status %)) closed-form))))
+                             (every? #(not= :fail (:status %)) closed-form)
+                             (= :admitted (:admission/status semantic-result)))))
                     decisions)]
         {:applicable? true
          :valid? (and decision-valid? (= (count decisions) (count projections)))}))))

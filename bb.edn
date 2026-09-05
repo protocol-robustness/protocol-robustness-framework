@@ -225,6 +225,21 @@ check:ownership
                   "(require (quote resolver-sim.benchmark.report-test))
                    (clojure.test/run-tests (quote resolver-sim.benchmark.report-test))")}
 
+   test:strategic-contract
+  {:doc "Run strategic partial-fill artifact, adapter, game-theory contract, and JSON/EDN fixture tests."
+   :task (clojure {:dir "."} "-M:test:with-sew" "-e"
+                  "(require (quote resolver-sim.yield.strategic-partial-fill-test))
+                   (require (quote resolver-sim.benchmark.strategic-property-results-test))
+                   (require (quote resolver-sim.benchmark.game-theory-validation-test))
+                   (require (quote resolver-sim.validation.gate-test))
+                   (let [summary (clojure.test/run-tests
+                                  (quote resolver-sim.yield.strategic-partial-fill-test)
+                                  (quote resolver-sim.benchmark.strategic-property-results-test)
+                                  (quote resolver-sim.benchmark.game-theory-validation-test)
+                                  (quote resolver-sim.validation.gate-test))]
+                     (when (or (pos? (:fail summary)) (pos? (:error summary)))
+                       (System/exit 1)))")}
+
    test:yield {:doc "Run yield protocol unit tests only"
               :task (shell "scripts/with-test-artifact-lock.sh" "./scripts/test.sh" "yield")}
 
