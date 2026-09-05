@@ -21,6 +21,7 @@
      - a signed attempt receipt commits the resulting
        :transaction-ordering/hash (receipt issuance is a later slice)."
   (:require [resolver-sim.resubmission.committed-transaction :as committed-transaction]
+            [resolver-sim.resubmission.receipt-obligation :as receipt-obligation]
             [resolver-sim.resubmission.transition :as transition]
             [resolver-sim.resubmission.genesis :as genesis]
             [resolver-sim.transaction.ordering :as ordering]
@@ -70,11 +71,29 @@
                                           {:type :transaction-record/invalid
                                            :errors (:errors record-validation)})))
                       ordering-hash (:transaction-ordering/hash ordering)
-                      new-current (-> current
-                                      (assoc conflict-key
-                                             {:state final-state :version (inc version)})
-                                      (assoc-in [:committed-transactions ordering-hash]
-                                                transaction-record))]
+                      candidate-receipt (get-in (:committed-command result)
+                                                [:transaction/input :candidate-attempt-receipt])
+                      ;; Legacy/in-memory fixtures without receipt authority do
+                      ;; not declare a post-commit receipt contract. They retain
+                      ;; the pre-existing commit semantics and create no orphan
+                      ;; obligation. Configured receipt-authority admissions do.
+                      obligation (when (receipt-obligation/receipt-required?
+                                        ordering candidate-receipt (.receipt-public-hex _store))
+                                   (receipt-obligation/build ordering candidate-receipt
+                                                             (.receipt-public-hex _store)))
+                      _ (when (and obligation (not (receipt-obligation/valid? obligation)))
+                          (throw (ex-info "receipt obligation is invalid"
+                                          {:type :receipt-obligation/invalid
+                                           :obligation obligation})))
+                      obligation-id (:receipt-obligation/id obligation)
+                      new-current (cond-> (-> current
+                                              (assoc conflict-key
+                                                     {:state final-state :version (inc version)})
+                                              (assoc-in [:committed-transactions ordering-hash]
+                                                        transaction-record))
+                                    obligation
+                                    (assoc-in [:receipt-obligations obligation-id]
+                                              (receipt-obligation/pending-entry obligation)))]
                   (if (compare-and-set! state-atom current new-current)
                     (assoc result :transaction-ordering ordering)
                     (recur)))))))))))
@@ -166,6 +185,45 @@
    are stored in the outer CAS envelope and are never part of protocol state."
   [store ordering-hash]
   (get-in @(.state-atom store) [:committed-transactions ordering-hash]))
+
+(defn resolve-receipt-obligation
+  "Resolve the immutable receipt obligation and its P1A processing state.
+   This is retained only in the current in-memory store; it is not restart
+   durable until a P1B backend implements the same atomic semantics."
+  [store obligation-id]
+  (get-in @(.state-atom store) [:receipt-obligations obligation-id]))
+
+(defn pending-receipt-obligations
+  "Return pending P1A receipt obligations in deterministic obligation-ID order."
+  [store]
+  (->> (get @(.state-atom store) :receipt-obligations {})
+       vals
+       (filter receipt-obligation/pending?)
+       (sort-by #(get-in % [:receipt-obligation :receipt-obligation/id]))
+       vec))
+
+(defn mark-receipt-issued!
+  "Conditionally discharge a pending obligation. Returns the stored issued
+   entry on idempotent equivalence, or :receipt-obligation/conflict when an
+   already-issued receipt differs."
+  [store obligation-id signed-receipt]
+  (loop []
+    (let [current @(.state-atom store)
+          entry (get-in current [:receipt-obligations obligation-id])]
+      (cond
+        (nil? entry) {:status :receipt-obligation/not-found}
+        (receipt-obligation/pending? entry)
+        (let [issued (receipt-obligation/issued-entry (:receipt-obligation entry) signed-receipt)
+              next-state (assoc-in current [:receipt-obligations obligation-id] issued)]
+          (if (compare-and-set! (.state-atom store) current next-state)
+            {:status :issued :entry issued}
+            (recur)))
+        (receipt-obligation/issued? entry)
+        (if (= (:receipt-obligation/issued-receipt-root entry)
+               (:attempt-receipt/id signed-receipt))
+          {:status :idempotent :entry entry}
+          {:status :receipt-obligation/conflict :entry entry})
+        :else {:status :receipt-obligation/invalid-state :entry entry}))))
 
 (defn chain-head
   "The current chain head receipt hash (nil before the first attempt)."

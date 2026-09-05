@@ -20,6 +20,7 @@
   (:require [clojure.edn :as edn]
             [buddy.core.keys :as keys]
             [resolver-sim.config.hardening :as hardening]
+            [resolver-sim.resubmission.acceptance-evaluation :as evaluation]
             [resolver-sim.resubmission.issuance :as issuance]
             [resolver-sim.resubmission.receipt :as receipt]
             [resolver-sim.resubmission.transition :as transition]
@@ -28,6 +29,7 @@
   (:import [java.io PushbackReader Reader StringReader]))
 
 (def protocol-version 1)
+(def protocol-version-v2 2)
 (def request-domain "PRF_RESUBMISSION_ISSUE_REQUEST_V1")
 (def response-kind :resubmission-issue-response)
 (def error-kind :resubmission-issue-error)
@@ -36,8 +38,21 @@
   #{:request/kind :request/version :request/hash :request/id
     :validator :transition :ordering :candidate-receipt})
 
+(def request-allowed-top-level-v2
+  "V2 request permits the same top-level keys as V1 plus the canonical
+   application target and the evaluation that binds the target to the
+   acceptance evaluation."
+  #{:request/kind :request/version :request/hash :request/id
+    :validator :transition :ordering :candidate-receipt
+    :attempt-target :evaluation})
+
+(defn request-version-of
+  "Declared protocol version of a request (defaults to V1)."
+  [req]
+  (or (:request/version req) protocol-version))
+
 (defn request-errors
-  "Return a vector of human-readable errors for a request, or [] if valid."
+  "Return a vector of human-readable errors for a V1 request, or [] if valid."
   [req]
   (into []
         (remove nil?)
@@ -64,21 +79,64 @@
                 (pr-str (vec (sort-by pr-str
                                       (remove request-allowed-top-level (keys req)))))))]))
 
+(defn request-errors-v2
+  "Return a vector of human-readable errors for a V2 request, or [] if valid.
+   V2 adds :attempt-target and :evaluation; the target must be a valid
+   application-target map (resolved only from the request)."
+  [req]
+  (into []
+        (remove nil?)
+        [(when-not (map? req) "request must be a map")
+         (when (and (map? req) (not= :resubmission-issue (:request/kind req)))
+           (str "unexpected request/kind: " (:request/kind req)))
+         (when (and (map? req) (not= protocol-version-v2 (:request/version req)))
+           (str "unsupported request/version: " (:request/version req)))
+         (when (and (map? req) (nil? (:request/id req)))
+           "request/id required")
+         (when (and (map? req) (nil? (:request/hash req)))
+           "request/hash required")
+         (when (and (map? req) (not (map? (:transition req))))
+           "transition must be a map with :state-before and :command")
+         (when (and (map? req) (not (map? (:ordering req))))
+           "ordering must be a transaction-ordering map")
+         (when (and (map? req) (not (map? (:candidate-receipt req))))
+           "candidate-receipt must be a map")
+         (when (and (map? req) (not (map? (:validator req))))
+           "validator must be a map")
+         (when (and (map? req) (not (map? (:attempt-target req))))
+           "attempt-target must be a map")
+         (when (and (map? req)
+                    (not (issuance/valid-attempt-target? (:attempt-target req))))
+           (str "invalid attempt-target: "
+                (pr-str (:attempt-target req))))
+         (when (and (map? req) (not (map? (:evaluation req))))
+           "evaluation must be a map")
+         (when (and (map? req)
+                    (seq (remove request-allowed-top-level-v2 (keys req))))
+           (str "unexpected top-level keys: "
+                (pr-str (vec (sort-by pr-str
+                                      (remove request-allowed-top-level-v2 (keys req)))))))]))
+
+(defn request-errors-dispatch
+  "Dispatch request validation by protocol version."
+  [req]
+  (if (= protocol-version-v2 (request-version-of req))
+    (request-errors-v2 req)
+    (request-errors req)))
+
 (defn valid-request?
   [req]
-  (let [errors (request-errors req)]
+  (let [errors (request-errors-dispatch req)]
     (and (empty? errors)
          (= (:request/hash req)
-            (sed/request-hash request-domain req)))))
+            (sed/request-hash (if (= protocol-version-v2 (request-version-of req))
+                                issuance/request-domain-v2
+                                request-domain)
+                              req)))))
 
-(defn decide
-  "Pure decision core for receipt issuance. Returns the response map. Throws
-   ex-info (with :reason) on any failure so the caller fails closed.
-
-   auth: {:private-key <ed25519> :validator/key-id <kw|string>}. The signing
-   authority must know its own key identity; a candidate receipt claiming a
-   different :key/id is rejected so a signed receipt can never claim another
-   validator key."
+(defn decide-v1
+  "Pure decision core for V1 receipt issuance. Returns the response map. Throws
+   ex-info (with :reason) on any failure so the caller fails closed."
   [{:keys [private-key] :as auth} request]
   (let [validator-key-id (:validator/key-id auth)
         transition (get request :transition)
@@ -159,7 +217,7 @@
                       {:reason :input-root-mismatch
                        :action (:transaction/action command)
                        :input-root (:transaction/input-root ordering)})))
-     ;; 4. candidate receipt binding
+    ;; 4. candidate receipt binding
     (when-not (receipt/valid-receipt-shape? candidate-receipt)
       (throw (ex-info "invalid candidate receipt"
                       {:reason :invalid-candidate-receipt})))
@@ -201,6 +259,175 @@
        :request/id (:request/id request)
        :receipt signed})))
 
+(defn decide-v2
+  "Pure decision core for V2 (application-aware) receipt issuance.
+   Performs all V1 checks, plus: resolves the evaluation target from the request
+   only (never from reservation/candidate/transition fields), verifies the
+   evaluation root matches the evaluation presented in the request, matches the
+   application target root, constructs the attempt-subject, binds it into the
+   receipt candidate, and signs a V2 receipt.
+
+   auth: {:private-key <ed25519> :validator/key-id <kw|string>}. The signing
+   authority must know its own key identity; a candidate receipt claiming a
+   different :key/id is rejected so a signed receipt can never claim another
+   validator key."
+  [{:keys [private-key] :as auth} request]
+  (let [validator-key-id (:validator/key-id auth)
+        transition (get request :transition)
+        ordering (get request :ordering)
+        candidate-receipt (get request :candidate-receipt)
+        state-before (:state-before transition)
+        command (:command transition)
+        result (transition/apply-action state-before command)]
+    ;; V1 structural and transition checks (reusing decide-v1 internals via
+    ;; inline replication of the pre-signing gate). Re-run the same pure
+    ;; transition so V2 fails closed on any V1-level inconsistency.
+    (when-not (and validator-key-id (some? (get-in request [:candidate-receipt
+                                                            :attempt-receipt/validator
+                                                            :key/id])))
+      (throw (ex-info "signing key-id not configured" {:reason :signing-key-id-missing})))
+    (when-not (= (:request/hash request)
+                 (sed/request-hash issuance/request-domain-v2 request))
+      (throw (ex-info "request hash mismatch" {:reason :request-hash-mismatch})))
+    (when-not (= :committed (:status result))
+      (throw (ex-info "transition was not committed"
+                      {:reason (:reason result)
+                       :transition-status (:status result)})))
+    (when-not (:valid? (ordering/verify-ordering ordering))
+      (throw (ex-info "ordering hash mismatch" {:reason :ordering-hash-mismatch})))
+    (when-not (= :prf.resubmission/admit-child (:transaction/action ordering))
+      (throw (ex-info "receipt issuance requires an admit-child ordering"
+                      {:reason :unexpected-ordering-action
+                       :action (:transaction/action ordering)})))
+    (let [derived-root (transition/state-root (:state result))]
+      (when-not (= (:transaction/state-after-root ordering) derived-root)
+        (throw (ex-info "ordering state-after-root mismatch"
+                        {:reason :state-after-root-mismatch
+                         :ordering (:transaction/state-after-root ordering)
+                         :derived derived-root}))))
+    ;; 3b/3c ordering evidence reconciliation (same as V1)
+    (let [state-before-root (transition/state-root state-before)
+          effects-root (transition/effects-root (:effects result))
+          ordering-input (:ordering-input result)]
+      (when-not (= (:transaction/state-before-root ordering) state-before-root)
+        (throw (ex-info "ordering state-before-root mismatch"
+                        {:reason :state-before-root-mismatch
+                         :ordering (:transaction/state-before-root ordering)
+                         :derived state-before-root})))
+      (when-not (= (:transaction/effects-root ordering) effects-root)
+        (throw (ex-info "ordering effects-root mismatch"
+                        {:reason :effects-root-mismatch
+                         :ordering (:transaction/effects-root ordering)
+                         :derived effects-root})))
+      (when-not (= (:transaction/expected ordering-input)
+                   (:transaction/expected ordering))
+        (throw (ex-info "ordering expected snapshot mismatch"
+                        {:reason :ordering-expected-mismatch
+                         :derived (:transaction/expected ordering-input)
+                         :ordering (:transaction/expected ordering)})))
+      (when-not (= (:transaction/observed ordering-input)
+                   (:transaction/observed ordering))
+        (throw (ex-info "ordering observed snapshot mismatch"
+                        {:reason :ordering-observed-mismatch
+                         :derived (:transaction/observed ordering-input)
+                         :ordering (:transaction/observed ordering)}))))
+    (when (and (ordering/v2? ordering)
+               (let [expected-input-root
+                     (transition/command-input-root
+                      (:transaction/action command)
+                      (:transaction/input command))]
+                 (not= expected-input-root
+                       (:transaction/input-root ordering))))
+      (throw (ex-info "ordering input-root does not match re-derived command"
+                      {:reason :input-root-mismatch
+                       :action (:transaction/action command)
+                       :input-root (:transaction/input-root ordering)})))
+    ;; 4. candidate receipt structural validation (V2 shape)
+    (when-not (receipt/valid-receipt-v2-shape? candidate-receipt)
+      (throw (ex-info "invalid candidate receipt"
+                      {:reason :invalid-candidate-receipt})))
+    ;; 4b. key-id consistency
+    (let [claimed-key-id (get-in candidate-receipt
+                                 [:attempt-receipt/validator :key/id])]
+      (when-not (= validator-key-id claimed-key-id)
+        (throw (ex-info "receipt key-id inconsistent with signing key"
+                        {:reason :key-id-inconsistent
+                         :signing-key-id validator-key-id
+                         :claimed-key-id claimed-key-id}))))
+    (let [chain (get-in candidate-receipt [:attempt-receipt/chain])]
+      (when-not (issuance/receipt-binds-ordering? candidate-receipt ordering)
+        (throw (ex-info "candidate receipt does not bind the ordering"
+                        {:reason :receipt-ordering-binding-mismatch})))
+      (when-not (issuance/transition-outcome-matches? result (:admission-status chain))
+        (throw (ex-info "receipt admission status inconsistent with transition"
+                        {:reason :admission-status-inconsistent
+                         :transition-status (:status result)
+                         :claimed (:admission-status chain)})))
+      (when-not (= (:sequence (:transaction/input command)) (:sequence chain))
+        (throw (ex-info "receipt receipt sequence inconsistent with command"
+                        {:reason :sequence-inconsistent
+                         :command (:sequence (:transaction/input command))
+                         :receipt (:sequence chain)})))
+      (when-not (= (:parent-receipt-hash (:transaction/input command))
+                   (:parent-receipt-hash chain))
+        (throw (ex-info "receipt parent inconsistent with command"
+                        {:reason :parent-inconsistent})))
+      (let [ordering-family (second (:transaction/conflict-key ordering))]
+        (when-not (= ordering-family (:family-id chain))
+          (throw (ex-info "receipt family inconsistent with ordering"
+                          {:reason :family-inconsistent
+                           :ordering-family ordering-family
+                           :receipt-family (:family-id chain)})))))
+    ;; 5. verify evaluation root self-consistency
+    (let [evaluation (:evaluation request)]
+      (when-not (issuance/verify-request-evaluation-root evaluation)
+        (throw (ex-info "evaluation root mismatch"
+                        {:reason :evaluation-root-mismatch}))))
+    ;; 5b. resolve target from request only, match evaluation, construct subject
+    (let [attempt-target (:attempt-target request)
+          evaluation (:evaluation request)]
+      (when-not (issuance/valid-attempt-target? attempt-target)
+        (throw (ex-info "invalid attempt-target"
+                        {:reason :invalid-attempt-target})))
+      (let [target-check (issuance/verify-target-matches-evaluation
+                          attempt-target evaluation)]
+        (when-not (:valid? target-check)
+          (throw (ex-info "attempt-target does not match evaluation target"
+                          {:reason (:reason target-check)
+                           :detail (pr-str target-check)})))
+        (let [evaluation-root (evaluation/evaluation-root evaluation)
+              submitted-bundle-root (:attempt-receipt/submitted-bundle-root
+                                     candidate-receipt)
+              caller-root (:attempt-receipt/attempt-subject-root candidate-receipt)
+              subject-check (issuance/verify-subject-reconstruction
+                             evaluation-root submitted-bundle-root
+                             attempt-target caller-root)]
+          (when-not (:valid? subject-check)
+            (throw (ex-info "attempt subject reconstruction mismatch"
+                            {:reason (:reason subject-check)
+                             :detail (pr-str subject-check)})))
+          (let [subject (issuance/build-attempt-subject-from-evaluation
+                         evaluation-root submitted-bundle-root attempt-target)
+                candidate-with-subject (issuance/bind-attempt-subject
+                                        candidate-receipt subject)]
+            (when-not (receipt/receipt-requires-subject-root?
+                       candidate-with-subject)
+              (throw (ex-info "V2 receipt missing attempt-subject-root"
+                              {:reason :missing-subject-root})))
+            (let [signed (receipt/sign-receipt-v2 candidate-with-subject private-key)]
+              {:response/kind response-kind
+               :response/version protocol-version-v2
+               :request/id (:request/id request)
+               :receipt signed})))))))
+
+(defn decide
+  "Dispatch receipt issuance by protocol version. V1 (default) delegates to
+   decide-v1; V2 delegates to decide-v2."
+  [auth request]
+  (if (= protocol-version-v2 (request-version-of request))
+    (decide-v2 auth request)
+    (decide-v1 auth request)))
+
 (defn- read-limited
   [^Reader r max-chars]
   (let [buf (char-array (min 8192 max-chars))
@@ -232,9 +459,9 @@
     form))
 
 (defn- error-response
-  [request-id reason detail]
+  [request-id reason detail version]
   {:response/kind error-kind
-   :response/version protocol-version
+   :response/version version
    :request/id request-id
    :error/reason reason
    :error/detail detail})
@@ -250,10 +477,12 @@
                                                {:fallback (* 16 1024 1024)}))
             request (read-one-request (StringReader. raw))
             _ (reset! request-id (:request/id request))
+            version (request-version-of request)
             _ (when-not (valid-request? request)
                 (throw (ex-info "invalid request"
                                 {:reason :invalid-request
-                                 :errors (request-errors request)})))
+                                 :version version
+                                 :errors (request-errors-dispatch request)})))
             response (decide {:private-key private-key
                               :validator/key-id validator-key-id}
                              request)]
@@ -261,10 +490,11 @@
         0)
       (catch Exception e
         (let [reason (or (:reason (ex-data e)) :resubmission-issue-error)
-              detail (or (:detail (ex-data e)) (.getMessage e))]
+              detail (or (:detail (ex-data e)) (.getMessage e))
+              version (or (:version (ex-data e)) protocol-version)]
           (binding [*out* (java.io.PrintWriter. *err* true)]
             (println (str "resubmission issue error: " reason " — " detail)))
-          (println (pr-str (error-response @request-id reason detail)))
+          (println (pr-str (error-response @request-id reason detail version)))
           1)))))
 
 (defn- load-private-key
