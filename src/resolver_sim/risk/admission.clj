@@ -27,16 +27,20 @@
 
    No risk-specific head/epoch/fence store is introduced; this is the final
    authority/currentness bridge over the existing authority model."
-  (:require [resolver-sim.genesis :as genesis]
+  (:require [clojure.edn :as edn]
+            [clojure.java.io :as io]
+            [resolver-sim.genesis :as genesis]
             [resolver-sim.configuration-head :as configuration-head]
             [resolver-sim.hash.canonical :as hc]
             [resolver-sim.hash.reference :as hash-ref]
             [resolver-sim.pro-rata.canonical-effects :as effects]
             [resolver-sim.risk.limit-evaluation :as le]
             [resolver-sim.risk.limit-policy :as lp]
-            [resolver-sim.risk.pro-rata-producer :as producer]))
+            [resolver-sim.risk.pro-rata-producer :as producer])
+  (:import [java.nio.file Files StandardCopyOption]))
 
 (def risk-admission-schema "risk-controlled-pro-rata-admission.v1")
+(def risk-admission-basis-schema "risk-controlled-pro-rata-admission-basis.v1")
 (def risk-fence-schema "risk-admission-fence.v1")
 
 (def ^:private risk-admission-domain-tag
@@ -49,6 +53,11 @@
   "String domain tag for the risk-admission-fence commitment."
   "RISK_ADMISSION_FENCE_V1")
 
+(def ^:private risk-admission-basis-domain-tag
+  "String domain tag for the complete semantic basis of an adopted pro-rata
+   quantity-state successor."
+  "RISK_CONTROLLED_PRO_RATA_ADMISSION_BASIS_V1")
+
 (defn- admission-root
   [record]
   (hash-ref/sha256-ref
@@ -60,6 +69,12 @@
   (hash-ref/sha256-ref
    (hc/domain-hash risk-fence-domain-tag
                    (dissoc record :risk-admission-fence/root))))
+
+(defn- admission-basis-root
+  [basis]
+  (hash-ref/sha256-ref
+   (hc/domain-hash risk-admission-basis-domain-tag
+                   (dissoc basis :risk-controlled-pro-rata-admission-basis/root))))
 
 ;; ──────────────────────────────────────────────────────────────────────────────
 ;; Store
@@ -257,6 +272,42 @@
           (:state-before candidate-op)
           (:stages candidate-op)))
 
+(defn- candidate-effects
+  [candidate-op]
+  (effects/normalize-effects (mapcat identity (:stages candidate-op))))
+
+(defn- admission-basis
+  "Derive the complete semantic basis for the exact quantity-state successor
+   about to be adopted. This is deliberately independent of runtime fence IDs:
+   a fence authorizes finalization, while the basis commits the state change."
+  [resolved record candidate-op state-before state-after projection evaluation]
+  (let [effects (candidate-effects candidate-op)
+        reconstructed-after (effects/apply-effects state-before effects)
+        basis {:schema-version risk-admission-basis-schema
+               :configuration/root (:configuration/root resolved)
+               :head-state-root (:head-state-root resolved)
+               :risk-policy/root (:risk-policy/root resolved)
+               :state-before/root (effects/state-root state-before)
+               :effects/root (effects/effect-root effects)
+               :state-after/root (effects/state-root state-after)
+               :risk-projection/root (:risk-projection/root projection)
+               :evaluation/root (:risk-limit-evaluation/root evaluation)}]
+    (when-not (= state-after reconstructed-after)
+      (throw (ex-info "candidate effects do not derive adopted state"
+                      {:reason :admission/effect-closure-mismatch})))
+    (when-not (= (:state-before/root basis)
+                 (:business/state-before-root record))
+      (throw (ex-info "fence state-before root does not match candidate"
+                      {:reason :admission/state-before-root-mismatch})))
+    (when-not (= (:risk-projection/root basis) (:risk-projection/root record))
+      (throw (ex-info "fence projection root does not match candidate"
+                      {:reason :admission/risk-projection-root-mismatch})))
+    (when-not (= (:evaluation/root basis) (:evaluation/root record))
+      (throw (ex-info "fence evaluation root does not match candidate"
+                      {:reason :admission/evaluation-root-mismatch})))
+    (assoc basis :risk-controlled-pro-rata-admission-basis/root
+           (admission-basis-root basis))))
+
 ;; ──────────────────────────────────────────────────────────────────────────────
 ;; Two-phase fence/CAS (mirrors evaluate-and-issue / finalise-under-fence)
 ;; ──────────────────────────────────────────────────────────────────────────────
@@ -378,34 +429,44 @@
               (if-not pass?
                 {:status :rejected :reason :risk-limit-violation}
                 (let [state-after (candidate-state-after candidate-op)
-                      admission {:schema-version risk-admission-schema
-                                 :configuration/head-root (:configuration/root resolved)
-                                 :head-state-root (:head-state-root resolved)
-                                 :risk-policy/root (:risk-policy/root resolved)
-                                 :exact-source-root (:exact-source-root record)
-                                 :risk-projection/root (:risk-projection/root record)
-                                 :evaluation/root (:evaluation/root record)
-                                 :risk-admission-fence/root (:risk-admission-fence/root record)
-                                 :state-before/root (effects/state-root (:business/state current))
-                                 :state-after/root (effects/state-root state-after)
-                                 :status :applied}
-                      admission-root (admission-root admission)
-                      result {:status :committed
-                              :risk-admission/root admission-root
-                              :risk-policy/root (:risk-policy/root resolved)
-                              :evaluation eval}
-                      next (-> current
-                               (assoc :business/state state-after)
-                               (assoc-in [:risk-admissions admission-root]
-                                         (assoc admission :risk-controlled-pro-rata-admission/root admission-root))
-                               (assoc-in [:risk-fences fence-id]
-                                         (assoc record :status :consumed
-                                                :result result))
-                               (assoc :configuration/commit-index
-                                      (inc (:configuration/commit-index current))))]
-                  (if (compare-and-set! (.state-atom store) current next)
-                    result
-                    (recur)))))))))))
+                      basis (try
+                              (admission-basis resolved record candidate-op
+                                               (:business/state current) state-after
+                                               projection eval)
+                              (catch clojure.lang.ExceptionInfo error
+                                {:error error}))]
+                  (if-let [error (:error basis)]
+                    {:status :rejected :reason (:reason (ex-data error))}
+                    (let [admission {:schema-version risk-admission-schema
+                                     :configuration/head-root (:configuration/root resolved)
+                                     :head-state-root (:head-state-root resolved)
+                                     :risk-policy/root (:risk-policy/root resolved)
+                                     :exact-source-root (:exact-source-root record)
+                                     :risk-projection/root (:risk-projection/root record)
+                                     :evaluation/root (:evaluation/root record)
+                                     :risk-admission-fence/root (:risk-admission-fence/root record)
+                                     :state-before/root (effects/state-root (:business/state current))
+                                     :state-after/root (effects/state-root state-after)
+                                     :risk-controlled-pro-rata-admission-basis/root
+                                     (:risk-controlled-pro-rata-admission-basis/root basis)
+                                     :status :applied}
+                          admission-root (admission-root admission)
+                          result {:status :committed
+                                  :risk-admission/root admission-root
+                                  :risk-policy/root (:risk-policy/root resolved)
+                                  :evaluation eval}
+                          next (-> current
+                                   (assoc :business/state state-after)
+                                   (assoc-in [:risk-admissions admission-root]
+                                             (assoc admission :risk-controlled-pro-rata-admission/root admission-root))
+                                   (assoc-in [:risk-fences fence-id]
+                                             (assoc record :status :consumed
+                                                    :result result))
+                                   (assoc :configuration/commit-index
+                                          (inc (:configuration/commit-index current))))]
+                      (if (compare-and-set! (.state-atom store) current next)
+                        result
+                        (recur)))))))))))))
 
 (defn admit-and-commit-pro-rata!
   "Single-call convenience: issue a fence under the current authoritative
@@ -423,3 +484,48 @@
   "The committed risk-controlled admissions keyed by their roots."
   [store]
   (:risk-admissions (state-snapshot store)))
+
+(defn admission-by-root
+  "Resolve a committed admission by its content-addressed root."
+  [store root]
+  (get (committed-admissions store) root))
+
+(defn- durable-state-valid?
+  [state]
+  (and (map? state)
+       (= (:business/state state)
+          (:business/state state))
+       (every? (fn [[root admission]]
+                 (and (= root (:risk-controlled-pro-rata-admission/root admission))
+                      (= root (admission-root (dissoc admission
+                                                      :risk-controlled-pro-rata-admission/root)))))
+               (:risk-admissions state))))
+
+(defn- atomic-write-edn!
+  [path value]
+  (let [target (io/file path)
+        temp (io/file (str path ".tmp-" (System/nanoTime)))]
+    (io/make-parents target)
+    (spit temp (pr-str value))
+    (Files/move (.toPath temp) (.toPath target)
+                (into-array StandardCopyOption
+                            [StandardCopyOption/REPLACE_EXISTING
+                             StandardCopyOption/ATOMIC_MOVE]))
+    value))
+
+(defn persist-snapshot!
+  "Persist the complete semantic admission snapshot. Runtime fence IDs remain
+   in the snapshot only because consumed-fence results provide retry behavior;
+   no runtime controls enter the rooted admission basis."
+  [store path]
+  (atomic-write-edn! path (state-snapshot store)))
+
+(defn open-durable-store
+  "Open a RiskAdmissionStore from a snapshot written by persist-snapshot!.
+   Invalid or tampered snapshots fail closed before the store is returned."
+  [path]
+  (let [state (edn/read-string (slurp (io/file path)))]
+    (when-not (durable-state-valid? state)
+      (throw (ex-info "invalid durable risk admission snapshot"
+                      {:reason :risk-admission/durable-snapshot-invalid})))
+    (RiskAdmissionStore. (atom state))))

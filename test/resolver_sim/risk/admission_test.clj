@@ -17,7 +17,8 @@
      8. risk violation produces no partial business-state mutation;
      9. failed/stale admission does not advance state or head;
     10. no caller-controlled policy-selection route."
-  (:require [clojure.test :refer [deftest is testing]]
+  (:require [clojure.edn :as edn]
+            [clojure.test :refer [deftest is testing]]
             [resolver-sim.genesis :as genesis]
             [resolver-sim.hash.canonical :as hc]
             [resolver-sim.hash.reference :as hash-ref]
@@ -98,7 +99,79 @@
     (is (= :committed (:status decision)))
     (is (= (:risk-limit-policy/root (strict-policy)) (:risk-policy/root decision)))
     (is (= {qa 90000} (:business/state (admission/state-snapshot store))))
-    (is (= 1 (count (admission/committed-admissions store))))))
+    (is (= 1 (count (admission/committed-admissions store))))
+    (let [record (first (vals (admission/committed-admissions store)))]
+      (is (hash-ref/valid-sha256-ref?
+           (:risk-controlled-pro-rata-admission-basis/root record))))))
+
+(deftest test-admission-basis-is-committed-with-authoritative-successor
+  (let [store (store-at {qa 80000})
+        issued (admission/issue-risk-fence!
+                store (candidate {qa 80000} [[(effects/delta qa 10000)]]))
+        result (admission/finalise-risk-fence! store (:fence/id issued))
+        snapshot (admission/state-snapshot store)
+        record (first (vals (:risk-admissions snapshot)))]
+    (is (= :committed (:status result)))
+    (is (= {qa 90000} (:business/state snapshot)))
+    (is (some? record))
+    (is (= (effects/state-root {qa 80000}) (:state-before/root record)))
+    (is (= (effects/state-root {qa 90000}) (:state-after/root record)))
+    (is (= result (admission/finalise-risk-fence! store (:fence/id issued))))))
+
+(deftest test-finalization-rejects-tampered-semantic-root
+  (let [store (store-at {qa 80000})
+        issued (admission/issue-risk-fence!
+                store (candidate {qa 80000} [[(effects/delta qa 10000)]]))
+        fence-id (:fence/id issued)
+        before (admission/state-snapshot store)]
+    (swap! (.state-atom store)
+           assoc-in [:risk-fences fence-id :risk-projection/root]
+           (hash-ref/sha256-ref qb))
+    (let [result (admission/finalise-risk-fence! store fence-id)]
+      (is (= :rejected (:status result)))
+      (is (= :admission/risk-projection-root-mismatch (:reason result)))
+      (is (= (:business/state before)
+             (:business/state (admission/state-snapshot store)))))))
+
+(deftest test-durable-snapshot-recovers-committed-admission
+  (let [file (java.io.File/createTempFile "risk-admission-" ".edn")]
+    (try
+      (let [store (store-at {qa 80000})
+            issued (admission/issue-risk-fence!
+                    store (candidate {qa 80000} [[(effects/delta qa 10000)]]))
+            result (admission/finalise-risk-fence! store (:fence/id issued))
+            root (:risk-admission/root result)]
+        (is (= :committed (:status result)))
+        (admission/persist-snapshot! store (.getPath file))
+        (let [recovered (admission/open-durable-store (.getPath file))
+              record (admission/admission-by-root recovered root)]
+          (is (= (effects/state-root {qa 90000})
+                 (effects/state-root (:business/state (admission/state-snapshot recovered)))))
+          (is (= root (:risk-controlled-pro-rata-admission/root record)))
+          (is (hash-ref/valid-sha256-ref?
+               (:risk-controlled-pro-rata-admission-basis/root record)))
+          (let [fence-id (first (keys (:risk-fences (admission/state-snapshot recovered))))]
+            (is (= :committed
+                   (:status (admission/finalise-risk-fence! recovered fence-id)))))))
+      (finally
+        (.delete file)))))
+
+(deftest test-durable-snapshot-rejects-tampered-admission
+  (let [file (java.io.File/createTempFile "risk-admission-tampered-" ".edn")]
+    (try
+      (let [store (store-at {qa 80000})]
+        (admission/admit-and-commit-pro-rata!
+         store (candidate {qa 80000} [[(effects/delta qa 10000)]]))
+        (admission/persist-snapshot! store (.getPath file))
+        (let [snapshot (edn/read-string (slurp file))
+              root (first (keys (:risk-admissions snapshot)))
+              tampered (assoc-in snapshot [:risk-admissions root :state-after/root]
+                                 (effects/state-root {qa 91000}))]
+          (spit file (pr-str tampered))
+          (is (thrown-with-msg? clojure.lang.ExceptionInfo
+                                #"invalid durable risk admission snapshot"
+                                (admission/open-durable-store (.getPath file))))))
+      (finally (.delete file)))))
 
 ;; 2. caller-asserted configuration cannot override the authoritative head
 (deftest test-authority-derives-current-configuration-not-caller
