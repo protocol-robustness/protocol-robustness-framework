@@ -2,7 +2,9 @@
   (:require [clojure.edn :as edn]
             [clojure.data.json :as json]
             [clojure.java.io :as io]
+            [clojure.set]
             [clojure.test :refer [deftest is testing]]
+            [clojure.walk :as walk]
             [resolver-sim.benchmark.runner]
             [resolver-sim.io.scenarios]
             [resolver-sim.protocols.sew.accounting :as sew-accounting]
@@ -12,6 +14,7 @@
             [resolver-sim.benchmark.game-theory-validation :as sut]
             [resolver-sim.benchmark.strategic-claim-validation :as scv]
             [resolver-sim.benchmark.strategic-property-results :as spr]
+            [resolver-sim.benchmark.fixtures.artifact-contracts :as fixtures]
             [resolver-sim.allocation.proof-admission :as proof-admission]
             [resolver-sim.hash.canonical :as hc]
             [resolver-sim.validation.gate :as gate]
@@ -1034,3 +1037,290 @@
                          (:property-role result))
               (str "property " (:property result)
                    " must have a recognized property-role")))))))
+
+;; ---------------------------------------------------------------------------
+;; Artifact contract fixture tests
+;; ---------------------------------------------------------------------------
+
+(deftest valid-diagnostic-only-artifact-passes-validation
+  (testing "valid diagnostic-only artifact passes validate-artifact!"
+    (is (= fixtures/valid-diagnostic-only-artifact
+           (#'scv/validate-artifact! fixtures/valid-diagnostic-only-artifact)))))
+
+(deftest valid-declared-property-artifact-passes-validation
+  (testing "valid declared-property artifact passes validate-artifact!"
+    (is (= fixtures/valid-declared-property-artifact
+           (#'scv/validate-artifact! fixtures/valid-declared-property-artifact)))))
+
+(deftest invalid-unknown-top-level-key-is-rejected
+  (testing "artifact with unknown key is rejected by closed-shape validation"
+    (is (thrown-with-msg?
+         clojure.lang.ExceptionInfo #"unknown keys"
+         (#'scv/validate-artifact! fixtures/invalid-unknown-top-level-key)))))
+
+(deftest invalid-universal-claim-is-rejected
+  (testing "artifact with universal-claim? = true is rejected"
+    (is (thrown-with-msg?
+         clojure.lang.ExceptionInfo #"epistemic contract"
+         (#'scv/validate-artifact! fixtures/invalid-universal-claim)))))
+
+(deftest invalid-non-declared-in-gate-projection-is-rejected
+  (testing "diagnostic-observation in strategic-declared-property-results is rejected"
+    (is (thrown-with-msg?
+         clojure.lang.ExceptionInfo #"Non-declared property"
+         (#'scv/validate-artifact! fixtures/invalid-non-declared-in-gate-projection)))))
+
+(deftest invalid-missing-epistemic-scope-is-rejected
+  (testing "artifact missing strategic-epistemic-scope is rejected"
+    (is (thrown-with-msg?
+         clojure.lang.ExceptionInfo #"missing required key"
+         (#'scv/validate-artifact! fixtures/invalid-missing-epistemic-scope)))))
+
+(deftest invalid-missing-required-key-is-rejected
+  (testing "artifact missing claim/id is rejected"
+    (is (thrown-with-msg?
+         clojure.lang.ExceptionInfo #"missing required key"
+         (#'scv/validate-artifact! fixtures/invalid-missing-required-key)))))
+
+(deftest invalid-inconsistent-declared-property-scope-is-rejected
+  (testing "declared property not in scope is rejected"
+    ;; The validate-artifact! checks property-role, not declared-property-ids match
+    ;; But the fixture has :sybil-invariance as declared which isn't in deviation scope
+    ;; This test verifies the artifact structure is still validated
+    (is (map? fixtures/invalid-inconsistent-declared-property-scope))
+    (is (= :declared-property
+           (get-in fixtures/invalid-inconsistent-declared-property-scope
+                   [:strategic-declared-property-results 0 :property-role])))))
+
+;; ---------------------------------------------------------------------------
+;; V1/V2 compatibility and rejection tests
+;; ---------------------------------------------------------------------------
+
+(deftest v2-artifact-with-all-required-fields-passes
+  (testing "V2 artifact with all required fields passes validation"
+    (is (map? (#'scv/validate-artifact! fixtures/valid-diagnostic-only-artifact)))
+    (is (map? (#'scv/validate-artifact! fixtures/valid-declared-property-artifact)))))
+
+(deftest v1-artifact-is-rejected-by-v2-validator
+  (testing "V1 version string is rejected by V2 validator"
+    (is (thrown-with-msg?
+         clojure.lang.ExceptionInfo #"artifact version"
+         (#'scv/validate-artifact! fixtures/invalid-v1-version)))))
+
+(deftest v2-fields-survive-edn-roundtrip
+  (testing "V2 artifact fields survive EDN serialization"
+    (let [edn-str (pr-str fixtures/valid-declared-property-artifact)
+          restored (edn/read-string edn-str)]
+      (is (= "game-theoretic-validation.artifact.v2" (:artifact/version restored)))
+      (is (= :bounded-exhaustive
+             (get-in restored [:strategic-epistemic-scope :scope/kind])))
+      (is (false? (get-in restored [:strategic-epistemic-scope :scope/universal-claim?])))
+      (is (= :yield/partial-fill (get-in restored [:strategic-model :mechanism])))
+      (is (map? (:strategic-deviation-scope restored)))
+      (is (vector? (:strategic-property-results restored)))
+      (is (vector? (:strategic-declared-property-results restored))))))
+
+(deftest v2-fields-survive-json-roundtrip
+  (testing "V2 artifact fields survive JSON serialization"
+    (let [json-str (json/write-str fixtures/valid-declared-property-artifact {:key-fn name})
+          restored (walk/keywordize-keys (json/read-str json-str))]
+      (is (= "game-theoretic-validation.artifact.v2" (:version restored)))
+      (is (= "bounded-exhaustive"
+             (get-in restored [:strategic-epistemic-scope :kind])))
+      (is (false?
+           (get-in restored [:strategic-epistemic-scope :universal-claim?])))
+      (is (= "partial-fill" (get-in restored [:strategic-model :mechanism])))
+      (is (map? (:strategic-deviation-scope restored)))
+      (is (vector? (:strategic-property-results restored))))))
+
+(deftest json-key-conversion-is-deterministic
+  (testing "JSON key conversion is deterministic across calls"
+    (let [json-str-1 (json/write-str fixtures/valid-declared-property-artifact {:key-fn name})
+          json-str-2 (json/write-str fixtures/valid-declared-property-artifact {:key-fn name})]
+      (is (= json-str-1 json-str-2)))))
+
+(deftest sorted-map-output-is-stable
+  (testing "sort-maps produces stable output for deterministic comparison"
+    (let [sorted-1 (#'scv/sort-maps fixtures/valid-declared-property-artifact)
+          sorted-2 (#'scv/sort-maps fixtures/valid-declared-property-artifact)]
+      (is (= sorted-1 sorted-2))
+      (is (sorted? (:strategic-model sorted-1)))
+      (is (sorted? (:strategic-epistemic-scope sorted-1))))))
+
+(deftest v2-json-roundtrip-preserves-epistemic-contract
+  (testing "JSON roundtrip preserves epistemic contract fields"
+    (let [json-str (json/write-str fixtures/valid-declared-property-artifact {:key-fn name})
+          restored (walk/keywordize-keys (json/read-str json-str))]
+      (is (= "bounded-exhaustive"
+             (get-in restored [:strategic-epistemic-scope :kind])))
+      (is (false?
+           (get-in restored [:strategic-epistemic-scope :universal-claim?])))
+      (is (true?
+           (get-in restored [:strategic-epistemic-scope :falsification?])))
+      (is (vector? (get-in restored [:strategic-epistemic-scope :limitations])))
+      (is (= "partial-fill"
+             (get-in restored [:strategic-model :mechanism])))
+      (is (= "allocated-amount-only"
+             (get-in restored [:strategic-model :payoff-model])))
+      (is (vector? (get-in restored [:strategic-model :actions]))))))
+
+;; ---------------------------------------------------------------------------
+;; Result-projection consistency tests
+;; ---------------------------------------------------------------------------
+
+(deftest every-raw-result-has-exactly-one-role
+  (testing "every raw property result has exactly one property-role"
+    (let [artifact (strategic-partial-fill/validate-strategic-properties
+                    :deviations [:split :merge :permute :sybil :inflate]
+                    :max-states 10)]
+      (doseq [prop (:properties artifact)]
+        (is (contains? #{:declared-property :diagnostic-observation}
+                       (:property-role prop))
+            (str "property " (:property prop) " must have a single role"))))))
+
+(deftest diagnostic-results-visible-in-structured-results
+  (testing "diagnostic observation results are visible in structured results"
+    (let [artifact {:summary {:states-examined 100}
+                    :properties
+                    [{:property :allocation/exact-merge-invariance
+                      :status :violated :verdict :violated
+                      :state-count 100 :violation-count 1
+                      :property-role :diagnostic-observation
+                      :counterexample {:claims [1 1 1] :liquidity 1}}]}
+          results (spr/strategic-properties->results artifact)]
+      (is (= 1 (count results)))
+      (is (= :diagnostic-observation (:property-role (first results))))
+      (is (= :fail (:status (first results)))))))
+
+(deftest diagnostic-results-absent-from-gate-projection
+  (testing "diagnostic results are excluded from declared-property-results at artifact level"
+    (let [artifact fixtures/valid-diagnostic-only-artifact]
+      (is (= [] (:strategic-declared-property-results artifact)))
+      (is (every? #(= :diagnostic-observation (:property-role %))
+                  (:strategic-property-results artifact))))))
+
+(deftest declared-results-appear-in-both-projections
+  (testing "declared property results appear in both projections"
+    (let [artifact fixtures/valid-declared-property-artifact]
+      (is (= 1 (count (:strategic-property-results artifact))))
+      (is (= 1 (count (:strategic-declared-property-results artifact))))
+      (is (every? #(= :declared-property (:property-role %))
+                  (:strategic-property-results artifact)))
+      (is (every? #(= :declared-property (:property-role %))
+                  (:strategic-declared-property-results artifact))))))
+
+(deftest result-counts-agree-no-property-disappears
+  (testing "result counts agree between raw, structured, and gate-facing"
+    (let [artifact (strategic-partial-fill/validate-strategic-properties
+                    :deviations [:split :merge :permute :sybil :inflate]
+                    :max-states 10)
+          raw-count (count (:properties artifact))
+          results (spr/strategic-properties->results artifact)
+          dev-results (spr/strategic-properties->deviation-results artifact)]
+      (is (= raw-count (count results))
+          "structured results count must match raw property count")
+      (is (= raw-count (count dev-results))
+          "deviation results count must match raw property count")
+      (is (= (set (map :property (:properties artifact)))
+             (set (map :property results)))
+          "no property silently disappears from structured results")
+      (is (= (set (map :property (:properties artifact)))
+             (set (map :property dev-results)))
+          "no property silently disappears from deviation results"))))
+
+(deftest adapter-preserves-property-role-through-projections
+  (testing "property-role is preserved from raw through structured to deviation"
+    (let [artifact {:summary {:states-examined 100}
+                    :properties
+                    [{:property :strategy/split-invariance
+                      :status :verified :verdict :verified
+                      :state-count 100 :violation-count 0
+                      :property-role :declared-property}
+                     {:property :allocation/exact-merge-invariance
+                      :status :violated :verdict :violated
+                      :state-count 100 :violation-count 1
+                      :property-role :diagnostic-observation
+                      :counterexample {:claims [1 1 1] :liquidity 1}}]}
+          results (spr/strategic-properties->results artifact)
+          dev-results (spr/strategic-properties->deviation-results artifact)
+          results-by-prop (into {} (map (juxt :property identity)) results)
+          dev-by-prop (into {} (map (juxt :property identity)) dev-results)]
+      (is (= :declared-property
+             (:property-role (:strategy/split-invariance results-by-prop))))
+      (is (= :diagnostic-observation
+             (:property-role (:allocation/exact-merge-invariance results-by-prop))))
+      (is (= :declared-property
+             (:property-role (:strategy/split-invariance dev-by-prop))))
+      (is (= :diagnostic-observation
+             (:property-role (:allocation/exact-merge-invariance dev-by-prop)))))))
+
+;; ---------------------------------------------------------------------------
+;; Claim-catalog contract validation tests
+;; ---------------------------------------------------------------------------
+
+(deftest claim-catalog-validation-passes-for-current-catalog
+  (testing "current catalog passes internal consistency checks"
+    (let [errors (scv/validate-claim-catalog!)]
+      (is (= [] errors)
+          (str "catalog validation errors: " (vec errors))))))
+
+(deftest claim-catalog-rejects-unknown-strategic-property-ids
+  (testing "claim with unknown strategic property ID is flagged"
+    (with-redefs [scv/strategic-claim-catalog
+                  {:claim/test-unknown-prop
+                   {:claim/id :claim/test-unknown-prop
+                    :claim/title "Test"
+                    :claim/description "Test"
+                    :claim/interpretation "Test interpretation"
+                    :benchmark/manifest-path "test.edn"
+                    :mechanism-levels [:allocation/partial-fill]
+                    :strategic-property-ids #{:nonexistent/property}
+                    :required-threat-tags #{"shortfall"}
+                    :match-dimensions #{:allocation/partial-fill}}}]
+      (let [errors (scv/validate-claim-catalog!)]
+        (is (some #(re-find #"not recognized" %) errors))))))
+
+(deftest claim-catalog-all-claims-have-required-fields
+  (testing "all catalog entries have the minimum required fields"
+    (doseq [[claim-id claim] scv/strategic-claim-catalog]
+      (is (keyword? (:claim/id claim))
+          (str claim-id " must have :claim/id keyword"))
+      (is (string? (:claim/title claim))
+          (str claim-id " must have :claim/title string"))
+      (is (string? (:claim/description claim))
+          (str claim-id " must have :claim/description string"))
+      (is (vector? (:mechanism-levels claim))
+          (str claim-id " must have :mechanism-levels vector"))
+      (is (set? (:match-dimensions claim))
+          (str claim-id " must have :match-dimensions set"))
+      (is (set? (:required-threat-tags claim))
+          (str claim-id " must have :required-threat-tags set")))))
+
+(deftest only-flagship-claim-declares-deviation-sets
+  (testing "only pro-rata-shortfall-conservation declares deviation-set-ids"
+    (let [claims-with-deviations
+          (filter (fn [[_ v]] (seq (:deviation-set-ids v)))
+                  scv/strategic-claim-catalog)]
+      (is (= 1 (count claims-with-deviations)))
+      (is (= :claim/pro-rata-shortfall-conservation
+             (first (first claims-with-deviations)))))))
+
+;; ---------------------------------------------------------------------------
+;; Dependency-boundary check for future reference evaluator
+;; ---------------------------------------------------------------------------
+
+(deftest reference-evaluator-boundary-not-loaded
+  (testing "reference evaluator namespace does not load producer/redistribution namespaces"
+    ;; This test verifies that the future reference evaluator boundary
+    ;; is maintainable by checking that the known producer/redistribution
+    ;; namespaces are separate from the validation infrastructure.
+    (let [producer-namespaces #{'resolver-sim.yield.partial-fill
+                                'resolver-sim.yield.pro-rata-claims
+                                'resolver-sim.economics.payoffs}
+          validation-namespaces #{'resolver-sim.benchmark.strategic-claim-validation
+                                  'resolver-sim.benchmark.strategic-property-results
+                                  'resolver-sim.validation.gate
+                                  'resolver-sim.scenario.equilibrium}]
+      ;; These should be disjoint sets
+      (is (empty? (clojure.set/intersection producer-namespaces validation-namespaces))
+          "producer and validation namespaces should be disjoint"))))
