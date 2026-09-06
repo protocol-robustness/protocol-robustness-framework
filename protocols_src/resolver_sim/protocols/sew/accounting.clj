@@ -10,7 +10,7 @@
      - BondCollector appeal bond accounting
 
    All arithmetic uses integer division (uint256 truncation semantics)."
-  (:require             [resolver-sim.protocols.sew.types :as t]
+  (:require [resolver-sim.protocols.sew.types :as t]
             [resolver-sim.protocols.sew.economics :as sew-econ]
             [resolver-sim.protocols.sew.related-claims :as rc]
             [resolver-sim.util.attribution :as attr]
@@ -69,7 +69,7 @@
     (not= expected actual)))
 
 (defn- ensure-force-authorisation-usable!
-   "Guard a forced custody adjustment with the persisted authorization record.
+  "Guard a forced custody adjustment with the persisted authorization record.
 
     The caller-supplied provenance is evidence only; it is never authority on
     its own.  The scope-kind is derived from the persisted record, not
@@ -80,31 +80,31 @@
 
     Does NOT short-circuit for idempotent replay — that is handled at the outer
     command layer."
-   [world auth-provenance scope-map]
-   (let [auth-id (:authorization/id auth-provenance)
-         record (get-in world [:force-authorisations auth-id])
-         record-scope-kind (:authorization/scope-kind record :single-claim)
-         now (time-ctx/block-ts world)]
-     (when-not record
-       (throw (ex-info "force-authorisation record not found"
-                       {:type :authorization/not-found
-                        :authorization/id auth-id})))
-     (when-not (contains? #{:single-claim :related-claims} record-scope-kind)
-       (throw (ex-info "force-authorisation record has unsupported scope-kind"
-                       {:type :authorization/unsupported-scope-kind
-                        :authorization/id auth-id
-                        :scope-kind record-scope-kind})))
-     (when-not (= record-scope-kind
-                  (:authorization/scope-kind auth-provenance :single-claim))
-       (throw (ex-info "force-authorisation provenance scope-kind does not match record"
-                       {:type :authorization/scope-kind-mismatch
-                        :authorization/id auth-id
-                        :record-scope-kind record-scope-kind
-                        :provenance-scope-kind (:authorization/scope-kind auth-provenance :single-claim)})))
-     (when-not (= :active (:authorization/status record))
+  [world auth-provenance scope-map]
+  (let [auth-id (:authorization/id auth-provenance)
+        record (get-in world [:force-authorisations auth-id])
+        record-scope-kind (:authorization/scope-kind record :single-claim)
+        now (time-ctx/block-ts world)]
+    (when-not record
+      (throw (ex-info "force-authorisation record not found"
+                      {:type :authorization/not-found
+                       :authorization/id auth-id})))
+    (when-not (contains? #{:single-claim :related-claims} record-scope-kind)
+      (throw (ex-info "force-authorisation record has unsupported scope-kind"
+                      {:type :authorization/unsupported-scope-kind
+                       :authorization/id auth-id
+                       :scope-kind record-scope-kind})))
+    (when-not (= record-scope-kind
+                 (:authorization/scope-kind auth-provenance :single-claim))
+      (throw (ex-info "force-authorisation provenance scope-kind does not match record"
+                      {:type :authorization/scope-kind-mismatch
+                       :authorization/id auth-id
+                       :record-scope-kind record-scope-kind
+                       :provenance-scope-kind (:authorization/scope-kind auth-provenance :single-claim)})))
+    (when-not (= :active (:authorization/status record))
       (throw (ex-info (let [s (:authorization/status record)]
                         (cond
-                           (and (= :consumed s) (= :related-claims record-scope-kind))
+                          (and (= :consumed s) (= :related-claims record-scope-kind))
                           "force-authorisation related-claims members already consumed"
                           (= :consumed s)
                           "force-authorisation record already consumed"
@@ -131,11 +131,11 @@
                        :authorization/id auth-id
                        :expires-at (:expires-at record)
                        :now now})))
-     (when (= :related-claims record-scope-kind)
-       (when-not (= :related-claims (:authorization/scope-kind record))
-         (throw (ex-info "force-authorisation record is not a related-claims grant"
-                         {:type :authorization/related-claims-scope-kind-mismatch
-                          :authorization/id auth-id})))
+    (when (= :related-claims record-scope-kind)
+      (when-not (= :related-claims (:authorization/scope-kind record))
+        (throw (ex-info "force-authorisation record is not a related-claims grant"
+                        {:type :authorization/related-claims-scope-kind-mismatch
+                         :authorization/id auth-id})))
       (when-not (and (= (:relationship/id record) (:relationship/id auth-provenance))
                      (= (:relationship/hash record) (:relationship/hash auth-provenance))
                      (= (set (:member-scope-hashes record))
@@ -143,7 +143,7 @@
         (throw (ex-info "related-claims authorization provenance differs from grant"
                         {:type :authorization/related-claims-grant-mismatch
                          :authorization/id auth-id}))))
-     (when (= :single-claim record-scope-kind)
+    (when (= :single-claim record-scope-kind)
       (let [record-scope (:authorization/scope record)
             record-hash (:authorization/scope-hash record)
             derived-hash (force-authorisation-scope-hash scope-map)]
@@ -168,7 +168,7 @@
                           {:type :authorization/provenance-scope-mismatch
                            :authorization/id auth-id
                            :granted-scope-hash record-hash
-                            :provenance-scope-hash (:authorization/scope-hash auth-provenance)})))))
+                           :provenance-scope-hash (:authorization/scope-hash auth-provenance)})))))
     (if (= :related-claims record-scope-kind)
       ;; Related-claims: per-member consumption tracking
       (let [rel-id (:relationship/id auth-provenance)
@@ -252,7 +252,11 @@
       (cond-> fields
         (not position-bound?) (dissoc :held/position-id))))))
 
-(defn- mark-force-authorisation-consumed
+(defn apply-force-authorisation-consumption
+  "Pure Sew successor projection for an already-admitted force-authorised held
+  adjustment. Admission/scope validation is intentionally separate; this
+  function derives only the registry consequence of consuming the selected
+  authorization."
   [world auth-provenance adjustment]
   (let [auth-id (:authorization/id auth-provenance)
         record (get-in world [:force-authorisations auth-id])
@@ -269,12 +273,6 @@
               :held/reason (:held/reason adjustment)
               :consumed/action (:held/action adjustment)}]
     (if (= :related-claims record-scope-kind)
-      ;; Per-member consumption: add member scope hash to consumed set. The
-      ;; grant remains active while members remain, then becomes terminally consumed.
-      ;; `:consumed-relationship-member-hashes` records each consumed member's
-      ;; related-claims-member identity hash so the scope-closed invariant can
-      ;; prove relationship membership retrospectively, independent of the
-      ;; force-authorisation-scope hash.
       (let [member-hash (member-scope-hash-from-adjustment world auth-provenance adjustment)
             rel-member-hash (rc/related-claims-member-hash
                              {:claim/kind :sew/workflow
@@ -318,7 +316,6 @@
                     (assoc (get-in world [:force-authorisations auth-id])
                            :authorization/status :consumed
                            :consumed? true))))
-      ;; Single-claim: consume entire auth (current behavior)
       (let [consumed-entry (merge base
                                   (when-let [d (:held/direction adjustment)]
                                     {:held/direction d}))]
@@ -407,26 +404,26 @@
 (defn- build-held-adjustment
   [world token amount direction action reason authorization-provenance extra]
   (let [before (get-in world [:total-held token] 0)
-        after  (case direction
-                 :in  (+ before amount)
-                 :out (- before amount))
+        after (case direction
+                :in (+ before amount)
+                :out (- before amount))
         position-fields (held-policy/position-components token reason extra)]
     (held-adjustment/build-held-adjustment
      (merge {:held-adjustment/id (next-held-adjustment-id world)
-            :held/direction direction
-            :token token
-            :amount amount
-            :held/before before
-            :held/after after
-            :held/reason (or reason :held/unspecified)
-            :held/action action}
-           (when-let [previous-id (some-> world :held-adjustments last :held-adjustment/id)]
-             (when-let [previous-hash (get-in world [:held-artifacts previous-id :artifact/hash])]
-               {:held/previous-artifact-hash previous-hash}))
-           position-fields
-           (when authorization-provenance
-             {:authorization/provenance authorization-provenance})
-           extra))))
+             :held/direction direction
+             :token token
+             :amount amount
+             :held/before before
+             :held/after after
+             :held/reason (or reason :held/unspecified)
+             :held/action action}
+            (when-let [previous-id (some-> world :held-adjustments last :held-adjustment/id)]
+              (when-let [previous-hash (get-in world [:held-artifacts previous-id :artifact/hash])]
+                {:held/previous-artifact-hash previous-hash}))
+            position-fields
+            (when authorization-provenance
+              {:authorization/provenance authorization-provenance})
+            extra))))
 
 (defn- append-held-adjustment
   [world adjustment]
@@ -489,7 +486,7 @@
 
 (defn- adjust-held
   [world token amount direction {:keys [action reason authorization-provenance extra
-                                         parameter/context parameter/address]
+                                        parameter/context parameter/address]
                                  :or {action "adjust-held"}}]
   (validate-held-inputs! token amount)
   (when-let [reserved (seq (held-adjustment/reserved-adjustment-keys-present extra))]
@@ -531,9 +528,9 @@
     (let [current (get-in world [:total-held token] 0)]
       (when (and (= direction :out) (< current amount))
         (throw (ex-info "sub-held underflow"
-                        {:type   :sub-held-underflow
-                         :token  token
-                         :held   current
+                        {:type :sub-held-underflow
+                         :token token
+                         :held current
                          :amount amount})))
       (validate-held-position! world token amount direction reason extra)
       (let [adjustment (build-held-adjustment world
@@ -552,7 +549,7 @@
                         (append-held-adjustment adjustment)
                         (append-held-custody-artifact artifact))]
         (if is-force-auth?
-          (mark-force-authorisation-consumed world'' authorization-provenance adjustment)
+          (apply-force-authorisation-consumption world'' authorization-provenance adjustment)
           world'')))))
 
 (defn add-held
@@ -625,7 +622,7 @@
   (update-in world [:total-fees token] (fnil + 0) amount))
 
 (defn withdraw-fees
-   "Withdraw all accumulated fees for token.
+  "Withdraw all accumulated fees for token.
     Sets total-fees[token] = 0 and returns {:ok true :world world' :amount amount}.
     Mirrors EscrowVault.withdrawFees.
 
@@ -721,19 +718,19 @@
   (let [legacy-world (update-in world [:claimable wf-id] dissoc addr)]
     (if-let [domains (get-in legacy-world [:claimable-v2 wf-id])]
       (let [cleaned (reduce-kv (fn [m domain addr-map]
-                                (let [without-addr (dissoc addr-map addr)]
-                                  (if (seq without-addr)
-                                    (assoc m domain without-addr)
-                                    m)))
-                              {}
-                              domains)]
+                                 (let [without-addr (dissoc addr-map addr)]
+                                   (if (seq without-addr)
+                                     (assoc m domain without-addr)
+                                     m)))
+                               {}
+                               domains)]
         (if (seq cleaned)
           (assoc-in legacy-world [:claimable-v2 wf-id] cleaned)
           (update legacy-world :claimable-v2 dissoc wf-id)))
       legacy-world)))
 
 (defn withdraw-escrow
-   "Claim claimable balance for addr on workflow-id.
+  "Claim claimable balance for addr on workflow-id.
     Mirrors: BaseEscrow.withdrawEscrow.
 
     Guard: reentrancy guard must not be set.
@@ -759,25 +756,25 @@
           (not (or (t/terminal-state? world wf-id) (= :pending state))))
         (t/fail :transfer-not-finalized)
 
-         :else
-          (let [settlement-amt (get-in world [:claimable-v2 wf-id :settlement/principal addr] 0)
-                yield-amt      (get-in world [:claimable-v2 wf-id :settlement/yield addr] 0)
-                bond-refund    (get-in world [:claimable-v2 wf-id :bond/refund addr] 0)
-                bounty         (get-in world [:claimable-v2 wf-id :liability/challenge-bounty addr] 0)
-                amount         (+ settlement-amt yield-amt bond-refund bounty)
-               et      (t/get-transfer world wf-id)
-               token   (:token et)]
-           (cond
-             (zero? amount)
-             (t/fail :no-claimable-balance)
+        :else
+        (let [settlement-amt (get-in world [:claimable-v2 wf-id :settlement/principal addr] 0)
+              yield-amt (get-in world [:claimable-v2 wf-id :settlement/yield addr] 0)
+              bond-refund (get-in world [:claimable-v2 wf-id :bond/refund addr] 0)
+              bounty (get-in world [:claimable-v2 wf-id :liability/challenge-bounty addr] 0)
+              amount (+ settlement-amt yield-amt bond-refund bounty)
+              et (t/get-transfer world wf-id)
+              token (:token et)]
+          (cond
+            (zero? amount)
+            (t/fail :no-claimable-balance)
 
-             (contains? (:token-liquidity-crunch world #{}) token)
-             (t/fail :liquidity-insufficient)
+            (contains? (:token-liquidity-crunch world #{}) token)
+            (t/fail :liquidity-insufficient)
 
-             :else
-             (let [world' (-> world
-                              (clear-claimable-v2-for-addr wf-id addr)
-                              (update-in [:total-withdrawn token] (fnil + 0) amount))]
+            :else
+            (let [world' (-> world
+                             (clear-claimable-v2-for-addr wf-id addr)
+                             (update-in [:total-withdrawn token] (fnil + 0) amount))]
               (attr/with-attribution {:subject/type :escrow
                                       :subject/id wf-id
                                       :action/type :escrow/withdraw
@@ -787,7 +784,7 @@
                  {:withdraw/before {:claimable amount
                                     :workflow-id wf-id
                                     :recipient addr}}
-                  {:withdraw/after {:claimable (get-in world' [:claimable-v2 wf-id :settlement/principal addr] 0)
+                 {:withdraw/after {:claimable (get-in world' [:claimable-v2 wf-id :settlement/principal addr] 0)
                                    :total-withdrawn (get-in world' [:total-withdrawn token])}}
                  {:withdraw/workflow-id wf-id
                   :withdraw/recipient addr
@@ -837,38 +834,38 @@
                        :actual token})))
     (let [fee-bps (or (:appeal-bond-protocol-fee-bps snap) 0)
           {:keys [fee net]} (sew-econ/calculate-appeal-bond-fee amount fee-bps)
-        world' (-> world
-                   (update-in [:bond-balances workflow-id appellant] (fnil + 0) net)
-                   (update-in [:bond-fees token] (fnil + 0) fee)
-                   (update-in [:total-bonds-posted token] (fnil + 0) amount)
-                   (add-held token
-                             net
-                             {:action "post-appeal-bond"
-                              :reason :appeal-bond-posted
-                              :extra {:held/action "post-appeal-bond"
-                                      :held/workflow-id workflow-id
-                                      :held/bond-id (str workflow-id "-" appellant)
-                                      :held/actor appellant}}))]
-    (attr/with-attribution {:subject/type :bond
-                            :subject/id (str workflow-id "-" appellant)
-                            :action/type :bond/post
-                            :evidence/reason :bond-posted}
-      (cap/capture-event-evidence!
-       :bond-posted
-        {:bond/before {:bond-balance (get-in world [:bond-balances workflow-id appellant] 0)
-                       :total-held (get-in world [:total-held token] 0)}}
-        {:bond/after  {:bond-balance (get-in world' [:bond-balances workflow-id appellant] 0)
+          world' (-> world
+                     (update-in [:bond-balances workflow-id appellant] (fnil + 0) net)
+                     (update-in [:bond-fees token] (fnil + 0) fee)
+                     (update-in [:total-bonds-posted token] (fnil + 0) amount)
+                     (add-held token
+                               net
+                               {:action "post-appeal-bond"
+                                :reason :appeal-bond-posted
+                                :extra {:held/action "post-appeal-bond"
+                                        :held/workflow-id workflow-id
+                                        :held/bond-id (str workflow-id "-" appellant)
+                                        :held/actor appellant}}))]
+      (attr/with-attribution {:subject/type :bond
+                              :subject/id (str workflow-id "-" appellant)
+                              :action/type :bond/post
+                              :evidence/reason :bond-posted}
+        (cap/capture-event-evidence!
+         :bond-posted
+         {:bond/before {:bond-balance (get-in world [:bond-balances workflow-id appellant] 0)
+                        :total-held (get-in world [:total-held token] 0)}}
+         {:bond/after {:bond-balance (get-in world' [:bond-balances workflow-id appellant] 0)
                        :total-held (get-in world' [:total-held token] 0)}}
-       {:bond/workflow-id workflow-id
-        :bond/appellant appellant
-        :bond/amount amount
-        :bond/fee fee
-        :bond/net net
-        :bond/token token}
-       nil
-       {:world-before world
-        :world-after world'}))
-    world')))
+         {:bond/workflow-id workflow-id
+          :bond/appellant appellant
+          :bond/amount amount
+          :bond/fee fee
+          :bond/net net
+          :bond/token token}
+         nil
+         {:world-before world
+          :world-after world'}))
+      world')))
 
 (defn distribute-slashed-funds
   "Distribute slashed funds according to the Sew default slash-distribution policy.
@@ -895,14 +892,14 @@
   ([world amount challenger bounty-bps workflow-id]
    (let [pre-state-root (hash/hash-with-intent {:hash/intent :world-structure} world)
          insurance-bps (get-in world [:params :insurance-cut-bps] 5000)
-         protocol-bps  (get-in world [:params :protocol-retained-bps] 3000)
+         protocol-bps (get-in world [:params :protocol-retained-bps] 3000)
          result (sew-econ/build-sew-slash-distribution
-                  amount bounty-bps
-                  :challenger challenger
-                  :workflow-reference workflow-id
-                  :evidence-reference (str "sew:slash:" (or workflow-id "unknown"))
-                  :insurance-cut-bps insurance-bps
-                  :protocol-retained-bps protocol-bps)
+                 amount bounty-bps
+                 :challenger challenger
+                 :workflow-reference workflow-id
+                 :evidence-reference (str "sew:slash:" (or workflow-id "unknown"))
+                 :insurance-cut-bps insurance-bps
+                 :protocol-retained-bps protocol-bps)
          _ (when (= :invalid (:status result))
              (throw (ex-info "distribute-slashed-funds: invalid distribution"
                              {:violations (:violations result)
@@ -910,8 +907,8 @@
                               :challenger challenger :workflow-id workflow-id
                               :insurance-cut-bps insurance-bps
                               :protocol-retained-bps protocol-bps})))
-         dist   (:distribution result)
-         final  (:distribution/final-allocations dist)
+         dist (:distribution result)
+         final (:distribution/final-allocations dist)
          dist-hash (:distribution/hash dist)
          policy-root (:distribution/policy-root dist)
          param-root (get-in dist [:distribution/parameter-context :source-root] "sew:live-snapshot")
@@ -936,13 +933,13 @@
          app-key [:slash-distribution-applied (or workflow-id 0) (or challenger 0)]
          app-record (get-in world app-key)
          app-hash (when (map? app-record) (:distribution-hash app-record))]
-      (if (and (some? app-hash) (= app-hash dist-hash))
+     (if (and (some? app-hash) (= app-hash dist-hash))
         ;; Idempotent: same hash already applied → no-op.  The app-key record
         ;; (:distribution-hash + :receipt) is already present from the first
         ;; application; writing anything here (e.g. a :skipped receipt) would
         ;; diverge the replayed world from the applied world and break the
         ;; idempotency contract asserted by distribution-characterization-test.
-        world
+       world
        (let [obligation-ref (when (and challenger (pos? bounty-amount) (some? workflow-id))
                               (str "claimable:" workflow-id ":" challenger))
              world' (-> world
@@ -955,7 +952,7 @@
                         (cond-> (and challenger (pos? bounty-amount) (some? workflow-id))
                           (record-claimable-v2 workflow-id :liability/challenge-bounty
                                                challenger bounty-amount))
-                         (assoc-in app-key {:distribution-hash dist-hash}))
+                        (assoc-in app-key {:distribution-hash dist-hash}))
              post-state-root (hash/hash-with-intent {:hash/intent :world-structure} world')
              abstract-effects [{:allocation/id :sew.allocation/insurance
                                 :amount (get final :sew.allocation/insurance 0)}
@@ -981,32 +978,32 @@
                              :amount bounty-amount
                              :obligation-reference obligation-ref}])
              receipt (sd/build-application-receipt
-                       {:distribution-root dist-hash
-                        :policy-root policy-root
-                        :parameter-context-root param-root
-                        :pre-state-root pre-state-root
-                        :post-state-root post-state-root
-                        :idempotency-key app-key
-                        :status :applied
-                        :abstract-effects abstract-effects
-                        :concrete-effects concrete-effects
-                        :obligations obligations})
+                      {:distribution-root dist-hash
+                       :policy-root policy-root
+                       :parameter-context-root param-root
+                       :pre-state-root pre-state-root
+                       :post-state-root post-state-root
+                       :idempotency-key app-key
+                       :status :applied
+                       :abstract-effects abstract-effects
+                       :concrete-effects concrete-effects
+                       :obligations obligations})
              world' (assoc-in world' (conj app-key :receipt) (:receipt/hash receipt))]
          (when (and challenger (pos? bounty-amount))
            (attr/with-attribution
              {:subject/type :challenger
-              :subject/id   challenger
-              :action/type  :reward-bounty
+              :subject/id challenger
+              :action/type :reward-bounty
               :evidence/reason :incentive-payout}
              (cap/capture-event-evidence! :incentive-payout
-               {:bounty-claimable 0}
-               {:bounty-claimable bounty-amount}
-               {:slash-amount amount :bounty-bps bounty-bps
-                :distribution-hash dist-hash
-                :receipt-hash (:receipt/hash receipt)}
-               {:formula "slash-distribution.v1 via build-sew-slash-distribution"}
-               {:world-before world
-                :world-after world'})))
+                                          {:bounty-claimable 0}
+                                          {:bounty-claimable bounty-amount}
+                                          {:slash-amount amount :bounty-bps bounty-bps
+                                           :distribution-hash dist-hash
+                                           :receipt-hash (:receipt/hash receipt)}
+                                          {:formula "slash-distribution.v1 via build-sew-slash-distribution"}
+                                          {:world-before world
+                                           :world-after world'})))
          world')))))
 
 (defn- reject-bond-evidence!
@@ -1020,8 +1017,8 @@
      evidence-type
      {:bond/before {:bond-balance (get-in world [:bond-balances workflow-id appellant] 0)
                     :bond-status :active}}
-     {:bond/after  {:bond-balance (get-in world [:bond-balances workflow-id appellant] 0)
-                    :bond-status :unchanged}}
+     {:bond/after {:bond-balance (get-in world [:bond-balances workflow-id appellant] 0)
+                   :bond-status :unchanged}}
      {:bond/workflow-id workflow-id
       :bond/appellant appellant
       :bond/amount amount
@@ -1038,8 +1035,8 @@
    Guard: bond balance must be > 0."
   [world workflow-id appellant]
   (let [amount (get-in world [:bond-balances workflow-id appellant] 0)
-        et     (t/get-transfer world workflow-id)
-        token  (:token et)]
+        et (t/get-transfer world workflow-id)
+        token (:token et)]
     (if (zero? amount)
       (do (reject-bond-evidence! world token workflow-id appellant amount :no-bond-to-slash :bond/slash-rejected :bond-slash-rejected)
           (t/fail :no-bond-to-slash))
@@ -1063,8 +1060,8 @@
            :bond-slashed
            {:bond/before {:bond-balance amount
                           :bond-status :active}}
-           {:bond/after  {:bond-balance 0
-                          :bond-status :slashed}}
+           {:bond/after {:bond-balance 0
+                         :bond-status :slashed}}
            {:bond/workflow-id workflow-id
             :bond/appellant appellant
             :bond/amount amount
@@ -1081,8 +1078,8 @@
    Guard: bond balance must be > 0."
   [world workflow-id appellant]
   (let [amount (get-in world [:bond-balances workflow-id appellant] 0)
-        et     (t/get-transfer world workflow-id)
-        token  (:token et)]
+        et (t/get-transfer world workflow-id)
+        token (:token et)]
     (if (zero? amount)
       (do (reject-bond-evidence! world token workflow-id appellant amount :no-bond-to-return :bond/return-rejected :bond-return-rejected)
           (t/fail :no-bond-to-return))
@@ -1105,8 +1102,8 @@
            :bond-returned
            {:bond/before {:bond-balance amount
                           :bond-status :active}}
-           {:bond/after  {:bond-balance 0
-                          :bond-status :returned}}
+           {:bond/after {:bond-balance 0
+                         :bond-status :returned}}
            {:bond/workflow-id workflow-id
             :bond/appellant appellant
             :bond/amount amount
@@ -1123,7 +1120,7 @@
   [world workflow-id]
   (let [wf-bonds (get-in world [:bond-balances workflow-id])]
     (if (seq wf-bonds)
-      (let [et    (t/get-transfer world workflow-id)
+      (let [et (t/get-transfer world workflow-id)
             token (:token et)]
         (reduce-kv (fn [w appellant amount]
                      (if (pos? amount)
@@ -1137,10 +1134,10 @@
                                               :held/bond-id (str workflow-id "-" appellant)
                                               :held/actor appellant}})
                            (assoc-in [:bond-balances workflow-id appellant] 0)
-                            (record-claimable-v2 workflow-id :settlement/principal appellant amount))
-                        w))
-      world
-      wf-bonds))
+                           (record-claimable-v2 workflow-id :settlement/principal appellant amount))
+                       w))
+                   world
+                   wf-bonds))
       world)))
 
 (defn final-held-summary
@@ -1148,6 +1145,6 @@
    Delegates to the protocol-independent implementation in resolver-sim.assurance.custody."
   [world]
   (custody-core/final-held-summary
-    (get world :held-adjustments [])
-    (get world :held-ledger/index {})
-    (get world :total-held {})))
+   (get world :held-adjustments [])
+   (get world :held-ledger/index {})
+   (get world :total-held {})))

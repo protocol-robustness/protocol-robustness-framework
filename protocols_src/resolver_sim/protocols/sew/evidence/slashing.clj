@@ -14,8 +14,7 @@ tunneling."
             [resolver-sim.evidence.node :as node]
             [resolver-sim.economics.payoffs :as payoffs]
             [resolver-sim.hash.canonical :as hc]
-            [resolver-sim.protocols.sew.economics :as sew-economics]
-            [resolver-sim.pro-rata.claims :as pro-rata-claims]))
+             [resolver-sim.protocols.sew.economics :as sew-economics]))
 
 ;; ── Extractors ──────────────────────────────────────────────────────────
 
@@ -107,9 +106,11 @@ tunneling."
   "Claim IDs that can be evaluated from the legacy Sew projection evidence.
    Witness-backed claims run only against mechanism-result evidence."
   []
-  (vec (remove #{:pro-rata/cap-respecting
-                 :pro-rata/canonical-remainder-assignment}
-               (pro-rata-claims/registered-claim-ids))))
+   (let [registered-claim-ids
+         (requiring-resolve 'resolver-sim.pro-rata.claims/registered-claim-ids)]
+     (vec (remove #{:pro-rata/cap-respecting
+                    :pro-rata/canonical-remainder-assignment}
+                  (registered-claim-ids)))))
 
 (defn build-claim-requests
   "Build claim requests referencing the persisted claim-evaluation node hash."
@@ -300,9 +301,10 @@ tunneling."
         claim-eval-node-hash (:node-hash claim-eval-persisted)
         claim-requests (build-claim-requests claim-eval-node-hash)
         {:keys [claim-results]}
-        (claims-engine/evaluate-claims
-         claim-requests [claim-eval-persisted]
-         {:evaluator-resolver pro-rata-claims/evaluator-resolver})
+         (claims-engine/evaluate-claims
+          claim-requests [claim-eval-persisted]
+          {:evaluator-resolver
+           (requiring-resolve 'resolver-sim.pro-rata.claims/evaluator-resolver)})
         shaped-claims (mapv (fn [cr]
                               (claim-result-entry (:claim-id cr) cr))
                             claim-results)

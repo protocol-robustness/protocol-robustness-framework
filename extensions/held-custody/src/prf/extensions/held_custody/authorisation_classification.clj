@@ -66,8 +66,49 @@
     rejected (fail closed). No lexical/ID tie-breaker is applied unless permit
     ordering is itself part of the governed semantic contract."
    :ordinary
-   "allowed by normal protocol semantics; force-authorisation is not required
-    and, if presented, is ignored rather than consumed."})
+    "allowed by normal protocol semantics; force-authorisation is not required
+     and, if presented, is ignored rather than consumed."})
+
+(def ^:private required-calculation-basis-keys
+  #{:operation-id :scope :permits :consumption-registry :now-ts
+    :authoritative-config :expected-classification})
+
+(defn check-calculable
+  "Preflight an explicit single-claim override-classification basis.
+
+   This deliberately does not resolve current configuration, extensions, or
+   runtime entrypoints. It only accepts retained data sufficient for the pure
+   classifier. Related-claims permits fail closed because their relationship
+   basis is not part of this contract."
+  [basis]
+  (let [missing (->> required-calculation-basis-keys
+                     (remove #(contains? basis %))
+                     sort
+                     vec)
+        permits (:permits basis)
+        related? (some #(= :related-claims (:authorization/scope-kind %)) permits)
+        reasons (cond-> []
+                  (not (map? basis)) (conj :basis-not-a-map)
+                  (seq missing) (conj {:reason :missing-basis-fields :fields missing})
+                  (and (contains? basis :now-ts) (not (integer? (:now-ts basis))))
+                  (conj :invalid-now-ts)
+                  (and (contains? basis :permits) (not (vector? permits)))
+                  (conj :candidate-permits-not-a-vector)
+                  (and (vector? permits) (some #(not (map? %)) permits))
+                  (conj :candidate-permit-not-a-map)
+                  (and (map? (:scope basis))
+                       (not= (:authorization/scope-kind (:scope basis)) :single-claim)
+                       (some? (:authorization/scope-kind (:scope basis))))
+                  (conj :unsupported-related-claims-scope)
+                  related? (conj :unsupported-related-claims-permit)
+                  (and (contains? basis :consumption-registry)
+                       (not (map? (:consumption-registry basis))))
+                  (conj :invalid-consumption-registry)
+                  (and (contains? basis :authoritative-config)
+                       (not (map? (:authoritative-config basis))))
+                  (conj :invalid-authoritative-config))]
+    {:calculable? (empty? reasons)
+     :reasons reasons}))
 
 (declare candidate-permits)
 
@@ -250,10 +291,44 @@
        :blocking-reasons []}
 
       :else
-      {:classification :ambiguous-force-authorisation
-       :override-eligible? true
-       :override-enabled? true
-       :usable-permit? true
-       :usable-permit-count usable-count
-       :usable-permits (mapv :authorization/id usable)
-       :blocking-reasons [:ambiguous-force-authorisation]})))
+       {:classification :ambiguous-force-authorisation
+        :override-eligible? true
+        :override-enabled? true
+        :usable-permit? true
+        :usable-permit-count usable-count
+        :usable-permits (mapv :authorization/id usable)
+        :blocking-reasons [:ambiguous-force-authorisation]})))
+
+(defn check-single-claim-classification
+  "Recalculate and compare a retained single-claim classification basis.
+
+   Candidate membership is closed: every supplied candidate must have one unique
+   authorization identity before usability and the application-owned cardinality
+   rule are evaluated. This is independent orchestration over the shared pure
+   lifecycle validator; it does not invoke the production current-state wrapper."
+  [basis]
+  (let [{:keys [calculable? reasons]} (check-calculable basis)]
+    (if-not calculable?
+      {:checkable? false :reasons reasons}
+      (let [permits (:permits basis)
+            ids (mapv :authorization/id permits)
+            duplicate-ids (->> ids frequencies (keep (fn [[id n]] (when (> n 1) id))) sort vec)
+            missing-ids (->> ids (keep #(when-not (string? %) %)) vec)]
+        (cond
+          (seq duplicate-ids)
+          {:checkable? false
+           :reasons [{:reason :duplicate-candidate-permit-identity
+                      :identities duplicate-ids}]}
+
+          (seq missing-ids)
+          {:checkable? false :reasons [:candidate-permit-identity-missing]}
+
+          :else
+          (let [actual (classify-operation
+                        (select-keys basis [:operation-id :scope :permits
+                                            :consumption-registry :now-ts
+                                            :authoritative-config]))]
+            {:checkable? true
+             :matches? (= (:expected-classification basis) (:classification actual))
+             :expected-classification (:expected-classification basis)
+             :actual actual}))))))

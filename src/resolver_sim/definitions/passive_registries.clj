@@ -724,12 +724,12 @@
     :evidence-policy/type :capture
     :evidence-policy/source :state
     :description "Evidence computable deterministically from world state alone."
-    :constraints #{:state-derived :recomputable}}   {:id :evidence-policy/attested
-                                                     :version entry-version
-                                                     :evidence-policy/type :attestation
-                                                     :evidence-policy/source :attestor
-                                                     :description "Evidence requiring explicit attestation for verification."
-                                                     :constraints #{:attestor-signed}}
+    :constraints #{:state-derived :recomputable}} {:id :evidence-policy/attested
+                                                   :version entry-version
+                                                   :evidence-policy/type :attestation
+                                                   :evidence-policy/source :attestor
+                                                   :description "Evidence requiring explicit attestation for verification."
+                                                   :constraints #{:attestor-signed}}
    {:id :evidence-policy/computed
     :version entry-version
     :evidence-policy/type :computed
@@ -1015,6 +1015,15 @@
     :code-reference
     :metadata-completeness})
 
+(defn optional-pro-rata-symbol?
+  "True when entry belongs to the explicitly optional pro-rata component.
+   Namespace underscores normalize to hyphens because Clojure resource naming
+   does not change component ownership."
+  [entry]
+  (and (symbol? entry)
+       (str/starts-with? (str/replace (namespace entry) "_" "-")
+                         "resolver-sim.pro-rata.")))
+
 (defn validate-claim-definition-registry-entries
   "Return claim-definition-registry-specific validation errors for entries.
    Enforces keyword ids, known dependency references, acyclic claim dependency
@@ -1080,7 +1089,11 @@
                                                 :entry evaluation-entry}))
 
                                   (and (symbol? evaluation-entry)
-                                       (nil? (resolve-entry-point evaluation-entry entry-validation-mode)))
+                                       (nil? (resolve-entry-point evaluation-entry entry-validation-mode))
+                                        ;; Pro-rata claims belong to the explicit optional capability.
+                                        ;; Keep their definitions inspectable in a base profile, but do not
+                                        ;; require the implementation namespace until that capability loads.
+                                       (not (optional-pro-rata-symbol? evaluation-entry)))
                                   (conj (error :entry/unresolved-evaluation-entry
                                                {:registry registry-name
                                                 :id id

@@ -357,5 +357,54 @@
                       :authoritative-config disabled-config})]
       (is (= :forbidden-authorized (:classification valid)))
       (is (true? (:usable-permit? valid)))
-      (is (= :forbidden (:classification not-valid))
-          "without the enabled override it is forbidden, not forbidden-authorized"))))
+       (is (= :forbidden (:classification not-valid))
+           "without the enabled override it is forbidden, not forbidden-authorized"))))
+
+(defn- explicit-basis [overrides]
+  (merge {:operation-id :held-custody/force-auth-mutation
+          :scope add-scope
+          :permits [add-permit]
+          :consumption-registry {}
+          :now-ts 500
+          :authoritative-config enabled-config
+          :expected-classification :forbidden-authorized}
+         overrides))
+
+(deftest single-claim-classification-is-checkable-from-an-explicit-basis
+  (let [basis (explicit-basis {})
+        result (gate/check-single-claim-classification basis)]
+    (is (:calculable? (gate/check-calculable basis)))
+    (is (:checkable? result))
+    (is (:matches? result))
+    (is (= :forbidden-authorized (get-in result [:actual :classification])))))
+
+(deftest check-calculable-requires-explicit-time-and-fails-closed-on-related-claims
+  (let [without-time (dissoc (explicit-basis {}) :now-ts)
+        related (explicit-basis {:permits [(assoc add-permit :authorization/scope-kind :related-claims)]})]
+    (is (false? (:calculable? (gate/check-calculable without-time))))
+    (is (some #(= {:reason :missing-basis-fields :fields [:now-ts]} %)
+              (:reasons (gate/check-calculable without-time))))
+    (is (false? (:calculable? (gate/check-calculable related))))
+    (is (some #{:unsupported-related-claims-permit}
+              (:reasons (gate/check-calculable related))))))
+
+(deftest checker-rejects-duplicate-candidate-identities-and-classification-substitution
+  (let [duplicate (explicit-basis {:permits [add-permit add-permit]})
+        substituted (explicit-basis {:expected-classification :forbidden})]
+    (is (false? (:checkable? (gate/check-single-claim-classification duplicate))))
+    (is (= [{:reason :duplicate-candidate-permit-identity
+             :identities [(:authorization/id add-permit)]}]
+           (:reasons (gate/check-single-claim-classification duplicate))))
+    (is (:checkable? (gate/check-single-claim-classification substituted)))
+    (is (false? (:matches? (gate/check-single-claim-classification substituted))))))
+
+(deftest checker-consumes-only-the-supplied-time-and-currentness-basis
+  (let [basis (explicit-basis {})
+        later-environment (explicit-basis {:now-ts 5000
+                                           :authoritative-config disabled-config
+                                           :consumption-registry {(:authorization/id add-permit) {:consumed-at 501}}})]
+    (is (:matches? (gate/check-single-claim-classification basis)))
+    (is (= :forbidden
+           (get-in (gate/check-single-claim-classification later-environment)
+                   [:actual :classification])))
+    (is (:matches? (gate/check-single-claim-classification basis)))))

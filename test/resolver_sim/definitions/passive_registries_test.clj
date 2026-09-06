@@ -67,6 +67,14 @@
              :outputs [:holds?]}
             overrides))))
 
+(deftest optional-pro-rata-symbol-classification
+  (is (registries/optional-pro-rata-symbol?
+       'resolver-sim.pro-rata.claims/evaluate-claim))
+  (is (registries/optional-pro-rata-symbol?
+       'resolver-sim.pro_rata.claims/evaluate-claim))
+  (is (not (registries/optional-pro-rata-symbol?
+            'resolver-sim.pro-ratax.claims/evaluate-claim))))
+
 (deftest passive-registries-validate
   (testing "all 9 passive registries are internally valid"
     (is (:valid? (registries/validate-intent-registry)))

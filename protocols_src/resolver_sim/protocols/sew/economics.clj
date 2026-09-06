@@ -13,9 +13,7 @@
    to the primary execution path."
   (:require [resolver-sim.economics.payoffs :as payoffs]
             [resolver-sim.economics.calculations :as core-econ]
-            [resolver-sim.economics.slash-distribution :as sd]
-            [resolver-sim.pro-rata.allocation :as pro-rata]
-            [resolver-sim.pro-rata.evidence :as pro-rata-evidence]))
+             [resolver-sim.economics.slash-distribution :as sd]))
 
 (def ECONOMIC-POLICIES
   "Recommended Sew parameter bands for governance.
@@ -317,7 +315,12 @@
                             :weight basis-amount
                             :cap cap}))
                        liable-parties)
-            generic (pro-rata/allocate
+             allocate (requiring-resolve 'resolver-sim.pro-rata.allocation/allocate)
+             mechanism-evidence-artifact
+             (requiring-resolve 'resolver-sim.pro-rata.evidence/mechanism-evidence-artifact)
+             evidence-reference
+             (requiring-resolve 'resolver-sim.pro-rata.evidence/evidence-reference)
+             generic (allocate
                      {:schema-version "pro-rata-allocation-request.v1"
                       :mechanism/version 1
                       :allocation/id [:sew-slash-allocation amount]
@@ -326,7 +329,7 @@
                       :rounding-policy :largest-remainder
                       :tie-break-policy :canonical-row-id
                       :redistribution-policy :unallocated})
-            mechanism-evidence (pro-rata-evidence/mechanism-evidence-artifact generic)
+             mechanism-evidence (mechanism-evidence-artifact generic)
             by-row-id (into {} (map (juxt :row/id identity) (:rows generic)))
             allocations (mapv (fn [party]
                                 (let [basis-amount (max 0 (long (or (basis party) 0)))
@@ -355,7 +358,7 @@
          ;; Presentation order remains Sew's supplied liable-party order. The
          ;; complete canonical mechanism witness is retained separately.
          :mechanism/evidence mechanism-evidence
-         :mechanism/evidence-reference (pro-rata-evidence/evidence-reference mechanism-evidence)
+          :mechanism/evidence-reference (evidence-reference mechanism-evidence)
          :allocations allocations}))))
 
 (defn build-sew-slash-projection-artifact
@@ -439,4 +442,3 @@
                              :cap cap
                              :ended-at ended-at})
                           (:allocations generic))})))
-

@@ -132,8 +132,11 @@
     :recompute-summary aggregate/recompute-held-mutation-summary
     :check-aggregate aggregate/check-held-mutation-aggregate
     :supported-actions mutation/supported-actions
-    :classify-operation authorisation-classification/classify-operation
-    :override-eligible-operation?
+     :classify-operation authorisation-classification/classify-operation
+     :check-calculable authorisation-classification/check-calculable
+     :check-single-claim-classification
+     authorisation-classification/check-single-claim-classification
+     :override-eligible-operation?
     authorisation-classification/override-eligible-operation?
     :override-enabled? authorisation-classification/override-enabled?
     :usable-permits authorisation-classification/usable-permits
