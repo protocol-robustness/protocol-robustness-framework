@@ -179,51 +179,65 @@
                        (assoc :chain/disposition-authority-context (.authority-context store)))})]
     state))
 
+(defprotocol DurableReceiptStore
+  (resolve-committed-transaction* [store ordering-hash])
+  (resolve-receipt-obligation* [store obligation-id])
+  (pending-receipt-obligations* [store])
+  (mark-receipt-issued!* [store obligation-id signed-receipt]))
+
 (defn resolve-committed-transaction
   "Resolve the store-owned replay record for an atomically committed ordering.
    The transaction-ordering hash is the sole lookup identity; journal entries
    are stored in the outer CAS envelope and are never part of protocol state."
   [store ordering-hash]
-  (get-in @(.state-atom store) [:committed-transactions ordering-hash]))
+  (if (satisfies? DurableReceiptStore store)
+    (resolve-committed-transaction* store ordering-hash)
+    (get-in @(.state-atom store) [:committed-transactions ordering-hash])))
 
 (defn resolve-receipt-obligation
   "Resolve the immutable receipt obligation and its P1A processing state.
    This is retained only in the current in-memory store; it is not restart
    durable until a P1B backend implements the same atomic semantics."
   [store obligation-id]
-  (get-in @(.state-atom store) [:receipt-obligations obligation-id]))
+  (if (satisfies? DurableReceiptStore store)
+    (resolve-receipt-obligation* store obligation-id)
+    (get-in @(.state-atom store) [:receipt-obligations obligation-id])))
 
 (defn pending-receipt-obligations
   "Return pending P1A receipt obligations in deterministic obligation-ID order."
   [store]
-  (->> (get @(.state-atom store) :receipt-obligations {})
-       vals
-       (filter receipt-obligation/pending?)
-       (sort-by #(get-in % [:receipt-obligation :receipt-obligation/id]))
-       vec))
+  (if (satisfies? DurableReceiptStore store)
+    (pending-receipt-obligations* store)
+    (->> (get @(.state-atom store) :receipt-obligations {})
+         vals
+         (filter receipt-obligation/pending?)
+         (sort-by #(get-in % [:receipt-obligation :receipt-obligation/id]))
+         vec)))
 
 (defn mark-receipt-issued!
   "Conditionally discharge a pending obligation. Returns the stored issued
    entry on idempotent equivalence, or :receipt-obligation/conflict when an
    already-issued receipt differs."
   [store obligation-id signed-receipt]
-  (loop []
-    (let [current @(.state-atom store)
-          entry (get-in current [:receipt-obligations obligation-id])]
-      (cond
-        (nil? entry) {:status :receipt-obligation/not-found}
-        (receipt-obligation/pending? entry)
-        (let [issued (receipt-obligation/issued-entry (:receipt-obligation entry) signed-receipt)
-              next-state (assoc-in current [:receipt-obligations obligation-id] issued)]
-          (if (compare-and-set! (.state-atom store) current next-state)
-            {:status :issued :entry issued}
-            (recur)))
-        (receipt-obligation/issued? entry)
-        (if (= (:receipt-obligation/issued-receipt-root entry)
-               (:attempt-receipt/id signed-receipt))
-          {:status :idempotent :entry entry}
-          {:status :receipt-obligation/conflict :entry entry})
-        :else {:status :receipt-obligation/invalid-state :entry entry}))))
+  (if (satisfies? DurableReceiptStore store)
+    (mark-receipt-issued!* store obligation-id signed-receipt)
+    (loop []
+      (let [current @(.state-atom store)
+            entry (get-in current [:receipt-obligations obligation-id])]
+        (cond
+          (nil? entry) {:status :receipt-obligation/not-found}
+          (receipt-obligation/pending? entry)
+          (let [issued (receipt-obligation/issued-entry (:receipt-obligation entry) signed-receipt)
+                next-state (assoc-in current [:receipt-obligations obligation-id] issued)]
+            (if (compare-and-set! (.state-atom store) current next-state)
+              {:status :issued :entry issued}
+              (recur)))
+          (receipt-obligation/issued? entry)
+          (if (= (:receipt-obligation/issued-receipt-root entry)
+                 (:attempt-receipt/id signed-receipt))
+            {:status :idempotent :entry entry}
+            {:status :receipt-obligation/conflict :entry entry})
+          :else {:status :receipt-obligation/invalid-state :entry entry})))))
 
 (defn chain-head
   "The current chain head receipt hash (nil before the first attempt)."

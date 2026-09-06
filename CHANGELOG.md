@@ -2,6 +2,29 @@
 
 ## [Unreleased]
 
+### Sew add-held reconstruction
+
+- Added `sew/held-add-reconstruction.v1`, an application-owned, historical-basis
+  reconstruction contract for one accounting `add-held` transition. It commits
+  operation, before, exact adjustment/artifact and optional force-authorisation
+  consumption effects, and after projections; it rejects substituted or extra
+  history even when the final held balance agrees. It does not alter admission,
+  override-publication lineage, receipts, or generic PRF semantics.
+  (`protocols_src/resolver_sim/protocols/sew/held_reconstruction.clj`)
+
+### Risk-admission request and fence compatibility
+
+- Added rooted `risk-controlled-pro-rata-admission-request.v1` request identity,
+  canonical request-bound `risk-admission-fence.v2`, retained admission bases,
+  and fail-closed request-to-admission resolution for durable idempotency. The
+  original fence v1 contract remains historical-only; the accidentally emitted
+  request-bound v1 shape is verification-only, and outstanding v1 fences require
+  reissuance. (`src/resolver_sim/risk/admission.clj`)
+
+### P1B durable resubmission chain store
+
+- Added an opt-in PostgreSQL `TransactionStore` that serializes each family on a locked row and atomically persists accepted chain state/version, committed transaction replay records, and qualifying pending receipt obligations. Durable receipt-obligation resolution and conditional issuance preserve P1A not-found, issued, idempotent, and conflict semantics across store instances and concurrent issuers. (`src/resolver_sim/resubmission/postgres_chain_store.clj`, `resources/db/migrations/0004__resubmission_chain_store.sql`)
+
 ### P1A receipt polling service
 
 - Added `receipt-daemon/run-once!`, `start!`, and bounded `stop!` for automatic, at-least-once issuance from authoritative pending-obligation scans. Startup scans require no commit signal; bounded batches rotate fairly across failures, with fixed-delay retries and sanitized operational summaries. Shutdown leaves obligations intact and does not interrupt in-flight signing. Scheduling metadata does not change receipt identity; recovery requires the current store contents to remain available, not P1B restart persistence. (`src/resolver_sim/resubmission/receipt_daemon.clj`)

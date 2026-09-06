@@ -337,11 +337,12 @@
                                                             equivocations))))
                                   (map :researcher/id members))))
         ;; A 2-of-3 authority needs two distinct constituted seats, not three
-        ;; submitted positions.  Reject duplicate submissions as a separate
-        ;; identity-conservation failure while allowing any two distinct seats
-        ;; to satisfy the configured threshold.
-        identity-separate? (= (count positions)
-                              (count (set (map :researcher/id positions))))
+        ;; submitted positions.  Identity separation is checked against the
+        ;; effective positions (deduplicated, non-equivocating) so that
+        ;; identical duplicate submissions from one seat do not break the
+        ;; separation invariant.
+        identity-separate? (= (count single-positions)
+                              (count (set (map :researcher/id single-positions))))
         authority-reached?
         (and (not fail-certificate?)
              policy-conforming?

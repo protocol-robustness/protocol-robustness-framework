@@ -55,7 +55,18 @@
 
 (def risk-admission-schema "risk-controlled-pro-rata-admission.v1")
 (def risk-admission-basis-schema "risk-controlled-pro-rata-admission-basis.v1")
-(def risk-fence-schema "risk-admission-fence.v1")
+(def risk-fence-v1-schema "risk-admission-fence.v1")
+(def risk-fence-schema "risk-admission-fence.v2")
+(def ^:private legacy-request-bound-v1-schema risk-fence-v1-schema)
+
+(def ^:private canonical-v1-fence-fields
+  #{:schema-version :configuration/head-root :head-state-root
+    :business/state-before-root :risk-policy/root :exact-source-root
+    :risk-projection/root :evaluation/root :evaluation/status :status :candidate-op
+    :risk-admission-fence/root})
+
+(def ^:private request-bound-fence-fields
+  (conj canonical-v1-fence-fields :risk-admission-request/root))
 
 (def ^:private risk-admission-domain-tag
   "String domain tag for the risk-controlled admission commitment. A string
@@ -63,9 +74,13 @@
    namespace does not mutate the shared domain-tags authority."
   "RISK_CONTROLLED_PRO_RATA_ADMISSION_V1")
 
-(def ^:private risk-fence-domain-tag
-  "String domain tag for the risk-admission-fence commitment."
+(def ^:private canonical-v1-fence-domain-tag
+  "Historical domain tag for the original canonical v1 fence contract."
   "RISK_ADMISSION_FENCE_V1")
+
+(def ^:private risk-fence-domain-tag
+  "Domain tag for canonical request-bound v2 fences."
+  "RISK_ADMISSION_FENCE_V2")
 
 (def ^:private risk-admission-basis-domain-tag
   "String domain tag for the complete semantic basis of an adopted pro-rata
@@ -78,11 +93,52 @@
    (hc/domain-hash risk-admission-domain-tag
                    (dissoc record :risk-controlled-pro-rata-admission/root))))
 
+(defn- fence-commitment
+  "Stable issuance commitment; lifecycle status/result are not re-hashed after
+   issuance. This v2 rule makes a consumed fence independently verifiable."
+  [record]
+  (-> record
+      (dissoc :risk-admission-fence/root :result)
+      (assoc :status :issued)))
+
 (defn- fence-root
   [record]
   (hash-ref/sha256-ref
-   (hc/domain-hash risk-fence-domain-tag
+   (hc/domain-hash risk-fence-domain-tag (fence-commitment record))))
+
+(defn- historical-v1-fence-root
+  "Recompute the original v1 issuance root from its exact historical payload.
+   V1 committed status and result mutations were never re-hashed."
+  [record]
+  (hash-ref/sha256-ref
+   (hc/domain-hash canonical-v1-fence-domain-tag
                    (dissoc record :risk-admission-fence/root))))
+
+(defn verify-risk-fence
+  "Classify and verify a persisted fence without constructing any historical
+   variant. Canonical v1 is the original shape; request-bound v1 is read-only
+   legacy compatibility; v2 is the only request-bound production contract."
+  [record]
+  (let [schema (:schema-version record)
+        fields (set (keys (dissoc record :result)))
+        root (:risk-admission-fence/root record)]
+    (cond
+      (and (= risk-fence-v1-schema schema)
+           (= canonical-v1-fence-fields fields)
+           (= root (historical-v1-fence-root record)))
+      {:status :valid :variant :canonical-v1}
+
+      (and (= legacy-request-bound-v1-schema schema)
+           (= request-bound-fence-fields fields)
+           (= root (historical-v1-fence-root record)))
+      {:status :valid :variant :legacy-request-bound-v1}
+
+      (and (= risk-fence-schema schema)
+           (= request-bound-fence-fields fields)
+           (= root (fence-root record)))
+      {:status :valid :variant :canonical-v2}
+
+      :else {:status :invalid :reason :risk-admission-fence-invalid})))
 
 (defn- admission-basis-root
   [basis]
@@ -97,11 +153,8 @@
 (deftype RiskAdmissionStore [state-atom])
 
 (defn new-store
-  "Create an empty risk-controlled admission store with an initial configuration
-   head for `initial-configuration-root` at `initial-epoch` over the given
-   `business-state` (a canonical quantity map). Configuration and risk-policy
-   bodies are added via retain-configuration!/retain-risk-policy! before
-   admission."
+  "Create an empty non-durable risk admission reference store. Snapshot helpers
+   are export/test recovery utilities, never authoritative persistence."
   [initial-configuration-root initial-epoch business-state]
   (RiskAdmissionStore.
    (atom {:configuration/current-head
@@ -111,6 +164,8 @@
           :business/state business-state
           :risk-fences {}
           :risk-admissions {}
+          :risk-admission-bases {}
+          :risk-request-admissions {}
           :configuration/commit-index 0
           :configuration/store-version 0})))
 
@@ -366,65 +421,129 @@
     (assoc basis :risk-controlled-pro-rata-admission-basis/root
            (admission-basis-root basis))))
 
+(defn resolve-committed-request
+  "Resolve a request-root mapping from canonical risk-admission state.
+
+   The resolver is intentionally domain-owned: adapters use it before issuing a
+   new fence and never decide compatibility themselves. It validates the full
+   v2 graph before returning a committed result."
+  [state request-root]
+  (let [mapped-admission-root (get-in state [:risk-request-admissions request-root])
+        admission-root mapped-admission-root]
+    (cond
+      (nil? admission-root) {:status :not-committed}
+      (not (hash-ref/valid-sha256-ref? request-root))
+      {:status :invalid :reason :risk-admission-request-root-invalid}
+      :else
+      (let [request (get-in state [:risk-admission-requests request-root])
+            admission (get-in state [:risk-admissions admission-root])
+            fence (some #(when (= (:risk-admission-fence/root admission)
+                                  (:risk-admission-fence/root %))
+                           %)
+                        (vals (:risk-fences state)))
+            basis-root (:risk-controlled-pro-rata-admission-basis/root admission)
+            basis (get-in state [:risk-admission-bases basis-root])
+            fence-check (when fence (verify-risk-fence fence))
+            result (:result fence)]
+        (cond
+          (not (valid-risk-admission-request? request))
+          {:status :invalid :reason :risk-admission-request-unavailable}
+          (not= request-root (:risk-admission-request/root request))
+          {:status :invalid :reason :risk-admission-request-mapping-mismatch}
+          (nil? admission)
+          {:status :invalid :reason :risk-admission-mapping-target-missing}
+          (not= admission-root
+                (:risk-controlled-pro-rata-admission/root admission))
+          {:status :invalid :reason :risk-admission-root-mismatch}
+          (not= admission-root
+                (resolver-sim.risk.admission/admission-root
+                 (dissoc admission :risk-controlled-pro-rata-admission/root)))
+          {:status :invalid :reason :risk-admission-root-mismatch}
+          (not (and fence (= :valid (:status fence-check))
+                    (= :canonical-v2 (:variant fence-check))))
+          {:status :invalid :reason :risk-admission-fence-invalid}
+          (not= :consumed (:status fence))
+          {:status :invalid :reason :risk-admission-fence-not-consumed}
+          (not= (:risk-admission-fence/root admission)
+                (:risk-admission-fence/root fence))
+          {:status :invalid :reason :risk-admission-fence-mismatch}
+          (not= request-root (:risk-admission-request/root fence))
+          {:status :invalid :reason :risk-admission-request-fence-mismatch}
+          (not (and (= :committed (:status result))
+                    (= admission-root (:risk-admission/root result))
+                    (= request-root (:risk-admission-request/root result))))
+          {:status :invalid :reason :risk-admission-consumed-result-invalid}
+          (not= basis-root
+                (:risk-controlled-pro-rata-admission-basis/root basis))
+          {:status :invalid :reason :risk-admission-basis-unavailable}
+          (not= basis-root (admission-basis-root basis))
+          {:status :invalid :reason :risk-admission-basis-root-mismatch}
+          (not= (select-keys admission [:state-before/root :state-after/root
+                                        :risk-projection/root :evaluation/root])
+                (select-keys basis [:state-before/root :state-after/root
+                                    :risk-projection/root :evaluation/root]))
+          {:status :invalid :reason :risk-admission-basis-mismatch}
+          :else {:status :committed
+                 :admission-root admission-root
+                 :result result})))))
+
 ;; ──────────────────────────────────────────────────────────────────────────────
 ;; Two-phase fence/CAS (mirrors evaluate-and-issue / finalise-under-fence)
 ;; ──────────────────────────────────────────────────────────────────────────────
 
 (defn issue-fence-transition
-  "Pure fence issuance transition. `fence-id` is generated by the storage
-   adapter; every semantic and authority value is derived from `state` and
-   `candidate-op`. Returns `:state` only when issuance succeeds."
+  "Pure fence issuance transition. New fences are canonical request-bound v2.
+   A prior valid committed request resolves before predecessor currentness so a
+   lost-response retry can never be replayed as a second state transition."
   [state fence-id candidate-op]
   (let [resolved (resolve-current state)]
-    (cond
-      (not (:resolved? resolved))
+    (if-not (:resolved? resolved)
       {:status :rejected :reason (:reason resolved)}
-
-      (not= (:state-before candidate-op) (:business/state state))
-      {:status :rejected :reason :candidate-state-not-current}
-
-      :else
-      (let [projection (derive-candidate-projection candidate-op)
-            request (risk-admission-request candidate-op)
-            policy (:risk-policy resolved)
-            exact-source-root (:risk-projection/source-root projection)
-            eval (le/evaluate-bound projection policy exact-source-root)]
+      (let [request (risk-admission-request candidate-op)
+            request-root (:risk-admission-request/root request)
+            prior (resolve-committed-request state request-root)]
         (cond
-          (not= (:risk-limit-policy/root policy)
-                (:risk-limit-evaluation/policy-root eval))
-          {:status :rejected :reason :evaluation-policy-root-mismatch}
-
-          (not= :pass (:status (le/verify-root eval)))
-          {:status :rejected :reason :evaluation-root-invalid}
-
-          (= :violation (:risk-limit-evaluation/status eval))
-          {:status :rejected :reason :risk-limit-violation
-           :evaluation eval}
-
+          (= :committed (:status prior)) (:result prior)
+          (= :invalid (:status prior)) {:status :rejected :reason (:reason prior)}
+          (not= (:state-before candidate-op) (:business/state state))
+          {:status :rejected :reason :candidate-state-not-current}
           :else
-          (let [record {:schema-version risk-fence-schema
-                        :configuration/head-root (:configuration/root resolved)
-                        :head-state-root (:head-state-root resolved)
-                        :business/state-before-root
-                        (effects/state-root (:business/state state))
-                        :risk-policy/root (:risk-policy/root resolved)
-                        :exact-source-root exact-source-root
-                        :risk-admission-request/root
-                        (:risk-admission-request/root request)
-                        :risk-projection/root (:risk-projection/root projection)
-                        :evaluation/root (:risk-limit-evaluation/root eval)
-                        :evaluation/status (:risk-limit-evaluation/status eval)
-                        :status :issued
-                        :candidate-op candidate-op}
-                record (assoc record :risk-admission-fence/root (fence-root record))]
-            {:status :issued
-             :state (assoc-in state [:risk-fences fence-id] record)
-             :fence/id fence-id
-             :risk-admission-request request
-             :risk-admission-request/root (:risk-admission-request/root request)
-             :risk-policy/root (:risk-policy/root resolved)
-             :configuration/root (:configuration/root resolved)
-             :evaluation eval}))))))
+          (let [projection (derive-candidate-projection candidate-op)
+                policy (:risk-policy resolved)
+                exact-source-root (:risk-projection/source-root projection)
+                eval (le/evaluate-bound projection policy exact-source-root)]
+            (cond
+              (not= (:risk-limit-policy/root policy)
+                    (:risk-limit-evaluation/policy-root eval))
+              {:status :rejected :reason :evaluation-policy-root-mismatch}
+              (not= :pass (:status (le/verify-root eval)))
+              {:status :rejected :reason :evaluation-root-invalid}
+              (= :violation (:risk-limit-evaluation/status eval))
+              {:status :rejected :reason :risk-limit-violation :evaluation eval}
+              :else
+              (let [record {:schema-version risk-fence-schema
+                            :configuration/head-root (:configuration/root resolved)
+                            :head-state-root (:head-state-root resolved)
+                            :business/state-before-root (effects/state-root (:business/state state))
+                            :risk-policy/root (:risk-policy/root resolved)
+                            :exact-source-root exact-source-root
+                            :risk-admission-request/root request-root
+                            :risk-projection/root (:risk-projection/root projection)
+                            :evaluation/root (:risk-limit-evaluation/root eval)
+                            :evaluation/status (:risk-limit-evaluation/status eval)
+                            :status :issued
+                            :candidate-op candidate-op}
+                    record (assoc record :risk-admission-fence/root (fence-root record))]
+                {:status :issued
+                 :state (-> state
+                            (assoc-in [:risk-admission-requests request-root] request)
+                            (assoc-in [:risk-fences fence-id] record))
+                 :fence/id fence-id
+                 :risk-admission-request request
+                 :risk-admission-request/root request-root
+                 :risk-policy/root (:risk-policy/root resolved)
+                 :configuration/root (:configuration/root resolved)
+                 :evaluation eval}))))))))
 
 (defn issue-risk-fence!
   "Atom-backed adapter for issue-fence-transition. Generates the runtime fence
@@ -441,16 +560,28 @@
             (recur)))))))
 
 (defn finalise-fence-transition
-  "Pure authoritative finalization transition. Revalidates the fence against
-   the explicit current state, derives all semantic roots and the successor, and
-   returns the complete successor state. It performs no storage operation."
+  "Pure authoritative finalization transition. Canonical v1 and accidental
+   request-bound v1 fences are historical verification inputs only and must be
+   reissued under v2 before they can authorize a new successor."
   [state fence-id]
-  (let [record (get-in state [:risk-fences fence-id])]
+  (let [record (get-in state [:risk-fences fence-id])
+        fence-check (when record (verify-risk-fence record))]
     (cond
       (nil? record) {:status :rejected :reason :unknown-fence}
 
+      (not= :valid (:status fence-check))
+      {:status :rejected :reason :risk-admission-fence-invalid}
+
       (= :consumed (:status record))
-      (or (:result record) {:status :rejected :reason :fence-already-consumed})
+      (if-let [request-root (:risk-admission-request/root record)]
+        (let [resolved (resolve-committed-request state request-root)]
+          (if (= :committed (:status resolved))
+            (:result resolved)
+            {:status :rejected :reason (:reason resolved)}))
+        {:status :rejected :reason :risk-admission-historical-result-unavailable})
+
+      (not= :canonical-v2 (:variant fence-check))
+      {:status :rejected :reason :risk-admission-fence-reissue-required}
 
       :else
       (let [resolved (resolve-current state)]
@@ -512,22 +643,21 @@
                                    (:risk-controlled-pro-rata-admission-basis/root basis)
                                    :status :applied}
                         admission-root (admission-root admission)
+                        request-root (:risk-admission-request/root request)
                         result {:status :committed
                                 :risk-admission/root admission-root
-                                :risk-admission-request/root
-                                (:risk-admission-request/root request)
+                                :risk-admission-request/root request-root
                                 :risk-policy/root (:risk-policy/root resolved)
                                 :evaluation eval}
                         next-state (-> state
                                        (assoc :business/state state-after)
+                                       (assoc-in [:risk-admission-bases
+                                                  (:risk-controlled-pro-rata-admission-basis/root basis)] basis)
                                        (assoc-in [:risk-admissions admission-root]
                                                  (assoc admission :risk-controlled-pro-rata-admission/root admission-root))
-                                       (assoc-in [:risk-request-admissions
-                                                  (:risk-admission-request/root request)]
-                                                 admission-root)
+                                       (assoc-in [:risk-request-admissions request-root] admission-root)
                                        (assoc-in [:risk-fences fence-id]
-                                                 (assoc record :status :consumed
-                                                        :result result))
+                                                 (assoc record :status :consumed :result result))
                                        (assoc :configuration/commit-index
                                               (inc (:configuration/commit-index state))))]
                     (assoc result :state next-state)))))))))))
@@ -569,16 +699,31 @@
   [store root]
   (get (committed-admissions store) root))
 
+(defn admission-by-request-root
+  "Resolve a valid committed v2 request to its admission, or nil when absent.
+   Malformed mappings fail closed rather than returning a partial record."
+  [store request-root]
+  (let [resolved (resolve-committed-request (state-snapshot store) request-root)]
+    (when (= :committed (:status resolved))
+      (admission-by-root store (:admission-root resolved)))))
+
 (defn- durable-state-valid?
   [state]
   (and (map? state)
-       (= (:business/state state)
-          (:business/state state))
        (every? (fn [[root admission]]
                  (and (= root (:risk-controlled-pro-rata-admission/root admission))
-                      (= root (admission-root (dissoc admission
-                                                      :risk-controlled-pro-rata-admission/root)))))
-               (:risk-admissions state))))
+                      (= root (admission-root
+                               (dissoc admission
+                                       :risk-controlled-pro-rata-admission/root)))))
+               (:risk-admissions state))
+       (every? (fn [[root basis]]
+                 (and (= root (:risk-controlled-pro-rata-admission-basis/root basis))
+                      (= root (admission-basis-root basis))))
+               (:risk-admission-bases state))
+       (every? (fn [[request-root _]]
+                 (= :committed
+                    (:status (resolve-committed-request state request-root))))
+               (:risk-request-admissions state))))
 
 (defn- atomic-write-edn!
   [path value]
@@ -593,15 +738,14 @@
     value))
 
 (defn persist-snapshot!
-  "Persist the complete semantic admission snapshot. Runtime fence IDs remain
-   in the snapshot only because consumed-fence results provide retry behavior;
-   no runtime controls enter the rooted admission basis."
+  "Export a non-authoritative snapshot for tests, diagnostics, or explicit
+   bootstrap validation. It is never the PostgreSQL authority path."
   [store path]
   (atomic-write-edn! path (state-snapshot store)))
 
 (defn open-durable-store
-  "Open a RiskAdmissionStore from a snapshot written by persist-snapshot!.
-   Invalid or tampered snapshots fail closed before the store is returned."
+  "Open and validate a non-authoritative snapshot export. This helper does not
+   migrate or adopt records into a PostgreSQL authority."
   [path]
   (let [state (edn/read-string (slurp (io/file path)))]
     (when-not (durable-state-valid? state)

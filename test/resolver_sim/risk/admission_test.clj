@@ -129,7 +129,7 @@
            (hash-ref/sha256-ref qb))
     (let [result (admission/finalise-risk-fence! store fence-id)]
       (is (= :rejected (:status result)))
-      (is (= :admission/risk-projection-root-mismatch (:reason result)))
+      (is (= :risk-admission-fence-invalid (:reason result)))
       (is (= (:business/state before)
              (:business/state (admission/state-snapshot store)))))))
 
@@ -237,9 +237,95 @@
     (is (= (:risk-admission/root committed)
            (get-in (:state committed)
                    [:risk-request-admissions request-root])))
-    (is (= :risk-admission-request-root-mismatch
+    (is (= :risk-admission-fence-invalid
            (:reason (admission/finalise-fence-transition
                      tampered "fence-request"))))))
+
+(deftest fence-version-compatibility-and-reissue-rules
+  (let [store (store-at {qa 80000})
+        state (admission/state-snapshot store)
+        op (candidate {qa 80000} [[(effects/delta qa 10000)]])
+        v2 (admission/issue-fence-transition state "fence-v2" op)
+        v2-record (get-in (:state v2) [:risk-fences "fence-v2"])
+        historical-root (deref #'resolver-sim.risk.admission/historical-v1-fence-root)
+        canonical-v1-base (-> v2-record
+                              (dissoc :risk-admission-request/root)
+                              (assoc :schema-version admission/risk-fence-v1-schema))
+        canonical-v1 (assoc canonical-v1-base
+                            :schema-version admission/risk-fence-v1-schema
+                            :risk-admission-fence/root
+                            (historical-root canonical-v1-base))
+        legacy-v1-base (assoc v2-record :schema-version admission/risk-fence-v1-schema)
+        legacy-v1 (assoc legacy-v1-base :risk-admission-fence/root
+                         (historical-root legacy-v1-base))]
+    (is (= :canonical-v2 (:variant (admission/verify-risk-fence v2-record))))
+    (is (= :canonical-v1 (:variant (admission/verify-risk-fence canonical-v1))))
+    (is (= :legacy-request-bound-v1
+           (:variant (admission/verify-risk-fence legacy-v1))))
+    (is (= :risk-admission-fence-reissue-required
+           (:reason (admission/finalise-fence-transition
+                     (assoc-in state [:risk-fences "fence-v1"] canonical-v1)
+                     "fence-v1"))))))
+
+(deftest committed-request-resolution-fails-closed
+  (let [store (store-at {qa 80000})
+        op (candidate {qa 80000} [[(effects/delta qa 10000)]])
+        issued (admission/issue-fence-transition
+                (admission/state-snapshot store) "fence-resolve" op)
+        committed (admission/finalise-fence-transition (:state issued) "fence-resolve")
+        state (:state committed)
+        request-root (:risk-admission-request/root committed)
+        admission-root (:risk-admission/root committed)]
+    (is (= :committed (:status (admission/resolve-committed-request state request-root))))
+    (is (= (:risk-admission/root committed)
+           (:risk-admission/root
+            (admission/issue-fence-transition state "fence-replay" op))))
+    (is (= :not-committed
+           (:status (admission/resolve-committed-request state (hash-ref/sha256-ref qb)))))
+    (is (= :risk-admission-mapping-target-missing
+           (:reason (admission/resolve-committed-request
+                     (assoc-in state [:risk-request-admissions request-root]
+                               (hash-ref/sha256-ref qb)) request-root))))
+    (is (= :risk-admission-consumed-result-invalid
+           (:reason (admission/resolve-committed-request
+                     (assoc-in state [:risk-fences "fence-resolve" :result :risk-admission/root]
+                               (hash-ref/sha256-ref qb)) request-root))))
+    (is (= :risk-admission-basis-unavailable
+           (:reason (admission/resolve-committed-request
+                     (update state :risk-admission-bases dissoc
+                             (get-in state [:risk-admissions admission-root
+                                            :risk-controlled-pro-rata-admission-basis/root]))
+                     request-root))))))
+
+(deftest committed-request-replay-precedes-currentness
+  (let [store (store-at {qa 80000})
+        op (candidate {qa 80000} [[(effects/delta qa 10000)]])
+        issued (admission/issue-fence-transition
+                (admission/state-snapshot store) "fence-replay" op)
+        committed (admission/finalise-fence-transition (:state issued) "fence-replay")
+        returned-state (assoc (:state committed) :business/state {qa 80000})]
+    (is (= :committed (:status committed)))
+    (is (= (:risk-admission/root committed)
+           (:risk-admission/root
+            (admission/issue-fence-transition returned-state "fence-replay-again" op))))))
+
+(deftest historical-v1-fence-uses-original-issuance-commitment
+  (let [store (store-at {qa 80000})
+        op (candidate {qa 80000} [[(effects/delta qa 10000)]])
+        issued (admission/issue-fence-transition
+                (admission/state-snapshot store) "fence-historical" op)
+        v2-state (:state issued)
+        v2-fence (get-in v2-state [:risk-fences "fence-historical"])
+        v1-base (-> v2-fence
+                    (dissoc :risk-admission-request/root)
+                    (assoc :schema-version admission/risk-fence-v1-schema))
+        historical-root (deref #'resolver-sim.risk.admission/historical-v1-fence-root)
+        v1-fence (assoc v1-base :risk-admission-fence/root (historical-root v1-base))
+        result (admission/finalise-fence-transition
+                (assoc-in v2-state [:risk-fences "fence-historical"] v1-fence)
+                "fence-historical")]
+    (is (= :canonical-v1 (:variant (admission/verify-risk-fence v1-fence))))
+    (is (= :risk-admission-fence-reissue-required (:reason result)))))
 
 (deftest pure-risk-admission-transitions-are-deterministic-and-non-mutating
   (let [store (store-at {qa 80000})
@@ -299,7 +385,7 @@
            (:reason (admission/issue-fence-transition
                      state "fence-stale"
                      (candidate {qa 70000} [[(effects/delta qa 10000)]])))))
-    (is (= :admission/risk-projection-root-mismatch
+    (is (= :risk-admission-fence-invalid
            (:reason (admission/finalise-fence-transition
                      (assoc-in issued-state
                                [:risk-fences "fence-tamper" :risk-projection/root]

@@ -947,8 +947,8 @@ explorer:seed
 postgres:migrate {:doc "Apply forward-only migrations (idempotent). Requires DATABASE_URL or uses the dev compose default."
                      :task (shell "sh" "-c" "cd /home/user/Code/.workspaces/agent-c && export DATABASE_URL=\"${DATABASE_URL:-jdbc:postgresql://localhost:5433/postgres?user=postgres&password=postgres}\" && clojure -M -m resolver-sim.db.migrate")}
 
-test:integration:postgres {:doc "Run PostgreSQL admission adapter + real migration tests"
-                               :task (shell "sh" "-c" "cd /home/user/Code/.workspaces/agent-c && export DATABASE_URL=\"${DATABASE_URL:-jdbc:postgresql://localhost:5433/postgres?user=postgres&password=postgres}\" && clojure -M:test -e '(require (quote resolver-sim.resubmission.postgres-admission-store-test)) (clojure.test/run-tests (quote resolver-sim.resubmission.postgres-admission-store-test))'")}
+test:integration:postgres {:doc "Run PostgreSQL resubmission admission and durable chain-store integration tests"
+                               :task (shell "sh" "-c" "cd /home/user/Code/.workspaces/agent-c && export DATABASE_URL=\"${DATABASE_URL:-jdbc:postgresql://localhost:5433/postgres?user=postgres&password=postgres}\" && clojure -M:test -e '(require (quote resolver-sim.resubmission.postgres-admission-store-test) (quote resolver-sim.resubmission.postgres-chain-store-test)) (let [r (clojure.test/run-tests (quote resolver-sim.resubmission.postgres-admission-store-test) (quote resolver-sim.resubmission.postgres-chain-store-test))] (when (pos? (+ (:fail r) (:error r))) (System/exit 1)))'")}
 
    test:integration:xtdb {:doc "Run live XTDB integration tests (execution projection persistence,
                                   idempotence, replacement, valid-time AS-OF, system-time history).
