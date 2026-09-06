@@ -1,7 +1,7 @@
 (ns resolver-sim.resubmission.receipt-obligation-test
-    (:require [clojure.test :refer [deftest is testing]]
-              [resolver-sim.resubmission.receipt :as receipt]
-              [resolver-sim.resubmission.receipt-obligation :as obligation]))
+  (:require [clojure.test :refer [deftest is testing]]
+            [resolver-sim.resubmission.receipt :as receipt]
+            [resolver-sim.resubmission.receipt-obligation :as obligation]))
 
 (def ordering
   {:transaction/action :prf.resubmission/admit-child

@@ -173,6 +173,147 @@
                                 (admission/open-durable-store (.getPath file))))))
       (finally (.delete file)))))
 
+(deftest risk-admission-request-identity-is-semantic-and-fence-orthogonal
+  (let [before {qa 80000}
+        op (candidate before [[(effects/delta qa 10000)]])
+        reordered (candidate before [[(effects/delta qb 0)
+                                      (effects/delta qa 4000)
+                                      (effects/delta qa 6000)]])
+        request (admission/risk-admission-request op)
+        store (store-at before)
+        issued-a (admission/issue-fence-transition
+                  (admission/state-snapshot store) "fence-a" op)
+        issued-b (admission/issue-fence-transition
+                  (admission/state-snapshot store) "fence-b" op)]
+    (is (admission/valid-risk-admission-request? request))
+    (is (= request (admission/risk-admission-request op)))
+    (is (= (:risk-admission-request/root request)
+           (:risk-admission-request/root
+            (admission/risk-admission-request reordered))))
+    (is (= (:risk-admission-request/root issued-a)
+           (:risk-admission-request/root issued-b)))
+    (is (= "fence-a" (:fence/id issued-a)))
+    (is (= "fence-b" (:fence/id issued-b)))))
+
+(deftest risk-admission-request-identity-distinguishes-semantic-mutations
+  (let [before {qa 80000}
+        base (candidate before [[(effects/delta qa 10000)]])
+        root #(-> % admission/risk-admission-request
+                  :risk-admission-request/root)
+        other-valuation (hash-ref/sha256-ref
+                         (hc/domain-hash :prf-risk-projection-v1
+                                         {:fixture "other-valuation"}))
+        other-unit (hash-ref/sha256-ref
+                    (hc/domain-hash :prf-risk-projection-v1
+                                    {:fixture "other-unit"}))]
+    (is (not= (root base)
+              (root (candidate {qa 70000} [[(effects/delta qa 10000)]]))))
+    (is (not= (root base)
+              (root (candidate before [[(effects/delta qa 9000)]]))))
+    (is (not= (root base)
+              (root (assoc base :valuation-basis-root other-valuation))))
+    (is (not= (root base)
+              (root (assoc base :unit-root other-unit))))
+    (is (not= (root base)
+              (root (assoc base :attribution
+                           {qa [{:risk/domain "human/principal"
+                                 :risk/member "resolver-b"}]}))))
+    (is (not (admission/valid-risk-admission-request?
+              (assoc (admission/risk-admission-request base) :unknown true))))))
+
+(deftest finalization-verifies-the-fence-request-binding
+  (let [store (store-at {qa 80000})
+        state (admission/state-snapshot store)
+        op (candidate {qa 80000} [[(effects/delta qa 10000)]])
+        issued (admission/issue-fence-transition state "fence-request" op)
+        request-root (:risk-admission-request/root issued)
+        committed (admission/finalise-fence-transition
+                   (:state issued) "fence-request")
+        tampered (assoc-in (:state issued)
+                           [:risk-fences "fence-request"
+                            :risk-admission-request/root]
+                           (hash-ref/sha256-ref qb))]
+    (is (= request-root (:risk-admission-request/root committed)))
+    (is (= (:risk-admission/root committed)
+           (get-in (:state committed)
+                   [:risk-request-admissions request-root])))
+    (is (= :risk-admission-request-root-mismatch
+           (:reason (admission/finalise-fence-transition
+                     tampered "fence-request"))))))
+
+(deftest pure-risk-admission-transitions-are-deterministic-and-non-mutating
+  (let [store (store-at {qa 80000})
+        state (admission/state-snapshot store)
+        op (candidate {qa 80000} [[(effects/delta qa 10000)]])
+        issued-a (admission/issue-fence-transition state "fence-fixed" op)
+        issued-b (admission/issue-fence-transition state "fence-fixed" op)]
+    (is (= issued-a issued-b))
+    (is (= state (admission/state-snapshot store)))
+    (is (= :issued (:status issued-a)))
+    (let [final-a (admission/finalise-fence-transition (:state issued-a) "fence-fixed")
+          final-b (admission/finalise-fence-transition (:state issued-a) "fence-fixed")
+          record (get-in (:state final-a)
+                         [:risk-admissions (:risk-admission/root final-a)])]
+      (is (= final-a final-b))
+      (is (= {qa 90000} (:business/state (:state final-a))))
+      (is (= 1 (:configuration/commit-index (:state final-a))))
+      (is (= (effects/state-root {qa 80000}) (:state-before/root record)))
+      (is (= (effects/state-root {qa 90000}) (:state-after/root record)))
+      (is (= :committed
+             (:status (admission/finalise-fence-transition
+                       (:state final-a) "fence-fixed")))))))
+
+(deftest atom-adapter-conforms-to-pure-transitions
+  (let [pure-store (store-at {qa 80000})
+        atom-store (store-at {qa 80000})
+        op (candidate {qa 80000} [[(effects/delta qa 10000)]])
+        pure-issued (admission/issue-fence-transition
+                     (admission/state-snapshot pure-store) "fence-conformance" op)
+        pure-final (admission/finalise-fence-transition
+                    (:state pure-issued) "fence-conformance")]
+    (let [atom-issued (admission/issue-risk-fence! atom-store op)
+          atom-final (admission/finalise-risk-fence! atom-store (:fence/id atom-issued))
+          pure-record (get-in (:state pure-final)
+                              [:risk-admissions (:risk-admission/root pure-final)])
+          atom-record (admission/admission-by-root atom-store
+                                                   (:risk-admission/root atom-final))]
+      (is (= :committed (:status atom-final)))
+      (is (= (:business/state (:state pure-final))
+             (:business/state (admission/state-snapshot atom-store))))
+      (is (= (select-keys pure-record
+                          [:state-before/root :state-after/root
+                           :risk-controlled-pro-rata-admission-basis/root])
+             (select-keys atom-record
+                          [:state-before/root :state-after/root
+                           :risk-controlled-pro-rata-admission-basis/root])))
+      (is (= 1 (:configuration/commit-index
+                (admission/state-snapshot atom-store)))))))
+
+(deftest pure-transitions-reject-stale-and-tampered-inputs
+  (let [store (store-at {qa 80000})
+        state (admission/state-snapshot store)
+        op (candidate {qa 80000} [[(effects/delta qa 10000)]])
+        issued (admission/issue-fence-transition state "fence-tamper" op)
+        issued-state (:state issued)]
+    (is (= :candidate-state-not-current
+           (:reason (admission/issue-fence-transition
+                     state "fence-stale"
+                     (candidate {qa 70000} [[(effects/delta qa 10000)]])))))
+    (is (= :admission/risk-projection-root-mismatch
+           (:reason (admission/finalise-fence-transition
+                     (assoc-in issued-state
+                               [:risk-fences "fence-tamper" :risk-projection/root]
+                               (hash-ref/sha256-ref qb))
+                     "fence-tamper"))))
+    (let [committed (admission/finalise-fence-transition issued-state "fence-tamper")]
+      (is (= :candidate-state-not-current
+             (:reason (admission/finalise-fence-transition
+                       (assoc-in issued-state [:business/state qa] 81000)
+                       "fence-tamper"))))
+      (is (= :unknown-fence
+             (:reason (admission/finalise-fence-transition
+                       (:state committed) "fence-other")))))))
+
 ;; 2. caller-asserted configuration cannot override the authoritative head
 (deftest test-authority-derives-current-configuration-not-caller
   (let [store (store-at {qa 80000})

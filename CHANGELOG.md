@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### P1A receipt polling service
+
+- Added `receipt-daemon/run-once!`, `start!`, and bounded `stop!` for automatic, at-least-once issuance from authoritative pending-obligation scans. Startup scans require no commit signal; bounded batches rotate fairly across failures, with fixed-delay retries and sanitized operational summaries. Shutdown leaves obligations intact and does not interrupt in-flight signing. Scheduling metadata does not change receipt identity; recovery requires the current store contents to remain available, not P1B restart persistence. (`src/resolver_sim/resubmission/receipt_daemon.clj`)
+
 ### Exact-address derivation accessibility foundation
 
 - Added explicit root and state address constructors plus exact retrieval, domain-dispatched address verification, committed reproduction-basis inspection, derived replay verification, and cycle-safe backward derivation tracing. The layer deliberately makes no semantic-validity, authority, or currentness claim. Fixed chunk sets now commit and expose `:chunk-size` and `:executable-distribution/root` as reproduction inputs; canonical effects state application is replayable, while effects compilation explicitly reports its uncommitted target-mapping contract gap. (`src/resolver_sim/accessibility/derivation.clj`, `src/resolver_sim/benchmark/distributed/fixed_chunks.clj`)
@@ -2294,3 +2298,9 @@ runtime mechanism selection or a mechanism registry.
 - **`normalize-simple-result` function:** Adds `:replay-profile :simple`, `:protocol-id`, `:execution` descriptor, `:context/version`, `:context/source`, and `:scenario-normalizations` to all simple replay results. (`src/resolver_sim/contract_model/replay.clj:277-323`)
 
 - **Scenario EDN recovery events:** Added `execute_pending_settlement` or resolution events to S-DR-051, S-DR-054, S-DR-076, and S-DR-090 to close escrows after expected guard rejections. (`scenarios/edn/S-DR-051-challenge-without-escalation.edn`, `scenarios/edn/S-DR-054-missing-escalation-level.edn`, `scenarios/edn/S-DR-076-non-governance-rotate-rejected.edn`, `scenarios/edn/S-DR-090-circuit-breaker-recovery.edn`)
+## Unreleased
+
+- Added `risk-controlled-pro-rata-admission-request.v1`, a canonical rooted
+  identity for a risk-admission request across fences, processes, and retries.
+  The identity commits the expected predecessor, normalized requested effects,
+  and exact risk projection without changing existing admission v1 roots.
