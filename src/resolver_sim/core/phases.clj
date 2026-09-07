@@ -272,7 +272,7 @@
 
         _ (println (format "\n🌊 Running probabilistic waterfall: %s" scenario-name))
         _ (println (format "   Mode: Monte Carlo dispute resolution"))
-        _ (println (format "   Threshold: Coverage adequacy must be ≥80%% to pass"))
+        _ (println "   Requirement: supplied by the selected application benchmark")
         _ (println "")
         _ (println (format "   Seniors: %d | Juniors: %d"
                            (:n-seniors params 5)
@@ -287,13 +287,7 @@
                 rng-inst pool params n-trials)
 
         metrics (:metrics result)
-         ;; Bounded fraction-covered metric (see waterfall/aggregate-waterfall-metrics).
-         ;; This is the framework-layer loss-pressure coverage ratio; it is NOT
-         ;; the notebook activation-fill-rate (see notebooks/allocation_activation.clj).
-        ;; The historical :coverage-adequacy-score is preserved in the metrics map
-        ;; but is a deficit-margin proxy that goes negative past exhaustion and is
-        ;; no longer the pass/fail gate.
-        adequacy (:coverage-adequacy-pct metrics)
+        requirement-result (:benchmark/requirement-result params)
 
         ;; Fixture-health: flag oracle exhaustion so stale calibrations
         ;; don't produce misleading results.  Exhaustion means the fixed
@@ -302,14 +296,16 @@
         exhausted-events (filter :oracle-exhausted? (:events result))
         fixture-exhausted? (seq exhausted-events)
         fixture-warnings (distinct (mapcat :oracle-warnings exhausted-events))
-        pass?    (>= adequacy 80.0)]
+        pass?    (= :satisfied (:measure/status requirement-result))]
 
     (println (format "\n   Slashed disputes: %d / %d (%.1f%%)"
                      (:total-slashes metrics) n-trials
                      (if (zero? n-trials) 0.0 (* 100.0 (/ (:total-slashes metrics) n-trials)))))
     (println (format "   Juniors exhausted: %.1f%%" (:juniors-exhausted-pct metrics)))
     (println (format "   Coverage used: %.1f%%" (:seniors-coverage-used-avg-pct metrics)))
-    (println (format "   Adequacy score: %.1f%% (scale: 0–100)" adequacy))
+    (when requirement-result
+      (println "   Requirement status:" (name (:measure/status requirement-result))
+               "margin:" (:measure/value requirement-result)))
     (println "")
     (when fixture-exhausted?
       (println (format "   ⚠️  ORACLE FIXTURE EXHAUSTED — %d/%d trials affected"
@@ -320,15 +316,8 @@
     (println "")
     (if fixture-exhausted?
       (println (format "   Status: ⚠️  INVALID (fixture exhausted — results unreliable)"))
-      (if pass?
-        (println (format "   Status: ✅ PASS (%.1f%% ≥ 80%% threshold)" adequacy))
-        (println (format "   Status: ❌ FAIL (%.1f%% < 80%% threshold)" adequacy))))
+      (println "   Status:" (if pass? "PASS" "FAIL")))
     (println "")
-    (when (and (not fixture-exhausted?) (< adequacy 80.0))
-      (println "   Recommendations:")
-      (println "   • Increase senior bond amounts or utilization-factor")
-      (println "   • Reduce detection probability sensitivity")
-      (println "   • Validate assumptions with higher fraud rates"))
 
     (results/write-edn (format "%s/summary.edn" run-dir) (select-keys result [:events :metrics]))
     (results/write-run-metadata (format "%s/metadata.edn" run-dir)
@@ -346,9 +335,9 @@
         pool          (waterfall/initialize-waterfall-pool params)
 
         _ (println (format "\n🌊 Running waterfall stress test: %s" scenario-name))
-        _ (println (format "   Hypothesis: Waterfall maintains >80%% coverage under fraud rate threshold"))
+        _ (println "   Hypothesis: evaluated by the selected application benchmark requirement")
         _ (println (format "   Purpose: Verify senior/junior tier adequacy and pool solvency"))
-        _ (println (format "   Threshold: Coverage adequacy must be ≥80%% to pass"))
+        _ (println "   Requirement: supplied by the selected application benchmark")
         _ (println "")
         _ (println (format "   Seniors: %d | Juniors: %d"
                            (:n-seniors params 5)
@@ -397,26 +386,20 @@
                                               :senior-bond-amount :junior-bond-amount])
                  :results metrics}]
 
-    (let [adequacy (:coverage-adequacy-pct metrics)
-          pass?    (>= adequacy 80.0)]
+    (let [requirement-result (:benchmark/requirement-result params)
+          pass? (= :satisfied (:measure/status requirement-result))]
       (println (format "   Juniors exhausted: %.1f%%" (:juniors-exhausted-pct metrics)))
       (println (format "   Coverage used: %.1f%%" (:seniors-coverage-used-avg-pct metrics)))
-      (println (format "   Adequacy score: %.1f%% (scale: 0–100)" adequacy))
+      (when requirement-result
+        (println "   Requirement status:" (name (:measure/status requirement-result))
+                 "margin:" (:measure/value requirement-result)))
       (println "")
-      (if pass?
-        (println (format "   Status: ✅ PASS (%.1f%% ≥ 80%% threshold)" adequacy))
-        (println (format "   Status: ❌ FAIL (%.1f%% < 80%% threshold)" adequacy)))
+      (println "   Status:" (if pass? "PASS" "FAIL"))
       (println "")
       (if pass?
         (println "   Interpretation: Pool is well-provisioned for stated fraud rate.")
         (println "   Interpretation: ❌ CRITICAL — pool inadequate. Senior coverage insufficient."))
-      (println "")
-      (when (< adequacy 80.0)
-        (println "   Recommendations:")
-        (println "   • Increase senior bond amounts (currently tied to utilization-factor)")
-        (println "   • Increase utilization-factor from current setting")
-        (println "   • Reduce fraud-slash-bps to test lower thresholds")
-        (println "   • Validate assumptions with higher fraud rates (target: 25%)")))
+      (println ""))
 
     (results/write-edn (format "%s/summary.edn" run-dir) summary)
     (results/write-run-metadata (format "%s/metadata.edn" run-dir)

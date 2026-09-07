@@ -90,12 +90,64 @@
     (neg? margin) {:measure/status :deficit :measure/value margin :measure/deficit (- margin)}
     :else {:measure/status :at-boundary :measure/value 0N}))
 
+(defn map-observation
+  "Map a raw execution observation through a declared identity or scale transform.
+   The declaration is part of the frozen research definition, never runtime code."
+  [observation raw-observations]
+  (let [source-id (or (get-in observation [:observation/source :observation/id])
+                      (:observation/id observation))
+        raw-value (get raw-observations source-id)
+        transform (or (:observation/transform observation) {:transform/kind :identity})]
+    (when-not (integer? raw-value)
+      (throw (ex-info "Observation value must be an integer"
+                      {:observation/id source-id :value raw-value})))
+    (let [value (case (:transform/kind transform)
+                  :identity raw-value
+                  :scale (* raw-value (:multiply transform))
+                  (throw (ex-info "Unsupported observation transform"
+                                  {:transform transform :observation observation})))]
+      (when-not (and (integer? value) (integer-domain? (:observation/domain observation)))
+        (throw (ex-info "Mapped observation is outside its declared domain"
+                        {:observation observation :value value})))
+      {:observation/id (:observation/id observation)
+       :value value
+       :unit (get-in observation [:observation/domain :unit])})))
+
+(defn evaluate-requirement
+  "Evaluate one declared requirement-margin measure against an integer observation.
+   Positive margins are headroom, zero is an inclusive satisfied boundary, and
+   negative margins violate the requirement for both supported directions."
+  [measure observed]
+  (let [requirement (get-in measure [:measure/requirement :value])
+        margin (requirement-margin {:observed observed
+                                    :requirement requirement
+                                    :domain (:measure/domain measure)
+                                    :satisfying-direction (:measure/satisfying-direction measure)})
+        status (get-in (classify-margin margin) [:measure/status])]
+    {:measure/id (:measure/id measure)
+     :observed/value observed
+     :requirement/value requirement
+     :requirement/unit (get-in measure [:measure/requirement :unit])
+     :requirement/satisfying-direction (:measure/satisfying-direction measure)
+     :requirement/margin margin
+     :requirement/status (case status
+                           :satisfied :satisfied
+                           :deficit :unsatisfied
+                           :at-boundary)
+     :requirement/satisfied? (not= status :deficit)}))
+
 (defn- validate-measure! [measure]
   (when-not (and (non-empty-qualified-keyword? (:measure/id measure))
                  (= requirement-margin-kind (:measure/kind measure))
                  (integer-domain? (:measure/domain measure))
                  (map? (:measure/observation measure))
                  (non-empty-qualified-keyword? (get-in measure [:measure/observation :observation/id]))
+                 (or (not (contains? (:measure/observation measure) :observation/domain))
+                     (and (integer-domain? (get-in measure [:measure/observation :observation/domain]))
+                          (contains? #{:identity :scale}
+                                     (get-in measure [:measure/observation :observation/transform :transform/kind] :identity))
+                          (or (not= :scale (get-in measure [:measure/observation :observation/transform :transform/kind]))
+                              (integer? (get-in measure [:measure/observation :observation/transform :multiply])))))
                  (integer? (get-in measure [:measure/requirement :value]))
                  (= (:unit (:measure/domain measure))
                     (get-in measure [:measure/requirement :unit]))

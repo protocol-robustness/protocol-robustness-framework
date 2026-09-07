@@ -2,6 +2,7 @@
   (:require [resolver-sim.benchmark.sharing :as sharing]
             [resolver-sim.benchmark.registry :as registry]
             [resolver-sim.benchmark.coverage :as coverage]
+            [resolver-sim.benchmark.manifest :as benchmark-manifest]
             [resolver-sim.benchmark.signing :as signing]
             [resolver-sim.benchmark.integrity :as integrity]
             [resolver-sim.benchmark.validation :as validation]
@@ -14,6 +15,7 @@
             [resolver-sim.io.resource-path :as rp]
             [resolver-sim.logging :as log]
             [resolver-sim.config.defaults :as defaults]
+            [resolver-sim.settings.semantic :as semantic-setting]
             [resolver-sim.config.paths :as paths]
             [resolver-sim.io.edn :as ppedn]
             [clojure.java.io :as io]
@@ -60,8 +62,38 @@
             (:benchmarks pack-reg)))
     (do (log/warn! :pack-registry-not-found {:path pack-reg-path}) [])))
 
-(def ^:private default-benchmark-manifest
-  (str hash-ref/resource-prefix hash-ref/escrow-dispute-pack-path))
+(defn application-default-manifest
+  "Return application default manifest authority and its non-semantic locator.
+   The caller must verify the locator resolves to the committed manifest root."
+  [application]
+  (when-let [setting (:application/default-benchmark-manifest application)]
+    (let [validation (semantic-setting/validate-setting setting)
+          root (get-in setting [:setting/value :benchmark-manifest/root])
+          source (get-in setting [:setting/resolution :benchmark-manifest/source])]
+      (when-not (:valid? validation)
+        (throw (ex-info "Invalid application default benchmark setting" validation)))
+      (when-not (and (hash-ref/valid-sha256-ref? root) (string? source))
+        (throw (ex-info "Application default benchmark setting requires manifest root and resolution source"
+                        {:setting setting})))
+      {:benchmark-manifest/root root
+       :benchmark-manifest/source source})))
+
+(defn- resolve-application-default-manifest
+  [{:benchmark-manifest/keys [root source]}]
+  (let [loaded (rp/edn-read source)
+        observed-root (:benchmark-manifest/root loaded)]
+    (when-not (benchmark-manifest/rooted-manifest? loaded)
+      (throw (ex-info "Application default locator resolved an unrooted benchmark manifest"
+                      {:reason :benchmark-manifest/unrooted-default
+                       :expected/root root
+                       :source source})))
+    (when-not (= root observed-root)
+      (throw (ex-info "Application default benchmark manifest root mismatch"
+                      {:reason :benchmark-manifest/root-mismatch
+                       :expected/root root
+                       :observed/root observed-root
+                       :source source})))
+    source))
 
 (defn- load-index
   "Read benchmarks/registry.edn, walk the pack hierarchy, and return
@@ -163,24 +195,28 @@
 ;; ── Shared orchestration ───────────────────────────────────────────────────────
 
 (defn resolve-benchmark-manifest
-  "Resolve a registered benchmark ID or manifest reference to its manifest path.
-   This performs no execution or output writes."
-  [benchmark-id-or-path]
-  (let [index (load-index)
-        canonical-id (when (and (string? benchmark-id-or-path)
-                                (.startsWith benchmark-id-or-path ":"))
-                       (keyword (subs benchmark-id-or-path 1)))
-        benchmark-from-index (first (filter #(or (= (:id %) benchmark-id-or-path)
-                                                 (= (:benchmark/id %) benchmark-id-or-path)
-                                                 (= (:benchmark/id %) canonical-id))
-                                            (:benchmarks index)))]
-    (cond
-      benchmark-from-index (:manifest benchmark-from-index)
-      (and benchmark-id-or-path
-           (str/ends-with? benchmark-id-or-path ".edn")) benchmark-id-or-path
-      :else (throw (ex-info "Unknown benchmark ID or manifest path"
-                            {:benchmark benchmark-id-or-path
-                             :available (mapv :id (:benchmarks index))})))))
+  "Resolve an explicit manifest, then an application default locator.
+   No framework-level default is supplied."
+  ([benchmark-id-or-path]
+   (resolve-benchmark-manifest benchmark-id-or-path nil))
+  ([benchmark-id-or-path application]
+   (let [default (when-not benchmark-id-or-path (application-default-manifest application))
+         selection (or benchmark-id-or-path (when default (resolve-application-default-manifest default)))
+         index (load-index)
+         canonical-id (when (and (string? selection) (.startsWith selection ":"))
+                        (keyword (subs selection 1)))
+         benchmark-from-index (first (filter #(or (= (:id %) selection)
+                                                  (= (:benchmark/id %) selection)
+                                                  (= (:benchmark/id %) canonical-id))
+                                             (:benchmarks index)))]
+     (cond
+       benchmark-from-index (:manifest benchmark-from-index)
+       (and selection (str/ends-with? selection ".edn")) selection
+       selection (throw (ex-info "Unknown benchmark ID or manifest path"
+                                 {:benchmark selection
+                                  :available (mapv :id (:benchmarks index))}))
+       :else (throw (ex-info "No benchmark manifest selected"
+                             {:available (mapv :id (:benchmarks index))}))))))
 
 (defn run-and-report
   "Run a benchmark by manifest path or benchmark ID, write evidence, and
@@ -190,7 +226,7 @@
   and potentially other CLIs that need benchmark execution without
   taking over the process (no System/exit)."
   [benchmark-id-or-path options]
-  (let [manifest-path (resolve-benchmark-manifest benchmark-id-or-path)
+  (let [manifest-path (resolve-benchmark-manifest benchmark-id-or-path (:application options))
         _ (log/info! :benchmark-running {:manifest manifest-path})]
     (try
       (let [run-benchmark (requiring-resolve 'resolver-sim.benchmark.runner/run-benchmark)
@@ -424,14 +460,14 @@
       (if errors
         (do (run! println errors) (System/exit 1))
         (case subcmd
-          "run-benchmark"          (dispatch-run-and-report arguments options)
-          "validate"               (dispatch-validate arguments options)
-          "validate-game-theory"   (dispatch-game-theory arguments options)
+          "run-benchmark" (dispatch-run-and-report arguments options)
+          "validate" (dispatch-validate arguments options)
+          "validate-game-theory" (dispatch-game-theory arguments options)
           "game-theoretic-validation" (dispatch-game-theory arguments options)
-          "list"                   (dispatch-list arguments options)
-          "explain"                (dispatch-explain arguments options)
-          "doctor"                 (dispatch-doctor arguments options)
-          "verify-portability"     (dispatch-verify-portability arguments options)
+          "list" (dispatch-list arguments options)
+          "explain" (dispatch-explain arguments options)
+          "doctor" (dispatch-doctor arguments options)
+          "verify-portability" (dispatch-verify-portability arguments options)
           ;; fallback
           (dispatch-run-and-report arguments options)))))
     ;; Flag-based dispatch: parse with global options only

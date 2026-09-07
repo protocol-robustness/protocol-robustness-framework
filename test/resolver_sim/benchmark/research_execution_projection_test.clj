@@ -22,6 +22,16 @@
    :research/measures [coverage-measure]
    :research/hypotheses []})
 
+(def dual-measure-source
+  (assoc source :research/measures
+         [coverage-measure
+          {:measure/id :measure/loss-margin
+           :measure/kind :requirement-margin.v1
+           :measure/domain {:kind :integer :unit :usdc}
+           :measure/observation {:observation/id :loss/unmet-capacity}
+           :measure/requirement {:requirement/kind :constant :value 50N :unit :usdc}
+           :measure/satisfying-direction :at-most}]))
+
 (defn- exec-id [n]
   (str "sha256:" (format "%064x" n)))
 
@@ -187,3 +197,19 @@
     (is (= (mapv #(exec-id (inc %)) (range 9))
            (mapv #(nth (proj/research-case->executions projection %) 0) (range 9))))
     (is (= :deficit (get-in matrix [:matrix/values [0 0] :measure/status])))))
+
+(deftest results->matrix-accepts-distinct-user-defined-measure-observations
+  (let [frozen (research/freeze-research dual-measure-source)
+        results (mapv (fn [ordinal]
+                        {:execution/ordinal ordinal
+                         :execution/id (exec-id ordinal)})
+                      (range 1 10))
+        compiled (proj/compile-research-matrix-from-results
+                  frozen results
+                  (fn [result]
+                    {:measure/coverage-margin (+ 700N (:execution/ordinal result))
+                     :measure/loss-margin (dec (:execution/ordinal result))})
+                  "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")]
+    (is (= 18 (count (:matrix/values (:matrix compiled)))))
+    (is (= :deficit (get-in compiled [:matrix :matrix/values [0 0] :measure/status])))
+    (is (= :satisfied (get-in compiled [:matrix :matrix/values [0 1] :measure/status])))))

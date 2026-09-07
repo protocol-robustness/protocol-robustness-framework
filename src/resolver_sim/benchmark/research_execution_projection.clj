@@ -275,17 +275,9 @@
 (defn compile-research-matrix-from-results
   "Derive the C × M research result matrix from genuine execution results.
 
-   `extract-observation` is the resolver-owned function mapping an execution
-   result to the observed integer for the study's measure (observation semantics
-   are deliberately external to the frozen definition). Builds E from the results,
-   builds and verifies P, maps each research case to its execution, and compiles
-   the matrix binding D + C + M + the source result roots.
-
-   PILOT: requires 1:1 (one execution per research case), so results are
-   addressed positionally by research-case key.
-
-   Returns {:matrix <research-result-matrix.v1> :projection P
-            :execution-case-set/root E}."
+   `extract-observation` returns either the legacy integer used for every
+   measure or a map keyed by declared measure ID. The latter lets applications
+   select distinct observations without changing framework measure semantics."
   [frozen results extract-observation implementation-root]
   (let [plan (results->execution-plan results)
         ordered (vec (sort-by :execution/ordinal plan))
@@ -293,18 +285,23 @@
         _ (verify-projection frozen ordered projection)
         cases (get-in frozen [:research-definition :research/cases])
         measures (get-in frozen [:research-definition :research/measures])
+        measure-ids (set (map :measure/id measures))
         observations (into {}
                            (map (fn [binding]
                                   (let [case-id (:case/id (nth cases (:research-case/key binding)))
                                         result (nth ordered (:research-case/key binding))
-                                        observed (extract-observation result)]
-                                    (when-not (integer? observed)
-                                      (throw (ex-info "Research observation extraction must yield an integer"
-                                                      {:case/id case-id :observed observed})))
-                                    [case-id (into {} (map (fn [measure]
-                                                             [(:measure/id measure) observed])
-                                                           measures))])))
-                           (:case-bindings projection))]
+                                        extracted (extract-observation result)
+                                        observed (if (integer? extracted)
+                                                   (zipmap measure-ids (repeat extracted))
+                                                   extracted)]
+                                    (when-not (and (map? observed)
+                                                   (= measure-ids (set (keys observed)))
+                                                   (every? integer? (vals observed)))
+                                      (throw (ex-info "Research observation extraction must yield exact integer measure coverage"
+                                                      {:case/id case-id :observed extracted
+                                                       :measure-ids measure-ids})))
+                                    [case-id observed]))
+                                (:case-bindings projection)))]
     {:matrix (research/compile-result-matrix frozen observations implementation-root)
      :projection projection
      :execution-case-set/root (:execution-case-set/root projection)}))

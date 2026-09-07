@@ -3,6 +3,8 @@
             [resolver-sim.allocation.proof-admission :as proof-admission]
             [resolver-sim.benchmark.repo :as repo]
             [resolver-sim.benchmark.integrity :as integrity]
+            [resolver-sim.benchmark.manifest :as benchmark-manifest]
+            [resolver-sim.benchmark.outcome-policy :as outcome-policy]
             [resolver-sim.benchmark.adapter :as adapter]
             [resolver-sim.benchmark.claims :as benchmark-claims]
             [resolver-sim.benchmark.coverage :as benchmark-coverage]
@@ -17,6 +19,8 @@
             [resolver-sim.benchmark.case-set :as case-set]
             [resolver-sim.benchmark.hardening :as hardening]
             [resolver-sim.benchmark.research-execution-projection :as research-projection]
+            [resolver-sim.benchmark.research-definition :as research-definition]
+            [resolver-sim.benchmark.research-observation-projection :as observation-projection]
             [resolver-sim.concepts.benchmark :as benchmark-concepts]
             [resolver-sim.evidence.chain :as chain]
             [resolver-sim.evidence.config :as evidence-config]
@@ -1216,9 +1220,14 @@
      :scenario-hashes scenario-hashes
      :metrics metrics}))
 
-(defn load-manifest [path]
-  (if-let [resolved (rp/resolve-path path)]
-    (rp/edn-read path)
+(defn load-manifest
+  "Load a legacy manifest map or verify and unwrap benchmark-manifest.v1."
+  [path]
+  (if-let [_ (rp/resolve-path path)]
+    (let [manifest (rp/edn-read path)]
+      (if (benchmark-manifest/rooted-manifest? manifest)
+        (benchmark-manifest/body manifest)
+        manifest))
     (throw (ex-info "Benchmark manifest not found" {:path path}))))
 
 (defn- derive-additional-canonical-work
@@ -1310,20 +1319,20 @@
    outcome therefore changes the certification hash — claims can no longer be
    altered without altering the certification."
   [manifest {:keys [scenario-count all-invariants-pass invariant-summary]} claim-results]
-  (let [required-ids    (required-claim-ids manifest)
-        claim-outcomes  (claim-outcome-projection claim-results)
-        certification {:certification/schema        "benchmark-certification.v2"
-                       :certification/creation      {:provenance :in-band
-                                                     :producer :benchmark-runner}
-                       :benchmark-id                (or (:id manifest) "unknown")
-                       :scenario-count              scenario-count
-                       :all-invariants-pass         all-invariants-pass
-                       :final-state-hash            nil
-                       :evidence-chain-root         nil
-                       :invariant-summary           invariant-summary
-                       :required-claims-covered?    (required-claims-covered? required-ids claim-results)
-                       :claim-set/root              (claim-set-root required-ids)
-                       :claim-outcome/root          (claim-outcome-root claim-outcomes)}]
+  (let [required-ids (required-claim-ids manifest)
+        claim-outcomes (claim-outcome-projection claim-results)
+        certification {:certification/schema "benchmark-certification.v2"
+                       :certification/creation {:provenance :in-band
+                                                :producer :benchmark-runner}
+                       :benchmark-id (or (:id manifest) "unknown")
+                       :scenario-count scenario-count
+                       :all-invariants-pass all-invariants-pass
+                       :final-state-hash nil
+                       :evidence-chain-root nil
+                       :invariant-summary invariant-summary
+                       :required-claims-covered? (required-claims-covered? required-ids claim-results)
+                       :claim-set/root (claim-set-root required-ids)
+                       :claim-outcome/root (claim-outcome-root claim-outcomes)}]
     (assoc certification
            :certification-hash
            (hc/hash-with-intent {:hash/intent :benchmark-certification}
@@ -1356,6 +1365,41 @@
                          :input/display-name (:input/display-name source))))
               (range) scenarios)))))
 
+(defn evaluate-selected-research-requirements
+  "Mechanically evaluate manifest-selected requirements against raw observations.
+   Composition remains manifest-owned and is intentionally not inferred here."
+  [manifest frozen-research raw-observations]
+  (mapv (fn [measure]
+          (let [mapped (research-definition/map-observation (:measure/observation measure)
+                                                            raw-observations)]
+            (assoc (research-definition/evaluate-requirement measure (:value mapped))
+                   :observation mapped)))
+        (benchmark-manifest/selected-research-measures
+         (:benchmark/research-binding manifest)
+         frozen-research)))
+
+(defn- scenario-decisions [results]
+  (mapv (fn [result]
+          {:decision/source {:kind :scenario :id (:execution/id result)}
+           :decision/value (:pass? result)})
+        results))
+
+(defn- claim-decisions [results]
+  (mapv (fn [result]
+          {:decision/source {:kind :claim :id (:claim/id result)}
+           :decision/value (= :passed (:claim/evaluation-status result))})
+        results))
+
+(defn evaluate-manifest-outcome
+  "Apply a declared policy to normalized scenario, claim, and research decisions.
+   Legacy manifests retain their historical scenario-only outcome outside this path."
+  [manifest scenario-results claim-results research-results]
+  (outcome-policy/evaluate
+   (:benchmark/outcome-policy manifest)
+   (into [] cat [(scenario-decisions scenario-results)
+                 (claim-decisions claim-results)
+                 (outcome-policy/research-decisions research-results)])))
+
 (defn run-benchmark
   ([manifest-path] (run-benchmark manifest-path default-adapter {}))
   ([manifest-path adapter] (run-benchmark manifest-path adapter {}))
@@ -1367,7 +1411,7 @@
                                   benchmark/run-id benchmark/sensitivity-root
                                   benchmark/executable-artifact-root
                                   benchmark/executable-distribution
-                                  benchmark/resolve-executable-distribution]}]
+                                  benchmark/resolve-executable-distribution benchmark/raw-observation-projection]}]
    (let [adapter (if scenario-output-dir
                    (->SewAdapter scenario-output-dir (or parallelism 1) (or chunk-size 1))
                    adapter)
@@ -1476,17 +1520,17 @@
          ;; Nothing under benchmark/executions becomes canonical until all
          ;; semantic checks below have succeeded.
          metrics (adapter/collect-metrics adapter reconciled-results)
-         passed? (= (:total metrics) (:passed metrics))
+         legacy-passed? (= (:total metrics) (:passed metrics))
 
           ;; Aggregate invariant summary across all scenarios
          all-inv-results (mapcat :invariant-results reconciled-results)
          seen-ids (into #{} (map :id) all-inv-results)
          id->passes (fn [id] (filter #(and (= id (:id %)) (= :pass (:result %))) all-inv-results))
-         id->total  (fn [id] (count (filter #(= id (:id %)) all-inv-results)))
+         id->total (fn [id] (count (filter #(= id (:id %)) all-inv-results)))
          inv-summary (into {}
                            (map (fn [id]
                                   [id {:passed (count (id->passes id))
-                                       :total  (id->total id)}]))
+                                       :total (id->total id)}]))
                            seen-ids)
          total-inv-checks (count all-inv-results)
          passed-inv-checks (count (filter #(= :pass (:result %)) all-inv-results))
@@ -1498,6 +1542,17 @@
              (throw (ex-info "Benchmark claim evaluation failed; canonical publication aborted"
                              {:reason :claim-evaluation-failed
                               :claim-results claim-results})))
+         research-results (if (:benchmark/research-binding manifest)
+                            (if (and research-context raw-observation-projection)
+                              (evaluate-selected-research-requirements
+                               manifest research-context
+                               (observation-projection/observation-values raw-observation-projection))
+                              [])
+                            [])
+         outcome (if (:benchmark/outcome-policy manifest)
+                   (evaluate-manifest-outcome manifest reconciled-results claim-results research-results)
+                   {:benchmark-outcome/status (if legacy-passed? :passed :failed)})
+         passed? (= :passed (:benchmark-outcome/status outcome))
          additional-work (derive-additional-canonical-work manifest reconciled-results)
          _ (when (seq additional-work)
              (throw (ex-info "Frozen benchmark execution graph is not closed after reduction"
@@ -1548,19 +1603,22 @@
                                              :all-invariants-pass all-invariants-pass?
                                              :invariant-summary inv-summary}
                                             claim-results)
-         evidence {:benchmark      manifest
-                   :repo           repo-meta
-                   :environment    {:os-name (System/getProperty "os.name")
-                                    :os-version (System/getProperty "os.version")
-                                    :java-version (System/getProperty "java.version")}
-                   :results        results
-                   :metrics        metrics
-                   :claim-results  claim-results
-                   :reproduce      {:command (str "bb benchmark:reproduce " (or manifest-path hash-ref/escrow-dispute-pack-path))}
-                   :invariant-summary {:per-invariant  inv-summary
-                                       :total-checks   total-inv-checks
-                                       :passed-checks  passed-inv-checks
-                                       :all-pass?      all-invariants-pass?}
+         evidence {:benchmark manifest
+                   :repo repo-meta
+                   :environment {:os-name (System/getProperty "os.name")
+                                 :os-version (System/getProperty "os.version")
+                                 :java-version (System/getProperty "java.version")}
+                   :results results
+                   :metrics metrics
+                   :claim-results claim-results
+                   :research-observation-projection raw-observation-projection
+                   :research-requirement-results research-results
+                   :benchmark-outcome outcome
+                   :reproduce {:command (str "bb benchmark:reproduce " (or manifest-path hash-ref/escrow-dispute-pack-path))}
+                   :invariant-summary {:per-invariant inv-summary
+                                       :total-checks total-inv-checks
+                                       :passed-checks passed-inv-checks
+                                       :all-pass? all-invariants-pass?}
                    :concept/section concept-section
                    :concept/coverage concept-coverage
                    :run/manifest run-manifest

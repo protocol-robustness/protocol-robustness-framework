@@ -14,23 +14,26 @@
   #{:setting/schema :setting/id :setting/value :setting/owner-id})
 
 (defn setting-root
-  "Return the semantic identity root. Owner identity is committed so the same
-  setting ID and value cannot be silently reinterpreted by another owner."
+  "Return semantic identity root. Resolution metadata is intentionally excluded."
   [setting]
   (hash-ref/sha256-ref
    (hc/domain-hash domain
                    (select-keys setting required-fields))))
 
 (defn validate-setting
-  "Validate a closed semantic-setting.v1 artifact. `:setting/value` must be in
-  the canonical hash domain, but is otherwise application-defined."
+  "Validate a rooted semantic setting. `:setting/resolution`, when present, is
+   non-semantic locator metadata and does not affect the setting root."
   [setting]
-  (let [errors (cond-> []
+  (let [allowed-fields (conj required-fields :setting/root :setting/resolution)
+        errors (cond-> []
                  (not (map? setting)) (conj :setting/not-a-map)
                  (and (map? setting)
-                      (not= required-fields
-                            (set (keys (dissoc setting :setting/root)))))
+                      (not= (set (keys setting))
+                            (set (filter allowed-fields (keys setting)))))
                  (conj :setting/invalid-shape)
+                 (and (map? setting) (contains? setting :setting/resolution)
+                      (not (map? (:setting/resolution setting))))
+                 (conj :setting/invalid-resolution)
                  (and (map? setting) (not= schema (:setting/schema setting)))
                  (conj :setting/unsupported-schema)
                  (and (map? setting) (not (qualified-keyword? (:setting/id setting))))
@@ -53,13 +56,14 @@
       {:valid? (empty? errors) :errors (vec errors)})))
 
 (defn build-setting
-  "Build a rooted semantic setting. Values and IDs are application-defined."
-  [{:setting/keys [id value owner-id]}]
+  "Build a rooted semantic setting. Resolution metadata is not root-committed."
+  [{:setting/keys [id value owner-id resolution]}]
   (let [base {:setting/schema schema
               :setting/id id
               :setting/value value
               :setting/owner-id owner-id}
-        setting (assoc base :setting/root (setting-root base))
+        setting (cond-> (assoc base :setting/root (setting-root base))
+                  resolution (assoc :setting/resolution resolution))
         validation (validate-setting setting)]
     (when-not (:valid? validation)
       (throw (ex-info "invalid semantic setting" validation)))
