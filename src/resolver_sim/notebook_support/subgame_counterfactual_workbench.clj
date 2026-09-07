@@ -6,6 +6,9 @@
             [resolver-sim.scenario.normalize :as normalize]
             [resolver-sim.contract-model.replay :as replay]
             [resolver-sim.protocols.protocol :as proto]
+            [resolver-sim.observability.available-actions :as available-actions]
+            [resolver-sim.hash.canonical :as canonical]
+            [resolver-sim.hash.reference :as hash-ref]
             [resolver-sim.protocols.registry :as preg]
             [resolver-sim.scenario.subgame-counterfactual :as spe]
             [resolver-sim.notebook-support.nav :as nav]))
@@ -183,7 +186,11 @@
         fork-world  (or (:fork-world node)
                         (fork-world-for-node node trace checkpoints))]
     (when fork-world
-      (proto/available-actions (s :protocol) fork-world (:agent node)))))
+      (let [protocol (s :protocol)
+            snapshot (proto/world-snapshot protocol fork-world)
+            state-root (hash-ref/sha256-ref
+                        (canonical/domain-hash :protocol-state snapshot))]
+        (available-actions/observe protocol fork-world state-root (:agent node))))))
 
 ;; ──────────────────────────────────────────────────────────────────────────────
 ;;  Use in Clerk

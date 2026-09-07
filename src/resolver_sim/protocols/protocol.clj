@@ -53,6 +53,17 @@
   (project-state [adapter world query]
     "Query the world state using a protocol-specific projection query."))
 
+(defprotocol TransitionAssurance
+  "Optional rooted, replayable transition assurance.
+
+   Implementations must derive a deterministic basis from the supplied exact
+   before/after states and event, then independently validate that supplied
+   basis before reporting semantic assurance."
+  (transition-basis [adapter world-before world-after event]
+    "Return the deterministic transition basis artifact.")
+  (check-transition-assurance [adapter world-before world-after event basis]
+    "Return {:ok? bool :violations map-or-vector} after authenticating basis."))
+
 ;; ---------------------------------------------------------------------------
 ;; 1b. TemporalDeadlines (Optional)
 ;;

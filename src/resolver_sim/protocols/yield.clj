@@ -13,6 +13,7 @@
             [resolver-sim.yield.risk :as yield-risk]
             [resolver-sim.yield.invariants :as yield-inv]
             [resolver-sim.yield.invariants-transition :as yield-trans]
+            [resolver-sim.yield.transition-basis :as yield-basis]
             [resolver-sim.yield.registry :as yreg]
             [resolver-sim.yield.expectations :as yield-exp]
             [resolver-sim.yield.evidence :as yield-evi]
@@ -253,6 +254,20 @@
 
   (project-state [_ world query]
     (get world query))
+
+  proto/TransitionAssurance
+
+  (transition-basis [_ world-before world-after event]
+    (yield-basis/build world-before world-after event))
+
+  (check-transition-assurance [_ world-before world-after event basis]
+    (let [result (yield-trans/check-transition-authoritative
+                  world-before world-after event basis)]
+      {:ok? (:all-hold? result)
+       :violations (into {}
+                         (keep (fn [[id check]]
+                                 (when-not (:holds? check) [id (:violations check)]))
+                               (:results result)))}))
 
   proto/EconomicModel
 

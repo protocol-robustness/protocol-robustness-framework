@@ -334,6 +334,34 @@
                    :projection-hash ph}
      :halted? false}))
 
+(defn- transition-assurance-required?
+  [context]
+  (contains? (set (:replay/requirements context)) :transition-assurance/v1))
+
+(defn- check-transition-assurance
+  [protocol context world-before world-after event]
+  (let [required? (transition-assurance-required? context)]
+    (if-not (satisfies? proto/TransitionAssurance protocol)
+      {:ok? (not required?)
+       :result {:schema :prf/transition-assurance-result.v1
+                :capability :transition-assurance/v1
+                :status :unsupported}
+       :violations (when required?
+                     {:transition-assurance {:reason :unsupported-required-capability}})}
+      (let [basis (proto/transition-basis protocol world-before world-after event)
+            check (proto/check-transition-assurance protocol world-before world-after event basis)
+            passed? (:ok? check)]
+        {:ok? passed?
+         :result {:schema :prf/transition-assurance-result.v1
+                  :capability :transition-assurance/v1
+                  :status (if passed? :passed :failed)
+                  :state-before/root (:state-before/root basis)
+                  :state-after/root (:state-after/root basis)
+                  :event/root (:event/root basis)
+                  :transition/root (:transition/root basis)
+                  :basis/root (:root basis)}
+         :violations (when-not passed? {:transition-assurance (:violations check)})}))))
+
 (defn process-step
   "Apply one scenario event using tiered Protocol implementations.
    Wraps dispatch in with-attribution so downstream yield accrual, invariant
@@ -406,11 +434,16 @@
                          (proto/check-invariants-single protocol world-next))
             inv-trans (when (and ok? check-inv?)
                         (proto/check-invariants-transition protocol world-t world-next))
-            violated? (and ok? check-inv?
-                           (not (and (:ok? inv-single) (:ok? inv-trans))))
+            legacy-violated? (and ok? check-inv?
+                                  (not (and (:ok? inv-single) (:ok? inv-trans))))
+            assurance (when (and ok? (not legacy-violated?))
+                        (check-transition-assurance protocol context world-t world-next event))
+            assurance-violated? (and assurance (not (:ok? assurance)))
+            violated? (or legacy-violated? assurance-violated?)
             all-violations (when violated?
                              (merge (when-not (:ok? inv-single) (:violations inv-single))
-                                    (when-not (:ok? inv-trans) (:violations inv-trans))))]
+                                    (when-not (:ok? inv-trans) (:violations inv-trans))
+                                    (:violations assurance)))]
 
         ;; Assemble base runtime context from values available before projection.
         ;; Invariant attestation uses this; projection fields are enriched below.
@@ -424,7 +457,9 @@
                                          (and ok? check-inv?)))
 
           (let [result-kw (cond violated? :invariant-violated ok? :ok :else :rejected)
-                error-kw (when-not ok? (:error result))
+                error-kw (cond
+                           assurance-violated? :transition-assurance-failed
+                           (not ok?) (:error result))
                 event-tags (if (satisfies? proto/EconomicModel protocol)
                              (proto/classify-event protocol event result-kw error-kw)
                              #{})
@@ -470,9 +505,10 @@
                 :event-tags event-tags
                 :invariant-phase :post-event
                 :invariants-ok? (if (and ok? check-inv?)
-                                  (and (:ok? inv-single) (:ok? inv-trans))
+                                  (and (:ok? inv-single) (:ok? inv-trans) (:ok? assurance true))
                                   true)
                 :violations all-violations
+                :transition-assurance (:result assurance)
                 :trace-metadata metadata
                 :yield/accounting-delta yield-delta
                 :yield/execution-node-hash (:node-hash yield-node)

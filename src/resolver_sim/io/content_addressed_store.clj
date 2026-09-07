@@ -82,7 +82,7 @@
    runtime objects are rejected rather than receiving a lossy fallback."
   [value]
   (cond
-    (or (nil? value) (boolean? value) (string? value) (keyword? value) (integer? value)
+    (or (nil? value) (boolean? value) (string? value) (keyword? value) (symbol? value) (integer? value)
         (instance? clojure.lang.Ratio value)) value
     (vector? value) (mapv canonical-data value)
     (map? value) (into (sorted-map-by canonical-compare)
@@ -107,12 +107,29 @@
   (let [digest (hash-ref/parse-sha256-ref hash-reference)]
     (io/file (:root store) "sha256" (str digest ".edn"))))
 
+(def durable-install-seal-schema :prf/durable-install-seal.v1)
+(def ^:private durable-install-contract :filesystem-cas-v1)
+
+(defn- seal-path [store hash-reference]
+  (let [artifact (artifact-path store hash-reference)]
+    (io/file (.getParentFile artifact) (str (.getName artifact) ".durable-install.edn"))))
+
+(defn- durable-install-seal [hash-reference]
+  {:durable-install/schema durable-install-seal-schema
+   :artifact/root hash-reference
+   :installation/contract durable-install-contract})
+
+(defn- valid-durable-install-seal? [hash-reference seal]
+  (= seal (durable-install-seal hash-reference)))
+
 (defn create-store
   "Create a filesystem-backed unlinked store. Every write reports whether the
    host accepted directory fsync; callers must not claim crash durability when
    `:crash-durable?` is false."
   [root]
   {:root (str root)})
+
+(declare atomic-create! force-file! force-directory!)
 
 (defn- force-file! [file]
   (with-open [channel (FileChannel/open (.toPath file)
@@ -174,6 +191,49 @@
                            :hash hash-reference :path (str path)})))
         artifact))))
 
+(defn- install-seal! [store hash-reference]
+  (let [target (seal-path store hash-reference)
+        result (atomic-create! target (canonical-edn (durable-install-seal hash-reference)))]
+    (when-not (:directory-fsynced? result)
+      (throw (ex-info "Durable install seal directory fsync was unavailable"
+                      {:reason :durable-install-seal-not-durable :hash hash-reference})))
+    result))
+
+(defn ensure-durable!
+  "Establish the local filesystem CAS durability boundary for an existing,
+   self-verifying artifact. A seal is installed only after the artifact file and
+   its directory force successfully; seal installation then forces its file and
+   directory."
+  [store hash-reference verify]
+  (let [artifact (resolve-artifact store hash-reference)
+        path (artifact-path store hash-reference)]
+    (when-not (and artifact (fn? verify) (boolean (verify artifact)))
+      (throw (ex-info "Artifact is unavailable or fails verification"
+                      {:reason :durable-install-artifact-invalid :hash hash-reference})))
+    (force-file! path)
+    (when-not (force-directory! (.getParentFile path))
+      (throw (ex-info "Artifact directory fsync was unavailable"
+                      {:reason :durable-install-artifact-not-durable :hash hash-reference})))
+    (install-seal! store hash-reference)
+    {:status :durably-installed :hash hash-reference :artifact artifact
+     :crash-durable? true}))
+
+(defn resolve-durable-artifact
+  "Return an artifact only when its canonical bytes, caller-supplied root
+   verifier, and persistent durable-install seal all validate after restart."
+  [store hash-reference verify]
+  (let [artifact (resolve-artifact store hash-reference)
+        seal-file (seal-path store hash-reference)
+        seal (when (.exists seal-file)
+               (try
+                 (let [bytes (slurp seal-file)
+                       value (edn/read-string bytes)]
+                   (when (= bytes (canonical-edn value)) value))
+                 (catch Exception _ nil)))]
+    (when (and artifact (fn? verify) (boolean (verify artifact))
+               (valid-durable-install-seal? hash-reference seal))
+      artifact)))
+
 (defn put-if-absent!
   "Durably write a self-verifying immutable artifact without a canonical index.
 
@@ -203,10 +263,12 @@
     (when-not (= artifact persisted)
       (throw (ex-info "Content-addressed storage collision"
                       {:reason :hash-content-collision :hash hash-reference :path (str path)})))
-    {:status (:status result)
-     :hash hash-reference
-     :artifact persisted
-     :crash-durable? (:directory-fsynced? result)}))
+    (let [sealed (when (:directory-fsynced? result)
+                   (ensure-durable! store hash-reference verify))]
+      {:status (:status result)
+       :hash hash-reference
+       :artifact persisted
+       :crash-durable? (boolean sealed)})))
 
 (defn verify-stored-artifact
   "Resolve, canonical-byte-check, and authenticate an object using its

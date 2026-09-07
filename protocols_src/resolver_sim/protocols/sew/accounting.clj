@@ -186,7 +186,12 @@
                             {:type :authorization/member-not-in-relationship
                              :authorization/id auth-id
                              :relationship/id rel-id
-                             :member member-identity}))))
+                             :member member-identity})))
+          (when (t/terminal-state? world (:held/workflow-id scope-map))
+            (throw (ex-info "cannot consume force-authorisation against terminal member"
+                            {:type :authorization/terminal-member
+                             :authorization/id auth-id
+                             :held/workflow-id (:held/workflow-id scope-map)}))))
         (let [member-hash (force-authorisation-scope-hash scope-map)
               member-hashes (:member-scope-hashes auth-provenance [])]
           (when-not (contains? (set member-hashes) member-hash)

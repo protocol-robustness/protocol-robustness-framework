@@ -242,8 +242,13 @@
                      :members members})))
   ;; Cross-relationship global rule (consumer-specific): no workflow-id already
   ;; in another active relationship, regardless of type.
+  ;; Terminal members in the new relationship are excluded: a finalized workflow
+  ;; is functionally complete and does not benefit from a new relationship, but
+  ;; it should not be blocked by a stale active relationship that has not yet
+  ;; been archived.
   (let [wf-ids (set (for [m members
-                          :when (= :sew/workflow (:claim/kind m))]
+                          :when (= :sew/workflow (:claim/kind m))
+                          :when (not (t/terminal-state? world (:workflow/id m)))]
                       (:workflow/id m)))]
     (doseq [[rel-id rel] (:related-claims world {})]
       (when (= :active (:relationship/status rel))
@@ -529,6 +534,34 @@
               :relationship record))
     (catch Exception e
       (t/fail (or (:type (ex-data e)) :related-claims-invalid)))))
+
+;; ---------------------------------------------------------------------------
+;; Lifecycle — archive
+;; ---------------------------------------------------------------------------
+
+(defn all-members-terminal?
+  "True when every member workflow-id in the relationship is in a terminal state."
+  [world relationship]
+  (every? #(t/terminal-state? world (:workflow/id %))
+          (:relationship/members relationship)))
+
+(defn archive-relationship-if-complete
+  "Transition relationship to :archived when all members are terminal. Idempotent."
+  [world relationship-id]
+  (let [rel (get-related-claims world relationship-id)]
+    (if (and rel
+             (= :active (:relationship/status rel))
+             (all-members-terminal? world rel))
+      (assoc-in world [:related-claims relationship-id :relationship/status] :archived)
+      world)))
+
+(defn archive-stale-relationships
+  "Scan all active relationships and archive those with all-terminal members."
+  [world]
+  (reduce (fn [w [rel-id _]]
+            (archive-relationship-if-complete w rel-id))
+          world
+          (:related-claims world {})))
 
 ;; ---------------------------------------------------------------------------
 ;; Query

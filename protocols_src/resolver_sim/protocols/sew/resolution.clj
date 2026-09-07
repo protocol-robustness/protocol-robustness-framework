@@ -556,7 +556,12 @@
    May be called while :disputed before the reversing resolution is executed.
    When the snapshot has a positive :evidence-window-duration, evidence submitted
    after the deadline (dispute-raise-time + window) is rejected with
-   :evidence-deadline-exceeded."
+   :evidence-deadline-exceeded.
+
+   When an evidence-hash is provided and the world carries an
+   :evidence-chain/registry, the hash is verified against the registry.
+   Verification results are recorded on the world as
+   [:evidence-provenance-verified workflow-id] for downstream invariant checks."
   [world workflow-id _caller & [{:keys [evidence-hash]}]]
   (cond
     (not (t/valid-workflow-id? world workflow-id))
@@ -570,9 +575,17 @@
           dispute-ts (get-in world [:dispute-timestamps workflow-id] 0)]
       (if (and (pos? window-dur) (> now (+ dispute-ts window-dur)))
         (t/fail :evidence-deadline-exceeded)
-        (let [world' (cond-> (assoc-in world [:evidence-updated? workflow-id] true)
+        (let [provenance-status (if (and evidence-hash (:evidence-chain/registry world))
+                                  (let [{:keys [present]} (chain/verify-evidence-in-registry
+                                                            (:evidence-chain/registry world)
+                                                            evidence-hash)]
+                                    (if present :verified :unverifiable))
+                                  :no-registry)
+              world' (cond-> (assoc-in world [:evidence-updated? workflow-id] true)
                        evidence-hash (update-in [:evidence-hashes workflow-id]
-                                                 (fnil conj []) evidence-hash))]
+                                                 (fnil conj []) evidence-hash)
+                       evidence-hash (assoc-in [:evidence-provenance-verified workflow-id
+                                                evidence-hash] provenance-status))]
           (attr/with-attribution {:subject/type :dispute
                                   :subject/id workflow-id
                                   :action/type :dispute/submit-evidence
@@ -580,9 +593,12 @@
             (cap/capture-event-evidence!
              :evidence-submitted
              {:evidence/before {:evidence-updated? (get-in world [:evidence-updated? workflow-id] false)}}
-             {:evidence/after {:evidence-updated? true :evidence-hash evidence-hash}}
+             {:evidence/after {:evidence-updated? true
+                               :evidence-hash evidence-hash
+                               :evidence/provenance-status provenance-status}}
              {:evidence/workflow-id workflow-id
-              :evidence/hash evidence-hash}))
+              :evidence/hash evidence-hash
+              :evidence/provenance-status provenance-status}))
           (t/ok world'))))))
 
 (defn- fraud-slash-workflow-eligible?

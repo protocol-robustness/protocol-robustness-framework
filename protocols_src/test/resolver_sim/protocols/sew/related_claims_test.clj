@@ -1008,3 +1008,103 @@
       ;; Relationship semantics are deliberately weak (:audit-only)
       (is (= #{:audit-only} (:relationship/semantics rel))
           "relationship semantics are :audit-only (not settlement/finality coupling)"))))
+
+;; ---------------------------------------------------------------------------
+;; Fix 6: Integration — related-claims × dispute × finalization
+;; ---------------------------------------------------------------------------
+
+(deftest dispute-on-related-claims-member-does-not-block-resolution
+  (testing "raising a dispute on a related-claims member does not prevent resolution"
+    (let [w (world-with-escrows 2)
+          ;; Create related-claims linking workflows 0 and 1
+          rc-full (rc/create-related-claims! w
+                     {:type :same-incident
+                      :members [{:claim/kind :sew/workflow :workflow/id 0}
+                                {:claim/kind :sew/workflow :workflow/id 1}]
+                      :reason "test"
+                      :created-by test-creator})
+          rel-id (:relationship-id rc-full)
+          world' (:world rc-full)
+          ;; Put workflow 0 into dispute
+          w-disputed (-> world'
+                         (assoc-in [:escrow-transfers 0 :escrow-state] :disputed)
+                         (assoc-in [:escrow-transfers 0 :sender-status] :raise-dispute)
+                         (assoc-in [:dispute-timestamps 0] 1000))
+          ;; Submit evidence on workflow 0
+          w-evidence (assoc-in w-disputed [:evidence-updated? 0] true)
+          ;; Execute resolution (release workflow 0)
+          w-resolved (-> w-evidence
+                         (assoc-in [:escrow-transfers 0 :escrow-state] :released)
+                         (update :amount-released assoc 0 950))
+          rel (rc/get-related-claims w-resolved rel-id)]
+      ;; Relationship is still active (workflow 1 is non-terminal)
+      (is (= :active (:relationship/status rel))
+          "relationship stays active while workflow 1 is non-terminal")
+      ;; The invariant still holds
+      (is (true? (:holds? (inv/related-claims-do-not-block-finality? w-resolved)))
+          "audit-only semantics do not block finality after dispute resolution"))))
+
+(deftest relationship-archives-after-all-members-finalize
+  (testing "relationship transitions to :archived when all members are terminal"
+    (let [w (world-with-escrows 2)
+          rc-full (rc/create-related-claims! w
+                     {:type :same-incident
+                      :members [{:claim/kind :sew/workflow :workflow/id 0}
+                                {:claim/kind :sew/workflow :workflow/id 1}]
+                      :reason "test"
+                      :created-by test-creator})
+          rel-id (:relationship-id rc-full)
+          world' (:world rc-full)
+          ;; Finalize both workflows
+          w-final (-> world'
+                      (assoc-in [:escrow-transfers 0 :escrow-state] :released)
+                      (assoc-in [:escrow-transfers 1 :escrow-state] :refunded))
+          ;; Archive stale relationships
+          w-archived (rc/archive-stale-relationships w-final)
+          rel (rc/get-related-claims w-archived rel-id)]
+      (is (= :archived (:relationship/status rel))
+          "relationship archives when all members are terminal"))))
+
+(deftest relationship-stays-active-while-some-members-non-terminal
+  (testing "relationship stays active when at least one member is non-terminal"
+    (let [w (world-with-escrows 2)
+          rc-full (rc/create-related-claims! w
+                     {:type :same-incident
+                      :members [{:claim/kind :sew/workflow :workflow/id 0}
+                                {:claim/kind :sew/workflow :workflow/id 1}]
+                      :reason "test"
+                      :created-by test-creator})
+          rel-id (:relationship-id rc-full)
+          world' (:world rc-full)
+          ;; Finalize only workflow 0
+          w-partial (-> world'
+                        (assoc-in [:escrow-transfers 0 :escrow-state] :released))
+          ;; Archive stale relationships
+          w-archived (rc/archive-stale-relationships w-partial)
+          rel (rc/get-related-claims w-archived rel-id)]
+      (is (= :active (:relationship/status rel))
+          "relationship stays active when workflow 1 is non-terminal"))))
+
+(deftest finalized-member-can-join-new-relationship
+  (testing "a terminal workflow can join a new relationship even if old one is active"
+    (let [w (world-with-escrows 3)
+          ;; Create R1 linking workflows 0 and 1
+          rc1-full (rc/create-related-claims! w
+                     {:type :same-incident
+                      :members [{:claim/kind :sew/workflow :workflow/id 0}
+                                {:claim/kind :sew/workflow :workflow/id 1}]
+                      :reason "R1"
+                      :created-by test-creator})
+          world' (:world rc1-full)
+          ;; Finalize workflow 0 (terminal)
+          w-final (assoc-in world' [:escrow-transfers 0 :escrow-state] :released)
+          ;; Create R2 linking terminal workflow 0 with new workflow 2
+          ;; This should succeed because workflow 0 is terminal
+          rc2-result (rc/create-related-claims! w-final
+                       {:type :same-incident
+                        :members [{:claim/kind :sew/workflow :workflow/id 0}
+                                  {:claim/kind :sew/workflow :workflow/id 2}]
+                        :reason "R2"
+                        :created-by test-creator})]
+      (is (:ok rc2-result)
+          "terminal workflow 0 can join a new relationship R2"))))

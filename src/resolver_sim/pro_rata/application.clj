@@ -1,10 +1,12 @@
 (ns resolver-sim.pro-rata.application
   "Exact authorization and full-application receipts for refined pro-rata effects."
   (:require [resolver-sim.hash.canonical :as hc]
-            [resolver-sim.economics.effects :as effects]))
+            [resolver-sim.economics.effects :as effects]
+            [resolver-sim.pro-rata.effect-compilation-binding-v2 :as compilation-binding]))
 
 (def authorization-schema "authorized-effect-execution.v1")
 (def receipt-schema "applied-effect-receipt.v1")
+(def receipt-v2-schema "applied-effect-receipt.v2")
 
 (defn authorize
   "Commits permission to apply exactly one refined effect set to exactly one
@@ -102,6 +104,51 @@
                 :application/status :applied}]
       (assoc base :applied-effect-receipt/root (hc/domain-hash :applied-effect-receipt base)))))
 
-(defn receipt-valid? [receipt]
-  (= (:applied-effect-receipt/root receipt)
-     (hc/domain-hash :applied-effect-receipt (dissoc receipt :applied-effect-receipt/root))))
+(defn applied-receipt-v2
+  "Build a V2 receipt bound to a V2 compilation binding verified from retained bodies."
+  [{:keys [effect-compilation-binding compilation canonical-transition resolve-body] :as input}]
+  (let [v1 (applied-receipt input)]
+    (when-not (and (= "pro-rata-effect-compilation.v3" (:schema-version compilation))
+                   (compilation-binding/valid? effect-compilation-binding compilation canonical-transition resolve-body))
+      (throw (ex-info "invalid effect compilation binding" {})))
+    (when-not (and (= (:protocol-effect-set/root v1) (:effects/root compilation))
+                   (= (:state-before/root v1) (:state-before/root canonical-transition))
+                   (= (:state-after/root v1) (:state-after/root canonical-transition)))
+      (throw (ex-info "receipt does not match compiled canonical transition" {})))
+    (let [base (assoc (dissoc v1 :applied-effect-receipt/root)
+                      :schema-version receipt-v2-schema
+                      :effect-compilation-binding/root
+                      (:effect-compilation-binding/root effect-compilation-binding))]
+      (assoc base :applied-effect-receipt/root (hc/domain-hash :applied-effect-receipt base)))))
+
+(defn receipt-valid?
+  "Validate V1 from its self-contained receipt root. V2 additionally requires
+  its compilation, canonical transition, and retained-body resolver."
+  ([receipt]
+   (and (= receipt-schema (:schema-version receipt))
+        (= (:applied-effect-receipt/root receipt)
+           (hc/domain-hash :applied-effect-receipt
+                           (dissoc receipt :applied-effect-receipt/root)))))
+  ([receipt compilation canonical-transition]
+   (case (:schema-version receipt)
+     "applied-effect-receipt.v1" (receipt-valid? receipt)
+     "applied-effect-receipt.v2" false
+     false))
+  ([receipt compilation canonical-transition resolve-body]
+   (case (:schema-version receipt)
+     "applied-effect-receipt.v1" (receipt-valid? receipt)
+     "applied-effect-receipt.v2"
+     (and (= "pro-rata-effect-compilation.v3" (:schema-version compilation))
+          (= (:applied-effect-receipt/root receipt)
+             (hc/domain-hash :applied-effect-receipt
+                             (dissoc receipt :applied-effect-receipt/root)))
+          (= (:protocol-effect-set/root receipt) (:effects/root compilation))
+          (= (:state-before/root receipt) (:state-before/root canonical-transition))
+          (= (:state-after/root receipt) (:state-after/root canonical-transition))
+          (compilation-binding/valid?
+           {:effect-compilation-binding/schema compilation-binding/schema-version
+            :effect-compilation/root (:effect-compilation/root compilation)
+            :canonical-transition/root (:canonical-effect-transition/root canonical-transition)
+            :effect-compilation-binding/root (:effect-compilation-binding/root receipt)}
+           compilation canonical-transition resolve-body))
+     false)))

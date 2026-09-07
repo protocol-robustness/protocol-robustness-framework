@@ -127,9 +127,11 @@
     :related-claims-no-duplicate-members
     :related-claims-hash-matches-members
     :related-claims-do-not-block-finality
-    :related-claims-authorisation-scope-closed
-    ;; Reentrancy guard invariants
-    :no-reentrant-guard-leak})
+     :related-claims-authorisation-scope-closed
+     ;; Evidence provenance invariants
+     :evidence-provenance-verifiable
+     ;; Reentrancy guard invariants
+     :no-reentrant-guard-leak})
  
 (def transition-invariant-ids
   "Cross-world invariants run by `check-transition` after each successful step."
@@ -414,8 +416,8 @@
                                consumed-hashes (set (:consumed-members entry #{}))
                                consumption-records (vals (get-in world [:force-authorisations/consumption-records auth-id] {}))
                                linked-by-id (into {} (map (juxt :held-adjustment/id identity) linked))
-                               record-scope-hashes (set (map :member-scope-hash consumption-records))
-                               records-valid? (every? (fn [consumption]
+                                record-scope-hashes (set (map :member-scope-hash consumption-records))
+                                records-valid? (every? (fn [consumption]
                                                          (let [adjustment (get linked-by-id (:held-adjustment/id consumption))]
                                                            (and adjustment
                                                                 (held-adjustment/valid-held-adjustment? adjustment)
@@ -434,14 +436,14 @@
                                                                 (= (:parameter/address consumption) (:parameter/address adjustment)))))
                                                        consumption-records)
                                complete? (= committed consumed-hashes linked-hashes)]
-                           (and (= :related-claims (:authorization/scope-kind record))
-                                (stored-scope-hash-valid? record)
-                                (:relationship/id record) (:relationship/hash record)
-                                (seq committed)
-                                (= (count linked) (count linked-hashes))
-                                (= (count consumption-records) (count linked))
-                                (= (count consumption-records) (count record-scope-hashes))
-                                records-valid?
+                            (and (= :related-claims (:authorization/scope-kind record))
+                                 (stored-scope-hash-valid? record)
+                                 (:relationship/id record) (:relationship/hash record)
+                                 (seq committed)
+                                 (= (count linked) (count linked-hashes))
+                                 (= (count consumption-records) (count linked))
+                                 (= (count consumption-records) (count record-scope-hashes))
+                                 records-valid?
                                 (= consumed-hashes record-scope-hashes)
                                 (= consumed-hashes linked-hashes)
                                 (case (:authorization/status record)
@@ -617,6 +619,12 @@
 (defn dispute-timestamp-consistency? [world] (dispute/dispute-timestamp-consistency? world))
 
 (defn dispute-level-bounded? [world] (dispute/dispute-level-bounded? world))
+
+(defn evidence-provenance-verifiable?
+  "Soft invariant: when an evidence-chain registry is present, every submitted
+   evidence hash should be verifiable. Unverifiable hashes are reported but
+   do NOT block finalization."
+  [world] (dispute/evidence-provenance-verifiable? world))
 
 (defn escrow-state-in-graph? [world] (escrow/escrow-state-in-graph? world))
 
@@ -2461,21 +2469,30 @@
     {:holds? (empty? violations)
      :violations (vec violations)}))
 
+(def ^:private safe-finality-semantics
+  "Semantics that are known to never block finality. New semantics must be
+   explicitly classified here before they can pass this invariant."
+  #{:audit-only})
+
 (defn related-claims-do-not-block-finality?
   "A claim being related to another claim must not prevent release, refund,
    appeal expiry, resolver overflow, force-authorised settlement, or
-   cancellation unless a specific future semantic says so.
-   v1 semantics (#{:audit-only}) never block finality."
+   cancellation unless a specific semantic explicitly says so.
+
+   Uses a positive allowlist: only semantics that are a subset of
+   `safe-finality-semantics` are permitted. Unknown or future semantics
+   trigger a violation until explicitly classified, preventing silent
+   introduction of finality-blocking behavior."
   [world]
   (let [violations
         (for [[rel-id rel] (:related-claims world {})
               :when (= :active (:relationship/status rel))
               :let [semantics (:relationship/semantics rel)
-                    blocks-finality? (contains? semantics :cross-claim-guarantee)]
-              :when blocks-finality?]
+                    unsafe? (not (set/subset? semantics safe-finality-semantics))]
+              :when unsafe?]
           {:relationship/id rel-id
            :semantics semantics
-           :note "only :cross-claim-guarantee blocks finality; not implemented in v1"})]
+           :note "semantics not in safe-finality-semantics allowlist"})]
     {:holds? (empty? violations)
      :violations (vec violations)}))
 
@@ -2642,7 +2659,8 @@
                      :related-claims-no-duplicate-members (related-claims-no-duplicate-members? world)
                      :related-claims-hash-matches-members (related-claims-hash-matches-members? world)
                      :related-claims-do-not-block-finality (related-claims-do-not-block-finality? world)
-                     :related-claims-authorisation-scope-closed (related-claims-authorisation-scope-closed? world)
+                      :related-claims-authorisation-scope-closed (related-claims-authorisation-scope-closed? world)
+                      :evidence-provenance-verifiable     (evidence-provenance-verifiable? world)
                      :yield-position-consistency          (generic-yield-inv/check-position-consistency world)
                      :yield-exposure                      (let [r (sew-yield-inv/check-sew-yield-exposure world)]
                                                            (if (map? r) r {:holds? r :violations nil}))

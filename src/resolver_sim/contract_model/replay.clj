@@ -1,19 +1,19 @@
 (ns resolver-sim.contract-model.replay
   "Open-world scenario replay proto. (Protocol Simulation Kernel)
 
-   Provides the deterministic harness for executing scenarios. This engine
-   is designed as a protocol-agnostic template. Implementation details
-   (actions, invariants, snapshots) are protocol-specific and provided by
-   implementations of the DisputeProtocol interface.
+  Provides the deterministic harness for executing scenarios. This engine
+  is designed as a protocol-agnostic template. Implementation details
+  (actions, invariants, snapshots) are protocol-specific and provided by
+  implementations of the DisputeProtocol interface.
 
-   Replay invariants (after every successful transition):
-     1. protocol/check-invariants-single
-     2. protocol/check-invariants-transition"
-  (:require [clojure.set                       :as set]
-            [clojure.data.json                 :as json]
-            [clojure.java.io                   :as io]
-            [resolver-sim.evidence.config      :as evcfg]
-            [resolver-sim.evidence.capture    :as evcapture]
+  Replay invariants (after every successful transition):
+    1. protocol/check-invariants-single
+    2. protocol/check-invariants-transition"
+  (:require [clojure.set :as set]
+            [clojure.data.json :as json]
+            [clojure.java.io :as io]
+            [resolver-sim.evidence.config :as evcfg]
+            [resolver-sim.evidence.capture :as evcapture]
             [resolver-sim.contract-model.replay.metrics :as metrics]
             [resolver-sim.contract-model.replay.validation :as validation]
             [resolver-sim.contract-model.replay.analysis :as analysis]
@@ -21,6 +21,7 @@
             [resolver-sim.contract-model.replay.flags :as replay-flags]
             [resolver-sim.contract-model.replay.checkpoints :as replay-checkpoints]
             [resolver-sim.contract-model.replay.execution :as execution]
+            [resolver-sim.contract-model.replay.frames :as frames]
             [resolver-sim.contract-model.replay.profile-adapter :as profile-adapter]
             [resolver-sim.protocols.protocol :as proto]
             [resolver-sim.protocols.registry :as preg]
@@ -160,33 +161,35 @@
    Callers (e.g. `replay-with-protocol`) add evidence chain I/O, signing,
    and risk monitoring layers externally."
   [protocol scenario & [opts]]
-  (let [flags              (replay-flags/resolve-replay-flags scenario opts)
-        vocab              (if (satisfies? proto/EconomicModel protocol)
-                             (proto/metric-vocabulary protocol)
-                             #{})
-        effective-metrics  (into (into metrics/base-metrics vocab)
-                                 (or (metrics/expectation-metric-keys scenario) #{}))
-        validation         (validate-scenario scenario effective-metrics
-                                              {:strict-validation? (:strict-validation? flags)})
-        temporal-cfg       (:temporal-evidence scenario)
-        temporal-enabled?  (:temporal-enabled? flags)
-        validation         (if (and (:ok validation) (:yield-dt-validation? flags))
-                             (let [yield-val (requiring-resolve 'resolver-sim.contract-model.replay.yield/validate-dt-time-alignment)
-                                   dt-check (yield-val (:events scenario []))]
-                               (if (:ok dt-check) validation dt-check))
-                             validation)]
+  (let [flags (replay-flags/resolve-replay-flags scenario opts)
+        vocab (if (satisfies? proto/EconomicModel protocol)
+                (proto/metric-vocabulary protocol)
+                #{})
+        effective-metrics (into (into metrics/base-metrics vocab)
+                                (or (metrics/expectation-metric-keys scenario) #{}))
+        validation (validate-scenario scenario effective-metrics
+                                      {:strict-validation? (:strict-validation? flags)})
+        temporal-cfg (:temporal-evidence scenario)
+        temporal-enabled? (:temporal-enabled? flags)
+        validation (if (and (:ok validation) (:yield-dt-validation? flags))
+                     (let [yield-val (requiring-resolve 'resolver-sim.contract-model.replay.yield/validate-dt-time-alignment)
+                           dt-check (yield-val (:events scenario []))]
+                       (if (:ok dt-check) validation dt-check))
+                     validation)]
     (if-not (:ok validation)
       {:outcome :invalid :scenario-id (:scenario-id scenario) :events-processed 0 :trace [] :metrics (metrics/zero-metrics protocol (:metrics-profile flags)) :halt-reason (:error validation) :protocol protocol}
       (binding [evcapture/*capture-event-evidence!* (if (= :none (:evidence-mode flags))
                                                       evcapture/noop-capture
                                                       evcapture/*capture-event-evidence!*)]
-        (let [agents   (:agents scenario)
+        (let [agents (:agents scenario)
               p-params (get scenario :protocol-params {})
-              context  (-> (proto/build-execution-context protocol agents p-params)
-                           (assoc :replay-flags flags))
+              context (-> (proto/build-execution-context protocol agents p-params)
+                          (assoc :replay-flags flags
+                                 :replay/requirements (set (or (:replay/requirements scenario)
+                                                               (:replay/requirements p-params)))))
               agent-index (:agent-index context)
               scenario-id (:scenario-id scenario)
-              run-id  (or (:run-id opts) (:run-id scenario) (str scenario-id "-run"))
+              run-id (or (:run-id opts) (:run-id scenario) (str scenario-id "-run"))
             ;; The execution loop derives per-event evidence attribution from
             ;; world parameters. Preserve the explicit input identity there
             ;; for every protocol before processing its first transition.
@@ -197,9 +200,9 @@
             ;; (:incomplete-application-order), leaving shared-withdrawal
             ;; scenarios vacuously passing without exercising the mechanism
             ;; (matches the legacy contract-model.replay.yield fix).
-              world0  (-> (proto/init-world protocol scenario)
-                          (assoc-in [:params :scenario-id] scenario-id)
-                          (cond-> (= "yield-v1" (proto/protocol-id protocol))
+              world0 (-> (proto/init-world protocol scenario)
+                         (assoc-in [:params :scenario-id] scenario-id)
+                         (cond-> (= "yield-v1" (proto/protocol-id protocol))
                             ;; Run/execution identity is assoc'd into the world
                             ;; because shared-withdrawal application-order
                             ;; commitments require it
@@ -209,9 +212,9 @@
                             ;; leaving shared-withdrawal scenarios vacuously
                             ;; passing without exercising the mechanism (matches
                             ;; the legacy contract-model.replay.yield fix).
-                            (assoc :run/id run-id
-                                   :execution/id (str run-id "-execution"))))
-              events  (sort-by :seq (:events scenario))
+                           (assoc :run/id run-id
+                                  :execution/id (str run-id "-execution"))))
+              events (sort-by :seq (:events scenario))
               expected-errors-set (set (map expected-error-key (:expected-errors scenario [])))
               strict-expected-errors? (boolean (:strict-expected-errors? scenario false))
               options {:expected-errors-set expected-errors-set
@@ -251,9 +254,10 @@
         ;; its accumulator. Every replay result nevertheless has the explicit
         ;; scenario input available at this boundary, so preserve it before
         ;; protocol-neutral consumers construct entries or finalizations.
-          (cond-> finalized-result
-            (nil? (:scenario-id finalized-result))
-            (assoc :scenario-id (:scenario-id scenario))))))))
+          (let [result (cond-> finalized-result
+                         (nil? (:scenario-id finalized-result))
+                         (assoc :scenario-id (:scenario-id scenario)))]
+            (assoc result :accepted-frames (frames/accepted-frames result))))))))
 
 (defn replay-with-protocol
   "Full replay plus evidence-chain, persistence, signing, timestamping and
@@ -423,12 +427,12 @@
   ([protocol scenario]
    (simple-replay protocol scenario nil))
   ([protocol scenario replay-opts]
-   (let [prep         (prepare-simple-scenario scenario)
-         prepared     (:scenario prep)
+   (let [prep (prepare-simple-scenario scenario)
+         prepared (:scenario prep)
          normalizations (:normalizations prep)
-         simple-opts  (profile-adapter/extract-simple-opts replay-opts :simple-replay)
+         simple-opts (profile-adapter/extract-simple-opts replay-opts :simple-replay)
          execution-plan (profile-adapter/simple-execution-plan :simple protocol)
-         raw-result   ((:run execution-plan) protocol prepared simple-opts)
+         raw-result ((:run execution-plan) protocol prepared simple-opts)
          validated-result (profile-adapter/validate-simple-adapter-result!
                            raw-result
                            (get-in execution-plan [:execution :adapter/id] :canonical))
@@ -438,7 +442,11 @@
   "Resume a simulation from a world snapshot and a sequence of events.
    Useful for exploring counterfactual subgames."
   [protocol agents p-params scenario-id world events trace metrics options]
-  (let [context  (proto/build-execution-context protocol agents p-params)
+  (let [context (assoc (proto/build-execution-context protocol agents p-params)
+                       :replay/requirements
+                       (set (or (get-in options [:scenario :replay/requirements])
+                                (:replay/requirements p-params)))
+                       :replay-flags (:replay-flags options))
         agent-index (:agent-index context)
         metrics' (if (seq metrics) metrics (metrics/zero-metrics protocol))
         expected-errors-set (set (map expected-error-key (:expected-errors (:scenario options) [])))
@@ -446,17 +454,18 @@
         temporal-cfg (:temporal-evidence (:scenario options))
         temporal-enabled? (boolean (:enabled? temporal-cfg))
         run-id (or (:run-id options) (str scenario-id "-resume"))]
-    (execution/run-simulation-loop protocol context scenario-id events world trace metrics'
-                                   (merge {:expected-errors-set expected-errors-set
-                                           :strict-expected-errors? strict-expected-errors?
-                                           :allow-open-entities? true
-                                           :allow-open-disputes? true
-                                           :agents agents
-                                           :temporal-cfg temporal-cfg
-                                           :temporal-enabled? temporal-enabled?
-                                           :agent-index agent-index
-                                           :run-id run-id}
-                                          options))))
+    (let [result (execution/run-simulation-loop protocol context scenario-id events world trace metrics'
+                                                (merge {:expected-errors-set expected-errors-set
+                                                        :strict-expected-errors? strict-expected-errors?
+                                                        :allow-open-entities? true
+                                                        :allow-open-disputes? true
+                                                        :agents agents
+                                                        :temporal-cfg temporal-cfg
+                                                        :temporal-enabled? temporal-enabled?
+                                                        :agent-index agent-index
+                                                        :run-id run-id}
+                                                       options))]
+      (assoc result :accepted-frames (frames/accepted-frames result)))))
 
 (defn result->json-str
   "Serialize a replay result to a JSON string."
@@ -484,7 +493,7 @@
   (let [r1 (replay-with-protocol protocol scenario)
         r2 (replay-with-protocol protocol scenario)
         trace-shape (fn [r] (mapv (juxt :seq :result :error) (:trace r)))
-        last-world  (fn [r] (:world (last (:trace r))))
+        last-world (fn [r] (:world (last (:trace r))))
         eq? (and (= (:outcome r1) (:outcome r2))
                  (= (:halt-reason r1) (:halt-reason r2))
                  (= (:events-processed r1) (:events-processed r2))

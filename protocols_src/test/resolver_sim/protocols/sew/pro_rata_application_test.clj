@@ -60,8 +60,8 @@
       :executed-effect-set-root (:protocol-effect-set/root (:refinement ctx))
       :protocol-effects (:protocol-effects ctx)
       :applied-adjustments (:adjustments ctx)
-      :applied-adjustment-refinement (:applied-refinement ctx)
-      :ledger-before-root (:ledger-before/root (:roots ctx))
+       :applied-adjustment-refinement (:applied-refinement ctx)
+       :ledger-before-root (:ledger-before/root (:roots ctx))
       :ledger-after-root (:ledger-after/root (:roots ctx))})
     (catch Exception _ nil)))
 

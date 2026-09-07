@@ -138,6 +138,8 @@
              run-id (or (:run-id scenario) (str scenario-id "-run"))
              context     (-> (proto/build-execution-context protocol agents p-params)
                              (assoc :replay-flags yield-replay-flags
+                                    :replay/requirements (set (or (:replay/requirements scenario)
+                                                                  (:replay/requirements p-params)))
                                     :run-id run-id))
              world0      (-> (proto/init-world protocol scenario)
                              (assoc-in [:params :scenario-id] scenario-id)

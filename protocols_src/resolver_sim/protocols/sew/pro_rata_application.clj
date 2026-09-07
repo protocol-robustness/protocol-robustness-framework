@@ -90,11 +90,11 @@
                   :state-before-root (:state-before/root roots)
                   :state-after-root (:state-after/root roots)
                   :executed-effect-set-root (:protocol-effect-set/root refinement-artifact)
-                  :protocol-effects protocol-effects
-                  :applied-adjustments adjustments
-                  :applied-adjustment-refinement adjustment-refinement
-                  :ledger-before-root (:ledger-before/root roots)
-                  :ledger-after-root (:ledger-after/root roots)})]
+                   :protocol-effects protocol-effects
+                   :applied-adjustments adjustments
+                   :applied-adjustment-refinement adjustment-refinement
+                   :ledger-before-root (:ledger-before/root roots)
+                   :ledger-after-root (:ledger-after/root roots)})]
     {:world world' :adjustments adjustments :receipt receipt}))
 
 (defn apply-effects-to-world

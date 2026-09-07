@@ -27,15 +27,15 @@
 ;; Type Tags (per Binary Encoding ABI)
 ;; ──────────────────────────────────────────────────────────────────────────────
 
-(def ^:const tag-null       (byte 0x00))
+(def ^:const tag-null (byte 0x00))
 (def ^:const tag-bool-false (byte 0x01))
-(def ^:const tag-bool-true  (byte 0x02))
-(def ^:const tag-int        (byte 0x10))
-(def ^:const tag-ratio      (byte 0x11))
-(def ^:const tag-string     (byte 0x20))
-(def ^:const tag-keyword    (byte 0x22))
-(def ^:const tag-array      (byte 0x30))
-(def ^:const tag-map        (byte 0x31))
+(def ^:const tag-bool-true (byte 0x02))
+(def ^:const tag-int (byte 0x10))
+(def ^:const tag-ratio (byte 0x11))
+(def ^:const tag-string (byte 0x20))
+(def ^:const tag-keyword (byte 0x22))
+(def ^:const tag-array (byte 0x30))
+(def ^:const tag-map (byte 0x31))
 
 ;; ──────────────────────────────────────────────────────────────────────────────
 ;; Domain Tags (per Canonical Hash Spec V1)
@@ -49,34 +49,34 @@
    NOTE: Maintained for backward compatibility with callers that
    pass keywords to domain-hash. Intent contracts now use strings
    directly via :intent/domain-tag."
-  {:world-state     "WORLD_STATE_V1"
+  {:world-state "WORLD_STATE_V1"
    :evidence-record "EVIDENCE_RECORD_V1"
-   :evidence-chain  "EVIDENCE_CHAIN_V1"
+   :evidence-chain "EVIDENCE_CHAIN_V1"
    :evidence-chain-link-v1 "EVIDENCE_CHAIN_LINK_V1"
    :run-evidence-hash-set-v1 "RUN_EVIDENCE_HASH_SET_V1"
    :evidence-hash-set "EVIDENCE_HASH_SET_V1"
    :evidence-finalization-v2 "EVIDENCE_FINALIZATION_V2"
    :runner-finalization "RUNNER_FINALIZATION_V1"
    :run-package-index "RUN_PACKAGE_INDEX_V1"
-   :merkle-leaf     "EVIDENCE_MERKLE_LEAF_V1"
-   :merkle-node     "EVIDENCE_MERKLE_NODE_V1"
-   :registry        "REGISTRY_V1"
-   :manifest        "MANIFEST_V1"
-   :provenance      "PROVENANCE_V1"
-   :bundle-root     "BUNDLE_ROOT_V1"
+   :merkle-leaf "EVIDENCE_MERKLE_LEAF_V1"
+   :merkle-node "EVIDENCE_MERKLE_NODE_V1"
+   :registry "REGISTRY_V1"
+   :manifest "MANIFEST_V1"
+   :provenance "PROVENANCE_V1"
+   :bundle-root "BUNDLE_ROOT_V1"
    :reproducibility "BENCHMARK_REPRODUCIBILITY_V1"
    :evidence-content "EVIDENCE_CONTENT_V1"
    :sensitivity-sentinel-decision "SENSITIVITY_SENTINEL_DECISION_V1"
-   :state-diff       "STATE_DIFF_V1"
-   :protocol-state   "PROTOCOL_STATE_V1"
-   :params-manifest  "PARAMS_MANIFEST_V1"
-   :evm-projection   "EVM_PROJECTION_V1"
+   :state-diff "STATE_DIFF_V1"
+   :protocol-state "PROTOCOL_STATE_V1"
+   :params-manifest "PARAMS_MANIFEST_V1"
+   :evm-projection "EVM_PROJECTION_V1"
    :invariant-attestation "INVARIANT_ATTESTATION_V1"
    :projection-evidence "PROJECTION_EVIDENCE_V1"
    :checkpoint-evidence "CHECKPOINT_EVIDENCE_V1"
-   :run-overview     "RUN_OVERVIEW_V1"
+   :run-overview "RUN_OVERVIEW_V1"
    :benchmark-certification "BENCHMARK_CERTIFICATION_V1"
-   :intent-dsl       "INTENT_DSL_V1"
+   :intent-dsl "INTENT_DSL_V1"
    :intent-registry-entry "INTENT_REGISTRY_ENTRY_V1"
    :intent-registry "INTENT_REGISTRY_V1"
    :projection-definition "PROJECTION_DEFINITION_V1"
@@ -84,18 +84,18 @@
    :projection-artifact "PROJECTION_ARTIFACT_V1"
    :claim-definition "CLAIM_DEFINITION"
    :claim-definition-conceptual "CONCEPT_CLAIM_DEFINITION_V1"
-   :attestor         "ATTESTOR"
-   :evidence-node    "EVIDENCE_NODE_V1"
+   :attestor "ATTESTOR"
+   :evidence-node "EVIDENCE_NODE_V1"
    :decision-evidence "DECISION_EVIDENCE_V1"
    :invariant-failure "INVARIANT_FAILURE_V1"
    :startup-validation "STARTUP_VALIDATION_V1"
-   :claim-result       "CLAIM_RESULT_V1"
-   :attestation        "ATTESTATION_V1"
-   :scenario           "SCENARIO_V1"
+   :claim-result "CLAIM_RESULT_V1"
+   :attestation "ATTESTATION_V1"
+   :scenario "SCENARIO_V1"
    :attestation-record "ATTESTATION_RECORD_V1"
    :execution-definition "EXECUTION_DEFINITION_V1"
-   :action             "ACTION_V1"
-   :action-at          "ACTION_AT_V1"
+   :action "ACTION_V1"
+   :action-at "ACTION_AT_V1"
    :pro-rata-allocation-result "PRO_RATA_ALLOCATION_RESULT_V1"
    :pro-rata-proposed-effects "PRO_RATA_PROPOSED_EFFECTS_V1"
    :pro-rata-effect-refinement "PRO_RATA_EFFECT_REFINEMENT_V1"
@@ -103,12 +103,19 @@
    :pro-rata-allocation-state-transition "PRO_RATA_ALLOCATION_STATE_TRANSITION_V1"
    :pro-rata-proof-provenance "PRO_RATA_PROOF_PROVENANCE_V1"
    :pro-rata-evm-v1 "PRO_RATA_EVM_V1"
+   :pro-rata-capability-output-v1 "PRO_RATA_CAPABILITY_OUTPUT_V1"
+   :pro-rata-capability-output-v2 "PRO_RATA_CAPABILITY_OUTPUT_V2"
+   :pro-rata-invocation-publication-binding-v1 "PRO_RATA_INVOCATION_PUBLICATION_BINDING_V1"
+   :effect-compilation-binding-v1 "EFFECT_COMPILATION_BINDING_V1"
+   :effect-compilation-binding-v2 "EFFECT_COMPILATION_BINDING_V2"
+   :pro-rata-effect-compilation-semantics "PRO_RATA_EFFECT_COMPILATION_SEMANTICS_V1"
    :canonical-effects-v1 "CANONICAL_EFFECTS_V1"
    :canonical-effect-state "CANONICAL_EFFECT_STATE_V1"
    :canonical-effect-set "CANONICAL_EFFECT_SET_V1"
    :canonical-quantity-identity "CANONICAL_QUANTITY_IDENTITY_V1"
    :pro-rata-effect-compilation "PRO_RATA_EFFECT_COMPILATION_V1"
    :pro-rata-effect-compilation-v2 "PRO_RATA_EFFECT_COMPILATION_V2"
+   :pro-rata-effect-compilation-v3 "PRO_RATA_EFFECT_COMPILATION_V3"
    :allocation-quantity-target-map "ALLOCATION_QUANTITY_TARGET_MAP_V1"
    :allocation-quantity-target-map-v2 "ALLOCATION_QUANTITY_TARGET_MAP_V2"
    :canonical-quantity-native-location-map "CANONICAL_QUANTITY_NATIVE_LOCATION_MAP_V1"
@@ -233,108 +240,110 @@
    :research-definition-diff "RESEARCH_DEFINITION_DIFF_V1"
    :research-execution-projection "RESEARCH_EXECUTION_PROJECTION_V1"
    :research-observation-projection "RESEARCH_OBSERVATION_PROJECTION_V1"
+   :available-actions-observation "AVAILABLE_ACTIONS_OBSERVATION_V1"
+   :pro-rata-research-observation "PRO_RATA_RESEARCH_OBSERVATION_V1"
    :research-execution-plan "RESEARCH_EXECUTION_PLAN_V1"
    :pro-rata-allocation-evidence "PRO_RATA_ALLOCATION_EVIDENCE_V1"
    :pro-rata-application-evidence "PRO_RATA_APPLICATION_EVIDENCE_V1"
    :pro-rata-execution-evidence "PRO_RATA_EXECUTION_EVIDENCE_V1"
    :pro-rata-execution-evidence-v2 "PRO_RATA_EXECUTION_EVIDENCE_V2"
-   :slash-distribution-policy-v1  "SLASH_DISTRIBUTION_POLICY_V1"
-   :slash-distribution-v1         "SLASH_DISTRIBUTION_V1"
+   :slash-distribution-policy-v1 "SLASH_DISTRIBUTION_POLICY_V1"
+   :slash-distribution-v1 "SLASH_DISTRIBUTION_V1"
    :slash-distribution-application-receipt-v1 "SLASH_DISTRIBUTION_APPLICATION_RECEIPT_V1"
-   :fixed-regression-case-v1      "FIXED_REGRESSION_CASE_V1"
+   :fixed-regression-case-v1 "FIXED_REGRESSION_CASE_V1"
    :slash-distribution-application-plan-v1 "SLASH_DISTRIBUTION_APPLICATION_PLAN_V1"
    :slash-distribution-application-plan-v2 "SLASH_DISTRIBUTION_APPLICATION_PLAN_V2"
    :prf-effect-contract-v1 "PRF_EFFECT_CONTRACT_V1"
-   :bounty-payable-v1              "BOUNTY_PAYABLE_V1"
-   :bounty-payable-backing-v1      "BOUNTY_PAYABLE_BACKING_V1"
+   :bounty-payable-v1 "BOUNTY_PAYABLE_V1"
+   :bounty-payable-backing-v1 "BOUNTY_PAYABLE_BACKING_V1"
    :review-member-canonical-indices "REVIEW_MEMBER_CANONICAL_INDICES_V1"
    :review-member-canonical-indices-entries "REVIEW_MEMBER_CANONICAL_INDICES_ENTRIES_V1"
-   :pool-availability-v2   "POOL_AVAILABILITY_V2"
-   :pool-reservation       "POOL_RESERVATION_V1"
-   :award-calculation-v2   "AWARD_CALCULATION_V2"
-   :claim-set              "CLAIM_SET_V1"
-   :check-set              "CHECK_SET_V1"
-   :award-policy           "AWARD_POLICY_V1"
-   :priority-order-v1      "PRIORITY_ORDER_V1"
-   :overflow-capability    "OVERFLOW_CAPABILITY_V1"
+   :pool-availability-v2 "POOL_AVAILABILITY_V2"
+   :pool-reservation "POOL_RESERVATION_V1"
+   :award-calculation-v2 "AWARD_CALCULATION_V2"
+   :claim-set "CLAIM_SET_V1"
+   :check-set "CHECK_SET_V1"
+   :award-policy "AWARD_POLICY_V1"
+   :priority-order-v1 "PRIORITY_ORDER_V1"
+   :overflow-capability "OVERFLOW_CAPABILITY_V1"
    :overflow-authorisation-scope "OVERFLOW_AUTHORISATION_SCOPE_V1"
    :overflow-capacity-context "OVERFLOW_CAPACITY_CONTEXT_V1"
-   :with-bounty-policy-v1     "WITH_BOUNTY_POLICY_V1"
+   :with-bounty-policy-v1 "WITH_BOUNTY_POLICY_V1"
    :with-bounty-invocation-v1 "WITH_BOUNTY_INVOCATION_V1"
    :with-bounty-obligation-v1 "WITH_BOUNTY_OBLIGATION_V1"
-   :with-bounty-effect-v1     "WITH_BOUNTY_EFFECT_V1"
+   :with-bounty-effect-v1 "WITH_BOUNTY_EFFECT_V1"
    :with-bounty-effect-set-v1 "WITH_BOUNTY_EFFECT_SET_V1"
    :with-bounty-application-plan-v1 "WITH_BOUNTY_APPLICATION_PLAN_V1"
    :with-bounty-transition-evidence-v1 "WITH_BOUNTY_TRANSITION_EVIDENCE_V1"
    :with-bounty-verification-basis-v1 "WITH_BOUNTY_VERIFICATION_BASIS_V1"
    :with-bounty-public-result-v1 "WITH_BOUNTY_PUBLIC_RESULT_V1"
-   :allocation-context         "ALLOCATION_CONTEXT_V1"
-   :claimant-set               "CLAIMANT_SET_V1"
-   :outcome-set                "OUTCOME_SET_V1"
-   :proposed-rates             "PROPOSED_RATES_V1"
-   :rate-derived-summary       "RATE_DERIVED_SUMMARY_V1"
-   :selected-outcome           "SELECTED_OUTCOME_V1"
-   :result-root                "RESULT_ROOT_V1"
-   :certificate-assertions     "CERTIFICATE_ASSERTIONS_V1"
-   :certificate-assertions-v2  "CERTIFICATE_ASSERTIONS_V2"
-   :lab-parameter-root      "LAB_PARAMETER_ROOT_V1"
-   :lab-withdrawal-fcfs     "LAB_WITHDRAWAL_FCFS_V1"
-   :fail-action-policy      "FAIL_ACTION_POLICY_V1"
+   :allocation-context "ALLOCATION_CONTEXT_V1"
+   :claimant-set "CLAIMANT_SET_V1"
+   :outcome-set "OUTCOME_SET_V1"
+   :proposed-rates "PROPOSED_RATES_V1"
+   :rate-derived-summary "RATE_DERIVED_SUMMARY_V1"
+   :selected-outcome "SELECTED_OUTCOME_V1"
+   :result-root "RESULT_ROOT_V1"
+   :certificate-assertions "CERTIFICATE_ASSERTIONS_V1"
+   :certificate-assertions-v2 "CERTIFICATE_ASSERTIONS_V2"
+   :lab-parameter-root "LAB_PARAMETER_ROOT_V1"
+   :lab-withdrawal-fcfs "LAB_WITHDRAWAL_FCFS_V1"
+   :fail-action-policy "FAIL_ACTION_POLICY_V1"
    :realized-allocation-statement "REALIZED_ALLOCATION_STATEMENT_V1"
-   :realized-request-set    "REALIZED_REQUEST_SET_V1"
-   :allocation-policy       "ALLOCATION_POLICY_V1"
-   :realized-results        "REALIZED_RESULTS_V1"
-   :round-lifecycle         "ROUND_LIFECYCLE_V1"
+   :realized-request-set "REALIZED_REQUEST_SET_V1"
+   :allocation-policy "ALLOCATION_POLICY_V1"
+   :realized-results "REALIZED_RESULTS_V1"
+   :round-lifecycle "ROUND_LIFECYCLE_V1"
    :scenario-evidence-binding "SCENARIO_EVIDENCE_BINDING_V1"
-   :allocation-activation   "ALLOCATION_ACTIVATION_V1"
+   :allocation-activation "ALLOCATION_ACTIVATION_V1"
    :allocation-activation-policy "ALLOCATION_ACTIVATION_POLICY_V1"
    :confidence-composition-v1 "CONFIDENCE_COMPOSITION_V1"
    :research-command-trace-v1 "RESEARCH_COMMAND_TRACE_V1"
    :extension-envelope-shape-v1 "EXTENSION_ENVELOPE_SHAPE_V1"
-   :extension-lockfile-v1      "EXTENSION_LOCKFILE_V1"
-   :extension-resolution-v1    "EXTENSION_RESOLUTION_V1"
-   :extension-registry-v1      "EXTENSION_REGISTRY_V1"
+   :extension-lockfile-v1 "EXTENSION_LOCKFILE_V1"
+   :extension-resolution-v1 "EXTENSION_RESOLUTION_V1"
+   :extension-registry-v1 "EXTENSION_REGISTRY_V1"
    :extension-capability-descriptor-v1 "EXTENSION_CAPABILITY_DESCRIPTOR_V1"
-   :extension-package-manifest-v1     "EXTENSION_PACKAGE_MANIFEST_V1"
-   :held-custody-override-selection   "HELD_CUSTODY_OVERRIDE_SELECTION_V1"
-   :held-override-lineage-v1          "HELD_OVERRIDE_LINEAGE_V1"
-   :held-override-consumption         "HELD_OVERRIDE_CONSUMPTION_V1"
-   :held-override-successor-state     "HELD_OVERRIDE_SUCCESSOR_STATE_V1"
-   :benchmark-conservation-v1         "BENCHMARK_CONSERVATION_V1"
-   :benchmark-input-set-v1            "BENCHMARK_INPUT_SET_V1"
-   :benchmark-content-registry-v1     "BENCHMARK_CONTENT_REGISTRY_V1"
-   :benchmark-finalization-v1         "BENCHMARK_FINALIZATION_V1"
-   :suite-definition-v1               "SUITE_DEFINITION_V1"
-   :native-exact-replication-v1       "NATIVE_EXACT_REPLICATION_V1"
+   :extension-package-manifest-v1 "EXTENSION_PACKAGE_MANIFEST_V1"
+   :held-custody-override-selection "HELD_CUSTODY_OVERRIDE_SELECTION_V1"
+   :held-override-lineage-v1 "HELD_OVERRIDE_LINEAGE_V1"
+   :held-override-consumption "HELD_OVERRIDE_CONSUMPTION_V1"
+   :held-override-successor-state "HELD_OVERRIDE_SUCCESSOR_STATE_V1"
+   :benchmark-conservation-v1 "BENCHMARK_CONSERVATION_V1"
+   :benchmark-input-set-v1 "BENCHMARK_INPUT_SET_V1"
+   :benchmark-content-registry-v1 "BENCHMARK_CONTENT_REGISTRY_V1"
+   :benchmark-finalization-v1 "BENCHMARK_FINALIZATION_V1"
+   :suite-definition-v1 "SUITE_DEFINITION_V1"
+   :native-exact-replication-v1 "NATIVE_EXACT_REPLICATION_V1"
    :conformance-reproduction-lineage-v1 "conformance.reproduction-lineage.v1"
    :conformance-validator-implementation-v1 "conformance.validator-implementation.v1"
-   :evidence-package-admission-v1     "evidence-package-admission.v1"
+   :evidence-package-admission-v1 "evidence-package-admission.v1"
    :benchmark-execution-descriptor-v1 "BENCHMARK_EXECUTION_DESCRIPTOR_V1"
    :benchmark-execution-parameters-v1 "BENCHMARK_EXECUTION_PARAMETERS_V1"
    :benchmark-execution-protocol-config-v1 "BENCHMARK_EXECUTION_PROTOCOL_CONFIG_V1"
-   :claim-outcome-v1                  "CLAIM_OUTCOME_V1"
-   :community-attestation-v0          "COMMUNITY_ATTESTATION_V0"
-   :community-code-v0                 "COMMUNITY_CODE_V0"
-   :community-env-v0                  "COMMUNITY_ENV_V0"
-   :community-finding-v0              "COMMUNITY_FINDING_V0"
-   :community-mailbox-v0              "COMMUNITY_MAILBOX_V0"
-   :community-stable-result-v0        "COMMUNITY_STABLE_RESULT_V0"
-   :community-task-v0                 "COMMUNITY_TASK_V0"
-   :comparability-shared-v1           "COMPARABILITY_SHARED_V1"
-   :composition-combination-v1        "COMPOSITION_COMBINATION_V1"
-   :composition-contract-v1           "COMPOSITION_CONTRACT_V1"
-   :composition-plan-v1               "COMPOSITION_PLAN_V1"
-   :default-build-attestation-v1      "DEFAULT_BUILD_ATTESTATION_V1"
-   :default-build-smoke-output-v1     "DEFAULT_BUILD_SMOKE_OUTPUT_V1"
-   :deferral-v1                       "DEFERRAL_V1"
-   :evidence-graph-v1                 "EVIDENCE_GRAPH_V1"
-   :held-adjustment-v1                "HELD_ADJUSTMENT_V1"
-   :prf-artifact-publish-decision-v1  "PRF_ARTIFACT_PUBLISH_DECISION_V1"
-   :prf-artifact-publish-manifest-v1  "PRF_ARTIFACT_PUBLISH_MANIFEST_V1"
-   :prf-artifact-publish-request-v1   "PRF_ARTIFACT_PUBLISH_REQUEST_V1"
-   :prf-authorisation-instance-v1     "PRF_AUTHORISATION_INSTANCE_V1"
-   :prf-authorisation-provenance-v1   "PRF_AUTHORISATION_PROVENANCE_V1"
-   :prf-contract-schema-v1            "PRF_CONTRACT_SCHEMA_V1"
+   :claim-outcome-v1 "CLAIM_OUTCOME_V1"
+   :community-attestation-v0 "COMMUNITY_ATTESTATION_V0"
+   :community-code-v0 "COMMUNITY_CODE_V0"
+   :community-env-v0 "COMMUNITY_ENV_V0"
+   :community-finding-v0 "COMMUNITY_FINDING_V0"
+   :community-mailbox-v0 "COMMUNITY_MAILBOX_V0"
+   :community-stable-result-v0 "COMMUNITY_STABLE_RESULT_V0"
+   :community-task-v0 "COMMUNITY_TASK_V0"
+   :comparability-shared-v1 "COMPARABILITY_SHARED_V1"
+   :composition-combination-v1 "COMPOSITION_COMBINATION_V1"
+   :composition-contract-v1 "COMPOSITION_CONTRACT_V1"
+   :composition-plan-v1 "COMPOSITION_PLAN_V1"
+   :default-build-attestation-v1 "DEFAULT_BUILD_ATTESTATION_V1"
+   :default-build-smoke-output-v1 "DEFAULT_BUILD_SMOKE_OUTPUT_V1"
+   :deferral-v1 "DEFERRAL_V1"
+   :evidence-graph-v1 "EVIDENCE_GRAPH_V1"
+   :held-adjustment-v1 "HELD_ADJUSTMENT_V1"
+   :prf-artifact-publish-decision-v1 "PRF_ARTIFACT_PUBLISH_DECISION_V1"
+   :prf-artifact-publish-manifest-v1 "PRF_ARTIFACT_PUBLISH_MANIFEST_V1"
+   :prf-artifact-publish-request-v1 "PRF_ARTIFACT_PUBLISH_REQUEST_V1"
+   :prf-authorisation-instance-v1 "PRF_AUTHORISATION_INSTANCE_V1"
+   :prf-authorisation-provenance-v1 "PRF_AUTHORISATION_PROVENANCE_V1"
+   :prf-contract-schema-v1 "PRF_CONTRACT_SCHEMA_V1"
    :prf-force-authorisation-policy-v1 "PRF_FORCE_AUTHORISATION_POLICY_V1"
    :prf-release-attestation-payload-v1 "PRF_RELEASE_ATTESTATION_PAYLOAD_V1"
    :prf-resubmission-issue-request-v1 "PRF_RESUBMISSION_ISSUE_REQUEST_V1"
@@ -342,20 +351,20 @@
    :prf-sensitivity-sentinel-decision-v1 "PRF_SENSITIVITY_SENTINEL_DECISION_V1"
    :prf-sensitivity-sentinel-projection-v1 "PRF_SENSITIVITY_SENTINEL_PROJECTION_V1"
    :prf-sensitivity-sentinel-request-v1 "PRF_SENSITIVITY_SENTINEL_REQUEST_V1"
-   :prf-verdict-policy-v1             "PRF_VERDICT_POLICY_V1"
-   :pro-rata-evaluation-v1            "PRO_RATA_EVALUATION_V1"
-   :scenario-distribution-v1          "SCENARIO_DISTRIBUTION_V1"
-   :var-projection-v1                 "VAR_PROJECTION_V1"
-   :workflow-group-v1                 "WORKFLOW_GROUP_V1"
-   :workflow-group-member-v1          "WORKFLOW_GROUP_MEMBER_V1"
-   :conformance-bundle-v1             "conformance.bundle.v1"
-   :conformance-derivation-chain-v1   "conformance.derivation-chain.v1"
-   :conformance-profile-v1            "conformance.profile.v1"
+   :prf-verdict-policy-v1 "PRF_VERDICT_POLICY_V1"
+   :pro-rata-evaluation-v1 "PRO_RATA_EVALUATION_V1"
+   :scenario-distribution-v1 "SCENARIO_DISTRIBUTION_V1"
+   :var-projection-v1 "VAR_PROJECTION_V1"
+   :workflow-group-v1 "WORKFLOW_GROUP_V1"
+   :workflow-group-member-v1 "WORKFLOW_GROUP_MEMBER_V1"
+   :conformance-bundle-v1 "conformance.bundle.v1"
+   :conformance-derivation-chain-v1 "conformance.derivation-chain.v1"
+   :conformance-profile-v1 "conformance.profile.v1"
    :conformance-signature-verification-v1 "conformance.signature-verification.v1"
-   :conformance-subject-set-v1        "conformance.subject-set.v1"
+   :conformance-subject-set-v1 "conformance.subject-set.v1"
    :conformance-validation-subject-v1 "conformance.validation-subject.v1"
-   :force-authorisation-scope         "force-authorisation-scope"
-   :prf-attempt-disposition-v1        "prf.attempt-disposition.v1"
+   :force-authorisation-scope "force-authorisation-scope"
+   :prf-attempt-disposition-v1 "prf.attempt-disposition.v1"
    :prf-attempt-acceptance-definition-v1 "prf.attempt-acceptance-definition.v1"
    :prf-attempt-acceptance-authority-basis-v1 "prf.attempt-acceptance-authority-basis.v1"
    :prf-attempt-publisher-authority-v1 "prf.attempt-publisher-authority.v1"
@@ -366,42 +375,42 @@
    :prf-attempt-execution-evidence-subject-v1 "prf.attempt-execution-evidence-subject.v1"
    :prf-attempt-certificate-verification-subject-v1 "prf.attempt-certificate-verification-subject.v1"
    :prf-acceptance-attempt-subject-v1 "prf.acceptance-attempt-subject.v1"
-   :prf-acceptance-evaluation-v1      "prf.acceptance-evaluation.v1"
-   :prf-acceptance-evaluation-v2      "prf.acceptance-evaluation.v2"
-   :prf-acceptance-finding-v1         "prf.acceptance-finding.v1"
+   :prf-acceptance-evaluation-v1 "prf.acceptance-evaluation.v1"
+   :prf-acceptance-evaluation-v2 "prf.acceptance-evaluation.v2"
+   :prf-acceptance-finding-v1 "prf.acceptance-finding.v1"
    :prf-authority-registries-verifiable-v1 "prf.authority-registries-verifiable.v1"
-   :prf-verifier-registry-selection-v1    "prf.verifier-registry-selection.v1"
-   :prf-results-binding-v1                 "prf.results-binding.v1"
-   :prf-researcher-resubmission-v1    "prf.researcher-resubmission.v1"
-   :prf-resubmission-chain-state-v1   "prf.resubmission-chain-state.v1"
-   :prf-resubmission-family-v1        "prf.resubmission-family.v1"
-   :prf-resubmission-idempotency-v1   "prf.resubmission-idempotency.v1"
+   :prf-verifier-registry-selection-v1 "prf.verifier-registry-selection.v1"
+   :prf-results-binding-v1 "prf.results-binding.v1"
+   :prf-researcher-resubmission-v1 "prf.researcher-resubmission.v1"
+   :prf-resubmission-chain-state-v1 "prf.resubmission-chain-state.v1"
+   :prf-resubmission-family-v1 "prf.resubmission-family.v1"
+   :prf-resubmission-idempotency-v1 "prf.resubmission-idempotency.v1"
    :prf-submission-attempt-receipt-v1 "prf.submission-attempt-receipt.v1"
    :prf-submission-attempt-receipt-v2 "prf.submission-attempt-receipt.v2"
    :prf-resubmission-receipt-obligation-v1 "prf.resubmission-receipt-obligation.v1"
-   :prf-submission-basis-v1           "prf.submission-basis.v1"
-   :prf-submission-bundle-v1          "prf.submission-bundle.v1"
-   :prf-transaction-effects-v1        "prf.transaction-effects.v1"
-   :prf-transaction-input-v1         "prf.transaction-input.v1"
+   :prf-submission-basis-v1 "prf.submission-basis.v1"
+   :prf-submission-bundle-v1 "prf.submission-bundle.v1"
+   :prf-transaction-effects-v1 "prf.transaction-effects.v1"
+   :prf-transaction-input-v1 "prf.transaction-input.v1"
    :prf-transaction-ordering-change-identity-v1 "prf.transaction-ordering-change-identity.v1"
-   :prf-transaction-ordering-v1       "prf.transaction-ordering.v1"
-   :prf-transaction-ordering-v2       "prf.transaction-ordering.v2"
-   :prf-transaction-ordering-v3       "prf.transaction-ordering.v3"
-   :economic-publication-head-v1      "prf.economic-publication-head.v1"
-   :prf-resubmission-validation-v1    "prf.resubmission-validation.v1"
-   :prf-resubmission-reservation-v1   "prf.resubmission-reservation.v1"
-   :prf-resubmission-finalization-v1  "prf.resubmission-finalization.v1"
+   :prf-transaction-ordering-v1 "prf.transaction-ordering.v1"
+   :prf-transaction-ordering-v2 "prf.transaction-ordering.v2"
+   :prf-transaction-ordering-v3 "prf.transaction-ordering.v3"
+   :economic-publication-head-v1 "prf.economic-publication-head.v1"
+   :prf-resubmission-validation-v1 "prf.resubmission-validation.v1"
+   :prf-resubmission-reservation-v1 "prf.resubmission-reservation.v1"
+   :prf-resubmission-finalization-v1 "prf.resubmission-finalization.v1"
    :prf-resubmission-admission-authorization-v2 "prf.resubmission-admission-authorization.v2"
    :prf-resubmission-admission-snapshot-v1 "prf.resubmission-admission-snapshot.v1"
-   :prf-resubmission-admission-signing-v1  "prf.resubmission-admission-signing.v1"
-   :related-claims-member             "related-claims-member"
-   :withdrawal-ledger-v1              "withdrawal-ledger.v1"
-   :prf-protocol-genesis-v1           "PRF_PROTOCOL_GENESIS_V1"
-   :prf-chain-instance-genesis-v1     "PRF_CHAIN_INSTANCE_GENESIS_V1"
-   :prf-chain-configuration-v1        "PRF_CHAIN_CONFIGURATION_V1"
-   :prf-chain-configuration-v2        "PRF_CHAIN_CONFIGURATION_V2"
-   :prf-chain-configuration-v3        "PRF_CHAIN_CONFIGURATION_V3"
-   :prf-chain-configuration-v4        "PRF_CHAIN_CONFIGURATION_V4"
+   :prf-resubmission-admission-signing-v1 "prf.resubmission-admission-signing.v1"
+   :related-claims-member "related-claims-member"
+   :withdrawal-ledger-v1 "withdrawal-ledger.v1"
+   :prf-protocol-genesis-v1 "PRF_PROTOCOL_GENESIS_V1"
+   :prf-chain-instance-genesis-v1 "PRF_CHAIN_INSTANCE_GENESIS_V1"
+   :prf-chain-configuration-v1 "PRF_CHAIN_CONFIGURATION_V1"
+   :prf-chain-configuration-v2 "PRF_CHAIN_CONFIGURATION_V2"
+   :prf-chain-configuration-v3 "PRF_CHAIN_CONFIGURATION_V3"
+   :prf-chain-configuration-v4 "PRF_CHAIN_CONFIGURATION_V4"
    :authority-semantics-policy-v1 "AUTHORITY_SEMANTICS_POLICY_V1"
    :allocation-entitlement-policy-v1 "ALLOCATION_ENTITLEMENT_POLICY_V1"
    :prf-chain-configuration-transition-v1 "PRF_CHAIN_CONFIGURATION_TRANSITION_V1"
@@ -413,31 +422,31 @@
    :authority-state-snapshot-v1 "AUTHORITY_STATE_SNAPSHOT_V1"
    :governed-authority-result-receipt-v1 "GOVERNED_AUTHORITY_RESULT_RECEIPT_V1"
    :prf-chain-configuration-change-identity-v1 "prf.chain-configuration-change-identity.v1"
-   :prf-risk-projection-v1            "prf.risk-projection.v1"
-   :prf-risk-limit-policy-v1          "prf.risk-limit-policy.v1"
-   :prf-risk-limit-evaluation-v1      "prf.risk-limit-evaluation.v1"
-   :prf-verifier-registry-v1          "PRF_VERIFIER_REGISTRY_V1"
-   :prf-verification-basis-v1          "PRF_VERIFICATION_BASIS_V1"
-   :prf-verification-result-v1         "PRF_VERIFICATION_RESULT_V1"
-   :prf-resubmission-chain-identity-v1         "prf.resubmission-chain-identity.v1"
-   :prf-resubmission-chain-identity-v2         "prf.resubmission-chain-identity.v2"
-   :prf-resubmission-chain-configuration-v1     "prf.resubmission-chain-configuration.v1"
-   :prf-resubmission-chain-genesis-v1            "prf.resubmission-chain-genesis.v1"
-   :prf-resubmission-chain-genesis-v2            "prf.resubmission-chain-genesis.v2"
+   :prf-risk-projection-v1 "prf.risk-projection.v1"
+   :prf-risk-limit-policy-v1 "prf.risk-limit-policy.v1"
+   :prf-risk-limit-evaluation-v1 "prf.risk-limit-evaluation.v1"
+   :prf-verifier-registry-v1 "PRF_VERIFIER_REGISTRY_V1"
+   :prf-verification-basis-v1 "PRF_VERIFICATION_BASIS_V1"
+   :prf-verification-result-v1 "PRF_VERIFICATION_RESULT_V1"
+   :prf-resubmission-chain-identity-v1 "prf.resubmission-chain-identity.v1"
+   :prf-resubmission-chain-identity-v2 "prf.resubmission-chain-identity.v2"
+   :prf-resubmission-chain-configuration-v1 "prf.resubmission-chain-configuration.v1"
+   :prf-resubmission-chain-genesis-v1 "prf.resubmission-chain-genesis.v1"
+   :prf-resubmission-chain-genesis-v2 "prf.resubmission-chain-genesis.v2"
    :prf-resubmission-chain-genesis-authorization-v1 "prf.resubmission-chain-genesis-authorization.v1"
-   :programme-allocation-request-v1   "PROGRAMME_ALLOCATION_REQUEST_V1"
-   :programme-plan-v1                 "PROGRAMME_PLAN_V1"
-   :programme-evidence-v1             "PROGRAMME_EVIDENCE_V1"
-   :programme-receipt-v1              "PROGRAMME_RECEIPT_V1"
-   :use-case-registry-v1              "USE_CASE_REGISTRY_V1"
-   :use-case-definition-v1            "USE_CASE_DEFINITION_V1"
-   :use-case-application-v1           "USE_CASE_APPLICATION_V1"
-   :capability-invocation-binding-v1  "CAPABILITY_INVOCATION_BINDING_V1"
-   :corpus-registry                   "corpus-registry"
-   :reference-closure                 "reference-closure"
-   :verification-profile              "verification-profile"
-   :custody-admission-decision-v1     "custody-admission-decision.v1"
-   :semantic-composition-v1           "SEMANTIC_COMPOSITION_V1"
+   :programme-allocation-request-v1 "PROGRAMME_ALLOCATION_REQUEST_V1"
+   :programme-plan-v1 "PROGRAMME_PLAN_V1"
+   :programme-evidence-v1 "PROGRAMME_EVIDENCE_V1"
+   :programme-receipt-v1 "PROGRAMME_RECEIPT_V1"
+   :use-case-registry-v1 "USE_CASE_REGISTRY_V1"
+   :use-case-definition-v1 "USE_CASE_DEFINITION_V1"
+   :use-case-application-v1 "USE_CASE_APPLICATION_V1"
+   :capability-invocation-binding-v1 "CAPABILITY_INVOCATION_BINDING_V1"
+   :corpus-registry "corpus-registry"
+   :reference-closure "reference-closure"
+   :verification-profile "verification-profile"
+   :custody-admission-decision-v1 "custody-admission-decision.v1"
+   :semantic-composition-v1 "SEMANTIC_COMPOSITION_V1"
    :prf-resubmission-authority-context-v1 "prf.resubmission-authority-context.v1"
    :prf-resubmission-authoritative-checkpoint-v1 "prf.resubmission-authoritative-checkpoint.v1"
    :prf-resubmission-authoritative-disposition-v2 "prf.resubmission-authoritative-disposition.v2"})
@@ -2300,131 +2309,131 @@
 
    Per INTENT_REGISTRY_SPEC_V1, each field is required."
   {:world-structure
-   {:intent/name        :world-structure
-    :intent/domain-tag  "WORLD_STATE_V1"
+   {:intent/name :world-structure
+    :intent/domain-tag "WORLD_STATE_V1"
     :intent/description "Structural identity of system state for evidence anchoring"
-    :intent/includes    #{:domain-state :positions :balances :config
-                          :oracle-state :resolver-registry :bond-state
-                          :dispute-state :escrow-state :time-context}
-    :intent/excludes    #{:module-implementations :runtime-values}
+    :intent/includes #{:domain-state :positions :balances :config
+                       :oracle-state :resolver-registry :bond-state
+                       :dispute-state :escrow-state :time-context}
+    :intent/excludes #{:module-implementations :runtime-values}
     :intent/projection-fn project-world-to-structure-view
-    :intent/version     1}
+    :intent/version 1}
 
    :evidence-record
-   {:intent/name        :evidence-record
-    :intent/domain-tag  "EVIDENCE_RECORD_V1"
+   {:intent/name :evidence-record
+    :intent/domain-tag "EVIDENCE_RECORD_V1"
     :intent/description "Content identity of an individual evidence record"
-    :intent/includes    #{:attribution :action :result :context
-                          :artifact-kind :temporal-context :sub-hashes}
+    :intent/includes #{:attribution :action :result :context
+                       :artifact-kind :temporal-context :sub-hashes}
     ;; :functions is a hard runtime-value rejection (defense-in-depth): evidence
     ;; records are finalized data and must not carry live runtime objects. This
     ;; complements (but does not replace) the writer-boundary rule that
     ;; finalized evidence schemas simply reject runtime values before they are
     ;; ever persisted.
-    :intent/excludes    #{:evidence-hash :timestamp :chain-metadata :functions}
+    :intent/excludes #{:evidence-hash :timestamp :chain-metadata :functions}
     :intent/projection-fn project-identity
-    :intent/version     1}
+    :intent/version 1}
 
    :evidence-content
-   {:intent/name        :evidence-content
-    :intent/domain-tag  "EVIDENCE_CONTENT_V1"
+   {:intent/name :evidence-content
+    :intent/domain-tag "EVIDENCE_CONTENT_V1"
     :intent/description "JSON-round-trippable content hash of an evidence record"
-    :intent/includes    #{:serialized-content :evidence-fields :artifact-body}
+    :intent/includes #{:serialized-content :evidence-fields :artifact-body}
     ;; Keywords and hash-like keys are NOT excluded here: the projection
     ;; (project-for-content-hash) already normalizes them (keyword→string,
     ;; hash-keys preserved as content), so excluding them would reject
     ;; legitimate JSON-round-trippable evidence content. Only semantic
     ;; exclusions belong in :intent/excludes (see project-world-to-structure-view).
-    :intent/excludes    #{:chain-metadata :timestamps}
+    :intent/excludes #{:chain-metadata :timestamps}
     :intent/projection-fn project-for-content-hash
-    :intent/version     1}
+    :intent/version 1}
 
    :evidence-chain
-   {:intent/name        :evidence-chain
-    :intent/domain-tag  "EVIDENCE_CHAIN_V1"
+   {:intent/name :evidence-chain
+    :intent/domain-tag "EVIDENCE_CHAIN_V1"
     :intent/description "Evidence chain linking structure for audit trails"
-    :intent/includes    #{:chain-links :registry-structure :prev-hash
-                          :chain-seq :cursor/final-self-hash
-                          :evidence/chain-self-hash}
-    :intent/excludes    #{:artifact-content :evidence-payload :timestamps}
+    :intent/includes #{:chain-links :registry-structure :prev-hash
+                       :chain-seq :cursor/final-self-hash
+                       :evidence/chain-self-hash}
+    :intent/excludes #{:artifact-content :evidence-payload :timestamps}
     :intent/projection-fn project-identity
-    :intent/version     1}
+    :intent/version 1}
 
    :evidence-chain-link-v1
-   {:intent/name        :evidence-chain-link-v1
-    :intent/domain-tag  "EVIDENCE_CHAIN_LINK_V1"
+   {:intent/name :evidence-chain-link-v1
+    :intent/domain-tag "EVIDENCE_CHAIN_LINK_V1"
     :intent/description "Versioned evidence-chain link committing content, sequence, and predecessor"
-    :intent/includes    #{:evidence-hash :chain-seq :prev-hash :chain-hash-scheme}
-    :intent/excludes    #{:evidence-payload :timestamps}
+    :intent/includes #{:evidence-hash :chain-seq :prev-hash :chain-hash-scheme}
+    :intent/excludes #{:evidence-payload :timestamps}
     :intent/projection-fn project-identity
-    :intent/version     1}
+    :intent/version 1}
 
    :run-evidence-hash-set-v1
-   {:intent/name        :run-evidence-hash-set-v1
-    :intent/domain-tag  "RUN_EVIDENCE_HASH_SET_V1"
+   {:intent/name :run-evidence-hash-set-v1
+    :intent/domain-tag "RUN_EVIDENCE_HASH_SET_V1"
     :intent/description "Canonical sorted-set commitment for a run's evidence content hashes"
-    :intent/includes    #{:evidence-hashes}
-    :intent/excludes    #{:artifact-order :timestamps}
+    :intent/includes #{:evidence-hashes}
+    :intent/excludes #{:artifact-order :timestamps}
     :intent/projection-fn project-identity
-    :intent/version     1}
+    :intent/version 1}
 
    :evidence-hash-set
-   {:intent/name        :evidence-hash-set
-    :intent/domain-tag  "EVIDENCE_HASH_SET_V1"
+   {:intent/name :evidence-hash-set
+    :intent/domain-tag "EVIDENCE_HASH_SET_V1"
     :intent/description "Schema-bearing canonical commitment to evidence hash identities"
-    :intent/includes    #{:schema-version :hash-algorithm :count :hashes}
-    :intent/excludes    #{:timestamps}
+    :intent/includes #{:schema-version :hash-algorithm :count :hashes}
+    :intent/excludes #{:timestamps}
     :intent/projection-fn project-identity
-    :intent/version     1}
+    :intent/version 1}
 
    :evidence-finalization-v2
-   {:intent/name        :evidence-finalization-v2
-    :intent/domain-tag  "EVIDENCE_FINALIZATION_V2"
+   {:intent/name :evidence-finalization-v2
+    :intent/domain-tag "EVIDENCE_FINALIZATION_V2"
     :intent/description "Canonical payload identity for evidence-finalization.v2"
-    :intent/includes    #{:finalization-envelope}
-    :intent/excludes    #{:artifact-id :self-hash :signatures :timestamps}
+    :intent/includes #{:finalization-envelope}
+    :intent/excludes #{:artifact-id :self-hash :signatures :timestamps}
     :intent/projection-fn project-self-hash-stripped
-    :intent/version     2}
+    :intent/version 2}
 
    :runner-finalization
-   {:intent/name        :runner-finalization
-    :intent/domain-tag  "RUNNER_FINALIZATION_V1"
+   {:intent/name :runner-finalization
+    :intent/domain-tag "RUNNER_FINALIZATION_V1"
     :intent/description "Immutable local runner identity and execution-result commitment"
-    :intent/includes    #{:runner-selection :runner-local :execution-result}
-    :intent/excludes    #{:artifact-path :timestamps}
+    :intent/includes #{:runner-selection :runner-local :execution-result}
+    :intent/excludes #{:artifact-path :timestamps}
     :intent/projection-fn project-identity
-    :intent/version     1}
+    :intent/version 1}
 
    :run-package-index
-   {:intent/name        :run-package-index
-    :intent/domain-tag  "RUN_PACKAGE_INDEX_V1"
+   {:intent/name :run-package-index
+    :intent/domain-tag "RUN_PACKAGE_INDEX_V1"
     :intent/description "Immutable references that define a runnable structured run package"
-    :intent/includes    #{:run-id :bundle-root-hash :artifacts}
-    :intent/excludes    #{:artifact-path :timestamps}
+    :intent/includes #{:run-id :bundle-root-hash :artifacts}
+    :intent/excludes #{:artifact-path :timestamps}
     :intent/projection-fn project-identity
-    :intent/version     1}
+    :intent/version 1}
 
    :manifest
-   {:intent/name        :manifest
-    :intent/domain-tag  "MANIFEST_V1"
+   {:intent/name :manifest
+    :intent/domain-tag "MANIFEST_V1"
     :intent/description "Bundle manifest identity for artifact packaging"
-    :intent/includes    #{:manifest-metadata :bundle-structure :schema-version}
-    :intent/excludes    #{:content-payloads :individual-artifacts}
+    :intent/includes #{:manifest-metadata :bundle-structure :schema-version}
+    :intent/excludes #{:content-payloads :individual-artifacts}
     :intent/projection-fn project-identity
-    :intent/version     1}
+    :intent/version 1}
 
    :protocol-state
-   {:intent/name        :protocol-state
-    :intent/domain-tag  "PROTOCOL_STATE_V1"
+   {:intent/name :protocol-state
+    :intent/domain-tag "PROTOCOL_STATE_V1"
     :intent/description "Deterministic protocol-state snapshot for reproducibility"
-    :intent/includes    #{:force-authorisations :force-authorisations-consumed}
-    :intent/excludes    #{:world-state :traces :evidence-registry}
+    :intent/includes #{:force-authorisations :force-authorisations-consumed}
+    :intent/excludes #{:world-state :traces :evidence-registry}
     :intent/projection-fn project-identity
-    :intent/version     1}
+    :intent/version 1}
 
    :reproducibility
-   {:intent/name        :reproducibility
-    :intent/domain-tag  "BENCHMARK_REPRODUCIBILITY_V1"
+   {:intent/name :reproducibility
+    :intent/domain-tag "BENCHMARK_REPRODUCIBILITY_V1"
     :intent/description "Deterministic re-execution identity of a benchmark evidence bundle.
 Authoritative projection is resolver-sim.benchmark.reproducibility/reproducibility-projection:
 semantic benchmark content (manifest, results sans observational fields, metrics,
@@ -2434,16 +2443,16 @@ runtime/materialization metadata removed (:environment, :repo, :run/manifest,
 reproducibility roots are claimed to be re-derivable from the same inputs under the
 same execution semantics; wall-clock, host, VCS-dirt and signing differences do not
 participate."
-    :intent/includes    #{:benchmark-metadata :results-semantics :metrics
-                          :invariant-summary :benchmark-certification}
-    :intent/excludes    #{:environment :vcs-state :wall-clock :signatures
-                          :materialization-locations :provenance-mode}
+    :intent/includes #{:benchmark-metadata :results-semantics :metrics
+                       :invariant-summary :benchmark-certification}
+    :intent/excludes #{:environment :vcs-state :wall-clock :signatures
+                       :materialization-locations :provenance-mode}
     :intent/projection-fn project-identity
-    :intent/version     1}
+    :intent/version 1}
 
    :bundle-root
-   {:intent/name        :bundle-root
-    :intent/domain-tag  "BUNDLE_ROOT_V1"    :intent/description "Top-level benchmark bundle commitment. Authoritative projection is
+   {:intent/name :bundle-root
+    :intent/domain-tag "BUNDLE_ROOT_V1" :intent/description "Top-level benchmark bundle commitment. Authoritative projection is
 resolver-sim.benchmark.integrity/hashable-evidence (field selection excluding :timestamp,
 :evidence/hash, :evidence/signature, :evidence/public-key-path,
 :benchmark/artifact-index, :repo, :run/manifest/:manifest/at
@@ -2454,874 +2463,874 @@ committed into the hash, binding the bundle to its interpretation scheme. The
 are NOT the field-level rule and the hash is not recomputed to match them.
 :evidence/hash is the single stored commitment field; :bundle-root is this hash intent's
 name (an alias)."
-    :intent/includes    #{:benchmark-metadata :environment :evidence-aggregates
-                          :reproducibility :benchmark-certification :run/manifest}
-    :intent/excludes    #{:runtime-posthash-fields :operational-locations
-                          :materialization-metadata :runtime-types}
+    :intent/includes #{:benchmark-metadata :environment :evidence-aggregates
+                       :reproducibility :benchmark-certification :run/manifest}
+    :intent/excludes #{:runtime-posthash-fields :operational-locations
+                       :materialization-metadata :runtime-types}
     ;; Benchmark output contains exact ratios and runtime collections; normalize
     ;; them before canonical encoding rather than relying on lossy coercion.
     :intent/projection-fn project-world-to-structure-view
-    :intent/version     2}
+    :intent/version 2}
 
    :registry
-   {:intent/name        :registry
-    :intent/domain-tag  "REGISTRY_V1"
+   {:intent/name :registry
+    :intent/domain-tag "REGISTRY_V1"
     :intent/description "Evidence registry commitment for artifact catalog"
-    :intent/includes    #{:registry-index :artifact-catalog :commitment-root}
-    :intent/excludes    #{:artifact-content :detailed-evidence :world-state}
+    :intent/includes #{:registry-index :artifact-catalog :commitment-root}
+    :intent/excludes #{:artifact-content :detailed-evidence :world-state}
     :intent/projection-fn project-identity
-    :intent/version     1}
+    :intent/version 1}
 
    :provenance
-   {:intent/name        :provenance
-    :intent/domain-tag  "PROVENANCE_V1"
+   {:intent/name :provenance
+    :intent/domain-tag "PROVENANCE_V1"
     :intent/description "Provenance lineage and verification metadata"
-    :intent/includes    #{:provenance-lineage :verification-metadata :links}
-    :intent/excludes    #{:raw-evidence-content :world-snapshots}
+    :intent/includes #{:provenance-lineage :verification-metadata :links}
+    :intent/excludes #{:raw-evidence-content :world-snapshots}
     :intent/projection-fn project-identity
-    :intent/version     1}
+    :intent/version 1}
 
    :evm-projection
-   {:intent/name        :evm-projection
-    :intent/domain-tag  "EVM_PROJECTION_V1"
+   {:intent/name :evm-projection
+    :intent/domain-tag "EVM_PROJECTION_V1"
     :intent/description "EVM-compatible world subset for cross-system comparison"
-    :intent/includes    #{:comparable-world-subset :computed-invariants}
-    :intent/excludes    #{:sim-only-fields :module-implementations}
+    :intent/includes #{:comparable-world-subset :computed-invariants}
+    :intent/excludes #{:sim-only-fields :module-implementations}
     :intent/projection-fn project-world-to-structure-view
-    :intent/version     1}
+    :intent/version 1}
 
    :state-diff
-   {:intent/name        :state-diff
-    :intent/domain-tag  "STATE_DIFF_V1"
+   {:intent/name :state-diff
+    :intent/domain-tag "STATE_DIFF_V1"
     :intent/description "Structural diff state hash for trace comparisons"
-    :intent/includes    #{:diff-changes :path-stripped-values}
-    :intent/excludes    #{:before-values :after-values :raw-world-state}
+    :intent/includes #{:diff-changes :path-stripped-values}
+    :intent/excludes #{:before-values :after-values :raw-world-state}
     :intent/projection-fn project-identity
-    :intent/version     1}
+    :intent/version 1}
 
    :params-manifest
-   {:intent/name        :params-manifest
-    :intent/domain-tag  "PARAMS_MANIFEST_V1"
+   {:intent/name :params-manifest
+    :intent/domain-tag "PARAMS_MANIFEST_V1"
     :intent/description "Parameter manifest for multi-epoch reproducibility"
-    :intent/includes    #{:sim-params :config-params :run-params}
-    :intent/excludes    #{:runtime-state :evidence-data}
+    :intent/includes #{:sim-params :config-params :run-params}
+    :intent/excludes #{:runtime-state :evidence-data}
     :intent/projection-fn project-identity
-    :intent/version     1}
+    :intent/version 1}
 
    :invariant-attestation
-   {:intent/name        :invariant-attestation
-    :intent/domain-tag  "INVARIANT_ATTESTATION_V1"
+   {:intent/name :invariant-attestation
+    :intent/domain-tag "INVARIANT_ATTESTATION_V1"
     :intent/description "Per-step invariant attestation: which invariants held, which failed"
-    :intent/includes    #{:step :invariants :passed :failed :invariant-set-hash}
-    :intent/excludes    #{:full-world-state :action-detail :raw-trace}
+    :intent/includes #{:step :invariants :passed :failed :invariant-set-hash}
+    :intent/excludes #{:full-world-state :action-detail :raw-trace}
     :intent/projection-fn project-identity
-    :intent/version     1}
+    :intent/version 1}
 
    :projection-evidence
-   {:intent/name        :projection-evidence
-    :intent/domain-tag  "PROJECTION_EVIDENCE_V1"
+   {:intent/name :projection-evidence
+    :intent/domain-tag "PROJECTION_EVIDENCE_V1"
     :intent/description "Projection hash paired with world hash for cross-system comparison"
-    :intent/includes    #{:step :world-hash :projection-hash :projection-version}
-    :intent/excludes    #{:full-world-state :internal-fields}
+    :intent/includes #{:step :world-hash :projection-hash :projection-version}
+    :intent/excludes #{:full-world-state :internal-fields}
     :intent/projection-fn project-identity
-    :intent/version     1}
+    :intent/version 1}
 
    :checkpoint-evidence
-   {:intent/name        :checkpoint-evidence
-    :intent/domain-tag  "CHECKPOINT_EVIDENCE_V1"
+   {:intent/name :checkpoint-evidence
+    :intent/domain-tag "CHECKPOINT_EVIDENCE_V1"
     :intent/description "Attestable checkpoint with world hash and chain position"
-    :intent/includes    #{:checkpoint-id :event-seq :world-hash :chain-head}
-    :intent/excludes    #{:full-world-state :trace-detail}
+    :intent/includes #{:checkpoint-id :event-seq :world-hash :chain-head}
+    :intent/excludes #{:full-world-state :trace-detail}
     :intent/projection-fn project-identity
-    :intent/version     1}
+    :intent/version 1}
 
    :scenario
-   {:intent/name        :scenario
-    :intent/domain-tag  "SCENARIO_V1"
+   {:intent/name :scenario
+    :intent/domain-tag "SCENARIO_V1"
     :intent/description "Stable content hash of a scenario definition for cross-runner scenario identification"
-    :intent/includes    #{:scenario-id :scenario-path :protocol :dispatcher-id :normalized-scenario}
-    :intent/excludes    #{:runtime-metadata :host-info :timestamps}
+    :intent/includes #{:scenario-id :scenario-path :protocol :dispatcher-id :normalized-scenario}
+    :intent/excludes #{:runtime-metadata :host-info :timestamps}
     :intent/projection-fn project-identity
-    :intent/version     1}
+    :intent/version 1}
 
    :run-overview
-   {:intent/name        :run-overview
-    :intent/domain-tag  "RUN_OVERVIEW_V1"
+   {:intent/name :run-overview
+    :intent/domain-tag "RUN_OVERVIEW_V1"
     :intent/description "Normalized run overview for runner comparison and consensus"
-    :intent/includes    #{:overview-metadata :scenario-results :totals :suite-info}
-    :intent/excludes    #{:execution/raw :diagnostics :timestamps :absolute-paths :host-info}
+    :intent/includes #{:overview-metadata :scenario-results :totals :suite-info}
+    :intent/excludes #{:execution/raw :diagnostics :timestamps :absolute-paths :host-info}
     :intent/projection-fn project-identity
-    :intent/version     1}
+    :intent/version 1}
 
    :benchmark-certification
-   {:intent/name        :benchmark-certification
-    :intent/domain-tag  "BENCHMARK_CERTIFICATION_V1"
+   {:intent/name :benchmark-certification
+    :intent/domain-tag "BENCHMARK_CERTIFICATION_V1"
     :intent/description "Benchmark run certification with invariant summary"
-    :intent/includes    #{:benchmark-id :scenario-count :all-invariants-pass
-                          :final-state-hash :evidence-chain-root :invariant-summary}
-    :intent/excludes    #{:individual-results :detailed-evidence :traces}
+    :intent/includes #{:benchmark-id :scenario-count :all-invariants-pass
+                       :final-state-hash :evidence-chain-root :invariant-summary}
+    :intent/excludes #{:individual-results :detailed-evidence :traces}
     :intent/projection-fn project-identity
-    :intent/version     1}
+    :intent/version 1}
 
    :intent-dsl
-   {:intent/name        :intent-dsl
-    :intent/domain-tag  "INTENT_DSL_V1"
+   {:intent/name :intent-dsl
+    :intent/domain-tag "INTENT_DSL_V1"
     :intent/description "Canonical identity of an INTENT_DSL_SPEC_V1 intent object"
-    :intent/includes    #{:intent/type :intent/version :intent/purpose :intent/scope
-                          :intent/inputs :intent/constraints :intent/output}
-    :intent/excludes    #{:runtime-values :functions}
+    :intent/includes #{:intent/type :intent/version :intent/purpose :intent/scope
+                       :intent/inputs :intent/constraints :intent/output}
+    :intent/excludes #{:runtime-values :functions}
     :intent/projection-fn project-intent-dsl
-    :intent/version     1}
+    :intent/version 1}
 
    :intent-registry-entry
-   {:intent/name        :intent-registry-entry
-    :intent/domain-tag  "INTENT_REGISTRY_ENTRY_V1"
+   {:intent/name :intent-registry-entry
+    :intent/domain-tag "INTENT_REGISTRY_ENTRY_V1"
     :intent/description "Canonical identity of one registered intent contract"
-    :intent/includes    #{:intent/name :intent/domain-tag :intent/description
-                          :intent/includes :intent/excludes :intent/projection-fn
-                          :intent/version}
-    :intent/excludes    #{:runtime-values}
+    :intent/includes #{:intent/name :intent/domain-tag :intent/description
+                       :intent/includes :intent/excludes :intent/projection-fn
+                       :intent/version}
+    :intent/excludes #{:runtime-values}
     :intent/projection-fn project-intent-registry-entry
-    :intent/version     1}
+    :intent/version 1}
 
    :intent-registry
-   {:intent/name        :intent-registry
-    :intent/domain-tag  "INTENT_REGISTRY_V1"
+   {:intent/name :intent-registry
+    :intent/domain-tag "INTENT_REGISTRY_V1"
     :intent/description "Canonical identity of an intent registry artifact"
-    :intent/includes    #{:registry-version :intent-definitions :intent-hashes}
-    :intent/excludes    #{:registry-hash :runtime-values}
+    :intent/includes #{:registry-version :intent-definitions :intent-hashes}
+    :intent/excludes #{:registry-hash :runtime-values}
     :intent/projection-fn project-intent-registry
-    :intent/version     1}
+    :intent/version 1}
 
    :projection-definition
-   {:intent/name        :projection-definition
-    :intent/domain-tag  "PROJECTION_DEFINITION_V1"
+   {:intent/name :projection-definition
+    :intent/domain-tag "PROJECTION_DEFINITION_V1"
     :intent/description "Canonical identity of one projection definition"
-    :intent/includes    #{:id :version :projection-type :intent-types :intent-purposes
-                          :source :include-paths :exclude-paths :transforms
-                          :output :claims :depends-on}
-    :intent/excludes    #{:canonical-hash :runtime-values :functions}
+    :intent/includes #{:id :version :projection-type :intent-types :intent-purposes
+                       :source :include-paths :exclude-paths :transforms
+                       :output :claims :depends-on}
+    :intent/excludes #{:canonical-hash :runtime-values :functions}
     :intent/projection-fn project-projection-definition
-    :intent/version     1}
+    :intent/version 1}
 
    :projection-definition-registry
-   {:intent/name        :projection-definition-registry
-    :intent/domain-tag  "PROJECTION_DEFINITION_REGISTRY_V1"
+   {:intent/name :projection-definition-registry
+    :intent/domain-tag "PROJECTION_DEFINITION_REGISTRY_V1"
     :intent/description "Canonical identity of a projection definition registry artifact"
-    :intent/includes    #{:registry-version :projection-definitions :definition-hashes}
-    :intent/excludes    #{:registry-hash :runtime-values}
+    :intent/includes #{:registry-version :projection-definitions :definition-hashes}
+    :intent/excludes #{:registry-hash :runtime-values}
     :intent/projection-fn project-projection-definition-registry
-    :intent/version     1}
+    :intent/version 1}
 
    :projection-artifact
-   {:intent/name        :projection-artifact
-    :intent/domain-tag  "PROJECTION_ARTIFACT_V1"
+   {:intent/name :projection-artifact
+    :intent/domain-tag "PROJECTION_ARTIFACT_V1"
     :intent/description "Canonical identity of a projection artifact excluding its self hash"
-    :intent/includes    #{:schema-version :projection-id :projection-type
-                          :projection-version :intent :projection-definition-hash
-                          :source :projection :claims}
-    :intent/excludes    #{:projection-hash :metadata :runtime-values}
+    :intent/includes #{:schema-version :projection-id :projection-type
+                       :projection-version :intent :projection-definition-hash
+                       :source :projection :claims}
+    :intent/excludes #{:projection-hash :metadata :runtime-values}
     :intent/projection-fn project-projection-artifact
-    :intent/version     1}
+    :intent/version 1}
 
    :pro-rata-allocation-result
-   {:intent/name        :pro-rata-allocation-result
-    :intent/domain-tag  "PRO_RATA_ALLOCATION_RESULT_V1"
+   {:intent/name :pro-rata-allocation-result
+    :intent/domain-tag "PRO_RATA_ALLOCATION_RESULT_V1"
     :intent/description "Canonical identity of a pro-rata allocation result artifact excluding its self hash"
-    :intent/includes    #{:schema-version :artifact-kind :allocation-result-id
-                          :allocation-result-type :allocation-result-version
-                          :projection-artifact-hash :projection-definition-id
-                          :projection-definition-hash :source :provenance
-                          :allocation-result :shortfall-outcome :claims
-                          :invariant-links}
-    :intent/excludes    #{:allocation-result-hash :metadata :external-refs :runtime-values}
+    :intent/includes #{:schema-version :artifact-kind :allocation-result-id
+                       :allocation-result-type :allocation-result-version
+                       :projection-artifact-hash :projection-definition-id
+                       :projection-definition-hash :source :provenance
+                       :allocation-result :shortfall-outcome :claims
+                       :invariant-links}
+    :intent/excludes #{:allocation-result-hash :metadata :external-refs :runtime-values}
     :intent/projection-fn project-pro-rata-allocation-result
-    :intent/version     1}
+    :intent/version 1}
 
    :priority-order-v1
-   {:intent/name        :priority-order-v1
-    :intent/domain-tag  "PRIORITY_ORDER_V1"
+   {:intent/name :priority-order-v1
+    :intent/domain-tag "PRIORITY_ORDER_V1"
     :intent/description "Canonical identity of a priority-order.v1 artifact body excluding its self content-addressing envelope"
-    :intent/includes    #{:artifact/kind :artifact/version :subjects
-                          :subject-priority-keys :priority-classes :comparison-basis
-                          :comparison-contract :tie-policy :unclassified-policy
-                          :derivation :subject-set-root :comparison-basis-root
-                          :priority-classes-root}
-    :intent/excludes    #{:artifact/content-hash :artifact/preimage :artifact/metadata
-                          :metadata :runtime-values :functions}
+    :intent/includes #{:artifact/kind :artifact/version :subjects
+                       :subject-priority-keys :priority-classes :comparison-basis
+                       :comparison-contract :tie-policy :unclassified-policy
+                       :derivation :subject-set-root :comparison-basis-root
+                       :priority-classes-root}
+    :intent/excludes #{:artifact/content-hash :artifact/preimage :artifact/metadata
+                       :metadata :runtime-values :functions}
     :intent/projection-fn project-priority-order
-    :intent/version     1}
+    :intent/version 1}
 
    :claim-definition
-   {:intent/name        :claim-definition
-    :intent/domain-tag  "CLAIM_DEFINITION"
+   {:intent/name :claim-definition
+    :intent/domain-tag "CLAIM_DEFINITION"
     :intent/description "Canonical identity of one claim definition"
-    :intent/includes    #{:id :version :category :inputs
-                          :evaluation :outputs :depends-on}
-    :intent/excludes    #{:canonical-hash :runtime-values :functions
-                          :cached-values :generated-metadata :description}
+    :intent/includes #{:id :version :category :inputs
+                       :evaluation :outputs :depends-on}
+    :intent/excludes #{:canonical-hash :runtime-values :functions
+                       :cached-values :generated-metadata :description}
     :intent/projection-fn project-claim-definition
-    :intent/version     1}
+    :intent/version 1}
 
    :claim-definition-conceptual
-   {:intent/name        :claim-definition-conceptual
-    :intent/domain-tag  "CONCEPT_CLAIM_DEFINITION_V1"
+   {:intent/name :claim-definition-conceptual
+    :intent/domain-tag "CONCEPT_CLAIM_DEFINITION_V1"
     :intent/description "Self-aware concept hash transitively including resolved dependency hashes"
-    :intent/includes    #{:id :version :category :inputs
-                          :evaluation :outputs :depends-on}
-    :intent/excludes    #{:canonical-hash :concept-hash :runtime-values :functions
-                          :cached-values :generated-metadata :description}
+    :intent/includes #{:id :version :category :inputs
+                       :evaluation :outputs :depends-on}
+    :intent/excludes #{:canonical-hash :concept-hash :runtime-values :functions
+                       :cached-values :generated-metadata :description}
     :intent/projection-fn project-claim-definition-conceptual
-    :intent/version     1}
+    :intent/version 1}
 
    :attestor
-   {:intent/name        :attestor
-    :intent/domain-tag  "ATTESTOR"
+   {:intent/name :attestor
+    :intent/domain-tag "ATTESTOR"
     :intent/description "Canonical identity of one attestor registry entry"
-    :intent/includes    #{:id :type :status :verification :delegates :key-history}
-    :intent/excludes    #{:canonical-hash :attestor-hash :display-name :metadata
-                          :runtime-values :cached-verification-data :private-keys}
+    :intent/includes #{:id :type :status :verification :delegates :key-history}
+    :intent/excludes #{:canonical-hash :attestor-hash :display-name :metadata
+                       :runtime-values :cached-verification-data :private-keys}
     :intent/projection-fn project-attestor
-    :intent/version     1}
+    :intent/version 1}
 
    :evidence-node
-   {:intent/name        :evidence-node
-    :intent/domain-tag  "EVIDENCE_NODE_V1"
+   {:intent/name :evidence-node
+    :intent/domain-tag "EVIDENCE_NODE_V1"
     :intent/description "Canonical identity of an execution evidence node"
-    :intent/includes    #{:schema-version :parent-hashes :bootstrap-roots
-                          :execution :result :evidence :attestations :extensions}
-    :intent/excludes    #{:node-id :node-hash :timestamp :policy-output
-                          :visible-failures :filtered-output :runtime-values}
+    :intent/includes #{:schema-version :parent-hashes :bootstrap-roots
+                       :execution :result :evidence :attestations :extensions}
+    :intent/excludes #{:node-id :node-hash :timestamp :policy-output
+                       :visible-failures :filtered-output :runtime-values}
     :intent/projection-fn project-evidence-node
-    :intent/version     1}
+    :intent/version 1}
 
    :creation-provenance
-   {:intent/name        :creation-provenance
-    :intent/domain-tag  "CREATION_PROVENANCE_V1"
+   {:intent/name :creation-provenance
+    :intent/domain-tag "CREATION_PROVENANCE_V1"
     :intent/description "Domain-separated identity for a creation provenance commitment"
-    :intent/includes    #{:creation/provenance}
-    :intent/excludes    #{}
+    :intent/includes #{:creation/provenance}
+    :intent/excludes #{}
     :intent/projection-fn project-creation-provenance
-    :intent/version     1}
+    :intent/version 1}
 
    :source-creation
-   {:intent/name        :source-creation
-    :intent/domain-tag  "SOURCE_CREATION_V1"
+   {:intent/name :source-creation
+    :intent/domain-tag "SOURCE_CREATION_V1"
     :intent/description "Domain-separated identity for a source creation provenance commitment"
-    :intent/includes    #{:source/creation}
-    :intent/excludes    #{}
+    :intent/includes #{:source/creation}
+    :intent/excludes #{}
     :intent/projection-fn project-source-creation
-    :intent/version     1}
+    :intent/version 1}
 
    :decision-evidence
-   {:intent/name        :decision-evidence
-    :intent/domain-tag  "DECISION_EVIDENCE_V1"
+   {:intent/name :decision-evidence
+    :intent/domain-tag "DECISION_EVIDENCE_V1"
     :intent/description "Structured record of a decision with alternatives and selection"
-    :intent/includes    #{:decision-id :step :alternatives :selected :reasoning
-                          :caller :workflow-id}
-    :intent/excludes    #{:full-world-state :trace-detail :internal-fields}
+    :intent/includes #{:decision-id :step :alternatives :selected :reasoning
+                       :caller :workflow-id}
+    :intent/excludes #{:full-world-state :trace-detail :internal-fields}
     :intent/projection-fn project-identity
-    :intent/version     1}
+    :intent/version 1}
 
    :invariant-failure
-   {:intent/name        :invariant-failure
-    :intent/domain-tag  "INVARIANT_FAILURE_V1"
+   {:intent/name :invariant-failure
+    :intent/domain-tag "INVARIANT_FAILURE_V1"
     :intent/description "Evidence recorded when an invariant check fails and halts the simulation"
-    :intent/includes    #{:step :scenario-id :invariant-ids :details :halt-reason}
-    :intent/excludes    #{:full-world-state :raw-trace :internal-state}
+    :intent/includes #{:step :scenario-id :invariant-ids :details :halt-reason}
+    :intent/excludes #{:full-world-state :raw-trace :internal-state}
     :intent/projection-fn project-identity
-    :intent/version     1}
+    :intent/version 1}
 
    :startup-validation
-   {:intent/name        :startup-validation
-    :intent/domain-tag  "STARTUP_VALIDATION_V1"
+   {:intent/name :startup-validation
+    :intent/domain-tag "STARTUP_VALIDATION_V1"
     :intent/description "Startup registry validation evidence — records that all semantic registries passed validation at system start"
-    :intent/includes    #{:registry-count :valid? :registry-summary :generated-at :schema-version}
-    :intent/excludes    #{:registry-detail :full-registry-data}
+    :intent/includes #{:registry-count :valid? :registry-summary :generated-at :schema-version}
+    :intent/excludes #{:registry-detail :full-registry-data}
     :intent/projection-fn project-identity
-    :intent/version     1}
+    :intent/version 1}
 
    :claim-result
-   {:intent/name        :claim-result
-    :intent/domain-tag  "CLAIM_RESULT_V1"
+   {:intent/name :claim-result
+    :intent/domain-tag "CLAIM_RESULT_V1"
     :intent/description "Canonical identity of a claim evaluation result"
-    :intent/includes    #{:claim-id :claim-definition-hash :holds? :status}
-    :intent/excludes    #{:violations :evidence-references :depends-on :metadata}
+    :intent/includes #{:claim-id :claim-definition-hash :holds? :status}
+    :intent/excludes #{:violations :evidence-references :depends-on :metadata}
     :intent/projection-fn project-claim-result
-    :intent/version     1}
+    :intent/version 1}
 
    :attestation
-   {:intent/name        :attestation
-    :intent/domain-tag  "ATTESTATION_V1"
+   {:intent/name :attestation
+    :intent/domain-tag "ATTESTATION_V1"
     :intent/description "Canonical identity of an attestation record"
-    :intent/includes    #{:attestation-id :attestor :subject :claim :timestamp}
-    :intent/excludes    #{:signature :metadata :canonical-hash}
+    :intent/includes #{:attestation-id :attestor :subject :claim :timestamp}
+    :intent/excludes #{:signature :metadata :canonical-hash}
     :intent/projection-fn project-attestation
-    :intent/version     1}
+    :intent/version 1}
 
    :attestation-record
-   {:intent/name        :attestation-record
-    :intent/domain-tag  "ATTESTATION_RECORD_V1"
+   {:intent/name :attestation-record
+    :intent/domain-tag "ATTESTATION_RECORD_V1"
     :intent/description "Canonical identity of a content-addressed attestation record, excluding self-hash and signature"
-    :intent/includes    #{:schema-version
-                          :attestation/subject-hash :attestation/subject-kind
-                          :attestation/claim-id :attestation/claim-result
-                          :attestation/attestor-id :attestation/signing-key-id
-                          :attestation/signed-at :attestation/provenance}
-    :intent/excludes    #{:attestation/id :attestation/hash :attestation/signature
-                          :attestation/metadata :registry/indexed-at}
+    :intent/includes #{:schema-version
+                       :attestation/subject-hash :attestation/subject-kind
+                       :attestation/claim-id :attestation/claim-result
+                       :attestation/attestor-id :attestation/signing-key-id
+                       :attestation/signed-at :attestation/provenance}
+    :intent/excludes #{:attestation/id :attestation/hash :attestation/signature
+                       :attestation/metadata :registry/indexed-at}
     :intent/projection-fn project-attestation-record
-    :intent/version     1}
+    :intent/version 1}
 
    :execution-definition
-   {:intent/name        :execution-definition
-    :intent/domain-tag  "EXECUTION_DEFINITION_V1"
+   {:intent/name :execution-definition
+    :intent/domain-tag "EXECUTION_DEFINITION_V1"
     :intent/description "Canonical identity of an execution registry definition entry"
-    :intent/includes    #{:id :version :kind :runner :entry :execution/type :execution/mode :claims}
-    :intent/excludes    #{:description :depends-on :canonical-hash}
+    :intent/includes #{:id :version :kind :runner :entry :execution/type :execution/mode :claims}
+    :intent/excludes #{:description :depends-on :canonical-hash}
     :intent/projection-fn project-execution-definition
-    :intent/version     1}
+    :intent/version 1}
 
    :action
-   {:intent/name        :action
-    :intent/domain-tag  "ACTION_V1"
+   {:intent/name :action
+    :intent/domain-tag "ACTION_V1"
     :intent/description "Canonical identity of a normalized action payload. Includes normalized action content minus self-hash fields."
-    :intent/includes    #{:action/type :action/content}
-    :intent/excludes    #{:type :timestamp :metadata :trace :runtime-values
-                          :canonical-hash :hash :node-hash}
+    :intent/includes #{:action/type :action/content}
+    :intent/excludes #{:type :timestamp :metadata :trace :runtime-values
+                       :canonical-hash :hash :node-hash}
     :intent/projection-fn project-action
-    :intent/version     2}
+    :intent/version 2}
 
    :action-at
-   {:intent/name        :action-at
-    :intent/domain-tag  "ACTION_AT_V1"
+   {:intent/name :action-at
+    :intent/domain-tag "ACTION_AT_V1"
     :intent/description "Canonical identity of an action occurrence at a specific execution point."
-    :intent/includes    #{:action-hash :step :block-time}
-    :intent/excludes    #{:action :metadata :world-before :world-after :runtime-values}
+    :intent/includes #{:action-hash :step :block-time}
+    :intent/excludes #{:action :metadata :world-before :world-after :runtime-values}
     :intent/projection-fn project-action-at
-    :intent/version     1}
+    :intent/version 1}
 
    :stability/snapshot
-   {:intent/name        :stability/snapshot
-    :intent/domain-tag  "STABILITY_SNAPSHOT_V1"
+   {:intent/name :stability/snapshot
+    :intent/domain-tag "STABILITY_SNAPSHOT_V1"
     :intent/description "Canonical snapshot of source file contents for stability tracking.
                          Takes {:files {\"path\" \"content\" ...}} and produces a sorted,
                          deterministic hash. Used by STABILITY_MANIFEST.edn and
                          bb stability:check."
-    :intent/includes    #{:files :paths :contents}
-    :intent/excludes    #{:metadata :timestamps :runtime-state}
+    :intent/includes #{:files :paths :contents}
+    :intent/excludes #{:metadata :timestamps :runtime-state}
     :intent/projection-fn project-stability-snapshot
-    :intent/version     1}
+    :intent/version 1}
 
    :trust-sequence-definition
-   {:intent/name        :trust-sequence-definition
-    :intent/domain-tag  "TRUST_SEQUENCE_DEFINITION_V1"
+   {:intent/name :trust-sequence-definition
+    :intent/domain-tag "TRUST_SEQUENCE_DEFINITION_V1"
     :intent/description "Canonical identity of a trust-sequence-definition artifact"
-    :intent/includes    #{:schema-version :id :provider :steps}
-    :intent/excludes    #{:root :timestamps}
+    :intent/includes #{:schema-version :id :provider :steps}
+    :intent/excludes #{:root :timestamps}
     :intent/projection-fn project-identity
-    :intent/version     1}
+    :intent/version 1}
 
    :procedure-execution-witness
-   {:intent/name        :procedure-execution-witness
-    :intent/domain-tag  "PROCEDURE_EXECUTION_WITNESS_V1"
+   {:intent/name :procedure-execution-witness
+    :intent/domain-tag "PROCEDURE_EXECUTION_WITNESS_V1"
     :intent/description "Canonical identity of a procedure-execution-witness artifact"
-    :intent/includes    #{:schema-version :id :definition-root :initial-input-root :steps :result-root}
-    :intent/excludes    #{:root :verification :timestamps}
+    :intent/includes #{:schema-version :id :definition-root :initial-input-root :steps :result-root}
+    :intent/excludes #{:root :verification :timestamps}
     :intent/projection-fn project-identity
-    :intent/version     1}
+    :intent/version 1}
 
    :pool-availability-v2
-   {:intent/name        :pool-availability-v2
-    :intent/domain-tag  "POOL_AVAILABILITY_V2"
+   {:intent/name :pool-availability-v2
+    :intent/domain-tag "POOL_AVAILABILITY_V2"
     :intent/description "Canonical identity of a pool-availability v2 snapshot artifact, including predecessor binding"
-    :intent/includes    #{:artifact/type :pool/id :pool/kind :pool/owner-id
-                          :pool/state-root :pool/policy-root
-                          :pool/snapshot-time
-                          :pool/gross-amount :pool/reserved-amount
-                          :pool/protected-amount :pool/available-amount
-                          :pool/liability-roots :pool/reservation-roots
-                          :pool/predecessor-hash}
-    :intent/excludes    #{:artifact/hash :metadata}
+    :intent/includes #{:artifact/type :pool/id :pool/kind :pool/owner-id
+                       :pool/state-root :pool/policy-root
+                       :pool/snapshot-time
+                       :pool/gross-amount :pool/reserved-amount
+                       :pool/protected-amount :pool/available-amount
+                       :pool/liability-roots :pool/reservation-roots
+                       :pool/predecessor-hash}
+    :intent/excludes #{:artifact/hash :metadata}
     :intent/projection-fn project-identity
-    :intent/version     1}
+    :intent/version 1}
 
    :pool-reservation
-   {:intent/name        :pool-reservation
-    :intent/domain-tag  "POOL_RESERVATION_V1"
+   {:intent/name :pool-reservation
+    :intent/domain-tag "POOL_RESERVATION_V1"
     :intent/description "Canonical identity of a pool reservation artifact"
-    :intent/includes    #{:artifact/type :reservation/id :reservation/pool-root
-                          :reservation/amount :reservation/purpose-root}
-    :intent/excludes    #{:artifact/hash :metadata}
+    :intent/includes #{:artifact/type :reservation/id :reservation/pool-root
+                       :reservation/amount :reservation/purpose-root}
+    :intent/excludes #{:artifact/hash :metadata}
     :intent/projection-fn project-identity
-    :intent/version     1}
+    :intent/version 1}
 
    :award-calculation-v2
-   {:intent/name        :award-calculation-v2
-    :intent/domain-tag  "AWARD_CALCULATION_V2"
+   {:intent/name :award-calculation-v2
+    :intent/domain-tag "AWARD_CALCULATION_V2"
     :intent/description "Canonical identity of an award calculation v2 artifact, including eligibility binding roots"
-    :intent/includes    #{:artifact/type :award/id :award/policy-root
-                          :award/pool-availability-root
-                          :award/claim-set-root :award/evidence-set-root
-                          :award/beneficiary-id :award/calculation-time
-                          :award/amount :award/scale
-                          :award/calculation-components
-                          :award/eligibility-result
-                          :award/eligibility-policy-root
-                          :award/check-set-root
-                          :award/mode}
-    :intent/excludes    #{:artifact/hash :metadata}
+    :intent/includes #{:artifact/type :award/id :award/policy-root
+                       :award/pool-availability-root
+                       :award/claim-set-root :award/evidence-set-root
+                       :award/beneficiary-id :award/calculation-time
+                       :award/amount :award/scale
+                       :award/calculation-components
+                       :award/eligibility-result
+                       :award/eligibility-policy-root
+                       :award/check-set-root
+                       :award/mode}
+    :intent/excludes #{:artifact/hash :metadata}
     :intent/projection-fn project-identity
-    :intent/version     1}
+    :intent/version 1}
 
    :check-set
-   {:intent/name        :check-set
-    :intent/domain-tag  "CHECK_SET_V1"
+   {:intent/name :check-set
+    :intent/domain-tag "CHECK_SET_V1"
     :intent/description "Canonical root of a sorted, deduplicated set of eligibility check IDs"
-    :intent/includes    #{:check/ids}
-    :intent/excludes    #{:metadata}
+    :intent/includes #{:check/ids}
+    :intent/excludes #{:metadata}
     :intent/projection-fn project-identity
-    :intent/version     1}
+    :intent/version 1}
 
    :award-policy
-   {:intent/name        :award-policy
-    :intent/domain-tag  "AWARD_POLICY_V1"
+   {:intent/name :award-policy
+    :intent/domain-tag "AWARD_POLICY_V1"
     :intent/description "Canonical identity of an award policy artifact committing the required eligibility check-set root"
-    :intent/includes    #{:artifact/type :policy/id :policy/required-check-ids
-                          :policy/check-set-root}
-    :intent/excludes    #{:artifact/hash :metadata}
+    :intent/includes #{:artifact/type :policy/id :policy/required-check-ids
+                       :policy/check-set-root}
+    :intent/excludes #{:artifact/hash :metadata}
     :intent/projection-fn project-identity
-    :intent/version     1}
+    :intent/version 1}
 
    :claim-set
-   {:intent/name        :claim-set
-    :intent/domain-tag  "CLAIM_SET_V1"
+   {:intent/name :claim-set
+    :intent/domain-tag "CLAIM_SET_V1"
     :intent/description "Canonical root of a sorted, deduplicated set of claim hashes"
-    :intent/includes    #{:claim/roots}
-    :intent/excludes    #{:metadata}
+    :intent/includes #{:claim/roots}
+    :intent/excludes #{:metadata}
     :intent/projection-fn project-identity
-    :intent/version     1}
+    :intent/version 1}
 
    :lab-parameter-root
-   {:intent/name        :lab-parameter-root
-    :intent/domain-tag  "LAB_PARAMETER_ROOT_V1"
+   {:intent/name :lab-parameter-root
+    :intent/domain-tag "LAB_PARAMETER_ROOT_V1"
     :intent/description "Canonical parameter-root of validated Assurance Lab inputs for a run"
-    :intent/includes    #{:inputs :parameters}
-    :intent/excludes    #{:runtime-values :functions :timestamps}
+    :intent/includes #{:inputs :parameters}
+    :intent/excludes #{:runtime-values :functions :timestamps}
     :intent/projection-fn project-identity
-    :intent/version     1}
+    :intent/version 1}
 
    :lab-withdrawal-fcfs
-   {:intent/name        :lab-withdrawal-fcfs
-    :intent/domain-tag  "LAB_WITHDRAWAL_FCFS_V1"
+   {:intent/name :lab-withdrawal-fcfs
+    :intent/domain-tag "LAB_WITHDRAWAL_FCFS_V1"
     :intent/description "Canonical witness binding of the Assurance Lab FCFS sequential-withdrawal outcome"
-    :intent/includes    #{:mechanism :available :requested-total :filled-total
-                          :deferred-total :rows}
-    :intent/excludes    #{:runtime-values :functions :timestamps}
+    :intent/includes #{:mechanism :available :requested-total :filled-total
+                       :deferred-total :rows}
+    :intent/excludes #{:runtime-values :functions :timestamps}
     :intent/projection-fn project-identity
-    :intent/version     1}
+    :intent/version 1}
 
    :fail-action-policy
-   {:intent/name        :fail-action-policy
-    :intent/domain-tag  "FAIL_ACTION_POLICY_V1"
+   {:intent/name :fail-action-policy
+    :intent/domain-tag "FAIL_ACTION_POLICY_V1"
     :intent/description "Committed root of a declared pro-rata fail-action policy: how a partial-fill shortfall is treated per bucket (deferred/haircut) when the fill cannot be settled in full"
-    :intent/includes    #{:mode :deferred-policy :haircut-policy :treatment :priority}
-    :intent/excludes    #{:runtime-values :functions :timestamps}
+    :intent/includes #{:mode :deferred-policy :haircut-policy :treatment :priority}
+    :intent/excludes #{:runtime-values :functions :timestamps}
     :intent/projection-fn project-identity
-    :intent/version     1}
+    :intent/version 1}
 
    :bounty-payable-v1
-   {:intent/name        :bounty-payable-v1
-    :intent/domain-tag  "BOUNTY_PAYABLE_V1"
+   {:intent/name :bounty-payable-v1
+    :intent/domain-tag "BOUNTY_PAYABLE_V1"
     :intent/description "Content-addressed root of a bounty-payable.v1 artifact: the committed payable identity"
-    :intent/includes    #{:schema-version :payable/id :payable/distribution-root
-                          :payable/award-id :payable/beneficiary :payable/amount
-                          :payable/kind :payable/lifecycle
-                          :payable/evidence-references :payable/context}
-    :intent/excludes    #{:payable/hash :runtime-values :functions}
+    :intent/includes #{:schema-version :payable/id :payable/distribution-root
+                       :payable/award-id :payable/beneficiary :payable/amount
+                       :payable/kind :payable/lifecycle
+                       :payable/evidence-references :payable/context}
+    :intent/excludes #{:payable/hash :runtime-values :functions}
     :intent/projection-fn project-bounty-payable
-    :intent/version     1}
+    :intent/version 1}
 
    :bounty-payable-backing-v1
-   {:intent/name        :bounty-payable-backing-v1
-    :intent/domain-tag  "BOUNTY_PAYABLE_BACKING_V1"
+   {:intent/name :bounty-payable-backing-v1
+    :intent/domain-tag "BOUNTY_PAYABLE_BACKING_V1"
     :intent/description "Content-addressed root of a bounty-payable-backing.v1 artifact: the committed backing identity"
-    :intent/includes    #{:schema-version :backing/id :backing/payable-root
-                          :backing/payable-id :backing/distribution-root
-                          :backing/amount :backing/source-allocations
-                          :backing/kind :backing/lifecycle :backing/context}
-    :intent/excludes    #{:backing/hash :runtime-values :functions}
+    :intent/includes #{:schema-version :backing/id :backing/payable-root
+                       :backing/payable-id :backing/distribution-root
+                       :backing/amount :backing/source-allocations
+                       :backing/kind :backing/lifecycle :backing/context}
+    :intent/excludes #{:backing/hash :runtime-values :functions}
     :intent/projection-fn project-bounty-payable-backing
-    :intent/version     1}
+    :intent/version 1}
 
    :with-bounty-policy-v1
-   {:intent/name        :with-bounty-policy-v1
-    :intent/domain-tag  "WITH_BOUNTY_POLICY_V1"
+   {:intent/name :with-bounty-policy-v1
+    :intent/domain-tag "WITH_BOUNTY_POLICY_V1"
     :intent/description "Content-addressed root of a normalised with-bounty policy: the declared contract of a with-bounty composition"
-    :intent/includes    #{:composition/type :composition/version
-                          :bounty/on-ineligible :bounty/on-calculation-failure
-                          :bounty/on-unsupported-effect :bounty/failure-mode
-                          :base :bounty}
-    :intent/excludes    #{:policy/root :runtime-values :functions}
+    :intent/includes #{:composition/type :composition/version
+                       :bounty/on-ineligible :bounty/on-calculation-failure
+                       :bounty/on-unsupported-effect :bounty/failure-mode
+                       :base :bounty}
+    :intent/excludes #{:policy/root :runtime-values :functions}
     :intent/projection-fn project-with-bounty-policy
-    :intent/version     1}
+    :intent/version 1}
 
    :with-bounty-invocation-v1
-   {:intent/name        :with-bounty-invocation-v1
-    :intent/domain-tag  "WITH_BOUNTY_INVOCATION_V1"
+   {:intent/name :with-bounty-invocation-v1
+    :intent/domain-tag "WITH_BOUNTY_INVOCATION_V1"
     :intent/description "Deterministic identity of one with-bounty step invocation (eligibility or amount)"
-    :intent/includes    #{:policy-root :step/id :index :capability/ref}
-    :intent/excludes    #{:runtime-values :functions :timestamps}
+    :intent/includes #{:policy-root :step/id :index :capability/ref}
+    :intent/excludes #{:runtime-values :functions :timestamps}
     :intent/projection-fn project-with-bounty-invocation
-    :intent/version     1}
+    :intent/version 1}
 
    :with-bounty-obligation-v1
-   {:intent/name        :with-bounty-obligation-v1
-    :intent/domain-tag  "WITH_BOUNTY_OBLIGATION_V1"
+   {:intent/name :with-bounty-obligation-v1
+    :intent/domain-tag "WITH_BOUNTY_OBLIGATION_V1"
     :intent/description "Deterministic obligation identity of a with-bounty payable"
-    :intent/includes    #{:operation-root :bounty-id :recipient :token :amount :policy-root}
-    :intent/excludes    #{:runtime-values :functions :timestamps}
+    :intent/includes #{:operation-root :bounty-id :recipient :token :amount :policy-root}
+    :intent/excludes #{:runtime-values :functions :timestamps}
     :intent/projection-fn project-with-bounty-obligation
-    :intent/version     1}
+    :intent/version 1}
 
    :with-bounty-effect-v1
-   {:intent/name        :with-bounty-effect-v1
-    :intent/domain-tag  "WITH_BOUNTY_EFFECT_V1"
+   {:intent/name :with-bounty-effect-v1
+    :intent/domain-tag "WITH_BOUNTY_EFFECT_V1"
     :intent/description "Content-addressed root of a single validated with-bounty effect"
-    :intent/includes    #{:effect/contract :effect/kind :effect/params}
-    :intent/excludes    #{:effect/root :runtime-values :functions}
+    :intent/includes #{:effect/contract :effect/kind :effect/params}
+    :intent/excludes #{:effect/root :runtime-values :functions}
     :intent/projection-fn project-with-bounty-effect
-    :intent/version     1}
+    :intent/version 1}
 
    :with-bounty-effect-set-v1
-   {:intent/name        :with-bounty-effect-set-v1
-    :intent/domain-tag  "WITH_BOUNTY_EFFECT_SET_V1"
+   {:intent/name :with-bounty-effect-set-v1
+    :intent/domain-tag "WITH_BOUNTY_EFFECT_SET_V1"
     :intent/description "Combined with-bounty effect-set root: base plan root plus the ordered effect roots"
-    :intent/includes    #{:base-plan-root :effect-roots}
-    :intent/excludes    #{:runtime-values :functions :timestamps}
+    :intent/includes #{:base-plan-root :effect-roots}
+    :intent/excludes #{:runtime-values :functions :timestamps}
     :intent/projection-fn project-with-bounty-effect-set
-    :intent/version     1}
+    :intent/version 1}
 
    :with-bounty-application-plan-v1
-   {:intent/name        :with-bounty-application-plan-v1
-    :intent/domain-tag  "WITH_BOUNTY_APPLICATION_PLAN_V1"
+   {:intent/name :with-bounty-application-plan-v1
+    :intent/domain-tag "WITH_BOUNTY_APPLICATION_PLAN_V1"
     :intent/description "Content-addressed root of a with-bounty application plan committing creation preconditions and the combined effect set"
-    :intent/includes    #{:schema-version :plan/policy-root :plan/base-operation-root
-                          :plan/base-result-root :plan/base-plan-root
-                          :plan/extensions-resolution-root :plan/adapter
-                          :plan/effects :plan/effect-roots
-                          :plan/combined-effect-root :plan/effect-schema-roots
-                          :plan/declared-maximum :plan/funding-available
-                          :plan/obligation-id :plan/no-duplicate-creation-key
-                          :plan/preconditions :plan/idempotency-key :plan/context}
-    :intent/excludes    #{:plan/hash :runtime-values :functions}
+    :intent/includes #{:schema-version :plan/policy-root :plan/base-operation-root
+                       :plan/base-result-root :plan/base-plan-root
+                       :plan/extensions-resolution-root :plan/adapter
+                       :plan/effects :plan/effect-roots
+                       :plan/combined-effect-root :plan/effect-schema-roots
+                       :plan/declared-maximum :plan/funding-available
+                       :plan/obligation-id :plan/no-duplicate-creation-key
+                       :plan/preconditions :plan/idempotency-key :plan/context}
+    :intent/excludes #{:plan/hash :runtime-values :functions}
     :intent/projection-fn project-with-bounty-application-plan
-    :intent/version     1}
+    :intent/version 1}
 
    :with-bounty-transition-evidence-v1
-   {:intent/name        :with-bounty-transition-evidence-v1
-    :intent/domain-tag  "WITH_BOUNTY_TRANSITION_EVIDENCE_V1"
+   {:intent/name :with-bounty-transition-evidence-v1
+    :intent/domain-tag "WITH_BOUNTY_TRANSITION_EVIDENCE_V1"
     :intent/description "Content-addressed transition evidence binding a with-bounty application plan to the resulting protocol transition"
-    :intent/includes    #{:transition/type :plan/root :effect-root
-                          :combined-effect-root :world-before-root
-                          :world-after-root :payable/roots :backing/roots
-                          :custody/adjustment-roots :idempotent? :context}
-    :intent/excludes    #{:transition/hash :runtime-values :functions}
+    :intent/includes #{:transition/type :plan/root :effect-root
+                       :combined-effect-root :world-before-root
+                       :world-after-root :payable/roots :backing/roots
+                       :custody/adjustment-roots :idempotent? :context}
+    :intent/excludes #{:transition/hash :runtime-values :functions}
     :intent/projection-fn project-with-bounty-transition-evidence
-    :intent/version     1}
+    :intent/version 1}
 
    :with-bounty-verification-basis-v1
-   {:intent/name        :with-bounty-verification-basis-v1
-    :intent/domain-tag  "WITH_BOUNTY_VERIFICATION_BASIS_V1"
+   {:intent/name :with-bounty-verification-basis-v1
+    :intent/domain-tag "WITH_BOUNTY_VERIFICATION_BASIS_V1"
     :intent/description "Content-addressed root of a with-bounty verification basis: exactly what a verifier evaluated"
-    :intent/includes    #{:schema-version :basis/subject-root :basis/package-root
-                          :basis/artifact-root :basis/verification-contract
-                          :basis/verification-contract-version :basis/entrypoint
-                          :basis/invocation-parameters
-                          :basis/dependency-lockfile-root :basis/runtime-root
-                          :basis/environment-root :basis/vector-set-root
-                          :basis/resource-limit-profile
-                          :basis/expected-public-result-schema
-                          :basis/classification-policy-root}
-    :intent/excludes    #{:basis/root :runtime-values :functions}
+    :intent/includes #{:schema-version :basis/subject-root :basis/package-root
+                       :basis/artifact-root :basis/verification-contract
+                       :basis/verification-contract-version :basis/entrypoint
+                       :basis/invocation-parameters
+                       :basis/dependency-lockfile-root :basis/runtime-root
+                       :basis/environment-root :basis/vector-set-root
+                       :basis/resource-limit-profile
+                       :basis/expected-public-result-schema
+                       :basis/classification-policy-root}
+    :intent/excludes #{:basis/root :runtime-values :functions}
     :intent/projection-fn project-with-bounty-verification-basis
-    :intent/version     1}
+    :intent/version 1}
 
    :with-bounty-public-result-v1
-   {:intent/name        :with-bounty-public-result-v1
-    :intent/domain-tag  "WITH_BOUNTY_PUBLIC_RESULT_V1"
+   {:intent/name :with-bounty-public-result-v1
+    :intent/domain-tag "WITH_BOUNTY_PUBLIC_RESULT_V1"
     :intent/description "Canonical public-result root of a with-bounty evaluation for verifier comparison"
-    :intent/includes    #{:status :composition/policy-root
-                          :composition/base-operation-root
-                          :extensions/resolution-root :bounty/obligation-id
-                          :bounty/effect-root :bounty/application-plan-root}
-    :intent/excludes    #{:replay/inputs :invocation-evidence :diagnostics}
+    :intent/includes #{:status :composition/policy-root
+                       :composition/base-operation-root
+                       :extensions/resolution-root :bounty/obligation-id
+                       :bounty/effect-root :bounty/application-plan-root}
+    :intent/excludes #{:replay/inputs :invocation-evidence :diagnostics}
     :intent/projection-fn project-with-bounty-public-result
-    :intent/version     1}
+    :intent/version 1}
 
    :confidence-composition-v1
-   {:intent/name        :confidence-composition-v1
-    :intent/domain-tag  "CONFIDENCE_COMPOSITION_V1"
+   {:intent/name :confidence-composition-v1
+    :intent/domain-tag "CONFIDENCE_COMPOSITION_V1"
     :intent/description "Hash-bound consecutive concatenation of confidence components bound to a :purpose (canonical-value-sequence.v1 contract)"
-    :intent/includes    #{:encoding-contract :purpose :component-count :components}
-    :intent/excludes    #{:timestamps :runtime-values :functions}
+    :intent/includes #{:encoding-contract :purpose :component-count :components}
+    :intent/excludes #{:timestamps :runtime-values :functions}
     :intent/projection-fn project-identity
-    :intent/version     1}
+    :intent/version 1}
 
    :research-command-trace-v1
-   {:intent/name        :research-command-trace-v1
-    :intent/domain-tag  "RESEARCH_COMMAND_TRACE_V1"
+   {:intent/name :research-command-trace-v1
+    :intent/domain-tag "RESEARCH_COMMAND_TRACE_V1"
     :intent/description "Legacy research-command trace root (v1, DEPRECATED — use research-command-trace-v2 / bound-sequence)"
-    :intent/includes    #{:command-id :commands}
-    :intent/excludes    #{:timestamps :runtime-values :functions}
+    :intent/includes #{:command-id :commands}
+    :intent/excludes #{:timestamps :runtime-values :functions}
     :intent/projection-fn project-identity
-    :intent/version     1}
+    :intent/version 1}
 
    :research-command-trace-v2
-   {:intent/name        :research-command-trace-v2
-    :intent/domain-tag  "RESEARCH_COMMAND_TRACE_V2"
+   {:intent/name :research-command-trace-v2
+    :intent/domain-tag "RESEARCH_COMMAND_TRACE_V2"
     :intent/description "Research-command-trace.v2 root over a canonical-value-sequence.v1 commitment with an explicit :purpose"
-    :intent/includes    #{:trace/schema-version :trace/purpose :trace/component-count
-                          :trace/components}
-    :intent/excludes    #{:trace/root :timestamps :runtime-values :functions}
+    :intent/includes #{:trace/schema-version :trace/purpose :trace/component-count
+                       :trace/components}
+    :intent/excludes #{:trace/root :timestamps :runtime-values :functions}
     :intent/projection-fn project-identity
-    :intent/version     1}
+    :intent/version 1}
 
    :research-execution
-   {:intent/name        :research-execution
-    :intent/domain-tag  "RESEARCH_EXECUTION_V1"
+   {:intent/name :research-execution
+    :intent/domain-tag "RESEARCH_EXECUTION_V1"
     :intent/description "Exact researcher execution identity binding portable command, assignment, resolved composition, ordered trace, and outcome"
-    :intent/includes    #{:research-execution/command-root :research-execution/assignment-root
-                          :research-execution/composition-root :research-execution/trace-root
-                          :research-execution/outcome-root :research-execution/classification}
-    :intent/excludes    #{:research-execution/root :timestamps :runtime-values :functions}
+    :intent/includes #{:research-execution/command-root :research-execution/assignment-root
+                       :research-execution/composition-root :research-execution/trace-root
+                       :research-execution/outcome-root :research-execution/classification}
+    :intent/excludes #{:research-execution/root :timestamps :runtime-values :functions}
     :intent/projection-fn project-identity
-    :intent/version     1}
+    :intent/version 1}
 
    :research-benchmark-pack
-   {:intent/name        :research-benchmark-pack
-    :intent/domain-tag  "RESEARCH_BENCHMARK_PACK_V1"
+   {:intent/name :research-benchmark-pack
+    :intent/domain-tag "RESEARCH_BENCHMARK_PACK_V1"
     :intent/description "Frozen exact research benchmark member plan with resolved extension composition"
-    :intent/includes    #{:research-pack/command-root :research-pack/assignment-root
-                          :research-pack/plan-root :research-pack/members
-                          :research-pack/composition-root :research-pack/resolution-root}
-    :intent/excludes    #{:research-pack/root :runtime-values :functions :timestamps}
+    :intent/includes #{:research-pack/command-root :research-pack/assignment-root
+                       :research-pack/plan-root :research-pack/members
+                       :research-pack/composition-root :research-pack/resolution-root}
+    :intent/excludes #{:research-pack/root :runtime-values :functions :timestamps}
     :intent/projection-fn project-identity
-    :intent/version     1}
+    :intent/version 1}
 
    :prf-protocol-genesis-v1
-   {:intent/name        :prf-protocol-genesis-v1
-    :intent/domain-tag  "PRF_PROTOCOL_GENESIS_V1"
+   {:intent/name :prf-protocol-genesis-v1
+    :intent/domain-tag "PRF_PROTOCOL_GENESIS_V1"
     :intent/description "Canonical SHA-256 identity of a protocol-genesis.v1 constitutional protocol artifact"
-    :intent/includes    #{:genesis/schema :protocol/id :canonicalisation/root
-                          :semantics/root :governance/constitution-root
-                          :governance/evolution-policy-root :configuration/contract-root
-                          :evidence/contract-root :verification/contract-root
-                          :cross-domain/authority-policy-root}
-    :intent/excludes    #{:runtime-values :functions :deployment-metadata :timestamps}
+    :intent/includes #{:genesis/schema :protocol/id :canonicalisation/root
+                       :semantics/root :governance/constitution-root
+                       :governance/evolution-policy-root :configuration/contract-root
+                       :evidence/contract-root :verification/contract-root
+                       :cross-domain/authority-policy-root}
+    :intent/excludes #{:runtime-values :functions :deployment-metadata :timestamps}
     :intent/projection-fn project-protocol-genesis
-    :intent/version     1}
+    :intent/version 1}
 
    :prf-chain-instance-genesis-v1
-   {:intent/name        :prf-chain-instance-genesis-v1
-    :intent/domain-tag  "PRF_CHAIN_INSTANCE_GENESIS_V1"
+   {:intent/name :prf-chain-instance-genesis-v1
+    :intent/domain-tag "PRF_CHAIN_INSTANCE_GENESIS_V1"
     :intent/description "Canonical SHA-256 identity of a chain-instance-genesis.v1 execution instance"
-    :intent/includes    #{:genesis/schema :protocol/genesis-root :execution/chain-id
-                          :settlement/chain-id :control-plane :governance
-                          :configuration/initial-root}
-    :intent/excludes    #{:runtime-values :functions :deployment-metadata
-                          :block-context :timestamps}
+    :intent/includes #{:genesis/schema :protocol/genesis-root :execution/chain-id
+                       :settlement/chain-id :control-plane :governance
+                       :configuration/initial-root}
+    :intent/excludes #{:runtime-values :functions :deployment-metadata
+                       :block-context :timestamps}
     :intent/projection-fn project-chain-instance-genesis
-    :intent/version     1}
+    :intent/version 1}
 
    :prf-chain-configuration-v1
-   {:intent/name        :prf-chain-configuration-v1
-    :intent/domain-tag  "PRF_CHAIN_CONFIGURATION_V1"
+   {:intent/name :prf-chain-configuration-v1
+    :intent/domain-tag "PRF_CHAIN_CONFIGURATION_V1"
     :intent/description "Canonical SHA-256 identity of a chain-configuration.v1 semantic configuration state"
-    :intent/includes    #{:configuration/schema
-                          :module-registry/root :verifier-registry/root
-                          :evidence-policy/root :escrow-template-registry/root
-                          :parameter-policy/root :governance-policy/root
-                          :interoperability-policy/root}
-    :intent/excludes    #{:runtime-values :functions :deployment-metadata :timestamps}
+    :intent/includes #{:configuration/schema
+                       :module-registry/root :verifier-registry/root
+                       :evidence-policy/root :escrow-template-registry/root
+                       :parameter-policy/root :governance-policy/root
+                       :interoperability-policy/root}
+    :intent/excludes #{:runtime-values :functions :deployment-metadata :timestamps}
     :intent/projection-fn project-chain-configuration
-    :intent/version     1}
+    :intent/version 1}
 
    :prf-chain-configuration-v3
-   {:intent/name        :prf-chain-configuration-v3
-    :intent/domain-tag  "PRF_CHAIN_CONFIGURATION_V3"
+   {:intent/name :prf-chain-configuration-v3
+    :intent/domain-tag "PRF_CHAIN_CONFIGURATION_V3"
     :intent/description "Canonical SHA-256 identity of a chain-configuration.v3 semantic configuration state"
-    :intent/includes    #{:configuration/schema
-                          :module-registry/root :verifier-registry/root
-                          :evidence-policy/root :escrow-template-registry/root
-                          :parameter-policy/root :governance-policy/root
-                          :interoperability-policy/root
-                          :authority-semantics-policy/root
-                          :allocation-entitlement-policy/root}
-    :intent/excludes    #{:runtime-values :functions :deployment-metadata :timestamps}
+    :intent/includes #{:configuration/schema
+                       :module-registry/root :verifier-registry/root
+                       :evidence-policy/root :escrow-template-registry/root
+                       :parameter-policy/root :governance-policy/root
+                       :interoperability-policy/root
+                       :authority-semantics-policy/root
+                       :allocation-entitlement-policy/root}
+    :intent/excludes #{:runtime-values :functions :deployment-metadata :timestamps}
     :intent/projection-fn project-chain-configuration-v3
-    :intent/version     1}
+    :intent/version 1}
 
    :prf-chain-configuration-v4
-   {:intent/name        :prf-chain-configuration-v4
-    :intent/domain-tag  "PRF_CHAIN_CONFIGURATION_V4"
+   {:intent/name :prf-chain-configuration-v4
+    :intent/domain-tag "PRF_CHAIN_CONFIGURATION_V4"
     :intent/description "Canonical SHA-256 identity of a chain-configuration.v4 semantic configuration state"
-    :intent/includes    #{:configuration/schema
-                          :module-registry/root :verifier-registry/root
-                          :evidence-policy/root :escrow-template-registry/root
-                          :parameter-policy/root :governance-policy/root
-                          :interoperability-policy/root
-                          :authority-semantics-policy/root
-                          :allocation-entitlement-policy/root
-                          :risk-limit-policy/root}
-    :intent/excludes    #{:runtime-values :functions :deployment-metadata :timestamps}
+    :intent/includes #{:configuration/schema
+                       :module-registry/root :verifier-registry/root
+                       :evidence-policy/root :escrow-template-registry/root
+                       :parameter-policy/root :governance-policy/root
+                       :interoperability-policy/root
+                       :authority-semantics-policy/root
+                       :allocation-entitlement-policy/root
+                       :risk-limit-policy/root}
+    :intent/excludes #{:runtime-values :functions :deployment-metadata :timestamps}
     :intent/projection-fn project-chain-configuration-v4
-    :intent/version     1}
+    :intent/version 1}
 
    :prf-chain-configuration-transition-v1
-   {:intent/name        :prf-chain-configuration-transition-v1
-    :intent/domain-tag  "PRF_CHAIN_CONFIGURATION_TRANSITION_V1"
+   {:intent/name :prf-chain-configuration-transition-v1
+    :intent/domain-tag "PRF_CHAIN_CONFIGURATION_TRANSITION_V1"
     :intent/description "Canonical SHA-256 identity of a chain-configuration-transition.v1 governance transition"
-    :intent/includes    #{:transition/schema :protocol/genesis-root :target
-                          :configuration/parent-root :configuration/new-root
-                          :verifier-registry/root :epoch}
-    :intent/excludes    #{:runtime-values :functions :deployment-metadata
-                          :block-context :timestamps}
+    :intent/includes #{:transition/schema :protocol/genesis-root :target
+                       :configuration/parent-root :configuration/new-root
+                       :verifier-registry/root :epoch}
+    :intent/excludes #{:runtime-values :functions :deployment-metadata
+                       :block-context :timestamps}
     :intent/projection-fn project-chain-configuration-transition
-    :intent/version     1}
+    :intent/version 1}
 
    :prf-verifier-registry-v1
-   {:intent/name        :prf-verifier-registry-v1
-    :intent/domain-tag  "PRF_VERIFIER_REGISTRY_V1"
+   {:intent/name :prf-verifier-registry-v1
+    :intent/domain-tag "PRF_VERIFIER_REGISTRY_V1"
     :intent/description "Canonical SHA-256 commitment to a verifier-registry snapshot:
                             domain-separated hash of sorted verifier entries.
                             Root = SHA256(DOMAIN_TAG || uint256(entry_count) ||
                                    sorted(entry_hashes))"
-    :intent/includes    #{:verifier/id :verifier/adapter :verifier/program-vkey
-                          :verifier/program-elf-sha256 :verifier/program-id
-                          :verifier/statement-schema-version-hash :verifier/active}
-    :intent/excludes    #{}
+    :intent/includes #{:verifier/id :verifier/adapter :verifier/program-vkey
+                       :verifier/program-elf-sha256 :verifier/program-id
+                       :verifier/statement-schema-version-hash :verifier/active}
+    :intent/excludes #{}
     :intent/projection-fn (fn [v _] v)
-    :intent/version     1}
+    :intent/version 1}
 
    :extension-registry-v1
-   {:intent/name        :extension-registry-v1
-    :intent/domain-tag  "EXTENSION_REGISTRY_V1"
+   {:intent/name :extension-registry-v1
+    :intent/domain-tag "EXTENSION_REGISTRY_V1"
     :intent/description "Canonical SHA-256 commitment to an extension-map verifier
                             registry snapshot: sorted capability entries with their
                             descriptor roots, builtin classification, and provider
                             package identities.
                             Root = SHA256(DOMAIN_TAG || canonical_bytes(sorted_entries))"
-    :intent/includes    #{:capability-key :descriptor-root :builtin? :providers}
-    :intent/excludes    #{:runtime-values :functions}
+    :intent/includes #{:capability-key :descriptor-root :builtin? :providers}
+    :intent/excludes #{:runtime-values :functions}
     :intent/projection-fn (fn [v _] v)
-    :intent/version     1}
+    :intent/version 1}
 
    :prf-resubmission-chain-configuration-v1
-   {:intent/name        :prf-resubmission-chain-configuration-v1
-    :intent/domain-tag  "prf.resubmission-chain-configuration.v1"
+   {:intent/name :prf-resubmission-chain-configuration-v1
+    :intent/domain-tag "prf.resubmission-chain-configuration.v1"
     :intent/description "Canonical identity of a resubmission-chain-configuration.v1: authority key bindings for a resubmission family"
-    :intent/includes    #{:configuration/schema :disposition-authority/public-key
-                          :receipt-authority/public-key}
-    :intent/excludes    #{:runtime-values :functions}
+    :intent/includes #{:configuration/schema :disposition-authority/public-key
+                       :receipt-authority/public-key}
+    :intent/excludes #{:runtime-values :functions}
     :intent/projection-fn project-resubmission-chain-configuration
-    :intent/version     1}
+    :intent/version 1}
 
    :prf-resubmission-chain-identity-v1
-   {:intent/name        :prf-resubmission-chain-identity-v1
-    :intent/domain-tag  "prf.resubmission-chain-identity.v1"
+   {:intent/name :prf-resubmission-chain-identity-v1
+    :intent/domain-tag "prf.resubmission-chain-identity.v1"
     :intent/description "Canonical chain-id basis: sha256(family-id + authority keys). Deliberately excludes genesis root so authority rotation preserves chain identity."
-    :intent/includes    #{:family/id :disposition-authority/public-key
-                          :receipt-authority/public-key}
-    :intent/excludes    #{:runtime-values :functions}
+    :intent/includes #{:family/id :disposition-authority/public-key
+                       :receipt-authority/public-key}
+    :intent/excludes #{:runtime-values :functions}
     :intent/projection-fn project-resubmission-chain-identity
-    :intent/version     1}
+    :intent/version 1}
 
    :prf-resubmission-chain-genesis-v1
-   {:intent/name        :prf-resubmission-chain-genesis-v1
-    :intent/domain-tag  "prf.resubmission-chain-genesis.v1"
+   {:intent/name :prf-resubmission-chain-genesis-v1
+    :intent/domain-tag "prf.resubmission-chain-genesis.v1"
     :intent/description "Canonical identity of a resubmission-chain-genesis.v1: the declared source of truth for a resubmission chain's family, configuration, and initial state"
-    :intent/includes    #{:genesis/schema :chain/id :family/id :configuration
-                          :initial-state/root}
-    :intent/excludes    #{:runtime-values :functions :deployment-metadata :timestamps}
+    :intent/includes #{:genesis/schema :chain/id :family/id :configuration
+                       :initial-state/root}
+    :intent/excludes #{:runtime-values :functions :deployment-metadata :timestamps}
     :intent/projection-fn project-resubmission-chain-genesis
-    :intent/version     1}
+    :intent/version 1}
 
    :prf-resubmission-chain-identity-v2
-   {:intent/name        :prf-resubmission-chain-identity-v2
-    :intent/domain-tag  "prf.resubmission-chain-identity.v2"
+   {:intent/name :prf-resubmission-chain-identity-v2
+    :intent/domain-tag "prf.resubmission-chain-identity.v2"
     :intent/description "Deployment-scoped resubmission chain-id basis: protocol genesis, chain-instance genesis, family, and initial configuration root"
-    :intent/includes    #{:protocol-genesis/root :chain-instance-genesis/root
-                          :family/id :initial-configuration/root}
-    :intent/excludes    #{:runtime-values :functions}
+    :intent/includes #{:protocol-genesis/root :chain-instance-genesis/root
+                       :family/id :initial-configuration/root}
+    :intent/excludes #{:runtime-values :functions}
     :intent/projection-fn project-resubmission-chain-identity-v2
-    :intent/version     2}
+    :intent/version 2}
 
    :prf-resubmission-chain-genesis-v2
-   {:intent/name        :prf-resubmission-chain-genesis-v2
-    :intent/domain-tag  "prf.resubmission-chain-genesis.v2"
+   {:intent/name :prf-resubmission-chain-genesis-v2
+    :intent/domain-tag "prf.resubmission-chain-genesis.v2"
     :intent/description "Canonical identity of a deployment-scoped resubmission-chain-genesis.v2"
-    :intent/includes    #{:genesis/schema :protocol-genesis/root
-                          :chain-instance-genesis/root :family/id :chain/id
-                          :configuration :configuration/root :initial-state/root}
-    :intent/excludes    #{:runtime-values :functions :timestamps}
+    :intent/includes #{:genesis/schema :protocol-genesis/root
+                       :chain-instance-genesis/root :family/id :chain/id
+                       :configuration :configuration/root :initial-state/root}
+    :intent/excludes #{:runtime-values :functions :timestamps}
     :intent/projection-fn project-resubmission-chain-genesis-v2
-    :intent/version     2}
+    :intent/version 2}
 
    :prf-resubmission-chain-genesis-authorization-v1
-   {:intent/name        :prf-resubmission-chain-genesis-authorization-v1
-    :intent/domain-tag  "prf.resubmission-chain-genesis-authorization.v1"
+   {:intent/name :prf-resubmission-chain-genesis-authorization-v1
+    :intent/domain-tag "prf.resubmission-chain-genesis-authorization.v1"
     :intent/description "Canonical identity of resubmission-chain-genesis-authorization.v1: thin binding of a genesis root to an authenticated three-member authority decision"
-    :intent/includes    #{:authorization/schema :authorization/genesis-root
-                          :authorization/force-authorisation-hash
-                          :authorization/authority-report-root}
-    :intent/excludes    #{:runtime-values :functions}
+    :intent/includes #{:authorization/schema :authorization/genesis-root
+                       :authorization/force-authorisation-hash
+                       :authorization/authority-report-root}
+    :intent/excludes #{:runtime-values :functions}
     :intent/projection-fn project-resubmission-chain-genesis-authorization
-    :intent/version     1}
+    :intent/version 1}
 
    :prf-resubmission-authority-context-v1
-   {:intent/name        :prf-resubmission-authority-context-v1
-    :intent/domain-tag  "prf.resubmission-authority-context.v1"
+   {:intent/name :prf-resubmission-authority-context-v1
+    :intent/domain-tag "prf.resubmission-authority-context.v1"
     :intent/description "Canonical identity of resubmission-disposition-authority-context.v1: admits a disposition authority key for a chain epoch"
-    :intent/includes    #{:authority/context-schema :authority/genesis-root
-                          :authority/configuration-root :authority/authorization-root
-                          :authority/public-key :authority/epoch
-                          :authority/permitted-actions}
-    :intent/excludes    #{:authority/context-root :runtime-values :functions}
+    :intent/includes #{:authority/context-schema :authority/genesis-root
+                       :authority/configuration-root :authority/authorization-root
+                       :authority/public-key :authority/epoch
+                       :authority/permitted-actions}
+    :intent/excludes #{:authority/context-root :runtime-values :functions}
     :intent/projection-fn project-resubmission-authority-context
-    :intent/version     1}
+    :intent/version 1}
 
    :prf-resubmission-authoritative-checkpoint-v1
-   {:intent/name        :prf-resubmission-authoritative-checkpoint-v1
-    :intent/domain-tag  "prf.resubmission-authoritative-checkpoint.v1"
+   {:intent/name :prf-resubmission-authoritative-checkpoint-v1
+    :intent/domain-tag "prf.resubmission-authoritative-checkpoint.v1"
     :intent/description "Canonical identity of resubmission-authoritative-checkpoint.v1: binds a chain state-root to an admitted authority context"
-    :intent/includes    #{:checkpoint/schema :checkpoint/chain-id
-                          :checkpoint/genesis-root :checkpoint/state-root
-                          :checkpoint/authority-context-root
-                          :checkpoint/configuration-root :checkpoint/epoch
-                          :checkpoint/authorization-mode :checkpoint/predecessor-root
-                          :checkpoint/sequence}
-    :intent/excludes    #{:checkpoint/root :runtime-values :functions}
+    :intent/includes #{:checkpoint/schema :checkpoint/chain-id
+                       :checkpoint/genesis-root :checkpoint/state-root
+                       :checkpoint/authority-context-root
+                       :checkpoint/configuration-root :checkpoint/epoch
+                       :checkpoint/authorization-mode :checkpoint/predecessor-root
+                       :checkpoint/sequence}
+    :intent/excludes #{:checkpoint/root :runtime-values :functions}
     :intent/projection-fn project-resubmission-authoritative-checkpoint
-    :intent/version     1}
+    :intent/version 1}
 
    :prf-resubmission-authoritative-disposition-v2
-   {:intent/name        :prf-resubmission-authoritative-disposition-v2
-    :intent/domain-tag  "prf.resubmission-authoritative-disposition.v2"
+   {:intent/name :prf-resubmission-authoritative-disposition-v2
+    :intent/domain-tag "prf.resubmission-authoritative-disposition.v2"
     :intent/description "Canonical identity of resubmission-authoritative-disposition.v2: checkpoint-bound disposition signed by the admitted authority key"
-    :intent/includes    #{:attempt-disposition/schema :attempt-disposition/action
-                          :attempt-disposition/chain-id :attempt-disposition/genesis-root
-                          :attempt-disposition/configuration-root
-                          :attempt-disposition/authority-context-root
-                          :attempt-disposition/authority-epoch
-                          :attempt-disposition/parent-checkpoint-root
-                          :attempt-disposition/sequence
-                          :attempt-disposition/attempt-receipt-hash
-                          :attempt-disposition/previous-disposition-hash
-                          :attempt-disposition/status}
-    :intent/excludes    #{:attempt-disposition/signature :runtime-values :functions}
+    :intent/includes #{:attempt-disposition/schema :attempt-disposition/action
+                       :attempt-disposition/chain-id :attempt-disposition/genesis-root
+                       :attempt-disposition/configuration-root
+                       :attempt-disposition/authority-context-root
+                       :attempt-disposition/authority-epoch
+                       :attempt-disposition/parent-checkpoint-root
+                       :attempt-disposition/sequence
+                       :attempt-disposition/attempt-receipt-hash
+                       :attempt-disposition/previous-disposition-hash
+                       :attempt-disposition/status}
+    :intent/excludes #{:attempt-disposition/signature :runtime-values :functions}
     :intent/projection-fn project-resubmission-authoritative-disposition
-    :intent/version     2}})
+    :intent/version 2}})
 
 (defn resolve-intent
   "Look up an intent contract by keyword name from the registry.
@@ -3335,7 +3344,7 @@ name (an alias)."
               (assoc :intent/hash-scheme canonical-hash-scheme-v1))
       (throw (ex-info "Unknown hash intent"
                       {:intent intent-kw
-                       :known  (vec (keys hash-intents))}))))
+                       :known (vec (keys hash-intents))}))))
 
 (defn- validate-prefix-free-domain-tags!
   "Fail closed when the domain-tag set violates the consecutive-concatenation
@@ -3352,7 +3361,7 @@ name (an alias)."
                      (and (< (count t2) (count t)) (.startsWith t t2))))
         (throw (ex-info "Domain tags must be prefix-free: one domain tag is a strict prefix of another"
                         {:shorter (if (< (count t) (count t2)) t t2)
-                         :longer  (if (< (count t) (count t2)) t2 t)
+                         :longer (if (< (count t) (count t2)) t2 t)
                          :guidance "domain-hash concatenates DOMAIN_TAG || CANONICAL_BYTES without a length frame; a prefix relationship makes the boundary ambiguous"}))))))
 
 (defn validate-registry!
@@ -3376,13 +3385,13 @@ name (an alias)."
   (let [expected-fields [:intent/name :intent/domain-tag :intent/description
                          :intent/includes :intent/excludes
                          :intent/projection-fn :intent/version]
-        field-types {:intent/name         keyword?
-                     :intent/domain-tag   string?
-                     :intent/description  string?
-                     :intent/includes     set?
-                     :intent/excludes     set?
+        field-types {:intent/name keyword?
+                     :intent/domain-tag string?
+                     :intent/description string?
+                     :intent/includes set?
+                     :intent/excludes set?
                      :intent/projection-fn fn?
-                     :intent/version      (every-pred integer? pos?)}]
+                     :intent/version (every-pred integer? pos?)}]
     (doseq [[kw contract] hash-intents]
       (doseq [f expected-fields]
         (when-not (contains? contract f)
@@ -3509,32 +3518,32 @@ name (an alias)."
    Each predicate returns a violation string or nil.
    Applied to every node in the data tree."
   {:functions (fn [v] (when (fn? v) "function value"))
-   :sets      (fn [v] (when (instance? clojure.lang.IPersistentSet v)
-                        "set (unsupported)"))
-   :ratios    (fn [v] (when (instance? clojure.lang.Ratio v)
-                        "ratio (unsupported)"))
-   :instants  (fn [v] (when (instance? java.time.Instant v)
-                        "java.time.Instant"))
-   :doubles   (fn [v] (when (or (instance? Double v)
-                                (instance? Float v))
-                        "double or float (unsupported)"))
-   :keywords  (fn [v] (when (instance? clojure.lang.Keyword v)
-                        "keyword value (projected away by :evidence-content)"))})
+   :sets (fn [v] (when (instance? clojure.lang.IPersistentSet v)
+                   "set (unsupported)"))
+   :ratios (fn [v] (when (instance? clojure.lang.Ratio v)
+                     "ratio (unsupported)"))
+   :instants (fn [v] (when (instance? java.time.Instant v)
+                       "java.time.Instant"))
+   :doubles (fn [v] (when (or (instance? Double v)
+                              (instance? Float v))
+                      "double or float (unsupported)"))
+   :keywords (fn [v] (when (instance? clojure.lang.Keyword v)
+                       "keyword value (projected away by :evidence-content)"))})
 
 (def ^:private exclude-root-checkers
   "Map from exclude category keywords to root-level checkers.
    Each predicate takes the ROOT value and returns a violation
    string or nil. These check structural properties."
-  {:evidence-hash  (fn [v] (when (and (map? v) (contains? v :evidence/hash))
-                             "root map contains :evidence/hash"))
-   :timestamp      (fn [v] (when (and (map? v) (contains? v :evidence/timestamp))
-                             "root map contains :evidence/timestamp"))
-   :timestamps     (fn [v] (when (and (map? v) (contains? v :evidence/timestamp))
-                             "root map contains :evidence/timestamp"))
-   :hash-fields    (fn [v]
-                     (when (and (map? v)
-                                (some self-hash-keys (keys v)))
-                       "map contains a self-hash key at root"))
+  {:evidence-hash (fn [v] (when (and (map? v) (contains? v :evidence/hash))
+                            "root map contains :evidence/hash"))
+   :timestamp (fn [v] (when (and (map? v) (contains? v :evidence/timestamp))
+                        "root map contains :evidence/timestamp"))
+   :timestamps (fn [v] (when (and (map? v) (contains? v :evidence/timestamp))
+                         "root map contains :evidence/timestamp"))
+   :hash-fields (fn [v]
+                  (when (and (map? v)
+                             (some self-hash-keys (keys v)))
+                    "map contains a self-hash key at root"))
    :chain-metadata (fn [v]
                      (when (and (map? v)
                                 (some #(re-find #"^evidence/chain-" (name %))
@@ -3599,8 +3608,8 @@ name (an alias)."
   ([a b {:keys [allow-cross-intent?] :or {allow-cross-intent? false}}]
    (let [a-intent (when (map? a) (:hash/intent a))
          b-intent (when (map? b) (:hash/intent b))
-         a-hex    (if (map? a) (:hash/hex a) a)
-         b-hex    (if (map? b) (:hash/hex b) b)]
+         a-hex (if (map? a) (:hash/hex a) a)
+         b-hex (if (map? b) (:hash/hex b) b)]
      (if (and a-intent b-intent (not= a-intent b-intent) (not allow-cross-intent?))
        false
        (= a-hex b-hex)))))

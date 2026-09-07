@@ -2,6 +2,13 @@
 
 ## [Unreleased]
 
+### Sequential replay frames
+
+- Added `replay-frame.v1` accepted-frame commitments for sequential transitions
+  with passed transition assurance. Frames chain canonical pre/post-state,
+  event, transition, basis, and assurance roots; deterministic-batch replay is
+  explicitly unsupported until it has a separate batch-commit contract.
+
 ### Application-owned benchmark selection
 
 - Added rooted `benchmark-manifest.v1` artifacts and application-owned default
@@ -16,6 +23,60 @@
 - Added rooted `research-observation-projection.v1` artifacts as the typed
   execution-to-research observation boundary. Research evaluation now consumes a
   verified projection rather than an unstructured raw observation map.
+- Added generic rooted `available-actions-observation.v1` construction and
+  `available-actions-acknowledgement.v1` binding. Protocol action semantics remain
+  application-owned; normalization, deterministic ordering, root verification,
+  and acknowledgement binding are framework-owned.
+- Counterfactual workbench action queries now return rooted observations bound to
+  the protocol state snapshot, preserving action availability for replay and audit
+  instead of exposing an unrooted action sequence.
+
+### Pro-rata invocation publication correspondence
+
+- Added `pro-rata-effect-compilation-semantics.v1` and opt-in V3 compilation /
+  binding V2 contracts. V3 resolves and root-validates the allocation, target-map,
+  and compiler-owned closed semantics body, then requires exact recompilation and
+  canonical-transition equality. Existing compilation V2 and binding V1 remain
+  available; receipt/output V2 no longer accept a V2 compilation as semantic
+  recalculation evidence.
+
+- Added opt-in effect-compilation binding v1 plus applied-effect-receipt v2 and
+  pro-rata-capability-output v2. Binding verification now requires a retained-body
+  resolver, reproduces a closed compilation profile exactly, and compares its
+  effects with the canonical transition; it fails closed without retained inputs.
+  Receipt/output binding-root equality at publication and V1 artifacts are unchanged.
+
+- Added `pro-rata-invocation-publication-binding.v1`, a closed, rooted contract
+  joining a use-case application invocation, executable distribution, and the
+  transaction ordering adopted by the economic publication head. The binding
+  verifies the pro-rata output adapter and realization chain; runtime scheduling
+   controls remain outside semantic identity.
+- Applied-effect-receipt V2 and pro-rata-capability-output V2 now require an
+  `effect-compilation-binding.v2` verification with a retained-body resolver.
+  V2 publication dispatches on the artifact schemas and persists/seals the
+  additional compilation bodies needed for deterministic historical semantic
+  recompilation after restart; V1 validation and publication remain unchanged.
+  This does not claim executable replay or runtime reconstruction.
+- Added the explicit `economic-publication-head.v2` application-bound CAS path.
+  It commits and retains only the exact invocation-publication binding root with
+  the successor head; V1 publication roots and legacy publication behavior are
+  unchanged.
+- Added an opt-in PostgreSQL authority store for application-bound economic
+  publications. It serializes each transaction-ordering conflict key on a
+  durable partition row and atomically retains the rooted ordering and binding
+  before advancing `economic-publication-head.v2`; exact retry is idempotent
+  across store instances. (`src/resolver_sim/pro_rata/postgres_publication_store.clj`,
+  `resources/db/migrations/0007__economic_publication_store.sql`)
+- Content-addressed artifacts now receive a persistent durable-install seal only
+  after the local filesystem CAS durability protocol completes. Sealed artifacts
+  can be independently resolved after restart; unsealed or corrupt objects fail
+  closed. This retention metadata does not alter semantic artifact roots or
+  publication authority. (`src/resolver_sim/io/content_addressed_store.clj`)
+- The durable application-bound pro-rata publication slice is now frozen at the
+  durable historical-inspection boundary: each partition/predecessor has at
+  most one authoritative successor, and committed publications retain a
+  restart-verifiable sealed artifact closure sufficient to reconstruct the
+  semantic authority chain. This does not claim historical executable replay.
 
 ### Sew reclaimed deferred-yield reconstruction
 
@@ -2351,3 +2412,10 @@ runtime mechanism selection or a mechanism registry.
   identity for a risk-admission request across fences, processes, and retries.
   The identity commits the expected predecessor, normalized requested effects,
   and exact risk projection without changing existing admission v1 roots.
+# Unreleased
+
+- Added state-addressed yield transition assurance, binding exact yield
+  before/after state, event identity, and the policy-before effective-policy root.
+- Added optional `TransitionAssurance` adapter capability and replay requirement
+  `:transition-assurance/v1`; required assurance now rejects unsupported or
+  failed candidate transitions before they become successful trace frames.

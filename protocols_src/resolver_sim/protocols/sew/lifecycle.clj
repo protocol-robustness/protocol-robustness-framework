@@ -31,7 +31,8 @@
             [resolver-sim.util.attributed-monad        :as am]
             [resolver-sim.util.state-monad             :as monad]
             [resolver-sim.time.context                 :as time-ctx]
-            [resolver-sim.evidence.capture            :as cap]))
+            [resolver-sim.evidence.capture            :as cap]
+            [resolver-sim.protocols.sew.related-claims :as rc]))
 
 ;; ---------------------------------------------------------------------------
 ;; Guard logging helper — returns (t/fail kw) with :guard-context attached
@@ -355,12 +356,18 @@
 
 (defn finalize-escrow-accounting
   "Shared finalize accounting for release/refund and resolution paths.
+  After finalization, archives any related-claims relationships whose members
+  are all terminal.
+
   Optional opts:
   - authorization-provenance — forwarded to finalize for force-authorised
     escrow settlement."
   [world workflow-id direction & {:keys [authorization-provenance]}]
-  (finalize world workflow-id direction
-            :authorization-provenance authorization-provenance))
+  (let [result (finalize world workflow-id direction
+                         :authorization-provenance authorization-provenance)]
+    (if (:ok result)
+      (update result :world rc/archive-stale-relationships)
+      result)))
 
 (defn apply-partial-fill-settlement
   "Apply a validated partial-fill decision and its corresponding Sew custody

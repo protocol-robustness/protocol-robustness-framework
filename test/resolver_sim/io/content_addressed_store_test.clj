@@ -38,6 +38,9 @@
 (defn- stored-bytes [backend hash]
   (slurp (store/artifact-path backend hash)))
 
+(defn- seal-path [backend hash]
+  (#'resolver-sim.io.content-addressed-store/seal-path backend hash))
+
 (defn- run-identical
   "Run n concurrent identical writers against backend and return {:results [...]}."
   [backend hash value n]
@@ -109,6 +112,32 @@
                                                 {:hash-reference hash
                                                  :artifact (assoc value :value :tampered)
                                                  :verify valid?})))))
+
+(deftest durable-install-seal-is-required-and-survives-restart
+  (let [backend (temp-store)
+        value (artifact :sealed)
+        hash (:artifact/hash value)
+        unsealed (store/put-if-absent! backend {:hash-reference hash
+                                                :artifact value
+                                                :verify valid?})
+        reopened (store/create-store (:root backend))]
+    (is (:crash-durable? unsealed))
+    (is (= value (store/resolve-durable-artifact reopened hash valid?)))
+    (Files/delete (.toPath (seal-path reopened hash)))
+    (is (nil? (store/resolve-durable-artifact reopened hash valid?)))
+    (is (= :durably-installed (:status (store/ensure-durable! reopened hash valid?))))
+    (is (= value (store/resolve-durable-artifact reopened hash valid?)))))
+
+(deftest durable-resolution-fails-closed-on-corrupt-artifact-or-seal
+  (let [backend (temp-store)
+        value (artifact :corrupt)
+        hash (:artifact/hash value)]
+    (put backend hash value)
+    (spit (store/artifact-path backend hash) "{:corrupt true}\n")
+    (is (nil? (store/resolve-durable-artifact backend hash valid?)))
+    (spit (store/artifact-path backend hash) (store/canonical-edn value))
+    (spit (seal-path backend hash) "{:durable-install/schema :wrong}\n")
+    (is (nil? (store/resolve-durable-artifact backend hash valid?)))))
 
 ;; ── 1. Idempotent content — identical ─────────────────────────────────
 

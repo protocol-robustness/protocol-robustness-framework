@@ -311,3 +311,27 @@
             (pos? (long level)) (assoc :level level)))]
     {:holds?     (empty? violations)
      :violations (vec violations)}))
+
+(defn evidence-provenance-verifiable?
+  "Soft invariant: when an evidence-chain registry is present on the world,
+   every submitted evidence hash should be verifiable. Unverifiable hashes
+   are reported as violations but do NOT block finalization (backward compatible
+   with scenarios that lack an evidence chain).
+
+   Holds vacuously when no registry is present."
+  [world]
+  (if-not (:evidence-chain/registry world)
+    {:holds? true :violations [] :note "no registry — vacuous hold"}
+    (let [verified (:evidence-provenance-verified world {})
+          violations
+          (for [[wf-id hashes] (:evidence-hashes world {})
+                :let [prov-map (get verified wf-id {})]
+                hash-val hashes
+                :let [status (get prov-map hash-val :unknown)]
+                :when (not= status :verified)]
+            {:workflow-id wf-id
+             :evidence-hash hash-val
+             :provenance-status status
+             :note "evidence hash not verified against registry"})]
+      {:holds?     (empty? violations)
+       :violations (vec violations)})))
