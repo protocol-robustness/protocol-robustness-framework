@@ -2,6 +2,30 @@
 
 ## [Unreleased]
 
+### Application-owned benchmark selection
+
+- Added rooted `benchmark-manifest.v1` artifacts and application-owned default
+  manifest selection. Explicit selections override the application setting; no
+  framework default is selected when neither is given.
+- Waterfall phase status now renders an application-supplied evaluated
+  requirement result rather than selecting `coverage-adequacy-pct` or an 80% threshold.
+- `benchmark-manifest.v1` may now declare an application-owned `:all-of`
+  outcome policy over selected scenario, claim, and research-requirement boolean
+  results. Missing declared inputs yield an indeterminate outcome rather than a
+  failed requirement; legacy manifests retain their scenario-metric outcome.
+- Added rooted `research-observation-projection.v1` artifacts as the typed
+  execution-to-research observation boundary. Research evaluation now consumes a
+  verified projection rather than an unstructured raw observation map.
+
+### Sew reclaimed deferred-yield reconstruction
+
+- Added an application-owned reconstruction contract for reclaimed deferred-yield
+  settlement. It independently derives the custody decrease, settlement-yield
+  claimable and legacy alias increases, settlement identity, attribution, and
+  successor state; equivalent net value with a different effect decomposition is
+  rejected. No receipt or generic PRF transition semantics changed.
+  (`protocols_src/resolver_sim/protocols/sew/reclaimed_reconstruction.clj`)
+
 ### Sew add-held reconstruction
 
 - Added `sew/held-add-reconstruction.v1`, an application-owned, historical-basis
