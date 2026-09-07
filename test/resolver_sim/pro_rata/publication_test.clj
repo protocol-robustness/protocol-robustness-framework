@@ -161,6 +161,23 @@
                  (sut/build-publication-ordering
                   (pub-input {:canonical other :receipt receipt :realization other-realization}))))))
 
+(deftest rejects-v2-receipt-output-binding-substitution
+  (let [{:keys [canonical realization]} (valid-application)
+        receipt-base {:schema-version "applied-effect-receipt.v2"
+                      :effect-compilation-binding/root (root "E1")
+                      :state-before/root (:state-before/root canonical)
+                      :state-after/root (:state-after/root canonical)
+                      :protocol-effect-set/root (:effects/root canonical)
+                      :executed-effect-set/root (:effects/root canonical)}
+        receipt (assoc receipt-base :applied-effect-receipt/root
+                       (hc/domain-hash :applied-effect-receipt receipt-base))
+        output {:pro-rata-output/schema "pro-rata-capability-output.v2"
+                :effect-compilation-binding/root (root "E2")}
+        violations (sut/conservation-violations receipt realization canonical
+                                                {} {} output (fn [_] nil))]
+    (is (some #(= :publication/binding-root-mismatch (:violation/id %)) violations)
+        "individually named but different receipt/output bases cannot conserve")))
+
 ;; ── authoritative publication vs weaker states ────────────────────────────
 
 (deftest floating-receipt-is-not-authoritative
