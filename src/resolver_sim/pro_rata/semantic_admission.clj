@@ -26,7 +26,19 @@
     :schema-version :artifact/kind :decision/source :position/id
     :module/id :token :decision/id :decision/hash :decision/preimage
     :decision/canonical-bytes :decision/canonical-hash
-    :allocation/scope :allocation/domain})
+    :allocation/scope :allocation/domain
+    ;; Provenance / allocation metadata from withdraw-shared decision artifacts
+    :participants
+    :allocation/effective-caps :allocation/effective-cap-source
+    :allocation/ordering :allocation/rounding-tie-break
+    :allocation/priority-witness :allocation/invocation-context
+    ;; Residual disposition
+    :residual/destination :residual/policy-root
+    ;; Liquidity budget provenance
+    :liquidity/schema-version :liquidity/source-custody
+    :liquidity/available-ratio :liquidity/available
+    :liquidity/evaluation-context
+    :liquidity/source-state-root :liquidity/market-state-root})
 
 (defn- unsupported-reason
   [{:keys [policy rows]}]
