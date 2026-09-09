@@ -75,6 +75,7 @@
    :verify-run 'resolver-sim.commands.verify-run/run
    :assure-package 'resolver-sim.commands.assure-package/run
    :ref-file 'resolver-sim.commands.ref-file/run
+   :publication-trace 'resolver-sim.commands.publication/trace-run
    :sentinel-check 'resolver-sim.commands.sentinel/run
    :publish-check 'resolver-sim.commands.publish/run
    :resubmission-issue 'resolver-sim.commands.resubmission-issue/run
@@ -201,7 +202,12 @@
    [nil "--input PATH" "Allocation: input JSON file; use '-' for stdin"]
    [nil "--member-key N" "Researcher: integer review-member/key for identity resolution"]
    [nil "--dissent-reason STR" "Researcher disagree: reason for dissent"]
-   [nil "--outcome-root REF" "Researcher approve: outcome root sha256 ref (enables v2 signing)"]])
+   [nil "--outcome-root REF" "Researcher approve: outcome root sha256 ref (enables v2 signing)"]
+   [nil "--head-root REF" "Publication trace: publication head root (CAS-only)"]
+   [nil "--ordering-root REF" "Publication trace: ordering root (CAS-only)"]
+   [nil "--partition REF" "Publication trace: partition identifier (requires PostgreSQL)"]
+   [nil "--cas-dir DIR" "CAS directory for publication trace (default: PRF_CAS_DIR)"]
+   [nil "--database-url URL" "JDBC URL for PostgreSQL (default: DATABASE_URL)"]])
 
 ;; ---------------------------------------------------------------------------
 ;; Command path resolution

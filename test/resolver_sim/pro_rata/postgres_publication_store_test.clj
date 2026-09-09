@@ -127,11 +127,15 @@
         conflict-key (:transaction/conflict-key ordering)]
     (pg/publish-application-bound! store ordering binding resolved 0)
     (let [result (pg/resolve-authoritative-publication store conflict-key)]
-      (is (= :committed (:authority/status result)))
-      (is (= :verified (:correspondence/status result)))
-      (is (= :not-applicable (:semantic-recompilation/status result)))
-      (is (= :complete (:reachability/status result)))
-      (is (empty? (:reachability/missing-roots result))))))
+      (is (= :committed (get-in result [:authority :status])))
+      (is (nil? (get-in result [:authority :reason])))
+      (is (= :verified (get-in result [:correspondence :status])))
+      (is (nil? (get-in result [:correspondence :reason])))
+      (is (= :not-applicable (get-in result [:semantic-recompilation :status])))
+      (is (nil? (get-in result [:semantic-recompilation :reason])))
+      (is (= :complete (get-in result [:reachability :status])))
+      (is (nil? (get-in result [:reachability :reason])))
+      (is (empty? (get-in result [:reachability :missing-roots]))))))
 
 (deftest resolve-authoritative-publication-retains-authority-when-artifacts-are-unavailable
   (let [{:keys [resolved binding ordering resolver]} (prepared)
@@ -140,11 +144,14 @@
         conflict-key (:transaction/conflict-key ordering)]
     (pg/publish-application-bound! store ordering binding resolved 0)
     (let [result (pg/resolve-authoritative-publication unavailable-store conflict-key)]
-      (is (= :committed (:authority/status result)))
-      (is (= :unverified (:correspondence/status result)))
-      (is (= :not-applicable (:semantic-recompilation/status result)))
-      (is (= :incomplete (:reachability/status result)))
-      (is (seq (:reachability/missing-roots result))))))
+      (is (= :committed (get-in result [:authority :status])))
+      (is (nil? (get-in result [:authority :reason])))
+      (is (= :unverified (get-in result [:correspondence :status])))
+      (is (= :missing (get-in result [:correspondence :reason])))
+      (is (= :not-applicable (get-in result [:semantic-recompilation :status])))
+      (is (= :incomplete (get-in result [:reachability :status])))
+      (is (= :missing (get-in result [:reachability :reason])))
+      (is (seq (get-in result [:reachability :missing-roots]))))))
 
 (deftest stale-predecessor-does-not-advance-publication
   (let [{:keys [resolved binding ordering resolver]} (prepared)

@@ -97,7 +97,7 @@
                    :ledger-after-root (:ledger-after/root roots)})]
     {:world world' :adjustments adjustments :receipt receipt}))
 
-(defn apply-effects-to-world
+(defn- apply-effects-to-world
   "Apply a vector of protocol effects to `world` via accounting/add-held.
    Returns the resulting world-state map. Pure: does not mutate anything."
   [world protocol-effects]

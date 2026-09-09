@@ -178,9 +178,9 @@
 (defn validate-aggregate-target-map
   "Validate exact row coverage and the aggregate quantity identity without
    weakening v1 cardinality or native-location injectivity."
-   [{:keys [allocation target-map allocation-scope-root aggregate-custody-scope-root
-            adapter-descriptor-root native-state-before-root native-location-map
-            aggregate-quantity expected-identity] :as input}]
+  [{:keys [allocation target-map allocation-scope-root aggregate-custody-scope-root
+           adapter-descriptor-root native-state-before-root native-location-map
+           aggregate-quantity expected-identity] :as input}]
   (when-not (and (= aggregate-target-map-schema (:schema-version target-map))
                  (= (:target-map/root target-map) (aggregate-target-map-root target-map))
                  (= location-map-schema (:schema-version native-location-map))
@@ -190,19 +190,22 @@
     (throw (ex-info "invalid aggregate target-map validation inputs" {:input input})))
   (let [rows (set (map :row/id (:rows allocation)))
         subjects (set (map :allocation/subject-id (:targets target-map)))
-        quantity-root (:quantity/root aggregate-quantity)]
-    (when-not (and (= rows subjects)
-                   (quantity/valid-identity? aggregate-quantity)
-                   (= many-to-one-profile (:mapping/profile expected-identity))
-                   (= allocation-scope-root (:allocation-scope/root target-map))
-                   (= aggregate-custody-scope-root (:aggregate-custody-scope/root target-map))
-                   (= adapter-descriptor-root (:adapter/descriptor-root native-location-map))
-                   (= #{quantity-root} (set (map :quantity/root (:targets target-map))))
-                   (= #{quantity-root} (set (map :quantity/root (:locations native-location-map))))
-                   (every? #(= (get aggregate-quantity %) (get expected-identity %))
-                           [:protocol-instance/root :state-domain/root :subject/root
-                            :quantity-kind :asset/root :scope/root]))
-      (throw (ex-info "aggregate target-map validation mismatch" {})))
+        quantity-root (:quantity/root aggregate-quantity)
+        checks {:row-subject-coverage (= rows subjects)
+                :quantity-identity (quantity/valid-identity? aggregate-quantity)
+                :mapping-profile (= many-to-one-profile (:mapping/profile expected-identity))
+                :allocation-scope (= allocation-scope-root (:allocation-scope/root target-map))
+                :custody-scope (= aggregate-custody-scope-root (:aggregate-custody-scope/root target-map))
+                :adapter-descriptor (= adapter-descriptor-root (:adapter/descriptor-root native-location-map))
+                :target-quantity (= #{quantity-root} (set (map :quantity/root (:targets target-map))))
+                :location-quantity (= #{quantity-root} (set (map :quantity/root (:locations native-location-map))))
+                :quantity-identity-fields
+                (every? #(= (get aggregate-quantity %) (get expected-identity %))
+                        [:protocol-instance/root :state-domain/root :subject/root
+                         :quantity-kind :asset/root :scope/root])}]
+    (when-not (every? true? (vals checks))
+      (throw (ex-info "aggregate target-map validation mismatch"
+                      {:failed (vec (for [[key valid?] checks :when (not valid?)] key))})))
     (let [base {:schema-version aggregate-validation-schema
                 :target-map/root (:target-map/root target-map)
                 :realized-allocation/root (:allocation/hash allocation)

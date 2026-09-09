@@ -5,9 +5,9 @@
    Every consumer of claim definitions MUST resolve through this namespace so a
    single selection boundary applies everywhere:
 
-     explicit CLI path → PRF_BENCHMARKS_CLAIM_REGISTRY → repository default
+      explicit CLI path → PRF_BENCHMARKS_CLAIM_REGISTRY
 
-   The selected registry is validated fail-closed: a missing file, malformed
+    The selected registry is validated fail-closed: a missing path, missing file, malformed
    EDN, unsupported schema version, duplicate claim IDs, missing required keys,
    or an :claim/evaluator that has no compiled evaluator all make the registry
    unrunnable.  There is deliberately NO fallback to the built-in registry when
@@ -41,19 +41,18 @@
 
 (defn claim-registry-path
   "Resolve the claim registry path with precedence:
-   explicit CLI path → PRF_BENCHMARKS_CLAIM_REGISTRY → repository default.
-   Returns a path string; nil when no explicit path was given (callers falling
-   back to the default should use default-claim-registry-path)."
+    explicit CLI path → PRF_BENCHMARKS_CLAIM_REGISTRY.
+    Returns nil when no application-owned path was supplied."
   ([]
    (claim-registry-path nil))
   ([cli-path]
    (or (when (and (string? cli-path) (seq cli-path)) cli-path)
        (when-let [env (env-var "PRF_BENCHMARKS_CLAIM_REGISTRY")]
          (when (seq env) env))
-       hash-ref/claim-registry-path)))
+        nil)))
 
 (defn claim-registry-source
-  "Which boundary selected the registry: :cli | :environment | :default."
+   "Which boundary selected the registry: :cli | :environment | nil."
   ([]
    (claim-registry-source nil))
   ([cli-path]
@@ -61,12 +60,7 @@
      (and (string? cli-path) (seq cli-path)) :cli
      (and (env-var "PRF_BENCHMARKS_CLAIM_REGISTRY")
           (seq (env-var "PRF_BENCHMARKS_CLAIM_REGISTRY"))) :environment
-     :else :default)))
-
-(defn default-claim-registry-path
-  "The repository default claim registry path (benchmarks/claim-registry.edn)."
-  []
-  hash-ref/claim-registry-path)
+      :else nil)))
 
 (defn registry-file-sha256
   "Compute a canonical sha256 ref for the selected registry file, whether it
@@ -178,8 +172,8 @@
 (defn load-claim-registry
   "Resolve, load, and fail-closed validate the claim registry.
 
-   Returns {:claim-registry/path str
-            :claim-registry/source :cli|:environment|:default
+    Returns {:claim-registry/path str
+             :claim-registry/source :cli|:environment
             :claim-registry/version int
             :claim-registry/data <raw-document-map>
             :claims [entry ...]
@@ -191,10 +185,10 @@
   ([]
    (load-claim-registry nil))
   ([cli-path]
-   (let [path (claim-registry-path cli-path)
-         source (claim-registry-source cli-path)
-         external? (contains? #{:cli :environment} source)]
-     (when-not (rp/path-exists? path)
+    (let [path (claim-registry-path cli-path)
+          source (claim-registry-source cli-path)
+          external? (contains? #{:cli :environment} source)]
+      (when-not (and path (rp/path-exists? path))
        (throw (ex-info "Claim registry not found"
                        {:kind :missing-file
                         :claim-registry/path path

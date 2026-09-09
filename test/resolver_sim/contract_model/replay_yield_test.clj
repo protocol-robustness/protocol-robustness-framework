@@ -132,11 +132,24 @@
         anchors {:expected/state-before-root (:state-before/root first-frame)
                  :expected/head-frame-root (:frame/root second-frame)
                  :expected/final-state-root (:state-after/root second-frame)}
-        invalid-stream (assoc-in stream [:frames 1 :state-before/root] "wrong")]
+        invalid-stream (assoc-in stream [:frames 1 :state-before/root] "wrong")
+        root-tampered (assoc-in stream [:frames 0 :frame/root] "wrong")
+        index-tampered (assoc-in stream [:frames 1 :frame/index] 2)
+        predecessor-tampered (assoc-in stream [:frames 1 :frame/previous-root] "wrong")
+        rejected (assoc result :trace (conj (:trace result) {:result :rejected}))]
     (is (:valid? (frames/validate-frame-lineage stream anchors)))
     (is (some #(= :frame/head-root-mismatch (:reason %))
               (:violations (frames/validate-frame-lineage stream
                                                           (assoc anchors :expected/head-frame-root "wrong")))))
+    (is (some #(= :frame/root-mismatch (:reason %))
+              (:violations (frames/validate-frame-lineage root-tampered))))
+    (is (some #(= :frame/non-contiguous-index (:reason %))
+              (:violations (frames/validate-frame-lineage index-tampered))))
+    (is (some #(= :frame/previous-root-mismatch (:reason %))
+              (:violations (frames/validate-frame-lineage predecessor-tampered))))
+    (is (some #(= :frame/state-lineage-mismatch (:reason %))
+              (:violations (frames/validate-frame-lineage invalid-stream))))
+    (is (= (:frames stream) (:frames (frames/accepted-frames rejected))))
     (is (= :invalid-lineage (:status (frames/first-frame-matching invalid-stream (constantly true)))))
     (is (= first-frame (:frame (frames/first-frame-matching stream #(zero? (:frame/index %))))))
     (is (= [second-frame] (:frames (frames/frames-matching stream #(= 1 (:frame/index %))))))

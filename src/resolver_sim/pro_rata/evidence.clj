@@ -102,8 +102,13 @@
       (when-not (= (:mechanism artifact) (:mechanism result))
         [{:reason :pro-rata/mechanism-evidence-mechanism-mismatch
           :expected (:mechanism result) :observed (:mechanism artifact)}])
-      (invariants/result-violations result)
-      (reconstruction-violations result)))))
+       (invariants/result-violations result)
+       (reconstruction-violations result)))))
+
+(defn evidence-valid?
+  "True when a complete mechanism evidence envelope is self-consistent."
+  [artifact]
+  (empty? (evidence-violations artifact)))
 
 ;; ── Proposed effect plan ───────────────────────────────────────────────────
 

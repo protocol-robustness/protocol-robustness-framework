@@ -33,7 +33,8 @@
                (set (keys body)))
     (reject! :invalid-body-shape {:keys (set (keys body))})))
 
-(defn- derive-rows [ctx decision]
+(defn- derive-rows
+  [ctx decision]
   (let [requested (:requested decision)
         filled (:filled decision)
         deferred (:deferred decision)
@@ -44,20 +45,23 @@
                    (= claimant-set (set (keys requested)) (set (keys filled))))
       (reject! :claim-set-mismatch {:claimants claimant-set
                                     :requested (set (keys requested))
-                                    :filled (set (keys filled))})
-      (when-not (and (every? zero? (vals deferred)) (every? zero? (vals haircut)))
-        (reject! :not-all-active {:deferred deferred :haircut haircut}))
-      (mapv (fn [{:keys [claim/id amount weight]}]
-              (let [requested-amount (get requested id)
-                    filled-amount (get filled id)]
-                (when-not (= amount requested-amount filled-amount)
-                  (reject! :not-full-fill {:claim/id id :context-amount amount
-                                           :requested requested-amount :filled filled-amount}))
-                {:row/id id
-                 :obligation/id id
-                 :requested (exact-positive! :requested requested-amount)
-                 :weight (exact-positive! :weight weight)}))
-            (:claimants ctx)))))
+                                    :filled (set (keys filled))}))
+    (when-not (and (every? zero? (vals deferred))
+                   (every? zero? (vals haircut)))
+      (reject! :not-all-active {:deferred deferred :haircut haircut}))
+    (mapv (fn [{:keys [claim/id amount weight]}]
+            (let [requested-amount (get requested id)
+                  filled-amount (get filled id)]
+              (when-not (= amount requested-amount filled-amount)
+                (reject! :not-full-fill {:claim/id id
+                                         :context-amount amount
+                                         :requested requested-amount
+                                         :filled filled-amount}))
+              {:row/id id
+               :obligation/id id
+               :requested (exact-positive! :requested requested-amount)
+               :weight (exact-positive! :weight weight)}))
+          (:claimants ctx))))
 
 (defn- derive-allocation [ctx decision statement-body]
   (let [rows (derive-rows ctx decision)
@@ -75,6 +79,17 @@
       (reject! :allocation-replay-mismatch {:allocation result}))
     result))
 
+(defn- aggregate-row-coverage
+  "Diagnostic-only projection of the exact bridge-to-validator row boundary."
+  [allocation aggregate-target-map]
+  {:allocation-root (:allocation/hash allocation)
+   :allocation-row-count (count (:rows allocation))
+   :allocation-row-ids (mapv :row/id (:rows allocation))
+   :allocation-row-id-set (set (map :row/id (:rows allocation)))
+   :target-count (count (:targets aggregate-target-map))
+   :target-subject-ids (mapv :allocation/subject-id (:targets aggregate-target-map))
+   :target-subject-id-set (set (map :allocation/subject-id (:targets aggregate-target-map)))})
+
 (defn- verify-target-artifacts!
   [{:keys [allocation aggregate-quantity aggregate-target-map native-location-map
            adapter-descriptor target-map-validation]}]
@@ -88,22 +103,7 @@
     (reject! :invalid-target-artifact-root {}))
   ;; Re-run the existing closed aggregate validator from persisted bodies. This
   ;; checks row coverage, one aggregate quantity, scopes, descriptor, and asset.
-  (let [revalidated (target-map/validate-aggregate-target-map
-                     {:allocation allocation
-                      :target-map aggregate-target-map
-                      :allocation-scope-root (:allocation-scope/root target-map-validation)
-                      :aggregate-custody-scope-root (:aggregate-custody-scope/root target-map-validation)
-                      :adapter-descriptor-root (:adapter/descriptor-root adapter-descriptor)
-                      :native-state-before-root (:native-state-before/root target-map-validation)
-                      :native-location-map native-location-map
-                      :aggregate-quantity aggregate-quantity
-                      :expected-identity (assoc (select-keys aggregate-quantity
-                                                 [:protocol-instance/root :state-domain/root
-                                                  :subject/root :quantity-kind :asset/root :scope/root])
-                                                 :mapping/profile target-map/many-to-one-profile)})]
-    (when-not (= target-map-validation revalidated)
-      (reject! :target-validation-mismatch {}))
-    revalidated))
+  (let [revalidated (try (target-map/validate-aggregate-target-map {:allocation allocation :target-map aggregate-target-map :allocation-scope-root (:allocation-scope/root target-map-validation) :aggregate-custody-scope-root (:aggregate-custody-scope/root target-map-validation) :adapter-descriptor-root (:adapter/descriptor-root adapter-descriptor) :native-state-before-root (:native-state-before/root target-map-validation) :native-location-map native-location-map :aggregate-quantity aggregate-quantity :expected-identity (assoc (select-keys aggregate-quantity [:protocol-instance/root :state-domain/root :subject/root :quantity-kind :asset/root :scope/root]) :mapping/profile target-map/many-to-one-profile)}) (catch clojure.lang.ExceptionInfo error (throw (ex-info "aggregate target-map validation failed at bridge boundary" (merge (ex-data error) {:coverage (aggregate-row-coverage allocation aggregate-target-map) :allocation-root (:allocation/hash allocation)})))))] (when-not (= target-map-validation revalidated) (reject! :target-validation-mismatch {:coverage (aggregate-row-coverage allocation aggregate-target-map) :allocation-root (:allocation/hash allocation)})) revalidated))
 
 (defn bridge-root [bridge]
   (hc/hash-with-intent

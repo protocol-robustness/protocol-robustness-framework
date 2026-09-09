@@ -1,7 +1,7 @@
 (ns resolver-sim.benchmark.claim-registry-test
   "Tests for the single claim-registry resolution boundary.
 
-   Covers path precedence (CLI > env > default), source detection, fail-closed
+   Covers explicit path source detection, fail-closed
    validation of external registries, and the security property that an external
    registry can select a compiled evaluator but cannot invent evaluator code."
   (:require [clojure.java.io :as io]
@@ -34,35 +34,19 @@
    :claim/property-types #{:integrity}
    :claim/evaluator evaluator})
 
-;; ── Path precedence & source detection ──────────────────────────────────────
-
-(deftest cli-path-takes-precedence-over-env-and-default
-  (testing "an explicit CLI path wins over env and default"
-    (let [cli "/tmp/auditor-claims.edn"]
-      (is (= cli (cr/claim-registry-path cli)))
-      (is (= :cli (cr/claim-registry-source cli))))))
-
 (defn- with-registry-env
   [value f]
   (with-redefs [cr/env-var (fn [k] (if (= k "PRF_BENCHMARKS_CLAIM_REGISTRY") value nil))]
     (f)))
 
-(deftest env-path-used-when-no-cli-path
-  (testing "PRF_BENCHMARKS_CLAIM_REGISTRY is used only when no CLI path is given"
+(deftest explicit-path-source-is-preserved
+  (testing "PRF_BENCHMARKS_CLAIM_REGISTRY supplies an application-owned path"
     (with-registry-env "/tmp/env-claims.edn"
       (fn []
         (is (= "/tmp/env-claims.edn" (cr/claim-registry-path nil)))
         (is (= :environment (cr/claim-registry-source nil)))
-        ;; CLI still wins over env
         (is (= "/tmp/cli.edn" (cr/claim-registry-path "/tmp/cli.edn")))
         (is (= :cli (cr/claim-registry-source "/tmp/cli.edn")))))))
-
-(deftest default-path-is-repository-registry
-  (testing "no CLI path and no env falls back to the repository default"
-    (with-registry-env nil
-      (fn []
-        (is (= "benchmarks/claim-registry.edn" (cr/claim-registry-path nil)))
-        (is (= :default (cr/claim-registry-source nil)))))))
 
 ;; ── Fail-closed loading ─────────────────────────────────────────────────────
 
@@ -128,17 +112,6 @@
                 (catch clojure.lang.ExceptionInfo e e))]
     (is (some? ex))
     (is (some #(= :missing-required-key (:kind %)) (:errors (ex-data ex))))))
-
-;; ── Default registry retains known-gap semantics ────────────────────────────
-
-(deftest default-registry-loads-with-known-gaps
-  (testing "the repository default registry may declare claims whose evaluators
-            are not yet compiled (known gaps surfaced by coverage) — loading the
-            DEFAULT registry does not fail on those"
-    (let [loaded (cr/load-claim-registry nil)]
-      (is (= :default (:claim-registry/source loaded)))
-      (is (pos? (count (:claims loaded))))
-      (is (contains? loaded :claim-map)))))
 
 (deftest validate-allows-known-gaps-when-not-fatal
   (let [data (read-string (valid-registry

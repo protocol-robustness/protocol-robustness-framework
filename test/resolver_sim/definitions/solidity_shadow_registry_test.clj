@@ -21,7 +21,33 @@
 (deftest registry-has-entries
   (testing "solidity-shadow-registry has entries"
     (is (seq sr/solidity-shadow-entries))
-    (is (pos? (count sr/solidity-shadow-entries)))))
+     (is (pos? (count sr/solidity-shadow-entries)))))
+
+(deftest semantic-coverage-table-is-closed-and-machine-readable
+  (testing "semantic coverage rows use the precise status/reason vocabulary"
+    (is (= #{:semantic/solidity-coverage-absent
+             :semantic/proof-verified-full-coverage}
+           sr/semantic-coverage-statuses))
+    (is (= #{:reason/solidity-coverage-absent
+             :reason/proof-verified-full-coverage}
+           sr/semantic-coverage-reasons))
+    (is (every? sr/valid-semantic-coverage-row?
+                sr/semantic-coverage-table))
+    (is (= :semantic/solidity-coverage-absent
+           (:semantic/status (sr/semantic-coverage
+                              :solidity-shadow/semantic-coverage))))
+    (is (= :semantic/proof-verified-full-coverage
+           (:semantic/status (sr/semantic-coverage :pro-rata/allocation))))))
+
+(deftest semantic-coverage-rejects-status-reason-mismatch
+  (testing "status and reason cannot be mixed or represented by flags alone"
+    (is (not (sr/valid-semantic-coverage-row?
+              {:semantic/id :test
+               :semantic/status :semantic/solidity-coverage-absent
+               :semantic/reason :reason/proof-verified-full-coverage
+               :semantic/solidity-covered? false
+               :semantic/proof-verified? false})))
+    (is (nil? (sr/semantic-coverage :unknown)))))
 
 (deftest all-entries-valid
   (testing "each entry conforms to the expected schema"

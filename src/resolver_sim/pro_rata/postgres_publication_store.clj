@@ -13,6 +13,7 @@
             [resolver-sim.pro-rata.invocation-publication-binding :as binding]
             [resolver-sim.pro-rata.publication :as publication]
             [resolver-sim.transaction.ordering :as ordering]
+            [resolver-sim.pro-rata.read-model :as read-model]
             [resolver-sim.extensions.manifest :as manifest]))
 
 (def ^:private partition-table "prf_economic_publication_partition")
@@ -213,6 +214,17 @@
         head (some-> row :head_edn decode)]
     (when (and head (head-valid? head) (= (:publication/head-root head) (:head_root row))) head)))
 
+(defn current-head-by-partition-id
+  "Look up the authoritative publication head directly by partition id
+   (a sha256 ref string). Unlike current-head, this does not re-derive the
+   partition id from a conflict-key vector."
+  [store partition-id]
+  (let [row (jdbc/execute-one! (.datasource store)
+                               [(str "SELECT head_edn, head_root FROM " partition-table
+                                     " WHERE partition_id = ?") partition-id] (row-opts))
+        head (some-> row :head_edn decode)]
+    (when (and head (head-valid? head) (= (:publication/head-root head) (:head_root row))) head)))
+
 (defn resolve-ordering [store ordering-root]
   (let [ordering (some-> (jdbc/execute-one! (.datasource store)
                                             [(str "SELECT ordering_edn FROM " ordering-table
@@ -237,6 +249,60 @@
                    (= (:transaction-ordering/hash ordering) (:publication-ordering/root binding)))
           {:publication/head head :publication/binding binding :publication/ordering ordering})))))
 
+;; ── Reason-tracking resolution helpers ─────────────────────────────────────
+;; Distinguish :missing (row absent) from :corrupt (row exists, verification fails)
+
+(defn- row-exists?
+  "Check whether a row exists in `table` at the given `column` = `root`."
+  [store column table root]
+  (some? (jdbc/execute-one! (.datasource store)
+                            [(str "SELECT 1 FROM " table " WHERE " column " = ?") root]
+                            (row-opts))))
+
+(defn- head-exists? [store conflict-key]
+  (let [id (partition-id conflict-key)]
+    (row-exists? store "partition_id" partition-table id)))
+
+(defn- binding-exists? [store binding-root]
+  (row-exists? store "binding_root" binding-table binding-root))
+
+(defn- ordering-exists? [store ordering-root]
+  (row-exists? store "ordering_hash" ordering-table ordering-root))
+
+(defn- resolve-head
+  "Resolve the publication head, returning {:artifact body :reason nil-or-keyword}."
+  [store conflict-key]
+  (let [head (try (current-head store conflict-key) (catch Exception _ nil))]
+    (if head
+      {:artifact head :reason nil}
+      (if (head-exists? store conflict-key)
+        {:artifact nil :reason :corrupt}
+        {:artifact nil :reason :missing}))))
+
+(defn- resolve-head-binding
+  "Resolve the publication binding, returning {:artifact body :reason nil-or-keyword}."
+  [store binding-root]
+  (if (nil? binding-root)
+    {:artifact nil :reason :missing}
+    (let [binding (try (resolve-binding store binding-root) (catch Exception _ nil))]
+      (if binding
+        {:artifact binding :reason nil}
+        (if (binding-exists? store binding-root)
+          {:artifact nil :reason :corrupt}
+          {:artifact nil :reason :missing})))))
+
+(defn- resolve-head-ordering
+  "Resolve the publication ordering, returning {:artifact body :reason nil-or-keyword}."
+  [store ordering-root]
+  (if (nil? ordering-root)
+    {:artifact nil :reason :missing}
+    (let [ordering (try (resolve-ordering store ordering-root) (catch Exception _ nil))]
+      (if ordering
+        {:artifact ordering :reason nil}
+        (if (ordering-exists? store ordering-root)
+          {:artifact nil :reason :corrupt}
+          {:artifact nil :reason :missing})))))
+
 (defn resolve-authoritative-publication
   "Read-only diagnostic resolution of the committed H -> B -> O authority.
    Retained-body availability and semantic recompilation are reported separately,
@@ -247,19 +313,22 @@
                          (try
                            (resolver root)
                            (catch Exception _ nil))))
-        head (try (current-head store conflict-key)
-                  (catch Exception _ nil))
-        binding (when head
-                  (try (resolve-binding store (:publication/application-binding-root head))
-                       (catch Exception _ nil)))
-        ordering (when binding
-                   (try (resolve-ordering store (:publication/last-ordering-root head))
-                        (catch Exception _ nil)))
+        head-result (resolve-head store conflict-key)
+        head (:artifact head-result)
+        binding-result (when head
+                         (resolve-head-binding store (:publication/application-binding-root head)))
+        binding (:artifact binding-result)
+        ordering-result (when binding
+                          (resolve-head-ordering store (:publication/last-ordering-root head)))
+        ordering (:artifact ordering-result)
         authoritative? (and head binding ordering
                             (= (:publication/last-ordering-root head)
                                (:publication-ordering/root binding))
                             (= (:transaction-ordering/hash ordering)
                                (:publication-ordering/root binding)))
+        head-reason (:reason head-result)
+        binding-reason (:reason binding-result)
+        ordering-reason (:reason ordering-result)
         resolver (.resolve-durable-artifact store)
         roots (when binding
                 {:use-case-application (:application/root binding)
@@ -306,14 +375,21 @@
                           (not reachable?) :unavailable
                           correspondence? :verified
                           :else :invalid)]
-    {:publication/head head
-     :publication/binding binding
-     :publication/ordering ordering
-     :authority/status (if authoritative? :committed :unavailable)
-     :correspondence/status (if correspondence? :verified :unverified)
-     :semantic-recompilation/status semantic-status
-     :reachability/status (if reachable? :complete :incomplete)
-     :reachability/missing-roots missing-roots}))
+    (read-model/diagnostic-result
+     {:head head
+      :binding binding
+      :ordering ordering
+      :head-reason head-reason
+      :binding-reason binding-reason
+      :ordering-reason ordering-reason
+      :authoritative? authoritative?
+      :correspondence? correspondence?
+      :reachable? reachable?
+      :semantic-status semantic-status
+      :missing-roots missing-roots
+      :roots roots
+      :v2? v2?
+      :v2-compilation-root (:compilation v2-bodies)})))
 
 (defn publish-application-bound!
   "Durably retain B and O and then advance the conflict-key partition head.

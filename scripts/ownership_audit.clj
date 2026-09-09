@@ -21,8 +21,7 @@
     --report     print a per-file classification report; never fails.
     --rootzones  print the finer-grained rootzone split for the two rootzone
                  registry files; informational.
-    --manifest PATH   explicit manifest path (default config/architecture/
-                 content-authority.edn).
+     --manifest PATH   explicit manifest path.
 
   Error classes (all fail in --check):
     - a file inside :governed-roots with no matching rule (unclassified)
@@ -45,7 +44,6 @@
 
 ;; ── config / defaults ────────────────────────────────────────────────────────
 
-(def default-manifest "config/architecture/content-authority.edn")
 (def ^:private root-dir (System/getProperty "user.dir"))
 
 (defn split-path [p]
@@ -337,7 +335,6 @@
 ;; ── entrypoints ─────────────────────────────────────────────────────────────
 
 (defn load-manifest
-  ([] (load-manifest default-manifest))
   ([path]
    (when-not (.exists (io/file path))
      (throw (ex-info (str "content-authority manifest not found: " path)
@@ -366,9 +363,8 @@
 
 (defn -main [& args]
   (let [argset (set args)
-        manifest-path (or (second (first (filter #(= "--manifest" (first %))
-                                                 (partition 2 1 args))))
-                          default-manifest)
+         manifest-path (second (first (filter #(= "--manifest" (first %))
+                                              (partition 2 1 args))))
         manifest (try
                    (load-manifest manifest-path)
                    (catch Exception e

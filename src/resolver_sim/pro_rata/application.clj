@@ -2,6 +2,8 @@
   "Exact authorization and full-application receipts for refined pro-rata effects."
   (:require [resolver-sim.hash.canonical :as hc]
             [resolver-sim.economics.effects :as effects]
+            [resolver-sim.pro-rata.allocation :as allocation]
+            [resolver-sim.pro-rata.evidence :as evidence]
             [resolver-sim.pro-rata.effect-compilation-binding-v2 :as compilation-binding]))
 
 (def authorization-schema "authorized-effect-execution.v1")
@@ -151,4 +153,29 @@
             :canonical-transition/root (:canonical-effect-transition/root canonical-transition)
             :effect-compilation-binding/root (:effect-compilation-binding/root receipt)}
            compilation canonical-transition resolve-body))
-     false)))
+      false)))
+
+(defn protected-lineage
+  "Return the verified lineage from an allocation/evidence witness to protected
+   application state. This is a read-only projection; state can only be changed
+   through the Sew application boundary and authoritative publication."
+  [{:keys [allocation proposal evidence receipt]}]
+  (when-not (and allocation
+                 proposal
+                 evidence
+                 receipt
+                 (allocation/allocation-hash-valid? allocation)
+                 (evidence/evidence-valid? evidence)
+                 (evidence/proposed-effects-valid? allocation proposal)
+                 (receipt-valid? receipt)
+                 (= (:allocation/hash allocation) (:allocation/hash proposal))
+                 (= (:allocation/hash allocation)
+                    (:mechanism/result-hash evidence)))
+    (throw (ex-info "invalid protected pro-rata lineage" {})))
+  {:allocation {:root (:allocation/hash allocation)
+                :evidence-root (:evidence/hash evidence)}
+   :effects {:root (:proposed-effects/root proposal)
+             :allocation-root (:allocation/hash proposal)}
+   :protected-state {:before-root (:state-before/root receipt)
+                     :after-root (:state-after/root receipt)
+                     :receipt-root (:applied-effect-receipt/root receipt)}})

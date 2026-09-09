@@ -160,25 +160,39 @@
    :effects/kind (get effect-kinds kind)
    :effects/by by})
 
+(defn- cancellation-final? [world workflow-id path cancel-strategy]
+  "Determine if the cancellation is final based on SEW protocol logic.
+   Mirrors sender-cancel/recipient-cancel in lifecycle.clj:
+   - The protocol sets the caller's status, then checks if the OTHER party
+     has already agreed (which completes mutual consent).
+   - So for sender-cancel we check recipient-status, and vice versa."
+  (case path
+    (:sender-cancel :recipient-cancel)
+    (cond
+      (and (some? cancel-strategy) (not (:can-cancel? cancel-strategy))) false
+      (and (some? cancel-strategy) (:unilateral-cancel? cancel-strategy)) true
+      :else
+      (case path
+        :sender-cancel (= :agree-to-cancel (recipient-status world workflow-id))
+        :recipient-cancel (= :agree-to-cancel (sender-status world workflow-id))))
+    (:auto-cancel-disputed-escrow :auto-cancel-disputed-on-auto-time) true
+    false))
+
 (defn project-effects
   "Project the SEW mutations performed by a path into canonical cancellation
    effects (sew-party-cancellation-derived-effects.v1).
 
-   For the mutual-consent paths the mutation is conditional: if both parties
-   agreed at the time of the call the escrow finalizes to :refunded and the
-   effect is :refund-sender; otherwise only the agreement-status mutation is
-   recorded and the effect is :record-party-agreement. This mirrors
-   ordinary-planner.clj:13-16 so the projected effects and the planner's
-   derived effects are the same object.
+   For the sender/recipient-cancel paths the mutation depends on cancel-strategy:
+     - If cancel-strategy provided with :can-cancel? false -> record agreement (not final)
+     - If cancel-strategy provided with :unilateral-cancel? true -> refund (final)
+     - If no cancel-strategy (mutual consent) -> check both-agreed-to-cancel?
 
    For the auto-cancel paths the mutation is unconditional: finalize to
    :refunded plus a resolver stake slash. The slash is a register-level
    mutation on :resolver-stakes / :resolver-slash-total, outside the
    cancellation effect vocabulary; it is declared outside scope."
-  [world workflow-id path]
-  (let [final? (case path
-                 (:sender-cancel :recipient-cancel) (both-agreed-to-cancel? world workflow-id)
-                 (:auto-cancel-disputed-escrow :auto-cancel-disputed-on-auto-time) true)
+  [world workflow-id path & [cancel-strategy]]
+  (let [final? (cancellation-final? world workflow-id path cancel-strategy)
         kind (if final? :refunded :record-agreement)
         by (case path
              :sender-cancel :sender
@@ -210,15 +224,18 @@
 
 (defn project
   "Full projection for a path: inputs + effects + state-after. Complete
-   Surface-A -> Surface-B mapping for one cancellation path."
-  [world workflow-id path]
+   Surface-A -> Surface-B mapping for one cancellation path.
+
+   For sender-cancel/recipient-cancel paths, an optional cancel-strategy
+   map can be provided to mirror the SEW protocol's unilateral decision logic."
+  [world workflow-id path & [cancel-strategy]]
   (when-not (supported-path? path)
     (throw (ex-info "unsupported cancellation projection path"
                     {:path path :supported (sort supported-paths)})))
   {:projection/schema schema-version
    :projection/path path
    :projection/inputs (project-inputs world workflow-id path)
-   :projection/effects (project-effects world workflow-id path)
+   :projection/effects (project-effects world workflow-id path cancel-strategy)
    :projection/state-after (project-state-after world workflow-id path)})
 
 ;; ---------------------------------------------------------------------------

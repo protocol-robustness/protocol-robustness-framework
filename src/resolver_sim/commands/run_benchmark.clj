@@ -43,7 +43,7 @@
 
 (def ^:dynamic ^:private *claim-registry-path*
   "Bound during a benchmark run to the explicitly selected claim registry path
-   (CLI/env). Nil means use the standard CLI→env→default resolution."
+   (CLI/env). Nil means no application-owned registry path was supplied."
   nil)
 
 (defmacro with-claim-registry
@@ -591,7 +591,7 @@
 
    Precedence: explicit CLI path → PRF_BENCHMARKS_CLAIM_REGISTRY → repository
    default. The committed entry carries the selected file's sha256 plus
-   :source (:cli | :environment | :default) so two audits cannot run against
+    :source (:cli | :environment) so two audits cannot run against
    different registries while evidence obscures how the registry was chosen."
   [context]
   (let [cli-path (or (:claim-registry/path context) *claim-registry-path*)

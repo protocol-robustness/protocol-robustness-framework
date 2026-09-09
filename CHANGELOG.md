@@ -2,6 +2,13 @@
 
 ## [Unreleased]
 
+### Aggregate held-credit semantic contract
+
+- Froze the `sew/aggregate-held-credit.v1` portable lineage and added a
+  Rust-facing specification plus golden root fixture covering target mapping,
+  effect compilation, canonical effects, state transition, and compilation
+  binding.
+
 ### Read-only authoritative publication resolution
 
 - Added structured publication reachability diagnostics that keep committed

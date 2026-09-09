@@ -351,9 +351,27 @@
     :command/options []
     :command/outputs []
     :command/positional-args {:min 0 :max 0}
-    :command/description "Read an EDN artifact-publish request from stdin, independently re-verify the artifact set (all-or-nothing), sign a publish certificate, and write one EDN response to stdout."}
+     :command/description "Read an EDN artifact-publish request from stdin, independently re-verify the artifact set (all-or-nothing), sign a publish certificate, and write one EDN response to stdout."}
 
-   {:command/id :resubmission-issue
+    {:command/id :publication-trace
+     :command/path ["publication" "trace"]
+     :command/title "Trace authoritative publication chain"
+     :command/category :evidence
+     :command/surface :prf
+     :command/backstop-tier :manual
+     :command/jar-availability :native
+     :command/runtime :jvm
+     :command/options [{:name "--head-root" :type :string :doc "Publication head root sha256 ref (CAS-only)"}
+                       {:name "--ordering-root" :type :string :doc "Ordering root sha256 ref (CAS-only)"}
+                       {:name "--partition" :type :string :doc "Partition identifier sha256 ref (requires PostgreSQL)"}
+                       {:name "--cas-dir" :type :string :doc "CAS directory (default: PRF_CAS_DIR)"}
+                       {:name "--database-url" :type :string :doc "JDBC URL for PostgreSQL (default: DATABASE_URL)"}
+                       {:name "--json" :type :flag :doc "Output as JSON"}]
+     :command/outputs []
+     :command/positional-args {:min 0 :max 0}
+     :command/description "Trace the authoritative publication chain H -> B -> O -> R -> P -> output -> allocation -> transition -> (V2: compilation) with per-edge resolution status and typed failure reasons."}
+
+    {:command/id :resubmission-issue
     :command/path ["resubmission" "issue"]
     :command/title "Out-of-process resubmission receipt signer authority"
     :command/category :evidence

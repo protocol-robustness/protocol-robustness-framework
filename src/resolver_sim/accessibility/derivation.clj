@@ -4,7 +4,10 @@
    This namespace deliberately stops before semantic validity, authority, and
    currentness. Domain namespaces own canonical identity and derivation logic."
   (:require [resolver-sim.benchmark.distributed.fixed-chunks :as fixed]
-            [resolver-sim.pro-rata.canonical-effects :as effects]))
+            [resolver-sim.pro-rata.canonical-effects :as effects]
+            [resolver-sim.pro-rata.effect-compilation-semantics :as compilation-semantics]
+            [resolver-sim.pro-rata.effect-compilation-v3 :as compilation-v3]
+            [resolver-sim.pro-rata.target-map :as target-map]))
 
 (defn- canonical-root?
   [value]
@@ -55,7 +58,23 @@
 (defmethod address-of [:root effects/effect-schema]
   [_ candidate]
   (root-ref {:subject/schema effects/effect-schema
-             :subject/root (effects/effect-root candidate)}))
+             :subject/root (or (:effects/root candidate)
+                               (effects/effect-root candidate))}))
+
+(defmethod address-of [:root :pro-rata/realized-allocation]
+  [_ candidate]
+  (root-ref {:subject/schema :pro-rata/realized-allocation
+             :subject/root (:allocation/hash candidate)}))
+
+(defmethod address-of [:root target-map/target-map-schema]
+  [_ candidate]
+  (root-ref {:subject/schema target-map/target-map-schema
+             :subject/root (target-map/target-map-root candidate)}))
+
+(defmethod address-of [:root compilation-semantics/schema-version]
+  [_ candidate]
+  (root-ref {:subject/schema compilation-semantics/schema-version
+             :subject/root (compilation-semantics/semantics-root candidate)}))
 
 (defmethod address-of [:state effects/state-schema]
   [_ candidate]
@@ -110,6 +129,7 @@
     (cond
       (= fixed/schema (:chunk-set/schema artifact)) :fixed-chunk-set
       (= effects/compilation-schema (:schema-version artifact)) :pro-rata-effects
+      (= compilation-v3/schema-version (:schema-version artifact)) :pro-rata-effects-v3
       (= "canonical-effect-transition.v1" (:schema-version artifact)) :state-transition
       :else :unknown)))
 
@@ -145,6 +165,25 @@
                      :subject/root (:realized-allocation/root artifact)})}
     {:input/kind :parameter :input/role :effect-compilation-semantics
      :value (:effect-compilation-semantics/root artifact)}]})
+
+(defmethod basis-of :pro-rata-effects-v3
+  [artifact]
+  {:derivation/kind :pro-rata-effects-v3
+   :derivation/reproducible? true
+   :derivation/output (root-ref {:subject/schema effects/effect-schema
+                                 :subject/root (:effects/root artifact)})
+   :derivation/inputs
+   [{:input/kind :ref :input/role :realized-allocation
+     :ref (root-ref {:subject/schema :pro-rata/realized-allocation
+                     :subject/root (:realized-allocation/root artifact)})}
+    {:input/kind :ref :input/role :target-map
+     :ref (root-ref {:subject/schema target-map/target-map-schema
+                     :subject/root (:target-map/root artifact)})}
+    {:input/kind :ref :input/role :effect-compilation-semantics
+     :ref (root-ref {:subject/schema compilation-semantics/schema-version
+                     :subject/root (:effect-compilation-semantics/root artifact)})}
+    {:input/kind :parameter :input/role :allocation-policy
+     :value (:allocation-policy/root artifact)}]})
 
 (defmethod basis-of :state-transition
   [artifact]
@@ -223,6 +262,13 @@
                     (effects/apply-effects
                      (retrieve resolver (:ref (input-by-role basis :state-before)))
                      (retrieve resolver (:ref (input-by-role basis :effects))))
+
+                    :pro-rata-effects-v3
+                    (compilation-v3/compile
+                     {:allocation (retrieve resolver (:ref (input-by-role basis :realized-allocation)))
+                      :target-map (retrieve resolver (:ref (input-by-role basis :target-map)))
+                      :semantics (retrieve resolver (:ref (input-by-role basis :effect-compilation-semantics)))
+                      :allocation-policy-root (:value (input-by-role basis :allocation-policy))})
                     (throw (ex-info "No derivation replay is registered"
                                     {:reason :unsupported-derivation-kind
                                      :derivation/kind (:derivation/kind basis)})))

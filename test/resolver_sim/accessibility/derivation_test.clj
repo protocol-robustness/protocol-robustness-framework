@@ -2,7 +2,11 @@
   (:require [clojure.test :refer [deftest is]]
             [resolver-sim.accessibility.derivation :as sut]
             [resolver-sim.benchmark.distributed.fixed-chunks :as fixed]
-            [resolver-sim.pro-rata.canonical-effects :as effects]))
+            [resolver-sim.pro-rata.allocation :as allocation]
+            [resolver-sim.pro-rata.canonical-effects :as effects]
+            [resolver-sim.pro-rata.effect-compilation-semantics :as compilation-semantics]
+            [resolver-sim.pro-rata.effect-compilation-v3 :as compilation-v3]
+            [resolver-sim.pro-rata.target-map :as target-map]))
 
 (defn- root [digit] (str "sha256:" (apply str (repeat 64 digit))))
 
@@ -63,6 +67,41 @@
     (is (= :pro-rata-effects (:derivation/kind basis)))
     (is (false? (:derivation/reproducible? basis)))
     (is (= :uncommitted-target-mapping (:derivation/contract-gap basis)))))
+
+(deftest v3-effect-compilation-replays-from-committed-target-mapping
+  (let [allocation (allocation/allocate {:allocation/id :test/allocation
+                                         :available 10
+                                         :rows [{:row/id :claim/alice :requested 10 :weight 1}]})
+        targets (target-map/build-target-map
+                 {:allocation-subjects-root (root "a")
+                  :scope-root (root "b")
+                  :mapping-profile-root (root "c")
+                  :targets [{:allocation/subject-id :allocation/liquidity
+                             :mapping/role :available :quantity/root (root "d")}
+                            {:allocation/subject-id :claim/alice
+                             :mapping/role :filled :quantity/root (root "e")}
+                            {:allocation/subject-id :claim/alice
+                             :mapping/role :outstanding :quantity/root (root "f")}]})
+        semantics (compilation-semantics/build :all-active)
+        compilation (compilation-v3/compile
+                     {:allocation allocation
+                      :target-map targets
+                      :semantics semantics
+                      :allocation-policy-root (root "1")})
+        basis (sut/basis-of compilation)
+        resolver {(get-in basis [:derivation/inputs 0 :ref]) allocation
+                  (get-in basis [:derivation/inputs 1 :ref]) targets
+                  (get-in basis [:derivation/inputs 2 :ref]) semantics}]
+    (is (= :pro-rata-effects-v3 (:derivation/kind basis)))
+    (is (:derivation/reproducible? basis))
+    (is (= :valid (:status (sut/verify-derived compilation #(get resolver %)))))
+    (is (= :basis-address-invalid
+           (:reason (sut/verify-derived
+                     compilation
+                     #(get (assoc resolver
+                                  (get-in basis [:derivation/inputs 1 :ref])
+                                  (assoc-in targets [:targets 0 :quantity/root] (root "2")))
+                           %)))))))
 
 (deftest trace-back-reports-derivation-cycles
   (let [state {(root "1") 1}

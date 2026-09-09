@@ -8,7 +8,11 @@
             [resolver-sim.pro-rata.refinement :as refinement]
             [resolver-sim.pro-rata.application :as application]
             [resolver-sim.economics.effects :as effects]
-            [resolver-sim.hash.canonical :as hc]))
+             [resolver-sim.hash.canonical :as hc]))
+
+(deftest low-level-world-application-is-not-public
+  (is (nil? (get (ns-publics 'resolver-sim.protocols.sew.pro-rata-application)
+                 'apply-effects-to-world))))
 
 (defn fixture
   "Build a complete honest pro-rata held-credit chain. Returns a map with the
@@ -88,7 +92,26 @@
     (is (true? (sut/application-transition-valid?
                 (:before ctx) (:protocol-effects ctx) (:adjustments derived)
                 (:roots derived)))
-        "the committed post-state root is re-derived from the canonical kernel")))
+         "the committed post-state root is re-derived from the canonical kernel")))
+
+(deftest protected-lineage-reaches-evidence-effects-and-state
+  (let [ctx (fixture)
+        receipt (build-receipt ctx)
+        evidence-artifact (evidence/mechanism-evidence-artifact (:allocation ctx))]
+    (when receipt
+      (let [lineage (application/protected-lineage
+                     {:allocation (:allocation ctx)
+                      :proposal (:proposal ctx)
+                      :evidence evidence-artifact
+                      :receipt receipt})]
+        (is (= (:allocation/hash (:allocation ctx))
+               (get-in lineage [:allocation :root])))
+        (is (= (:proposed-effects/root (:proposal ctx))
+               (get-in lineage [:effects :root])))
+        (is (= (:state-after/root receipt)
+               (get-in lineage [:protected-state :after-root])))
+        (is (= (:evidence/hash evidence-artifact)
+               (get-in lineage [:allocation :evidence-root])))))))
 
 (deftest application-transition-valid?-matches-committed-roots
   (let [ctx (fixture)

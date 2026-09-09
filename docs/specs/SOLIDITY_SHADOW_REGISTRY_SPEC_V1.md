@@ -2,6 +2,15 @@
 
 Status: Draft V1
 
+The registry also exposes `semantic-coverage-table`, a machine-readable table
+for semantic claims that must not be inferred from Solidity shadow entries.
+Its closed status vocabulary is `:semantic/solidity-coverage-absent` and
+`:semantic/proof-verified-full-coverage`; matching reasons are
+`:reason/solidity-coverage-absent` and `:reason/proof-verified-full-coverage`.
+`valid-semantic-coverage-row?` rejects status/reason and boolean-flag
+mismatches. In particular, absent Solidity coverage is an explicit coverage
+state, not a proof failure, while full coverage requires proof verification.
+
 ## 1. Purpose
 
 Define the Solidity Shadow Registry — a machine-readable catalog that tracks

@@ -113,7 +113,7 @@ check:ownership
   resolves to exactly one classification in config/architecture/content-authority.edn.
   Read-only — never writes to any canonical artifact. Reports mixed files as debt
   and any core→non-core requires as advisory.
-  Usage: bb check:ownership [--report|--rootzones] [--manifest PATH]"
+   Usage: bb check:ownership --manifest PATH [--report|--rootzones]"
      :task (apply shell "clojure" "-M" "-m" "scripts.ownership-audit" *command-line-args*)}
 
     check:corpus
