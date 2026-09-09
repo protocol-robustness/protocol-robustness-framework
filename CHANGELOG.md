@@ -2,6 +2,14 @@
 
 ## [Unreleased]
 
+### Read-only authoritative publication resolution
+
+- Added structured publication reachability diagnostics that keep committed
+  PostgreSQL authority distinct from correspondence, semantic recompilation,
+  and current artifact availability. Missing or corrupt retained bodies report
+  incomplete reachability without rewriting an authoritative publication as
+  unavailable. V1 contracts report semantic recompilation as not applicable.
+
 ### Sequential replay frames
 
 - Added `replay-frame.v1` accepted-frame commitments for sequential transitions

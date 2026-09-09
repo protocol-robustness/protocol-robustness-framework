@@ -5,6 +5,9 @@
             [resolver-sim.allocation.realized-statement :as statement]
             [resolver-sim.hash.canonical :as hc]
             [resolver-sim.pro-rata.allocation :as allocation]
+            [resolver-sim.pro-rata.canonical-effects :as effects]
+            [resolver-sim.pro-rata.effect-compilation-binding :as binding]
+            [resolver-sim.pro-rata.effect-compilation-v2 :as compilation]
             [resolver-sim.pro-rata.realized-allocation-aggregate-held-credit :as sut]
             [resolver-sim.pro-rata.target-map :as target-map]))
 
@@ -107,3 +110,32 @@
       (is (false? (:valid? (sut/verify
                             (update-in bridge [:aggregate-target-map :targets]
                                        conj (first (get-in bridge [:aggregate-target-map :targets]))))))))))
+
+(deftest aggregate-effects-and-transition-reject-substitution
+  (let [bridge (sut/build (bridge-body))
+        compiled (:compilation bridge)
+        quantity-root (get-in bridge [:aggregate-quantity :quantity/root])
+        state-before {quantity-root 25N}
+        canonical (effects/transition state-before (:effects compiled))
+        bodies {(:allocation/hash (:realized-allocation bridge)) (:realized-allocation bridge)
+                (:target-map/root (:aggregate-target-map bridge)) (:aggregate-target-map bridge)}
+        resolve-body #(get bodies %)
+        bound (binding/build compiled canonical)
+        mutated-effects [(effects/delta quantity-root 99N)]
+        mutated-transition (effects/transition state-before mutated-effects)
+        mutated-compilation-base (assoc compiled :effects/root (:effects/root mutated-transition))
+        mutated-compilation (assoc mutated-compilation-base
+                                   :effect-compilation/root
+                                   (compilation/compilation-root mutated-compilation-base))
+        mutated-binding (binding/build mutated-compilation mutated-transition)
+        mutated-after (assoc canonical :state-after/root (root "9"))]
+    (is (binding/valid? bound compiled canonical resolve-body)
+        "retained source bodies reproduce the exact aggregate held-credit effect")
+    (is (not (binding/valid? mutated-binding mutated-compilation mutated-transition resolve-body))
+        "a different held-credit amount cannot reuse the allocation/target bodies")
+    (is (not= (:canonical-effect-transition/root canonical)
+              (effects/transition-root mutated-after))
+        "the transition root commits the exact state-after root")
+    (is (not= (:state-before/root canonical)
+              (:state-before/root (effects/transition {quantity-root 26N} (:effects compiled))))
+        "the transition commits its exact canonical pre-state")))

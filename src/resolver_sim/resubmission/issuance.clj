@@ -119,12 +119,31 @@
   [receipt ordering]
   (and (map? ordering)
        (map? receipt)
-       (let [chain (:attempt-receipt/chain ordering)]
+       (let [chain (:attempt-receipt/chain receipt)]
          (and (:valid? (ordering/verify-ordering ordering))
               (= :prf.resubmission/admit-child (:transaction/action ordering))
               (= (:transaction-ordering/hash ordering)
                  (get-in receipt [:attempt-receipt/chain :transaction-ordering-hash]))
               (= :admitted (get-in receipt [:attempt-receipt/chain :admission-status]))))))
+
+(defn receipt-chain-join
+  "Validate receipt chain metadata against the committed admit-child ordering.
+   Returns {:valid? boolean :reason keyword} and never signs a receipt.
+   This is shared by synchronous and post-commit issuance paths."
+  [receipt ordering]
+  (let [chain (get-in receipt [:attempt-receipt/chain])
+        input (:transaction/input ordering)]
+    (cond
+      (not (receipt-binds-ordering? receipt ordering))
+      {:valid? false :reason :receipt-ordering-binding-mismatch}
+      (not= (second (:transaction/conflict-key ordering)) (:family-id chain))
+      {:valid? false :reason :family-inconsistent}
+      (not= (:sequence input) (:sequence chain))
+      {:valid? false :reason :sequence-inconsistent}
+      (not= (:parent-receipt-hash input) (:parent-receipt-hash chain))
+      {:valid? false :reason :parent-inconsistent}
+      :else
+      {:valid? true :reason :ok})))
 
 ;; ── V2: application-aware issuance ───────────────────────────────────────────
 

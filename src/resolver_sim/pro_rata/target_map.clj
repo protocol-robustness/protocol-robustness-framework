@@ -178,9 +178,9 @@
 (defn validate-aggregate-target-map
   "Validate exact row coverage and the aggregate quantity identity without
    weakening v1 cardinality or native-location injectivity."
-  [{:keys [allocation target-map allocation-scope-root aggregate-custody-scope-root
-           adapter-descriptor-root native-state-before-root native-location-map
-           aggregate-quantity expected-identity] :as input}]
+   [{:keys [allocation target-map allocation-scope-root aggregate-custody-scope-root
+            adapter-descriptor-root native-state-before-root native-location-map
+            aggregate-quantity expected-identity] :as input}]
   (when-not (and (= aggregate-target-map-schema (:schema-version target-map))
                  (= (:target-map/root target-map) (aggregate-target-map-root target-map))
                  (= location-map-schema (:schema-version native-location-map))

@@ -49,7 +49,8 @@
    NOTE: Maintained for backward compatibility with callers that
    pass keywords to domain-hash. Intent contracts now use strings
    directly via :intent/domain-tag."
-  {:world-state "WORLD_STATE_V1"
+  {:replay-frame "PRF_REPLAY_FRAME_V1"
+   :world-state "WORLD_STATE_V1"
    :evidence-record "EVIDENCE_RECORD_V1"
    :evidence-chain "EVIDENCE_CHAIN_V1"
    :evidence-chain-link-v1 "EVIDENCE_CHAIN_LINK_V1"
@@ -2308,13 +2309,20 @@
    Usage: (hash-with-intent {:hash/intent :world-structure} data)
 
    Per INTENT_REGISTRY_SPEC_V1, each field is required."
-  {:world-structure
+  {:replay-frame
+   {:intent/name :replay-frame
+    :intent/domain-tag "PRF_REPLAY_FRAME_V1"
+    :intent/description "Canonical identity of an accepted sequential replay frame"
+    :intent/includes #{:frame-index :state-roots :event-root :transition-root :basis-root :assurance :previous-frame-root}
+    :intent/excludes #{:runtime-values :attempt-diagnostics}
+    :intent/projection-fn project-identity
+    :intent/version 1}
+
+   :world-structure
    {:intent/name :world-structure
     :intent/domain-tag "WORLD_STATE_V1"
     :intent/description "Structural identity of system state for evidence anchoring"
-    :intent/includes #{:domain-state :positions :balances :config
-                       :oracle-state :resolver-registry :bond-state
-                       :dispute-state :escrow-state :time-context}
+    :intent/includes #{:domain-state :positions :balances :config :oracle-state :resolver-registry :bond-state :dispute-state :escrow-state :time-context}
     :intent/excludes #{:module-implementations :runtime-values}
     :intent/projection-fn project-world-to-structure-view
     :intent/version 1}

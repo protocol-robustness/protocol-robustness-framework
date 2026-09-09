@@ -237,6 +237,84 @@
                    (= (:transaction-ordering/hash ordering) (:publication-ordering/root binding)))
           {:publication/head head :publication/binding binding :publication/ordering ordering})))))
 
+(defn resolve-authoritative-publication
+  "Read-only diagnostic resolution of the committed H -> B -> O authority.
+   Retained-body availability and semantic recompilation are reported separately,
+   so a missing or corrupt CAS object cannot erase committed PostgreSQL authority."
+  [store conflict-key]
+  (let [safe-resolve (fn [resolver root]
+                       (when (and (fn? resolver) root)
+                         (try
+                           (resolver root)
+                           (catch Exception _ nil))))
+        head (try (current-head store conflict-key)
+                  (catch Exception _ nil))
+        binding (when head
+                  (try (resolve-binding store (:publication/application-binding-root head))
+                       (catch Exception _ nil)))
+        ordering (when binding
+                   (try (resolve-ordering store (:publication/last-ordering-root head))
+                        (catch Exception _ nil)))
+        authoritative? (and head binding ordering
+                            (= (:publication/last-ordering-root head)
+                               (:publication-ordering/root binding))
+                            (= (:transaction-ordering/hash ordering)
+                               (:publication-ordering/root binding)))
+        resolver (.resolve-durable-artifact store)
+        roots (when binding
+                {:use-case-application (:application/root binding)
+                 :capability-binding (:capability-binding/root binding)
+                 :executable-distribution (:executable-distribution/root binding)
+                 :publication-ordering (:publication-ordering/root binding)})
+        bodies (when (and authoritative? (fn? resolver))
+                 (into {}
+                       (map (fn [[key root]] [key (safe-resolve resolver root)]))
+                       roots))
+        output-root (get-in bodies [:capability-binding :invocation/output-root])
+        output (when output-root (safe-resolve resolver output-root))
+        v2? (= binding/output-v2-schema (:pro-rata-output/schema output))
+        v2-roots (when v2?
+                   {:allocation (:allocation/root output)
+                    :pro-rata-application (:application/root (get bodies :use-case-application))
+                    :pro-rata-transition (:pro-rata-transition/root output)
+                    :canonical-transition (:canonical-transition/root output)
+                    :compilation (:effect-compilation/root
+                                  (safe-resolve resolver (:effect-compilation-binding/root output)))
+                    :effect-compilation-binding (:effect-compilation-binding/root output)})
+        v2-bodies (when v2?
+                    (into {}
+                          (map (fn [[key root]] [key (safe-resolve resolver root)]))
+                          v2-roots))
+        resolved (merge bodies v2-bodies {:output output})
+        reachable? (and authoritative? (fn? resolver)
+                        (every? some? (vals bodies))
+                        (or (not v2?) (every? some? (vals v2-bodies))))
+        missing-roots (vec (concat
+                            (keep (fn [[key root]] (when-not (get bodies key) root)) roots)
+                            (when v2?
+                              (keep (fn [[key root]] (when-not (get v2-bodies key) root))
+                                    v2-roots))))
+        correspondence? (and reachable?
+                             (try
+                               (binding/binding-eligible?
+                                binding
+                                (assoc resolved :resolve-body resolver
+                                       :publication-ordering ordering))
+                               (catch Exception _ false)))
+        semantic-status (cond
+                          (not v2?) :not-applicable
+                          (not reachable?) :unavailable
+                          correspondence? :verified
+                          :else :invalid)]
+    {:publication/head head
+     :publication/binding binding
+     :publication/ordering ordering
+     :authority/status (if authoritative? :committed :unavailable)
+     :correspondence/status (if correspondence? :verified :unverified)
+     :semantic-recompilation/status semantic-status
+     :reachability/status (if reachable? :complete :incomplete)
+     :reachability/missing-roots missing-roots}))
+
 (defn publish-application-bound!
   "Durably retain B and O and then advance the conflict-key partition head.
   An exact retry whose intended successor is already current is idempotent. The

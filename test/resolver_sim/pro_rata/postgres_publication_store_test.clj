@@ -121,6 +121,31 @@
     (is (= :idempotent (:status retry)))
     (is (= (:publication/head result) (:publication/head retry)))))
 
+(deftest resolve-authoritative-publication-reports-v1-authority-and-correspondence
+  (let [{:keys [resolved binding ordering resolver]} (prepared)
+        store (pg/postgres-store *ds* {:resolve-durable-artifact resolver})
+        conflict-key (:transaction/conflict-key ordering)]
+    (pg/publish-application-bound! store ordering binding resolved 0)
+    (let [result (pg/resolve-authoritative-publication store conflict-key)]
+      (is (= :committed (:authority/status result)))
+      (is (= :verified (:correspondence/status result)))
+      (is (= :not-applicable (:semantic-recompilation/status result)))
+      (is (= :complete (:reachability/status result)))
+      (is (empty? (:reachability/missing-roots result))))))
+
+(deftest resolve-authoritative-publication-retains-authority-when-artifacts-are-unavailable
+  (let [{:keys [resolved binding ordering resolver]} (prepared)
+        store (pg/postgres-store *ds* {:resolve-durable-artifact resolver})
+        unavailable-store (pg/postgres-store *ds* {:resolve-durable-artifact (constantly nil)})
+        conflict-key (:transaction/conflict-key ordering)]
+    (pg/publish-application-bound! store ordering binding resolved 0)
+    (let [result (pg/resolve-authoritative-publication unavailable-store conflict-key)]
+      (is (= :committed (:authority/status result)))
+      (is (= :unverified (:correspondence/status result)))
+      (is (= :not-applicable (:semantic-recompilation/status result)))
+      (is (= :incomplete (:reachability/status result)))
+      (is (seq (:reachability/missing-roots result))))))
+
 (deftest stale-predecessor-does-not-advance-publication
   (let [{:keys [resolved binding ordering resolver]} (prepared)
         store (pg/postgres-store *ds* {:resolve-durable-artifact resolver})

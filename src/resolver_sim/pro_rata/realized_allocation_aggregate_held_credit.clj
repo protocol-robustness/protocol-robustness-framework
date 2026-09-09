@@ -41,10 +41,10 @@
         claimant-ids (mapv :claim/id (:claimants ctx))
         claimant-set (set claimant-ids)]
     (when-not (and (map? requested) (map? filled) (map? deferred) (map? haircut)
-                   (= claimant-set (set (keys requested)) (set (keys filled)))
-                   (reject! :claim-set-mismatch {:claimants claimant-set
-                                                 :requested (set (keys requested))
-                                                 :filled (set (keys filled))}))
+                   (= claimant-set (set (keys requested)) (set (keys filled))))
+      (reject! :claim-set-mismatch {:claimants claimant-set
+                                    :requested (set (keys requested))
+                                    :filled (set (keys filled))})
       (when-not (and (every? zero? (vals deferred)) (every? zero? (vals haircut)))
         (reject! :not-all-active {:deferred deferred :haircut haircut}))
       (mapv (fn [{:keys [claim/id amount weight]}]
@@ -98,9 +98,9 @@
                       :native-location-map native-location-map
                       :aggregate-quantity aggregate-quantity
                       :expected-identity (assoc (select-keys aggregate-quantity
-                                                             [:protocol-instance/root :state-domain/root
-                                                              :subject/root :quantity-kind :asset/root :scope/root])
-                                                :mapping/profile target-map/many-to-one-profile)})]
+                                                 [:protocol-instance/root :state-domain/root
+                                                  :subject/root :quantity-kind :asset/root :scope/root])
+                                                 :mapping/profile target-map/many-to-one-profile)})]
     (when-not (= target-map-validation revalidated)
       (reject! :target-validation-mismatch {}))
     revalidated))

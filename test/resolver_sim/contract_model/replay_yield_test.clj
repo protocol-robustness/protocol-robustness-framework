@@ -122,6 +122,29 @@
             :reason :frame/deterministic-batch-contract-not-defined}
            (frames/accepted-frames {:execution {:mode :deterministic-batch}})))))
 
+(deftest frame-lineage-anchors-and-queries-are-observational
+  (let [result (replay/replay-events yp/protocol base-scenario
+                                     {:flags {:check-invariants? true
+                                              :temporal-enabled? false
+                                              :evidence-mode :none}})
+        stream (:accepted-frames result)
+        [first-frame second-frame] (:frames stream)
+        anchors {:expected/state-before-root (:state-before/root first-frame)
+                 :expected/head-frame-root (:frame/root second-frame)
+                 :expected/final-state-root (:state-after/root second-frame)}
+        invalid-stream (assoc-in stream [:frames 1 :state-before/root] "wrong")]
+    (is (:valid? (frames/validate-frame-lineage stream anchors)))
+    (is (some #(= :frame/head-root-mismatch (:reason %))
+              (:violations (frames/validate-frame-lineage stream
+                                                          (assoc anchors :expected/head-frame-root "wrong")))))
+    (is (= :invalid-lineage (:status (frames/first-frame-matching invalid-stream (constantly true)))))
+    (is (= first-frame (:frame (frames/first-frame-matching stream #(zero? (:frame/index %))))))
+    (is (= [second-frame] (:frames (frames/frames-matching stream #(= 1 (:frame/index %))))))
+    (is (= true (get-in (frames/frame-context stream 1) [:position :head?])))
+    (is (= {:status :not-replayable
+            :missing #{:historical-executable :invocation-input :policy-application-material}}
+           (frames/replay-frame-transition first-frame)))))
+
 (def shared-scenario
   {:scenario-id "yield-shared-replay-test"
    :id "yield-shared-replay-test"

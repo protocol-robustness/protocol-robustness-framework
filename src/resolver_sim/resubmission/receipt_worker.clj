@@ -1,11 +1,12 @@
 (ns resolver-sim.resubmission.receipt-worker
   "P1A in-memory receipt issuer.
 
-   This worker is recoverable from the current store contents, but the store is(ns resolver-sim.resubmission.receipt-worker)
+   This worker is recoverable from the current store contents, but the store is
    not restart durable. It never creates obligations and never consults current
    application or authority state."
   (:require [resolver-sim.resubmission.committed-transaction :as committed]
             [resolver-sim.resubmission.receipt :as receipt]
+            [resolver-sim.resubmission.issuance :as issuance]
             [resolver-sim.resubmission.receipt-obligation :as obligation]
             [resolver-sim.resubmission.store :as store]))
 
@@ -84,20 +85,23 @@
             (if-not (:valid? candidate-check)
               {:status :invalid :reason (:reason candidate-check)}
               (let [candidate (receipt-from-commit record ordering)
-                    signed (if (= receipt/receipt-v2-schema
-                                  (:receipt-obligation/receipt-schema o))
-                             (receipt/sign-receipt-v2 candidate private-key)
-                             (receipt/sign-receipt candidate private-key))
-                    verification (receipt/verify-receipt-signature-dispatch
-                                  signed
-                                  (:receipt-obligation/receipt-authority-public-key o))]
-                (if-not (:valid? verification)
-                  {:status :invalid :reason :issued-receipt-verification-failed
-                   :verification verification}
-                  (let [persisted (store/mark-receipt-issued! store obligation-id signed)]
-                    (assoc persisted :receipt
-                           (or (get-in persisted [:entry :receipt-obligation/issued-receipt])
-                               signed))))))))))))
+                    chain-check (issuance/receipt-chain-join candidate ordering)]
+                (if-not (:valid? chain-check)
+                  {:status :invalid :reason (:reason chain-check)}
+                  (let [signed (if (= receipt/receipt-v2-schema
+                                      (:receipt-obligation/receipt-schema o))
+                                 (receipt/sign-receipt-v2 candidate private-key)
+                                 (receipt/sign-receipt candidate private-key))
+                        verification (receipt/verify-receipt-signature-dispatch
+                                      signed
+                                      (:receipt-obligation/receipt-authority-public-key o))]
+                    (if-not (:valid? verification)
+                      {:status :invalid :reason :issued-receipt-verification-failed
+                       :verification verification}
+                      (let [persisted (store/mark-receipt-issued! store obligation-id signed)]
+                        (assoc persisted :receipt
+                               (or (get-in persisted [:entry :receipt-obligation/issued-receipt])
+                                   signed))))))))))))))
 
 (defn issue-pending!
   "Issue every currently pending obligation in deterministic order. This is a
