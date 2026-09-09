@@ -1,0 +1,10 @@
+{:export/schema :prf/clean-room-contract-export-v1
+ :contract/id :prf/sew-aggregate-held-credit-v1
+ :spec/file "SPEC.md"
+ :spec/sha256 "11ef83ab46452c516a02fd3b8b792bb96bd7960f1ad5de7f330316a70a52a28c"
+ :fixture/file "fixture.edn"
+ :fixture/sha256 "90b1c99715f35e4bb4fbea0d1d2d68e7ad35a8a8ef133fb46a9ff5c61dbae449"
+ :source/revision "dae8c031b82ec1781450a7992cde5174587ff256"
+ :source/spec-path "docs/allocation-proofs/sew-aggregate-held-credit-rust-facing-spec-v1.md"
+ :source/fixture-path "data/fixtures/pro-rata/sew-aggregate-held-credit-v1.edn"
+ :export/purpose :clean-room-normative-input}
