@@ -6,6 +6,8 @@
             [resolver-sim.contract-model.replay.yield :as yield-replay]
             [resolver-sim.protocols.protocol :as proto]
             [resolver-sim.protocols.yield :as yp]
+            [resolver-sim.yield.invariants :as invariants]
+            [resolver-sim.yield.partial-fill :as pf]
             [resolver-sim.yield.transition-basis :as basis]))
 
 (def base-scenario
@@ -199,7 +201,12 @@
         "world carries run identity for application-order commitments")
     (is (= 1 (count (filter #(= :yield-withdraw-shared (:decision/source %))
                             (vals (get-in result [:world :yield/partial-fill-decisions])))))
-        "shared decision artifact persisted in the world")))
+        "shared decision artifact persisted in the world")
+    (is (every? #(= pf/ledger-state-cutpoint-schema-v2 (:ledger/state-cutpoint-schema %))
+                (get-in result [:world :yield/withdrawal-ledger] []))
+        "new withdrawal ledger records commit the normalized V2 cutpoint schema")
+    (is (invariants/holds? :yield/withdrawal-ledger-conservation (:world result))
+        "withdrawal-ledger-conservation passes for the V2 cutpoint commitment")))
 
 (deftest frame-stream-independent-root-reconstruction
   (letfn [(snapshot->world [snap]

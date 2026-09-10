@@ -66,12 +66,13 @@
     (throw (ex-info "invalid pro-rata effect refinement" {})))
   (let [before-count (count (:held-adjustments world))
         protocol-effects (:effects refinement-artifact)
-        world' (reduce (fn [w {:keys [effect]}]
-                         (held-admission/admit-and-add-held! w (:effect/token effect) (:effect/amount effect)
-                                                              {:action "add-held" :reason (:held/kind effect)
-                                                               :account (:effect/account effect)
-                                                               :extra (select-keys effect [:owner/address :parameter/context :parameter/address])}
-                                                              {:operation-id :sew/pro-rata-held-credit}))
+world' (reduce (fn [w {:keys [effect]}]
+                          (held-admission/admit-and-add-held! w (:effect/token effect) (:effect/amount effect)
+                                                               {:action "add-held" :reason (:held/kind effect)
+                                                                :extra (cond-> (select-keys effect [:owner/address :parameter/context :parameter/address])
+                                                                         (:effect/account effect)
+                                                                         (assoc :held/account (:effect/account effect)))}
+                                                               {:operation-id :sew/pro-rata-held-credit}))
                        world protocol-effects)
         adjustments (vec (drop before-count (:held-adjustments world')))
         actual-roots (application-roots world world' adjustments)
@@ -99,13 +100,16 @@
 
 (defn- apply-effects-to-world
   "Apply a vector of protocol effects to `world` via accounting/add-held.
-   Returns the resulting world-state map. Pure: does not mutate anything."
+   Returns the resulting world-state map. Pure: does not mutate anything.
+   `:effect/account` is forwarded through the supported `:extra {:held/account ...}`
+   path so the verifier reproduces the exact post-state the runtime commits."
   [world protocol-effects]
   (reduce (fn [w {:keys [effect]}]
             (held-admission/admit-and-add-held! w (:effect/token effect) (:effect/amount effect)
                                                  {:action "add-held" :reason (:held/kind effect)
-                                                  :account (:effect/account effect)
-                                                  :extra (select-keys effect [:owner/address :parameter/context :parameter/address])}
+                                                  :extra (cond-> (select-keys effect [:owner/address :parameter/context :parameter/address])
+                                                           (:effect/account effect)
+                                                           (assoc :held/account (:effect/account effect)))}
                                                  {:operation-id :sew/pro-rata-held-credit}))
           world protocol-effects))
 

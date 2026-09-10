@@ -79,7 +79,7 @@
    correspondence validator does not compare."
   [lineage]
   (let [steps (:lineage/steps lineage)
-        [prev-root frames]
+        [_prev-root frames]
         (reduce (fn [[prev-root frames] [index step]]
                   (let [f (frames/build-frame
                            index prev-root
@@ -111,14 +111,15 @@
 ;; ── Correspondence holds for a real execution ───────────────────────────────
 
 (deftest correspondence-holds-for-a-real-execution
-  (let [{:keys [compound member-action-roots lineage transition]} (run-compound)
+  (let [{:keys [member-action-roots lineage transition]} (run-compound)
         stream (frame-stream-from-lineage lineage)
         result (frames/validate-compound-frame-correspondence
                 {:frame-stream stream
                  :lineage lineage
                  :member-action-roots member-action-roots})]
-    (is (:valid? result) "the frame stream is an exact projection of the execution")
-    (is (empty? (:violations result)))
+    (is (true? (:correspondence/valid? result))
+        "the frame stream is an exact projection of the execution")
+    (is (empty? (:findings result)))
     (is (= 3 (count (:frames stream))))
     (doseq [[i step] (map-indexed vector (:lineage/steps lineage))]
       (is (= (:state-before/root step)
@@ -141,9 +142,9 @@
                         (apply str (repeat 64 \0)))
         result (frames/validate-compound-frame-correspondence
                 {:frame-stream forged :lineage lineage :member-action-roots member-action-roots})]
-    (is (not (:valid? result)))
-    (is (some #(= :compound-frame/state-after-root-mismatch (:reason %)) (:violations result)))
-    (is (some #(= 1 (:index %)) (:violations result))
+    (is (false? (:correspondence/valid? result)))
+    (is (some #(= :frame-state-after-root-mismatch (:finding/type %)) (:findings result)))
+    (is (some #(= 1 (:index %)) (:findings result))
         "the forged step is named by index")))
 
 (deftest correspondence-detects-wrong-member-roots
@@ -152,8 +153,9 @@
         reordered (vec (reverse member-action-roots))
         result (frames/validate-compound-frame-correspondence
                 {:frame-stream stream :lineage lineage :member-action-roots reordered})]
-    (is (not (:valid? result)) "reordering the committed member roots breaks correspondence")
-    (is (some #(= :compound-frame/action-root-mismatch (:reason %)) (:violations result)))))
+    (is (false? (:correspondence/valid? result))
+        "reordering the committed member roots breaks correspondence")
+    (is (some #(= :frame-action-root-mismatch (:finding/type %)) (:findings result)))))
 
 (deftest correspondence-rejects-non-consecutive-stream
   (let [{:keys [member-action-roots lineage]} (run-compound)
@@ -163,8 +165,8 @@
                          (apply str (repeat 64 \f)))
         result (frames/validate-compound-frame-correspondence
                 {:frame-stream broken :lineage lineage :member-action-roots member-action-roots})]
-    (is (not (:valid? result)))
-    (is (some #(= :compound-frame/stream-not-internally-valid (:reason %)) (:violations result))
+    (is (false? (:correspondence/valid? result)))
+    (is (some #(= :frame-stream-not-internally-valid (:finding/type %)) (:findings result))
         "correspondence requires the stream to already be internally consecutive")))
 
 (deftest correspondence-never-derives-lineage-root-from-frames
@@ -177,7 +179,12 @@
                        {:frame-stream good :lineage lineage :member-action-roots member-action-roots})
           forged-result (frames/validate-compound-frame-correspondence
                          {:frame-stream forged :lineage lineage :member-action-roots member-action-roots})]
-      (is (= (:lineage/root lineage) (:lineage-root good-result)))
-      (is (= (:lineage/root lineage) (:lineage-root forged-result))
-          "tampering the frames does not change the reported lineage-root — the
-           frame stream is a projection, not execution authority"))))
+      (is (true? (:correspondence/valid? good-result)))
+      (is (false? (:correspondence/valid? forged-result)))
+      (is (= (:lineage/root lineage) (:compound/lineage-root good-result)))
+      (is (= (:lineage/root lineage) (:compound/lineage-root forged-result))
+          "tampering the frames does not change the reported committed lineage-root —
+           it remains the EXPECTED authority, not a validation output; a failed
+           correspondence still reports the same authoritative root")
+      (is (seq (:findings forged-result))
+          "a failed result reports findings while still exposing the expected root"))))

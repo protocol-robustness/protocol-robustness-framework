@@ -1138,6 +1138,7 @@
    :ledger/run-root (fn [r] (assoc r :ledger/run-root "sha256:0000000000000000000000000000000000000000000000000000000000000000"))
    :ledger/params-root (fn [r] (assoc r :ledger/params-root "sha256:0000000000000000000000000000000000000000000000000000000000000000"))
    :ledger/state-cutpoint-root (fn [r] (assoc r :ledger/state-cutpoint-root "sha256:0000000000000000000000000000000000000000000000000000000000000000"))
+   :ledger/state-cutpoint-schema (fn [r] (assoc r :ledger/state-cutpoint-schema :yield/withdrawal-ledger-state-cutpoint-v1))
    :ledger/request-set-root (fn [r] (assoc r :ledger/request-set-root "sha256:0000000000000000000000000000000000000000000000000000000000000000"))
    :ledger/request-order-root (fn [r] (assoc r :ledger/request-order-root "sha256:0000000000000000000000000000000000000000000000000000000000000000"))
    :ledger/allocation-policy (fn [r] (assoc-in r [:ledger/allocation-policy :mode] :foreign))

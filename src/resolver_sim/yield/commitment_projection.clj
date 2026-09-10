@@ -35,6 +35,10 @@
   "Closed commitment projection schema for a yield transition event."
   :yield-event-commitment-projection-v1)
 
+(def ^:const cutpoint-projection-schema
+  "Closed commitment projection schema for the withdrawal ledger state cutpoint."
+  :yield/withdrawal-ledger-state-cutpoint-v2)
+
 ;; ── Reduced rational arithmetic ──────────────────────────────────────────────
 
 (defn- abs-big [n]
@@ -122,10 +126,12 @@
 (defn- project-committed
   "Strict structural transform over committed yield data (never raw world
    state).  Numbers -> project-yield-number; nil/boolean/string/keyword pass
-   through; maps and vectors recurse; sets project to sorted vectors; map keys
-   must be string or keyword; any other host type (functions, records,
-   temporal values, ...) is rejected so the projection cannot silently
-   rewrite runtime state it does not intend to commit."
+   through; maps and vectors recurse (map keys are projected recursively, so
+   vector-keyed maps commit representation-independently — matching the
+   canonical encoder, which already accepts any canonical value as a map key);
+   sets project to sorted vectors; any other host type (functions, records,
+   temporal values, ...) is rejected so the projection cannot silently rewrite
+   runtime state it does not intend to commit."
   [x]
   (cond
     (number? x)
@@ -136,12 +142,7 @@
 
     (map? x)
     (into {}
-          (map (fn [[k v]]
-                 (when-not (or (string? k) (keyword? k))
-                   (throw (ex-info "yield commitment projection rejects non-canonical map key"
-                                   {:type :yield.projection/unsupported-key
-                                    :key k :key-class (some-> k class .getName)})))
-                 [k (project-committed v)]))
+          (map (fn [[k v]] [(project-committed k) (project-committed v)]))
           x)
 
     (vector? x)
@@ -184,17 +185,49 @@
    :shortfall-models (project-committed (:yield/shortfall-models world {}))
    :withdrawal-policies (project-committed (:yield/withdrawal-policies world {}))})
 
+(defn project-event-time
+  "Protocol-native event time: an integer block/step time.  Host temporal types
+   (java.time.Instant, ...) and non-integer values are rejected with a
+   domain-specific error before reaching the canonical encoder."
+  [t]
+  (when-not (integer? t)
+    (throw (ex-info "yield event time must be a protocol-native integer"
+                    {:type :yield.projection/non-protocol-time
+                     :value t :value-class (some-> t class .getName)})))
+  t)
+
 (defn project-event
   "Closed commitment projection of a yield transition event.
 
    Param numeric values are normalized through the same project-yield-number
    primitive, so event identity commits to economic meaning rather than the
-   host representation (e.g. 0.5 and 1/2 params commit identically)."
+   host representation (e.g. 0.5 and 1/2 params commit identically).
+
+   Event time is a protocol-native integer (block/step time).  Host temporal
+   types are rejected here with a domain-specific error so event identity never
+   leaks a Java host object into the canonical encoder."
   [event]
   {:yield.projection/schema event-projection-schema
    :schema transition-basis-schema
    :seq (:seq event)
-   :time (:time event)
+   :time (project-event-time (:time event))
    :agent (:agent event)
    :action (:action event)
    :params (project-committed (:params event {}))})
+
+(defn project-cutpoint-state
+  "Closed commitment projection of the withdrawal state cutpoint.
+
+   Only the allocation-relevant committed fields enter the commitment; each is
+   normalized through the same project-yield-number rules as the yield state
+   root and effective-policy root, so two representations of the same economic
+   state produce the same cutpoint root (e.g. 0.05, 0.050, 5e-2, and 1/20 all
+   commit to 1/20).  Capacity (`:yield/held-balances` / `:total-held`) remains
+   intentionally excluded — it is committed separately as the capacity root."
+  [world]
+  {:yield.projection/schema cutpoint-projection-schema
+   :yield/positions (project-committed (:yield/positions world))
+   :yield/indices (project-committed (:yield/indices world))
+   :yield/risk (project-committed (:yield/risk world))
+   :yield/shortfall-models (project-committed (:yield/shortfall-models world))
+   :yield/withdrawal-policies (project-committed (:yield/withdrawal-policies world))})

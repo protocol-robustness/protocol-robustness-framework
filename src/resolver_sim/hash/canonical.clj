@@ -458,7 +458,8 @@
    :prf-yield-state-v1 "PRF_YIELD_STATE_V1"
    :prf-yield-effective-policy-v1 "PRF_YIELD_EFFECTIVE_POLICY_V1"
    :prf-yield-transition-event-v1 "PRF_YIELD_TRANSITION_EVENT_V1"
-   :prf-yield-transition-basis-v1 "PRF_YIELD_TRANSITION_BASIS_V1"})
+   :prf-yield-transition-basis-v1 "PRF_YIELD_TRANSITION_BASIS_V1"
+   :prf-yield-withdrawal-ledger-state-cutpoint-v2 "PRF_YIELD_WITHDRAWAL_LEDGER_STATE_CUTPOINT_V2"})
 
 ;; ──────────────────────────────────────────────────────────────────────────────
 ;; varuint Encoding (LEB128, little-endian base-128)

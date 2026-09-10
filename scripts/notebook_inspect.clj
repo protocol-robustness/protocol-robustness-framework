@@ -10,8 +10,9 @@
    "sew"        "resolver-sim.protocols.sew"
    "slashing"   "resolver-sim.protocols.sew.evidence.slashing"
    "hc"         "resolver-sim.hash.canonical"
-   "payoffs"    "resolver-sim.economics.payoffs"
-   "types"      "resolver-sim.protocols.sew.types"
+"payoffs"    "resolver-sim.economics.payoffs"
+   "pro-rata-evaluation" "resolver-sim.pro-rata.evaluation"
+    "types"      "resolver-sim.protocols.sew.types"
    "pro-rata-evidence" "resolver-sim.pro-rata.evidence"
    "att"        "resolver-sim.evidence.attestation"
    "adag"       "resolver-sim.evidence.attestation-dag"
@@ -79,7 +80,7 @@
     (println)
     (println "Examples:")
     (println "  bb notebook:inspect sew-econ/calculate-sew-slash-allocation")
-    (println "  bb notebook:inspect payoffs/evaluate-pro-rata-allocation '{:allocation/id :d :unit :USDC :amount 100 :participants [{:id \"A\" :weight 100 :cap 100}] :policy {:rounding :floor-with-largest-remainder :tie-break :input-order :algorithm :weighted-pro-rata :cap-treatment :redistribute} :source {:type :demo}}'")
+    (println "  bb notebook:inspect pro-rata-evaluation/evaluate-pro-rata-allocation '{:allocation/id :d :unit :USDC :amount 100 :participants [{:id \"A\" :weight 100 :cap 100}] :policy {:rounding :floor-with-largest-remainder :tie-break :input-order :algorithm :weighted-pro-rata :cap-treatment :redistribute} :source {:type :demo}}'")
     (println "  bb notebook:inspect sew-econ/calculate-sew-slash-allocation '{:slash-obligation 300 :liable-parties [{:id \"A\" :slashable-stake 1000 :available-slashable 1000}]}'")
     (println)
     (println "Note: quote EDN maps with single quotes to prevent shell expansion of {}.")
@@ -117,6 +118,6 @@
         (println)
         (println "  Full namespace examples:")
         (println "    bb notebook:inspect resolver-sim.protocols.sew.economics/calculate-sew-slash-allocation")
-        (println "    bb notebook:inspect resolver-sim.economics.payoffs/evaluate-pro-rata-allocation")
+        (println "    bb notebook:inspect resolver-sim.pro-rata.evaluation/evaluate-pro-rata-allocation")
         (println)
         (System/exit 1)))))

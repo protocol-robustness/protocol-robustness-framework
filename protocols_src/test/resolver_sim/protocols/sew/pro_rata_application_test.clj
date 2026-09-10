@@ -25,8 +25,8 @@
         source-id (get-in proposal [:effects 0 :effect/id])
         refinement (refinement/sew-add-held-refinement allocation proposal
                                                         {source-id {:effect/token :USDC :effect/account :escrow :held/kind :credit}})
-        before (types/empty-world)
-        after (accounting/add-held before :USDC 10 {:reason :credit :account :escrow})
+before (types/empty-world)
+        after (accounting/add-held before :USDC 10 {:reason :credit :extra {:held/account :escrow}})
         adjustments (:held-adjustments after)
         roots (sut/application-roots before after adjustments)
         authorization (application/authorize {:allocation-root (:allocation/hash allocation)
@@ -52,9 +52,7 @@
      :proposal proposal}))
 
 (defn build-receipt
-  "Build an applied-effect-receipt from fixture data. The `applied-receipt`
-   constructor at application.clj:93 has a pre-existing validation defect
-   (not exercised by CI), so this helper returns nil when that path fails."
+  "Build an applied-effect-receipt from fixture data."
   [ctx]
   (try
     (application/applied-receipt
@@ -146,7 +144,7 @@
 
 (deftest application-transition-valid?-rejects-wrong-before-world
   (let [ctx (fixture)
-        wrong-before (accounting/add-held (:before ctx) :USDC 10 {:reason :wrong :account :escrow})
+        wrong-before (accounting/add-held (:before ctx) :USDC 10 {:reason :wrong :extra {:held/account :escrow}})
         result (sut/application-transition-valid? wrong-before
                                                   (:protocol-effects ctx)
                                                   (:adjustments ctx)
@@ -192,7 +190,7 @@
 
 (deftest application-roots-is-the-single-production-projection
   (let [before (types/empty-world)
-        after (accounting/add-held before :USDC 10 {:reason :credit :account :escrow})
+        after (accounting/add-held before :USDC 10 {:reason :credit :extra {:held/account :escrow}})
         adjustments (:held-adjustments after)
         roots (sut/application-roots before after adjustments)]
     (is (= 5 (count roots))
@@ -210,7 +208,7 @@
 
 (deftest application-roots-is-shared-by-runtime-and-verifier
   (let [before (types/empty-world)
-        after (accounting/add-held before :USDC 10 {:reason :credit :account :escrow})
+        after (accounting/add-held before :USDC 10 {:reason :credit :extra {:held/account :escrow}})
         adjustments (:held-adjustments after)
         roots (sut/application-roots before after adjustments)
         ;; runtime path: apply-pro-rata-held-credit re-derives roots internally

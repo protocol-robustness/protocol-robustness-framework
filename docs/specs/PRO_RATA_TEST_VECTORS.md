@@ -8,7 +8,7 @@ Current vector emitters are additive wrappers around existing implementation fun
 
 - Liquidity fulfillment: `resolver-sim.yield.partial-fill/calculate-fulfillment-pro-rata`
 - Sew slash allocation: `resolver-sim.protocols.sew.economics/calculate-sew-slash-allocation`
-- Shared generic allocation primitive used by Sew: `resolver-sim.economics.payoffs/allocate-pro-rata`
+- Shared generic allocation primitive used by Sew: `resolver-sim.pro-rata.engine/allocate-pro-rata*` (public entry `resolver-sim.pro-rata.allocation/allocate-pro-rata`)
 
 The emitters do not reimplement allocation math and should not be used to change settlement semantics.
 

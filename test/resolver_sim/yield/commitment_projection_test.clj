@@ -2,7 +2,8 @@
   (:require [clojure.test :refer [deftest is testing]]
             [resolver-sim.hash.canonical :as hc]
             [resolver-sim.yield.commitment-projection :as cp]
-            [resolver-sim.yield.transition-basis :as basis]))
+            [resolver-sim.yield.transition-basis :as basis]
+            [resolver-sim.yield.partial-fill :as pf]))
 
 (defn- rational
   "Assert a projected number equals the expected reduced numerator/denominator."
@@ -147,3 +148,94 @@
               (basis/yield-state-root state-mutated)))
     (is (not= (basis/effective-policy-root golden-policy-world)
               (basis/effective-policy-root policy-mutated)))))
+
+(def golden-cutpoint-world
+  (merge golden-state-world
+         {:yield/risk {:yield.provider/liquid-lending
+                       {:USDC {:liquidity-mode :available
+                               :loss-mode :none
+                               :failure-modes #{}
+                               :shortfall {:available-ratio 0.5
+                                           :reason "liquidity-shortfall"}}}}
+          :yield/shortfall-models {:yield.provider/liquid-lending {:USDC nil}}
+          :yield/withdrawal-policies {:yield.provider/liquid-lending {:USDC nil}}}))
+
+(defn- world-with-index
+  "The golden cutpoint world with `:yield/indices :yield.provider/liquid-lending
+   :USDC` replaced by `v`."
+  [v]
+  (assoc-in golden-cutpoint-world [:yield/indices :yield.provider/liquid-lending :USDC] v))
+
+(deftest cutpoint-projection-reduced-rational-equivalence
+  (testing "decimal and rational spellings of the same economic index commit
+            identically in the cutpoint projection"
+    (is (= (cp/project-cutpoint-state (world-with-index 0.05))
+           (cp/project-cutpoint-state (world-with-index 1/20))))
+    (is (= (cp/project-cutpoint-state (world-with-index 0.050))
+           (cp/project-cutpoint-state (world-with-index 1/20))))
+    (is (= (cp/project-cutpoint-state (world-with-index (java.math.BigDecimal. "0.05")))
+           (cp/project-cutpoint-state (world-with-index 1/20)))))
+  (testing "economically different values never collapse"
+    (is (not= (cp/project-cutpoint-state (world-with-index 1/20))
+              (cp/project-cutpoint-state (world-with-index 51/1000))))))
+
+(deftest cutpoint-root-representation-independence
+  (testing "representation-independent state-after root implies the same
+            representation-independent cutpoint root (0.05 ≡ 0.050 ≡ BigDecimal
+            0.05 ≡ 1/20)"
+    (let [states (map world-with-index [0.05 0.050 (java.math.BigDecimal. "0.05") 1/20])
+          state-roots (map basis/yield-state-root states)
+          cutpoint-roots (map pf/ledger-state-cutpoint-root-v2 states)]
+      (is (apply = state-roots)
+          "all spellings share the same state-after root")
+      (is (apply = cutpoint-roots)
+          "all spellings share the same V2 cutpoint root"))
+    (is (= (pf/ledger-state-cutpoint-root-v2 (world-with-index 0.05))
+           (pf/ledger-state-cutpoint-root-v2 (world-with-index 1/20))))
+    (testing "the negative case does not collapse"
+      (is (not= (pf/ledger-state-cutpoint-root-v2 (world-with-index 1/20))
+                (pf/ledger-state-cutpoint-root-v2 (world-with-index 51/1000)))))))
+
+(deftest cutpoint-root-golden-commitments
+  (is (= "sha256:928a9fd6fe797eec7ceae2ab1e9de556155603d3092e377ccea11d5069ed7ada"
+         (pf/ledger-state-cutpoint-root-v1 golden-cutpoint-world))
+      "V1 cutpoint root is byte-stable (legacy raw host representation)")
+  (is (= "sha256:1168404dcf36139b794ce644b570245f9c14a1afd9b24c1d665f8a0d94a216d2"
+         (pf/ledger-state-cutpoint-root-v2 golden-cutpoint-world))
+      "V2 cutpoint root for the normative normalized commitment projection")
+  (testing "V1 and V2 are distinct identities for a representation-sensitive world"
+    (is (not= (pf/ledger-state-cutpoint-root-v1 golden-cutpoint-world)
+              (pf/ledger-state-cutpoint-root-v2 golden-cutpoint-world)))))
+
+(deftest cutpoint-root-schema-dispatch
+  (testing "the default arity (new writes) is V2"
+    (is (= (pf/ledger-state-cutpoint-root golden-cutpoint-world)
+           (pf/ledger-state-cutpoint-root-v2 golden-cutpoint-world))))
+  (testing "absent or V1 schema dispatches to the legacy byte-stable commitment"
+    (is (= (pf/ledger-state-cutpoint-root golden-cutpoint-world nil)
+           (pf/ledger-state-cutpoint-root-v1 golden-cutpoint-world)))
+    (is (= (pf/ledger-state-cutpoint-root golden-cutpoint-world
+                                          :yield/withdrawal-ledger-state-cutpoint-v1)
+           (pf/ledger-state-cutpoint-root-v1 golden-cutpoint-world))))
+  (testing "V2 schema dispatches to the normalized commitment"
+    (is (= (pf/ledger-state-cutpoint-root golden-cutpoint-world
+                                          :yield/withdrawal-ledger-state-cutpoint-v2)
+           (pf/ledger-state-cutpoint-root-v2 golden-cutpoint-world))))
+  (testing "an unknown schema fails closed"
+    (is (thrown-with-msg? clojure.lang.ExceptionInfo
+                          #"unknown withdrawal ledger state cutpoint schema"
+                          (pf/ledger-state-cutpoint-root golden-cutpoint-world
+                                                         :yield/withdrawal-ledger-state-cutpoint-v9)))))
+
+(deftest event-time-is-protocol-native
+  (testing "integer block/step time is accepted"
+    (is (= 2 (:time (cp/project-event {:seq 1 :time 2 :agent "u" :action "x" :params {}})))))
+  (testing "host temporal types are rejected with a domain-specific error"
+    (is (thrown-with-msg? clojure.lang.ExceptionInfo
+                          #"yield event time must be a protocol-native integer"
+                          (cp/project-event {:seq 1 :time (java.time.Instant/ofEpochSecond 1000)
+                                             :agent "u" :action "x" :params {}}))))
+  (testing "non-integer times are rejected before the canonical encoder"
+    (is (thrown-with-msg? clojure.lang.ExceptionInfo
+                          #"yield event time must be a protocol-native integer"
+                          (cp/project-event {:seq 1 :time "1000" :agent "u" :action "x" :params {}})))))

@@ -2,6 +2,52 @@
 
 ## [Unreleased]
 
+### Pro-rata semantic ownership — allocator moved out of `economics.payoffs`
+
+- **`resolver-sim.pro-rata` is now the sole owner of pro-rata allocation
+  semantics.** The single-pass allocator (`allocate-pro-rata`,
+  `allocate-pro-rata*`, `pro-rata-requests`), the parallel claimant machinery
+  (`ordered-detached-mapv`, `effective-claimant-parallelism`), and the claimant
+  runtime controls (`*pro-rata-parallelism*`, `*pro-rata-parallel-threshold*`)
+  now live in `resolver-sim.pro-rata.engine`. Cap redistribution
+  (`allocate-pro-rata-with-redistribution` and the retained legacy parity
+  implementation) lives in `resolver-sim.pro-rata.redistribution`, with
+  `*redistribution-claimant-hook*` and
+  `*redistribution-claimant-determination-hook*`. The canonical evaluation,
+  projection, and allocation-result/root projection
+  (`evaluate-pro-rata-allocation`, `validate-pro-rata-evaluation-package!`,
+  `build-projection-artifact`, `calculate-prorata-from-projection`,
+  `allocate-from-projection`,
+  `build-pro-rata-allocation-result-artifact`,
+  `validate-pro-rata-allocation-result-artifact!`,
+  `format-pro-rata-result-table`, `format-proof-panel`, `registered-intent`,
+  `registered-projection-definition`) live in `resolver-sim.pro-rata.evaluation`.
+  `resolver-sim.pro-rata.allocation` retains the public mechanism API
+  (`allocate`, `allocate-pro-rata`) and row/witness normalization.
+- **`resolver-sim.economics.payoffs` no longer contains the allocator and no
+  longer requires any `resolver-sim.pro-rata.*` namespace.** The wrong-direction
+  `payoffs → pro-rata.exact-verifier` and `payoffs → pro-rata.progress` couplings
+  are eliminated; the exact verifier is now a downstream consumer of the
+  canonical result (used by the evaluation projection), never an input to the
+  producer. `payoffs` retains only the generic basis-point and capacity helpers
+  (`basis-point-denominator`, `calculate-bps-amount`,
+  `calculate-net-after-bps-fee`, `calculate-capacity-limit`).
+- **Consumers migrated** to the new homes: `resolver-sim.execution.context`
+  binds `resolver-sim.pro-rata.engine` controls; `resolver-sim.yield.partial-fill`
+  uses `resolver-sim.pro-rata.redistribution`;
+  `resolver-sim.protocols.sew.economics` and
+  `resolver-sim.protocols.sew.evidence.slashing` use
+  `resolver-sim.pro-rata.evaluation`; `resolver-sim.pro-rata.programme` and the
+  pro-rata notebooks use `resolver-sim.pro-rata.evaluation`.
+- **Semantic closure enforced by test.** `resolver-sim.pro-rata.dependency-boundary-test`
+  now asserts that the pro-rata semantic closure (allocation, engine,
+  redistribution, progress, quantity, target-map, exact-verifier, evm,
+  evaluation) requires no `economics.payoffs`, protocol, runner, research, or
+  application namespaces, and that `economics.payoffs` requires no
+  `resolver-sim.pro-rata.*` namespace. Behavior and canonical roots are
+  unchanged: all existing pro-rata conformance vectors and hash commitments
+  reproduce identically.
+
 ### P4b compound actions — one decision, one compound root, consecutive lineage
 
 - **Compound actions (`:action/compound`)** let a single lifecycle decision
@@ -44,6 +90,54 @@
   vice versa. (`src/resolver_sim/hash/canonical.clj`,
   `protocols_src/resolver_sim/protocols/sew/financial/lifecycle.clj`,
   `protocols_src/test/resolver_sim/protocols/sew/financial/compound_action_test.clj`)
+
+### P4b compound follow-on — store-boundary contract, frame correspondence, explicit claims
+
+- **All-or-nothing at the authoritative store boundary.** The compound gate is
+  purely functional and never emits a partial commitment: when a member fails at
+  the latest possible pre-commit point (after earlier members already succeeded
+  inside the executor), the result carries no post-state, no consumed-ids, no
+  transition, and no lineage — so a caller that commits only on `:ok? true`
+  cannot observe or persist a partial compound. The store-boundary tests model
+  that authoritative commit discipline and prove the dual: on late failure the
+  authoritative state stays exactly `state₀` with every request unconsumed and
+  no transition persisted; on success exactly ONE transition is persisted with
+  `transition.action-root == compound-root`,
+  `transition.sequence-root == committed-sequence-root`, and
+  `transition.lineage-root == recomputed-lineage-root`. (These tests define the
+  contract any real persistence layer must satisfy; P4b itself has no store.)
+- **`validate-compound-frame-correspondence`** (in
+  `resolver-sim.contract-model.replay.frames`) proves a replay frame stream is
+  an EXACT state-lineage projection of a compound execution's canonical
+  transition evidence, without redefining either identity: frame count == member
+  count, `frame[i].state-before/root == lineage-step[i].state-before/root`,
+  `frame[i].state-after/root == lineage-step[i].state-after/root`, and
+  `lineage-step[i].action/root == compound-member[i].action-root`. It reuses
+  `validate-frame-lineage` for the internal-consecutiveness precondition and
+  NEVER recomputes the execution-lineage-root from frames. The result shape
+  keeps the distinction unmistakable: `:correspondence/valid?` plus `:findings`,
+  alongside `:compound/lineage-root` — the COMMITTED authoritative root the
+  frames were checked against, which on a FAILED result is an expected value,
+  not an attestation that the supplied frames match it.
+  (`src/resolver_sim/contract_model/replay/frames.clj`)
+- **`compound-claims`** exposes the explicit named researcher/auditor vocabulary
+  as pure derived queries (not a rooted artifact): `:compound/membership-valid?`,
+  `:compound/equal-cardinality?`, `:compound/order-valid?`,
+  `:compound/consecutive?`, `:compound/execution-atomic?`, and
+  `:compound/consumption-complete?`, each recomputed from committed evidence.
+  `:compound/execution-atomic?` deliberately means LIFECYCLE result atomicity
+  only (the gate emits one all-or-nothing commit payload or none) — it is not
+  evidence of durable-store atomicity, which is the persistence adapter's
+  responsibility and should be reported by that adapter as its own claim.
+  (`protocols_src/resolver_sim/protocols/sew/financial/lifecycle.clj`)
+- **Persistence conformance target documented (not implemented).** No real
+  store exists for P4b, so no `commit-compound!` API is introduced. The
+  required CAS/transaction boundary — check expected pre-state/version, then
+  atomically write post-state + consume the complete request set + persist the
+  transition + bind lineage evidence, such that a CAS success makes everything
+  visible and a CAS failure makes nothing visible — is documented next to the
+  modeled-store tests as the conformance target for the first persistence
+  adapter.
 
 ### Yield commitment projection (normative V1)
 

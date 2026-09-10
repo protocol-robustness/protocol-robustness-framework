@@ -156,7 +156,9 @@
                                (= (keyword (:ledger/token r)) tok))
                         (-> r
                             (assoc :ledger/state-cutpoint-root
-                                   (partial-fill/ledger-state-cutpoint-root world))
+                                   (partial-fill/ledger-state-cutpoint-root world)
+                                   :ledger/state-cutpoint-schema
+                                   partial-fill/ledger-state-cutpoint-schema-v2)
                             content-address-ledger)
                         r))
                     ledger)))))
@@ -652,6 +654,8 @@
                                     (partial-fill/ledger-params-root world-with-position)
                                     :ledger/state-cutpoint-root
                                     (partial-fill/ledger-state-cutpoint-root world-with-position)
+                                    :ledger/state-cutpoint-schema
+                                    partial-fill/ledger-state-cutpoint-schema-v2
                                     :ledger/request-set-root
                                     (partial-fill/ledger-request-set-root
                                      [owner-id]
@@ -2247,6 +2251,8 @@
                   :ledger/params-root (partial-fill/ledger-params-root w)
                   :ledger/state-cutpoint-root
                   (partial-fill/ledger-state-cutpoint-root w)
+                  :ledger/state-cutpoint-schema
+                  partial-fill/ledger-state-cutpoint-schema-v2
                   :ledger/request-set-root
                   (partial-fill/ledger-request-set-root owner-ids rows)
                   :ledger/request-order-root

@@ -143,7 +143,7 @@ vectors for Solidity parity testing.
 ### 5.2 Pro-Rata Allocation Result Artifact
 
 Built by `build-pro-rata-allocation-result-artifact` in
-`resolver-sim.economics.payoffs` (line 364). This canonical ex-post artifact
+`resolver-sim.pro-rata.evaluation`. This canonical ex-post artifact
 captures what was actually allocated, complementing the ex-ante projection:
 
 ```clojure

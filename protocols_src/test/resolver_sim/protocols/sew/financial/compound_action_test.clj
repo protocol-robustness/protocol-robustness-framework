@@ -512,6 +512,36 @@
       (is (nil? (:transition result)) "no compound transition is emitted")
       (is (nil? (:lineage result)) "no lineage is emitted / treated as authoritative"))))
 
+;; ── Authoritative persistence: the conformance target ───────────────────────
+;;
+;; P4b itself has no persistence layer: authorize-and-execute-compound is a pure
+;; functional gate that emits either ONE complete commit-capable payload (on
+;; :ok? true: :post-state, :consumed-ids, :transition, :lineage) or NONE (on
+;; :ok? false). Durable atomicity is the responsibility of the persistence
+;; adapter that consumes a successful result. The tests below define the
+;; consumer contract any real store must satisfy.
+;;
+;; Required boundary (to be implemented by the first persistence adapter, NOT
+;; introduced now while no store consumer exists):
+;;
+;;   (commit-compound! store
+;;     {:expected-pre-state-root <hex>
+;;      :expected-store-version <v>
+;;      :post-state            <state₃>
+;;      :consumed-request-ids  #{R0 R1 R2 ...}
+;;      :transition            <transition>
+;;      :lineage               <lineage>})
+;;
+;; with ONE indivisible CAS/transaction: check expected state/version, then
+;; atomically write post-state + consume the complete request set + persist the
+;; transition + persist/bind the lineage evidence. The crucial property:
+;;
+;;   CAS succeeds → everything becomes visible
+;;   CAS fails    → nothing becomes visible
+;;
+;; No recovery procedure should ever be needed to reconstruct half a compound.
+;; The failure/success dual below is the conformance check for that adapter.
+
 (deftest store-boundary-never-observes-partial-compound-on-failure
   (testing "the authoritative store sees byte-for-byte nothing on a late failure:
             authoritative-state stays == state₀, all requests unconsumed, no
@@ -625,8 +655,9 @@
         "the lineage action roots match the committed member roots in order")
     (is (true? (:compound/consecutive? claims))
         "each member's post-state is the next member's pre-state")
-    (is (true? (:compound/atomic? claims))
-        "the full consecutive lineage was produced (all-or-nothing)")
+    (is (true? (:compound/execution-atomic? claims))
+        "the lifecycle emitted one complete all-or-nothing commit payload (NOT
+         durable-store atomicity)")
     (is (true? (:compound/consumption-complete? claims))
         "every member request id was consumed as one unit")))
 
@@ -659,9 +690,9 @@
           head-root (:lifecycle-head-root d)
           result (fl/authorize-and-execute-compound d c "compound-1" pre head-root
                                                     :protocol-a #{} member-exec)
-          forged (update-in result [:lineage :lineage/steps 0 :state-after/root]
-                            (constantly (apply str (repeat 64 \0))))
-          forged-result (assoc result :lineage forged)
+          forged-lineage (update-in (:lineage result) [:lineage/steps 0 :state-after/root]
+                                    (constantly (apply str (repeat 64 \0))))
+          forged-result (assoc result :lineage forged-lineage)
           claims (fl/compound-claims {:compound c :result forged-result})]
       (is (true? (:compound/membership-valid? claims))
           "membership is a property of the committed compound, unaffected by lineage tampering")

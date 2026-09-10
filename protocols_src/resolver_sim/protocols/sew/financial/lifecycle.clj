@@ -1727,12 +1727,20 @@
    NOT a rooted artifact: every claim recomputes from committed evidence, so a
    researcher can assert each one without interpreting raw structure.
 
-     {:compound/membership-valid?     these exact canonical members were committed
-      :compound/equal-cardinality?    member-count == lineage steps == member transitions
-      :compound/order-valid?          lineage action roots match member action roots in order
-      :compound/consecutive?          each member's post-state is the next member's pre-state
-      :compound/atomic?               the full consecutive lineage was produced (all-or-nothing)
-      :compound/consumption-complete? every member request id was consumed as one unit}
+     {:compound/membership-valid?        these exact canonical members were committed
+      :compound/equal-cardinality?       member-count == lineage steps == member transitions
+      :compound/order-valid?             lineage action roots match member action roots in order
+      :compound/consecutive?             each member's post-state is the next member's pre-state
+      :compound/execution-atomic?        lifecycle emitted all-or-nothing commit material
+                                         (NOT durable-store atomicity)
+      :compound/consumption-complete?    every member request id was consumed as one unit}
+
+   :compound/execution-atomic? refers ONLY to lifecycle-result atomicity: the
+   gate emits either one complete commit-capable payload (all-or-nothing) or
+   none. It is NOT evidence of durable-store atomicity — persisting all of the
+   commit material transactionally (CAS) is the persistence adapter's
+   responsibility, and once a real store exists it should expose its own claim
+   (e.g. :durably-committed-atomically?) backed by actual persistence evidence.
 
    Takes {:keys [compound result]} where compound is the executing compound input
    and result is the authorize-and-execute-compound return value."
@@ -1765,13 +1773,13 @@
         consecutive? (and ok?
                           (:consecutive? (valid-execution-lineage? lineage
                                                                    (:compound/pre-state-root n))))
-        atomic? (and ok?
-                     (= (:compound/member-count n) (count lineage-steps)))
+        execution-atomic? (and ok?
+                               (= (:compound/member-count n) (count lineage-steps)))
         consumption-complete? (and ok?
                                    (every? consumed member-request-ids))]
     {:compound/membership-valid? membership-valid?
      :compound/equal-cardinality? equal-cardinality?
      :compound/order-valid? order-valid?
      :compound/consecutive? consecutive?
-     :compound/atomic? atomic?
+     :compound/execution-atomic? execution-atomic?
      :compound/consumption-complete? consumption-complete?}))

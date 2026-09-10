@@ -18,6 +18,7 @@
             [resolver-sim.pro-rata.evidence :as pro-rata-evidence]
             [resolver-sim.pro-rata.redistribution :as pro-rata-redistribution]
             [resolver-sim.hash.canonical :as hc]
+            [resolver-sim.yield.commitment-projection :as cp]
             [resolver-sim.yield.exact-math :as m]
             [resolver-sim.yield.position :as pos]
             [resolver-sim.yield.pro-rata-propagation-policy :as propagation-policy]
@@ -958,19 +959,25 @@
   [world]
   (application-hash (or (:params world) {})))
 
-(defn ledger-state-cutpoint-root
-  "Content-addressed reference to the allocation-relevant world state at the
-   cutpoint: positions, indices, and risk/market state.
+(def ^:const ledger-state-cutpoint-schema-v1
+  "V1 cutpoint commitment: raw host representations (legacy).  Retained
+   byte-stable so historical V1 ledger records remain replayable."
+  :yield/withdrawal-ledger-state-cutpoint-v1)
 
-   This is a state reference, not a timestamp/block/run identifier — two
-   withdrawals at the same run and block but different state commit
-   differently, and the ledger cannot be composed from state fragments taken
-   at different cutpoints.
+(def ^:const ledger-state-cutpoint-schema-v2
+  "V2 cutpoint commitment: representation-independent reduced-rational
+   normalization, matching the stabilized state-after/effective-policy
+   projections."
+  :yield/withdrawal-ledger-state-cutpoint-v2)
 
-   Capacity (`:yield/held-balances` / `:total-held`) is intentionally EXCLUDED:
-   it is committed separately as the capacity root, and it is recomputed by
-   protocol custody sync after a withdrawal (so committing it here would make
-   the recompute diverge from the settlement-time reference)."
+(def ^:const cutpoint-domain-v2
+  "Domain tag for the V2 normalized cutpoint commitment (registered in
+   resolver-sim.hash.canonical/domain-tags)."
+  :prf-yield-withdrawal-ledger-state-cutpoint-v2)
+
+(defn ledger-state-cutpoint-root-v1
+  "V1 cutpoint commitment (raw host representation).  Byte-stable legacy path:
+   two representations of the same economic state can commit differently."
   [world]
   (let [proj (hc/project-committable-content
               {:yield/positions (:yield/positions world)
@@ -979,6 +986,31 @@
                :yield/shortfall-models (:yield/shortfall-models world)
                :yield/withdrawal-policies (:yield/withdrawal-policies world)})]
     (:canonical/hash (hc/canonical-commitment :evidence-record proj))))
+
+(defn ledger-state-cutpoint-root-v2
+  "V2 cutpoint commitment.  Every committed numeric field is normalized through
+   the stabilized reduced-rational projection, so two representations of the
+   same economic state produce the same cutpoint root (0.05, 0.050, 5e-2, and
+   1/20 all commit to 1/20) — the same semantics as the yield state-after root."
+  [world]
+  (:canonical/hash (hc/canonical-commitment cutpoint-domain-v2
+                                            (cp/project-cutpoint-state world))))
+
+(defn ledger-state-cutpoint-root
+  "Schema-dispatched cutpoint commitment.
+
+   New writes use V2 (default arity).  Historical reads pass the record's
+   `:ledger/state-cutpoint-schema`: absent or V1 dispatches to the legacy
+   byte-stable V1 commitment so legacy records remain replayable; V2 dispatches
+   to the normalized commitment.  An unknown schema fails closed."
+  ([world] (ledger-state-cutpoint-root-v2 world))
+  ([world schema]
+   (case schema
+     (nil :yield/withdrawal-ledger-state-cutpoint-v1) (ledger-state-cutpoint-root-v1 world)
+     :yield/withdrawal-ledger-state-cutpoint-v2 (ledger-state-cutpoint-root-v2 world)
+     (throw (ex-info "unknown withdrawal ledger state cutpoint schema"
+                     {:type :yield.cutpoint/unknown-schema
+                      :schema schema})))))
 
 (defn ledger-basis-root
   "Compositional identity of ONE allocation basis: ties the state cutpoint,

@@ -124,6 +124,17 @@
    REMAINS the authority: the execution-lineage-root is never recomputed from
    the frame stream (frames are a consumer projection, not execution authority).
 
+   RESULT SHAPE (read carefully):
+     {:correspondence/valid? bool
+      :findings             [{:finding/type kw :index i ...} ...]
+      :compound/lineage-root <hex>}
+
+   :compound/lineage-root is the COMMITTED authoritative root that the supplied
+   frames were checked against. Reporting it on a FAILED result is an expected
+   value — it is NOT an attestation that the frames correspond to it. The
+   invariant: asserting an expected root is not the same as certifying the
+   supplied frames match it; only :correspondence/valid? asserts that.
+
    Args (plain data — this validator has no dependency on the lifecycle module):
      :frame-stream         the replay frame stream
      :lineage              {:lineage/steps [{:step/index i
@@ -131,43 +142,41 @@
                                              :action/root hex
                                              :state-after/root hex} ...]
                             :lineage/root hex}
-     :member-action-roots  [hex ...] committed member action roots, in order
-
-   Returns {:valid? bool :violations [<structured>] :lineage-root <hex>}."
+     :member-action-roots  [hex ...] committed member action roots, in order"
   [{:keys [frame-stream lineage member-action-roots]}]
   (let [frames (:frames frame-stream)
         lineage-steps (:lineage/steps lineage)
         lineage-valid (validate-frame-lineage frame-stream)
         cardinality-ok? (= (count frames) (count lineage-steps) (count member-action-roots))
-        step-violations (vec
-                         (mapcat (fn [index]
-                                   (let [frame (nth frames index)
-                                         step (nth lineage-steps index)
-                                         member-root (nth member-action-roots index)]
-                                     (cond-> []
-                                       (not= (:state-before/root frame) (:state-before/root step))
-                                       (conj {:reason :compound-frame/state-before-root-mismatch
-                                              :index index})
-                                       (not= (:state-after/root frame) (:state-after/root step))
-                                       (conj {:reason :compound-frame/state-after-root-mismatch
-                                              :index index})
-                                       (not= (:action/root step) member-root)
-                                       (conj {:reason :compound-frame/action-root-mismatch
-                                              :index index}))))
-                                 (range (min (count frames) (count lineage-steps)))))
-        violations (cond-> []
-                     (not (:valid? lineage-valid))
-                     (conj {:reason :compound-frame/stream-not-internally-valid
-                            :violations (:violations lineage-valid)})
-                     (not cardinality-ok?)
-                     (conj {:reason :compound-frame/cardinality-mismatch
-                            :frame-count (count frames)
-                            :lineage-step-count (count lineage-steps)
-                            :member-count (count member-action-roots)})
-                     true (into step-violations))]
-    {:valid? (empty? violations)
-     :violations violations
-     :lineage-root (:lineage/root lineage)}))
+        step-findings (vec
+                       (mapcat (fn [index]
+                                 (let [frame (nth frames index)
+                                       step (nth lineage-steps index)
+                                       member-root (nth member-action-roots index)]
+                                   (cond-> []
+                                     (not= (:state-before/root frame) (:state-before/root step))
+                                     (conj {:finding/type :frame-state-before-root-mismatch
+                                            :index index})
+                                     (not= (:state-after/root frame) (:state-after/root step))
+                                     (conj {:finding/type :frame-state-after-root-mismatch
+                                            :index index})
+                                     (not= (:action/root step) member-root)
+                                     (conj {:finding/type :frame-action-root-mismatch
+                                            :index index}))))
+                               (range (min (count frames) (count lineage-steps)))))
+        findings (cond-> []
+                   (not (:valid? lineage-valid))
+                   (conj {:finding/type :frame-stream-not-internally-valid
+                          :findings (:violations lineage-valid)})
+                   (not cardinality-ok?)
+                   (conj {:finding/type :frame-cardinality-mismatch
+                          :frame-count (count frames)
+                          :lineage-step-count (count lineage-steps)
+                          :member-count (count member-action-roots)})
+                   true (into step-findings))]
+    {:correspondence/valid? (empty? findings)
+     :findings findings
+     :compound/lineage-root (:lineage/root lineage)}))
 
 (defn- validated-stream [frame-stream]
   (let [validation (validate-frame-lineage frame-stream)]

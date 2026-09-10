@@ -410,7 +410,8 @@ tests without a live XTDB instance.
 | `resolver-sim.generators.actions` | Framework Substrate | Generic generation orchestration façade. |
 | `resolver-sim.generators.adversarial` | Framework Substrate | Generic adversarial generation façade. |
 | `resolver-sim.generators.sew.*` | Sew Protocol Model | Sew-specific action/adversarial templates. |
-| `resolver-sim.economics.payoffs` | Sew Protocol Model | Currently Sew-aligned economic defaults. |
+| `resolver-sim.economics.payoffs` | Framework Substrate | Generic basis-point/capacity accounting helpers; no pro-rata allocator. |
+| `resolver-sim.pro-rata.{allocation,engine,redistribution,evaluation}` | Framework Substrate | Pro-rata semantic closure: canonical allocation, redistribution, and result/root projection; no protocol coupling. |
 | `resolver-sim.yield.accounting` | Sew Protocol Model | Sew-integrated accounting mechanics. |
 | `resolver-sim.yield.registry` | Sew Protocol Model | Sew-integrated module registry/policy assumptions. |
 | `resolver-sim.yield.modules.*` | Sew Protocol Model | Current yield modules integrated to Sew semantics. |

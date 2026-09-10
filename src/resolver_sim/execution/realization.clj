@@ -3,11 +3,13 @@
 
    This namespace intentionally has no dependency on canonical artifacts or
    allocation code so worker dispatch can report facts without a dependency
-   cycle.")
+   cycle."
+  (:require [resolver-sim.execution.finalization-lane :as lane]))
 
 (def ^:dynamic *claimant-execution-observation-sink* nil)
 (def ^:dynamic *claimant-execution-runtime-profile-root* nil)
 (def ^:dynamic *claimant-execution-realization* nil)
+(def ^:dynamic *claimant-execution-lane* nil)
 
 (defn- update-while-open!
   [realization f]
@@ -35,11 +37,15 @@
     (update-while-open! realization
                         #(-> %
                              (update :phases conj {:executor-parallelism parallelism})
-                             (update :executor-backed-phases inc)))))
+                             (update :executor-backed-phases inc))))
+  (when-let [l *claimant-execution-lane*]
+    (lane/record-executor-dispatch! l)))
 
 (defn record-quiesced! []
   (when-let [realization *claimant-execution-realization*]
-    (update-while-open! realization #(update % :successfully-quiesced-phases inc))))
+    (update-while-open! realization #(update % :successfully-quiesced-phases inc)))
+  (when-let [l *claimant-execution-lane*]
+    (lane/record-quiesced! l)))
 
 (defn- effective [state]
   (let [phases (:phases state)
@@ -124,9 +130,31 @@
 
 (defn complete!
   "Complete a successful realization in lifecycle order and deliver its optional
-   observation exactly once."
+   observation exactly once.
+
+   When `*claimant-execution-lane*` is bound, the lane guards the finalization:
+     1. freeze the realization (seal phase record)
+     2. close-execution! on the lane (FG-2: proves contributors=0, quiesced)
+     3. finalize-lane! acquires the single finalizer ticket (FG-3)
+     4. emit the observation
+
+   Without a lane, falls back to the original finalize! path."
   [realization]
   (freeze! realization)
-  (let [observation (finalize! realization)]
-    (emit! realization)
-    observation))
+  (if-let [l *claimant-execution-lane*]
+    (let [{:keys [closed?]} (lane/close-execution! l)]
+      (when-not closed?
+        (throw (ex-info "Finalization lane closure failed"
+                        {:lifecycle (lane/state l)})))
+      (let [observation (finalize! realization)
+            result (lane/finalize-lane!
+                    l
+                    {:closed-result-set-root nil
+                     :basis-root nil}
+                    (fn [_ticket] {:committed (or observation {:status :completed})}))]
+        (when (= :committed (:status result))
+          (emit! realization))
+        observation))
+    (let [observation (finalize! realization)]
+      (emit! realization)
+      observation)))

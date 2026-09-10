@@ -318,7 +318,9 @@ Allocation output shape:
 
 Current implementation note:
 
-- `resolver-sim.economics.payoffs/allocate-pro-rata` is the protocol-agnostic allocation helper.
+- `resolver-sim.pro-rata.engine/allocate-pro-rata*` (public entry
+  `resolver-sim.pro-rata.allocation/allocate-pro-rata`) is the
+  protocol-agnostic allocation helper.
 - It currently supports `:rounding :floor` and `:rounding :floor-with-largest-remainder`.
 - It currently supports `:remainder-policy :unallocated`.
 - It currently supports `:ordering-policy :input-order`.

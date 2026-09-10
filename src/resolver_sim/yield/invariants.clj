@@ -427,7 +427,8 @@
                        state-cutpoint-mismatch?
                        (and (some? (:ledger/state-cutpoint-root r))
                             (not= (:ledger/state-cutpoint-root r)
-                                  (partial-fill/ledger-state-cutpoint-root world)))
+                                  (partial-fill/ledger-state-cutpoint-root
+                                   world (:ledger/state-cutpoint-schema r))))
                        basis-root-mismatch?
                        (and (some? (:ledger/basis-root r))
                             (not= (:ledger/basis-root r)
