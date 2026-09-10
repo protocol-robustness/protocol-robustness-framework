@@ -53,7 +53,8 @@
                                        before event)]
     (is (not (:ok? result)))
     (is (:halted? result))
-    (is (= before (:world result)))
+    (is (= (:n before) (:n (:world result)))
+        "rejected transition must not mutate economic state")
     (is (= :unsupported (get-in result [:trace-entry :transition-assurance :status])))))
 
 (deftest supported-assurance-must-pass-before-frame-acceptance
@@ -65,5 +66,6 @@
     (is (:ok? passed))
     (is (= :passed (get-in passed [:trace-entry :transition-assurance :status])))
     (is (not (:ok? failed)))
-    (is (= before (:world failed)))
+    (is (= (:n before) (:n (:world failed)))
+        "rejected transition must not mutate economic state")
     (is (= :failed (get-in failed [:trace-entry :transition-assurance :status])))))

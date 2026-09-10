@@ -7,8 +7,9 @@
    fixed point) and only then compares the claimed result."
   (:require [clojure.test :refer [deftest is testing]]
             [clojure.java.io :as io]
-            [resolver-sim.economics.payoffs :as payoffs]
-            [resolver-sim.pro-rata.exact-verifier :as v]))
+            [resolver-sim.pro-rata.allocation :as allocation]
+            [resolver-sim.pro-rata.exact-verifier :as v]
+            [resolver-sim.pro-rata.redistribution :as redistribution]))
 
 (def ^:const locked-corpus-identity
   "Frozen identity over corpus + spec version. Update deliberately and only
@@ -160,10 +161,10 @@
     (doseq [{:keys [amount items rounding ordering-policy cap-treatment]} cases]
       (testing (str "amount=" amount " " cap-treatment)
         (let [claim (if (= :redistribute cap-treatment)
-                      (payoffs/allocate-pro-rata-with-redistribution
+                      (redistribution/allocate-pro-rata-with-redistribution
                        {:amount amount :items items :rounding rounding
                         :ordering-policy ordering-policy :cap-fn :cap})
-                      (payoffs/allocate-pro-rata
+                      (allocation/allocate-pro-rata
                        {:amount amount :items items :rounding rounding
                         :ordering-policy ordering-policy :cap-fn :cap}))
               request {:amount amount :items items :rounding rounding
@@ -187,10 +188,10 @@
       (doseq [{:keys [amount items rounding ordering-policy cap-treatment]} scenarios]
         (testing (str rounding " / " cap-treatment)
           (let [claim (if (= :redistribute cap-treatment)
-                        (payoffs/allocate-pro-rata-with-redistribution
+                        (redistribution/allocate-pro-rata-with-redistribution
                          {:amount amount :items items :rounding rounding
                           :ordering-policy ordering-policy :cap-fn :cap})
-                        (payoffs/allocate-pro-rata
+                        (allocation/allocate-pro-rata
                          {:amount amount :items items :rounding rounding
                           :ordering-policy ordering-policy :cap-fn :cap}))
                 request {:amount amount :items items :rounding rounding
@@ -209,7 +210,7 @@
                    :cap-treatment :redistribute}
           chain (->> (get-in (v/reconstruct request) [:redistribution :passes])
                      (mapv :newly-capped-ids))
-          claim (payoffs/allocate-pro-rata-with-redistribution
+          claim (redistribution/allocate-pro-rata-with-redistribution
                  {:amount (:amount request) :items (:items request)
                   :rounding :floor-with-largest-remainder
                   :ordering-policy :input-order :cap-fn :cap})]

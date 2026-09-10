@@ -3,9 +3,16 @@
    and the SP-A + SP-B invariant that execution settings cannot change any
    semantic programme field."
   (:require [clojure.test :refer [deftest is testing]]
+            [resolver-sim.pro-rata.application :as application]
             [resolver-sim.pro-rata.programme :as prog]
             [resolver-sim.pro-rata.exact-verifier :as exact-verifier]
             [resolver-sim.pro-rata.progress :as progress]))
+
+(deftest protected-lineage-api-fails-closed
+  (testing "lineage validity requires all four independently verified witnesses"
+    (is (false? (application/protected-lineage-valid? {})))
+    (is (thrown? clojure.lang.ExceptionInfo
+                 (application/protected-lineage {})))))
 
 (def a-plan
   {:programme/id :prog-1

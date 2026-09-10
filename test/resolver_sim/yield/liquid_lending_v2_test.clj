@@ -16,7 +16,7 @@
             [resolver-sim.yield.registry :as reg]
             [resolver-sim.yield.invariants :as inv]
             [resolver-sim.yield.invariant-catalog :as cat]
-            [resolver-sim.economics.payoffs :as payoffs]
+            [resolver-sim.pro-rata.engine :as engine]
             [resolver-sim.util.attribution :as attr]
             [resolver-sim.hash.canonical :as hc])
   (:import [java.util Arrays]))
@@ -95,10 +95,10 @@
         world (shared-withdrawal-world owners 701)
         op {:owner-ids owners :token "USDC" :allocation-mode :pro-rata
             :effective-caps caps}
-        serial (binding [payoffs/*pro-rata-parallel-threshold* 1]
+        serial (binding [engine/*pro-rata-parallel-threshold* 1]
                  (ll/withdraw-shared world test-mod
                                      (assoc op :execution/claimant-parallelism 1)))
-        parallel (binding [payoffs/*pro-rata-parallel-threshold* 1]
+        parallel (binding [engine/*pro-rata-parallel-threshold* 1]
                    (ll/withdraw-shared world test-mod
                                        (assoc op :execution/claimant-parallelism 2)))
         serial-decision (first (vals (:yield/partial-fill-decisions serial)))

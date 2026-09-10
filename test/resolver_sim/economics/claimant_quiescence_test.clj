@@ -1,13 +1,15 @@
 (ns resolver-sim.economics.claimant-quiescence-test
   (:require [clojure.test :refer [deftest is testing]]
-            [resolver-sim.economics.payoffs :as payoffs]
+            [resolver-sim.pro-rata.allocation :as allocation]
+            [resolver-sim.pro-rata.engine :as engine]
+            [resolver-sim.pro-rata.redistribution :as redistribution]
             [resolver-sim.execution.realization :as realization]
             [resolver-sim.execution.runtime-profile :as runtime-profile]
             [resolver-sim.util.thread-quiescence :as quiesce])
   (:import [java.util.concurrent CountDownLatch TimeUnit]))
 
 (defn- resolve-ordered-detached-mapv []
-  (requiring-resolve 'resolver-sim.economics.payoffs/ordered-detached-mapv))
+  (requiring-resolve 'resolver-sim.pro-rata.engine/ordered-detached-mapv))
 
 (defn- make-stuck-executor-task
   "Return a task fn that blocks until `release` is signalled or `stop?` is set.
@@ -55,11 +57,11 @@
           items [{:id :a :weight 1 :cap nil}
                  {:id :b :weight 1 :cap nil}
                  {:id :c :weight 1 :cap nil}]]
-      (binding [payoffs/*pro-rata-parallel-threshold* 1
-                payoffs/*redistribution-claimant-hook*
+      (binding [engine/*pro-rata-parallel-threshold* 1
+                redistribution/*redistribution-claimant-hook*
                 (fn [item] (swap! observations conj {:thread (Thread/currentThread)
                                                      :id (:id item)}))]
-        (payoffs/allocate-pro-rata-with-redistribution
+        (redistribution/allocate-pro-rata-with-redistribution
          {:amount 1 :items items :parallelism 2}))
       (let [obs @observations]
         (is (seq obs) "claimant hook was invoked — binding was conveyed to a pool worker")
@@ -79,8 +81,8 @@
           items [{:id :a :weight 1 :cap nil}
                  {:id :b :weight 1 :cap nil}
                  {:id :c :weight 1 :cap nil}]]
-      (binding [payoffs/*pro-rata-parallel-threshold* 1]
-        (payoffs/allocate-pro-rata-with-redistribution
+      (binding [engine/*pro-rata-parallel-threshold* 1]
+        (redistribution/allocate-pro-rata-with-redistribution
          {:amount 1 :items items :parallelism 2}))
       (is (empty? @observations)
           "without a bound hook, no observations occur — the assertion above is meaningful"))))
@@ -91,10 +93,10 @@
           determination-threads (atom [])
           items [{:id :a :weight 100 :cap 10}
                  {:id :b :weight 100 :cap nil}]]
-      (binding [payoffs/*pro-rata-parallel-threshold* 1
-                payoffs/*redistribution-claimant-determination-hook*
+      (binding [engine/*pro-rata-parallel-threshold* 1
+                redistribution/*redistribution-claimant-determination-hook*
                 (fn [_] (swap! determination-threads conj (Thread/currentThread)))]
-        (payoffs/allocate-pro-rata-with-redistribution
+        (redistribution/allocate-pro-rata-with-redistribution
          {:amount 100 :items items
           :id-fn :id :weight-fn :weight :cap-fn :cap
           :rounding :floor-with-largest-remainder}))
@@ -114,8 +116,8 @@
                     (fn
                       ([executor] (passthrough executor (quiesce/config-default-timeout-seconds)))
                       ([executor timeout-seconds] (passthrough executor timeout-seconds)))]
-        (binding [payoffs/*pro-rata-parallel-threshold* 1]
-          (payoffs/allocate-pro-rata
+        (binding [engine/*pro-rata-parallel-threshold* 1]
+          (allocation/allocate-pro-rata
            {:amount 3
             :items [{:id :a :weight 1} {:id :b :weight 1}]
             :parallelism 2
@@ -135,8 +137,8 @@
                     (fn
                       ([executor] (passthrough executor (quiesce/config-default-timeout-seconds)))
                       ([executor timeout-seconds] (passthrough executor timeout-seconds)))]
-        (binding [payoffs/*pro-rata-parallel-threshold* 1]
-          (payoffs/allocate-pro-rata
+        (binding [engine/*pro-rata-parallel-threshold* 1]
+          (allocation/allocate-pro-rata
            {:amount 3
             :items [{:id :a :weight 1} {:id :b :weight 1}]
             :parallelism 2})))
@@ -150,17 +152,17 @@
         profile (runtime-profile/build {:execution/claimant-parallelism 2
                                         :execution/claimant-parallel-threshold 1
                                         :execution/quiescence-timeout-seconds 5})
-        failure (binding [payoffs/*pro-rata-parallel-threshold* 1
+        failure (binding [engine/*pro-rata-parallel-threshold* 1
                           realization/*claimant-execution-runtime-profile-root* (:runtime-profile/root profile)
                           realization/*claimant-execution-observation-sink* #(swap! emitted conj %)]
                   (try
-                    (payoffs/allocate-pro-rata {:amount 1
-                                                :items [{:id :bad} {:id :other}]
-                                                :parallelism 2
-                                                :weight-fn (fn [item]
-                                                             (if (= :bad (:id item))
-                                                               (throw (ex-info "original claimant failure" {:id :bad}))
-                                                               1))})
+                    (allocation/allocate-pro-rata {:amount 1
+                                                   :items [{:id :bad} {:id :other}]
+                                                   :parallelism 2
+                                                   :weight-fn (fn [item]
+                                                                (if (= :bad (:id item))
+                                                                  (throw (ex-info "original claimant failure" {:id :bad}))
+                                                                  1))})
                     nil
                     (catch Throwable e e)))]
     (is (re-find #"original claimant failure"
@@ -176,7 +178,7 @@
                                         :execution/quiescence-timeout-seconds 1})
         task (make-stuck-executor-task latch stop?)
         original-quiesce quiesce/quiesce-executor!
-        failure (binding [payoffs/*pro-rata-parallel-threshold* 1
+        failure (binding [engine/*pro-rata-parallel-threshold* 1
                           realization/*claimant-execution-runtime-profile-root* (:runtime-profile/root profile)
                           realization/*claimant-execution-observation-sink* #(swap! emitted conj %)]
                   (with-redefs [quiesce/quiesce-executor!
@@ -184,7 +186,7 @@
                                   ([executor] (original-quiesce executor 1))
                                   ([executor _timeout-seconds] (original-quiesce executor 1)))]
                     (try
-                      (payoffs/allocate-pro-rata
+                      (allocation/allocate-pro-rata
                        {:amount 2
                         :items [{:id :fast-fail} {:id :stuck}]
                         :parallelism 2

@@ -27,7 +27,7 @@
   #{:shadow/id :simulation/ns :simulation/role
     :solidity/contract :solidity/function
     :solidity/status :protocol/status
-     :description})
+    :description})
 
 (def semantic-coverage-statuses
   "Closed vocabulary for semantic coverage rows."
@@ -55,6 +55,14 @@
     :semantic/solidity-covered? true
     :semantic/proof-verified? true}])
 
+(def semantic-shadow-rows
+  "Semantic boundaries which are explicitly represented in the shadow registry."
+  [{:semantic/id :pro-rata/protected-lineage
+    :semantic/status :semantic/solidity-coverage-absent
+    :semantic/reason :reason/solidity-coverage-absent
+    :semantic/solidity-covered? false
+    :semantic/proof-verified? false}])
+
 (defn valid-semantic-coverage-row?
   "Return true when a semantic coverage row uses the closed vocabulary and
    its flags agree with its status."
@@ -65,24 +73,35 @@
         solidity-covered? (:semantic/solidity-covered? row)
         proof-verified? (:semantic/proof-verified? row)]
     (and (keyword? id)
-       (contains? semantic-coverage-statuses status)
-       (contains? semantic-coverage-reasons reason)
-       (boolean? solidity-covered?)
-       (boolean? proof-verified?)
-       (case status
-         :semantic/solidity-coverage-absent
-         (and (= reason :reason/solidity-coverage-absent)
-              (not solidity-covered?)
-              (not proof-verified?))
-         :semantic/proof-verified-full-coverage
-         (and (= reason :reason/proof-verified-full-coverage)
-              solidity-covered?
-              proof-verified?)))))
+         (contains? semantic-coverage-statuses status)
+         (contains? semantic-coverage-reasons reason)
+         (boolean? solidity-covered?)
+         (boolean? proof-verified?)
+         (case status
+           :semantic/solidity-coverage-absent
+           (and (= reason :reason/solidity-coverage-absent)
+                (not solidity-covered?)
+                (not proof-verified?))
+           :semantic/proof-verified-full-coverage
+           (and (= reason :reason/proof-verified-full-coverage)
+                solidity-covered?
+                proof-verified?)))))
 
 (defn semantic-coverage
   "Return the semantic coverage row identified by id, or nil."
   [id]
-  (some #(when (= id (:semantic/id %)) %) semantic-coverage-table))
+  (some #(when (= id (:semantic/id %)) %)
+        (concat semantic-coverage-table semantic-shadow-rows)))
+
+(defn valid-semantic-shadow-row?
+  "Return true when a semantic shadow row conforms to the coverage vocabulary."
+  [row]
+  (valid-semantic-coverage-row? row))
+
+(defn validate-semantic-shadow-rows
+  "Return invalid semantic shadow rows, preserving their declaration order."
+  ([] (validate-semantic-shadow-rows semantic-shadow-rows))
+  ([rows] (vec (remove valid-semantic-shadow-row? rows))))
 
 ;; ──────────────────────────────────────────────────────────────────────────
 ;; Registry entries

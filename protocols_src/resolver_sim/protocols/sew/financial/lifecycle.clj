@@ -53,6 +53,7 @@
   (:require [clojure.set :as set]
             [clojure.string :as cstr]
             [resolver-sim.hash.canonical :as hc]
+            [resolver-sim.hash.sequence :as sequence]
             [resolver-sim.protocols.sew.financial.liabilities :as liab]))
 
 (def episode-event-version "insolvency-lifecycle-event.v1")
@@ -61,6 +62,7 @@
 ;; Forward references (defined later in this namespace, called from
 ;; normalize-action).
 (declare derived-realized-effects)
+(declare normalize-action)
 ;; ── Content addressing ───────────────────────────────────────────────────────
 
 (defn- sha-256-of
@@ -675,8 +677,119 @@
   [x]
   (keyword (cstr/replace (name (if (keyword? x) x (keyword (str x)))) "_" "-")))
 
-(defn normalize-action
-  "Normalize an action into the authorization form:
+;; ── Compound action (canonical consecutive sequence of canonical members) ────
+
+(def compound-action-schema :prf/compound-action.v1)
+(def compound-member-schema :prf/compound-action-member.v1)
+(def compound-lineage-schema :prf/compound-action-lineage.v1)
+(def compound-sequence-purpose :sew-compound-action/members)
+
+(defn compound-action?
+  "True when `action` is a compound action input (type :action/compound).
+   A compound is ONE canonical action whose identity commits, through the
+   generic canonical consecutive-sequence machinery, to an ordered set of
+   canonical request/action member bindings plus all-or-nothing lifecycle
+   semantics.
+
+   The type token is compared EXACTLY — canonical-action-type cannot be used
+   because (name :action/compound) strips the namespace to :compound."
+  [action]
+  (and (map? action)
+       (contains? #{:action/compound "action/compound" "action_compound"}
+                  (or (:action/type action) (:action action)))))
+
+(defn request-id-root
+  "Canonical root of a single member request identity. Member requests are
+   committed as roots (not inline content), matching the request-hash
+   convention that identity, not representation, is bound."
+  [request-id]
+  (hc/domain-hash :sew-request-id-v1 {:request/id (or request-id :unbound)}))
+
+(defn compound-action-member
+  "Canonicalize ONE compound member binding: exactly one position
+   (:compound-member/index), one request identity (:compound-member/request-root),
+   and one action identity (:compound-member/action-root). The member root
+   commits the POSITIONED PAIRING, so two identical request/action sequences
+   cannot be re-paired differently without changing the commitment."
+  [{:keys [index request-root action-root]}]
+  (let [binding {:compound-member/schema compound-member-schema
+                 :compound-member/index index
+                 :compound-member/request-root request-root
+                 :compound-member/action-root action-root}]
+    (assoc binding :compound-member/root
+           (hc/domain-hash :sew-compound-action-member-v1 binding))))
+
+(defn compound-member-sequence-root
+  "Ordered sequence commitment over canonical member roots:
+   consecutive(member-root₀, member-root₁, …, member-rootₙ₋₁).
+
+   Reuses the generic canonical consecutive-sequence machinery
+   (resolver-sim.hash.sequence); the purpose binds the commitment to lifecycle
+   compound membership. The result is \"these exact members in this exact
+   order\", independent of whether they executed."
+  [members]
+  (sequence/sequence-hash {:purpose compound-sequence-purpose
+                           :expected-component-count (count members)}
+                          (mapv :compound-member/root members)))
+
+(defn- validate-member-indices!
+  [members]
+  (let [indices (mapv :compound-member/index members)]
+    (when-not (= (range (count members)) indices)
+      (throw (ex-info "compound members must carry contiguous indices 0..n-1"
+                      {:indices indices})))))
+
+(defn build-compound-action
+  "Build a lifecycle compound action from ALREADY-canonicalized member bindings.
+
+     {:action/schema :prf/compound-action.v1
+      :action/type :action/compound
+      :compound/member-sequence-root <hex>
+      :compound/member-count n
+      :compound/pre-state-root <hex>
+      :compound/atomicity :all-or-nothing
+      :action/root <hex>}
+
+   Two distinct identities are preserved:
+     - :compound/member-sequence-root  \"these exact members, in this exact order\"
+     - :action/root                   \"this sequence under lifecycle authorization
+                                        semantics (pre-state, atomicity, schema)\"
+
+   The root projection commits ONLY roots and semantics — member content is
+   resolved from the artifact, never duplicated into the preimage."
+  [{:keys [members pre-state-root atomicity]}]
+  (when-not (and (vector? members) (seq members))
+    (throw (ex-info "compound action requires a non-empty vector of members"
+                    {:members members})))
+  (validate-member-indices! members)
+  (let [body {:action/schema compound-action-schema
+              :action/type :action/compound
+              :compound/member-sequence-root (compound-member-sequence-root members)
+              :compound/member-count (count members)
+              :compound/pre-state-root pre-state-root
+              :compound/atomicity (or atomicity :all-or-nothing)}]
+    (assoc body :action/root (hc/domain-hash :sew-compound-action-v1 body))))
+
+(defn- hex-root?
+  "A lifecycle commitment root is a bare lowercase 64-hex sha256 digest
+   (matching the module's action-root / domain-state-root convention)."
+  [v]
+  (boolean (and (string? v) (re-matches #"[0-9a-f]{64}" v))))
+
+(defn valid-compound-member?
+  "A member binding is valid iff its root recomputes from its committed fields
+   and both request/action roots are well-formed 64-hex commitments."
+  [binding]
+  (and (= compound-member-schema (:compound-member/schema binding))
+       (int? (:compound-member/index binding))
+       (hex-root? (:compound-member/request-root binding))
+       (hex-root? (:compound-member/action-root binding))
+       (= (:compound-member/root binding)
+          (hc/domain-hash :sew-compound-action-member-v1
+                          (dissoc binding :compound-member/root)))))
+
+(defn- normalize-single-action
+  "Normalize a SINGLE (non-compound) action into the authorization form:
 
      {:action/type kw
       :action/params canonical-map
@@ -723,6 +836,75 @@
                                      :action/effects (vec (sort completed-effects))
                                      :action/attributes attributes})})))
 
+(defn- aggregate-member-effects
+  "Declared effect union across compound members. :no-economic-effect is a
+   PER-MEMBER statement (member i changed nothing) and is dropped from the
+   aggregate when any other member has a real economic effect — the compound as
+   a whole then has economic effect, so the union must remain a valid
+   declaration."
+  [members]
+  (let [u (apply set/union (map (comp :action/effects :member/action) members))]
+    (if (and (contains? u :no-economic-effect) (> (count u) 1))
+      (disj u :no-economic-effect)
+      u)))
+
+(defn normalize-compound-action
+  "Normalize a compound action into the authorization form. Every member's
+   request identity and action are canonicalized into a POSITION-BOUND member
+   binding, the member roots are consecutive-sequenced through the generic
+   canonical sequence machinery, and the compound root commits the sequence +
+   pre-state + atomicity.
+
+   Accepts the raw form (member content carried inline) and is a TRUE fixed
+   point on its own output (see canonical-action?).
+
+     {:action/type :action/compound
+      :compound/members [{:member/request-id \"r1\" :member/action {...}} ...]
+      :compound/pre-state-root <hex>
+      :compound/atomicity :all-or-nothing}"
+  [action]
+  (let [raw-members (or (:compound/members action) [])
+        pre-state-root (:compound/pre-state-root action)
+        atomicity (:compound/atomicity action)]
+    (when-not (and (vector? raw-members) (seq raw-members))
+      (throw (ex-info "compound action requires a non-empty :compound/members vector"
+                      {:action action})))
+    (let [members (mapv (fn [index m]
+                          (let [action* (normalize-action (:member/action m))
+                                req-id (:member/request-id m)]
+                            {:member/index index
+                             :member/request-id req-id
+                             :member/action-root (:action/root action*)
+                             :member/action action*}))
+                        (range) raw-members)
+          bindings (mapv (fn [m]
+                           (compound-action-member
+                            {:index (:member/index m)
+                             :request-root (request-id-root (:member/request-id m))
+                             :action-root (:member/action-root m)}))
+                         members)
+          compound (build-compound-action {:members bindings
+                                           :pre-state-root pre-state-root
+                                           :atomicity atomicity})]
+      (assoc compound
+             :compound/members
+             (mapv (fn [m b]
+                     (assoc m
+                            :compound-member/request-root (:compound-member/request-root b)
+                            :compound-member/root (:compound-member/root b)))
+                   members bindings)
+             :action/effects (aggregate-member-effects members)
+             :action/attributes {:resolver/type :canonical}))))
+
+(defn normalize-action
+  "Normalize an action into the authorization form. Dispatches to the compound
+   path for :action/compound inputs and to normalize-single-action otherwise.
+   See both docstrings for the exact committed shape."
+  [action]
+  (if (compound-action? action)
+    (normalize-compound-action action)
+    (normalize-single-action action)))
+
 (defn action-root
   "Content-addressed root of an EXACT action request (economic identity:
    type + canonical params + effects + attributes). Two economically different
@@ -746,16 +928,16 @@
   [state]
   (sha-256-of [(str "domain-state:" (pr-str (sort-by pr-str (seq (or state {})))))]))
 
-(defn policy-findings
-  "Machine-oriented policy findings for an action under a lifecycle state.
-   Structured as vectors so analytics can discriminate WHICH effect was denied:
+(defn- single-action-findings
+  "Policy findings for one (non-compound) normalized action under a lifecycle
+   state. Structured as vectors so analytics can discriminate WHICH effect was
+   denied:
 
      permit → #{[:action-type-permitted] [:effect-permitted :liability-creating] ...}
      deny   → #{[:action-type-not-permitted :create-escrow]
                 [:effect-not-permitted :liability-creating] ...}"
-  [policy state action]
-  (let [{:keys [action/type action/effects]} (normalize-action action)
-        type-set (permitted-actions policy state)
+  [policy state {:keys [action/type action/effects]}]
+  (let [type-set (permitted-actions policy state)
         eff-set (permitted-effects policy state)]
     (cond-> #{}
       (contains? type-set type) (conj [:action-type-permitted])
@@ -765,15 +947,38 @@
                      [:effect-permitted e]
                      [:effect-not-permitted e]))))))
 
+(defn policy-findings
+  "Machine-oriented policy findings for an action under a lifecycle state.
+   For a single action the findings are the per-type/per-effect tuples above.
+   For a COMPOUND action every MEMBER is evaluated individually under the SAME
+   lifecycle state; findings are prefixed with the member index:
+
+     [:compound/member 1 :action-type-not-permitted :withdraw]
+     [:compound/member 2 :effect-not-permitted :liability-creating]
+
+   A compound is therefore denied iff ANY member is denied — atomicity extends
+   to authorization."
+  [policy state action]
+  (let [n (normalize-action action)]
+    (if (= :action/compound (:action/type n))
+      (into #{}
+            (mapcat (fn [m]
+                      (into #{}
+                            (map (fn [f] (into [:compound/member (:member/index m)] f)))
+                            (single-action-findings policy state (:member/action m))))
+                    (:compound/members n)))
+      (single-action-findings policy state n))))
+
 (defn action-permitted?
   "Policy decision for an action in a lifecycle state: permitted iff its action
    TYPE is explicitly in :permitted AND all its economic EFFECTS are in
-   :effects-permitted. Effect-driven so future operations are governed by their
-   economic effect rather than an ad hoc keyword list."
+   :effects-permitted. For a compound, EVERY member must be individually
+   permitted. Effect-driven so future operations are governed by their economic
+   effect rather than an ad hoc keyword list."
   [policy state action]
   (let [findings (policy-findings policy state action)]
-    (and (not (some #(= :action-type-not-permitted (first %)) findings))
-         (not (some #(= :effect-not-permitted (first %)) findings)))))
+    (and (not-any? (fn [f] (some #{:action-type-not-permitted} f)) findings)
+         (not-any? (fn [f] (some #{:effect-not-permitted} f)) findings))))
 
 ;; ── Effect realization (declared vs observed) ────────────────────────────────
 
@@ -1011,7 +1216,8 @@
              (throw (ex-info "request hash mismatch"
                              {:reason :request-hash-mismatch
                               :expected request-hash* :got supplied-hash})))
-         {:keys [action/type action/effects action/attributes]} (normalize-action action)
+         n-action (normalize-action action)
+         {:keys [action/type action/effects action/attributes]} n-action
          permitted? (and provenance-ok?
                           (action-permitted? policy (:lifecycle/state head-state) action))
          invalid? (not provenance-ok?)
@@ -1026,7 +1232,7 @@
                    (str "subject:" subject)
                    (str "action/type:" (name type))
                    (str "action/root:" (action-root action))
-                   (str "action/params:" (pr-str (sort-by pr-str (seq (get (normalize-action action) :action/params {})))))
+                   (str "action/params:" (pr-str (sort-by pr-str (seq (get n-action :action/params {})))))
                    (str "action/effects:" (pr-str (sort (vec (or effects #{})))))
                    (str "action/attributes:" (pr-str (sort-by pr-str (seq (or attributes {})))))
                    (str "request/id:" (or id :unbound))
@@ -1038,23 +1244,26 @@
                    (str "idempotent?:" idempotent?)
                    (str "decision:" (name decision))
                    (str "reasons:" (pr-str (sort (vec reasons))))]]
-     {:response-decision/version response-decision-version
-      :subject subject
-      :action/type type
-      :action/params (:action/params (normalize-action action))
-      :action/root (action-root action)
-      :action/effects (or effects #{})
-      :action/attributes attributes
-      :request/id (or id :unbound)
-      :request/hash request-hash*
-      :pre-state/root (domain-state-root pre-state)
-      :lifecycle-head-root head-root
-      :assessment-root assessment-root*
-      :policy-root p-root
-      :idempotent? (boolean idempotent?)
-      :decision decision
-      :reasons reasons
-      :decision-root (sha-256-of preimage)})))
+     (cond-> {:response-decision/version response-decision-version
+              :subject subject
+              :action/type type
+              :action/params (:action/params n-action)
+              :action/root (action-root action)
+              :action/effects (or effects #{})
+              :action/attributes attributes
+              :request/id (or id :unbound)
+              :request/hash request-hash*
+              :pre-state/root (domain-state-root pre-state)
+              :lifecycle-head-root head-root
+              :assessment-root assessment-root*
+              :policy-root p-root
+              :idempotent? (boolean idempotent?)
+              :decision decision
+              :reasons reasons
+              :decision-root (sha-256-of preimage)}
+       (= :action/compound type)
+       (assoc :action/sequence-root (:compound/member-sequence-root n-action)
+              :action/member-count (:compound/member-count n-action))))))
 
 (defn permitted-action?
   "True iff the response decision for the exact action+request+pre-state under
@@ -1226,3 +1435,343 @@
          :error :effect-contract-violated
          :transition transition
          :issues (:issues validity)}))))
+
+;; ── Compound execution: consecutive state-transition lineage ────────────────
+
+(defn- apply-member-steps
+  "Sequentially apply member actions via member-execute-fn, collecting the
+   intermediate states. Because each step's output becomes the next step's
+   input, the resulting state sequence is consecutive BY CONSTRUCTION:
+
+     [state₀ state₁ state₂ state₃]   member i: stateᵢ ──actionᵢ──► stateᵢ₊₁
+
+   All-or-nothing: any member execution failure (exception) rejects the whole
+   compound and returns no post-state."
+  [member-execute-fn pre-state member-actions]
+  (loop [remaining (seq member-actions)
+         index 0
+         state pre-state
+         states [pre-state]]
+    (if-let [action (first remaining)]
+      (let [result (try
+                     (let [next-state (member-execute-fn state action)]
+                       {:ok? true :next-state next-state})
+                     (catch Throwable t
+                       {:ok? false :member/index index :message (.getMessage t)}))]
+        (if (:ok? result)
+          (recur (next remaining) (inc index) (:next-state result)
+                 (conj states (:next-state result)))
+          {:ok? false
+           :error :compound-member-execution-failed
+           :member/index index
+           :message (:message result)}))
+      {:ok? true :states states})))
+
+(defn- member-transitions
+  "Per-member economic transitions over the consecutive lineage states. Used for
+   per-member effect-contract validation and researcher traceback."
+  [member-actions states]
+  (mapv (fn [index action [before after]]
+          (let [deltas (economic-deltas before after)
+                primitive (primitive-realized-effects deltas)
+                derived (derived-realized-effects primitive)
+                realized (set/union primitive derived)]
+            {:member/index index
+             :member/action-root (action-root action)
+             :member/economic-deltas deltas
+             :member/realized-effects (vec (sort realized))}))
+        (range) member-actions (partition 2 1 states)))
+
+(defn build-execution-lineage
+  "Canonical consecutive execution lineage over a compound execution:
+
+     state₀ --A--> state₁ --B--> state₂ --C--> state₃
+
+   Each step binds the state-before/after ROOTS to the member action root. The
+   lineage root commits \"these exact states transitioned consecutively through
+   these exact actions\" — it exists ONLY after execution, and it distinguishes
+   executions that share the same action sequence/order but reach different
+   intermediate states.
+
+   Returns {:lineage/schema ... :lineage/step-count n :lineage/steps [...] :lineage/root <hex>}."
+  [member-actions states]
+  (let [steps (mapv (fn [index action [before after]]
+                      {:step/index index
+                       :state-before/root (domain-state-root before)
+                       :action/root (action-root action)
+                       :state-after/root (domain-state-root after)})
+                    (range) member-actions (partition 2 1 states))
+        lineage {:lineage/schema compound-lineage-schema
+                 :lineage/step-count (count steps)
+                 :lineage/steps steps}]
+    (assoc lineage :lineage/root
+           (hc/domain-hash :sew-compound-action-lineage-v1 lineage))))
+
+(defn valid-execution-lineage?
+  "The consecutive-lineage invariant:
+
+     - step[0].state-before/root == the compound's committed pre-state root
+     - step[i].state-after/root  == step[i+1].state-before/root  (every i)
+
+   This is the frame-addressable continuity claim a researcher can verify
+   independently of the authorization path."
+  [lineage pre-state-root]
+  (let [steps (:lineage/steps lineage)
+        chain-mismatch (vec
+                        (keep-indexed (fn [i [left right]]
+                                        (when (not= (:state-after/root left)
+                                                    (:state-before/root right))
+                                          i))
+                                      (partition 2 1 steps)))
+        head-mismatch (when (and (seq steps)
+                                 (not= (:state-before/root (first steps)) pre-state-root))
+                        :head-state-root-mismatch)]
+    {:consecutive? (and (empty? chain-mismatch) (nil? head-mismatch))
+     :chain-mismatch chain-mismatch
+     :head-mismatch head-mismatch}))
+
+(defn compound-transition-evidence
+  "Execution evidence binding a completed compound transition back to the
+   response decision, the committed member sequence, and the consecutive
+   execution lineage. After execution the transition binds ALL THREE identities
+   — compound action root, action sequence root, execution lineage root — which
+   gives a researcher unusually good traceback:
+
+     {:transition/request-root ...
+      :transition/pre-state-root ...
+      :transition/post-state-root ...
+      :transition/action-root          <compound-action-root>
+      :transition/action-sequence-root <member-sequence-root>
+      :transition/execution-lineage-root <lineage-root>
+      :transition/member-transitions   [{:member/index i
+                                         :member/economic-deltas ...
+                                         :member/realized-effects ...}]
+      :transition/economic-deltas      ...aggregate
+      :transition/realized-effects     ...aggregate
+      :response-decision/root ...
+      :transition/execution-root       sha-256 over the above}"
+  [decision request-id compound pre-state post-state lineage member-transitions]
+  (let [request-root (sha-256-of [(str "request/id:" (or request-id :unbound))
+                                  (str "action/root:" (:action/root compound))])
+        pre-root (domain-state-root pre-state)
+        post-root (domain-state-root post-state)
+        deltas (economic-deltas pre-state post-state)
+        primitive (primitive-realized-effects deltas)
+        derived (derived-realized-effects primitive)
+        realized (set/union primitive derived)
+        decision-root (:decision-root decision)
+        execution-root (sha-256-of
+                        [(str "transition/request-root:" request-root)
+                         (str "transition/pre-state-root:" pre-root)
+                         (str "transition/post-state-root:" post-root)
+                         (str "transition/action-root:" (:action/root compound))
+                         (str "transition/action-sequence-root:"
+                              (:compound/member-sequence-root compound))
+                         (str "transition/execution-lineage-root:" (:lineage/root lineage))
+                         (str "transition/member-transitions:" (pr-str member-transitions))
+                         (str "transition/economic-deltas:" (pr-str (sort-by pr-str (seq deltas))))
+                         (str "transition/realized-effects:" (pr-str (sort (vec realized))))
+                         (str "response-decision/root:" (or decision-root :none))])]
+    {:transition/request-root request-root
+     :transition/pre-state-root pre-root
+     :transition/post-state-root post-root
+     :transition/action-root (:action/root compound)
+     :transition/action-sequence-root (:compound/member-sequence-root compound)
+     :transition/execution-lineage-root (:lineage/root lineage)
+     :transition/member-transitions member-transitions
+     :transition/economic-deltas deltas
+     :transition/primitive-effects primitive
+     :transition/derived-effects derived
+     :transition/realized-effects realized
+     :response-decision/root decision-root
+     :transition/execution-root execution-root}))
+
+(defn valid-compound-transition-evidence?
+  "A compound transition evidence is VALID only if:
+
+     - the evidence recomputes from (decision, compound, request-id, pre, post,
+       lineage, member-transitions) — roots consistent, AND
+     - it binds this decision (:response-decision/root matches), AND
+     - it binds the committed member sequence and execution lineage
+       (:transition/action-sequence-root, :transition/execution-lineage-root), AND
+     - the per-member effect contract holds: each member realizes ONLY its own
+       declared effects between its lineage states, AND no member violates a
+       declared :no-economic-effect.
+
+   Returns {:valid? bool :issues #{...}}."
+  [decision request-id compound pre-state post-state lineage member-transitions evidence]
+  (let [recomputed (compound-transition-evidence decision request-id compound pre-state post-state
+                                                 lineage member-transitions)
+        declared-per-member (mapv (fn [m] (:action/effects (:member/action m)))
+                                  (:compound/members compound))
+        realized-per-member (mapv :member/realized-effects member-transitions)
+        deltas-per-member (mapv :member/economic-deltas member-transitions)
+        member-contracts (mapv (fn [declared realized deltas]
+                                 (let [contract (effect-contract declared realized)]
+                                   {:invalid-declaration? (not (valid-effect-declaration? declared))
+                                    :undeclared-realized (:undeclared-realized-effects contract)
+                                    :unrealized-declared (:unrealized-declared-effects contract)
+                                    :no-economic-effect-violated?
+                                    (no-economic-effect-violated? declared deltas realized)}))
+                               declared-per-member realized-per-member deltas-per-member)
+        issues (cond-> #{}
+                 (not= (:transition/execution-root recomputed)
+                       (:transition/execution-root evidence))
+                 (conj :evidence-root-mismatch)
+                 (not= (:decision-root decision)
+                       (:response-decision/root evidence))
+                 (conj :decision-root-mismatch)
+                 (not= (:compound/member-sequence-root compound)
+                       (:transition/action-sequence-root evidence))
+                 (conj :action-sequence-root-mismatch)
+                 (not= (:lineage/root lineage)
+                       (:transition/execution-lineage-root evidence))
+                 (conj :execution-lineage-root-mismatch)
+                 (not (:consecutive? (valid-execution-lineage? lineage
+                                                               (:compound/pre-state-root compound))))
+                 (conj :execution-lineage-not-consecutive)
+                 (some :invalid-declaration? member-contracts)
+                 (conj :invalid-effect-declaration)
+                 (some seq (map :undeclared-realized member-contracts))
+                 (conj :undeclared-realized-effects)
+                 (some seq (map :unrealized-declared member-contracts))
+                 (conj :unrealized-declared-effects)
+                 (some :no-economic-effect-violated? member-contracts)
+                 (conj :no-economic-effect-violated))]
+    {:valid? (empty? issues) :issues issues}))
+
+(defn authorize-and-execute-compound
+  "COMPOUND variant of the central mutation gate. One decision still authorizes
+   EXACTLY ONE canonical action root — the compound root — so no special
+   multi-root authorization logic is needed: the same fail-closed binding
+   (action/request/pre-state/lifecycle-head/subject) and single-use semantics
+   apply. What differs is EXECUTION:
+
+     - members are applied SEQUENTIALLY via member-execute-fn
+       ([state member-action] -> next-state), all-or-nothing,
+     - the committed consecutive lineage (each member's post-state is the next
+       member's pre-state) is REQUIRED and enforced,
+     - the per-member effect contract is verified against the intermediate
+       lineage states BEFORE commit.
+
+   Returns {:ok? true :post-state ... :transition ... :lineage ... :consumed-ids ...}
+        or {:ok? false :error kw :member/index n :transition ... :issues ...}.
+
+   consumed-ids consumes the compound request id AND every member request id as
+   one unit (:all-or-nothing consumption)."
+  [decision compound request-id pre-state lifecycle-head-root subject consumed-ids member-execute-fn]
+  (cond
+    (nil? decision)
+    {:ok? false :error :no-decision}
+
+    (not (= :permit (:decision decision)))
+    {:ok? false :error (if (= :invalid (:decision decision)) :decision-invalid :decision-denied)}
+
+    (not (= :action/compound (:action/type (normalize-action compound))))
+    {:ok? false :error :compound-required}
+
+    (not (= (:compound/pre-state-root (normalize-action compound))
+            (domain-state-root pre-state)))
+    {:ok? false :error :compound-pre-state-root-mismatch}
+
+    (not (and (:request/hash decision)
+              (= (request-hash {:request/id (or request-id :unbound)
+                                :action/root (action-root compound)
+                                :subject subject
+                                :pre-state/root (domain-state-root pre-state)})
+                 (:request/hash decision))))
+    {:ok? false :error (if (:request/hash decision) :request-hash-mismatch :invalid-request)}
+
+    (not (decision-authorizes? decision compound request-id pre-state lifecycle-head-root subject))
+    {:ok? false :error :decision-does-not-authorize-request}
+
+    (and (contains? (set consumed-ids) request-id)
+         (not (:idempotent? decision)))
+    {:ok? false :error :decision-reused}
+
+    :else
+    (let [n (normalize-action compound)
+          members (:compound/members n)
+          member-actions (mapv :member/action members)
+          applied (apply-member-steps member-execute-fn pre-state member-actions)]
+      (if-not (:ok? applied)
+        {:ok? false :error (:error applied) :member/index (:member/index applied)
+         :message (:message applied)}
+        (let [states (:states applied)
+              post-state (peek states)
+              lineage (build-execution-lineage member-actions states)
+              member-transitions (member-transitions member-actions states)
+              transition (compound-transition-evidence decision request-id n pre-state post-state
+                                                       lineage member-transitions)
+              validity (valid-compound-transition-evidence? decision request-id n pre-state post-state
+                                                            lineage member-transitions transition)]
+          (if (:valid? validity)
+            {:ok? true
+             :post-state post-state
+             :transition transition
+             :lineage lineage
+             :consumed-ids (into (conj (set consumed-ids) request-id)
+                                 (mapv :member/request-id members))}
+            {:ok? false
+             :error :effect-contract-violated
+             :transition transition
+             :lineage lineage
+             :issues (:issues validity)}))))))
+
+;; ── Compound execution claims (pure derived researcher/auditor queries) ──────
+
+(defn compound-claims
+  "Pure derived queries over a compound execution result — the explicit named
+   vocabulary for \"the authorized action sequence was executed completely, in
+   order, with consecutive state continuity and complete request consumption\".
+   NOT a rooted artifact: every claim recomputes from committed evidence, so a
+   researcher can assert each one without interpreting raw structure.
+
+     {:compound/membership-valid?     these exact canonical members were committed
+      :compound/equal-cardinality?    member-count == lineage steps == member transitions
+      :compound/order-valid?          lineage action roots match member action roots in order
+      :compound/consecutive?          each member's post-state is the next member's pre-state
+      :compound/atomic?               the full consecutive lineage was produced (all-or-nothing)
+      :compound/consumption-complete? every member request id was consumed as one unit}
+
+   Takes {:keys [compound result]} where compound is the executing compound input
+   and result is the authorize-and-execute-compound return value."
+  [{:keys [compound result]}]
+  (let [n (normalize-action compound)
+        members (:compound/members n)
+        member-action-roots (mapv :member/action-root members)
+        member-request-ids (mapv :member/request-id members)
+        bindings (mapv (fn [m]
+                         (compound-action-member
+                          {:index (:member/index m)
+                           :request-root (request-id-root (:member/request-id m))
+                           :action-root (:member/action-root m)}))
+                       members)
+        ok? (boolean (:ok? result))
+        lineage (:lineage result)
+        lineage-steps (:lineage/steps lineage)
+        transition (:transition result)
+        consumed (set (:consumed-ids result))
+        membership-valid? (and ok?
+                               (every? valid-compound-member? bindings)
+                               (= (:compound/member-sequence-root n)
+                                  (compound-member-sequence-root bindings)))
+        equal-cardinality? (and ok?
+                                (= (:compound/member-count n)
+                                   (count lineage-steps)
+                                   (count (:transition/member-transitions transition))))
+        order-valid? (and ok?
+                          (= member-action-roots (mapv :action/root lineage-steps)))
+        consecutive? (and ok?
+                          (:consecutive? (valid-execution-lineage? lineage
+                                                                   (:compound/pre-state-root n))))
+        atomic? (and ok?
+                     (= (:compound/member-count n) (count lineage-steps)))
+        consumption-complete? (and ok?
+                                   (every? consumed member-request-ids))]
+    {:compound/membership-valid? membership-valid?
+     :compound/equal-cardinality? equal-cardinality?
+     :compound/order-valid? order-valid?
+     :compound/consecutive? consecutive?
+     :compound/atomic? atomic?
+     :compound/consumption-complete? consumption-complete?}))

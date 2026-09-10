@@ -163,8 +163,7 @@
 
 (defn- resolve-benchmark-manifest
   "Resolve a benchmark manifest path from a task's :benchmark/id.
-   Reads benchmarks/registry.edn and walks the pack hierarchy.
-   Falls back to the default deterministic-replay path."
+   Reads benchmarks/registry.edn and walks the pack hierarchy."
   [benchmark-id]
   (when benchmark-id
     (try
@@ -182,6 +181,13 @@
                             (:benchmarks pack-reg))))
                   (:packs registry)))))
       (catch Exception _ nil))))
+
+(defn- required-benchmark-manifest
+  [benchmark-id]
+  (or (resolve-benchmark-manifest benchmark-id)
+      (throw (ex-info "Community task requires a registered benchmark manifest"
+                      {:benchmark/id benchmark-id
+                       :reason :benchmark-manifest/not-registered}))))
 
 (defn register-task
   "Build a community task record and publish it to the mailbox."
@@ -259,8 +265,7 @@
         (let [announce-msgs (filter #(= :TASK_ANNOUNCEMENT (:message/type %))
                                     (mailbox/messages-for-task task-ref))
               benchmark-id (get-in (first announce-msgs) [:body :benchmark/id])
-              manifest-path (or (resolve-benchmark-manifest benchmark-id)
-                                (paths/prf-core-deterministic-replay-manifest))
+              manifest-path (required-benchmark-manifest benchmark-id)
               _ (log/info! :task-manifest {:path manifest-path})
               _ (log/info! :task-executing {:task-ref task-ref})
               evidence (try
@@ -356,8 +361,7 @@
               announce-msgs (filter #(= :TASK_ANNOUNCEMENT (:message/type %))
                                     (mailbox/messages-for-task task-ref))
               benchmark-id (get-in (first announce-msgs) [:body :benchmark/id])
-              manifest-path (or (resolve-benchmark-manifest benchmark-id)
-                                (paths/prf-core-deterministic-replay-manifest))
+              manifest-path (required-benchmark-manifest benchmark-id)
               evidence (try
                          (runner/run-benchmark manifest-path)
                          (catch Exception e

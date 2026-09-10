@@ -1,12 +1,29 @@
 (ns resolver-sim.pro-rata.allocation
   "Domain-neutral deterministic integer pro-rata allocation.
 
-   This namespace owns row normalization and mathematical allocation evidence.
-   It deliberately does not inspect world state, select accounts, classify
-   shortfall, or apply a state transition. Domain adapters supply canonical
-   rows and interpret the resulting allocated and unmet quantities."
-  (:require [resolver-sim.economics.payoffs :as payoffs]
-            [resolver-sim.hash.canonical :as hc]))
+   This namespace owns the canonical pro-rata allocation semantics: the public
+   mechanism API, row normalization, and mathematical allocation evidence. The
+   single-pass claimant engine and detached parallel machinery live in
+   resolver-sim.pro-rata.engine; cap-redistribution semantics live in
+   resolver-sim.pro-rata.redistribution. This namespace deliberately does not
+   inspect world state, select accounts, classify shortfall, or apply a state
+   transition. Domain adapters supply canonical rows and interpret the resulting
+   allocated and unmet quantities.
+
+   The allocation, engine, redistribution, and evaluation namespaces form the
+   pro-rata semantic closure and must never depend on protocol, runner,
+   research, application, or generic-economics allocator namespaces."
+  (:require [resolver-sim.execution.realization :as realization]
+            [resolver-sim.hash.canonical :as hc]
+            [resolver-sim.pro-rata.engine :as engine]
+            [resolver-sim.pro-rata.redistribution :as redistribution]))
+
+(defn allocate-pro-rata [request]
+  (let [state (realization/open)]
+    (binding [realization/*claimant-execution-realization* state]
+      (let [result (engine/allocate-pro-rata* request)]
+        (realization/complete! state)
+        result))))
 
 (def ^:const mechanism-version 1)
 
@@ -383,9 +400,9 @@
                               :execution/quiescence-timeout-seconds quiescence-timeout-seconds}
           allocation (case redistribution-policy
                        :unallocated
-                       (payoffs/allocate-pro-rata allocation-request)
+                       (allocate-pro-rata allocation-request)
                        :redistribute-cap-excess
-                       (payoffs/allocate-pro-rata-with-redistribution
+                       (redistribution/allocate-pro-rata-with-redistribution
                         (assoc allocation-request :ordering-policy :canonical-id)))
           by-id (into {} (map (juxt :id identity) (:allocations allocation)))
           witness (witness-rows available rows rounding-policy redistribution-policy)

@@ -6,7 +6,7 @@
             [resolver-sim.hash.canonical :as hc]
             [resolver-sim.protocols.sew.economics :as sew-econ]
             [resolver-sim.protocols.sew.types :as types]
-            [resolver-sim.economics.payoffs :as payoffs]
+            [resolver-sim.pro-rata.evaluation :as pro-rata-evaluation]
             [resolver-sim.protocols.sew.evidence.slashing :as slashing]
             [resolver-sim.pro-rata.evidence :as pro-rata-evidence]))
 
@@ -204,7 +204,7 @@
 
 ^{:nextjournal.clerk/visibility {:code :show :result :show}}
 (def result-artifact
-  (payoffs/build-pro-rata-allocation-result-artifact
+  (pro-rata-evaluation/build-pro-rata-allocation-result-artifact
    {:projection-artifact projection-artifact
     :allocation-result allocation-result
     :world-before-hash world-before-hash
@@ -299,7 +299,7 @@
 
 ^{:nextjournal.clerk/visibility {:code :show :result :show}}
 (def evaluation
-  (payoffs/evaluate-pro-rata-allocation evaluation-request))
+  (pro-rata-evaluation/evaluate-pro-rata-allocation evaluation-request))
 
 ^{:nextjournal.clerk/visibility {:code :hide :result :show}}
 (clerk/html
@@ -317,7 +317,7 @@
 
 ^{:nextjournal.clerk/visibility {:code :show :result :show}}
 (def result-artifact-via-evaluation
-  (payoffs/build-pro-rata-allocation-result-artifact
+  (pro-rata-evaluation/build-pro-rata-allocation-result-artifact
    {:projection-artifact (get-in evaluation [:projection :artifact/value])
     :evaluation evaluation
     :allocation-result (:allocation evaluation)
@@ -347,7 +347,7 @@
  [:pre {:style {:background "#0f172a" :color "#e2e8f0" :padding "16px"
                 :font-family "monospace" :font-size "13px" :line-height "1.5"
                 :border-radius "4px"}}
-  (payoffs/format-pro-rata-result-table result-artifact)])
+  (pro-rata-evaluation/format-pro-rata-result-table result-artifact)])
 
 ;; ## 7. Proof panel — hashes needed to verify the claim
 
@@ -356,7 +356,7 @@
  [:pre {:style {:background "#0f172a" :color "#e2e8f0" :padding "16px"
                 :font-family "monospace" :font-size "13px" :line-height "1.5"
                 :border-radius "4px"}}
-  (payoffs/format-proof-panel result-artifact)])
+  (pro-rata-evaluation/format-proof-panel result-artifact)])
 
 ;; ## Hash chain summary
 

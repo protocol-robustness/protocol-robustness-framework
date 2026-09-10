@@ -43,6 +43,13 @@
    duplicate admission roots are rejected; no outcome/agreement filtering —
    divergent reports remain valid members.
 
+   PARTICIPATION CLASSES
+   Each member carries :admission/participation (derived from the re-verified
+   admission), and the epoch exposes :epoch/participation as three separate
+   classes — :anonymous, :declared-unresolved, and :authenticated.  A future
+   consumer must never read a declared presentation as identity evidence; the
+   classes are deliberately not collapsed into a single named-researcher count.
+
    Identity vocabulary: :report/root and :admission/root in :epoch/members are
    exact projections of the admission's roots.  The only new identities are the
    epoch set/root commitments.  Domain tags are strings used directly via
@@ -141,14 +148,33 @@
 
 (defn- verify-and-pair
   "Re-verify one admission (by its data) and require its committed root equals the
-   admission root from the head.  Returns {:report/root :admission/root}."
+   admission root from the head.  Returns {:report/root :admission/root
+   :admission/participation}."
   [admission-root data]
   (let [adm (pra/build (:report data) (:manifest data) (:public-key data))]
     (when-not (= admission-root (:admission/root adm))
       (fail! :admission-verification-mismatch
              {:expected admission-root :actual (:admission/root adm)}))
     {:report/root (:report/root adm)
-     :admission/root (:admission/root adm)}))
+     :admission/root (:admission/root adm)
+     :admission/participation (:admission/participation adm)}))
+
+(defn- participation-classification
+  "Derive the participation classes exposed by an epoch from its members.
+   Presentation is never collapsed into identity assurance: anonymous,
+   declared-but-unresolved, and authenticated-researcher admissions are
+   separate classes, so a display name can never be read as identity evidence."
+  [members]
+  (reduce (fn [acc m]
+            (let [{:keys [presentation identity-assurance]}
+                  (:admission/participation m)]
+              (case presentation
+                :anonymous (update acc :anonymous inc)
+                :declared (if (= :authenticated identity-assurance)
+                            (update acc :authenticated inc)
+                            (update acc :declared-unresolved inc)))))
+          {:anonymous 0 :declared-unresolved 0 :authenticated 0}
+          members))
 
 (defn- build-members
   "Derive canonical members from the ordered admission roots, re-verifying each
@@ -193,6 +219,7 @@
                   :epoch/sequence through-sequence
                   :epoch/predecessor predecessor
                   :epoch/admission-basis basis
+                  :epoch/participation (participation-classification members)
                   :epoch/members members}]
         (assoc body
                :epoch/set-root (epoch-set-root members)

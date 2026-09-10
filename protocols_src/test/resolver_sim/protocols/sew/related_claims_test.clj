@@ -7,6 +7,7 @@
             [resolver-sim.protocols.sew.related-claims :as rc]
             [resolver-sim.protocols.sew.invariants :as inv]
             [resolver-sim.protocols.sew.snapshot-fixtures :as snap-fix]
+            [resolver-sim.related-claims :as core-related-claims]
             [resolver-sim.hash.canonical :as hash]
             [resolver-sim.workflow-group :as wg]))
 
@@ -30,15 +31,28 @@
           (t/empty-world 1000)
           (range n)))
 
+(deftest compatibility-namespace-re-exports-core-relationship-apis
+  (is (identical? rc/related-claims-hash-v4
+                  core-related-claims/related-claims-hash-v4))
+  (is (identical? rc/verify-related-claims-hash
+                  core-related-claims/verify-related-claims-hash))
+  (is (identical? rc/related-claims-member-hash
+                  core-related-claims/related-claims-member-hash))
+  (is (identical? rc/related-claims-consistency
+                  core-related-claims/related-claims-consistency))
+  (is (identical? rc/shared-evidence-valid?
+                  core-related-claims/shared-evidence-valid?))
+  (is (identical? rc/claim-acceptance core-related-claims/claim-acceptance)))
+
 (deftest create-related-claims-happy
   (let [w (world-with-escrows 3)
         result (rc/create-related-claims! w
-                 {:type :same-incident
-                  :members [{:claim/kind :sew/workflow :workflow/id 0}
-                            {:claim/kind :sew/workflow :workflow/id 1}]
-                  :reason "test-related-claims"
-                  :created-by {:actor/type :test :actor/address gov}
-                  :created-at-step 5})]
+                                          {:type :same-incident
+                                           :members [{:claim/kind :sew/workflow :workflow/id 0}
+                                                     {:claim/kind :sew/workflow :workflow/id 1}]
+                                           :reason "test-related-claims"
+                                           :created-by {:actor/type :test :actor/address gov}
+                                           :created-at-step 5})]
     (is (true? (:ok result)))
     (is (some? (:relationship-id result)))
     (let [world' (:world result)
@@ -55,51 +69,51 @@
 (deftest create-related-claims-members-exist-validation
   (let [w (world-with-escrows 2)
         result (rc/create-related-claims! w
-                 {:type :same-incident
-                  :members [{:claim/kind :sew/workflow :workflow/id 0}
-                            {:claim/kind :sew/workflow :workflow/id 99}]
-               :created-by test-creator})]
+                                          {:type :same-incident
+                                           :members [{:claim/kind :sew/workflow :workflow/id 0}
+                                                     {:claim/kind :sew/workflow :workflow/id 99}]
+                                           :created-by test-creator})]
     (is (false? (:ok result)))
     (is (= :invalid-related-claims (:error result)))))
 
 (deftest create-related-claims-no-duplicate-within
   (let [w (world-with-escrows 2)
         result (rc/create-related-claims! w
-                 {:type :same-incident
-                  :members [{:claim/kind :sew/workflow :workflow/id 0}
-                            {:claim/kind :sew/workflow :workflow/id 0}]
-               :created-by test-creator})]
+                                          {:type :same-incident
+                                           :members [{:claim/kind :sew/workflow :workflow/id 0}
+                                                     {:claim/kind :sew/workflow :workflow/id 0}]
+                                           :created-by test-creator})]
     (is (false? (:ok result)))))
 
 (deftest create-related-claims-no-duplicate-across-relationships
   (let [w (world-with-escrows 3)
         r1 (rc/create-related-claims! w
-              {:type :same-incident
-               :members [{:claim/kind :sew/workflow :workflow/id 0}
-                         {:claim/kind :sew/workflow :workflow/id 1}]
-               :created-by test-creator})
+                                      {:type :same-incident
+                                       :members [{:claim/kind :sew/workflow :workflow/id 0}
+                                                 {:claim/kind :sew/workflow :workflow/id 1}]
+                                       :created-by test-creator})
         world' (:world r1)
         r2 (rc/create-related-claims! world'
-              {:type :same-incident
-               :members [{:claim/kind :sew/workflow :workflow/id 1}
-                         {:claim/kind :sew/workflow :workflow/id 2}]
-               :created-by test-creator})]
+                                      {:type :same-incident
+                                       :members [{:claim/kind :sew/workflow :workflow/id 1}
+                                                 {:claim/kind :sew/workflow :workflow/id 2}]
+                                       :created-by test-creator})]
     (is (false? (:ok r2)))))
 
 (deftest create-related-claims-no-duplicate-across-types
   (testing "a workflow cannot enter a second active relationship even of a different type"
     (let [w (world-with-escrows 3)
           r1 (rc/create-related-claims! w
-                {:type :same-incident
-                 :members [{:claim/kind :sew/workflow :workflow/id 0}
-                           {:claim/kind :sew/workflow :workflow/id 1}]
-               :created-by test-creator})
+                                        {:type :same-incident
+                                         :members [{:claim/kind :sew/workflow :workflow/id 0}
+                                                   {:claim/kind :sew/workflow :workflow/id 1}]
+                                         :created-by test-creator})
           world' (:world r1)
           r2 (rc/create-related-claims! world'
-                {:type :same-counterparty
-                 :members [{:claim/kind :sew/workflow :workflow/id 1}
-                           {:claim/kind :sew/workflow :workflow/id 2}]
-               :created-by test-creator})]
+                                        {:type :same-counterparty
+                                         :members [{:claim/kind :sew/workflow :workflow/id 1}
+                                                   {:claim/kind :sew/workflow :workflow/id 2}]
+                                         :created-by test-creator})]
       (is (false? (:ok r2))
           "workflow 1 already belongs to an active relationship"))))
 
@@ -107,10 +121,10 @@
   (testing "empty membership is rejected"
     (let [w (world-with-escrows 1)
           result (rc/create-related-claims! w
-                   {:type :same-incident
-                    :members []
-                    :reason "test"
-               :created-by test-creator})]
+                                            {:type :same-incident
+                                             :members []
+                                             :reason "test"
+                                             :created-by test-creator})]
       (is (false? (:ok result)))
       (is (= :invalid-related-claims (:error result))))))
 
@@ -118,11 +132,11 @@
   (testing "an unknown semantics keyword is rejected"
     (let [w (world-with-escrows 1)
           result (rc/create-related-claims! w
-                   {:type :same-incident
-                    :members [{:claim/kind :sew/workflow :workflow/id 0}]
-                    :semantics #{:batch-force-authorisation}
-                    :reason "test"
-               :created-by test-creator})]
+                                            {:type :same-incident
+                                             :members [{:claim/kind :sew/workflow :workflow/id 0}]
+                                             :semantics #{:batch-force-authorisation}
+                                             :reason "test"
+                                             :created-by test-creator})]
       (is (false? (:ok result)))
       (is (= :invalid-related-claims (:error result))))))
 
@@ -130,22 +144,22 @@
   (testing "any semantics other than exactly #{:audit-only} is rejected in v1"
     (let [w (world-with-escrows 1)
           result (rc/create-related-claims! w
-                   {:type :same-incident
-                    :members [{:claim/kind :sew/workflow :workflow/id 0}]
-                    :semantics #{:audit-only :cross-claim-guarantee}
-                    :reason "test"
-               :created-by test-creator})]
+                                            {:type :same-incident
+                                             :members [{:claim/kind :sew/workflow :workflow/id 0}]
+                                             :semantics #{:audit-only :cross-claim-guarantee}
+                                             :reason "test"
+                                             :created-by test-creator})]
       (is (false? (:ok result))))))
 
 (deftest find-related-claims-for-workflow
   (let [w (world-with-escrows 3)]
     (is (empty? (rc/find-related-claims-for-workflow w 0)))
     (let [r1 (rc/create-related-claims! w
-                {:type :same-incident
-                 :members [{:claim/kind :sew/workflow :workflow/id 0}
-                           {:claim/kind :sew/workflow :workflow/id 1}]
-                 :reason "test"
-               :created-by test-creator})
+                                        {:type :same-incident
+                                         :members [{:claim/kind :sew/workflow :workflow/id 0}
+                                                   {:claim/kind :sew/workflow :workflow/id 1}]
+                                         :reason "test"
+                                         :created-by test-creator})
           world' (:world r1)]
       (is (= #{(:relationship-id r1)}
              (set (rc/find-related-claims-for-workflow world' 0))))
@@ -156,18 +170,18 @@
 (deftest find-related-claims-for-workflows
   (let [w (world-with-escrows 4)
         r1 (rc/create-related-claims! w
-              {:type :same-incident
-               :members [{:claim/kind :sew/workflow :workflow/id 0}
-                         {:claim/kind :sew/workflow :workflow/id 1}]
-               :reason "test"
-               :created-by test-creator})
+                                      {:type :same-incident
+                                       :members [{:claim/kind :sew/workflow :workflow/id 0}
+                                                 {:claim/kind :sew/workflow :workflow/id 1}]
+                                       :reason "test"
+                                       :created-by test-creator})
         world' (:world r1)
         r2 (rc/create-related-claims! world'
-              {:type :same-counterparty
-               :members [{:claim/kind :sew/workflow :workflow/id 2}
-                         {:claim/kind :sew/workflow :workflow/id 3}]
-               :reason "test2"
-               :created-by test-creator})
+                                      {:type :same-counterparty
+                                       :members [{:claim/kind :sew/workflow :workflow/id 2}
+                                                 {:claim/kind :sew/workflow :workflow/id 3}]
+                                       :reason "test2"
+                                       :created-by test-creator})
         world'' (:world r2)]
     (is (= #{(:relationship-id r1) (:relationship-id r2)}
            (rc/find-related-claims-for-workflows world'' [0 2])))
@@ -177,11 +191,11 @@
 (deftest related-claims-hash-integrity
   (let [w (world-with-escrows 2)
         result (rc/create-related-claims! w
-                 {:type :same-incident
-                  :members [{:claim/kind :sew/workflow :workflow/id 0}
-                            {:claim/kind :sew/workflow :workflow/id 1}]
-                  :reason "test"
-                  :created-by test-creator})
+                                          {:type :same-incident
+                                           :members [{:claim/kind :sew/workflow :workflow/id 0}
+                                                     {:claim/kind :sew/workflow :workflow/id 1}]
+                                           :reason "test"
+                                           :created-by test-creator})
         world' (:world result)
         rel (rc/get-related-claims world' (:relationship-id result))]
     (is (some? (:relationship/hash rel)))
@@ -257,7 +271,7 @@
           "the accidental V2-with-semantics preimage is not reinterpreted as V2"))
     (testing "historical records cannot be upgraded into strict authentication"
       (doseq [record [v1 (assoc v2 :relationship/authenticated? true
-                                    :relationship/assurance :address-bound)]]
+                                :relationship/assurance :address-bound)]]
         (is (false? (rc/authenticated-related-claims? ctx record)))
         (is (contains? (:reasons (rc/verify-authenticated-related-claims ctx record))
                        :unsupported-relationship-version))))
@@ -269,45 +283,45 @@
                 :relationship/hash (rc/related-claims-hash-v3 members provenance #{:audit-only})}]
         (is (:valid? (rc/verify-related-claims-hash v3)))
         (is (false? (:valid? (rc/verify-related-claims-hash
-                               (assoc v3 :relationship/semantics #{:shared-evidence})))))))))
+                              (assoc v3 :relationship/semantics #{:shared-evidence})))))))))
 
 (deftest related-claims-members-exist-invariant
   (let [w (world-with-escrows 2)
         result (rc/create-related-claims! w
-                 {:type :same-incident
-                  :members [{:claim/kind :sew/workflow :workflow/id 0}
-                            {:claim/kind :sew/workflow :workflow/id 1}]
-                  :reason "test"
-               :created-by test-creator})
+                                          {:type :same-incident
+                                           :members [{:claim/kind :sew/workflow :workflow/id 0}
+                                                     {:claim/kind :sew/workflow :workflow/id 1}]
+                                           :reason "test"
+                                           :created-by test-creator})
         world' (:world result)]
     (is (true? (:holds? (inv/related-claims-members-exist? world'))))))
 
 (deftest related-claims-no-duplicate-members-invariant
   (let [w (world-with-escrows 4)
         r1 (rc/create-related-claims! w
-              {:type :same-incident
-               :members [{:claim/kind :sew/workflow :workflow/id 0}
-                         {:claim/kind :sew/workflow :workflow/id 1}]
-               :reason "test"
-               :created-by test-creator})
+                                      {:type :same-incident
+                                       :members [{:claim/kind :sew/workflow :workflow/id 0}
+                                                 {:claim/kind :sew/workflow :workflow/id 1}]
+                                       :reason "test"
+                                       :created-by test-creator})
         world' (:world r1)
         r2 (rc/create-related-claims! world'
-              {:type :same-counterparty
-               :members [{:claim/kind :sew/workflow :workflow/id 2}
-                         {:claim/kind :sew/workflow :workflow/id 3}]
-               :reason "test2"
-               :created-by test-creator})
+                                      {:type :same-counterparty
+                                       :members [{:claim/kind :sew/workflow :workflow/id 2}
+                                                 {:claim/kind :sew/workflow :workflow/id 3}]
+                                       :reason "test2"
+                                       :created-by test-creator})
         world'' (:world r2)]
     (is (true? (:holds? (inv/related-claims-no-duplicate-members? world''))))))
 
 (deftest related-claims-hash-matches-members-invariant
   (let [w (world-with-escrows 2)
         result (rc/create-related-claims! w
-                 {:type :same-incident
-                  :members [{:claim/kind :sew/workflow :workflow/id 0}
-                            {:claim/kind :sew/workflow :workflow/id 1}]
-                  :reason "test"
-               :created-by test-creator})
+                                          {:type :same-incident
+                                           :members [{:claim/kind :sew/workflow :workflow/id 0}
+                                                     {:claim/kind :sew/workflow :workflow/id 1}]
+                                           :reason "test"
+                                           :created-by test-creator})
         world' (:world result)]
     (is (true? (:holds? (inv/related-claims-hash-matches-members? world'))))
     (let [corrupted-world (assoc-in world'
@@ -330,22 +344,22 @@
 (deftest related-claims-do-not-block-finality-invariant
   (let [w (world-with-escrows 2)
         result (rc/create-related-claims! w
-                 {:type :same-incident
-                  :members [{:claim/kind :sew/workflow :workflow/id 0}
-                            {:claim/kind :sew/workflow :workflow/id 1}]
-                  :reason "test"
-               :created-by test-creator})
+                                          {:type :same-incident
+                                           :members [{:claim/kind :sew/workflow :workflow/id 0}
+                                                     {:claim/kind :sew/workflow :workflow/id 1}]
+                                           :reason "test"
+                                           :created-by test-creator})
         world' (:world result)]
     (is (true? (:holds? (inv/related-claims-do-not-block-finality? world'))))))
 
 (deftest all-related-claims-invariants-pass-in-check-all
   (let [w (world-with-escrows 2)
         result (rc/create-related-claims! w
-                 {:type :same-incident
-                  :members [{:claim/kind :sew/workflow :workflow/id 0}
-                            {:claim/kind :sew/workflow :workflow/id 1}]
-                  :reason "test"
-               :created-by test-creator})
+                                          {:type :same-incident
+                                           :members [{:claim/kind :sew/workflow :workflow/id 0}
+                                                     {:claim/kind :sew/workflow :workflow/id 1}]
+                                           :reason "test"
+                                           :created-by test-creator})
         world' (:world result)
         check (inv/check-all world')]
     (is (true? (get-in check [:results :related-claims-members-exist :holds?])))
@@ -357,11 +371,11 @@
 (deftest related-claims-active-after-creation
   (let [w (world-with-escrows 2)
         result (rc/create-related-claims! w
-                 {:type :same-incident
-                  :members [{:claim/kind :sew/workflow :workflow/id 0}
-                            {:claim/kind :sew/workflow :workflow/id 1}]
-                  :reason "test"
-               :created-by test-creator})
+                                          {:type :same-incident
+                                           :members [{:claim/kind :sew/workflow :workflow/id 0}
+                                                     {:claim/kind :sew/workflow :workflow/id 1}]
+                                           :reason "test"
+                                           :created-by test-creator})
         world' (:world result)
         rel-id (:relationship-id result)]
     (is (true? (rc/related-claims-active? world' rel-id)))
@@ -370,31 +384,31 @@
 (deftest related-claims-allowed-types
   (let [w (world-with-escrows 1)
         result (rc/create-related-claims! w
-                 {:type :nonexistent-type
-                  :members [{:claim/kind :sew/workflow :workflow/id 0}]
-                  :reason "test"
-               :created-by test-creator})]
+                                          {:type :nonexistent-type
+                                           :members [{:claim/kind :sew/workflow :workflow/id 0}]
+                                           :reason "test"
+                                           :created-by test-creator})]
     (is (false? (:ok result)))))
 
 (deftest related-claims-authorisation-scope-closed-invariant-vacuous
   (let [w (world-with-escrows 2)
         result (rc/create-related-claims! w
-                 {:type :same-incident
-                  :members [{:claim/kind :sew/workflow :workflow/id 0}
-                            {:claim/kind :sew/workflow :workflow/id 1}]
-                  :reason "test"
-               :created-by test-creator})
+                                          {:type :same-incident
+                                           :members [{:claim/kind :sew/workflow :workflow/id 0}
+                                                     {:claim/kind :sew/workflow :workflow/id 1}]
+                                           :reason "test"
+                                           :created-by test-creator})
         world' (:world result)]
     (is (true? (:holds? (inv/related-claims-authorisation-scope-closed? world'))))))
 
 (deftest related-claims-authorisation-scope-closed-invariant-with-auth
   (let [w (world-with-escrows 2)
         result (rc/create-related-claims! w
-                 {:type :same-incident
-                  :members [{:claim/kind :sew/workflow :workflow/id 0}
-                            {:claim/kind :sew/workflow :workflow/id 1}]
-                  :reason "test"
-               :created-by test-creator})
+                                          {:type :same-incident
+                                           :members [{:claim/kind :sew/workflow :workflow/id 0}
+                                                     {:claim/kind :sew/workflow :workflow/id 1}]
+                                           :reason "test"
+                                           :created-by test-creator})
         world' (:world result)
         rel-id (:relationship-id result)
         rel (rc/get-related-claims world' rel-id)
@@ -429,7 +443,7 @@
                         [{:claim/kind :sew/workflow :workflow/id 0}
                          {:claim/kind :sew/workflow :workflow/id 1}]}
           present {:claim/kind :sew/workflow :workflow/id 1}
-          absent  {:claim/kind :sew/workflow :workflow/id 9}
+          absent {:claim/kind :sew/workflow :workflow/id 9}
           projected (map (fn [m] (wg/workflow-group-member (:claim/kind m) (:workflow/id m)))
                          (:relationship/members relationship))]
       (is (= (rc/relationship-member? relationship present)
@@ -497,10 +511,10 @@
   (testing "direct builder rejects a missing creator (no hardcoded default)"
     (let [w (world-with-escrows 2)
           result (rc/create-related-claims! w
-                   {:type :same-incident
-                    :members [{:claim/kind :sew/workflow :workflow/id 0}
-                              {:claim/kind :sew/workflow :workflow/id 1}]
-                    :reason "test"})]
+                                            {:type :same-incident
+                                             :members [{:claim/kind :sew/workflow :workflow/id 0}
+                                                       {:claim/kind :sew/workflow :workflow/id 1}]
+                                             :reason "test"})]
       (is (false? (:ok result)))
       (is (= :invalid-related-claims (:error result))))))
 
@@ -508,9 +522,9 @@
   (testing "a direct-builder V3 record is unconditionally unauthenticated"
     (let [w (world-with-escrows 2)
           result (rc/create-related-claims! w
-                   {:type :same-incident
-                    :members [{:claim/kind :sew/workflow :workflow/id 0}]
-                    :created-by test-creator})
+                                            {:type :same-incident
+                                             :members [{:claim/kind :sew/workflow :workflow/id 0}]
+                                             :created-by test-creator})
           rec (get-in result [:world :related-claims (:relationship-id result)])]
       (is (:ok result))
       (is (= :unauthenticated (:relationship/assurance rec)))
@@ -522,15 +536,15 @@
   (testing "direct construction rejects any caller-supplied authentication/assurance override"
     (let [w (world-with-escrows 2)]
       (is (false? (:ok (rc/create-related-claims! w
-                        {:type :same-incident
-                         :members [{:claim/kind :sew/workflow :workflow/id 0}]
-                         :created-by test-creator
-                         :authenticated? true}))))
+                                                  {:type :same-incident
+                                                   :members [{:claim/kind :sew/workflow :workflow/id 0}]
+                                                   :created-by test-creator
+                                                   :authenticated? true}))))
       (is (false? (:ok (rc/create-related-claims! w
-                        {:type :same-incident
-                         :members [{:claim/kind :sew/workflow :workflow/id 0}]
-                         :created-by test-creator
-                         :assurance :address-bound})))))))
+                                                  {:type :same-incident
+                                                   :members [{:claim/kind :sew/workflow :workflow/id 0}]
+                                                   :created-by test-creator
+                                                   :assurance :address-bound})))))))
 
 (deftest v1-artifact-cannot-be-authenticated-by-attached-metadata
   (testing "a V1-hashed artifact cannot acquire authenticated status via uncommitted creator metadata"
@@ -543,7 +557,7 @@
       (is (not= v1-hash v2-hash))
       (is (not= (:relationship/hash v1-record)
                 (rc/related-claims-hash (:relationship/members
-                                          {:relationship/members members})
+                                         {:relationship/members members})
                                         (:relationship/creator-provenance v1-record)))
           "attaching creator metadata outside the V1 hash cannot make it an authenticated V2 record"))))
 
@@ -612,9 +626,9 @@
                        :relationship-hash-mismatch))))
     (testing "member, semantics, and provenance edits leave a stale relationship hash"
       (doseq [stale [(update record :relationship/members
-                            (fn [members]
-                              (assoc (vec members) 1
-                                     (assoc (second members) :workflow/id 99))))
+                             (fn [members]
+                               (assoc (vec members) 1
+                                      (assoc (second members) :workflow/id 99))))
                      (assoc record :relationship/semantics #{:batch-force-authorisation})
                      (assoc-in record [:relationship/creator-provenance :actor/address] "0xMallory")]]
         (is (false? (rc/authenticated-related-claims? ctx stale)))
@@ -630,12 +644,12 @@
   (testing "changing/attaching an authentication flag outside the committed provenance cannot upgrade an artifact"
     (let [w (world-with-escrows 2)
           result (rc/create-related-claims! w
-                   {:type :same-incident
-                    :members [{:claim/kind :sew/workflow :workflow/id 0}]
-                    :created-by test-creator})
+                                            {:type :same-incident
+                                             :members [{:claim/kind :sew/workflow :workflow/id 0}]
+                                             :created-by test-creator})
           rec (get-in result [:world :related-claims (:relationship-id result)])
           upgraded (assoc rec :relationship/assurance :address-bound
-                               :relationship/authenticated? true)]
+                          :relationship/authenticated? true)]
       (is (false? (rc/authenticated-related-claims? upgraded))
           "a manually attached assurance flag cannot satisfy the strict predicate (creator provenance is not address-bound)")
       (is (= (:relationship/hash rec) (:relationship/hash upgraded))
@@ -879,11 +893,11 @@
 
           ;; ── Step 2: Create related-claims R (:audit-only) linking A and B ──
           rc-result (rc/create-related-claims! world-after-escrows
-                       {:type :same-incident
-                        :members [{:claim/kind :sew/workflow :workflow/id wf-a}
-                                  {:claim/kind :sew/workflow :workflow/id wf-b}]
-                        :reason "same incident test"
-                        :created-by test-creator})
+                                               {:type :same-incident
+                                                :members [{:claim/kind :sew/workflow :workflow/id wf-a}
+                                                          {:claim/kind :sew/workflow :workflow/id wf-b}]
+                                                :reason "same incident test"
+                                                :created-by test-creator})
           world-after-rc (:world rc-result)
           rel-id (:relationship-id rc-result)
           rel (rc/get-related-claims world-after-rc rel-id)
@@ -986,11 +1000,11 @@
   (testing "related-claims relationship is not an authorization primitive"
     (let [w0 (world-with-escrows 2)
           rc-result (rc/create-related-claims! w0
-                       {:type :same-incident
-                        :members [{:claim/kind :sew/workflow :workflow/id 0}
-                                  {:claim/kind :sew/workflow :workflow/id 1}]
-                        :reason "test"
-                        :created-by test-creator})
+                                               {:type :same-incident
+                                                :members [{:claim/kind :sew/workflow :workflow/id 0}
+                                                          {:claim/kind :sew/workflow :workflow/id 1}]
+                                                :reason "test"
+                                                :created-by test-creator})
           world' (:world rc-result)
           rel-id (:relationship-id rc-result)
           rel (rc/get-related-claims world' rel-id)]
@@ -1018,11 +1032,11 @@
     (let [w (world-with-escrows 2)
           ;; Create related-claims linking workflows 0 and 1
           rc-full (rc/create-related-claims! w
-                     {:type :same-incident
-                      :members [{:claim/kind :sew/workflow :workflow/id 0}
-                                {:claim/kind :sew/workflow :workflow/id 1}]
-                      :reason "test"
-                      :created-by test-creator})
+                                             {:type :same-incident
+                                              :members [{:claim/kind :sew/workflow :workflow/id 0}
+                                                        {:claim/kind :sew/workflow :workflow/id 1}]
+                                              :reason "test"
+                                              :created-by test-creator})
           rel-id (:relationship-id rc-full)
           world' (:world rc-full)
           ;; Put workflow 0 into dispute
@@ -1048,11 +1062,11 @@
   (testing "relationship transitions to :archived when all members are terminal"
     (let [w (world-with-escrows 2)
           rc-full (rc/create-related-claims! w
-                     {:type :same-incident
-                      :members [{:claim/kind :sew/workflow :workflow/id 0}
-                                {:claim/kind :sew/workflow :workflow/id 1}]
-                      :reason "test"
-                      :created-by test-creator})
+                                             {:type :same-incident
+                                              :members [{:claim/kind :sew/workflow :workflow/id 0}
+                                                        {:claim/kind :sew/workflow :workflow/id 1}]
+                                              :reason "test"
+                                              :created-by test-creator})
           rel-id (:relationship-id rc-full)
           world' (:world rc-full)
           ;; Finalize both workflows
@@ -1069,11 +1083,11 @@
   (testing "relationship stays active when at least one member is non-terminal"
     (let [w (world-with-escrows 2)
           rc-full (rc/create-related-claims! w
-                     {:type :same-incident
-                      :members [{:claim/kind :sew/workflow :workflow/id 0}
-                                {:claim/kind :sew/workflow :workflow/id 1}]
-                      :reason "test"
-                      :created-by test-creator})
+                                             {:type :same-incident
+                                              :members [{:claim/kind :sew/workflow :workflow/id 0}
+                                                        {:claim/kind :sew/workflow :workflow/id 1}]
+                                              :reason "test"
+                                              :created-by test-creator})
           rel-id (:relationship-id rc-full)
           world' (:world rc-full)
           ;; Finalize only workflow 0
@@ -1090,21 +1104,69 @@
     (let [w (world-with-escrows 3)
           ;; Create R1 linking workflows 0 and 1
           rc1-full (rc/create-related-claims! w
-                     {:type :same-incident
-                      :members [{:claim/kind :sew/workflow :workflow/id 0}
-                                {:claim/kind :sew/workflow :workflow/id 1}]
-                      :reason "R1"
-                      :created-by test-creator})
+                                              {:type :same-incident
+                                               :members [{:claim/kind :sew/workflow :workflow/id 0}
+                                                         {:claim/kind :sew/workflow :workflow/id 1}]
+                                               :reason "R1"
+                                               :created-by test-creator})
           world' (:world rc1-full)
           ;; Finalize workflow 0 (terminal)
           w-final (assoc-in world' [:escrow-transfers 0 :escrow-state] :released)
           ;; Create R2 linking terminal workflow 0 with new workflow 2
           ;; This should succeed because workflow 0 is terminal
           rc2-result (rc/create-related-claims! w-final
-                       {:type :same-incident
-                        :members [{:claim/kind :sew/workflow :workflow/id 0}
-                                  {:claim/kind :sew/workflow :workflow/id 2}]
-                        :reason "R2"
-                        :created-by test-creator})]
+                                                {:type :same-incident
+                                                 :members [{:claim/kind :sew/workflow :workflow/id 0}
+                                                           {:claim/kind :sew/workflow :workflow/id 2}]
+                                                 :reason "R2"
+                                                 :created-by test-creator})]
       (is (:ok rc2-result)
           "terminal workflow 0 can join a new relationship R2"))))
+
+(deftest claim-acceptance-reports-coupled-resolution-completeness
+  (let [root (fn [tag] (str "sha256:" (apply str (take 64 (cycle tag)))))
+        incident-root (root "a")
+        evidence-root (root "b")
+        policy-root (root "c")
+        created (rc/create-related-claims!
+                 (world-with-escrows 2)
+                 {:type :same-incident
+                  :members [{:claim/kind :sew/workflow :workflow/id 0}
+                            {:claim/kind :sew/workflow :workflow/id 1}]
+                  :semantics rc/shared-resolution-semantics
+                  :incident-root incident-root
+                  :shared-evidence-root evidence-root
+                  :resolution-policy-root policy-root
+                  :created-by test-creator})
+        relationship (:relationship created)
+        member-results [{:claim/kind :sew/workflow :workflow/id 0
+                         :resolution/status :accepted
+                         :incident/root incident-root
+                         :shared-evidence/root evidence-root
+                         :resolution-policy/root policy-root}]
+        incomplete (rc/claim-acceptance
+                    {:relationship relationship
+                     :claim (first (:relationship/members relationship))
+                     :member-results member-results
+                     :resolve-artifact #(when (= % evidence-root) {:evidence/hash evidence-root})})]
+    (is (:ok created))
+    (is (= rc/related-claims-version-v4 (:related-claims/version relationship)))
+    (is (rc/related-claim-member? relationship {:claim/kind :sew/workflow :workflow/id 0}))
+    (is (= 2 (count (rc/related-claims-required-members relationship))))
+    (is (= :incomplete (:acceptance/status incomplete)))
+    (is (= [{:claim/kind :sew/workflow :workflow/id 1 :claim/scope-hash
+             (rc/related-claims-member-hash {:claim/kind :sew/workflow :workflow/id 1})}]
+           (:missing-members incomplete)))
+    (let [complete (rc/claim-acceptance
+                    {:relationship relationship
+                     :claim (first (:relationship/members relationship))
+                     :member-results (conj member-results
+                                           {:claim/kind :sew/workflow :workflow/id 1
+                                            :resolution/status :accepted
+                                            :incident/root incident-root
+                                            :shared-evidence/root evidence-root
+                                            :resolution-policy/root policy-root})
+                     :resolve-artifact #(when (= % evidence-root) {:evidence/hash evidence-root})})]
+      (is (:accepted? complete))
+      (is (= :coupled-resolution (:acceptance/scope complete)))
+      (is (empty? (:conflicts complete))))))

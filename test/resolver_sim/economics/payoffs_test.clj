@@ -6,7 +6,12 @@
             [resolver-sim.execution.observation :as observation]
             [resolver-sim.execution.realization :as realization]
             [resolver-sim.execution.runtime-profile :as runtime-profile]
-            [resolver-sim.hash.canonical :as hc])
+            [resolver-sim.hash.canonical :as hc]
+            [resolver-sim.pro-rata.allocation :as allocation]
+            [resolver-sim.pro-rata.engine :as engine]
+            [resolver-sim.pro-rata.evaluation :as evaluation]
+            [resolver-sim.pro-rata.progress :as progress]
+            [resolver-sim.pro-rata.redistribution :as redistribution])
   (:import [java.util.concurrent CountDownLatch]))
 
 (deftest redistribution-emits-one-observation-with-each-phase-once
@@ -14,10 +19,10 @@
         profile (runtime-profile/build {:execution/claimant-parallelism 4
                                         :execution/claimant-parallel-threshold 1
                                         :execution/quiescence-timeout-seconds 5})]
-    (binding [payoffs/*pro-rata-parallel-threshold* 1
+    (binding [engine/*pro-rata-parallel-threshold* 1
               realization/*claimant-execution-runtime-profile-root* (:runtime-profile/root profile)
               realization/*claimant-execution-observation-sink* #(swap! events conj %)]
-      (let [result (payoffs/allocate-pro-rata-with-redistribution
+      (let [result (redistribution/allocate-pro-rata-with-redistribution
                     {:amount 100
                      :items [{:id :a :weight 100 :cap 10}
                              {:id :b :weight 100 :cap 10}
@@ -38,10 +43,10 @@
                 (let [result (budget/with-execution-budget 2
                                (let [permits (budget/acquire-many! held)]
                                  (try
-                                   (binding [payoffs/*pro-rata-parallel-threshold* 1
+                                   (binding [engine/*pro-rata-parallel-threshold* 1
                                              realization/*claimant-execution-runtime-profile-root* (:runtime-profile/root profile)
                                              realization/*claimant-execution-observation-sink* #(swap! events conj %)]
-                                     (payoffs/allocate-pro-rata {:amount 8 :items items :parallelism 8}))
+                                     (allocation/allocate-pro-rata {:amount 8 :items items :parallelism 8}))
                                    (finally (budget/release-many! permits)))))]
                   {:result result :events @events})))]
     (let [r0 (run 0)
@@ -62,12 +67,12 @@
   (let [items (mapv (fn [i] {:id (keyword (str "claim-" i)) :weight 1}) (range 16))
         worker-threads (atom #{})
         started (CountDownLatch. 2)
-        serial (payoffs/allocate-pro-rata {:amount 101 :items items
-                                           :ordering-policy :canonical-id
-                                           :rounding :floor-with-largest-remainder})
-        parallel (binding [payoffs/*pro-rata-parallelism* 2
-                           payoffs/*pro-rata-parallel-threshold* 1]
-                   (payoffs/allocate-pro-rata
+        serial (allocation/allocate-pro-rata {:amount 101 :items items
+                                              :ordering-policy :canonical-id
+                                              :rounding :floor-with-largest-remainder})
+        parallel (binding [engine/*pro-rata-parallelism* 2
+                           engine/*pro-rata-parallel-threshold* 1]
+                   (allocation/allocate-pro-rata
                     {:amount 101
                      :items items
                      :ordering-policy :canonical-id
@@ -99,10 +104,10 @@
                  :id-fn :id :weight-fn :weight :cap-fn :cap
                  :rounding :floor-with-largest-remainder
                  :ordering-policy :canonical-id}
-        serial (payoffs/allocate-pro-rata-with-redistribution request)
-        parallel (binding [payoffs/*pro-rata-parallelism* 2
-                           payoffs/*pro-rata-parallel-threshold* 1]
-                   (payoffs/allocate-pro-rata-with-redistribution request))]
+        serial (redistribution/allocate-pro-rata-with-redistribution request)
+        parallel (binding [engine/*pro-rata-parallelism* 2
+                           engine/*pro-rata-parallel-threshold* 1]
+                   (redistribution/allocate-pro-rata-with-redistribution request))]
     ;; This compares allocations, every committed active-set pass, residual
     ;; metadata, and canonical policy fields—not merely aggregate totals.
     (is (= serial parallel))
@@ -114,8 +119,8 @@
   (let [run (fn [n opts]
               (let [threads (atom #{})
                     items (mapv (fn [i] {:id i :weight 1}) (range n))
-                    result (binding [payoffs/*pro-rata-parallel-threshold* 16]
-                             (payoffs/allocate-pro-rata
+                    result (binding [engine/*pro-rata-parallel-threshold* 16]
+                             (allocation/allocate-pro-rata
                               (merge {:amount (+ n 3)
                                       :items items
                                       :rounding :floor-with-largest-remainder
@@ -129,7 +134,7 @@
         serial-16 (run 16 {:parallelism 1})
         parallel-16 (run 16 {:parallelism 2})
         parallel-17 (run 17 {:parallelism 2})
-        progress (payoffs/make-pro-rata-progress-atom)
+        progress (progress/make-progress-atom)
         with-observer (run 17 {:parallelism 2
                                :progress-atom progress})]
     ;; Below threshold and explicit p=1 both use one physical worker; the
@@ -160,9 +165,9 @@
                                         (deliver (get gates id) true)
                                         @(get completed-gates id))))
                                (.start))
-                    result (binding [payoffs/*pro-rata-parallelism* 4
-                                     payoffs/*pro-rata-parallel-threshold* 1]
-                             (payoffs/allocate-pro-rata
+                    result (binding [engine/*pro-rata-parallelism* 4
+                                     engine/*pro-rata-parallel-threshold* 1]
+                             (allocation/allocate-pro-rata
                               {:amount 2
                                :items items
                                :id-fn :id
@@ -199,8 +204,8 @@
   (let [items (mapv (fn [i] {:id i :weight 1}) (range 17))
         run (fn [opts]
               (let [threads (atom #{})
-                    result (binding [payoffs/*pro-rata-parallel-threshold* 1]
-                             (payoffs/allocate-pro-rata
+                    result (binding [engine/*pro-rata-parallel-threshold* 1]
+                             (allocation/allocate-pro-rata
                               (merge {:amount 23
                                       :items items
                                       :rounding :floor-with-largest-remainder
@@ -212,7 +217,7 @@
         callback-events (atom [])
         callback-only (run {:parallelism 2
                             :on-progress #(swap! callback-events conj %)})
-        atom-progress (payoffs/make-pro-rata-progress-atom)
+        atom-progress (progress/make-progress-atom)
         both-events (atom [])
         both (run {:parallelism 2
                    :progress-atom atom-progress
@@ -227,7 +232,7 @@
 
 (deftest allocate-pro-rata-equal-weights
   (testing "equal weights split evenly"
-    (let [result (payoffs/allocate-pro-rata
+    (let [result (allocation/allocate-pro-rata
                   {:amount 50
                    :items [{:id :a :weight 100}
                            {:id :b :weight 100}]})]
@@ -240,8 +245,8 @@
       (is (= 0 (:remainder result))))))
 
 (deftest allocate-pro-rata-reports-caller-owned-progress
-  (let [progress (payoffs/make-pro-rata-progress-atom)
-        result (payoffs/allocate-pro-rata
+  (let [progress (progress/make-progress-atom)
+        result (allocation/allocate-pro-rata
                 {:amount 10
                  :items [{:id :a :weight 1}
                          {:id :b :weight 1}
@@ -267,8 +272,8 @@
                           :cap-treatment :unallocated
                           :tie-break :input-order}
                  :on-progress #(swap! events conj %)}
-        evaluated (payoffs/evaluate-pro-rata-allocation request)
-        replayed (payoffs/evaluate-pro-rata-allocation (dissoc request :on-progress))]
+        evaluated (evaluation/evaluate-pro-rata-allocation request)
+        replayed (evaluation/evaluate-pro-rata-allocation (dissoc request :on-progress))]
     (is (= [40 60] (mapv :allocated (get-in evaluated [:allocation :allocations]))))
     (is (= :passed (get-in evaluated [:validation :status])))
     (is (= :complete (get-in evaluated [:validation :coverage-status])))
@@ -285,7 +290,7 @@
 (deftest evaluate-pro-rata-allocation-rejects-function-valued-request
   (is (thrown-with-msg? clojure.lang.ExceptionInfo
                         #"cannot contain functions"
-                        (payoffs/evaluate-pro-rata-allocation
+                        (evaluation/evaluate-pro-rata-allocation
                          {:amount 10
                           :participants [{:id :a :weight 10}]
                           :policy {}
@@ -297,11 +302,11 @@
                    {:amount 10 :unit :unit :participants [{:id :a :weight -1}]}
                    {:amount 10 :unit :unit :participants [{:id :a :weight 0}]}]]
     (is (thrown? clojure.lang.ExceptionInfo
-                 (payoffs/evaluate-pro-rata-allocation request)))))
+                 (evaluation/evaluate-pro-rata-allocation request)))))
 
 (deftest allocate-pro-rata-unequal-weights
   (testing "unequal weights allocate proportionally"
-    (let [result (payoffs/allocate-pro-rata
+    (let [result (allocation/allocate-pro-rata
                   {:amount 400
                    :items [{:id :a :weight 1000}
                            {:id :b :weight 500}
@@ -313,7 +318,7 @@
 
 (deftest allocate-pro-rata-zero-weight-items
   (testing "zero-weight items receive no allocation while positive-weight items can receive all funds"
-    (let [result (payoffs/allocate-pro-rata
+    (let [result (allocation/allocate-pro-rata
                   {:amount 50
                    :items [{:id :a :weight 100}
                            {:id :b :weight 0}]})]
@@ -322,7 +327,7 @@
       (is (= 50 (:total-allocated result)))
       (is (= 0 (:total-unmet result)))))
   (testing "all zero weights leave the amount unallocated as remainder"
-    (let [result (payoffs/allocate-pro-rata
+    (let [result (allocation/allocate-pro-rata
                   {:amount 100
                    :items [{:id :a :weight 0}
                            {:id :b :weight 0}]})]
@@ -333,7 +338,7 @@
 
 (deftest allocate-pro-rata-capped-allocation
   (testing "caps limit individual allocations and record unmet amount"
-    (let [result (payoffs/allocate-pro-rata
+    (let [result (allocation/allocate-pro-rata
                   {:amount 400
                    :items [{:id :a :weight 1000 :cap 1000}
                            {:id :b :weight 500 :cap 60}
@@ -347,7 +352,7 @@
 
 (deftest allocate-pro-rata-dust-and-remainder-behavior
   (testing "default floor rounding leaves integer dust in remainder"
-    (let [result (payoffs/allocate-pro-rata
+    (let [result (allocation/allocate-pro-rata
                   {:amount 10
                    :items [{:id :a :weight 1}
                            {:id :b :weight 1}
@@ -357,7 +362,7 @@
       (is (= 0 (:total-unmet result)))
       (is (= 1 (:remainder result)))))
   (testing "largest-remainder rounding distributes dust deterministically by input order"
-    (let [result (payoffs/allocate-pro-rata
+    (let [result (allocation/allocate-pro-rata
                   {:amount 10
                    :rounding :floor-with-largest-remainder
                    :items [{:id :a :weight 1}
@@ -370,7 +375,7 @@
 
 (deftest allocate-pro-rata-never-produces-negative-allocations
   (testing "negative amount, weights, and caps are clamped so allocations stay non-negative"
-    (let [result (payoffs/allocate-pro-rata
+    (let [result (allocation/allocate-pro-rata
                   {:amount 100
                    :items [{:id :a :weight -10 :cap 50}
                            {:id :b :weight 10 :cap -1}]
@@ -380,7 +385,7 @@
       (is (= [0 0] (mapv :allocated (:allocations result))))
       (is (= 100 (:total-unmet result)))))
   (testing "negative requested amount becomes zero"
-    (let [result (payoffs/allocate-pro-rata
+    (let [result (allocation/allocate-pro-rata
                   {:amount -100
                    :items [{:id :a :weight 10}]})]
       (is (= 0 (:total-requested result)))
@@ -391,23 +396,23 @@
   (testing "unsupported policies fail explicitly"
     (is (thrown-with-msg? clojure.lang.ExceptionInfo
                           #"Unsupported pro-rata rounding policy"
-                          (payoffs/allocate-pro-rata {:amount 10
-                                                      :rounding :bankers
-                                                      :items [{:id :a :weight 1}]})))
+                          (allocation/allocate-pro-rata {:amount 10
+                                                         :rounding :bankers
+                                                         :items [{:id :a :weight 1}]})))
     (is (thrown-with-msg? clojure.lang.ExceptionInfo
                           #"Unsupported pro-rata remainder policy"
-                          (payoffs/allocate-pro-rata {:amount 10
-                                                      :remainder-policy :redistribute
-                                                      :items [{:id :a :weight 1}]}))))
+                          (allocation/allocate-pro-rata {:amount 10
+                                                         :remainder-policy :redistribute
+                                                         :items [{:id :a :weight 1}]}))))
   (testing "fractional amounts and weights are rejected rather than truncated"
     (is (thrown-with-msg? clojure.lang.ExceptionInfo
                           #"Expected an integer amount"
-                          (payoffs/allocate-pro-rata {:amount 10.5
-                                                      :items [{:id :a :weight 1}]})))
+                          (allocation/allocate-pro-rata {:amount 10.5
+                                                         :items [{:id :a :weight 1}]})))
     (is (thrown-with-msg? clojure.lang.ExceptionInfo
                           #"Expected an integer amount"
-                          (payoffs/allocate-pro-rata {:amount 10
-                                                      :items [{:id :a :weight 1.5}]})))))
+                          (allocation/allocate-pro-rata {:amount 10
+                                                         :items [{:id :a :weight 1.5}]})))))
 
 (deftest allocate-pro-rata-conservation
   (testing "requested = allocated + unmet + remainder"
@@ -422,7 +427,7 @@
                            {:id :c :weight 1}]}
                   {:amount 100
                    :items [{:id :a :weight 0}]}]]
-      (let [result (payoffs/allocate-pro-rata spec)]
+      (let [result (allocation/allocate-pro-rata spec)]
         (is (= (:total-requested result)
                (+ (:total-allocated result)
                   (:total-unmet result)
@@ -435,11 +440,11 @@
                  :items [{:id :a :weight 1}
                          {:id :b :weight 1}
                          {:id :c :weight 1}]}
-          artifact (payoffs/build-projection-artifact
+          artifact (evaluation/build-projection-artifact
                     input
                     {:source {:source/type :unit-test
                               :world-hash "sha256:test-world"}})
-          artifact-again (payoffs/build-projection-artifact
+          artifact-again (evaluation/build-projection-artifact
                           input
                           {:source {:source/type :unit-test
                                     :world-hash "sha256:test-world"}})]
@@ -448,8 +453,8 @@
              (hc/hash-with-intent {:hash/intent :projection-artifact}
                                   (dissoc artifact :projection-hash))))
       (is (nil? (hc/validate-canonical-value! artifact)))
-      (is (payoffs/registered-intent (get-in artifact [:intent :id])))
-      (is (payoffs/registered-projection-definition (:projection-definition-id artifact)))
+      (is (evaluation/registered-intent (get-in artifact [:intent :id])))
+      (is (evaluation/registered-projection-definition (:projection-definition-id artifact)))
       (is (= {:participant-count 3
               :eligible-count 3
               :total-weight 3N
@@ -465,11 +470,11 @@
       (is (:source-hash (:source artifact))))))
 
 (deftest projection-artifact-rejects-tampered-source-hash
-  (let [artifact (payoffs/build-projection-artifact
+  (let [artifact (evaluation/build-projection-artifact
                   {:amount 10 :items [{:id :a :weight 1}]})]
     (is (thrown-with-msg? clojure.lang.ExceptionInfo
                           #"source hash mismatch"
-                          (payoffs/calculate-prorata-from-projection
+                          (evaluation/calculate-prorata-from-projection
                            (assoc-in artifact [:source :source-hash] "tampered"))))))
 
 (deftest calculate-prorata-from-projection-shadows-direct-allocation
@@ -495,9 +500,9 @@
                     :rounding :floor-with-largest-remainder
                     :remainder-policy :unallocated
                     :ordering-policy :input-order}]]
-      (let [artifact (payoffs/build-projection-artifact input)
-            direct (payoffs/allocate-pro-rata input)
-            from-projection (payoffs/calculate-prorata-from-projection artifact)]
+      (let [artifact (evaluation/build-projection-artifact input)
+            direct (allocation/allocate-pro-rata input)
+            from-projection (evaluation/calculate-prorata-from-projection artifact)]
         (is (= direct from-projection))))))
 
 (deftest payoffs-namespace-remains-protocol-generic
@@ -529,7 +534,7 @@
 
 (deftest projection-artifact-claims-include-concept-hash
   (testing "projection artifact claims entries have :claim-definition-concept-hash alongside :claim-definition-hash"
-    (let [artifact (payoffs/build-projection-artifact
+    (let [artifact (evaluation/build-projection-artifact
                     {:amount 100
                      :items [{:id :a :weight 100} {:id :b :weight 100}]
                      :id-fn :id
@@ -543,12 +548,12 @@
           "concept-hash differs from canonical claim-definition-hash in each claim"))))
 
 (deftest execution-artifact-binds-a-validated-evaluation-package
-  (let [evaluation (payoffs/evaluate-pro-rata-allocation
+  (let [evaluation (evaluation/evaluate-pro-rata-allocation
                     {:amount 10
                      :unit :abstract-claim
                      :participants [{:id :a :weight 1}]
                      :policy {}})
-        artifact (payoffs/build-pro-rata-allocation-result-artifact
+        artifact (evaluation/build-pro-rata-allocation-result-artifact
                   {:projection-artifact (get-in evaluation [:projection :artifact/value])
                    :evaluation evaluation
                    :world-before-hash "before"
@@ -561,17 +566,17 @@
 
 (deftest allocation-result-hash-changes-with-allocation-input
   (testing "changing allocation-input changes the allocation result hash"
-    (let [base-opts {:projection-artifact (payoffs/build-projection-artifact
+    (let [base-opts {:projection-artifact (evaluation/build-projection-artifact
                                            {:amount 50
                                             :items [{:id :a :weight 100} {:id :b :weight 100}]
                                             :id-fn :id
                                             :weight-fn :weight})
-                     :allocation-result (payoffs/allocate-pro-rata
+                     :allocation-result (allocation/allocate-pro-rata
                                          {:amount 50
                                           :items [{:id :a :weight 100} {:id :b :weight 100}]})}]
-      (let [r1 (payoffs/build-pro-rata-allocation-result-artifact
+      (let [r1 (evaluation/build-pro-rata-allocation-result-artifact
                 (assoc base-opts :allocation-input {:source :input-a}))
-            r2 (payoffs/build-pro-rata-allocation-result-artifact
+            r2 (evaluation/build-pro-rata-allocation-result-artifact
                 (assoc base-opts :allocation-input {:source :input-b}))]
         (is (not= (:allocation-result-hash r1) (:allocation-result-hash r2))
             "different allocation-input produces different result hash")))))
@@ -580,7 +585,7 @@
 
 (deftest allocate-pro-rata-with-redistribution-redistributes
   (testing "capped items release excess to uncapped items"
-    (let [result (payoffs/allocate-pro-rata-with-redistribution
+    (let [result (redistribution/allocate-pro-rata-with-redistribution
                   {:amount 100
                    :items [{:id :a :weight 100 :cap 30}
                            {:id :b :weight 100 :cap nil}
@@ -599,11 +604,11 @@
 (deftest allocate-pro-rata-with-redistribution-no-caps-identical
   (testing "without caps, result matches allocate-pro-rata"
     (let [items [{:id :a :weight 100} {:id :b :weight 100} {:id :c :weight 100}]
-          with-redist (payoffs/allocate-pro-rata-with-redistribution
+          with-redist (redistribution/allocate-pro-rata-with-redistribution
                        {:amount 100 :items items
                         :id-fn :id :weight-fn :weight :cap-fn (constantly nil)
                         :rounding :floor-with-largest-remainder})
-          vanilla (payoffs/allocate-pro-rata
+          vanilla (allocation/allocate-pro-rata
                    {:amount 100 :items items
                     :id-fn :id :weight-fn :weight :cap-fn (constantly nil)
                     :rounding :floor-with-largest-remainder})]
@@ -615,7 +620,7 @@
   (let [items [{:id :a :weight 1 :cap 140}
                {:id :b :weight 1 :cap 50}
                {:id :c :weight 1 :cap 110}]
-        result (payoffs/allocate-pro-rata-with-redistribution
+        result (redistribution/allocate-pro-rata-with-redistribution
                 {:amount 300
                  :items items
                  :id-fn :id :weight-fn :weight :cap-fn :cap
@@ -628,7 +633,7 @@
 
 (deftest allocate-pro-rata-with-redistribution-all-capped
   (testing "all items capped => no redistribution, remainder reported"
-    (let [result (payoffs/allocate-pro-rata-with-redistribution
+    (let [result (redistribution/allocate-pro-rata-with-redistribution
                   {:amount 100
                    :items [{:id :a :weight 100 :cap 10}
                            {:id :b :weight 100 :cap 10}]
@@ -648,7 +653,7 @@
     (let [items [{:id :a :weight 100 :cap 10}
                  {:id :b :weight 100 :cap 10}
                  {:id :c :weight 100 :cap nil}]
-          result (payoffs/allocate-pro-rata-with-redistribution
+          result (redistribution/allocate-pro-rata-with-redistribution
                   {:amount 100 :items items
                    :id-fn :id :weight-fn :weight :cap-fn :cap
                    :rounding :floor-with-largest-remainder})]
@@ -670,7 +675,7 @@
     (let [items [{:id :a :weight 100 :cap 30}
                  {:id :b :weight 100 :cap 30}
                  {:id :c :weight 100 :cap 30}]
-          result (payoffs/allocate-pro-rata-with-redistribution
+          result (redistribution/allocate-pro-rata-with-redistribution
                   {:amount 100 :items items
                    :id-fn :id :weight-fn :weight :cap-fn :cap
                    :rounding :floor-with-largest-remainder})]
@@ -685,7 +690,7 @@
   (testing "single capped item's excess flows to uncapped"
     (let [items [{:id :a :weight 100 :cap 10}
                  {:id :b :weight 100 :cap nil}]
-          result (payoffs/allocate-pro-rata-with-redistribution
+          result (redistribution/allocate-pro-rata-with-redistribution
                   {:amount 100 :items items
                    :id-fn :id :weight-fn :weight :cap-fn :cap
                    :rounding :floor-with-largest-remainder})]
@@ -708,7 +713,7 @@
                    [{:id :a :weight 100 :cap 5}
                     {:id :b :weight 200 :cap 20}
                     {:id :c :weight 300 :cap nil}]]]
-      (let [result (payoffs/allocate-pro-rata-with-redistribution
+      (let [result (redistribution/allocate-pro-rata-with-redistribution
                     {:amount 200 :items items
                      :id-fn :id :weight-fn :weight :cap-fn :cap
                      :rounding :floor-with-largest-remainder})]
@@ -733,13 +738,13 @@
                                 :parallelism 2}]
     (binding [realization/*claimant-execution-runtime-profile-root* (:runtime-profile/root profile)
               realization/*claimant-execution-observation-sink* #(swap! emitted conj %)
-              payoffs/*pro-rata-parallel-threshold* 1]
-      (is (= (payoffs/allocate-pro-rata serial-request)
-             (payoffs/allocate-pro-rata serial-request)))
-      (payoffs/allocate-pro-rata parallel-request)
+              engine/*pro-rata-parallel-threshold* 1]
+      (is (= (allocation/allocate-pro-rata serial-request)
+             (allocation/allocate-pro-rata serial-request)))
+      (allocation/allocate-pro-rata parallel-request)
       (budget/with-execution-budget 1
-        (payoffs/allocate-pro-rata parallel-request))
-      (payoffs/allocate-pro-rata-with-redistribution redistribution-request))
+        (allocation/allocate-pro-rata parallel-request))
+      (redistribution/allocate-pro-rata-with-redistribution redistribution-request))
     (is (= 5 (count @emitted)))
     (is (= [:serial :serial :parallel :serial :parallel]
            (mapv #(get-in % [:execution-observation/effective :execution/path]) @emitted)))
@@ -758,10 +763,10 @@
     (binding [realization/*claimant-execution-realization* outer
               realization/*claimant-execution-runtime-profile-root* (:runtime-profile/root profile)
               realization/*claimant-execution-observation-sink* #(swap! emitted conj %)
-              payoffs/*pro-rata-parallel-threshold* 1]
-      (payoffs/allocate-pro-rata {:amount 3
-                                  :items [{:id :a :weight 1} {:id :b :weight 1}]
-                                  :parallelism 2}))
+              engine/*pro-rata-parallel-threshold* 1]
+      (allocation/allocate-pro-rata {:amount 3
+                                     :items [{:id :a :weight 1} {:id :b :weight 1}]
+                                     :parallelism 2}))
     (is (= :open (:lifecycle @outer)))
     (is (empty? (:phases @outer)) "the public wrapper used a fresh inner scope")
     (is (= 1 (count @emitted)))))

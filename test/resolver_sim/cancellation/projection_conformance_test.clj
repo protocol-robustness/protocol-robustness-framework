@@ -348,24 +348,28 @@
 (deftest state-after-projection-matches-execution
   (testing "sender-cancel unilateral"
     (let [w (world-with-one-escrow)
-          [_ result proj-map _] (execute-and-project w 0 :sender-cancel {:can-cancel? true :unilateral-cancel? true})]
-      (is (= (t/escrow-state result 0) (:state-after/escrow-state (:projection/state-after proj-map))))
-      (is (= (:sender-status (t/get-transfer result 0)) (:state-after/sender-status (:projection/state-after proj-map))))
-      (is (= (:recipient-status (t/get-transfer result 0)) (:state-after/recipient-status (:projection/state-after proj-map)))))
+          [_ result proj-map _] (execute-and-project w 0 :sender-cancel {:can-cancel? true :unilateral-cancel? true})
+          state-after (proj/project-state-after result 0 :sender-cancel)]
+      (is (= (t/escrow-state result 0) (:state-after/escrow-state state-after)))
+      (is (= (:sender-status (t/get-transfer result 0)) (:state-after/sender-status state-after)))
+      (is (= (:recipient-status (t/get-transfer result 0)) (:state-after/recipient-status state-after))))
 
     (testing "recipient-cancel unilateral"
       (let [w (world-with-one-escrow)
-            [_ result proj-map _] (execute-and-project w 0 :recipient-cancel {:can-cancel? true :unilateral-cancel? true})]
-        (is (= (t/escrow-state result 0) (:state-after/escrow-state (:projection/state-after proj-map)))))
+            [_ result proj-map _] (execute-and-project w 0 :recipient-cancel {:can-cancel? true :unilateral-cancel? true})
+            state-after (proj/project-state-after result 0 :recipient-cancel)]
+        (is (= (t/escrow-state result 0) (:state-after/escrow-state state-after)))))
 
-      (testing "auto-cancel-disputed-escrow"
-        (let [w (-> (world-disputed-with-auto-cancel-time 5000) (set-block-time 6000))
-              [_ result proj-map _] (execute-and-project w 0 :auto-cancel-disputed-escrow)]
-          (is (= (t/escrow-state result 0) (:state-after/escrow-state (:projection/state-after proj-map))))
-          (is (true? (:state-after/terminal? (:projection/state-after proj-map)))))
+    (testing "auto-cancel-disputed-escrow"
+      (let [w (-> (world-disputed-with-auto-cancel-time 5000) (set-block-time 6000))
+            [_ result proj-map _] (execute-and-project w 0 :auto-cancel-disputed-escrow)
+            state-after (proj/project-state-after result 0 :auto-cancel-disputed-escrow)]
+        (is (= (t/escrow-state result 0) (:state-after/escrow-state state-after)))
+        (is (true? (:state-after/terminal? state-after)))))
 
-        (testing "auto-cancel-disputed-on-auto-time"
-          (let [w (-> (world-disputed-with-auto-cancel-time 5000) (set-block-time 6000))
-                [_ result proj-map _] (execute-and-project w 0 :auto-cancel-disputed-on-auto-time)]
-            (is (= (t/escrow-state result 0) (:state-after/escrow-state (:projection/state-after proj-map))))
-            (is (true? (:state-after/terminal? (:projection/state-after proj-map))))))))))
+    (testing "auto-cancel-disputed-on-auto-time"
+      (let [w (-> (world-disputed-with-auto-cancel-time 5000) (set-block-time 6000))
+            [_ result proj-map _] (execute-and-project w 0 :auto-cancel-disputed-on-auto-time)
+            state-after (proj/project-state-after result 0 :auto-cancel-disputed-on-auto-time)]
+        (is (= (t/escrow-state result 0) (:state-after/escrow-state state-after)))
+        (is (true? (:state-after/terminal? state-after)))))))

@@ -89,6 +89,51 @@
            (:admission/authenticity adm)))))
 
 ;; ═══════════════════════════════════════════════════════════════════════════
+;; Participation: presentation is never identity assurance
+;; ═══════════════════════════════════════════════════════════════════════════
+
+(deftest declared-presentation-is-derived-from-signed-report
+  (let [m (manifest)
+        adm (sut/build (signed-report m "r1" "run1") m (pub-key))]
+    (is (= {:presentation :declared
+            :identity-assurance :unresolved}
+           (:admission/participation adm)))))
+
+(deftest anonymous-presentation-is-derived-from-anonymous-id
+  (doseq [anonymous-id ["anonymous" "anonymous-lab" "anonymous-visitor"]]
+    (let [m (manifest)
+          adm (sut/build (signed-report m anonymous-id "run1") m (pub-key))]
+      (is (= {:presentation :anonymous
+              :identity-assurance :unresolved}
+             (:admission/participation adm))
+          (str "id " anonymous-id " must derive :anonymous presentation")))))
+
+(deftest participation-is-rooted-in-admission
+  (let [m (manifest)
+        sr (signed-report m "r1" "run1")
+        a1 (sut/build sr m (pub-key))
+        anon (sut/build (signed-report m "anonymous" "run1") m (pub-key))]
+    (is (string? (:admission/root a1)))
+    (is (not= (:admission/root a1) (:admission/root anon))
+        "presentation changes the admission root")))
+
+(deftest identity-assurance-escalation-fails-closed
+  (let [escalated {:presentation :declared :identity-assurance :authenticated
+                   :identity-binding-root "sha256:1111111111111111111111111111111111111111111111111111111111111111"}]
+    (is (false? (sut/valid-participation? escalated))
+        ":authenticated is not a legal V1 projection")
+    (is (thrown-with-msg?
+         clojure.lang.ExceptionInfo #"identity-assurance escalation"
+         (sut/validate-participation! escalated)))
+    (is (= :identity-assurance-escalation
+           (:reason (ex-data (try (sut/validate-participation! escalated)
+                                  (catch clojure.lang.ExceptionInfo e e))))))
+    (is (false? (sut/valid-participation? {:presentation :declared
+                                           :identity-assurance :unresolved
+                                           :extra :field}))
+        "closed shape: exactly presentation + identity-assurance")))
+
+;; ═══════════════════════════════════════════════════════════════════════════
 ;; Canonical key — machine independent (Task: not a filesystem path)
 ;; ═══════════════════════════════════════════════════════════════════════════
 

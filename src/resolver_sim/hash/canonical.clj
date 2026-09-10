@@ -222,6 +222,10 @@
    :three-member-authority-report "THREE_MEMBER_AUTHORITY_REPORT_V1"
    :canonical-value-sequence "CANONICAL_VALUE_SEQUENCE_V1"
    :sew-action-root "SEW_ACTION_ROOT_V1"
+   :sew-request-id-v1 "SEW_REQUEST_ID_V1"
+   :sew-compound-action-member-v1 "SEW_COMPOUND_ACTION_MEMBER_V1"
+   :sew-compound-action-v1 "SEW_COMPOUND_ACTION_V1"
+   :sew-compound-action-lineage-v1 "SEW_COMPOUND_ACTION_LINEAGE_V1"
    :allocation-assurance-certificate "ALLOCATION_ASSURANCE_CERTIFICATE_V1"
    :force-authorisation-reservation "FORCE_AUTHORISATION_RESERVATION_V1"
    :force-authorisation-consumption "FORCE_AUTHORISATION_CONSUMPTION_V1"
@@ -450,7 +454,11 @@
    :semantic-composition-v1 "SEMANTIC_COMPOSITION_V1"
    :prf-resubmission-authority-context-v1 "prf.resubmission-authority-context.v1"
    :prf-resubmission-authoritative-checkpoint-v1 "prf.resubmission-authoritative-checkpoint.v1"
-   :prf-resubmission-authoritative-disposition-v2 "prf.resubmission-authoritative-disposition.v2"})
+   :prf-resubmission-authoritative-disposition-v2 "prf.resubmission-authoritative-disposition.v2"
+   :prf-yield-state-v1 "PRF_YIELD_STATE_V1"
+   :prf-yield-effective-policy-v1 "PRF_YIELD_EFFECTIVE_POLICY_V1"
+   :prf-yield-transition-event-v1 "PRF_YIELD_TRANSITION_EVENT_V1"
+   :prf-yield-transition-basis-v1 "PRF_YIELD_TRANSITION_BASIS_V1"})
 
 ;; ──────────────────────────────────────────────────────────────────────────────
 ;; varuint Encoding (LEB128, little-endian base-128)

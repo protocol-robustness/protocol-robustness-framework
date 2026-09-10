@@ -1464,10 +1464,13 @@
                           :workflow/id (t/normalize-workflow-id wf-id)})
             result     (#'rc/create-related-claims-with-assurance!
                         world
-                        {:type type
-                         :members members
-                         :semantics semantics
-                         :reason reason
+                         {:type type
+                          :members members
+                          :semantics semantics
+                          :incident-root (:incident/root pp)
+                          :shared-evidence-root (:shared-evidence/root pp)
+                          :resolution-policy-root (:resolution-policy/root pp)
+                          :reason reason
                          :created-by created-by
                          :created-at-step created-at-step}
                         (:authentication-mode auth-info))]

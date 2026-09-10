@@ -225,3 +225,25 @@
                   :status :failed
                   :phase phase)
      error-category (assoc :error/category error-category))))
+
+(defn normalize-progress-observer
+  "Normalize a runtime progress observer to an event-consuming function.
+   An atom is adapted to the reducer-based progress-atom-observer; a function is
+   used directly; anything else observes nothing."
+  [observer]
+  (cond
+    (fn? observer) observer
+    (instance? clojure.lang.IAtom observer) (progress-atom-observer observer)
+    :else nil))
+
+(defn report-pro-rata-progress!
+  "Small safe dispatch primitive for runtime progress events.
+
+   The allocator emits events and knows nothing about how progress is stored.
+   Observer exceptions are swallowed so a broken observer can never influence
+   allocation semantics; callers that want the error count use
+   progress/counting-observer (usable without a progress atom)."
+  [observer event]
+  (when-let [emit (normalize-progress-observer observer)]
+    (try (emit event)
+         (catch Exception _ nil))))

@@ -12,8 +12,8 @@ tunneling."
             [resolver-sim.evidence.chain :as chain]
             [resolver-sim.evidence.config :as evcfg]
             [resolver-sim.evidence.node :as node]
-            [resolver-sim.economics.payoffs :as payoffs]
             [resolver-sim.hash.canonical :as hc]
+            [resolver-sim.pro-rata.evaluation :as pro-rata-evaluation]
              [resolver-sim.protocols.sew.economics :as sew-economics]))
 
 ;; ── Extractors ──────────────────────────────────────────────────────────
@@ -322,7 +322,7 @@ tunneling."
                             :metadata (when-let [sp (:slash-policy allocation-input)]
                                         {:slash-policy sp})}
         ;; Phase 1: build artifact without evidence-record-hash
-        result-artifact-v1 (payoffs/build-pro-rata-allocation-result-artifact
+        result-artifact-v1 (pro-rata-evaluation/build-pro-rata-allocation-result-artifact
                             artifact-base-opts)
         allocation-result-hash (:allocation-result-hash result-artifact-v1)
         allocation-hash (hc/hash-with-intent {:hash/intent :evidence-content} allocation-result)
@@ -388,7 +388,7 @@ tunneling."
                                            (dissoc evidence-record :evidence/hash :evidence-hash))
         evidence (assoc evidence-record :evidence/hash evidence-hash)
         ;; Phase 2: rebuild artifact with evidence-record-hash and evidence-group-id in :external-refs
-        result-artifact (payoffs/build-pro-rata-allocation-result-artifact
+        result-artifact (pro-rata-evaluation/build-pro-rata-allocation-result-artifact
                          (assoc artifact-base-opts
                                 :evidence-record-hash evidence-hash
                                 :evidence-group-id (:ctx/evidence-group-id attribution)))

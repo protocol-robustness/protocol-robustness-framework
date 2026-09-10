@@ -21,7 +21,7 @@
 (deftest registry-has-entries
   (testing "solidity-shadow-registry has entries"
     (is (seq sr/solidity-shadow-entries))
-     (is (pos? (count sr/solidity-shadow-entries)))))
+    (is (pos? (count sr/solidity-shadow-entries)))))
 
 (deftest semantic-coverage-table-is-closed-and-machine-readable
   (testing "semantic coverage rows use the precise status/reason vocabulary"
@@ -48,6 +48,15 @@
                :semantic/solidity-covered? false
                :semantic/proof-verified? false})))
     (is (nil? (sr/semantic-coverage :unknown)))))
+
+(deftest semantic-shadow-rows-are-validated
+  (testing "protected pro-rata lineage is explicit rather than inferred"
+    (is (= :semantic/solidity-coverage-absent
+           (:semantic/status (sr/semantic-coverage :pro-rata/protected-lineage))))
+    (is (empty? (sr/validate-semantic-shadow-rows)))
+    (is (not (sr/valid-semantic-shadow-row?
+              (assoc (first sr/semantic-shadow-rows)
+                     :semantic/proof-verified? true))))))
 
 (deftest all-entries-valid
   (testing "each entry conforms to the expected schema"

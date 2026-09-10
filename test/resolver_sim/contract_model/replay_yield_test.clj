@@ -44,11 +44,15 @@
                                 :temporal-enabled? false
                                 :evidence-mode :none}
                  :replay/requirements #{:transition-assurance/v1}}
+        orig-build basis/build
         result (with-redefs [basis/build (fn [world-before world-after _]
-                                           (basis/build world-before world-after wrong-event))]
+                                           (orig-build world-before world-after wrong-event))]
                  (execution/process-step yp/protocol context before event))]
     (is (not (:ok? result)))
-    (is (= before (:world result)))
+    (is (= (:yield/held-balances before) (:yield/held-balances (:world result)))
+        "rejected transition must not adopt the deposit into held balances")
+    (is (empty? (:yield/positions (:world result)))
+        "rejected transition must not adopt a position")
     (is (= :failed (get-in result [:trace-entry :transition-assurance :status])))
     (is (some #(= :event-root-mismatch (:reason %))
               (get-in result [:trace-entry :violations :transition-assurance
@@ -66,12 +70,13 @@
                                              (:protocol-params base-scenario) (:scenario-id base-scenario)
                                              world-before [event] [] {}
                                              {:scenario base-scenario :replay-flags flags :run-id run-id})
+        orig-build basis/build
         normal-after (:world (first (:trace normal)))
         resumed-after (:world (first (:trace resumed)))
         normal-basis (basis/build world-before normal-after event)
         resumed-basis (basis/build world-before resumed-after event)
         forged (with-redefs [basis/build (fn [before after _]
-                                           (basis/build before after (assoc event :seq 99)))]
+                                           (orig-build before after (assoc event :seq 99)))]
                  (replay/resume-from-snapshot yp/protocol (:agents base-scenario)
                                               (:protocol-params base-scenario) (:scenario-id base-scenario)
                                               world-before [event] [] {}
@@ -108,8 +113,9 @@
 (deftest frame-construction-excludes-failed-attempts-and-batches
   (let [event (first (:events base-scenario))
         before (proto/init-world yp/protocol base-scenario)
+        orig-build basis/build
         failed (with-redefs [basis/build (fn [world-before world-after _]
-                                           (basis/build world-before world-after (assoc event :seq 99)))]
+                                           (orig-build world-before world-after (assoc event :seq 99)))]
                  (replay/resume-from-snapshot yp/protocol (:agents base-scenario)
                                               (:protocol-params base-scenario) (:scenario-id base-scenario)
                                               before [event] [] {}
@@ -129,9 +135,9 @@
                                               :evidence-mode :none}})
         stream (:accepted-frames result)
         [first-frame second-frame] (:frames stream)
-        anchors {:expected/state-before-root (:state-before/root first-frame)
-                 :expected/head-frame-root (:frame/root second-frame)
-                 :expected/final-state-root (:state-after/root second-frame)}
+        anchors {:expected-state-before-root (:state-before/root first-frame)
+                 :expected-head-frame-root (:frame/root second-frame)
+                 :expected-final-state-root (:state-after/root second-frame)}
         invalid-stream (assoc-in stream [:frames 1 :state-before/root] "wrong")
         root-tampered (assoc-in stream [:frames 0 :frame/root] "wrong")
         index-tampered (assoc-in stream [:frames 1 :frame/index] 2)
@@ -140,7 +146,7 @@
     (is (:valid? (frames/validate-frame-lineage stream anchors)))
     (is (some #(= :frame/head-root-mismatch (:reason %))
               (:violations (frames/validate-frame-lineage stream
-                                                          (assoc anchors :expected/head-frame-root "wrong")))))
+                                                          (assoc anchors :expected-head-frame-root "wrong")))))
     (is (some #(= :frame/root-mismatch (:reason %))
               (:violations (frames/validate-frame-lineage root-tampered))))
     (is (some #(= :frame/non-contiguous-index (:reason %))
@@ -194,6 +200,57 @@
     (is (= 1 (count (filter #(= :yield-withdraw-shared (:decision/source %))
                             (vals (get-in result [:world :yield/partial-fill-decisions])))))
         "shared decision artifact persisted in the world")))
+
+(deftest frame-stream-independent-root-reconstruction
+  (letfn [(snapshot->world [snap]
+            {:yield/held-balances (:yield-held snap)
+             :yield/indices (:yield-indices snap)
+             :yield/positions (:yield/positions snap)
+             :yield/withdrawal-ledger (:yield/withdrawal-ledger snap [])
+             :yield/partial-fill-decisions (:yield/partial-fill-decisions snap {})
+             :yield/risk (:yield/risk snap)
+             :yield/rates (:yield/rates snap)
+             :yield/shortfall-models (:yield/shortfall-models snap)
+             :yield/withdrawal-policies (:yield/withdrawal-policies snap)})]
+    (let [result (replay/replay-events yp/protocol base-scenario
+                                       {:flags {:yield-dt-validation? true
+                                                :metrics-profile :yield-provider}})
+          stream (:accepted-frames result)
+          trace (:trace result)
+          frames' (:frames stream)
+          init-world (proto/init-world yp/protocol base-scenario)]
+      (is (= :ok (:frame/status stream)))
+      (is (:valid? (frames/validate-frame-lineage stream)))
+      (is (= 2 (count frames')))
+      (is (= (:state-before/root (first frames'))
+             (basis/yield-state-root init-world)))
+      (doseq [[i frame] (map-indexed vector frames')]
+        (let [entry (nth trace i)
+              before-world (if (zero? i)
+                             init-world
+                             (snapshot->world (:world (nth trace (dec i)))))
+              after-world (snapshot->world (:world entry))
+              event (select-keys entry [:seq :time :agent :action :params])
+              before-root (basis/yield-state-root before-world)
+              after-root (basis/yield-state-root after-world)
+              event-root (basis/event-root event)
+              policy-root (basis/effective-policy-root before-world)
+              basis-map {:yield-transition/schema basis/schema
+                         :state-before/root before-root
+                         :state-after/root after-root
+                         :event/root event-root
+                         :yield/effective-policy-root policy-root}
+              reconstructed (frames/reconstruct-transition frame)]
+          (is (= before-root (:state-before/root frame)))
+          (is (= after-root (:state-after/root frame)))
+          (is (= event-root (:event/root frame)))
+          (is (= (basis/transition-root basis-map)
+                 (get-in frame [:transition :transition/root])))
+          (is (= (:state-before/root frame) (:state-before/root reconstructed)))
+          (is (= (:state-after/root frame) (:state-after/root reconstructed)))
+          (is (= (:event/root frame) (:event/root reconstructed)))
+          (is (= (get-in frame [:transition :transition/root])
+                 (:transition/root reconstructed))))))))
 
 (deftest replay-yield-scenario-rejects-dt-time-mismatch
   (let [scenario (assoc-in base-scenario [:events 1 :params :dt] 999)

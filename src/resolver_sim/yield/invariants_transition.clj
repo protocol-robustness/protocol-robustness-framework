@@ -57,7 +57,7 @@
             (let [old (index-at world-before mid tok)
                   new (index-at world-after mid tok)
                   neg? (negative-yield-active? world-before mid tok)]
-              (and (number? old) (number? new)
+              (and (number? new)
                    (index-monotone-ok? old new neg?))))
           (indices-changed world-before world-after)))
 

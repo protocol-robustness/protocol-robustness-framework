@@ -5,7 +5,14 @@
 
 (def schema-version "sew-escrow-state-snapshot.v1")
 (def snapshot-domain "SEW_ESCROW_STATE_SNAPSHOT_V1")
-(def cancellation-statuses #{:none :agree-to-cancel})
+(def cancellation-statuses #{:none :agree-to-cancel :raise-dispute})
+(def dispute-statuses #{:raise-dispute :none :agree-to-cancel})
+(def supported-states #{:pending :disputed :released :refunded :resolved})
+
+(defn- valid-state? [snapshot]
+  (and (contains? supported-states (:escrow/state snapshot))
+       (contains? cancellation-statuses (:sender/cancellation-status snapshot))
+       (contains? cancellation-statuses (:recipient/cancellation-status snapshot))))
 
 (defn snapshot-errors [snapshot]
   (vec (remove nil?
@@ -14,7 +21,7 @@
                 (when (and (map? snapshot) (not (some? (:workflow/id snapshot)))) :snapshot/missing-workflow)
                 (when (and (map? snapshot) (not (some? (:escrow/sender snapshot)))) :snapshot/missing-sender)
                 (when (and (map? snapshot) (not (some? (:escrow/recipient snapshot)))) :snapshot/missing-recipient)
-                (when (and (map? snapshot) (not= :pending (:escrow/state snapshot))) :snapshot/not-pending)
+                (when (and (map? snapshot) (not (contains? supported-states (:escrow/state snapshot)))) :snapshot/unsupported-state)
                 (when (and (map? snapshot) (not (contains? cancellation-statuses (:sender/cancellation-status snapshot)))) :snapshot/invalid-sender-status)
                 (when (and (map? snapshot) (not (contains? cancellation-statuses (:recipient/cancellation-status snapshot)))) :snapshot/invalid-recipient-status)])))
 

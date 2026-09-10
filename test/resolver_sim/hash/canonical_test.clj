@@ -7,7 +7,7 @@
             [clojure.test.check.generators :as gen]
             [clojure.test.check.properties :as prop]
             [resolver-sim.hash.canonical :as hc]
-            [resolver-sim.economics.payoffs :as payoffs])
+            [resolver-sim.pro-rata.evaluation :as pro-rata-evaluation])
   (:import [java.util Arrays]
            [java.security MessageDigest]
            [java.time Instant]))
@@ -1666,7 +1666,7 @@
                            :policy {:rounding :floor
                                     :remainder-policy :unallocated
                                     :ordering-policy :input-order}}
-        artifact (payoffs/build-pro-rata-allocation-result-artifact
+        artifact (pro-rata-evaluation/build-pro-rata-allocation-result-artifact
                   {:projection-artifact projection-artifact
                    :allocation-result allocation-result
                    :world-before-hash "world-before"
@@ -1701,14 +1701,14 @@
                            :policy {:rounding :floor
                                     :remainder-policy :unallocated
                                     :ordering-policy :input-order}}
-        artifact (payoffs/build-pro-rata-allocation-result-artifact
+        artifact (pro-rata-evaluation/build-pro-rata-allocation-result-artifact
                   {:projection-artifact proj-fixture
                    :allocation-result allocation-result
                    :world-before-hash "wb"
                    :world-after-hash "wa"
                    :action-hash "ah"
                    :action-hash-at "aha"})]
-    (is (some? (payoffs/validate-pro-rata-allocation-result-artifact! artifact))
+    (is (some? (pro-rata-evaluation/validate-pro-rata-allocation-result-artifact! artifact))
         "validate should return truthy on success")))
 
 (deftest test-pro-rata-allocation-result-rejects-hash-mismatch
@@ -1719,7 +1719,7 @@
                            :total-unmet 0
                            :remainder 0
                            :policy {}}
-        artifact (payoffs/build-pro-rata-allocation-result-artifact
+        artifact (pro-rata-evaluation/build-pro-rata-allocation-result-artifact
                   {:projection-artifact proj-fixture
                    :allocation-result allocation-result
                    :world-before-hash "wb"
@@ -1728,7 +1728,7 @@
                    :action-hash-at "aha"})
         tampered (assoc artifact :allocation-result-hash "tampered")]
     (is (thrown? clojure.lang.ExceptionInfo
-                 (payoffs/validate-pro-rata-allocation-result-artifact! tampered)))))
+                 (pro-rata-evaluation/validate-pro-rata-allocation-result-artifact! tampered)))))
 
 (deftest test-pro-rata-allocation-result-rejects-missing-projection-hash
   (let [proj-fixture (:projection-artifact phase-1-projection-fixtures)
@@ -1738,7 +1738,7 @@
                            :total-unmet 0
                            :remainder 0
                            :policy {}}
-        artifact (payoffs/build-pro-rata-allocation-result-artifact
+        artifact (pro-rata-evaluation/build-pro-rata-allocation-result-artifact
                   {:projection-artifact proj-fixture
                    :allocation-result allocation-result
                    :world-before-hash "wb"
@@ -1747,11 +1747,11 @@
                    :action-hash-at "aha"})
         tampered (dissoc artifact :projection-artifact-hash)]
     (is (thrown? clojure.lang.ExceptionInfo
-                 (payoffs/validate-pro-rata-allocation-result-artifact! tampered)))))
+                 (pro-rata-evaluation/validate-pro-rata-allocation-result-artifact! tampered)))))
 
 (deftest test-pro-rata-allocation-result-rejects-missing-allocation-result
   (let [proj-fixture (:projection-artifact phase-1-projection-fixtures)
-        artifact (payoffs/build-pro-rata-allocation-result-artifact
+        artifact (pro-rata-evaluation/build-pro-rata-allocation-result-artifact
                   {:projection-artifact proj-fixture
                    :allocation-result {:allocations []
                                        :total-requested 0
@@ -1765,7 +1765,7 @@
                    :action-hash-at "aha"})
         tampered (dissoc artifact :allocation-result)]
     (is (thrown? clojure.lang.ExceptionInfo
-                 (payoffs/validate-pro-rata-allocation-result-artifact! tampered)))))
+                 (pro-rata-evaluation/validate-pro-rata-allocation-result-artifact! tampered)))))
 
 (deftest test-pro-rata-allocation-result-rejects-bad-totals
   (let [proj-fixture (:projection-artifact phase-1-projection-fixtures)
@@ -1775,7 +1775,7 @@
                            :total-unmet 0
                            :remainder 0
                            :policy {}}
-        artifact (payoffs/build-pro-rata-allocation-result-artifact
+        artifact (pro-rata-evaluation/build-pro-rata-allocation-result-artifact
                   {:projection-artifact proj-fixture
                    :allocation-result allocation-result
                    :world-before-hash "wb"
@@ -1783,7 +1783,7 @@
                    :action-hash "ah"
                    :action-hash-at "aha"})]
     (is (thrown? clojure.lang.ExceptionInfo
-                 (payoffs/validate-pro-rata-allocation-result-artifact! artifact)))))
+                 (pro-rata-evaluation/validate-pro-rata-allocation-result-artifact! artifact)))))
 
 (deftest test-pro-rata-allocation-result-rejects-missing-provenance
   (let [proj-fixture (:projection-artifact phase-1-projection-fixtures)
@@ -1793,7 +1793,7 @@
                            :total-unmet 0
                            :remainder 0
                            :policy {}}
-        artifact (payoffs/build-pro-rata-allocation-result-artifact
+        artifact (pro-rata-evaluation/build-pro-rata-allocation-result-artifact
                   {:projection-artifact proj-fixture
                    :allocation-result allocation-result
                    :world-before-hash "wb"
@@ -1801,7 +1801,7 @@
                    :action-hash "ah"
                    :action-hash-at "aha"})]
     (is (thrown? clojure.lang.ExceptionInfo
-                 (payoffs/validate-pro-rata-allocation-result-artifact! artifact)))))
+                 (pro-rata-evaluation/validate-pro-rata-allocation-result-artifact! artifact)))))
 
 ;; ──────────────────────────────────────────────────────────────────────────────
 ;; Demo Rendering Tests
@@ -1816,15 +1816,15 @@
                            :total-unmet 0
                            :remainder 0
                            :policy {}}
-        artifact (payoffs/build-pro-rata-allocation-result-artifact
+        artifact (pro-rata-evaluation/build-pro-rata-allocation-result-artifact
                   {:projection-artifact proj-fixture
                    :allocation-result allocation-result
                    :world-before-hash "wb"
                    :world-after-hash "wa"
                    :action-hash "ah"
                    :action-hash-at "aha"})
-        table (payoffs/format-pro-rata-result-table artifact)
-        panel (payoffs/format-proof-panel artifact)]
+        table (pro-rata-evaluation/format-pro-rata-result-table artifact)
+        panel (pro-rata-evaluation/format-proof-panel artifact)]
     (testing "result table includes allocation fields"
       (is (string? table))
       (is (.contains table "Allocated"))
@@ -1847,12 +1847,12 @@
   (let [proj-fixture (:projection-artifact phase-1-projection-fixtures)
         base-allocation {:allocations [] :total-requested 0 :total-allocated 0
                          :total-unmet 0 :remainder 0 :policy {}}
-        artifact-no-sf (payoffs/build-pro-rata-allocation-result-artifact
+        artifact-no-sf (pro-rata-evaluation/build-pro-rata-allocation-result-artifact
                         {:projection-artifact proj-fixture
                          :allocation-result base-allocation
                          :world-before-hash "wb" :world-after-hash "wa"
                          :action-hash "ah" :action-hash-at "aha"})
-        artifact-with-sf (payoffs/build-pro-rata-allocation-result-artifact
+        artifact-with-sf (pro-rata-evaluation/build-pro-rata-allocation-result-artifact
                           {:projection-artifact proj-fixture
                            :allocation-result base-allocation
                            :world-before-hash "wb" :world-after-hash "wa"

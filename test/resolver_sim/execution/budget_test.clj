@@ -1,7 +1,7 @@
 (ns resolver-sim.execution.budget-test
   (:require [clojure.test :refer [deftest is testing]]
             [resolver-sim.execution.budget :as budget]
-            [resolver-sim.economics.payoffs :as payoffs]))
+            [resolver-sim.pro-rata.engine :as engine]))
 
 (defn- bubble-max
   [track max-in-flight]
@@ -18,7 +18,7 @@
   (testing "and a supplied vector maps in stable order with full parallelism"
     (let [cur (atom 0) mx (atom 0)
           values (vec (range 12))]
-      (is (= values (#'payoffs/ordered-detached-mapv 8 identity values)))
+      (is (= values (#'engine/ordered-detached-mapv 8 identity values)))
       (is (<= @mx 8)))))
 
 (deftest budget-acquire-many-never-exceeds-available-permits
@@ -50,7 +50,7 @@
       (let [cur (atom 0) mx (atom 0)
             values (vec (range 40))
             f (bubble-max cur mx)
-            out (#'payoffs/ordered-detached-mapv 8 f values)]
+            out (#'engine/ordered-detached-mapv 8 f values)]
         (is (= values out) "source order is preserved regardless of borrowing")
         (is (<= @mx 2) "claimant concurrency never exceeded the shared budget")
         (is (= 2 (budget/available)) "borrowed permits are released after the batch")))))
@@ -63,7 +63,7 @@
       (try
         (testing "with no spare capacity the claimant runs serially"
           (is (= (vec (range 30))
-                 (#'payoffs/ordered-detached-mapv 8 f (vec (range 30)))))
+                 (#'engine/ordered-detached-mapv 8 f (vec (range 30)))))
           (is (= 1 @mx) "claimant ran serially when the budget had no spare capacity"))
         (finally
           (budget/release-many! held)))
@@ -75,5 +75,5 @@
       (let [cur (atom 0) mx (atom 0)
             f (bubble-max cur mx)
             values (vec (range 6))]
-        (is (= values (#'payoffs/ordered-detached-mapv 1 f values)))
+        (is (= values (#'engine/ordered-detached-mapv 1 f values)))
         (is (= 1 @mx) "parallelism 1 is always serial, budget or not")))))

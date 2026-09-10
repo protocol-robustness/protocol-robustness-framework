@@ -31,19 +31,28 @@
               (get-in result [:results :yield/state-addressed :violations])))))
 
 (deftest authoritative-check-rejects-malformed-committed-amounts
-  (doseq [[path value] [[[:yield/positions "u" :principal] 1.5]
-                        [[:yield/positions "u" :realized-yield] "bad"]
-                        [[:yield/positions "u" :shortfall :basis-amount] 1.5]
-                        [[:yield/withdrawal-ledger 0 :ledger/requested] 1.5]
-                        [[:yield/withdrawal-ledger 0 :ledger/rows 0 :filled] "bad"]
-                        [[:yield/partial-fill-decisions "d" :requested "u"] 1.5]]]
-    (let [bad-after (assoc-in after path value)
-          result (transitions/check-transition-authoritative
-                  before bad-after event (basis/build before bad-after event))]
-      (is (not (:all-hold? result)) (str "reject " path))
-      (is (some #(= :invalid-state-after (:reason %))
-                (get-in result [:results :yield/state-addressed :violations]))
-          (str "report " path)))))
+  (let [malformed-after (fn [path value]
+                          (case path
+                            [:yield/withdrawal-ledger 0 :ledger/requested]
+                            (assoc after :yield/withdrawal-ledger
+                                   [{:ledger/requested value}])
+                            [:yield/withdrawal-ledger 0 :ledger/rows 0 :filled]
+                            (assoc after :yield/withdrawal-ledger
+                                   [{:ledger/rows [{:filled value}]}])
+                            (assoc-in after path value)))]
+    (doseq [[path value] [[[:yield/positions "u" :principal] 1.5]
+                          [[:yield/positions "u" :realized-yield] "bad"]
+                          [[:yield/positions "u" :shortfall :basis-amount] 1.5]
+                          [[:yield/withdrawal-ledger 0 :ledger/requested] 1.5]
+                          [[:yield/withdrawal-ledger 0 :ledger/rows 0 :filled] "bad"]
+                          [[:yield/partial-fill-decisions "d" :requested "u"] 1.5]]]
+      (let [bad-after (malformed-after path value)
+            result (transitions/check-transition-authoritative
+                    before bad-after event (basis/build before bad-after event))]
+        (is (not (:all-hold? result)) (str "reject " path))
+        (is (some #(= :invalid-state-after (:reason %))
+                  (get-in result [:results :yield/state-addressed :violations]))
+            (str "report " path))))))
 
 (deftest valid-cutpoint-from-another-transition-is-rejected
   (let [other-before (assoc-in before [:yield/positions "u" :principal] 200)

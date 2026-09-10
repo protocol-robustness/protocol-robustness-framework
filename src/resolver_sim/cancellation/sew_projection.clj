@@ -54,10 +54,10 @@
 (defn- escrow-state [world workflow-id]
   (t/escrow-state world workflow-id))
 
-(defn- sender-status [world workflow-id]
+(defn- transfer-sender-status [world workflow-id]
   (:sender-status (transfer world workflow-id)))
 
-(defn- recipient-status [world workflow-id]
+(defn- transfer-recipient-status [world workflow-id]
   (:recipient-status (transfer world workflow-id)))
 
 (defn- dispute-active? [world workflow-id]
@@ -124,14 +124,14 @@
      (case path
        :sender-cancel
        {:admissibility/escrow-state (= :pending (escrow-state world workflow-id))
-        :admissibility/sender-status (sender-status world workflow-id)
-        :admissibility/recipient-status (recipient-status world workflow-id)
+        :admissibility/sender-status (transfer-sender-status world workflow-id)
+        :admissibility/recipient-status (transfer-recipient-status world workflow-id)
         :admissibility/both-agreed (both-agreed-to-cancel? world workflow-id)}
 
        :recipient-cancel
        {:admissibility/escrow-state (= :pending (escrow-state world workflow-id))
-        :admissibility/sender-status (sender-status world workflow-id)
-        :admissibility/recipient-status (recipient-status world workflow-id)
+        :admissibility/sender-status (transfer-sender-status world workflow-id)
+        :admissibility/recipient-status (transfer-recipient-status world workflow-id)
         :admissibility/both-agreed (both-agreed-to-cancel? world workflow-id)}
 
        (:auto-cancel-disputed-escrow :auto-cancel-disputed-on-auto-time)
@@ -173,8 +173,8 @@
       (and (some? cancel-strategy) (:unilateral-cancel? cancel-strategy)) true
       :else
       (case path
-        :sender-cancel (= :agree-to-cancel (recipient-status world workflow-id))
-        :recipient-cancel (= :agree-to-cancel (sender-status world workflow-id))))
+        :sender-cancel (= :agree-to-cancel (transfer-recipient-status world workflow-id))
+        :recipient-cancel (= :agree-to-cancel (transfer-sender-status world workflow-id))))
     (:auto-cancel-disputed-escrow :auto-cancel-disputed-on-auto-time) true
     false))
 
@@ -197,8 +197,8 @@
         by (case path
              :sender-cancel :sender
              :recipient-cancel :recipient
-             :auto-cancel-disputed-escrow :keeper
-             :auto-cancel-disputed-on-auto-time :keeper)]
+             :auto-cancel-disputed-escrow :sender
+             :auto-cancel-disputed-on-auto-time :sender)]
     (-> (effect kind by)
         (assoc :effects/final? final?
                :effects/slash-declared-outside-scope
@@ -218,8 +218,8 @@
    :state-after/workflow-id workflow-id
    :state-after/path path
    :state-after/escrow-state (escrow-state world workflow-id)
-   :state-after/sender-status (sender-status world workflow-id)
-   :state-after/recipient-status (recipient-status world workflow-id)
+   :state-after/sender-status (transfer-sender-status world workflow-id)
+   :state-after/recipient-status (transfer-recipient-status world workflow-id)
    :state-after/terminal? (t/terminal-state? world workflow-id)})
 
 (defn project

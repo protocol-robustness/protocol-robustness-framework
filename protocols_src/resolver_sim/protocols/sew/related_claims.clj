@@ -18,33 +18,21 @@
    (\"Related claims\") and docs/architecture/FRAUD_INCIDENT_LIABILITY_VERSIONING.md
    for the full design rationale."
   (:require [resolver-sim.protocols.sew.types :as t]
-            [resolver-sim.hash.canonical :as hash]
+            [resolver-sim.related-claims :as related-claims]
             [resolver-sim.workflow-group :as wg]
             [resolver-sim.evidence.capture :as cap]
             [resolver-sim.util.attribution :as attr]))
 
-(def ^:const related-claims-domain
-  "V1 domain tag — retained for verifying pre-V2 artifacts."
-  "related-claims.v1")
-
-(def ^:const related-claims-domain-v2
-  "V2 domain tag — commits members and creator provenance, but not semantics."
-  "related-claims.v2")
-
-(def ^:const related-claims-domain-v3
-  "V3 domain tag — commits members, creator provenance, and semantics."
-  "related-claims.v3")
-
-(def ^:const related-claims-version 1)
-
-(def ^:const related-claims-version-v2 2)
-
-(def ^:const related-claims-version-v3 3)
-
-(def ^:const default-semantics
-  "Default relationship semantics set for v1.
-   :audit-only — no settlement coupling, purely descriptive."
-  #{:audit-only})
+(def related-claims-domain related-claims/related-claims-domain)
+(def related-claims-domain-v2 related-claims/related-claims-domain-v2)
+(def related-claims-domain-v3 related-claims/related-claims-domain-v3)
+(def related-claims-domain-v4 related-claims/related-claims-domain-v4)
+(def related-claims-version related-claims/related-claims-version)
+(def related-claims-version-v2 related-claims/related-claims-version-v2)
+(def related-claims-version-v3 related-claims/related-claims-version-v3)
+(def related-claims-version-v4 related-claims/related-claims-version-v4)
+(def default-semantics related-claims/default-semantics)
+(def shared-resolution-semantics related-claims/shared-resolution-semantics)
 
 (def ^:const allowed-relationship-types
   "Controlled vocabulary of relationship types."
@@ -60,93 +48,18 @@
   "Claim kinds that can appear in a relationship membership."
   #{:sew/workflow})
 
-;; ---------------------------------------------------------------------------
-;; Hash
-;; ---------------------------------------------------------------------------
-
-(defn related-claims-hash-v1
-  "V1 canonical hash (members only) — retained as a pure reference for verifying
-   pre-V2 artifacts. No authoritative V1 artifacts are known to exist; this is a
-   reference-only function, NOT the production commitment."
-  [members]
-  (hash/domain-hash related-claims-domain
-                    (vec (sort-by (juxt :workflow/id :claim/kind)
-                                  (for [m members]
-                                    (select-keys m [:claim/kind :workflow/id :claim/scope-hash]))))))
-
-(defn- canonical-members
-  [members]
-  (vec (sort-by (juxt :workflow/id :claim/kind)
-                (for [m members]
-                  (select-keys m [:claim/kind :workflow/id :claim/scope-hash])))))
-
-(defn related-claims-hash-v2
-  "Historical V2 canonical hash. V2 commits members and creator provenance only;
-   semantics were deliberately outside this contract. Retained for validating
-   readable V2 artifacts, not for creating or authenticating new records."
-  [members creator-provenance]
-  (hash/domain-hash related-claims-domain-v2
-                    {:related-claims/schema-version "related-claims.v2"
-                     :relationship/members (canonical-members members)
-                     :relationship/creator-provenance (or creator-provenance {})}))
-
-(defn related-claims-hash-v3
-  "V3 canonical hash. Commits members, creator provenance, and semantics.
-
-   `semantics` is a Clojure SET (e.g. #{:audit-only}) — legal as data, but the
-   canonical encoder REJECTS sets (:canonical/out-of-domain). It is projected
-   to a sorted vector before hashing. This was previously hashed raw, so the
-   V3 hash path always threw and no V3 artifact could ever have been committed;
-   projecting cannot invalidate anything."
-  [members creator-provenance semantics]
-  (hash/domain-hash related-claims-domain-v3
-                    {:related-claims/schema-version "related-claims.v3"
-                     :relationship/members (canonical-members members)
-                     :relationship/semantics (vec (sort semantics))
-                     :relationship/creator-provenance (or creator-provenance {})}))
-
-(defn related-claims-hash
-  "Compatibility wrapper for the current V3 hash contract. Existing two-arity
-   callers receive a V3 commitment using `default-semantics`; the three-arity
-   form commits the supplied semantics. Use an explicitly versioned function
-   when validating a historical V1 or V2 artifact."
-  ([members creator-provenance]
-   (related-claims-hash-v3 members creator-provenance default-semantics))
-  ([members creator-provenance semantics]
-   (related-claims-hash-v3 members creator-provenance semantics)))
-
-(defn verify-related-claims-hash
-  "Validate a relationship hash under the schema version recorded on the artifact.
-   V1 and V2 remain readable and hash-verifiable. This is integrity validation,
-   not authentication: only V3 records can satisfy the strict authenticator."
-  [relationship]
-  (let [version (:related-claims/version relationship)
-        expected (case version
-                   1 (related-claims-hash-v1 (:relationship/members relationship))
-                   2 (related-claims-hash-v2 (:relationship/members relationship)
-                                             (:relationship/creator-provenance relationship))
-                   3 (related-claims-hash-v3 (:relationship/members relationship)
-                                             (:relationship/creator-provenance relationship)
-                                             (:relationship/semantics relationship))
-                   nil)
-        reasons (cond-> #{}
-                  (not (map? relationship)) (conj :invalid-relationship)
-                  (not (contains? #{related-claims-version
-                                    related-claims-version-v2
-                                    related-claims-version-v3}
-                                  version))
-                  (conj :unsupported-relationship-version)
-                  (and (= related-claims-version-v3 version)
-                       (not= default-semantics (:relationship/semantics relationship)))
-                  (conj :unsupported-semantics)
-                  (and expected (not= (:relationship/hash relationship) expected))
-                  (conj :relationship-hash-mismatch))]
-    {:valid? (empty? reasons)
-     :reasons reasons}))
+(def related-claims-hash-v1 related-claims/related-claims-hash-v1)
+(def related-claims-hash-v2 related-claims/related-claims-hash-v2)
+(def related-claims-hash-v3 related-claims/related-claims-hash-v3)
+(def related-claims-hash-v4 related-claims/related-claims-hash-v4)
+(def related-claims-hash related-claims/related-claims-hash)
+(def verify-related-claims-hash related-claims/verify-related-claims-hash)
 
 ;; ---------------------------------------------------------------------------
 ;; Accessors
 ;; ---------------------------------------------------------------------------
+
+(declare verify-related-claims-hash)
 
 (defn get-related-claims
   "Lookup a relationship record by id. Returns nil if not found."
@@ -159,27 +72,19 @@
   (let [rel (get-related-claims world relationship-id)]
     (and rel (= :active (:relationship/status rel)))))
 
-(defn related-claims-member-hash
-  "Canonical hash identifying one related-claims member by {claim/kind, workflow/id}.
-   Delegates to the framework-neutral workflow-group member hash
-   (domain WORKFLOW_GROUP_MEMBER_V1), projecting the member's {claim/kind,
-   workflow/id} onto the generic workflow-group member identity. This is distinct
-   from the `force-authorisation-scope` hash: it identifies the member identity,
-   not a specific held-accounting adjustment scope."
-  [member]
-  (wg/workflow-group-member-hash
-   (wg/workflow-group-member (:claim/kind member) (:workflow/id member))))
+(def related-claims-member-hash related-claims/related-claims-member-hash)
 
-(defn relationship-member?
-  "True when `member` ({claim/kind, workflow/id}) is present in `relationship`'s
-   member set. Delegates to the canonical workflow-group membership predicate:
-   a member is identified by its normalized workflow-id plus claim kind,
-   independent of any adjustment scope hash."
-  [relationship member]
-  (wg/workflow-group-member?
-   (map (fn [m] (wg/workflow-group-member (:claim/kind m) (:workflow/id m)))
-        (:relationship/members relationship))
-   (wg/workflow-group-member (:claim/kind member) (:workflow/id member))))
+(def relationship-member? related-claims/relationship-member?)
+
+(def related-claim-member? related-claims/related-claim-member?)
+
+(def related-claims-required-members related-claims/related-claims-required-members)
+
+(def related-claims-consistency related-claims/related-claims-consistency)
+
+(def shared-evidence-valid? related-claims/shared-evidence-valid?)
+
+(def claim-acceptance related-claims/claim-acceptance)
 
 ;; ---------------------------------------------------------------------------
 ;; Validation
@@ -202,13 +107,20 @@
                      :members members}))))
 
 (defn- validate-semantics!
-  [semantics]
-  (when-not (= default-semantics semantics)
-    (throw (ex-info "unsupported relationship semantics — v1 supports exactly #{:audit-only}"
+  [semantics incident-root shared-evidence-root resolution-policy-root]
+  (cond
+    (= default-semantics semantics) nil
+    (= shared-resolution-semantics semantics)
+    (when-not (every? string? [incident-root shared-evidence-root resolution-policy-root])
+      (throw (ex-info "shared-resolution requires incident, evidence, and policy roots"
+                      {:type :invalid-related-claims
+                       :error :shared-resolution-basis-invalid})))
+    :else
+    (throw (ex-info "unsupported relationship semantics"
                     {:type :invalid-related-claims
                      :error :unsupported-semantics
                      :semantics semantics
-                     :allowed default-semantics}))))
+                     :allowed #{default-semantics shared-resolution-semantics}}))))
 
 (defn- validate-claim-kinds!
   [members]
@@ -328,7 +240,8 @@
                                                 :reasons #{:relationship-hash-mismatch}}))
         reasons (cond-> (set (:reasons hash-verification))
                   (not (map? relationship)) (conj :invalid-relationship)
-                  (not= related-claims-version-v3 (:related-claims/version relationship))
+                  (not (contains? #{related-claims-version-v3 related-claims-version-v4}
+                                  (:related-claims/version relationship)))
                   (conj :unsupported-relationship-version)
                   (not= :restricted (keyword (or (:governance-mode context) :restricted)))
                   (conj :governance-mode-not-restricted)
@@ -395,28 +308,37 @@
    `assurance` is the derived assurance classification (:address-bound,
    :role-declared, :open, or :unauthenticated). Authenticated is true ONLY for
    :address-bound."
-  [world type members semantics reason creator-provenance created-by created-at-step assurance]
+  [world type members semantics reason creator-provenance created-by created-at-step assurance
+   incident-root shared-evidence-root resolution-policy-root]
   (let [wf-members (for [m members]
                      (let [scope-hash (or (:claim/scope-hash m)
-                                         (related-claims-member-hash m))]
+                                          (related-claims-member-hash m))]
                        (-> m
                            (assoc :claim/scope-hash scope-hash)
                            (update :workflow/id t/normalize-workflow-id))))
         relationship-id (get world :next-related-claim-id 0)
-        rel-hash (related-claims-hash wf-members creator-provenance (or semantics default-semantics))]
-    {:related-claims/version related-claims-version-v3
-     :relationship/id relationship-id
-     :relationship/type type
-     :relationship/status :active
-     :relationship/members wf-members
-     :relationship/semantics (or semantics default-semantics)
-     :relationship/reason reason
-     :relationship/creator-provenance creator-provenance
-     :relationship/assurance (or assurance :unauthenticated)
-     :relationship/authenticated? (= :address-bound (or assurance :unauthenticated))
-     :created-by created-by
-     :created-at-step created-at-step
-     :relationship/hash rel-hash}))
+        semantics (or semantics default-semantics)
+        v4? (= shared-resolution-semantics semantics)
+        rel-hash (if v4?
+                   (related-claims-hash-v4 wf-members creator-provenance semantics
+                                           incident-root shared-evidence-root resolution-policy-root)
+                   (related-claims-hash-v3 wf-members creator-provenance semantics))]
+    (cond-> {:related-claims/version (if v4? related-claims-version-v4 related-claims-version-v3)
+             :relationship/id relationship-id
+             :relationship/type type
+             :relationship/status :active
+             :relationship/members wf-members
+             :relationship/semantics (or semantics default-semantics)
+             :relationship/reason reason
+             :relationship/creator-provenance creator-provenance
+             :relationship/assurance (or assurance :unauthenticated)
+             :relationship/authenticated? (= :address-bound (or assurance :unauthenticated))
+             :created-by created-by
+             :created-at-step created-at-step
+             :relationship/hash rel-hash}
+      v4? (assoc :incident/root incident-root
+                 :shared-evidence/root shared-evidence-root
+                 :resolution-policy/root resolution-policy-root))))
 
 (defn- validate-no-auth-override!
   "Direct construction may never claim authentication. Reject any caller-supplied
@@ -436,12 +358,13 @@
    only path that produces an :address-bound (authenticated) record. External
    callers should use create-related-claims!, which rejects authentication
    overrides and always emits :unauthenticated."
-  [world {:keys [type members semantics reason created-by created-at-step] :as opts}
+  [world {:keys [type members semantics reason created-by created-at-step incident-root
+                 shared-evidence-root resolution-policy-root] :as opts}
    assurance]
   (try
     (validate-relationship-type! type)
     (validate-members-nonempty! members)
-    (validate-semantics! semantics)
+    (validate-semantics! semantics incident-root shared-evidence-root resolution-policy-root)
     (validate-claim-kinds! members)
     (validate-members-exist! world members)
     (validate-no-duplicate-members! world members)
@@ -449,8 +372,8 @@
     (let [creator-provenance (build-creator-provenance
                               (assoc created-by :authorization/assurance assurance))
           record (build-related-claims-record world type members semantics reason
-                                              creator-provenance created-by
-                                              created-at-step assurance)
+                                              creator-provenance created-by created-at-step assurance
+                                              incident-root shared-evidence-root resolution-policy-root)
           rel-id (:relationship/id record)
           world' (-> world
                      (assoc-in [:related-claims rel-id] record)
@@ -496,7 +419,8 @@
      :reason       — string describing why
      :created-by   — explicit {:actor/type ... :actor/address \"0x...\"} (required)
      :created-at-step — integer step number"
-  [world {:keys [type members semantics reason created-by created-at-step] :as opts
+  [world {:keys [type members semantics reason created-by created-at-step incident-root
+                 shared-evidence-root resolution-policy-root] :as opts
           :or {semantics default-semantics
                reason "unspecified"
                created-at-step 0}}]
@@ -504,15 +428,15 @@
     (validate-no-auth-override! opts)
     (validate-relationship-type! type)
     (validate-members-nonempty! members)
-    (validate-semantics! semantics)
+    (validate-semantics! semantics incident-root shared-evidence-root resolution-policy-root)
     (validate-claim-kinds! members)
     (validate-members-exist! world members)
     (validate-no-duplicate-members! world members)
     (validate-creator-provenance! created-by)
     (let [creator-provenance (build-creator-provenance created-by)
           record (build-related-claims-record world type members semantics reason
-                                              creator-provenance created-by
-                                              created-at-step :unauthenticated)
+                                              creator-provenance created-by created-at-step :unauthenticated
+                                              incident-root shared-evidence-root resolution-policy-root)
           rel-id (:relationship/id record)
           world' (-> world
                      (assoc-in [:related-claims rel-id] record)
@@ -531,7 +455,7 @@
           :related-claims/reason reason}))
       (assoc (t/ok world')
              :relationship-id rel-id
-              :relationship record))
+             :relationship record))
     (catch Exception e
       (t/fail (or (:type (ex-data e)) :related-claims-invalid)))))
 

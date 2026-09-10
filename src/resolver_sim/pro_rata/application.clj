@@ -153,24 +153,29 @@
             :canonical-transition/root (:canonical-effect-transition/root canonical-transition)
             :effect-compilation-binding/root (:effect-compilation-binding/root receipt)}
            compilation canonical-transition resolve-body))
-      false)))
+     false)))
+
+(defn protected-lineage-valid?
+  "Return true when an allocation witness is bound to protected application state."
+  [{:keys [allocation proposal evidence receipt]}]
+  (and allocation proposal evidence receipt
+       (allocation/allocation-hash-valid? allocation)
+       (evidence/evidence-valid? evidence)
+       (evidence/proposed-effects-valid? allocation proposal)
+       (receipt-valid? receipt)
+       (= (:allocation/hash allocation) (:allocation/hash proposal))
+       (= (:allocation/hash allocation)
+          (:mechanism/result-hash evidence))))
 
 (defn protected-lineage
   "Return the verified lineage from an allocation/evidence witness to protected
    application state. This is a read-only projection; state can only be changed
    through the Sew application boundary and authoritative publication."
   [{:keys [allocation proposal evidence receipt]}]
-  (when-not (and allocation
-                 proposal
-                 evidence
-                 receipt
-                 (allocation/allocation-hash-valid? allocation)
-                 (evidence/evidence-valid? evidence)
-                 (evidence/proposed-effects-valid? allocation proposal)
-                 (receipt-valid? receipt)
-                 (= (:allocation/hash allocation) (:allocation/hash proposal))
-                 (= (:allocation/hash allocation)
-                    (:mechanism/result-hash evidence)))
+  (when-not (protected-lineage-valid? {:allocation allocation
+                                       :proposal proposal
+                                       :evidence evidence
+                                       :receipt receipt})
     (throw (ex-info "invalid protected pro-rata lineage" {})))
   {:allocation {:root (:allocation/hash allocation)
                 :evidence-root (:evidence/hash evidence)}

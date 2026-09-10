@@ -3,7 +3,7 @@
             [clojure.java.io :as io]
             [clojure.java.shell :as shell]
             [clojure.test :refer [deftest is testing]]
-            [resolver-sim.economics.payoffs :as payoffs]
+            [resolver-sim.pro-rata.allocation :as allocation]
             [resolver-sim.execution.context :as execution]
             [resolver-sim.execution.observation :as observation]
             [resolver-sim.execution.realization :as realization]
@@ -50,7 +50,7 @@
               realization/*claimant-execution-runtime-profile-root* (:runtime-profile/root runtime)
               realization/*claimant-execution-observation-sink* #(swap! emitted conj %)]
       {:result (execution/with-claimant-options
-                 (payoffs/allocate-pro-rata allocation))
+                 (allocation/allocate-pro-rata allocation))
        :observation (do
                       (is (= 1 (count @emitted)) "one observation per allocation")
                       (first @emitted))})))

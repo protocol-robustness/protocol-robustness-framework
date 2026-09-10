@@ -20,11 +20,11 @@
             [resolver-sim.hash.canonical :as hc]
             [resolver-sim.protocols.sew.types :as types]
             [resolver-sim.protocols.sew.economics :as sew-econ]
-            [resolver-sim.economics.payoffs :as payoffs]
             [resolver-sim.evidence.attestation :as att]
             [resolver-sim.evidence.attestation-dag :as adag]
             [resolver-sim.evidence.attestation-registry :as ar]
             [resolver-sim.evidence.attestation-resolver :as ars]
+            [resolver-sim.pro-rata.evaluation :as pro-rata-evaluation]
             [resolver-sim.pro-rata.evidence :as pro-rata-evidence]))
 
 ;; ===========================================================================
@@ -247,7 +247,7 @@
 
 ^{:nextjournal.clerk/visibility {:code :show :result :show}}
 (def allocation-result-artifact
-  (payoffs/build-pro-rata-allocation-result-artifact
+  (pro-rata-evaluation/build-pro-rata-allocation-result-artifact
    {:projection-artifact projection-artifact
     :allocation-result allocation-result
     :world-before-hash world-before-hash

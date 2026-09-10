@@ -14,9 +14,9 @@
       :post-partial-fill-accrual :accrue-residual-as-unrealized
       :rounding-policy :floor-and-carry}"
   (:require [resolver-sim.evidence.config :as evcfg]
-            [resolver-sim.economics.payoffs :as payoffs]
             [resolver-sim.pro-rata.allocation :as pro-rata]
             [resolver-sim.pro-rata.evidence :as pro-rata-evidence]
+            [resolver-sim.pro-rata.redistribution :as pro-rata-redistribution]
             [resolver-sim.hash.canonical :as hc]
             [resolver-sim.yield.exact-math :as m]
             [resolver-sim.yield.position :as pos]
@@ -427,7 +427,7 @@
         (let [yield-items (items-from-rows yield-rows)
               rounding-policy (:rounding-policy policy :floor-and-carry)
               yield-alloc (when (and (pos? remaining) (seq yield-items))
-                            (payoffs/allocate-pro-rata-with-redistribution
+                            (pro-rata-redistribution/allocate-pro-rata-with-redistribution
                              {:amount remaining
                               :items yield-items
                               :id-fn :id :weight-fn :weight :cap-fn :cap
@@ -536,7 +536,7 @@
             (if (zero? bucket-total)
               (recur remaining filled all-row-evidence all-redistributions (rest buckets))
               (let [bucket-items (items-from-rows bucket-rows)
-                    bucket-alloc (payoffs/allocate-pro-rata-with-redistribution
+                    bucket-alloc (pro-rata-redistribution/allocate-pro-rata-with-redistribution
                                   {:amount (min remaining bucket-total)
                                    :items bucket-items
                                    :id-fn :id :weight-fn :weight :cap-fn :cap

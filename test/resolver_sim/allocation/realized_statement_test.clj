@@ -5,7 +5,8 @@
             [resolver-sim.allocation.round-state :as round-state]
             [resolver-sim.benchmark.packs.partial-fill.evidence :as pfev]
             [resolver-sim.yield.partial-fill :as partial-fill]
-            [resolver-sim.economics.payoffs :as payoffs]
+            [resolver-sim.pro-rata.engine :as engine]
+            [resolver-sim.pro-rata.progress :as progress]
             [resolver-sim.hash.canonical :as hc]))
 
 (def ^:const golden-context-hash
@@ -65,7 +66,7 @@
                                      :haircut-policy :same-ratio}}
         requested {:A 50 :B 30 :C 20}
         run (fn [parallelism]
-              (binding [payoffs/*pro-rata-parallel-threshold* 1]
+              (binding [engine/*pro-rata-parallel-threshold* 1]
                 (partial-fill/calculate-fulfillment-pro-rata
                  50 requested policy
                  {:execution/claimant-parallelism parallelism})))
@@ -95,12 +96,12 @@
           rows [{:key :a :owed 40 :weight 40 :cap 40}
                 {:key :b :owed 60 :weight 60 :cap 60}]
           run (fn [opts]
-                (binding [payoffs/*pro-rata-parallel-threshold* 1]
+                (binding [engine/*pro-rata-parallel-threshold* 1]
                   (partial-fill/calculate-fulfillment-pro-rata
                    50 {:a 40 :b 60} policy
                    (assoc opts :rows rows))))
           variants {:none {}
-                    :atom {:progress-atom (payoffs/make-pro-rata-progress-atom)}
+                    :atom {:progress-atom (progress/make-progress-atom)}
                     :slow {:on-progress (fn [_] (Thread/sleep 1))}
                     :throwing {:on-progress (fn [_] (throw (ex-info "observer failure" {})))}}
           decisions (into {} (map (fn [[k opts]] [k (run opts)]) variants))

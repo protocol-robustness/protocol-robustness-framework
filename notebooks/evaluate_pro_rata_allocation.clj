@@ -6,7 +6,7 @@
    No Sew protocol dependency. Pure evaluation pipeline."
   (:require [nextjournal.clerk :as clerk]
             [resolver-sim.hash.canonical :as hc]
-            [resolver-sim.economics.payoffs :as payoffs]
+            [resolver-sim.pro-rata.evaluation :as pro-rata-evaluation]
             [resolver-sim.pro-rata.evidence :as pro-rata-evidence]))
 
 ;; # Pro-Rata Evaluation API
@@ -47,7 +47,7 @@
 
 ^{:nextjournal.clerk/visibility {:code :show :result :show}}
 (def evaluation
-  (payoffs/evaluate-pro-rata-allocation request))
+  (pro-rata-evaluation/evaluate-pro-rata-allocation request))
 
 ^{:nextjournal.clerk/visibility {:code :hide :result :show}}
 (clerk/html
@@ -71,7 +71,7 @@
 
 ^{:nextjournal.clerk/visibility {:code :show :result :show}}
 (def verified-evaluation
-  (payoffs/validate-pro-rata-evaluation-package! evaluation))
+  (pro-rata-evaluation/validate-pro-rata-evaluation-package! evaluation))
 
 ^{:nextjournal.clerk/visibility {:code :hide :result :show}}
 (clerk/html
@@ -88,7 +88,7 @@
   (try
     (let [tampered-value (assoc-in evaluation [:result :artifact/value :amount] 999)
           tampered (assoc-in evaluation [:result :artifact/value] tampered-value)]
-      (payoffs/validate-pro-rata-evaluation-package! tampered)
+      (pro-rata-evaluation/validate-pro-rata-evaluation-package! tampered)
       :unexpected-pass)
     (catch Exception e
       :hash-mismatch-detected)))
@@ -110,7 +110,7 @@
 
 ^{:nextjournal.clerk/visibility {:code :show :result :show}}
 (def artifact
-  (payoffs/build-pro-rata-allocation-result-artifact
+  (pro-rata-evaluation/build-pro-rata-allocation-result-artifact
    {:projection-artifact (get-in evaluation [:projection :artifact/value])
     :evaluation evaluation
     :allocation-result (:allocation evaluation)

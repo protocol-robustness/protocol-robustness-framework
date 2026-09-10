@@ -13,7 +13,7 @@
    Input shape: {:amount N :items [{:id kw :weight N :cap N}] ...}"
   [input]
   (let [f (requiring-resolve
-           'resolver-sim.economics.payoffs/allocate-pro-rata)
+           'resolver-sim.pro-rata.allocation/allocate-pro-rata)
         result (f input)]
     (tap> {:type :pro-rata/generic-allocation
            :input input

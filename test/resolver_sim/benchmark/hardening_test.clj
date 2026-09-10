@@ -5,7 +5,7 @@
   (:require [clojure.test :refer [deftest is testing]]
             [resolver-sim.benchmark.hardening :as hardening]
             [resolver-sim.config.defaults :as config-defaults]
-            [resolver-sim.economics.payoffs :as payoffs]))
+            [resolver-sim.pro-rata.engine :as engine]))
 
 (deftest defaults-resolve-from-config-authority
   (testing "base defaults match config/defaults.edn :hardening and code fallbacks"
@@ -42,9 +42,9 @@
 
 (deftest claimant-threshold-single-source-of-truth
   (testing "the 16 literal is centralised: payoffs root default reads config, not a code literal"
-    (is (= 16 payoffs/*pro-rata-parallel-threshold*))
+    (is (= 16 engine/*pro-rata-parallel-threshold*))
     (is (= (config-defaults/default [:hardening :claimant-parallel-threshold] 16)
-           payoffs/*pro-rata-parallel-threshold*))
-    (is (= payoffs/*pro-rata-parallel-threshold*
+           engine/*pro-rata-parallel-threshold*))
+    (is (= engine/*pro-rata-parallel-threshold*
            (hardening/claimant-parallel-threshold nil {}))
         "command/runner resolution matches the economics root default")))

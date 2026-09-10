@@ -122,7 +122,7 @@
 (deftest numeric-projection-agrees-with-pure-legacy-application-only-on-numeric-leaves
   (let [fx (fixture 100)
         result (realization fx)
-        legacy-after (legacy/apply-effects-to-world
+        legacy-after (@#'legacy/apply-effects-to-world
                       (:before fx)
                       [{:effect {:effect/token token :effect/amount 60 :held/kind :credit :effect/account :alice}}
                        {:effect {:effect/token token :effect/amount 40 :held/kind :credit :effect/account :bob}}])]

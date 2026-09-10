@@ -65,7 +65,10 @@
   (hc/hash-with-intent {:hash/intent :replay-frame} (dissoc frame :frame/root)))
 
 (defn validate-frame-lineage
-  "Validate a sequential frame stream, optionally against external anchors."
+  "Validate a sequential frame stream, optionally against external anchors.
+   Answers ONE question: is this frame stream INTERNALLY CONSECUTIVE? It does
+   not know about compound actions; compound↔frame correspondence is a separate
+   validator (validate-compound-frame-correspondence)."
   ([frame-stream] (validate-frame-lineage frame-stream {}))
   ([frame-stream {:keys [expected-state-before-root expected-head-frame-root
                          expected-final-state-root]}]
@@ -104,6 +107,67 @@
                                    [{:reason :frame/unsupported-stream}])
                                  anchor-violations frame-violations))]
      {:valid? (empty? violations) :violations violations})))
+
+(defn validate-compound-frame-correspondence
+  "Validate that a valid replay frame stream is an EXACT state-lineage projection
+   of a compound execution's canonical transition evidence — WITHOUT redefining
+   either identity:
+
+     count(frames) == count(lineage-steps) == count(member-action-roots)
+     frame[i].state-before/root  == lineage-step[i].state-before/root
+     frame[i].state-after/root   == lineage-step[i].state-after/root
+     lineage-step[i].action/root == member-action-roots[i]
+
+   Frame adjacency (frame[i].state-after/root == frame[i+1].state-before/root)
+   is established by validate-frame-lineage — the stream must already be a
+   valid, internally consecutive frame stream. The lifecycle execution lineage
+   REMAINS the authority: the execution-lineage-root is never recomputed from
+   the frame stream (frames are a consumer projection, not execution authority).
+
+   Args (plain data — this validator has no dependency on the lifecycle module):
+     :frame-stream         the replay frame stream
+     :lineage              {:lineage/steps [{:step/index i
+                                             :state-before/root hex
+                                             :action/root hex
+                                             :state-after/root hex} ...]
+                            :lineage/root hex}
+     :member-action-roots  [hex ...] committed member action roots, in order
+
+   Returns {:valid? bool :violations [<structured>] :lineage-root <hex>}."
+  [{:keys [frame-stream lineage member-action-roots]}]
+  (let [frames (:frames frame-stream)
+        lineage-steps (:lineage/steps lineage)
+        lineage-valid (validate-frame-lineage frame-stream)
+        cardinality-ok? (= (count frames) (count lineage-steps) (count member-action-roots))
+        step-violations (vec
+                         (mapcat (fn [index]
+                                   (let [frame (nth frames index)
+                                         step (nth lineage-steps index)
+                                         member-root (nth member-action-roots index)]
+                                     (cond-> []
+                                       (not= (:state-before/root frame) (:state-before/root step))
+                                       (conj {:reason :compound-frame/state-before-root-mismatch
+                                              :index index})
+                                       (not= (:state-after/root frame) (:state-after/root step))
+                                       (conj {:reason :compound-frame/state-after-root-mismatch
+                                              :index index})
+                                       (not= (:action/root step) member-root)
+                                       (conj {:reason :compound-frame/action-root-mismatch
+                                              :index index}))))
+                                 (range (min (count frames) (count lineage-steps)))))
+        violations (cond-> []
+                     (not (:valid? lineage-valid))
+                     (conj {:reason :compound-frame/stream-not-internally-valid
+                            :violations (:violations lineage-valid)})
+                     (not cardinality-ok?)
+                     (conj {:reason :compound-frame/cardinality-mismatch
+                            :frame-count (count frames)
+                            :lineage-step-count (count lineage-steps)
+                            :member-count (count member-action-roots)})
+                     true (into step-violations))]
+    {:valid? (empty? violations)
+     :violations violations
+     :lineage-root (:lineage/root lineage)}))
 
 (defn- validated-stream [frame-stream]
   (let [validation (validate-frame-lineage frame-stream)]

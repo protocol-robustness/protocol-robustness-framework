@@ -4,8 +4,9 @@
             [resolver-sim.pro-rata.invariants :as invariants]
             [resolver-sim.pro-rata.evidence :as mechanism-evidence]
             [resolver-sim.pro-rata.claims :as claims]
-            [resolver-sim.hash.canonical :as hc]
-            [resolver-sim.economics.payoffs :as payoffs]))
+            [resolver-sim.pro-rata.engine :as engine]
+            [resolver-sim.pro-rata.redistribution :as redistribution]
+            [resolver-sim.hash.canonical :as hc]))
 
 (def rows
   [{:row/id :row/alice :obligation/id :withdrawal/alice :requested 8 :weight 8 :cap 8}
@@ -13,7 +14,7 @@
 
 (defn- legacy-redistribution
   [request]
-  ((ns-resolve 'resolver-sim.economics.payoffs
+  ((ns-resolve 'resolver-sim.pro-rata.redistribution
                'allocate-pro-rata-with-redistribution-legacy)
    request))
 
@@ -32,9 +33,9 @@
                  :tie-break-policy :canonical-row-id
                  :redistribution-policy :redistribute-cap-excess}
         serial (allocation/allocate (assoc request :parallelism 1))
-        parallel (binding [payoffs/*pro-rata-parallel-threshold* 1]
+        parallel (binding [engine/*pro-rata-parallel-threshold* 1]
                    (allocation/allocate (assoc request :parallelism 2)))
-        wider (binding [payoffs/*pro-rata-parallel-threshold* 99]
+        wider (binding [engine/*pro-rata-parallel-threshold* 99]
                 (allocation/allocate (assoc request :parallelism 8)))]
     (is (= serial parallel))
     (is (= serial wider))
@@ -52,7 +53,7 @@
                  :rounding :floor-with-largest-remainder
                  :ordering-policy :canonical-id}
         legacy (legacy-redistribution request)
-        corrected (payoffs/allocate-pro-rata-with-redistribution request)
+        corrected (redistribution/allocate-pro-rata-with-redistribution request)
         mechanism (allocation/allocate
                    {:allocation/id :semantic-divergence
                     :available 8

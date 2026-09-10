@@ -363,8 +363,9 @@
 
 (defn -main [& args]
   (let [argset (set args)
-         manifest-path (second (first (filter #(= "--manifest" (first %))
-                                              (partition 2 1 args))))
+         manifest-path (or (second (first (filter #(= "--manifest" (first %))
+                                                  (partition 2 1 args))))
+                           "config/architecture/content-authority.edn")
         manifest (try
                    (load-manifest manifest-path)
                    (catch Exception e

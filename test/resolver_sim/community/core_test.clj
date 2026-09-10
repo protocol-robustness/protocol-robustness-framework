@@ -1,11 +1,12 @@
 (ns resolver-sim.community.core-test
-  (:require [clojure.test :refer [deftest is use-fixtures]]
+  (:require [clojure.test :refer [deftest is testing thrown-with-msg? use-fixtures]]
             [resolver-sim.community.task :as task]
             [resolver-sim.community.finding :as finding]
             [resolver-sim.community.attestation :as att]
             [resolver-sim.community.mailbox :as mailbox]
             [resolver-sim.community.graph :as graph]
-            [resolver-sim.community.report :as report]))
+            [resolver-sim.community.report :as report]
+            [resolver-sim.community.cli :as cli]))
 
 (defn temp-dir-fixture [f]
   (let [d (str (java.nio.file.Files/createTempDirectory "community-test" (make-array java.nio.file.attribute.FileAttribute 0)))]
@@ -13,6 +14,20 @@
       (f))))
 
 (use-fixtures :each temp-dir-fixture)
+
+(deftest community-task-requires-registered-benchmark
+  (testing "unknown or missing benchmark identity fails closed"
+    (with-redefs [cli/resolve-benchmark-manifest (constantly nil)]
+      (is (thrown-with-msg? clojure.lang.ExceptionInfo
+                            #"requires a registered benchmark manifest"
+                            (#'cli/required-benchmark-manifest :unknown/benchmark)))
+      (is (thrown-with-msg? clojure.lang.ExceptionInfo
+                            #"requires a registered benchmark manifest"
+                            (#'cli/required-benchmark-manifest nil)))))
+  (testing "a registered benchmark resolves without a built-in fallback"
+    (with-redefs [cli/resolve-benchmark-manifest (constantly "registered.edn")]
+      (is (= "registered.edn"
+             (#'cli/required-benchmark-manifest :registered/benchmark))))))
 
 (defn- valid-exec-spec [& {:keys [task-ref runner-id exec-hash result-hash code-hash env-hash bundle registry issued-at]
                            :or {task-ref "research-task:sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"

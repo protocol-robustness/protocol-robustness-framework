@@ -1,7 +1,7 @@
 (ns resolver-sim.execution.context
   "Runtime-only execution controls. Values here are never canonical scenario
    inputs, execution identities, evidence, or package content."
-  (:require [resolver-sim.economics.payoffs :as payoffs]))
+  (:require [resolver-sim.pro-rata.engine :as engine]))
 
 (def ^:dynamic *context* nil)
 
@@ -12,7 +12,7 @@
         outer-parallelism (some-> context :execution/outer-parallelism)
         parallelism (or (:execution/claimant-parallelism context) 1)
         threshold (or (:execution/claimant-parallel-threshold context)
-                      payoffs/*pro-rata-parallel-threshold*)
+                      engine/*pro-rata-parallel-threshold*)
         quiescence-timeout-seconds (:execution/quiescence-timeout-seconds context)]
     (when (some? outer-parallelism)
       (when-not (and (integer? outer-parallelism) (pos? outer-parallelism))
@@ -46,6 +46,6 @@
   [& body]
   `(let [{parallelism# :execution/claimant-parallelism
           threshold# :execution/claimant-parallel-threshold} (claimant-options)]
-     (binding [payoffs/*pro-rata-parallelism* parallelism#
-               payoffs/*pro-rata-parallel-threshold* threshold#]
+     (binding [engine/*pro-rata-parallelism* parallelism#
+               engine/*pro-rata-parallel-threshold* threshold#]
        ~@body)))

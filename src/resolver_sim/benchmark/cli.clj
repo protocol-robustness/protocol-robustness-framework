@@ -100,7 +100,8 @@
    a flat list of benchmark entries in the same format as the legacy
    BENCHMARKS.edn (each with :id, :description, :manifest).
 
-   Falls back to BENCHMARKS.edn if the canonical registry is missing."
+   The canonical registry is authoritative; a missing registry is an empty
+   index rather than an implicit legacy fallback."
   []
   (if-let [registry (try (rp/edn-read rp/canonical-registry-path)
                          (catch Exception _ nil))]
@@ -109,10 +110,8 @@
                (load-pack-benchmarks (:pack/id pack)
                                      (rp/pack-registry-path (:pack/registry pack))))
              (:packs registry))}
-    (do (log/warn! :registry-edn-not-found {:message "Falling back to BENCHMARKS.edn"})
-        (when-let [legacy (try (rp/edn-read (paths/benchmarks-legacy))
-                               (catch Exception _ nil))]
-          {:benchmarks legacy}))))
+    (do (log/warn! :registry-edn-not-found {:path rp/canonical-registry-path})
+        {:benchmarks []})))
 
 (def cli-options
   [["-o" "--output PATH" "Output path for evidence bundle"

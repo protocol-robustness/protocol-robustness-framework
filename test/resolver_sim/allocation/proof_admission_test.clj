@@ -9,7 +9,7 @@
             [resolver-sim.allocation.realized-statement :as statement]
             [resolver-sim.allocation.round-state :as round-state]
             [resolver-sim.yield.partial-fill :as partial-fill]
-            [resolver-sim.economics.payoffs :as payoffs]
+            [resolver-sim.pro-rata.engine :as engine]
             [resolver-sim.support.ed25519 :as fx]))
 
 (def raw-context
@@ -125,7 +125,7 @@
 (deftest production-proof-admission-is-blind-to-parallel-origin
   (let [policy {:mode :pro-rata :rounding-policy :largest-remainder}
         run (fn [parallelism]
-              (binding [payoffs/*pro-rata-parallel-threshold* 1]
+              (binding [engine/*pro-rata-parallel-threshold* 1]
                 (partial-fill/calculate-fulfillment-pro-rata
                  50 {:A 50 :B 50} policy
                  {:execution/claimant-parallelism parallelism})))

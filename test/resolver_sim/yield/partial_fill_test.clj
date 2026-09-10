@@ -2,7 +2,8 @@
   "Tests for partial-fill settlement decisions: pro-rata, principal-first,
    waterfall modes, recovery, haircut, and multi-escrow isolation."
   (:require [clojure.test :refer [deftest is testing]]
-            [resolver-sim.economics.payoffs :as payoffs]
+            [resolver-sim.pro-rata.engine :as engine]
+            [resolver-sim.pro-rata.progress :as progress]
             [resolver-sim.yield.partial-fill :as pf]
             [resolver-sim.yield.position :as pos]))
 
@@ -24,7 +25,7 @@
                    (range 16))
         policy {:mode :pro-rata :rounding-policy :largest-remainder}
         run (fn [parallelism]
-              (binding [payoffs/*pro-rata-parallel-threshold* 1]
+              (binding [engine/*pro-rata-parallel-threshold* 1]
                 (pf/calculate-fulfillment-pro-rata
                  101 {} policy
                  {:rows rows :execution/claimant-parallelism parallelism})))
@@ -83,7 +84,7 @@
       (is (> (get filled :deferred-yield 0) 0) "Deferred yield gets some"))))
 
 (deftest test-pro-rata-row-allocation-reports-progress
-  (let [progress (payoffs/make-pro-rata-progress-atom)
+  (let [progress (progress/make-progress-atom)
         decision (pf/calculate-fulfillment-pro-rata
                   50
                   {:a 40 :b 60}

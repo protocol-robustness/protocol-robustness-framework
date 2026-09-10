@@ -13,6 +13,7 @@
    to the primary execution path."
   (:require [resolver-sim.economics.payoffs :as payoffs]
             [resolver-sim.economics.calculations :as core-econ]
+            [resolver-sim.pro-rata.evaluation :as pro-rata-evaluation]
              [resolver-sim.economics.slash-distribution :as sd]))
 
 (def ECONOMIC-POLICIES
@@ -375,7 +376,7 @@
          cap-field :available-slashable
          unmet-policy :record-only}}]
   (let [amount (or slash-amount slash-obligation 0)]
-    (payoffs/build-projection-artifact
+    (pro-rata-evaluation/build-projection-artifact
      {:amount amount
       :items liable-parties
       :id-fn :id
@@ -403,7 +404,7 @@
    This is a shadow path for comparing against calculate-sew-slash-allocation;
    call sites should continue using the current function until replacement is explicit."
   [artifact]
-  (let [generic (payoffs/calculate-prorata-from-projection artifact)
+  (let [generic (pro-rata-evaluation/calculate-prorata-from-projection artifact)
         total-basis (get-in artifact [:summary :total-weight] 0)
         amount (:total-requested generic)
         basis (get-in artifact [:source :basis] :slashable-stake)

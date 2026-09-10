@@ -37,7 +37,7 @@
    change request-root, result-root, validation status/details, evidence-root,
    or receipt semantic fields."
   (:require [resolver-sim.hash.canonical :as hc]
-            [resolver-sim.economics.payoffs :as payoffs]
+            [resolver-sim.pro-rata.evaluation :as pro-rata-evaluation]
             [resolver-sim.pro-rata.exact-verifier :as exact-verifier]
             [resolver-sim.pro-rata.progress :as progress]
             [resolver-sim.execution.budget :as budget]))
@@ -466,7 +466,7 @@
   [plan canonical opts on-complete]
   (let [request (:request plan)]
     (emit opts {:event :phase-started :phase :allocating :total 3})
-    (let [evaluation (payoffs/evaluate-pro-rata-allocation request)]
+    (let [evaluation (pro-rata-evaluation/evaluate-pro-rata-allocation request)]
       (emit opts {:event :allocation-completed :phase :allocating})
       (emit opts {:event :phase-started :phase :validating})
       (let [verdict (programme-validation-result evaluation)

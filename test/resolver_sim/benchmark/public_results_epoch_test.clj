@@ -216,6 +216,43 @@
         "divergent reports are both valid members; nothing is agreement-filtered")))
 
 ;; ═══════════════════════════════════════════════════════════════════════════
+;; 10b. Participation classes: presentation is never identity assurance
+;; ═══════════════════════════════════════════════════════════════════════════
+
+(deftest epoch-exposes-separate-participation-classes
+  (let [anon (admit (manifest) "anonymous" "run1")
+        declared (admit (manifest) "r2" "run2")
+        declared2 (admit (manifest :results {:conservation :pass :quota :fail})
+                         "r3" "run3")
+        entries [anon declared declared2]
+        {:keys [chain]} (chain-up-to entries)
+        adm (admissions-map entries)
+        e (sut/build-epoch (basis-at chain 3) chain adm)]
+    (is (= {:anonymous 1 :declared-unresolved 2 :authenticated 0}
+           (:epoch/participation e)))
+    (is (some (fn [m]
+                (= :anonymous
+                   (:presentation (:admission/participation m))))
+              (:epoch/members e))
+        "an anonymous member is present and classified separately")
+    (is (every? (fn [m]
+                  (= :unresolved
+                     (:identity-assurance (:admission/participation m))))
+                (:epoch/members e))
+        "V1 never exposes :authenticated assurance")))
+
+(deftest epoch-participation-is-derived-not-supplied
+  (let [a (admit (manifest) "anonymous" "run1")
+        {:keys [chain]} (chain-up-to [a])
+        adm (admissions-map [a])
+        e (sut/build-epoch (basis-at chain 1) chain adm)
+        reclassified (assoc e :epoch/participation
+                            {:anonymous 0 :declared-unresolved 1 :authenticated 0})]
+    (is (= {:anonymous 1 :declared-unresolved 0 :authenticated 0}
+           (:epoch/participation e)))
+    (is (= :derived-epoch-mismatch (:reason (sut/verify-epoch reclassified chain adm))))))
+
+;; ═══════════════════════════════════════════════════════════════════════════
 ;; 11–12. Epoch set-root / root tamper rejected
 ;; ═══════════════════════════════════════════════════════════════════════════
 

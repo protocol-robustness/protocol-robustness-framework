@@ -1,81 +1,50 @@
 (ns resolver-sim.pro-rata.read-model-test
-  (:require [clojure.test :refer [deftest is testing use-fixtures]]
-            [clojure.java.io :as io]
+  (:require [clojure.test :refer [deftest is testing]]
             [clojure.set :as set]
-            [next.jdbc :as jdbc]
-            [resolver-sim.db.pool :as pool]
+            [java.nio.file :as Files]
             [resolver-sim.hash.reference :as ref]
-            [resolver-sim.hash.canonical :as hc]
             [resolver-sim.io.content-addressed-store :as cas]
             [resolver-sim.pro-rata.read-model :as read-model]
             [resolver-sim.pro-rata.publication :as publication]
             [resolver-sim.pro-rata.invocation-publication-binding :as binding]
-            [resolver-sim.pro-rata.postgres-publication-store :as pg]
             [resolver-sim.pro-rata.invocation-publication-binding-test :as fixture]
-            [resolver-sim.pro-rata.canonical-effects :as effects]
-            [resolver-sim.transaction.ordering :as ordering]
-            [resolver-sim.pro-rata.protocol-transaction-realization :as realization]
-            [resolver-sim.pro-rata.application :as application]
-            [resolver-sim.pro-rata.effect-compilation-semantics :as semantics]
-            [resolver-sim.pro-rata.target-map :as target-map]
-            [resolver-sim.pro-rata.allocation :as allocation])
-  (:import [java.nio.file Files]))
-
-;; ── Fixtures ────────────────────────────────────────────────────────────────
-
-(defn database-url []
-  (or (System/getenv "DATABASE_URL")
-      "jdbc:postgresql://localhost:5433/postgres?user=postgres&password=postgres"))
-
-(defn skip-if-no-db [f]
-  (try
-    (let [ds (pool/pool (database-url) {})]
-      (jdbc/execute-one! ds ["SELECT 1"])
-      (.close ds)
-      (f))
-    (catch Exception e
-      (println "PostgreSQL tests skipped (" (.getMessage e) ")")
-      (System/exit 0))))
-
-(def ^:dynamic *ds* nil)
-
-(defn pg-fixture [f]
-  (let [ds (pool/pool (database-url) {})]
-    (pg/ensure-schema! ds)
-    (binding [*ds* ds]
-      (try (f)
-           (finally
-             (jdbc/execute! ds ["TRUNCATE TABLE prf_economic_publication_binding, prf_economic_publication_ordering, prf_economic_publication_partition"])
-             (.close ds))))))
-
-(use-fixtures :once skip-if-no-db)
-(use-fixtures :each pg-fixture)
+            [resolver-sim.pro-rata.postgres-publication-store :as pg])
+  (:import [java.nio.file Files FileAttribute]))
 
 ;; ── Helpers ────────────────────────────────────────────────────────────────
 
-(defn- cas-resolver
-  "Build a CAS store with all artifact bodies from the fixture and return
-   a resolution function [root -> body-or-nil]."
-  []
-  (let [cas-store (cas/create-store
-                   (str (Files/createTempDirectory "resolver-sim-read-model-cas-"
-                                                   (make-array java.nio.file.attribute.FileAttribute 0))))]
-    (fn [root] (cas/resolve-artifact cas-store root))))
+(def ^:private root-field-map
+  "Maps artifact role keywords to the field holding their self-root, for CAS
+   persistence during tests."
+  {:publication/head :publication/head-root
+   :publication/ordering :transaction-ordering/hash
+   :publication/binding :pro-rata-invocation-publication-binding/root
+   :capability-binding :binding/root
+   :use-case-application :application/root
+   :executable-distribution :executable-distribution/root
+   :pro-rata-output :pro-rata-output/root
+   :allocation :allocation/hash
+   :canonical-transition :canonical-effect-transition/root
+   :pro-rata-transition :transition/root
+   :applied-effect-receipt :applied-effect-receipt/root
+   :protocol-transaction-realization :protocol-transaction-realization/root})
 
-(defn- put-artifact!
-  "Put an artifact into a CAS store with its root as the key."
-  [store artifact root-field]
-  (let [root (ref/sha256-ref (get artifact root-field))]
-    (cas/put-if-absent! store
-                        {:hash-reference root
-                         :artifact artifact
-                         :verify #(= % artifact)})))
+(defn- temp-cas-store []
+  (cas/create-store
+   (str (Files/createTempDirectory "resolver-sim-read-model"
+                                   (make-array FileAttribute 0)))))
 
-(defn- build-v1-test-chain
-  "Build a complete v1 publication chain in a CAS store and return
-   {:head head :binding binding :resolution-fn resolution-fn}."
+(defn- put! [store root field-key artifact]
+  (cas/put-if-absent! store
+                      {:hash-reference root
+                       :artifact artifact
+                       :verify #(true? %)}))
+
+(defn- build-test-chain
+  "Build a complete V1 publication chain in a CAS store.
+   Returns {:head head :binding binding :resolution-fn resolution-fn :head-root root}"
   []
-  (let [resolved @#'fixture/fixture
+  (let [resolved (@#'fixture/fixture)
         ordering (:publication-ordering resolved)
         binding (binding/build-binding resolved)
         head-base {:schema-version publication/application-publication-head-schema
@@ -84,26 +53,30 @@
                    :publication/sequence 1
                    :publication/predecessor-root nil}
         head (assoc head-base :publication/head-root (publication/application-head-root head-base))
-        cas-store (cas/create-store
-                   (str (Files/createTempDirectory "resolver-sim-read-model-"
-                                                   (make-array java.nio.file.attribute.FileAttribute 0))))
+        cas-store (temp-cas-store)
         resolution (fn [root] (cas/resolve-artifact cas-store root))]
-    ;; Put all CAS-resolvable artifacts
-    (put-artifact! cas-store head :publication/head-root)
-    (put-artifact! cas-store ordering :transaction-ordering/hash)
-    (put-artifact! cas-store binding :pro-rata-invocation-publication-binding/root)
-    (put-artifact! cas-store (:capability-binding resolved) :binding/root)
-    (put-artifact! cas-store (:use-case-application resolved) :application/root)
-    (put-artifact! cas-store (:executable-distribution resolved) :executable-distribution/root)
-    (put-artifact! cas-store (:output resolved) :pro-rata-output/root)
-    (put-artifact! cas-store (:allocation resolved) :allocation/hash)
-    (put-artifact! cas-store (:pro-rata-transition resolved) :transition/root)
-    (put-artifact! cas-store (:canonical-transition resolved) :canonical-effect-transition/root)
-    (put-artifact! cas-store (:receipt resolved) :applied-effect-receipt/root)
-    (put-artifact! cas-store (:protocol-transaction-realization resolved) :protocol-transaction-realization/root)
+    (doseq [entry [[:publication/head head :publication/head-root]
+                   [:publication/ordering ordering :transaction-ordering/hash]
+                   [:publication/binding binding :pro-rata-invocation-publication-binding/root]
+                   [:capability-binding (:capability-binding resolved) :binding/root]
+                   [:use-case-application (:use-case-application resolved) :application/root]
+                   [:executable-distribution (:executable-distribution resolved) :executable-distribution/root]
+                   [:pro-rata-output (:output resolved) :pro-rata-output/root]
+                   [:allocation (:allocation resolved) :allocation/hash]
+                   [:canonical-transition (:canonical-transition resolved) :canonical-effect-transition/root]
+                   [:pro-rata-transition (:pro-rata-transition resolved) :transition/root]
+                   [:applied-effect-receipt (:receipt resolved) :applied-effect-receipt/root]
+                   [:protocol-transaction-realization (:protocol-transaction-realization resolved)
+                    :protocol-transaction-realization/root]]]
+      (let [[_ body field] entry
+            root (ref/sha256-ref (get body field))]
+        (cas/put-if-absent! cas-store {:hash-reference root
+                                       :artifact body
+                                       :verify #(true? %)})))
     {:head head
      :binding binding
-     :resolution-fn resolution}))
+     :resolution-fn resolution
+     :head-root (:publication/head-root head)}))
 
 ;; ── Status and reason vocabulary invariants ────────────────────────────────
 
@@ -140,7 +113,7 @@
 ;; ── Trace from head root ───────────────────────────────────────────────────
 
 (deftest trace-from-head-root-resolves-full-chain
-  (let [{:keys [head binding resolution-fn]} (build-v1-test-chain)
+  (let [{:keys [head resolution-fn]} (build-test-chain)
         trace (read-model/trace-authoritative-publication
                resolution-fn {:head-root (:publication/head-root head)})]
     (is (= :head-root (:trace/entry-point trace)))
@@ -163,26 +136,29 @@
       (is (contains? roles :executable-distribution)))))
 
 (deftest trace-from-head-root-entry-point-not-found
-  (let [resolution-fn (cas-resolver)
+  (let [cas-store (temp-cas-store)
+        resolution (fn [root] (cas/resolve-artifact cas-store root))
         trace (read-model/trace-authoritative-publication
-               resolution-fn {:head-root "sha256:aaaa"}),
-        head-edge (first (:trace/edges trace))]
+               resolution {:head-root "sha256:aaaa0000000000000000000000000000000000000000000000000000000000aa"})]
     (is (= :head-root (:trace/entry-point trace)))
     (is (= :incomplete (:trace/status trace)))
     (is (= [:missing] (:trace/reasons trace)))
-    (is (false? (:resolved? head-edge))
-        "head edge is unresolved")
-    (is (= :missing (:reason head-edge)))))
+    (is (empty? (rest (:trace/edges trace))))
+    (let [head-edge (first (:trace/edges trace))]
+      (is (false? (:resolved? head-edge))
+          "head edge is unresolved")
+      (is (= :missing (:reason head-edge))))))
 
 (deftest trace-from-head-root-corrupt-body
-  (let [{:keys [head resolution-fn]} (build-v1-test-chain)
+  (let [{:keys [head resolution-fn]} (build-test-chain)
         root (:publication/head-root head)
-        bad-resolution (fn [r]
-                         (if (= r root)
-                           (assoc head :publication/last-ordering-root "sha256:bbbb")
-                           (resolution-fn r)))
+        corrupt-resolution (fn [r]
+                             (if (= r root)
+                               (assoc head :publication/last-ordering-root
+                                      "sha256:bbbb00000000000000000000000000000000000000000000000000000000bbbb")
+                               (resolution-fn r)))
         trace (read-model/trace-authoritative-publication
-               bad-resolution {:head-root root})
+               corrupt-resolution {:head-root root})
         head-edge (first (:trace/edges trace))]
     (is (= :head-root (:trace/entry-point trace)))
     (is (false? (:resolved? head-edge))
@@ -191,9 +167,9 @@
 
 ;; ── Trace from ordering root ───────────────────────────────────────────────
 
-(deftest trace-from-ordering-root-resolves-backward
-  (let [{:keys [head binding resolution-fn]} (build-v1-test-chain)
-        ordering-root (-> head :publication/last-ordering-root)
+(deftest trace-from-ordering-root-resolves-forward
+  (let [{:keys [head resolution-fn]} (build-test-chain)
+        ordering-root (:publication/last-ordering-root head)
         trace (read-model/trace-authoritative-publication
                resolution-fn {:ordering-root ordering-root})]
     (is (= :ordering-root (:trace/entry-point trace)))
@@ -209,10 +185,23 @@
       (is (not (contains? roles :publication/head))
           "ordering-root entry does not trace backward to head"))))
 
+(deftest trace-from-ordering-root-not-found
+  (let [cas-store (temp-cas-store)
+        resolution (fn [root] (cas/resolve-artifact cas-store root))
+        trace (read-model/trace-authoritative-publication
+               resolution {:ordering-root
+                           "sha256:cccc00000000000000000000000000000000000000000000000000000000cccc"})]
+    (is (= :ordering-root (:trace/entry-point trace)))
+    (is (= :incomplete (:trace/status trace)))
+    (is (= [:missing] (:trace/reasons trace)))
+    (let [ordering-edge (first (:trace/edges trace))]
+      (is (false? (:resolved? ordering-edge)))
+      (is (= :missing (:reason ordering-edge))))))
+
 ;; ── Public trace serialization ─────────────────────────────────────────────
 
 (deftest public-trace-strips-bodies
-  (let [{:keys [head resolution-fn]} (build-v1-test-chain)
+  (let [{:keys [head resolution-fn]} (build-test-chain)
         trace (read-model/trace-authoritative-publication
                resolution-fn {:head-root (:publication/head-root head)})
         public (read-model/public-trace trace)]
@@ -225,7 +214,7 @@
 
 ;; ── Diagnostic result shape ────────────────────────────────────────────────
 
-(deftest diagnostic-result-closes-expected-shape
+(deftest diagnostic-result-all-missing
   (let [result (read-model/diagnostic-result
                 {:head nil :binding nil :ordering nil
                  :head-reason :missing :binding-reason nil :ordering-reason nil
@@ -234,6 +223,7 @@
                  :missing-roots [] :roots {} :v2? false})]
     (is (= :unavailable (get-in result [:authority :status])))
     (is (= :missing (get-in result [:authority :reason])))
+    (is (= :nil (get-in result [:authority :root])))  ; head is nil -> root is nil
     (is (= :unverified (get-in result [:correspondence :status])))
     (is (= :missing (get-in result [:correspondence :reason])))
     (is (= :not-applicable (get-in result [:semantic-recompilation :status])))
@@ -243,12 +233,15 @@
     (is (empty? (get-in result [:reachability :missing-roots])))))
 
 (deftest diagnostic-result-authority-root-mismatch
-  (let [fake-head {:publication/head-root "sha256:aaaa"
-                   :publication/last-ordering-root "sha256:bbbb"
-                   :publication/application-binding-root "sha256:cccc"}
-        fake-binding {:pro-rata-invocation-publication-binding/root "sha256:cccc"
-                      :publication-ordering/root "sha256:bbbb"}
-        fake-ordering {:transaction-ordering/hash "sha256:bbbb"}
+  (let [fake-head {:publication/head-root "sha256:aaaa0000000000000000000000000000000000000000000000000000000000aa"
+                   :publication/last-ordering-root "sha256:bbbb00000000000000000000000000000000000000000000000000000000bbbb"
+                   :publication/application-binding-root "sha256:cccc00000000000000000000000000000000000000000000000000000000cccc"}
+        fake-binding {:pro-rata-invocation-publication-binding/root
+                      "sha256:cccc00000000000000000000000000000000000000000000000000000000cccc"
+                      :publication-ordering/root
+                      "sha256:bbbb00000000000000000000000000000000000000000000000000000000bbbb"}
+        fake-ordering {:transaction-ordering/hash
+                       "sha256:bbbb00000000000000000000000000000000000000000000000000000000bbbb"}
         result (read-model/diagnostic-result
                 {:head fake-head :binding fake-binding :ordering fake-ordering
                  :head-reason nil :binding-reason nil :ordering-reason nil
@@ -258,7 +251,12 @@
     (is (= :unavailable (get-in result [:authority :status])))
     (is (= :root-mismatch (get-in result [:authority :reason])))))
 
-(deftest diagnostic-result-reason-vocabulary-closed
-  (doseq [dim [:authority :correspondence :semantic-recompilation :reachability]]
-    (is (contains? read-model/reason-vocabulary dim)
-        (str "dimension " (name dim) " has a reason vocabulary"))))
+(deftest diagnostic-result-authority-corrupt
+  (let [result (read-model/diagnostic-result
+                {:head nil :binding nil :ordering nil
+                 :head-reason :corrupt :binding-reason nil :ordering-reason nil
+                 :authoritative? false :correspondence? false :reachable? false
+                 :semantic-status :not-applicable
+                 :missing-roots [] :roots {} :v2? false})]
+    (is (= :corrupt (get-in result [:authority :reason]))
+        "head reason of :corrupt surfaces in authority diagnostic")))

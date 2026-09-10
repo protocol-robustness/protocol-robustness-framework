@@ -5,7 +5,7 @@
    future refactoring."
   (:require [clojure.test :refer [deftest is testing]]
             [resolver-sim.yield.exact-math :as exact-math]
-            [resolver-sim.economics.payoffs :as payoffs]
+            [resolver-sim.pro-rata.allocation :as allocation]
             [resolver-sim.protocols.sew.economics :as sew-economics]))
 
 ;; =============================================================================
@@ -205,7 +205,7 @@
                            {:id :b :weight 200}
                            {:id :c :weight 300}]
                    :cap-fn (constantly 1000)}]]
-      (let [result (payoffs/allocate-pro-rata spec)]
+      (let [result (allocation/allocate-pro-rata spec)]
         (is (= (:total-requested result)
                (+ (:total-allocated result)
                   (:total-unmet result)
@@ -218,7 +218,7 @@
 
 (deftest ^:characterization apr-cap-prevents-over-allocation
   (testing "cap limits individual allocation and records unmet"
-    (let [result (payoffs/allocate-pro-rata
+    (let [result (allocation/allocate-pro-rata
                   {:amount 400
                    :items [{:id :a :weight 1000 :cap 1000}
                            {:id :b :weight 500 :cap 60}
@@ -232,7 +232,7 @@
 
 (deftest ^:characterization apr-floor-rounding-leaves-remainder
   (testing "default floor rounding leaves integer dust in remainder"
-    (let [result (payoffs/allocate-pro-rata
+    (let [result (allocation/allocate-pro-rata
                   {:amount 10
                    :items [{:id :a :weight 1}
                            {:id :b :weight 1}
@@ -244,7 +244,7 @@
 
 (deftest ^:characterization apr-largest-remainder-distributes-all
   (testing "largest-remainder rounding distributes all dust deterministically"
-    (let [result (payoffs/allocate-pro-rata
+    (let [result (allocation/allocate-pro-rata
                   {:amount 10
                    :rounding :floor-with-largest-remainder
                    :items [{:id :a :weight 1}
@@ -257,7 +257,7 @@
 
 (deftest ^:characterization apr-zero-weight-gets-nothing
   (testing "zero-weight items get no allocation, remainder stays"
-    (let [result (payoffs/allocate-pro-rata
+    (let [result (allocation/allocate-pro-rata
                   {:amount 100
                    :items [{:id :a :weight 0}
                            {:id :b :weight 10}]})]
@@ -267,7 +267,7 @@
 
 (deftest ^:characterization apr-capped-largest-remainder
   (testing "cap with largest-remainder rounding"
-    (let [result (payoffs/allocate-pro-rata
+    (let [result (allocation/allocate-pro-rata
                   {:amount 100
                    :items [{:id :a :weight 50 :cap 30}
                            {:id :b :weight 50}]
@@ -286,7 +286,7 @@
 
 (deftest ^:characterization apr-uneven-weights-exact-characterization
   (testing "characterizes exact allocation for 3:7 ratio"
-    (let [result (payoffs/allocate-pro-rata
+    (let [result (allocation/allocate-pro-rata
                   {:amount 50
                    :items [{:id :a :weight 3}
                            {:id :b :weight 7}]
@@ -301,7 +301,7 @@
                                :weight (* 10 (inc i))
                                :cap (* 5 (inc i))})
                       (range 10))
-          result (payoffs/allocate-pro-rata
+          result (allocation/allocate-pro-rata
                   {:amount 1000
                    :items items
                    :cap-fn :cap
@@ -315,7 +315,7 @@
                                  :weight (inc i)
                                  :cap (inc i)})
                         (range 5))
-            result (payoffs/allocate-pro-rata
+            result (allocation/allocate-pro-rata
                     {:amount 50
                      :items items
                      :cap-fn :cap

@@ -9,7 +9,7 @@
             [resolver-sim.execution.context :as exec-context]
             [resolver-sim.util.attribution :as attr]
             [resolver-sim.util.evidence :as ev]
-            [resolver-sim.economics.payoffs :as payoffs]
+            [resolver-sim.pro-rata.engine :as engine]
             [resolver-sim.evidence.capture :as evcapture]
             [resolver-sim.util.thread-quiescence :as quiesce])
   (:import [java.util.concurrent CountDownLatch
@@ -299,16 +299,16 @@
                 budget/*execution-budget* budget
                 attr/*attribution* {:test/attribution true}
                 evcapture/*capture-event-evidence!* (fn [& _] :captured)
-                payoffs/*pro-rata-parallelism* 4
-                payoffs/*pro-rata-parallel-threshold* 2]
+                engine/*pro-rata-parallelism* 4
+                engine/*pro-rata-parallel-threshold* 2]
         (doall (ev/contextual-pmap
                 (fn [_]
                   (deliver ctx-observed exec-context/*context*)
                   (deliver budget-observed budget/*execution-budget*)
                   (deliver attr-observed attr/*attribution*)
                   (deliver capture-observed evcapture/*capture-event-evidence!*)
-                  (deliver parallelism-observed payoffs/*pro-rata-parallelism*)
-                  (deliver threshold-observed payoffs/*pro-rata-parallel-threshold*)
+                  (deliver parallelism-observed engine/*pro-rata-parallelism*)
+                  (deliver threshold-observed engine/*pro-rata-parallel-threshold*)
                   :ok)
                 [:a :b])))
       (is (= {:test/exec-context true} (deref ctx-observed 5000 nil))
@@ -320,9 +320,9 @@
       (is (ifn? (deref capture-observed 5000 nil))
           "evcapture/*capture-event-evidence!* is visible (explicitly rebound by contextual-pmap)")
       (is (= 4 (deref parallelism-observed 5000 nil))
-          "payoffs/*pro-rata-parallelism* is visible (conveyed by pmap bound-fn)")
+          "engine/*pro-rata-parallelism* is visible (conveyed by pmap bound-fn)")
       (is (= 2 (deref threshold-observed 5000 nil))
-          "payoffs/*pro-rata-parallel-threshold* is visible (conveyed by pmap bound-fn"))))
+          "engine/*pro-rata-parallel-threshold* is visible (conveyed by pmap bound-fn"))))
 
 (deftest contextual-pmap-does-not-govern-executor-by-budget
   (testing "contextual-pmap workers see the budget binding but are NOT bounded by it"

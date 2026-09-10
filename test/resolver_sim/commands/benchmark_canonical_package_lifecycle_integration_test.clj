@@ -8,7 +8,7 @@
             [resolver-sim.benchmark.runner :as runner]
             [resolver-sim.benchmark.research-pack :as research-pack]
             [resolver-sim.commands.run-benchmark :as command]
-            [resolver-sim.economics.payoffs :as payoffs]
+            [resolver-sim.pro-rata.redistribution :as redistribution]
             [resolver-sim.evidence.node :as evidence-node])
   (:import [java.util.concurrent CountDownLatch TimeUnit]))
 
@@ -155,7 +155,7 @@
                             (fn [_]
                               (.countDown outer-ready)
                               (await-both! outer-ready :outer-scenario-workers))
-                            payoffs/*redistribution-claimant-hook*
+                            redistribution/*redistribution-claimant-hook*
                             (fn [_]
                               ;; This hook runs inside detached claimant fact
                               ;; determination, not at scenario/round entry.

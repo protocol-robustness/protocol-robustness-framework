@@ -49,10 +49,10 @@
    (or (when (and (string? cli-path) (seq cli-path)) cli-path)
        (when-let [env (env-var "PRF_BENCHMARKS_CLAIM_REGISTRY")]
          (when (seq env) env))
-        nil)))
+       nil)))
 
 (defn claim-registry-source
-   "Which boundary selected the registry: :cli | :environment | nil."
+  "Which boundary selected the registry: :cli | :environment | nil."
   ([]
    (claim-registry-source nil))
   ([cli-path]
@@ -60,7 +60,7 @@
      (and (string? cli-path) (seq cli-path)) :cli
      (and (env-var "PRF_BENCHMARKS_CLAIM_REGISTRY")
           (seq (env-var "PRF_BENCHMARKS_CLAIM_REGISTRY"))) :environment
-      :else nil)))
+     :else nil)))
 
 (defn registry-file-sha256
   "Compute a canonical sha256 ref for the selected registry file, whether it
@@ -185,10 +185,10 @@
   ([]
    (load-claim-registry nil))
   ([cli-path]
-    (let [path (claim-registry-path cli-path)
-          source (claim-registry-source cli-path)
-          external? (contains? #{:cli :environment} source)]
-      (when-not (and path (rp/path-exists? path))
+   (let [path (claim-registry-path cli-path)
+         source (claim-registry-source cli-path)
+         external? (contains? #{:cli :environment} source)]
+     (when-not (and path (rp/path-exists? path))
        (throw (ex-info "Claim registry not found"
                        {:kind :missing-file
                         :claim-registry/path path

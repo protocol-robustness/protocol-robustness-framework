@@ -2,6 +2,123 @@
 
 ## [Unreleased]
 
+### P4b compound actions — one decision, one compound root, consecutive lineage
+
+- **Compound actions (`:action/compound`)** let a single lifecycle decision
+  authorize an ordered batch of canonical request/action bindings atomically,
+  while preserving the invariant that one decision always binds exactly one
+  action root. Every member is canonicalized into a position-bound binding
+  (`prf/compound-action-member.v1`: index + request-root + action-root +
+  member-root); the member roots are committed through the generic canonical
+  consecutive-sequence machinery (`resolver-sim.hash.sequence`) under the
+  `:sew-compound-action/members` purpose, producing a member-sequence-root; and
+  the compound-action-root commits `{schema, type, member-sequence-root,
+  member-count, pre-state-root, atomicity}`. Two identities are therefore
+  distinct: the sequence-root ("these exact members in this exact order") and
+  the compound-action-root ("this sequence under lifecycle authorization
+  semantics"). Registered the `sew-request-id-v1`,
+  `sew-compound-action-member-v1`, `sew-compound-action-v1`, and
+  `sew-compound-action-lineage-v1` domain tags.
+- **Authorization stays root-equality.** `normalize-action`/`action-root`
+  dispatch to the compound path; `response-decision` binds the compound root
+  (exposing `:action/sequence-root` and `:action/member-count` for traceback);
+  `policy-findings`/`action-permitted?` evaluate EVERY member under the same
+  lifecycle state, so a compound is permitted iff every member is permitted
+  (atomicity extends to authorization) with per-member findings prefixed
+  `[:compound/member <i> ...]`. No multi-root authorization logic is needed.
+- **`authorize-and-execute-compound`** is the compound central gate. Members are
+  applied sequentially (all-or-nothing) via a member executor; the execution
+  must preserve the committed sequence as a CONSECUTIVE state-transition lineage
+  (`state₀ --A--> state₁ --B--> state₂ ...`), and the per-member effect contract
+  is verified against the intermediate lineage states before commit. The
+  transition evidence binds all three identities for traceback:
+  `:transition/action-root` (compound), `:transition/action-sequence-root`, and
+  `:transition/execution-lineage-root` — the lineage discriminates executions
+  that share the same action sequence/order but reach different intermediate
+  states. `valid-execution-lineage?` exposes the frame-addressable continuity
+  claim independently of the authorization path. The compound request id AND the
+  member request set are consumed as one unit.
+- **Additive surface, no existing behavior changed.** Single-action decisions,
+  the `request-hash`/`decision-authorizes?` contract, and the effect vocabulary
+  are unchanged; a single-action decision still cannot authorize a compound and
+  vice versa. (`src/resolver_sim/hash/canonical.clj`,
+  `protocols_src/resolver_sim/protocols/sew/financial/lifecycle.clj`,
+  `protocols_src/test/resolver_sim/protocols/sew/financial/compound_action_test.clj`)
+
+### Yield commitment projection (normative V1)
+
+- Added `resolver-sim.yield.commitment-projection` as the normative V1
+  commitment contract for yield economic state. Committed yield numerics are
+  normalized to exact reduced-rational form (`{:yield.number/schema
+  :yield-rational.v1 :yield.number/numerator n :yield.number/denominator d}`)
+  with positive denominator, gcd(|n|, d) = 1, and zero always 0/1. Finite
+  Double/Float inputs cross the compatibility boundary via their canonical
+  decimal representation (`BigDecimal/valueOf`), so `0.05`, `0.050`, `5e-2`,
+  and `1/20` commit identically to `1/20`; NaN, ±Infinity, and unsupported
+  numeric classes reject. The global canonical encoder's strict numeric domain
+  is unchanged — Ratio, Double, and BigDecimal are not globally canonical.
+- `yield-state-root`, `effective-policy-root`, and `event-root` now hash closed
+  commitment projections (`yield-state-commitment-projection-v1`,
+  `yield-effective-policy-commitment-projection-v1`,
+  `yield-event-commitment-projection-v1`) over the committed economic fields,
+  so roots commit to economic meaning rather than Clojure's host
+  representation, and two implementations reconstructing the same state
+  converge on the same root. Registered the `prf-yield-state-v1`,
+  `prf-yield-effective-policy-v1`, `prf-yield-transition-event-v1`, and
+  `prf-yield-transition-basis-v1` domain tags these roots use.
+- Yield transition-basis state validation now accepts integer-valued exact
+  ratios (e.g. `10000/1`) for committed amounts while still rejecting
+  fractional amounts; index transitions that initialize a new index are
+  allowed, matching the documented `index-monotone-ok?` contract.
+
+### Report daemon for integer-domain researcher interactions
+
+- Added `resolver-sim.benchmark.report-daemon`: a pull-based polling daemon that
+  consumes researcher interactions (`:pro-rata/allocation`,
+  `:research/observation`), enforces the integer domain by validating the
+  canonical submitted representation and independently reconstructing the
+  expected semantic result (fractional inputs are rejected, never coerced),
+  verifies the signed researcher-run report chain, and emits a rooted
+  `public-result-admission`. Logical idempotency is explicit: one interaction-id
+  maps to exactly one deterministic processing root, retry returns the same
+  admission root (or fails closed on a changed payload), and epoch membership is
+  admission-root based and deduplicated. The queue is transport-independent
+  (store protocol); a UDS/push producer can enqueue the same interaction objects.
+  (`src/resolver_sim/benchmark/report_daemon.clj`,
+  `test/resolver_sim/benchmark/report_daemon_test.clj`)
+
+### Public-result participation semantics
+
+- `public-result-admission.v1` now commits `:admission/participation`
+  `{:presentation :anonymous | :declared, :identity-assurance :unresolved}`,
+  derived from the signed report. Presentation (anonymous vs named) is a
+  separate dimension from identity assurance (authenticated vs not): a declared
+  name is never recorded as identity evidence. `:identity-assurance
+  :authenticated` is refused in V1 (no researcher↔key binding verifier exists),
+  so any escalation attempt fails closed. `:researcher-to-key-binding
+  :unresolved` retains its existing meaning. (`src/resolver_sim/benchmark/public_result_admission.clj`)
+- `public-results-epoch.v1` members now carry `:admission/participation`, and the
+  epoch exposes `:epoch/participation` as three separate classes — `:anonymous`,
+  `:declared-unresolved`, and `:authenticated` — instead of any generic
+  named-researcher count, so a display name cannot be misread as identity
+  evidence. (`src/resolver_sim/benchmark/public_results_epoch.clj`)
+
+### Related-claims coupled resolution
+
+- Added `related-claims.v4` and researcher-facing related-claims acceptance
+  queries. Opt-in `:shared-resolution` relationships now commit an incident,
+  shared-evidence, and resolution-policy basis and report coupled acceptance
+  only after complete, consistent accepted member results; `:audit-only`
+  relationships remain membership-only.
+- Extracted the protocol-neutral related-claims V1-V4 commitment and acceptance
+  contract to `resolver-sim.related-claims`; SEW remains a compatibility adapter
+  for its world construction, governance, validation, and lifecycle behavior.
+
+### Protected pro-rata lineage and semantic shadows
+
+- Added the read-only `protected-lineage-valid?` API and explicit semantic-shadow
+  registry rows with closed-vocabulary validation for protected pro-rata lineage.
+
 ### Aggregate held-credit semantic contract
 
 - Froze the `sew/aggregate-held-credit.v1` portable lineage and added a
