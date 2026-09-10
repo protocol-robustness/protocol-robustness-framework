@@ -305,31 +305,156 @@
     @violations))
 
 ;; ---------------------------------------------------------------------------
-;; Full strategic validation
+;; Registered deviation generators
 ;; ---------------------------------------------------------------------------
 
-(defn- diagnostic-transform-for-property
+(def registered-deviation-generators
+  "Registered deviation generators.  Each generator declares:
+
+     {:id        kw     ;; generator keyword, e.g. :split
+      :property  kw     ;; strategic property it evaluates
+      :evaluate  (fn [claims liquidity policy] -> check-map)}
+
+   The check-map returned by :evaluate is a single property check result:
+
+     {:property kw
+      :verdict  :verified | :violated
+      :counterexamples [...]          ;; optional, violation witnesses
+      :state    {:claims [...] :liquidity N :policy {...}}  ;; evaluated state
+      ...}
+
+   Adding a NEW deviation family is a registration act, not a dispatcher edit:
+   a protocol supplies extra generators via the :generators option to
+   validate-strategic-properties, and the harness runs them generically."
+  {:split
+   {:id :split
+    :property :strategy/split-invariance
+    :evaluate (fn [claims liquidity policy]
+                (let [v (check-split-invariance claims liquidity policy)]
+                  {:property :strategy/split-invariance
+                   :verdict (if (empty? v) :verified :violated)
+                   :counterexamples (when (seq v) (take 3 v))
+                   :state {:claims claims :liquidity liquidity
+                           :policy (select-keys policy [:mode :rounding-policy])}}))}
+
+   :merge
+   {:id :merge
+    :property :allocation/exact-merge-invariance
+    :evaluate (fn [claims liquidity policy]
+                (let [sample-violations (check-merge-invariance claims liquidity policy)
+                      ;; Deterministic witnesses prevent a sampled run from claiming a
+                      ;; universal algebraic property it cannot establish.  Flooring
+                      ;; needs two units to expose its own non-additivity.
+                      regression-state (if (= :floor (:rounding-policy policy))
+                                         {:claims [1 1 1] :liquidity 2}
+                                         {:claims [1 1 1] :liquidity 1})
+                      regression-violations (check-merge-invariance
+                                             (:claims regression-state)
+                                             (:liquidity regression-state)
+                                             policy)
+                      violations (vec (concat sample-violations regression-violations))]
+                  {:property :allocation/exact-merge-invariance
+                   :status :violated
+                   :verdict :violated
+                   :rounding-policy (:rounding-policy policy)
+                   :counterexamples (take 3 violations)
+                   :regression-counterexample (assoc regression-state
+                                                     :merged-indices [1 2]
+                                                     :merged-claims [1 2]
+                                                     :individual-sum 0
+                                                     :merged-allocation 1
+                                                     :error 1)
+                   :state {:claims claims :liquidity liquidity
+                           :policy (select-keys policy [:mode :rounding-policy])}}))}
+
+   :permute
+   {:id :permute
+    :property :strategy/permutation-invariance
+    :evaluate (fn [claims liquidity policy]
+                (let [v (check-permutation-invariance claims liquidity policy)]
+                  {:property :strategy/permutation-invariance
+                   :verdict (if (empty? v) :verified :violated)
+                   :counterexamples (when (seq v) (take 3 v))
+                   :state {:claims claims :liquidity liquidity
+                           :policy (select-keys policy [:mode :rounding-policy])}}))}
+
+   :sybil
+   {:id :sybil
+    :property :strategy/sybil-invariance
+    :evaluate (fn [claims liquidity policy]
+                (let [v (check-sybil-invariance claims liquidity policy)]
+                  {:property :strategy/sybil-invariance
+                   :verdict (if (empty? v) :verified :violated)
+                   :counterexamples (when (seq v) (take 3 v))
+                   :state {:claims claims :liquidity liquidity
+                           :policy (select-keys policy [:mode :rounding-policy])}}))}
+
+   :inflate
+   {:id :inflate
+    :property :strategy/request-monotonicity
+    :evaluate (fn [claims liquidity policy]
+                (let [v (check-request-monotonicity claims liquidity policy)]
+                  {:property :strategy/request-monotonicity
+                   :verdict (if (empty? v) :verified :violated)
+                   :counterexamples (when (seq v) (take 3 v))
+                   :state {:claims claims :liquidity liquidity
+                           :policy (select-keys policy [:mode :rounding-policy])}}))}})
+
+(defn generator-for-property
+  "Resolve the registered generator that produces the given property.
+   Returns the generator map, or nil."
   [property]
-  (some (fn [[transform properties]]
-          (when (contains? properties property)
-            {:id transform
-             :role :diagnostic-transform
-             :semantic-purpose :bounded-counterexample-search}))
-        [[:split #{:strategy/split-invariance}]
-         [:merge #{:allocation/exact-merge-invariance}]
-         [:permute #{:strategy/permutation-invariance}]
-         [:sybil #{:strategy/sybil-invariance}]
-         [:inflate #{:strategy/request-monotonicity}]]))
+  (some (fn [g] (when (= property (:property g)) g))
+        (vals registered-deviation-generators)))
+
+(defn resolve-deviation-generators
+  "Resolve a set of deviation keywords to their generator maps.
+   Unknown deviations (not in the registered or supplied generator maps)
+   throw, so a claim can never silently drop part of its declared scope."
+  [deviations & {:keys [extra-generators]
+                 :or {extra-generators {}}}]
+  (let [all (merge registered-deviation-generators extra-generators)]
+    (mapv (fn [dev]
+            (or (get all dev)
+                (throw (ex-info "Unresolved deviation generator"
+                                {:deviation dev
+                                 :known (vec (sort (keys all)))}))))
+          deviations)))
+
+(defn diagnostic-transform-for-property
+  "Return the diagnostic-transform metadata for a property, deriving from the
+   registered generator (or a supplied resolved generator map).  Returns nil
+   for unknown properties."
+  ([property]
+   (when-let [g (generator-for-property property)]
+     {:id (:id g)
+      :role :diagnostic-transform
+      :semantic-purpose :bounded-counterexample-search}))
+  ([property generator-by-property]
+   (when-let [g (or (get generator-by-property property)
+                    (generator-for-property property))]
+     {:id (:id g)
+      :role :diagnostic-transform
+      :semantic-purpose :bounded-counterexample-search})))
 
 (defn validate-strategic-properties
   "Run all strategic invariance checks across enumerated states.
    Returns {:properties [...] :summary {...}}.
+
+   The evaluation harness is generator-driven: deviation keywords resolve to
+   registered generators (registered-deviation-generators) merged with any
+   protocol/application-supplied generators passed via :extra-generators.
+   Adding a new deviation family is a registration act, not a dispatcher edit.
 
    Options:
    - :scope — an EnumerationScope (:dimensions map of dimension-kw -> [lo hi],
      :sampling, :max-states); defaults to default-scope
    - :policies — vector of policy maps to test
    - :deviations — vector of deviation keywords to test
+   - :extra-generators — map of {deviation-kw generator-map} supplied by a
+     protocol/application.  Each generator must have :id, :property, and
+     :evaluate (fn [claims liquidity policy] -> check-map); see
+     registered-deviation-generators for the canonical shape.
    - :max-states — the configured evaluation cap.  Kept as the compatibility
      input name, but it caps state × policy executions, not distinct states:
      with P policies the enumeration examines at most (max-states / P) distinct
@@ -337,16 +462,23 @@
      :distinct-states-examined, :policies, and :max-state-policy-evaluations.
    - :contract-id — deviation contract id; when set, deviations are derived
      from the contract and :deviations option is ignored
+   - :contract-registry — explicit deviation-contract registry to resolve
+     :contract-id against (defaults to the framework-builtin registry)
    - :declared-property-ids — strategic properties the caller explicitly makes
      gate-relevant; all other transformation results are diagnostic observations"
-  [& {:keys [scope policies deviations max-states contract-id declared-property-ids]
+  [& {:keys [scope policies deviations max-states contract-id contract-registry
+             extra-generators declared-property-ids]
       :or {scope default-scope
            policies (enumerate-policies)
            max-states 500}}]
-  (let [contract (when contract-id (dc/get-contract contract-id))
-        deviations (or (when contract (dc/deviations-in-contract contract-id))
+  (let [contract-registry (or contract-registry dc/default-deviation-contract-registry)
+        contract (when contract-id (dc/get-contract contract-registry contract-id))
+        deviations (or (when contract (dc/deviations-in-contract contract-registry contract-id))
                        (vec deviations)
                        (:deviations default-scope))
+        generators (resolve-deviation-generators deviations
+                                                 :extra-generators extra-generators)
+        generator-by-property (into {} (map (fn [g] [(:property g) g])) generators)
         declared-property-ids (set declared-property-ids)
         results (atom [])
         state-policy-count (atom 0)
@@ -360,71 +492,14 @@
             liquidity (:liquidity state)
             _ (swap! state-policy-count inc)
             _ (swap! distinct-states conj [request-vec liquidity])
-            checks (atom [])]
-        (when (some #{:split} deviations)
-          (let [v (check-split-invariance request-vec liquidity policy)]
-            (swap! checks conj
-                   {:property :strategy/split-invariance
-                    :verdict (if (empty? v) :verified :violated)
-                    :counterexamples (when (seq v) (take 3 v))
-                    :state {:claims request-vec :liquidity liquidity
-                            :policy (select-keys policy [:mode :rounding-policy])}})))
-        (when (some #{:merge} deviations)
-          (let [sample-violations (check-merge-invariance request-vec liquidity policy)
-                ;; Deterministic witnesses prevent a sampled run from claiming a
-                ;; universal algebraic property it cannot establish.  Flooring
-                ;; needs two units to expose its own non-additivity.
-                regression-state (if (= :floor (:rounding-policy policy))
-                                   {:claims [1 1 1] :liquidity 2}
-                                   {:claims [1 1 1] :liquidity 1})
-                regression-violations (check-merge-invariance
-                                       (:claims regression-state)
-                                       (:liquidity regression-state)
-                                       policy)
-                violations (vec (concat sample-violations regression-violations))]
-            (swap! checks conj
-                   {:property :allocation/exact-merge-invariance
-                    :status :violated
-                    :verdict :violated
-                    :rounding-policy (:rounding-policy policy)
-                    :counterexamples (take 3 violations)
-                    :regression-counterexample (assoc regression-state
-                                                      :merged-indices [1 2]
-                                                      :merged-claims [1 2]
-                                                      :individual-sum 0
-                                                      :merged-allocation 1
-                                                      :error 1)
-                    :state {:claims request-vec :liquidity liquidity
-                            :policy (select-keys policy [:mode :rounding-policy])}})))
-        (when (some #{:permute} deviations)
-          (let [v (check-permutation-invariance request-vec liquidity policy)]
-            (swap! checks conj
-                   {:property :strategy/permutation-invariance
-                    :verdict (if (empty? v) :verified :violated)
-                    :counterexamples (when (seq v) (take 3 v))
-                    :state {:claims request-vec :liquidity liquidity
-                            :policy (select-keys policy [:mode :rounding-policy])}})))
-        (when (some #{:sybil} deviations)
-          (let [v (check-sybil-invariance request-vec liquidity policy)]
-            (swap! checks conj
-                   {:property :strategy/sybil-invariance
-                    :verdict (if (empty? v) :verified :violated)
-                    :counterexamples (when (seq v) (take 3 v))
-                    :state {:claims request-vec :liquidity liquidity
-                            :policy (select-keys policy [:mode :rounding-policy])}})))
-        (when (some #{:inflate} deviations)
-          (let [v (check-request-monotonicity request-vec liquidity policy)]
-            (swap! checks conj
-                   {:property :strategy/request-monotonicity
-                    :verdict (if (empty? v) :verified :violated)
-                    :counterexamples (when (seq v) (take 3 v))
-                    :state {:claims request-vec :liquidity liquidity
-                            :policy (select-keys policy [:mode :rounding-policy])}})))
+            checks (mapv (fn [g]
+                           ((:evaluate g) request-vec liquidity policy))
+                         generators)]
         (swap! results conj {:state-policy-evaluations @state-policy-count
                              :claims request-vec
                              :liquidity liquidity
                              :policy policy
-                             :checks @checks})))
+                             :checks checks})))
     (let [all-verdicts (mapcat (fn [r] (map :verdict (:checks r))) @results)
           total-checks (count all-verdicts)
           verified (count (filter #{:verified} all-verdicts))
@@ -482,7 +557,7 @@
                                    :property-role (if (contains? declared-property-ids prop)
                                                     :declared-property
                                                     :diagnostic-observation)
-                                   :diagnostic-transform (diagnostic-transform-for-property prop)
+                                   :diagnostic-transform (diagnostic-transform-for-property prop generator-by-property)
                                    :evaluation/status (if (= :verified verdict)
                                                         :no-counterexample-found
                                                         :counterexample-found)

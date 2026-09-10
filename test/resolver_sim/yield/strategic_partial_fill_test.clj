@@ -162,3 +162,63 @@
     (let [report (strategic/allocation-report [] 100 {:rounding-policy :largest-remainder})]
       (is (empty? (:allocations report)))
       (is (zero? (:distributed report))))))
+
+(deftest protocol-supplied-generator-runs-through-standard-harness
+  (testing "a protocol can register a new deviation family via :extra-generators
+            without editing the dispatcher"
+    (let [artifact (strategic/validate-strategic-properties
+                    :deviations [:split :delay-request]
+                    :extra-generators {:delay-request
+                                       {:id :delay-request
+                                        :property :strategy/delay-invariance
+                                        :evaluate (fn [claims liquidity policy]
+                                                    {:property :strategy/delay-invariance
+                                                     :verdict :verified
+                                                     :state {:claims claims :liquidity liquidity
+                                                             :policy (select-keys policy [:mode :rounding-policy])}})}}
+                    :max-states 3)]
+      (is (some #(= :strategy/delay-invariance (:property %))
+                (:properties artifact)))
+      (is (some #(= :strategy/split-invariance (:property %))
+                (:properties artifact))))))
+
+(deftest protocol-supplied-generator-attaches-diagnostic-transform
+  (testing "generators supplied via :extra-generators carry a diagnostic-transform"
+    (let [artifact (strategic/validate-strategic-properties
+                    :deviations [:delay-request]
+                    :extra-generators {:delay-request
+                                       {:id :delay-request
+                                        :property :strategy/delay-invariance
+                                        :evaluate (fn [_ _ _]
+                                                    {:property :strategy/delay-invariance
+                                                     :verdict :verified
+                                                     :state {}})}}
+                    :max-states 1)
+          prop (first (:properties artifact))]
+      (is (= :delay-request (get-in prop [:diagnostic-transform :id])))
+      (is (= :diagnostic-transform (get-in prop [:diagnostic-transform :role]))))))
+
+(deftest unresolved-deviation-generator-fails-closed
+  (testing "an unknown deviation keyword throws rather than silently dropping scope"
+    (is (thrown-with-msg?
+         clojure.lang.ExceptionInfo
+         #"Unresolved deviation generator"
+         (strategic/validate-strategic-properties
+          :deviations [:not-a-real-deviation]
+          :max-states 1)))))
+
+(deftest contract-id-path-resolves-via-default-registry
+  (testing "contract-id resolves deviations from the builtin deviation-contract registry"
+    (let [artifact (strategic/validate-strategic-properties
+                    :contract-id :partial-fill/claimant-monotonicity
+                    :max-states 3)]
+      (is (some #(= :strategy/request-monotonicity (:property %))
+                (:properties artifact))))))
+
+(deftest registered-generators-cover-all-builtin-deviation-families
+  (testing "every builtin deviation keyword resolves to a registered generator"
+    (doseq [dev [:split :merge :permute :sybil :inflate]]
+      (is (contains? strategic/registered-deviation-generators dev)
+          (str dev " must be registered"))
+      (is (keyword? (get-in strategic/registered-deviation-generators [dev :property]))
+          (str dev " generator must declare a property")))))

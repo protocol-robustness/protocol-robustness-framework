@@ -22,7 +22,9 @@
             [resolver-sim.config.paths :as paths]
             [resolver-sim.hash.canonical :as hc]
             [resolver-sim.validation.classes :as classes]
+            [resolver-sim.validation.game-theory-profile :as gtp]
             [resolver-sim.validation.gate :as gate]
+            [resolver-sim.validation.strategic-registry :as sr]
             [resolver-sim.io.edn :as ppedn]))
 
 (def strategic-claim-catalog
@@ -127,9 +129,74 @@
     :required-threat-tags #{"shortfall"}
     :match-dimensions #{:allocation/partial-fill}}})
 
+;; ---------------------------------------------------------------------------
+;; Strategic-claim registry (rooted, composable)
+;; ---------------------------------------------------------------------------
+
+(def strategic-claim-registry-tag
+  "String domain tag for strategic-claim-registry rooting."
+  "PRF_STRATEGIC_CLAIM_REGISTRY_V1")
+
+(defn- canonical-safe
+  "Recursively project a value to the canonical type domain: sets → sorted
+   vectors, functions → their string form (resolved manifest paths)."
+  [x]
+  (cond
+    (fn? x) (try (str (x)) (catch Throwable _ (str x)))
+    (set? x) (vec (sort-by str (map canonical-safe x)))
+    (map? x) (into {} (map (fn [[k v]] [k (canonical-safe v)]) x))
+    (vector? x) (mapv canonical-safe x)
+    (seq? x) (mapv canonical-safe x)
+    :else x))
+
+(defn- committed-claim
+  "Project a claim spec to its canonical-safe committed identity for registry
+   rooting.  Sets are sorted to vectors and the :benchmark/manifest-path thunk
+   is resolved to its path string so the root is reproducible."
+  [claim]
+  (canonical-safe claim))
+
+(defn build-strategic-claim-registry
+  "Build a rooted strategic-claim registry from sources.  Each source is either
+     - {:origin kw :entries [claim ...]} (origin defaults to :framework), OR
+     - a plain vector of claims.
+
+   A protocol/application supplies its own claims here; it does NOT edit the
+   framework's global catalog.  The registry root commits the exact claim set
+   the application addresses (sets are sorted to vectors and manifest paths
+   resolved to strings so the root is reproducible).  Resolution (:by-id)
+   returns the original claim specs.
+
+   Returns {:entries [...] :by-id {...} :executables {} :root <sha256>}."
+  [& {:keys [sources]
+      :or {sources []}}]
+  (sr/build-entry-registry :claim/id strategic-claim-registry-tag
+                           :sources (or sources [])
+                           :committed-fn committed-claim))
+
+(def builtin-strategic-claim-registry
+  "The framework-builtin strategic-claim registry, derived from the core
+   catalog.  Extension claims compose on top via build-strategic-claim-registry."
+  (build-strategic-claim-registry
+   :sources [{:origin :framework
+              :entries (vals strategic-claim-catalog)}]))
+
+(defn resolve-strategic-claim
+  "Resolve a strategic claim by id from an explicit registry (or the builtin
+   default).  Returns the claim spec, or nil."
+  ([claim-id]
+   (sr/resolve-entry builtin-strategic-claim-registry claim-id))
+  ([registry claim-id]
+   (sr/resolve-entry registry claim-id)))
+
+(defn known-strategic-claim-ids
+  "Sorted vector of strategic claim ids in a registry (default: builtin)."
+  ([] (vec (sort (keys (:by-id builtin-strategic-claim-registry)))))
+  ([registry] (vec (sort (keys (:by-id registry))))))
+
 (def ^:private artifact-kind :game-theoretic-validation)
 
-(def ^:private artifact-version "game-theoretic-validation.artifact.v2")
+(def ^:private artifact-version "game-theoretic-validation.artifact.v3")
 
 (def ^:private allowed-level-verdicts #{:pass :fail :uncovered})
 
@@ -154,6 +221,10 @@
     :strategic-model
     :strategic-epistemic-scope
     :strategic-deviation-scope
+    :game-theory-profile
+    :profile/root
+    :profile-validation
+    :deviation-contract-registry-root
     :gates
     :gates-summary
     :summary})
@@ -167,30 +238,38 @@
     :allocation/exact-merge-invariance})
 
 (defn validate-claim-catalog!
-  "Validate the strategic claim catalog for internal consistency.
-   Returns a vector of error strings. Empty means valid."
-  []
-  (let [errors (atom [])]
-    (doseq [[claim-id claim] strategic-claim-catalog]
-      (let [strategic-property-ids (set (:strategic-property-ids claim))
-            mechanism-levels (set (:mechanism-levels claim))]
-        ;; 1. strategic properties not in the model
-        (doseq [pid strategic-property-ids]
-          (when-not (contains? known-strategic-property-ids pid)
-            (swap! errors conj
-                   (str claim-id ": strategic property " pid " is not recognized"))))
-        ;; 2. duplicate or unknown strategic-property-ids
-        (when (and strategic-property-ids
-                   (not= (count (:strategic-property-ids claim))
-                         (count strategic-property-ids)))
-          (swap! errors conj
-                 (str claim-id ": :strategic-property-ids contains duplicates")))
-        ;; 3. mechanism-level validation (mechanism-levels must be non-empty keywords)
-        (doseq [ml mechanism-levels]
-          (when-not (keyword? ml)
-            (swap! errors conj
-                   (str claim-id ": mechanism-level " (pr-str ml) " is not a keyword"))))))
-    (vec @errors)))
+  "Validate a strategic claim catalog/registry for internal consistency.
+   Returns a vector of error strings. Empty means valid.
+
+   registry — a registry map from build-strategic-claim-registry, or the
+   builtin catalog (default)."
+  ([] (validate-claim-catalog! builtin-strategic-claim-registry))
+  ([registry]
+   (let [claims (if (map? registry)
+                  (vals (:by-id registry))
+                  (vals registry))
+         errors (atom [])]
+     (doseq [claim claims]
+       (let [claim-id (:claim/id claim)
+             strategic-property-ids (set (:strategic-property-ids claim))
+             mechanism-levels (set (:mechanism-levels claim))]
+         ;; 1. strategic properties not in the model
+         (doseq [pid strategic-property-ids]
+           (when-not (contains? known-strategic-property-ids pid)
+             (swap! errors conj
+                    (str claim-id ": strategic property " pid " is not recognized"))))
+         ;; 2. duplicate or unknown strategic-property-ids
+         (when (and strategic-property-ids
+                    (not= (count (:strategic-property-ids claim))
+                          (count strategic-property-ids)))
+           (swap! errors conj
+                  (str claim-id ": :strategic-property-ids contains duplicates")))
+         ;; 3. mechanism-level validation (mechanism-levels must be non-empty keywords)
+         (doseq [ml mechanism-levels]
+           (when-not (keyword? ml)
+             (swap! errors conj
+                    (str claim-id ": mechanism-level " (pr-str ml) " is not a keyword"))))))
+     (vec @errors))))
 
 (defn- sha-256-hex?
   [s]
@@ -539,18 +618,20 @@
             :deviations #{...}} with deterministic, duplicate-free
    :deviation-set-ids and :contract-ids (sorted by keyword), and the union of
    the resolved contracts' deviation generators."
-  [set-ids]
-  (let [ids (vec (sort set-ids))
-        contracts (mapv (fn [id]
-                          (or (dc/get-contract id)
-                              (throw (ex-info "Unresolved deviation-set id"
-                                              {:deviation-set-id id
-                                               :known-ids (vec (sort (keys dc/registered-contracts)))}))))
-                        ids)]
-    {:deviation-set-ids ids
-     :contract-ids (mapv :contract/id contracts)
-     :contracts contracts
-     :deviations (into #{} (mapcat :deviation-generators) contracts)}))
+  ([set-ids]
+   (resolve-deviation-set-ids dc/default-deviation-contract-registry set-ids))
+  ([registry set-ids]
+   (let [ids (vec (sort set-ids))
+         contracts (mapv (fn [id]
+                           (or (dc/get-contract registry id)
+                               (throw (ex-info "Unresolved deviation-set id"
+                                               {:deviation-set-id id
+                                                :known-ids (vec (sort (keys (:by-id registry))))}))))
+                         ids)]
+     {:deviation-set-ids ids
+      :contract-ids (mapv :contract/id contracts)
+      :contracts contracts
+      :deviations (into #{} (mapcat :deviation-generators) contracts)})))
 
 (defn- strategic-validation-for-claim
   "Run the strategic-property validation for a claim's declared deviation sets.
@@ -565,14 +646,53 @@
    The unioned deviations are passed explicitly (no :contract-id) because
    validate-strategic-properties would otherwise derive the deviation set from a
    single contract and silently ignore the others."
-  [claim-spec]
-  (when (seq (:deviation-set-ids claim-spec))
-    (let [resolved (resolve-deviation-set-ids (:deviation-set-ids claim-spec))]
-      (assoc resolved
-             :declared-property-ids (set (:strategic-property-ids claim-spec))
-             :artifact (strategic-partial-fill/validate-strategic-properties
-                        :deviations (:deviations resolved)
-                        :declared-property-ids (set (:strategic-property-ids claim-spec)))))))
+  ([claim-spec]
+   (strategic-validation-for-claim dc/default-deviation-contract-registry claim-spec))
+  ([registry claim-spec]
+   (when (seq (:deviation-set-ids claim-spec))
+     (let [resolved (resolve-deviation-set-ids registry (:deviation-set-ids claim-spec))]
+       (assoc resolved
+              :declared-property-ids (set (:strategic-property-ids claim-spec))
+              :artifact (strategic-partial-fill/validate-strategic-properties
+                         :deviations (:deviations resolved)
+                         :declared-property-ids (set (:strategic-property-ids claim-spec))))))))
+
+(defn- build-game-theory-profile
+  "Build a rooted game-theory profile from a claim's strategic validation
+   content.  The profile captures the claim, its resolved deviation contracts,
+   and the generators actually evaluated, and commits to a profile root.
+
+   Returns {:game-theory/profile {...}
+            :profile/root <sha256>
+            :profile-validation {...}} — profile-validation is the result of
+   validate-game-theory-profile (completeness/consistency check)."
+  [claim-spec strategic-validation]
+  (let [generator-by-id (into {} (map (fn [g] [(:id g) g]))
+                              (vals strategic-partial-fill/registered-deviation-generators))
+        profile {:game-theory/profile (keyword "game-theory" (name (:claim/id claim-spec)))
+                 :claims [{:claim/id (:claim/id claim-spec)
+                           :deviation-contract-ids (vec (sort (:deviation-set-ids claim-spec)))}]
+                 :deviation-contracts (:contracts strategic-validation)
+                 :deviation-generators (mapv (fn [dev]
+                                               (when-let [gen (get generator-by-id dev)]
+                                                 {:generator/id (:id gen)
+                                                  :property (:property gen)}))
+                                             (vec (sort (:deviations strategic-validation))))}
+        validation (gtp/validate-game-theory-profile profile)]
+    {:game-theory/profile profile
+     :profile/root (gtp/profile-root profile)
+     :profile-validation validation}))
+
+(defn- claim-registry-root
+  "Root of the deviation-contract registry actually used for a claim.
+   Commits the resolved contracts so that 'same claim id' cannot silently
+   resolve against different strategic semantics."
+  [strategic-validation]
+  (when (seq (:contracts strategic-validation))
+    (let [registry (dc/build-deviation-contract-registry
+                    :sources [{:origin :framework
+                               :entries (:contracts strategic-validation)}])]
+      (:root registry))))
 
 (defn- strategic-claim-artifact
   [claim-spec manifest evidence]
@@ -627,6 +747,9 @@
         strategic-deviation-results (spr/strategic-properties->deviation-results
                                      {:properties (filterv #(= :declared-property (:property-role %))
                                                            strategic-properties)})
+        game-theory-profile (when strategic-validation
+                              (build-game-theory-profile claim-spec strategic-validation))
+        deviation-contract-registry-root (claim-registry-root strategic-validation)
         level-verdicts (if (seq strategic-properties)
                          (mapv (fn [entry]
                                  (if (= :allocation/partial-fill (:mechanism-level entry))
@@ -715,6 +838,12 @@
                                    :deviations (vec (sort (:deviations strategic-validation)))
                                    :declared-property-ids
                                    (vec (sort (:declared-property-ids strategic-validation)))})
+     :game-theory-profile (when game-theory-profile
+                            (:game-theory/profile game-theory-profile))
+     :profile/root (when game-theory-profile (:profile/root game-theory-profile))
+     :profile-validation (when game-theory-profile
+                           (:profile-validation game-theory-profile))
+     :deviation-contract-registry-root deviation-contract-registry-root
      :gates {:integrity (first integrity-verdicts)
              :economic-model economic-model-gate
              :strategic strategic-gate}
@@ -761,6 +890,14 @@
     (when-not (contains? artifact k)
       (throw (ex-info "Strategic claim artifact missing required key"
                       {:missing-key k}))))
+  ;; Claims with a declared deviation scope must carry a rooted game-theory
+  ;; profile and its completeness validation (self-extension gate).
+  (when (contains? artifact :strategic-deviation-scope)
+    (doseq [k [:game-theory-profile :profile/root :profile-validation
+               :deviation-contract-registry-root]]
+      (when-not (contains? artifact k)
+        (throw (ex-info "Strategic claim artifact missing required profile key"
+                        {:missing-key k})))))
   (let [unknown (set/difference (set (keys artifact)) allowed-artifact-keys)]
     (when (seq unknown)
       (throw (ex-info "Strategic claim artifact contains unknown keys (closed shape)"
@@ -798,13 +935,14 @@
     :else x))
 
 (defn run-strategic-claim-validation
-  [& {:keys [claim-id out-dir]
+  [& {:keys [claim-id out-dir claim-registry]
       :or {claim-id :claim/pro-rata-shortfall-conservation
-           out-dir "./prf-out/game-theory"}}]
-  (let [claim-spec (or (get strategic-claim-catalog claim-id)
+           out-dir "./prf-out/game-theory"
+           claim-registry builtin-strategic-claim-registry}}]
+  (let [claim-spec (or (resolve-strategic-claim claim-registry claim-id)
                        (throw (ex-info "Unknown strategic claim"
                                        {:claim-id claim-id
-                                        :known-claims (sort (keys strategic-claim-catalog))})))
+                                        :known-claims (known-strategic-claim-ids claim-registry)})))
         manifest (runner/load-manifest (:benchmark/manifest-path claim-spec))
         evidence (runner/run-benchmark (:benchmark/manifest-path claim-spec))
         artifact (strategic-claim-artifact claim-spec manifest evidence)

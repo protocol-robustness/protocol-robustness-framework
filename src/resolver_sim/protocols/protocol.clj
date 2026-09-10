@@ -183,3 +183,24 @@
      agent-index maps agent ID strings to agent maps — needed for actions
      (e.g. register-stake) where the resolver address is the performing
      actor, not a param key."))
+
+;; ---------------------------------------------------------------------------
+;; 5. ValidatorDescriptorCatalog (Optional)
+;;
+;; First-class game-theoretic validator descriptors.  A protocol that
+;; supplies mechanism-property or equilibrium-concept validators via
+;; AnalysisModule's mechanism-property-validators /
+;; equilibrium-concept-validators MAY also implement this protocol to expose
+;; the semantic descriptors for those validators (prf/game-theoretic-validator.v1).
+;; Consumers check (satisfies? ValidatorDescriptorCatalog module) and compose
+;; the descriptors into rooted registries; the executable maps remain the
+;; runtime association, and descriptors are the committed identity.
+;; ---------------------------------------------------------------------------
+
+(defprotocol ValidatorDescriptorCatalog
+  "Optional interface exposing first-class validator descriptors for a
+   protocol's mechanism-property and equilibrium-concept validators."
+
+  (validator-descriptors [module]
+    "Return a vector of prf/game-theoretic-validator.v1 descriptor maps for
+     the protocol's validators.  Unknown kinds are ignored by consumers."))

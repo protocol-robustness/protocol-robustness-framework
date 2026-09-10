@@ -116,7 +116,7 @@
     (testing "artifact summary and claim identity"
       (is (= (if (get-in artifact [:summary :valid?]) 0 1) exit-code))
       (is (= :game-theoretic-validation (:artifact/kind artifact)))
-      (is (= "game-theoretic-validation.artifact.v2" (:artifact/version artifact)))
+      (is (= "game-theoretic-validation.artifact.v3" (:artifact/version artifact)))
       (is (= :claim/pro-rata-shortfall-conservation (:claim/id artifact)))
       (is (= 2 (get-in artifact [:summary :matched-scenario-count])))
       (is (true? (get-in artifact [:summary :valid?]))))
@@ -166,7 +166,7 @@
       (let [json-artifact (json/read-str (slurp (second output-files)))]
         (is (= "game-theoretic-validation"
                (get json-artifact "kind")))
-        (is (= "game-theoretic-validation.artifact.v2"
+        (is (= "game-theoretic-validation.artifact.v3"
                (get json-artifact "version")))
         (is (= "Pro-rata shortfall conservation"
                (get json-artifact "title")))))))
@@ -232,7 +232,7 @@
       (let [json-artifact (json/read-str (slurp (second output-files)))]
         (is (= "game-theoretic-validation"
                (get json-artifact "kind")))
-        (is (= "game-theoretic-validation.artifact.v2"
+        (is (= "game-theoretic-validation.artifact.v3"
                (get json-artifact "version")))))))
 
 (deftest unknown-equilibrium-suite-is-rejected
@@ -858,7 +858,7 @@
 
     (testing "artifact with unknown keys is rejected"
       (let [tampered-artifact {:artifact/kind :game-theoretic-validation
-                               :artifact/version "game-theoretic-validation.artifact.v2"
+                               :artifact/version "game-theoretic-validation.artifact.v3"
                                :claim/id :claim/test
                                :benchmark/id :benchmark/test
                                :benchmark/scenario-suite :suite/test
@@ -870,6 +870,10 @@
                                :strategic-epistemic-scope {:scope/kind :bounded-exhaustive
                                                            :scope/universal-claim? false}
                                :strategic-deviation-scope {}
+                               :game-theory-profile {}
+                               :profile/root "deadbeef"
+                               :profile-validation {}
+                               :deviation-contract-registry-root "deadbeef"
                                :strategic-property-results []
                                :strategic-declared-property-results []
                                :unknown/surprise-field "should not be here"
@@ -1127,7 +1131,7 @@
   (testing "V2 artifact fields survive EDN serialization"
     (let [edn-str (pr-str fixtures/valid-declared-property-artifact)
           restored (edn/read-string edn-str)]
-      (is (= "game-theoretic-validation.artifact.v2" (:artifact/version restored)))
+      (is (= "game-theoretic-validation.artifact.v3" (:artifact/version restored)))
       (is (= :bounded-exhaustive
              (get-in restored [:strategic-epistemic-scope :scope/kind])))
       (is (false? (get-in restored [:strategic-epistemic-scope :scope/universal-claim?])))
@@ -1157,7 +1161,7 @@
   (testing "V2 artifact fields survive JSON serialization"
     (let [json-str (json/write-str fixtures/valid-declared-property-artifact {:key-fn name})
           restored (walk/keywordize-keys (json/read-str json-str))]
-      (is (= "game-theoretic-validation.artifact.v2" (:version restored)))
+      (is (= "game-theoretic-validation.artifact.v3" (:version restored)))
       (is (= "bounded-exhaustive"
              (get-in restored [:strategic-epistemic-scope :kind])))
       (is (false?
@@ -1316,19 +1320,20 @@
 
 (deftest claim-catalog-rejects-unknown-strategic-property-ids
   (testing "claim with unknown strategic property ID is flagged"
-    (with-redefs [scv/strategic-claim-catalog
-                  {:claim/test-unknown-prop
-                   {:claim/id :claim/test-unknown-prop
-                    :claim/title "Test"
-                    :claim/description "Test"
-                    :claim/interpretation "Test interpretation"
-                    :benchmark/manifest-path "test.edn"
-                    :mechanism-levels [:allocation/partial-fill]
-                    :strategic-property-ids #{:nonexistent/property}
-                    :required-threat-tags #{"shortfall"}
-                    :match-dimensions #{:allocation/partial-fill}}}]
-      (let [errors (scv/validate-claim-catalog!)]
-        (is (some #(re-find #"not recognized" %) errors))))))
+    (let [injected {:claim/test-unknown-prop
+                    {:claim/id :claim/test-unknown-prop
+                     :claim/title "Test"
+                     :claim/description "Test"
+                     :claim/interpretation "Test interpretation"
+                     :benchmark/manifest-path "test.edn"
+                     :mechanism-levels [:allocation/partial-fill]
+                     :strategic-property-ids #{:nonexistent/property}
+                     :required-threat-tags #{"shortfall"}
+                     :match-dimensions #{:allocation/partial-fill}}}
+          registry (scv/build-strategic-claim-registry
+                    :sources [{:origin :framework :entries (vals injected)}])
+          errors (scv/validate-claim-catalog! registry)]
+      (is (some #(re-find #"not recognized" %) errors)))))
 
 (deftest claim-catalog-all-claims-have-required-fields
   (testing "all catalog entries have the minimum required fields"
@@ -1354,6 +1359,86 @@
       (is (= 1 (count claims-with-deviations)))
       (is (= :claim/pro-rata-shortfall-conservation
              (first (first claims-with-deviations)))))))
+
+(deftest builtin-strategic-claim-registry-holds-the-catalog
+  (testing "the builtin claim registry derives from the core catalog and is rooted"
+    (is (= (count scv/strategic-claim-catalog)
+           (count (:entries scv/builtin-strategic-claim-registry))))
+    (is (re-matches #"[0-9a-f]{64}" (:root scv/builtin-strategic-claim-registry)))
+    (is (= (set (keys scv/strategic-claim-catalog))
+           (set (scv/known-strategic-claim-ids))))
+    (is (= :claim/pro-rata-shortfall-conservation
+           (:claim/id (scv/resolve-strategic-claim :claim/pro-rata-shortfall-conservation))))))
+
+(deftest application-claims-compose-into-registry-without-editing-catalog
+  (testing "a protocol/application supplies its own claims; the framework catalog is untouched"
+    (let [app-claim {:claim/id :my-app/claim1
+                     :claim/title "Application claim"
+                     :claim/description "App-owned"
+                     :claim/interpretation "Pass means app checks held."
+                     :mechanism-levels [:allocation/partial-fill]
+                     :required-threat-tags #{"shortfall"}
+                     :match-dimensions #{:allocation/partial-fill}}
+          registry (scv/build-strategic-claim-registry
+                    :sources [{:origin :framework :entries (vals scv/strategic-claim-catalog)}
+                              {:origin :application :entries [app-claim]}])]
+      (testing "application claim resolves"
+        (is (= app-claim (scv/resolve-strategic-claim registry :my-app/claim1))))
+      (testing "framework claims still resolve"
+        (is (some? (scv/resolve-strategic-claim registry :claim/mode-validity))))
+      (testing "registry root is order-independent"
+        (is (= (:root registry)
+               (:root (scv/build-strategic-claim-registry
+                       :sources [{:origin :application :entries [app-claim]}
+                                 {:origin :framework :entries (vals scv/strategic-claim-catalog)}]))))))))
+
+(deftest run-strategic-claim-validation-resolves-application-claims
+  (testing "run-strategic-claim-validation accepts an explicit :claim-registry"
+    (let [out-dir (str (System/getProperty "java.io.tmpdir")
+                       "/prf-game-theory-app-claim")
+          app-claim {:claim/id :my-app/claim1
+                     :claim/title "Application claim"
+                     :claim/description "App-owned"
+                     :claim/interpretation "Pass means app checks held."
+                     :benchmark/manifest-path "app-manifest.edn"
+                     :mechanism-levels [:allocation/partial-fill]
+                     :required-threat-tags #{"shortfall"}
+                     :match-dimensions #{:allocation/partial-fill}}
+          registry (scv/build-strategic-claim-registry
+                    :sources [{:origin :application :entries [app-claim]}])
+          manifest {:benchmark/id :benchmark/app
+                    :benchmark/scenario-suite :suite/app
+                    :benchmark/scenarios [{:scenario/id "S-APP-001"
+                                           :dimension :allocation/partial-fill
+                                           :claim :allocation-complete}]}
+          evidence {:results [{:file "app-scenario.edn"
+                               :simulator/scenario-path "app-scenario.edn"
+                               :outcome :pass
+                               :halt-reason nil
+                               :scenario/evidence-root (apply str (repeat 64 "a"))
+                               :partial-fill-decisions [valid-partial-fill-decision]
+                               :invariant-results [{:id :inv/a :result :pass}]}]}]
+      (testing "an unregistered claim id fails even with a registry present"
+        (is (thrown-with-msg?
+             clojure.lang.ExceptionInfo
+             #"Unknown strategic claim"
+             (scv/run-strategic-claim-validation :claim-id :my-app/claim1 :out-dir out-dir))))
+      (testing "an application-owned claim resolves via the supplied registry"
+        (let [scenario-meta {:scenario-id "s-app-001"
+                             :scenario-title "App scenario"
+                             :scenario-purpose "App purpose"
+                             :threat-tags ["shortfall"]}
+              result (with-redefs [resolver-sim.benchmark.runner/load-manifest (fn [_] manifest)
+                                   resolver-sim.benchmark.runner/run-benchmark (fn [_] evidence)
+                                   resolver-sim.scenario.suites/suite-paths
+                                   (fn [_] ["app-scenario.edn"])
+                                   resolver-sim.io.scenarios/load-scenario-file
+                                   (fn [_] scenario-meta)]
+                       (scv/run-strategic-claim-validation
+                        :claim-id :my-app/claim1
+                        :out-dir out-dir
+                        :claim-registry registry))]
+          (is (= :my-app/claim1 (:claim/id (:artifact result)))))))))
 
 ;; ---------------------------------------------------------------------------
 ;; Dependency-boundary check for future reference evaluator

@@ -131,7 +131,13 @@
     resolver-sim.benchmark.sew-pre-application-test
     resolver-sim.protocols.sew.slashing-test
     resolver-sim.protocols.sew.evidence.slashing-test
-    resolver-sim.pro-rata.semantic-admission-test])
+    resolver-sim.pro-rata.semantic-admission-test
+    resolver-sim.validation.validator-descriptor-test
+    resolver-sim.validation.strategic-registry-test
+    resolver-sim.validation.game-theory-profile-test
+    resolver-sim.validation.deviation-contract-test
+    resolver-sim.protocols.sew.validator-registry-test
+    resolver-sim.scenario.equilibrium-registry-test])
 
 ;; ── Slow scenario test namespaces (full replay, evidence chain assertions) ──
 

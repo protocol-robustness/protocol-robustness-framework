@@ -49,7 +49,9 @@
 
    This namespace is pure — no I/O, no DB, no side effects."
   (:require [resolver-sim.protocols.protocol :as protocol]
-            [resolver-sim.scenario.equilibrium-result :as eq-result]))
+            [resolver-sim.scenario.equilibrium-result :as eq-result]
+            [resolver-sim.validation.validator-descriptor :as vd]
+            [resolver-sim.validation.strategic-registry :as sr]))
 
 (def ^:private evidence-schema-version
   "Semantic version for equilibrium/mechanism evidence payload shape."
@@ -403,23 +405,184 @@
             "redistribution completed without iteration limit or negative allocations"))))
 
 ;; ---------------------------------------------------------------------------
-;; Dispatcher maps (generic only)
-;; Protocol-specific validators are merged in at evaluation time via
-;; protocol/mechanism-property-validators and protocol/equilibrium-concept-validators.
+;; Builtin generic validators + registry-driven dispatch
+;;
+;; The generic mechanism-property and equilibrium-concept validators are
+;; registered in a rooted validator registry.  A descriptor (prf/
+;; game-theoretic-validator.v1) is the canonical identity — it identifies a
+;; stable evaluator id/version and its declared execution horizon.  The
+;; executable fn is resolved separately from the registry at evaluation time.
+;; Adding a validator means registering a descriptor + executable in a
+;; registry source; the dispatch below never switches on a fixed validator id.
 ;; ---------------------------------------------------------------------------
 
-(def ^:private mechanism-validators
+(def ^:private generic-default-epistemic-contract
+  "Common epistemic contract for builtin generic single-trace validators."
+  {:claim-strength :single-trace-proxy
+   :universal-claim? false
+   :falsification? true
+   :limitations [:single-trace
+                 :no-universal-claim
+                 :bounded-counterfactual-search]})
+
+(defn- generic-descriptor
+  "Build a prf/game-theoretic-validator.v1 descriptor for a generic validator."
+  [{:keys [id kind validation-class horizon epistemic-contract]}]
+  (merge
+   {:validator/schema vd/validator-schema
+    :validator/id id
+    :validator/version 1
+    :validator/kind kind
+    :validator/validation-class validation-class
+    :validator/epistemic-contract (or epistemic-contract generic-default-epistemic-contract)
+    :validator/origin :framework}
+   (when horizon
+     {:validator/execution-model {:horizon horizon
+                                  :state-model :deterministic
+                                  :history-required? false}})))
+
+(def builtin-mechanism-validator-descriptors
+  "Descriptors for the builtin generic mechanism-property validators."
+  (mapv generic-descriptor
+        [{:id :incentive-compatibility
+          :kind :mechanism-property
+          :validation-class :validation.class/payoff-property
+          :horizon :single-trace}
+         {:id :sybil-resistance
+          :kind :mechanism-property
+          :validation-class :validation.class/payoff-property
+          :horizon :single-trace}
+         {:id :pro-rata-fairness
+          :kind :mechanism-property
+          :validation-class :validation.class/algebraic-integrity
+          :horizon :single-trace}
+         {:id :redistribution-fairness
+          :kind :mechanism-property
+          :validation-class :validation.class/algebraic-integrity
+          :horizon :single-trace}]))
+
+(def builtin-equilibrium-validator-descriptors
+  "Descriptors for the builtin generic equilibrium-concept validators."
+  (mapv generic-descriptor
+        [{:id :dominant-strategy-equilibrium
+          :kind :equilibrium-concept
+          :validation-class :validation.class/payoff-property
+          :horizon :single-trace}
+         {:id :empirical-strategy-dominance
+          :kind :equilibrium-concept
+          :validation-class :validation.class/payoff-property
+          :horizon :single-trace}
+         {:id :nash-equilibrium
+          :kind :equilibrium-concept
+          :validation-class :validation.class/equilibrium
+          :horizon :single-trace}
+         {:id :bounded-nash-diagnostic
+          :kind :equilibrium-concept
+          :validation-class :validation.class/equilibrium
+          :horizon :single-trace}
+         {:id :bayesian-nash-equilibrium
+          :kind :equilibrium-concept
+          :validation-class :validation.class/equilibrium
+          :horizon :multi-epoch
+          :epistemic-contract {:claim-strength :multi-epoch-required
+                               :universal-claim? false
+                               :falsification? true
+                               :limitations [:multi-epoch
+                                             :no-universal-claim]}}]))
+
+(def ^:private generic-mechanism-validators
   {:incentive-compatibility     check-incentive-compatibility
    :sybil-resistance            check-sybil-resistance
    :pro-rata-fairness           check-pro-rata-fairness
    :redistribution-fairness     check-redistribution-fairness})
 
-(def ^:private equilibrium-validators
+(def ^:private generic-equilibrium-validators
   {:dominant-strategy-equilibrium check-dominant-strategy-equilibrium
    :empirical-strategy-dominance  (fn [p] (check-dominant-strategy-equilibrium p :empirical-strategy-dominance))
    :nash-equilibrium              check-nash-equilibrium
    :bounded-nash-diagnostic       (fn [p] (check-nash-equilibrium p :bounded-nash-diagnostic))
    :bayesian-nash-equilibrium     check-bayesian-nash-equilibrium})
+
+(def builtin-validator-registry
+  "Rooted registry of builtin generic mechanism-property and
+   equilibrium-concept validators.  Descriptors are the committed identity;
+   executables are the local runtime association, kept separate so the root
+   never commits behaviour.  Protocol/application validators compose on top
+   via build-validator-registry."
+  (sr/build-validator-registry
+   :sources [{:origin :framework
+              :entries (concat builtin-mechanism-validator-descriptors
+                               builtin-equilibrium-validator-descriptors)}]
+   :executables (merge generic-mechanism-validators
+                       generic-equilibrium-validators)))
+
+(defn compose-validator-registry
+  "Compose a validator registry from the builtin generic validators plus
+   protocol/application-supplied sources.  Each extra source is either
+     {:origin kw :entries [descriptor ...]} or a plain vector of descriptors;
+   extra-executables is {validator-id fn}.
+
+   Returns a registry map like builtin-validator-registry."
+  [& {:keys [sources executables]
+      :or {sources [] executables {}}}]
+  (sr/build-validator-registry
+   :sources (concat [{:origin :framework
+                      :entries (concat builtin-mechanism-validator-descriptors
+                                       builtin-equilibrium-validator-descriptors)}]
+                    sources)
+   :executables (merge generic-mechanism-validators
+                       generic-equilibrium-validators
+                       executables)))
+
+(defn resolve-validator-executable
+  "Resolve the executable fn for a validator id from a registry.
+   Returns nil when the id has no executable registered."
+  [registry validator-id]
+  (sr/resolve-validator-executable registry validator-id))
+
+(defn resolve-validator-descriptor
+  "Resolve the descriptor for a validator id from a registry.
+   Returns nil when the id has no descriptor registered."
+  [registry validator-id]
+  (sr/resolve-validator registry validator-id))
+
+(defn registered-validator-ids
+  "Sorted vector of validator ids registered (by descriptor) in a registry."
+  [registry]
+  (sr/validator-ids registry))
+
+;; ---------------------------------------------------------------------------
+;; Horizon gating (execution-model is first-class, from the descriptor)
+;; ---------------------------------------------------------------------------
+
+(defn- horizon-gate
+  "Return [basis reason-kw detail] when the descriptor's declared horizon is
+   incompatible with single-trace evaluation, else nil."
+  [desc]
+  (when desc
+    (cond
+      (vd/multi-epoch-required? desc)
+      [:multi-epoch-required :multi-epoch-required
+       "declared execution horizon requires multi-epoch evidence; single-trace projection cannot evaluate"]
+      (vd/multi-trace-required? desc)
+      [:multi-trace-required :multi-trace-required
+       "declared execution horizon requires multiple independent traces; single-trace projection cannot evaluate"])))
+
+(defn- resolve-validator!
+  "Resolve the descriptor and executable for a validator id from a registry.
+   Fails closed:
+     - descriptor registered but executable missing → throws;
+     - executable present but no descriptor → treated as single-trace
+       (backward compatible: legacy protocol validators carried no descriptor).
+   Returns {:descriptor desc-or-nil :executable fn-or-nil}."
+  [registry validator-id]
+  (let [desc (resolve-validator-descriptor registry validator-id)
+        exec (resolve-validator-executable registry validator-id)]
+    (when (and desc (nil? exec))
+      (throw (ex-info "Validator descriptor registered without executable"
+                      {:validator/id validator-id
+                       :registry/root (:root registry)})))
+    {:descriptor desc :executable exec}))
 
 ;; ---------------------------------------------------------------------------
 ;; Status roll-up
@@ -446,17 +609,45 @@
 
 (defn evaluate-mechanism-properties
   "Check all declared :mechanism-properties against the terminal projection.
-   Merges built-in generic validators with protocol-specific extra-validators.
-   Returns a map of {property-kw → result-map}."
+   Dispatch is registry-driven: each property resolves its descriptor +
+   executable from a validator registry (default builtin-validator-registry).
+   Adding a validator = registering a descriptor + executable; this function
+   never switches on a fixed validator id.
+
+   Optional:
+     :registry    — a validator registry (from compose-validator-registry /
+                    build-validator-registry). Defaults to the builtin.
+     :extra-executables — {property-kw → fn} merged into the registry
+                    (backward-compatible with the legacy extra-validators map).
+     :descriptors — {property-kw → descriptor} merged into the registry.
+
+   A descriptor declaring a :multi-epoch or :multi-trace horizon is reported
+   :inconclusive :multi-epoch-required when only single-trace evidence is
+   available.  A descriptor registered without an executable fails closed
+   (throws).  Returns a map of {property-kw → result-map}."
   ([properties projection]
-   (evaluate-mechanism-properties properties projection {}))
+   (evaluate-mechanism-properties properties projection {} {}))
   ([properties projection extra-validators]
-   (let [validators (merge mechanism-validators extra-validators)]
+   (evaluate-mechanism-properties properties projection extra-validators {}))
+  ([properties projection extra-validators {:keys [registry descriptors]
+                                            :or {descriptors {}}}]
+   (let [reg (or registry
+                 (compose-validator-registry
+                  :sources [{:origin :protocol :entries (vec (vals descriptors))}]
+                  :executables extra-validators))]
      (into {} (map (fn [prop]
                      (let [kw  (keyword prop)
-                           chk (get validators kw)]
-                       [kw (if chk
-                             (chk projection)
+                           {:keys [descriptor executable]} (resolve-validator! reg kw)
+                           hg (horizon-gate descriptor)]
+                       [kw (cond
+                             hg
+                             (let [[basis reason-kw detail] hg]
+                               (inconclusive kw basis reason-kw detail))
+
+                             executable
+                             (executable projection)
+
+                             :else
                              (inconclusive kw :absent-evidence :unsupported-concept
                                            (str "no validator implemented for mechanism property: " (name kw))
                                            :required [(keyword (name kw))]))]))
@@ -464,19 +655,37 @@
 
 (defn evaluate-equilibrium-concepts
   "Check all declared :equilibrium-concept values against the terminal projection.
-   Merges built-in generic validators with protocol-specific extra-validators.
-   Returns a map of {concept-kw → result-map}."
+   Dispatch is registry-driven: each concept resolves its descriptor + executable
+   from a validator registry (default builtin-validator-registry).  Adding a
+   validator = registering a descriptor + executable; this function never
+   switches on a fixed validator id.
+
+   Optional:
+     :registry    — a validator registry (default builtin).
+     :extra-executables — {concept-kw → fn} merged into the registry
+                    (backward-compatible with the legacy extra-validators map).
+     :descriptors — {concept-kw → descriptor} merged into the registry.
+
+   A concept whose descriptor declares a :multi-epoch or :multi-trace horizon
+   is reported :inconclusive :multi-epoch-required when only single-trace
+   evidence is available.  A descriptor registered without an executable fails
+   closed (throws).  Returns a map of {concept-kw → result-map}."
   ([concepts projection]
    (evaluate-equilibrium-concepts concepts projection {} {}))
   ([concepts projection extra-validators]
    (evaluate-equilibrium-concepts concepts projection extra-validators {}))
-  ([concepts projection extra-validators {:keys [claim-tier trust-mode explicit-valid-time? attestation-status]
-                                          :or {claim-tier :proxy trust-mode :relaxed explicit-valid-time? false attestation-status :unknown}}]
-   (let [validators (merge equilibrium-validators extra-validators)]
+  ([concepts projection extra-validators {:keys [claim-tier trust-mode explicit-valid-time? attestation-status
+                                                 registry descriptors]
+                                          :or {claim-tier :proxy trust-mode :relaxed explicit-valid-time? false attestation-status :unknown descriptors {}}}]
+   (let [reg (or registry
+                 (compose-validator-registry
+                  :sources [{:origin :protocol :entries (vec (vals descriptors))}]
+                  :executables extra-validators))]
      (into {} (map (fn [concept]
                      (let [kw  (keyword concept)
-                           chk (get validators kw)
-                           bundle-ok? (true? (get-in projection [:deviation-bundle :meets-minimum?]))]
+                           {:keys [descriptor executable]} (resolve-validator! reg kw)
+                           bundle-ok? (true? (get-in projection [:deviation-bundle :meets-minimum?]))
+                           hg (horizon-gate descriptor)]
                        [kw (cond
                              (and (strict-valid-time-required? trust-mode)
                                   (not explicit-valid-time?))
@@ -500,8 +709,12 @@
                                                 " requires deviation bundle evidence; projection missing :deviation-bundle.meets-minimum? true")
                                            :required [:deviation-bundle.meets-minimum?])
 
-                             chk
-                             (chk projection)
+                             hg
+                             (let [[basis reason-kw detail] hg]
+                               (inconclusive kw basis reason-kw detail))
+
+                             executable
+                             (executable projection)
 
                              :else
                              (inconclusive kw :absent-evidence :unsupported-concept
@@ -542,21 +755,37 @@
         attestation-status (or (get-in provenance [:attestation :status]) :unknown)
         trust-mode   (keyword (or (:equilibrium-trust-mode theory) :relaxed))
 
-        extra-mech-validators (when proto (protocol/mechanism-property-validators proto))
-        extra-eq-validators   (when proto (protocol/equilibrium-concept-validators proto))
+        extra-mech-validators (or (when proto (protocol/mechanism-property-validators proto)) {})
+        extra-eq-validators   (or (when proto (protocol/equilibrium-concept-validators proto)) {})
+        ;; First-class descriptors: when the protocol exposes a
+        ;; ValidatorDescriptorCatalog, index descriptors by concept/kind so
+        ;; horizon-aware dispatch can gate multi-epoch/multi-trace concepts.
+        proto-descriptors (when (and proto
+                                     (satisfies? protocol/ValidatorDescriptorCatalog proto))
+                            (let [descs (protocol/validator-descriptors proto)]
+                              {:equilibrium (filter #(= :equilibrium-concept (:validator/kind %)) descs)
+                               :mechanism   (filter #(= :mechanism-property (:validator/kind %)) descs)}))
+        ;; Compose per-kind registries: builtin + protocol descriptors +
+        ;; protocol executables.  Dispatch resolves ids from these registries;
+        ;; no fixed validator-id switching anywhere in this path.
+        mech-reg (compose-validator-registry
+                  :sources [{:origin :protocol :entries (get proto-descriptors :mechanism [])}]
+                  :executables extra-mech-validators)
+        eq-reg   (compose-validator-registry
+                  :sources [{:origin :protocol :entries (get proto-descriptors :equilibrium [])}]
+                  :executables extra-eq-validators)
 
         mech-results (if (and projection mech-props)
-                       (evaluate-mechanism-properties mech-props projection
-                                                      (or extra-mech-validators {}))
+                       (evaluate-mechanism-properties mech-props projection {} {:registry mech-reg})
                        {})
         claim-tier  (keyword (or (:equilibrium-claim-tier theory) :proxy))
         eq-results   (if (and projection eq-concepts)
-                       (evaluate-equilibrium-concepts eq-concepts projection
-                                                      (or extra-eq-validators {})
+                       (evaluate-equilibrium-concepts eq-concepts projection {}
                                                       {:claim-tier claim-tier
                                                        :trust-mode trust-mode
                                                        :explicit-valid-time? explicit-valid-time?
-                                                       :attestation-status attestation-status})
+                                                       :attestation-status attestation-status
+                                                       :registry eq-reg})
                        {})
         eq-result-strengths (into {}
                                   (map (fn [[kw result]]
