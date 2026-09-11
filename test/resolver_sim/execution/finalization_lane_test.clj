@@ -45,13 +45,13 @@
                               (when (= :rejected (:status result))
                                 (.incrementAndGet loser-count)))))
                         (range n))]
-        (doseq [f futures] (deref f 10000 nil))
-        (is (= 1 (.get winner-count))
-            "Exactly one finalizer won the CAS (FG-3)")
-        (is (= (dec n) (.get loser-count))
-            "All other finalizers were rejected")
-        (is (lane/finalized? shared-lane)
-            "Lane reached FINALIZED"))))
+      (doseq [f futures] (deref f 10000 nil))
+      (is (= 1 (.get winner-count))
+          "Exactly one finalizer won the CAS (FG-3)")
+      (is (= (dec n) (.get loser-count))
+          "All other finalizers were rejected")
+      (is (lane/finalized? shared-lane)
+          "Lane reached FINALIZED"))))
 
 ;; ── Test 2: Losing finalizer cannot execute write-fn ───────────────────────
 
@@ -211,8 +211,8 @@
                           :basis-root "basis-root"}
                          (fn [ticket]
                            {:committed {:closed-root (:finalizer/closed-root ticket)
-                                       :basis-root (:finalizer/basis-root ticket)
-                                       :generation (:finalizer/lane-generation ticket)}}))
+                                        :basis-root (:finalizer/basis-root ticket)
+                                        :generation (:finalizer/lane-generation ticket)}}))
 
           ;; Parallel: same operations but concurrent contributor work
           par-lane (open-lane {:requires-quiescence? false})
@@ -229,8 +229,8 @@
                        :basis-root "basis-root"}
                       (fn [ticket]
                         {:committed {:closed-root (:finalizer/closed-root ticket)
-                                    :basis-root (:finalizer/basis-root ticket)
-                                    :generation (:finalizer/lane-generation ticket)}}))]
+                                     :basis-root (:finalizer/basis-root ticket)
+                                     :generation (:finalizer/lane-generation ticket)}}))]
       ;; Semantic identities must match regardless of contributor scheduling
       (is (= (:closed-result-set-root (:ticket serial-result))
              (:closed-result-set-root (:ticket par-result)))

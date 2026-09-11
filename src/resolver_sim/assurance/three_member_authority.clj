@@ -336,13 +336,12 @@
                                                     (mapcat :incompatible-positions
                                                             equivocations))))
                                   (map :researcher/id members))))
-        ;; A 2-of-3 authority needs two distinct constituted seats, not three
-        ;; submitted positions.  Identity separation is checked against the
-        ;; effective positions (deduplicated, non-equivocating) so that
-        ;; identical duplicate submissions from one seat do not break the
-        ;; separation invariant.
-        identity-separate? (= (count single-positions)
-                              (count (set (map :researcher/id single-positions))))
+        ;; Identity separation requires that every submitted valid position
+        ;; originates from a distinct constituted seat.  A member submitting
+        ;; multiple valid positions — whether identical duplicates or
+        ;; equivocating stances — breaks the separation invariant.
+        identity-separate? (= (count valid)
+                              (count (set (map :researcher/id valid))))
         authority-reached?
         (and (not fail-certificate?)
              policy-conforming?

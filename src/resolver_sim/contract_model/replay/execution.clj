@@ -438,7 +438,7 @@
                                   (not (and (:ok? inv-single) (:ok? inv-trans))))
             assurance (when (and ok? (not legacy-violated?))
                         (check-transition-assurance protocol context world-t world-next event))
-            assurance-violated? (and assurance (not (:ok? assurance)))
+            assurance-violated? (boolean (and assurance (not (:ok? assurance))))
             violated? (or legacy-violated? assurance-violated?)
             all-violations (when violated?
                              (merge (when-not (:ok? inv-single) (:violations inv-single))

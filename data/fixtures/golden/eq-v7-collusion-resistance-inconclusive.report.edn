@@ -79,13 +79,18 @@
   :reason :no-metric-falsification-claim,
   :mechanism-summary
   {:collusion-resistance
-   {:status :pass,
-    :basis :single-trace-metric-proxy,
-    :severity :hard,
-    :display-label "Proxy check passed"}},
+   {:status :inconclusive,
+    :reason :multi-trace-required,
+    :reason-detail
+    "declared execution horizon requires multiple independent traces; single-trace projection cannot evaluate",
+    :basis :multi-trace-required,
+    :severity :soft,
+    :required [],
+    :available [],
+    :display-label "Proxy check inconclusive"}},
   :status :not-falsified,
   :falsified? false,
   :equilibrium-status :not-checked,
-  :mechanism-reasons {},
-  :mechanism-status :pass,
+  :mechanism-reasons {:collusion-resistance :multi-trace-required},
+  :mechanism-status :inconclusive,
   :display-label "Not falsified in this replay"}}

@@ -41,15 +41,14 @@
 
 (defn claim-registry-path
   "Resolve the claim registry path with precedence:
-    explicit CLI path → PRF_BENCHMARKS_CLAIM_REGISTRY.
-    Returns nil when no application-owned path was supplied."
+    explicit CLI path → PRF_BENCHMARKS_CLAIM_REGISTRY → built-in default."
   ([]
    (claim-registry-path nil))
   ([cli-path]
    (or (when (and (string? cli-path) (seq cli-path)) cli-path)
        (when-let [env (env-var "PRF_BENCHMARKS_CLAIM_REGISTRY")]
          (when (seq env) env))
-       nil)))
+       hash-ref/claim-registry-path)))
 
 (defn claim-registry-source
   "Which boundary selected the registry: :cli | :environment | nil."
@@ -60,7 +59,7 @@
      (and (string? cli-path) (seq cli-path)) :cli
      (and (env-var "PRF_BENCHMARKS_CLAIM_REGISTRY")
           (seq (env-var "PRF_BENCHMARKS_CLAIM_REGISTRY"))) :environment
-     :else nil)))
+     :else :default)))
 
 (defn registry-file-sha256
   "Compute a canonical sha256 ref for the selected registry file, whether it
@@ -181,7 +180,7 @@
 
    Throws ex-info on any validation error (missing file, malformed EDN,
    unsupported schema version, duplicate claim IDs, missing keys, unknown
-   evaluator). There is never a silent fallback to the built-in registry."
+    evaluator). Falls back to the built-in registry when no explicit path is supplied."
   ([]
    (load-claim-registry nil))
   ([cli-path]

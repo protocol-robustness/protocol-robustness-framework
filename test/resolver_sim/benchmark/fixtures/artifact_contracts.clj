@@ -1,16 +1,48 @@
 (ns resolver-sim.benchmark.fixtures.artifact-contracts
-  "Reusable V2 game-theoretic-validation artifact fixtures for contract,
+  "Reusable V3 game-theoretic-validation artifact fixtures for contract,
    migration, and serialization tests."
-  (:require [resolver-sim.hash.canonical :as hc]))
+  (:require [resolver-sim.hash.canonical :as hc]
+            [resolver-sim.validation.game-theory-profile :as gtp]))
 
-(def ^:private artifact-version "game-theoretic-validation.artifact.v2")
+(def ^:private artifact-version "game-theoretic-validation.artifact.v3")
+
+;; ---------------------------------------------------------------------------
+;; Shared game-theory profile (committed into artifacts with deviation scope)
+;; ---------------------------------------------------------------------------
+
+(def monotonicity-contract
+  {:contract/id :partial-fill/claimant-monotonicity
+   :contract/version 1
+   :mechanism :yield/partial-fill
+   :actor/type :claimant
+   :reference-action :submit-claim-amount
+   :deviation-generators [:inflate]
+   :utility-model :utility/token-linear-v1
+   :parameter-scope {:claim-count-max 5 :request-max 20 :liquidity-max 20}
+   :epsilon 0
+   :exclusions [:deflation :priority-reclassification]})
+
+(def declared-profile
+  "Game-theory profile for the declared-property artifact."
+  {:game-theory/profile :game-theory/claim-pro-rata-shortfall-conservation
+   :claims [{:claim/id :claim/pro-rata-shortfall-conservation
+             :deviation-contract-ids [:partial-fill/claimant-monotonicity]}]
+   :deviation-contracts [monotonicity-contract]
+   :deviation-generators [{:generator/id :inflate
+                           :property :strategy/request-monotonicity}]})
+
+(def declared-profile-root
+  (gtp/profile-root declared-profile))
+
+(def declared-profile-validation
+  (gtp/validate-game-theory-profile declared-profile))
 
 ;; ---------------------------------------------------------------------------
 ;; Valid artifact fixtures
 ;; ---------------------------------------------------------------------------
 
 (def valid-diagnostic-only-artifact
-  "Valid V2 artifact with only diagnostic observations (no declared strategic properties)."
+  "Valid V3 artifact with only diagnostic observations (no declared strategic properties)."
   {:artifact/kind :game-theoretic-validation
    :artifact/version artifact-version
    :claim/id :claim/pro-rata-shortfall-conservation
@@ -42,6 +74,10 @@
                                :scope/falsification? true
                                :scope/limitations [:bounded-domain]}
    :strategic-deviation-scope nil
+   :game-theory-profile nil
+   :profile/root nil
+   :profile-validation nil
+   :deviation-contract-registry-root nil
    :gates {:integrity {:gate :integrity :verdict :pass}
            :economic-model {:gate :economic-model :verdict :pass}
            :strategic {:gate :strategic :verdict :verified}}
@@ -56,7 +92,7 @@
              :valid? true}})
 
 (def valid-declared-property-artifact
-  "Valid V2 artifact with one declared strategic property."
+  "Valid V3 artifact with one declared strategic property."
   {:artifact/kind :game-theoretic-validation
    :artifact/version artifact-version
    :claim/id :claim/pro-rata-shortfall-conservation
@@ -110,6 +146,10 @@
                                :contract-ids [:partial-fill/claimant-monotonicity]
                                :deviations [:inflate]
                                :declared-property-ids [:strategy/split-invariance]}
+   :game-theory-profile declared-profile
+   :profile/root declared-profile-root
+   :profile-validation declared-profile-validation
+   :deviation-contract-registry-root nil
    :gates {:integrity {:gate :integrity :verdict :pass}
            :economic-model {:gate :economic-model :verdict :pass}
            :strategic {:gate :strategic :verdict :verified}}

@@ -80,7 +80,7 @@
         (realization/record-quiesced!)
         ;; 2 dispatched, 1 quiesced — close-execution! should fail
         (is (thrown? Exception
-                    (realization/complete! r))
+                     (realization/complete! r))
             "Throws when quiescence incomplete")))))
 
 ;; ── Without lane (backward compat) ──────────────────────────────────────────

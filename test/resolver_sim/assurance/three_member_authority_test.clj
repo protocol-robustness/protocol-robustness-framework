@@ -171,7 +171,9 @@
         "one seat counts once despite two identical submissions")
     (is (= 1 (count (:duplicate-seat-positions report)))
         "the extra duplicate is preserved in the report")
-    (is (= :authorised (:authority-status report)))))
+    (is (= :not-authorised (:authority-status report))
+        "duplicate submissions break identity-separation")
+    (is (contains? (set (:authority/reasons report)) :non-distinct-identities))))
 
 ;; ═══════════════════════════════════════════════════════════════════════════
 ;; 4. Input order does not affect equivocation or authority classification
@@ -195,22 +197,24 @@
 ;; ═══════════════════════════════════════════════════════════════════════════
 
 (deftest two-supporters-plus-equivocator-policy
-  (testing "default :invalid-seat policy keeps two valid supporters authorised"
+  (testing "default :invalid-seat policy excludes equivocator but breaks identity-separation"
     (let [report (evaluate [(pos "r-a" :approve outcome-a)
                             (pos "r-a" :dissent outcome-a)
                             (pos "r-b" :approve outcome-a)
                             (pos "r-c" :approve outcome-a)]
                            :policy tma/default-equivocation-policy)]
       (is (= 1 (count (:equivocating-members report))))
-      (is (= :authorised (:authority-status report)))
+      (is (= :not-authorised (:authority-status report))
+          "equivocation breaks identity-separation")
       (is (= 2 (:counted-support report)))))
-  (testing ":count-as-dissent policy counts the equivocator as one dissent"
+  (testing ":count-as-dissent policy counts the equivocator as one dissent but breaks identity-separation"
     (let [report (evaluate [(pos "r-a" :approve outcome-a)
                             (pos "r-a" :dissent outcome-a)
                             (pos "r-b" :approve outcome-a)
                             (pos "r-c" :approve outcome-a)]
                            :policy :count-as-dissent)]
-      (is (= :authorised (:authority-status report)))
+      (is (= :not-authorised (:authority-status report))
+          "equivocation breaks identity-separation")
       (is (= 1 (:effective-dissent-count report))
           "one equivocating seat counts as exactly one dissent")))
   (testing ":fail-certificate policy fails the whole certificate"

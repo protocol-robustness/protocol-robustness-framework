@@ -21,6 +21,7 @@
             [resolver-sim.protocols.sew.related-claims   :as rc]
             [resolver-sim.protocols.sew.projection       :as sew-proj]
             [resolver-sim.protocols.sew.equilibrium      :as sew-eq]
+            [resolver-sim.protocols.sew.validator-registry :as sew-vreg]
             [resolver-sim.protocols.sew.advisory         :as sew-adv]
             [resolver-sim.db.sew                         :as sew-db]
             [resolver-sim.db.temporal                    :as temporal]
@@ -2950,7 +2951,12 @@
     sew-eq/equilibrium-concept-validators)
 
   (reference-model [_ scenario]
-    nil))
+    nil)
+
+  proto/ValidatorDescriptorCatalog
+
+  (validator-descriptors [_]
+    sew-vreg/validator-descriptors))
 
 (def protocol (SewProtocol.))
 

@@ -299,6 +299,59 @@
                      :collusion-resistance)]
       (is (= :fail (:status result))))))
 
+(deftest declared-execution-horizon-gates-single-trace-dispatch
+  (testing "a descriptor declaring :multi-trace horizon gates to :multi-trace-required
+            when only single-trace evidence is available"
+    (let [proj (projection {:coalition-net-profit 100})
+          descs {:collusion-resistance
+                 {:validator/schema :prf/game-theoretic-validator.v1
+                  :validator/id :collusion-resistance
+                  :validator/version 1
+                  :validator/kind :mechanism-property
+                  :validator/validation-class :validation.class/deviation-resistance
+                  :validator/execution-model {:horizon :multi-trace
+                                              :state-model :deterministic
+                                              :history-required? true}
+                  :validator/epistemic-contract {:claim-strength :multi-trace-required
+                                                 :universal-claim? false
+                                                 :falsification? true
+                                                 :limitations [:multi-trace]}}}
+          result (-> (eq/evaluate-mechanism-properties [:collusion-resistance] proj
+                                                       sew-eq/mechanism-property-validators
+                                                       {:descriptors descs})
+                     :collusion-resistance)]
+      (is (= :inconclusive (:status result)))
+      (is (= :multi-trace-required (:basis result)))
+      (is (= :multi-trace-required (:reason result)))))
+
+  (testing "a builtin descriptor declaring :multi-epoch horizon gates to :multi-epoch-required"
+    (let [proj (projection {:attack-attempts 0})
+          result (-> (eq/evaluate-equilibrium-concepts [:bayesian-nash-equilibrium] proj)
+                     :bayesian-nash-equilibrium)]
+      (is (= :inconclusive (:status result)))
+      (is (= :multi-epoch-required (:basis result)))
+      (is (= :multi-epoch-required (:reason result))))))
+
+(deftest single-trace-descriptor-passes-through-to-validator
+  (testing "a single-trace descriptor does not gate dispatch"
+    (let [proj (projection {:coalition-net-profit -50})
+          descs {:collusion-resistance
+                 {:validator/schema :prf/game-theoretic-validator.v1
+                  :validator/id :collusion-resistance
+                  :validator/version 1
+                  :validator/kind :mechanism-property
+                  :validator/validation-class :validation.class/deviation-resistance
+                  :validator/execution-model {:horizon :single-trace}
+                  :validator/epistemic-contract {:claim-strength :single-trace-proxy
+                                                 :universal-claim? false
+                                                 :falsification? true
+                                                 :limitations [:single-trace]}}}
+          result (-> (eq/evaluate-mechanism-properties [:collusion-resistance] proj
+                                                       sew-eq/mechanism-property-validators
+                                                       {:descriptors descs})
+                     :collusion-resistance)]
+      (is (= :pass (:status result))))))
+
 ;; ---------------------------------------------------------------------------
 ;; dominant-strategy-equilibrium
 ;; ---------------------------------------------------------------------------
