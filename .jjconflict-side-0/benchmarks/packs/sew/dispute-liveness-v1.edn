@@ -1,0 +1,56 @@
+{:benchmark/id              :benchmark/sew-dispute-liveness-v1
+  :benchmark/version         1
+  :benchmark/status          :active
+  :benchmark/domain          :domain/escrow-dispute-resolution
+  :benchmark/protocol        :protocol/sew
+   :benchmark/scenario-suite  :suite/sew-dispute-safety-v1
+:benchmark/scenario-suite-description
+   "65 Sew dispute-resolution scenarios (shared with escrow-dispute-v1).
+    Focus on dispute liveness: timely resolution under adversarial load,
+    bounded resolution time, and slashing conservation."
+  :benchmark/runner-policy   :runner-policy/deterministic-local-v1
+ :benchmark/evidence-policy :evidence-policy/forensic-standard-v1
+   :benchmark/scoring-rule    :scoring/binary-claims-v1
+   :benchmark/property-types  #{:liveness :safety}
+   :benchmark/property-claims {:liveness [:claim/dispute-liveness
+                                          :claim/bounded-resolution-time]
+                               :safety [:claim/slashing-conservation
+                                                                       :claim/funds-conserved]}
+:benchmark/description
+    "A lens over :suite/sew-dispute-safety-v1 focusing on dispute liveness:
+     timely resolution under adversarial load, bounded resolution time,
+     slashing conservation, and escrow-fund conservation. Shares the same
+     65-scenario suite with
+     escrow-dispute-v1 and resolver-slashing-v1 — a single suite run
+     provides evidence for all three, but each applies a different scoring
+     rule and claim set. This benchmark uses :scoring/binary-claims-v1
+     (all-or-nothing pass/fail per claim), not severity weighting."
+   :benchmark/purpose
+   "Evaluate Sew dispute liveness: timely resolution under adversarial
+    load, bounded resolution time, slashing conservation, and escrow-fund
+    conservation across concurrent disputes."
+  :benchmark/concepts        [:consensus/authority
+                             :consensus/evidence
+                             :consensus/finality
+                             :consensus/escalation
+                             :consensus/liveness
+                             :consensus/legitimacy
+                             :concept/conservation
+                             :concept/confidence
+                             :concept/configuration]
+  :benchmark/claims          [{:claim/id :claim/dispute-liveness
+                              :claim/role :primary
+                              :claim/rationale "Dispute resolution must make progress under adversarial load."
+                              :claim/failure-meaning "Dispute resolution stalled."}
+                             {:claim/id :claim/bounded-resolution-time
+                              :claim/role :primary
+                              :claim/rationale "Disputes must complete within bounded temporal limits."
+                              :claim/failure-meaning "Resolution exceeded time bounds."}
+                             {:claim/id :claim/slashing-conservation
+                              :claim/role :supporting
+                              :claim/rationale "Slashing during dispute resolution must conserve value."
+                              :claim/failure-meaning "Slashing violated conservation rules."}
+                             {:claim/id :claim/funds-conserved
+                              :claim/role :supporting
+                              :claim/rationale "Total escrow value must be conserved across every exercised dispute state transition."
+                              :claim/failure-meaning "Escrow value was created, lost, or changed outside an authorized settlement transition."}]}

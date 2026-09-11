@@ -1,0 +1,37 @@
+{:scenario-id "dr-j-003-automate-timed-actions-timeout"
+ :schema-version "1.0"
+ :allow-open-disputes? true
+ :purpose "adversarial-robustness"
+ :title "automate-timed-actions handles dispute timeout: keeper automates auto-cancel after max-dispute-duration"
+ :description "A dispute is raised but the resolver never submits a resolution. After max-dispute-duration elapses, a keeper calls automate-timed-actions which now detects dispute-timeout-exceeded? at Priority 3 and calls auto-cancel-disputed-escrow. The escrow is refunded and the resolver is slashed. Verifies the keeper automation gap fix."
+ :provenance {:author "@dispute-researcher" :created-at "2026-06-30" :license "CC-BY-4.0"}
+ :claim {:id "automate-timed-actions-dispute-timeout"
+         :statement "automate-timed-actions now dispatches dispute-timeout-exceeded? at Priority 3, calling auto-cancel-disputed-escrow to refund the buyer and slash the resolver."
+         :falsifies-if ["automate-timed-actions returns :none when dispute-timeout is exceeded"
+                        "Escrow is not refunded after automate-timed-actions"
+                        "Resolver stake is not reduced after timeout"]}
+ :expectations {:terminal-state "refunded"
+                :must-hold ["slashable_liability_preserved" "resolver_decision_attributable"]
+                :metrics {:action_dispatched {:eq :auto-cancel-disputed}}}
+ :threat {:family "liveness" :attack "keeper-automation-gap" :severity "critical"
+          :actors ["resolver"] :victims ["buyer"]
+          :assumptions ["max-dispute-duration = 600" "automate-timed-actions checks dispute-timeout-exceeded?"]}
+ :accounting {:unit "USDC" :decimals 6 :tracked-balances ["buyer" "seller" "resolver" "protocol" "slashPool"]}
+ :initial-block-time 1000
+ :protocol-params {:resolver-fee-bps 150 :appeal-window-duration 60 :max-dispute-duration 600
+                   :dispute-resolver "0xresolver"}
+ :agents [{:id "buyer" :address "0xbuyer" :strategy "honest"}
+          {:id "seller" :address "0xseller" :strategy "honest"}
+          {:id "resolver" :address "0xresolver" :role "resolver" :stake 20000}
+          {:id "keeper" :address "0xkeeper" :role "keeper"}]
+ :events [{:seq 0 :time 1000 :agent "resolver" :action "register_stake"
+           :params {:amount 20000}}
+          {:seq 1 :time 1000 :agent "buyer" :action "create_escrow"
+           :params {:token "USDC" :to "0xseller" :amount 5000}}
+          {:seq 2 :time 1060 :agent "seller" :action "raise_dispute" :params {:workflow-id 0}}
+          ;; Resolver never submits a resolution
+          ;; max-dispute-duration = 600, so at 1060 + 600 = 1660 timeout exceeded
+          ;; Keeper calls automate-timed-actions instead of explicit auto-cancel-disputed
+          ;; The fix makes automate-timed-actions handle this at Priority 3
+          {:seq 3 :time 1700 :agent "keeper" :action "automate_timed_actions"
+           :params {:workflow-id 0}}]}

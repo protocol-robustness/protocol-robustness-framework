@@ -1,0 +1,49 @@
+{:description "Control fixture: scripted appeal + detection rolls (per-kind)"
+ :scenario-id "control-oracle-full-trial"
+ :rng-seed 101
+
+ :escrow-distribution
+ {:type :lognormal
+  :mean 10000
+  :stddev 5000}
+
+ :strategy-mix
+ {:honest 0.50
+  :lazy 0.15
+  :malicious 0.25
+  :collusive 0.10}
+
+ :resolver-fee-bps 150
+ :appeal-bond-bps 700
+ :slash-multiplier 2.5
+ :appeal-probability-if-correct 0.0
+ :appeal-probability-if-wrong 1.0
+
+ :slashing-detection-probability 0.0
+ :fraud-detection-probability 0.0
+ :timeout-detection-probability 0.0
+ :reversal-detection-probability 0.25
+ :reversal-slash-bps 2500
+ :timeout-slash-bps 200
+ :p-l1-reversal 0.75
+ :has-kleros? false
+
+ :force-strategy :collusive
+
+ :oracle-fixture
+ {:mode :fixed-roll-sequence
+  :rolls {:l1-reversal [0.01]
+          :reversal-detection [0.20]
+          :fraud-detection [0.99]
+          :timeout-detection [0.99]
+          :l1-detection [0.99]}
+  :scope #{:detection :appeal}
+  :on-exhaustion :throw}
+
+ :oracle-roll-trace-enabled? true
+
+ :n-trials 100
+ :n-seeds 1
+ :parallelism :auto
+ :save-samples? false
+ :save-sweep? false}

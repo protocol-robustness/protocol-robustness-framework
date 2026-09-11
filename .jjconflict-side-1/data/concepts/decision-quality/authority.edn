@@ -1,0 +1,132 @@
+{:concept/id :consensus/authority
+ :concept/type :decision-quality
+ :concept/layer :stakeholder
+ :concept/name "Consensus authority"
+ :concept/summary
+ "Who has the power to decide a contested outcome? Authority may be
+  vested in a specific resolver, a resolution module, governance, or
+  a default rule. Independence of the decision-maker determines whether
+  the outcome can be trusted."
+
+ :concept/stakeholder-question
+ "Was the entity that decided this outcome independent, authorised, and
+  free from capture or conflict of interest?"
+
+ :concept/protocols #{:protocol/sew-v1 :protocol/prf}
+
+ :concept/roles
+ {:decider
+   {:description "Entity that issues the binding decision."
+    :maps-to [:protocol.actor/resolver :protocol.actor/governance]
+    :mapping/confidence :approximate
+    :mapping/note "Decider may be a resolver module or governance depending on context"}
+   :decision-subject
+  {:description "Party whose outcome is decided."
+   :maps-to [:protocol.actor/sender :protocol.actor/recipient]}
+  :module
+  {:description "Programmatic resolution logic that may override or guide the decider."
+   :maps-to [:protocol.actor/resolution-module]}
+  :oversight
+  {:description "Entity that can review, replace, or override the decider."
+   :maps-to [:protocol.actor/governance]}}
+
+ :concept/entities
+ {:authority-grant
+   {:description "The mechanism or rule that confers decision power."
+    :maps-to [:protocol.entity/resolver-binding :protocol.entity/governance-role]
+    :mapping/confidence :approximate
+    :mapping/note "Authority may derive from resolver assignment or governance role"}
+   :decision
+  {:description "The binding output of the authority."
+   :maps-to [:protocol.entity/settlement]}
+  :capture-evidence
+  {:description "Signals that authority was exercised improperly."
+   :maps-to [:protocol.entity/evidence]}}
+
+ :concept/actions
+ {:appoint-decider
+  {:description "Assign decision authority to a resolver or module."
+   :maps-to [:protocol.action/create-escrow :protocol.action/set-resolver]}
+  :rotate-decider
+  {:description "Replace the decider mid-process."
+   :maps-to [:protocol.action/governance-rotate-resolver]}
+  :exercise-authority
+  {:description "Issue a binding decision."
+   :maps-to [:protocol.action/resolve :protocol.action/settle]}
+  :challenge-authority
+  {:description "Contest whether the decider was properly authorised."
+   :maps-to [:protocol.action/appeal :protocol.action/escalate]}
+  :override-decision
+  {:description "Governance or higher authority reverses the decider's outcome."
+   :maps-to [:protocol.action/governance-intervention]}}
+
+ :concept/outcomes
+ {:independent-decision
+  {:description "Decider was free from conflict and properly authorised."
+   :maps-to [:protocol.outcome/resolved]}
+  :captured-decision
+  {:description "Decider was aligned with one party or had undisclosed conflict."
+   :maps-to [:protocol.outcome/adversarial-resolution]}
+  :authority-contested
+  {:description "Decision authority was challenged and the challenge was processed."
+   :maps-to [:protocol.outcome/appealed]}
+  :authority-overridden
+  {:description "Governance or higher authority reversed the decision."
+   :maps-to [:protocol.outcome/governance-override]}
+  :default-authority
+  {:description "Decision was reached by default rule, not active deliberation."
+   :maps-to [:protocol.outcome/default-resolution]}}
+
+ :concept/failure-modes
+ [{:failure/id :resolver-capture
+   :failure/name "Resolver capture"
+   :failure/summary
+   "The resolver was controlled by or aligned with one party, producing
+    a biased decision."
+   :protocol-mechanisms [:resolver-authority :governance-rotation :settlement]
+   :stakeholder-impact "Outcome favours one party regardless of merit."}
+
+  {:failure/id :authority-without-scope
+   :failure/name "Authority exercised outside scope"
+   :failure/summary
+   "The decider ruled on matters beyond their granted authority."
+   :protocol-mechanisms [:resolver-scope :module-delegation :settlement]
+   :stakeholder-impact "Decision may be invalid or unenforceable."}
+
+  {:failure/id :unknown-decider
+   :failure/name "Unknown or unregistered decider"
+   :failure/summary
+   "A decision was issued by an entity not registered as authorised."
+   :protocol-mechanisms [:resolver-registration :governance-checks]
+   :stakeholder-impact "Outcome cannot be attributed to a legitimate authority."}
+
+  {:failure/id :module-circumvention
+   :failure/name "Resolution module bypassed"
+   :failure/summary
+   "The decider bypassed a required resolution module, circumventing programmed safeguards."
+   :protocol-mechanisms [:module-enforcement :settlement-path]
+   :stakeholder-impact "Module-level protections are lost."}]
+
+ :concept/metrics
+ {:decider-type
+  {:description "Category of decider (human resolver, module, governance, default)."
+   :source :derived-from-trace}
+  :decider-changes
+  {:description "Number of times decision authority changed during the interaction."
+   :source :derived-from-trace}
+  :authority-challenges
+  {:description "Number of times authority was formally contested."
+   :source :derived-from-trace}
+  :authority-upheld
+  {:description "Whether the original decider's authority was confirmed after challenge."
+   :source :derived-from-trace}}
+
+ :concept/assumptions
+ ["Decision authority is resolvable from protocol state."
+  "A resolver is the default authority unless governance, module, or rule intervenes."
+  "Concept labels do not change protocol validity."]
+
+ :concept/out-of-scope
+ ["Real-world legal authority or jurisdiction."
+  "Off-chain identity of the resolver."
+  "Social or reputation-based notion of authority."]}

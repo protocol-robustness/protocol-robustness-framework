@@ -1,0 +1,140 @@
+{:concept/id :decision-quality/solvency-status
+ :concept/name "Solvency status classification"
+ :concept/type :decision-quality
+ :concept/layer :stakeholder
+
+ :concept/summary
+ "The protocol continuously classifies solvency — whether assets are
+  sufficient to meet obligations — using both accounting checks and
+  cryptographic state commitments. The result is one of five ordered
+  tiers: solvent, insolvent, unproven, proof-state-mismatch, or
+  proof-invalid."
+
+ :concept/stakeholder-question
+ "Does the protocol know whether it currently has enough assets to
+  cover all valid claims, and can it prove this to an independent
+  verifier?"
+
+ :concept/protocols #{:protocol/sew-v1}
+
+ :concept/related
+ [:consensus/finality
+  :consensus/legitimacy
+  :verifiable-assurance/forensic-confidence
+  :allocation/shortfall]
+
+ :concept/roles
+ {:protocol-classifier
+  {:description "Protocol logic that evaluates solvency from world state."
+   :maps-to [:protocol.actor/resolution-module]}
+  :state-committer
+  {:description "Mechanism that produces SHA-256 commitments over solvency-relevant state."
+   :maps-to [:protocol.actor/resolution-module]}
+  :verifier
+  {:description "Party that checks the solvency classification and commitment chain."
+   :maps-to [:protocol.actor/verifier]}
+  :claimant
+  {:description "Party with a valid claim who relies on solvency for repayment."
+   :maps-to [:protocol.actor/sender :protocol.actor/recipient]}}
+
+ :concept/entities
+ {:solvency-status
+  {:description "One of five tiers: solvent, insolvent, unproven, proof-invalid, proof-state-mismatch."
+   :maps-to [:protocol.entity/solvency-status]}
+  :commitment-root
+  {:description "SHA-256 hash of the current solvency-relevant state subset."
+   :maps-to [:protocol.entity/commitment-root]}
+  :prev-commitment
+  {:description "Hash of the prior state, enabling a chained commitment sequence."
+   :maps-to [:protocol.entity/prev-commitment]}
+  :solvency-ratio
+  {:description "Numeric ratio of assets to liabilities used in accounting checks."
+   :maps-to [:protocol.entity/solvency-ratio]}
+  :liability-set
+  {:description "All outstanding claims, bonds, and obligations at a given state."
+   :maps-to [:protocol.entity/claimable]}}
+
+ :concept/actions
+ {:classify-solvency
+  {:description "Determine the solvency status from world state and optional proof."
+   :maps-to [:protocol.action/classify-solvency]}
+  :compute-commitment
+  {:description "Produce a deterministic SHA-256 commitment over escrows, yield positions, and balances."
+   :maps-to [:protocol.action/compute-commitment]}
+  :verify-proof
+  {:description "Check that the stored commitment matches a recomputed hash and the chain is intact."
+   :maps-to [:protocol.action/verify-allocation :protocol.action/check-invariant]}
+  :detect-insolvency
+  {:description "Identify when liabilities exceed assets, triggering :insolvent status."
+   :maps-to [:protocol.action/calculate-shortfall]}}
+
+ :concept/outcomes
+ {:solvent
+  {:description "Assets exceed liabilities AND the cryptographic commitment chain is intact."
+   :maps-to [:protocol.outcome/released]}
+  :insolvent
+  {:description "Liabilities exceed assets regardless of proof status."
+   :maps-to [:protocol.outcome/adversarial-resolution]}
+  :unproven
+  {:description "Accounting check passes but no cryptographic proof has been produced."
+   :maps-to [:protocol.outcome/deferred]}
+  :proof-invalid
+  {:description "The stored commitment does not match a recomputation from current state."
+   :maps-to [:protocol.outcome/adversarial-resolution]}
+  :proof-state-mismatch
+  {:description "The proof references a different prior state than the current world."
+   :maps-to [:protocol.outcome/stuck]}}
+
+ :concept/failure-modes
+ [{:failure/id :undetected-insolvency
+   :failure/name "Undetected insolvency"
+   :failure/summary
+   "Liabilities exceed assets but the protocol classifies as solvent or unproven."
+   :protocol-mechanisms [:solvency-classification :accounting-check]
+   :stakeholder-impact "Claimants are promised repayment the protocol cannot fulfil."}
+
+  {:failure/id :commitment-broken
+   :failure/name "Broken commitment chain"
+   :failure/summary
+   "The cryptographic commitment chain has a gap or mismatch, preventing proof of solvency."
+   :protocol-mechanisms [:commitment-chain :state-hashing]
+   :stakeholder-impact "Even if solvent, the protocol cannot prove it to verifiers."}
+
+  {:failure/id :solvency-misclassification
+   :failure/name "Solvency misclassification"
+   :failure/summary
+   "The solvency status does not match the actual asset-to-liability ratio."
+   :protocol-mechanisms [:classification-engine :solvency-invariants]
+   :stakeholder-impact "Wrong status leads to wrong actions by claimants or operators."}
+
+  {:failure/id :unprovable-solvency
+   :failure/name "Unprovable solvency"
+   :failure/summary
+   "The protocol is solvent but cannot produce a valid cryptographic proof due to missing commitments."
+   :protocol-mechanisms [:commitment-generation :evidence-capture]
+   :stakeholder-impact "Solvency cannot be demonstrated to auditors or counterparties."}]
+
+ :concept/metrics
+ {:solvency-status
+  {:description "Current solvency tier (solvent, insolvent, unproven, proof-invalid, proof-state-mismatch)."
+   :source :derived-from-world-state}
+  :solvency-ratio
+  {:description "Ratio of total assets to total liabilities."
+   :source :derived-from-protocol-metrics}
+  :commitment-chain-length
+  {:description "Number of linked state commitments in the chain."
+   :source :derived-from-world-state}
+  :insolvency-episode-count
+  {:description "Number of times the protocol entered :insolvent status."
+   :source :derived-from-trace}}
+
+ :concept/assumptions
+ ["Assets and liabilities are measurable from protocol state alone."
+  "The commitment chain is append-only and cannot be rewritten."
+  "Solvency status is computed deterministically from world state."
+  "Concept labels do not change protocol validity."]
+
+ :concept/out-of-scope
+ ["Real-world balance sheet accounting or GAAP/IFRS standards."
+  "Credit ratings, default risk, or creditworthiness assessment."
+  "Off-chain assets or liabilities not visible to the protocol."]}

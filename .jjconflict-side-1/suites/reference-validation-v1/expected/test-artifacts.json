@@ -1,0 +1,91 @@
+{
+  "schema_version": "test-artifacts.v1.2",
+  "contract_version": "evidence-contract.v1",
+  "run_id": "20260809-173139",
+  "generated_at": "2026-08-09T17:31:39.751949+00:00",
+  "generator": {
+    "name": "artifact-registry-emitter",
+    "version": "v1.2"
+  },
+  "root_dir": "/home/user/Code/.workspaces/agent-c/suites/reference-validation-v1/actual",
+  "artifacts": [
+    {
+      "id": "test-summary",
+      "kind": "summary",
+      "path": "results/test-artifacts/test-summary.json",
+      "importance": "CORE",
+      "schema_version": "test-summary.v2",
+      "contract_version": "evidence-contract.v1",
+      "producer": "summary-emitter.v1",
+      "verifies_against": [
+        "test-run.v1",
+        "projection.v1"
+      ],
+      "dependencies": [
+        {
+          "id": "test-run",
+          "sha256": "309ef83352723b850fb54f6a3c950300f7902281617aec5f3ceb7beaff88a83f"
+        }
+      ],
+      "sha256": "8ed013437042e41d495b584ce542433d0ec81b3980c8b41dc085965bb2bdfa50",
+      "bytes": 304,
+      "mtime_utc": "2026-08-07T22:23:05.588273+00:00"
+    },
+    {
+      "id": "test-run",
+      "kind": "run-manifest",
+      "path": "results/test-artifacts/test-run.json",
+      "importance": "CORE",
+      "schema_version": "test-run.v1",
+      "contract_version": "evidence-contract.v1",
+      "producer": "test-run-emitter.v1",
+      "verifies_against": [],
+      "dependencies": [],
+      "sha256": "309ef83352723b850fb54f6a3c950300f7902281617aec5f3ceb7beaff88a83f",
+      "bytes": 413,
+      "mtime_utc": "2026-08-07T22:23:05.589273+00:00"
+    },
+    {
+      "id": "theory-eval",
+      "kind": "theory-eval",
+      "path": "results/test-artifacts/theory-eval.json",
+      "importance": "CORE",
+      "schema_version": "theory-eval.v1",
+      "contract_version": "evidence-contract.v1",
+      "producer": "theory-eval-emitter.v1",
+      "verifies_against": [
+        "test-summary.v2"
+      ],
+      "dependencies": [
+        {
+          "id": "test-summary",
+          "sha256": "8ed013437042e41d495b584ce542433d0ec81b3980c8b41dc085965bb2bdfa50"
+        }
+      ],
+      "sha256": "9fe69141262a6004d7c726de04ab0be05f69fddde76eb20d1e43560dc81565ac",
+      "bytes": 331,
+      "mtime_utc": "2026-08-09T17:30:24.600517+00:00"
+    },
+    {
+      "id": "evidence-registry",
+      "kind": "evidence-registry",
+      "path": "results/test-artifacts/evidence-registry.json",
+      "importance": "CORE",
+      "schema_version": "evidence-registry.v1",
+      "contract_version": "evidence-contract.v1",
+      "producer": "simulation-engine.v1",
+      "verifies_against": [
+        "test-run.v1"
+      ],
+      "dependencies": [
+        {
+          "id": "test-run",
+          "sha256": "309ef83352723b850fb54f6a3c950300f7902281617aec5f3ceb7beaff88a83f"
+        }
+      ],
+      "sha256": "5e7717d7d29fd777c0344cee4c791ae77d4939bfa91295ef39640d56f1c985f6",
+      "bytes": 11674,
+      "mtime_utc": "2026-08-09T17:30:24.602517+00:00"
+    }
+  ]
+}

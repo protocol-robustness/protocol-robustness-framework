@@ -1,0 +1,4 @@
+{:authority/id :authority/decaying-oversight
+ :fraud-detection-probability 0.05
+ :reversal-detection-probability 0.10
+ :slashing-delay-blocks 100}

@@ -1,0 +1,9 @@
+{
+  "id": "map-a-1",
+  "description": "Map {:a 1}",
+  "input": "{:a 1}",
+  "canonical_bytes_hex": "31012201611002",
+  "domain_tag": "EVIDENCE_RECORD_V1",
+  "domain_tag_hex": "45564944454e43455f5245434f52445f5631",
+  "hash_hex": "6b2114307d6e6f73bf215f32740f862dadf82a93b8e1bd38a9a3f75dbbb4a90a"
+}

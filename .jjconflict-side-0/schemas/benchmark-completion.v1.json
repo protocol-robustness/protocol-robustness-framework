@@ -1,0 +1,67 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sew-protocol/schemas/benchmark-completion-v1.json",
+  "title": "Benchmark Completion v1",
+  "description": "Terminal lifecycle state for a benchmark bundle. Written last; confirms finalization, registry, and validation commitments.",
+  "type": "object",
+  "required": ["schema_version", "benchmark_id", "run_id", "run_type",
+               "lifecycle_status", "semantic_status",
+               "finalization_ref", "finalization_sha256", "final_ref",
+               "input_set_root",
+               "artifact_registry_ref", "artifact_registry_sha256",
+               "registry_validation_ref", "registry_validation_sha256"],
+  "properties": {
+    "schema_version": {
+      "const": "benchmark-completion.v1",
+      "description": "Must be exactly 'benchmark-completion.v1'"
+    },
+    "benchmark_id": { "type": "string", "minLength": 1 },
+    "run_id": { "type": "string", "minLength": 1 },
+    "run_type": {
+      "const": "benchmark",
+      "description": "Must be exactly 'benchmark'"
+    },
+    "lifecycle_status": {
+      "const": "completed",
+      "description": "Must be exactly 'completed'"
+    },
+    "semantic_status": {
+      "type": "string",
+      "enum": ["pass", "fail", "inconclusive"],
+      "description": "Outcome of the benchmark conclusion"
+    },
+    "finalization_ref": {
+      "type": "string",
+      "const": "benchmark/finalization.json"
+    },
+    "finalization_sha256": {
+      "type": "string",
+      "pattern": "^sha256:[a-f0-9]{64}$"
+    },
+    "final_ref": {
+      "type": "string",
+      "pattern": "^sha256:[a-f0-9]{64}$"
+    },
+    "input_set_root": {
+      "type": "string",
+      "pattern": "^sha256:[a-f0-9]{64}$"
+    },
+    "artifact_registry_ref": {
+      "type": "string",
+      "const": "manifest/artifacts.json"
+    },
+    "artifact_registry_sha256": {
+      "type": "string",
+      "pattern": "^sha256:[a-f0-9]{64}$"
+    },
+    "registry_validation_ref": {
+      "type": "string",
+      "const": "manifest/artifacts-validation.json"
+    },
+    "registry_validation_sha256": {
+      "type": "string",
+      "pattern": "^sha256:[a-f0-9]{64}$"
+    }
+  },
+  "additionalProperties": false
+}

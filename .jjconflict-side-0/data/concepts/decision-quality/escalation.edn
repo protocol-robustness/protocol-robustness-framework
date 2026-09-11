@@ -1,0 +1,121 @@
+{:concept/id :consensus/escalation
+ :concept/type :decision-quality
+ :concept/layer :stakeholder
+ :concept/name "Consensus escalation"
+ :concept/summary
+ "Could a party challenge an adverse decision? Escalation paths —
+  appeal, challenge, governance override — provide a check on the
+  initial decider. Availability, cost, and timeliness of escalation
+  determine whether it is a meaningful safeguard."
+
+ :concept/stakeholder-question
+ "If a party disagrees with a decision, is there a practical path to
+  challenge it, or is escalation unavailable, too costly, or too late?"
+
+ :concept/protocols #{:protocol/sew-v1 :protocol/prf}
+
+ :concept/roles
+ {:escalation-initiator
+  {:description "Party that triggers the escalation."
+   :maps-to [:protocol.actor/sender :protocol.actor/recipient]}
+  :escalation-decider
+  {:description "Entity that rules on the escalated dispute."
+   :maps-to [:protocol.actor/resolver :protocol.actor/resolution-module]}
+  :escalation-gatekeeper
+  {:description "Entity that controls whether escalation is available."
+   :maps-to [:protocol.actor/governance]}}
+
+ :concept/entities
+ {:appeal
+  {:description "Request for a higher authority to review a decision."
+   :maps-to [:protocol.entity/appeal]}
+  :escalation-bond
+  {:description "Economic stake required to initiate escalation."
+   :maps-to [:protocol.entity/bond]}
+  :escalation-deadline
+  {:description "Time window within which escalation must be initiated."
+   :maps-to [:protocol.entity/deadline]}}
+
+ :concept/actions
+ {:initiate-escalation
+  {:description "File an appeal or challenge against a decision."
+   :maps-to [:protocol.action/appeal :protocol.action/escalate :protocol.action/challenge-resolution]}
+  :post-bond
+  {:description "Deposit economic stake required for escalation."
+   :maps-to [:protocol.action/post-bond]}
+  :rule-on-escalation
+  {:description "Issue a decision on the escalated dispute."
+   :maps-to [:protocol.action/resolve-appeal :protocol.action/settle]}
+  :waive-escalation
+  {:description "Choose not to escalate within the available window."
+   :maps-to [:protocol.action/timeout :protocol.action/accept-split]}}
+
+ :concept/outcomes
+ {:escalation-processed
+  {:description "Escalation was initiated and a higher authority ruled."
+   :maps-to [:protocol.outcome/appealed]}
+  :escalation-unavailable
+  {:description "No escalation path existed or was configured."
+   :maps-to [:protocol.outcome/resolved]}
+  :escalation-economically-inaccessible
+  {:description "Escalation existed but bond cost made it impractical."
+   :maps-to [:protocol.outcome/stuck]}
+  :escalation-expired
+  {:description "Escalation window closed without action."
+   :maps-to [:protocol.outcome/timeout]}
+  :escalation-rejected
+  {:description "Escalation was filed but rejected as invalid or untimely."
+   :maps-to [:protocol.outcome/rejected]}}
+
+ :concept/failure-modes
+ [{:failure/id :escalation-unconfigured
+   :failure/name "Escalation path not configured"
+   :failure/summary
+   "No escalation mechanism was set up, making the initial decision effectively final regardless of merit."
+   :protocol-mechanisms [:resolution-module :appeal-config :governance]
+   :stakeholder-impact "Parties have no recourse against a flawed decision."}
+
+  {:failure/id :bond-prohibitively-high
+   :failure/name "Escalation bond prohibitively high"
+   :failure/summary
+   "The economic stake required for escalation exceeds the value at stake or the party's capacity."
+   :protocol-mechanisms [:bonding :appeal :economic-access]
+   :stakeholder-impact "Escalation exists in name only — economically inaccessible."}
+
+  {:failure/id :escalation-deadline-too-short
+   :failure/name "Escalation deadline too short"
+   :failure/summary
+   "The time window for escalation was too brief for a party to prepare and file."
+   :protocol-mechanisms [:appeal-deadline :time-config]
+   :stakeholder-impact "Parties lose escalation rights by procedural timing."}
+
+  {:failure/id :escalation-ignored
+   :failure/name "Escalation filed but not processed"
+   :failure/summary
+   "A valid escalation was submitted but never reviewed or settled."
+   :protocol-mechanisms [:appeal-resolution :resolver-availability :capacity]
+   :stakeholder-impact "Escalation provides no benefit despite being available."}]
+
+ :concept/metrics
+ {:escalation-available
+  {:description "Whether any escalation path was configured."
+   :source :derived-from-trace}
+  :escalation-used
+  {:description "Whether escalation was actually initiated."
+   :source :derived-from-trace}
+  :bond-cost-ratio
+  {:description "Ratio of escalation bond to disputed value."
+   :source :derived-from-protocol-metrics}
+  :escalation-window
+  {:description "Duration of the escalation deadline in blocks."
+   :source :derived-from-trace}}
+
+ :concept/assumptions
+ ["Escalation paths are protocol-level mechanisms with configurable parameters."
+  "Bond costs are known from protocol state at the time of escalation."
+  "Concept labels do not change protocol validity."]
+
+ :concept/out-of-scope
+ ["Real-world appellate procedure or court systems."
+  "Party solvency or ability to post bond."
+  "Social or political barriers to escalation."]}

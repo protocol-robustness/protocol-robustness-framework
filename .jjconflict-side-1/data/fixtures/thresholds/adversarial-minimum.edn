@@ -1,0 +1,4 @@
+{:threshold/id :thresholds/adversarial-minimum
+ :solvency :strict
+ :max-resolver-profit-ev 0.15 ;; Higher allowed profit due to decay
+ :min-detection-rate 0.01}

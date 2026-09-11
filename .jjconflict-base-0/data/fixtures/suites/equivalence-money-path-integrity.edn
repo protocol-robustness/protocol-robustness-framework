@@ -1,0 +1,12 @@
+{:suite/id       :suites/equivalence-money-path-integrity
+ :suite/title    "Equivalence Money Path Integrity"
+ :suite/purpose  "Verify force-refund terminal path integrity and escalation supersession over pending settlement paths."
+ :suite/prevents "Illegal post-refund release paths and stale pending-settlement execution after escalation."
+ :suite/class    :economic
+ :suite/criticality :high
+
+ :protocol   :protocol/baseline
+ :state      :states/minimal-world
+ :thresholds :thresholds/strict-baseline
+ :traces [:traces/s64-force-refund-then-illegal-release-attempt
+          :traces/s65-escalation-supersedes-old-pending-then-old-path-attempt]}

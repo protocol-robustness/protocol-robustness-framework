@@ -1,0 +1,282 @@
+[
+  {
+    "case_id": "claim-scope-metadata-001",
+    "kind": "bundle",
+    "path": "valid/claim-scope-metadata-001.json",
+    "expected_status": "pass",
+    "expected_issue_codes": [],
+    "claimable": true,
+    "required_verifiers": [
+      "clojure",
+      "python",
+      "js"
+    ]
+  },
+  {
+    "case_id": "bound-registry-root-001",
+    "kind": "bundle",
+    "path": "valid/bound-registry-root-001.json",
+    "expected_status": "pass",
+    "expected_issue_codes": [],
+    "claimable": true,
+    "required_verifiers": [
+      "clojure",
+      "python",
+      "js"
+    ]
+  },
+  {
+    "case_id": "claim-metadata-outside-parity-001",
+    "kind": "bundle",
+    "path": "valid/claim-metadata-outside-parity-001.json",
+    "expected_status": "pass",
+    "expected_issue_codes": [],
+    "claimable": true,
+    "required_verifiers": [
+      "clojure",
+      "python",
+      "js"
+    ]
+  },
+  {
+    "case_id": "duplicate-key-001",
+    "kind": "bundle",
+    "path": "invalid/duplicate-key-001.json",
+    "expected_status": "reject",
+    "expected_issue_codes": [
+      "duplicate-json-key"
+    ],
+    "claimable": false,
+    "required_verifiers": [
+      "clojure",
+      "python",
+      "js"
+    ]
+  },
+  {
+    "case_id": "unicode-lookalike-001",
+    "kind": "bundle",
+    "path": "invalid/unicode-lookalike-001.json",
+    "expected_status": "reject",
+    "expected_issue_codes": [
+      "derived-claim-mismatch"
+    ],
+    "claimable": false,
+    "required_verifiers": [
+      "clojure",
+      "python",
+      "js"
+    ]
+  },
+  {
+    "case_id": "number-mode-001",
+    "kind": "bundle",
+    "path": "invalid/number-mode-001.json",
+    "expected_status": "reject",
+    "expected_issue_codes": [],
+    "claimable": false,
+    "required_verifiers": [
+      "clojure",
+      "python",
+      "js"
+    ]
+  },
+  {
+    "case_id": "omitted-vs-null-001",
+    "kind": "bundle",
+    "path": "invalid/omitted-vs-null-001.json",
+    "expected_status": "reject",
+    "expected_issue_codes": [
+      "derived-claim-mismatch"
+    ],
+    "claimable": false,
+    "required_verifiers": [
+      "clojure",
+      "python",
+      "js"
+    ]
+  },
+  {
+    "case_id": "cross-envelope-env-mismatch-001",
+    "kind": "bundle",
+    "path": "invalid/cross-envelope-env-mismatch-001.json",
+    "expected_status": "reject",
+    "expected_issue_codes": [
+      "environment-root-disagreement"
+    ],
+    "claimable": false,
+    "required_verifiers": [
+      "clojure",
+      "python",
+      "js"
+    ]
+  },
+  {
+    "case_id": "wrong-root-valid-contents-001",
+    "kind": "bundle",
+    "path": "invalid/wrong-root-valid-contents-001.json",
+    "expected_status": "reject",
+    "expected_issue_codes": [
+      "reconciliation-not-reproducible"
+    ],
+    "claimable": false,
+    "required_verifiers": [
+      "clojure"
+    ]
+  },
+  {
+    "case_id": "unexpected-receipt-001",
+    "kind": "bundle",
+    "path": "invalid/unexpected-receipt-001.json",
+    "expected_status": "reject",
+    "expected_issue_codes": [
+      "unexpected-receipt"
+    ],
+    "claimable": false,
+    "required_verifiers": [
+      "clojure"
+    ]
+  },
+  {
+    "case_id": "wrong-domain-001",
+    "kind": "crypto",
+    "path": "crypto/wrong-domain-001.json",
+    "expected_status": "reject",
+    "expected_issue_codes": [],
+    "claimable": false,
+    "required_verifiers": [
+      "clojure",
+      "js"
+    ]
+  },
+  {
+    "case_id": "effective-boundary-revoked-001",
+    "kind": "crypto",
+    "path": "crypto/effective-boundary-revoked-001.json",
+    "expected_status": "reject",
+    "expected_issue_codes": [],
+    "claimable": false,
+    "required_verifiers": [
+      "clojure",
+      "js"
+    ]
+  },
+  {
+    "case_id": "effective-boundary-active-001",
+    "kind": "crypto",
+    "path": "crypto/effective-boundary-active-001.json",
+    "expected_status": "pass",
+    "expected_issue_codes": [],
+    "claimable": true,
+    "required_verifiers": [
+      "clojure",
+      "js"
+    ]
+  },
+  {
+    "case_id": "json-root-only-tampered-001",
+    "kind": "bundle",
+    "path": "invalid/json-root-only-tampered-001.json",
+    "expected_status": "reject",
+    "expected_issue_codes": [
+      "claim-json-root-mismatch"
+    ],
+    "claimable": false,
+    "required_verifiers": [
+      "clojure",
+      "python",
+      "js"
+    ]
+  },
+  {
+    "case_id": "missing-reconciliation-root-001",
+    "kind": "bundle",
+    "path": "invalid/missing-reconciliation-root-001.json",
+    "expected_status": "reject",
+    "expected_issue_codes": [
+      "reconciliation-not-reproducible"
+    ],
+    "claimable": false,
+    "required_verifiers": [
+      "clojure",
+      "python",
+      "js"
+    ]
+  },
+  {
+    "case_id": "unauthorised-kind-001",
+    "kind": "crypto",
+    "path": "crypto/unauthorised-kind-001.json",
+    "expected_status": "reject",
+    "expected_issue_codes": [],
+    "claimable": false,
+    "required_verifiers": [
+      "clojure",
+      "js"
+    ]
+  },
+  {
+    "case_id": "revoked-key-001",
+    "kind": "crypto",
+    "path": "crypto/revoked-key-001.json",
+    "expected_status": "reject",
+    "expected_issue_codes": [],
+    "claimable": false,
+    "required_verifiers": [
+      "clojure",
+      "js"
+    ]
+  },
+  {
+    "case_id": "wrong-preimage-001",
+    "kind": "crypto",
+    "path": "crypto/wrong-preimage-001.json",
+    "expected_status": "reject",
+    "expected_issue_codes": [],
+    "claimable": false,
+    "required_verifiers": [
+      "clojure",
+      "js"
+    ]
+  },
+  {
+    "case_id": "unknown-algorithm-001",
+    "kind": "crypto",
+    "path": "crypto/unknown-algorithm-001.json",
+    "expected_status": "reject",
+    "expected_issue_codes": [],
+    "claimable": false,
+    "required_verifiers": [
+      "clojure",
+      "js"
+    ]
+  },
+  {
+    "case_id": "claim-mode-not-evaluated-001",
+    "kind": "bundle",
+    "path": "invalid/claim-mode-not-evaluated-001.json",
+    "expected_status": "reject",
+    "expected_issue_codes": [],
+    "claimable": false,
+    "required_verifiers": [
+      "clojure",
+      "python",
+      "js"
+    ]
+  },
+  {
+    "case_id": "missing-root-permissive-001",
+    "kind": "bundle",
+    "path": "invalid/missing-root-permissive-001.json",
+    "expected_status": "reject",
+    "expected_issue_codes": [
+      "reconciliation-not-reproducible"
+    ],
+    "claimable": false,
+    "required_verifiers": [
+      "clojure",
+      "python",
+      "js"
+    ]
+  }
+]

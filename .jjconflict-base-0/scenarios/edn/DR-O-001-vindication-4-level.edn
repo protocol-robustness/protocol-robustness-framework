@@ -1,0 +1,61 @@
+{:scenario-id "dr-o-001-vindication-4-level"
+ :schema-version "1.0"
+ :allow-open-disputes? true
+ :purpose "adversarial-robustness"
+ :title "Multi-level vindication: 4-level ladder with no re-vindication drift"
+  :description "4-level escalation ladder (L0→L1→L2→L3). L0 rules release. L1 reverses to refund (L0 auto-slashed at reversal level 0). L2 reverses to release (L1 auto-slashed at reversal level 1; L0 vindicated). L3 reverses to refund (L2 auto-slashed at reversal level 2; L1 vindicated). Verifies that: L0 vindicated exactly once (not duplicated), L1 subsequently vindicated by L3, L2 stays penalized as the lowest reversing resolver, L3 not penalized (final level), no duplicate credits or slashes across levels."
+ :provenance {:author "@dispute-researcher" :created-at "2026-07-01" :license "CC-BY-4.0"}
+ :claim {:id "multi-level-vindication-stability"
+         :statement "In a 4-level ladder with alternating reversals, each resolver is vindicated exactly once by a higher level that agrees with them. No duplicate credits or slashes occur. Only the lowest reversing resolver who was not themselves vindicated retains their slash."
+         :falsifies-if ["L0 is vindicated more than once"
+                        "L2 does not receive a slash (L2 reversed L1, should be slashed when L3 reverses L2)"
+                        "L3 receives a slash (L3 is final level)"
+                        "Duplicate vindication credits appear"
+                        "L2 slash is reversed without appeal (no higher level agreed with L2)"]}
+ :expected/final
+ {:L0 {:vindicated? true :slash-reversed? true}
+  :L1 {:slashed? true :vindicated? false}   ;; L1 reversed L0, L3 agreed with L1 — should L1 be vindicated?
+  :L2 {:slashed? true :vindicated? false}   ;; L2 reversed L1, L3 reversed L2 — L2 stays penalized
+  :L3 {:slashed? false}}
+ :expectations {:terminal-state "refunded"
+                :must-hold ["slashable_liability_preserved" "resolver_decision_attributable" "appeal_reversal_detectable"]
+                :metrics {:l0_slash_status {:eq :reversed-with-credit}
+                          :l1_slash_status {:eq :reversed-with-credit}  ;; L3 agreed with L1
+                          :l2_slash_status {:eq :executed}              ;; L3 reversed L2, no higher level agrees
+                          :l3_slash_count {:eq 0}
+                          :vindication_events {:eq 2}}}  ;; L0 by L2, L1 by L3
+ :expected/invariants
+ [:stake/non-negative
+  :slash/requested-equals-debited-plus-unmet-plus-reversed
+  :resolver/balances-conserved]
+ :threat {:family "economic-fairness" :attack "multi-level-vindication-drift" :severity "high"
+          :actors ["l0resolver" "l1resolver" "l2resolver"]
+          :assumptions ["Vindication fix applies at all levels" "No duplicate credit or slash creation"]}
+ :accounting {:unit "USDC" :decimals 6 :tracked-balances ["buyer" "seller" "l0resolver" "l1resolver" "l2resolver" "l3resolver" "protocol" "slashPool"]}
+ :initial-block-time 1000
+ :protocol-params {:resolver-fee-bps 150 :appeal-window-duration 120 :max-dispute-duration 2592000
+                   :reversal-slash-bps 2500
+                   :dispute-resolver "0xl0"
+                   :escalation-resolvers {:0 "0xl0" :1 "0xl1" :2 "0xl2" :3 "0xl3"}}
+ :agents [{:id "buyer" :address "0xbuyer" :strategy "honest"}
+          {:id "seller" :address "0xseller" :strategy "honest"}
+          {:id "l0resolver" :address "0xl0" :role "resolver" :stake 10000}
+          {:id "l1resolver" :address "0xl1" :role "resolver" :stake 10000}
+          {:id "l2resolver" :address "0xl2" :role "resolver" :stake 10000}
+          {:id "l3resolver" :address "0xl3" :role "resolver" :stake 10000}
+          {:id "keeper" :address "0xkeeper" :role "keeper"}]
+ :events [{:seq 0 :time 1000 :agent "l0resolver" :action "register_stake" :params {:amount 10000}}
+          {:seq 1 :time 1000 :agent "l1resolver" :action "register_stake" :params {:amount 10000}}
+          {:seq 2 :time 1000 :agent "l2resolver" :action "register_stake" :params {:amount 10000}}
+          {:seq 3 :time 1000 :agent "l3resolver" :action "register_stake" :params {:amount 10000}}
+          {:seq 4 :time 1000 :agent "buyer" :action "create_escrow" :params {:token "USDC" :to "0xseller" :amount 5000}}
+          {:seq 5 :time 1060 :agent "buyer" :action "raise_dispute" :params {:workflow-id 0}}
+          ;; L0 rules: release
+          {:seq 6 :time 1100 :agent "l0resolver" :action "execute_resolution" :params {:workflow-id 0 :is-release true :resolution-hash "0xl0release"}}
+           ;; L1 reverses to refund — Track 1 on L0 (reversal level 0, executed)
+           {:seq 7 :time 1150 :agent "l1resolver" :action "execute_resolution" :params {:workflow-id 0 :is-release false :resolution-hash "0xl1refund"}}
+           ;; L2 reverses to release — Track 1 on L1 (reversal level 1, executed); L0 vindicated
+           {:seq 8 :time 1200 :agent "l2resolver" :action "execute_resolution" :params {:workflow-id 0 :is-release true :resolution-hash "0xl2release"}}
+           ;; L3 reverses to refund — Track 1 on L2 (reversal level 2, executed); L1 vindicated
+          ;; L3 is final round — resolution executes immediately
+          {:seq 9 :time 1250 :agent "l3resolver" :action "execute_resolution" :params {:workflow-id 0 :is-release false :resolution-hash "0xl3refund"}}]}

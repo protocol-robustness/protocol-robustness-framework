@@ -1,0 +1,11 @@
+{:suite/id :suites/timelock-regression
+ :suite/title "Timelock multi-escalation regression"
+ :suite/purpose "Verify that multiple escalations cannot happen in the same block, preventing atomicity attacks on resolution layers."
+ :suite/prevents "Resolution spamming and authority skipping."
+ :suite/class :ordering
+ :suite/criticality :high
+
+ :protocol :protocol/baseline
+ :state    :states/minimal-world
+ :thresholds :thresholds/strict-baseline
+ :traces [:traces/timelock-regression]}

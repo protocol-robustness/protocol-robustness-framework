@@ -1,0 +1,66 @@
+{"schema-version" "mechanism-map.v1"
+ "mechanism-map/id" "mechanism-map/shortfall-v1"
+ "mechanism-map/version" "mechanism-map.shortfall.v1"
+ "mechanism-map/description" "Shortfall-allocation mechanisms for PRF researcher-facing derived evidence."
+ "mechanisms"
+ [{"mechanism/id" "mechanism/partial-fill"
+   "mechanism/name" "Partial fill"
+   "mechanism/domain" "mechanism.domain/allocation"
+   "mechanism/version" "v1"
+   "concept/ids" ["allocation/partial-fill"]
+   "required-sources"
+   [{"source" "claim/id"
+     "ids" ["allocation-complete"]}]}
+  {"mechanism/id" "mechanism/shortfall-detection"
+   "mechanism/name" "Shortfall detection"
+   "mechanism/domain" "mechanism.domain/allocation"
+   "mechanism/version" "v1"
+   "concept/ids" ["allocation/shortfall"]
+   "required-sources"
+   [{"source" "claim/id"
+     "ids" ["conservation"]}]}
+   {"mechanism/id" "mechanism/pro-rata-fairness"
+    "mechanism/name" "Pro-rata fairness"
+    "mechanism/domain" "mechanism.domain/allocation"
+    "mechanism/version" "v1"
+    "concept/ids" ["allocation/pro-rata-fairness"]
+    "required-sources"
+    [{"source" "claim/id"
+      "ids" ["pro-rata-fairness"]}]}
+   {"mechanism/id" "mechanism/redistribution-fairness"
+    "mechanism/name" "Redistribution fairness"
+    "mechanism/domain" "mechanism.domain/allocation"
+    "mechanism/version" "v1"
+    "concept/ids" ["allocation/pro-rata-fairness"]
+    "required-sources"
+    [{"source" "claim/id"
+      "ids" ["pro-rata-fairness"]}]}
+   {"mechanism/id" "mechanism/evidence-integrity"
+   "mechanism/name" "Evidence integrity"
+   "mechanism/domain" "mechanism.domain/assurance"
+   "mechanism/version" "v1"
+   "concept/ids" ["verifiable-assurance/forensic-confidence"]
+   "required-sources"
+   [{"source" "claim/id"
+     "ids" ["evidence-root-present"
+            "replay-result-present"
+            "scenario-hash-present"]}]}]
+ "scenario-applicability"
+ [{"scenario/id" "S-DR-043-payout-shortfall-deferred"
+   "mechanisms"
+   {"mechanism/partial-fill" "required"
+    "mechanism/shortfall-detection" "optional"
+    "mechanism/pro-rata-fairness" "optional"
+    "mechanism/evidence-integrity" "required"}}
+  {"scenario/id" "S103_negative-yield-shortfall-cascade"
+   "mechanisms"
+   {"mechanism/partial-fill" "not-applicable"
+    "mechanism/shortfall-detection" "required"
+    "mechanism/pro-rata-fairness" "optional"
+    "mechanism/evidence-integrity" "required"}}
+   {"scenario/id" "S104_resolver-stake-shortfall"
+    "mechanisms"
+    {"mechanism/partial-fill" "optional"
+     "mechanism/shortfall-detection" "optional"
+     "mechanism/pro-rata-fairness" "not-applicable"
+     "mechanism/evidence-integrity" "required"}}]}

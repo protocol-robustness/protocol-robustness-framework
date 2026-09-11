@@ -1,0 +1,59 @@
+{:scenario-id "dr-q-001-challenge-bounty-reversal"
+ :schema-version "1.0"
+ :allow-open-disputes? true
+ :purpose "adversarial-robustness"
+ :title "Challenge bounty on reversal slash: challenger receives bounty payment"
+ :description "L0 rules release. A challenger submits evidence identifying L0's ruling as erroneous. L1 reverses to refund (Track 1 auto-slash on L0). Because a challenger was recorded before the reversal, the challenger receives a bounty from the slash pool. Verifies: (a) challenger is recorded when evidence is submitted, (b) challenger bounty is paid from slash proceeds, (c) bounty does not exceed protocol-defined maximum, (d) challenger receives payment, not the caller/executor/keeper."
+ :provenance {:author "@dispute-researcher" :created-at "2026-07-01" :license "CC-BY-4.0"}
+ :claim {:id "challenge-bounty-reversal-correctness"
+         :statement "When a challenger submits evidence that an L0 ruling was erroneous, and L1 reverses L0 triggering a Track 1 reversal slash, the challenger receives a bounty from the slash proceeds. The bounty is bounded and paid to the challenger (not the caller or keeper)."
+         :falsifies-if ["Challenger does not receive bounty"
+                        "Bounty exceeds max bounty rate"
+                        "Bounty paid to keeper instead of challenger"
+                        "No challenger recorded despite evidence submission"
+                        "Slash pool is not debited correctly"]}
+ :expected/events
+ [:challenge/evidence-submitted
+  :reversal-slash/proposed
+  :reversal-slash/executed
+  :bounty/paid-to-challenger]
+ :expectations {:terminal-state "refunded"
+                :must-hold ["slashable_liability_preserved" "resolver_decision_attributable" "appeal_reversal_detectable"]
+                :metrics {:challenger_bounty_received? {:eq true}
+                          :challenger_bounty_amount {:gt 0}
+                          :bounty_recipient {:eq "0xchallenger"}
+                          :no_bounty_to_keeper {:eq true}
+                          :bounty_within_max {:eq true}}}
+ :expected/invariants
+ [:bounty/no-overpayment
+  :slash/requested-equals-debited-plus-unmet-plus-reversed
+  :resolver/balances-conserved]
+ :threat {:family "economic-incentives" :attack "challenge-bounty-reversal" :severity "high"
+          :actors ["challenger" "protocol"]
+          :assumptions ["Challenger recorded when evidence is submitted"
+                       "Bounty paid from slash pool on reversal"
+                       "Bounty bounded by max bounty rate"]}
+ :accounting {:unit "USDC" :decimals 6 :tracked-balances ["buyer" "seller" "l0resolver" "l1resolver" "challenger" "keeper" "protocol" "slashPool"]}
+ :initial-block-time 1000
+ :protocol-params {:resolver-fee-bps 150 :appeal-window-duration 120 :max-dispute-duration 2592000
+                   :reversal-slash-bps 2500 :challenge-bounty-bps 500
+                   :dispute-resolver "0xl0"
+                   :escalation-resolvers {:0 "0xl0" :1 "0xl1"}}
+ :agents [{:id "buyer" :address "0xbuyer" :strategy "honest"}
+          {:id "seller" :address "0xseller" :strategy "honest"}
+          {:id "l0resolver" :address "0xl0" :role "resolver" :stake 10000}
+          {:id "l1resolver" :address "0xl1" :role "resolver" :stake 10000}
+          {:id "challenger" :address "0xchallenger" :role "challenger"}
+          {:id "keeper" :address "0xkeeper" :role "keeper"}]
+ :events [{:seq 0 :time 1000 :agent "l0resolver" :action "register_stake" :params {:amount 10000}}
+          {:seq 1 :time 1000 :agent "l1resolver" :action "register_stake" :params {:amount 10000}}
+          {:seq 2 :time 1000 :agent "buyer" :action "create_escrow" :params {:token "USDC" :to "0xseller" :amount 5000}}
+          {:seq 3 :time 1060 :agent "buyer" :action "raise_dispute" :params {:workflow-id 0}}
+          ;; L0 rules: release
+          {:seq 4 :time 1100 :agent "l0resolver" :action "execute_resolution" :params {:workflow-id 0 :is-release true :resolution-hash "0xl0release"}}
+          ;; Challenger submits evidence identifying L0 error
+          {:seq 5 :time 1120 :agent "challenger" :action "submit_evidence" :params {:workflow-id 0 :evidence-hash "0xchallenger-proof-of-error"}}
+          ;; L1 reverses to refund — Track 1 auto-slash on L0; challenger should receive bounty
+          {:seq 6 :time 1150 :agent "l1resolver" :action "execute_resolution" :params {:workflow-id 0 :is-release false :resolution-hash "0xl1refund"}}
+          ;; Execute pending settlement after window
+          {:seq 7 :time 1400 :agent "keeper" :action "execute_pending_settlement" :params {:workflow-id 0}}]}

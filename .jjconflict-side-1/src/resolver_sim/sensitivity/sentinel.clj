@@ -1,0 +1,735 @@
+(ns resolver-sim.sensitivity.sentinel
+  "Sensitivity sentinel: classification and enforcement layer for artifact
+   disclosure boundaries.
+
+   Implements SENSITIVITY_SENTINEL_SPEC_V1.
+
+   Usage:
+     (require '[resolver-sim.sensitivity.sentinel :as sentinel])
+
+     ;; Classify an artifact
+     (sentinel/classify artifact)
+
+     ;; Check if disclosure is allowed
+     (sentinel/disclosure-allowed? artifact :public-bundle)
+
+     ;; Assert (throws on block)
+     (sentinel/assert-export-allowed! artifact {:sink :ipfs})
+
+     ;; Full sentinel report
+     (sentinel/sentinel-report artifact :ipfs)"
+  (:require [clojure.set :as set]
+            [resolver-sim.hash.canonical :as hc])
+  (:import [java.time Instant]))
+
+;; ── Constants ────────────────────────────────────────────────────────────────
+
+(def ^:const sentinel-version "sensitivity-sentinel.v1")
+
+;; ── Sensitivity Levels (ordered: low → high) ────────────────────────────────
+
+(def levels
+  "Ordered vector of sensitivity levels (lowest to highest)."
+  [:sensitivity/public
+   :sensitivity/internal
+   :sensitivity/private
+   :sensitivity/embargoed
+   :sensitivity/critical-private])
+
+(def level-set (set levels))
+
+(def level-order
+  "Map from level keyword to position in the severity ordering."
+  (into {} (map-indexed (fn [i l] [l i]) levels)))
+
+(defn level-index
+  [level]
+  (get level-order level (count levels)))
+
+(defn level>=
+  "True if a is at least as sensitive as b (or higher)."
+  [a b]
+  (>= (level-index a) (level-index b)))
+
+(defn level>
+  "True if a is strictly more sensitive than b."
+  [a b]
+  (> (level-index a) (level-index b)))
+
+;; ── Sink Classes ────────────────────────────────────────────────────────────
+
+(def safe-sinks
+  #{:local :sealed-log :private-encrypted-bundle :sealed-private-workspace})
+
+(def low-risk-sinks
+  #{:encrypted-bundle :git-commit})
+
+(def medium-risk-sinks
+  #{:public-bundle :public-ci-artifact})
+
+(def high-risk-sinks
+  #{:ipfs :nostr-public-relay :on-chain-registry})
+
+(def public-sinks
+  "Sinks that result in public disclosure."
+  (set/union medium-risk-sinks high-risk-sinks))
+
+(def all-sinks
+  (set/union safe-sinks low-risk-sinks medium-risk-sinks high-risk-sinks))
+
+;; ── Authority mode by sink ──────────────────────────────────────────────────
+
+(def sink-policies
+  "Sink → required disclosure authority. A sink classified :remote requires
+   an out-of-process sentinel decision; :in-process sinks are served by the
+   local sentinel. Public sinks (medium + high risk) are remote-required."
+  (into {}
+        (concat
+         (map #(vector % :in-process) safe-sinks)
+         (map #(vector % :in-process) low-risk-sinks)
+         (map #(vector % :remote) medium-risk-sinks)
+         (map #(vector % :remote) high-risk-sinks))))
+
+(defn required-authority
+  "Return the disclosure authority required for a sink: :remote or :in-process.
+   Unknown sinks default to :remote (conservative)."
+  [sink]
+  (get sink-policies sink :remote))
+
+(defn remote-authority-required?
+  "True when a sink requires an out-of-process sentinel decision."
+  [sink]
+  (= :remote (required-authority sink)))
+
+(def remote-authority-required-artifact-kinds
+  "Artifact kinds that ALWAYS require an out-of-process sentinel authority,
+   regardless of the requested sink. Force-authorisation add-held evidence is
+   unpublished protocol evidence: local in-process authorization is FORBIDDEN
+   for it. Committed in the policy hash so the authority requirement is part of
+   the signed sentinel policy."
+  #{:force-auth-add-held :force-auth-add-held-summary})
+
+(def remote-authority-required-held-actions
+  "Held-custody mutation actions (:held/action values, keyword or string
+   spelling) that ALWAYS require an out-of-process sentinel authority, even
+   when the artifact kind is not itself in
+   `remote-authority-required-artifact-kinds`. Local in-process authorization
+   is FORBIDDEN for these actions.
+
+   This is the single source of truth for which held-custody actions are
+   remote-authority-required; extending the held-custody action vocabulary
+   must update this set (and the sentinel policy hash, which commits it via
+   `policy-hash`)."
+  #{:add-held "add-held"})
+
+(defn remote-authority-required-artifact?
+  "True when an artifact itself requires an out-of-process sentinel decision,
+   independent of the sink — local in-process authorization is forbidden.
+
+   Applies to force-authorisation add-held evidence artifact kinds
+   (:force-auth-add-held / :force-auth-add-held-summary) and to any artifact
+   carrying a held-custody mutation action from
+   `remote-authority-required-held-actions`."
+  [artifact]
+  (or (contains? remote-authority-required-artifact-kinds (:artifact/kind artifact))
+      (contains? remote-authority-required-held-actions (:held/action artifact))))
+
+;; ── Reason Codes ────────────────────────────────────────────────────────────
+
+(def reason-code-set
+  #{:contains-live-vulnerability
+    :potential-live-vulnerability
+    :contains-reproducible-exploit-path
+    :contains-protocol-identifier
+    :contains-counterparty-identifier
+    :contains-private-researcher-identity
+    :contains-unredacted-scenario
+    :contains-claim-result
+    :contains-attestation
+    :contains-unpublished-evidence
+    :contains-linkable-subject-hash
+    :contains-public-sink-reference
+    :contains-timing-metadata
+    :contains-force-auth-add-held
+    :contains-force-auth-add-held-summary
+    :cross/missing-hash-intent-ref
+    :cross/unregistered-hash-intent
+    :legacy-v1-operational-write-back-pass
+    :sensitivity-not-established
+    :unclassified-finding})
+
+;; ── Disclosure Matrix ───────────────────────────────────────────────────────
+
+(defn disclosure-allowed?
+  "Check if an artifact at the given sensitivity level may be sent to a sink.
+
+   Returns true if the movement is allowed by the disclosure matrix, false
+   if blocked.
+
+   Arguments:
+     level — sensitivity level keyword (e.g. :sensitivity/private)
+     sink  — sink keyword (e.g. :ipfs)
+
+   When level is unknown, defaults to :sensitivity/critical-private (blocked).
+   When sink is unknown, defaults to blocked (conservative)."
+  [level sink]
+  (let [effective-level (if (contains? level-set level) level :sensitivity/critical-private)]
+    (cond
+      ;; Safe sinks: all levels allowed
+      (contains? safe-sinks sink) true
+      ;; Low-risk sinks: public, internal allowed
+      (contains? low-risk-sinks sink)
+      (contains? #{:sensitivity/public :sensitivity/internal} effective-level)
+      ;; Public sinks (medium + high risk): only public allowed
+      (contains? public-sinks sink)
+      (= :sensitivity/public effective-level)
+      ;; Unknown sink: blocked
+      :else false)))
+
+;; ── Risk Severities ──────────────────────────────────────────────────────────
+
+(def risk-severities
+  "Ordered vector of risk severities (lowest to highest)."
+  [:risk-severity/low
+   :risk-severity/medium
+   :risk-severity/high
+   :risk-severity/critical])
+
+(def risk-severity-set (set risk-severities))
+
+(def risk-severity-order
+  (into {} (map-indexed (fn [i s] [s i]) risk-severities)))
+
+(defn risk-severity>=
+  "True if a is at least as severe as b (or higher)."
+  [a b]
+  (>= (get risk-severity-order a 0) (get risk-severity-order b 0)))
+
+;; ── Classification ───────────────────────────────────────────────────────────
+
+;; ── Evidence-Backed Classification ───────────────────────────────────────────
+
+(declare finding-reason-codes)
+
+(def ^:private finding-sensitivity
+  "rule-id → evidence sensitivity independently established by the finding, or
+   nil when the finding does NOT establish that sensitive material exists.
+
+   INVARIANT: a finding's fail-closed :level must not be read as evidence
+   sensitivity. Registry-integrity findings (missing/unregistered hash intent)
+   and the legacy operational write-back key are correctness/operational facts,
+   not evidence that private or unpublished material is present — hence nil
+   here, so they surface as :sensitivity/unknown rather than leaking into a
+   private/critical-private sensitivity bucket."
+  {:secret-scanner/private-key :sensitivity/private
+   :secret-scanner/credential-assignment :sensitivity/private
+   :secret-scanner/bearer-auth :sensitivity/internal
+   :secret-scanner/jwt-token :sensitivity/internal
+   :secret-scanner/github-token :sensitivity/internal
+   :secret-scanner/npm-token :sensitivity/internal
+   :cross/missing-hash-intent-ref nil
+   :cross/unregistered-hash-intent nil
+   :current-amount-write-back-verified? nil})
+
+(defn classify-from-findings
+  "Classify an artifact based on safety findings (evidence) from scanning.
+   
+   Maps finding rule IDs to sensitivity levels and reason codes.
+   Findings provide concrete evidence for the classification rather than
+   just structural heuristics.
+   
+   INVARIANT: a finding's fail-closed SEVERITY must not be read as asserting
+   that sensitive/unpublished material is present. `:sensitivity/critical-private`
+   is currently used as a fail-closed handling bucket for registry-integrity
+   findings (e.g. :cross/unregistered-hash-intent) purely because no finer
+   dimension exists yet. This overloads 'sensitivity' — the true model separates
+   the three dimensions {:classification <id> :severity <kw> :sensitivity :unknown}.
+   Until that split lands, the explicit :reasons code (not the level) is the
+   authoritative classification, and severity is fail-closed by policy, not by
+   evidence that private material exists.
+   
+   Arguments:
+     findings — vector of finding maps from sensitivity-findings
+                Each finding has :rule/id and :rule/version
+   
+   Returns {:level <kw> :sensitivity <kw> :reasons [<kw> ...]
+            :findings [<finding-ref> ...]}
+     :sensitivity is :sensitivity/unknown when the findings do not independently
+     establish that sensitive material exists; such results always carry an
+     explicit :sensitivity-not-established reason."
+  [findings]
+  (when (seq findings)
+    (let [highest-level (apply max-key
+                               level-index
+                               (map (fn [f]
+                                      (case (:rule/id f)
+                                        :secret-scanner/private-key :sensitivity/private
+                                        :secret-scanner/credential-assignment :sensitivity/private
+                                        :secret-scanner/bearer-auth :sensitivity/internal
+                                        :secret-scanner/jwt-token :sensitivity/internal
+                                        :secret-scanner/github-token :sensitivity/internal
+                                        :secret-scanner/npm-token :sensitivity/internal
+                                        ;; Registry-integrity findings. Explicit, fail-closed
+                                        ;; severity (the referenced intent is missing/not
+                                        ;; registered), but the REASON must not be manufactured
+                                        ;; as unpublished/private evidence.
+                                        :cross/missing-hash-intent-ref :sensitivity/critical-private
+                                        :cross/unregistered-hash-intent :sensitivity/critical-private
+                                        ;; Legacy v1 operational write-back key. Its documented
+                                        ;; meaning is the AGGREGATE operational write-back pass,
+                                        ;; NOT independent per-obligation verification (the
+                                        ;; corrected spelling is :current-write-back-operational-pass?).
+                                        ;; Classify it as a legacy operational-pass fact, not as
+                                        ;; unpublished/private evidence.
+                                        :current-amount-write-back-verified? :sensitivity/internal
+                                        ;; Unknown rule id: severity fails closed, but the reason
+                                        ;; is left as unclassified — an unrecognized ID does NOT
+                                        ;; imply unpublished/private evidence exists.
+                                        :sensitivity/critical-private))
+                                    findings))
+          established (keep (fn [f] (get finding-sensitivity (:rule/id f))) findings)
+          sensitivity (if (seq established)
+                        (apply max-key level-index established)
+                        :sensitivity/unknown)
+          reason-codes (->> findings
+                            (mapcat (fn [f] (finding-reason-codes (:rule/id f))))
+                            distinct vec)
+          ;; INVARIANT (executable): every result whose sensitivity is
+          ;; :sensitivity/unknown must carry an explicit reason explaining why
+          ;; sensitivity could not be established. Fail-closed severity is never
+          ;; promoted into an asserted sensitivity.
+          reason-codes (if (= :sensitivity/unknown sensitivity)
+                         (conj reason-codes :sensitivity-not-established)
+                         reason-codes)]
+      {:level highest-level
+       :sensitivity sensitivity
+       :reasons reason-codes
+       :findings (vec (map :finding/id findings))})))
+
+(defn finding-reason-codes
+  "Map a finding's rule ID to its reason code keywords.
+   Single source of truth — all evidence-backed classification paths
+   share this mapping."
+  [rule-id]
+  (case rule-id
+    :secret-scanner/private-key [:contains-live-vulnerability]
+    :secret-scanner/credential-assignment [:contains-unpublished-evidence]
+    :secret-scanner/bearer-auth [:contains-unpublished-evidence]
+    :secret-scanner/jwt-token [:contains-protocol-identifier]
+    :secret-scanner/github-token [:contains-linkable-subject-hash]
+    :secret-scanner/npm-token [:contains-linkable-subject-hash]
+    ;; Registry-integrity findings: explicit reason codes. These are taxonomy
+    ;; tags, not evidence claims; they must never collapse into
+    ;; :contains-unpublished-evidence.
+    :cross/missing-hash-intent-ref [:cross/missing-hash-intent-ref]
+    :cross/unregistered-hash-intent [:cross/unregistered-hash-intent]
+    ;; Legacy v1 operational write-back key. Meaning is the AGGREGATE operational
+    ;; write-back pass, NOT independent per-obligation verification. The corrected
+    ;; spelling is :current-write-back-operational-pass?. This tag must not be read
+    ;; as claiming verification occurred, nor as unpublished/private evidence.
+    :current-amount-write-back-verified? [:legacy-v1-operational-write-back-pass]
+    ;; Unknown rule id: signal the finding is unclassified. Do NOT assert
+    ;; :contains-unpublished-evidence — an unrecognized ID is not evidence that
+    ;; unpublished/private evidence exists. Severity still fails closed in
+    ;; classify-from-findings, but the reason must stay honest.
+    [:unclassified-finding]))
+
+(defn- evidence-backed-classification
+  "Attempt to classify based on evidence findings attached to the artifact.
+   Looks for :sensitivity/findings or :safety/findings keys.
+   
+   Arguments:
+     artifact — artifact map that may contain findings under :sensitivity/findings
+   
+   Returns {:level <kw> :reasons [<kw> ...]} or nil if no findings present."
+  [artifact]
+  (when-let [findings (or (seq (:sensitivity/findings artifact))
+                          (seq (:safety/findings artifact)))]
+    (classify-from-findings findings)))
+
+;; ── Classification ───────────────────────────────────────────────────────────
+
+(defn classify-structural
+  "Classify an artifact using structural heuristics only.
+   
+   Returns a sensitivity level based on artifact shape, ignoring any
+   declared :sensitivity/level metadata. Evidence-backed classification
+   (via safety findings) is preferred when available; structural heuristics
+   act as a conservative fallback when no evidence is present.
+   
+   See `classify` for the full list of rules."
+  [artifact]
+  (let [;; First try evidence-backed classification if findings are present
+        evidence-classification (evidence-backed-classification artifact)
+         ;; Evidence node: fail status
+        result-status (get-in artifact [:result :status])
+        failure-details (get-in artifact [:result :failure-details])
+         ;; Attestation presence
+        is-attestation (some? (:attestation/id artifact))
+        claim-result (:attestation/claim-result artifact)
+        claim-id (:attestation/claim-id artifact)
+         ;; Claim result
+        holds? (:holds? artifact)
+         ;; Evidence presence
+        has-attestations (seq (:attestations artifact))
+         ;; Provenance
+        provenance (:attestation/provenance artifact)
+        scenario-id (or (:scenario-id provenance)
+                        (:scenario-id artifact))
+         ;; Scenario content (unredacted)
+        scenario-events (seq (:events artifact))
+        scenario-agents (seq (:agents artifact))
+         ;; Subject
+        subject-kind (:attestation/subject-kind artifact)
+         ;; Bundle
+        bundle-kind (:bundle/kind artifact)]
+    (if evidence-classification
+      (:level evidence-classification)
+      (cond
+         ;; Critical: evidence node with failure details (reproducible issues)
+        (and (some? result-status) (seq failure-details))
+        :sensitivity/private
+
+         ;; Critical: attestation with claim-id (references a claim definition)
+        (and is-attestation claim-id)
+        :sensitivity/private
+
+         ;; Critical: attestation on claim subject (references a claim result)
+        (and is-attestation (= :claim subject-kind))
+        :sensitivity/private
+
+         ;; High: attestation (credible attributable statement)
+        is-attestation :sensitivity/internal
+
+         ;; High: evidence node with fail status
+        (= :fail result-status) :sensitivity/internal
+
+         ;; Medium: evidence with attestations attached
+        has-attestations :sensitivity/internal
+
+         ;; Medium: claim result with failed claim
+        (false? holds?) :sensitivity/internal
+
+         ;; Medium: passing claim result (no failure)
+        (true? holds?) :sensitivity/internal
+
+         ;; Medium: unredacted scenario content with events and agents
+        (and scenario-id scenario-events scenario-agents)
+        :sensitivity/private
+
+         ;; Medium: artifact with scenario provenance
+        scenario-id :sensitivity/internal
+
+         ;; Medium: bundle
+        bundle-kind :sensitivity/internal
+
+         ;; High: force-authorisation add-held evidence (unpublished protocol
+         ;; evidence; requires remote authority for any disclosure)
+        (contains? remote-authority-required-artifact-kinds (:artifact/kind artifact))
+        :sensitivity/private
+
+         ;; Default: conservative
+        :else :sensitivity/critical-private))))
+
+(defn classify
+  "Classify an artifact and return its sensitivity level.
+
+   Examines artifact content and structure using structural heuristics,
+   then applies any declared :sensitivity/level as a floor.
+
+   Structural heuristics (lowest to highest):
+   - Evidence nodes with :result :status :fail → at least :internal
+   - Evidence nodes with failure details → at least :private
+   - Attestations → at least :internal
+   - Attestations with claim results → at least :private
+   - Claim results with :holds? false → at least :internal
+   - Claim results with :holds? true (passing) → at least :internal
+   - Artifacts with :scenario-id + :events + :agents (unredacted scenario) → at least :private
+   - Artifacts with provenance + scenario-id → at least :internal
+   - Unredacted scenario content → at least :private
+   - Unknown structure → :critical-private (conservative default)
+
+   Declared metadata (respected as floor):
+   - If artifact carries :sensitivity/level, the result is at least that level
+   - If artifact carries :sensitivity/risk-meta with :risk-severity :critical,
+     override mode escalates to :multi-party-approval
+
+   Arguments:
+     artifact — any artifact map (attestation, evidence node, claim result, bundle)
+
+   Returns a sensitivity level keyword."
+  [artifact]
+  (let [structural (classify-structural artifact)
+        declared (:sensitivity/level artifact)]
+    (if (and declared (contains? level-set declared))
+      (if (level>= structural declared) structural declared)
+      structural)))
+
+;; ── Sentinel Report ─────────────────────────────────────────────────────────
+
+(defn policy-hash
+  "Compute a deterministic hash of the sentinel policy configuration.
+   Commits to the complete effective policy: version, level definitions,
+   sink set, sink→authority requirements, disclosure rules, override rules,
+   scanner/ruleset version, and risk-severity ordering. This is a public pure
+   function — no side effects."
+  []
+  (hc/hash-with-intent {:hash/intent :evidence-record}
+                       {:version sentinel-version
+                        :policy/id "sensitivity-sentinel-policy.v1"
+                        :levels levels
+                        :risk-severities risk-severities
+                        :sinks (vec (sort all-sinks))
+                        :sink-policies (vec (map vec (sort-by key sink-policies)))
+                        :disclosure-rules "level>=:public required for public-sinks"
+                        :authority-rules "remote authority required for public-sink set"
+                        :remote-authority-required-artifact-kinds
+                        (vec (sort remote-authority-required-artifact-kinds))
+                        :remote-authority-required-held-actions
+                        (vec (sort (map str remote-authority-required-held-actions)))
+                        :scanner "secret-scanner.v2"}))
+
+(def ^{:deprecated "0.1.0" :private true} compute-policy-hash
+  "Deprecated alias; use policy-hash instead."
+  policy-hash)
+
+(defn default-reasons
+  [level]
+  (case level
+    :sensitivity/public []
+    :sensitivity/internal [:contains-unpublished-evidence]
+    :sensitivity/private [:contains-unpublished-evidence :contains-attestation]
+    :sensitivity/embargoed [:contains-unpublished-evidence :contains-attestation
+                            :contains-timing-metadata]
+    :sensitivity/critical-private [:contains-unpublished-evidence :contains-attestation
+                                   :contains-reproducible-exploit-path]
+    [:contains-unpublished-evidence]))
+
+(def force-auth-artifact-kind->reason
+  "Map from force-authorisation evidence artifact kind to its sensitivity
+   reason code. Single source of truth for the add-held evidence vocabulary;
+   must stay in sync with `remote-authority-required-artifact-kinds`."
+  {:force-auth-add-held :contains-force-auth-add-held
+   :force-auth-add-held-summary :contains-force-auth-add-held-summary})
+
+(defn force-auth-evidence-reasons
+  "Specific reason codes for force-authorisation add-held evidence artifacts."
+  [artifact]
+  (if-let [reason (get force-auth-artifact-kind->reason (:artifact/kind artifact))]
+    [reason]
+    []))
+
+(defn effective-override-mode
+  "Determine the override mode for a given level and risk metadata.
+
+   Escalates to :multi-party-approval when:
+   - Level is :sensitivity/critical-private or higher, OR
+   - Risk meta contains :risk-severity :critical"
+  [level risk-meta]
+  (cond
+    (level>= level :sensitivity/critical-private) :multi-party-approval
+    (and risk-meta
+         (:risk-severity risk-meta)
+         (risk-severity>= (:risk-severity risk-meta) :risk-severity/critical))
+    :multi-party-approval
+    :else :single))
+
+(defn- declared-reasons
+  "Returns extra reason codes declared in the artifact's :sensitivity/risk-meta."
+  [artifact]
+  (vec (get-in artifact [:sensitivity/risk-meta :reason-codes] [])))
+
+(defn- finding-reasons
+  "Extract reason codes from safety findings attached to the artifact.
+   
+   Arguments:
+     artifact — artifact map with :sensitivity/findings or :safety/findings
+   
+   Returns vector of reason code keywords, or empty vector if no findings."
+  [artifact]
+  (let [findings (or (seq (:sensitivity/findings artifact))
+                     (seq (:safety/findings artifact)))]
+    (when findings
+      (vec (distinct (mapcat (fn [f]
+                               (finding-reason-codes (:rule/id f)))
+                             findings))))))
+
+(defn- extract-risk-meta
+  "Extract the risk metadata map from an artifact, if present."
+  [artifact]
+  (when-let [rm (:sensitivity/risk-meta artifact)]
+    (let [allowed-keys #{:value-at-risk :risk-severity :risk-vector}]
+      (select-keys rm allowed-keys))))
+
+(defn sentinel-report
+  "Produce a full sentinel report for an artifact and requested sink.
+   
+   Arguments:
+     artifact — artifact map to classify
+     sink     — requested sink keyword
+   
+   Returns the sentinel report map including:
+   - :sentinel/report-hash over structural fields (deterministic)
+   - :sentinel/declared-level if the artifact carried explicit metadata
+   - :sentinel/risk-meta if the artifact carried risk annotation
+   - Override mode may escalate to :multi-party-approval for :critical risk"
+  [artifact sink]
+  (let [level (classify artifact)
+        artifact-requires-remote? (remote-authority-required-artifact? artifact)
+        ;; This namespace is the in-process gate. Artifacts that are explicitly
+        ;; remote-authority-required must be decided by sentinel-client's
+        ;; signed out-of-process path, even when their destination is :local.
+        allowed? (and (not artifact-requires-remote?)
+                      (disclosure-allowed? level sink))
+        decision (if allowed? :allowed :blocked)
+        structural-level (classify-structural artifact)
+        declared-level (:sensitivity/level artifact)
+        risk-meta (extract-risk-meta artifact)
+        reasons (vec (distinct (concat (default-reasons level)
+                                       (declared-reasons artifact)
+                                       (finding-reasons artifact)
+                                       (force-auth-evidence-reasons artifact))))
+        allowed-sinks (vec (sort (filter #(disclosure-allowed? level %) all-sinks)))
+        input-kind (cond (:attestation/id artifact) :attestation-record
+                         (:node-hash artifact) :evidence-node
+                         (:holds? artifact) :claim-result
+                         (:bundle/kind artifact) :bundle
+                         :else :unknown)
+        input-hash (or (:attestation/id artifact)
+                       (:node-hash artifact)
+                       (:bundle/root-hash artifact)
+                       (hc/hash-with-intent {:hash/intent :evidence-record} artifact))
+        evidence-findings (some-> (or (seq (:sensitivity/findings artifact))
+                                      (seq (:safety/findings artifact)))
+                                  vec)
+        base-report {:sentinel/version sentinel-version
+                     :sentinel/policy-hash (compute-policy-hash)
+                     :sentinel/evaluated-at (str (Instant/now))
+                     :sentinel/input-kind input-kind
+                     :sentinel/input-hash input-hash
+                     :sentinel/requested-sink sink
+                     :sentinel/decision decision
+                     :sentinel/level level
+                     :sentinel/structural-level structural-level
+                     :sentinel/reasons reasons
+                     :sentinel/allowed-sinks allowed-sinks
+                     :sentinel/redaction-required? (level>= level :sensitivity/private)
+                     :sentinel/required-authority (if artifact-requires-remote?
+                                                    :remote
+                                                    (required-authority sink))
+                     :sentinel/override-required?
+                     {:required? (and (not allowed?)
+                                      (level>= level :sensitivity/private))
+                      :mode (effective-override-mode level risk-meta)}}
+        base-report (cond-> base-report
+                      declared-level (assoc :sentinel/declared-level declared-level)
+                      risk-meta (assoc :sentinel/risk-meta risk-meta
+                                       :sentinel/risk-meta-hash
+                                       (hc/hash-with-intent
+                                        {:hash/intent :evidence-record}
+                                        risk-meta))
+                      (seq evidence-findings)
+                      (assoc :sentinel/evidence-findings evidence-findings))
+        report-hash (hc/hash-with-intent {:hash/intent :evidence-record}
+                                         (dissoc base-report
+                                                 :sentinel/report-hash
+                                                 :sentinel/evaluated-at))]
+    (assoc base-report :sentinel/report-hash report-hash)))
+
+;; ── Assertion Functions ──────────────────────────────────────────────────────
+
+(defn assert-disclosure-allowed!
+  "Assert that an artifact may be sent to a sink.
+
+   Classifies the artifact, checks the sink against the disclosure matrix,
+   and returns the sentinel report if allowed. Throws if blocked.
+
+   Arguments:
+     artifact — artifact map
+     opts     — map with :sink key (required)
+
+   Returns the sentinel report on success.
+
+   Throws ex-info with :sentinel/blocked on failure."
+  [artifact & [{:keys [sink]}]]
+  (let [report (sentinel-report artifact sink)]
+    (if (= :allowed (:sentinel/decision report))
+      report
+      (throw (ex-info (str "Disclosure blocked by sensitivity sentinel: "
+                           (:sentinel/level report) " → " sink)
+                      {:sentinel/blocked true
+                       :sentinel/report report})))))
+
+(defn assert-export-allowed!
+  "Assert that an artifact may be exported to a sink.
+   Delegates to assert-disclosure-allowed!."
+  [artifact {:keys [sink]}]
+  (assert-disclosure-allowed! artifact {:sink sink}))
+
+(defn assert-publish-allowed!
+  "Assert that an evidence node may be published to a sink."
+  [evidence-node {:keys [sink]}]
+  (assert-disclosure-allowed! evidence-node {:sink sink}))
+
+(defn assert-relay-allowed!
+  "Assert that a sealed event may be relayed to a sink."
+  [sealed-event {:keys [sink]}]
+  (assert-disclosure-allowed! sealed-event {:sink sink}))
+
+(defn assert-attestation-allowed!
+  "Assert that an attestation may be sent to a sink."
+  [attestation {:keys [sink]}]
+  (assert-disclosure-allowed! attestation {:sink sink}))
+
+;; ── Override Enforcement ─────────────────────────────────────────────────────
+
+(defn check-override-requirements!
+  "Check that override requirements are satisfied for a given effective
+   sensitivity and risk metadata.
+
+   When the override mode is :multi-party-approval, the approvals map
+   MUST contain at least two distinct approved-by entries. When mode
+   is :single, at least one entry is required.
+
+   Arguments:
+     level     — effective sensitivity level
+     risk-meta — risk metadata map (or nil)
+     approvals — vector of {:approved-by <id> :approved-at <str> :reason <str>}
+
+   Returns {:override-required? <bool>
+            :mode <:single | :multi-party-approval>
+            :satisfied? <bool>
+            :required-count <int>
+            :actual-count <int>
+            :reasons [<str> ...]}
+
+   Throws ex-info with :sensitivity/override-failed when not satisfied,
+   to fail closed."
+  [level risk-meta approvals]
+  (let [mode (effective-override-mode level risk-meta)
+        required? (and (not (disclosure-allowed? level :public-bundle))
+                       (level>= level :sensitivity/private))
+        approvals (vec approvals)
+        actual-count (count (distinct (map :approved-by approvals)))
+        required-count (if (= :multi-party-approval mode) 2 1)
+        satisfied? (or (not required?) (>= actual-count required-count))]
+    (if satisfied?
+      {:override-required? required?
+       :mode mode
+       :satisfied? true
+       :required-count required-count
+       :actual-count actual-count
+       :reasons []}
+      (let [reasons [(str "Override required: mode=" mode
+                          " required=" required-count
+                          " actual=" actual-count)]]
+        (throw (ex-info (str "Sensitivity override requirements not satisfied: "
+                             "mode=" mode " requires " required-count
+                             " approvals, got " actual-count)
+                        {:sensitivity/override-failed true
+                         :sensitivity/level level
+                         :sensitivity/mode mode
+                         :sensitivity/required-count required-count
+                         :sensitivity/actual-count actual-count
+                         :sensitivity/reasons reasons
+                         :sensitivity/approvals approvals}))))))

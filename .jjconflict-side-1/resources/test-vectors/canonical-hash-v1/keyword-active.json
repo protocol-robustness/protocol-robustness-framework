@@ -1,0 +1,9 @@
+{
+  "id": "keyword-active",
+  "description": "Keyword :active",
+  "input": ":active",
+  "canonical_bytes_hex": "2206616374697665",
+  "domain_tag": "EVIDENCE_RECORD_V1",
+  "domain_tag_hex": "45564944454e43455f5245434f52445f5631",
+  "hash_hex": "773602a21757b89578e79f301116d48c7574f0969f7acd39464f46d6e0941461"
+}

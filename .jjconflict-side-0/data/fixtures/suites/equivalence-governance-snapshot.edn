@@ -1,0 +1,11 @@
+{:suite/id       :suites/equivalence-governance-snapshot
+ :suite/title    "Equivalence Governance Snapshot Isolation"
+ :suite/purpose  "Verify active dispute authorization snapshot immutability amid governance transitions."
+ :suite/prevents "Authority drift where active escrows incorrectly accept legacy resolvers."
+ :suite/class    :governance
+ :suite/criticality :high
+
+ :protocol   :protocol/baseline
+ :state      :states/minimal-world
+ :thresholds :thresholds/strict-baseline
+ :traces [:traces/s61-governance-snapshot-mid-dispute-immutability]}

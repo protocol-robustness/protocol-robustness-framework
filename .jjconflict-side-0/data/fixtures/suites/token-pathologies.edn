@@ -1,0 +1,12 @@
+{:suite/id :suites/token-pathologies
+ :suite/title "Token Pathologies Analysis"
+ :suite/purpose "Verify protocol handling of non-standard ERC20 tokens (Fee-on-Transfer)."
+ :suite/prevents "Unexpected insolvency when handling taxed tokens."
+ :suite/class :economic
+ :suite/criticality :high
+
+ :protocol :protocol/baseline
+ :state    :states/minimal-world
+ :token    :tokens/fee-on-transfer
+ :thresholds :thresholds/strict-baseline
+ :traces   [:traces/fee-on-transfer-leak]}

@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sew-protocol/schemas/claim-binding-v1.json",
+  "title": "Public Claim Binding v1",
+  "description": "Required provenance binding for a public headline claim.",
+  "type": "object",
+  "required": ["claim/id", "claim/version", "claim/text", "claim/scope", "claim/assumptions", "benchmark/claims", "evaluator/id", "evaluator/version", "evaluator/implementation", "policy/canonical-edn", "policy/sha256", "evidence/packages"],
+  "properties": {
+    "claim/id": {"type": "string", "pattern": "^PHC-[0-9]{4}$"},
+    "claim/version": {"type": "integer", "minimum": 1},
+    "claim/text": {"type": "string", "minLength": 1},
+    "claim/scope": {"type": "string", "minLength": 1},
+    "claim/assumptions": {"type": "array", "minItems": 1, "items": {"type": "string"}},
+    "benchmark/claims": {"type": "array", "minItems": 1},
+    "evaluator/id": {"type": "string", "minLength": 1},
+    "evaluator/version": {"type": "string", "minLength": 1},
+    "evaluator/implementation": {"type": "object", "required": ["path", "sha256"]},
+    "policy/canonical-edn": {"type": "string", "minLength": 1},
+    "policy/sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+    "evidence/packages": {
+      "type": "array",
+      "items": {"type": "object", "required": ["package/uri", "package/sha256", "run/root", "evidence/ref", "evidence/sha256"]}
+    }
+  }
+}

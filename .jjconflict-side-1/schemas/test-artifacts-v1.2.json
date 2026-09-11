@@ -1,0 +1,101 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sew-protocol/schemas/test-artifacts-v1.2.json",
+  "title": "Test Artifacts Registry v1.2",
+  "description": "Enforced contract for the test-artifact registry. Replaces v1.1 as the operational schema.",
+  "type": "object",
+  "required": ["schema_version", "run_id", "artifacts"],
+  "properties": {
+    "schema_version": {
+      "const": "test-artifacts.v1.2",
+      "description": "Must be exactly 'test-artifacts.v1.2'"
+    },
+    "run_id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Unique run identifier; cross-referenced by validators against referenced manifests"
+    },
+    "artifacts": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["id", "kind", "path", "schema_version", "sha256", "importance"],
+        "additionalProperties": false,
+        "properties": {
+          "id":                { "type": "string", "minLength": 1 },
+          "kind":              { "type": "string", "minLength": 1 },
+          "path":              { "type": "string", "minLength": 1 },
+          "schema_version":    { "type": "string", "minLength": 1 },
+          "sha256":            { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+          "importance":        { "type": "string", "enum": ["CORE", "DIAGNOSTIC", "TRACE"] },
+          "contract_version":  { "type": "string" },
+          "producer":          { "type": "string" },
+          "bytes":             { "type": "integer", "minimum": 0 },
+          "mtime_utc":         { "type": "string" },
+          "dependencies": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["id", "sha256"],
+              "additionalProperties": false,
+              "properties": {
+                "id":     { "type": "string", "minLength": 1 },
+                "sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" }
+              }
+            }
+          },
+          "verifies_against": {
+            "type": "array",
+            "items": { "type": "string" },
+            "description": "Deprecated. Replaced by dependencies. Emitted for migration only."
+          },
+          "input_versions": {
+            "type": "object",
+            "description": "Deprecated. Replaced by dependencies. Emitted for migration only."
+          },
+          "extensions": {
+            "type": "object",
+            "additionalProperties": true,
+            "description": "Open map for future metadata beyond the contract fields."
+          }
+        }
+      }
+    },
+    "contract_version": {
+      "type": "string",
+      "description": "Informational: evidence chain contract version"
+    },
+    "generated_at": {
+      "type": "string",
+      "description": "Informational: ISO-8601 UTC timestamp of registry generation"
+    },
+    "generator": {
+      "type": "object",
+      "description": "Informational: tool that produced this registry"
+    },
+    "root_dir": {
+      "type": "string",
+      "description": "Informational: root directory for artifact paths"
+    },
+    "run_manifest": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Optional external reference to the run manifest file",
+      "properties": {
+        "path":           { "type": "string", "minLength": 1 },
+        "schema_version": { "type": "string", "minLength": 1 },
+        "sha256":         { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+        "bytes":          { "type": "integer", "minimum": 0 },
+        "mtime_utc":      { "type": "string" }
+      },
+      "required": ["path", "schema_version"]
+    },
+    "extensions": {
+      "type": "object",
+      "additionalProperties": true,
+      "description": "Open map for future metadata beyond the contract fields."
+    }
+  },
+  "additionalProperties": false
+}

@@ -1,0 +1,13 @@
+{:scoring/id :scoring/binary-claims-v1
+ :scoring/version 1
+ :scoring/description
+ "Binary pass/fail per scenario. The benchmark passes if all scenarios
+  pass their replay and invariant checks. Claim-level classification
+  is used when per-claim results are available in the evidence bundle."
+
+ :scoring/rules
+ {:classifier :pass-fail-per-scenario
+  :pass       "All scenarios pass"
+  :fail       "At least one scenario fails"
+  :mixed      "Some scenarios pass, some fail"
+  :score-fn   "Ratio of passing scenarios to total scenarios"}}

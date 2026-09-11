@@ -1,0 +1,32 @@
+{:scoring/id :scoring/robustness-dimensions-v0
+ :scoring/version 1
+ :scoring/description
+ "Robustness dimension scoring. Each scenario evaluates one
+  robustness dimension. The benchmark passes if all scenarios pass
+  their claims and invariants. Concept coverage is reported but
+  does not affect the pass/fail decision."
+
+  :scoring/rules
+  {:classifier        :pass-fail-per-scenario
+   :pass              "All scenarios pass — all robustness dimensions hold"
+   :fail              "At least one scenario fails — a robustness dimension is violated"
+   :mixed             "Some scenarios pass, some fail — partial robustness"
+   :score-fn          "Ratio of passing scenarios to total scenarios"
+   :dimensions
+   [{:dimension/id    :robustness/resolver-accountability
+     :scenario       "malicious-resolver-verdict-v1"
+     :pass-condition "Scenario outcome is :pass and all invariants hold.
+                      Semantic/economic claim verification for this dimension
+                       is deferred (see docs/benchmarks/DESIGN_CLAIM_VERIFICATION.md Level 3)."}
+     {:dimension/id    :robustness/liveness-under-load
+      :scenario       "dispute-flooding-v1"
+      :pass-condition "Scenario outcome is :pass and all invariants hold.
+                       Semantic/economic claim verification for this dimension
+                       is deferred (see docs/benchmarks/DESIGN_CLAIM_VERIFICATION.md Level 3)."}
+     {:dimension/id    :robustness/escrow-fund-safety
+      :scenario       "autopush-settlement-v1"
+      :pass-condition "Scenario outcome is :pass and all invariants hold.
+                       Semantic/economic claim verification for this dimension
+                       is deferred (see docs/benchmarks/DESIGN_CLAIM_VERIFICATION.md Level 3)."}]}}
+
+

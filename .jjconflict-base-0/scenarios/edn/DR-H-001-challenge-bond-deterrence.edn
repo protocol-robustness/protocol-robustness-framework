@@ -1,0 +1,45 @@
+{:scenario-id "dr-h-001-challenge-bond-deterrence"
+ :schema-version "1.0"
+ :allow-open-disputes? true
+ :purpose "adversarial-robustness"
+ :title "Challenge resolution bond: third party posts bond to challenge, L1 upholds original verdict"
+ :description "L0 resolver rules release. A third party challenges the resolution by posting a challenge bond. L1 resolver reviews and also rules release (same outcome). The challenge was unsuccessful. Verifies that the challenge resolution mechanism works: a third party can trigger escalation by posting a bond, and the escalated resolver can confirm or reverse the original decision."
+ :provenance {:author "@dispute-researcher" :created-at "2026-06-30" :license "CC-BY-4.0"}
+ :claim {:id "challenge-resolution-triggers-escalation"
+         :statement "Any third party can challenge a provisional resolution by posting a challenge bond. The dispute escalates to the next level. The escalated resolver can either confirm or reverse."
+         :falsifies-if ["Challenge is rejected when pending settlement exists"
+                        "Challenge bond is not posted"
+                        "L1 resolver cannot execute resolution after challenge"
+                        "Dispute level does not advance after challenge"]}
+ :expectations {:terminal-state "released"
+                :must-hold ["dispute_level_bounded" "resolver_decision_attributable"]
+                :metrics {:final_dispute_level {:gte 1}}}
+ :threat {:family "resolution-challenge" :attack "challenge-bond-escalation" :severity "medium"
+          :actors ["challenger"]
+          :assumptions ["Challenge bond is calculated from protocol-params"
+                        "Escalation resolvers are configured for level 1"]}
+ :accounting {:unit "USDC" :decimals 6 :tracked-balances ["buyer" "seller" "l0resolver" "l1resolver" "challenger" "protocol"]}
+ :initial-block-time 1000
+ :protocol-params {:resolver-fee-bps 150 :appeal-window-duration 120 :max-dispute-duration 2592000
+                   :dispute-resolver "0xl0"
+                   :escalation-resolvers {:0 "0xl0" :1 "0xl1"}}
+ :agents [{:id "buyer" :address "0xbuyer" :strategy "honest"}
+          {:id "seller" :address "0xseller" :strategy "honest"}
+          {:id "l0resolver" :address "0xl0" :role "resolver" :stake 10000}
+          {:id "l1resolver" :address "0xl1" :role "resolver" :stake 10000}
+          {:id "challenger" :address "0xchall" :strategy "opportunistic"}
+          {:id "keeper" :address "0xkeeper" :role "keeper"}]
+ :events [{:seq 0 :time 1000 :agent "buyer" :action "create_escrow"
+           :params {:token "USDC" :to "0xseller" :amount 5000}}
+          {:seq 1 :time 1060 :agent "buyer" :action "raise_dispute" :params {:workflow-id 0}}
+          ;; L0 resolves release
+          {:seq 2 :time 1100 :agent "l0resolver" :action "execute_resolution"
+           :params {:workflow-id 0 :is-release true :resolution-hash "0xl0release"}}
+          ;; Third party challenges — posts challenge bond, escalates to L1
+          {:seq 3 :time 1120 :agent "challenger" :action "challenge_resolution"
+           :params {:workflow-id 0}}
+          ;; L1 resolver reviews and confirms release (same outcome as L0)
+          {:seq 4 :time 1150 :agent "l1resolver" :action "execute_resolution"
+           :params {:workflow-id 0 :is-release true :resolution-hash "0xl1confirm"}}
+          {:seq 5 :time 1300 :agent "keeper" :action "execute_pending_settlement"
+           :params {:workflow-id 0}}]}

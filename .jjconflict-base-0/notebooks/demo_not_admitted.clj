@@ -1,0 +1,247 @@
+;; # Can a Committed Evidence Record Be Silently Changed?
+;;
+;; One integrity question, one user-supplied example, one consequence.
+;;
+;; This is deliberately a **notebook-only** demo. An adopter supplies its own
+;; record, mutation, and business meaning; this notebook projects that record
+;; into evidence input for the framework verifier. Nothing in this example is a
+;; framework workflow, canonical ledger schema, or reusable admission policy.
+
+^{:nextjournal.clerk/toc true
+  :nextjournal.clerk/dark-mode true
+  :nextjournal.clerk/visibility {:code :fold}}
+(ns notebooks.demo-not-admitted
+  (:require [nextjournal.clerk :as clerk]
+            [resolver-sim.assurance.custody :as custody]
+            [resolver-sim.assurance.admission-fixed-point :as afp]
+            [resolver-sim.notebook-support.demo-views :as demo-views]))
+
+;; ## The user-owned example
+;;
+;; Imagine an application that records a 1,000 USDC escrow deposit. It chooses
+;; the record shape, the amount, and what the escrow means. The projection below
+;; is this notebook's adapter to an existing verifier; it is not a required
+;; application ledger schema.
+
+^{:nextjournal.clerk/visibility {:code :hide :result :hide}}
+(def user-records
+  [{:record/id "application-deposit-1"
+    :account "customer-escrow"
+    :asset "USDC"
+    :recorded-amount 1000
+    :recorded-by "0xExampleUser"
+    :meaning :customer-deposit}])
+
+^{:nextjournal.clerk/visibility {:code :hide :result :hide}}
+(defn records->custody-evidence-input [records]
+  (mapv (fn [{:keys [record/id account asset recorded-amount recorded-by meaning]}]
+          {:held-adjustment/id id
+           :held/direction :in
+           :token (keyword asset)
+           :amount recorded-amount
+           :held/before 0
+           :held/after recorded-amount
+           :held/reason meaning
+           :held/action id
+           :held/account (keyword account)
+           :held/workflow-id 0
+           :owner/address recorded-by})
+        records))
+
+^{:nextjournal.clerk/visibility {:code :hide :result :hide}}
+(defn verify [artifacts]
+  (try
+    {:admitted? true :checks (custody/held-custody-closed-form-checks artifacts)}
+    (catch clojure.lang.ExceptionInfo e
+      {:admitted? false :checks (:check-results (ex-data e))})))
+
+^{:nextjournal.clerk/visibility {:code :hide :result :hide}}
+(def check-meanings
+  {:held-custody/hash-integrity "contents no longer match committed hash"
+   :held-custody/artifact-schema "artifacts conform to supported schema"
+   :held-custody/parameter-attribution "parameter context and address are structurally valid"
+   :held-custody/local-delta "held/after = held/before ± amount"
+   :held-custody/valid-amount "amount is a non-negative number"
+   :held-custody/valid-artifact "artifact id, hash, kind, schema are valid"
+   :held-custody/non-negative-after "held/after is non-negative"
+   :held-custody/predecessor-continuity "held/previous-artifact-hash matches predecessor"
+   :held-custody/sequence-replay "artifact replay state remains consistent"})
+
+^{:nextjournal.clerk/visibility {:code :hide :result :hide}}
+(def demo-result
+  (let [evidence-input (records->custody-evidence-input user-records)
+        artifacts (vals (custody/rebuild-held-custody-artifacts evidence-input))
+        changed (mapv #(assoc % :amount 1100 :held/after 1100) artifacts)
+        baseline (verify artifacts)
+        after (verify changed)
+        committed (first artifacts)
+        checks-with-meanings (mapv (fn [check]
+                                     (assoc check
+                                            :meaning (get check-meanings (:check/id check))))
+                                   (:checks after))]
+    {:demo/id :admission/user-tampered-amount
+     :demo/question "Can an application change committed evidence after it has been verified?"
+     :demo/baseline {:label "Escrow held amount" :value 1000 :unit "USDC"
+                     :admitted? (:admitted? baseline)}
+     :demo/action {:label "Application changes projected evidence" :from 1000 :to 1100
+                   :unit "USDC"
+                   :detail "The application changes the amount in the evidence it submits while leaving the committed artifact hash untouched."}
+     :demo/outcome {:admitted? (:admitted? after)
+                    :failed-checks (->> (:checks after)
+                                        (filter #(= :fail (:status %)))
+                                        (mapv :check/id))}
+     :demo/expect {:baseline :admitted :after-action :not-admitted}
+     :demo/explanation "The framework does not own the application's escrow rule. It verifies supplied evidence: after the application changes the submitted amount, that evidence no longer matches its committed hash."
+     :demo/evidence {:committed-hash (:artifact/hash committed)
+                     :lines [["projected evidence root" (custody/ledger-root evidence-input)]
+                             ["artifact sequence root" (custody/artifact-sequence-root artifacts)]]
+                     :after/checks checks-with-meanings}}))
+
+^{:nextjournal.clerk/visibility {:code :hide :result :show}}
+(clerk/html (demo-views/demo-surface demo-result))
+
+;; **NOT ADMITTED**
+;;
+;; This mutated evidence remains locally well-formed, but is no longer the evidence
+;; that was committed. Its content no longer recomputes to the committed hash.
+
+;; A committed artifact is **not** an object that can be edited in place. Changing
+;; the committed contents in place is not the same as creating an authorised
+;; successor:
+;;
+;; - old commitment + different contents → integrity failure
+;; - old commitment + authorised update operation + new evidence + new commitment
+;;   → potentially valid successor
+;;
+;; An application may define a legitimate update or successor mechanism, but that
+;; mechanism must produce whatever new evidence, commitment, and authorisation its
+;; policy requires. The availability of such an update mechanism does not change
+;; whether the *old* commitment matches the supplied evidence.
+
+^{:nextjournal.clerk/visibility {:code :hide :result :show}}
+(clerk/html (demo-views/technical-proof demo-result))
+
+;; The most interesting property here is that the mutation (amount changed)
+;; still passes: artifact schema, parameter attribution, local delta, valid
+;; amount, valid-artifact, non-negative-after, predecessor continuity, and
+;; sequence replay. Yet hash-integrity fails.
+;;
+;; This demonstrates that a plausible, internally coherent mutation cannot
+;; masquerade as the committed evidence.
+
+;; | Framework | Application / notebook author |
+;; | --- | --- |
+;; | Canonicalize supplied custody evidence and recompute its verification | Choose the escrow facts: domain data, amount, actors, and intended mutation |
+;; | Reject evidence whose committed hash no longer recomputes | Decide what to do after rejection |
+;; | Provide generic admission primitives | Define a product's authorization, reservation, cancellation, pro-rata, or dispute policy |
+;; | Reject contents that do not reproduce their commitment | Define whether and how legitimate successor records/updates may be produced |
+;; | Fail closed when a required authoritative capability is unavailable | Decide whether that capability is required for the application's operation |
+;;
+;; The failed check is evidence of an integrity mismatch. It is **not** a
+;; framework prescription for the application's next action.
+
+;; A legitimate successor may depend on an application or framework admission
+;; capability. If that required capability cannot be established, its absence does
+;; not authorize mutation of the existing commitment — the framework does not own
+;; the application's update process, and it never manufactures authority from
+;; unavailability. In short: **unavailability never becomes authority.**
+
+^{:nextjournal.clerk/visibility {:code :hide :result :show}}
+(clerk/html
+ (let [baseline-admitted? (get-in demo-result [:demo/baseline :admitted?])
+       after-admitted? (get-in demo-result [:demo/outcome :admitted?])
+       expected-failures [:held-custody/hash-integrity]
+       actual-failures (get-in demo-result [:demo/outcome :failed-checks])
+       holds? (and baseline-admitted?
+                   (not after-admitted?)
+                   (= expected-failures actual-failures))]
+   [:div {:style {:background "#f8fafc" :border "1px solid #cbd5e1"
+                  :borderRadius "8px" :padding "12px 16px" :fontFamily "monospace"}}
+"Demo result: expected integrity rejection observed"
+     [:br]
+     [:strong {:style {:color (if holds? "#16a34a" "#dc2626")}}
+      (if holds? "HOLDS ✓" "HOLDS ✕")]]))
+
+;; ## The progression
+;;
+;; The demonstrated property and the availability principle are distinct:
+;;
+;; 1. **Commitment** — the original artifact is admitted.
+;; 2. **Mutation** — a plausible changed artifact is not admitted; the committed
+;;    hash no longer matches.
+;; 3. **Fixed point** — serialization stability cannot wash away the mismatch.
+;; 4. **Update availability** — a legitimate update must use an
+;;    application/admission-defined path; if its required authority/capability is
+;;    unavailable, admission fails closed.
+;; 5. **Consequence** — neither mutation nor infrastructure unavailability
+;;    manufactures authority.
+
+;; ## Fixed-point stability
+
+;; The table below demonstrates that admission decisions are stable under
+;; canonical transport.  Both the committed and tampered artifacts survive
+;; canonical serialization unchanged (PASS), and the decision root is consistent
+;; after round-trip.  Yet the tampered artifact is rejected by verification —
+;; the hash-integrity check is what distinguishes the two.
+
+^{:nextjournal.clerk/visibility {:code :hide :result :hide}}
+(def fp-evidence-input (records->custody-evidence-input user-records))
+
+^{:nextjournal.clerk/visibility {:code :hide :result :hide}}
+(def fp-artifacts (vec (vals (custody/rebuild-held-custody-artifacts fp-evidence-input))))
+
+^{:nextjournal.clerk/visibility {:code :hide :result :hide}}
+(def fp-tampered (mapv #(assoc % :amount 1100 :held/after 1100) fp-artifacts))
+
+^{:nextjournal.clerk/visibility {:code :hide :result :hide}}
+(def fp-canonical (afp/admission-fixed-point fp-artifacts fp-evidence-input))
+
+^{:nextjournal.clerk/visibility {:code :hide :result :hide}}
+(def fp-tampered-result (afp/admission-fixed-point fp-tampered fp-evidence-input))
+
+^{:nextjournal.clerk/visibility {:code :hide :result :show}}
+(clerk/html
+ [:div {:style {:marginTop "24px"}}
+  [:table {:style {:borderCollapse "collapse" :width "100%" :fontFamily "monospace" :fontSize "14px"}}
+   [:thead
+    [:tr
+     [:th {:style {:border "1px solid #ddd" :padding "8px" :textAlign "left"}} "Artifact"]
+     [:th {:style {:border "1px solid #ddd" :padding "8px" :textAlign "left"}} "Canonical round-trip"]
+     [:th {:style {:border "1px solid #ddd" :padding "8px" :textAlign "left"}} "Verification fixed-point"]
+     [:th {:style {:border "1px solid #ddd" :padding "8px" :textAlign "left"}} "Decision root consistent?"]
+     [:th {:style {:border "1px solid #ddd" :padding "8px" :textAlign "left"}} "Admitted?"]
+     [:th {:style {:border "1px solid #ddd" :padding "8px" :textAlign "left"}} "Blocking reasons"]]]
+   [:tbody
+    (for [[name canonical? verification? root-consistent? admitted? blocking]
+          [["Canonical artifact"
+            (:canonical-fixed-point? fp-canonical)
+            (:verification-fixed-point? fp-canonical)
+            (:decision-root-consistent? fp-canonical)
+            (get-in fp-canonical [:original :admitted?])
+            (pr-str (get-in fp-canonical [:original :blocking-reasons]))]
+           ["Tampered artifact"
+            (:canonical-fixed-point? fp-tampered-result)
+            (:verification-fixed-point? fp-tampered-result)
+            (:decision-root-consistent? fp-tampered-result)
+            (get-in fp-tampered-result [:original :admitted?])
+            (pr-str (get-in fp-tampered-result [:original :blocking-reasons]))]]]
+      ^{:key name}
+      [:tr
+       [:td {:style {:border "1px solid #ddd" :padding "8px"}} name]
+       [:td {:style {:border "1px solid #ddd" :padding "8px" :textAlign "center"
+                     :color (if canonical? "#16a34a" "#dc2626")}}
+        (if canonical? "PASS" "FAIL")]
+       [:td {:style {:border "1px solid #ddd" :padding "8px" :textAlign "center"
+                     :color (if verification? "#16a34a" "#dc2626")}}
+        (if verification? "PASS" "FAIL")]
+       [:td {:style {:border "1px solid #ddd" :padding "8px" :textAlign "center"
+                     :color (if root-consistent? "#16a34a" "#dc2626")}}
+        (if root-consistent? "Yes" "No")]
+       [:td {:style {:border "1px solid #ddd" :padding "8px" :textAlign "center"
+                     :color (if admitted? "#16a34a" "#dc2626")}}
+        (if admitted? "Yes" "No")]
+       [:td {:style {:border "1px solid #ddd" :padding "8px"}} (str blocking)]])]]
+  [:div {:style {:marginTop "12px" :padding "8px" :background "#f0fdf4" :border "1px solid #22c55e" :borderRadius "6px" :fontFamily "monospace" :fontSize "13px"}}
+   "Key insight: both artifacts are fixed points of serialization (PASS), "
+   "but the hash-integrity check distinguishes them. Canonicalization preserves "
+   "tampering faithfully — it does not wash it away."]])

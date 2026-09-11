@@ -1,0 +1,9 @@
+{
+  "id": "empty-vector",
+  "description": "Empty vector",
+  "input": "[]",
+  "canonical_bytes_hex": "3000",
+  "domain_tag": "EVIDENCE_RECORD_V1",
+  "domain_tag_hex": "45564944454e43455f5245434f52445f5631",
+  "hash_hex": "de235dab73540ada9a47346b6c4348798a6e487973b4c4d91321d0be2d9f1e4a"
+}

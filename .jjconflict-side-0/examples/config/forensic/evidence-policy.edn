@@ -1,0 +1,29 @@
+;; evidence-policy.edn — Sample evidence policy
+;;
+;; Defines what information is captured in evidence nodes during a
+;; forensic run. Refer to EVIDENCE_POLICY_SPEC_V1 for the full spec.
+;;
+;; Edit for your specific run requirements.
+
+{:evidence-policy/schema-version "evidence-policy.v1"
+ :evidence-policy/id            :forensic-default-v1
+ :evidence-policy/description   "Default forensic evidence policy — capture all CORE and DIAGNOSTIC artifacts"
+
+ ;; Artifact importance threshold: CORE (0), DIAGNOSTIC (1), TRACE (2)
+ :evidence-policy/min-importance 1
+
+ ;; What to include in each evidence node
+ :evidence-policy/include
+ {:step-results     true         ;; Include per-step execution results
+  :state-snapshots  true         ;; Include world state snapshots
+  :invariant-checks true         ;; Include invariant evaluation results
+  :diagnostics      false        ;; Exclude diagnostic output (non-reproducible)
+  :timestamps       false        ;; Exclude mutable timestamps from stable hashes
+  :debug-output     false}       ;; Exclude debug logs
+
+ ;; Retention policy
+ :evidence-policy/retention
+ {:core-evidence   :permanent    ;; CORE artifacts are kept permanently
+  :diagnostic-evidence :session  ;; DIAGNOSTIC artifacts retained for session only
+  :trace-evidence  :discard}     ;; TRACE artifacts discarded immediately
+}

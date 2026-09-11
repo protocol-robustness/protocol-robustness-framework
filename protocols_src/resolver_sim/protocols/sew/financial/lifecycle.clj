@@ -572,6 +572,16 @@
    operations are governed by their effects, not by remembering to add a new
    action keyword to every rule.
 
+   CUSTOM-ACTION CONTRACT (what a user-defined action means today): a custom
+   action type is an extension of action IDENTITY/CLASSIFICATION, not an
+   extension of the protocol's economic ontology. A custom type MAY declare its
+   effects from THIS protocol-governed vocabulary (via :action/effects), and is
+   then subject to the same policy and effect-contract rules as a built-in type.
+   Defining NEW effect semantics (a term outside this vocabulary) requires a
+   protocol/version change — it cannot be introduced by a user action. This
+   distinction (type extensible, effect ontology protocol-governed) survives any
+   future action-type registry.
+
    NAME-SEMANTICS NOTE (documented distinction, pending a public-terminology
    split): the realized :asset-inflow / :asset-outflow effects currently mean a
    NET-POSITION change (Δ assets − Δ liabilities, i.e. economic headroom), NOT
@@ -606,8 +616,12 @@
                    (> (count declared) 1))))))
 
 (defn classify-action-effects
-  "Classify a known action type's economic effects. Unknown types default to
-   :no-economic-effect + the caller may supply explicit :action/effects instead.
+  "Classify a known action type's economic effects. Returns nil for an UNKNOWN
+   type: classification is defined only for the protocol-governed vocabulary, so
+   there is deliberately no default. Callers that accept user-defined action
+   types MUST require an explicit :action/effects declaration and must NEVER
+   fall back to :no-economic-effect — that would silently hide the real effects
+   of an unclassified action from policy and the effect contract.
 
    create-escrow is deliberately NOT :asset-outflow: the funds remain controlled
    by the protocol (they transform from unencumbered assets into assets backing
@@ -625,7 +639,8 @@
     :allow-recapitalization       #{:recovery-operation :asset-inflow}
     :enter-resolution             #{:recovery-operation}
     :declare-terminal             #{:recovery-operation}
-    :no-economic-effect           #{}))
+    :no-economic-effect           #{}
+    nil))
 
 (defn- resolver-attribute
   "Resolver provenance for an action's params. A CUSTOM resolver introduces a
@@ -802,6 +817,14 @@
      - a map {:action/type ... :action/params ... :action/effects ...}
      - a scenario action {:action \"create_escrow\" :params {...}}
 
+   CUSTOM ACTION TYPES: a type outside classify-action-effects MAY be used
+   provided :action/effects is declared from action-effect-vocabulary. An
+   unknown type WITHOUT an explicit declaration fails CLOSED with
+   {:reason :action/explicit-effects-required} — it is never silently coerced
+   to :no-economic-effect. The action ROOT commits the FULL parameter map and
+   resolver attribute (canonically), so the same rooted action is deterministically
+   reconstructable across implementations.
+
    The action ROOT binds the ECONOMIC identity only (type + canonical params +
    effects + attributes). Execution/context identity — :seq, :time, :agent,
    :request/id, :pre-state/root — is deliberately NOT inside it: that answers
@@ -819,6 +842,10 @@
         params (canonical-action-params type raw-params)
         base-effects (or effects (classify-action-effects type))
         attributes (or attributes (resolver-attribute raw-params))]
+    (when (nil? base-effects)
+      (throw (ex-info "action type is unknown and no explicit :action/effects were declared; custom action types must declare their protocol-governed effects explicitly"
+                      {:reason :action/explicit-effects-required
+                       :action/type type})))
     (when-not (valid-effect-declaration? base-effects)
       (throw (ex-info "invalid effect declaration: :no-economic-effect is exclusive and effects must be in the vocabulary"
                       {:action/type type :action/effects base-effects})))

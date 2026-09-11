@@ -1,0 +1,10 @@
+{:suite/id       :suites/withdrawal-adversarial
+ :suite/title    "Adversarial withdrawal and settlement suite"
+ :suite/purpose  "Verify that auto-push failures do not corrupt accounting or block manual withdrawal."
+ :suite/class    :adversarial
+ :suite/criticality :critical
+
+ :protocol   :protocol/baseline
+ :state      :states/minimal-world
+ :thresholds :thresholds/strict-baseline
+ :traces [:traces/s13-pending-settlement-refund]}

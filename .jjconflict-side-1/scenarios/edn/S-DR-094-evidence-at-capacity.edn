@@ -1,0 +1,29 @@
+{:tags ["suite/dispute-resolution" "coverage/evidence"]
+ :protocol-params {:resolver-fee-bps 150 :appeal-window-duration 60 :max-dispute-duration 2592000}
+ :threat-tags ["dispute-resolution" "evidence" "capacity" "liveness"]
+ :purpose "adversarial-robustness"
+ :events [{:seq 0 :time 1000 :agent "buyer1" :action "create_escrow" :params {:token "USDC" :to "0xseller1" :amount 5000 :custom-resolver "0xresolver"}}
+          {:seq 1 :time 1010 :agent "buyer2" :action "create_escrow" :params {:token "USDC" :to "0xseller2" :amount 3000 :custom-resolver "0xresolver"}}
+          {:seq 2 :time 1020 :agent "governance" :action "set_resolver_capacity" :params {:resolver "0xresolver" :max-concurrent 2}}
+          {:seq 3 :time 1060 :agent "buyer1" :action "raise_dispute" :params {:workflow-id 0}}
+          {:seq 4 :time 1065 :agent "buyer2" :action "raise_dispute" :params {:workflow-id 1}}
+          {:seq 5 :time 1090 :agent "seller1" :action "submit_evidence" :params {:workflow-id 0 :evidence-hash "0xevidence-at-capacity"}}
+          {:seq 6 :time 1120 :agent "resolver" :action "execute_resolution" :params {:workflow-id 0 :is-release true :resolution-hash "0xhash"}}
+          {:seq 7 :time 1200 :agent "keeper" :action "execute_pending_settlement" :params {:workflow-id 0}}
+          {:seq 8 :time 1220 :agent "resolver" :action "execute_resolution" :params {:workflow-id 1 :is-release true :resolution-hash "0xhash1"}}
+          {:seq 9 :time 1320 :agent "keeper" :action "execute_pending_settlement" :params {:workflow-id 1}}]
+ :schema-version "1.0"
+ :scenario-title "Evidence while resolver at capacity — submit_evidence works when resolver has exhausted maxConcurrentDisputes"
+ :scenario-author "@kilo-research"
+ :scenario-id "s-dr-094-evidence-at-capacity"
+ :scenario-purpose "Verify that evidence can still be submitted for a disputed escrow even when the assigned resolver is at capacity (current-active = max-concurrent). submit_evidence only checks escrow state (:disputed), not resolver capacity."
+ :scenario-notes "Capacity set to 2 at t=1020. Two disputes raised at t=1060/1065 fill both slots (2/2). Evidence at t=1090 on wf0 succeeds because submit_evidence reads no capacity state. Resolution at t=1120 creates pending, settlement at t=1200 frees one slot. Resolution at t=1220 and settlement at t=1320 complete wf1 (past appeal deadline 1220+60=1280)."
+ :provenance {:author-id "@kilo-research" :author "Kilo Research"}
+ :agents [{:id "buyer1" :address "0xbuyer1" :strategy "honest"}
+          {:id "buyer2" :address "0xbuyer2" :strategy "honest"}
+          {:id "seller1" :address "0xseller1" :strategy "honest"}
+          {:id "seller2" :address "0xseller2" :strategy "honest"}
+          {:id "resolver" :address "0xresolver" :role "resolver"}
+          {:id "governance" :address "0xgov" :role "governance"}
+          {:id "keeper" :address "0xkeeper" :role "keeper"}]
+ :initial-block-time 1000}

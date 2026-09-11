@@ -1,0 +1,9 @@
+{
+  "id": "empty-map",
+  "description": "Empty map",
+  "input": "{}",
+  "canonical_bytes_hex": "3100",
+  "domain_tag": "EVIDENCE_RECORD_V1",
+  "domain_tag_hex": "45564944454e43455f5245434f52445f5631",
+  "hash_hex": "960aee5aa1539aad2dbc8e08ff395907d71a87f35c697565d1f70178d7fb3025"
+}

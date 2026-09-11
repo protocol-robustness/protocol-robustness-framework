@@ -1,0 +1,171 @@
+{:concept/id :event/deposit
+ :concept/type :use-case
+ :concept/layer :stakeholder
+ :concept/name "Event deposit"
+ :concept/summary
+ "A depositor commits funds subject to a condition. Funds are released
+  to a beneficiary when the condition is met, or returned to the depositor
+  if the condition expires or fails. A condition authority verifies
+  whether the condition was satisfied."
+
+ :concept/stakeholder-question
+ "Can an escrowed deposit be released only when predefined conditions
+  are objectively met, and returned if they are not?"
+
+ :concept/protocols #{:protocol/sew-v1}
+
+ :concept/maturity :benchmark-backed
+  :concept/support-status :not-asserted
+
+ :concept/related
+ [:consensus/authority
+  :consensus/evidence
+  :consensus/finality
+  :consensus/escalation
+  :consensus/liveness]
+
+ :concept/roles
+ {:depositor
+  {:description "Party that commits funds into the deposit."
+   :maps-to [:protocol.actor/sender]}
+  :beneficiary
+  {:description "Party entitled to receive funds if the condition is met."
+   :maps-to [:protocol.actor/recipient]}
+    :condition-authority
+    {:description "Entity that determines whether the condition has been satisfied."
+     :maps-to [:protocol.actor/resolver :protocol.actor/oracle]
+     :mapping/confidence :approximate
+     :mapping/note "Role may be either a resolver module or an oracle depending on deposit configuration"}}
+
+ :concept/entities
+ {:deposit
+  {:description "The escrowed funds and associated condition."
+   :maps-to [:protocol.entity/escrow]}
+  :condition
+  {:description "The requirement or event that triggers release."
+   :maps-to [:protocol.entity/condition]}
+  :attestation
+  {:description "Signed statement that a condition was met or not met."
+   :maps-to [:protocol.entity/evidence]}
+   :dispute
+   {:description "A challenge about whether the condition was properly evaluated."
+    :maps-to [:protocol.entity/dispute]}
+   :appeal-bond
+   {:description "Collateral posted by the challenging party when disputing a condition evaluation; forfeited if the challenge is rejected."
+    :maps-to [:protocol.entity/bond]
+    :mapping/confidence :approximate
+    :mapping/note "Protocol bond primitive is shared across dispute and appeal contexts."}}
+
+ :concept/actions
+ {:create-deposit
+  {:description "Depositor commits funds and specifies the release condition."
+   :maps-to [:protocol.action/create-escrow]}
+  :fulfill-condition
+  {:description "Beneficiary performs the required action or provides proof."
+   :maps-to [:protocol.action/submit-evidence :protocol.action/release]}
+  :attest-condition-met
+  {:description "Condition authority certifies that the condition is satisfied."
+   :maps-to [:protocol.action/resolve :protocol.action/settle]}
+  :claim-expiry
+  {:description "Depositor claims return of funds because the condition window passed."
+   :maps-to [:protocol.action/cancel :protocol.action/timeout]}
+   :dispute-condition
+   {:description "A party challenges the condition authority's evaluation."
+    :maps-to [:protocol.action/dispute :protocol.action/appeal]}
+   :post-appeal-bond
+   {:description "Challenging party posts collateral when disputing a condition evaluation; forfeited if the challenge is rejected."
+    :maps-to [:protocol.action/bond]
+    :mapping/confidence :approximate
+    :mapping/note "Separates bond post from dispute initiation for clarity; protocol may combine them."}}
+
+ :concept/outcomes
+ {:deposit-released
+  {:description "Beneficiary receives funds because the condition was met."
+   :maps-to [:protocol.outcome/released]}
+  :deposit-returned
+  {:description "Depositor receives funds back because the condition failed or expired."
+   :maps-to [:protocol.outcome/refunded]}
+  :deposit-stuck
+  {:description "Funds are locked because the condition is disputed and unresolved."
+   :maps-to [:protocol.outcome/stuck]}
+   :deposit-misattested
+   {:description "Condition authority incorrectly attested the condition, causing wrongful release or return."
+    :maps-to [:protocol.outcome/adversarial-resolution]}
+   :evaluation-upheld
+   {:description "After challenge, the original condition evaluation is confirmed as correct."
+    :maps-to [:protocol.outcome/resolved]
+    :mapping/confidence :approximate
+    :mapping/note "Protocol outcome resolved covers the terminal resolution; the 'upheld' nuance is contextual."}
+   :evaluation-reversed
+   {:description "After challenge, the original condition evaluation is overturned."
+    :maps-to [:protocol.outcome/resolved]
+    :mapping/confidence :approximate
+    :mapping/note "Same protocol outcome as upheld; the reversal is inferred from the fund flow direction."}
+   :appeal-rejected
+   {:description "The challenge is dismissed as invalid, out of time, or brought by an unauthorised party."
+    :maps-to [:protocol.outcome/rejected]}
+   :appeal-bond-returned
+   {:description "Appeal bond is returned because the challenge succeeded."
+    :maps-to [:protocol.outcome/released]
+    :mapping/confidence :approximate
+    :mapping/note "Bond return flows through the same protocol release mechanism as fund release."}
+   :appeal-bond-forfeited
+   {:description "Appeal bond is forfeited because the challenge failed or was frivolous."
+    :maps-to [:protocol.outcome/slashed]}}
+
+ :concept/failure-modes
+ [{:failure/id :false-attestation
+   :failure/name "False attestation of condition"
+   :failure/summary
+   "Condition authority attests that a condition was met when it was not, or vice versa."
+   :protocol-mechanisms [:attestation-verification :dispute :bonding]
+   :stakeholder-impact "Funds are released or returned incorrectly, harming one party."}
+
+  {:failure/id :condition-unverifiable
+   :failure/name "Condition unverifiable on-chain"
+   :failure/summary
+   "The condition cannot be objectively verified from on-chain data, requiring trust in a third party."
+   :protocol-mechanisms [:oracle :evidence-submission :dispute]
+   :stakeholder-impact "Deposit outcome depends on subjective or off-chain judgment."}
+
+  {:failure/id :premature-timeout-claim
+   :failure/name "Premature timeout claim"
+   :failure/summary
+   "Depositor claims expiry before the condition window has elapsed."
+   :protocol-mechanisms [:timeout-check :deadline-config]
+   :stakeholder-impact "Beneficiary loses the opportunity to fulfill the condition."}]
+
+ :concept/metrics
+  {:time-to-condition
+   {:description "Time from deposit creation to condition evaluation."
+    :source :derived-from-trace}
+   :condition-verified
+   {:description "Whether the condition was verified by the authority."
+    :source :derived-from-trace}
+   :outcome-type
+   {:description "Terminal outcome (released, returned, stuck, misattested)."
+    :source :derived-from-trace}}
+
+ :concept/assumptions
+  ["A condition is defined at deposit creation and is evaluable."
+   "The condition authority is either a resolver module or an oracle."
+   "Concept labels do not change protocol validity."]
+
+ :concept/out-of-scope
+ ["Real-world legal or contractual conditions."
+  "Oracle quality, liveness, or security."
+   "Multi-step conditional logic or dependent conditions."]
+
+ :concept/known-gaps
+  ["Evaluation-upheld and evaluation-reversed both map to the same protocol outcome (:protocol.outcome/resolved); the protocol does not distinguish them."
+   "Condition-authority role maps approximately to resolver or oracle — the mapping confidence is documented above."
+   "Governance role was removed because no governance-specific behaviour is modelled in this use-case."]
+
+ :concept/evidence
+  {:scenarios #{}
+   :benchmarks #{:benchmark/sew-escrow-dispute-v1
+                 :benchmark/sew-dispute-liveness-v1}
+   :claims #{:claim/no-unauthorized-release
+             :claim/funds-conserved
+             :claim/dispute-liveness
+             :claim/bounded-resolution-time}}}

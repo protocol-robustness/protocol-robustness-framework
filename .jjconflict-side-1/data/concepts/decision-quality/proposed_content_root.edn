@@ -1,0 +1,62 @@
+{:concept/id :governance/proposed-content-root
+ :concept/type :decision-quality
+ :concept/layer :stakeholder
+ :concept/name "Proposed content root"
+ :concept/summary
+ "A proposed content root is a content-addressed hash that commits a proposed-content package to a specific canonical projection. It proves commitment to a particular package version but does not prove that the content is good, approved, available, or executable."
+
+ :concept/stakeholder-question
+ "Does the proposed content root match the intended content package, separate from whether the content is correct, approved, or retrievable?"
+
+ :concept/protocols #{:protocol/sew-v1 :protocol/prf}
+
+ :concept/roles
+ {:proposer {:description "Entity that supplies the content root."
+             :maps-to [:protocol.actor/governance]}
+  :verifier {:description "Entity that checks the root against the content."
+             :maps-to [:protocol.role/verifier]}}
+
+ :concept/entities
+ {:content-root {:description "Content-addressed hash of the proposed package."
+                 :maps-to [:protocol.entity/canonical-hash]}
+  :canonical-projection {:description "The set of fields included in the hash computation."
+                         :maps-to [:protocol.entity/projection]}}
+
+ :concept/actions
+ {:commit-root {:description "Record a content root for a proposed package."
+                :maps-to [:protocol.action/commit-root]}
+  :verify-root {:description "Verify that content matches its declared root."
+                :maps-to [:protocol.action/verify-allocation]}}
+
+ :concept/outcomes
+ {:root-committed {:description "Root was recorded and bound to the proposal."
+                   :maps-to [:protocol.outcome/released]}
+  :root-mismatch {:description "Content does not match the declared root."
+                  :maps-to [:protocol.outcome/adversarial-resolution]}}
+
+ :concept/failure-modes
+ [{:failure/id :root-content-mismatch
+   :failure/name "Root-content mismatch"
+   :failure/summary "The actual content hash does not match the declared root."
+   :protocol-mechanisms [:content-addressing :canonical-hashing]
+   :stakeholder-impact "Cannot verify integrity of the proposed package."}]
+
+ :concept/assumptions
+ ["The content root references a specific canonical projection of the target content."
+  "Fields outside the canonical projection do not affect the root."
+  "The matching root proves commitment, not correctness."]
+
+ :concept/out-of-scope
+ ["Semantic correctness of the referenced content."
+  "Approval, review or authorisation status."
+  "Provenance or identity of the proposer."
+  "Availability and retrievability of the referenced package."
+  "Fields excluded from the committed hash projection."
+  "Equivalence between the proposed content and any baseline."
+  "Execution effects resulting from the referenced content."]
+
+ :concept/metrics
+ {:root-verification-count {:description "Number of root verifications performed."
+                            :source :derived-from-trace}
+  :root-mismatch-count {:description "Number of root mismatches detected."
+                        :source :derived-from-invariant-results}}}

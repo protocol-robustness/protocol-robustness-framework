@@ -1,0 +1,46 @@
+{:scenario-id "dr-n-002-escalation-bond-return"
+ :schema-version "1.0"
+ :allow-open-disputes? true
+ :purpose "adversarial-robustness"
+ :title "Escalation bond is returned on finalize (bond leak fix)"
+ :description "A seller escalates a dispute, posting an escalation bond. The escrow is finalized. Verifies that the bond is returned as claimable via return-all-bonds-for-workflow in the finalize path."
+ :provenance {:author "@dispute-researcher" :created-at "2026-06-30" :license "CC-BY-4.0"}
+ :claim {:id "escalation-bond-returned-on-finalize"
+         :statement "After an escalation bond is posted and the escrow finalizes, the bond balance is cleared and the amount becomes claimable."
+         :falsifies-if ["Bond balance remains after finalize"
+                        "Bond is not returned as claimable"]}
+ :expectations {:terminal-state "refunded"}
+ :threat {:family "accounting" :attack "escalation-bond-leak" :severity "high"
+          :actors ["buyer" "seller"] :victims ["challenger"]
+          :assumptions ["Escalation bond is posted"
+                       "Finalize calls return-all-bonds-for-workflow"]
+          :fix "return-all-bonds-for-workflow called in lifecycle.clj finalize"}
+ :accounting {:unit "USDC" :decimals 6 :tracked-balances ["buyer" "seller" "resolver-l0" "resolver-l1" "governance" "protocol" "claimableBalances"]}
+ :initial-block-time 1000
+ :protocol-params {:resolver-fee-bps 150 :appeal-window-duration 120 :max-dispute-duration 2592000
+                   :dispute-resolver "0xresolver-l0"
+                   :escalation-resolvers {:1 "0xresolver-l1"}}
+ :agents [{:id "buyer" :address "0xbuyer" :strategy "honest"}
+          {:id "seller" :address "0xseller" :strategy "honest"}
+          {:id "resolver-l0" :address "0xresolver-l0" :role "resolver" :stake 20000}
+          {:id "resolver-l1" :address "0xresolver-l1" :role "resolver" :stake 20000}
+          {:id "keeper" :address "0xkeeper" :role "keeper"}]
+ :events [{:seq 0 :time 1000 :agent "resolver-l0" :action "register_stake"
+           :params {:amount 20000}}
+          {:seq 1 :time 1000 :agent "resolver-l1" :action "register_stake"
+           :params {:amount 20000}}
+          {:seq 2 :time 1000 :agent "buyer" :action "create_escrow"
+           :params {:token "USDC" :to "0xseller" :amount 5000}}
+          {:seq 3 :time 1060 :agent "buyer" :action "raise_dispute" :params {:workflow-id 0}}
+          ;; L0 resolves (refund)
+          {:seq 4 :time 1100 :agent "resolver-l0" :action "execute_resolution"
+           :params {:workflow-id 0 :is-release false :resolution-hash "0xrelease"}}
+          ;; Seller escalates — posts escalation bond
+          {:seq 5 :time 1150 :agent "seller" :action "escalate_dispute"
+           :params {:workflow-id 0}}
+          ;; L1 resolves (release) after escalation
+          {:seq 6 :time 1200 :agent "resolver-l1" :action "execute_resolution"
+           :params {:workflow-id 0 :is-release true :resolution-hash "0xrelease"}}
+          ;; Settle after appeal window (deadline = 1200+120 = 1320)
+          {:seq 7 :time 1400 :agent "keeper" :action "execute_pending_settlement"
+           :params {:workflow-id 0}}]}

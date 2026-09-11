@@ -1,0 +1,26 @@
+{
+  "schema-version": "mechanism-scenario-matrix.v1",
+  "mechanism-map/id": "mechanism-map/shortfall-v1",
+  "mechanism-map/version": "mechanism-map.shortfall.v1",
+  "mechanism-map/hash": "3d4a0f8e5d7a2b9c1e6d4f0a6b7c8d9e0f112233445566778899aabbccddeeff",
+  "scenarios": [
+    "S104_resolver-stake-shortfall",
+    "S103_negative-yield-shortfall-cascade"
+  ],
+  "mechanisms": [
+    "mechanism/partial-fill",
+    "mechanism/shortfall-detection",
+    "mechanism/pro-rata-fairness",
+    "mechanism/evidence-integrity"
+  ],
+  "cells": {
+    "S104_resolver-stake-shortfall|mechanism/pro-rata-fairness": {
+      "status": "passed",
+      "applicability": "required"
+    },
+    "S103_negative-yield-shortfall-cascade|mechanism/shortfall-detection": {
+      "status": "not-applicable",
+      "applicability": "not-applicable"
+    }
+  }
+}

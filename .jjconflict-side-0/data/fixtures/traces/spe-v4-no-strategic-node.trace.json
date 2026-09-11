@@ -1,0 +1,59 @@
+{
+  "schema-version": "1.1",
+  "threat-tags": [],
+  "initial-block-time": 1000,
+  "scenario-author": "@grifma",
+  "id": "scenarios/spe-v4-no-strategic-node",
+  "agents": [
+    {
+      "id": "buyer",
+      "address": "0xbuyer",
+      "type": "honest"
+    },
+    {
+      "id": "seller",
+      "address": "0xseller",
+      "type": "honest"
+    }
+  ],
+  "scenario-id": "spe-v4-no-strategic-node",
+  "events": [
+    {
+      "seq": 0,
+      "time": 1000,
+      "agent": "buyer",
+      "action": "create_escrow",
+      "params": {
+        "token": "USDC",
+        "to": "0xseller",
+        "amount": 5000
+      }
+    },
+    {
+      "seq": 1,
+      "time": 1100,
+      "agent": "buyer",
+      "action": "release",
+      "params": {
+        "workflow-id": 0
+      }
+    }
+  ],
+  "theory": {
+    "claim-id": "claims/spe-no-nodes",
+    "claim": "SPE is inconclusive when no strategic choices are made.",
+    "equilibrium-concept": [
+      "subgame-perfect-equilibrium"
+    ],
+    "assumptions": [],
+    "falsifies-if": [],
+    "spe-config": {
+      "regret-threshold": 0,
+      "epsilon-abs": 0.0,
+      "epsilon-rel": 0.0
+    }
+  },
+  "title": "SPE: No Strategic Node",
+  "description": "Happy path escrow with no disputes or escalations. SPE validation should be inconclusive.",
+  "purpose": "regression"
+}

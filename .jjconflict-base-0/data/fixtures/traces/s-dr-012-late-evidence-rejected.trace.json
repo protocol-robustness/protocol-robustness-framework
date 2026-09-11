@@ -1,0 +1,102 @@
+{
+  "protocol-params": {
+    "resolver-fee-bps": 150,
+    "evidence-window-duration": 60,
+    "appeal-window-duration": 60,
+    "max-dispute-duration": 2592000
+  },
+  "threat-tags": [
+    "dispute-resolution",
+    "evidence",
+    "deadline"
+  ],
+  "purpose": "theory-falsification",
+  "events": [
+    {
+      "seq": 0,
+      "time": 1000,
+      "agent": "buyer",
+      "action": "create_escrow",
+      "params": {
+        "token": "USDC",
+        "to": "0xseller",
+        "amount": 5000,
+        "custom-resolver": "0xresolver"
+      }
+    },
+    {
+      "seq": 1,
+      "time": 1060,
+      "agent": "buyer",
+      "action": "raise_dispute",
+      "params": {
+        "workflow-id": 0
+      }
+    },
+    {
+      "seq": 2,
+      "time": 1150,
+      "agent": "seller",
+      "action": "submit_evidence",
+      "params": {
+        "workflow-id": 0,
+        "evidence-hash": "0xtoo-late"
+      }
+    },
+    {
+      "seq": 3,
+      "time": 1151,
+      "agent": "resolver",
+      "action": "execute_resolution",
+      "params": {
+        "workflow-id": 0,
+        "is-release": true
+      }
+    },
+    {
+      "seq": 4,
+      "time": 1220,
+      "agent": "buyer",
+      "action": "execute_pending_settlement",
+      "params": {
+        "workflow-id": 0
+      }
+    }
+  ],
+  "schema-version": "1.1",
+  "scenario-title": "Late evidence rejected \u2014 submit_evidence after evidence-window-duration deadline fails",
+  "scenario-author": "@kilo-research",
+  "scenario-id": "s-dr-012-late-evidence-rejected",
+  "title": "s-dr-012-late-evidence-rejected",
+  "scenario-purpose": "Verify that submit-evidence after the evidence-window-duration deadline is rejected with :evidence-deadline-exceeded. Evidence may only be submitted within the window after dispute is raised.",
+  "id": "scenarios\/s-dr-012-late-evidence-rejected",
+  "expected-errors": [
+    {
+      "seq": 2,
+      "action": "submit_evidence",
+      "error": "evidence-deadline-exceeded"
+    }
+  ],
+  "provenance": {
+    "author-id": "@kilo-research",
+    "author": "Kilo Research"
+  },
+  "agents": [
+    {
+      "id": "buyer",
+      "address": "0xbuyer",
+      "type": "honest"
+    },
+    {
+      "id": "seller",
+      "address": "0xseller",
+      "type": "honest"
+    },
+    {
+      "id": "resolver",
+      "address": "0xresolver",
+      "type": "resolver"
+    }
+  ],
+  "initial-block-time": 1000
+}

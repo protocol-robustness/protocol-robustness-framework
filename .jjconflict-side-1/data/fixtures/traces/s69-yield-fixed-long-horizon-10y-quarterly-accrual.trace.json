@@ -1,0 +1,56 @@
+{
+  "protocol-params": {
+    "yield-generation-module": "fixed-rate",
+    "yield-protocol-fee-bps": 1000,
+    "resolver-fee-bps": 150,
+    "appeal-window-duration": 0,
+    "max-dispute-duration": 2592000
+  },
+  "threat-tags": [],
+  "purpose": "regression",
+  "events": [
+    {
+      "seq": 0,
+      "time": 1000,
+      "agent": "sender",
+      "action": "create_escrow",
+      "params": {
+        "token": "USDC",
+        "to": "recipient",
+        "amount": 100000,
+        "yield-preset": "to-recipient"
+      }
+    },
+    {
+      "seq": 1,
+      "time": 315361000,
+      "agent": "sender",
+      "action": "release",
+      "params": {
+        "workflow-id": 0
+      }
+    }
+  ],
+  "schema-version": "1.1",
+  "scenario-author": "@grifma",
+  "scenario-id": "s69-yield-fixed-long-horizon-10y-quarterly-accrual",
+  "title": "s69-yield-fixed-long-horizon-10y-quarterly-accrual",
+  "id": "scenarios\/s69-yield-fixed-long-horizon-10y-quarterly-accrual",
+  "provenance": {
+    "author-id": "@grifma",
+    "author": "Marc Griffiths"
+  },
+  "agents": [
+    {
+      "id": "sender",
+      "address": "sender",
+      "type": "honest"
+    },
+    {
+      "id": "recipient",
+      "address": "recipient",
+      "type": "honest"
+    }
+  ],
+  "initial-block-time": 1000
+}

@@ -1,0 +1,12 @@
+{:suite/id :suites/escalation-collision
+ :suite/title "Escalation collision detection"
+ :suite/purpose "Verify that dispute escalations cannot collide with resolver resolutions in the same block."
+ :suite/prevents "Concurrent resolution and escalation attacks."
+ :suite/class :ordering
+ :suite/criticality :high
+
+ :thresholds :thresholds/strict-baseline
+ :state    :states/minimal-world
+ :traces [{:trace :traces/padded-timelock-failure
+           :expected-outcome :fail
+           :expected-halt-reason :open-entities-at-end}]}

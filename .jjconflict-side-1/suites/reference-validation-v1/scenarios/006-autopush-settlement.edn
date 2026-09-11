@@ -1,0 +1,7 @@
+{:scenario/id "autopush-settlement-v1"
+ :scenario/title "006-autopush-settlement"
+ :scenario/version "1.0.0"
+ :scenario/status :public-candidate
+ :scenario/purpose "Verifies settlement is pull-first for sensitive value movement."
+ :protocol/phase :dr3
+ :expected-result {:status :pass :classification :regression-protected}}

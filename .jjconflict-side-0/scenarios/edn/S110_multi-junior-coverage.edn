@@ -1,0 +1,31 @@
+{:scenario-id "s110-multi-junior-coverage"
+ :schema-version "1.0"
+ :scenario-author "@kilo-research"
+ :initial-block-time 1000
+ :agents [{:id "senior" :address "0xsenior" :role "resolver"}
+          {:id "juniorA" :address "0xjuniorA" :role "resolver"}
+          {:id "juniorB" :address "0xjuniorB" :role "resolver"}
+          {:id "buyer" :address "0xbuyer" :strategy "honest"}
+          {:id "seller" :address "0xseller" :strategy "honest"}
+          {:id "governance" :address "0xgov" :role "governance"}
+          {:id "keeper" :address "0xkeeper" :role "keeper"}]
+ :protocol-params {:resolver-fee-bps 150 :appeal-window-duration 120 :max-dispute-duration 600 :resolver-bond-bps 0 :governance-mode :full :slash-epoch-cap-bps 10000 :max-slash-per-offense-bps 10000}
+ :allow-open-disputes? true
+ :events [{:seq 0 :time 1000 :agent "senior" :action "register_senior_bond" :params {:coverage-max 10000}}
+          {:seq 1 :time 1000 :agent "juniorA" :action "register_stake" :params {:amount 10000}}
+          {:seq 2 :time 1000 :agent "juniorB" :action "register_stake" :params {:amount 10000}}
+          {:seq 3 :time 1000 :agent "juniorA" :action "delegate_to_senior" :params {:senior-addr "0xsenior" :resolver-addr "0xjuniorA" :coverage 4000}}
+          {:seq 4 :time 1001 :agent "juniorB" :action "delegate_to_senior" :params {:senior-addr "0xsenior" :resolver-addr "0xjuniorB" :coverage 4000}}
+          {:seq 5 :time 1100 :agent "buyer" :action "create_escrow" :params {:token "USDC" :to "0xseller" :amount 5000 :custom-resolver "0xjuniorA"}}
+          {:seq 6 :time 1160 :agent "buyer" :action "raise_dispute" :params {:workflow-id 0}}
+          {:seq 7 :time 1220 :agent "juniorA" :action "execute_resolution" :params {:workflow-id 0 :is-release true :resolution-hash "0xhash"}}
+          {:seq 8 :time 1230 :agent "governance" :action "propose_fraud_slash" :params {:workflow-id 0 :resolver-addr "0xjuniorA" :amount 3000}}
+          {:seq 9 :time 1341 :agent "keeper" :action "execute_pending_settlement" :params {:workflow-id 0}}
+          {:seq 10 :time 1355 :agent "governance" :action "execute_fraud_slash" :params {:workflow-id 0}}
+          {:seq 11 :time 1400 :agent "buyer" :action "create_escrow" :params {:token "USDC" :to "0xseller" :amount 5000 :custom-resolver "0xjuniorB"}}
+          {:seq 12 :time 1460 :agent "buyer" :action "raise_dispute" :params {:workflow-id 1}}
+          {:seq 13 :time 1520 :agent "juniorB" :action "execute_resolution" :params {:workflow-id 1 :is-release true :resolution-hash "0xhash"}}
+          {:seq 14 :time 1530 :agent "governance" :action "propose_fraud_slash" :params {:workflow-id 1 :resolver-addr "0xjuniorB" :amount 2000}}
+          {:seq 15 :time 1641 :agent "keeper" :action "execute_pending_settlement" :params {:workflow-id 1}}
+          {:seq 16 :time 1655 :agent "governance" :action "execute_fraud_slash" :params {:workflow-id 1}}]
+ :provenance {:author-id "@kilo-research" :author "Kilo Research"}}

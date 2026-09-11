@@ -1,0 +1,18 @@
+{:suite/id       :suites/forking-strategist
+ :suite/title    "Forking Strategist — multi-escrow fork isolation and reversal slashing"
+ :suite/purpose  "Validate that forking strategist scenarios produce correct resolution, settlement, and slashing outcomes."
+ :suite/class    :adversarial
+ :suite/criticality :high
+
+ :protocol   :protocol/baseline
+ :state      :states/minimal-world
+ :thresholds :thresholds/strict-baseline
+ :traces [:traces/s26-forking-strategist-l1-reversal
+          :traces/s27-forking-strategist-l2-fork
+          :traces/s28-forking-strategist-late-escalation-rejected
+          :traces/s29-forking-strategist-seller-escalates
+          :traces/s30-forking-strategist-double-loss
+          :traces/s31-forking-strategist-all-levels-confirm
+          :traces/s32-forking-strategist-premature-settlement-rejected
+          :traces/s33-forking-strategist-two-escrow-fork-isolation
+]}

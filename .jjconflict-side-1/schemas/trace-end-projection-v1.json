@@ -1,0 +1,70 @@
+{
+  "$schema" : "https://json-schema.org/draft/2020-12/schema",
+  "$id" : "https://sew-protocol/schemas/trace-end-projection-v1.json",
+  "title" : "Trace End Projection",
+  "type" : "object",
+  "required" : [ "terminal-world", "metrics", "trace-summary", "money-movement-summary", "shortfall-summary" ],
+  "properties" : {
+    "terminal-world" : {
+      "type" : "object",
+      "required" : [ "escrows", "terminal?" ],
+      "properties" : {
+        "escrows" : {
+          "type" : "object"
+        },
+        "terminal?" : {
+          "type" : "boolean"
+        }
+      },
+      "additionalProperties" : true
+    },
+    "metrics" : {
+      "type" : "object"
+    },
+    "trace-summary" : {
+      "type" : "object"
+    },
+    "money-movement-summary" : {
+      "type" : "object"
+    },
+    "shortfall-summary" : {
+      "type" : "object",
+      "required" : [ "entry-count", "shortfall-explicit?", "has-shortfall?", "fulfilled-total", "deferred-total", "haircut-total", "reasons", "rounding-policy" ],
+      "properties" : {
+        "entry-count" : {
+          "type" : "integer",
+          "minimum" : 0
+        },
+        "shortfall-explicit?" : {
+          "const" : true
+        },
+        "has-shortfall?" : {
+          "type" : "boolean"
+        },
+        "fulfilled-total" : {
+          "type" : "integer",
+          "minimum" : 0
+        },
+        "deferred-total" : {
+          "type" : "integer",
+          "minimum" : 0
+        },
+        "haircut-total" : {
+          "type" : "integer",
+          "minimum" : 0
+        },
+        "reasons" : {
+          "type" : "array",
+          "items" : {
+            "type" : "string"
+          }
+        },
+        "rounding-policy" : {
+          "const" : "floor-to-asset-decimals.v1"
+        }
+      },
+      "additionalProperties" : true
+    }
+  },
+  "additionalProperties" : true
+}

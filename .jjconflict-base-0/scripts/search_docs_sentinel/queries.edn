@@ -1,0 +1,202 @@
+;; Search-docs sentinel query registry v1
+;;
+;; Each query checks whether important concepts remain discoverable in code,
+;; docs, notebooks, scenarios, and schemas.
+;;
+;; :terms — search phrases that should find relevant content
+;; :expected-paths — files that should exist and be the authoritative source
+;; :deprecated-paths — files that reference old/obsolete names
+;; :tags — categorization
+;; :note — why this query matters
+
+[{:id :yield-shortfall
+  :label "Yield shortfall + partial liquidity"
+  :terms ["yield shortfall" "partial liquidity" "available-ratio" "shortfall"]
+  :expected-paths ["docs/yield/YIELD_INVARIANTS.md"
+                   "scenarios/edn/S78_yield-aave-partial-liquidity-release.edn"
+                   "scenarios/edn/S79_yield-aave-partial-liquidity-dispute-resolution.edn"
+                   "scenarios/edn/S80_yield-mostly-liquid-partial-liquidity.edn"
+                   "scenarios/edn/S78_yield-negative-yield-release-path.edn"
+                   "scenarios/edn/S79_yield-negative-yield-dispute-refund-path.edn"
+                   "scenarios/edn/S103_negative-yield-shortfall-cascade.edn"
+                   "scenarios/edn/S82_shortfall-recovery-cycle.edn"
+                    "docs/evidence/S80_MOSTLY_LIQUID_END_TO_END_DEMO.md"]
+  :tags [:yield :evidence :scenario]
+  :note "Yield shortfall is a core claim; researchers must find authoritative scenario docs + evidence."}
+
+ {:id :artifact-registry
+  :label "Artifact registry + manifest attestation"
+  :terms ["artifact registry" "test-artifacts.json" "artifact-registry-emitter" "run manifest"]
+   :expected-paths ["scripts/evidence/write_scenario_run_manifest.py"
+                    "scripts/validate/verify_artifact_registry.py"
+                    "schemas/test-run-v1.json"
+                     "schemas/test-artifacts-v1.2.json"
+                    "schemas/scenario-v1.json"]
+   :deprecated-paths ["scripts/write_scenario_run_manifest.py"
+                      "scripts/verify_artifact_registry.py"]
+   :tags [:evidence :schema :script]
+   :note "Artifact registry is the evidence anchor; missing paths break the attestation chain."}
+
+ {:id :fork-isolation
+  :label "Fork isolation (scenario S33)"
+  :terms ["fork isolation" "S33" "two-escrow-fork-isolation"]
+   :expected-paths ["scenarios/edn/S33_forking-strategist-two-escrow-fork-isolation.edn"
+                    "docs/scenarios.md"
+                    "protocols_src/resolver_sim/protocols/sew/invariant_scenarios/forking_strategist.clj"
+                    "data/fixtures/suites/forking-strategist.edn"]
+  :tags [:scenario :invariant :adversarial]
+  :note "Fork isolation is a key safety property; must be traceable from docs to code."}
+
+ {:id :partial-liquidity
+  :label "Partial liquidity yield scenarios"
+  :terms ["partial liquidity" "mostly-liquid" "available-ratio"
+          "partial-liquidity-release" "partial-liquidity-dispute"]
+  :expected-paths ["scenarios/edn/S78_yield-aave-partial-liquidity-release.edn"
+                   "scenarios/edn/S79_yield-aave-partial-liquidity-dispute-resolution.edn"
+                   "scenarios/edn/S80_yield-mostly-liquid-partial-liquidity.edn"
+                   "scenarios/edn/S112_aave-partial-liquidity-recovery.edn"
+                   "docs/evidence/S80_MOSTLY_LIQUID_END_TO_END_DEMO.md"]
+  :tags [:yield :scenario :evidence]
+  :note "Partial liquidity is a DeFi-specific risk; docs must be accessible."}
+
+ {:id :deterministic-replay
+  :label "Deterministic replay engine"
+  :terms ["deterministic replay" "replay-with-protocol" "replay-idempotent" "process-step"]
+  :expected-paths ["src/resolver_sim/contract_model/replay.clj"
+                   "src/resolver_sim/contract_model/replay/flags.clj"
+                   "docs/architecture/ARCHITECTURE.md"
+                   "docs/testing/IDEMPOTENCE_CHECKLIST.md"]
+  :tags [:kernel :architecture]
+  :note "Replay engine is the kernel; researchers need architecture docs + idempotence guarantees."}
+
+ {:id :oracle-model
+  :label "Oracle mode (fixed-or, roll sequence)"
+  :terms ["fixed-or" "fixed-roll-sequence" "oracle-mode" "oracle-fixture" "detection model"]
+  :expected-paths ["src/resolver_sim/stochastic/detection.clj"
+                   "src/resolver_sim/stochastic/types.clj"
+                   "docs/architecture/ORACLE_FIXTURE_EXHAUSTION.md"
+                   "data/params/control-oracle-fixed-roll-sequence.edn"]
+  :tags [:stochastic :oracle]
+  :note "Oracle model is used in MC analysis; must be documented for parameter tuning."}
+
+ {:id :multi-epoch
+  :label "Multi-epoch reputation + trajectory"
+  :terms ["multi-epoch" "trajectory" "reputation" "phase-j" "epoch"]
+  :expected-paths ["src/resolver_sim/sim/multi_epoch.clj"
+                   "src/resolver_sim/sim/trajectory.clj"
+                   "data/params/phase-j-baseline-stable.edn"
+                   "docs/archive/PHASE_J_SPECIFICATION.md"]
+  :tags [:stochastic :simulation :governance]
+  :note "Multi-epoch analysis is a core framework capability; specs must be findable."}
+
+ {:id :speds-narrative
+  :label "SPEDS evidence design system"
+  :terms ["SPEDS" "evidence design" "story engine" "carousel" "frame-specs"]
+   :expected-paths ["src/resolver_sim/notebook_support/speds/story.clj"
+                    "src/resolver_sim/notebook_support/speds/core.clj"
+                    "src/resolver_sim/notebook_support/speds/config.clj"
+                   "docs/visual/PROTOCOL_EVIDENCE_DESIGN_SYSTEM.md"
+                   "docs/visual/VISUAL_EVIDENCE_NARRATIVE.md"]
+  :tags [:visual :narrative :evidence]
+  :note "SPEDS generates researcher-facing evidence; stale docs cause narrative drift."}
+
+ {:id :governance-capture
+  :label "Governance capture + sandwich attacks"
+  :terms ["governance capture" "governance decay" "sandwich attack" "governance-sandwich"]
+  :expected-paths ["data/params/phase-t-governance-capture.edn"
+                   "data/params/phase-j-governance-decay.edn"
+                   "suites/reference-validation-v1/scenarios/001-governance-sandwich.edn"
+                   "data/fixtures/suites/governance-decay.edn"
+                   "src/resolver_sim/sim/governance_delay.clj"
+                   "src/resolver_sim/sim/governance_impact.clj"]
+  :tags [:governance :adversarial :scenario]
+  :note "Governance capture is a systemic risk; evidence chain must be intact."}
+
+ {:id :monte-carlo
+  :label "Monte Carlo phase system"
+  :terms ["Monte Carlo" "phase" "parameter sweep" "run-phase-" "engine.clj"]
+   :expected-paths ["src/resolver_sim/sim/engine.clj"
+                    "src/resolver_sim/sim/batch.clj"
+                    "src/resolver_sim/sim/sweep.clj"
+                    "scripts/run_sweep.sh"
+                    "protocols_src/resolver_sim/research/sew/analytic/phase_c_corruption_economics.clj"
+                   "src/resolver_sim/sim/trial_router.clj"
+                   "docs/overview/REUSABLE_COMPONENTS.md"]
+  :tags [:simulation :infrastructure]
+  :note "Monte Carlo is the main analysis mode; entry points must be documented."}
+
+ {:id :evidence-chain
+  :label "Evidence chain (claim -> artifact -> notebook)"
+  :terms ["evidence" "claim" "manifest" "provenance" "artifact"]
+   :expected-paths ["docs/evidence/README.md"
+                    "docs/evidence/RESEARCHER_EVIDENCE_PACK.md"
+                    "docs/evidence/EVIDENCE_DAG_OVERVIEW.md"
+                    "docs/evidence/investigation_guide_S19.md"
+                    "docs/architecture/EVIDENCE_DAG_ARCHITECTURE.md"
+                    "docs/architecture/EVIDENCE_CHAIN_ARCHITECTURE.md"
+                    "schemas/claimable-classification-v2.json"]
+   :deprecated-paths ["docs/evidence/summary.md"]
+   :tags [:evidence :claims]
+   :note "Evidence chain integrity is the framework's core value proposition."}
+
+ {:id :yield-scenarios
+  :label "Yield scenario suite (S68-S115)"
+  :terms ["yield scenario" "yield-accrual" "yield-aave" "yield-fixed"
+          "S68" "S69" "S73" "S80" "S83" "S84" "S85"]
+  :expected-paths ["scenarios/edn/S68_yield-aave-long-horizon-10y-monthly-accrual.edn"
+                   "scenarios/edn/S69_yield-fixed-long-horizon-10y-quarterly-accrual.edn"
+                   "scenarios/edn/S80_yield-mostly-liquid-partial-liquidity.edn"
+                   "scenarios/edn/S103_negative-yield-shortfall-cascade.edn"
+                   "scenarios/edn/S104_resolver-stake-shortfall.edn"
+                   "notebooks/yield_scenarios_workbench.clj"
+                   "docs/researcher/yield_scenario_guide.md"]
+  :tags [:yield :scenario :notebook]
+  :note "Yield is an active development area; complete knowledge mapping is critical."}
+
+ {:id :adversarial-scenarios
+  :label "Adversarial + forking strategist suite"
+  :terms ["adversarial" "forking strategist" "S26" "S42" "bribery loop" "malicious resolver"]
+   :expected-paths ["scenarios/edn/S26_forking-strategist-l1-reversal.edn"
+                    "scenarios/edn/S42_resolver-buyer-bribery-loop.edn"
+                    "scenarios/edn/S08_state-machine-attack-gauntlet.edn"
+                    "data/fixtures/suites/forking-strategist.edn"
+                    "protocols_src/resolver_sim/protocols/sew/invariant_scenarios/adversarial.clj"]
+  :tags [:adversarial :scenario :invariant]
+  :note "Adversarial scenarios are the main evidence of protocol robustness."}
+
+ {:id :temporal-evidence
+  :label "Temporal rules + deadline enforcement"
+  :terms ["temporal" "deadline" "window" "appeal-window" "time-lock" "timeout"]
+   :expected-paths ["src/resolver_sim/contract_model/replay/temporal.clj"
+                    "src/resolver_sim/time/model.clj"
+                    "src/resolver_sim/time/invariants.clj"
+                    "docs/framework/temporal-rules.md"
+                    "scenarios/edn/S04_dispute-timeout-autocancel.edn"
+                    "scenarios/edn/S57_pending-settlement-expiry-boundary-1s.edn"]
+  :tags [:temporal :invariant :scenario]
+  :note "Temporal rules govern all dispute windows; docs/code alignment is essential."}
+
+ {:id :claim-boundary
+  :label "Claim boundary + CDRS theory schema"
+  :terms ["claim boundary" "claimable" "settlement-principal-boundary" "CDRS"
+          "claimable-classification" "claimable-v2"]
+   :expected-paths ["docs/concepts/CDRS-v1.1-THEORY-SCHEMA.md"
+                    "protocols_src/resolver_sim/protocols/sew/invariants.clj"
+                    "schemas/claimable-classification-v2.json"
+                    "schemas/trace-end-projection-v1.json"
+                    "protocols_src/resolver_sim/protocols/sew/claimable_classification.clj"]
+  :tags [:theory :schema :invariant]
+  :note "Claim boundary invariants protect against accounting bugs; must have clear theory docs."}
+
+ {:id :reference-validation-suite
+  :label "Reference validation v1 suite"
+  :terms ["reference validation" "reference-validation-v1" "evidence matrix"
+          "security evidence"]
+   :expected-paths ["suites/reference-validation-v1/SUITE.yaml"
+                    "suites/reference-validation-v1/manifest.edn"
+                    "suites/reference-validation-v1/docs/scenario-catalog.md"
+                    "suites/reference-validation-v1/docs/reproducibility-notes.md"
+                    "suites/reference-validation-v1/docs/limitations.md"
+                    "suites/reference-validation-v1/docs/interpreting-results.md"]
+  :tags [:suite :evidence :validation]
+  :note "Reference validation suite is the public-facing evidence package; every file must be present."}]

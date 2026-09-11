@@ -1,0 +1,9 @@
+{
+  "id": "int-zero",
+  "description": "Integer 0",
+  "input": "0",
+  "canonical_bytes_hex": "1000",
+  "domain_tag": "EVIDENCE_RECORD_V1",
+  "domain_tag_hex": "45564944454e43455f5245434f52445f5631",
+  "hash_hex": "cdc68333d9ba928ee91d34be93454e9a5380fb9c1e260806cc6c4a9bdb93d65a"
+}

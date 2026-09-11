@@ -1,0 +1,66 @@
+flowchart LR
+  subgraph INPUT["SCENARIO + PRESET + CONFIG"]
+    direction TB
+    S["Scenario JSON/EDN"]
+    P["Yield Preset<br/>(APY, liquidity, risk state)"]
+    C["Evidence Config"]
+  end
+
+  subgraph EXECUTION["DETERMINISTIC REPLAY"]
+    direction TB
+    RE["Replay Engine<br/>(replay-yield-scenario)"]
+    YPA["Yield Protocol Adapter<br/>(defaults: aave-v3)"]
+    LM["Liquid Lending Module<br/>(deposit / accrue / withdraw /<br/>emergency-unwind / claim-deferred)"]
+  end
+
+  subgraph INVARIANTS["INVARIANTS"]
+    direction TB
+    I1["8 Invariants per Step<br/>(position-consistency, exposure,<br/>shortfall-splits, status-fsm,<br/>realized-non-negative,<br/>partial-liquidity-principal,<br/>value-conservation, deferred-reclaim)"]
+    I2["Index Monotone<br/>(cross-step transition)"]
+  end
+
+  subgraph EVIDENCE["EVIDENCE CAPTURE"]
+    direction TB
+    EC["Capture at Event Boundary"]
+    YE["Yield Evidence Extractor<br/>(shortfall events, realized losses)"]
+    ECH["Evidence Chain<br/>(audit-trail linking)"]
+  end
+
+  subgraph DIAGNOSTIC["DIAGNOSTIC AGGREGATION"]
+    direction TB
+    REG["Evidence Registry<br/>(indexed by event / group /<br/>subject / type / layer)"]
+    RPT["Scenario Report"]
+    TCG["Triage / Failure Classification"]
+    MET["Yield Metrics +<br/>Partial Liquidity Metrics"]
+    COV["Coverage Analysis +<br/>Suite Verification"]
+  end
+
+  subgraph ARTIFACTS["DIAGNOSTIC ARTIFACTS"]
+    direction TB
+    REP["Reports (.edn)"]
+    TRA["Traces (.json)"]
+    GLD["Golden Fixtures (.edn)"]
+    CLK["Clerk Notebooks<br/>(interactive replay)"]
+  end
+
+  S --> RE
+  P --> RE
+  C --> RE
+  RE --> YPA
+  YPA --> LM
+  LM --> I1
+  LM --> I2
+  I1 --> EC
+  I2 --> EC
+  EC --> YE
+  EC --> ECH
+  YE --> REG
+  ECH --> REG
+  REG --> RPT
+  REG --> TCG
+  REG --> MET
+  REG --> COV
+  RPT --> REP
+  TCG --> TRA
+  MET --> GLD
+  COV --> CLK

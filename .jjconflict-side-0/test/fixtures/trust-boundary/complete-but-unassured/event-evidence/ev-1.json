@@ -1,0 +1,15 @@
+{
+  "evidence/type": "force-authorisation-granted",
+  "scenario/id": "fixture",
+  "evidence/hash": "b0e5ecc73e7ebe37abe68641e79489095b518ec58715c879be2f800698a01780",
+  "world/before-hash": "0x00",
+  "world/after-hash": "0x01",
+  "inputs": {
+    "force-auth/auth-id": "fa-fixture-0",
+    "force-auth/workflow-id": "wf"
+  },
+  "evidence/chain-hash-scheme": "link-v1",
+  "evidence/chain-seq": 1,
+  "evidence/chain-prev-hash": null,
+  "evidence/chain-self-hash": "ee975eb9430ea1e6716ff709a75d248f01a30c8c7eaaac4c4459cd8de1718db4"
+}

@@ -1,0 +1,57 @@
+{:notebook/id :yield-shortfall-partial-fill-demo
+ :title "Yield Shortfall: Partial Withdrawals Under Limited Liquidity"
+ :audience :interested-non-specialist
+ :reader-goal
+ "Understand what happens when multiple users withdraw from a yield module during a liquidity shortfall."
+
+ :scenario/story
+ [{:beat/id :normal-state
+   :title "Normal module state"
+   :question "What does the yield module look like before stress?"
+   :must-show [:module-liquidity :user-positions :claimable-balances]}
+
+  {:beat/id :stress-event
+   :title "Liquidity shortfall begins"
+   :question "What changes when available liquidity falls?"
+   :must-show [:event :module-before-after :available-ratio]}
+
+  {:beat/id :withdrawal-wave-1
+   :title "First withdrawal wave"
+   :question "Who tries to withdraw, who gets filled, and who is deferred?"
+   :must-show [:events :per-user-fill-table :module-after]}
+
+  {:beat/id :withdrawal-wave-2
+   :title "Second withdrawal wave"
+   :question "What happens when more users try after liquidity has already been consumed?"
+   :must-show [:events :per-user-fill-table :module-after :comparison-to-wave-1]}
+
+  {:beat/id :recovery-or-unwind
+   :title "Recovery / deferred claims"
+   :question "What remains unresolved?"
+   :must-show [:deferred-amounts :shortfall-affected-users :final-summary]}]
+
+ :actors
+ [{:user/id "alice" :principal 1000 :withdraw-request 1000}
+  {:user/id "bob"   :principal 750  :withdraw-request 500}
+  {:user/id "cara"  :principal 500  :withdraw-request 500}]
+
+ :module
+ {:module/id :gen-yield
+  :token :USDC
+  :initial-liquidity 1500
+  :available-ratio-after-stress 0.40
+  :partial-fill-policy :pro-rata}
+
+ :required-views
+ [:timeline
+  :event-log
+  :module-state-table
+  :per-user-withdrawal-table
+  :shortfall-affected-table
+  :raw-edn-folded]
+
+ :non-goals
+ ["Do not prove all invariants."
+  "Do not expose every internal map by default."
+  "Do not make this a researcher-only debugging notebook."]}
+

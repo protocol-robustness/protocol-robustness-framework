@@ -1,0 +1,13 @@
+{:suite/id       :suites/equivalence-ordering-terminal-determinism
+ :suite/title    "Equivalence Ordering/Terminal/Determinism"
+ :suite/purpose  "Verify same-block ordering safety, terminal-state absorbency, and replay determinism."
+ :suite/prevents "Order-dependent terminal drift and non-deterministic replay trajectories."
+ :suite/class    :ordering
+ :suite/criticality :high
+
+ :protocol   :protocol/baseline
+ :state      :states/minimal-world
+ :thresholds :thresholds/strict-baseline
+ :traces [:traces/s56-same-block-dual-resolution-order-invariant
+          :traces/s58-escalation-after-terminal-hard-reject
+          :traces/s63-replay-idempotence-same-trace-double-run]}

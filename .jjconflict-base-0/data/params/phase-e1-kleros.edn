@@ -1,0 +1,38 @@
+{:description "Phase E1: Kleros backstop with 90% L2 detection"
+ :scenario-id "phase-e1-kleros-v1"
+ :rng-seed 42
+
+ ;; Escrow sizes (wei, log scale)
+ :escrow-distribution
+ {:type :lognormal
+  :mean 10000
+  :stddev 5000}
+
+ ;; Resolver strategy mix
+ :strategy-mix
+ {:honest 0.75
+  :lazy 0.15
+  :malicious 0.08
+  :collusive 0.02}
+
+ ;; Economic parameters
+ :resolver-fee-bps 150          ; 1.5%
+ :appeal-bond-bps 700           ; 7%
+ :slash-multiplier 2.5
+
+ ;; Appeal dynamics
+ :appeal-probability-if-correct 0.05
+ :appeal-probability-if-wrong 0.40
+ :slashing-detection-probability 0.10
+
+ ;; Phase E1: Kleros backstop
+ :l2-detection-prob 0.90        ; 90% detection rate at L2
+
+ ;; Simulation config
+ :n-trials 1000
+ :n-seeds 10                    ; 10 independent runs with different seeds
+ :parallelism :auto             ; Use all available cores
+
+ ;; Output
+ :save-samples? true            ; Save all trial outcomes to CSV
+ :save-sweep? false}

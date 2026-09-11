@@ -1,0 +1,59 @@
+{
+  "schema-version" : "1.1",
+  "threat-tags" : [ ],
+  "initial-block-time" : 1000,
+  "scenario-author" : "@grifma",
+  "expectations" : {
+    "terminal" : [ {
+      "path" : [ "live-states", 0 ],
+      "equals" : "released"
+    } ],
+    "metrics" : [ {
+      "name" : "funds-lost",
+      "op" : ":=",
+      "value" : 0
+    } ]
+  },
+  "id" : "scenarios/eq-v8-individual-rationality-inconclusive",
+  "agents" : [ {
+    "id" : "buyer",
+    "address" : "0xbuyer",
+    "role" : "buyer",
+    "strategy" : "honest"
+  }, {
+    "id" : "seller",
+    "address" : "0xseller",
+    "role" : "seller",
+    "strategy" : "honest"
+  } ],
+  "scenario-id" : "eq-v8-individual-rationality-inconclusive",
+  "events" : [ {
+    "seq" : 0,
+    "time" : 1000,
+    "agent" : "buyer",
+    "action" : "create_escrow",
+    "params" : {
+      "token" : "USDC",
+      "to" : "0xseller",
+      "amount" : 2500
+    }
+  }, {
+    "seq" : 1,
+    "time" : 1100,
+    "agent" : "buyer",
+    "action" : "release",
+    "params" : {
+      "workflow-id" : 0
+    }
+  } ],
+  "theory" : {
+    "claim-id" : "claims/eq-individual-rationality-inconclusive",
+    "claim" : "Without a payoff-ledger, individual-rationality cannot be validated; returns :inconclusive, not :pass.",
+    "mechanism-properties" : [ "individual-rationality" ],
+    "falsifies-if" : [ ],
+    "assumptions" : [ ]
+  },
+  "title" : "Individual Rationality — INCONCLUSIVE (no payoff-ledger)",
+  "description" : "Payoff-ledger is not tracked in single-trace replay. The individual-rationality validator returns :inconclusive (absent-evidence) rather than a false-positive :pass.",
+  "purpose" : "regression"
+}

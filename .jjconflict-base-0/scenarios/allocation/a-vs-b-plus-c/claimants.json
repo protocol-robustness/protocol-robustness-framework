@@ -1,0 +1,20 @@
+[
+  {
+    "claim-id": "A",
+    "economic-owner-id": "owner-A",
+    "amount": "50",
+    "weight": "50"
+  },
+  {
+    "claim-id": "B",
+    "economic-owner-id": "owner-B",
+    "amount": "30",
+    "weight": "30"
+  },
+  {
+    "claim-id": "C",
+    "economic-owner-id": "owner-C",
+    "amount": "20",
+    "weight": "20"
+  }
+]

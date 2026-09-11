@@ -1,0 +1,45 @@
+{:scenario-id "dr-b-003-full-L0-L1-L2-chain-reversal"
+ :schema-version "1.0"
+ :allow-open-disputes? true
+ :purpose "adversarial-robustness"
+ :title "Full L0→L1→L2 escalation chain with outcome reversal at each level"
+ :description "A dispute escalates through all three levels. L0 rules release for seller. L1 reverses to refund for buyer. L2 reverses back to release for seller. Each reversal triggers appropriate slashing of the prior resolver. Tests cross-level interaction of reversal slashing and final outcome at L2."
+ :provenance {:author "@dispute-researcher" :created-at "2026-06-29" :license "CC-BY-4.0"}
+ :claim {:id "cross-level-reversal-slashing-chain"
+         :statement "In a full L0→L1→L2 chain with reversal at each level, each prior resolver is slashed for their reversed decision. L2 resolution executes immediately."
+         :falsifies-if ["L0 resolver not slashed when L1 reverses" "L1 resolver not slashed when L2 reverses"
+                        "L2 resolution creates pending settlement" "Reversal not detectable in evidence output"]}
+ :expectations {:terminal-state "released"
+                :must-hold ["dispute_level_bounded" "appeal_reversal_detectable" "resolver_decision_attributable"]
+                :metrics {:l0_resolver_net_profit {:lt 0 :scope "l0resolver"}
+                          :l1_resolver_net_profit {:lt 0 :scope "l1resolver"}
+                          :escalation_count {:eq 2}}}
+ :threat {:family "escalation-chain" :attack "multi-level-reversal" :severity "medium"
+          :actors ["buyer" "seller"]
+          :assumptions ["max-dispute-level = 2" "Reversal slashing bps > 0"]}
+ :accounting {:unit "USDC" :decimals 6 :tracked-balances ["buyer" "seller" "l0resolver" "l1resolver" "l2resolver" "protocol" "slashPool"]}
+ :initial-block-time 1000
+ :protocol-params {:resolver-fee-bps 150 :appeal-window-duration 60 :max-dispute-duration 2592000 :reversal-slash-bps 2500 :dispute-resolver "0xl0" :escalation-resolvers {:0 "0xl0" :1 "0xl1" :2 "0xl2"}}
+ :agents [{:id "buyer" :address "0xbuyer" :strategy "honest"}
+          {:id "seller" :address "0xseller" :strategy "honest"}
+          {:id "l0resolver" :address "0xl0" :role "resolver" :stake 10000}
+          {:id "l1resolver" :address "0xl1" :role "resolver" :stake 10000}
+          {:id "l2resolver" :address "0xl2" :role "resolver" :stake 10000}
+          {:id "keeper" :address "0xkeeper" :role "keeper"}]
+ :events [{:seq 0 :time 1000 :agent "buyer" :action "create_escrow"
+           :params {:token "USDC" :to "0xseller" :amount 10000}}
+          {:seq 1 :time 1060 :agent "buyer" :action "raise_dispute" :params {:workflow-id 0}}
+          ;; L0 rules: release to seller
+          {:seq 2 :time 1100 :agent "l0resolver" :action "execute_resolution"
+           :params {:workflow-id 0 :is-release true :resolution-hash "0xl0release"}}
+          ;; Seller appeals to L1
+          {:seq 3 :time 1120 :agent "seller" :action "escalate_dispute" :params {:workflow-id 0}}
+          ;; L1 reverses: refund to buyer (L0 auto-slashed for reversal)
+          {:seq 4 :time 1150 :agent "l1resolver" :action "execute_resolution"
+           :params {:workflow-id 0 :is-release false :resolution-hash "0xl1refund"}}
+          ;; Buyer appeals to L2
+          {:seq 5 :time 1180 :agent "buyer" :action "escalate_dispute" :params {:workflow-id 0}}
+          ;; L2 reverses back: release to seller (L1 auto-slashed for reversal)
+          ;; L2 is final round — executes immediately
+          {:seq 6 :time 1200 :agent "l2resolver" :action "execute_resolution"
+           :params {:workflow-id 0 :is-release true :resolution-hash "0xl2release"}}]}

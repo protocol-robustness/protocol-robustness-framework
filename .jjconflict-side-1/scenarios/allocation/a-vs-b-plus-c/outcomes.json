@@ -1,0 +1,18 @@
+[
+  {
+    "outcome-id": "O1",
+    "allocations": [
+      {"claim-id": "A", "allocated": "50"},
+      {"claim-id": "B", "allocated": "0"},
+      {"claim-id": "C", "allocated": "0"}
+    ]
+  },
+  {
+    "outcome-id": "O2",
+    "allocations": [
+      {"claim-id": "A", "allocated": "0"},
+      {"claim-id": "B", "allocated": "30"},
+      {"claim-id": "C", "allocated": "20"}
+    ]
+  }
+]

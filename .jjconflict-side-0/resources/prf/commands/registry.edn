@@ -1,0 +1,1214 @@
+{:schema-version "prf.commands.registry.v1"
+
+ :commands
+ [  {:command/id :backstop
+   :command/path ["backstop"]
+   :command/title "Default backstop"
+   :command/category :validation
+   :command/surface :prf
+   :command/backstop-tier :manual
+   :command/jar-availability :native
+   :command/runtime :jvm
+   :command/options [{:name "--fast" :type :flag :doc "Run fast tier instead of default"}
+                     {:name "--full" :type :flag :doc "Run full tier"}
+                     {:name "--json" :type :flag :doc "Output as JSON"}]
+   :command/outputs []
+   :command/positional-args {:min 0 :max 0}
+   :command/description "Run the default review gate (backstop)."}
+
+   {:command/id :check-aggregate
+   :command/path ["check-aggregate"]
+   :command/title "Check review aggregate invariants"
+   :command/category :benchmark
+   :command/surface :prf
+   :command/backstop-tier :manual
+   :command/jar-availability :native
+   :command/runtime :jvm
+   :command/options [{:name "--input" :type :string :doc "EDN file with :review-round (:canonical-indices, :authority-report optional); use '-' for stdin" :required true}
+                     {:name "--json" :type :flag :doc "Output result as JSON"}]
+   :command/outputs []
+   :command/positional-args {:min 0 :max 0}
+   :command/description "Run the review-aggregate check surface (three-member standard, member bit-width/key-density, and the three-member-classifications checks when an authority report is supplied) over a review round and emit the complete machine-readable result."}
+
+   {:command/id :backstop-fast
+    :command/path ["backstop" "fast"]
+   :command/title "Fast backstop"
+   :command/category :validation
+   :command/surface :prf
+   :command/backstop-tier :manual
+   :command/jar-availability :native
+   :command/runtime :jvm
+   :command/options [{:name "--full" :type :flag :doc "Run full tier"}
+                     {:name "--json" :type :flag :doc "Output as JSON"}]
+   :command/outputs []
+   :command/positional-args {:min 0 :max 0}
+   :command/description "Run the fast registered review gate."}
+
+   {:command/id :backstop-full
+    :command/path ["backstop" "full"]
+    :command/title "Full backstop"
+    :command/category :validation
+    :command/surface :bb
+    :command/backstop-tier :manual
+    :command/jar-availability :external
+    :command/runtime :bb
+    :command/bb-task "backstop:full"
+    :command/options []
+    :command/outputs []
+    :command/positional-args {:min 0 :max 0}
+    :command/description "Run the extended review gate: yield + CLI default + notebooks + forensic-python + community + portability."}
+
+  {:command/id :commands-validate
+   :command/path ["commands" "validate"]
+   :command/title "Validate command registry"
+   :command/category :validation
+   :command/surface :prf
+   :command/backstop-tier :fast
+   :command/jar-availability :native
+   :command/runtime :jvm
+   :command/options [{:name "--json" :type :flag :doc "Output as JSON"}]
+   :command/outputs []
+   :command/positional-args {:min 0 :max 0}
+   :command/description "Validate the command registry, dispatch table, and bb wrapper parity."}
+
+  {:command/id :evidence-verify-chain
+     :command/path ["evidence" "verify-chain"]
+     :command/title "Verify evidence chain"
+     :command/category :evidence
+     :command/surface :prf
+     :command/backstop-tier :manual
+     :command/jar-availability :native
+     :command/runtime :jvm
+     :command/options [{:name "--artifact-dir" :type :string :doc "Explicit legacy evidence artifact directory"}
+                     {:name "--json" :type :flag :doc "Output as JSON"}
+                     {:name "--strict" :type :flag :doc "Strict validation mode"}]
+   :command/outputs []
+   :command/positional-args {:min 0 :max 0}
+   :command/description "Verify evidence chain hashes and links for an artifact directory."}
+
+  {:command/id :evidence-validate
+     :command/path ["evidence" "validate"]
+     :command/title "Validate evidence"
+     :command/category :evidence
+     :command/surface :prf
+     :command/backstop-tier :manual
+     :command/jar-availability :native
+     :command/runtime :jvm
+     :command/options [{:name "--artifact-dir" :type :string :doc "Explicit legacy evidence artifact directory"}
+                     {:name "--json" :type :flag :doc "Output as JSON"}]
+   :command/outputs []
+   :command/positional-args {:min 0 :max 0}
+   :command/description "Validate evidence artifacts in a run directory."}
+
+  {:command/id :evidence-coverage
+     :command/path ["evidence" "coverage"]
+     :command/title "Evidence coverage"
+     :command/category :evidence
+     :command/surface :prf
+     :command/backstop-tier :manual
+     :command/jar-availability :native
+     :command/runtime :jvm
+     :command/options [{:name "--artifact-dir" :type :string :doc "Explicit legacy evidence artifact directory"}
+                     {:name "--json" :type :flag :doc "Output as JSON"}]
+   :command/outputs []
+   :command/positional-args {:min 0 :max 0}
+   :command/description "Check evidence coverage completeness."}
+
+  {:command/id :evidence-backstop
+   :command/path ["evidence" "backstop"]
+   :command/title "Evidence backstop"
+   :command/category :evidence
+   :command/surface :prf
+   :command/backstop-tier :default
+   :command/jar-availability :native
+   :command/runtime :jvm
+   :command/options [{:name "--fast" :type :flag :doc "Run fast evidence checks only"}
+                     {:name "--full" :type :flag :doc "Run full evidence review gate"}
+                     {:name "--artifact-dir" :type :string :doc "Explicit legacy evidence artifact directory"}
+                     {:name "--json" :type :flag :doc "Output as JSON"}]
+   :command/outputs []
+   :command/positional-args {:min 0 :max 0}
+   :command/description "Run the evidence forensic review gate."}
+
+  {:command/id :validate
+   :command/path ["validate"]
+   :command/title "Structural validate"
+   :command/category :validation
+   :command/surface :prf
+   :command/backstop-tier :manual
+   :command/jar-availability :native
+   :command/runtime :jvm
+   :command/options [{:name "--json" :type :flag :doc "Output as JSON"}
+                     {:name "--strict" :type :flag :doc "Strict validation mode"}]
+   :command/outputs []
+   :command/positional-args {:min 0 :max 0}
+   :command/description "Run the structural validation pipeline (lint + notebook checks)."}
+
+   {:command/id :concepts-validate
+    :command/path ["concepts" "validate"]
+    :command/title "Validate concepts"
+    :command/category :concept
+    :command/surface :prf
+    :command/backstop-tier :default
+    :command/jar-availability :native
+    :command/runtime :jvm
+    :command/options [{:name "--json" :type :flag :doc "Output as JSON"}]
+    :command/outputs []
+    :command/positional-args {:min 0 :max 0}
+    :command/description "Validate concept data files and the concept registry."}
+
+   {:command/id :check-ownership
+    :command/path ["ownership" "check"]
+    :command/title "Check content authority"
+    :command/category :validation
+    :command/surface :prf
+    :command/backstop-tier :fast
+    :command/jar-availability :native
+    :command/runtime :jvm
+    :command/options [{:name "--json" :type :flag :doc "Output as JSON"}
+                      {:name "--manifest" :type :string :doc "Path to content-authority manifest (default config/architecture/content-authority.edn)"}]
+    :command/outputs []
+    :command/positional-args {:min 0 :max 0}
+    :command/description "Verify every governed file resolves to exactly one content-authority classification."}
+
+
+   {:command/id :benchmark-list
+    :command/path ["benchmark" "list"]
+    :command/title "List benchmarks"
+    :command/category :benchmark
+    :command/surface :prf
+    :command/backstop-tier :manual
+    :command/jar-availability :native
+    :command/runtime :jvm
+    :command/options [{:name "--json" :type :flag :doc "Output as JSON"}]
+    :command/outputs []
+    :command/positional-args {:min 0 :max 0}
+    :command/description "List available benchmarks from the benchmark registry."}
+
+   {:command/id :suite-list
+    :command/path ["suite" "list"]
+    :command/title "List suites"
+    :command/category :scenario
+    :command/surface :prf
+    :command/backstop-tier :manual
+    :command/jar-availability :native
+    :command/runtime :jvm
+    :command/options [{:name "--json" :type :flag :doc "Output as JSON"}]
+    :command/outputs []
+    :command/positional-args {:min 0 :max 0}
+    :command/description "List registered scenario suites with scenario counts and protocols."}
+
+   {:command/id :benchmark-validate
+    :command/path ["benchmark" "validate"]
+    :command/title "Validate benchmarks"
+    :command/category :benchmark
+    :command/surface :prf
+    :command/backstop-tier :default
+    :command/jar-availability :native
+    :command/runtime :jvm
+    :command/options [{:name "--json" :type :flag :doc "Output as JSON"}]
+    :command/outputs []
+    :command/positional-args {:min 0 :max 0}
+    :command/description "Validate benchmark pack definitions and referenced resources."}
+
+   {:command/id :scenario-list
+    :command/path ["scenario" "list"]
+    :command/title "List scenarios"
+    :command/category :scenario
+    :command/surface :prf
+    :command/backstop-tier :manual
+    :command/jar-availability :native
+    :command/runtime :jvm
+    :command/options [{:name "--search" :type :string :doc "Filter scenarios by ID substring"}
+                      {:name "--protocol" :type :string :doc "Filter by protocol (e.g. sew-v1)"}
+                      {:name "--json" :type :flag :doc "Output as JSON"}]
+    :command/outputs []
+    :command/positional-args {:min 0 :max 0}
+    :command/description "List available scenarios from the scenario catalog."}
+
+   {:command/id :scenario-pick
+    :command/path ["scenario" "pick"]
+    :command/title "Interactive scenario picker"
+    :command/category :scenario
+    :command/surface :prf
+    :command/backstop-tier :manual
+    :command/jar-availability :native
+    :command/runtime :jvm
+    :command/options [{:name "--search" :type :string :doc "Filter scenarios by ID substring"}
+                      {:name "--protocol" :type :string :doc "Filter by protocol (e.g. sew-v1)"}]
+    :command/outputs []
+    :command/positional-args {:min 0 :max 0}
+    :command/description "Interactively select and run scenarios from a numbered menu."}
+
+   {:command/id :scenario-run-search
+    :command/path ["scenario" "run-search"]
+    :command/title "Run scenarios by search"
+    :command/category :scenario
+    :command/surface :prf
+    :command/backstop-tier :manual
+    :command/jar-availability :native
+    :command/runtime :jvm
+    :command/options [{:name "--search" :type :string :doc "Text to match against scenario paths and contents"}
+                      {:name "--report-format" :type :string :doc "report format: summary, failures, standard, verbose, or audit"}
+                      {:name "--json" :type :flag :doc "Output as JSON"}]
+    :command/outputs []
+    :command/positional-args {:min 0 :max 0}
+    :command/description "Find scenarios matching text and run each in an isolated run root."}
+
+   {:command/id :scenario-compare
+    :command/path ["scenario" "compare"]
+    :command/title "Compare two scenarios"
+    :command/category :scenario
+    :command/surface :prf
+    :command/backstop-tier :manual
+    :command/jar-availability :native
+    :command/runtime :jvm
+    :command/options [{:name "--out" :type :string :doc "Output directory for run roots"
+                       :default "results/trace-compare"}
+                      {:name "--json" :type :flag :doc "Output as JSON"}]
+    :command/outputs []
+    :command/positional-args {:min 0 :max 0}
+    :command/description "Run two scenarios and compare their replay traces. Reports the first structural divergence."}
+
+   {:command/id :run-scenario
+   :command/path ["run-scenario"]
+   :command/title "Run a scenario bundle"
+   :command/category :scenario
+   :command/surface :prf
+   :command/backstop-tier :manual
+   :command/jar-availability :native
+   :command/runtime :jvm
+    :command/options [{:name "--run-root" :type :string :doc "Fresh authoritative root for the completed scenario bundle"}
+                      {:name "--suite-root" :type :string :doc "Suite root directory (contains manifest.edn)"}
+                      {:name "--sensitivity-profile" :type :string :doc "public or internal (default public)"}
+                      {:name "--report-format" :type :string :doc "summary, failures, standard, verbose, or audit"}]
+    :command/outputs ["<run-root>/completion.json" "<run-root>/manifest/artifacts.json"]
+     :command/positional-args {:min 0 :max 1}
+     :command/description "Run one scenario into a validated, immutable evidence bundle under --run-root. The scenario reference may be a positional path (or classpath: URI) or passed via --scenario. Registered suite execution is a separate future command."}
+
+  {:command/id :verify-scenario
+   :command/path ["verify-scenario"]
+   :command/title "Verify a scenario bundle"
+   :command/category :evidence
+   :command/surface :prf
+   :command/backstop-tier :manual
+   :command/jar-availability :native
+   :command/runtime :jvm
+   :command/options [{:name "--run-root" :type :string :doc "Completed scenario bundle root"}]
+   :command/outputs []
+   :command/positional-args {:min 0 :max 0}
+   :command/description "Read-only verification of a completed scenario bundle, including its registry, evidence-chain finalizations, and evidence-set reconciliation."}
+
+   {:command/id :invariants-run
+    :command/path ["invariants" "run"]
+    :command/title "Run invariant suite (canonical)"
+    :command/category :scenario
+    :command/surface :prf
+    :command/backstop-tier :manual
+    :command/jar-availability :native
+    :command/runtime :jvm
+    :command/options [{:name "--run-root" :type :string :doc "Target directory for the canonical run package" :required true}
+                      {:name "--json" :type :flag :doc "Output as JSON"}]
+    :command/outputs ["<run-root>/run-plan.json", "<run-root>/scenario-results.json", "<run-root>/completion.json"]
+    :command/positional-args {:min 0 :max 0}
+    :command/description "Run the full invariant registry suite and persist canonical evidence under --run-root."}
+
+   {:command/id :verify-run
+    :command/path ["verify-run"]
+    :command/title "Verify run bundle"
+    :command/category :validation
+    :command/surface :prf
+    :command/backstop-tier :manual
+    :command/jar-availability :native
+    :command/runtime :jvm
+    :command/options [{:name "--run-root" :type :string :doc "Run package directory to verify" :required true}
+                      {:name "--json" :type :flag :doc "Output as JSON"}]
+    :command/outputs []
+    :command/positional-args {:min 0 :max 0}
+    :command/description "Verify a completed canonical run package for completeness and integrity."}
+
+   {:command/id :sentinel-check
+    :command/path ["sentinel" "check"]
+    :command/title "Out-of-process sensitivity sentinel authority"
+    :command/category :evidence
+    :command/surface :prf
+    :command/backstop-tier :manual
+    :command/jar-availability :native
+    :command/runtime :jvm
+    :command/options []
+    :command/outputs []
+    :command/positional-args {:min 0 :max 0}
+    :command/description "Read an EDN sensitivity-check request from stdin, make a hash-verified, signed disclosure decision, and write one EDN response to stdout."}
+
+   {:command/id :publish-check
+    :command/path ["publish" "check"]
+    :command/title "Out-of-process artifact publisher authority"
+    :command/category :evidence
+    :command/surface :prf
+    :command/backstop-tier :manual
+    :command/jar-availability :native
+    :command/runtime :jvm
+    :command/options []
+    :command/outputs []
+    :command/positional-args {:min 0 :max 0}
+     :command/description "Read an EDN artifact-publish request from stdin, independently re-verify the artifact set (all-or-nothing), sign a publish certificate, and write one EDN response to stdout."}
+
+    {:command/id :publication-trace
+     :command/path ["publication" "trace"]
+     :command/title "Trace authoritative publication chain"
+     :command/category :evidence
+     :command/surface :prf
+     :command/backstop-tier :manual
+     :command/jar-availability :native
+     :command/runtime :jvm
+     :command/options [{:name "--head-root" :type :string :doc "Publication head root sha256 ref (CAS-only)"}
+                       {:name "--ordering-root" :type :string :doc "Ordering root sha256 ref (CAS-only)"}
+                       {:name "--partition" :type :string :doc "Partition identifier sha256 ref (requires PostgreSQL)"}
+                       {:name "--cas-dir" :type :string :doc "CAS directory (default: PRF_CAS_DIR)"}
+                       {:name "--database-url" :type :string :doc "JDBC URL for PostgreSQL (default: DATABASE_URL)"}
+                       {:name "--json" :type :flag :doc "Output as JSON"}]
+     :command/outputs []
+     :command/positional-args {:min 0 :max 0}
+     :command/description "Trace the authoritative publication chain H -> B -> O -> R -> P -> output -> allocation -> transition -> (V2: compilation) with per-edge resolution status and typed failure reasons."}
+
+    {:command/id :resubmission-issue
+    :command/path ["resubmission" "issue"]
+    :command/title "Out-of-process resubmission receipt signer authority"
+    :command/category :evidence
+    :command/surface :prf
+    :command/backstop-tier :manual
+    :command/jar-availability :native
+    :command/runtime :jvm
+    :command/options []
+    :command/outputs []
+    :command/positional-args {:min 0 :max 0}
+    :command/description "Read an EDN resubmission-issue request from stdin, independently re-derive the committed chain transition, verify the transaction-ordering evidence and candidate receipt binding, sign a submission-attempt receipt, and write one EDN response to stdout."}
+
+   {:command/id :resubmission-issue-admission-v2
+    :command/path ["resubmission" "issue-admission-v2"]
+    :command/title "Sign fenced resubmission admission authorization"
+    :command/category :evidence
+    :command/surface :prf
+    :command/backstop-tier :manual
+    :command/jar-availability :native
+    :command/runtime :jvm
+    :command/options []
+    :command/outputs []
+    :command/positional-args {:min 0 :max 0}
+    :command/description "Read one reservation-bound admission signing request from stdin and emit content-addressed authorization evidence. This command is stateless and cannot finalize or arbitrate admission."}
+
+   {:command/id :assure-package
+    :command/path ["assure-package"]
+    :command/title "Evaluate package assurance"
+    :command/category :validation
+    :command/surface :prf
+    :command/backstop-tier :manual
+    :command/jar-availability :native
+    :command/runtime :jvm
+    :command/options [{:name "--run-root" :type :string :doc "Run package directory to evaluate" :required true}
+                      {:name "--json" :type :flag :doc "Output as JSON"}]
+    :command/outputs ["<run-root>/package-assurance.json"]
+    :command/positional-args {:min 0 :max 0}
+    :command/description "Evaluate whether a verified canonical run package satisfies release/assurance policy."}
+
+   {:command/id :run-invariants
+    :command/path ["run-invariants"]
+    :command/title "Run invariant suite"
+    :command/category :scenario
+    :command/surface :dev
+   :command/backstop-tier :default
+   :command/jar-availability :native
+   :command/runtime :jvm
+    :command/options [{:name "--protocol" :type :string :doc "Protocol ID (default sew-v1)"}
+                      {:name "--suite-root" :type :string :doc "Suite root directory (contains manifest.edn)"}
+                      {:name "--json" :type :flag :doc "Output as JSON"}]
+    :command/outputs []
+    :command/positional-args {:min 0 :max 0}
+    :command/description "Run the full protocol invariant suite (S01–S100 for sew-v1)."}
+
+   {:command/id :benchmark-validate-jar
+    :command/path ["benchmark" "validate-jar"]
+    :command/title "Validate benchmark JAR corpus"
+    :command/category :benchmark
+    :command/surface :prf
+    :command/backstop-tier :full
+    :command/jar-availability :native
+    :command/runtime :jvm
+    :command/options [{:name "--json" :type :flag :doc "Output as JSON"}]
+    :command/outputs []
+    :command/positional-args {:min 0 :max 0}
+    :command/description "Validate that every benchmark resolves through InputSource without filesystem fallback."}
+
+   {:command/id :benchmark-smoke
+    :command/path ["benchmark" "smoke"]
+    :command/title "Benchmark smoke matrix"
+    :command/category :benchmark
+    :command/surface :prf
+    :command/backstop-tier :full
+    :command/jar-availability :native
+    :command/runtime :jvm
+    :command/options [{:name "--all" :type :flag :doc "Include experimental benchmarks"}
+                      {:name "--seed" :type :string :doc "Random seed for deterministic scenario selection"}
+                      {:name "--json" :type :flag :doc "Output as JSON"}]
+    :command/outputs []
+    :command/positional-args {:min 0 :max 0}
+    :command/description "Plan and execute a bounded benchmark smoke matrix (one scenario per benchmark)."}
+
+   {:command/id :verify-benchmark
+   :command/path ["verify-benchmark"]
+   :command/title "Verify benchmark bundle"
+   :command/category :benchmark
+   :command/surface :prf
+   :command/backstop-tier :manual
+   :command/jar-availability :native
+   :command/runtime :jvm
+   :command/options [{:name "--run-root" :type :string :doc "Completed canonical benchmark root"}]
+   :command/outputs []
+   :command/positional-args {:min 0 :max 0}
+   :command/description "Recalculate and verify benchmark assurance, finalization, input-set, and completion commitments."}
+
+   {:command/id :run-benchmark
+   :command/path ["run-benchmark"]
+   :command/title "Run a benchmark"
+   :command/category :benchmark
+   :command/surface :prf
+   :command/backstop-tier :full
+   :command/jar-availability :native
+   :command/runtime :jvm
+   :command/options [{:name "--run-root" :type :string :doc "Fresh canonical benchmark package root"}
+                      {:name "--sensitivity-profile" :type :string :doc "Canonical bundle profile: public or internal"}
+                      {:name "--claim-registry" :type :string :doc "External benchmark claim registry (auditor-supplied). Precedence: --claim-registry > PRF_BENCHMARKS_CLAIM_REGISTRY > repository default. Fails closed if the registry is invalid."}
+                      {:name "--research-pack" :type :string :doc "Frozen research-benchmark-pack.v1 EDN plan; validated before canonical execution."}
+                      {:name "--parallelism" :type :integer :doc "Bounded local worker count; positive integer, default 1"}
+                      {:name "--chunk-size" :type :integer :doc "Deterministic work items per local chunk; positive integer, default 1"}
+                      {:name "--output" :type :string :doc "Legacy standalone evidence output path"}
+                      {:name "--key" :type :string :doc "Path to private key for signing"}
+                      {:name "--json" :type :flag :doc "Output as JSON"}]
+   :command/outputs []
+   :command/positional-args {:min 1 :max 1}
+   :command/description "Run a registered or bundled benchmark as a canonical --run-root package, or use --output for a separate legacy export."}
+
+  {:command/id :parallel-benchmark-run
+   :command/path ["parallel-benchmark-run"]
+   :command/title "Run a benchmark with bounded local parallelism (capability composition)"
+   :command/category :benchmark
+   :command/surface :prf
+   :command/backstop-tier :full
+   :command/jar-availability :native
+   :command/runtime :jvm
+   :command/options [{:name "--run-root" :type :string :doc "Fresh canonical benchmark package root"}
+                     {:name "--sensitivity-profile" :type :string :doc "Canonical bundle profile: public or internal"}
+                     {:name "--claim-registry" :type :string :doc "External benchmark claim registry (auditor-supplied). Precedence: --claim-registry > PRF_BENCHMARKS_CLAIM_REGISTRY > repository default. Fails closed if the registry is invalid."}
+                     {:name "--research-pack" :type :string :doc "Frozen research-benchmark-pack.v1 EDN plan; validated before canonical execution."}
+                     {:name "--parallelism" :type :integer :doc "Explicit local scenario-worker count; positive integer, honored exactly (never clamped). Omitted: bounded automatic default min(resolved-scenario-count, command parallel ceiling)"}
+                     {:name "--chunk-size" :type :integer :doc "Deterministic work items per local chunk; positive integer, default 1"}
+                     {:name "--execution-budget" :type :integer :doc "Shared Semaphore K bounding TOTAL concurrent execution (outer workers consume, inner claimants borrow spare); positive integer, default unbounded"}
+                     {:name "--key" :type :string :doc "Path to private key for signing"}
+                     {:name "--json" :type :flag :doc "Output as JSON"}]
+   :command/outputs []
+   :command/positional-args {:min 1 :max 1}
+   :command/built-with-includes #{:capability/incentive :capability/incentive-compatibility}
+   :command/description "Specialized capability composition: routes through the canonical run-benchmark algorithm (run-with-root! + run->benchmark), adding bounded local parallelism across scenario workers and claimant executors. Not a separate benchmark algorithm. The build is composed with (and therefore includes) the incentive and incentive-compatibility capabilities; that combination is declared here and validated. Canonical output is invariant to parallelism and plan-ordinal (bound-sequence) locality is preserved. The automatic worker pool defaults to min(scenario-count, parallel ceiling) and never exceeds the ceiling; an explicit --parallelism is honored exactly; --execution-budget bounds total concurrency."}
+
+  {:command/id :fmt-check
+   :command/path ["fmt" "check"]
+   :command/title "Check formatting"
+   :command/category :maintenance
+   :command/surface :prf
+   :command/backstop-tier :fast
+   :command/jar-availability :native
+   :command/runtime :jvm
+   :command/options [{:name "--json" :type :flag :doc "Output as JSON"}]
+   :command/outputs []
+   :command/positional-args {:min 0 :max 0}
+   :command/description "Check code formatting without rewriting files."}
+
+   {:command/id :lint
+    :command/path ["lint"]
+    :command/title "Lint source"
+    :command/category :validation
+    :command/surface :prf
+    :command/backstop-tier :fast
+    :command/jar-availability :native
+    :command/runtime :jvm
+    :command/options [{:name "--json" :type :flag :doc "Output as JSON"}]
+    :command/outputs []
+    :command/positional-args {:min 0 :max 0}
+    :command/description "Lint source and test code with clj-kondo."}
+
+   {:command/id :pre-application-checks
+    :command/path ["pre-application" "checks"]
+    :command/title "Pre-application checks"
+    :command/category :validation
+    :command/surface :prf
+    :command/backstop-tier :default
+    :command/jar-availability :native
+    :command/runtime :jvm
+    :command/options [{:name "--manifest" :type :string :doc "Path to outcome manifest EDN file"}
+                      {:name "--json" :type :flag :doc "Output as JSON"}]
+    :command/outputs []
+    :command/positional-args {:min 0 :max 0}
+    :command/description "Validate that an outcome manifest is ready for benchmark execution."}
+
+   {:command/id :run-simulation
+   :command/path ["run-simulation"]
+   :command/title "Run simulation"
+   :command/category :simulation
+   :command/surface :prf
+   :command/backstop-tier :manual
+   :command/jar-availability :native
+   :command/runtime :jvm
+   :command/options [{:name "--params" :type :string :doc "Path to params.edn file"}
+                     {:name "--output" :type :string :doc "Output directory"}
+                     {:name "--serve" :type :flag :doc "Start gRPC simulation server"}
+                     {:name "--invariants" :type :flag :doc "Run deterministic invariant scenarios"}
+                     {:name "--diff-traces" :type :flag :doc "Structural world diff between two replay JSON files"}]
+   :command/outputs []
+   :command/positional-args {:min 0 :max 0}
+   :command/description "Run a simulation, server, invariants, or diff-traces. Replaces the original flag-based CLI."}
+
+  {:command/id :community-task-list
+   :command/path ["community" "task" "list"]
+   :command/title "List community tasks"
+   :command/category :community
+   :command/surface :community
+   :command/backstop-tier :manual
+   :command/jar-availability :native
+   :command/runtime :jvm
+   :command/options [{:name "--benchmark-filter" :type :string :doc "Filter by benchmark ID"}
+                     {:name "--suite-filter" :type :string :doc "Filter by suite ID"}]
+   :command/outputs []
+   :command/positional-args {:min 0 :max 0}
+   :command/description "List available community tasks."}
+
+  {:command/id :community-task-show
+   :command/path ["community" "task" "show"]
+   :command/title "Show community task"
+   :command/category :community
+   :command/surface :community
+   :command/backstop-tier :manual
+   :command/jar-availability :native
+   :command/runtime :jvm
+   :command/options [{:name "--task" :type :string :doc "Task reference" :required true}]
+   :command/outputs []
+   :command/positional-args {:min 0 :max 0}
+   :command/description "Show community task details."}
+
+  {:command/id :community-task-register
+   :command/path ["community" "task" "register"]
+   :command/title "Register community task"
+   :command/category :community
+   :command/surface :community
+   :command/backstop-tier :manual
+   :command/jar-availability :native
+   :command/runtime :jvm
+   :command/options [{:name "--title" :type :string :doc "Task title" :required true}
+                     {:name "--benchmark-id" :type :string :doc "Benchmark ID"}
+                     {:name "--suite-id" :type :string :doc "Suite ID"}
+                     {:name "--claim-ids" :type :string :doc "Comma-separated claim IDs"}]
+   :command/outputs []
+   :command/positional-args {:min 0 :max 0}
+   :command/description "Register a new community task."}
+
+  {:command/id :community-task-run
+   :command/path ["community" "task" "run"]
+   :command/title "Run community task"
+   :command/category :community
+   :command/surface :community
+   :command/backstop-tier :manual
+   :command/jar-availability :native
+   :command/runtime :jvm
+   :command/options [{:name "--task" :type :string :doc "Task reference" :required true}
+                     {:name "--runner" :type :string :doc "Runner identity" :required true}
+                     {:name "--key" :type :string :doc "Path to private key" :required true}
+                     {:name "--dir" :type :string :doc "Artifact directory"}
+                     {:name "--mailbox-dir" :type :string :doc "Mailbox directory"}]
+   :command/outputs []
+   :command/positional-args {:min 0 :max 0}
+   :command/description "Execute a community task and publish result."}
+
+  {:command/id :community-task-reproduce
+   :command/path ["community" "task" "reproduce"]
+   :command/title "Reproduce community task"
+   :command/category :community
+   :command/surface :community
+   :command/backstop-tier :manual
+   :command/jar-availability :native
+   :command/runtime :jvm
+   :command/options [{:name "--task" :type :string :doc "Task reference" :required true}
+                     {:name "--original-attestation" :type :string :doc "Original attestation reference" :required true}
+                     {:name "--runner" :type :string :doc "Runner identity" :required true}
+                     {:name "--key" :type :string :doc "Path to private key" :required true}
+                     {:name "--dir" :type :string :doc "Artifact directory"}
+                     {:name "--mailbox-dir" :type :string :doc "Mailbox directory"}]
+   :command/outputs []
+   :command/positional-args {:min 0 :max 0}
+   :command/description "Reproduce a community task result."}
+
+  {:command/id :community-task-verify
+   :command/path ["community" "task" "verify"]
+   :command/title "Verify community task"
+   :command/category :community
+   :command/surface :community
+   :command/backstop-tier :manual
+   :command/jar-availability :native
+   :command/runtime :jvm
+   :command/options [{:name "--task" :type :string :doc "Task reference" :required true}
+                     {:name "--dir" :type :string :doc "Artifact directory"}
+                     {:name "--mailbox-dir" :type :string :doc "Mailbox directory"}]
+   :command/outputs []
+   :command/positional-args {:min 0 :max 0}
+   :command/description "Verify a community task evidence chain."}
+
+  {:command/id :community-task-report
+   :command/path ["community" "task" "report"]
+   :command/title "Report on community task"
+   :command/category :community
+   :command/surface :community
+   :command/backstop-tier :manual
+   :command/jar-availability :native
+   :command/runtime :jvm
+   :command/options [{:name "--task" :type :string :doc "Task reference" :required true}
+                     {:name "--dir" :type :string :doc "Artifact directory"}
+                     {:name "--mailbox-dir" :type :string :doc "Mailbox directory"}]
+   :command/outputs []
+   :command/positional-args {:min 0 :max 0}
+   :command/description "Generate a community task evidence report."}
+
+  {:command/id :community-graph-export
+   :command/path ["community" "graph" "export"]
+   :command/title "Export community graph"
+   :command/category :community
+   :command/surface :community
+   :command/backstop-tier :manual
+   :command/jar-availability :native
+   :command/runtime :jvm
+   :command/options [{:name "--task" :type :string :doc "Task reference" :required true}
+                     {:name "--out" :type :string :doc "Output directory"}
+                     {:name "--dir" :type :string :doc "Artifact directory"}
+                     {:name "--mailbox-dir" :type :string :doc "Mailbox directory"}]
+   :command/outputs []
+   :command/positional-args {:min 0 :max 0}
+   :command/description "Export a community task evidence graph."}
+
+  {:command/id :community-mailbox-clear
+    :command/path ["community" "mailbox" "clear"]
+    :command/title "Clear community mailbox"
+    :command/category :community
+    :command/surface :community
+    :command/backstop-tier :manual
+    :command/jar-availability :native
+    :command/runtime :jvm
+    :command/options [{:name "--mailbox-dir" :type :string :doc "Mailbox directory"}]
+    :command/outputs []
+    :command/positional-args {:min 0 :max 0}
+    :command/description "Clear all community mailbox messages."}
+
+  {:command/id :compare-runs
+   :command/path ["compare-runs"]
+   :command/title "Compare completed run packages"
+   :command/category :validation
+   :command/surface :prf
+   :command/backstop-tier :manual
+   :command/jar-availability :native
+   :command/runtime :jvm
+   :command/options [{:name "--package-a" :type :string :required true}
+                     {:name "--package-b" :type :string :required true}
+                     {:name "--output" :type :string}]
+   :command/outputs ["run-comparison.json"]
+   :command/positional-args {:min 0 :max 0}
+   :command/description "Compare two completion-sealed run packages."}
+
+  {:command/id :compare
+   :command/path ["compare"]
+   :command/title "Canonically compare two artifacts"
+   :command/category :comparison
+   :command/surface :prf
+   :command/backstop-tier :manual
+   :command/jar-availability :native
+   :command/runtime :jvm
+   :command/options [{:name "--format" :type :string :doc "Artifact format: edn or json"}]
+   :command/outputs []
+   :command/positional-args {:min 2 :max 2}
+   :command/description "Compare two EDN/JSON artifacts by canonical hash equivalence; reports the first divergence."}
+
+  {:command/id :root-hash
+   :command/path ["root-hash"]
+   :command/title "Report run package root hashes"
+   :command/category :comparison
+   :command/surface :prf
+   :command/backstop-tier :manual
+   :command/jar-availability :native
+   :command/runtime :jvm
+   :command/options [{:name "--run-root" :type :string :required true}]
+   :command/outputs []
+   :command/positional-args {:min 0 :max 0}
+   :command/description "Report the package-index, bundle-root, and completion-seal hashes of a run package."}
+
+  {:command/id :result-root
+   :command/path ["result-root"]
+   :command/title "Report run result roots"
+   :command/category :comparison
+   :command/surface :prf
+   :command/backstop-tier :manual
+   :command/jar-availability :native
+   :command/runtime :jvm
+   :command/options [{:name "--run-root" :type :string :required true}]
+   :command/outputs []
+   :command/positional-args {:min 0 :max 0}
+   :command/description "Report the result-defining roots (bundle root, stable-result hash, scenario evidence roots) of a run package."}
+
+  {:command/id :semantic-equivalent
+   :command/path ["semantic-equivalent"]
+   :command/title "Compare run packages semantically"
+   :command/category :comparison
+   :command/surface :prf
+   :command/backstop-tier :manual
+   :command/jar-availability :native
+   :command/runtime :jvm
+   :command/options [{:name "--package-a" :type :string :required true}
+                     {:name "--package-b" :type :string :required true}]
+   :command/outputs []
+   :command/positional-args {:min 0 :max 0}
+   :command/description "Compare two run packages for semantic equivalence via stable-result projection."}
+
+  {:command/id :declared-dependencies
+   :command/path ["declared-dependencies"]
+   :command/title "List declared dependencies of a run package"
+   :command/category :comparison
+   :command/surface :prf
+   :command/backstop-tier :manual
+   :command/jar-availability :native
+   :command/runtime :jvm
+   :command/options [{:name "--run-root" :type :string :required true}]
+   :command/outputs []
+   :command/positional-args {:min 0 :max 0}
+   :command/description "List declared dependencies: package artifacts, evidence hashes, scenario finalizations, DAG edges, benchmark bindings."}
+
+  {:command/id :build-prf
+   :command/path ["build" "prf"]
+   :command/title "Build framework-only CLI JAR"
+   :command/category :build
+   :command/surface :bb
+   :command/jar-availability :none
+   :command/runtime :bb
+   :command/bb-task "build:prf"
+   :command/positional-args {:min 0 :max 0}
+   :command/description "Build prf.jar: the framework-only unified CLI distribution."}
+
+  {:command/id :build-sew
+   :command/path ["build" "sew"]
+   :command/title "Build sew uberjar"
+   :command/category :build
+   :command/surface :bb
+   :command/jar-availability :none
+   :command/runtime :bb
+   :command/bb-task "build:sew"
+   :command/positional-args {:min 0 :max 0}
+   :command/description "Build prf-runner-sew uberjar (18 MB, full Sew replay)."}
+
+   {:command/id :build-cli
+    :command/path ["build" "cli"]
+    :command/title "Build CLI uberjar"
+    :command/category :build
+    :command/surface :bb
+    :command/jar-availability :none
+    :command/runtime :bb
+    :command/bb-task "build:prf"
+    :command/positional-args {:min 0 :max 0}
+    :command/description "Build prf.jar — unified CLI uberjar."}
+
+  {:command/id :build-all
+   :command/path ["build" "all"]
+   :command/title "Build all uberjars"
+   :command/category :build
+   :command/surface :bb
+   :command/jar-availability :none
+   :command/runtime :bb
+   :command/bb-task "build"
+   :command/positional-args {:min 0 :max 0}
+   :command/description "Build core, sew, and CLI uberjars."}
+
+  {:command/id :build-attest
+   :command/path ["build" "attest"]
+   :command/title "Attest supported JAR builds"
+   :command/category :build
+   :command/surface :bb
+   :command/jar-availability :external
+   :command/runtime :bb
+   :command/bb-task "build:attest"
+   :command/options []
+   :command/outputs ["target/default-build-attestation-prf.edn"
+                     "target/default-build-attestation-sew.edn"]
+   :command/positional-args {:min 0 :max 0}
+   :command/description "Build supported JARs, run packaged-JAR smoke validation, and emit fail-closed default-build attestation bundles."}
+
+  {:command/id :build-attest-sign
+   :command/path ["build" "attest" "sign"]
+   :command/title "Sign JAR build attestation"
+   :command/category :build
+   :command/surface :bb
+   :command/jar-availability :external
+   :command/runtime :bb
+   :command/bb-task "build:attest:sign"
+   :command/options []
+   :command/outputs []
+   :command/positional-args {:min 5 :max 5}
+   :command/description "Locally attach an Ed25519 release authorization to a default-build attestation bundle."}
+
+  {:command/id :build-attest-verify
+   :command/path ["build" "attest" "verify"]
+   :command/title "Verify signed JAR build attestation"
+   :command/category :build
+   :command/surface :bb
+   :command/jar-availability :external
+   :command/runtime :bb
+   :command/bb-task "build:attest:verify"
+   :command/options []
+   :command/outputs []
+   :command/positional-args {:min 4 :max 4}
+   :command/description "Verify a default-build attestation bundle and its release signatures against an explicit trust policy."}
+
+  {:command/id :evidence-pack
+   :command/path ["evidence" "pack"]
+   :command/title "Package evidence pack"
+   :command/category :evidence
+   :command/surface :bb
+   :command/jar-availability :none
+   :command/runtime :bb
+   :command/bb-task "evidence:pack"
+   :command/positional-args {:min 0 :max 0}
+   :command/description "Package a run directory into a portable evidence pack."}
+
+  {:command/id :evidence-verify-pack
+   :command/path ["evidence" "verify-pack"]
+   :command/title "Verify evidence pack"
+   :command/category :evidence
+   :command/surface :bb
+   :command/jar-availability :none
+   :command/runtime :bb
+   :command/bb-task "evidence:verify"
+   :command/positional-args {:min 0 :max 0}
+   :command/description "Verify an evidence pack's file integrity."}
+
+  {:command/id :fixtures-sync
+   :command/path ["fixtures" "sync"]
+   :command/title "Sync trace fixtures"
+   :command/category :fixtures
+   :command/surface :bb
+   :command/jar-availability :none
+   :command/runtime :bb
+   :command/bb-task "fixtures:sync"
+   :command/positional-args {:min 0 :max 0}
+   :command/description "Sync trace files from Clojure invariant scenario source."}
+
+  {:command/id :shadow-check
+   :command/path ["shadow" "check"]
+   :command/title "Check shadow registry"
+   :command/category :validation
+   :command/surface :bb
+   :command/jar-availability :none
+   :command/runtime :bb
+   :command/bb-task "shadow:check"
+   :command/positional-args {:min 0 :max 0}
+   :command/description "Check simulation namespaces for Solidity shadow registry coverage."}
+
+  {:command/id :shadow-report
+   :command/path ["shadow" "report"]
+   :command/title "Shadow registry report"
+   :command/category :validation
+   :command/surface :bb
+   :command/jar-availability :none
+   :command/runtime :bb
+   :command/bb-task "shadow:report"
+   :command/positional-args {:min 0 :max 0}
+   :command/description "Print a human-readable summary of the Solidity shadow registry."}
+
+  {:command/id :monitor
+   :command/path ["monitor"]
+   :command/title "Start JMX monitor"
+   :command/category :maintenance
+   :command/surface :bb
+   :command/jar-availability :none
+   :command/runtime :bb
+   :command/bb-task "monitor"
+   :command/positional-args {:min 0 :max 0}
+   :command/description "Start JMX monitoring system."}
+
+
+  {:command/id :notebook-index
+   :command/path ["notebook" "index"]
+   :command/title "Open notebook hub"
+   :command/category :notebook
+   :command/surface :bb
+   :command/jar-availability :none
+   :command/runtime :bb
+   :command/bb-task "notebook:index"
+   :command/positional-args {:min 0 :max 0}
+   :command/description "Open the notebook navigation hub in the browser."}
+
+   {:command/id :workspace-doctor
+    :command/path ["workspace" "doctor"]
+    :command/title "Validate workspace"
+    :command/category :maintenance
+    :command/surface :bb
+    :command/jar-availability :none
+    :command/runtime :bb
+    :command/bb-task "workspace:doctor"
+    :command/positional-args {:min 0 :max 0}
+    :command/description "Validate workspace structure, README, deps.edn, and path resolution."}
+
+   {:command/id :test-yield
+    :command/path ["test" "yield"]
+    :command/title "Run yield unit tests"
+    :command/category :validation
+    :command/surface :bb
+    :command/backstop-tier :default
+    :command/jar-availability :external
+    :command/runtime :bb
+    :command/bb-task "test:yield"
+    :command/positional-args {:min 0 :max 0}
+    :command/description "Run yield protocol unit tests (accrual, partial-fill, invariants, modules)."}
+
+   {:command/id :test-yield-scenarios
+    :command/path ["test" "yield-scenarios"]
+    :command/title "Run yield JSON scenarios"
+    :command/category :validation
+    :command/surface :bb
+    :command/backstop-tier :default
+    :command/jar-availability :external
+    :command/runtime :bb
+    :command/bb-task "test:yield-scenarios"
+    :command/positional-args {:min 0 :max 0}
+    :command/description "Run yield provider and Sew-yield integration JSON scenarios."}
+
+   {:command/id :test-sew-yield-scenarios
+    :command/path ["test" "sew-yield-scenarios"]
+    :command/title "Run Sew+yield integration scenarios"
+    :command/category :validation
+    :command/surface :bb
+    :command/backstop-tier :default
+    :command/jar-availability :external
+    :command/runtime :bb
+    :command/bb-task "test:sew-yield-scenarios"
+    :command/positional-args {:min 0 :max 0}
+    :command/description "Run Sew escrow + yield integration JSON scenarios."}
+
+   {:command/id :test-dr3-coverage
+    :command/path ["test" "dr3-coverage"]
+    :command/title "Run DR3 critical suite"
+    :command/category :validation
+    :command/surface :bb
+    :command/backstop-tier :manual
+    :command/jar-availability :external
+    :command/runtime :bb
+    :command/bb-task "test:dr3-coverage"
+    :command/positional-args {:min 0 :max 0}
+    :command/description "Run DR3 critical suite + release-mapping drift checks."}
+
+   {:command/id :test-long-horizon
+    :command/path ["test" "long-horizon"]
+    :command/title "Run long horizon scenarios"
+    :command/category :validation
+    :command/surface :bb
+    :command/backstop-tier :manual
+    :command/jar-availability :external
+    :command/runtime :bb
+    :command/bb-task "test:long-horizon"
+    :command/positional-args {:min 0 :max 0}
+    :command/description "Run extended horizon scenarios (100/200/500/1000 epochs)."}
+
+   {:command/id :notebook-focus
+    :command/path ["notebook" "focus"]
+    :command/title "Focus notebook on a run"
+    :command/category :notebook
+    :command/surface :prf
+    :command/backstop-tier :manual
+    :command/jar-availability :native
+    :command/runtime :jvm
+    :command/options [{:name "--run-id" :type :string :doc "Run ID to focus on" :required true}]
+    :command/outputs []
+    :command/positional-args {:min 0 :max 0}
+    :command/description "Pin the notebook to a specific run-id."}
+
+   {:command/id :notebook-latest
+    :command/path ["notebook" "latest"]
+    :command/title "Reset notebook to latest run"
+    :command/category :notebook
+    :command/surface :prf
+    :command/backstop-tier :manual
+    :command/jar-availability :native
+    :command/runtime :jvm
+    :command/options []
+    :command/outputs []
+    :command/positional-args {:min 0 :max 0}
+    :command/description "Reset the notebook to always show the latest run."}
+
+   {:command/id :notebook-runs
+    :command/path ["notebook" "runs"]
+    :command/title "List available runs"
+    :command/category :notebook
+    :command/surface :prf
+    :command/backstop-tier :manual
+    :command/jar-availability :native
+    :command/runtime :jvm
+    :command/options []
+    :command/outputs []
+    :command/positional-args {:min 0 :max 0}
+    :command/description "List all available run-ids."}
+
+   {:command/id :ref-file
+    :command/path ["ref-file"]
+    :command/title "Compute canonical file references"
+    :command/category :validation
+    :command/surface :prf
+    :command/backstop-tier :manual
+    :command/jar-availability :native
+    :command/runtime :jvm
+    :command/options [{:name "--check" :type :string :doc "Verify a canonical refs file against file contents"}
+                      {:name "--json" :type :flag :doc "Output as JSON"}]
+    :command/outputs []
+    :command/positional-args {:min 0 :max nil}
+    :command/description "Compute canonical sha256:<hex> file references (sha256-ref-file) or verify a refs file."}
+
+   {:command/id :allocation-build-context
+    :command/path ["allocation" "build-context"]
+    :command/title "Build allocation context"
+    :command/category :allocation
+    :command/surface :prf
+    :command/backstop-tier :manual
+    :command/jar-availability :native
+    :command/runtime :jvm
+    :command/options [{:name "--input" :type :string :doc "Input JSON file; use '-' for stdin"}]
+    :command/outputs []
+    :command/positional-args {:min 0 :max 1}
+    :command/description "Build and print the canonical allocation-context.v1 with its hash and roots."}
+
+   {:command/id :allocation-verify-proposal
+    :command/path ["allocation" "verify-proposal"]
+    :command/title "Verify allocation proposal"
+    :command/category :allocation
+    :command/surface :prf
+    :command/backstop-tier :manual
+    :command/jar-availability :native
+    :command/runtime :jvm
+    :command/options [{:name "--input" :type :string :doc "Input JSON file; use '-' for stdin"}]
+    :command/outputs []
+    :command/positional-args {:min 0 :max 1}
+    :command/description "Run the reference allocation kernel and print the public-value projection."}
+
+   {:command/id :allocation-vectors
+    :command/path ["allocation" "vectors"]
+    :command/title "Generate allocation conformance vectors"
+    :command/category :allocation
+    :command/surface :prf
+    :command/backstop-tier :manual
+    :command/jar-availability :native
+    :command/runtime :jvm
+    :command/options []
+    :command/outputs []
+    :command/positional-args {:min 0 :max 0}
+    :command/description "Generate and print the allocation kernel conformance vector suite as JSON."}
+
+   {:command/id :allocation-issue-certificate
+    :command/path ["allocation" "issue-certificate"]
+    :command/title "Issue allocation assurance certificate"
+    :command/category :allocation
+    :command/surface :prf
+    :command/backstop-tier :manual
+    :command/jar-availability :native
+    :command/runtime :jvm
+    :command/options [{:name "--input" :type :string :doc "Input JSON file; use '-' for stdin"}]
+    :command/outputs []
+    :command/positional-args {:min 0 :max 1}
+     :command/description "Compose allocation-assurance-certificate.v1 from a kernel run."}
+
+   {:command/id :research-create :command/path ["research" "create"] :command/title "Create research command"
+    :command/category :research :command/surface :prf :command/backstop-tier :manual :command/jar-availability :native :command/runtime :jvm
+    :command/options [{:name "--input" :type :string :required true} {:name "--output" :type :string :required true}]
+    :command/outputs [] :command/positional-args {:min 0 :max 0}
+    :command/description "Build and persist an authoritative research-command.v2 from EDN."}
+   {:command/id :research-assign :command/path ["research" "assign"] :command/title "Create research assignment"
+    :command/category :research :command/surface :prf :command/backstop-tier :manual :command/jar-availability :native :command/runtime :jvm
+    :command/options [{:name "--input" :type :string :required true} {:name "--output" :type :string :required true}]
+    :command/outputs [] :command/positional-args {:min 0 :max 0}
+    :command/description "Build and persist a hash-bound research assignment from EDN."}
+   {:command/id :research-run :command/path ["research" "run"] :command/title "Record research execution"
+    :command/category :research :command/surface :prf :command/backstop-tier :manual :command/jar-availability :native :command/runtime :jvm
+    :command/options [{:name "--input" :type :string :required true} {:name "--output" :type :string :required true}]
+    :command/outputs [] :command/positional-args {:min 0 :max 0}
+    :command/description "Record a verified research execution over an existing canonical benchmark outcome."}
+   {:command/id :research-submit :command/path ["research" "submit"] :command/title "Submit research execution"
+    :command/category :research :command/surface :prf :command/backstop-tier :manual :command/jar-availability :native :command/runtime :jvm
+    :command/options [{:name "--input" :type :string :required true}]
+    :command/outputs [] :command/positional-args {:min 0 :max 0}
+    :command/description "Verify and admit an in-band or out-of-band research execution."}
+   {:command/id :research-verify :command/path ["research" "verify"] :command/title "Verify research closure"
+    :command/category :research :command/surface :prf :command/backstop-tier :manual :command/jar-availability :native :command/runtime :jvm
+    :command/options [{:name "--input" :type :string :required true}]
+    :command/outputs [] :command/positional-args {:min 0 :max 0}
+    :command/description "Verify execution bindings and research-analysis closure."}
+   {:command/id :research-reproduce :command/path ["research" "reproduce"] :command/title "Reproduce research execution"
+    :command/category :research :command/surface :prf :command/backstop-tier :manual :command/jar-availability :native :command/runtime :jvm
+    :command/options [{:name "--input" :type :string :required true}]
+    :command/outputs [] :command/positional-args {:min 0 :max 0}
+    :command/description "Compare exact-environment or independent-conforming reproduction contexts."}
+   {:command/id :research-diff :command/path ["research" "diff"] :command/title "Differential research analysis"
+    :command/category :research :command/surface :prf :command/backstop-tier :manual :command/jar-availability :native :command/runtime :jvm
+    :command/options [{:name "--input" :type :string :required true}]
+    :command/outputs [] :command/positional-args {:min 0 :max 0}
+    :command/description "Compare canonical research semantics while excluding runtime-only variation."}
+   {:command/id :research-inspect :command/path ["research" "inspect"] :command/title "Inspect research roots"
+    :command/category :research :command/surface :prf :command/backstop-tier :manual :command/jar-availability :native :command/runtime :jvm
+    :command/options [{:name "--input" :type :string :required true}]
+    :command/outputs [] :command/positional-args {:min 0 :max 0}
+    :command/description "Read-only validation and root-oriented inspection of a research execution."}
+
+   {:command/id :researcher-disagree
+    :command/path ["researcher" "disagree"]
+    :command/title "Sign a dissenting researcher decision"
+    :command/category :researcher
+    :command/surface :researcher
+    :command/backstop-tier :manual
+    :command/jar-availability :native
+    :command/runtime :jvm
+    :command/options [{:name "--input" :type :string :doc "Input EDN file with force-authorisation context; use '-' for stdin"}
+                      {:name "--member-key" :type :integer :doc "Integer review-member/key of the dissenting researcher" :required true}
+                      {:name "--key" :type :string :doc "Path to researcher Ed25519 private key" :required true}
+                      {:name "--dissent-reason" :type :string :doc "Required reason for dissent" :required true}
+                      {:name "--outcome-root" :type :string :doc "Outcome root for v2 signed decision (sha256:...)"}
+                      {:name "--json" :type :flag :doc "Output as JSON"}]
+    :command/outputs []
+    :command/positional-args {:min 0 :max 0}
+    :command/description "Sign a dissenting (:dissent) decision as a researcher, identified by integer review-member/key, targeting a force-authorisation."}
+
+   {:command/id :researcher-approve
+    :command/path ["researcher" "approve"]
+    :command/title "Sign an approving researcher decision"
+    :command/category :researcher
+    :command/surface :researcher
+    :command/backstop-tier :manual
+    :command/jar-availability :native
+    :command/runtime :jvm
+    :command/options [{:name "--input" :type :string :doc "Input EDN file with force-authorisation context; use '-' for stdin"}
+                      {:name "--member-key" :type :integer :doc "Integer review-member/key of the approving researcher" :required true}
+                      {:name "--key" :type :string :doc "Path to researcher Ed25519 private key" :required true}
+                      {:name "--outcome-root" :type :string :doc "Outcome root for v2 signed decision (sha256:...)"}
+                      {:name "--json" :type :flag :doc "Output as JSON"}]
+    :command/outputs []
+    :command/positional-args {:min 0 :max 0}
+    :command/description "Sign an approving (:approve) decision as a researcher, identified by integer review-member/key, targeting a force-authorisation."}
+
+   {:command/id :researcher-check
+    :command/path ["researcher" "check"]
+    :command/title "Check force-authorisation usability"
+    :command/category :researcher
+    :command/surface :researcher
+    :command/backstop-tier :manual
+    :command/jar-availability :native
+    :command/runtime :jvm
+    :command/options [{:name "--input" :type :string :doc "Input EDN file with authorisation record, consumption registry, scope map, and now-ts; use '-' for stdin"}
+                      {:name "--json" :type :flag :doc "Output as JSON"}]
+    :command/outputs []
+    :command/positional-args {:min 0 :max 0}
+    :command/description "Check whether a force-authorisation is usable, classifying the result as :usable, :forbidden, :forbidden-authorized, or :invalid-parameter-attribution."}]}

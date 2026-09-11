@@ -1,0 +1,86 @@
+{:description
+ "L0 has 500 stake. Reversal slash at 2500 bps = 125. Stake debited correctly, never negative.",
+ :tags
+ ["suite/dispute-resolution"
+  "coverage/reversal"
+  "coverage/insufficient-stake"
+  "coverage/boundary"],
+ :protocol-params
+ {:resolver-fee-bps 0,
+  :appeal-window-duration 60,
+  :max-dispute-duration 120,
+  :resolver-bond-bps 0,
+  :resolution-module "0xkleros-proxy",
+  :escalation-resolvers {:0 "0xl0", :1 "0xl1"},
+  :reversal-slash-bps 2500},
+ :purpose "dispute-resolution-coverage",
+ :events
+ ({:seq 0,
+   :time 1000,
+   :agent "l0",
+   :action "register_stake",
+   :params {:amount 500}}
+  {:seq 1,
+   :time 1000,
+   :agent "l1",
+   :action "register_stake",
+   :params {:amount 10000}}
+  {:seq 2,
+   :time 1000,
+   :agent "buyer",
+   :action "create_escrow",
+   :params {:token "USDC", :to "0xseller", :amount 5000}}
+  {:seq 3,
+   :time 1060,
+   :agent "buyer",
+   :action "raise_dispute",
+   :params {:workflow-id 0}}
+  {:seq 4,
+   :time 1120,
+   :agent "l0",
+   :action "execute_resolution",
+   :params {:workflow-id 0, :is-release true, :resolution-hash "0xl0"}}
+  {:seq 5,
+   :time 1130,
+   :agent "buyer",
+   :action "escalate_dispute",
+   :params {:workflow-id 0}}
+  {:seq 6,
+   :time 1200,
+   :agent "l1",
+   :action "execute_resolution",
+   :params
+   {:workflow-id 0, :is-release false, :resolution-hash "0xl1"}}
+  {:seq 7,
+   :time 1261,
+   :agent "keeper",
+   :action "execute_pending_settlement",
+   :params {:workflow-id 0}}),
+ :schema-version "1.0",
+ :accounting
+ {:unit "USDC",
+  :decimals 6,
+  :tracked-balances ["buyer" "seller" "protocol" "slashPool"]},
+ :scenario-title "Reversal Slash Insufficient Stake",
+ :scenario-id "dr-r-001-reversal-slash-insufficient-stake",
+ :title "Reversal Slash Insufficient Stake",
+ :scenario-purpose
+ "L0 has 500 stake. Reversal slash at 2500 bps = 125. Stake debited correctly, never negative.",
+ :provenance
+ {:author-id "@kilo-research",
+  :author "Kilo Research",
+  :created-at "2026-07-02",
+  :license "CC-BY-4.0"},
+ :threat {:family "dispute-resolution", :severity "medium"},
+ :agents
+ ({:id "buyer", :address "0xbuyer", :strategy "honest"}
+  {:id "seller", :address "0xseller", :strategy "honest"}
+  {:id "l0", :address "0xl0", :role "resolver"}
+  {:id "l1", :address "0xl1", :role "resolver"}
+  {:id "keeper", :address "0xkeeper", :role "keeper"}),
+ :initial-block-time 1000,
+ :claim
+ {:id :claim/dr-r-001-reversal-slash-insufficient-stake,
+  :statement
+  "When a resolver has minimal stake, the reversal slash is bounded to available amount. Stake never goes below zero.",
+  :falsifies-if []}}

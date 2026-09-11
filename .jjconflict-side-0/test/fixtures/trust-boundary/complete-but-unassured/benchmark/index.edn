@@ -1,0 +1,1 @@
+{:executions [{:dir "test/fixtures/trust-boundary/complete-but-unassured/event-evidence" :artifacts {:evidence-registry {:path "test/fixtures/trust-boundary/complete-but-unassured/event-evidence/evidence-registry.json"} :chain-cursor {:path "test/fixtures/trust-boundary/complete-but-unassured/event-evidence/chain-cursor-final.json"}}}]}

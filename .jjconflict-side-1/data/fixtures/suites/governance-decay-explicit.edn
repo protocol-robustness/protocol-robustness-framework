@@ -1,0 +1,14 @@
+{:suite/id :suites/governance-decay-explicit
+ :suite/title "Governance Decay Explicit and Governance Approval"
+ :suite/purpose "Exercise explicit governance-quality decay assumptions and approval-gated slashing execution."
+ :suite/prevents "False confidence from implicit defaults in decay/approval modeling."
+ :suite/class :governance
+ :suite/criticality :high
+
+ :protocol :protocol/slow-timeouts
+ :state :states/minimal-world
+ :actors [:actors/rational-malice]
+ :authority :authority/decaying-oversight
+ :thresholds :thresholds/adversarial-minimum
+ :traces [:traces/governance-decay-explicit
+          :traces/governance-approved]}

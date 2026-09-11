@@ -1,0 +1,13 @@
+{:suite/id       :suites/equivalence-escalation-boundaries
+ :suite/title    "Equivalence Escalation Boundary Chains"
+ :suite/purpose  "Verify exact-boundary acceptance, plus-one rejection, and multi-hop pending-clear consistency across escalation chains."
+ :suite/prevents "False equivalence around escalation depth limits and pending-settlement carryover semantics."
+ :suite/class    :ordering
+ :suite/criticality :high
+
+ :protocol   :protocol/baseline
+ :state      :states/minimal-world
+ :thresholds :thresholds/strict-baseline
+ :traces [:traces/s48-max-escalation-exact-boundary
+          :traces/s49-max-escalation-plus-one-rejected
+          :traces/s50-multi-hop-pending-cleared-every-hop]}

@@ -1,0 +1,39 @@
+[{:case/id :ideal-pro-rata-uniform-context
+  :source {:composition/version 1 :composition/family :ideal-pro-rata
+           :composition/dimensions {:rounding-policy :floor-and-carry
+                                    :claimant-contexts [{:account :escrow :direction :add}
+                                                        {:account :escrow :direction :add}]}}
+  :compact {:composition/version 1 :composition/family :ideal-pro-rata
+            :composition/dimensions {:rounding-policy :largest-remainder
+                                     :claimant-context {:account :escrow :direction :add}}}
+  :canonical-bytes "31032212636f6d706f736974696f6e2f66616d696c79220e696465616c2d70726f2d726174612213636f6d706f736974696f6e2f76657273696f6e10022216636f6d706f736974696f6e2f64696d656e73696f6e733102220f726f756e64696e672d706f6c69637922116c6172676573742d72656d61696e6465722210636c61696d616e742d636f6e74657874310222076163636f756e742206657363726f772209646972656374696f6e2203616464"
+  :composition/root "49be81daef2e3c1d6a3a6440671d7816d29b933934c527c53f83d93d5378ddd1"
+  :example-input {:requested {:a 100 :b 100 :c 100} :available 10}
+  :expected-fills {:a 4 :b 3 :c 3}}
+ {:case/id :forbidden-authorized
+  :source {:composition/version 1 :composition/family :authorisation-usability-classification
+           :composition/dimensions {:forbidden? true :authorized? true}}
+  :compact {:composition/version 1 :composition/family :authorisation-usability-classification
+            :composition/dimensions {:forbidden? true :authorized? true}}
+  :canonical-bytes "31032212636f6d706f736974696f6e2f66616d696c792226617574686f7269736174696f6e2d75736162696c6974792d636c617373696669636174696f6e2213636f6d706f736974696f6e2f76657273696f6e10022216636f6d706f736974696f6e2f64696d656e73696f6e733102220a666f7262696464656e3f02220b617574686f72697a65643f02"
+  :composition/root "986f5cad67658340eda977de9fd4ee057641136a924f9afd9046f5f6e4f2a820"
+  :classification-input {:valid? false :authorized? true}
+  :expected-classification :forbidden-authorized}
+ {:case/id :concatenate-ordered-components
+  :source {:composition/version 1 :composition/family :composition-sequence
+           :composition/dimensions {:purpose :example/components :components [:component/a :component/b]}}
+  :compact {:composition/version 1 :composition/family :composition-sequence
+            :composition/dimensions {:purpose :example/components :components [:component/a :component/b]}}
+  :canonical-bytes "31032212636f6d706f736974696f6e2f66616d696c792214636f6d706f736974696f6e2d73657175656e63652213636f6d706f736974696f6e2f76657273696f6e10022216636f6d706f736974696f6e2f64696d656e73696f6e7331022207707572706f736522126578616d706c652f636f6d706f6e656e7473220a636f6d706f6e656e74733002220b636f6d706f6e656e742f61220b636f6d706f6e656e742f62"
+  :composition/root "aecf6916b6dec31bc72eb3daeacaa1abf5f34478fccd8a96a1830bfeebbf811e"}
+ {:case/id :consecutive-predecessor-successor
+  :source {:composition/version 1 :composition/family :composition-consecutive-relation
+           :composition/dimensions {:predecessor :state/a :successor :state/b}}
+  :compact {:composition/version 1 :composition/family :composition-consecutive-relation
+            :composition/dimensions {:predecessor :state/a :successor :state/b}}
+  :canonical-bytes "31032212636f6d706f736974696f6e2f66616d696c792220636f6d706f736974696f6e2d636f6e73656375746976652d72656c6174696f6e2213636f6d706f736974696f6e2f76657273696f6e10022216636f6d706f736974696f6e2f64696d656e73696f6e7331022209737563636573736f72220773746174652f62220b7072656465636573736f72220773746174652f61"
+  :composition/root "75506b70fdbb841e99c89b4ac6d6618471e41ae8ff557d6140a0d5c1f79fcbb4"}
+ ;; Display-only catalogue entries intentionally have no semantic-composition root:
+ ;; addition/sub-held, consensus/review, disagree/agreement, force-authorisation,
+ ;; canonical explanation, and cancellation-layer examples live in the catalogue resource.
+]

@@ -1,0 +1,115 @@
+{:description
+ "L0→L1→L2→L3 with reversals at each level. Each prior resolver is slashed then vindicated. Solvency invariant must pass.",
+ :tags
+ ["suite/dispute-resolution"
+  "coverage/vindication"
+  "coverage/multi-level"
+  "coverage/solvency"],
+ :protocol-params
+ {:resolver-fee-bps 0,
+  :appeal-window-duration 60,
+  :max-dispute-duration 120,
+  :resolver-bond-bps 0,
+  :resolution-module "0xkleros-proxy",
+  :escalation-resolvers {:0 "0xl0", :1 "0xl1", :2 "0xl2", :3 "0xl3"},
+  :reversal-slash-bps 2500},
+ :allow-open-disputes? true,
+ :purpose "dispute-resolution-coverage",
+ :events
+ [{:seq 0,
+   :time 1000,
+   :agent "l0",
+   :action "register_stake",
+   :params {:amount 8000}}
+  {:seq 1,
+   :time 1000,
+   :agent "l1",
+   :action "register_stake",
+   :params {:amount 8000}}
+  {:seq 2,
+   :time 1000,
+   :agent "l2",
+   :action "register_stake",
+   :params {:amount 8000}}
+  {:seq 3,
+   :time 1000,
+   :agent "l3",
+   :action "register_stake",
+   :params {:amount 8000}}
+  {:seq 4,
+   :time 1000,
+   :agent "buyer",
+   :action "create_escrow",
+   :params {:token "USDC", :to "0xseller", :amount 5000}}
+  {:seq 5,
+   :time 1060,
+   :agent "buyer",
+   :action "raise_dispute",
+   :params {:workflow-id 0}}
+  {:seq 6,
+   :time 1120,
+   :agent "l0",
+   :action "execute_resolution",
+   :params {:workflow-id 0, :is-release true, :resolution-hash "0xl0"}}
+  {:seq 7,
+   :time 1120,
+   :agent "buyer",
+   :action "escalate_dispute",
+   :params {:workflow-id 0}}
+  {:seq 8,
+   :time 1180,
+   :agent "l1",
+   :action "execute_resolution",
+   :params
+   {:workflow-id 0, :is-release false, :resolution-hash "0xl1"}}
+  {:seq 9,
+   :time 1180,
+   :agent "seller",
+   :action "escalate_dispute",
+   :params {:workflow-id 0}}
+  {:seq 10,
+   :time 1240,
+   :agent "l2",
+   :action "execute_resolution",
+   :params {:workflow-id 0, :is-release true, :resolution-hash "0xl2"}}
+  {:seq 11,
+   :time 1240,
+   :agent "buyer",
+   :action "escalate_dispute",
+   :params {:workflow-id 0}}
+  {:seq 12,
+   :time 1300,
+   :agent "l3",
+   :action "execute_resolution",
+   :params
+   {:workflow-id 0, :is-release false, :resolution-hash "0xl3"}}],
+ :schema-version "1.0",
+ :accounting
+ {:unit "USDC",
+  :decimals 6,
+  :tracked-balances ["buyer" "seller" "protocol" "slashPool"]},
+ :scenario-title "Vindication 4-Level Chain",
+ :scenario-id "dr-o-001-vindication-4-level",
+ :title "Vindication 4-Level Chain",
+ :scenario-purpose
+ "L0→L1→L2→L3 with reversals at each level. Each prior resolver is slashed then vindicated. Solvency invariant must pass.",
+ :provenance
+ {:author-id "@kilo-research",
+  :author "Kilo Research",
+  :created-at "2026-07-02",
+  :license "CC-BY-4.0"},
+ :threat {:family "dispute-resolution", :severity "medium"},
+ :agents
+ ({:id "buyer", :address "0xbuyer", :strategy "honest"}
+  {:id "seller", :address "0xseller", :strategy "honest"}
+  {:id "l0", :address "0xl0", :role "resolver"}
+  {:id "l1", :address "0xl1", :role "resolver"}
+  {:id "l2", :address "0xl2", :role "resolver"}
+  {:id "l3", :address "0xl3", :role "resolver"}
+  {:id "keeper", :address "0xkeeper", :role "keeper"}),
+ :initial-block-time 1000,
+ :claim
+ {:id :claim/dr-o-001-vindication-4-level,
+  :statement
+  "In a 4-level chain where each level reverses the prior, each prior resolver suffers a reversal slash then receives vindication credit.",
+  :falsifies-if []}}

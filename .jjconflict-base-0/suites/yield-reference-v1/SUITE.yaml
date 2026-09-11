@@ -1,0 +1,9 @@
+suite: yield-reference-v1
+version: "1.0.0"
+description: >
+  Yield reference validation suite. Covers vault liquidity, shortfall,
+  deferred recovery, optional-strategy staging, and protocol-fee accrual
+  for the yield-v1 protocol (no Sew dependency).
+simulator_backed: true
+protocol: yield
+created: "2026-06-12"

@@ -1,0 +1,31 @@
+{:description "Bribery stress test: attackers have extra capital for bribes"
+ :scenario-id "bribery-v1"
+ :rng-seed 789
+
+ :escrow-distribution
+ {:type :lognormal
+  :mean 10000
+  :stddev 5000}
+
+ :strategy-mix
+ {:honest 0.75
+  :lazy 0.15
+  :malicious 0.08
+  :collusive 0.02}
+
+ ;; What if malicious actors have 10× more capital than bond requirement?
+ :attacker-extra-capital-multiplier 10.0
+
+ :resolver-fee-bps 150
+ :appeal-bond-bps 700
+ :slash-multiplier 2.5
+
+ :appeal-probability-if-correct 0.05
+ :appeal-probability-if-wrong 0.40
+ :slashing-detection-probability 0.10
+
+ :n-trials 1500
+ :n-seeds 5
+ :parallelism :auto
+ :save-samples? true
+ :save-sweep? false}

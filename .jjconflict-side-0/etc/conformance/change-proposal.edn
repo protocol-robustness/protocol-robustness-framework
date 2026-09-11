@@ -1,0 +1,21 @@
+{:change-proposal/id :conformance-cp-xxx
+ :title "..."
+ :author "..."
+ :date "..."
+
+ :affected-spec-sections [...]
+ :affected-schemas-and-roots [...]
+ :compatibility-classification :compatible | :new-minor-version
+                               | :new-envelope-version | :new-profile-version
+                               | :breaking-core-version
+ :new-or-changed-issue-codes [...]
+ :corpus-additions {:public [...] :holdout [...]}
+ :vector-changes [...]
+ :historical-verification-impact [...]
+ :profile-impact [...]
+ :new-release-root-required? false
+ :rationale "..."
+ :review-checklist
+ {:clojure-suite ... :python-parity ... :independent-verifier-parity ...
+  :corpus-updates ... :versioning-classified? ... :release-root-updated? ...}
+ :status :draft | :under-review | :landed | :rejected}

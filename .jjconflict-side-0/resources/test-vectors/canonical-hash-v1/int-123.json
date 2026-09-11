@@ -1,0 +1,9 @@
+{
+  "id": "int-123",
+  "description": "Integer 123",
+  "input": "123",
+  "canonical_bytes_hex": "10f601",
+  "domain_tag": "EVIDENCE_RECORD_V1",
+  "domain_tag_hex": "45564944454e43455f5245434f52445f5631",
+  "hash_hex": "847cbe81956ef1aa8ed2b1b10b0cc011d708698a82b608b9cc243e6b86c7f8c4"
+}

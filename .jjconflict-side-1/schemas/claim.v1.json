@@ -1,0 +1,16 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Research Claim v1",
+  "type": "object",
+  "required": ["claim_id", "claim_type", "claim_status", "claim_strength", "registry_sha256", "scope", "limits", "references"],
+  "properties": {
+    "claim_id": { "type": "string" },
+    "claim_type": { "type": "string" },
+    "claim_status": { "type": "string", "enum": ["PROPOSED", "ACCEPTED", "DEPRECATED"] },
+    "claim_strength": { "type": "string", "enum": ["OBSERVATIONAL", "ANALYTICAL", "FORMAL_PROOF"] },
+    "registry_sha256": { "type": "string" },
+    "scope": { "type": "string" },
+    "limits": { "type": "string" },
+    "references": { "type": "array", "items": { "type": "string" } }
+  }
+}

@@ -1,0 +1,4 @@
+suite: ef-review-v1
+description: "EF review trace equivalence suite — selected CDRS v0.2 traces"
+version: "1.0"
+traces_dir: expected/traces/

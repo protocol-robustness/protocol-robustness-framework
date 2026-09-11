@@ -1,0 +1,19 @@
+{
+  "schema_version": "key-owners.v1",
+  "owners": {
+    "test-researcher": {
+      "display_name": "Test Researcher",
+      "email": "researcher@example.com",
+      "public_key": "keys/test-researcher.pub",
+      "key_fingerprint_sha256": "9ca54f9734e04a2920b802f107bd4629bd5829d098e8b640f13ea0b669990ff4",
+      "status": "active"
+    },
+    "reference-suite-signer": {
+      "display_name": "Reference Validation Suite Signer",
+      "email": "reference-suite@example.com",
+      "public_key": "keys/reference-suite-signer.pub",
+      "key_fingerprint_sha256": "26bdf2450ab9ed10981775563db07004f5e02fc7cf9c190cd88ce1539e2aaefa",
+      "status": "active"
+    }
+  }
+}

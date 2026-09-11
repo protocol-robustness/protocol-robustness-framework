@@ -1,0 +1,84 @@
+{
+  "protocol-params" : {
+    "yield-generation-module" : "aave-v3",
+    "resolver-fee-bps" : 50
+  },
+  "schema-version" : "1.0",
+  "yield-config" : {
+    "modules" : {
+      "aave-v3" : {
+        "tokens" : {
+          "USDC" : {
+            "apy" : 0.05,
+            "liquidity-mode" : "available"
+          }
+        }
+      }
+    }
+  },
+  "initial-block-time" : 1000,
+  "scenario-author" : "@grifma",
+  "agents" : [ {
+    "id" : "buyer",
+    "address" : "0xbuyer",
+    "strategy" : "honest"
+  }, {
+    "id" : "seller",
+    "address" : "0xseller",
+    "strategy" : "honest"
+  }, {
+    "id" : "resolver",
+    "address" : "0xresolver",
+    "role" : "resolver"
+  } ],
+  "scenario-id" : "s115-claim-deferred-yield-recovery",
+  "events" : [ {
+    "seq" : 0,
+    "time" : 1000,
+    "agent" : "buyer",
+    "action" : "create_escrow",
+    "params" : {
+      "token" : "USDC",
+      "to" : "0xseller",
+      "amount" : 10000,
+      "yield-preset" : "to-sender",
+      "custom-resolver" : "0xresolver"
+    }
+  }, {
+    "seq" : 1,
+    "time" : 2000,
+    "agent" : "buyer",
+    "action" : "sender-cancel",
+    "params" : {
+      "workflow-id" : 0
+    }
+  }, {
+    "seq" : 2,
+    "time" : 3000,
+    "agent" : "seller",
+    "action" : "recipient-cancel",
+    "params" : {
+      "workflow-id" : 0
+    }
+  }, {
+    "seq" : 3,
+    "time" : 4000,
+    "agent" : "buyer",
+    "action" : "withdraw-escrow",
+    "params" : {
+      "workflow-id" : 0
+    }
+  }, {
+    "seq" : 4,
+    "time" : 5000,
+    "agent" : "buyer",
+    "action" : "claim-deferred-yield",
+    "params" : {
+      "owner-id" : "escrow:0"
+    }
+  } ],
+  "provenance" : {
+    "author-id" : "@grifma",
+    "author" : "Marc Griffiths"
+  }
+}

@@ -1,0 +1,169 @@
+{:suite/id "reference-validation-v1"
+ :suite/version "1.3.0"
+ :config/version "reference-config-v1"
+
+ ;; Canonical CI scenario set (7). All scenarios are simulator-backed.
+ :scenarios
+ [{:id "governance-sandwich-v1"
+   :ordinal 1
+   :trace-slug "001-governance-sandwich"
+   :claim-id "active-escrow-rules-immutable"
+   :claim "Governance cannot alter active escrow rules."
+   :threat "Governance timing attack"
+   :primary-threat "governance-timing-attack"
+   :classification :regression-protected
+   :invariant-ids ["active-escrow-module-snapshot-immutable" "governance-forward-only"]
+   :expectations-passed 2
+   :invariants-passed 2
+   :simulator/scenario-path "scenarios/edn/S61_governance-snapshot-mid-dispute-immutability.edn"
+   :upgrade-path "maintain deterministic replay and trace hash stability"}
+
+  {:id "malicious-resolver-verdict-v1"
+   :ordinal 2
+   :trace-slug "002-malicious-resolver-verdict"
+   :claim-id "malicious-verdict-economically-bounded"
+   :claim "Resolver corruption is economically bounded under stated assumptions."
+   :threat "Malicious resolver verdict"
+   :primary-threat "resolver-corruption"
+   :classification :bounded-counterfactual
+   :invariant-ids ["slashable-liability-preserved"]
+   :expectations-passed 2
+   :invariants-passed 1
+   :simulator/scenario-path "scenarios/edn/S25_profit-maximizer-slash-lifecycle.edn"
+   :upgrade-path "maintain deterministic replay and trace hash stability"}
+
+  {:id "dispute-flooding-v1"
+   :ordinal 3
+   :trace-slug "003-dispute-flooding"
+   :claim-id "liveness-under-adversarial-load"
+   :claim "Liveness remains bounded under adversarial dispute load assumptions."
+   :threat "Dispute capacity exhaustion"
+   :primary-threat "dispute-capacity-exhaustion"
+   :classification :capacity-bounded
+   :invariant-ids ["bounded-progress-under-load"]
+   :expectations-passed 2
+   :invariants-passed 1
+   :simulator/scenario-path "scenarios/edn/S62_resolver-throughput-exhaustion.edn"
+   :upgrade-path "maintain deterministic replay and trace hash stability"}
+
+  {:id "bond-withdrawal-race-v1"
+   :ordinal 4
+   :trace-slug "004-bond-withdrawal-race"
+   :claim-id "unresolved-liabilities-block-withdrawal"
+   :claim "Unresolved liabilities block premature withdrawal."
+   :threat "Slash evasion"
+   :primary-threat "slash-evasion"
+   :classification :liability-guarded
+   :invariant-ids ["liability-gated-withdrawal"]
+   :expectations-passed 2
+   :invariants-passed 1
+   :simulator/scenario-path "scenarios/edn/S60_partial-withdraw-then-slash-ordering.edn"
+   :upgrade-path "maintain deterministic replay and trace hash stability"}
+
+  {:id "same-block-ordering-v1"
+   :ordinal 5
+   :trace-slug "005-same-block-ordering"
+   :claim-id "settlement-mutual-exclusion"
+   :claim "Settlement paths remain mutually exclusive."
+   :threat "Ordering-dependent double settlement"
+   :primary-threat "ordering-dependent-double-settlement"
+   :classification :safety-critical
+   :invariant-ids ["no-double-settlement"]
+   :expectations-passed 2
+   :invariants-passed 1
+   :simulator/scenario-path "scenarios/edn/S56_same-block-dual-resolution-order-invariant.edn"
+   :upgrade-path "maintain deterministic replay and trace hash stability"}
+
+  {:id "autopush-settlement-v1"
+   :ordinal 6
+   :trace-slug "006-autopush-settlement"
+   :claim-id "pull-first-settlement-safety"
+   :claim "Settlement is pull-first for sensitive value movement."
+   :threat "Unsafe external value movement"
+   :primary-threat "unsafe-external-value-movement"
+   :classification :fund-safety
+   :invariant-ids ["pull-first-value-flow"]
+   :expectations-passed 2
+   :invariants-passed 1
+   :simulator/scenario-path "scenarios/edn/S05_pending-settlement-execute.edn"
+   :upgrade-path "maintain deterministic replay and trace hash stability"}
+
+  {:id "appeal-failure-cascade-v1"
+    :ordinal 7
+    :trace-slug "007-appeal-failure-cascade"
+    :claim-id "corrupt-verdict-must-survive-escalation"
+   :claim "Corrupt verdict capture requires escalation failure."
+   :threat "Appeal layer breakdown"
+   :primary-threat "appeal-layer-breakdown"
+   :classification :escalation-robust
+   :invariant-ids ["escalation-layer-protection"]
+   :expectations-passed 2
+   :invariants-passed 1
+   :simulator/scenario-path "scenarios/edn/S20_dr3-kleros-max-escalation-guard.edn"
+   :upgrade-path "maintain deterministic replay and trace hash stability"}
+
+  ]
+
+ :invariants
+  [{:id "active-escrow-module-snapshot-immutable" :scenarios ["governance-sandwich-v1"]}
+  {:id "governance-forward-only" :scenarios ["governance-sandwich-v1"]}
+  {:id "slashable-liability-preserved"
+   :scenarios ["malicious-resolver-verdict-v1" "appeal-failure-cascade-v1"]}
+  {:id "bounded-progress-under-load" :scenarios ["dispute-flooding-v1"]}
+  {:id "liability-gated-withdrawal" :scenarios ["bond-withdrawal-race-v1"]}
+  {:id "no-double-settlement" :scenarios ["same-block-ordering-v1" "governance-sandwich-v1"]}
+  {:id "pull-first-value-flow" :scenarios ["autopush-settlement-v1"]}
+  {:id "escalation-layer-protection" :scenarios ["appeal-failure-cascade-v1"]}]
+
+ :claims
+ [{:claim-id :active-escrow-rules-immutable
+   :claim "Governance cannot alter active escrow rules."
+   :threat "Governance timing attack"
+   :invariant-ids ["active-escrow-module-snapshot-immutable" "governance-forward-only"]
+   :scenario-ids ["governance-sandwich-v1"]
+   :upgrade-path "maintain deterministic replay and trace hash stability"}
+  {:claim-id :malicious-verdict-economically-bounded
+   :claim "Resolver corruption is economically bounded under stated assumptions."
+   :threat "Malicious resolver verdict"
+   :invariant-ids ["slashable-liability-preserved"]
+   :scenario-ids ["malicious-resolver-verdict-v1" "appeal-failure-cascade-v1"]
+   :upgrade-path "maintain deterministic replay and trace hash stability"}
+  {:claim-id :liveness-under-adversarial-load
+   :claim "Liveness remains bounded under adversarial dispute load assumptions."
+   :threat "Dispute capacity exhaustion"
+   :invariant-ids ["bounded-progress-under-load"]
+   :scenario-ids ["dispute-flooding-v1"]
+   :upgrade-path "maintain deterministic replay and trace hash stability"}
+  {:claim-id :unresolved-liabilities-block-withdrawal
+   :claim "Unresolved liabilities block premature withdrawal."
+   :threat "Slash evasion"
+   :invariant-ids ["liability-gated-withdrawal"]
+   :scenario-ids ["bond-withdrawal-race-v1"]
+   :upgrade-path "maintain deterministic replay and trace hash stability"}
+  {:claim-id :settlement-mutual-exclusion
+   :claim "Settlement paths remain mutually exclusive."
+   :threat "Ordering-dependent double settlement"
+   :invariant-ids ["no-double-settlement"]
+   :scenario-ids ["same-block-ordering-v1"]
+   :upgrade-path "maintain deterministic replay and trace hash stability"}
+  {:claim-id :pull-first-settlement-safety
+   :claim "Settlement is pull-first for sensitive value movement."
+   :threat "Unsafe external value movement"
+   :invariant-ids ["pull-first-value-flow"]
+   :scenario-ids ["autopush-settlement-v1"]
+   :upgrade-path "maintain deterministic replay and trace hash stability"}
+  {:claim-id :corrupt-verdict-must-survive-escalation
+   :claim "Corrupt verdict capture requires escalation failure."
+   :threat "Appeal layer breakdown"
+   :invariant-ids ["escalation-layer-protection"]
+   :scenario-ids ["appeal-failure-cascade-v1"]
+   :upgrade-path "maintain deterministic replay and trace hash stability"}
+  ]
+
+ :economic-checks
+  [{:check-id "malicious-verdict-not-profitable-under-baseline"
+   :classification :bounded-counterfactual
+   :scenario-id "malicious-resolver-verdict-v1"}
+  {:check-id "appeal-path-reduces-malicious-capture"
+   :classification :escalation-guard
+   :scenario-id "appeal-failure-cascade-v1"}]}

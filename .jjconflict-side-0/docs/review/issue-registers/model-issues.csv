@@ -1,0 +1,5 @@
+issue_id,severity,component,description,status
+F-004-fixed,low,resolution.clj,force-reversal-slash idempotency guard implemented via slash-by-context; checklist not updated,open
+no-cross-layer-test,medium,idempotency.clj / dispatch-action.clj,No test verifies interaction between business-logic and replay-boundary idempotence layers,open
+register-attestation-no-test,low,attestation_registry.clj,register-attestation! is idempotent by assoc-overwrite but has no explicit idempotency test,open
+divergent-fix-rationale,informational,resolution.clj:323,F-004 fix uses slash-by-context instead of pending-fraud-slashes; rationale undocumented,open

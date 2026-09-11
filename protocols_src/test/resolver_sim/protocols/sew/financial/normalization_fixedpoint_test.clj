@@ -149,6 +149,82 @@
     (is (not= (fl/action-root {:action/type :withdraw :action/params {:amount 100}})
               (fl/action-root {:action/type :withdraw :action/params {:amount 200}})))))
 
+;; ── Custom action types: contract ───────────────────────────────────────────
+
+(deftest unknown-action-type-without-effects-fails-closed
+  (testing "an unknown type with no :action/effects is a STRUCTURED fail-closed
+            error (:action/explicit-effects-required), never a silent
+            :no-economic-effect default and never Clojure's bare
+            IllegalArgumentException"
+    (let [e (try (fl/normalize-action {:action/type :my-unknown-action})
+                 (catch clojure.lang.ExceptionInfo ex ex))]
+      (is (instance? clojure.lang.ExceptionInfo e)
+          "the failure is a structured ex-info, not an IllegalArgumentException")
+      (is (= :action/explicit-effects-required (:reason (ex-data e))))
+      (is (= :my-unknown-action (get-in (ex-data e) [:action/type])))
+      (is (thrown? clojure.lang.ExceptionInfo
+                   (fl/normalize-action {:action/type :my-unknown-action})))
+      (is (thrown? clojure.lang.ExceptionInfo
+                   (fl/action-root :my-unknown-action))))))
+
+(deftest unknown-action-type-with-protocol-known-effects-is-supported
+  (testing "a custom type MAY declare effects from the protocol-governed vocabulary"
+    (let [a {:action/type :my-custom-action :action/effects #{:asset-outflow}}
+          n (fl/normalize-action a)]
+      (is (= :my-custom-action (:action/type n)))
+      (is (= #{:asset-outflow :risk-increasing} (:action/effects n))
+          "declared effects auto-complete the derived :risk-increasing")
+      (is (fl/canonical-action? n) "the normalized custom action is a TRUE fixed point")
+      (is (= (:action/root n) (fl/action-root n)) "its root is stable"))))
+
+(deftest custom-action-rejects-novel-effect-semantics
+  (testing "a custom action CANNOT introduce a new effect term: the vocabulary is
+            protocol-governed"
+    (is (thrown? clojure.lang.ExceptionInfo
+                 (fl/normalize-action {:action/type :my-custom-action
+                                       :action/effects #{:my-novel-effect}})))))
+
+;; ── Forensic portability: custom params + resolver identity are rooted ──────
+
+(deftest custom-action-root-commits-resolver-and-params-deterministically
+  (testing "the full relevant parameter projection and resolver identity are
+            canonically committed in the action root — two implementations of the
+            same rooted custom action execute the same semantics"
+    (let [a {:action/type :my-custom-action
+             :action/effects #{:asset-outflow}
+             :action/params {:amount 100 :resolver "0xCustomRes"}}
+          key-reordered {:action/type :my-custom-action
+                         :action/effects #{:asset-outflow}
+                         :action/params {:resolver "0xCustomRes" :amount 100}}
+          different-resolver {:action/type :my-custom-action
+                              :action/effects #{:asset-outflow}
+                              :action/params {:amount 100 :resolver "0xOther"}}
+          different-amount {:action/type :my-custom-action
+                            :action/effects #{:asset-outflow}
+                            :action/params {:amount 200 :resolver "0xCustomRes"}}]
+      (is (= (fl/action-root a) (fl/action-root key-reordered))
+          "canonical key ordering collapses map-key permutations (deterministic root)")
+      (is (not= (fl/action-root a) (fl/action-root different-resolver))
+          "the opaque custom resolver address is committed, not dropped")
+      (is (not= (fl/action-root a) (fl/action-root different-amount))
+          "a semantically relevant parameter is committed, not dropped")
+      (let [n (fl/normalize-action a)]
+        (is (= :custom (get-in n [:action/attributes :resolver/type])))
+        (is (= "0xCustomRes" (get-in n [:action/attributes :resolver/addr]))
+            "the resolver identity is carried as a committed classified attribute")
+        (is (= {:amount 100 :resolver "0xCustomRes"} (:action/params n))
+            "custom params pass through uncanonicalized-by-type but in full")))))
+
+(deftest custom-action-root-is-replayable-by-content
+  (testing "the action root is a pure function of (type, params, effects, attributes):
+            reconstructing the action from its committed fields reproduces the root"
+    (let [n (fl/normalize-action {:action/type :my-custom-action
+                                  :action/effects #{:asset-outflow}
+                                  :action/params {:amount 100 :resolver "0xR"}})
+          rebuilt (fl/normalize-action (select-keys n [:action/type :action/params :action/effects]))]
+      (is (= (:action/root n) (:action/root rebuilt))
+          "the committed action fields fully determine the root (portable identity)"))))
+
 ;; ── Strict token-ID grammar ──────────────────────────────────────────────────
 
 (deftest strict-token-id-grammar

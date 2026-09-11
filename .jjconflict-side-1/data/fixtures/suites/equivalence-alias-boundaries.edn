@@ -1,0 +1,13 @@
+{:suite/id       :suites/equivalence-alias-boundaries
+ :suite/title    "Equivalence Alias & Boundary Guards"
+ :suite/purpose  "Verify workflow-id alias hardening and strict settlement boundary behavior."
+ :suite/prevents "Alias poisoning, alias rebinding drift, and off-by-one settlement windows."
+ :suite/class    :ordering
+ :suite/criticality :high
+
+ :protocol   :protocol/baseline
+ :state      :states/minimal-world
+ :thresholds :thresholds/strict-baseline
+ :traces [:traces/s54-alias-poisoning-noncanonical-id-rejected
+          :traces/s55-alias-rebinding-after-create-blocked
+          :traces/s57-pending-settlement-expiry-boundary-1s]}

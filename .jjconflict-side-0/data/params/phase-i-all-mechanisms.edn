@@ -1,0 +1,43 @@
+{:description "Phase I: All three detection mechanisms enabled (fraud @ 50%, reversal @ 25%, timeout @ 2%)"
+ :scenario-id "phase-i-all-mechanisms-v1"
+ :rng-seed 42
+ :escrow-distribution {:shape :lognormal
+                       :scale 4.61
+                       :location 9.21
+                       :scale-factor 1000}
+ :strategy-mix {:honest 0.75
+               :lazy 0.15
+               :malicious 0.08
+               :collusive 0.02}
+ :resolver-fee-bps 150
+ :appeal-bond-bps 700
+ :slash-multiplier 2.5
+ :appeal-probability-if-correct 0.05
+ :appeal-probability-if-wrong 0.40
+ :slashing-detection-probability 0.25           ; Detection rate (Phase H: was 0.10)
+ 
+ ; Phase I: Fraud detection explicitly enabled at 25% for malicious resolvers
+ :fraud-detection-probability 0.25               ; ENABLED: 25% of malicious get caught
+ :fraud-slash-bps 5000                           ; 50% penalty from contracts
+ 
+ ; Phase I: Reversal detection explicitly enabled at 25% for lazy/collusive
+ :reversal-detection-probability 0.25            ; ENABLED: 25% of lazy/collusive get caught
+ :reversal-slash-bps 2500                        ; 25% penalty from contracts
+ 
+ ; Phase I: Timeout slashing enabled at 2% (from contracts default)
+ :timeout-slash-bps 200                          ; 2% penalty from contracts
+ 
+ ; Phase H parameters (realistic bond mechanics)
+ :unstaking-delay-days 14
+ :freeze-on-detection? true
+ :freeze-duration-days 3
+ :appeal-window-days 7
+ 
+ ; Force malicious to test the new mechanisms
+ :force-strategy :malicious
+ 
+ ; Execution
+ :n-trials 1000
+ :n-seeds 1
+ :parallelism :auto}
+

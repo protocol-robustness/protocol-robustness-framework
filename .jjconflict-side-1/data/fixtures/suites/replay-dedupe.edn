@@ -1,0 +1,13 @@
+{:suite/id       :suites/replay-dedupe
+ :suite/title    "Replay deduplication scenarios — event-id idempotence and superseded-pending"
+ :suite/purpose  "Validate replay-boundary dedupe for event-id gated actions, including challenge-resolution hop-scope dedupe and superseded-pending keeper regression."
+ :suite/prevents "Regressions in replay idempotence: duplicate event-id actions must produce :no-op-duplicate; superseded pending must not re-finalize."
+ :suite/class    :safety
+ :suite/criticality :high
+
+ :protocol   :protocol/baseline
+ :state      :states/minimal-world
+ :thresholds :thresholds/strict-baseline
+ :traces [:traces/s64-replay-event-id-dedupe
+          :traces/s116-superseded-pending-repeated-keeper
+          :traces/s117-challenge-resolution-dedupe]}

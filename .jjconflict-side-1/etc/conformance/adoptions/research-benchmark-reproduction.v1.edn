@@ -1,0 +1,97 @@
+{:adoption/id :research-benchmark-reproduction.v1
+ :adoption/date "2026-08-04"
+ :adoption/profile-root "see resolver-sim.conformance.profile/profile-root (content-bound)"
+ :adoption/status :spike
+
+ :findings
+ [{:concept :subject-coverage
+   :classification :shared-with-parameterisation
+   :trace-use "manifest fixture ids as subjects"
+   :benchmark-use "outcome manifest as the subject"
+   :decision "subject ID is the reconciliation key; implementation-specific roots are secondary evidence (trace: conformance sha256-root vs Solidity keccak)"}
+
+  {:concept :validation-registry
+   :classification :shared-unchanged
+   :evidence "both the trace and benchmark profiles register validators into the SAME closed conformance.validation registry, with no cross-import"
+   :decision "the closed registry is genuinely generic"}
+
+  {:concept :exact-comparison
+   :classification :shared-with-parameterisation
+   :trace-use "per-step EVM projection comparison"
+   :benchmark-use "exact outcome-root recomputation (:outcome-root-recomputation)"
+   :decision "comparison policy is a profile field (:profile/comparison-policy); the framework does not assume byte-exact or replay comparison"}
+
+  {:concept :fixture-contract
+   :classification :shared-parameterised
+   :trace-use :trace-fixture.v2
+   :benchmark-use :research-scenario.v1
+   :decision "fixture-contract is a profile identity, not a trace structure"}
+
+  {:concept :role-registry
+   :classification :trace-domain
+   :trace-use "explicit-address role map"
+   :benchmark-use "no roles"
+   :decision "role registries remain outside the generic package"}
+
+  {:concept :action-registry
+   :classification :trace-domain
+   :trace-use "action replay handlers"
+   :benchmark-use "none (transformations, not actions)"
+   :decision "action replay stays a domain adapter; the generic framework has no action execution"}
+
+  {:concept :receipt-graph
+   :classification :premature
+   :trace-use "linear derivation-chain (export → sync → replay)"
+   :benchmark-use "scenario → run → manifest → reproduction (linear with parallel validation branches)"
+   :decision "defer the DAG model until a concrete branching topology exists; derivation-chain remains the linear API"}
+
+  {:concept :multidimensional-coverage
+   :classification :premature
+   :trace-use "flat subject set (fixture ids)"
+   :benchmark-use "single outcome manifest subject"
+   :decision "named coverage dimensions (runs/cases/claims) deferred until a benchmark exercises multiple universes"}
+
+  {:concept :symmetric-comparison
+   :classification :premature
+   :trace-use "asymmetric trace attestation"
+   :benchmark-use "reproduction compares committed vs recomputed root (same implementation)"
+   :decision "no true symmetric adopter yet; :compare mode stays reserved, not implemented"}
+
+  {:concept :observed-capability
+   :classification :shared-unchanged
+   :trace-use "semantic-validation exercised via conformance receipts"
+   :benchmark-use "outcome-root-recomputation exercised via reproduction receipts"
+   :decision "a capability is satisfied only by a successful receipt for the current subject"}
+
+  {:concept :subject-identity-binding
+   :classification :shared-unchanged
+   :decision "subject identity record (canonical root + domain roots + identity policy + profile root) is generic; reconciliation rejects ID/root aliasing, multiple kinds, and profile-root drift for both profiles"}
+
+  {:concept :implementation-registry-root
+   :classification :shared-unchanged
+   :decision "deterministic committed registry root is order- and process-independent; receipts bind it; duplicate IDs and kind mismatches rejected"}
+
+  {:concept :reproduction-lineage
+   :classification :shared-parameterised
+   :trace-use "replay receipt binds fixture hash + replay-spec"
+   :benchmark-use "lineage receipt binds baseline/reproduced lineage fields + must-match policy"
+   :decision "lineage binding generalises; must-match/may-differ fields are comparison-policy-driven"}
+
+  {:concept :role-registry
+   :classification :trace-domain}
+  {:concept :action-registry
+   :classification :trace-domain}
+  {:concept :case-set-reconstruction
+   :classification :benchmark-domain}
+
+  {:concept :named-coverage-dimensions
+   :classification :premature
+   :decision "represent runs/cases/outcomes/evidence as ordinary named coverage instances only if the full benchmark subject universe requires them; not introduced in the spike"}
+
+  {:concept :receipt-graph
+   :classification :premature
+   :decision "linear chains + plan + reconciliation suffice; a DAG is justified only when one receipt depends on multiple independently derived artifacts and those edges must be committed"}
+
+  {:concept :symmetric-comparison
+   :classification :premature
+   :decision "no true symmetric adopter yet; :compare mode stays reserved"}]}

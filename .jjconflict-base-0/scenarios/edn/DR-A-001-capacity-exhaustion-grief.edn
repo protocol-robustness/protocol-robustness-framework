@@ -1,0 +1,45 @@
+{:scenario-id "dr-a-001-capacity-exhaustion-grief"
+ :schema-version "1.0"
+ :allow-open-disputes? true
+ :purpose "adversarial-robustness"
+ :title "Capacity exhaustion grief: attacker fills resolver capacity with low-value disputes to block legitimate high-value dispute"
+ :description "An attacker (seller in multiple low-value escrows) raises disputes on many escrows assigned to the same resolver, filling capacity. When the legitimate buyer tries to raise a dispute on a high-value escrow, the resolver capacity guard returns :resolver-capacity-exceeded."
+ :provenance {:author "@dispute-researcher" :created-at "2026-06-29" :license "CC-BY-4.0"}
+ :claim {:id "dispute-capacity-exhaustion-griefing"
+         :statement "An attacker can grief a specific victim escrow by filling a resolver's capacity with low-value disputes, blocking the victim's legitimate dispute."
+         :falsifies-if ["A high-value escrow dispute raised after capacity fills succeeds"]
+         :assumptions ["Resolver has finite max-concurrent capacity"
+                       "Attacker can create many escrows with same resolver"]}
+ :expectations {:terminal-state "pending"
+                :must-hold ["dispute_timestamp_consistency" "dispute_level_bounded" "no_duplicate_dispute"]
+                :error-on-seq [5]
+                :expected-errors {:seq 5 :error :resolver-capacity-exceeded}}
+ :threat {:family "dispute-capacity" :attack "capacity-exhaustion-griefing" :severity "high"
+          :actors ["seller" "buyer"] :victims ["buyer"]
+          :assumptions ["Resolver max-concurrent = 1" "Attacker can create 2+ escrows assigned to same resolver"]}
+ :accounting {:unit "USDC" :decimals 6 :tracked-balances ["buyer" "seller" "resolver" "protocol" "claimableBalances"]}
+ :reproducibility {:scenario-hash nil :requires {:simulator-version ">=0.1.0"}}
+ :initial-block-time 1000
+ :protocol-params {:resolver-fee-bps 150 :appeal-window-duration 60 :max-dispute-duration 2592000}
+ :agents [{:id "buyer" :address "0xbuyer" :strategy "honest"}
+          {:id "seller" :address "0xseller" :strategy "griefing"}
+          {:id "resolver" :address "0xresolver" :role "resolver"}
+          {:id "keeper" :address "0xkeeper" :role "keeper"}]
+ :events [{:seq 0 :time 1000 :agent "seller" :action "create_escrow"
+           :params {:token "USDC" :to "0xbuyer" :amount 100 :custom-resolver "0xresolver"}}
+          {:seq 1 :time 1005 :agent "seller" :action "create_escrow"
+           :params {:token "USDC" :to "0xbuyer" :amount 200 :custom-resolver "0xresolver"}}
+          {:seq 2 :time 1020 :agent "buyer" :action "create_escrow"
+           :params {:token "USDC" :to "0xseller" :amount 10000 :custom-resolver "0xresolver"}}
+          ;; Attacker fills resolver capacity with low-value disputes
+          {:seq 3 :time 1060 :agent "seller" :action "raise_dispute" :params {:workflow-id 0}}
+          ;; Resolver capacity now exhausted (max-concurrent = 1 default)
+          {:seq 4 :time 1065 :agent "seller" :action "raise_dispute" :params {:workflow-id 1}}
+          ;; Legitimate buyer tries to raise dispute on high-value escrow — blocked
+          {:seq 5 :time 1070 :agent "buyer" :action "raise_dispute" :params {:workflow-id 2}}
+          ;; Keeper resolves dispute 0, freeing capacity
+          {:seq 6 :time 1120 :agent "resolver" :action "execute_resolution"
+           :params {:workflow-id 0 :is-release true :resolution-hash "0xhash"}}
+          {:seq 7 :time 1200 :agent "keeper" :action "execute_pending_settlement" :params {:workflow-id 0}}
+          ;; Now buyer can raise dispute on high-value escrow
+          {:seq 8 :time 1210 :agent "buyer" :action "raise_dispute" :params {:workflow-id 2}}]}

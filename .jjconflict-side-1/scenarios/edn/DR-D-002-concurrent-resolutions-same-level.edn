@@ -1,0 +1,37 @@
+{:scenario-id "dr-d-002-concurrent-resolutions-same-level"
+ :schema-version "1.0"
+ :allow-open-disputes? true
+ :purpose "adversarial-robustness"
+ :title "Concurrent resolutions at same level: second resolution overwrites first"
+ :description "Two different resolvers both attempt execute_resolution at the same escalation level for the same workflow. The first succeeds, creating a pending settlement. The second (a different resolver authorized at the same level) can also execute because clear-pending-settlement clears the old one first. Verifies that the second resolution overwrites the first and the new appeal window starts from the second resolution time."
+ :provenance {:author "@dispute-researcher" :created-at "2026-06-29" :license "CC-BY-4.0"}
+ :claim {:id "concurrent-resolution-overwrite-safe"
+         :statement "When two authorized resolvers execute resolution at the same level, the second overwrites the first. The pending settlement reflects the second resolution's outcome and deadline. No double-settlement occurs."
+         :falsifies-if ["Two settlement executions occur" "First resolution's outcome leaks into final state"
+                        "Pending settlement refers to first resolution"]}
+ :expectations {:terminal-state "released"
+                :must-hold ["no_double_settlement" "single_resolution_payout_consistent"]
+                :metrics {:final_resolution_is_release {:eq true}}}
+ :threat {:family "resolution-ordering" :attack "concurrent-resolution-race" :severity "high"
+          :actors ["resolver1" "resolver2"]
+          :assumptions ["Both resolvers authorized at same level" "Second resolution occurs within appeal window"]}
+ :accounting {:unit "USDC" :decimals 6 :tracked-balances ["buyer" "seller" "resolver1" "resolver2" "protocol"]}
+ :initial-block-time 1000
+ :protocol-params {:resolver-fee-bps 150 :appeal-window-duration 120 :max-dispute-duration 2592000}
+ :agents [{:id "buyer" :address "0xbuyer" :strategy "honest"}
+          {:id "seller" :address "0xseller" :strategy "honest"}
+          {:id "resolver1" :address "0xresolver1" :role "resolver"}
+          {:id "resolver2" :address "0xresolver2" :role "resolver"}
+          {:id "keeper" :address "0xkeeper" :role "keeper"}]
+ :events [{:seq 0 :time 1000 :agent "buyer" :action "create_escrow"
+           :params {:token "USDC" :to "0xseller" :amount 5000 :custom-resolver "0xresolver1"}}
+          {:seq 1 :time 1060 :agent "seller" :action "raise_dispute" :params {:workflow-id 0}}
+          ;; resolver1 executes resolution first — refund
+          {:seq 2 :time 1100 :agent "resolver1" :action "execute_resolution"
+           :params {:workflow-id 0 :is-release false :resolution-hash "0xr1refund"}}
+          ;; resolver2 overwrites with release (must be authorized — assumes level-based auth)
+          {:seq 3 :time 1105 :agent "resolver2" :action "execute_resolution"
+           :params {:workflow-id 0 :is-release true :resolution-hash "0xr2release"}}
+          ;; Only one settlement should execute after appeal window
+          {:seq 4 :time 1300 :agent "keeper" :action "execute_pending_settlement"
+           :params {:workflow-id 0}}]}

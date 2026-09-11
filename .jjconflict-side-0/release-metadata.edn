@@ -1,0 +1,5 @@
+{:release/version "0.1.0"
+ :release/kind :ef-review-packet
+ :release/series "prf"
+ :release/note "EF technical review packet release metadata for Signed Claims."
+ :release/date "2026-08-14"}

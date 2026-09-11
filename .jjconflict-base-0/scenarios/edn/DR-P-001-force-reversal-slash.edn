@@ -1,0 +1,56 @@
+{:scenario-id "dr-p-001-force-reversal-slash"
+ :schema-version "1.0"
+ :allow-open-disputes? true
+ :purpose "adversarial-robustness"
+ :title "Force reversal slash via governance — bypasses appeal window"
+ :description "L0 rules release. L1 reverses to refund (Track 1 auto-slash on L0). No further escalation occurs. The reversal slash-bps is nonzero so L0 was auto-slashed. Governance separately issues a force-reversal-slash (bypassing the normal appeal window) on L0 for the same reversed decision. Verifies that force-reversal-slash: (a) is accepted from governance authority, (b) does not create a duplicate slash for the same reversal event, (c) correctly records the slash event."
+ :provenance {:author "@dispute-researcher" :created-at "2026-07-01" :license "CC-BY-4.0"}
+ :claim {:id "force-reversal-slash-governance"
+         :statement "Governance can issue a force-reversal-slash that bypasses the normal appeal window. It is accepted from authorized governance and does not duplicate existing auto-slashes for the same reversal event."
+         :falsifies-if ["Force-reversal-slash rejected from governance"
+                        "Duplicate slash created (force + existing auto-track)"
+                        "Slash event not recorded"
+                        "Force slash without existing auto-track creates inconsistent state"]}
+ :expected/events
+ [:reversal-slash/proposed    ;; Track 1 from L1 reversal
+  :reversal-slash/executed
+  :reversal-slash/force-proposed  ;; governance force slash attempt
+  :reversal-slash/force-duplicate-rejected]  ;; duplicate prevented
+ :expected/not-events
+ [:reversal-slash/force-executed]  ;; no second slash executed
+ :expectations {:terminal-state "refunded"
+                :must-hold ["slashable_liability_preserved" "resolver_decision_attributable"]
+                :metrics {:slash_count {:eq 1}  ;; only one slash (auto-track), force rejected as duplicate
+                          :force_slash_attempted? {:eq true}
+                          :force_slash_rejected_duplicate? {:eq true}}}
+ :expected/invariants
+ [:stake/non-negative
+  :slash/requested-equals-debited-plus-unmet-plus-reversed
+  :resolver/balances-conserved]
+ :threat {:family "governance-integrity" :attack "force-reversal-slash" :severity "medium"
+          :actors ["governance"]
+          :assumptions ["Governance can issue force-reversal-slash" "Duplicate force slash is rejected"]}
+ :accounting {:unit "USDC" :decimals 6 :tracked-balances ["buyer" "seller" "l0resolver" "l1resolver" "governance" "protocol" "slashPool"]}
+ :initial-block-time 1000
+ :protocol-params {:governance-mode :legacy, :resolver-fee-bps 150 :appeal-window-duration 120 :max-dispute-duration 2592000
+                   :reversal-slash-bps 2500
+                   :dispute-resolver "0xl0"
+                   :escalation-resolvers {:0 "0xl0" :1 "0xl1"}}
+ :agents [{:id "buyer" :address "0xbuyer" :strategy "honest"}
+          {:id "seller" :address "0xseller" :strategy "honest"}
+          {:id "l0resolver" :address "0xl0" :role "resolver" :stake 10000}
+          {:id "l1resolver" :address "0xl1" :role "resolver" :stake 10000}
+          {:id "governance" :address "0xgov" :role "governance"}
+          {:id "keeper" :address "0xkeeper" :role "keeper"}]
+ :events [{:seq 0 :time 1000 :agent "l0resolver" :action "register_stake" :params {:amount 10000}}
+          {:seq 1 :time 1000 :agent "l1resolver" :action "register_stake" :params {:amount 10000}}
+          {:seq 2 :time 1000 :agent "buyer" :action "create_escrow" :params {:token "USDC" :to "0xseller" :amount 5000}}
+          {:seq 3 :time 1060 :agent "buyer" :action "raise_dispute" :params {:workflow-id 0}}
+          ;; L0 rules: release
+          {:seq 4 :time 1100 :agent "l0resolver" :action "execute_resolution" :params {:workflow-id 0 :is-release true :resolution-hash "0xl0release"}}
+          ;; L1 reverses to refund — Track 1 auto-slash on L0 (canonical reversal slash at level 0)
+          {:seq 5 :time 1150 :agent "l1resolver" :action "execute_resolution" :params {:workflow-id 0 :is-release false :resolution-hash "0xl1refund"}}
+          ;; Governance attempts force-reversal-slash (should be rejected as duplicate)
+          {:seq 6 :time 1200 :agent "governance" :action "force_reversal_slash" :params {:workflow-id 0 :resolver "0xl0"}}
+          ;; L1 is final round — pending settlement created; execute after window
+          {:seq 7 :time 1400 :agent "keeper" :action "execute_pending_settlement" :params {:workflow-id 0}}]}

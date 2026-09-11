@@ -1,0 +1,195 @@
+{:state-before-projection
+ {:chain/successor-by-parent {nil "sha256:R1"},
+  :chain/disposition-head-by-receipt {},
+  :chain/effective-disposition-by-receipt {},
+  :chain/family-id "sha256:FAM",
+  :chain/content-index
+  {"sha256:B1" {:parent-receipt-hash nil, :receipt-hash "sha256:R1"}},
+  :chain/head "sha256:R1",
+  :chain/idempotency-index
+  {"sha256:I1" {:content-key "sha256:B1", :receipt-hash "sha256:R1"}},
+  :transaction/commit-index 1,
+  :chain/version 1},
+ :change-identity
+ "sha256:216837834ac814edc93060d29a2f344bed17aef3d8fdd82220f642330f88e3c1",
+ :state-before-canonical-bytes-hex
+ "3109220a636861696e2f6865616420097368613235363a5231220d636861696e2f76657273696f6e1002220f636861696e2f66616d696c792d6964200a7368613235363a46414d2213636861696e2f636f6e74656e742d696e646578310120097368613235363a42313102220c726563656970742d6861736820097368613235363a52312213706172656e742d726563656970742d68617368002217636861696e2f6964656d706f74656e63792d696e646578310120097368613235363a49313102220b636f6e74656e742d6b657920097368613235363a4231220c726563656970742d6861736820097368613235363a523122187472616e73616374696f6e2f636f6d6d69742d696e64657810022219636861696e2f737563636573736f722d62792d706172656e7431010020097368613235363a52312221636861696e2f646973706f736974696f6e2d686561642d62792d7265636569707431002226636861696e2f6566666563746976652d646973706f736974696f6e2d62792d726563656970743100",
+ :state-before
+ {:chain/successor-by-parent {nil "sha256:R1"},
+  :chain/disposition-head-by-receipt {},
+  :chain/effective-disposition-by-receipt {},
+  :chain/attempt-receipts
+  {"sha256:R1"
+   {:attempt-receipt
+    #:attempt-receipt{:schema "submission-attempt-receipt.v1",
+                      :id "sha256:R1",
+                      :outcome :rejected,
+                      :finality :final,
+                      :resubmission-eligibility :eligible,
+                      :lifecycle-status :active},
+    :sequence 1,
+    :parent-receipt-hash nil}},
+  :transaction/last-hash nil,
+  :chain/family-id "sha256:FAM",
+  :chain/content-index
+  {"sha256:B1" {:parent-receipt-hash nil, :receipt-hash "sha256:R1"}},
+  :chain/head "sha256:R1",
+  :chain/idempotency-index
+  {"sha256:I1" {:content-key "sha256:B1", :receipt-hash "sha256:R1"}},
+  :transaction/commit-index 1,
+  :chain/disposition-public-hex
+  "48f898ce850f83b9e66ed1535b6b197db081f71127786d19fc418ad3b7acbf4d",
+  :chain/version 1},
+ :input-root
+ "sha256:29ee2ec01bdf0411c37defd199cae37042570bd04fcf8b911d679558cdaf968f",
+ :state-after-root
+ "sha256:2f33d2a84c48ae66fa0701247d5af170f90cefe4a3c187cb8e9f9399206bad51",
+ :effects-root
+ "sha256:87c107e35be23fcedcabf434d720c847ef84004c5854ba6b302ff30993761cff",
+ :fixture/profile "deterministic-disposition-final",
+ :fixture/time-dependent? false,
+ :fixture/disposition-authority
+ {:private-key-seed
+  "13b6c03fa6f2079a1871b5557a96adcd156d8dcf3f2bfc3376df150ea5c57df6",
+  :public-key-hex
+  "48f898ce850f83b9e66ed1535b6b197db081f71127786d19fc418ad3b7acbf4d"},
+ :ordering-v2-projection
+ {:transaction/effects-root
+  "sha256:87c107e35be23fcedcabf434d720c847ef84004c5854ba6b302ff30993761cff",
+  :transaction/change-identity
+  "sha256:216837834ac814edc93060d29a2f344bed17aef3d8fdd82220f642330f88e3c1",
+  :transaction/state-after-root
+  "sha256:2f33d2a84c48ae66fa0701247d5af170f90cefe4a3c187cb8e9f9399206bad51",
+  :transaction-ordering/schema "transaction-ordering.v2",
+  :transaction/state-before-root
+  "sha256:7e117371e6db8c6c4eddc156b5e705f7e3c20a0b26b9cc3a5941275868d6f835",
+  :transaction/previous-transaction-hash nil,
+  :transaction/conflict-key [:resubmission-family "sha256:FAM"],
+  :transaction/scope :resubmission-family,
+  :transaction/action :prf.resubmission/apply-disposition,
+  :transaction/observed {:disposition-head nil, :chain-version 1},
+  :transaction/expected {:disposition-head nil, :chain-version 1},
+  :transaction/commit-index 2,
+  :transaction/input-root
+  "sha256:29ee2ec01bdf0411c37defd199cae37042570bd04fcf8b911d679558cdaf968f"},
+ :fixture/description
+ "Genesis admit followed by a valid :final disposition on receipt sha256:R1. Uses a deterministic Ed25519 keypair (seed pinned) so the disposition signature is reproducible.",
+ :fixture/id "resubmission-transition-disposition-final.v1",
+ :ordering-root
+ "sha256:270753de77c3df854838e0d2ff28d22e5516b6dba43e4436c23f3700deef27e4",
+ :conformance/input-root-domain :prf-transaction-input-v1,
+ :command
+ #:transaction{:action :prf.resubmission/apply-disposition,
+               :input
+               {:attempt-receipt-hash "sha256:R1",
+                :disposition-artifact
+                #:attempt-disposition{:schema "attempt-disposition.v1",
+                                      :attempt-receipt-hash
+                                      "sha256:R1",
+                                      :status :final,
+                                      :signature
+                                      {:signature/algorithm :ed25519,
+                                       :signature
+                                       "db18120de916faed7bf918202f1ab32d69c2198c7b01262933012bcb3aad68cf077f0c238b9936fd065ab16bac7562cf7ccf75ff6f639448a801be2ab5b19a04"}},
+                :expected-disposition-head nil,
+                :expected-chain-version 1}},
+ :effects-canonical-bytes-hex
+ "300131042206737461747573220566696e616c220b6566666563742f74797065220b646973706f736974696f6e2214617474656d70742d726563656970742d6861736820097368613235363a52312219646973706f736974696f6e2d61727469666163742d6861736820477368613235363a62616538383834306332393234386263303933363162323730366138386532393261633266636236343033303731646333333666336237386262313462613237",
+ :disposition-artifact
+ #:attempt-disposition{:schema "attempt-disposition.v1",
+                       :attempt-receipt-hash "sha256:R1",
+                       :status :final,
+                       :signature
+                       {:signature/algorithm :ed25519,
+                        :signature
+                        "db18120de916faed7bf918202f1ab32d69c2198c7b01262933012bcb3aad68cf077f0c238b9936fd065ab16bac7562cf7ccf75ff6f639448a801be2ab5b19a04"}},
+ :fixture/schema "resubmission-transition-fixture.v1",
+ :conformance/ordering-schema "transaction-ordering.v2",
+ :conformance/ordering-v2-domain :prf-transaction-ordering-v2,
+ :state-before-root
+ "sha256:7e117371e6db8c6c4eddc156b5e705f7e3c20a0b26b9cc3a5941275868d6f835",
+ :fixture/deterministic? true,
+ :conformance/change-identity-domain
+ :prf-transaction-ordering-change-identity-v1,
+ :effects
+ [{:effect/type :disposition,
+   :attempt-receipt-hash "sha256:R1",
+   :status :final,
+   :disposition-artifact-hash
+   "sha256:bae88840c29248bc09361b2706a88e292ac2fcb6403071dc336f3b78bb14ba27"}],
+ :state-after
+ {:chain/successor-by-parent {nil "sha256:R1"},
+  :chain/disposition-head-by-receipt
+  {"sha256:R1"
+   "sha256:bae88840c29248bc09361b2706a88e292ac2fcb6403071dc336f3b78bb14ba27"},
+  :chain/effective-disposition-by-receipt {"sha256:R1" :active},
+  :chain/attempt-receipts
+  {"sha256:R1"
+   {:attempt-receipt
+    #:attempt-receipt{:schema "submission-attempt-receipt.v1",
+                      :id "sha256:R1",
+                      :outcome :rejected,
+                      :finality :final,
+                      :resubmission-eligibility :eligible,
+                      :lifecycle-status :active},
+    :sequence 1,
+    :parent-receipt-hash nil}},
+  :chain/disposition-status-by-receipt {"sha256:R1" :final},
+  :transaction/last-hash nil,
+  :chain/family-id "sha256:FAM",
+  :chain/content-index
+  {"sha256:B1" {:parent-receipt-hash nil, :receipt-hash "sha256:R1"}},
+  :chain/head "sha256:R1",
+  :chain/idempotency-index
+  {"sha256:I1" {:content-key "sha256:B1", :receipt-hash "sha256:R1"}},
+  :transaction/commit-index 2,
+  :chain/disposition-public-hex
+  "48f898ce850f83b9e66ed1535b6b197db081f71127786d19fc418ad3b7acbf4d",
+  :chain/version 2},
+ :ordering-input
+ {:transaction/action :prf.resubmission/apply-disposition,
+  :transaction/scope :resubmission-family,
+  :transaction/conflict-key [:resubmission-family "sha256:FAM"],
+  :transaction-ordering/schema "transaction-ordering.v2",
+  :transaction/input-root
+  "sha256:29ee2ec01bdf0411c37defd199cae37042570bd04fcf8b911d679558cdaf968f",
+  :transaction/expected {:disposition-head nil, :chain-version 1},
+  :transaction/observed {:disposition-head nil, :chain-version 1}},
+ :state-after-canonical-bytes-hex
+ "310a220a636861696e2f6865616420097368613235363a5231220d636861696e2f76657273696f6e1004220f636861696e2f66616d696c792d6964200a7368613235363a46414d2213636861696e2f636f6e74656e742d696e646578310120097368613235363a42313102220c726563656970742d6861736820097368613235363a52312213706172656e742d726563656970742d68617368002217636861696e2f6964656d706f74656e63792d696e646578310120097368613235363a49313102220b636f6e74656e742d6b657920097368613235363a4231220c726563656970742d6861736820097368613235363a523122187472616e73616374696f6e2f636f6d6d69742d696e64657810042219636861696e2f737563636573736f722d62792d706172656e7431010020097368613235363a52312221636861696e2f646973706f736974696f6e2d686561642d62792d72656365697074310120097368613235363a523120477368613235363a626165383838343063323932343862633039333631623237303661383865323932616332666362363430333037316463333336663362373862623134626132372223636861696e2f646973706f736974696f6e2d7374617475732d62792d72656365697074310120097368613235363a5231220566696e616c2226636861696e2f6566666563746976652d646973706f736974696f6e2d62792d72656365697074310120097368613235363a52312206616374697665",
+ :disposition-artifact-hash
+ "sha256:bae88840c29248bc09361b2706a88e292ac2fcb6403071dc336f3b78bb14ba27",
+ :semantic-context
+ #:transaction{:commit-index 2,
+               :previous-transaction-hash nil,
+               :state-before-root
+               "sha256:7e117371e6db8c6c4eddc156b5e705f7e3c20a0b26b9cc3a5941275868d6f835",
+               :state-after-root
+               "sha256:2f33d2a84c48ae66fa0701247d5af170f90cefe4a3c187cb8e9f9399206bad51",
+               :effects-root
+               "sha256:87c107e35be23fcedcabf434d720c847ef84004c5854ba6b302ff30993761cff"},
+ :transition-outcome
+ {:status :committed,
+  :public-result
+  {:attempt-receipt-hash "sha256:R1", :disposition-status :final}},
+ :ordering-canonical-bytes-hex
+ "310d22117472616e73616374696f6e2f73636f7065221372657375626d697373696f6e2d66616d696c7922127472616e73616374696f6e2f616374696f6e22227072662e72657375626d697373696f6e2f6170706c792d646973706f736974696f6e22147472616e73616374696f6e2f65787065637465643102220d636861696e2d76657273696f6e10022210646973706f736974696f6e2d686561640022147472616e73616374696f6e2f6f627365727665643102220d636861696e2d76657273696f6e10022210646973706f736974696f6e2d686561640022167472616e73616374696f6e2f696e7075742d726f6f7420477368613235363a3239656532656330316264663034313163333764656664313939636165333730343235373062643034666366386239313164363739353538636461663936386622187472616e73616374696f6e2f636f6d6d69742d696e646578100422187472616e73616374696f6e2f636f6e666c6963742d6b65793002221372657375626d697373696f6e2d66616d696c79200a7368613235363a46414d22187472616e73616374696f6e2f656666656374732d726f6f7420477368613235363a38376331303765333562653233666365646361626634333464373230633834376566383430303463353835346261366233303266663330393933373631636666221b7472616e73616374696f6e2d6f72646572696e672f736368656d6120177472616e73616374696f6e2d6f72646572696e672e7632221b7472616e73616374696f6e2f6368616e67652d6964656e7469747920477368613235363a32313638333738333461633831346564633933303630643239613266333434626564313761656633643866646438323232306636343233333066383865336331221c7472616e73616374696f6e2f73746174652d61667465722d726f6f7420477368613235363a32663333643261383463343861653636666130373031323437643561663137306639306365666534613363313837636238653966393339393230366261643531221d7472616e73616374696f6e2f73746174652d6265666f72652d726f6f7420477368613235363a3765313137333731653664623863366334656464633135366235653730356637653363323061306232366239636333613539343132373538363864366638333522257472616e73616374696f6e2f70726576696f75732d7472616e73616374696f6e2d6861736800",
+ :conformance/state-domain :prf-resubmission-chain-state-v1,
+ :state-after-projection
+ {:chain/successor-by-parent {nil "sha256:R1"},
+  :chain/disposition-head-by-receipt
+  {"sha256:R1"
+   "sha256:bae88840c29248bc09361b2706a88e292ac2fcb6403071dc336f3b78bb14ba27"},
+  :chain/effective-disposition-by-receipt {"sha256:R1" :active},
+  :chain/disposition-status-by-receipt {"sha256:R1" :final},
+  :chain/family-id "sha256:FAM",
+  :chain/content-index
+  {"sha256:B1" {:parent-receipt-hash nil, :receipt-hash "sha256:R1"}},
+  :chain/head "sha256:R1",
+  :chain/idempotency-index
+  {"sha256:I1" {:content-key "sha256:B1", :receipt-hash "sha256:R1"}},
+  :transaction/commit-index 2,
+  :chain/version 2},
+ :fixture/kind :committed,
+ :conformance/effects-domain :prf-transaction-effects-v1,
+ :conformance/projection-schema "chain-state-projection.v1"}

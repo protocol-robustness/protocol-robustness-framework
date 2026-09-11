@@ -1,0 +1,10 @@
+{:schema "sew-aggregate-held-credit-rust-facing-fixture.v1"
+ :roots {:realized-allocation "96d2a228d0b37c308b941c1227ba6819caa99e54b370b492dd0abfdb3e48c183"
+         :target-map "34aee002063e2adecda88803ef68e20cef7d5f5f895979165a1f88d0fe5eb7fd"
+         :target-map-validation "1fa208912e545a23b1c1039d7b5af97525afe120a90a589481edc06b5c93d7a0"
+         :effect-compilation "d0d9538877d371809220a369a9cc664a02276facb1f3633504492968d485d106"
+         :effects "25270b280ecba557205385ff015a5e01de5e001fffedd1550cd9817d623f4f67"
+         :state-before "d155a622b228cd6cfca3e5984d4b0b315c5292e782352499f77d47f2374c1253"
+         :state-after "ac247228ff7050be522386924396c14113b20b04bc83d26496992bf74339c863"
+         :transition "60e172134eb5966ab36083d155c25e9c2d5376274c5d379a3a942fba0036bb22"
+         :binding "aa1300a1cc2fa762ec8a8fbfdd7ab01d54f67ba9852daa672146ada847b0feaf"}}

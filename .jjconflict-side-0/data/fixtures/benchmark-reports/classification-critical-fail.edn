@@ -1,0 +1,1 @@
+{:classifier :pass-fail-critical, :total 3, :passed 2, :classification {:classification-label "At least one critical claim fails", :scoring/summary "Ratio"}}

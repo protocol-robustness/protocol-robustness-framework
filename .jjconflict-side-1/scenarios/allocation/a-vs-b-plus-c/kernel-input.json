@@ -1,0 +1,82 @@
+{
+  "allocation-id": "a-vs-b-plus-c",
+  "authoritative-randomness": "0x0102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20",
+  "capacity": "50",
+  "claimants": [
+    {
+      "amount": "50",
+      "claim-id": "A",
+      "economic-owner-id": "owner-A",
+      "weight": "50"
+    },
+    {
+      "amount": "30",
+      "claim-id": "B",
+      "economic-owner-id": "owner-B",
+      "weight": "30"
+    },
+    {
+      "amount": "20",
+      "claim-id": "C",
+      "economic-owner-id": "owner-C",
+      "weight": "20"
+    }
+  ],
+  "exact-pro-rata-denominator": "100",
+  "kernel-version": "allocation-kernel.v1",
+  "outcomes": [
+    {
+      "allocations": [
+        {
+          "allocated": "50",
+          "claim-id": "A"
+        },
+        {
+          "allocated": "0",
+          "claim-id": "B"
+        },
+        {
+          "allocated": "0",
+          "claim-id": "C"
+        }
+      ],
+      "outcome-id": "O1"
+    },
+    {
+      "allocations": [
+        {
+          "allocated": "0",
+          "claim-id": "A"
+        },
+        {
+          "allocated": "30",
+          "claim-id": "B"
+        },
+        {
+          "allocated": "20",
+          "claim-id": "C"
+        }
+      ],
+      "outcome-id": "O2"
+    }
+  ],
+  "policy": {
+    "forbid-duplicate-owners": false,
+    "policy-hash": "0xabababababababababababababababababababababababababababababababab",
+    "policy-id": "policy-a-vs-b-plus-c"
+  },
+  "proposed-rates": [
+    {
+      "denominator": "2",
+      "numerator": "1",
+      "outcome-id": "O1"
+    },
+    {
+      "denominator": "2",
+      "numerator": "1",
+      "outcome-id": "O2"
+    }
+  ],
+  "selection-algorithm": "domain-hash-rejection-v1",
+  "total-eligible-weight": "100"
+}

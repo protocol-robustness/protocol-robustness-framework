@@ -1,0 +1,475 @@
+{
+  "schema": "evidence-config.v1",
+  "artifact_dir": "results/test-artifacts",
+  "runs_root": "results/runs",
+  "evidence_bundle_dir": "results/evidence-bundle",
+  "contract_version": "evidence-contract.v1",
+  "strict_mode": true,
+  "exempt_schemas": [
+    "evidence-contract.v1",
+    "scenario.v1",
+    "projection.v1"
+  ],
+  "rounding_policy": "floor-to-asset-decimals.v1",
+  "framework": {
+    "name": "protocol-robustness-framework-test-runner",
+    "version": "0.1.0"
+  },
+  "schemas": {
+    "test-summary": "test-summary.v2",
+    "test-run": "test-run.v1",
+    "test-artifacts": "test-artifacts.v1.2",
+    "claimable-classification": "claimable-classification.v2",
+    "scenario-result": "scenario-result.v1",
+    "results-artifact": "results-artifact.v1",
+    "coverage": "coverage.v1",
+    "findings": "findings.v1",
+    "issues": "issues.v1",
+    "telemetry": "telemetry.v1",
+    "mc-summary": "mc-summary.v1",
+    "mc-failures": "mc-failures.v1",
+    "theory-eval": "theory-eval.v1",
+    "signature": "signature.v1",
+    "envelope": "envelope.v1",
+    "event-evidence": "event-evidence.v1",
+    "validation-root": "validation-root.v1",
+    "trace-end-projection": "trace-end-projection.v1",
+    "partial-fill-decision": "partial-fill-decision.v1",
+    "semantic-facts": "semantic-facts.v1",
+    "evidence-record": "evidence-record.v1",
+    "equivalence-summary": "equivalence-summary.v1",
+    "evidence-registry": "evidence-registry.v1",
+    "speds-findings": "speds.findings.v1",
+    "speds-issues": "speds-issues-v1",
+    "speds-comparator-shadow": "speds-comparator-shadow-v1",
+    "partial-fill-decisions-verification": "partial-fill-decisions-verification.v1",
+    "lineage-conservation-verification": "lineage-conservation-verification.v1",
+    "force-auth-add-held": "force-auth-add-held.v1",
+    "force-auth-add-held-summary": "force-auth-add-held-summary.v2",
+    "held-custody-summary": "held-custody-summary.v2",
+    "partial-fill-decisions-summary": "partial-fill-decisions-summary.v1",
+    "run-completion": "run-completion.v1",
+    "run-package-index": "run-package-index.v1",
+    "artifacts-registry": "artifacts-registry.v1",
+    "artifacts-validation": "artifacts-validation.v1",
+    "sensitivity-report": "sensitivity-report.v2"
+  },
+  "producers": {
+    "summary": "summary-emitter.v1",
+    "validation-root": "validation-root-emitter.v1",
+    "test-run": "test-run-emitter.v1",
+    "claimable-classification": "claimable-classification-emitter.v2",
+    "coverage": "coverage-emitter.v1",
+    "findings": "findings-emitter.v1",
+    "issues": "issues-emitter.v1",
+    "telemetry": "telemetry-emitter.v1",
+    "mc-summary": "mc-emitter.v1",
+    "mc-failures": "mc-emitter.v1",
+    "theory-eval": "theory-eval-emitter.v1",
+    "scenario-result": "evidence-build-emitter.v1",
+    "results-artifact": "results-artifact-emitter.v1",
+    "signature": "evidence-signer.v1",
+    "simulation-engine": "simulation-engine.v1",
+    "claimable-classification-classifier": "claimable-classification-emitter.v2.1",
+    "partial-fill-decisions-verifier": "partial-fill-decisions-verifier.v1",
+    "lineage-conservation-verifier": "lineage-conservation-verifier.v1",
+    "force-auth-add-held-verifier": "force-auth-add-held-verifier.v1",
+    "force-auth-add-held-summary-verifier": "force-auth-add-held-summary-verifier.v1",
+    "held-custody-summary-verifier": "held-custody-summary-verifier.v1",
+    "partial-fill-decisions-summary-verifier": "partial-fill-decisions-summary-verifier.v1",
+    "run-completion-emitter": "run-completion-emitter.v1",
+    "run-package-index-emitter": "run-package-index-emitter.v1",
+    "artifacts-registry-emitter": "artifacts-registry-emitter.v1",
+    "artifacts-validation-emitter": "artifacts-validation-emitter.v1",
+    "sensitivity-report-emitter": "sensitivity-report-emitter.v1"
+  },
+  "importance": {
+    "CORE": 0,
+    "DIAGNOSTIC": 1,
+    "TRACE": 2
+  },
+  "artifacts": [
+    {
+      "id": "partial-fill-decisions-summary",
+      "file": "partial-fill-decisions-summary.json",
+      "kind": "summary",
+      "schema_key": "partial-fill-decisions-summary",
+      "producer_key": "partial-fill-decisions-summary-verifier",
+      "importance": "CORE",
+      "verifies_against": [
+        "partial-fill-decision.v1"
+      ],
+      "input_dependencies": [
+        "test-run"
+      ]
+    },
+    {
+      "id": "held-custody-summary",
+      "file": "held-custody-summary.json",
+      "kind": "summary",
+      "schema_key": "held-custody-summary",
+      "producer_key": "held-custody-summary-verifier",
+      "importance": "CORE",
+      "verifies_against": [
+        "held-custody-adjustment.artifact.v3"
+      ],
+      "input_dependencies": [
+        "test-run"
+      ]
+    },
+    {
+      "id": "test-summary",
+      "file": "test-summary.json",
+      "kind": "summary",
+      "schema_key": "test-summary",
+      "producer_key": "summary",
+      "importance": "CORE",
+      "verifies_against": [
+        "test-run.v1",
+        "projection.v1"
+      ],
+      "input_dependencies": [
+        "test-run"
+      ]
+    },
+    {
+      "id": "validation-root",
+      "file": "validation-root.json",
+      "kind": "validation-root",
+      "schema_key": "validation-root",
+      "producer_key": "validation-root",
+      "importance": "CORE",
+      "verifies_against": [
+        "test-summary.v2"
+      ],
+      "input_dependencies": [
+        "test-summary"
+      ]
+    },
+    {
+      "id": "test-run",
+      "file": "test-run.json",
+      "kind": "run-manifest",
+      "schema_key": "test-run",
+      "producer_key": "test-run",
+      "importance": "CORE",
+      "verifies_against": [],
+      "input_dependencies": []
+    },
+    {
+      "id": "claimable-classification",
+      "file": "claimable-classification.json",
+      "kind": "classification",
+      "schema_key": "claimable-classification",
+      "producer_key": "claimable-classification",
+      "importance": "CORE",
+      "verifies_against": [
+        "test-run.v1"
+      ],
+      "input_dependencies": [
+        "test-run"
+      ]
+    },
+    {
+      "id": "force-auth-add-held",
+      "file": "force-auth-add-held.json",
+      "kind": "evidence",
+      "schema_key": "force-auth-add-held",
+      "producer_key": "force-auth-add-held-verifier",
+      "importance": "CORE",
+      "verifies_against": [
+        "force-authorisation.v1"
+      ],
+      "input_dependencies": [
+        "test-run"
+      ]
+    },
+    {
+      "id": "force-auth-add-held-summary",
+      "file": "force-auth-add-held-summary.json",
+      "kind": "evidence",
+      "schema_key": "force-auth-add-held-summary",
+      "producer_key": "force-auth-add-held-summary-verifier",
+      "importance": "CORE",
+      "verifies_against": [
+        "force-authorisation.v1"
+      ],
+      "input_dependencies": [
+        "test-run"
+      ]
+    },
+    {
+      "id": "partial-fill-decisions-verification",
+      "file": "partial-fill-decisions-verification.json",
+      "kind": "verification-report",
+      "schema_key": "partial-fill-decisions-verification",
+      "producer_key": "partial-fill-decisions-verifier",
+      "importance": "CORE",
+      "verifies_against": [
+        "partial-fill-decision.v1"
+      ],
+      "input_dependencies": [
+        "test-run"
+      ]
+    },
+    {
+      "id": "lineage-conservation-verification",
+      "file": "lineage-conservation-verification.json",
+      "kind": "verification-report",
+      "schema_key": "lineage-conservation-verification",
+      "producer_key": "lineage-conservation-verifier",
+      "importance": "CORE",
+      "verifies_against": [
+        "yield-lineage-origin.v1"
+      ],
+      "input_dependencies": [
+        "test-run"
+      ]
+    },
+    {
+      "id": "results-artifact",
+      "file": null,
+      "kind": "results-artifact",
+      "schema_key": "results-artifact",
+      "producer_key": "results-artifact",
+      "importance": "CORE",
+      "verifies_against": [
+        "test-run.v1"
+      ],
+      "input_dependencies": [
+        "test-run"
+      ]
+    },
+    {
+      "id": "coverage",
+      "file": "coverage.json",
+      "kind": "coverage",
+      "schema_key": "coverage",
+      "producer_key": "coverage",
+      "importance": "DIAGNOSTIC",
+      "verifies_against": [
+        "scenario.v1"
+      ],
+      "input_dependencies": [
+        "test-summary"
+      ]
+    },
+    {
+      "id": "findings",
+      "file": "findings.json",
+      "kind": "findings",
+      "schema_key": "findings",
+      "producer_key": "findings",
+      "importance": "DIAGNOSTIC",
+      "verifies_against": [
+        "test-summary.v2"
+      ],
+      "input_dependencies": [
+        "test-summary"
+      ]
+    },
+    {
+      "id": "issues",
+      "file": "issues.json",
+      "kind": "issues",
+      "schema_key": "issues",
+      "producer_key": "issues",
+      "importance": "DIAGNOSTIC",
+      "verifies_against": [
+        "test-summary.v2"
+      ],
+      "input_dependencies": [
+        "test-summary"
+      ]
+    },
+    {
+      "id": "telemetry",
+      "file": "telemetry.json",
+      "kind": "telemetry",
+      "schema_key": "telemetry",
+      "producer_key": "telemetry",
+      "importance": "DIAGNOSTIC",
+      "verifies_against": [
+        "test-summary.v2"
+      ],
+      "input_dependencies": [
+        "test-summary"
+      ]
+    },
+    {
+      "id": "mc-summary",
+      "file": "batch-summary.json",
+      "kind": "mc-summary",
+      "schema_key": "mc-summary",
+      "producer_key": "mc-summary",
+      "importance": "CORE",
+      "verifies_against": [
+        "test-summary.v2"
+      ],
+      "input_dependencies": [
+        "test-summary"
+      ]
+    },
+    {
+      "id": "mc-failures",
+      "file": "failure-examples.json",
+      "kind": "mc-failures",
+      "schema_key": "mc-failures",
+      "producer_key": "mc-failures",
+      "importance": "DIAGNOSTIC",
+      "verifies_against": [
+        "test-summary.v2"
+      ],
+      "input_dependencies": [
+        "test-summary"
+      ]
+    },
+    {
+      "id": "theory-eval",
+      "file": "theory-eval.json",
+      "kind": "theory-eval",
+      "schema_key": "theory-eval",
+      "producer_key": "theory-eval",
+      "importance": "CORE",
+      "verifies_against": [
+        "test-summary.v2"
+      ],
+      "input_dependencies": [
+        "test-summary"
+      ]
+    },
+    {
+      "id": "signature",
+      "file": "signature.json",
+      "kind": "signature",
+      "schema_key": "signature",
+      "producer_key": "signature",
+      "importance": "CORE",
+      "verifies_against": [
+        "test-run.v1"
+      ],
+      "input_dependencies": []
+    },
+    {
+      "id": "envelope",
+      "file": "envelope.json",
+      "kind": "evidence-envelope",
+      "schema_key": "envelope",
+      "producer_key": "signature",
+      "importance": "CORE",
+      "verifies_against": [
+        "test-run.v1"
+      ],
+      "input_dependencies": []
+    },
+    {
+      "id": "semantic-facts",
+      "file": "semantic-facts.json",
+      "kind": "semantic-facts",
+      "schema_key": "semantic-facts",
+      "producer_key": "semantic-facts",
+      "importance": "DIAGNOSTIC",
+      "verifies_against": [
+        "test-summary.v2"
+      ],
+      "input_dependencies": [
+        "test-summary"
+      ]
+    },
+    {
+      "id": "equivalence-summary",
+      "file": "equivalence-comparison-summary.json",
+      "kind": "equivalence-summary",
+      "schema_key": "equivalence-summary",
+      "producer_key": "equivalence-summary",
+      "importance": "DIAGNOSTIC",
+      "verifies_against": [
+        "test-assertion.v1"
+      ],
+      "input_dependencies": [
+        "test-summary"
+      ]
+    },
+    {
+      "id": "evidence-registry",
+      "file": "evidence-registry.json",
+      "kind": "evidence-registry",
+      "schema_key": "evidence-registry",
+      "producer_key": "simulation-engine",
+      "importance": "CORE",
+      "verifies_against": [
+        "test-run.v1"
+      ],
+      "input_dependencies": [
+        "test-run"
+      ]
+    },
+    {
+      "id": "completion",
+      "file": "completion.json",
+      "kind": "run-completion",
+      "schema_key": "run-completion",
+      "producer_key": "run-completion-emitter",
+      "importance": "CORE",
+      "verifies_against": [],
+      "input_dependencies": []
+    },
+    {
+      "id": "package-index",
+      "file": "manifest/run-package-index.json",
+      "kind": "run-package-index",
+      "schema_key": "run-package-index",
+      "producer_key": "run-package-index-emitter",
+      "importance": "CORE",
+      "verifies_against": [],
+      "input_dependencies": [
+        "run-completion"
+      ]
+    },
+    {
+      "id": "registry",
+      "file": "manifest/artifacts.json",
+      "kind": "artifacts-registry",
+      "schema_key": "artifacts-registry",
+      "producer_key": "artifacts-registry-emitter",
+      "importance": "CORE",
+      "verifies_against": [],
+      "input_dependencies": []
+    },
+    {
+      "id": "validation",
+      "file": "manifest/artifacts-validation.json",
+      "kind": "artifacts-validation",
+      "schema_key": "artifacts-validation",
+      "producer_key": "artifacts-validation-emitter",
+      "importance": "CORE",
+      "verifies_against": [],
+      "input_dependencies": [
+        "artifacts-registry"
+      ]
+    },
+    {
+      "id": "report",
+      "file": "manifest/sensitivity-report.json",
+      "kind": "sensitivity-report",
+      "schema_key": "sensitivity-report",
+      "producer_key": "sensitivity-report-emitter",
+      "importance": "DIAGNOSTIC",
+      "verifies_against": [],
+      "input_dependencies": []
+    }
+  ],
+  "event_evidence": {
+    "dir": "event-evidence",
+    "kind": "event-evidence",
+    "schema_key": "event-evidence",
+    "producer_key": "simulation-engine",
+    "importance": "CORE",
+    "verifies_against": [
+      "test-run.v1"
+    ],
+    "input_dependencies": [
+      "test-run"
+    ]
+  }
+}
