@@ -12,7 +12,9 @@
             [resolver-sim.protocols.sew.state-machine :as sm]
             [resolver-sim.protocols.sew.authority :as auth]
             [resolver-sim.protocols.sew.resolution-decision :as resolution-decision]
+            [resolver-sim.protocols.sew.resolution-basis :as resolution-basis]
             [resolver-sim.protocols.sew.dispute-ruling :as dispute-ruling]
+            [resolver-sim.protocols.adjudication :as adjudication]
             [resolver-sim.protocols.sew.accounting :as acct]
             [resolver-sim.protocols.sew.held-mutation-admission :as held-admission]
             [resolver-sim.protocols.sew.registry :as reg]
@@ -1000,9 +1002,127 @@
                   (:ruling/root ruling))
           result)))))
 
+(defn execute-resolution-with-adjudicated-ruling
+  "High-assurance SEW adjudication path.
+
+   The current SEW basis is reconstructed from world state. `external-root-resolver`
+   supplies only roots SEW does not retain (question, evidence, governed
+   authority, configuration); it cannot approve a caller-supplied basis.
+   `ruling-verifier` receives `(world workflow-id caller ruling)` and must
+   return authenticated authority plus the projected adjudicator root."
+  [world workflow-id caller sew-basis dispute-ruling external-root-resolver
+   ruling-verifier resolution-module-fn]
+  (let [basis-validation (resolution-basis/validate-resolution-basis sew-basis)
+        external-roots (when external-root-resolver
+                         (try (external-root-resolver world workflow-id)
+                              (catch Exception _ nil)))
+        reconstructed (when (and (:valid? basis-validation) external-root-resolver)
+                        (resolution-basis/reconstruct-live-resolution-basis
+                         world workflow-id external-roots))
+        reconstructed-basis (:basis reconstructed)
+        adjudication-basis (when reconstructed-basis
+                            (resolution-basis/project-adjudication-basis reconstructed-basis))
+        verified (when (and adjudication-basis
+                            (= (:sew-resolution-basis/root sew-basis)
+                               (:sew-resolution-basis/root reconstructed-basis)))
+                   (adjudication/verify-ruling-against-basis
+                    adjudication-basis dispute-ruling
+                    (fn [_generic-basis artifact]
+                      (try
+                        (ruling-verifier world workflow-id caller artifact)
+                        (catch Exception _ nil)))))]
+    (cond
+      (not (:valid? basis-validation))
+      (guard-fail :invalid-resolution-basis :errors (:errors basis-validation)
+                  :workflow-id workflow-id :world world)
+
+      (not (t/valid-workflow-id? world workflow-id))
+      (guard-fail :invalid-workflow-id :workflow-id workflow-id :world world)
+
+      (not (t/dispute-active? world workflow-id))
+      (guard-fail :transfer-not-in-dispute :workflow-id workflow-id :world world)
+
+      (nil? external-root-resolver)
+      (guard-fail :missing-external-root-resolver :workflow-id workflow-id :world world)
+
+      (not (:valid? reconstructed))
+      (guard-fail :live-resolution-basis-unavailable
+                  :errors (:errors reconstructed)
+                  :missing-roots (:missing-roots reconstructed)
+                  :workflow-id workflow-id :world world)
+
+      (not= (:sew-resolution-basis/root sew-basis)
+            (:sew-resolution-basis/root reconstructed-basis))
+      (guard-fail :resolution-basis-not-current :workflow-id workflow-id :world world)
+
+      (not= workflow-id (:workflow/id sew-basis))
+      (guard-fail :resolution-basis-workflow-mismatch :workflow-id workflow-id :world world)
+
+      (not (:valid? verified))
+      (guard-fail :invalid-adjudicated-ruling :errors (:errors verified)
+                  :workflow-id workflow-id :world world)
+
+      (not= (t/dispute-level world workflow-id) (:ruling/round dispute-ruling))
+      (guard-fail :ruling-round-mismatch :workflow-id workflow-id :world world)
+
+      (= :refuse (:outcome verified))
+      (let [world' (-> world
+                       (lc/accrue-yield workflow-id)
+                       (assoc-in [:escrow-transfers workflow-id :resolution]
+                                 {:refused true
+                                  :refused-by caller
+                                  :refused-at (time-ctx/block-ts world)
+                                  :refused-hash (:ruling-root verified)
+                                  :ruling-root (:ruling-root verified)
+                                  :adjudication-basis-root (:basis-root verified)
+                                  :sew-resolution-basis-root (:sew-resolution-basis/root sew-basis)
+                                  :resolution-source :authenticated-ruling}))]
+        (t/ok world'))
+
+      :else
+      (let [result (apply-resolution-transition world workflow-id caller
+                                                (= :release (:outcome verified))
+                                                (:ruling-root verified)
+                                                resolution-module-fn
+                                                :resolution-source :authenticated-ruling)]
+        (if (:ok result)
+          (update result :world update-in [:escrow-transfers workflow-id :resolution]
+                  merge {:ruling-root (:ruling-root verified)
+                         :adjudication-basis-root (:basis-root verified)
+                         :sew-resolution-basis-root (:sew-resolution-basis/root sew-basis)})
+          result)))))
+
+(defn execute-resolution-with-fenced-adjudicated-ruling
+  "Authoritative-store fenced form of adjudicated ruling execution.
+
+   `state-fence` must atomically compare/acquire `:expected-state-root` for the
+   workflow and return `{:fenced? true :world fenced-world}`. The returned
+   snapshot is reconstructed and verified again by the delegated path, so a
+   stale or substituted snapshot cannot be enforced."
+  [world workflow-id caller sew-basis dispute-ruling external-root-resolver
+   ruling-verifier resolution-module-fn state-fence]
+  (let [expected-state-root (:state-before/root sew-basis)
+        fenced (when state-fence
+                 (try (state-fence world workflow-id expected-state-root)
+                      (catch Exception _ nil)))]
+    (cond
+      (nil? state-fence)
+      (guard-fail :missing-resolution-state-fence
+                  :workflow-id workflow-id :world world)
+
+      (not (and (map? fenced) (true? (:fenced? fenced)) (map? (:world fenced))))
+      (guard-fail :resolution-state-fence-rejected
+                  :workflow-id workflow-id :world world)
+
+      :else
+      (execute-resolution-with-adjudicated-ruling
+       (:world fenced) workflow-id caller sew-basis dispute-ruling
+       external-root-resolver ruling-verifier resolution-module-fn))))
+
 (defn execute-resolution-with-decision
-  "Authoritative resolution entry point. The stored resolution identity is
-   derived solely from a validated decision artifact, never caller-selected."
+  "Legacy compatibility entry point for internally authored decision artifacts.
+   High-assurance adjudication must use an authenticated prf/dispute-ruling.v1;
+   this path is retained only while existing callers migrate."
   [world workflow-id caller resolution-basis decision resolution-module-fn]
   (let [validation (resolution-decision/validate-decision-against-basis
                     decision resolution-basis)]
@@ -1070,8 +1190,8 @@
       (t/ok world'))))
 
 (defn execute-resolution-refused-with-decision
-  "Authoritative refusal entry point. Refusal is a canonical decision whose
-   identity is derived from its validated decision root."
+  "Legacy compatibility refusal entry point for internally authored decisions.
+   High-assurance refusal is enforced from an authenticated dispute ruling."
   [world workflow-id caller resolution-basis decision resolution-module-fn]
   (let [validation (resolution-decision/validate-decision-against-basis
                     decision resolution-basis)]

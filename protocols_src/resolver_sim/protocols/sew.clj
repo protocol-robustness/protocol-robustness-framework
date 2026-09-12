@@ -727,7 +727,8 @@
         (lc/raise-dispute world (compat/wf-id event) addr)))))
 
 (defmethod apply-action "execute-resolution"
-  [{:keys [agent-index resolution-module-fn resolution-level-map ruling-verifier]} world event]
+  [{:keys [agent-index resolution-module-fn resolution-level-map ruling-verifier
+              external-resolution-root-resolver resolution-state-fence]} world event]
   (actx/with-resolved-actor-and-unpaused
     agent-index world event
     (fn [addr]
@@ -746,6 +747,11 @@
                                 resolution-module-fn)
             wf-id (or workflow-id (compat/wf-id event))]
         (cond
+          (and ruling resolution-basis)
+          (res/execute-resolution-with-fenced-adjudicated-ruling
+           world wf-id addr resolution-basis ruling external-resolution-root-resolver
+           ruling-verifier effective-rm-fn resolution-state-fence)
+
           ruling
           (res/execute-resolution-with-ruling world wf-id addr ruling
                                               ruling-verifier effective-rm-fn)

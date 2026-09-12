@@ -7,7 +7,8 @@
   (str "sha256:" (hc/domain-hash :evidence-record {:x x})))
 
 (defn- input []
-  {:ruling/dispute-root (root :dispute)
+  {:ruling/basis-root (root :basis)
+     :ruling/dispute-root (root :dispute)
    :ruling/authority-root (root :authority)
    :ruling/provider :kleros
    :ruling/external-dispute-id "42"
@@ -20,13 +21,23 @@
    :ruling/issued-at 1000
    :ruling/authentication-root (root :authentication)})
 
-(deftest ruling-is-closed-rooted-and-outcome-bound
-  (let [artifact (ruling/build-dispute-ruling (input))]
+(deftest ruling-is-closed-rooted-domain-separated-and-field-bound
+  (let [artifact (ruling/build-dispute-ruling (input))
+        payload (ruling/ruling-payload artifact)
+        old-domain-root (str "sha256:" (hc/domain-hash :sew-resolution-decision-v1
+                                                        (hc/project-canonical-safe payload)))]
     (is (ruling/valid-dispute-ruling? artifact))
-    (is (not= (:ruling/root artifact)
-              (:ruling/root (ruling/build-dispute-ruling
-                             (assoc (input) :ruling/outcome :refund)))))
-    (is (not (ruling/valid-dispute-ruling?
-              (assoc artifact :ruling/outcome :refund))))
+    (is (= (:ruling/root artifact)
+           (:ruling/root (ruling/build-dispute-ruling (input))))
+        "same payload deterministically reconstructs the same root")
+    (doseq [field [:ruling/basis-root :ruling/dispute-root :ruling/authority-root
+                   :ruling/provider :ruling/external-dispute-id :ruling/external-ruling-id
+                   :ruling/round :ruling/outcome :ruling/status :ruling/evidence-root
+                   :ruling/policy-root :ruling/issued-at :ruling/authentication-root]]
+      (is (not (ruling/valid-dispute-ruling?
+                (assoc artifact field (if (= field :ruling/outcome) :refund "mutated"))))
+          (str field " is committed")))
+    (is (not (ruling/valid-dispute-ruling? (assoc artifact :ruling/root old-domain-root)))
+        "the old sew decision domain cannot validate a ruling")
     (is (not (ruling/valid-dispute-ruling?
               (assoc artifact :ruling/freeform "uncommitted"))))))

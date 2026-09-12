@@ -1,6 +1,9 @@
 (ns resolver-sim.protocols.sew.resolution-basis-test
   (:require [clojure.test :refer [deftest is testing]]
             [resolver-sim.hash.canonical :as hc]
+            [resolver-sim.protocols.sew.types :as t]
+            [resolver-sim.protocols.sew.lifecycle :as lifecycle]
+            [resolver-sim.protocols.sew.snapshot-fixtures :as snap-fix]
             [resolver-sim.protocols.sew.resolution-basis :as basis]))
 
 (defn- root [label]
@@ -52,6 +55,55 @@
       (is (not= (:sew-resolution-basis/root artifact)
                 (:sew-resolution-basis/root (reroot key value)))
           (str key " must be committed by the basis root")))))
+
+(defn- external-roots []
+  {:dispute/question-root (root :frozen-question)
+   :dispute/evidence-set-root (root :frozen-evidence-set)
+   :authority/resolution-basis-root (root :governed-resolution-basis)
+   :authority/context-root (root :authority-context)
+   :configuration/root (root :configuration)})
+
+(defn- disputed-world []
+  (let [created (lifecycle/create-escrow
+                 (t/empty-world 1000) "0xbuyer" "0xUSDC" "0xseller" 1000
+                 (t/make-escrow-settings {})
+                 (snap-fix/escrow-snapshot {:escrow-fee-bps 50
+                                             :resolver-response-window 120}))]
+    (-> (:world created)
+        (assoc-in [:escrow-transfers 0 :escrow-state] :disputed)
+        (assoc-in [:escrow-transfers 0 :dispute-resolver] "0xresolver")
+        (assoc-in [:dispute-timestamps 0] 1000))))
+
+(defn- reconstructed-root [world roots]
+  (get-in (basis/reconstruct-live-resolution-basis world 0 roots)
+          [:basis :sew-resolution-basis/root]))
+
+(deftest live-reconstruction-binds-world-and-frozen-external-inputs
+  (let [world (disputed-world)
+        roots (external-roots)
+        original (reconstructed-root world roots)]
+    (is (some? original))
+    (doseq [[label world' roots']
+            [[:escrow (assoc-in world [:escrow-transfers 0 :to] "0xother") roots]
+             [:state (assoc-in world [:params :resolution-test] :changed) roots]
+             [:dispute-level (assoc-in world [:dispute-levels 0] 1) roots]
+             [:resolver (assoc-in world [:escrow-transfers 0 :dispute-resolver] "0xother-resolver") roots]
+             [:module-snapshot (assoc-in world [:module-snapshots 0 :resolution-module] "module-v2") roots]
+             [:fallback-mode (assoc-in world [:context/time :block-ts] 1121) roots]
+             [:question world (assoc roots :dispute/question-root (root :other-question))]
+             [:evidence world (assoc roots :dispute/evidence-set-root (root :other-evidence))]
+             [:authority world (assoc roots :authority/context-root (root :other-authority))]
+             [:configuration world (assoc roots :configuration/root (root :other-configuration))]]]
+      (is (not= original (reconstructed-root world' roots'))
+          (str label " must change the reconstructed basis root")))))
+
+(deftest live-reconstruction-reports-missing-external-frozen-inputs
+  (let [result (basis/reconstruct-live-resolution-basis (disputed-world) 0 {})]
+    (is (false? (:valid? result)))
+    (is (= [:missing-external-live-root] (:errors result)))
+    (is (= #{:dispute/question-root :dispute/evidence-set-root
+             :authority/resolution-basis-root :authority/context-root :configuration/root}
+           (set (:missing-roots result))))))
 
 (deftest malformed-and-tampered-bases-fail-validation
   (let [artifact (basis/build-resolution-basis (valid-input))]

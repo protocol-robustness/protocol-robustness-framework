@@ -7,7 +7,11 @@
    sew-resolution-decision artifact."
   (:require [clojure.set :as set]
             [resolver-sim.hash.canonical :as hc]
-            [resolver-sim.hash.reference :as ref]))
+            [resolver-sim.hash.reference :as ref]
+                        [resolver-sim.protocols.adjudication :as adjudication]
+                                    [resolver-sim.protocols.sew.types :as t]
+                                    [resolver-sim.protocols.sew.authority :as authority]
+                                    [resolver-sim.protocols.sew.state-machine :as state-machine]))
 
 (def ^:const schema "sew-resolution-basis.v1")
 (def ^:const domain :sew-resolution-basis-v1)
@@ -36,7 +40,7 @@
 
 (def ^:private root-key :sew-resolution-basis/root)
 
-(declare validate-resolution-basis)
+(declare validate-resolution-basis build-resolution-basis)
 
 (def ^:private root-fields
   (disj required-fields :artifact/schema :resolution/purpose :workflow/id
@@ -106,6 +110,112 @@
 (defn valid-resolution-basis?
   [basis]
   (:valid? (validate-resolution-basis basis)))
+
+(def ^:private external-live-root-fields
+  #{:dispute/question-root :dispute/evidence-set-root
+    :authority/resolution-basis-root :authority/context-root :configuration/root})
+
+(defn- canonical-live-value [value]
+  (cond
+    (float? value) (str value)
+    (map? value) (into {} (map (fn [[k v]] [k (canonical-live-value v)]) value))
+    (vector? value) (mapv canonical-live-value value)
+    (set? value) (set (map canonical-live-value value))
+    (seq? value) (mapv canonical-live-value value)
+    :else value))
+
+(defn- live-root [kind value]
+  (ref/sha256-ref
+   (hc/domain-hash :sew-resolution-live-commitment-v1
+                   (hc/project-canonical-safe {:commitment/kind kind
+                                               :commitment/value (canonical-live-value value)}))))
+
+(defn reconstruct-live-resolution-basis
+  "Reconstruct the authoritative current SEW basis.
+
+   `external-roots` may supply only commitments which are not retained by the
+   SEW world. It is a temporary root source, never a yes/no admission callback.
+   Question and evidence roots must denote the frozen adjudication-round inputs
+   for which a ruling was issued, not arbitrary live-at-execution collections.
+   Missing or malformed external roots make reconstruction fail closed."
+  [world workflow-id external-roots]
+  (let [missing (remove #(ref/valid-sha256-ref? (get external-roots %))
+                        external-live-root-fields)]
+    (cond
+      (not (t/valid-workflow-id? world workflow-id))
+      {:valid? false :errors [:invalid-workflow-id]}
+
+      (seq missing)
+      {:valid? false :errors [:missing-external-live-root]
+       :missing-roots (vec missing)}
+
+      :else
+      (let [transfer (t/get-transfer world workflow-id)
+            settings (t/get-settings world workflow-id)
+            snapshot (t/get-snapshot world workflow-id)
+            authority-mode (if (state-machine/resolver-response-exceeded? world workflow-id)
+                             :fallback
+                             :primary)
+            basis (build-resolution-basis
+                   (merge
+                    (select-keys external-roots external-live-root-fields)
+                    {:workflow/id workflow-id
+                     :escrow/root (live-root :escrow transfer)
+                     :state-before/root
+                     (live-root :state-before
+                                (hc/project-world-to-structure-view world :world-structure))
+                     :dispute/root
+                     (live-root :dispute {:transfer transfer
+                                          :level (t/dispute-level world workflow-id)
+                                          :raised-at (get-in world [:dispute-timestamps workflow-id])})
+                     :resolver/root
+                     (live-root :resolver {:resolver (:dispute-resolver transfer)
+                                           :mode (authority/resolution-mode world workflow-id)})
+                     :resolver/kind (authority/resolution-mode world workflow-id)
+                     :resolver/authorization-root
+                     (live-root :resolver-authorization {:settings settings
+                                                         :snapshot snapshot
+                                                         :resolver (:dispute-resolver transfer)})
+                     :resolution-module/root
+                     (live-root :resolution-module (:resolution-module snapshot))
+                     :resolution-module/snapshot-root (live-root :module-snapshot snapshot)
+                     :resolution/authority-mode authority-mode}))]
+        {:valid? true :basis basis}))))
+
+(defn adjudicator-binding-root
+  "Stable identity binding for the current SEW adjudicator contract.
+
+   It commits only existing immutable resolver/module/snapshot commitments. It
+   identifies declared adjudicator semantics; it neither simulates nor trusts a
+   mutable adjudicator registry."
+  [basis]
+  (ref/sha256-ref
+   (hc/domain-hash :sew-adjudicator-binding-v1
+                   (hc/project-canonical-safe
+                    (select-keys basis [:resolver/root
+                                        :resolver/authorization-root
+                                        :resolution-module/root
+                                        :resolution-module/snapshot-root])))))
+
+(defn project-adjudication-basis
+  "Deterministically project a validated SEW basis into the protocol-neutral
+   adjudication basis. No independently supplied projection fields are accepted."
+  [basis]
+  (let [validation (validate-resolution-basis basis)]
+    (when-not (:valid? validation)
+      (throw (ex-info "Cannot project invalid sew-resolution-basis.v1"
+                      {:type :sew-resolution-basis/invalid
+                       :errors (:errors validation)})))
+    (adjudication/build-adjudication-basis
+     {:adjudication/subject-root (:escrow/root basis)
+      :adjudication/state-root (:state-before/root basis)
+      :adjudication/question-root (:dispute/question-root basis)
+      :adjudication/evidence-set-root (:dispute/evidence-set-root basis)
+      :adjudication/authority-root (:authority/context-root basis)
+      :adjudication/adjudicator-root (adjudicator-binding-root basis)
+      :adjudication/policy-root (:configuration/root basis)
+      :adjudication/authority-mode (:resolution/authority-mode basis)
+      :adjudication/protocol-basis-root (:sew-resolution-basis/root basis)})))
 
 (defn build-resolution-basis
   "Build a closed, canonical `sew-resolution-basis.v1` artifact.

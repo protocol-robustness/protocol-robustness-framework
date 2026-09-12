@@ -9,20 +9,20 @@
             [resolver-sim.hash.reference :as ref]))
 
 (def ^:const schema "prf/dispute-ruling.v1")
-(def ^:const domain :sew-resolution-decision-v1)
+(def ^:const domain :prf-dispute-ruling-v1)
 (def providers #{:kleros :governed :centralized})
 (def outcomes #{:release :refund :refuse})
 (def statuses #{:appealable :final})
 
 (def ^:private root-key :ruling/root)
 (def ^:private required-fields
-  #{:artifact/schema :ruling/dispute-root :ruling/authority-root :ruling/provider
-    :ruling/external-dispute-id :ruling/external-ruling-id :ruling/round
-    :ruling/outcome :ruling/status :ruling/evidence-root :ruling/policy-root
-    :ruling/issued-at :ruling/authentication-root})
+  #{:artifact/schema :ruling/basis-root :ruling/dispute-root :ruling/authority-root
+    :ruling/provider :ruling/external-dispute-id :ruling/external-ruling-id
+    :ruling/round :ruling/outcome :ruling/status :ruling/evidence-root
+    :ruling/policy-root :ruling/issued-at :ruling/authentication-root})
 (def ^:private reference-fields
-  #{:ruling/dispute-root :ruling/authority-root :ruling/evidence-root
-    :ruling/policy-root :ruling/authentication-root})
+  #{:ruling/basis-root :ruling/dispute-root :ruling/authority-root
+    :ruling/evidence-root :ruling/policy-root :ruling/authentication-root})
 
 (defn ruling-payload [ruling]
   (dissoc ruling root-key))
