@@ -204,18 +204,35 @@
     (println "Attestation generated.")
     attestation))
 
-(defn verify-attestation [attestation-path]
-  (let [attestation (read-evidence-file attestation-path)
-        evidence-hash (:evidence/hash attestation)
-        signature (:signature attestation)
-        pub-key-path (get-in attestation [:attestor :public-key-path])]
-    (if (and evidence-hash signature pub-key-path)
-      (let [sig-ok? (signing/verify-signature evidence-hash signature pub-key-path)]
-        (println "Attestation Verification:")
-        (println "Benchmark ID:    " (:benchmark/id attestation))
-        (println "Evidence Hash:   " evidence-hash)
-        (println "Signature valid: " (if sig-ok? "✓" "✗"))
-        sig-ok?)
-      (do
-        (println "Invalid attestation format.")
-        false))))
+(defn verify-attestation
+  "Verify a detached attestation.
+
+   With a key-resolver, the attestation's key id is resolved from trusted
+   configuration; the attestation cannot choose the public-key material.
+   The one-argument form remains a local legacy verifier and should not be
+   used for authority decisions or portable forensic claims."
+  ([attestation-path]
+   (verify-attestation attestation-path nil))
+  ([attestation-path key-resolver]
+   (let [attestation (read-evidence-file attestation-path)
+         evidence-hash (:evidence/hash attestation)
+         signature (:signature attestation)
+         attestor (:attestor attestation)
+         key-id (or (:key-id attestor) (:public-key-id attestor))
+         pub-key-path (when-not key-resolver (:public-key-path attestor))
+         resolved-key (when (and key-resolver (string? key-id))
+                        (key-resolver key-id))]
+     (if (and evidence-hash signature
+              (or pub-key-path resolved-key))
+       (let [sig-ok? (if key-resolver
+                       (signing/verify-signature-with-public-key-content
+                        evidence-hash signature resolved-key)
+                       (signing/verify-signature evidence-hash signature pub-key-path))]
+         (println "Attestation Verification:")
+         (println "Benchmark ID:    " (:benchmark/id attestation))
+         (println "Evidence Hash:   " evidence-hash)
+         (println "Signature valid: " (if sig-ok? "yes" "no"))
+         sig-ok?)
+       (do
+         (println "Invalid attestation format or untrusted signing key.")
+         false)))))

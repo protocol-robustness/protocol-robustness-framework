@@ -2,6 +2,7 @@
   (:require [clojure.test :refer [deftest is testing]]
             [resolver-sim.benchmark.incentive-model :as model]
             [resolver-sim.benchmark.incentive-deviation-domain :as domain]
+            [resolver-sim.benchmark.outcome-manifest :as outcome]
             [resolver-sim.benchmark.research-analysis-closure :as closure]
             [resolver-sim.benchmark.research-command :as command]
             [resolver-sim.benchmark.research-assignment :as assignment]
@@ -56,11 +57,14 @@
                                                            :target/reason :research}
                               :research-assignment/command-root (:command/hash research-command)
                               :research-assignment/plan-root (root :plan)})
-        manifest {:execution/command-root (:command/hash research-command)
-                  :outcomes/operational-root (root :operational)
-                  :outcomes/incentive-root (root :incentive)
-                  :outcomes/incentive-compatibility-root (root :ic)
-                  :benchmark-outcome/hash (root :outcome)}]
+        manifest (outcome/build-manifest
+                  {:benchmark/content-root subject
+                   :benchmark/model-root (:incentive-model/root incentive-model)
+                   :execution/status :completed
+                   :execution/command-root (:command/hash research-command)
+                   :outcomes/operational-root (root :operational)
+                   :outcomes/incentive-root (root :incentive)
+                   :outcomes/incentive-compatibility-root (root :ic)})]
     {:research-command research-command :incentive-model incentive-model
      :deviation-domain deviation-domain :research-assignment research-assignment
      :outcome-manifest manifest}))
@@ -92,6 +96,13 @@
     (is (= :invalid (:research-analysis/status (closure/verify-closure changed-model))))
     (is (= :invalid (:research-analysis/status (closure/verify-closure missing-output))))
     (is (= :invalid (:research-analysis/status (closure/verify-closure wrong-assignment))))))
+
+(deftest closure-rejects-hash-invalid-outcome-manifest
+  (let [f (fixture)
+        forged (assoc-in f [:outcome-manifest :benchmark-outcome/hash] (root :forged))
+        report (closure/verify-closure forged)]
+    (is (= :invalid (:research-analysis/status report)))
+    (is (some #(re-find #"manifest root or schema is invalid" %) (:errors report)))))
 
 (deftest unsupported-deviation-method-fails-closed
   (let [f (fixture)

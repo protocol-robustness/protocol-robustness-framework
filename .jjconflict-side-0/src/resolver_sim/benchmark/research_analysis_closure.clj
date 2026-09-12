@@ -28,21 +28,24 @@
 (defn verify-closure
   "Derive a fail-closed closure report from concrete artifacts.
 
-   `:evidence-class` is derived exclusively from the declared domain. In
-   particular, :evidence/observed-single-trace never satisfies
-   :claim/general-incentive-compatibility."
+  Outcome manifests must pass canonical root validation before completeness can
+  establish closure. `:evidence-class` is derived exclusively from the declared
+  domain; observed single-trace evidence never satisfies a general claim."
   [{:keys [research-command incentive-model deviation-domain research-assignment outcome-manifest]}]
   (let [errors (atom [])
         command-check (command/validate-command research-command)
         model-check (model/validate-model incentive-model)
         domain-check (domain/validate-domain deviation-domain)
         assignment-check (assignment/validate-assignment research-assignment)
+        outcome-validation (outcome/validate-manifest outcome-manifest)
         outcome-check (outcome/outcome-complete-for-command? research-command outcome-manifest)
         evidence-class (domain/evidence-class deviation-domain)]
     (when-not (:valid? command-check) (swap! errors into (map #(str "command: " %) (:errors command-check))))
     (when-not (:valid? model-check) (swap! errors into (map #(str "model: " %) (:errors model-check))))
     (when-not (:valid? domain-check) (swap! errors into (map #(str "domain: " %) (:errors domain-check))))
     (when-not (:valid? assignment-check) (swap! errors into (map #(str "assignment: " %) (:errors assignment-check))))
+    (when-not (:valid? outcome-validation)
+      (swap! errors into (map #(str "outcome: " %) (:errors outcome-validation))))
     (when-not (:complete? outcome-check) (swap! errors into (map #(str "outcome: " %) (:errors outcome-check))))
     (when-not (= (:incentive-model/root incentive-model)
                  (:deviation-domain/incentive-model-root deviation-domain))

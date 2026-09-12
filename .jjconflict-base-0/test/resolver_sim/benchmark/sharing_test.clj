@@ -5,7 +5,25 @@
             [clojure.test :refer [deftest is testing]]
             [resolver-sim.benchmark.runner :as runner]
             [resolver-sim.benchmark.sharing :as sharing]
+            [resolver-sim.benchmark.signing :as signing]
             [resolver-sim.hash.canonical :as hc]))
+
+(deftest trusted-attestation-verification-does-not-accept-attestation-selected-key
+  (let [attestation {:evidence/hash "evidence-root"
+                     :benchmark/id :benchmark/test
+                     :attestor {:key-id "producer-k1"
+                                :public-key-path "/attacker/selected.pub"}
+                     :signature "signature"}]
+    (with-redefs [sharing/read-evidence-file (constantly attestation)
+                  signing/verify-signature-with-public-key-content
+                  (fn [_ _ public-key-content]
+                    (= "trusted-public-key" public-key-content))]
+      (is (true? (sharing/verify-attestation "attestation.edn"
+                                             (fn [key-id]
+                                               (when (= "producer-k1" key-id)
+                                                 "trusted-public-key")))))
+      (is (false? (sharing/verify-attestation "attestation.edn"
+                                              (fn [_] nil)))))))
 
 (defn- with-temp-evidence
   "Write `content` to a fresh temp evidence.edn and call f with its path."

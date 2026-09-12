@@ -7,6 +7,7 @@
    interprets a valid epistemic conclusion (including disagreement) as an
    execution failure."
   (:require [resolver-sim.benchmark.research-analysis-closure :as closure]
+            [resolver-sim.benchmark.research-analysis :as analysis]
             [resolver-sim.benchmark.research-assignment :as assignment]
             [resolver-sim.benchmark.research-command :as command]
             [resolver-sim.benchmark.outcome-manifest :as outcome]
@@ -239,17 +240,33 @@
   "Derive complete researcher-analysis verification, including the existing
    analysis closure.  The closure remains the authority for evidence class."
   [{:keys [research-command incentive-model deviation-domain research-assignment
-           outcome-manifest] :as context}]
+           outcome-manifest analysis-output] :as context}]
   (let [submission (submit context)
         analysis (closure/verify-closure {:research-command research-command
                                           :incentive-model incentive-model
                                           :deviation-domain deviation-domain
                                           :research-assignment research-assignment
                                           :outcome-manifest outcome-manifest})]
-    {:verified? (and (= :accepted (:submission/status submission))
-                     (closure/closure-valid? analysis))
-     :submission submission
-     :analysis-closure analysis}))
+    (let [output-verification (when analysis-output
+                                (analysis/verify-output
+                                 {:research-command research-command
+                                  :incentive-model incentive-model
+                                  :deviation-domain deviation-domain
+                                  :research-assignment research-assignment
+                                  :outcome-manifest outcome-manifest
+                                  :analysis-closure analysis
+                                  :analysis-output analysis-output}))
+          claim (when (and output-verification
+                           (analysis/verification-valid? output-verification))
+                  (analysis/derive-claim analysis-output output-verification incentive-model))]
+      {:verified? (and (= :accepted (:submission/status submission))
+                       (closure/closure-valid? analysis)
+                       (or (nil? analysis-output)
+                           (analysis/verification-valid? output-verification)))
+       :submission submission
+       :analysis-closure analysis
+       :analysis-output-verification output-verification
+       :research-claim claim})))
 
 (defn reproduce
   "Compare a persisted execution with an independently supplied reproduction
