@@ -240,6 +240,7 @@
    :authorised-effect-correlation "AUTHORISED_EFFECT_CORRELATION_V1"
    :sew-terminal-state-snapshot "SEW_TERMINAL_STATE_SNAPSHOT_V1"
    :sew-resolution-basis-v1 "SEW_RESOLUTION_BASIS_V1"
+   :sew-resolution-decision-v1 "SEW_RESOLUTION_DECISION_V1"
    :staged-event-evidence "STAGED_EVENT_EVIDENCE_V1"
    :terminal-evidence-publication "TERMINAL_EVIDENCE_PUBLICATION_V1"
    :consensus-terminal-reservation "CONSENSUS_TERMINAL_RESERVATION_V1"

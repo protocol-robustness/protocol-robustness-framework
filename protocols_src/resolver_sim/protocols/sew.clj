@@ -736,14 +736,26 @@
             resolution-outcome (get p :resolution-outcome nil)
             is-release       (get p :is-release true)
             resolution-hash  (get p :resolution-hash "0xsimhash")
+            resolution-basis (:resolution-basis p)
+            resolution-decision (:resolution-decision p)
             effective-rm-fn  (or (when resolution-level-map
                                    (auth/make-kleros-module
                                     resolution-level-map
                                     #(t/dispute-level world %)))
                                  resolution-module-fn)
             wf-id            (or workflow-id (compat/wf-id event))]
-        (if (= resolution-outcome "cannot-resolve")
+        (cond
+          (and resolution-basis resolution-decision)
+          (if (= :refused (:decision/outcome resolution-decision))
+            (res/execute-resolution-refused-with-decision
+             world wf-id addr resolution-basis resolution-decision effective-rm-fn)
+            (res/execute-resolution-with-decision
+             world wf-id addr resolution-basis resolution-decision effective-rm-fn))
+
+          (= resolution-outcome "cannot-resolve")
           (res/execute-resolution-refused world wf-id addr resolution-hash effective-rm-fn)
+
+          :else
           (res/execute-resolution world wf-id addr
                                   is-release resolution-hash effective-rm-fn))))))
 

@@ -11,6 +11,7 @@
   (:require [resolver-sim.protocols.sew.types         :as t]
             [resolver-sim.protocols.sew.state-machine :as sm]
             [resolver-sim.protocols.sew.authority     :as auth]
+            [resolver-sim.protocols.sew.resolution-decision :as resolution-decision]
             [resolver-sim.protocols.sew.accounting    :as acct]
             [resolver-sim.protocols.sew.held-mutation-admission :as held-admission]
             [resolver-sim.protocols.sew.registry      :as reg]
@@ -948,6 +949,31 @@
       (apply-resolution-transition world workflow-id caller is-release
                                    resolution-hash resolution-module-fn))))
 
+(defn execute-resolution-with-decision
+  "Authoritative resolution entry point. The stored resolution identity is
+   derived solely from a validated decision artifact, never caller-selected."
+  [world workflow-id caller resolution-basis decision resolution-module-fn]
+  (let [validation (resolution-decision/validate-decision-against-basis
+                    decision resolution-basis)]
+    (cond
+      (not (:valid? validation))
+      (guard-fail :invalid-resolution-decision
+                  :errors (:errors validation) :workflow-id workflow-id :world world)
+
+      (not= workflow-id (:workflow/id decision))
+      (guard-fail :resolution-decision-workflow-mismatch
+                  :workflow-id workflow-id :world world)
+
+      (not (contains? #{:release :refund} (:decision/outcome decision)))
+      (guard-fail :resolution-decision-not-settlement
+                  :workflow-id workflow-id :world world)
+
+      :else
+      (execute-resolution world workflow-id caller
+                          (= :release (:decision/outcome decision))
+                          (:sew-resolution-decision/root decision)
+                          resolution-module-fn))))
+
 ;; ---------------------------------------------------------------------------
 ;; execute-resolution-refused (Kleros ruling 0 — refuse to arbitrate)
 ;;
@@ -991,6 +1017,30 @@
                      (assoc-in [:escrow-transfers workflow-id :resolution/refused-at] now)
                      (assoc-in [:escrow-transfers workflow-id :resolution/refused-hash] resolution-hash))]
       (t/ok world'))))
+
+(defn execute-resolution-refused-with-decision
+  "Authoritative refusal entry point. Refusal is a canonical decision whose
+   identity is derived from its validated decision root."
+  [world workflow-id caller resolution-basis decision resolution-module-fn]
+  (let [validation (resolution-decision/validate-decision-against-basis
+                    decision resolution-basis)]
+    (cond
+      (not (:valid? validation))
+      (guard-fail :invalid-resolution-decision
+                  :errors (:errors validation) :workflow-id workflow-id :world world)
+
+      (not= workflow-id (:workflow/id decision))
+      (guard-fail :resolution-decision-workflow-mismatch
+                  :workflow-id workflow-id :world world)
+
+      (not= :refused (:decision/outcome decision))
+      (guard-fail :resolution-decision-not-refusal
+                  :workflow-id workflow-id :world world)
+
+      :else
+      (execute-resolution-refused world workflow-id caller
+                                  (:sew-resolution-decision/root decision)
+                                  resolution-module-fn))))
 
 ;; ---------------------------------------------------------------------------
 ;; execute-pending-settlement
