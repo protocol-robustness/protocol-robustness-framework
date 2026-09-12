@@ -1,4 +1,4 @@
-{:paths ["." "src" "resources"]
+{:paths ["." "src" "pro_rata_contract_src" "resources"]
 
  :mvn/repos {"central" {:url "https://repo1.maven.org/maven2/"}
              "clojars" {:url "https://repo.clojars.org/"}
@@ -38,7 +38,8 @@
     :paths/protocols     ["protocols_src" "protocols_src/test"]
     :paths/dev           ["dev" "test"]              ;; = dev + test
     :paths/notebooks     ["notebooks"]
-    :paths/src           ["src"]
+     :paths/src           ["src"]
+     :paths/pro-rata-contract ["pro_rata_contract_src"]
 :paths/held-custody          ["extensions/held-custody/src" "extensions/held-custody/test"]
     :paths/held-custody-rt       ["extensions/held-custody/src"]
     :paths/force-authorisation   ["extensions/force-authorisation/src" "extensions/force-authorisation/test"]
@@ -62,6 +63,12 @@
     :test
     {:extra-paths [:paths/test :paths/scripts :paths/protocols]
      :extra-deps {org.clojure/test.check {:mvn/version "1.1.1"}}}
+
+    :pro-rata-contract/test
+    {:replace-paths ["pro_rata_contract_src" "pro_rata_contract_test"
+                     "portable-pro-rata-contract"]
+     :replace-deps {org.clojure/clojure {:mvn/version "1.12.0"}}
+     :main-opts ["-m" "resolver-sim.pro-rata-contract.test-runner"]}
 
    :with-sew
    {:extra-paths [:paths/protocols]}

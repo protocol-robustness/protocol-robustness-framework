@@ -15,7 +15,7 @@
 
 (def repo-root (fs/path (System/getProperty "user.dir")))
 (def profiles-dir (fs/path repo-root "profiles"))
-(def source-roots ["src" "protocols_src"])
+(def source-roots ["src" "protocols_src" "pro_rata_contract_src"])
 
 (defn read-edn [path] (edn/read-string (slurp (str path))))
 (defn profile-files [] (fs/glob profiles-dir "*.edn"))
@@ -134,19 +134,18 @@
     (when (fs/exists? target) (fs/delete target))
     (java.nio.file.Files/createSymbolicLink target source (make-array java.nio.file.attribute.FileAttribute 0))))
 
-
 (defn runtime-profile [profile]
   (when-let [runtime (:profile/runtime profile)]
     (let [request-path (fs/path repo-root ".profile-view" "runtime-request.edn")
           request (:runtime/options runtime)]
       (spit (str request-path) (pr-str request))
       (let [{:keys [exit out err]} (process/shell {:dir (str repo-root)
-                                                    :continue true
-                                                    :out :string
-                                                    :err :string}
-                                                   "clojure" "-M" "-m"
-                                                   "resolver-sim.execution.runtime-profile"
-                                                   (str request-path))]
+                                                   :continue true
+                                                   :out :string
+                                                   :err :string}
+                                                  "clojure" "-M" "-m"
+                                                  "resolver-sim.execution.runtime-profile"
+                                                  (str request-path))]
         (when-not (zero? exit)
           (throw (ex-info "JVM runtime-profile authority rejected request"
                           {:exit exit :stderr err})))
@@ -160,7 +159,7 @@
   (let [base (read-edn (fs/path repo-root "deps.edn"))]
     (spit (str (fs/path view-root "deps.edn"))
           (pr-str (assoc (select-keys base [:mvn/repos :deps])
-                         :paths ["src" "protocols_src" "resources"]
+                         :paths ["src" "protocols_src" "pro_rata_contract_src" "resources"]
                          :aliases {:profile/check {:extra-paths ["test"]}})))))
 
 (defn resolved-profile [name]
@@ -221,15 +220,15 @@
   (let [a (closure-report left)
         b (closure-report right)
         added-components (vec (sort (set/difference (set (:component-ids b))
-                                                     (set (:component-ids a)))))
+                                                    (set (:component-ids a)))))
         added-owned (vec (sort (set/difference (set (:owned-namespaces b))
-                                                (set (:owned-namespaces a)))))
+                                               (set (:owned-namespaces a)))))
         added-source (vec (sort (set/difference (set (:transitive-source-files b))
-                                                 (set (:transitive-source-files a)))))
+                                                (set (:transitive-source-files a)))))
         added-groups (into {} (keep (fn [[k n]]
                                       (let [delta (- n (get (:namespace-groups a) k 0))]
                                         (when (pos? delta) [k delta]))))
-                              (:namespace-groups b))]
+                           (:namespace-groups b))]
     (println "PROFILE DIFF" left "->" right)
     (println "ADDED COMPONENTS" (pr-str added-components))
     (println "ADDED OWNED NAMESPACES" (count added-owned))
@@ -238,7 +237,7 @@
     (doseq [path added-source] (println " " path))
     (println "ADDED NAMESPACE GROUPS" (pr-str added-groups))
     (println "COUNTS" {:left (:transitive-source-file-count a)
-                         :right (:transitive-source-file-count b)})))
+                       :right (:transitive-source-file-count b)})))
 
 (defn generate! [name]
   (let [{:keys [profile components component-ids] :as resolved} (resolved-profile name)
