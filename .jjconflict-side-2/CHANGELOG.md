@@ -2,6 +2,15 @@
 
 ## [Unreleased]
 
+### Pro-rata EVM derived-transition v2
+
+- Added `pro-rata-evm-v2`, whose constructor and verifier reconstruct the
+  canonical transition from retained V3 compilation bodies and canonical
+  state-before data; callers cannot select an independent post-state root.
+  Aggregate V3 compilation now retains and revalidates the complete Stage A
+  target-map-validation basis. Historical EVM V1 roots and interfaces remain
+  unchanged; native realization is intentionally not bound by V2.
+
 ### Portable pro-rata contract v1
 
 - Added an independently loadable `portable-pro-rata-contract.v1` authority for

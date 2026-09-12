@@ -63,6 +63,12 @@ A caller constructs the following immutable values:
 5. an existing `benchmark-outcome.v1` manifest whose requested output roots are
    complete; and
 6. `research-analysis-closure/verify-closure` to derive the validation report.
+7. When an analysis output is available, `research-analysis/verify-output` to
+   validate the canonical outcome manifest and bind the exact output root.
+8. `research-analysis/derive-claim` with the validated incentive model to derive
+   a claim carrying the exact analysis-output and verification roots. The
+   claim's subject root is the model's committed subject root; the model root
+   remains separately identifiable.
 
 A valid closure commits the command, model, deviation-domain, assignment,
 outcome, and requested output roots. Missing requested outputs, mismatched
