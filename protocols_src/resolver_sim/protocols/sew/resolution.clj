@@ -1016,7 +1016,7 @@
         external-roots (when external-root-resolver
                          (try (external-root-resolver world workflow-id)
                               (catch Exception _ nil)))
-        reconstructed (when (and (:valid? basis-validation) external-root-resolver)
+        reconstructed (when (:valid? basis-validation)
                         (resolution-basis/reconstruct-live-resolution-basis
                          world workflow-id external-roots))
         reconstructed-basis (:basis reconstructed)
@@ -1042,8 +1042,9 @@
       (not (t/dispute-active? world workflow-id))
       (guard-fail :transfer-not-in-dispute :workflow-id workflow-id :world world)
 
-      (nil? external-root-resolver)
-      (guard-fail :missing-external-root-resolver :workflow-id workflow-id :world world)
+      (and (nil? external-root-resolver)
+           (nil? (get-in world [:adjudication-current-snapshot-root workflow-id])))
+      (guard-fail :missing-adjudication-snapshot :workflow-id workflow-id :world world)
 
       (not (:valid? reconstructed))
       (guard-fail :live-resolution-basis-unavailable

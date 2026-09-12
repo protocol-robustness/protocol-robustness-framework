@@ -243,6 +243,7 @@
    :sew-resolution-decision-v1 "SEW_RESOLUTION_DECISION_V1"
    :sew-adjudicator-binding-v1 "SEW_ADJUDICATOR_BINDING_V1"
    :sew-resolution-live-commitment-v1 "SEW_RESOLUTION_LIVE_COMMITMENT_V1"
+   :sew-adjudication-snapshot-v1 "SEW_ADJUDICATION_SNAPSHOT_V1"
    :prf-adjudication-basis-v1 "PRF_ADJUDICATION_BASIS_V1"
    :prf-dispute-ruling-v1 "PRF_DISPUTE_RULING_V1"
    :staged-event-evidence "STAGED_EVENT_EVIDENCE_V1"

@@ -11,7 +11,8 @@
                         [resolver-sim.protocols.adjudication :as adjudication]
                                     [resolver-sim.protocols.sew.types :as t]
                                     [resolver-sim.protocols.sew.authority :as authority]
-                                    [resolver-sim.protocols.sew.state-machine :as state-machine]))
+                                    [resolver-sim.protocols.sew.state-machine :as state-machine]
+                                                [resolver-sim.protocols.sew.adjudication-snapshot :as adjudication-snapshot]))
 
 (def ^:const schema "sew-resolution-basis.v1")
 (def ^:const domain :sew-resolution-basis-v1)
@@ -130,6 +131,14 @@
                    (hc/project-canonical-safe {:commitment/kind kind
                                                :commitment/value (canonical-live-value value)}))))
 
+(defn- snapshot-roots [snapshot]
+  (when snapshot
+    {:dispute/question-root (:dispute/question-root snapshot)
+     :dispute/evidence-set-root (:dispute/evidence-set-root snapshot)
+     :authority/resolution-basis-root (:authority/resolution-basis-root snapshot)
+     :authority/context-root (:authority/context-root snapshot)
+     :configuration/root (:configuration/root snapshot)}))
+
 (defn reconstruct-live-resolution-basis
   "Reconstruct the authoritative current SEW basis.
 
@@ -139,11 +148,23 @@
    for which a ruling was issued, not arbitrary live-at-execution collections.
    Missing or malformed external roots make reconstruction fail closed."
   [world workflow-id external-roots]
-  (let [missing (remove #(ref/valid-sha256-ref? (get external-roots %))
+  (let [snapshot-root (get-in world [:adjudication-current-snapshot-root workflow-id])
+          snapshot (some #(when (= snapshot-root (:sew/adjudication-snapshot-root %)) %)
+                         (get-in world [:adjudication-snapshots workflow-id] []))
+        external-roots (merge (snapshot-roots snapshot) external-roots)
+        missing (remove #(ref/valid-sha256-ref? (get external-roots %))
                         external-live-root-fields)]
     (cond
       (not (t/valid-workflow-id? world workflow-id))
       {:valid? false :errors [:invalid-workflow-id]}
+
+      (and snapshot (not (:valid? (adjudication-snapshot/validate-adjudication-snapshot snapshot))))
+      {:valid? false :errors [:invalid-authoritative-adjudication-snapshot]}
+
+      (and snapshot
+           (not= (t/dispute-level world workflow-id)
+                 (:adjudication/level snapshot)))
+      {:valid? false :errors [:adjudication-snapshot-level-mismatch]}
 
       (seq missing)
       {:valid? false :errors [:missing-external-live-root]
