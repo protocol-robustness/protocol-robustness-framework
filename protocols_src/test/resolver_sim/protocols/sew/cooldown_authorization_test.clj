@@ -4,18 +4,18 @@
   and resolution-module adapter failure handling."
   (:require [clojure.test :refer [deftest is testing]]
             [resolver-sim.protocols.sew.snapshot-fixtures :as snap-fix]
-            [resolver-sim.protocols.sew.types      :as t]
-            [resolver-sim.protocols.sew.lifecycle  :as lc]
-            [resolver-sim.protocols.sew.authority  :as auth]
+            [resolver-sim.protocols.sew.types :as t]
+            [resolver-sim.protocols.sew.lifecycle :as lc]
+            [resolver-sim.protocols.sew.authority :as auth]
             [resolver-sim.protocols.sew.resolution :as res]
             [resolver-sim.protocols.sew.state-machine :as sm]
-            [resolver-sim.time.context             :as time-ctx]))
+            [resolver-sim.time.context :as time-ctx]))
 
-(def alice    "0xAlice")
-(def bob      "0xBob")
-(def carol    "0xCarol")
+(def alice "0xAlice")
+(def bob "0xBob")
+(def carol "0xCarol")
 (def resolver "0xResolver")
-(def usdc     "0xUSDC")
+(def usdc "0xUSDC")
 (def mod-addr "0xModule")
 
 (defn- project-legacy-time
@@ -28,23 +28,23 @@
    (base-world appeal-window-duration {}))
   ([appeal-window-duration settings-opts]
    (let [snap (snap-fix/escrow-snapshot
-                (merge {:escrow-fee-bps        50
-                        :max-dispute-duration  3600
-                        :appeal-window-duration appeal-window-duration}
-                       (dissoc settings-opts :custom-resolver)
-                       (when-let [cr (:custom-resolver settings-opts)]
-                         {:dispute-resolver cr})))
+               (merge {:escrow-fee-bps 50
+                       :max-dispute-duration 3600
+                       :appeal-window-duration appeal-window-duration}
+                      (dissoc settings-opts :custom-resolver)
+                      (when-let [cr (:custom-resolver settings-opts)]
+                        {:dispute-resolver cr})))
          sett (t/make-escrow-settings (dissoc settings-opts :dispute-resolver))
-         r    (lc/create-escrow
-                (-> (t/empty-world 1000)
-                    (time-ctx/ensure-temporal-context))
-                alice usdc bob 1000 sett snap)
-         w    (:world r)]
+         r (lc/create-escrow
+            (-> (t/empty-world 1000)
+                (time-ctx/ensure-temporal-context))
+            alice usdc bob 1000 sett snap)
+         w (:world r)]
      (-> w
-         (assoc-in [:escrow-transfers 0 :escrow-state]     :disputed)
-         (assoc-in [:escrow-transfers 0 :sender-status]    :raise-dispute)
+         (assoc-in [:escrow-transfers 0 :escrow-state] :disputed)
+         (assoc-in [:escrow-transfers 0 :sender-status] :raise-dispute)
          (assoc-in [:escrow-transfers 0 :dispute-resolver] (or (:dispute-resolver settings-opts)
-                                                                 resolver))
+                                                               resolver))
          (assoc-in [:dispute-timestamps 0] 1000)
          project-legacy-time))))
 
@@ -88,26 +88,26 @@
   [w]
   (time-ctx/advance-time w {:to (+ 1000 cooldown-secs 1)}))
 
- (defn- reset-to-level
-   "Reset dispute level to target-level, advance block-time, and re-add a pending
+(defn- reset-to-level
+  "Reset dispute level to target-level, advance block-time, and re-add a pending
     settlement.  Used for same-level re-escalation cooldown tests: after the first
     escalation archives the pending and advances the level, we simulate a fresh
     resolution at the same level (with time advanced) to test the per-level cooldown."
-   [world workflow-id target-level block-time appeal-deadline]
-   (-> world
-       (assoc-in [:dispute-levels workflow-id] target-level)
-       (time-ctx/advance-time {:to block-time})
-       (with-pending workflow-id true appeal-deadline)
-       with-bond-balance
-       project-legacy-time))
+  [world workflow-id target-level block-time appeal-deadline]
+  (-> world
+      (assoc-in [:dispute-levels workflow-id] target-level)
+      (time-ctx/advance-time {:to block-time})
+      (with-pending workflow-id true appeal-deadline)
+      with-bond-balance
+      project-legacy-time))
 
- (defn- re-pend
-   "Re-add a pending settlement after escalation clears it."
-   [world appeal-deadline]
-   (-> world
-       (with-pending 0 true appeal-deadline)
-       with-bond-balance
-       project-legacy-time))
+(defn- re-pend
+  "Re-add a pending settlement after escalation clears it."
+  [world appeal-deadline]
+  (-> world
+      (with-pending 0 true appeal-deadline)
+      with-bond-balance
+      project-legacy-time))
 
 ;; ===========================================================================
 ;; Escalation cooldown rejection — escalate-dispute
@@ -187,38 +187,38 @@
 ;; Challenge-resolution cooldown rejection
 ;; ===========================================================================
 
- (deftest challenge-resolution-cooldown-rejects-same-level-same-caller
-   (testing "Same caller re-challenging the same level within cooldown is blocked"
-     (let [w0 (world-with-pending 5000)
-           r1 (res/challenge-resolution w0 0 carol (make-escalation-fn senior-resolver))]
-       (is (true? (:ok r1)) "first challenge at level 0 should succeed")
+(deftest challenge-resolution-cooldown-rejects-same-level-same-caller
+  (testing "Same caller re-challenging the same level within cooldown is blocked"
+    (let [w0 (world-with-pending 5000)
+          r1 (res/challenge-resolution w0 0 carol (make-escalation-fn senior-resolver))]
+      (is (true? (:ok r1)) "first challenge at level 0 should succeed")
        ;; Reset back to level 0 with a new pending
-       (let [w1 (reset-to-level (:world r1) 0 0 1000 5000)
-             r2 (res/challenge-resolution w1 0 carol (make-escalation-fn senior-resolver))]
-         (is (false? (:ok r2))
-             "second challenge at same level within cooldown should fail")
-         (is (= :escalation-cooldown-active (:error r2))
-             "error should be :escalation-cooldown-active")))))
+      (let [w1 (reset-to-level (:world r1) 0 0 1000 5000)
+            r2 (res/challenge-resolution w1 0 carol (make-escalation-fn senior-resolver))]
+        (is (false? (:ok r2))
+            "second challenge at same level within cooldown should fail")
+        (is (= :escalation-cooldown-active (:error r2))
+            "error should be :escalation-cooldown-active")))))
 
- (deftest challenge-resolution-cooldown-same-caller-different-levels-succeeds
-   (testing "Same caller challenging through different levels within cooldown succeeds"
-     (let [w0 (world-with-pending 5000)
-           r1 (res/challenge-resolution w0 0 carol (make-escalation-fn senior-resolver))]
-       (is (true? (:ok r1)))
+(deftest challenge-resolution-cooldown-same-caller-different-levels-succeeds
+  (testing "Same caller challenging through different levels within cooldown succeeds"
+    (let [w0 (world-with-pending 5000)
+          r1 (res/challenge-resolution w0 0 carol (make-escalation-fn senior-resolver))]
+      (is (true? (:ok r1)))
        ;; After challenge, level is 1. Re-pend at level 1 → different cooldown key.
-       (let [w1 (re-pend (:world r1) 5000)
-             r2 (res/challenge-resolution w1 0 carol (make-escalation-fn senior-resolver))]
-         (is (true? (:ok r2))
-             "second challenge at a different level should succeed even within cooldown")
-         (is (= 2 (t/dispute-level (:world r2) 0))
-             "dispute level should advance to 2")))))
+      (let [w1 (re-pend (:world r1) 5000)
+            r2 (res/challenge-resolution w1 0 carol (make-escalation-fn senior-resolver))]
+        (is (true? (:ok r2))
+            "second challenge at a different level should succeed even within cooldown")
+        (is (= 2 (t/dispute-level (:world r2) 0))
+            "dispute level should advance to 2")))))
 
- (deftest challenge-resolution-cooldown-allows-after-window
-   (let [w0 (world-with-pending 5000)
-         r1 (res/challenge-resolution w0 0 carol (make-escalation-fn senior-resolver))
-         w1 (re-pend (:world r1) 100000)
-         w2 (advance-past-cooldown w1)]
-     (is (true? (:ok r1)))
+(deftest challenge-resolution-cooldown-allows-after-window
+  (let [w0 (world-with-pending 5000)
+        r1 (res/challenge-resolution w0 0 carol (make-escalation-fn senior-resolver))
+        w1 (re-pend (:world r1) 100000)
+        w2 (advance-past-cooldown w1)]
+    (is (true? (:ok r1)))
     (let [r2 (res/challenge-resolution w2 0 carol (make-escalation-fn senior-resolver))]
       (is (true? (:ok r2)) "challenge after cooldown should succeed")
       (is (= 2 (t/dispute-level (:world r2) 0))))))
@@ -254,7 +254,7 @@
   (testing "Nil-resolver rejection leaves cooldown state and escrow state untouched"
     (let [w (world-with-pending 5000)
           bad-fn (fn [_ _ _ _] {:ok true :new-resolver nil})
-          r  (res/escalate-dispute w 0 alice bad-fn)]
+          r (res/escalate-dispute w 0 alice bad-fn)]
       (is (false? (:ok r)))
       (is (= :invalid-new-resolver (:error r)))
       (is (= :disputed (t/escrow-state w 0))
@@ -303,43 +303,32 @@
             "Priority 1 exclusive to custom-resolver before window expiry")))))
 
 (deftest execute-resolution-custom-resolver-any-caller-after-response-window
-  (testing "Custom-resolver escrow: after response window expiry, any caller may resolve (emergency override)"
+  (testing "Custom-resolver escrow: expiry does not grant arbitrary authority"
     (let [w (-> (base-world 1800 {:custom-resolver resolver})
                 (assoc-in [:module-snapshots 0 :resolver-response-window] 60)
                 (time-ctx/advance-time {:to 1100})
                 project-legacy-time)]
       (is (true? (sm/resolver-response-exceeded? w 0))
           "response window should be expired")
-      (let [r (res/execute-resolution w 0 carol true "0xhash" nil)]
-        (is (true? (:ok r))
-            "non-custom-resolver caller authorized after window expiry (emergency override)"))
-      (testing "custom-resolver itself is also still authorized"
-        (let [r (res/execute-resolution w 0 resolver true "0xhash" nil)]
-          (is (true? (:ok r))
-              "custom-resolver should still be authorized"))))))
+      (doseq [is-release [true false]]
+        (let [r (res/execute-resolution w 0 carol is-release "0xhash" nil)]
+          (is (false? (:ok r)))
+          (is (= :not-authorized-fallback-resolver (:error r))
+              "expiry must not authorize arbitrary release/refund callers"))))))
 
 (deftest execute-resolution-non-custom-anyone-after-response-window
-  (testing "Non-custom escrow: after response-window expiry, any caller can resolve"
+  (testing "Non-custom escrow: expiry does not authorize arbitrary release/refund callers"
     (let [w (-> (base-world 1800)
                 (assoc-in [:module-snapshots 0 :resolver-response-window] 60)
                 (assoc-in [:dispute-levels 0] t/max-dispute-level)
                 (time-ctx/advance-time {:to 1100})
                 project-legacy-time)]
       (is (true? (sm/resolver-response-exceeded? w 0)))
-      (let [r (res/execute-resolution w 0 carol true "0xhash" nil)]
-        (is (true? (:ok r))
-            "arbitrary caller authorized after response window expiry")
-        (is (= :released (t/escrow-state (:world r) 0)))))
-    (testing "Before response-window expiry: non-resolver caller rejected"
-      (let [w (-> (base-world 1800)
-                  (assoc-in [:module-snapshots 0 :resolver-response-window] 60)
-                  (assoc-in [:dispute-levels 0] t/max-dispute-level)
-                  project-legacy-time)]
-        (is (false? (sm/resolver-response-exceeded? w 0)))
-        (let [r (res/execute-resolution w 0 carol true "0xhash" nil)]
-          (is (false? (:ok r))
-              "non-resolver caller before window expiry must be rejected")
-          (is (= :not-authorized-resolver (:error r))))))))
+      (doseq [is-release [true false]]
+        (let [r (res/execute-resolution w 0 carol is-release "0xhash" nil)]
+          (is (false? (:ok r)))
+          (is (= :not-authorized-fallback-resolver (:error r))
+              "expiry must not authorize arbitrary release/refund callers"))))))
 
 (deftest execute-resolution-module-authorizes-fallback-not-resolver
   (testing "Resolution module can authorize a non-fallback resolver (Priority 2) before response window"
@@ -567,17 +556,17 @@
   [world]
   (with-pending world 0 true 100000))
 
- (defn- after-cooldown
-   "Advance world past escalation cooldown for caller at a given dispute level.
+(defn- after-cooldown
+  "Advance world past escalation cooldown for caller at a given dispute level.
     Reads the level-specific cooldown timestamp set by escalation at that level."
-   [w caller level]
-   (let [last-esc (get-in w [:last-escalation-block-time-per-addr caller level])
-         target   (if (some? last-esc)
-                    (+ last-esc time-ctx/seconds-per-day 1)
-                    (time-ctx/block-ts w))]
-     (-> w
-         (time-ctx/advance-time {:to target})
-         project-legacy-time)))
+  [w caller level]
+  (let [last-esc (get-in w [:last-escalation-block-time-per-addr caller level])
+        target (if (some? last-esc)
+                 (+ last-esc time-ctx/seconds-per-day 1)
+                 (time-ctx/block-ts w))]
+    (-> w
+        (time-ctx/advance-time {:to target})
+        project-legacy-time)))
 
 (deftest bond-scaling-first-vs-second-escalation-same-caller
   (let [w0 (bond-world)
@@ -587,9 +576,9 @@
         "first escalation posts base bond (esc-count=0)")
     (is (= 1 (get-in (:world r1) [:escalation-counts-per-addr alice]))
         "escalation count = 1 after first")
-     (let [w1 (-> (re-pend (:world r1) 100000)
-                  (after-cooldown alice 1))
-           r2 (res/escalate-dispute w1 0 alice (make-escalation-fn senior-resolver))]
+    (let [w1 (-> (re-pend (:world r1) 100000)
+                 (after-cooldown alice 1))
+          r2 (res/escalate-dispute w1 0 alice (make-escalation-fn senior-resolver))]
       (is (true? (:ok r2)))
       (is (= 2 (get-in (:world r2) [:escalation-counts-per-addr alice]))
           "escalation count = 2 after second")
@@ -602,7 +591,7 @@
   (let [w0 (bond-world)
         r1 (res/escalate-dispute w0 0 alice (make-escalation-fn senior-resolver))]
     (is (true? (:ok r1)))
-     (let [w1 (re-pend (:world r1) 100000)
+    (let [w1 (re-pend (:world r1) 100000)
           r2 (res/escalate-dispute w1 0 bob (make-escalation-fn senior-resolver))]
       (is (true? (:ok r2)))
       (is (= bond-amount (get-in (:world r2) [:bond-balances 0 bob]))

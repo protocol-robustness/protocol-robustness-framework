@@ -2,20 +2,22 @@
   "Tests for contract_model/resolution.clj."
   (:require [resolver-sim.protocols.sew.snapshot-fixtures :as snap-fix]
             [clojure.test :refer [deftest is testing]]
-            [resolver-sim.protocols.protocol       :as proto]
-            [resolver-sim.protocols.sew.types      :as t]
-            [resolver-sim.protocols.sew.lifecycle  :as lc]
-            [resolver-sim.protocols.sew.authority  :as auth]
+            [resolver-sim.protocols.protocol :as proto]
+            [resolver-sim.protocols.sew.types :as t]
+            [resolver-sim.protocols.sew.lifecycle :as lc]
+            [resolver-sim.protocols.sew.authority :as auth]
             [resolver-sim.protocols.sew.resolution :as res]
-            [resolver-sim.protocols.sew            :as sew]
-            [resolver-sim.contract-model.replay     :as replay]
-            [resolver-sim.time.context :as time-ctx]))
+            [resolver-sim.protocols.sew.dispute-ruling :as ruling]
+            [resolver-sim.protocols.sew :as sew]
+            [resolver-sim.contract-model.replay :as replay]
+            [resolver-sim.time.context :as time-ctx]
+            [resolver-sim.hash.canonical :as hc]))
 
-(def alice    "0xAlice")
-(def bob      "0xBob")
+(def alice "0xAlice")
+(def bob "0xBob")
 (def resolver "0xResolver")
-(def carol    "0xCarol")
-(def usdc     "0xUSDC")
+(def carol "0xCarol")
+(def usdc "0xUSDC")
 
 (defn- ^:private project-legacy-time
   "Set legacy :block-time from canonical temporal context."
@@ -25,21 +27,41 @@
 (defn- base-world
   "World with one :disputed escrow, block-time=1000, appeal-window as given."
   [appeal-window-duration]
-  (let [snap (snap-fix/escrow-snapshot {:escrow-fee-bps        50
-                                        :max-dispute-duration  3600
+  (let [snap (snap-fix/escrow-snapshot {:escrow-fee-bps 50
+                                        :max-dispute-duration 3600
                                         :appeal-window-duration appeal-window-duration})
-        w0   (time-ctx/ensure-temporal-context (t/empty-world 1000))
-        r    (lc/create-escrow w0 alice usdc bob 1000
-                               (t/make-escrow-settings {}) snap)
-        w    (:world r)]
+        w0 (time-ctx/ensure-temporal-context (t/empty-world 1000))
+        r (lc/create-escrow w0 alice usdc bob 1000
+                            (t/make-escrow-settings {}) snap)
+        w (:world r)]
     (-> w
-        (assoc-in [:escrow-transfers 0 :escrow-state]     :disputed)
-        (assoc-in [:escrow-transfers 0 :sender-status]    :raise-dispute)
+        (assoc-in [:escrow-transfers 0 :escrow-state] :disputed)
+        (assoc-in [:escrow-transfers 0 :sender-status] :raise-dispute)
         (assoc-in [:escrow-transfers 0 :dispute-resolver] resolver)
         (assoc-in [:dispute-timestamps 0] 1000)
         project-legacy-time)))
 
 (def direct-resolver-fn nil)  ; no module — use direct resolver
+
+(defn- ruling-root [x]
+  (str "sha256:" (hc/domain-hash :evidence-record {:x x})))
+
+(defn- final-ruling
+  ([outcome] (final-ruling outcome :final))
+  ([outcome status]
+   (ruling/build-dispute-ruling
+    {:ruling/dispute-root (ruling-root :dispute)
+     :ruling/authority-root (ruling-root :authority)
+     :ruling/provider :kleros
+     :ruling/external-dispute-id "42"
+     :ruling/external-ruling-id "7"
+     :ruling/round 0
+     :ruling/outcome outcome
+     :ruling/status status
+     :ruling/evidence-root (ruling-root :evidence)
+     :ruling/policy-root (ruling-root :policy)
+     :ruling/issued-at 1000
+     :ruling/authentication-root (ruling-root :authentication)})))
 
 ;; ---------------------------------------------------------------------------
 ;; execute-resolution: with appeal window
@@ -143,6 +165,38 @@
   (let [r (res/execute-resolution (base-world 0) 0 carol true "0xhash" direct-resolver-fn)]
     (is (false? (:ok r)))
     (is (= :not-authorized-resolver (:error r)))))
+
+(deftest execute-resolution-with-ruling-derives-disposition-from-authenticated-ruling
+  (let [ruling (final-ruling :refund)
+        verifier (fn [_world workflow-id _caller artifact]
+                   {:authenticated? true
+                    :workflow-id workflow-id
+                    :authority-root (:ruling/authority-root artifact)})
+        result (res/execute-resolution-with-ruling
+                (base-world 0) 0 carol ruling verifier direct-resolver-fn)]
+    (is (:ok result))
+    (is (= :refunded (t/escrow-state (:world result) 0)))
+    (is (= (:ruling/root ruling)
+           (get-in (:world result) [:escrow-transfers 0 :resolution :ruling-root])))))
+
+(deftest execute-resolution-with-ruling-fails-closed
+  (let [ruling (final-ruling :release)
+        w (base-world 0)]
+    (is (= :missing-ruling-verifier
+           (:error (res/execute-resolution-with-ruling w 0 carol ruling nil direct-resolver-fn))))
+    (is (= :unauthenticated-dispute-ruling
+           (:error (res/execute-resolution-with-ruling
+                    w 0 carol ruling
+                    (fn [& _] {:authenticated? false})
+                    direct-resolver-fn))))
+    (is (= :ruling-not-final
+           (:error (res/execute-resolution-with-ruling
+                    w 0 carol (final-ruling :release :appealable)
+                    (fn [_ workflow-id _ artifact]
+                      {:authenticated? true
+                       :workflow-id workflow-id
+                       :authority-root (:ruling/authority-root artifact)})
+                    direct-resolver-fn))))))
 
 (deftest execute-resolution-not-disputed
   (let [w (assoc-in (base-world 0) [:escrow-transfers 0 :escrow-state] :pending)
@@ -329,18 +383,18 @@
    level-1 resolution has been submitted, so there is no active decision. Once
    P0's deadline passes, a keeper finalizes on the recovered level-0 decision,
    and the result records the recovery origin (level + supersession reason)."
-  (let [w0         (base-world 1800)                 ;; block 1000, level 0
-        esc-fn     (fn [world wf caller level] {:ok true :new-resolver "0xLevel1"})
-        r0         (res/execute-resolution w0 0 resolver true "0xhash-level0" direct-resolver-fn)
-        w1         (:world r0)
+  (let [w0 (base-world 1800)                 ;; block 1000, level 0
+        esc-fn (fn [world wf caller level] {:ok true :new-resolver "0xLevel1"})
+        r0 (res/execute-resolution w0 0 resolver true "0xhash-level0" direct-resolver-fn)
+        w1 (:world r0)
         pending-l0 (t/get-pending w1 0)
-        w1'        (time-ctx/advance-time w1 {:to 2000})
-        r-esc      (res/escalate-dispute w1' 0 bob esc-fn)
-        w2         (:world r-esc)
-        archived   (first (get-in w2 [:superseded-pending-settlements 0]))
-        w3         (time-ctx/advance-time w2 {:to 3000})   ;; P0 deadline (2800) passed
-        r-exec     (res/execute-pending-settlement w3 0)
-        recovered  (get-in r-exec [:extra :settlement/recovered-from-superseded])]
+        w1' (time-ctx/advance-time w1 {:to 2000})
+        r-esc (res/escalate-dispute w1' 0 bob esc-fn)
+        w2 (:world r-esc)
+        archived (first (get-in w2 [:superseded-pending-settlements 0]))
+        w3 (time-ctx/advance-time w2 {:to 3000})   ;; P0 deadline (2800) passed
+        r-exec (res/execute-pending-settlement w3 0)
+        recovered (get-in r-exec [:extra :settlement/recovered-from-superseded])]
     (is (:ok r0) "level-0 resolution accepted")
     (is (:exists pending-l0) "level-0 pending created")
     (is (= 2800 (:appeal-deadline pending-l0)) "P0 deadline = 1000 + 1800")
@@ -365,16 +419,16 @@
    replacement produced at level 1, automate-timed-actions settles from the
    recovered decision once its appeal window elapses — not while the window is
    open, and not via the dispute-timeout refund path."
-  (let [w0     (base-world 1800)                     ;; block 1000, level 0
+  (let [w0 (base-world 1800)                     ;; block 1000, level 0
         esc-fn (fn [world wf caller level] {:ok true :new-resolver "0xLevel1"})
-        r0     (res/execute-resolution w0 0 resolver true "0xhash-level0" direct-resolver-fn)
-        r-esc  (res/escalate-dispute
-                (time-ctx/advance-time (:world r0) {:to 2000}) 0 bob esc-fn)
+        r0 (res/execute-resolution w0 0 resolver true "0xhash-level0" direct-resolver-fn)
+        r-esc (res/escalate-dispute
+               (time-ctx/advance-time (:world r0) {:to 2000}) 0 bob esc-fn)
         ;; Archived P0 deadline = 2800; max-dispute-duration expires at 4600.
-        early  (res/automate-timed-actions
-                (time-ctx/advance-time (:world r-esc) {:to 2500}) 0)
-        late   (res/automate-timed-actions
-                (time-ctx/advance-time (:world r-esc) {:to 3000}) 0)]
+        early (res/automate-timed-actions
+               (time-ctx/advance-time (:world r-esc) {:to 2500}) 0)
+        late (res/automate-timed-actions
+              (time-ctx/advance-time (:world r-esc) {:to 3000}) 0)]
     (is (:ok r-esc) "escalation accepted")
     (testing "while the recovered decision's window is open, the keeper must not act"
       (is (= :none (:action early)))
@@ -392,13 +446,13 @@
   "REGRESSION: a superseded pending must NOT be recovered once a newer decision
    has been submitted at the active level — the active pending takes precedence
    and no recovery marker is recorded."
-  (let [w0     (base-world 1800)                     ;; block 1000, level 0
+  (let [w0 (base-world 1800)                     ;; block 1000, level 0
         esc-fn (fn [world wf caller level] {:ok true :new-resolver "0xLevel1"})
-        r0     (res/execute-resolution w0 0 resolver true "0xhash-level0" direct-resolver-fn)
-        w1     (time-ctx/advance-time (:world r0) {:to 2000})
-        r-esc  (res/escalate-dispute w1 0 bob esc-fn)
-        r-l1   (res/execute-resolution (:world r-esc) 0 "0xLevel1" false "0xhash-level1" direct-resolver-fn)
-        w3     (time-ctx/advance-time (:world r-l1) {:to 5000}) ;; P0 deadline passed; P1 active
+        r0 (res/execute-resolution w0 0 resolver true "0xhash-level0" direct-resolver-fn)
+        w1 (time-ctx/advance-time (:world r0) {:to 2000})
+        r-esc (res/escalate-dispute w1 0 bob esc-fn)
+        r-l1 (res/execute-resolution (:world r-esc) 0 "0xLevel1" false "0xhash-level1" direct-resolver-fn)
+        w3 (time-ctx/advance-time (:world r-l1) {:to 5000}) ;; P0 deadline passed; P1 active
         r-exec (res/execute-pending-settlement w3 0)]
     (is (:ok r-esc) "escalation accepted")
     (is (:ok r-l1) "level-1 replacement resolution accepted")
@@ -420,9 +474,9 @@
                      (assoc-in [:yield/rates :fixed-rate "USDC"] 0.50))  ;; 50% APY to ensure measurable yield quickly
           snapshot (snap-fix/escrow-snapshot {:yield-generation-module :fixed-rate})
           {:keys [world workflow-id]} (lc/create-escrow
-                                        world0 "0xAlice" "USDC" "0xBob" 10000
-                                        (t/make-escrow-settings {:yield-preset :to-recipient})
-                                        snapshot)
+                                       world0 "0xAlice" "USDC" "0xBob" 10000
+                                       (t/make-escrow-settings {:yield-preset :to-recipient})
+                                       snapshot)
           ;; Advance 1 year so yield is clearly positive
           world1 (-> world
                      (time-ctx/advance-time {:seconds 31536000})
@@ -482,7 +536,7 @@
 (deftest automate-dispatches-auto-release
   (let [w (-> (base-world 0)
               (time-ctx/advance-time {:to 5000})
-              (assoc-in [:escrow-transfers 0 :escrow-state]    :pending)
+              (assoc-in [:escrow-transfers 0 :escrow-state] :pending)
               (assoc-in [:escrow-transfers 0 :auto-release-time] 4000))
         r (res/automate-timed-actions w 0)]
     (is (true? (:ok r)))
@@ -492,7 +546,7 @@
 (deftest automate-dispatches-auto-cancel
   (let [w (-> (base-world 0)
               (time-ctx/advance-time {:to 5000})
-              (assoc-in [:escrow-transfers 0 :escrow-state]   :pending)
+              (assoc-in [:escrow-transfers 0 :escrow-state] :pending)
               (assoc-in [:escrow-transfers 0 :auto-cancel-time] 4000))
         r (res/automate-timed-actions w 0)]
     (is (true? (:ok r)))
@@ -510,14 +564,14 @@
 ;; ---------------------------------------------------------------------------
 
 (deftest escalation-cancels-pending-settlement
-  (let [w  (-> (base-world 0)
-               (assoc-in [:pending-settlements 0]
-                         (t/make-pending-settlement {:exists true :is-release true
-                                                     :appeal-deadline 5000
-                                                     :resolution-hash "0xhash"})))
+  (let [w (-> (base-world 0)
+              (assoc-in [:pending-settlements 0]
+                        (t/make-pending-settlement {:exists true :is-release true
+                                                    :appeal-deadline 5000
+                                                    :resolution-hash "0xhash"})))
         esc-fn (fn [_world _wf _caller _level]
                  {:ok true :new-resolver "0xSenior"})
-        r  (res/escalate-dispute w 0 alice esc-fn)
+        r (res/escalate-dispute w 0 alice esc-fn)
         w' (:world r)]
     (is (true? (:ok r)))
     (is (nil? (get-in w' [:pending-settlements 0]))
@@ -556,8 +610,8 @@
     (project-legacy-time w)))
 
 (deftest escalate-dispute-ok
-  (let [w   (-> (base-world 0) (with-pending 0 true 5000))
-        r   (res/escalate-dispute w 0 alice (make-escalation-fn senior-resolver))]
+  (let [w (-> (base-world 0) (with-pending 0 true 5000))
+        r (res/escalate-dispute w 0 alice (make-escalation-fn senior-resolver))]
     (testing "returns ok"
       (is (true? (:ok r))))
     (testing "level increments to 1"
@@ -603,7 +657,7 @@
                (assoc-in [:bond-balances 0] {})
                (assoc-in [:escrow-transfers 0 :from] alice)
                (assoc-in [:escrow-transfers 0 :to] bob))
-        r  (res/escalate-dispute w0 0 carol (make-escalation-fn senior-resolver))]
+        r (res/escalate-dispute w0 0 carol (make-escalation-fn senior-resolver))]
     (is (false? (:ok r)))
     (is (= :not-participant (:error r)))
     (is (= :disputed (t/escrow-state w0 0))
@@ -625,14 +679,14 @@
   "Boundary behavior: escalation is allowed at t-1 and rejected at t.
    This protects pending finality exactly at the appeal deadline."
   (let [esc-fn (make-escalation-fn senior-resolver)
-        w-t-1  (-> (base-world 0)
-                   (time-ctx/advance-time {:to 4999})
-                   (with-pending 0 true 5000))
-        r-t-1  (res/escalate-dispute w-t-1 0 alice esc-fn)
-        w-t    (-> (base-world 0)
-                   (time-ctx/advance-time {:to 5000})
-                   (with-pending 0 true 5000))
-        r-t    (res/escalate-dispute w-t 0 alice esc-fn)]
+        w-t-1 (-> (base-world 0)
+                  (time-ctx/advance-time {:to 4999})
+                  (with-pending 0 true 5000))
+        r-t-1 (res/escalate-dispute w-t-1 0 alice esc-fn)
+        w-t (-> (base-world 0)
+                (time-ctx/advance-time {:to 5000})
+                (with-pending 0 true 5000))
+        r-t (res/escalate-dispute w-t 0 alice esc-fn)]
     (is (true? (:ok r-t-1)) "t-1 should still be appealable")
     (is (false? (:ok r-t)) "t should be expired for appeal")
     (is (= :appeal-window-expired (:error r-t)))))
@@ -647,8 +701,8 @@
 
 (deftest escalate-dispute-module-refusal
   (let [refusing-fn (fn [_w _wf _caller _level] {:ok false :error :module-declined})
-        w           (-> (base-world 0) (with-pending 0 true 5000))
-        r           (res/escalate-dispute w 0 alice refusing-fn)]
+        w (-> (base-world 0) (with-pending 0 true 5000))
+        r (res/escalate-dispute w 0 alice refusing-fn)]
     (is (false? (:ok r)))
     (is (= :module-declined (:error r)))))
 
@@ -665,11 +719,11 @@
                (time-ctx/with-temporal-context {:block-ts 173802})
                (with-pending 0 true 180000))
         r3 (res/escalate-dispute w2 0 alice (make-escalation-fn "0xAnother"))]
-    (is (true?  (:ok r1)) "first escalation ok")
-    (is (= 1    (t/dispute-level (:world r1) 0)))
-    (is (true?  (:ok r2)) "second escalation ok")
-    (is (= 2    (t/dispute-level (:world r2) 0)))
-    (is (true?  (t/final-round? (:world r2) 0)) "level 2 is final")
+    (is (true? (:ok r1)) "first escalation ok")
+    (is (= 1 (t/dispute-level (:world r1) 0)))
+    (is (true? (:ok r2)) "second escalation ok")
+    (is (= 2 (t/dispute-level (:world r2) 0)))
+    (is (true? (t/final-round? (:world r2) 0)) "level 2 is final")
     (is (false? (:ok r3)) "third escalation rejected")
     (is (= :escalation-not-allowed (:error r3)))))
 
@@ -707,29 +761,29 @@
 (deftest emit-decision-evidence-best-effort-on-failure
   (testing "The try/catch in emit-decision-evidence! catches evidence-chain failures
             so the resolution can still complete."
-  (let [info {:decision-id "resolve-0-0"
-              :step 1000
-              :alternatives [:release :refund]
-              :selected :release
-              :reasoning "Resolver released escrow"
-              :caller "0xResolver"
-              :workflow-id 0}]
-    (is (map? (res/emit-decision-evidence! info))
-        "happy path returns a map")
-    (is (string? (:evidence-hash (res/emit-decision-evidence! info)))
-        "evidence-hash should be a string")
-    (is (map? (res/emit-decision-evidence! nil))
-        "nil input returns a map without throwing (defensive try/catch no-ops)"))))
+    (let [info {:decision-id "resolve-0-0"
+                :step 1000
+                :alternatives [:release :refund]
+                :selected :release
+                :reasoning "Resolver released escrow"
+                :caller "0xResolver"
+                :workflow-id 0}]
+      (is (map? (res/emit-decision-evidence! info))
+          "happy path returns a map")
+      (is (string? (:evidence-hash (res/emit-decision-evidence! info)))
+          "evidence-hash should be a string")
+      (is (map? (res/emit-decision-evidence! nil))
+          "nil input returns a map without throwing (defensive try/catch no-ops)"))))
 
 ;; ---------------------------------------------------------------------------
 ;; replay: escalate_dispute action
 ;; ---------------------------------------------------------------------------
 
 (deftest replay-escalate-dispute-action
-  (let [agents  [{:id "alice"    :address alice    :type "honest"}
-                 {:id "bob"      :address bob       :type "honest"}
-                 {:id "resolver" :address resolver  :type "resolver"}]
-        esc-fn  (make-escalation-fn senior-resolver)
+  (let [agents [{:id "alice" :address alice :type "honest"}
+                {:id "bob" :address bob :type "honest"}
+                {:id "resolver" :address resolver :type "resolver"}]
+        esc-fn (make-escalation-fn senior-resolver)
         context (proto/build-execution-context sew/protocol agents
                                                {:resolver-fee-bps 50
                                                 :escalation-resolvers {:1 senior-resolver}})
@@ -738,19 +792,19 @@
         ;; The escrow's held-adjustment history is complete and zero-origin, so
         ;; declare it: otherwise the custody reconstruction invariants report
         ;; :not-evaluated-incomplete-history and reject the step.
-        world   (-> (base-world 0)
-                    (with-pending 0 true 5000)
-                    (assoc-in [:dispute-timestamps 0] 1000)
-                    (assoc-in [:escrow-transfers 0 :resolution]
-                              {:resolved-by resolver
-                               :is-release true
-                               :resolution-hash "0xhash"})
-                    (assoc-in [:params :held-adjustments/complete?] true))
-        event   {:seq 0 :time 1000 :agent "alice" :action "escalate_dispute"
-                 :params {:workflow-id 0}}
-        step    (replay/process-step sew/protocol context world event)]
+        world (-> (base-world 0)
+                  (with-pending 0 true 5000)
+                  (assoc-in [:dispute-timestamps 0] 1000)
+                  (assoc-in [:escrow-transfers 0 :resolution]
+                            {:resolved-by resolver
+                             :is-release true
+                             :resolution-hash "0xhash"})
+                  (assoc-in [:params :held-adjustments/complete?] true))
+        event {:seq 0 :time 1000 :agent "alice" :action "escalate_dispute"
+               :params {:workflow-id 0}}
+        step (replay/process-step sew/protocol context world event)]
     (is (= :ok (get-in step [:trace-entry :result])))
-    (is (= 1   (t/dispute-level (:world step) 0)))
+    (is (= 1 (t/dispute-level (:world step) 0)))
     (is (= senior-resolver
            (get-in (:world step) [:escrow-transfers 0 :dispute-resolver])))))
 
@@ -768,7 +822,7 @@
                (assoc-in [:module-snapshots 0 :challenge-bond-bps] 500)
                (assoc-in [:dispute-timestamps 0] 1000)
                (assoc-in [:bond-balances 0] {}))
-        r  (res/challenge-resolution w0 0 carol (make-escalation-fn senior-resolver))
+        r (res/challenge-resolution w0 0 carol (make-escalation-fn senior-resolver))
         w1 (:world r)]
     (is (true? (:ok r)))
     (is (= 1 (t/dispute-level w1 0)))
@@ -781,16 +835,16 @@
   "Boundary behavior: challenge is allowed at t-1 and rejected at t.
    Open challengers must still respect exact deadline finality."
   (let [esc-fn (make-escalation-fn senior-resolver)
-        w-t-1  (-> (base-world 0)
-                   (time-ctx/with-temporal-context {:block-ts 4999})
-                   (with-pending 0 true 5000)
-                   (assoc-in [:bond-balances 0] {}))
-        r-t-1  (res/challenge-resolution w-t-1 0 carol esc-fn)
-        w-t    (-> (base-world 0)
-                   (time-ctx/with-temporal-context {:block-ts 5000})
-                   (with-pending 0 true 5000)
-                   (assoc-in [:bond-balances 0] {}))
-        r-t    (res/challenge-resolution w-t 0 carol esc-fn)]
+        w-t-1 (-> (base-world 0)
+                  (time-ctx/with-temporal-context {:block-ts 4999})
+                  (with-pending 0 true 5000)
+                  (assoc-in [:bond-balances 0] {}))
+        r-t-1 (res/challenge-resolution w-t-1 0 carol esc-fn)
+        w-t (-> (base-world 0)
+                (time-ctx/with-temporal-context {:block-ts 5000})
+                (with-pending 0 true 5000)
+                (assoc-in [:bond-balances 0] {}))
+        r-t (res/challenge-resolution w-t 0 carol esc-fn)]
     (is (true? (:ok r-t-1)) "t-1 should still be challengeable")
     (is (false? (:ok r-t)) "t should be expired for challenge")
     (is (= :appeal-window-expired (:error r-t)))))
@@ -799,12 +853,12 @@
   "At exact deadline, executing pending settlement first should finalize dispute,
    and a same-timestamp escalation attempt must then be rejected."
   (let [esc-fn (make-escalation-fn senior-resolver)
-        w0     (-> (base-world 0)
-                   (time-ctx/advance-time {:to 5000})
-                   (with-pending 0 true 5000))
+        w0 (-> (base-world 0)
+               (time-ctx/advance-time {:to 5000})
+               (with-pending 0 true 5000))
         r-exec (res/execute-pending-settlement w0 0)
-        w1     (:world r-exec)
-        r-esc  (res/escalate-dispute w1 0 alice esc-fn)]
+        w1 (:world r-exec)
+        r-esc (res/escalate-dispute w1 0 alice esc-fn)]
     (is (true? (:ok r-exec)))
     (is (= :released (t/escrow-state w1 0)))
     (is (false? (:ok r-esc)))
@@ -813,14 +867,14 @@
 (deftest deadline-ordering-escalate-then-execute
   "At exact deadline, escalation/challenge should be expired, and same-timestamp
    pending execution should still succeed immediately afterward."
-  (let [esc-fn  (make-escalation-fn senior-resolver)
-        w-base  (-> (base-world 0)
-                    (time-ctx/advance-time {:to 5000})
-                    (with-pending 0 true 5000)
-                    (assoc-in [:bond-balances 0] {}))
-        r-esc   (res/escalate-dispute w-base 0 alice esc-fn)
-        r-chal  (res/challenge-resolution w-base 0 carol esc-fn)
-        r-exec  (res/execute-pending-settlement w-base 0)]
+  (let [esc-fn (make-escalation-fn senior-resolver)
+        w-base (-> (base-world 0)
+                   (time-ctx/advance-time {:to 5000})
+                   (with-pending 0 true 5000)
+                   (assoc-in [:bond-balances 0] {}))
+        r-esc (res/escalate-dispute w-base 0 alice esc-fn)
+        r-chal (res/challenge-resolution w-base 0 carol esc-fn)
+        r-exec (res/execute-pending-settlement w-base 0)]
     (is (false? (:ok r-esc)))
     (is (= :appeal-window-expired (:error r-esc)))
     (is (false? (:ok r-chal)))
@@ -832,23 +886,23 @@
   "Matrix coverage for ordering semantics at boundary times:
    t=deadline-1, t=deadline, t=deadline+1 for both execute->escalate and escalate->execute."
   (let [esc-fn (make-escalation-fn senior-resolver)
-        cases [{:label :deadline-minus-1 :time 4999 :expect-escalate-ok? true  :expect-exec-ok? false}
-               {:label :deadline-exact   :time 5000 :expect-escalate-ok? false :expect-exec-ok? true}
-               {:label :deadline-plus-1  :time 5001 :expect-escalate-ok? false :expect-exec-ok? true}]]
+        cases [{:label :deadline-minus-1 :time 4999 :expect-escalate-ok? true :expect-exec-ok? false}
+               {:label :deadline-exact :time 5000 :expect-escalate-ok? false :expect-exec-ok? true}
+               {:label :deadline-plus-1 :time 5001 :expect-escalate-ok? false :expect-exec-ok? true}]]
     (doseq [{:keys [label time expect-escalate-ok? expect-exec-ok?]} cases]
       (testing (str "execute->escalate at " label)
-        (let [w0     (-> (base-world 0)
-                         (time-ctx/with-temporal-context {:block-ts time})
-                         (with-pending 0 true 5000))
+        (let [w0 (-> (base-world 0)
+                     (time-ctx/with-temporal-context {:block-ts time})
+                     (with-pending 0 true 5000))
               r-exec (res/execute-pending-settlement w0 0)
-              w1     (if (:ok r-exec) (:world r-exec) w0)
-              r-esc  (res/escalate-dispute w1 0 alice esc-fn)]
+              w1 (if (:ok r-exec) (:world r-exec) w0)
+              r-esc (res/escalate-dispute w1 0 alice esc-fn)]
           (is (= expect-exec-ok? (:ok r-exec)))
           (is (= expect-escalate-ok? (:ok r-esc)))))
       (testing (str "escalate->execute at " label)
-        (let [w0     (-> (base-world 0) (time-ctx/advance-time {:to time}) (with-pending 0 true 5000))
-              r-esc  (res/escalate-dispute w0 0 alice esc-fn)
-              w1     (if (:ok r-esc) (:world r-esc) w0)
+        (let [w0 (-> (base-world 0) (time-ctx/advance-time {:to time}) (with-pending 0 true 5000))
+              r-esc (res/escalate-dispute w0 0 alice esc-fn)
+              w1 (if (:ok r-esc) (:world r-esc) w0)
               r-exec (res/execute-pending-settlement w1 0)]
           (is (= expect-escalate-ok? (:ok r-esc)))
           (is (= expect-exec-ok? (:ok r-exec))))))))
