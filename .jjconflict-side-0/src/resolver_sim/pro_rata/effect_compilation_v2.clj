@@ -28,11 +28,11 @@
     {:liquidity/root liquidity
      :by-key by-key}))
 
-(defn compile-all-active
-  "Compile only the currently frozen all-active profile. Deferred, haircut,
-   rejected, residual, and other disposition semantics are intentionally not
-   inferred by this v2 profile."
-  [{:keys [allocation target-map allocation-policy-root effect-compilation-semantics-root]}]
+(defn all-active-effects
+  "Derive the normalized effects for the frozen all-active profile. This is the
+   sole all-active compilation implementation; its callers may choose whether
+   to retain the effect body or only its committed root."
+  [allocation target-map]
   (when-not (and (zero? (:unallocated-residual allocation))
                  (every? #(zero? (:unmet %)) (:rows allocation)))
     (throw (ex-info "all-active compilation rejects non-full allocation" {})))
@@ -43,11 +43,18 @@
                                       [row-id {:filled/root (get by-key [row-id :filled])
                                                :outstanding/root (get by-key [row-id :outstanding])}]))
                                   (:rows allocation)))
-                       :liquidity/root root)
-        _ (doseq [[row-id mapping] (dissoc targets :liquidity/root)]
-            (when-not (every? string? (vals mapping))
-              (throw (ex-info "target map lacks all-active row targets" {:row/id row-id}))))
-        effects (effects/compile-pro-rata-effects allocation targets)
+                       :liquidity/root root)]
+    (doseq [[row-id mapping] (dissoc targets :liquidity/root)]
+      (when-not (every? string? (vals mapping))
+        (throw (ex-info "target map lacks all-active row targets" {:row/id row-id}))))
+    (effects/compile-pro-rata-effects allocation targets)))
+
+(defn compile-all-active
+  "Compile only the currently frozen all-active profile. Deferred, haircut,
+   rejected, residual, and other disposition semantics are intentionally not
+   inferred by this v2 profile."
+  [{:keys [allocation target-map allocation-policy-root effect-compilation-semantics-root]}]
+  (let [effects (all-active-effects allocation target-map)
         base {:schema-version schema-version
               :realized-allocation/root (:allocation/hash allocation)
               :allocation-policy/root allocation-policy-root

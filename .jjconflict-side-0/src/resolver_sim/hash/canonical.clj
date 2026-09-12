@@ -104,6 +104,7 @@
    :pro-rata-allocation-state-transition "PRO_RATA_ALLOCATION_STATE_TRANSITION_V1"
    :pro-rata-proof-provenance "PRO_RATA_PROOF_PROVENANCE_V1"
    :pro-rata-evm-v1 "PRO_RATA_EVM_V1"
+   :pro-rata-evm-v2 "PRO_RATA_EVM_V2"
    :pro-rata-capability-output-v1 "PRO_RATA_CAPABILITY_OUTPUT_V1"
    :pro-rata-capability-output-v2 "PRO_RATA_CAPABILITY_OUTPUT_V2"
    :pro-rata-invocation-publication-binding-v1 "PRO_RATA_INVOCATION_PUBLICATION_BINDING_V1"
