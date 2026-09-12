@@ -10,7 +10,8 @@
             [resolver-sim.pro-rata.invocation-publication-binding :as binding]
             [resolver-sim.pro-rata.invocation-publication-binding-test :as fixture]
             [resolver-sim.pro-rata.publication :as publication]
-            [resolver-sim.pro-rata.postgres-publication-store :as pg])
+            [resolver-sim.pro-rata.postgres-publication-store :as pg]
+            [resolver-sim.transaction.ordering :as tx-ordering])
   (:import [java.nio.file Files]))
 
 (def ^:dynamic *ds* nil)
@@ -76,6 +77,22 @@
      :backend backend
      :resolver (pg/sealed-durable-resolver backend resolved)}))
 
+(defn- initial-parent-root []
+  (:publication/head-root (publication/initial-application-head)))
+
+(defn- successor-publication [resolved predecessor overrides]
+  (let [ordering (tx-ordering/transaction-ordering
+                  (merge (-> (:publication-ordering resolved)
+                             (dissoc :transaction-ordering/hash)
+                             (assoc :transaction/previous-transaction-hash
+                                    (:transaction-ordering/hash predecessor)
+                                    :transaction/state-before-root
+                                    (:transaction/state-after-root predecessor)
+                                    :transaction/commit-index 2))
+                         overrides))]
+    {:ordering ordering
+     :binding (binding/build-binding (assoc resolved :publication-ordering ordering))}))
+
 (defn- competing-publication [resolved]
   (let [ordering (publication/build-publication-ordering
                   {:receipt (:receipt resolved)
@@ -107,15 +124,18 @@
 (deftest durable-publication-survives-restart-and-is-idempotent
   (let [{:keys [resolved binding ordering resolver backend]} (prepared)
         first-store (pg/postgres-store *ds* {:resolve-durable-artifact resolver})
-        result (pg/publish-application-bound! first-store ordering binding resolved 0)
+        result (pg/publish-application-bound! first-store ordering binding resolved (initial-parent-root) 0)
         reopened-backend (cas/create-store (:root backend))
         second-store (pg/postgres-store *ds* {:resolve-durable-artifact
                                               (pg/sealed-durable-resolver reopened-backend resolved)})
         conflict-key (:transaction/conflict-key ordering)
         resolved-publication (pg/resolve-authoritative-application-publication second-store conflict-key)
-        retry (pg/publish-application-bound! second-store ordering binding resolved 0)]
+        retry (pg/publish-application-bound! second-store ordering binding resolved
+                                             (:publication/head-root (:publication/head result)) 1)]
     (is (= :committed (:status result)))
     (is (= (:publication/head result) (pg/current-head second-store conflict-key)))
+    (is (= 1 (:publication/store-version
+              (pg/current-head-and-version second-store conflict-key))))
     (is (= binding (:publication/binding resolved-publication)))
     (is (= ordering (:publication/ordering resolved-publication)))
     (is (= :idempotent (:status retry)))
@@ -125,7 +145,7 @@
   (let [{:keys [resolved binding ordering resolver]} (prepared)
         store (pg/postgres-store *ds* {:resolve-durable-artifact resolver})
         conflict-key (:transaction/conflict-key ordering)]
-    (pg/publish-application-bound! store ordering binding resolved 0)
+    (pg/publish-application-bound! store ordering binding resolved (initial-parent-root) 0)
     (let [result (pg/resolve-authoritative-publication store conflict-key)]
       (is (= :committed (get-in result [:authority :status])))
       (is (nil? (get-in result [:authority :reason])))
@@ -142,7 +162,7 @@
         store (pg/postgres-store *ds* {:resolve-durable-artifact resolver})
         unavailable-store (pg/postgres-store *ds* {:resolve-durable-artifact (constantly nil)})
         conflict-key (:transaction/conflict-key ordering)]
-    (pg/publish-application-bound! store ordering binding resolved 0)
+    (pg/publish-application-bound! store ordering binding resolved (initial-parent-root) 0)
     (let [result (pg/resolve-authoritative-publication unavailable-store conflict-key)]
       (is (= :committed (get-in result [:authority :status])))
       (is (nil? (get-in result [:authority :reason])))
@@ -158,10 +178,70 @@
         store (pg/postgres-store *ds* {:resolve-durable-artifact resolver})
         conflict-key (:transaction/conflict-key ordering)
         competing (competing-publication resolved)]
-    (is (= :committed (:status (pg/publish-application-bound! store ordering binding resolved 0))))
-    (is (= :contention (:status (pg/publish-application-bound! store (:ordering competing)
-                                                               (:binding competing) resolved 0))))
+    (is (= :committed (:status (pg/publish-application-bound! store ordering binding resolved
+                                                              (initial-parent-root) 0))))
+    (is (= :rejected (:status (pg/publish-application-bound! store (:ordering competing)
+                                                             (:binding competing) resolved
+                                                             (:publication/head-root (pg/current-head store conflict-key))
+                                                             1))))
     (is (= 1 (:publication/sequence (pg/current-head store conflict-key))))))
+
+(deftest publish-requires-current-parent-root-and-store-version
+  (let [{:keys [resolved binding ordering resolver]} (prepared)
+        store (pg/postgres-store *ds* {:resolve-durable-artifact resolver})
+        conflict-key (:transaction/conflict-key ordering)
+        initial-root (initial-parent-root)]
+    (is (thrown? clojure.lang.ExceptionInfo
+                 (pg/publish-application-bound! store ordering binding resolved nil 0)))
+    (is (thrown? clojure.lang.ExceptionInfo
+                 (pg/publish-application-bound! store ordering binding resolved initial-root nil)))
+    (is (= :parent-root-mismatch
+           (:reason (pg/publish-application-bound!
+                     store ordering binding resolved
+                     "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" 0))))
+    (is (= :version-mismatch
+           (:reason (pg/publish-application-bound! store ordering binding resolved initial-root 1))))
+    (is (= (publication/initial-application-head) (pg/current-head store conflict-key))
+        "Fence rejections leave the initial partition head unchanged.")
+    (is (= 0 (:count (jdbc/execute-one! *ds* ["SELECT count(*) AS count FROM prf_economic_publication_ordering"]))))
+    (is (= 0 (:count (jdbc/execute-one! *ds* ["SELECT count(*) AS count FROM prf_economic_publication_binding"]))))))
+
+(deftest elected-stale-parent-cannot-advance-after-another-writer-commits
+  (let [{:keys [resolved binding ordering resolver]} (prepared)
+        store (pg/postgres-store *ds* {:resolve-durable-artifact resolver})
+        conflict-key (:transaction/conflict-key ordering)
+        initial-root (initial-parent-root)
+        committed (pg/publish-application-bound! store ordering binding resolved initial-root 0)
+        stale (pg/publish-application-bound! store ordering binding resolved initial-root 0)]
+    (is (= :committed (:status committed)))
+    (is (= :parent-root-mismatch (:reason stale)))
+    (is (= (:publication/head committed) (pg/current-head store conflict-key)))
+    (is (= 1 (:count (jdbc/execute-one! *ds* ["SELECT count(*) AS count FROM prf_economic_publication_ordering"]))))
+    (is (= 1 (:count (jdbc/execute-one! *ds* ["SELECT count(*) AS count FROM prf_economic_publication_binding"]))))))
+
+(deftest publish-requires-locked-predecessor-semantic-continuity
+  (let [{:keys [resolved binding ordering resolver]} (prepared)
+        store (pg/postgres-store *ds* {:resolve-durable-artifact resolver})
+        conflict-key (:transaction/conflict-key ordering)
+        first (pg/publish-application-bound! store ordering binding resolved (initial-parent-root) 0)
+        head (:publication/head first)
+        cases [[:previous-ordering-root-mismatch
+                {:transaction/previous-transaction-hash
+                 "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}]
+               [:state-continuity-mismatch
+                {:transaction/state-before-root
+                 "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"}]
+               [:commit-index-sequence-mismatch
+                {:transaction/commit-index 3}]]]
+    (doseq [[expected-reason overrides] cases
+            :let [{successor-ordering :ordering successor-binding :binding}
+                  (successor-publication resolved ordering overrides)]]
+      (is (= expected-reason
+             (:reason (pg/publish-application-bound! store successor-ordering successor-binding resolved
+                                                     (:publication/head-root head) 1)))))
+    (is (= head (pg/current-head store conflict-key)))
+    (is (= 1 (:count (jdbc/execute-one! *ds* ["SELECT count(*) AS count FROM prf_economic_publication_ordering"]))))
+    (is (= 1 (:count (jdbc/execute-one! *ds* ["SELECT count(*) AS count FROM prf_economic_publication_binding"]))))))
 
 (deftest injected-transaction-failures-leave-no-authoritative-successor
   (doseq [point [:after-prerequisite-validation :after-ordering-insert
@@ -173,7 +253,8 @@
       (is (thrown? clojure.lang.ExceptionInfo
                    (binding [pg/*transaction-hook*
                              #(when (= point %) (throw (ex-info "injected" {:point point})))]
-                     (pg/publish-application-bound! store ordering pub-binding resolved 0)))
+                     (pg/publish-application-bound! store ordering pub-binding resolved
+                                                    (initial-parent-root) 0)))
           (str point " rolls back"))
       (is (nil? (pg/current-head store conflict-key)))
       (is (= 0 (:count (jdbc/execute-one! *ds* ["SELECT count(*) AS count FROM prf_economic_publication_ordering"]))))
@@ -184,7 +265,7 @@
         store (pg/postgres-store *ds* {:resolve-durable-artifact resolver})
         conflict-key (:transaction/conflict-key ordering)
         root (:pro-rata-invocation-publication-binding/root binding)]
-    (pg/publish-application-bound! store ordering binding resolved 0)
+    (pg/publish-application-bound! store ordering binding resolved (initial-parent-root) 0)
     (jdbc/execute! *ds* ["UPDATE prf_economic_publication_binding SET binding_edn = ? WHERE binding_root = ?"
                          "{:corrupt true}\n" root])
     (is (nil? (pg/resolve-binding store root)))
@@ -192,13 +273,13 @@
 
 (deftest concurrent-same-predecessor-has-one-authoritative-successor
   (let [{:keys [resolved binding ordering resolver]} (prepared)
-        competing (competing-publication resolved)
         a (pg/postgres-store *ds* {:resolve-durable-artifact resolver})
         b (pg/postgres-store *ds* {:resolve-durable-artifact resolver})
         start (promise)
-        fa (future @start (pg/publish-application-bound! a ordering binding resolved 0))
-        fb (future @start (pg/publish-application-bound! b (:ordering competing)
-                                                         (:binding competing) resolved 0))]
+        fa (future @start (pg/publish-application-bound! a ordering binding resolved
+                                                         (initial-parent-root) 0))
+        fb (future @start (pg/publish-application-bound! b ordering binding resolved
+                                                         (initial-parent-root) 0))]
     (deliver start true)
     (let [results [@fa @fb]
           statuses (frequencies (map :status results))
@@ -214,7 +295,7 @@
         store (pg/postgres-store *ds* {:resolve-durable-artifact resolver})
         conflict-key (:transaction/conflict-key ordering)
         partition (pg/partition-id conflict-key)]
-    (pg/publish-application-bound! store ordering binding resolved 0)
+    (pg/publish-application-bound! store ordering binding resolved (initial-parent-root) 0)
     (jdbc/execute! *ds* ["DELETE FROM prf_economic_publication_binding WHERE binding_root = ?"
                          (:pro-rata-invocation-publication-binding/root binding)])
     (is (nil? (pg/resolve-authoritative-application-publication store conflict-key)))
@@ -227,7 +308,7 @@
         store (pg/postgres-store *ds* {:resolve-durable-artifact resolver})
         conflict-key (:transaction/conflict-key ordering)
         binding-root (:pro-rata-invocation-publication-binding/root binding)]
-    (pg/publish-application-bound! store ordering binding resolved 0)
+    (pg/publish-application-bound! store ordering binding resolved (initial-parent-root) 0)
     (jdbc/execute! *ds* ["DELETE FROM prf_economic_publication_binding WHERE binding_root = ?"
                          binding-root])
     (jdbc/execute! *ds* ["DELETE FROM prf_economic_publication_ordering WHERE ordering_hash = ?"
@@ -248,7 +329,7 @@
 (deftest retained-objects-reject-alternate-canonical-bodies
   (let [{:keys [resolved binding ordering resolver]} (prepared)
         store (pg/postgres-store *ds* {:resolve-durable-artifact resolver})]
-    (pg/publish-application-bound! store ordering binding resolved 0)
+    (pg/publish-application-bound! store ordering binding resolved (initial-parent-root) 0)
     (is (thrown? Exception
                  (jdbc/execute! *ds* ["INSERT INTO prf_economic_publication_ordering (ordering_hash, ordering_edn) VALUES (?, ?)"
                                       (:transaction-ordering/hash ordering) "{:alternate true}\n"])))
@@ -268,8 +349,10 @@
         a (pg/postgres-store *ds* {:resolve-durable-artifact resolver})
         b (pg/postgres-store *ds* {:resolve-durable-artifact resolver})
         start (promise)
-        fa (future @start (pg/publish-application-bound! a (:ordering p1) (:binding p1) resolved 0))
-        fb (future @start (pg/publish-application-bound! b (:ordering p2) (:binding p2) resolved 0))]
+        fa (future @start (pg/publish-application-bound! a (:ordering p1) (:binding p1) resolved
+                                                         (initial-parent-root) 0))
+        fb (future @start (pg/publish-application-bound! b (:ordering p2) (:binding p2) resolved
+                                                         (initial-parent-root) 0))]
     (deliver start true)
     (is (= #{:committed} (set (map #(-> % deref :status) [fa fb]))))
     (is (= 1 (:publication/sequence (pg/current-head a [:partition-a]))))

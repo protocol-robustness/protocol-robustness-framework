@@ -196,6 +196,42 @@
       :else (throw (ex-info "Immutable publication binding conflicts with retained body"
                             {:reason :publication-immutable-conflict :root root})))))
 
+(defn- locked-predecessor-ordering! [tx head]
+  (when-let [root (:publication/last-ordering-root head)]
+    (let [predecessor (some-> (jdbc/execute-one!
+                               tx [(str "SELECT ordering_edn FROM " ordering-table
+                                        " WHERE ordering_hash = ?") root]
+                               (row-opts))
+                              :ordering_edn
+                              decode)]
+      (when-not (and predecessor
+                     (= root (:transaction-ordering/hash predecessor))
+                     (:valid? (ordering/verify-ordering predecessor)))
+        (throw (ex-info "Locked publication predecessor ordering is unavailable or invalid"
+                        {:reason :locked-predecessor-ordering-invalid
+                         :ordering-root root})))
+      predecessor)))
+
+(defn- semantic-successor-violation [head predecessor ordering]
+  (cond
+    (not= (:publication/last-ordering-root head)
+          (:transaction/previous-transaction-hash ordering))
+    :previous-ordering-root-mismatch
+
+    (and predecessor
+         (not= (:transaction/state-after-root predecessor)
+               (:transaction/state-before-root ordering)))
+    :state-continuity-mismatch
+
+    (and predecessor
+         (not= (:publication/sequence head)
+               (:transaction/commit-index predecessor)))
+    :predecessor-commit-index-sequence-mismatch
+
+    (not= (inc (:publication/sequence head))
+          (:transaction/commit-index ordering))
+    :commit-index-sequence-mismatch))
+
 (deftype PostgresPublicationStore [datasource resolve-durable-artifact]
   Object
   (toString [_] "PostgresPublicationStore"))
@@ -206,13 +242,26 @@
   [datasource {:keys [resolve-durable-artifact]}]
   (PostgresPublicationStore. datasource resolve-durable-artifact))
 
-(defn current-head [store conflict-key]
+(defn current-head-and-version
+  "Return the authoritative head and its independent PostgreSQL store version.
+   A missing partition returns nil; callers that need the initial fence must
+   explicitly supply the initial head/version pair."
+  [store conflict-key]
   (let [id (partition-id conflict-key)
         row (jdbc/execute-one! (.datasource store)
-                               [(str "SELECT head_edn, head_root FROM " partition-table
+                               [(str "SELECT head_edn, head_root, store_version FROM " partition-table
                                      " WHERE partition_id = ?") id] (row-opts))
         head (some-> row :head_edn decode)]
-    (when (and head (head-valid? head) (= (:publication/head-root head) (:head_root row))) head)))
+    (when (and head (head-valid? head) (= (:publication/head-root head) (:head_root row)))
+      {:publication/head head
+       :publication/store-version (:store_version row)})))
+
+(defn current-head
+  "Read-only projection of the authoritative head.
+   Do not use this projection to construct a publication fence; authoritative
+   mutation callers must use `current-head-and-version`."
+  [store conflict-key]
+  (some-> (current-head-and-version store conflict-key) :publication/head))
 
 (defn current-head-by-partition-id
   "Look up the authoritative publication head directly by partition id
@@ -393,9 +442,17 @@
 
 (defn publish-application-bound!
   "Durably retain B and O and then advance the conflict-key partition head.
-  An exact retry whose intended successor is already current is idempotent. The
-  sealed resolver is injected into V2 validation only; it is not semantic input."
-  [store ordering binding resolved expected-version]
+  `expected-parent-root` and `expected-store-version` are mandatory compare-and-
+  set preconditions. An exact retry supplies the current head/version and is
+  idempotent. The sealed resolver is injected into V2 validation only; it is not
+  semantic input."
+  [store ordering binding resolved expected-parent-root expected-store-version]
+  (when-not (some? expected-parent-root)
+    (throw (ex-info "Expected publication parent root is required"
+                    {:reason :expected-parent-root-required})))
+  (when-not (some? expected-store-version)
+    (throw (ex-info "Expected publication store version is required"
+                    {:reason :expected-store-version-required})))
   (let [resolved (assoc resolved
                         :publication-ordering ordering
                         :resolve-body (.resolve-durable-artifact store))]
@@ -407,6 +464,7 @@
       (with-transaction-retry!
         #(jdbc/with-transaction [tx (.datasource store) {:isolation :serializable}]
            (let [{:keys [id head version]} (locked-partition! tx conflict-key)
+                 predecessor (locked-predecessor-ordering! tx head)
                  binding-root (:pro-rata-invocation-publication-binding/root binding)
                  intended (let [base {:schema-version publication/application-publication-head-schema
                                       :publication/last-ordering-root (:transaction-ordering/hash ordering)
@@ -415,26 +473,35 @@
                                       :publication/predecessor-root (:publication/head-root head)}]
                             (assoc base :publication/head-root (publication/application-head-root base)))]
              (cond
+               (not= expected-parent-root (:publication/head-root head))
+               {:status :contention :reason :parent-root-mismatch
+                :expected-parent-root expected-parent-root
+                :observed-parent-root (:publication/head-root head)}
+
+               (not= expected-store-version version)
+               {:status :contention :reason :version-mismatch
+                :expected-version expected-store-version :observed-version version}
+
                (and (= binding-root (:publication/application-binding-root head))
                     (= (:transaction-ordering/hash ordering)
                        (:publication/last-ordering-root head)))
                {:status :idempotent :publication/head head
                 :publication/ordering-root (:transaction-ordering/hash ordering)
                 :publication/application-binding-root binding-root}
-               (and (some? expected-version) (not= expected-version version))
-               {:status :contention :reason :version-mismatch :expected-version expected-version
-                :observed-version version}
+
                :else
-               (do (transaction-hook! :after-prerequisite-validation)
-                   (retained-ordering! tx ordering)
-                   (transaction-hook! :after-ordering-insert)
-                   (retained-binding! tx binding)
-                   (transaction-hook! :after-binding-insert)
-                   (transaction-hook! :before-head-update)
-                   (jdbc/execute! tx [(str "UPDATE " partition-table
-                                           " SET head_edn = ?, head_root = ?, store_version = ? WHERE partition_id = ?")
-                                      (encode intended) (:publication/head-root intended) (inc version) id])
-                   (transaction-hook! :after-head-update)
-                   {:status :committed :publication/head intended
-                    :publication/ordering-root (:transaction-ordering/hash ordering)
-                    :publication/application-binding-root binding-root}))))))))
+               (if-let [reason (semantic-successor-violation head predecessor ordering)]
+                 {:status :rejected :reason reason}
+                 (do (transaction-hook! :after-prerequisite-validation)
+                     (retained-ordering! tx ordering)
+                     (transaction-hook! :after-ordering-insert)
+                     (retained-binding! tx binding)
+                     (transaction-hook! :after-binding-insert)
+                     (transaction-hook! :before-head-update)
+                     (jdbc/execute! tx [(str "UPDATE " partition-table
+                                             " SET head_edn = ?, head_root = ?, store_version = ? WHERE partition_id = ?")
+                                        (encode intended) (:publication/head-root intended) (inc version) id])
+                     (transaction-hook! :after-head-update)
+                     {:status :committed :publication/head intended
+                      :publication/ordering-root (:transaction-ordering/hash ordering)
+                      :publication/application-binding-root binding-root})))))))))
