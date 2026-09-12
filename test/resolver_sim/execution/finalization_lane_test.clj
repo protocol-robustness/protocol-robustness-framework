@@ -5,8 +5,7 @@
    substitution, ticket replay, and race stress tests."
   (:require [clojure.test :refer [deftest is testing]]
             [resolver-sim.execution.finalization-lane :as lane])
-  (:import [java.util.concurrent CountDownLatch CyclicBarrier
-            Executors TimeUnit]
+  (:import [java.util.concurrent CyclicBarrier]
            [java.util.concurrent.atomic AtomicInteger]))
 
 (defn- open-lane

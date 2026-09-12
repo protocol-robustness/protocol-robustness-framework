@@ -1,7 +1,6 @@
 (ns resolver-sim.pro-rata.read-model-test
   (:require [clojure.test :refer [deftest is testing]]
             [clojure.set :as set]
-            [java.nio.file :as Files]
             [resolver-sim.hash.reference :as ref]
             [resolver-sim.io.content-addressed-store :as cas]
             [resolver-sim.pro-rata.read-model :as read-model]

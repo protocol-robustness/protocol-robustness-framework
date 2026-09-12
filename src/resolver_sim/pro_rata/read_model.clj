@@ -176,14 +176,6 @@
   (when (some? root)
     (resolve-edge root role resolution)))
 
-(defn- resolve-edges
-  "Resolve multiple edges from the same parent body, each with its own role and field."
-  [resolution parent fields]
-  (remove nil?
-          (map (fn [[role field]]
-                 (optional-edge (get parent field) role resolution))
-               fields)))
-
 (defn- extract-v2-chain
   "Trace V2 compilation sub-chain from a V2 output.
    output -> effect-compilation-binding -> E3 compilation -> target-map, semantics"

@@ -1215,14 +1215,6 @@
       (.append sb (format "%02x" (bit-and (int b) 0xFF))))
     (.toString sb)))
 
-(defn- bytes->hex-legacy
-  "Convert a byte array to a lowercase hex string."
-  [^bytes ba]
-  (let [sb (StringBuilder.)]
-    (doseq [b ba]
-      (.append sb (format "%02x" (bit-and (int b) 0xFF))))
-    (.toString sb)))
-
 ;; ──────────────────────────────────────────────────────────────────────────────
 ;; Canonical Hash Schemes (explicit versioned pinning)
 ;; ──────────────────────────────────────────────────────────────────────────────
@@ -3530,9 +3522,7 @@ name (an alias)."
     (validate-prefix-free-domain-tags! (set (vals domain-tags)))
     nil))
 
-(def ^:private registry-startup-validation
-  "Forces intent registry validation when this namespace is loaded."
-  (validate-registry!))
+(validate-registry!)
 
 ;; ──────────────────────────────────────────────────────────────────────────────
 ;; Intent Constraint Enforcement
