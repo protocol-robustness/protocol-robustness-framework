@@ -1,22 +1,23 @@
 (ns resolver-sim.pro-rata.allocation
-  "Domain-neutral deterministic integer pro-rata allocation.
+  "Clojure realization of deterministic integer pro-rata allocation.
 
-   This namespace owns the canonical pro-rata allocation semantics: the public
-   mechanism API, row normalization, and mathematical allocation evidence. The
+   portable-pro-rata-contract.v1 owns the canonical request, normalization,
+   arithmetic, evidence, and allocation-root semantics. This namespace exposes
+   the production Clojure API and validates/realizes that contract. The
    single-pass claimant engine and detached parallel machinery live in
-   resolver-sim.pro-rata.engine; cap-redistribution semantics live in
-   resolver-sim.pro-rata.redistribution. This namespace deliberately does not
-   inspect world state, select accounts, classify shortfall, or apply a state
-   transition. Domain adapters supply canonical rows and interpret the resulting
-   allocated and unmet quantities.
+   resolver-sim.pro-rata.engine; cap redistribution lives in
+   resolver-sim.pro-rata.redistribution.
 
-   The allocation, engine, redistribution, and evaluation namespaces form the
-   pro-rata semantic closure and must never depend on protocol, runner,
-   research, application, or generic-economics allocator namespaces."
+   This realization deliberately does not inspect world state, select accounts,
+   classify application shortfall, or apply a state transition. Domain adapters
+   supply canonical rows and interpret allocated and unmet quantities. Production
+   pro-rata namespaces must never depend on protocol, runner, research,
+   application, or generic-economics allocator namespaces."
   (:require [resolver-sim.execution.realization :as realization]
             [resolver-sim.hash.canonical :as hc]
             [resolver-sim.pro-rata.engine :as engine]
-            [resolver-sim.pro-rata.redistribution :as redistribution]))
+            [resolver-sim.pro-rata.redistribution :as redistribution]
+            [resolver-sim.pro-rata-contract.contract :as portable-contract]))
 
 (defn allocate-pro-rata [request]
   (let [state (realization/open)]
@@ -448,8 +449,7 @@
                                   :allocated allocated
                                   :unmet (or unmet 0))))
                        rows)}
-          allocation-hash (hc/hash-with-intent {:hash/intent :projection-artifact}
-                                               result-base)]
+          allocation-hash (portable-contract/allocation-result-root result-base)]
       (assoc result-base :allocation/hash allocation-hash
              :allocation/fractional-remainder-total fractional-total))))
 
@@ -459,6 +459,4 @@
    (:allocation/fractional-remainder-total) are excluded from recomputation."
   [result]
   (= (:allocation/hash result)
-     (hc/hash-with-intent {:hash/intent :projection-artifact}
-                          (dissoc result :allocation/hash
-                                  :allocation/fractional-remainder-total))))
+     (portable-contract/allocation-result-root result)))
