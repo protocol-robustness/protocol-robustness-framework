@@ -62,37 +62,71 @@
 
 ;; ── Evidence Record ──────────────────────────────────────────────────────────
 
+(defn- normalize-action
+  "Normalize the legacy unqualified action type at the evidence boundary.
+   Canonical hashing receives only :action/type; conflicting representations
+   fail closed rather than allowing ambiguous evidence."
+  [action]
+  (cond
+    (nil? action) nil
+    (or (string? action) (keyword? action)) {:action/type action}
+    (not (map? action)) action
+    (and (contains? action :type)
+         (contains? action :action/type)
+         (not= (:type action) (:action/type action)))
+    (throw (ex-info "Action :type and :action/type disagree"
+                    {:action action}))
+    (contains? action :type)
+    (-> action
+        (assoc :action/type (:type action))
+        (dissoc :type))
+    :else action))
+
 (defn make-evidence-record
   "Build a versioned, content-hashed evidence record from a specification map.
 
    Expected keys in spec:
      :artifact-kind  - keyword identifying the kind of evidence
-     :block-time     - simulation time of transition
-     :step           - simulation step index
+     :block-time     - optional simulation time of transition; must be paired with :step
+     :step           - optional simulation step index; must be paired with :block-time
      :before         - world state before the transition (hashed, not stored raw)
      :after          - world state after the transition (hashed, not stored raw)
      :action         - the action/event that caused the transition (stored raw + hashed)
      :result         - the outcome/result of the action (stored raw + hashed)
      :attribution    - attribution context map
 
-   The returned record includes an :evidence-hash that covers all other fields,
-   making the record tamper-evident."
-  [{:keys [artifact-kind block-time step before after action result attribution]}]
+   The returned record includes an :evidence-hash over the canonical committed
+   record fields. Non-temporal records omit :action-hash-at; partial temporal
+   context is rejected rather than fabricated."
+  [{:keys [artifact-kind block-time step before after action result attribution]
+    :as spec}]
   (let [project hc/project-committable-content
+        action (normalize-action action)
+        temporal-values (select-keys spec [:step :block-time])
+        temporal-present? (mapv #(contains? spec %) [:step :block-time])
+        _ (when (and (some true? temporal-present?)
+                     (not-every? true? temporal-present?))
+            (throw (ex-info "Evidence temporal context must include both :step and :block-time"
+                            temporal-values)))
         context-hash (hc/hash-with-intent {:hash/intent :evidence-record}
                                           (project attribution))
         before-hash (hc/hash-with-intent {:hash/intent :world-structure} before)
         after-hash (hc/hash-with-intent {:hash/intent :world-structure} after)
         action-hash (hc/hash-with-intent {:hash/intent :action} action)
-        action-hash-at (hc/hash-with-intent {:hash/intent :action-at}
-                                            {:action-hash action-hash
-                                             :step step
-                                             :block-time block-time})
+        action-hash-at (when (every? #(contains? spec %) [:step :block-time])
+                         (hc/hash-with-intent {:hash/intent :action-at}
+                                              {:action-hash action-hash
+                                               :step step
+                                               :block-time block-time}))
         result-hash (hc/hash-with-intent {:hash/intent :evidence-record}
                                          (project result))
         base {:schema-version (evcfg/schema :evidence-record)
               :artifact-kind artifact-kind
-              :temporal-context {:block-time block-time :step step}
+              :temporal-context (cond-> {}
+                                  (contains? spec :block-time)
+                                  (assoc :block-time block-time)
+                                  (contains? spec :step)
+                                  (assoc :step step))
               :attribution attribution
               :context-hash context-hash
               :before-hash before-hash
@@ -102,11 +136,15 @@
               :action-hash-at action-hash-at
               :result result
               :result-hash result-hash}
+        base (cond-> base
+               action-hash-at (assoc :action-hash-at action-hash-at)
+               (:ctx/evidence-group-id attribution)
+               (assoc :evidence/group-id (:ctx/evidence-group-id attribution)
+                      :evidence/layer :generic-trace))
         evidence-hash (hc/hash-with-intent {:hash/intent :evidence-record}
                                            (project base))
         group-id (:ctx/evidence-group-id attribution)]
-    (cond-> (assoc base :evidence-hash evidence-hash)
-      group-id (assoc :evidence/group-id group-id :evidence/layer :generic-trace))))
+    (assoc base :evidence-hash evidence-hash)))
 
 ;; ── Evidence Emission ────────────────────────────────────────────────────────
 

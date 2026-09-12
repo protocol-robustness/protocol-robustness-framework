@@ -14,6 +14,11 @@
    :escrow-id "0xabc"
    :actor "0xres"})
 
+(def ^:private canonical-action
+  {:action/type :release
+   :escrow-id "0xabc"
+   :actor "0xres"})
+
 (def ^:private sample-result
   {:success? true
    :released 1000
@@ -191,6 +196,7 @@
     (is (= "evidence-record.v1" (:schema-version record)))
     (is (= :transition (:artifact-kind record)))
     (is (= sample-attribution (:attribution record)))
+    (is (= {} (:temporal-context record)))
     (is (string? (:evidence-hash record)))))
 
 (deftest make-evidence-record-includes-hashes
@@ -205,12 +211,56 @@
     (is (string? (:before-hash record)))
     (is (string? (:after-hash record)))
     (is (string? (:action-hash record)))
-    (is (string? (:action-hash-at record)))
+    (is (nil? (:action-hash-at record)))
     (is (string? (:result-hash record)))
     (is (string? (:evidence-hash record)))
-    (is (not= (:action-hash record) (:action-hash-at record)))
-    (testing "action-hash-at binds action to execution position"
-      (is (some? (:action-hash-at record))))))
+    (is (nil? (:action-hash-at record)))))
+
+(deftest make-evidence-record-preserves-complete-temporal-context
+  (let [record (ev/make-evidence-record
+                {:artifact-kind :transition
+                 :block-time 1000
+                 :step 1
+                 :before sample-world :after sample-world
+                 :action canonical-action :result sample-result
+                 :attribution sample-attribution})]
+    (is (= {:block-time 1000 :step 1} (:temporal-context record)))))
+
+(deftest make-evidence-record-derives-action-hash-at-with-complete-temporal-context
+  (let [record (ev/make-evidence-record
+                {:artifact-kind :transition
+                 :block-time 1000
+                 :step 1
+                 :before sample-world
+                 :after sample-world
+                 :action canonical-action
+                 :result sample-result
+                 :attribution sample-attribution})]
+    (is (string? (:action-hash-at record)))))
+
+(deftest make-evidence-record-rejects-partial-temporal-context
+  (doseq [spec [{:step 1} {:block-time 1000}]]
+    (is (try
+          (ev/make-evidence-record
+           (merge {:artifact-kind :transition
+                   :before sample-world :after sample-world
+                   :action canonical-action :result sample-result
+                   :attribution sample-attribution}
+                  spec))
+          false
+          (catch clojure.lang.ExceptionInfo e
+            (re-find #"temporal context must include both" (.getMessage e)))))))
+
+(deftest make-evidence-record-rejects-conflicting-action-types
+  (is (try
+        (ev/make-evidence-record
+         {:artifact-kind :transition
+          :before sample-world :after sample-world
+          :action {:type :release :action/type :refund}
+          :result sample-result :attribution sample-attribution})
+        false
+        (catch clojure.lang.ExceptionInfo e
+          (re-find #"Action :type and :action/type disagree" (.getMessage e))))))
 
 (deftest make-evidence-record-hash-changes-when-attribution-changes
   (let [record1 (ev/make-evidence-record
@@ -277,6 +327,8 @@
 
 (deftest test-action-hash-and-action-hash-at-not-interchangeable
   (let [spec {:artifact-kind :transition
+              :block-time 1000
+              :step 1
               :before sample-world
               :after sample-world
               :action sample-action
@@ -322,6 +374,32 @@
       (is (contains? record :attribution))
       (is (string? (:evidence-hash record))))))
 
+(deftest evidence-hash-commits-optional-group-metadata
+  (let [base {:artifact-kind :transition
+              :before sample-world :after sample-world
+              :action canonical-action :result sample-result
+              :attribution sample-attribution}
+        record (ev/make-evidence-record base)
+        grouped (ev/make-evidence-record
+                 (assoc base :attribution
+                        (assoc sample-attribution :ctx/evidence-group-id "g-1")))]
+    (is (not= (:evidence-hash record) (:evidence-hash grouped)))
+    (is (= "g-1" (:evidence/group-id grouped)))
+    (is (= :generic-trace (:evidence/layer grouped)))))
+
+(deftest evidence-hash-matches-independent-committed-projection
+  (let [attribution (assoc sample-attribution :ctx/evidence-group-id "g-1")
+        record (ev/make-evidence-record
+                {:artifact-kind :transition
+                 :before sample-world :after sample-world
+                 :action canonical-action :result sample-result
+                 :attribution attribution})
+        projection (hc/project-committable-content
+                    (dissoc record :evidence-hash))
+        reconstructed (hc/hash-with-intent {:hash/intent :evidence-record}
+                                           projection)]
+    (is (= (:evidence-hash record) reconstructed))))
+
 (deftest emit-evidence-throws-on-missing-attribution
   (binding [attr/*attribution* {}]
     (try
@@ -331,7 +409,7 @@
         :step 1
         :before {}
         :after {}
-        :action {}
+        :action {:action/type :unknown}
         :result {}})
       (is false "Expected exception was not thrown")
       (catch clojure.lang.ExceptionInfo e
@@ -346,7 +424,7 @@
        {:artifact-kind :transition
         :before {}
         :after {}
-        :action {}
+        :action {:action/type :unknown}
         :result {}})
       (is false "Expected exception was not thrown")
       (catch clojure.lang.ExceptionInfo e
@@ -380,7 +458,7 @@
                      :step 1
                      :before {}
                      :after {}
-                     :action {}
+                     :action {:action/type :unknown}
                      :result {}
                      :attribution-context explicit-attr})]
         (is (= "run-1" (get-in record [:attribution :ctx/run-id])))))))
@@ -398,7 +476,7 @@
                      :step 1
                      :before {}
                      :after {}
-                     :action {}
+                     :action {:action/type :unknown}
                      :result {}
                      :attribution-context attributed})]
         (is (= "run-1" (get-in record [:attribution :ctx/run-id])))))))
@@ -460,7 +538,7 @@
                 {:artifact-kind :transition
                  :before nil
                  :after nil
-                 :action nil
+                 :action {:action/type :unknown}
                  :result nil
                  :attribution {:ctx/run-id "run-1"}})]
     (is (string? (:evidence-hash record)))

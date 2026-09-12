@@ -592,11 +592,13 @@
      :attestor-revoked        — attestor status is :revoked or :retired
      :key-not-authorized      — signing key not authorized for attestor
      :signature-mismatch      — cryptographic signature verification failed
-     :signature-unverifiable  — signature present but no verifier available
+      :signature-missing       — no proof-of-possession signature is present
+      :signature-unverifiable  — signature present but no verifier available
      :subject-unknown         — subject does not resolve
      :verification-failed     — failed checks without a specific summary mapping
 
-   :verified means no check returned Boolean false.  It does NOT imply
+    :verified means no check returned Boolean false and a signature was
+    cryptographically verified.  It does NOT imply
    cryptographic verification — use :signature-verified check's :pass?
    value to distinguish unsigned (:unsigned) from cryptographically
    verified (true).
@@ -607,10 +609,11 @@
   [attestation & opts]
   (let [{:keys [valid? checks]} (apply verify-attestation attestation opts)]
     (if valid?
-      ;; All checks non-false — check for unverifiable signatures
+       ;; All checks non-false — distinguish missing proof from unavailable proof.
       (let [sig-check (first (filter #(= :signature-verified (:check %)) checks))]
-        (if (= :unavailable (:pass? sig-check))
-          :signature-unverifiable
+        (case (:pass? sig-check)
+          :unsigned :signature-missing
+          :unavailable :signature-unverifiable
           :verified))
       (let [fail->summary {:attestor-exists :no-such-attestor
                            :attestor-active :attestor-revoked
@@ -659,5 +662,3 @@
      signing-fn (assoc :signing-fn signing-fn)
      provenance (assoc :provenance provenance)
      metadata (assoc :metadata metadata))))
-
-

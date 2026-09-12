@@ -511,17 +511,48 @@
 
 ;; ── Evidence Registration ─────────────────────────────────────────────────
 
+(defn research-provenance
+  "Project non-escalating research provenance for one evidence member.
+
+  The projection records only the member's own verification and authentication
+  facts. Unknown states and contradictory principal roots fail closed."
+  [evidence]
+  (let [source (or (:research-provenance evidence) {})
+        status-keyword (fn [value] (if (string? value) (keyword value) value))
+        research-status (status-keyword (or (:research-verification/status source)
+                                            (:research-verification/status evidence)
+                                            :unknown))
+        authentication-status (status-keyword (or (:researcher/authentication-status source)
+                                                  (:researcher/authentication-status evidence)
+                                                  :anonymous))
+        proof-status (status-keyword (or (:proof-of-possession/status source)
+                                         (:proof-of-possession/status evidence)
+                                         (case authentication-status
+                                           :anonymous :not-established
+                                           (:pseudonymous :authenticated-principal) :verified
+                                           :unknown)))
+        principal-root (or (:principal/root source) (:principal/root evidence))]
+    (when-not (contains? #{:anonymous :pseudonymous :authenticated-principal} authentication-status)
+      (throw (ex-info "Unknown research authentication status"
+                      {:reason :unknown-authentication-status
+                       :status authentication-status})))
+    (when (and (contains? #{:anonymous :pseudonymous} authentication-status)
+               (some? principal-root))
+      (throw (ex-info "Principal root is forbidden for non-attributed provenance"
+                      {:reason :principal-root-forbidden
+                       :status authentication-status})))
+    (cond-> {:research-verification/status (name research-status)
+             :researcher/authentication-status (name authentication-status)
+             :proof-of-possession/status (name proof-status)}
+      (= :authenticated-principal authentication-status)
+      (assoc :principal/root principal-root))))
+
 (defn- evidence->artifact-entry
   "Convert an evidence record (from emit-evidence!) into a registry artifact entry.
-   The entry includes the evidence-hash as both identifier and integrity proof,
-   plus all component hashes for traceability.
-
-   Note: :kind and :artifact-kind are stored as strings (not keywords) so they
-   survive JSON serialization/deserialization without hash mismatch during
-   verify-registry-hash — which reads the registry back from disk and recomputes
-   the registry hash.  Keywords and strings use different canonical encoding
-   type tags (0x22 vs 0x20), so round-tripping keyword values would produce a
-   different hash."
+  The entry includes the evidence-hash as both identifier and integrity proof.
+  All values must be JSON-safe primitives so entries survive JSON serialization.
+  Keywords and strings use different canonical encoding type tags, so a registry
+  must store strings for values that are hashed and later read from JSON."
   [evidence]
   (let [eh (:evidence-hash evidence)]
     {:id (str "evidence-" (subs eh 0 (min 12 (count eh))))
@@ -535,6 +566,7 @@
                      (:world/after-hash evidence))
      :action-hash (:action-hash evidence)
      :result-hash (:result-hash evidence)
+     :research-provenance (research-provenance evidence)
      :artifact-kind (let [ak (:artifact-kind evidence)]
                       (cond
                         (string? ak) ak
@@ -577,6 +609,22 @@
 (defn- now-iso []
   (str (java.time.Instant/now)))
 
+(defn- provenance-coverage
+  "Summarize member provenance without attributing the chain to any member.
+  Per-member provenance remains in :artifacts; this aggregate is deliberately
+  limited to uniform or mixed coverage."
+  [artifacts]
+  (let [members (keep :research-provenance artifacts)
+        status (fn [field]
+                 (let [values (set (keep field members))]
+                   (cond
+                     (empty? values) "unknown"
+                     (= 1 (count values)) (first values)
+                     :else "mixed")))]
+    {:research-verification/status (status :research-verification/status)
+     :researcher/authentication-status (status :researcher/authentication-status)
+     :proof-of-possession/status (status :proof-of-possession/status)}))
+
 (defn build-registry
   "Build a self-hashed registry map from the accumulated evidence records.
 
@@ -597,7 +645,8 @@
               :generated-at (now-iso)
               :evidence-count (count artifacts)
               :evidence-hashes (:evidence-hashes reg)
-              :artifacts artifacts}
+              :artifacts artifacts
+              :research-provenance/coverage (provenance-coverage artifacts)}
         reg-hash (hc/hash-with-intent {:hash/intent :registry} base)]
     (assoc base :registry-hash reg-hash)))
 
@@ -808,12 +857,12 @@
                                :run/id (or run-id (get-in @evidence-registry-atom [:run-id]) "unknown")}
                               cursor-data
                               (when source
-                                {:source/hash           (:source/hash source)
+                                {:source/hash (:source/hash source)
                                  :source/hash-algorithm (:source/hash-algorithm source)
-                                 :source/hash-roots     (:source/hash-roots source)
-                                 :code-hash             (:code-hash source)
-                                 :deps-hash             (:deps-hash source)
-                                 :input-hash            (:input-hash source)
+                                 :source/hash-roots (:source/hash-roots source)
+                                 :code-hash (:code-hash source)
+                                 :deps-hash (:deps-hash source)
+                                 :input-hash (:input-hash source)
                                  :run-config-hash (:run-config-hash source)})
                               (when signed
                                 {:cursor/forensic (dissoc signed :cursor/hash)

@@ -25,6 +25,27 @@
     :result {:ok true}
     :attribution sample-attribution}))
 
+(defn- evidence-with-provenance [n provenance]
+  (assoc (make-sample-evidence n) :research-provenance provenance))
+
+(deftest provenance-rejects-principal-root-for-anonymous-and-pseudonymous
+  (doseq [status [:anonymous :pseudonymous]]
+    (is (try
+          (chain/research-provenance
+           {:researcher/authentication-status status
+            :principal/root "sha256:contradictory"})
+          false
+          (catch clojure.lang.ExceptionInfo e
+            (re-find #"Principal root is forbidden" (.getMessage e)))))))
+
+(deftest provenance-rejects-unknown-authentication-state
+  (is (try
+        (chain/research-provenance
+         {:researcher/authentication-status :future-level})
+        false
+        (catch clojure.lang.ExceptionInfo e
+          (re-find #"Unknown research authentication status" (.getMessage e))))))
+
 ;; ── Registry lifecycle ────────────────────────────────────────────────────
 
 (deftest reset-registry-clears-state
@@ -97,6 +118,17 @@
         reg-b (chain/build-registry :run-id "run-b")]
     (is (not= (:registry-hash reg-a) (:registry-hash reg-b)))))
 
+(deftest provenance-is-committed-by-registry-root
+  (chain/reset-registry!)
+  (chain/register-evidence!
+   (evidence-with-provenance 1 {:research-verification/status :verified
+                                :researcher/authentication-status :anonymous}))
+  (let [registry (chain/build-registry)
+        changed (assoc-in registry [:artifacts 0 :research-provenance :researcher/authentication-status]
+                          "authenticated-principal")]
+    (is (true? (:valid (chain/verify-registry-hash registry))))
+    (is (false? (:valid (chain/verify-registry-hash changed))))))
+
 ;; ── Artifact entries ──────────────────────────────────────────────────────
 
 (deftest artifact-entries-contain-evidence-hash
@@ -112,6 +144,66 @@
       (is (= (:action-hash ev) (:action-hash entry)))
       (is (= (:result-hash ev) (:result-hash entry)))
       (is (= (name (:artifact-kind ev)) (:artifact-kind entry))))))
+
+(deftest chain-preserves-anonymous-research-provenance
+  (chain/reset-registry!)
+  (chain/register-evidence!
+   (evidence-with-provenance 1 {:research-verification/status :verified
+                                :researcher/authentication-status :anonymous}))
+  (let [entry (first (:artifacts (chain/build-registry)))]
+    (is (= "verified" (get-in entry [:research-provenance :research-verification/status])))
+    (is (= "anonymous" (get-in entry [:research-provenance :researcher/authentication-status])))
+    (is (= "not-established" (get-in entry [:research-provenance :proof-of-possession/status])))))
+
+(deftest chain-preserves-pseudonymous-research-provenance
+  (chain/reset-registry!)
+  (chain/register-evidence!
+   (evidence-with-provenance 1 {:research-verification/status :verified
+                                :researcher/authentication-status :pseudonymous
+                                :proof-of-possession/status :verified}))
+  (let [entry (first (:artifacts (chain/build-registry)))]
+    (is (= "pseudonymous" (get-in entry [:research-provenance :researcher/authentication-status])))
+    (is (= "verified" (get-in entry [:research-provenance :proof-of-possession/status])))
+    (is (nil? (get-in entry [:research-provenance :principal/root])))))
+
+(deftest chain-preserves-authenticated-principal-provenance
+  (chain/reset-registry!)
+  (chain/register-evidence!
+   (evidence-with-provenance 1 {:research-verification/status :verified
+                                :researcher/authentication-status :authenticated-principal
+                                :proof-of-possession/status :verified
+                                :principal/root "sha256:alice"}))
+  (let [entry (first (:artifacts (chain/build-registry)))]
+    (is (= "authenticated-principal" (get-in entry [:research-provenance :researcher/authentication-status])))
+    (is (= "sha256:alice" (get-in entry [:research-provenance :principal/root])))))
+
+(deftest chain-mixed-provenance-never-claims-an-authenticated-researcher
+  (chain/reset-registry!)
+  (chain/register-evidence!
+   (evidence-with-provenance 1 {:research-verification/status :verified
+                                :researcher/authentication-status :anonymous}))
+  (chain/register-evidence!
+   (evidence-with-provenance 2 {:research-verification/status :verified
+                                :researcher/authentication-status :authenticated-principal
+                                :proof-of-possession/status :verified
+                                :principal/root "sha256:alice"}))
+  (let [registry (chain/build-registry)]
+    (is (= "mixed" (get-in registry [:research-provenance/coverage :researcher/authentication-status])))
+    (is (nil? (:principal/root registry)))
+    (is (= "anonymous" (get-in registry [:artifacts 0 :research-provenance :researcher/authentication-status])))
+    (is (= "authenticated-principal" (get-in registry [:artifacts 1 :research-provenance :researcher/authentication-status])))))
+
+(deftest authenticated-wrapper-cannot-upgrade-anonymous-evidence
+  (chain/reset-registry!)
+  (let [anonymous (evidence-with-provenance 1 {:research-verification/status :verified
+                                               :researcher/authentication-status :anonymous})
+        wrapped (assoc anonymous :outer-wrapper {:researcher/authentication-status :authenticated-principal
+                                                 :principal/root "sha256:wrapper"})]
+    (chain/register-evidence! wrapped)
+    (let [entry (first (:artifacts (chain/build-registry)))]
+      (is (= "anonymous" (get-in entry [:research-provenance :researcher/authentication-status])))
+      (is (= "not-established" (get-in entry [:research-provenance :proof-of-possession/status])))
+      (is (nil? (get-in entry [:research-provenance :principal/root]))))))
 
 (deftest artifact-entries-have-consistent-ids
   (chain/reset-registry!)

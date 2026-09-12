@@ -776,10 +776,21 @@
 
 ;; ── verify-attestation-summary ─────────────────────────────────────────────
 
-(deftest summary-returns-verified-for-valid-attestation
+(deftest summary-returns-verified-for-cryptographically-verified-attestation
+  (let [a (att/build-attestation (registry-attestor) (valid-subject) :verified
+                                 {:signing-key-id "ci-validation-placeholder"
+                                  :signing-fn (fn [_]
+                                                {:algorithm :ed25519
+                                                 :public-key-id "ci-validation-placeholder"
+                                                 :signature-bytes "deadbeef"})})
+        a (attestation->old-shape a)]
+    (is (= :verified (att/verify-attestation-summary a
+                                                     {:verify-fn (fn [_ _] true)})))))
+
+(deftest summary-does-not-call-unsigned-attestation-verified
   (let [a (att/build-attestation (registry-attestor) (valid-subject) :verified)
         a (attestation->old-shape a)]
-    (is (= :verified (att/verify-attestation-summary a)))))
+    (is (= :signature-missing (att/verify-attestation-summary a)))))
 
 (deftest summary-returns-no-such-attestor
   (let [a (att/build-attestation (unknown-attestor) (valid-subject) :verified)
