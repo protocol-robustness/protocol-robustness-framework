@@ -1,0 +1,18 @@
+{
+  "schema-version": "mechanism-persistence-summary.v1",
+  "mechanism-map/id": "mechanism-map/shortfall-v1",
+  "mechanism-map/version": "mechanism-map.shortfall.v1",
+  "mechanism-map/hash": "3d4a0f8e5d7a2b9c1e6d4f0a6b7c8d9e0f112233445566778899aabbccddeeff",
+  "episode-count": 2,
+  "mechanism-count": 4,
+  "scenario-count": 2,
+  "status-counts": {
+    "passed": 1,
+    "failed": 0,
+    "not-exercised": 0,
+    "not-applicable": 1,
+    "inconclusive": 0,
+    "evidence-missing": 0,
+    "invalid-index": 0
+  }
+}

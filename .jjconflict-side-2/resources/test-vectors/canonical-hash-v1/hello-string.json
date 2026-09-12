@@ -1,0 +1,9 @@
+{
+  "id": "hello-string",
+  "description": "String hello",
+  "input": "\"hello\"",
+  "canonical_bytes_hex": "200568656c6c6f",
+  "domain_tag": "EVIDENCE_RECORD_V1",
+  "domain_tag_hex": "45564944454e43455f5245434f52445f5631",
+  "hash_hex": "dcd550db78fb787fab39db786a8aab163613a7a2db487665a640626b5afc81fb"
+}

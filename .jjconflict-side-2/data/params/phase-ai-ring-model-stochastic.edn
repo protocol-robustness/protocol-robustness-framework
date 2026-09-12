@@ -1,0 +1,42 @@
+{:scenario-id "phase-ai-ring-model-stochastic"
+ :description "Phase AI (H2): Stochastic Escalation Trap — per-member ring coordination"
+
+ ;; Required by io/params validator
+ :rng-seed    99
+ :n-trials    100
+ :n-seeds     1
+ :parallelism :auto
+
+ ;; Resolver cohort
+ :n-resolvers          60
+ :strategy-mix         {:honest 1.00 :lazy 0.00 :malicious 0.00 :collusive 0.00}
+
+ ;; Ring configuration (using the realistic per-member model)
+ :use-ring-model?      true
+ :ring-size            5          ; starting number of sybil ring members
+ :ring-max-size        15         ; upper bound for ring entry dynamics
+
+ ;; Escalation trap mechanics.
+ :escalation-rate      1.00       ; ring always escalates (100%)
+ :appeal-bond-bps      1000       ; appeal bond = 10% of escrow size
+ :honest-capital       5000       ; each honest resolver's starting capital
+ :escalation-cost-per-dispute 1000  ; appeal-bond-bps * escrow-size / 10000
+
+ ;; Ring detection/slashing parameters (drives ring member exits)
+ :fraud-detection-probability 0.05
+ :fraud-slash-bps             500
+
+ ;; Simulation parameters
+ :n-epochs             200
+ :n-trials-per-epoch   100
+ :escrow-size          10000
+ :resolver-fee-bps     150
+
+ ;; Displacement hypothesis thresholds
+ :displacement-threshold 0.50
+
+ ;; Escrow distribution
+ :escrow-distribution {:type :lognormal :mean 10000 :std 5000}
+
+ ;; RNG seed
+ :seed 99}

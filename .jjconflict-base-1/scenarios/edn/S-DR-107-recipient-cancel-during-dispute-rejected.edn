@@ -1,0 +1,33 @@
+{:scenario-id "s-dr-107-recipient-cancel-during-dispute-rejected"
+ :schema-version "1.0"
+ :allow-open-disputes? true
+ :purpose "adversarial-robustness"
+ :title "recipient-cancel during an active dispute is rejected — cancel cannot bypass dispute resolution"
+ :description "Strategic disputant behavior: the seller (recipient) attempts recipient_cancel while the escrow is in an active dispute. Cancel is only valid on a :pending escrow, so the attempt is rejected with :transfer-not-pending — a counterparty cannot use cancel to bypass or short-circuit an in-flight dispute."
+ :tags ["suite/dispute-resolution"
+        "coverage/strategic"
+        "coverage/cancel"
+        "coverage/recipient-cancel"
+        "coverage/guard"
+        "recipient-cancel/during-dispute"]
+ :threat-tags ["dispute-resolution" "strategic" "cancel" "guard" "dispute-bypass"]
+ :provenance {:author "strategic-disputant-model" :created-at "2026-08-10" :license "CC-BY-4.0"}
+ :claim {:id "recipient-cancel-during-dispute-rejected"
+         :statement "recipient_cancel on a disputed escrow is rejected with :transfer-not-pending; cancel cannot bypass dispute resolution."
+         :falsifies-if ["recipient_cancel succeeds on a disputed escrow"
+                        "cancel short-circuits an in-flight dispute"]}
+ :expected-errors [{:seq 2 :action "recipient_cancel" :error "transfer-not-pending"}]
+ :expectations {:terminal-state "disputed"}
+ :expected/invariants [:stake/non-negative
+                       :conservation-of-funds]
+ :threat {:family "dispute-resolution" :attack "recipient-cancel-during-dispute" :severity "medium"
+          :actors ["seller"] :victims ["buyer"]
+          :assumptions ["Escrow is :disputed" "recipient_cancel requires :pending"]}
+ :accounting {:unit "USDC" :decimals 6 :tracked-balances ["buyer" "seller" "protocol"]}
+ :initial-block-time 1000
+ :protocol-params {:resolver-fee-bps 150}
+ :agents [{:id "buyer" :address "0xbuyer" :strategy "honest"}
+          {:id "seller" :address "0xseller" :strategy "honest"}]
+ :events [{:seq 0 :time 1000 :agent "buyer" :action "create_escrow" :params {:token "USDC" :to "0xseller" :amount 5000}}
+          {:seq 1 :time 1060 :agent "buyer" :action "raise_dispute" :params {:workflow-id 0}}
+          {:seq 2 :time 1100 :agent "seller" :action "recipient_cancel" :params {:workflow-id 0}}]}

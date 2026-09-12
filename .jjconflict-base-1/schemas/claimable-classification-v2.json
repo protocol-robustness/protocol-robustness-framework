@@ -1,0 +1,149 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sew-protocol/schemas/claimable-classification-v2.json",
+  "title": "Claimable Classification",
+  "type": "object",
+  "required": ["schema_version", "shortfall_policy", "classes"],
+  "properties": {
+    "schema_version": {
+      "const": "claimable-classification.v2"
+    },
+    "observations_status": {
+      "type": "string",
+      "enum": ["taxonomy-only", "terminal-aggregated", "single-scenario"]
+    },
+    "provenance": {
+      "type": "object",
+      "properties": {
+        "producer": { "type": "string" },
+        "produced_at": { "type": "string" },
+        "run_id": { "type": "string" },
+        "git_sha": { "type": "string" }
+      },
+      "additionalProperties": true
+    },
+    "canonical_domains": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "incentives_summary": {
+      "type": "object",
+      "properties": {
+        "category": { "const": "incentive" },
+        "class_ids": { "type": "array", "items": { "type": "string" } },
+        "domains": { "type": "array", "items": { "type": "string" } }
+      },
+      "additionalProperties": true
+    },
+    "classifier_version": { "type": "string" },
+    "deferred_amount_semantics": { "type": "string" },
+    "shortfall_policy": {
+      "type": "object",
+      "required": ["mode", "allocation", "rounding_policy"],
+      "properties": {
+        "mode": { "type": "string" },
+        "allocation": { "type": "string" },
+        "rounding_policy": {
+          "const": "floor-to-asset-decimals.v1"
+        }
+      },
+      "additionalProperties": true
+    },
+    "classes": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "required": [
+          "delivery_model",
+          "source",
+          "recipient_types",
+          "risk_class",
+          "claimable_v2_domains"
+        ],
+        "properties": {
+          "delivery_model": { "type": "string" },
+          "source": { "type": "string" },
+          "recipient_types": {
+            "type": "array",
+            "items": { "type": "string" }
+          },
+          "authorized_withdrawer": { "type": "string" },
+          "boundary_invariant": { "type": ["string", "null"] },
+          "boundary_reason": { "type": "string" },
+          "v1_mapping": { "type": "object" },
+          "risk_class": { "type": "string" },
+          "category": {
+            "type": "string",
+            "enum": ["settlement", "incentive", "bond", "liability", "reserve"]
+          },
+          "claimable_v2_domains": {
+            "type": "array",
+            "items": { "type": "string" }
+          },
+          "v1_class": { "type": ["string", "null"] },
+          "shortfall_outcome": { "type": "string" }
+        },
+        "additionalProperties": true
+      }
+    },
+    "terminal_observations": {
+      "type": ["object", "null"],
+      "properties": {
+        "scope": { "type": "string" },
+        "scenario_id": { "type": "string" },
+        "scenario_id_status": { "type": "string" },
+        "scenario_result_path": { "type": "string" },
+        "scenario_count": { "type": "integer", "minimum": 0 },
+        "terminal_world_count": { "type": "integer", "minimum": 0 },
+        "workflow_count": { "type": "integer", "minimum": 0 },
+        "coverage_status": { "type": "string" },
+        "coverage_matrix": { "type": "object", "additionalProperties": true },
+        "classified_claimable_total": { "type": "integer" },
+        "terminal_value_total": { "type": "integer" },
+        "unclassified_claimable_total": { "type": "integer" },
+        "warnings": { "type": "array" },
+        "scenarios_passed": { "type": "integer", "minimum": 0 },
+        "aggregation": { "type": "string" },
+        "aggregation_note": { "type": "string" },
+        "by_class": { "type": "object", "additionalProperties": true },
+        "by_incentive_class": { "type": "object", "additionalProperties": true },
+        "by_domain": { "type": "object", "additionalProperties": true },
+        "domains_discovered": { "type": "array", "items": { "type": "string" } },
+        "accrued_fees": { "type": "object", "additionalProperties": true },
+        "boundaries": { "type": "object", "additionalProperties": true },
+        "escrow_yield_outcome_counts": {
+          "type": "object",
+          "additionalProperties": { "type": "integer", "minimum": 0 }
+        },
+        "boundary_headroom": { "type": "object", "additionalProperties": true },
+        "funds_ledger": { "type": "object", "additionalProperties": true },
+        "scenario_highlights": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "scenario_id": { "type": "string" },
+              "workflows": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "workflow_id": {},
+                    "total_claimable": { "type": "integer" },
+                    "by_domain": { "type": "object" },
+                    "by_class": { "type": "object" },
+                    "boundary_headroom": { "type": "object" }
+                  },
+                  "additionalProperties": true
+                }
+              }
+            },
+            "additionalProperties": true
+          }
+        }
+      },
+      "additionalProperties": true
+    }
+  },
+  "additionalProperties": true
+}

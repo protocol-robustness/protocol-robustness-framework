@@ -1,0 +1,13 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Evidence Attestation v1",
+  "type": "object",
+  "required": ["claim_sha256", "attestation_type", "signer_id", "signature", "timestamp"],
+  "properties": {
+    "claim_sha256": { "type": "string" },
+    "attestation_type": { "type": "string", "enum": ["REVIEWED_EVIDENCE", "REPRODUCED_RUN", "AGREES_WITH_CLAIM", "CONTRADICTS_CLAIM", "OBSERVATION"] },
+    "signer_id": { "type": "string" },
+    "signature": { "type": "string" },
+    "timestamp": { "type": "string", "format": "date-time" }
+  }
+}

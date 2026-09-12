@@ -1,0 +1,205 @@
+{:concept/id :resolver/participation-bonding
+ :concept/type :use-case
+ :concept/layer :stakeholder
+ :concept/name "Resolver participation and bonding"
+ :concept/summary
+ "A resolver registers with the protocol by posting a bond that backs their
+  participation. The bond may be slashed if the resolver acts maliciously or
+  fails to meet availability requirements. The resolver's active stake and
+  capacity limit determine how many concurrent disputes they can handle and
+  at what value. Resolver availability directly affects dispute resolution
+  timelines and fund lock-up risk for escrow participants."
+
+ :concept/stakeholder-question
+ "Can I trust that a resolver will be available, solvent, and accountable
+  for their decisions, and what protections exist if they are not?"
+
+ :concept/protocols #{:protocol/sew-v1}
+
+ :concept/maturity :illustrative
+ :concept/support-status :not-asserted
+
+ :concept/related
+ [:consensus/authority
+  :consensus/liveness
+  :consensus/legitimacy
+  :consensus/finality
+  :allocation/slash-obligation
+  :allocation/shortfall
+  :decision-quality/solvency-status]
+
+ :concept/roles
+ {:resolver
+  {:description "Entity registered with the protocol to decide disputes."
+   :maps-to [:protocol.actor/resolver]}
+  :stake-manager
+  {:description "Entity that manages the resolver's bond and stake position."
+   :maps-to [:protocol.actor/resolver]
+   :mapping/confidence :approximate
+   :mapping/note "The resolver and the stake manager may be the same entity; the protocol does not distinguish them."}
+  :escrow-participant
+  {:description "Party whose escrow is assigned to a resolver for dispute resolution."
+   :maps-to [:protocol.actor/sender :protocol.actor/recipient]}
+  :governance
+  {:description "Protocol governance that sets bonding requirements, slash conditions, and resolver eligibility."
+   :maps-to [:protocol.actor/governance]}
+  :slashing-authority
+  {:description "Entity or module that executes slashing when a resolver violates protocol rules."
+   :maps-to [:protocol.actor/resolution-module]
+   :mapping/confidence :approximate
+   :mapping/note "Slashing is governed by protocol rules; the authority is the protocol itself, not a distinct actor."}}
+
+ :concept/entities
+ {:resolver-bond
+  {:description "Collateral posted by a resolver to register and participate. Backs honest behavior and availability."
+   :maps-to [:protocol.entity/bond]}
+  :stake-position
+  {:description "The resolver's total active stake, including the initial bond and any additional deposits."
+   :maps-to [:protocol.entity/stake]}
+  :capacity-limit
+  {:description "The maximum aggregate escrow value the resolver can handle concurrently, derived from their stake."
+   :maps-to [:protocol.entity/capacity]
+   :mapping/confidence :approximate
+   :mapping/note "Capacity is a computed property based on stake and protocol parameters; there is no distinct capacity entity."}
+  :slash-record
+  {:description "A record of a slashing event, including amount, reason, and affected escrow."
+   :maps-to [:protocol.entity/slash-record]
+   :mapping/confidence :approximate
+   :mapping/note "Slashing is recorded within protocol state; a distinct slash record entity may not exist."}
+  :availability-window
+  {:description "The time period during which the resolver is expected to be available to handle disputes."
+   :maps-to [:protocol.entity/deadline]
+   :mapping/confidence :approximate
+   :mapping/note "Availability is a liveness property, not a discrete entity with its own deadline."}}
+
+ :concept/actions
+ {:register-resolver
+  {:description "Entity posts a bond and registers as a resolver with a defined capacity."
+   :maps-to [:protocol.action/register-resolver]}
+  :adjust-stake
+  {:description "Resolver increases or decreases their active stake, affecting capacity."
+   :maps-to [:protocol.action/bond]
+   :mapping/confidence :approximate
+   :mapping/note "Stake adjustment uses the bond primitive; the protocol may not distinguish initial staking from adjustment."}
+  :assign-dispute
+  {:description "Protocol assigns a dispute to a resolver within their capacity."
+   :maps-to [:protocol.action/dispute]}
+  :resolve-dispute
+  {:description "Resolver issues a decision for an assigned dispute."
+   :maps-to [:protocol.action/resolve]}
+  :slash-resolver
+  {:description "Resolver bond is reduced due to malicious behavior, unavailability, or rule violation."
+   :maps-to [:protocol.action/slash]}
+  :withdraw-stake
+  {:description "Resolver removes their remaining bond after meeting exit conditions (no pending disputes, satisfied slashing obligations)."
+   :maps-to [:protocol.action/release]
+   :mapping/confidence :approximate
+   :mapping/note "Stake withdrawal uses the release mechanism; the protocol may require a cooldown or dispute-window check."}}
+
+ :concept/outcomes
+ {:resolver-registered
+  {:description "Entity is registered as a resolver with a bond and capacity."
+   :maps-to [:protocol.outcome/resolved]
+   :mapping/confidence :approximate
+   :mapping/note "Registration is a state transition, not a terminal outcome with its own protocol keyword."}
+  :dispute-assigned
+  {:description "A dispute is assigned to a resolver who has available capacity."
+   :maps-to [:protocol.outcome/pending]}
+  :resolution-issued
+  {:description "Resolver issued a timely decision for the assigned dispute."
+   :maps-to [:protocol.outcome/resolved]}
+  :resolver-slashed
+  {:description "Resolver bond was reduced due to a rule violation."
+   :maps-to [:protocol.outcome/slashed]}
+  :resolver-solvent
+  {:description "Resolver's bond remains sufficient to cover their active obligations."
+   :maps-to [:protocol.outcome/released]
+   :mapping/confidence :approximate
+   :mapping/note "Solvency is a continuous state, not a terminal outcome; this maps to the absence of a slashing event."}
+  :capacity-exhausted
+  {:description "Resolver has reached their maximum concurrent dispute load; new disputes cannot be assigned."
+   :maps-to [:protocol.outcome/rejected]
+   :mapping/confidence :approximate
+   :mapping/note "Capacity exhaustion causes dispute assignment to be rejected, but the protocol may not emit this as a distinct outcome."}
+  :resolver-unavailable
+  {:description "Resolver failed to act within the required time window, causing dispute timeout or escalation."
+   :maps-to [:protocol.outcome/stuck]
+   :mapping/confidence :approximate
+   :mapping/note "Unavailability manifests as a timeout, which maps to stuck at the protocol level."}}
+
+ :concept/failure-modes
+ [{:failure/id :resolver-unavailable
+   :failure/name "Resolver unavailable during dispute"
+   :failure/summary
+   "A resolver does not respond within the required window, leaving the dispute unresolved."
+   :protocol-mechanisms [:timeout :autocancel :escalation]
+   :stakeholder-impact "Escrow funds are locked until the timeout triggers; the dispute may be escalated or auto-resolved."}
+
+  {:failure/id :capacity-overload
+   :failure/name "Resolver capacity exceeded"
+   :failure/summary
+   "More disputes are raised than the resolver's capacity can handle, leaving some disputes unassigned or delayed."
+   :protocol-mechanisms [:capacity-limit :dispute-queue :throttling]
+   :stakeholder-impact "Disputes may expire before the resolver can act, or new disputes are rejected."}
+
+  {:failure/id :insufficient-bond
+   :failure/name "Resolver bond insufficient"
+   :failure/summary
+   "The resolver's bond is too small relative to the escrow values they are resolving, increasing moral hazard."
+   :protocol-mechanisms [:bond-amount :stake-capacity-multiplier]
+   :stakeholder-impact "Resolver has less economic stake in honest behavior than the value they control."}
+
+  {:failure/id :malicious-resolution
+   :failure/name "Malicious resolution"
+   :failure/summary
+   "Resolver issues a knowingly unfair decision, extracting value from a participant."
+   :protocol-mechanisms [:slashing :appeal :governance-override]
+   :stakeholder-impact "Party loses funds; recovery requires escalation or governance intervention."}
+
+  {:failure/id :coordinated-withdrawal
+   :failure/name "Resolver withdraws during active disputes"
+   :failure/summary
+   "Resolver attempts to withdraw their stake while disputes are still assigned, potentially abandoning their obligations."
+   :protocol-mechanisms [:pending-dispute-check :cooldown-period]
+   :stakeholder-impact "Disputes may be left without an assigned resolver; fallback mechanisms (governance, timeout) apply."}]
+
+ :concept/metrics
+ {:resolver-count
+  {:description "Number of registered resolvers."
+   :source :derived-from-trace}
+  :active-disputes-per-resolver
+  {:description "Number of concurrent disputes assigned to a resolver."
+   :source :derived-from-trace}
+  :bond-coverage-ratio
+  {:description "Ratio of resolver bond to total escrow value under their authority."
+   :source :derived-from-trace}
+  :slash-event-count
+  {:description "Number of slashing events during the interaction."
+   :source :derived-from-trace}
+  :resolution-time
+  {:description "Average time from dispute assignment to resolver decision."
+   :source :derived-from-trace}}
+
+ :concept/assumptions
+ ["A resolver must post a bond to register and maintain eligibility."
+  "Resolver capacity is determined by stake and protocol parameters."
+  "Slashing reduces the resolver bond and may affect their capacity."
+  "A resolver cannot withdraw their stake while disputes are pending."
+  "Concept labels do not change protocol validity."]
+
+ :concept/out-of-scope
+ ["Off-chain resolver reputation or rating systems."
+  "Resolver selection algorithms or market dynamics."
+  "Economic analysis of optimal bond amounts or slash conditions."
+  "Sybil resistance or identity verification for resolvers."]
+
+ :concept/known-gaps
+ ["Registration, stake adjustment, and withdrawal all map to approximate protocol primitives; there are no dedicated actions for resolver lifecycle management."
+  "Capacity exhaustion and resolver unavailability do not have distinct protocol outcomes; they are inferred from lags or rejections."
+  "Slash-record is not a distinct protocol entity; slashing is recorded within generic protocol state."
+  "The protocol does not distinguish resolver registration from bond posting."]
+
+ :concept/evidence
+ {:scenarios #{}
+  :benchmarks #{}
+  :claims #{}}}

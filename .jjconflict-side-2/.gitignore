@@ -1,0 +1,175 @@
+# Build output
+.sp1-proof-cache/
+**/target
+/out
+.cpcache
+.clj-kondo/.cache
+.prc
+.prf/
+
+# Generated simulation output (canonical root)
+results/
+
+# Generated, profile-specific source/dependency views. Authoritative profile
+# definitions remain under profiles/; regenerate these via bb profile:view.
+.profile-view/
+!data/fixtures/protocol/*.edn
+!data/fixtures/states/*.edn
+!data/fixtures/actors/*.edn
+!data/fixtures/authority/*.edn
+!data/fixtures/tokens/*.edn
+!data/fixtures/thresholds/*.edn
+!data/fixtures/suites/*.edn
+
+# Stale generated directories at root (should be under results/)
+prf-runs/
+prf-artifacts
+
+# Suite regenerated outputs
+suites/*/actual/
+suites/*/reports/
+
+# Generated verification outputs
+test/integration/cartesi/verification-suite/outputs/
+examples/demos/yield-shortfall-partial-fill/generated/
+verification-suite/outputs/
+
+# Python / notebook artifacts
+__pycache__/
+*.pyc
+.pytest_cache/
+.jupyter
+.venv
+venv/
+pytest-of-user
+.hypothesis
+__pycache__/
+
+# Clerk notebook artifacts
+.clerk
+notebook.log
+
+
+# IDE / editor
+.vscode
+.idea
+*.iml
+.nrepl*
+.nrepl-port
+.repl
+.lsp
+!.clj-kondo/config.edn
+!.clj-kondo/hooks
+.cider
+.calva
+.eca
+.joyride
+
+# AI tools
+.kilo
+.cursor
+.claude
+.clojure-mcp
+.gemini
+.aider*
+.aider/
+.aider/
+.ai
+.opencode
+.agents/
+.codex/
+.jj/
+
+# Local / experimental
+local
+scripts/experimental
+.sync-backup/
+
+# Local researcher workspace (opt-in extra paths via :researcher/env)
+.researcher/
+
+# JAR
+prf.jar
+
+# Logs
+grpc-server.log
+clerk.log
+debug_*.log
+*_debug.log
+violations.log
+all_violations.log
+invariants_only.log
+invariant_test.log
+test-debug.log
+full_test_output.log
+test_output.txt
+test_output.log
+
+# Agent / project metadata
+AGENTS.md
+docs/technical-summary-for-franz.md
+
+# Private discovery workspace temporary files
+workspaces/private-discovery-template/sealed-log/
+workspaces/private-discovery-template/encrypted-*/
+workspaces/private-discovery-template/local-runs/
+workspaces/private-discovery-template/disclosure-candidates/
+workspaces/private-discovery-template/export/
+**/disclosure-candidates/
+
+# System files
+.DS_Store
+*.swp
+*~
+.rebel_readline_history
+
+# Codacy
+.codacy
+.cursor/rules/codacy.mdc
+.github/instructions/codacy.instructions.md
+
+# Locks
+.test-artifact.lock
+
+# Local act / CI (see .actrc and bin/ci)
+.secrets
+
+# Generated outputs
+outputs/
+
+# Notebook screenshot export (see docs/notebooks/SCREENSHOT_EXPORT.md)
+shots/
+
+# Archived notebooks and docs
+notebooks/archive/
+docs/archive/
+
+# Temporarily ignored
+send-to-ef
+notes
+docs/game-theory/CLOSED_FORM_VALIDATION.md
+temp
+
+# tmp
+tmp
+
+# devops symlinks
+ansible
+terraform
+scripts/assurance-lab/full-setup.sh
+docs/ASSURANCE_LAB.md
+scripts/assurance-lab/phase1-master.sh
+
+# prf-runner
+prf-runner
+
+# temp dir
+tmp
+
+# gh cli
+.actrc 
+rg-results
+tempf
+tempf
+tempf
+tempf

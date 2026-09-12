@@ -1,0 +1,43 @@
+{:scenario-id "phase-ai-escalation-trap"
+ :description "Phase AI: Escalation Trap — sybil ring forces honest resolver displacement"
+
+ ;; Required by io/params validator
+ :rng-seed    99
+ :n-trials    100
+ :n-seeds     1
+ :parallelism :auto
+
+ ;; Resolver cohort
+ :n-resolvers          60
+ :strategy-mix         {:honest 1.00 :lazy 0.00 :malicious 0.00 :collusive 0.00}
+
+ ;; Ring configuration (the sybil ring sits outside the normal strategy-mix cohort)
+ :ring-size            5          ; number of sybil ring members
+ :ring-delegation-bond 50000      ; whale capital delegated to the ring (wei equivalent)
+
+ ;; Escalation trap mechanics.
+ ;; The ring escalates every dispute it handles to L2, forcing the opposing honest
+ ;; resolver to post appeal-bond-bps of the escrow amount to continue.
+ ;; Honest resolvers who cannot cover the bond cost lose the dispute by default.
+ :escalation-rate      1.00       ; ring always escalates (100%)
+ :appeal-bond-bps      1000       ; appeal bond = 10% of escrow size
+ :honest-capital       5000       ; each honest resolver's starting capital
+
+ ;; Honest resolver exit rule: resolver exits when cumulative bond costs > honest-capital.
+ ;; Each escalated dispute costs the honest resolver appeal-bond-bps * escrow-size.
+ :escalation-cost-per-dispute 1000  ; appeal-bond-bps * escrow-size / 10000 (pre-computed)
+
+ ;; Simulation parameters
+ :n-epochs             200
+ :n-trials-per-epoch   100
+ :escrow-size          10000
+ :resolver-fee-bps     150
+
+ ;; Displacement hypothesis thresholds
+ :displacement-threshold 0.50     ; >50% of honest resolvers displaced = attack succeeds
+
+ ;; Escrow distribution (required by io/params validator)
+ :escrow-distribution {:type :lognormal :mean 10000 :std 5000}
+
+ ;; RNG seed (also set as :rng-seed for validator compatibility)
+ :seed 99}

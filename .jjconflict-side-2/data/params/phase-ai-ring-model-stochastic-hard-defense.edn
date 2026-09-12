@@ -1,0 +1,42 @@
+{:scenario-id "phase-ai-ring-model-stochastic-hard-defense"
+ :description "Phase AI (H2): Stochastic Escalation Trap — Hard Defense (1% Ring, 100k Capital)"
+
+ ;; Required by io/params validator
+ :rng-seed    99
+ :n-trials    100
+ :n-seeds     1
+ :parallelism :auto
+
+ ;; Resolver cohort
+ :n-resolvers          60
+ :strategy-mix         {:honest 1.00 :lazy 0.00 :malicious 0.00 :collusive 0.00}
+
+ ;; Ring configuration
+ :use-ring-model?      true
+ :ring-size            1          ; start with only 1 member
+ :ring-max-size        3          ; strictly limited ring size
+
+ ;; Escalation trap mechanics.
+ :escalation-rate      1.00       ; ring always escalates (100%)
+ :appeal-bond-bps      1000       ; appeal bond = 10% of escrow size
+ :honest-capital       100000     ; 20x starting capital
+ :escalation-cost-per-dispute 1000  ; appeal-bond-bps * escrow-size / 10000
+
+ ;; Ring detection/slashing parameters (drives ring member exits)
+ :fraud-detection-probability 0.25   ; 25% detection
+ :fraud-slash-bps             5000   ; 50% slash penalty
+
+ ;; Simulation parameters
+ :n-epochs             200
+ :n-trials-per-epoch   100
+ :escrow-size          10000
+ :resolver-fee-bps     150
+
+ ;; Displacement hypothesis thresholds
+ :displacement-threshold 0.50
+
+ ;; Escrow distribution
+ :escrow-distribution {:type :lognormal :mean 10000 :std 5000}
+
+ ;; RNG seed
+ :seed 99}

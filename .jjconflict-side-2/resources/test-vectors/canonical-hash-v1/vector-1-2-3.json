@@ -1,0 +1,9 @@
+{
+  "id": "vector-1-2-3",
+  "description": "Vector [1 2 3]",
+  "input": "[1 2 3]",
+  "canonical_bytes_hex": "3003100210041006",
+  "domain_tag": "EVIDENCE_RECORD_V1",
+  "domain_tag_hex": "45564944454e43455f5245434f52445f5631",
+  "hash_hex": "44800ac176e6cc27af5531c3cdd5f68fa8b6aed89e716ef30bd38af9297ad4a3"
+}

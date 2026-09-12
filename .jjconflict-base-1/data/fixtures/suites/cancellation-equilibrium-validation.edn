@@ -1,0 +1,22 @@
+{:suite/id       :suites/cancellation-equilibrium-validation
+:suite/title    "Cancellation equilibrium-validation: mutual cancel, timeout, status-leak, and cancellation-time scenarios"
+:suite/purpose  "Verify that cancellation paths maintain equilibrium properties and do not create profitable strategic deviations. Covers mutual cancel, dispute-timeout auto-cancel, status-clearing regression, cancellation-time via automate-timed-actions, deadline boundary, and dispute-orphaned auto-cancel scenarios."
+:suite/prevents "Undetected profitable unilateral deviations from cancellation paths; stale status regressions in counterfactual analysis; missing coverage for auto-cancel-time via keeper path, deadline boundary, and dispute-blocking attack."
+ :suite/class    :safety
+ :suite/criticality :high
+
+ :protocol   :protocol/baseline
+ :state      :states/minimal-world
+ :thresholds :thresholds/strict-baseline
+
+:traces [:traces/s06-mutual-cancel
+         :traces/s04-dispute-timeout-autocancel
+         :traces/s17-ieo-dispute-no-resolver-timeout
+         :traces/s22-status-leak-agree-cancel-over-dispute
+         :traces/s-extortion-unilateral-cancel
+         :traces/s-extortion-unilateral-cancel-dual
+         :traces/s-auto-cancel-time-via-keeper
+         :traces/s-auto-cancel-time-boundary
+          :traces/s-auto-cancel-time-orphaned-by-dispute
+          :traces/s-same-timestamp-auto-cancel-vs-dispute
+          :traces/s-same-timestamp-dispute-vs-auto-cancel]}

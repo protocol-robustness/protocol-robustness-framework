@@ -1,0 +1,10 @@
+suite: sew-domain-reference-v1
+version: "1.0.0"
+description: >
+  Sew protocol batch conflict domain reference suite. Covers conflict-resolution
+  scenarios specific to the Sew protocol: same-block dual settlement, pending
+  settlement expiry, escalation after terminal states, force-refund conflicts,
+  and superseded-pending escalation.
+simulator_backed: true
+protocol: sew
+created: "2026-06-12"

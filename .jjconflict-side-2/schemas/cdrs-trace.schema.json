@@ -1,0 +1,88 @@
+{
+  "$schema" : "http://json-schema.org/draft-07/schema#",
+  "title" : "CDRS Trace",
+  "description" : "Full execution history of a dispute resolution scenario",
+  "type" : "object",
+  "required" : [ "cdrs_version", "trace_id", "protocol_id", "steps" ],
+  "additionalProperties" : true,
+  "properties" : {
+    "cdrs_version" : {
+      "type" : "string",
+      "const" : "0.1"
+    },
+    "trace_id" : {
+      "type" : "string"
+    },
+    "protocol_id" : {
+      "type" : "string"
+    },
+    "metadata" : {
+      "type" : "object",
+      "additionalProperties" : true,
+      "properties" : {
+        "trace_kind" : {
+          "type" : "string"
+        },
+        "scenario_type" : {
+          "type" : "string"
+        },
+        "issue_type" : {
+          "type" : "string"
+        },
+        "issue_subtype" : {
+          "type" : "string"
+        },
+        "failure_propagation" : {
+          "type" : "string"
+        },
+        "adversary_type" : {
+          "type" : "string"
+        },
+        "trace_score" : {
+          "type" : "integer"
+        }
+      }
+    },
+    "steps" : {
+      "type" : "array",
+      "items" : {
+        "$ref" : "cdrs-event.schema.json"
+      }
+    },
+    "final_state" : {
+      "type" : "object",
+      "additionalProperties" : true,
+      "properties" : {
+        "reconciliation" : {
+          "type" : "object",
+          "properties" : {
+            "status" : {
+              "type" : "string",
+              "enum" : [ "balanced", "imbalanced" ]
+            },
+            "leakage" : {
+              "type" : "integer"
+            }
+          }
+        },
+        "resolution" : {
+          "type" : "object",
+          "properties" : {
+            "outcome" : {
+              "type" : "string",
+              "enum" : [ "RELEASE", "REFUND", "SLASH", "SPLIT", "NO_OP" ]
+            },
+            "finality" : {
+              "type" : "string",
+              "enum" : [ "FINAL", "APPEALABLE", "REVERSED", "STALLED" ]
+            },
+            "integrity" : {
+              "type" : "string",
+              "enum" : [ "FULLY_RECONCILED", "ACCOUNTING_MISMATCH", "MISSING_EFFECTS", "LEAKAGE" ]
+            }
+          }
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://prf.dev/schemas/use-case-registry.v1.json",
+  "title": "PRF external use-case registry v1",
+  "type": "object",
+  "required": ["schema/id", "registry/id", "registry/version", "use-cases"],
+  "properties": {
+    "schema/id": {"const": "prf/use-case-registry.v1"},
+    "registry/id": {"type": "string", "minLength": 1},
+    "registry/version": {"type": "string", "minLength": 1},
+    "use-cases": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["use-case/id", "definition/ref"],
+        "properties": {
+          "use-case/id": {"type": "string"},
+          "definition/ref": {"type": "string", "minLength": 1}
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "additionalProperties": true
+}

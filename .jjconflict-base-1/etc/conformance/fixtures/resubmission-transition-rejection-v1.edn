@@ -1,0 +1,87 @@
+{:state-before-projection
+ {:chain/successor-by-parent {nil "sha256:R1"},
+  :chain/disposition-head-by-receipt {},
+  :chain/effective-disposition-by-receipt {},
+  :chain/family-id "sha256:FAM",
+  :chain/content-index
+  {"sha256:B1" {:parent-receipt-hash nil, :receipt-hash "sha256:R1"}},
+  :chain/head "sha256:R1",
+  :chain/idempotency-index
+  {"sha256:I1" {:content-key "sha256:B1", :receipt-hash "sha256:R1"}},
+  :transaction/commit-index 1,
+  :chain/version 1},
+ :change-identity nil,
+ :state-before-canonical-bytes-hex
+ "3109220a636861696e2f6865616420097368613235363a5231220d636861696e2f76657273696f6e1002220f636861696e2f66616d696c792d6964200a7368613235363a46414d2213636861696e2f636f6e74656e742d696e646578310120097368613235363a42313102220c726563656970742d6861736820097368613235363a52312213706172656e742d726563656970742d68617368002217636861696e2f6964656d706f74656e63792d696e646578310120097368613235363a49313102220b636f6e74656e742d6b657920097368613235363a4231220c726563656970742d6861736820097368613235363a523122187472616e73616374696f6e2f636f6d6d69742d696e64657810022219636861696e2f737563636573736f722d62792d706172656e7431010020097368613235363a52312221636861696e2f646973706f736974696f6e2d686561642d62792d7265636569707431002226636861696e2f6566666563746976652d646973706f736974696f6e2d62792d726563656970743100",
+ :state-before
+ {:chain/successor-by-parent {nil "sha256:R1"},
+  :chain/disposition-head-by-receipt {},
+  :chain/effective-disposition-by-receipt {},
+  :chain/attempt-receipts
+  {"sha256:R1"
+   {:attempt-receipt
+    #:attempt-receipt{:schema "submission-attempt-receipt.v1",
+                      :id "sha256:R1",
+                      :outcome :rejected,
+                      :finality :final,
+                      :resubmission-eligibility :eligible,
+                      :lifecycle-status :active},
+    :sequence 1,
+    :parent-receipt-hash nil}},
+  :transaction/last-hash nil,
+  :chain/family-id "sha256:FAM",
+  :chain/content-index
+  {"sha256:B1" {:parent-receipt-hash nil, :receipt-hash "sha256:R1"}},
+  :chain/head "sha256:R1",
+  :chain/idempotency-index
+  {"sha256:I1" {:content-key "sha256:B1", :receipt-hash "sha256:R1"}},
+  :transaction/commit-index 1,
+  :chain/disposition-public-hex nil,
+  :chain/version 1},
+ :input-root nil,
+ :effects-root nil,
+ :fixture/profile "deterministic-rejection-duplicate-content",
+ :fixture/time-dependent? false,
+ :ordering-v2-projection nil,
+ :fixture/description
+ "Genesis admit has committed content-key sha256:B1 under parent nil. A second admit with the same content-key and same parent is rejected as duplicate-content-submission.",
+ :fixture/id "resubmission-transition-duplicate-content.v1",
+ :ordering-root nil,
+ :conformance/input-root-domain :prf-transaction-input-v1,
+ :command
+ #:transaction{:action :prf.resubmission/admit-child,
+               :input
+               {:parent-receipt-hash nil,
+                :link-artifact-hash "sha256:L2",
+                :candidate-attempt-receipt
+                #:attempt-receipt{:schema
+                                  "submission-attempt-receipt.v1",
+                                  :id "sha256:R2",
+                                  :outcome :rejected,
+                                  :finality :final,
+                                  :resubmission-eligibility :eligible,
+                                  :lifecycle-status :active},
+                :candidate-attempt-receipt-id "sha256:R2",
+                :idempotency-key "sha256:I2",
+                :content-key "sha256:B1",
+                :sequence 1}},
+ :effects-canonical-bytes-hex nil,
+ :fixture/schema "resubmission-transition-fixture.v1",
+ :conformance/ordering-schema "transaction-ordering.v2",
+ :conformance/ordering-v2-domain :prf-transaction-ordering-v2,
+ :state-before-root
+ "sha256:7e117371e6db8c6c4eddc156b5e705f7e3c20a0b26b9cc3a5941275868d6f835",
+ :fixture/deterministic? true,
+ :conformance/change-identity-domain
+ :prf-transaction-ordering-change-identity-v1,
+ :effects nil,
+ :ordering-input nil,
+ :transition-outcome
+ {:status :rejected,
+  :reason :duplicate-content-submission,
+  :public-result {:existing "sha256:R1"}},
+ :ordering-canonical-bytes-hex nil,
+ :conformance/state-domain :prf-resubmission-chain-state-v1,
+ :fixture/kind :rejected,
+ :conformance/effects-domain :prf-transaction-effects-v1,
+ :conformance/projection-schema "chain-state-projection.v1"}

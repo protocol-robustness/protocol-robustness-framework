@@ -1,0 +1,38 @@
+{:scenario-id "dr-j-001-dispute-liveness-timeout"
+ :schema-version "1.0"
+ :allow-open-disputes? true
+ :purpose "adversarial-robustness"
+ :title "Dispute liveness timeout: resolver never resolves, max-dispute-duration elapses, keeper auto-cancels with timeout slash"
+ :description "A dispute is raised on an escrow. The assigned resolver never submits a resolution (goes offline). After max-dispute-duration elapses, a keeper explicitly calls auto-cancel-disputed. The escrow is refunded to the buyer and the resolver is slashed for the full escrow amount (timeout penalty)."
+ :provenance {:author "@dispute-researcher" :created-at "2026-06-30" :license "CC-BY-4.0"}
+ :claim {:id "dispute-liveness-timeout-recovery"
+         :statement "When a resolver fails to resolve a dispute before max-dispute-duration elapses, a keeper can call auto-cancel-disputed to refund the buyer and slash the resolver for the full escrow amount."
+         :falsifies-if ["auto-cancel-disputed fails when dispute-timeout has elapsed"
+                        "Resolver is not slashed on timeout"
+                        "Escrow is not refunded to buyer"
+                        "Resolver capacity is not decremented after timeout"]}
+ :expectations {:terminal-state "refunded"
+                :must-hold ["slashable_liability_preserved" "resolver_decision_attributable"]
+                :metrics {:timeout_slash_amount {:eq 5000}}}
+ :threat {:family "liveness" :attack "resolver-unavailability-timeout" :severity "critical"
+          :actors ["resolver"] :victims ["buyer"]
+          :assumptions ["max-dispute-duration = 600 seconds"
+                        "No resolution is submitted before timeout"]}
+ :accounting {:unit "USDC" :decimals 6 :tracked-balances ["buyer" "seller" "resolver" "protocol" "slashPool"]}
+ :initial-block-time 1000
+ :protocol-params {:resolver-fee-bps 150 :appeal-window-duration 60 :max-dispute-duration 600
+                   :timeout-slash-bps 10000 :dispute-resolver "0xresolver"}
+ :agents [{:id "buyer" :address "0xbuyer" :strategy "honest"}
+          {:id "seller" :address "0xseller" :strategy "honest"}
+          {:id "resolver" :address "0xresolver" :role "resolver" :stake 20000}
+          {:id "keeper" :address "0xkeeper" :role "keeper"}]
+ :events [{:seq 0 :time 1000 :agent "resolver" :action "register_stake"
+           :params {:amount 20000}}
+          {:seq 1 :time 1000 :agent "buyer" :action "create_escrow"
+           :params {:token "USDC" :to "0xseller" :amount 5000}}
+          {:seq 2 :time 1060 :agent "seller" :action "raise_dispute" :params {:workflow-id 0}}
+          ;; Resolver never submits a resolution
+          ;; max-dispute-duration = 600, so at time 1060 + 600 = 1660, timeout is exceeded
+          ;; Keeper calls auto-cancel-disputed after timeout
+          {:seq 3 :time 1700 :agent "keeper" :action "auto_cancel_disputed"
+           :params {:workflow-id 0}}]}

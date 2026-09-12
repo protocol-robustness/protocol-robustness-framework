@@ -1,0 +1,43 @@
+{:scenario-id "s-dr-100-resolver-response-within-window"
+ :schema-version "1.0"
+ :purpose "regression"
+ :title "Resolver responds within response window — assigned resolver rules, no escalation"
+ :description "Regression: the assigned resolver submits a resolution within :resolver-response-window (raise at t=1060, window 120s, resolution at t=1100). The resolution is accepted from the assigned resolver, settlement proceeds, and no escalation/fallthrough is triggered. Demonstrates the response window does not interfere with a responsive resolver."
+ :tags ["suite/dispute-resolution"
+        "coverage/resolver-integrity"
+        "coverage/resolver-response"
+        "coverage/timing"
+        "resolver-response/within-window"]
+ :threat-tags ["dispute-resolution" "resolver-response" "timing" "liveness"]
+ :provenance {:author "resolver-response-model" :created-at "2026-08-10" :license "CC-BY-4.0"}
+ :claim {:id "resolver-response-within-window"
+         :statement "A resolver that responds within the response window resolves normally; the window does not affect a responsive resolver."
+         :falsifies-if ["A responsive resolver's resolution is rejected within the window"
+                        "Escalation fires before the window expires"]}
+ :expected/events [:dispute-raised :resolution-executed :settlement-executed]
+ :expected/not-events [:resolver-rotation :escalation]
+ :expectations {:terminal-state "released"}
+ :expected/invariants [:stake/non-negative
+                       :resolver/balances-conserved
+                       :conservation-of-funds]
+ :threat {:family "dispute-resolution" :attack "resolver-response-within-window" :severity "info"
+          :actors ["buyer" "resolver"] :victims ["buyer" "seller"]
+          :assumptions ["Response window 120s" "Resolver responds at t=1100 (within window)"]}
+ :accounting {:unit "USDC" :decimals 6 :tracked-balances ["buyer" "seller" "resolver" "protocol"]}
+ :initial-block-time 1000
+ :protocol-params {:governance-mode :legacy, :resolver-fee-bps 150 :appeal-window-duration 60 :max-dispute-duration 2592000
+                   :resolver-response-window 120
+                   :dispute-resolver "0xresolver"}
+ :agents [{:id "buyer" :address "0xbuyer" :strategy "honest"}
+          {:id "seller" :address "0xseller" :strategy "honest"}
+          {:id "resolver" :address "0xresolver" :role "resolver" :stake 10000}
+          {:id "keeper" :address "0xkeeper" :role "keeper"}]
+ :theory {:claim-id "resolver-response-within-window"
+          :assumptions [:response-window-120s
+                        :resolver-responds-within-window]
+          :mechanism-properties [:resolver-response-deadline]}
+ :events [{:seq 0 :time 1000 :agent "resolver" :action "register_stake" :params {:amount 10000}}
+          {:seq 1 :time 1000 :agent "buyer" :action "create_escrow" :params {:token "USDC" :to "0xseller" :amount 5000}}
+          {:seq 2 :time 1060 :agent "buyer" :action "raise_dispute" :params {:workflow-id 0}}
+          {:seq 3 :time 1100 :agent "resolver" :action "execute_resolution" :params {:workflow-id 0 :is-release true :resolution-hash "0xrelease"}}
+          {:seq 4 :time 1200 :agent "keeper" :action "execute_pending_settlement" :params {:workflow-id 0}}]}

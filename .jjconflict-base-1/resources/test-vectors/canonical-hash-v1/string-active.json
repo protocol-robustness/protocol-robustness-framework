@@ -1,0 +1,9 @@
+{
+  "id": "string-active",
+  "description": "String active",
+  "input": "\"active\"",
+  "canonical_bytes_hex": "2006616374697665",
+  "domain_tag": "EVIDENCE_RECORD_V1",
+  "domain_tag_hex": "45564944454e43455f5245434f52445f5631",
+  "hash_hex": "59248370e2f9a25ac92ab414e67b8415d846bbecf21e41e00314bb88abcd4a47"
+}

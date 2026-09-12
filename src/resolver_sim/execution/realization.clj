@@ -33,19 +33,21 @@
          :emitted? false}))
 
 (defn record-executor-dispatch! [parallelism]
+  ;; Admit to the lane first. A rejected late dispatch must not leave the
+  ;; realization claiming a phase the lane never accepted.
+  (when-let [l *claimant-execution-lane*]
+    (lane/record-executor-dispatch! l))
   (when-let [realization *claimant-execution-realization*]
     (update-while-open! realization
                         #(-> %
                              (update :phases conj {:executor-parallelism parallelism})
-                             (update :executor-backed-phases inc))))
-  (when-let [l *claimant-execution-lane*]
-    (lane/record-executor-dispatch! l)))
+                             (update :executor-backed-phases inc)))))
 
 (defn record-quiesced! []
-  (when-let [realization *claimant-execution-realization*]
-    (update-while-open! realization #(update % :successfully-quiesced-phases inc)))
   (when-let [l *claimant-execution-lane*]
-    (lane/record-quiesced! l)))
+    (lane/record-quiesced! l))
+  (when-let [realization *claimant-execution-realization*]
+    (update-while-open! realization #(update % :successfully-quiesced-phases inc))))
 
 (defn- effective [state]
   (let [phases (:phases state)
@@ -136,8 +138,10 @@
      1. freeze the realization (seal phase record)
      2. close-execution! on the lane (FG-2: proves contributors=0, quiesced)
      3. finalize-lane! acquires the single finalizer ticket (FG-3)
-     4. emit the observation
+     4. finalize the realization inside the elected write function
+     5. emit the observation after the lane commits
 
+   A rejected or aborted lane leaves the realization frozen, not finalized.
    Without a lane, falls back to the original finalize! path."
   [realization]
   (freeze! realization)
@@ -146,15 +150,18 @@
       (when-not closed?
         (throw (ex-info "Finalization lane closure failed"
                         {:lifecycle (lane/state l)})))
-      (let [observation (finalize! realization)
-            result (lane/finalize-lane!
+      (let [result (lane/finalize-lane!
                     l
                     {:closed-result-set-root nil
                      :basis-root nil}
-                    (fn [_ticket] {:committed (or observation {:status :completed})}))]
-        (when (= :committed (:status result))
-          (emit! realization))
-        observation))
+                    (fn [_ticket]
+                      (let [observation (finalize! realization)]
+                        {:committed (or observation {:status :completed})})))]
+        (when-not (= :committed (:status result))
+          (throw (ex-info "Finalization lane rejected completion"
+                          (select-keys result [:status :reason :error]))))
+        (emit! realization)
+        (:observation @realization)))
     (let [observation (finalize! realization)]
       (emit! realization)
       observation)))

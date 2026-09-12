@@ -1,0 +1,31 @@
+;; output-policy.edn — Sample output policy
+;;
+;; Defines where and how forensic output is written and organized.
+;; Edit for your specific run requirements.
+
+{:output-policy/schema-version "output-policy.v1"
+ :output-policy/id               :forensic-output-v1
+ :output-policy/description      "Default forensic output policy — external, content-addressed, immutable"
+
+ ;; Output root directory (outside repo tree)
+ :output/root "~/prf-runs"
+
+ ;; Run directory naming pattern
+ :output/run-naming :timestamped  ;; :timestamped | :uuid | :custom
+
+ ;; What to include in the output bundle
+ :output/include
+ {:evidence-dag    true           ;; Include the full evidence DAG
+  :claims          true           ;; Include claim results
+  :attestations    true           ;; Include attestations
+  :anchors         true           ;; Include anchor cursors
+  :run-overview    true           ;; Include stable-field overview
+  :bundle-root     true           ;; Include bundle root manifest
+  :preflight-report true}         ;; Include preflight report
+
+ ;; Output immutability
+ :output/immutable true           ;; Output tree is read-only after creation
+
+ ;; Output format
+ :output/serialization :json      ;; :json | :edn | :msgpack
+ :output/pretty-print true}

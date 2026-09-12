@@ -7,7 +7,11 @@
             [resolver-sim.pro-rata.allocation :as allocation]
             [resolver-sim.pro-rata.canonical-effects :as effects]
             [resolver-sim.pro-rata.effect-compilation-binding :as binding]
+            [resolver-sim.pro-rata.effect-compilation-binding-v2 :as binding-v2]
+            [resolver-sim.pro-rata.effect-compilation-semantics :as compilation-semantics]
             [resolver-sim.pro-rata.effect-compilation-v2 :as compilation]
+            [resolver-sim.pro-rata.effect-compilation-v3 :as compilation-v3]
+            [resolver-sim.pro-rata.evm :as evm]
             [resolver-sim.pro-rata.realized-allocation-aggregate-held-credit :as sut]
             [resolver-sim.pro-rata.target-map :as target-map]))
 
@@ -223,6 +227,53 @@
     (is (reject #(assoc-in % [:target-map-validation :aggregate-custody-scope/root] (root "b"))))
     (is (reject #(assoc-in % [:target-map-validation :adapter/descriptor-root] (root "c"))))
     (is (= valid (:target-map-validation (sut/build body))))))
+
+(deftest aggregate-v3-retains-the-complete-stage-a-validation-basis
+  (let [fixture (canonical-fixture)
+        {:keys [realized-allocation bridge-body]} fixture
+        {:keys [aggregate-quantity aggregate-target-map native-location-map adapter-descriptor
+                target-map-validation]} bridge-body
+        compiler-semantics (compilation-semantics/build :aggregate-held-credit)
+        compiled (compilation-v3/compile
+                  {:allocation realized-allocation
+                   :target-map aggregate-target-map
+                   :semantics compiler-semantics
+                   :allocation-policy-root (get-in fixture [:statement :allocation-policy-root])
+                   :target-map-validation target-map-validation
+                   :native-location-map native-location-map
+                   :aggregate-quantity aggregate-quantity
+                   :adapter-descriptor adapter-descriptor})
+        bodies {(:allocation/hash realized-allocation) realized-allocation
+                (:target-map/root aggregate-target-map) aggregate-target-map
+                (:effect-compilation-semantics/root compiler-semantics) compiler-semantics
+                (:target-map-validation/root target-map-validation) target-map-validation
+                (:native-location-map/root native-location-map) native-location-map
+                (:quantity/root aggregate-quantity) aggregate-quantity
+                (:adapter/descriptor-root adapter-descriptor) adapter-descriptor}
+        resolve-body #(get bodies %)
+        quantity-root (:quantity/root aggregate-quantity)
+        canonical (effects/transition {quantity-root 25N}
+                                      (binding-v2/recompute-effects compiled resolve-body))
+        contract (binding-v2/build compiled canonical)
+        statement (evm/build-statement-v2
+                   {:state-before {quantity-root 25N}
+                    :effect-compilation compiled
+                    :effect-compilation-binding contract
+                    :resolve-body resolve-body
+                    :configuration-root (root "d")})]
+    (is (= (:target-map-validation/root target-map-validation)
+           (:target-map-validation/root compiled)))
+    (is (binding-v2/valid? contract compiled canonical resolve-body))
+    (is (evm/statement-v2-valid? statement {quantity-root 25N}
+                                 compiled contract resolve-body))
+    (is (not (binding-v2/valid? contract compiled canonical
+                                #(if (= % (:native-location-map/root native-location-map))
+                                   nil
+                                   (get bodies %)))))
+    (is (not (binding-v2/valid? contract compiled canonical
+                                #(if (= % (:adapter/descriptor-root adapter-descriptor))
+                                   (assoc adapter-descriptor :adapter/id :substituted)
+                                   (get bodies %)))))))
 
 (deftest canonical-effects-and-binding-are-order-and-lineage-sensitive
   (let [fixture (canonical-fixture)

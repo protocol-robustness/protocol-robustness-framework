@@ -1,0 +1,59 @@
+{:concept/id :allocation/bounty-payable-reserve
+ :concept/type :allocation
+ :concept/layer :stakeholder
+ :concept/name "Bounty payable reserve"
+ :concept/summary
+ "A bounty payable reserve is an accounting classification that tracks amounts earmarked for bounty payables. It is an accounting designation, not a vault or segregated on-chain balance."
+
+ :concept/stakeholder-question
+ "Is the reserve correctly accounted for as earmarked for bounty payables, separate from whether the funds are segregated or liquid?"
+
+ :concept/protocols #{:protocol/sew-v1 :protocol/prf}
+
+ :concept/roles
+ {:reserve-manager {:description "Entity that designates and tracks the reserve."
+                    :maps-to [:protocol.actor/governance]}
+  :reserve-auditor {:description "Entity that verifies reserve accounting."
+                    :maps-to [:protocol.role/verifier]}}
+
+ :concept/entities
+ {:reserve-designation {:description "The reserve amount earmarked for bounty payables."
+                        :maps-to [:protocol.entity/reserve]}
+  :reserve-policy {:description "The policy governing reserve designation."
+                   :maps-to [:protocol.entity/governance-policy]}}
+
+ :concept/actions
+ {:designate-reserve {:description "Earmark funds for bounty payable reserves."
+                      :maps-to [:protocol.action/record-obligation]}
+  :audit-reserve {:description "Verify reserve accounting against policy."
+                  :maps-to [:protocol.action/verify-allocation]}}
+
+ :concept/outcomes
+ {:reserve-correct {:description "Reserve accounting matches declared policy."
+                    :maps-to [:protocol.outcome/released]}
+  :reserve-misstated {:description "Reserve accounting deviates from policy."
+                      :maps-to [:protocol.outcome/adversarial-resolution]}}
+
+ :concept/failure-modes
+ [{:failure/id :reserve-overstated
+   :failure/name "Reserve overstated"
+   :failure/summary "Reserve exceeds the amount available for bounty payables."
+   :protocol-mechanisms [:reserve-accounting :verification]
+   :stakeholder-impact "May imply more liquidity than actually available for bounties."}]
+
+ :concept/assumptions
+ ["A reserve is an accounting classification, not necessarily a vault."
+  "Reserve designation follows the applicable policy."
+  "Reserve does not imply segregation or liquidity."]
+
+ :concept/out-of-scope
+ ["Legally or technically segregated custody."
+  "Whole-protocol solvency."
+  "Guaranteed liquidity at withdrawal time."
+  "Payment execution."
+  "Correctness of the bounty award."
+  "Funds held outside the represented accounting system."]
+
+ :concept/metrics
+ {:reserve-amount {:description "Current reserve amount for bounty payables."
+                   :source :derived-from-world-state}}}

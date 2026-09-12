@@ -1,0 +1,28 @@
+{;; Phase AE: Fair Slashing — parameter sweep config
+ ;; Controls the Monte Carlo sweep over false-positive slash scenarios.
+
+ ;; Number of trials per parameter combination (fraud + timeout = 2×n-trials per scenario).
+ :n-trials 1000
+
+ ;; RNG seed base — individual scenarios offset this deterministically.
+ :base-seed 42
+
+ ;; Resolver stake in USD terms (used to determine appeal bond affordability).
+ ;; Represents a mid-tier resolver with $10k posted.
+ :resolver-stake-usd 10000
+
+ ;; Sweep axes (all combinations are tested):
+ ;;   appeal-window         — fraud slash pending window (seconds)
+ ;;   appeal-bond-usd       — required bond to submit an appeal
+ ;;   p-correct-appeal      — probability governance reverses a false-positive correctly
+ ;;   timeout-contest-window — window to contest a TIMEOUT_RESOLVE slash (seconds)
+
+ ;; Pass threshold: ≥80% of all parameter combinations must achieve
+ ;; ≥80% capital preservation rate for the hypothesis to hold.
+ :pass-threshold 0.80
+
+ ;; Expected hypothesis outcome (for CI assertion):
+ ;;   With reasonable parameters (p-correct ≥ 0.8, appeal-window ≥ 3d),
+ ;;   the fair-slashing design should preserve resolver capital in ≥95%
+ ;;   of false-positive scenarios.
+ :expected-preservation-floor 0.80}

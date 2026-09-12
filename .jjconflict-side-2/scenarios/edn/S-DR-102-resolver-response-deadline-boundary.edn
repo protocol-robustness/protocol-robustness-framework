@@ -1,0 +1,48 @@
+{:scenario-id "s-dr-102-resolver-response-deadline-boundary"
+ :schema-version "1.0"
+ :purpose "theory-falsification"
+ :expected-fail? true
+ :title "Response deadline boundary — assigned resolver rules just after the window closes, fresh resolver may take over"
+ :description "Boundary: raise at t=1060, response-window 120s → deadline t=1180. The assigned resolver (0xr1) submits its resolution at t=1181, just one second past the deadline. Because the window has closed, a fresh resolver (0xr2) is now authorized to resolve too; the assigned resolver's late submission competes with the fresh-resolver fallthrough. This pins the at-or-after boundary semantics: at t=1180 the window is expired, at t=1179 it is not."
+ :tags ["suite/dispute-resolution"
+        "coverage/resolver-integrity"
+        "coverage/resolver-response"
+        "coverage/timing"
+        "coverage/boundary"
+        "resolver-response/deadline-boundary"]
+ :threat-tags ["dispute-resolution" "resolver-response" "timing" "boundary" "griefing"]
+ :provenance {:author "resolver-response-model" :created-at "2026-08-10" :license "CC-BY-4.0"}
+ :claim {:id "resolver-response-deadline-boundary"
+         :statement "The response window boundary is at-or-after the deadline: a fresh resolver becomes authorized exactly at raise-time + window (t=1180), not before."
+         :falsifies-if ["A fresh resolver is authorized before the deadline"
+                        "The assigned resolver retains exclusive authority past the deadline"]}
+ :expected/events [:dispute-raised :resolution-executed :settlement-executed]
+ :expectations {:terminal-state "released"}
+ :expected/invariants [:stake/non-negative
+                       :resolver/balances-conserved
+                       :conservation-of-funds]
+ :threat {:family "dispute-resolution" :attack "resolver-response-deadline-boundary" :severity "medium"
+          :actors ["buyer" "seller"] :victims ["buyer" "seller"]
+          :assumptions ["Response window 120s" "Deadline t=1180 = raise 1060 + 120"
+                        "Fresh resolver authorized at t>=1180 (at-or-after)"]}
+ :accounting {:unit "USDC" :decimals 6 :tracked-balances ["buyer" "seller" "resolver1" "resolver2" "protocol"]}
+ :initial-block-time 1000
+ :protocol-params {:governance-mode :legacy, :resolver-fee-bps 150 :appeal-window-duration 60 :max-dispute-duration 2592000
+                   :resolver-response-window 120
+                   :dispute-resolver "0xr1"}
+ :agents [{:id "buyer" :address "0xbuyer" :strategy "honest"}
+          {:id "seller" :address "0xseller" :strategy "honest"}
+          {:id "resolver1" :address "0xr1" :role "resolver" :stake 10000}
+          {:id "resolver2" :address "0xr2" :role "resolver" :stake 10000}
+          {:id "keeper" :address "0xkeeper" :role "keeper"}]
+ :theory {:claim-id "resolver-response-deadline-boundary"
+          :assumptions [:response-window-120s
+                        :deadline-is-raise-plus-window
+                        :fresh-resolver-authorized-at-or-after-deadline]
+          :mechanism-properties [:resolver-response-deadline]}
+ :events [{:seq 0 :time 1000 :agent "resolver1" :action "register_stake" :params {:amount 10000}}
+          {:seq 1 :time 1000 :agent "resolver2" :action "register_stake" :params {:amount 10000}}
+          {:seq 2 :time 1000 :agent "buyer" :action "create_escrow" :params {:token "USDC" :to "0xseller" :amount 5000 :custom-resolver "0xr1"}}
+          {:seq 3 :time 1060 :agent "buyer" :action "raise_dispute" :params {:workflow-id 0}}
+          {:seq 4 :time 1180 :agent "resolver2" :action "execute_resolution" :params {:workflow-id 0 :is-release true :resolution-hash "0xr2at-deadline"}}
+          {:seq 5 :time 1300 :agent "keeper" :action "execute_pending_settlement" :params {:workflow-id 0}}]}

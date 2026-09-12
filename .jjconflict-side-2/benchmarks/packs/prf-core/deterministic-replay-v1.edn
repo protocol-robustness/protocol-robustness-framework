@@ -1,0 +1,45 @@
+{:benchmark/id              :benchmark/prf-deterministic-replay-v1
+  :benchmark/version         1
+  :benchmark/status          :active
+  :benchmark/coverage-status :demonstrated
+  :benchmark/workload        :workload/sew-dispute-safety-v1
+  :benchmark/domain          :domain/evidence-integrity
+  :benchmark/protocol        :protocol/prf
+   :benchmark/scenario-suite  :suite/prf-replay-v1
+  :benchmark/scenario-suite-description
+  "Sew-backed replay workload executed through the PRF benchmark runner.
+   It verifies workload determinism and canonical output consistency, not
+   PRF-wide determinism."
+  :benchmark/runner-policy   :runner-policy/deterministic-local-v1
+ :benchmark/evidence-policy :evidence-policy/forensic-standard-v1
+   :benchmark/scoring-rule    :scoring/binary-claims-v1
+   :benchmark/property-types  #{:integrity}
+    :benchmark/description
+   "Measures deterministic replay for the included Sew workload: the same
+    inputs and configuration produce identical canonical results and evidence
+    roots across two PRF-runner executions. It is not a claim about every
+    possible PRF adapter or workload."
+   :benchmark/purpose
+   "Verify that the included Sew workload produces identical canonical
+    benchmark outputs across repeated executions under this runner policy."
+   :benchmark/property-claims {:integrity [:claim/replay-identical-results
+                                           :claim/hash-consistency-across-runs
+                                           :claim/no-nondeterminism]}
+   :benchmark/concepts        [:verifiable-assurance/forensic-confidence
+                               :attestation/verification
+                               :robustness/evidence-integrity
+                               :forensic/evidence-chain
+                               :concept/confidence
+                               :concept/configuration]
+  :benchmark/claims          [{:claim/id :claim/replay-identical-results
+                              :claim/role :primary
+                              :claim/rationale "Replaying the same scenario must produce identical outcomes."
+                              :claim/failure-meaning "A scenario produced different outcomes across replay runs."}
+                             {:claim/id :claim/hash-consistency-across-runs
+                              :claim/role :primary
+                              :claim/rationale "Evidence hashes must be consistent across independent runs."
+                              :claim/failure-meaning "Evidence hash changed between runs."}
+                             {:claim/id :claim/no-nondeterminism
+                              :claim/role :supporting
+                              :claim/rationale "Protocol execution must be fully deterministic with no hidden RNG."
+                              :claim/failure-meaning "Nondeterminism detected in protocol execution."}]}

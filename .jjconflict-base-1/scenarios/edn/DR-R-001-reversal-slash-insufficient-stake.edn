@@ -1,0 +1,48 @@
+{:scenario-id "dr-r-001-reversal-slash-insufficient-stake"
+ :schema-version "1.0"
+ :allow-open-disputes? true
+ :purpose "adversarial-robustness"
+ :title "Reversal slash with insufficient stake: partial capture and unmet accounting"
+ :description "L0 resolver has 100 USDC stake (100_000_000 small units). reversal-slash-bps = 2500 (25%). Expected slash = 25 USDC (25_000_000 small units). L0 rules release. L1 reverses to refund. Track 1 auto-slash on L0: the full 25 USDC is debited. Verifies the slash accounting equation: requested = debited + unmet + reversed. In this case all 25 USDC is debited (sufficient stake), with unmet = 0. (Contrast with a case where stake < expected slash, e.g., stake = 10 USDC → debited = 10, unmet = 15 USDC.)"
+ :provenance {:author "@dispute-researcher" :created-at "2026-07-01" :license "CC-BY-4.0"}
+ :claim {:id "reversal-slash-insufficient-stake"
+         :statement "When resolver stake is sufficient to cover the reversal slash, the full amount is debited. The accounting equation requested = debited + unmet + reversed holds with unmet = 0. If stake were less than expected slash, partial debit + unmet remainder is recorded."
+         :falsifies-if ["Slash debits more than expected (25 USDC)"
+                        "Unmet > 0 when stake is sufficient"
+                        "Accounting equation does not hold"
+                        "Denomination confusion (25 vs 2500)"]}
+ :expectations {:terminal-state "refunded"
+                :must-hold ["slashable_liability_preserved" "resolver_decision_attributable"]
+                :metrics {:slash_amount_debited {:eq 25}     ;; 25 USDC = 2500 bps of 100 USDC
+                          :slash_amount_requested {:eq 25}
+                          :slash_amount_unmet {:eq 0}
+                          :resolver_stake_post_slash {:eq 75}  ;; 100 - 25 = 75
+                          :slash_balance_sheet_balanced? {:eq true}}}
+ :expected/invariants
+ [:slash/requested-equals-debited-plus-unmet-plus-reversed
+  :resolver/balances-conserved
+  :stake/non-negative]
+ :threat {:family "resolution-slashing" :attack "insufficient-stake-reversal-slash" :severity "medium"
+          :actors ["l0resolver"]
+          :assumptions ["Slash bps applied to stake correctly" "Denomination in USDC with 6 decimals"]}
+ :accounting {:unit "USDC" :decimals 6 :tracked-balances ["buyer" "seller" "l0resolver" "l1resolver" "protocol" "slashPool"]}
+ :initial-block-time 1000
+ :protocol-params {:resolver-fee-bps 150 :appeal-window-duration 120 :max-dispute-duration 2592000
+                   :reversal-slash-bps 2500
+                   :dispute-resolver "0xl0"
+                   :escalation-resolvers {:0 "0xl0" :1 "0xl1"}}
+ :agents [{:id "buyer" :address "0xbuyer" :strategy "honest"}
+          {:id "seller" :address "0xseller" :strategy "honest"}
+          {:id "l0resolver" :address "0xl0" :role "resolver" :stake 100}
+          {:id "l1resolver" :address "0xl1" :role "resolver" :stake 10000}
+          {:id "keeper" :address "0xkeeper" :role "keeper"}]
+ :events [{:seq 0 :time 1000 :agent "l0resolver" :action "register_stake" :params {:amount 100}}
+          {:seq 1 :time 1000 :agent "l1resolver" :action "register_stake" :params {:amount 10000}}
+          {:seq 2 :time 1000 :agent "buyer" :action "create_escrow" :params {:token "USDC" :to "0xseller" :amount 5000}}
+          {:seq 3 :time 1060 :agent "buyer" :action "raise_dispute" :params {:workflow-id 0}}
+          ;; L0 rules: release
+          {:seq 4 :time 1100 :agent "l0resolver" :action "execute_resolution" :params {:workflow-id 0 :is-release true :resolution-hash "0xl0release"}}
+          ;; L1 reverses to refund — Track 1 auto-slash on L0: 25% of 100 = 25 USDC debited
+          {:seq 5 :time 1150 :agent "l1resolver" :action "execute_resolution" :params {:workflow-id 0 :is-release false :resolution-hash "0xl1refund"}}
+          ;; Execute pending settlement
+          {:seq 6 :time 1400 :agent "keeper" :action "execute_pending_settlement" :params {:workflow-id 0}}]}

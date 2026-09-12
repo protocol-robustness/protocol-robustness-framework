@@ -1,0 +1,153 @@
+{
+  "protocol-params": {
+    "resolver-fee-bps": 100,
+    "resolution-module": "0xkleros-proxy",
+    "escalation-resolvers": {
+      "0": "0xl0",
+      "1": "0xl1",
+      "2": "0xl2"
+    },
+    "appeal-window-duration": 3600,
+    "appeal-bond-amount": 500,
+    "max-dispute-duration": 2592000
+  },
+  "schema-version": "1.1",
+  "threat-tags": [
+    "appeal-escalation"
+  ],
+  "initial-block-time": 1000,
+  "scenario-author": "@grifma",
+  "id": "scenarios/spe-v3-multi-agent-regret",
+  "agents": [
+    {
+      "id": "buyer",
+      "address": "0xbuyer",
+      "type": "honest"
+    },
+    {
+      "id": "seller",
+      "address": "0xseller",
+      "type": "honest"
+    },
+    {
+      "id": "l0",
+      "address": "0xl0",
+      "type": "resolver"
+    },
+    {
+      "id": "l1",
+      "address": "0xl1",
+      "type": "resolver"
+    },
+    {
+      "id": "l2",
+      "address": "0xl2",
+      "type": "resolver"
+    },
+    {
+      "id": "keeper",
+      "address": "0xkeeper",
+      "type": "keeper"
+    }
+  ],
+  "scenario-id": "spe-v3-multi-agent-regret",
+  "events": [
+    {
+      "seq": 0,
+      "time": 1000,
+      "agent": "buyer",
+      "action": "create_escrow",
+      "params": {
+        "token": "USDC",
+        "to": "0xseller",
+        "amount": 5000
+      }
+    },
+    {
+      "seq": 1,
+      "time": 1100,
+      "agent": "buyer",
+      "action": "raise_dispute",
+      "params": {
+        "workflow-id": 0
+      }
+    },
+    {
+      "seq": 2,
+      "time": 1200,
+      "agent": "l0",
+      "action": "execute_resolution",
+      "params": {
+        "workflow-id": 0,
+        "is-release": true,
+        "resolution-hash": "0x0"
+      }
+    },
+    {
+      "seq": 3,
+      "time": 1300,
+      "agent": "buyer",
+      "action": "escalate_dispute",
+      "params": {
+        "workflow-id": 0
+      }
+    },
+    {
+      "seq": 4,
+      "time": 1400,
+      "agent": "l1",
+      "action": "execute_resolution",
+      "params": {
+        "workflow-id": 0,
+        "is-release": false,
+        "resolution-hash": "0x1"
+      }
+    },
+    {
+      "seq": 5,
+      "time": 1500,
+      "agent": "seller",
+      "action": "escalate_dispute",
+      "params": {
+        "workflow-id": 0
+      }
+    },
+    {
+      "seq": 6,
+      "time": 1600,
+      "agent": "l2",
+      "action": "execute_resolution",
+      "params": {
+        "workflow-id": 0,
+        "is-release": false,
+        "resolution-hash": "0x2"
+      }
+    },
+    {
+      "seq": 7,
+      "time": 86400,
+      "agent": "keeper",
+      "action": "execute_pending_settlement",
+      "params": {
+        "workflow-id": 0
+      }
+    }
+  ],
+  "theory": {
+    "claim-id": "claims/spe-multi-regret",
+    "claim": "Multi-agent irrational actions are NOT SPE-consistent.",
+    "equilibrium-concept": [
+      "subgame-perfect-equilibrium"
+    ],
+    "assumptions": [],
+    "falsifies-if": [],
+    "spe-config": {
+      "regret-threshold": 0,
+      "epsilon-abs": 0.0,
+      "epsilon-rel": 0.0
+    }
+  },
+  "title": "SPE: Multi-Agent Regret",
+  "description": "Buyer and Seller both take irrational escalations. Multiple violations detected.",
+  "purpose": "adversarial-robustness"
+}

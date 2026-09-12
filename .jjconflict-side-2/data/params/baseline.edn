@@ -1,0 +1,55 @@
+{:description "Baseline scenario: standard resolver network incentives"
+ :scenario-id "baseline-v1"
+ :rng-seed 42
+
+ ;; Escrow sizes (wei, log scale)
+ :escrow-distribution
+ {:type :lognormal
+  :mean 10000
+  :stddev 5000}
+
+ ;; Resolver strategy mix
+ :strategy-mix
+ {:honest 0.75
+  :lazy 0.15
+  :malicious 0.08
+  :collusive 0.02}
+
+ ;; Economic parameters
+ :resolver-fee-bps 150          ; 1.5%
+ :appeal-bond-bps 700           ; 7%
+ :slash-multiplier 2.5
+ :l2-slash-bps 500
+
+ ;; Appeal dynamics
+ :appeal-probability-if-correct 0.05
+ :appeal-probability-if-wrong 0.40
+ :slashing-detection-probability 0.10
+
+ ;; Fraud model
+ ;; Legacy mode (:single-stage-ev):
+ ;;   fraud-success-rate = scalar EV multiplier for escrow diversion.
+ ;; Sequential mode (:sequential-escalation):
+ ;;   fraud-upside is weighted by staged survival through appeal/escalation tiers.
+ ;;   This is the preferred baseline for escalation-aware economics.
+ :fraud-model :sequential-escalation
+ :escalation-assumption-band :base  ; :base / :optimistic / :pessimistic / :two-layer
+
+ ;; Escalation tier params (override individual values from the :base band):
+ :p-appeal-wrong  0.40  ; mirrors :appeal-probability-if-wrong above
+ :p-l1-reversal   0.85  ; senior resolver overturns corrupt L0 verdict 85% of the time
+ :has-kleros?     true  ; L2/Kleros backstop active
+ :p-l2-escalation 0.70  ; aggrieved party escalates to Kleros 70% of the time if L1 fails
+ :p-l2-reversal   0.95  ; Kleros overturns corrupt verdict 95% of the time
+
+ ;; Kept for backward compatibility with legacy :single-stage-ev mode only.
+ :fraud-success-rate 0.90
+
+ ;; Simulation config
+ :n-trials 1000
+ :n-seeds 10                    ; 10 independent runs with different seeds
+ :parallelism :auto             ; Use all available cores
+
+ ;; Output
+ :save-samples? true            ; Save all trial outcomes to CSV
+ :save-sweep? false}

@@ -1,0 +1,23 @@
+{
+  "fixture-contract": "trace-fixture.v2",
+  "subject\/root": "e0624a2153fc2e0667ea283886534e779a76da804ddcfc1a763b3df39c5c1027",
+  "valid?": false,
+  "validators": [
+    {
+      "validation\/id": "trace-fixture-v2-schema",
+      "validation\/kind": "schema",
+      "validation\/version": 1,
+      "validation\/status": "pass",
+      "validation\/implementation-root": "70448bcdf7decfbddba50f234aedc7756155bb8c2230953360d0651c45773c9a",
+      "validation\/issues": 0
+    },
+    {
+      "validation\/id": "trace-fixture-v2-semantics",
+      "validation\/kind": "semantic",
+      "validation\/version": 1,
+      "validation\/status": "rejected",
+      "validation\/implementation-root": "5bff25b936c681f55591484618ae4fb4f40ea564a22957b208741a2ead0c1572",
+      "validation\/issues": 1
+    }
+  ]
+}

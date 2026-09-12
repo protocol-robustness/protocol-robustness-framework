@@ -1,0 +1,21 @@
+{
+  "case_id": "identity-substitution-001",
+  "kind": "identity",
+  "identities": [
+    {
+      "subject/id": "s1",
+      "subject/kind": "trace",
+      "subject/canonical-root": "sha256:orig"
+    },
+    {
+      "subject/id": "s1",
+      "subject/kind": "trace",
+      "subject/canonical-root": "sha256:substituted"
+    }
+  ],
+  "expected_status": "reject",
+  "expected_issue_codes": [
+    "inconsistent-canonical-root"
+  ],
+  "claimable": false
+}

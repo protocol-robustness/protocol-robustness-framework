@@ -1,0 +1,45 @@
+{:concepts/version 1
+ :concepts/description
+ "Benchmark concept for the evidence-integrity-v1 pack.
+
+  This concept describes the evidence integrity dimension evaluated by
+  the deterministic-replay benchmark. It is self-contained to avoid
+  a cross-benchmark dependency on protocol-robustness-v0's concept file."
+
+ :concepts
+  [{:concept/id :robustness/evidence-integrity
+    :concept/title "Evidence integrity"
+   :concept/summary
+   "Whether the evidence produced by a benchmark run is
+    cryptographically verifiable, non-repudiable, and
+    reproducible by independent verifiers."
+   :concept/stakeholder-language
+   "After a benchmark run, anyone should be able to inspect the
+    evidence bundle, verify the hash chain, re-run the scenarios,
+    and confirm the results match — without trusting the original
+    runner."
+:concept/maps-to
+    {:scenarios ["suite/prf-replay-v1 (65 dispute-resolution scenarios)"]
+    :claims    [:claim/replay-identical-results
+                :claim/hash-consistency-across-runs
+                :claim/no-nondeterminism]
+    :evidence  [:evidence/evidence-bundle :evidence/hash-chain
+                :evidence/attestation :evidence/trace]}
+   :concept/why-it-matters
+   "Evidence integrity is what separates a reproducible benchmark
+    from a slide deck. Without it, stakeholders cannot independently
+    verify claims about deterministic replay."
+    :concept/out-of-scope
+    ["Correctness of the underlying scenario outcomes."
+     "Approval or authorisation status of the evidence producer."
+     "Availability of the referenced evidence artifacts outside the bundle."
+     "Semantic validity of opaque external dependencies referenced by evidence."]
+    :concept/note
+    "The claims listed here (replay-identical-results,
+     hash-consistency-across-runs, no-nondeterminism) are registered
+     in claim-registry.edn with Level 1 mechanical evaluators. These
+     are NOT Level 3 deferred claims — they are evaluated during every
+     benchmark run. The evidence-integrity-v1 benchmark itself is
+     deprecated (superseded by deterministic-replay-v1), but this
+     concept file serves as the canonical definition of the evidence
+     integrity dimension."}]}

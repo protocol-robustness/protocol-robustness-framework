@@ -1,0 +1,52 @@
+;; Shared parameter bands for appeal analysis and protocol notebooks.
+;; Notebooks should read from this file via load-edn or common/read-edn
+;; instead of hardcoding values inline.
+
+;; Protocol defaults
+{:seed             42
+ :escrow-amount    1000
+ :escrow-token     "USDC"
+ :fee-bps          150
+
+ ;; Economic analysis parameter bands
+ :economic-analysis
+ {:escrow-amounts  [10000 50000 100000 500000]
+  :bond-bps-values [300 500 700 1000]
+  :dispute-values  [10000 50000 100000]
+  :rounds          [1 2]}
+
+ ;; Resolver bond parameters for sweep analysis
+ :resolver-bonds
+ {:bps-default  1000
+  :bps-breakeven 21000}
+
+ ;; Stochastic simulation assumption bands.
+ ;; Each band represents a named scenario for appeal reversal probabilities.
+ :stochastic-assumptions
+ {:base
+  {:p-l1-reversal 0.3 :p-l2-escalation 0.5 :p-l2-reversal 0.4}
+  :optimistic
+  {:p-l1-reversal 0.6 :p-l2-escalation 0.7 :p-l2-reversal 0.6}
+  :pessimistic
+  {:p-l1-reversal 0.1 :p-l2-escalation 0.3 :p-l2-reversal 0.2}}
+
+ ;; Full multi-round appeal simulation parameters
+ :full-appeal-simulation
+ {:difficulties      [:easy :medium :hard]
+  :evidence-levels   [0.3 0.7 0.9]
+  :ground-truth      true
+  :r0-honest?        true
+  :r1-corrupt?       false
+  :r2-corrupt?       false
+  :time-pressures    [0.3 0.4 0.2]}
+
+ ;; Batch simulation defaults
+ :batch-config
+ {:escrow-distribution    {:type :fixed :value 10000}
+  :oracle-fixture         {:mode :stochastic}
+  :parallelism            :auto
+  :min-trials             10
+  :detection-prob-default 0.25}
+
+ ;; Sweep values for detection-probability scans
+ :sweep-detection-probs [0.0 0.05 0.10 0.25 0.50]}

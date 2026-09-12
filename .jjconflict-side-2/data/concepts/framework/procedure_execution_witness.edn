@@ -1,0 +1,88 @@
+{:concept/id :framework/procedure-execution-witness
+ :concept/type :framework
+ :concept/layer :framework-explanation
+ :concept/name "Procedure execution witness"
+ :concept/summary
+ "A procedure execution witness is an immutable, content-addressed artifact binding a trust-sequence definition root to the evidence chain links observed across the steps of a procedure. It records the definition root, initial input root, ordered step bindings (input/output roots and evidence hashes), and result root for a single executed instance."
+
+ :concept/stakeholder-question
+ "Did the executed procedure follow the declared trust-sequence definition, and can that be verified from committed evidence links?"
+
+ :concept/protocols #{:protocol/sew-v1 :protocol/prf}
+
+ :concept/related
+  [:framework/research-command
+   :framework/held-custody
+   :verifiable-assurance/forensic-confidence
+   :forensic/evidence-chain]
+
+ :concept/roles
+ {:witness-builder {:description "Entity that constructs the witness from evidence chain links during the pipeline."
+                    :maps-to [:protocol.actor/resolution-module]}
+  :witness-verifier {:description "Entity that checks witness root integrity and step evidence resolution."
+                     :maps-to [:protocol.role/verifier]}
+  :procedure-observer {:description "Entity that inspects the witness to confirm procedure execution."
+                       :maps-to [:protocol.role/verifier]}}
+
+ :concept/entities
+ {:execution-witness {:description "Immutable procedure-execution-witness.v1 artifact."
+                      :maps-to [:protocol.entity/evidence]}
+  :witness-root {:description "Canonical hash of the witness binding definition root, steps, and result root."
+                 :maps-to [:protocol.entity/canonical-hash]}
+  :definition-root {:description "Content root of the trust-sequence definition being executed."
+                    :maps-to [:protocol.entity/canonical-hash]}
+  :step-binding {:description "Ordered step with input-root, output-root, evidence-content-hash, and evidence-chain-seq."
+                 :maps-to [:protocol.entity/evidence]}
+  :initial-input-root {:description "Content hash of the initial world state."
+                       :maps-to [:protocol.entity/canonical-hash]}
+  :result-root {:description "Content hash of the final result after all steps."
+                :maps-to [:protocol.entity/canonical-hash]}}
+
+ :concept/actions
+ {:build-witness {:description "Construct the immutable witness from a trust-sequence definition and evidence links."
+                  :maps-to [:protocol.action/build-registry]}
+  :verify-witness {:description "Verify witness root integrity and that evidence references resolve from the evidence registry."
+                   :maps-to [:protocol.action/check-invariant]}
+  :resolve-step-evidence {:description "Resolve each step's evidence links against the evidence index."
+                          :maps-to [:protocol.action/reconcile-evidence]}}
+
+ :concept/outcomes
+ {:witness-valid {:description "Witness root integrity holds and all step evidence resolves."
+                  :maps-to [:protocol.outcome/released]}
+  :witness-invalid {:description "Witness root or a step's evidence is inconsistent."
+                    :maps-to [:protocol.outcome/adversarial-resolution]}
+  :witness-incomplete {:description "Required evidence for a step cannot be resolved."
+                       :maps-to [:protocol.outcome/deferred]}}
+
+ :concept/failure-modes
+ [{:failure/id :witness-root-integrity
+   :failure/name "Witness root integrity failure"
+   :failure/summary "The witness root does not recompute from its body."
+   :protocol-mechanisms [:canonical-hashing]
+   :stakeholder-impact "The procedure execution cannot be trusted."}
+  {:failure/id :witness-evidence-unresolved
+   :failure/name "Witness evidence unresolved"
+   :failure/summary "A step's evidence reference cannot be resolved from the evidence registry."
+   :protocol-mechanisms [:evidence-registry :step-binding]
+   :stakeholder-impact "Procedure steps are not fully evidenced."}]
+
+ :concept/assumptions
+ ["A witness is immutable; a change requires a new witness, not mutation."
+  "The witness binds the definition root to the evidence chain links actually observed across steps."
+  "A witness proves that a procedure was carried through the required representations, not that the original decision was correct."
+  "External state not committed into the witness is not asserted by it."
+  "Concept labels do not change protocol validity."]
+
+ :concept/out-of-scope
+ ["Truthfulness of an external provider."
+  "Completeness of events outside the observed procedure."
+  "Correctness of the authorised policy."
+  "Semantic correctness of evidence merely because its hashes reconcile."
+  "External state not committed into the witness."
+  "Production liveness."]
+
+ :concept/metrics
+ {:witness-step-count {:description "Number of steps in the witness."
+                       :source :derived-from-trace}
+  :witness-verification-count {:description "Number of witness verifications performed."
+                               :source :derived-from-invariant-results}}}

@@ -1,0 +1,4 @@
+{:scenario/id :bounded-transfer/pass
+ :participants {:balances {:alice 10 :bob 2}}
+ :events [{:event/type :offer :from :alice :to :bob :max-amount 4}
+          {:event/type :accept :from :alice :to :bob :amount 4}]}

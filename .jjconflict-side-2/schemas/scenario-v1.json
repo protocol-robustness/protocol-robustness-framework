@@ -1,0 +1,156 @@
+{
+  "$schema" : "https://json-schema.org/draft/2020-12/schema",
+  "$id" : "https://sew-protocol/schemas/scenario-v1.json",
+  "title" : "Sew Adversarial Simulation Scenario",
+  "description" : "Versioned, deterministic scenario format shared between the Python generator and the Clojure replay engine. Version 1.0.",
+  "type" : "object",
+  "required" : [ "schema_version", "scenario_id", "seed", "agents", "events" ],
+  "additionalProperties" : false,
+  "properties" : {
+    "schema_version" : {
+      "type" : "string",
+      "const" : "1.0",
+      "description" : "Schema version — must be '1.0'."
+    },
+    "scenario_id" : {
+      "type" : "string",
+      "description" : "Globally unique scenario identifier (UUID recommended)."
+    },
+    "seed" : {
+      "type" : "integer",
+      "description" : "PRNG seed used by the Python generator. Enables exact reproduction."
+    },
+    "agents" : {
+      "type" : "array",
+      "minItems" : 1,
+      "description" : "All agents participating in the scenario.",
+      "items" : {
+        "type" : "object",
+        "required" : [ "id", "type", "address" ],
+        "additionalProperties" : false,
+        "properties" : {
+          "id" : {
+            "type" : "string",
+            "description" : "Unique agent identifier within this scenario."
+          },
+          "type" : {
+            "type" : "string",
+            "enum" : [ "honest", "attacker", "opportunistic" ],
+            "description" : "Agent behavioural class."
+          },
+          "address" : {
+            "type" : "string",
+            "description" : "Ethereum address string (e.g. '0xAlice' or full hex)."
+          }
+        }
+      }
+    },
+    "protocol_params" : {
+      "type" : "object",
+      "description" : "Protocol configuration frozen at scenario start (mirrors ModuleSnapshot).",
+      "additionalProperties" : false,
+      "properties" : {
+        "resolver_fee_bps" : {
+          "type" : "integer",
+          "minimum" : 0,
+          "maximum" : 10000,
+          "default" : 50,
+          "description" : "Escrow fee in basis points."
+        },
+        "appeal_window_duration" : {
+          "type" : "integer",
+          "minimum" : 0,
+          "default" : 0,
+          "description" : "Seconds during which a resolution can be appealed. 0 = immediate finality."
+        },
+        "max_dispute_duration" : {
+          "type" : "integer",
+          "minimum" : 0,
+          "default" : 2592000,
+          "description" : "Maximum seconds a dispute may remain unresolved before auto-cancel."
+        },
+        "appeal_bond_protocol_fee_bps" : {
+          "type" : "integer",
+          "minimum" : 0,
+          "maximum" : 10000,
+          "default" : 0,
+          "description" : "Protocol share of appeal bond in basis points."
+        }
+      }
+    },
+    "initial_block_time" : {
+      "type" : "integer",
+      "minimum" : 0,
+      "default" : 1000,
+      "description" : "Initial world block-timestamp (seconds). Events reference absolute times >= this."
+    },
+    "events" : {
+      "type" : "array",
+      "minItems" : 1,
+      "description" : "Ordered list of protocol actions. Must be sorted by seq.",
+      "items" : {
+        "type" : "object",
+        "required" : [ "seq", "time", "agent", "action", "params" ],
+        "additionalProperties" : false,
+        "properties" : {
+          "seq" : {
+            "type" : "integer",
+            "minimum" : 0,
+            "description" : "Monotonically increasing sequence number. Replay processes in seq order."
+          },
+          "time" : {
+            "type" : "integer",
+            "minimum" : 0,
+            "description" : "Absolute block-timestamp for this event. Must be >= previous event's time."
+          },
+          "agent" : {
+            "type" : "string",
+            "description" : "ID of the agent issuing this action. Must match an agent in the agents array."
+          },
+          "action" : {
+            "type" : "string",
+            "enum" : [ "create_escrow", "raise_dispute", "execute_resolution", "execute_pending_settlement", "automate_timed_actions", "release", "sender_cancel", "recipient_cancel", "auto_cancel_disputed" ],
+            "description" : "Protocol action name. The Clojure replay engine dispatches on this field."
+          },
+          "params" : {
+            "type" : "object",
+            "description" : "Action-specific parameters. Schema depends on action.",
+            "properties" : {
+              "token" : {
+                "type" : "string",
+                "description" : "[create_escrow] ERC20 token address."
+              },
+              "to" : {
+                "type" : "string",
+                "description" : "[create_escrow] Recipient address (literal, not agent id)."
+              },
+              "amount" : {
+                "type" : "integer",
+                "minimum" : 1,
+                "description" : "[create_escrow] Gross escrow amount (wei)."
+              },
+              "custom_resolver" : {
+                "type" : "string",
+                "description" : "[create_escrow] Optional custom dispute resolver address."
+              },
+              "workflow_id" : {
+                "type" : "integer",
+                "minimum" : 0,
+                "description" : "[all except create_escrow] Target escrow workflow ID."
+              },
+              "is_release" : {
+                "type" : "boolean",
+                "default" : true,
+                "description" : "[execute_resolution] true = release to recipient, false = refund to sender."
+              },
+              "resolution_hash" : {
+                "type" : "string",
+                "description" : "[execute_resolution] Opaque resolution hash (bytes32)."
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

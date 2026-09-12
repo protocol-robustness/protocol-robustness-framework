@@ -1,0 +1,16 @@
+{:dr3-critical-traces
+ [:traces/s14-dr3-module-authorized
+  :traces/s15-dr3-module-unauthorized-rejected
+  :traces/s18-dr3-kleros-l0-resolves
+  :traces/s19-dr3-kleros-escalation-rejected-l0-resolves
+  :traces/s20-dr3-kleros-max-escalation-guard
+  :traces/s21-dr3-kleros-pending-cleared-on-escalation
+  :traces/s23-preemptive-escalation-blocked
+  :traces/s44-escalation-tier-mismatch-rejected
+  :traces/s46a-settlement-before-escalation-window-edge
+  :traces/s46b-escalation-before-settlement-window-edge
+  :traces/s48-max-escalation-exact-boundary
+  :traces/s49-max-escalation-plus-one-rejected
+  :traces/s50-multi-hop-pending-cleared-every-hop]
+ :dr3-critical-suites
+ [:suites/dr3-critical]}

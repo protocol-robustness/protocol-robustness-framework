@@ -1,0 +1,36 @@
+{:scenario-id "phase-ai-escalation-delay-sweep"
+ :description "Phase AI (H2): Sweep of escalation delays (1-10 epochs) vs Displacement"
+
+ ;; Required by io/params validator
+ :rng-seed    99
+ :n-trials    100
+ :n-seeds     1
+ :parallelism :auto
+
+ ;; Resolver cohort
+ :n-resolvers          60
+ :strategy-mix         {:honest 1.00 :lazy 0.00 :malicious 0.00 :collusive 0.00}
+
+ ;; Ring configuration
+ :use-ring-model?      true
+ :ring-size            5
+ :ring-max-size        15
+ :ring-detection-prob  0.0
+
+ ;; Escalation trap mechanics.
+ :escalation-rate      1.00
+ :appeal-bond-bps      1000
+ :honest-capital       50000
+ :escalation-cost-per-dispute 1000
+
+ ;; Variable: Escalation delay (to be swept)
+ :escalation-delay-epochs 50 
+
+ :n-epochs             200
+ :n-trials-per-epoch   100
+ :escrow-size          10000
+ :resolver-fee-bps     150
+
+ :displacement-threshold 0.50
+ :escrow-distribution {:type :lognormal :mean 10000 :std 5000}
+ :seed 99}

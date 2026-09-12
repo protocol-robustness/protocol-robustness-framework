@@ -1,0 +1,6 @@
+{:protocol/id :protocol/slow-timeouts
+ :resolver-fee-bps 150
+ :appeal-window-duration 86400 ;; 1 day instead of 60s
+ :max-dispute-duration 604800   ;; 1 week
+ :resolver-bond-bps 1000
+ :fraud-slash-bps 2000}        ;; Reduced penalty

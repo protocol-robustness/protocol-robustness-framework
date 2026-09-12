@@ -1,0 +1,56 @@
+{:scenario-id "dr-n-003-reversal-slash-appeal-window-expired"
+ :schema-version "1.0"
+ :allow-open-disputes? true
+ :purpose "adversarial-robustness"
+ :title "Reversal reviewer due process: Track 2 appeal submitted after window expires — rejected as untimely"
+ :description "L1 reversal reviewer is auto-slashed (L1 reversed L0, L2 reversed L1). Track 2 appeal window closes at time 1320 (appeal-window-duration 120, reversal at 1200). L1 attempts to submit appeal at time 1350 (after deadline). Appeal is rejected as untimely. Slash remains executed. Verifies temporal due-process boundaries for reversal reviewer appeals."
+ :provenance {:author "@dispute-researcher" :created-at "2026-07-01" :license "CC-BY-4.0"}
+ :claim {:id "reversal-reviewer-appeal-window-expired"
+         :statement "A reversal reviewer's Track 2 appeal submitted after the appeal window closes is rejected as untimely; the slash remains executed and no bond is posted."
+         :falsifies-if ["Late appeal is accepted"
+                        "Slash state changes despite rejected late appeal"
+                        "Bond is deducted despite untimely appeal"]}
+ :expected/events
+ [:reversal-slash/proposed
+  :reversal-slash/executed
+  :appeal/rejected-untimely]
+ :expected/not-events
+ [:appeal/opened
+  :reversal-slash/reversed]
+ :expectations {:terminal-state "released"
+                :must-hold ["slashable_liability_preserved" "resolver_decision_attributable"]
+                :metrics {:l1_slash_status {:eq :executed}
+                          :l1_stake_deducted {:gt 0}
+                          :appeal_opened? {:eq false}}}
+ :expected/invariants
+ [:stake/non-negative
+  :slash/requested-equals-debited-plus-unmet-plus-reversed
+  :resolver/balances-conserved]
+ :threat {:family "economic-fairness" :attack "reversal-reviewer-untimely-appeal" :severity "medium"
+          :actors ["l1resolver"] :victims ["protocol"]
+          :assumptions ["Appeal window is enforced for reversal reviewers"]}
+ :accounting {:unit "USDC" :decimals 6 :tracked-balances ["buyer" "seller" "l0resolver" "l1resolver" "l2resolver" "protocol"]}
+ :initial-block-time 1000
+ :protocol-params {:governance-mode :legacy, :resolver-fee-bps 150 :appeal-window-duration 120 :max-dispute-duration 2592000
+                   :reversal-slash-bps 2500
+                   :dispute-resolver "0xl0"
+                   :escalation-resolvers {:0 "0xl0" :1 "0xl1" :2 "0xl2"}}
+ :agents [{:id "buyer" :address "0xbuyer" :strategy "honest"}
+          {:id "seller" :address "0xseller" :strategy "honest"}
+          {:id "l0resolver" :address "0xl0" :role "resolver" :stake 10000}
+          {:id "l1resolver" :address "0xl1" :role "resolver" :stake 10000}
+          {:id "l2resolver" :address "0xl2" :role "resolver" :stake 10000}
+          {:id "keeper" :address "0xkeeper" :role "keeper"}]
+ :events [{:seq 0 :time 1000 :agent "l0resolver" :action "register_stake" :params {:amount 10000}}
+          {:seq 1 :time 1000 :agent "l1resolver" :action "register_stake" :params {:amount 10000}}
+          {:seq 2 :time 1000 :agent "l2resolver" :action "register_stake" :params {:amount 10000}}
+          {:seq 3 :time 1000 :agent "buyer" :action "create_escrow" :params {:token "USDC" :to "0xseller" :amount 5000}}
+          {:seq 4 :time 1060 :agent "buyer" :action "raise_dispute" :params {:workflow-id 0}}
+          {:seq 5 :time 1100 :agent "l0resolver" :action "execute_resolution" :params {:workflow-id 0 :is-release true :resolution-hash "0xl0release"}}
+          {:seq 6 :time 1150 :agent "l1resolver" :action "execute_resolution" :params {:workflow-id 0 :is-release false :resolution-hash "0xl1refund"}}
+          {:seq 7 :time 1200 :agent "l2resolver" :action "execute_resolution" :params {:workflow-id 0 :is-release true :resolution-hash "0xl2release"}}
+          ;; appeal-window-duration is 120, window closes at 1200+120 = 1320
+          ;; L1 attempts appeal AFTER window expired
+          {:seq 8 :time 1350 :agent "l1resolver" :action "appeal_slash" :params {:workflow-id 0 :slash-id {:slash-ref {:workflow-id 0 :kind :reversal :level 1}}}}
+          ;; Appeal should be rejected — slash remains executed
+          {:seq 9 :time 2000 :agent "keeper" :action "automate_timed_actions" :params {:workflow-id 0}}]}

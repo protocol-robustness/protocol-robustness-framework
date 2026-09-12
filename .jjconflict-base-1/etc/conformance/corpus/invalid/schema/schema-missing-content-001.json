@@ -1,0 +1,8 @@
+{
+  "case_id": "schema-missing-content-001",
+  "kind": "trace-schema",
+  "fixture": {"cdrs_version": "0.2", "schema_version": "2", "scenario_id": "x", "fee_bps": 100, "step_count": 0, "steps": []},
+  "expected_status": "reject",
+  "expected_issue_codes": ["missing-content-root", "missing-invariant-profile"],
+  "claimable": false
+}

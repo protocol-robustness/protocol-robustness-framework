@@ -1,0 +1,12 @@
+{:profile/id :prf/pro-rata-claimant-options-v1
+ :profile/version 1
+ :profile/status :supported
+ :profile/extends :prf/pro-rata-v1
+ :profile/runtime-features [:prf/claimant-options-v1]
+ :profile/runtime
+ {:runtime/type :prf/claimant-options-v1
+  :runtime/options
+  {:execution/claimant-parallelism 4
+   :execution/claimant-parallel-threshold 1
+   :execution/quiescence-timeout-seconds 30}}
+ :profile/components []}

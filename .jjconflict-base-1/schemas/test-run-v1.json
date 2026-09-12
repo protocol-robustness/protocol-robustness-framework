@@ -1,0 +1,40 @@
+{
+  "$schema" : "https://json-schema.org/draft/2020-12/schema",
+  "$id" : "https://sew-protocol/schemas/test-run-v1.json",
+  "title" : "Test Run Manifest",
+  "type" : "object",
+  "required" : [ "schema_version", "run_id", "created_at", "framework", "model", "suite", "capabilities_resolved", "artifacts" ],
+  "properties" : {
+    "model" : {
+      "type" : "object"
+    },
+    "artifacts" : {
+      "type" : "object"
+    },
+    "framework" : {
+      "type" : "object"
+    },
+    "capabilities_resolved" : {
+      "type" : "object"
+    },
+    "suite" : {
+      "type" : "object"
+    },
+    "produced_by" : {
+      "type" : "object"
+    },
+    "schema_version" : {
+      "const" : "test-run.v1"
+    },
+    "run_id" : {
+      "type" : "string"
+    },
+    "created_at" : {
+      "type" : "string"
+    },
+    "contract_version" : {
+      "type" : "string"
+    }
+  },
+  "additionalProperties" : true
+}

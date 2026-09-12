@@ -1,0 +1,6 @@
+{:schema/id :prf/use-case-registry.v1
+ :registry/id "user-example-pro-rata-allocation"
+ :registry/version "1"
+ :use-cases
+ [{:use-case/id :user/pro-rata-allocation
+   :definition/ref "definitions/pro-rata_allocation.edn"}]}

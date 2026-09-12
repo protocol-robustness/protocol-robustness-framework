@@ -1,0 +1,31 @@
+{:description "Whale attack: large escrow with collusive resolvers"
+ :scenario-id "whale-attack-v1"
+ :rng-seed 123
+
+ ;; Large escrows (millions of wei)
+ :escrow-distribution
+ {:type :uniform
+  :min 1000000
+  :max 10000000}
+
+ ;; Mix: mostly honest but coordinated malice
+ :strategy-mix
+ {:honest 0.70
+  :lazy 0.15
+  :malicious 0.05
+  :collusive 0.10}
+
+ ;; Same economic params (test if collusion profitable at scale)
+ :resolver-fee-bps 150
+ :appeal-bond-bps 700
+ :slash-multiplier 2.5
+
+ :appeal-probability-if-correct 0.05
+ :appeal-probability-if-wrong 0.40
+ :slashing-detection-probability 0.10
+
+ :n-trials 2000
+ :n-seeds 5
+ :parallelism :auto
+ :save-samples? true
+ :save-sweep? false}

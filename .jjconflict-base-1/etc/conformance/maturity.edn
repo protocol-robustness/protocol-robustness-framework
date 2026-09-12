@@ -1,0 +1,40 @@
+{:conformance/core-version 1
+ :status :feature-complete
+ :status-recorded-at "2026-08-04"
+ :boundary "Routine future work is feature work, not unfinished-foundation remediation."
+
+ :supported-profiles
+ [:sew-trace-equivalence.v1
+  :research-benchmark-reproduction.v1
+  :evidence-package-admission.v1]
+
+ :supported-guarantees
+ #{:hermetic-environment-binding
+   :planned-observed-reconciliation
+   :coverage-bound-claims
+   :portable-offline-verification
+   :cross-language-root-parity
+   :cryptographic-package-admission
+   :claim-monotonicity
+   :no-claim-laundering
+   :identity-substitution-resistance
+   :version-non-confusion}
+
+ :deferred
+ #{:receipt-dag
+   :named-coverage-dimensions
+   :symmetric-comparison
+   :schema-migration
+   :full-benchmark-subject-universe}
+
+ :deferred-promotion-triggers
+ {:receipt-dag
+  "promote only when committed ancestry—not merely plan prerequisites—changes claim validity"
+  :named-coverage-dimensions
+  "promote only when at least two profiles need multiple distinct coverage universes"
+  :symmetric-comparison
+  "promote only when a real profile has two equally authoritative implementations and passes operand-reversal invariants"
+  :schema-migration
+  "promote only when the first real v2 artifact or envelope exists"
+  :full-benchmark-subject-universe
+  "profile completion, not a core-maturity prerequisite; pursue when it advances research publication"}}

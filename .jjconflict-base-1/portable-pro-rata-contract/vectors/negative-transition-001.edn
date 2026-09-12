@@ -1,0 +1,27 @@
+{:vector/id :portable-pro-rata/negative-transition-001
+ :contract/version "portable-pro-rata-contract.v1"
+ :basis/vector "canonical-transition-001.edn"
+ :mutations
+ [{:mutation/id :effect-omission
+   :operation {:remove-raw-effect-index 2}
+   :expected/reason :portable-contract/projection-mismatch}
+  {:mutation/id :effect-addition
+   :operation {:append-effect {:schema-version "canonical-delta-effect.v1"
+                               :quantity/root "quantity/root-c"
+                               :delta 1N}}
+   :expected/reason :portable-contract/projection-mismatch}
+  {:mutation/id :effect-value
+   :operation {:replace-delta-at-index [0 6N]}
+   :expected/reason :portable-contract/projection-mismatch}
+  {:mutation/id :post-state-substitution
+   :operation {:replace-state-after-value ["quantity/root-a" 999N]}
+   :expected/reason :portable-contract/post-state-mismatch}
+  {:mutation/id :root-substitution
+   :operation {:replace-transition-root "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"}
+   :expected/reason :portable-contract/root-mismatch}
+  {:mutation/id :underflow
+   :state-before {:quantity/root-a 1N}
+   :effects [{:schema-version "canonical-delta-effect.v1"
+              :quantity/root "quantity/root-a"
+              :delta -2N}]
+   :expected/reason :portable-contract/underflow}]}

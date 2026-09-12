@@ -1,0 +1,43 @@
+{:scenario-id "phase-ai-ring-detection-mitigation"
+ :description "Phase AI (H2): Stochastic Escalation Trap — 15% Correlation-based detection"
+
+ ;; Required by io/params validator
+ :rng-seed    99
+ :n-trials    100
+ :n-seeds     1
+ :parallelism :auto
+
+ ;; Resolver cohort
+ :n-resolvers          60
+ :strategy-mix         {:honest 1.00 :lazy 0.00 :malicious 0.00 :collusive 0.00}
+
+ ;; Ring configuration
+ :use-ring-model?      true
+ :ring-size            5
+ :ring-max-size        15
+ :ring-detection-prob  0.15       ; 15% detection based on correlation analysis
+
+ ;; Escalation trap mechanics.
+ :escalation-rate      1.00
+ :appeal-bond-bps      1000
+ :honest-capital       50000      ; High capital defense to see if detection alone holds
+ :escalation-cost-per-dispute 1000
+
+ ;; Ring detection/slashing parameters
+ :fraud-detection-probability 0.05 ; base detection
+ :fraud-slash-bps             2500 ; 25% slash
+
+ ;; Simulation parameters
+ :n-epochs             200
+ :n-trials-per-epoch   100
+ :escrow-size          10000
+ :resolver-fee-bps     150
+
+ ;; Displacement hypothesis thresholds
+ :displacement-threshold 0.50
+
+ ;; Escrow distribution
+ :escrow-distribution {:type :lognormal :mean 10000 :std 5000}
+
+ ;; RNG seed
+ :seed 99}

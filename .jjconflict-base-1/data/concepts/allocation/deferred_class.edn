@@ -1,0 +1,121 @@
+{:concept/id :allocation/deferred-class
+ :concept/name "Deferred position classification"
+ :concept/type :allocation
+ :concept/layer :stakeholder
+
+ :concept/summary
+ "Classifies a deferred position by the cause of the shortfall that produced it.
+  The class is deterministically derived from the committed shortfall reason and
+  the propagation policy, not supplied by the caller."
+
+ :concept/stakeholder-question
+ "Can I distinguish why my claim was deferred — was it a liquidity shortage,
+  an insolvency, or an administrative action — based on committed protocol
+  evidence rather than caller assertion?"
+
+ :concept/protocols #{:protocol/sew-v1 :protocol/prf}
+
+ :concept/related
+ [:allocation/deferred-claim
+  :allocation/shortfall
+  :allocation/partial-fill
+  :allocation/pro-rata-fairness
+  :verifiable-assurance/forensic-confidence]
+
+ :concept/roles
+ {:claimant
+  {:description "Party whose deferred claim is classified."
+   :maps-to [:protocol.actor/sender :protocol.actor/recipient]}
+  :allocation-engine
+  {:description "Protocol logic that derives the class from the committed shortfall reason."
+   :maps-to [:protocol.actor/resolution-module]}
+  :auditor
+  {:description "Party verifying that the class is consistent with the committed reason and policy."
+   :maps-to [:protocol.actor/verifier]}}
+
+ :concept/entities
+ {:deferred-class
+  {:description "Taxonomy label for the cause of the deferral."
+   :maps-to [:protocol.entity/classification]}
+  :class-version
+  {:description "Version of the class taxonomy under which this label was assigned."
+   :maps-to [:protocol.entity/classification-version]}
+  :lineage-root
+  {:description "Hash of the genesis (base) position from which this deferred lineage descends."
+   :maps-to [:protocol.entity/lineage-root]}
+  :lineage-round
+  {:description "Monotonically increasing round number within this lineage."
+   :maps-to [:protocol.entity/lineage-round]}
+  :predecessor-hash
+  {:description "Immediate predecessor position hash, anchoring continuity."
+   :maps-to [:protocol.entity/predecessor-hash]}}
+
+ :concept/actions
+ {:derive-deferred-class
+  {:description "Deterministically compute the deferred class from shortfall reason and policy."
+   :maps-to [:protocol.action/classify-deferred-position]}
+  :verify-deferred-class
+  {:description "Check that the recorded class matches the derivation from committed evidence."
+   :maps-to [:protocol.action/verify-allocation :protocol.action/check-invariant]}}
+
+ :concept/outcomes
+ {:class-derived
+  {:description "Deferred class is correctly derived and recorded."
+   :maps-to [:protocol.outcome/classified]}
+  :class-unsupported
+  {:description "Shortfall reason does not map to any supported deferred class. Creation is rejected."
+   :maps-to [:protocol.outcome/rejected]}
+  :class-legacy-unclassified
+  {:description "Pre-existing deferred position without a class field. Permitted for read compatibility only; new construction or re-emission requires migration."
+   :maps-to [:protocol.outcome/diagnostic]}}
+
+ :concept/failure-modes
+ [{:failure/id :deferred-class-missing-for-new-position
+   :failure/name "Deferred class missing on new position"
+   :failure/summary
+   "A newly created deferred position does not carry a deferred class."
+   :protocol-mechanisms [:deferred-class :position-validation]
+   :stakeholder-impact
+   "Claimants and auditors cannot determine the cause of deferral from committed position state."}
+
+  {:failure/id :deferred-class-not-derived
+   :failure/name "Deferred class differs from committed shortfall"
+   :failure/summary
+   "The recorded class does not match deterministic derivation from the shortfall reason and policy."
+   :protocol-mechanisms [:deferred-class :shortfall-accounting]
+   :stakeholder-impact
+   "Auditors cannot independently verify the classification."}
+
+  {:failure/id :deferred-class-unsupported
+   :failure/name "Shortfall reason has no supported class mapping"
+   :failure/summary
+   "The propagation policy authorizes no mapping for the observed shortfall reason."
+   :protocol-mechanisms [:deferred-class :policy-validation]
+   :stakeholder-impact
+   "Position creation fails, blocking deferral that should have been recorded."}]
+
+ :concept/metrics
+ {:deferred-class-counts
+  {:description "Number of deferred positions by class."
+   :source :derived-from-world-state}
+  :legacy-unclassified-count
+  {:description "Number of deferred positions without a class field (pre-migration)."
+   :source :derived-from-world-state}}
+
+ :concept/assumptions
+ ["The shortfall reason is committed in a position-level or propagation-level record."
+  "Class derivation is deterministic given the shortfall reason and policy."
+  "Legacy positions without a class are readable but not admissible as newly constructed canonical state."
+  "Concept labels do not change protocol validity."]
+
+ :concept/out-of-scope
+ ["Legal classification of shortfall or insolvency."
+  "Credit risk ratings or external solvency assessment."
+  "Seniority or priority ordering — that is governed by :position/original-priority separately."
+  "Recovery path or mechanism — that is a separate design concern."]
+
+ :concept/notes
+ ["Supported v1 classes are limited to :liquidity-shortfall. No solvency classification
+   is assigned unless a solvency definition, evidence source, and validator are committed.",
+  "The class field and lineage-anchoring fields change the canonical position hash.
+   Legacy position hashes remain independently verifiable under their original schema."]}

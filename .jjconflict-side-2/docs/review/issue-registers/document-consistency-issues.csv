@@ -1,0 +1,6 @@
+doc_a,doc_b,mismatch,severity
+IDEMPOTENCE_CHECKLIST.md,resolution.clj:303,force-reversal-slash not listed in checklist despite idempotent guard in code,low
+INTERACTIVE_FINALITY_SESSION_LOG.md:518,resolution.clj:323,F-004 still documented as unfixed bug; code now has guard,medium
+IDEMPOTENCE_CHECKLIST.md,chain.clj:513,Evidence-chain idempotency not tracked in Sew checklist,informational
+idepotence_analysis.md,chain.clj:530,Archived analysis suggests log/warn; implementation uses log/debug,informational
+idepotence_analysis.md,IDEMPOTENCE_CHECKLIST.md,Archived 5-phase plan has no disposition; unclear which phases were completed,low

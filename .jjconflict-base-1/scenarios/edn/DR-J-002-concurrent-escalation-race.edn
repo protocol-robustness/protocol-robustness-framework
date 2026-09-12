@@ -1,0 +1,44 @@
+{:scenario-id "dr-j-002-concurrent-escalation-race"
+ :schema-version "1.0"
+ :allow-open-disputes? true
+ :purpose "adversarial-robustness"
+ :title "Same-block concurrent escalation: two participants escalate, first succeeds, second rejected"
+ :description "After L0 resolution, both the buyer and seller attempt to escalate in the same block. The first escalation succeeds (clears pending settlement, advances level). The second escalation sees no pending settlement (already cleared by the first) and fails with :no-resolution-to-appeal. Verifies that the escalation guard prevents level-skip and ensures monotonic escalation."
+ :provenance {:author "@dispute-researcher" :created-at "2026-06-30" :license "CC-BY-4.0"}
+ :claim {:id "concurrent-escalation-mutual-exclusion"
+         :statement "Only one escalation can succeed per resolution. The first escalation clears the pending settlement, causing the second to fail with :no-resolution-to-appeal. Escalation level advances monotonically."
+         :falsifies-if ["Both escalations succeed"
+                        "Escalation level advances by more than 1"
+                        "Second escalation destroys state from the first"]}
+ :expectations {:terminal-state "refunded"
+                :must-hold ["dispute_level_bounded" "escalation_layer_protection" "escalation_level_monotonic"]
+                :error-on-seq [5]
+                :expected-errors {:seq 5 :error :no-resolution-to-appeal}}
+ :threat {:family "escalation-race" :attack "concurrent-escalation" :severity "high"
+          :actors ["buyer" "seller"]
+          :assumptions ["Two participants can both call escalate-dispute at the same time"]}
+ :accounting {:unit "USDC" :decimals 6 :tracked-balances ["buyer" "seller" "l0resolver" "l1resolver" "protocol"]}
+ :initial-block-time 1000
+ :protocol-params {:resolver-fee-bps 150 :appeal-window-duration 60 :max-dispute-duration 2592000
+                   :dispute-resolver "0xl0"
+                   :escalation-resolvers {:0 "0xl0" :1 "0xl1"}}
+ :agents [{:id "buyer" :address "0xbuyer" :strategy "opportunistic"}
+          {:id "seller" :address "0xseller" :strategy "opportunistic"}
+          {:id "l0resolver" :address "0xl0" :role "resolver"}
+          {:id "l1resolver" :address "0xl1" :role "resolver"}
+          {:id "keeper" :address "0xkeeper" :role "keeper"}]
+ :events [{:seq 0 :time 1000 :agent "buyer" :action "create_escrow"
+           :params {:token "USDC" :to "0xseller" :amount 5000}}
+          {:seq 1 :time 1060 :agent "buyer" :action "raise_dispute" :params {:workflow-id 0}}
+          {:seq 2 :time 1100 :agent "l0resolver" :action "execute_resolution"
+           :params {:workflow-id 0 :is-release false :resolution-hash "0xl0hash"}}
+          ;; Both buyer and seller escalate at the same time (same seq, actually same block time)
+          ;; First escalation succeeds: pending cleared, level becomes 1
+          {:seq 3 :time 1120 :agent "buyer" :action "escalate_dispute" :params {:workflow-id 0}}
+          ;; Second escalation fails: no pending settlement to appeal
+          {:seq 4 :time 1120 :agent "seller" :action "escalate_dispute" :params {:workflow-id 0}}
+          ;; L1 resolves
+          {:seq 5 :time 1150 :agent "l1resolver" :action "execute_resolution"
+           :params {:workflow-id 0 :is-release false :resolution-hash "0xl1hash"}}
+          {:seq 6 :time 1300 :agent "keeper" :action "execute_pending_settlement"
+           :params {:workflow-id 0}}]}

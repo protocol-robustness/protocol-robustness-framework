@@ -1,0 +1,31 @@
+{
+  "procedure-execution-witness/schema-version": 1,
+  "procedure-execution-witness/id": "fixture-witness",
+  "procedure-execution-witness/definition-root": "019c66636b8f0a2be455f8aa4caa91e303ea4a18bd1498c504c78067cb069350",
+  "procedure-execution-witness/initial-input-root": "0x00",
+  "procedure-execution-witness/steps": [
+    {
+      "step/id": "prf.step/authorisation-granted",
+      "step/input-root": "0x00",
+      "step/output-root": "0x01",
+      "step/evidence-content-hash": "b0e5ecc73e7ebe37abe68641e79489095b518ec58715c879be2f800698a01780",
+      "step/evidence-chain-seq": 1
+    },
+    {
+      "step/id": "prf.step/authorised-execution",
+      "step/input-root": "0x01",
+      "step/output-root": "0x02",
+      "step/evidence-content-hash": "f538208bd9a4874c6f0bab82eef1f7d05e9cf937e2762af0dde9ef3051d559d2",
+      "step/evidence-chain-seq": 2
+    },
+    {
+      "step/id": "prf.step/authorised-consumption-custody-adjustment",
+      "step/input-root": "0x02",
+      "step/output-root": "0x03",
+      "step/evidence-content-hash": "551048cfd774b06fd7d7d60887ebb11d5db179c90c723f33744eb23fe03e0696",
+      "step/evidence-chain-seq": 3
+    }
+  ],
+  "procedure-execution-witness/result-root": "0x03",
+  "procedure-execution-witness/root": "7b9f12d74bfc4489fbbcc63df082a7e600a47c7a0766dbf1634e82bf96461817"
+}

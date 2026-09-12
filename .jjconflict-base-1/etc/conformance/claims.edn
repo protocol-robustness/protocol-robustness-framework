@@ -1,0 +1,22 @@
+{:claim/taxonomy
+ [{:claim/class :attested
+   :claim/label "attested"
+   :claim/description "Supplied artifacts exactly match a previously attested subject and replay successfully."}
+  {:claim/class :reproduced
+   :claim/label "reproduced"
+   :claim/description "Subject was independently regenerated from bound implementation identities and produced the expected result."}
+  {:claim/class :candidate-compatible
+   :claim/label "candidate-compatible"
+   :claim/description "A candidate was evaluated for compatibility; no prior attestation is inherited."}
+  {:claim/class :accepted-divergence
+   :claim/label "accepted-divergence"
+   :claim/description "A documented, profile-approved divergence from the baseline."}
+  {:claim/class :not-evaluated
+   :claim/label "not-evaluated"
+   :claim/description "Evaluation did not complete or the claim was denied."}]
+
+ :claim/mode-permissions
+ {:attested  [:attested]
+  :reproduce [:reproduced]
+  :candidate [:candidate-compatible :accepted-divergence :not-evaluated]
+  :compare   [:candidate-compatible :accepted-divergence :not-evaluated]}}
