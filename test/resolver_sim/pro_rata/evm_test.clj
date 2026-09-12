@@ -149,3 +149,85 @@
     (is (not= statement forged))
     (is (not (sut/statement-v2-valid? forged state-before compilation binding resolve-body))
         "V2 rejects a self-consistent post-state claim because it reconstructs the transition")))
+
+(deftest evm-v2-retained-material-integrity-fails-closed
+  (let [{:keys [state-before compilation binding resolve-body]} (v2-fixture)
+        statement (sut/build-statement-v2
+                   {:state-before state-before
+                    :effect-compilation compilation
+                    :effect-compilation-binding binding
+                    :resolve-body resolve-body
+                    :configuration-root (root "1")})
+        roots {:allocation (:realized-allocation/root compilation)
+               :target-map (:target-map/root compilation)
+               :semantics (:effect-compilation-semantics/root compilation)}]
+    (testing "missing retained bodies fail V3 reconstruction and V2 verification"
+      (doseq [[label missing-root] roots]
+        (is (not (sut/statement-v2-valid?
+                  statement state-before compilation binding
+                  (fn [candidate]
+                    (when-not (= candidate missing-root)
+                      (resolve-body candidate)))))
+            (str "missing " label " body"))))
+    (testing "a different valid body cannot be substituted under a retained root"
+      (let [different-allocation
+            (allocation/allocate
+             {:allocation/id :evm-v2/different
+              :available 100N
+              :rows [{:row/id :claim/alice :requested 50N :weight 50N}
+                     {:row/id :claim/bob :requested 50N :weight 50N}]})]
+        (is (not (sut/statement-v2-valid?
+                  statement state-before compilation binding
+                  (fn [candidate]
+                    (if (= candidate (:realized-allocation/root compilation))
+                      different-allocation
+                      (resolve-body candidate))))))))
+    (testing "rehashing an enclosing binding reference does not rehabilitate it"
+      (let [forged-base (assoc statement :effect-compilation-binding/root (root "z"))
+            forged (assoc forged-base :pro-rata-evm-v2/root
+                          (sut/statement-v2-root forged-base))]
+        (is (not (sut/statement-v2-valid?
+                  forged state-before compilation binding resolve-body)))))))
+
+(deftest evm-v2-transition-derivation-integrity-survives-rehashing
+  (let [{:keys [state-before compilation binding resolve-body]} (v2-fixture)
+        statement (sut/build-statement-v2
+                   {:state-before state-before
+                    :effect-compilation compilation
+                    :effect-compilation-binding binding
+                    :resolve-body resolve-body
+                    :configuration-root (root "1")})
+        rehash (fn [body]
+                 (assoc body :pro-rata-evm-v2/root
+                        (sut/statement-v2-root body)))]
+    (testing "mutated state-before is not authoritative"
+      (let [forged (rehash (assoc statement :state-before/root (root "2")))]
+        (is (not (sut/statement-v2-valid?
+                  forged (assoc state-before (root "d") 101N)
+                  compilation binding resolve-body)))))
+    (testing "a mutated normalized effect cannot be rehabilitated by rehashing"
+      (let [forged-compilation
+            (-> compilation
+                (assoc :effects/root (root "3"))
+                (assoc :effect-compilation/root
+                       (compilation/compilation-root
+                        (assoc compilation :effects/root (root "3")))))
+            forged-binding (binding/build
+                            forged-compilation
+                            (effects/transition state-before
+                                                [(effects/delta (root "d") -99N)]))
+            forged (rehash (assoc statement
+                                  :effect-compilation-binding/root
+                                  (:effect-compilation-binding/root forged-binding)))]
+        (is (not (sut/statement-v2-valid?
+                  forged state-before forged-compilation forged-binding resolve-body)))))
+    (testing "a mutated claimed state-after is not authoritative"
+      (let [forged (rehash (assoc statement :state-after/root (root "4")))]
+        (is (not (sut/statement-v2-valid?
+                  forged state-before compilation binding resolve-body)))))
+    (testing "a mutated canonical transition identity is not authoritative"
+      (let [forged (rehash (assoc statement
+                                  :canonical-transition/root (root "5")
+                                  :state-after/root (root "6")))]
+        (is (not (sut/statement-v2-valid?
+                  forged state-before compilation binding resolve-body)))))))

@@ -1,7 +1,0 @@
-{:scenario/id "malicious-resolver-verdict-v1"
- :scenario/title "002-malicious-resolver-verdict"
- :scenario/version "1.0.0"
- :scenario/status :public-candidate
- :scenario/purpose "Verifies resolver corruption is economically bounded under stated assumptions."
- :protocol/phase :dr3
- :expected-result {:status :pass :classification :regression-protected}}

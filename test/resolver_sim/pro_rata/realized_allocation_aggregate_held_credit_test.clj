@@ -273,7 +273,86 @@
     (is (not (binding-v2/valid? contract compiled canonical
                                 #(if (= % (:adapter/descriptor-root adapter-descriptor))
                                    (assoc adapter-descriptor :adapter/id :substituted)
-                                   (get bodies %)))))))
+                                   (get bodies %)))))
+    (testing "every retained aggregate body is required"
+      (doseq [missing-root [(:realized-allocation/root compiled)
+                            (:target-map/root compiled)
+                            (:effect-compilation-semantics/root compiled)
+                            (:target-map-validation/root compiled)
+                            (:native-location-map/root target-map-validation)
+                            (:aggregate-quantity/root target-map-validation)
+                            (:adapter/descriptor-root target-map-validation)]]
+        (is (not (evm/statement-v2-valid?
+                  statement {quantity-root 25N} compiled contract
+                  #(when-not (= % missing-root) (get bodies %))))
+            (str "missing retained aggregate body " missing-root))))))
+
+(deftest stage-a-authority-conservation-prevents-downstream-projection
+  (let [fixture (canonical-fixture)
+        {:keys [realized-allocation bridge-body]} fixture
+        {:keys [aggregate-quantity aggregate-target-map native-location-map adapter-descriptor
+                target-map-validation]} bridge-body
+        compiler-semantics (compilation-semantics/build :aggregate-held-credit)
+        compiled (compilation-v3/compile
+                  {:allocation realized-allocation
+                   :target-map aggregate-target-map
+                   :semantics compiler-semantics
+                   :allocation-policy-root (get-in fixture [:statement :allocation-policy-root])
+                   :target-map-validation target-map-validation
+                   :native-location-map native-location-map
+                   :aggregate-quantity aggregate-quantity
+                   :adapter-descriptor adapter-descriptor})
+        bodies {(:allocation/hash realized-allocation) realized-allocation
+                (:target-map/root aggregate-target-map) aggregate-target-map
+                (:effect-compilation-semantics/root compiler-semantics) compiler-semantics
+                (:target-map-validation/root target-map-validation) target-map-validation
+                (:native-location-map/root native-location-map) native-location-map
+                (:quantity/root aggregate-quantity) aggregate-quantity
+                (:adapter/descriptor-root adapter-descriptor) adapter-descriptor}
+        resolve-body #(get bodies %)
+        quantity-root (:quantity/root aggregate-quantity)
+        canonical (effects/transition {quantity-root 25N}
+                                      (binding-v2/recompute-effects compiled resolve-body))
+        contract (binding-v2/build compiled canonical)
+        statement (evm/build-statement-v2
+                   {:state-before {quantity-root 25N}
+                    :effect-compilation compiled
+                    :effect-compilation-binding contract
+                    :resolve-body resolve-body
+                    :configuration-root (root "d")})
+        substitutions
+        {:mapping-profile
+         #(if (= % (:target-map/root aggregate-target-map))
+            (assoc aggregate-target-map :mapping-profile/root (root "e"))
+            (get bodies %))
+         :aggregate-custody-scope
+         #(if (= % (:target-map/root aggregate-target-map))
+            (assoc aggregate-target-map :aggregate-custody-scope/root (root "f"))
+            (get bodies %))
+         :adapter-descriptor
+         #(if (= % (:adapter/descriptor-root adapter-descriptor))
+            (assoc adapter-descriptor :adapter/id :substituted)
+            (get bodies %))
+         :native-before
+         #(if (= % (:target-map-validation/root target-map-validation))
+            (assoc target-map-validation :native-state-before/root (root "7"))
+            (get bodies %))
+         :native-location-map
+         #(if (= % (:native-location-map/root native-location-map))
+            (assoc-in native-location-map [:locations 0 :native/path]
+                      [:held-ledger/index :by-token :DAI])
+            (get bodies %))
+         :aggregate-quantity
+         #(if (= % (:quantity/root aggregate-quantity))
+            (assoc aggregate-quantity :asset/root (root "8"))
+            (get bodies %))}]
+    (doseq [[dependency resolve-substituted] substitutions]
+      (testing (str "Stage A " (name dependency) " remains authoritative")
+        (is (not (binding-v2/valid? contract compiled canonical resolve-substituted))
+            "V3 cannot reproduce the original compilation from substituted Stage A material")
+        (is (not (evm/statement-v2-valid? statement {quantity-root 25N}
+                                          compiled contract resolve-substituted))
+            "V2 cannot accept a downstream identity after Stage A authority substitution")))))
 
 (deftest canonical-effects-and-binding-are-order-and-lineage-sensitive
   (let [fixture (canonical-fixture)

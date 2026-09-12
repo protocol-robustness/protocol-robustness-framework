@@ -185,26 +185,43 @@
       (throw (ex-info "EVM V2 compilation binding does not match derived transition" {})))
     canonical-transition))
 
-(defn build-statement-v2
-  "Construct a derived-transition EVM statement. Unlike V1, this interface has
-   no caller-selected post-state or canonical-transition argument: both are
-   reconstructed from state-before and retained V3 compilation bodies."
+(defn reconstruct-v2
+  "Reconstruct the complete production V2 derivation graph. This is the sole
+   semantic orchestration boundary; callers may project its result but must not
+   reimplement compilation, transition, or statement assembly."
   [{:keys [state-before effect-compilation effect-compilation-binding resolve-body
            configuration-root] :as input}]
   (when-not (root? configuration-root)
     (throw (ex-info "EVM V2 requires a configuration root" {:input input})))
-  (let [canonical-transition (derived-transition! {:state-before state-before
-                                                   :effect-compilation effect-compilation
-                                                   :effect-compilation-binding effect-compilation-binding
-                                                   :resolve-body resolve-body})
-        base {:schema-version statement-v2-schema
-              :effect-compilation-binding/root
-              (:effect-compilation-binding/root effect-compilation-binding)
-              :canonical-transition/root (:canonical-effect-transition/root canonical-transition)
-              :state-before/root (:state-before/root canonical-transition)
-              :state-after/root (:state-after/root canonical-transition)
-              :configuration/root configuration-root}]
-    (assoc base :pro-rata-evm-v2/root (statement-v2-root base))))
+  (let [normalized-effects (compilation-binding/recompute-effects effect-compilation resolve-body)
+        canonical-transition (effects/transition state-before normalized-effects)
+        effect-compilation-binding (or effect-compilation-binding
+                                       (compilation-binding/build effect-compilation
+                                                                  canonical-transition))]
+    (when-not (compilation-binding/valid? effect-compilation-binding effect-compilation
+                                          canonical-transition resolve-body)
+      (throw (ex-info "EVM V2 compilation binding does not match derived transition" {})))
+    (let [base {:schema-version statement-v2-schema
+                :effect-compilation-binding/root
+                (:effect-compilation-binding/root effect-compilation-binding)
+                :canonical-transition/root (:canonical-effect-transition/root canonical-transition)
+                :state-before/root (:state-before/root canonical-transition)
+                :state-after/root (:state-after/root canonical-transition)
+                :configuration/root configuration-root}
+          statement (assoc base :pro-rata-evm-v2/root (statement-v2-root base))]
+      {:artifacts {:compilation effect-compilation
+                   :binding effect-compilation-binding
+                   :canonical-transition canonical-transition
+                   :statement statement}
+       :derived {:normalized-effects normalized-effects
+                 :state-before state-before
+                 :state-after (:state-after canonical-transition)}})))
+
+(defn build-statement-v2
+  "Construct a derived-transition EVM statement through the shared production
+   reconstruction boundary. No caller-selected post-state is accepted."
+  [input]
+  (get-in (reconstruct-v2 input) [:artifacts :statement]))
 
 (defn statement-v2-valid?
   "Independently reconstruct the V2 transition from retained source bodies.

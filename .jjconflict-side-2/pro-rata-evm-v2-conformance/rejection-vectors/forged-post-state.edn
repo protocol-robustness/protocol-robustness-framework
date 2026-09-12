@@ -1,8 +1,0 @@
-{:schema "pro-rata-evm-v2-rejection-vector.v1"
- :case/id :forged-post-state
- :basis/vector :all-active-two-claim-60-40
- :mutation {:path [:statement :state-after/root]
-            :replacement "sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"}
- :rehash {:outer-artifacts true}
- :expected {:valid? false
-            :failure-class :derived-transition-mismatch}}

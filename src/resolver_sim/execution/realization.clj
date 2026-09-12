@@ -165,3 +165,69 @@
     (let [observation (finalize! realization)]
       (emit! realization)
       observation)))
+
+(defn complete-after-authority!
+  "Complete a realization through one already-open finalization lane whose elected
+   callback performs the authoritative commit.
+
+   The authoritative callback runs before any local realization finalization or
+   observation delivery. It must return the durable authority outcome map, whose
+   :status is :committed, :idempotent, or a rejection status. An idempotent
+   outcome is terminal for the lane but deliberately suppresses local projection
+   and emission: this process did not author a new durable successor.
+
+   A failure after durable commitment is reported as a recoverable local
+   projection/delivery failure. It never changes the committed lane outcome."
+  [realization {:keys [lane observed-parent-root closed-result-set-root basis-root
+                       valid-basis? commit!]}]
+  (when-not (and lane (fn? commit!))
+    (throw (ex-info "Authoritative completion requires a lane and commit callback"
+                    {:lane? (boolean lane) :commit-callback? (fn? commit!)})))
+  (freeze! realization)
+  (let [{:keys [closed?]} (lane/close-execution! lane)]
+    (when-not closed?
+      (throw (ex-info "Finalization lane closure failed"
+                      {:lifecycle (lane/state lane)})))
+    (let [lane-result
+          (lane/finalize-lane!
+           lane
+           (cond-> {:closed-result-set-root closed-result-set-root
+                    :basis-root basis-root}
+             (some? observed-parent-root)
+             (assoc :observed-parent-root observed-parent-root)
+             (contains? #{true false} valid-basis?)
+             (assoc :valid-basis? valid-basis?))
+           (fn [ticket]
+             (let [authority (commit! ticket)]
+               (case (:status authority)
+                 (:committed :idempotent) {:committed authority}
+                 {:rejected (:reason authority)}))))]
+      (when-not (= :committed (:status lane-result))
+        (throw (ex-info "Authoritative finalization lane rejected completion"
+                        (select-keys lane-result [:status :reason :error]))))
+      (let [authority (:result lane-result)]
+        (case (:status authority)
+          :idempotent
+          {:status :suppressed
+           :reason :already-authoritatively-published
+           :authority authority
+           :ticket (:ticket lane-result)}
+
+          :committed
+          (try
+            (let [observation (finalize! realization)]
+              (emit! realization)
+              {:status :committed
+               :authority authority
+               :ticket (:ticket lane-result)
+               :observation observation})
+            (catch Exception error
+              (throw (ex-info "Authority committed but local realization projection failed"
+                              {:status :authoritative-committed-local-projection-failed
+                               :authority authority
+                               :ticket (:ticket lane-result)
+                               :local-lifecycle (:lifecycle @realization)}
+                              error))))
+
+          (throw (ex-info "Authoritative callback returned unsupported committed outcome"
+                          {:authority authority})))))))

@@ -1,3 +1,0 @@
-{:hooks
- {:macroexpand {clojure.test.check.clojure-test/defspec
-                hooks.test-check-hooks/defspec}}}
