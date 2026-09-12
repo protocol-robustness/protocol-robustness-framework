@@ -2,6 +2,76 @@
 
 ## [Unreleased]
 
+### Authentication provenance
+
+- Research verification now reports anonymous, pseudonymous, and authenticated-principal provenance separately from evidence validity. Unsigned attestations report missing proof of possession rather than a verified signer, while valid anonymous evidence remains eligible for research verification where admission policy permits.
+- Evidence-chain registries now preserve each evidence member's research and authentication provenance, with conservative uniform-or-mixed coverage. Wrapping or combining evidence cannot upgrade an anonymous member to authenticated-principal provenance.
+
+### Research analysis claim V2
+
+- `research-analytical-claim.v2` now binds distinct research-subject and exact-model roots. V1 claims are rejected at V2 validation boundaries because their `subject-root` used the model-root meaning and cannot be safely reinterpreted for subject-level comparison.
+- `research-analysis-result.v2` now binds results to a canonical `research-result-descriptor.v1`; counterexamples require a descriptor-declared witness schema and witness root.
+
+### Authoritative pro-rata publication finalization
+
+- Application-bound PostgreSQL publication now requires an exact parent-head root and store-version fence, rechecks both under its partition lock, and rejects ordering records that are not a semantic successor of the locked predecessor. The authority-level finalization seam commits one execution lane only after the canonical allocation and publication-binding roots validate; local realization projection and observation follow durable authority rather than preceding it.
+
+### Pro-rata EVM derived-transition v2
+
+- Added `pro-rata-evm-v2`, whose constructor and verifier reconstruct the
+  canonical transition from retained V3 compilation bodies and canonical
+  state-before data; callers cannot select an independent post-state root.
+  Aggregate V3 compilation now retains and revalidates the complete Stage A
+  target-map-validation basis. Historical EVM V1 roots and interfaces remain
+  unchanged; native realization is intentionally not bound by V2.
+- Added the initial `pro-rata-evm-v2-conformance` package and an executable
+  expectation-independent verifier for the all-active 60/40 vector. The
+  verifier derives intermediates without receiving `:expected`; expected
+  bodies and roots are comparison-only.
+
+### Portable pro-rata contract v1
+
+- Added an independently loadable `portable-pro-rata-contract.v1` authority for
+  allocation, canonical effects, derived transitions, domain tags, exact-byte
+  vectors, rejection categories, and a closed release manifest. Production
+  Clojure allocation and transition commitments now consume the portable
+  projections; application mappings and implementation/proof provenance remain
+  outside portable semantic identity.
+
+### P4b custom-action contract — fail-closed unknown types + portability guarantee
+
+- **Unknown action types fail closed with a structured error.** A single action
+  whose type is outside `classify-action-effects` and that supplies no
+  `:action/effects` now throws `{:reason :action/explicit-effects-required,
+  :action/type <t>}` instead of leaking Clojure's bare
+  `IllegalArgumentException: No matching clause`. There is deliberately NO
+  `:no-economic-effect` default (silently hiding the real effects of an
+  unclassified action from policy and the effect contract). `classify-action-effects`
+  returns `nil` for unknown types; only `normalize-single-action` enforces the
+  fail-closed requirement.
+- **Custom actions documented.** A custom action type is an extension of action
+  identity/classification, not of the protocol's economic ontology: it MAY
+  declare effects from the protocol-governed `action-effect-vocabulary`, and
+  defining new effect semantics requires a protocol/version change. Documented in
+  the `action-effect-vocabulary`, `classify-action-effects`, and
+  `normalize-single-action` docstrings.
+- **Forensic-portability invariant proven.** The action root commits the FULL
+  parameter map and resolver identity canonically. For custom actions, params
+  "pass through uncanonicalized" only in the sense of not being
+  action-type-specifically normalized (no `:to`→`:beneficiary`-style rewriting);
+  they are still fully and deterministically committed. Regression tests prove a
+  rooted custom action is reconstructable and reproducible across
+  implementations: map-key order collapses to one root, while a changed opaque
+  custom resolver address or a changed semantically relevant parameter produces a
+  different root.
+- **No first-class action-type registry yet.** Deliberately out of P4b scope;
+  adding one would expand surface area without a lifecycle-extensibility consumer.
+  When opened, the registration descriptor should carry versioned, root-addressed,
+  reconstructable semantics (type/id, type/version, type/effects, parameter-schema-root,
+  semantic-descriptor-root, resolver-requirements, root) rather than a bare
+  type→effects map. (`protocols_src/resolver_sim/protocols/sew/financial/lifecycle.clj`,
+  `protocols_src/test/resolver_sim/protocols/sew/financial/normalization_fixedpoint_test.clj`)
+
 ### Pro-rata semantic ownership — allocator moved out of `economics.payoffs`
 
 - **`resolver-sim.pro-rata` is now the sole owner of pro-rata allocation
@@ -2645,3 +2715,6 @@ runtime mechanism selection or a mechanism registry.
 - Added optional `TransitionAssurance` adapter capability and replay requirement
   `:transition-assurance/v1`; required assurance now rejects unsupported or
   failed candidate transitions before they become successful trace frames.
+- Research claims now require exact output-verification binding, validate the
+  canonical benchmark outcome manifest before verification, and distinguish the
+  studied subject root from the incentive-model root.

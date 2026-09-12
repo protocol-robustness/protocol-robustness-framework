@@ -98,37 +98,130 @@
 ;; ── Race: concurrent completions ────────────────────────────────────────────
 
 (deftest concurrent-complete-with-lane-one-succeeds
-  (testing "Multiple threads calling complete! with same lane — only one wins (FG-3)"
+  (testing "Concurrent complete! calls elect one finalizer and emit once"
     (let [n 20
           {:keys [realization lane]} (open-pair)
           winner-count (AtomicInteger. 0)
           loser-count (AtomicInteger. 0)
-          barrier (CyclicBarrier. n)]
-      ;; Record and close work first
-      (binding [realization/*claimant-execution-realization* realization
-                realization/*claimant-execution-lane* lane]
-        (realization/record! {:setup true})
-        ;; Close execution on the lane so finalize-lane! can proceed
-        (lane/close-execution! lane)
-        ;; Finalize the lane directly (the realization is frozen+finalized already)
-        (lane/finalize-lane! lane {} (fn [ticket] {:committed {:ticket ticket}})))
-      ;; Now race: multiple threads try to finalize the already-finalized lane
-      (let [futures (mapv (fn [_]
+          emission-count (AtomicInteger. 0)
+          barrier (CyclicBarrier. n)
+          futures (binding [realization/*claimant-execution-realization* realization
+                            realization/*claimant-execution-lane* lane
+                            realization/*claimant-execution-runtime-profile-root* "test-runtime-root"
+                            realization/*claimant-execution-observation-sink*
+                            (fn [_] (.incrementAndGet emission-count))]
+                    (realization/record! {:setup true})
+                    (mapv (fn [_]
                             (future
                               (.await barrier)
-                              (let [result (lane/finalize-lane!
-                                            lane
-                                            {:closed-result-set-root "root"
-                                             :basis-root "basis"}
-                                            (fn [ticket]
-                                              {:committed {:ticket ticket}}))]
-                                (if (= :committed (:status result))
-                                  (.incrementAndGet winner-count)
+                              (try
+                                (realization/complete! realization)
+                                (.incrementAndGet winner-count)
+                                (catch clojure.lang.ExceptionInfo _
                                   (.incrementAndGet loser-count)))))
-                          (range n))]
-        (doseq [f futures] (deref f 10000 nil))
-        ;; Lane is already finalized from our direct call — all 20 race attempts rejected
-        (is (= 0 (.get winner-count))
-            "No new winner — lane already finalized")
-        (is (= n (.get loser-count))
-            "All race attempts rejected")))))
+                          (range n)))]
+      (doseq [f futures] (deref f 10000 nil))
+      (is (= 1 (.get winner-count))
+          "One caller completes the realization")
+      (is (= (dec n) (.get loser-count))
+          "Other callers cannot pass realization or lane finalization")
+      (is (= 1 (.get emission-count))
+          "The elected completion emits exactly once")
+      (is (= :finalized (:lifecycle @realization)))
+      (is (lane/finalized? lane)))))
+
+(deftest rejected-lane-leaves-realization-frozen
+  (testing "Lane rejection cannot falsely finalize or emit the realization"
+    (let [{:keys [realization lane]} (open-pair)
+          emitted (AtomicInteger. 0)]
+      (binding [realization/*claimant-execution-realization* realization
+                realization/*claimant-execution-lane* lane
+                realization/*claimant-execution-observation-sink*
+                (fn [_] (.incrementAndGet emitted))]
+        (with-redefs [lane/finalize-lane!
+                      (fn [_ _ _] {:status :rejected :reason :stale-parent})]
+          (is (thrown? clojure.lang.ExceptionInfo
+                       (realization/complete! realization)))))
+      (is (= :frozen (:lifecycle @realization))
+          "Realization is not finalized before lane commitment")
+      (is (= 0 (.get emitted))
+          "Rejected lane never emits an observation"))))
+
+(deftest authority-commit-precedes-realization-finalization
+  (let [{:keys [realization lane]} (open-pair)
+        events (atom [])
+        emitted (AtomicInteger. 0)]
+    (binding [realization/*claimant-execution-runtime-profile-root* "test-runtime-root"
+              realization/*claimant-execution-observation-sink*
+              (fn [_]
+                (swap! events conj :emit)
+                (.incrementAndGet emitted))]
+      (let [result (realization/complete-after-authority!
+                    realization
+                    {:lane lane
+                     :closed-result-set-root "closed-root"
+                     :basis-root "basis-root"
+                     :valid-basis? true
+                     :commit! (fn [_]
+                                (swap! events conj :authority-commit)
+                                {:status :committed :publication/head :head})})]
+        (is (= :committed (:status result)))
+        (is (= :finalized (:lifecycle @realization)))))
+    (is (= [:authority-commit :emit] @events))
+    (is (= 1 (.get emitted)))))
+
+(deftest idempotent-authority-suppresses-local-finalization-and-emission
+  (let [{:keys [realization lane]} (open-pair)
+        emitted (AtomicInteger. 0)]
+    (binding [realization/*claimant-execution-runtime-profile-root* "test-runtime-root"
+              realization/*claimant-execution-observation-sink*
+              (fn [_] (.incrementAndGet emitted))]
+      (let [result (realization/complete-after-authority!
+                    realization
+                    {:lane lane
+                     :closed-result-set-root "closed-root"
+                     :basis-root "basis-root"
+                     :valid-basis? true
+                     :commit! (fn [_] {:status :idempotent :publication/head :head})})]
+        (is (= :suppressed (:status result)))))
+    (is (= :frozen (:lifecycle @realization)))
+    (is (= 0 (.get emitted)))))
+
+(deftest committed-authority-is-not-reclassified-when-local-projection-fails
+  (let [{:keys [realization lane]} (open-pair)
+        emitted (AtomicInteger. 0)]
+    (binding [realization/*claimant-execution-observation-sink*
+              (fn [_] (.incrementAndGet emitted))]
+      (with-redefs [realization/finalize! (fn [_] (throw (ex-info "projection failed" {})))]
+        (let [error (try
+                      (realization/complete-after-authority!
+                       realization
+                       {:lane lane
+                        :closed-result-set-root "closed-root"
+                        :basis-root "basis-root"
+                        :valid-basis? true
+                        :commit! (fn [_] {:status :committed :publication/head :head})})
+                      nil
+                      (catch clojure.lang.ExceptionInfo error error))]
+          (is (= :authoritative-committed-local-projection-failed
+                 (:status (ex-data error)))))))
+    (is (lane/finalized? lane))
+    (is (= :frozen (:lifecycle @realization)))
+    (is (= 0 (.get emitted)))))
+
+(deftest authority-rejection-leaves-realization-frozen
+  (let [{:keys [realization lane]} (open-pair)
+        emitted (AtomicInteger. 0)]
+    (binding [realization/*claimant-execution-observation-sink*
+              (fn [_] (.incrementAndGet emitted))]
+      (is (thrown? clojure.lang.ExceptionInfo
+                   (realization/complete-after-authority!
+                    realization
+                    {:lane lane
+                     :closed-result-set-root "closed-root"
+                     :basis-root "basis-root"
+                     :valid-basis? true
+                     :commit! (fn [_] {:status :contention :reason :version-mismatch})}))))
+    (is (= :frozen (:lifecycle @realization)))
+    (is (lane/aborted? lane))
+    (is (= 0 (.get emitted)))))
