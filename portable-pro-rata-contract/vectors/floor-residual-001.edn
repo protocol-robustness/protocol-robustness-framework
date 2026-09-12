@@ -1,0 +1,15 @@
+{:vector/id :portable-pro-rata/floor-residual-001
+ :contract/version "portable-pro-rata-contract.v1"
+ :request {:schema-version "pro-rata-allocation-request.v1" :mechanism/version 1
+           :allocation/id :floor-residual-001 :available 5N
+           :rows [{:row/id :row/b :obligation/id :ob/b :requested 5N :weight 1N :cap nil}
+                  {:row/id :row/a :obligation/id :ob/a :requested 5N :weight 1N :cap nil}]
+           :rounding-policy :floor :tie-break-policy :canonical-row-id
+           :redistribution-policy :unallocated}
+ :expected {:canonical-row-order [:row/a :row/b]
+            :rows [{:row/id :row/a :allocated 2N :unmet 0N}
+                   {:row/id :row/b :allocated 2N :unmet 0N}]
+            :allocated-total 4N :unallocated-residual 1N
+            :residual-reason :floor-rounding
+            :canonical-bytes/file "canonical-bytes/floor-residual-001.allocation-result.hex"
+            :allocation/hash "cddb502c6577a1742c029de2f1bfe1e6ef8dedc8491f870c5935c228edab12b8"}}

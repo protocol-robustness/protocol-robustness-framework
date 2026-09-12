@@ -1,0 +1,14 @@
+{:vector/id :portable-pro-rata/cap-clamping-001
+ :contract/version "portable-pro-rata-contract.v1"
+ :request {:schema-version "pro-rata-allocation-request.v1" :mechanism/version 1
+           :allocation/id :cap-clamping-001 :available 10N
+           :rows [{:row/id :row/b :obligation/id :ob/b :requested 10N :weight 1N :cap 10N}
+                  {:row/id :row/a :obligation/id :ob/a :requested 10N :weight 1N :cap 2N}]
+           :rounding-policy :largest-remainder :tie-break-policy :canonical-row-id
+           :redistribution-policy :unallocated}
+ :expected {:canonical-row-order [:row/a :row/b]
+            :rows [{:row/id :row/a :allocated 2N :unmet 3N}
+                   {:row/id :row/b :allocated 5N :unmet 0N}]
+            :allocated-total 7N :unallocated-residual 0N :residual-reason :none
+            :canonical-bytes/file "canonical-bytes/cap-clamping-001.allocation-result.hex"
+            :allocation/hash "9b1ce7425ade7f815793414eecdcd073f8db024c960d550253c852fd9be1e996"}}

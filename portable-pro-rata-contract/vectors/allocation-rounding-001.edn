@@ -1,0 +1,22 @@
+{:vector/id :portable-pro-rata/allocation-rounding-001
+ :contract/version "portable-pro-rata-contract.v1"
+ :request
+ {:schema-version "pro-rata-allocation-request.v1"
+  :mechanism/version 1
+  :allocation/id :portable/rounding
+  :available 5N
+  :rows [{:row/id :row/a :obligation/id :ob/a :requested 5N :weight 1N :cap nil}
+         {:row/id :row/b :obligation/id :ob/b :requested 5N :weight 1N :cap nil}]
+  :rounding-policy :largest-remainder
+  :tie-break-policy :canonical-row-id
+  :redistribution-policy :unallocated}
+ :expected
+ {:allocations [{:row/id :row/a :allocated 3N :unmet 0N :remainder-rank 0
+                 :remainder-unit-awarded? true}
+                {:row/id :row/b :allocated 2N :unmet 0N :remainder-rank 1
+                 :remainder-unit-awarded? false}]
+  :allocated-total 5N
+  :unallocated-residual 0N
+  :request/hash "6c60df09a5ec1efffaae94da7c0ab8bdf177df9311db525650765fee33e26d85"
+  :allocation/hash "7ca6b7b57766a0c2ec92058f0a6fcbc2ff23c01de93904593839d8a449a48454"
+  :canonical-bytes/file "canonical-bytes/allocation-result-001.hex"}}

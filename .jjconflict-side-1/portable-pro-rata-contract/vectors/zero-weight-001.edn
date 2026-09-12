@@ -1,0 +1,15 @@
+{:vector/id :portable-pro-rata/zero-weight-001
+ :contract/version "portable-pro-rata-contract.v1"
+ :request {:schema-version "pro-rata-allocation-request.v1" :mechanism/version 1
+           :allocation/id :zero-weight-001 :available 5N
+           :rows [{:row/id :row/b :obligation/id :ob/b :requested 5N :weight 0N :cap nil}
+                  {:row/id :row/a :obligation/id :ob/a :requested 5N :weight 0N :cap nil}]
+           :rounding-policy :largest-remainder :tie-break-policy :canonical-row-id
+           :redistribution-policy :unallocated}
+ :expected {:canonical-row-order [:row/a :row/b]
+            :rows [{:row/id :row/a :allocated 0N :unmet 0N}
+                   {:row/id :row/b :allocated 0N :unmet 0N}]
+            :rounds [] :allocated-total 0N :unallocated-residual 5N
+            :residual-reason :no-active-weight
+            :canonical-bytes/file "canonical-bytes/zero-weight-001.allocation-result.hex"
+            :allocation/hash "ac16e38133a775a13c412ed451d311bd8754ae364a600b0d96d64e804f70685d"}}

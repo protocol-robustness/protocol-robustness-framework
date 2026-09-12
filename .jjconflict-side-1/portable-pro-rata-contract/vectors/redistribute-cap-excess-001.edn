@@ -1,0 +1,20 @@
+{:vector/id :portable-pro-rata/redistribute-cap-excess-001
+ :contract/version "portable-pro-rata-contract.v1"
+ :request {:schema-version "pro-rata-allocation-request.v1" :mechanism/version 1
+           :allocation/id :redistribute-cap-excess-001 :available 10N
+           :rows [{:row/id :row/b :obligation/id :ob/b :requested 10N :weight 1N :cap 10N}
+                  {:row/id :row/a :obligation/id :ob/a :requested 10N :weight 1N :cap 2N}]
+           :rounding-policy :largest-remainder :tie-break-policy :canonical-row-id
+           :redistribution-policy :redistribute-cap-excess}
+ :expected {:canonical-row-order [:row/a :row/b]
+            :rows [{:row/id :row/a :allocated 2N :unmet 0N}
+                   {:row/id :row/b :allocated 8N :unmet 0N}]
+            :rounds [{:round/index 0 :active-row-ids [:row/a :row/b]
+                      :newly-cap-constrained-row-ids [:row/a] :committed-by-cap 2N
+                      :available-after-caps 8N}
+                     {:round/index 1 :active-row-ids [:row/b]
+                      :newly-cap-constrained-row-ids [] :committed-by-cap 0N
+                      :available-after-caps 8N}]
+            :allocated-total 10N :unallocated-residual 0N :residual-reason :none
+            :canonical-bytes/file "canonical-bytes/redistribute-cap-excess-001.allocation-result.hex"
+            :allocation/hash "96917b24fba42389d7c535546a99b994f354bb4208d45f5dae05f38b835c06de"}}
