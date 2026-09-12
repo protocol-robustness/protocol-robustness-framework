@@ -1,0 +1,11 @@
+{:schema "pro-rata-evm-v2-rejection-vector.v1"
+ :case/id :effect-substitution
+ :basis/vector :all-active-two-claim-60-40
+ :mutation {:path [:compilation :effects/root]
+            :replacement "sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
+            :semantic-effect {:schema-version "canonical-delta-effect.v1"
+                              :quantity/root "sha256:000000000000000000000000000000000000000000000000000000000000000d"
+                              :delta -99N}}
+ :rehash {:compilation true :binding true :statement true}
+ :expected {:valid? false
+            :failure-class :effect-reconstruction-mismatch}}
