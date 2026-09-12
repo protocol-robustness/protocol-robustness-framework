@@ -33,33 +33,33 @@
            total-shortfall-deferred total-shortfall-haircut
            redistribution-total-passes redistribution-iteration-limit-hit?
            redistribution-negative-allocations]
-    :or   {terminal?          true
-           halt-reason        :all-terminal
-           total-held         {}
-           attack-attempts    0
-           attack-successes   0
-           funds-lost         0
-           invariant-violations 0}}]
-  {:terminal-world {:terminal?          terminal?
+    :or {terminal? true
+         halt-reason :all-terminal
+         total-held {}
+         attack-attempts 0
+         attack-successes 0
+         funds-lost 0
+         invariant-violations 0}}]
+  {:terminal-world {:terminal? terminal?
                     :total-held-by-token total-held
-                    :escrow-count       1}
-   :metrics        {:attack-attempts          attack-attempts
-                    :attack-successes         attack-successes
-                    :funds-lost               funds-lost
-                    :invariant-violations     invariant-violations
-                    :negative-payoff-count    negative-payoff-count
-                    :coalition-net-profit     coalition-net-profit
-                    :total-shortfall-basis    total-shortfall-basis
-                    :total-shortfall-filled   total-shortfall-filled
-                    :total-shortfall-deferred total-shortfall-deferred
-                    :total-shortfall-haircut  total-shortfall-haircut
-                    :redistribution-total-passes redistribution-total-passes
-                    :redistribution-iteration-limit-hit? redistribution-iteration-limit-hit?
-                    :redistribution-negative-allocations redistribution-negative-allocations}
-   :trace-summary  {:halt-reason   halt-reason
-                    :events-count  2
-                    :actors        ["buyer" "seller"]
-                    :terminal-time 1100}})
+                    :escrow-count 1}
+   :metrics {:attack-attempts attack-attempts
+             :attack-successes attack-successes
+             :funds-lost funds-lost
+             :invariant-violations invariant-violations
+             :negative-payoff-count negative-payoff-count
+             :coalition-net-profit coalition-net-profit
+             :total-shortfall-basis total-shortfall-basis
+             :total-shortfall-filled total-shortfall-filled
+             :total-shortfall-deferred total-shortfall-deferred
+             :total-shortfall-haircut total-shortfall-haircut
+             :redistribution-total-passes redistribution-total-passes
+             :redistribution-iteration-limit-hit? redistribution-iteration-limit-hit?
+             :redistribution-negative-allocations redistribution-negative-allocations}
+   :trace-summary {:halt-reason halt-reason
+                   :events-count 2
+                   :actors ["buyer" "seller"]
+                   :terminal-time 1100}})
 
 ;; ---------------------------------------------------------------------------
 ;; budget-balance
@@ -411,7 +411,7 @@
 
 (deftest test-claim-tier-deviation-bundle-gating
   (testing "deviation-tested tier requires deviation bundle evidence for DSE/Nash"
-    (let [proj   (projection {:attack-attempts 2 :attack-successes 0 :invariant-violations 0})
+    (let [proj (projection {:attack-attempts 2 :attack-successes 0 :invariant-violations 0})
           result (-> (eq/evaluate-equilibrium-concepts
                       [:dominant-strategy-equilibrium :nash-equilibrium]
                       proj
@@ -425,8 +425,8 @@
       (is (= :missing-deviation-bundles (get-in result [:nash-equilibrium :reason])))))
 
   (testing "deviation-tested tier passes through when deviation bundle evidence is present"
-    (let [proj   (assoc (projection {:attack-attempts 2 :attack-successes 0 :invariant-violations 0})
-                        :deviation-bundle {:meets-minimum? true})
+    (let [proj (assoc (projection {:attack-attempts 2 :attack-successes 0 :invariant-violations 0})
+                      :deviation-bundle {:meets-minimum? true})
           result (-> (eq/evaluate-equilibrium-concepts
                       [:dominant-strategy-equilibrium :nash-equilibrium]
                       proj
@@ -543,16 +543,16 @@
 
 (deftest test-evaluate-equilibrium-all-pass
   (testing "evaluate-equilibrium with clean metrics → mechanism :pass (no attacks → :inconclusive)"
-    (let [theory  {:mechanism-properties [:budget-balance]
-                   :equilibrium-concept  [:dominant-strategy-equilibrium]}
-          result  {:metrics {:attack-attempts 2 :attack-successes 0
-                             :invariant-violations 0 :funds-lost 0}
-                   :trace   [{:world {:total-held    {"USDC" 0}
-                                      :total-fees    {"USDC" 0}
-                                      :live-states   {1 :released}
-                                      :escrow-count  1}}]
-                   :protocol sew-protocol/protocol}
-          eq-out  (eq/evaluate-equilibrium theory result)]
+    (let [theory {:mechanism-properties [:budget-balance]
+                  :equilibrium-concept [:dominant-strategy-equilibrium]}
+          result {:metrics {:attack-attempts 2 :attack-successes 0
+                            :invariant-violations 0 :funds-lost 0}
+                  :trace [{:world {:total-held {"USDC" 0}
+                                   :total-fees {"USDC" 0}
+                                   :live-states {1 :released}
+                                   :escrow-count 1}}]
+                  :protocol sew-protocol/protocol}
+          eq-out (eq/evaluate-equilibrium theory result)]
       ;; budget-balance: terminal world with 0 held → :pass
       (is (= :pass (get-in eq-out [:mechanism-results :budget-balance :status])))
       ;; dominant-strategy: attack-attempts 2, successes 0 → :pass
@@ -564,35 +564,64 @@
 
 (deftest test-evaluate-equilibrium-includes-provenance
   (testing "equilibrium output includes temporal and local self-signed attestation provenance"
-    (let [theory  {:mechanism-properties [:budget-balance]
-                   :equilibrium-concept  [:dominant-strategy-equilibrium]}
-          result  {:metrics {:attack-attempts 2 :attack-successes 0
-                             :invariant-violations 0 :funds-lost 0}
-                   :trace   [{:world {:total-held    {"USDC" 0}
-                                      :total-fees    {"USDC" 0}
-                                      :live-states   {1 :released}
-                                      :escrow-count  1}}]
-                   :protocol sew-protocol/protocol
-                   :temporal-query-mode :as-of
-                   :temporal-confidence {:time-basis :valid-time
-                                         :queries-using-explicit-valid-time 1.0
-                                         :temporal-consistency-status :snapshot-consistent}
-                   :attestation {:status :verified :signer "local-key-1"}}
-          eq-out  (eq/evaluate-equilibrium theory result)]
+    (let [theory {:mechanism-properties [:budget-balance]
+                  :equilibrium-concept [:dominant-strategy-equilibrium]}
+          result {:metrics {:attack-attempts 2 :attack-successes 0
+                            :invariant-violations 0 :funds-lost 0}
+                  :trace [{:world {:total-held {"USDC" 0}
+                                   :total-fees {"USDC" 0}
+                                   :live-states {1 :released}
+                                   :escrow-count 1}}]
+                  :protocol sew-protocol/protocol
+                  :temporal-query-mode :as-of
+                  :temporal-confidence {:time-basis :valid-time
+                                        :queries-using-explicit-valid-time 1.0
+                                        :temporal-consistency-status :snapshot-consistent}
+                  :attestation {:status :verified :signer "local-key-1"}}
+          eq-out (eq/evaluate-equilibrium theory result)]
       (is (= :as-of (get-in eq-out [:provenance :temporal :query-mode])))
       (is (true? (get-in eq-out [:provenance :temporal :explicit-valid-time?])))
       (is (= :verified (get-in eq-out [:provenance :attestation :status])))
       (is (= :local-self-signed (get-in eq-out [:provenance :attestation :source]))))))
+
+(deftest anonymous-research-verification-does-not-require-attestation
+  (let [theory {:equilibrium-concept [:dominant-strategy-equilibrium]}
+        base-result {:metrics {:attack-attempts 2 :attack-successes 0
+                               :invariant-violations 0 :funds-lost 0}
+                     :trace [{:world {:total-held {"USDC" 0}
+                                      :total-fees {"USDC" 0}
+                                      :live-states {1 :released}
+                                      :escrow-count 1}}]
+                     :protocol sew-protocol/protocol
+                     :research-verification/status :verified}
+        anonymous (assoc base-result :attestation {:status :verified
+                                                   :signature-status :signature-missing})
+        pseudonymous (assoc base-result :attestation {:status :verified
+                                                      :signature-status :signature-verified
+                                                      :key-source :self-declared})
+        authenticated (assoc base-result :attestation {:status :verified
+                                                       :signature-status :signature-verified
+                                                       :key-source :trusted-resolver
+                                                       :principal-id "researcher-alice"})]
+    (doseq [[result expected-authentication]
+            [[anonymous :anonymous]
+             [pseudonymous :pseudonymous]
+             [authenticated :authenticated-principal]]]
+      (let [output (eq/evaluate-equilibrium theory result)]
+        (is (= :verified (get-in output [:provenance :research-verification :status])))
+        (is (= expected-authentication
+               (get-in output [:provenance :researcher :authentication-status])))
+        (is (= :pass (get-in output [:equilibrium-results :dominant-strategy-equilibrium :status])))))))
 
 (deftest test-evaluate-equilibrium-strict-valid-time-gating
   (testing "strict-valid-time trust mode forces equilibrium concepts to inconclusive without explicit valid-time provenance"
     (let [theory {:equilibrium-concept [:dominant-strategy-equilibrium]
                   :equilibrium-trust-mode :strict-valid-time}
           result {:metrics {:attack-attempts 2 :attack-successes 0 :invariant-violations 0 :funds-lost 0}
-                  :trace   [{:world {:total-held {"USDC" 0}
-                                     :total-fees {"USDC" 0}
-                                     :live-states {1 :released}
-                                     :escrow-count 1}}]
+                  :trace [{:world {:total-held {"USDC" 0}
+                                   :total-fees {"USDC" 0}
+                                   :live-states {1 :released}
+                                   :escrow-count 1}}]
                   :protocol sew-protocol/protocol}
           eq-out (eq/evaluate-equilibrium theory result)]
       (is (= :strict-valid-time (:equilibrium-trust-mode eq-out)))
@@ -603,10 +632,10 @@
     (let [theory {:equilibrium-concept [:dominant-strategy-equilibrium]
                   :equilibrium-trust-mode :strict-valid-time}
           result {:metrics {:attack-attempts 2 :attack-successes 0 :invariant-violations 0 :funds-lost 0}
-                  :trace   [{:world {:total-held {"USDC" 0}
-                                     :total-fees {"USDC" 0}
-                                     :live-states {1 :released}
-                                     :escrow-count 1}}]
+                  :trace [{:world {:total-held {"USDC" 0}
+                                   :total-fees {"USDC" 0}
+                                   :live-states {1 :released}
+                                   :escrow-count 1}}]
                   :protocol sew-protocol/protocol
                   :temporal-confidence {:time-basis :valid-time}}
           eq-out (eq/evaluate-equilibrium theory result)]
@@ -618,10 +647,10 @@
     (let [theory {:equilibrium-concept [:dominant-strategy-equilibrium]
                   :equilibrium-trust-mode :strict-attestation}
           result {:metrics {:attack-attempts 2 :attack-successes 0 :invariant-violations 0 :funds-lost 0}
-                  :trace   [{:world {:total-held {"USDC" 0}
-                                     :total-fees {"USDC" 0}
-                                     :live-states {1 :released}
-                                     :escrow-count 1}}]
+                  :trace [{:world {:total-held {"USDC" 0}
+                                   :total-fees {"USDC" 0}
+                                   :live-states {1 :released}
+                                   :escrow-count 1}}]
                   :protocol sew-protocol/protocol
                   :attestation {:status :missing}}
           eq-out (eq/evaluate-equilibrium theory result)]
@@ -633,12 +662,12 @@
     (let [theory {:equilibrium-concept [:dominant-strategy-equilibrium]
                   :equilibrium-trust-mode :strict-attestation}
           result {:metrics {:attack-attempts 2 :attack-successes 0 :invariant-violations 0 :funds-lost 0}
-                  :trace   [{:world {:total-held {"USDC" 0}
-                                     :total-fees {"USDC" 0}
-                                     :live-states {1 :released}
-                                     :escrow-count 1}}]
+                  :trace [{:world {:total-held {"USDC" 0}
+                                   :total-fees {"USDC" 0}
+                                   :live-states {1 :released}
+                                   :escrow-count 1}}]
                   :protocol sew-protocol/protocol
-                  :attestation {:status :verified}}
+                  :attestation {:status :verified :signature-status :signature-verified :key-source :self-declared}}
           eq-out (eq/evaluate-equilibrium theory result)]
       (is (= :strict-attestation (:equilibrium-trust-mode eq-out)))
       (is (= :pass (get-in eq-out [:equilibrium-results :dominant-strategy-equilibrium :status]))))))
@@ -646,29 +675,29 @@
 (deftest test-evaluate-equilibrium-trust-mode-integration-matrix
   (testing "relaxed vs strict trust modes across missing/partial/complete provenance"
     (let [base-result {:metrics {:attack-attempts 2 :attack-successes 0 :invariant-violations 0 :funds-lost 0}
-                       :trace   [{:world {:total-held {"USDC" 0}
-                                          :total-fees {"USDC" 0}
-                                          :live-states {1 :released}
-                                          :escrow-count 1}}]
+                       :trace [{:world {:total-held {"USDC" 0}
+                                        :total-fees {"USDC" 0}
+                                        :live-states {1 :released}
+                                        :escrow-count 1}}]
                        :protocol sew-protocol/protocol}
           run* (fn [trust-mode result]
                  (eq/evaluate-equilibrium {:equilibrium-concept [:dominant-strategy-equilibrium]
                                            :equilibrium-trust-mode trust-mode}
                                           result))
 
-          relaxed-missing   (run* :relaxed base-result)
+          relaxed-missing (run* :relaxed base-result)
           strict-vt-missing (run* :strict-valid-time base-result)
           strict-att-missing (run* :strict-attestation base-result)
 
-          with-valid-time   (assoc base-result :temporal-confidence {:time-basis :valid-time})
-          strict-vt-pass    (run* :strict-valid-time with-valid-time)
+          with-valid-time (assoc base-result :temporal-confidence {:time-basis :valid-time})
+          strict-vt-pass (run* :strict-valid-time with-valid-time)
 
-          with-attestation  (assoc base-result :attestation {:status :verified})
-          strict-att-pass   (run* :strict-attestation with-attestation)
+          with-attestation (assoc base-result :attestation {:status :verified :signature-status :signature-verified :key-source :self-declared})
+          strict-att-pass (run* :strict-attestation with-attestation)
 
-          with-both         (assoc with-valid-time :attestation {:status :verified})
-          strict-vt-both    (run* :strict-valid-time with-both)
-          strict-att-both   (run* :strict-attestation with-both)]
+          with-both (assoc with-valid-time :attestation {:status :verified :signature-status :signature-verified :key-source :self-declared})
+          strict-vt-both (run* :strict-valid-time with-both)
+          strict-att-both (run* :strict-attestation with-both)]
 
       ;; relaxed: no provenance requirements
       (is (= :pass (get-in relaxed-missing [:equilibrium-results :dominant-strategy-equilibrium :status])))
@@ -690,10 +719,10 @@
     (let [theory {:mechanism-properties [:budget-balance]}
           result {:metrics {:attack-attempts 0 :attack-successes 0
                             :invariant-violations 0 :funds-lost 0}
-                  :trace   [{:world {:total-held    {"USDC" 5000}
-                                     :total-fees    {"USDC" 0}
-                                     :live-states   {1 :released}
-                                     :escrow-count  1}}]
+                  :trace [{:world {:total-held {"USDC" 5000}
+                                   :total-fees {"USDC" 0}
+                                   :live-states {1 :released}
+                                   :escrow-count 1}}]
                   :protocol sew-protocol/protocol}
           eq-out (eq/evaluate-equilibrium theory result)]
       ;; Escrow is in :released but total-held = 5000 → terminal? check
@@ -880,8 +909,8 @@
           ;; regret=50 <= threshold=9999, and 50 < epsilon-abs=200, 50/50=1.0 not > 1.0 → PASS
           theory-lenient {:equilibrium-concept ["subgame-perfect-equilibrium"]
                           :spe-config {:regret-threshold 9999 :epsilon-abs 200.0 :epsilon-rel 1.0}}
-          r-strict  (-> (eq/evaluate-equilibrium theory-strict result)
-                        :equilibrium-results :subgame-perfect-equilibrium)
+          r-strict (-> (eq/evaluate-equilibrium theory-strict result)
+                       :equilibrium-results :subgame-perfect-equilibrium)
           r-lenient (-> (eq/evaluate-equilibrium theory-lenient result)
                         :equilibrium-results :subgame-perfect-equilibrium)]
       ;; Strict threshold: regret(50) > 0 → fail
@@ -927,8 +956,8 @@
                      :spe-config {:regret-threshold 0 :epsilon-abs 0.0 :epsilon-rel 0.0}}
           r-fwd (-> (eq/evaluate-equilibrium theory result)
                     :equilibrium-results :bounded-public-state-epsilon-spe)
-          r-bi  (-> (eq/evaluate-equilibrium theory-bi result)
-                    :equilibrium-results :bounded-backward-induction-spe)]
+          r-bi (-> (eq/evaluate-equilibrium theory-bi result)
+                   :equilibrium-results :bounded-backward-induction-spe)]
       (is (or (= (:status r-fwd) (:status r-bi))
               (and (= :fail (:status r-fwd)) (= :inconclusive (:status r-bi))))
           "single-node trace: forward and backward-induction modes must agree on status"))))
@@ -951,8 +980,8 @@
                      :spe-config {:regret-threshold 9999 :epsilon-abs 200.0 :epsilon-rel 1.0}}
           theory-fwd {:equilibrium-concept ["bounded-public-state-epsilon-spe"]
                       :spe-config {:regret-threshold 9999 :epsilon-abs 200.0 :epsilon-rel 1.0}}
-          r-bi  (-> (eq/evaluate-equilibrium theory-bi result)
-                    :equilibrium-results :bounded-backward-induction-spe)
+          r-bi (-> (eq/evaluate-equilibrium theory-bi result)
+                   :equilibrium-results :bounded-backward-induction-spe)
           r-fwd (-> (eq/evaluate-equilibrium theory-fwd result)
                     :equilibrium-results :bounded-public-state-epsilon-spe)]
       (is (some? r-bi) "backward-induction result must be present")
@@ -1124,12 +1153,12 @@
           theory-zero {:equilibrium-concept ["resolver-reputation-spe"]
                        :spe-config {:regret-threshold 9999
                                     :utility-spec {:reputation-slash-penalty 0}}}
-          theory-std  {:equilibrium-concept ["bounded-public-state-epsilon-spe"]
-                       :spe-config {:regret-threshold 9999}}
+          theory-std {:equilibrium-concept ["bounded-public-state-epsilon-spe"]
+                      :spe-config {:regret-threshold 9999}}
           r-zero (-> (eq/evaluate-equilibrium theory-zero result)
                      :equilibrium-results :resolver-reputation-spe)
-          r-std  (-> (eq/evaluate-equilibrium theory-std result)
-                     :equilibrium-results :bounded-public-state-epsilon-spe)]
+          r-std (-> (eq/evaluate-equilibrium theory-std result)
+                    :equilibrium-results :bounded-public-state-epsilon-spe)]
       (is (= (:status r-zero) (:status r-std))
           "penalty=0 → reputation-v1 must agree with terminal-realized-v1"))))
 
@@ -1189,20 +1218,20 @@
                   :spe-config {:regret-threshold 9999
                                :utility-spec {:reputation-slash-penalty 200
                                               :reputation-discount-rate 1.0}}}
-          r        (-> (eq/evaluate-equilibrium theory result)
-                       :equilibrium-results :resolver-reputation-spe)
+          r (-> (eq/evaluate-equilibrium theory result)
+                :equilibrium-results :resolver-reputation-spe)
           ;; Find the execute_resolution row in the regret table
-          rows     (get-in r [:observed :counterexamples] [])
+          rows (get-in r [:observed :counterexamples] [])
           ;; Get the actual projection to inspect the regret-table directly
           raw-proj (-> (sew-proj/trace-end-projection sew-protocol/protocol result)
                        (assoc :spe-config {:regret-threshold 9999
                                            :utility-spec {:type :resolver-reputation-v1
                                                           :reputation-slash-penalty 200
                                                           :reputation-discount-rate 1.0}}))
-          eval-r   (subgame-cf/evaluate-subgame-counterfactual raw-proj)
+          eval-r (subgame-cf/evaluate-subgame-counterfactual raw-proj)
           exec-row (first (filter #(= "execute_resolution" (:chosen-action %))
                                   (:regret-table eval-r)))
-          bd       (:utility-breakdown exec-row)]
+          bd (:utility-breakdown exec-row)]
       (is (some? bd) "utility-breakdown must be present for :resolver-reputation-v1")
       (when bd
         (is (= 50 (:terminal-realized-wealth bd))
@@ -1226,11 +1255,11 @@
                                            :utility-spec {:type :resolver-reputation-v1
                                                           :reputation-slash-penalty 200
                                                           :reputation-discount-rate 1.0}}))
-          eval-r   (subgame-cf/evaluate-subgame-counterfactual raw-proj)
+          eval-r (subgame-cf/evaluate-subgame-counterfactual raw-proj)
           exec-row (first (filter #(= "execute_resolution" (:chosen-action %))
                                   (:regret-table eval-r)))
-          min-req  (:min-reputation-penalty-required exec-row)
-          global   (:min-reputation-penalty-for-spe-pass eval-r)]
+          min-req (:min-reputation-penalty-required exec-row)
+          global (:min-reputation-penalty-for-spe-pass eval-r)]
       (is (some? min-req)
           "min-reputation-penalty-required must be emitted per row when there is a gap")
       (is (= 50 min-req)
@@ -1313,13 +1342,13 @@
                                                           :expected-future-cases 100
                                                           :expected-fee-per-case 2.0
                                                           :routing-probability-before 0.05
-                                                          :routing-probability-after  0.01
+                                                          :routing-probability-after 0.01
                                                           :resolver-margin 1.0
                                                           :reputation-discount-rate 1.0}}))
-          eval-r   (subgame-cf/evaluate-subgame-counterfactual raw-proj)
+          eval-r (subgame-cf/evaluate-subgame-counterfactual raw-proj)
           exec-row (first (filter #(= "execute_resolution" (:chosen-action %))
                                   (:regret-table eval-r)))
-          bd       (:utility-breakdown exec-row)]
+          bd (:utility-breakdown exec-row)]
       ;; penalty = (0.05-0.01)*100*2.0*1.0 = 8; discount=1.0 → rep-adj=-8
       (is (= :expected-future-earnings (:reputation-model bd))
           "breakdown should record reputation-model")
@@ -1335,10 +1364,10 @@
     ;; baseline:     adj=-80, chosen=60  < 100 → FAIL
     (let [raw-proj (-> (sew-proj/trace-end-projection sew-protocol/protocol (reputation-gain-then-slash-result))
                        (assoc :spe-config {:regret-threshold 0}))
-          matrix   (subgame-cf/run-profile-matrix raw-proj [:reputation/none :reputation/baseline])]
+          matrix (subgame-cf/run-profile-matrix raw-proj [:reputation/none :reputation/baseline])]
       (is (map? matrix) "should return a map")
       (is (= 2 (count (:profile-results matrix))) "should have 2 per-profile results")
-      (is (= :reputation/none    (-> matrix :profile-results first :profile-id)))
+      (is (= :reputation/none (-> matrix :profile-results first :profile-id)))
       (is (= :reputation/baseline (-> matrix :profile-results second :profile-id)))
       (is (= :pass (-> matrix :profile-results first :status))
           ":reputation/none should pass — resolver gains (140>100) with no reputation penalty")
@@ -1354,7 +1383,7 @@
     (let [raw-proj (-> (sew-proj/trace-end-projection sew-protocol/protocol (reputation-no-slash-replay-result))
                        (assoc :spe-config {:regret-threshold 0}))
           ;; No slash → no reputation penalty applied → chosen=150, pre=100 → PASS for all
-          matrix   (subgame-cf/run-profile-matrix raw-proj [:reputation/none :reputation/conservative])]
+          matrix (subgame-cf/run-profile-matrix raw-proj [:reputation/none :reputation/conservative])]
       (is (true? (:all-pass? matrix)))
       (is (true? (:any-pass? matrix)))
       (is (empty? (:fail-profiles matrix))))))
@@ -1366,7 +1395,7 @@
     ;; This shows deterrence kicks in at any non-zero reputation penalty.
     (let [raw-proj (-> (sew-proj/trace-end-projection sew-protocol/protocol (reputation-gain-then-slash-result))
                        (assoc :spe-config {:regret-threshold 0}))
-          matrix   (subgame-cf/run-profile-matrix raw-proj [:reputation/conservative])]
+          matrix (subgame-cf/run-profile-matrix raw-proj [:reputation/conservative])]
       (is (= :fail (-> matrix :profile-results first :status))
           "conservative profile: best-alt=140 (no slash path), chosen=127 → regret=13 → FAIL"))))
 
@@ -1374,10 +1403,10 @@
   (testing ":resolver-reputation-profile-matrix → inconclusive when no utility-profiles declared"
     (let [raw-proj (-> (sew-proj/trace-end-projection sew-protocol/protocol (reputation-slash-replay-result))
                        (assoc :spe-config {:regret-threshold 0}))
-          eq-map   (eq/evaluate-equilibrium-concepts
-                    [:resolver-reputation-profile-matrix] raw-proj
-                    sew-eq/equilibrium-concept-validators)
-          r        (get eq-map :resolver-reputation-profile-matrix)]
+          eq-map (eq/evaluate-equilibrium-concepts
+                  [:resolver-reputation-profile-matrix] raw-proj
+                  sew-eq/equilibrium-concept-validators)
+          r (get eq-map :resolver-reputation-profile-matrix)]
       (is (= 1 (count eq-map)) "should have exactly one concept result")
       (is (= :inconclusive (:status r))
           "should be :inconclusive when :utility-profiles absent"))))
@@ -1388,10 +1417,10 @@
                        (assoc :spe-config {:regret-threshold 0
                                            :utility-profiles [:reputation/none
                                                               :reputation/baseline]}))
-          eq-map   (eq/evaluate-equilibrium-concepts
-                    [:resolver-reputation-profile-matrix] raw-proj
-                    sew-eq/equilibrium-concept-validators)
-          r        (get eq-map :resolver-reputation-profile-matrix)]
+          eq-map (eq/evaluate-equilibrium-concepts
+                  [:resolver-reputation-profile-matrix] raw-proj
+                  sew-eq/equilibrium-concept-validators)
+          r (get eq-map :resolver-reputation-profile-matrix)]
       (is (= 1 (count eq-map)))
       ;; none=PASS, baseline=FAIL → any-pass?=true, all-pass?=false → overall :fail
       (is (= :fail (:status r))
@@ -1413,10 +1442,10 @@
     ;; reputationless actors (none) are indifferent.
     (let [raw-proj (-> (sew-proj/trace-end-projection sew-protocol/protocol (reputation-gain-then-slash-result))
                        (assoc :spe-config {:regret-threshold 0}))
-          matrix   (subgame-cf/run-profile-matrix raw-proj
-                                                  [:reputation/none
-                                                   :reputation/conservative
-                                                   :reputation/baseline])]
+          matrix (subgame-cf/run-profile-matrix raw-proj
+                                                [:reputation/none
+                                                 :reputation/conservative
+                                                 :reputation/baseline])]
       (is (= :reputation/none (:min-profile-required matrix))
           "only :reputation/none passes (no penalty → regret=0)")
       (is (= [:reputation/conservative :reputation/baseline] (:fail-profiles matrix))

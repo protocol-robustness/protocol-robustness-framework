@@ -60,22 +60,52 @@
 (def ^:private deviation-bundle-gated-concepts
   #{:dominant-strategy-equilibrium :nash-equilibrium})
 
-(defn- build-provenance
-  "Extract temporal + local-attestation provenance from run result for
-   downstream game-theoretic evidence consumers.
+(defn- authentication-status
+  "Classify provenance without making research verification depend on identity.
 
-   This is metadata-only in Slice 1: it does not change pass/fail semantics.
-   Future strict modes may gate on these fields."
+  :anonymous has no proof of possession; :pseudonymous has a valid signature
+  under a self-declared key; :authenticated-principal additionally requires a
+  trusted key resolution and principal binding."
+  [result]
+  (let [attestation (:attestation result)
+        signature-status (or (:attestation/signature-status attestation)
+                             (:signature-status attestation)
+                             (:attestation/signature-status result)
+                             :signature-missing)
+        key-source (or (:attestation/key-source attestation)
+                       (:key-source attestation)
+                       (:attestation/key-source result))
+        principal-id (or (:attestation/principal-id attestation)
+                         (:principal-id attestation)
+                         (:attestation/principal-id result))]
+    (cond
+      (= :signature-missing signature-status) :anonymous
+      (and (= :signature-verified signature-status)
+           (= :trusted-resolver key-source)
+           principal-id) :authenticated-principal
+      (= :signature-verified signature-status) :pseudonymous
+      :else :unknown)))
+
+(defn- build-provenance
+  "Extract temporal, research-verification, and authentication provenance.
+
+  Research verification is independent from producer authentication: an
+  unsigned artifact can be verified through its evidence and reproduction
+  chain while its producer remains anonymous."
   [result]
   (let [temporal-confidence (:temporal-confidence result)
         temporal-query-mode (:temporal-query-mode result)
-        attestation         (:attestation result)
-        attestation-status  (or (:status attestation)
-                                (:attestation-status result)
-                                :unknown)]
-    {:temporal {:query-mode          (or temporal-query-mode :unknown)
-                :confidence          temporal-confidence
+        attestation (:attestation result)
+        attestation-status (or (:status attestation)
+                               (:attestation-status result)
+                               :unknown)]
+    {:temporal {:query-mode (or temporal-query-mode :unknown)
+                :confidence temporal-confidence
                 :explicit-valid-time? (boolean (= :valid-time (get-in temporal-confidence [:time-basis])))}
+     :research-verification {:status (or (:research-verification/status result)
+                                         (:evidence-verification/status result)
+                                         :unknown)}
+     :researcher {:authentication-status (authentication-status result)}
      :attestation {:status attestation-status
                    :source :local-self-signed
                    :details (or attestation {})}}))
@@ -99,28 +129,28 @@
 
 (def ^:private property-class
   "Maps equilibrium property keywords to their validation class."
-  {:incentive-compatibility       :validation.class/payoff-property
-   :incentive-margin              :validation.class/payoff-property
-   :sybil-resistance              :validation.class/payoff-property
+  {:incentive-compatibility :validation.class/payoff-property
+   :incentive-margin :validation.class/payoff-property
+   :sybil-resistance :validation.class/payoff-property
    :dominant-strategy-equilibrium :validation.class/payoff-property
    :empirical-strategy-dominance :validation.class/payoff-property
-   :nash-equilibrium              :validation.class/equilibrium
-   :bounded-nash-diagnostic       :validation.class/equilibrium
-   :bayesian-nash-equilibrium     :validation.class/equilibrium
-   :pro-rata-fairness             :validation.class/algebraic-integrity
-   :redistribution-fairness       :validation.class/algebraic-integrity
-   :individual-rationality        :validation.class/payoff-property
-   :collusion-resistance           :validation.class/deviation-resistance
-   :stake-flow-conservation        :validation.class/algebraic-integrity
-   :budget-balance                 :validation.class/payoff-property
-   :force-refund-path-integrity    :validation.class/algebraic-integrity
-   :pending-lifecycle-integrity    :validation.class/algebraic-integrity
-   :subgame-perfect-equilibrium    :validation.class/equilibrium
+   :nash-equilibrium :validation.class/equilibrium
+   :bounded-nash-diagnostic :validation.class/equilibrium
+   :bayesian-nash-equilibrium :validation.class/equilibrium
+   :pro-rata-fairness :validation.class/algebraic-integrity
+   :redistribution-fairness :validation.class/algebraic-integrity
+   :individual-rationality :validation.class/payoff-property
+   :collusion-resistance :validation.class/deviation-resistance
+   :stake-flow-conservation :validation.class/algebraic-integrity
+   :budget-balance :validation.class/payoff-property
+   :force-refund-path-integrity :validation.class/algebraic-integrity
+   :pending-lifecycle-integrity :validation.class/algebraic-integrity
+   :subgame-perfect-equilibrium :validation.class/equilibrium
    :bounded-public-state-epsilon-spe :validation.class/equilibrium
-   :bounded-backward-induction-spe  :validation.class/equilibrium
-   :resolver-reputation-spe         :validation.class/equilibrium
+   :bounded-backward-induction-spe :validation.class/equilibrium
+   :resolver-reputation-spe :validation.class/equilibrium
    :resolver-reputation-profile-matrix :validation.class/equilibrium
-   :cancellation-dominance          :validation.class/deviation-resistance})
+   :cancellation-dominance :validation.class/deviation-resistance})
 
 (defn- pass [property basis observed expected]
   (eq-result/pass-result property basis observed expected
@@ -152,10 +182,10 @@
    :pass when attack-successes = 0 and funds-lost = 0.
    :fail when any adversarial event succeeded or funds were lost."
   [{:keys [metrics]}]
-  (let [attempts  (:attack-attempts metrics 0)
+  (let [attempts (:attack-attempts metrics 0)
         successes (:attack-successes metrics 0)
-        lost      (:funds-lost metrics 0)
-        margin    (:incentive-margin metrics)]
+        lost (:funds-lost metrics 0)
+        margin (:incentive-margin metrics)]
     (cond
       (zero? attempts)
       (inconclusive :incentive-compatibility :single-trace-metric-proxy :untested-no-adversary
@@ -169,7 +199,7 @@
             {:attack-successes 0 :funds-lost 0}
             (cond-> []
               (pos? successes) (conj {:metric :attack-successes :observed successes})
-              (pos? lost)      (conj {:metric :funds-lost :observed lost})))
+              (pos? lost) (conj {:metric :funds-lost :observed lost})))
 
       :else
       (pass :incentive-compatibility :single-trace-metric-proxy
@@ -187,7 +217,7 @@
   "Proxy: attack-successes = 0 (blunt; does not distinguish identity attacks).
    :inconclusive when no attacks present."
   [{:keys [metrics]}]
-  (let [attempts  (:attack-attempts metrics 0)
+  (let [attempts (:attack-attempts metrics 0)
         successes (:attack-successes metrics 0)]
     (cond
       (zero? attempts)
@@ -228,8 +258,8 @@
   ([projection property]
    (let [{:keys [metrics]} projection
          violations (:invariant-violations metrics 0)
-         successes  (:attack-successes metrics 0)
-         attempts   (:attack-attempts metrics 0)]
+         successes (:attack-successes metrics 0)
+         attempts (:attack-attempts metrics 0)]
      (cond
        (and (zero? attempts) (zero? violations))
        (inconclusive property :single-trace-metric-proxy :untested-no-adversary
@@ -242,7 +272,7 @@
              {:invariant-violations 0 :attack-successes 0}
              (cond-> []
                (pos? violations) (conj {:metric :invariant-violations :observed violations})
-               (pos? successes)  (conj {:metric :attack-successes :observed successes})))
+               (pos? successes) (conj {:metric :attack-successes :observed successes})))
 
        :else
        (pass property :single-trace-metric-proxy
@@ -266,8 +296,8 @@
   ([projection property]
    (let [{:keys [metrics]} projection
          violations (:invariant-violations metrics 0)
-         successes  (:attack-successes metrics 0)
-         attempts   (:attack-attempts metrics 0)]
+         successes (:attack-successes metrics 0)
+         attempts (:attack-attempts metrics 0)]
      (cond
        (and (zero? attempts) (zero? violations))
        (inconclusive property :single-trace-metric-proxy :untested-no-adversary
@@ -279,7 +309,7 @@
              {:invariant-violations violations :attack-successes successes}
              {:invariant-violations 0 :attack-successes 0}
              (cond-> []
-               (pos? successes)  (conj {:metric :attack-successes :observed successes})
+               (pos? successes) (conj {:metric :attack-successes :observed successes})
                (pos? violations) (conj {:metric :invariant-violations :observed violations})))
 
        :else
@@ -491,17 +521,17 @@
                                              :no-universal-claim]}}]))
 
 (def ^:private generic-mechanism-validators
-  {:incentive-compatibility     check-incentive-compatibility
-   :sybil-resistance            check-sybil-resistance
-   :pro-rata-fairness           check-pro-rata-fairness
-   :redistribution-fairness     check-redistribution-fairness})
+  {:incentive-compatibility check-incentive-compatibility
+   :sybil-resistance check-sybil-resistance
+   :pro-rata-fairness check-pro-rata-fairness
+   :redistribution-fairness check-redistribution-fairness})
 
 (def ^:private generic-equilibrium-validators
   {:dominant-strategy-equilibrium check-dominant-strategy-equilibrium
-   :empirical-strategy-dominance  (fn [p] (check-dominant-strategy-equilibrium p :empirical-strategy-dominance))
-   :nash-equilibrium              check-nash-equilibrium
-   :bounded-nash-diagnostic       (fn [p] (check-nash-equilibrium p :bounded-nash-diagnostic))
-   :bayesian-nash-equilibrium     check-bayesian-nash-equilibrium})
+   :empirical-strategy-dominance (fn [p] (check-dominant-strategy-equilibrium p :empirical-strategy-dominance))
+   :nash-equilibrium check-nash-equilibrium
+   :bounded-nash-diagnostic (fn [p] (check-nash-equilibrium p :bounded-nash-diagnostic))
+   :bayesian-nash-equilibrium check-bayesian-nash-equilibrium})
 
 (def builtin-validator-registry
   "Rooted registry of builtin generic mechanism-property and
@@ -596,12 +626,12 @@
    :not-checked — empty results"
   [results]
   (cond
-    (empty? results)               :not-checked
+    (empty? results) :not-checked
     (some #(and (= :fail (:status %)) (= :hard (:severity %))) results) :fail
     ;; Defensive: if a soft :fail exists (future extension), treat as inconclusive.
     (some #(and (= :fail (:status %)) (not= :hard (:severity %))) results) :inconclusive
     (some #(#{:inconclusive :not-applicable} (:status %)) results) :inconclusive
-    :else                          :pass))
+    :else :pass))
 
 ;; ---------------------------------------------------------------------------
 ;; Public API
@@ -636,7 +666,7 @@
                   :sources [{:origin :protocol :entries (vec (vals descriptors))}]
                   :executables extra-validators))]
      (into {} (map (fn [prop]
-                     (let [kw  (keyword prop)
+                     (let [kw (keyword prop)
                            {:keys [descriptor executable]} (resolve-validator! reg kw)
                            hg (horizon-gate descriptor)]
                        [kw (cond
@@ -674,15 +704,14 @@
    (evaluate-equilibrium-concepts concepts projection {} {}))
   ([concepts projection extra-validators]
    (evaluate-equilibrium-concepts concepts projection extra-validators {}))
-  ([concepts projection extra-validators {:keys [claim-tier trust-mode explicit-valid-time? attestation-status
-                                                 registry descriptors]
-                                          :or {claim-tier :proxy trust-mode :relaxed explicit-valid-time? false attestation-status :unknown descriptors {}}}]
+  ([concepts projection extra-validators {:keys [claim-tier trust-mode explicit-valid-time? authentication-status registry descriptors]
+                                          :or {claim-tier :proxy trust-mode :relaxed explicit-valid-time? false authentication-status :unknown descriptors {}}}]
    (let [reg (or registry
                  (compose-validator-registry
                   :sources [{:origin :protocol :entries (vec (vals descriptors))}]
                   :executables extra-validators))]
      (into {} (map (fn [concept]
-                     (let [kw  (keyword concept)
+                     (let [kw (keyword concept)
                            {:keys [descriptor executable]} (resolve-validator! reg kw)
                            bundle-ok? (true? (get-in projection [:deviation-bundle :meets-minimum?]))
                            hg (horizon-gate descriptor)]
@@ -695,12 +724,13 @@
                                            :required [:temporal-confidence.time-basis/valid-time])
 
                              (and (strict-attestation-required? trust-mode)
-                                  (not= :verified attestation-status))
-                             (inconclusive kw :absent-evidence :missing-verified-attestation
+                                  (not (contains? #{:pseudonymous :authenticated-principal}
+                                                  authentication-status)))
+                             (inconclusive kw :absent-evidence :missing-possession-attestation
                                            (str "trust mode " trust-mode
-                                                " requires attestation status :verified; observed status=" attestation-status)
-                                           :required [:attestation.status/verified]
-                                           :available [(keyword "attestation.status" (name attestation-status))])
+                                                " requires a verified proof of possession; observed authentication status=" authentication-status)
+                                           :required [:researcher.authentication-status/pseudonymous-or-authenticated-principal]
+                                           :available [(keyword "researcher.authentication-status" (name authentication-status))])
 
                              (and (requires-deviation-bundle? claim-tier kw)
                                   (not bundle-ok?))
@@ -740,23 +770,23 @@
                               Granular per-concept result strength, surfaced for research use
                               (not collapsed by roll-up).  nil when absent from observed map.}"
   [theory result]
-  (let [proto        (:protocol result)
+  (let [proto (:protocol result)
         ;; Get projection from protocol's trace-projection if available; otherwise nil.
-        raw-proj     (when proto (protocol/trace-projection proto result))
+        raw-proj (when proto (protocol/trace-projection proto result))
         ;; Thread spe-config from the theory block into the projection so that
         ;; evaluate-subgame-counterfactual uses the declared thresholds/epsilon
         ;; values rather than its own defaults (regret-threshold=0, epsilon-abs=0.0).
-        projection   (cond-> raw-proj
-                       (:spe-config theory) (assoc :spe-config (:spe-config theory)))
-        mech-props   (seq (:mechanism-properties theory))
-        eq-concepts  (seq (:equilibrium-concept theory))
-        provenance   (build-provenance result)
+        projection (cond-> raw-proj
+                     (:spe-config theory) (assoc :spe-config (:spe-config theory)))
+        mech-props (seq (:mechanism-properties theory))
+        eq-concepts (seq (:equilibrium-concept theory))
+        provenance (build-provenance result)
         explicit-valid-time? (true? (get-in provenance [:temporal :explicit-valid-time?]))
-        attestation-status (or (get-in provenance [:attestation :status]) :unknown)
-        trust-mode   (keyword (or (:equilibrium-trust-mode theory) :relaxed))
+        authentication-status (get-in provenance [:researcher :authentication-status])
+        trust-mode (keyword (or (:equilibrium-trust-mode theory) :relaxed))
 
         extra-mech-validators (or (when proto (protocol/mechanism-property-validators proto)) {})
-        extra-eq-validators   (or (when proto (protocol/equilibrium-concept-validators proto)) {})
+        extra-eq-validators (or (when proto (protocol/equilibrium-concept-validators proto)) {})
         ;; First-class descriptors: when the protocol exposes a
         ;; ValidatorDescriptorCatalog, index descriptors by concept/kind so
         ;; horizon-aware dispatch can gate multi-epoch/multi-trace concepts.
@@ -764,29 +794,29 @@
                                      (satisfies? protocol/ValidatorDescriptorCatalog proto))
                             (let [descs (protocol/validator-descriptors proto)]
                               {:equilibrium (filter #(= :equilibrium-concept (:validator/kind %)) descs)
-                               :mechanism   (filter #(= :mechanism-property (:validator/kind %)) descs)}))
+                               :mechanism (filter #(= :mechanism-property (:validator/kind %)) descs)}))
         ;; Compose per-kind registries: builtin + protocol descriptors +
         ;; protocol executables.  Dispatch resolves ids from these registries;
         ;; no fixed validator-id switching anywhere in this path.
         mech-reg (compose-validator-registry
                   :sources [{:origin :protocol :entries (get proto-descriptors :mechanism [])}]
                   :executables extra-mech-validators)
-        eq-reg   (compose-validator-registry
-                  :sources [{:origin :protocol :entries (get proto-descriptors :equilibrium [])}]
-                  :executables extra-eq-validators)
+        eq-reg (compose-validator-registry
+                :sources [{:origin :protocol :entries (get proto-descriptors :equilibrium [])}]
+                :executables extra-eq-validators)
 
         mech-results (if (and projection mech-props)
                        (evaluate-mechanism-properties mech-props projection {} {:registry mech-reg})
                        {})
-        claim-tier  (keyword (or (:equilibrium-claim-tier theory) :proxy))
-        eq-results   (if (and projection eq-concepts)
-                       (evaluate-equilibrium-concepts eq-concepts projection {}
-                                                      {:claim-tier claim-tier
-                                                       :trust-mode trust-mode
-                                                       :explicit-valid-time? explicit-valid-time?
-                                                       :attestation-status attestation-status
-                                                       :registry eq-reg})
-                       {})
+        claim-tier (keyword (or (:equilibrium-claim-tier theory) :proxy))
+        eq-results (if (and projection eq-concepts)
+                     (evaluate-equilibrium-concepts eq-concepts projection {}
+                                                    {:claim-tier claim-tier
+                                                     :trust-mode trust-mode
+                                                     :explicit-valid-time? explicit-valid-time?
+                                                     :authentication-status authentication-status
+                                                     :registry eq-reg})
+                     {})
         eq-result-strengths (into {}
                                   (map (fn [[kw result]]
                                          [kw (get-in result [:observed :result-strength])])
@@ -794,12 +824,12 @@
     {:evidence-schema-version evidence-schema-version
      :equilibrium-claim-tier claim-tier
      :equilibrium-trust-mode trust-mode
-     :provenance          provenance
-     :mechanism-results  mech-results
-     :mechanism-status   (roll-up-status (vals mech-results))
-     :mechanism-reasons  (eq-result/domain-status-reasons mech-results)
+     :provenance provenance
+     :mechanism-results mech-results
+     :mechanism-status (roll-up-status (vals mech-results))
+     :mechanism-reasons (eq-result/domain-status-reasons mech-results)
      :equilibrium-results eq-results
      :equilibrium-result-strengths eq-result-strengths
-     :equilibrium-status  (roll-up-status (vals eq-results))
+     :equilibrium-status (roll-up-status (vals eq-results))
      :equilibrium-reasons (eq-result/domain-status-reasons eq-results)}))
 

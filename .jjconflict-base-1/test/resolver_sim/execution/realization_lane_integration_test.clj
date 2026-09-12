@@ -98,32 +98,26 @@
 ;; ── Race: concurrent completions ────────────────────────────────────────────
 
 (deftest concurrent-complete-with-lane-one-succeeds
-  (testing "Multiple threads calling complete! with same lane — only one wins (FG-3)"
+  (testing "Concurrent complete! calls elect one finalizer and emit once"
     (let [n 20
           {:keys [realization lane]} (open-pair)
           winner-count (AtomicInteger. 0)
           loser-count (AtomicInteger. 0)
-          barrier (CyclicBarrier. n)]
-      ;; Record and close work first
-      (binding [realization/*claimant-execution-realization* realization
-                realization/*claimant-execution-lane* lane]
-        (realization/record! {:setup true})
-        ;; Close execution on the lane so finalize-lane! can proceed
-        (lane/close-execution! lane)
-        ;; Finalize the lane directly (the realization is frozen+finalized already)
-        (lane/finalize-lane! lane {} (fn [ticket] {:committed {:ticket ticket}})))
-      ;; Now race: multiple threads try to finalize the already-finalized lane
-      (let [futures (mapv (fn [_]
+          emission-count (AtomicInteger. 0)
+          barrier (CyclicBarrier. n)
+          futures (binding [realization/*claimant-execution-realization* realization
+                            realization/*claimant-execution-lane* lane
+                            realization/*claimant-execution-runtime-profile-root* "test-runtime-root"
+                            realization/*claimant-execution-observation-sink*
+                            (fn [_] (.incrementAndGet emission-count))]
+                    (realization/record! {:setup true})
+                    (mapv (fn [_]
                             (future
                               (.await barrier)
-                              (let [result (lane/finalize-lane!
-                                            lane
-                                            {:closed-result-set-root "root"
-                                             :basis-root "basis"}
-                                            (fn [ticket]
-                                              {:committed {:ticket ticket}}))]
-                                (if (= :committed (:status result))
-                                  (.incrementAndGet winner-count)
+                              (try
+                                (realization/complete! realization)
+                                (.incrementAndGet winner-count)
+                                (catch clojure.lang.ExceptionInfo _
                                   (.incrementAndGet loser-count)))))
                           (range n))]
         (doseq [f futures] (deref f 10000 nil))

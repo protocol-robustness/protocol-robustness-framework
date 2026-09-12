@@ -65,12 +65,17 @@
   "Validate a yield transition only against its supplied authenticated basis."
   [world-before world-after event transition-basis]
   (let [address (basis/validate world-before world-after event transition-basis)
-        ;; Ledger cutpoints are always the pre-withdrawal state. Only records
-        ;; appended by this transition are checked, so historical records retain
-        ;; their own authenticated transition context.
+         ;; Ledger cutpoints are committed after the withdrawal position update,
+         ;; but before the new ledger record is appended. Remove only records
+         ;; appended by this transition before recomputing the cutpoint; this
+         ;; avoids a self-referential ledger commitment while preserving the
+         ;; post-withdrawal state binding used by world-level conservation.
         new-ledgers (drop (count (:yield/withdrawal-ledger world-before []))
                           (:yield/withdrawal-ledger world-after []))
-        expected-cutpoint (partial-fill/ledger-state-cutpoint-root world-before)
+        cutpoint-world (assoc world-after :yield/withdrawal-ledger
+                              (vec (take (count (:yield/withdrawal-ledger world-before []))
+                                         (:yield/withdrawal-ledger world-after []))))
+        expected-cutpoint (partial-fill/ledger-state-cutpoint-root cutpoint-world)
         cutpoint-result {:holds? (every? #(or (nil? (:ledger/state-cutpoint-root %))
                                               (= expected-cutpoint (:ledger/state-cutpoint-root %)))
                                          new-ledgers)

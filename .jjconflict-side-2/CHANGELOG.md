@@ -2697,3 +2697,6 @@ runtime mechanism selection or a mechanism registry.
 - Added optional `TransitionAssurance` adapter capability and replay requirement
   `:transition-assurance/v1`; required assurance now rejects unsupported or
   failed candidate transitions before they become successful trace frames.
+- Research claims now require exact output-verification binding, validate the
+  canonical benchmark outcome manifest before verification, and distinguish the
+  studied subject root from the incentive-model root.
