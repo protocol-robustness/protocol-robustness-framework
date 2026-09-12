@@ -2,6 +2,15 @@
 
 ## [Unreleased]
 
+### Portable pro-rata contract v1
+
+- Added an independently loadable `portable-pro-rata-contract.v1` authority for
+  allocation, canonical effects, derived transitions, domain tags, exact-byte
+  vectors, rejection categories, and a closed release manifest. Production
+  Clojure allocation and transition commitments now consume the portable
+  projections; application mappings and implementation/proof provenance remain
+  outside portable semantic identity.
+
 ### P4b custom-action contract — fail-closed unknown types + portability guarantee
 
 - **Unknown action types fail closed with a structured error.** A single action
