@@ -122,6 +122,29 @@
        :else
        (= caller (:dispute-resolver et)))))
 
+(defn authorized-fallback-resolver?
+  "Return true when caller is eligible for the post-response-window fallback.
+
+   Expiry bypasses only custom-resolver exclusivity; it never grants general
+   authority. A configured module must authorize the caller. Without a module,
+   the current resolver or a positively staked non-party resolver is eligible."
+  [world workflow-id caller resolution-module-fn]
+  (let [snap (t/get-snapshot world workflow-id)
+        et   (t/get-transfer world workflow-id)
+        module-configured? (and (some? resolution-module-fn)
+                                (some? (:resolution-module snap))
+                                (not= "" (:resolution-module snap)))]
+    (if module-configured?
+      (let [module-result (try
+                            (resolution-module-fn workflow-id caller)
+                            (catch Exception _ nil))]
+        (and (map? module-result)
+             (true? (:authorized? module-result))))
+      (or (= caller (:dispute-resolver et))
+          (and (not= caller (:from et))
+               (not= caller (:to et))
+               (pos? (get-in world [:resolver-stakes caller] 0)))))))
+
 ;; ---------------------------------------------------------------------------
 ;; ResolutionMode dispatch
 ;; ---------------------------------------------------------------------------

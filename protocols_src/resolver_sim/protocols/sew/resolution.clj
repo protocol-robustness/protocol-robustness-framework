@@ -893,12 +893,10 @@
   "Submit a resolution decision for a :disputed escrow.
    Gates on authorized-resolver? then delegates to apply-resolution-transition.
 
-    When :resolver-response-window is configured and the assigned resolver has
-    exceeded it (sm/resolver-response-exceeded?), the dispute is no longer
-    exclusively bound to the original resolver.  Custom-resolver escrows
-    remain exclusively bound before the window expires; after expiry the
-    Priority-3 emergency override engages and any caller may resolve
-    (mirrors the S-DR-101 fresh-resolver escape scenario)."
+   When :resolver-response-window is configured and the assigned resolver has
+   exceeded it (sm/resolver-response-exceeded?), authorization switches from
+   the primary resolver predicate to the fallback resolver predicate. Expiry
+   changes authority mode; it never grants unrestricted caller authority."
    [world workflow-id caller is-release resolution-hash resolution-module-fn]
   (let [response-window-expired? (sm/resolver-response-exceeded? world workflow-id)
         settings (t/get-settings world workflow-id)
@@ -914,11 +912,9 @@
                   :workflow-id workflow-id
                   :world world)
 
-       ;; Priority 1: custom-resolver is exclusive before the response window
-       ;; expires.  After expiry, the original resolver's authority is revoked
-       ;; and the Priority-3 emergency override engages: any caller may resolve.
-       ;; This mirrors the scenario S-DR-101 where a fresh resolver steps in
-       ;; after the stalling resolver's window has elapsed.
+       ;; Custom resolver exclusivity governs primary authority only. Once the
+       ;; response window has expired, fallback authority is independently
+       ;; checked below.
        (and custom-exclusive?
             (not response-window-expired?)
             (not= caller custom-resolver))
@@ -929,10 +925,7 @@
                     :workflow-id workflow-id
                     :world world)
 
-       ;; Before the response window expires, require standard authorization
-       ;; (assigned resolver, module-authorized, or custom-resolver above).
-       ;; After expiry the Priority-3 emergency-override engages: any caller
-       ;; may resolve.
+       ;; Before expiry require primary authorization.
        (and (not response-window-expired?)
             (not (auth/authorized-resolver? world workflow-id caller resolution-module-fn)))
         (guard-fail :not-authorized-resolver
@@ -940,6 +933,16 @@
                     :dispute-level (t/dispute-level world workflow-id)
                     :workflow-id workflow-id
                     :world world)
+
+       ;; Expiry changes eligibility, never removes authorization.
+       (and response-window-expired?
+            (not (auth/authorized-fallback-resolver?
+                  world workflow-id caller resolution-module-fn)))
+       (guard-fail :not-authorized-fallback-resolver
+                   :caller caller
+                   :dispute-level (t/dispute-level world workflow-id)
+                   :workflow-id workflow-id
+                   :world world)
 
       :else
       (apply-resolution-transition world workflow-id caller is-release
