@@ -8,7 +8,9 @@
             [resolver-sim.protocols.sew.authority :as auth]
             [resolver-sim.protocols.sew.resolution :as res]
             [resolver-sim.protocols.sew.dispute-ruling :as ruling]
-            [resolver-sim.protocols.sew.resolution-basis :as resolution-basis]
+             [resolver-sim.protocols.sew.resolution-basis :as resolution-basis]
+             [resolver-sim.protocols.sew.adjudication-case :as adjudication-case]
+             [resolver-sim.protocols.sew.adjudication-instance :as adjudication-instance]
             [resolver-sim.protocols.sew :as sew]
             [resolver-sim.contract-model.replay :as replay]
             [resolver-sim.time.context :as time-ctx]
@@ -91,7 +93,21 @@
       :ruling/evidence-root (ruling-root :evidence)
       :ruling/policy-root (:adjudication/policy-root generic)
       :ruling/issued-at 1000
-      :ruling/authentication-root (ruling-root :authentication)})))
+       :ruling/authentication-root (ruling-root :authentication)})))
+
+(defn- authoritative-adjudication-world [world]
+  (let [evidence (ruling-root :admitted-evidence)
+        prepared (-> world
+                     (assoc-in [:evidence-hashes 0] [evidence])
+                     (assoc-in [:evidence-provenance-verified 0 evidence] :verified)
+                     (assoc-in [:dispute-evidence-admissions 0 0]
+                               {:status :closed :resolver resolver
+                                :parent-round nil :parent-evidence-set/root nil
+                                :members [{:evidence/root evidence :evidence/role :claimant}]}))
+        fence (adjudication-case/adjudication-round-fence-root prepared 0 0)
+        published (adjudication-case/publish-adjudication-case! prepared 0 0 fence)
+        frozen (adjudication-instance/freeze-instance! (:world published) 0)]
+    (:world frozen)))
 
 ;; ---------------------------------------------------------------------------
 ;; execute-resolution: with appeal window
@@ -210,7 +226,7 @@
            (get-in (:world result) [:escrow-transfers 0 :resolution :ruling-root])))))
 
 (deftest authenticated-ruling-is-the-only-high-assurance-outcome-source
-  (let [world (base-world 0)
+  (let [world (authoritative-adjudication-world (base-world 0))
         basis (adjudication-basis world)
         generic (resolution-basis/project-adjudication-basis basis)
         artifact (authenticated-ruling basis :refuse)
@@ -218,14 +234,21 @@
                            {:valid? true
                             :sew-resolution-basis/root (:sew-resolution-basis/root supplied)})
         ruling-verifier (fn [_ _ _ _]
-                          {:authenticated? true
-                           :authority-root (:adjudication/authority-root generic)
+                           {:authenticated? true
+                            :ruling-root (:ruling/root artifact)
+                            :authentication-root (:ruling/authentication-root artifact)
+                            :authentication-verification/root (ruling-root :verification)
+                            :authority-root (:adjudication/authority-root generic)
                            :adjudicator-root (:adjudication/adjudicator-root generic)})
         result (res/execute-resolution-with-adjudicated-ruling
                 world 0 carol basis artifact (fn [_ _] (external-resolution-roots))
                 ruling-verifier direct-resolver-fn)]
     (is (:ok result))
     (is (true? (get-in (:world result) [:escrow-transfers 0 :resolution :refused])))
+    (is (= :disputed (t/escrow-state (:world result) 0)))
+    (is (nil? (get-in (:world result) [:pending-settlements 0])))
+    (is (nil? (get-in (:world result) [:escrow-transfers 0 :resolution :is-release])))
+    (is (nil? (get-in (:world result) [:escrow-transfers 0 :resolution :settlement-authorized?])))
     (is (= (:ruling/root artifact)
            (get-in (:world result) [:escrow-transfers 0 :resolution :ruling-root])))
     (is (= (:adjudication-basis/root generic)
@@ -242,9 +265,64 @@
            (:error (res/execute-resolution-with-fenced-adjudicated-ruling
                     world 0 carol basis artifact (constantly (external-resolution-roots))
                     ruling-verifier direct-resolver-fn
-                    (fn [w _ _] {:fenced? true
-                                  :world (assoc-in w [:escrow-transfers 0 :dispute-resolver]
-                                                   "0xchanged")})))))))
+                     (fn [w _ _] {:fenced? true
+                                   :world (assoc-in w [:escrow-transfers 0 :dispute-resolver]
+                                                    "0xchanged")})))))))
+
+(deftest authenticated-ruling-uses-pending-settlement-lifecycle
+  (let [world (authoritative-adjudication-world (base-world 1800))
+        basis (adjudication-basis world)
+        generic (resolution-basis/project-adjudication-basis basis)
+        artifact (authenticated-ruling basis :release)
+        verifier (fn [_ _ _ ruling]
+                   {:authenticated? true
+                    :ruling-root (:ruling/root ruling)
+                    :authentication-root (:ruling/authentication-root ruling)
+                    :authentication-verification/root (ruling-root :verification)
+                    :authority-root (:adjudication/authority-root generic)
+                    :adjudicator-root (:adjudication/adjudicator-root generic)})
+        result (res/execute-resolution-with-adjudicated-ruling
+                world 0 carol basis artifact (fn [_ _] (external-resolution-roots))
+                verifier direct-resolver-fn)]
+    (is (:ok result))
+    (is (= :disputed (t/escrow-state (:world result) 0)))
+    (is (true? (get-in (:world result) [:escrow-transfers 0 :resolution :settlement-authorized?])))
+    (is (nil? (get-in (:world result) [:escrow-transfers 0 :resolution :resolved-by])))
+    (let [pending (t/get-pending (:world result) 0)]
+      (is (:exists pending))
+      (is (:is-release pending))
+      (is (= 2800 (:appeal-deadline pending)))
+      (is (= :authenticated-ruling (:resolution-source pending)))
+      (is (= (:ruling/root artifact) (:ruling-root pending)))
+      (is (= (ruling-root :verification)
+             (:authentication-verification-root pending)))
+      (is (= (:adjudication-basis/root generic)
+             (:adjudication-basis-root pending)))
+      (is (= (:sew-resolution-basis/root basis)
+             (:sew-resolution-basis-root pending))))))
+
+(deftest authenticated-pending-settlement-rejects-substitution
+  (let [world (authoritative-adjudication-world (base-world 1800))
+        basis (adjudication-basis world)
+        generic (resolution-basis/project-adjudication-basis basis)
+        artifact (authenticated-ruling basis :release)
+        verification {:authenticated? true
+                      :ruling-root (:ruling/root artifact)
+                      :authentication-root (:ruling/authentication-root artifact)
+                      :authentication-verification/root (ruling-root :verification)
+                      :authority-root (:adjudication/authority-root generic)
+                      :adjudicator-root (:adjudication/adjudicator-root generic)}
+        verifier (fn [_ _ _ _] verification)
+        submitted (res/execute-resolution-with-adjudicated-ruling
+                   world 0 carol basis artifact (fn [_ _] (external-resolution-roots))
+                   verifier direct-resolver-fn)
+        tampered (assoc-in (:world submitted)
+                           [:pending-settlements 0 :ruling-root]
+                           (ruling-root :substituted))]
+    (is (:ok submitted))
+    (is (= :invalid-authenticated-pending-settlement
+           (:error (res/execute-pending-settlement
+                    (assoc tampered :context/time {:block-ts 2800}) 0))))))
 
 (deftest execute-resolution-with-ruling-fails-closed
   (let [ruling (final-ruling :release)
