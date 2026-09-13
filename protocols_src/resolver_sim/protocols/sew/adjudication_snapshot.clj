@@ -88,6 +88,12 @@
         round-id (if current (inc (:adjudication/round-id current)) (count prior))
         parent (:sew/adjudication-snapshot-root current)]
     (cond
+      (and current
+           (= expected-state-root (:created-from-state-root current))
+           (= (select-keys current source-fields)
+              (select-keys source source-fields)))
+      {:ok true :world world :snapshot current :idempotent? true}
+
       (not= expected-state-root (:created-from-state-root source))
       {:ok false :error :adjudication-source-fence-mismatch :world world}
 

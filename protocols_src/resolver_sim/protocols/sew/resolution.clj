@@ -1063,7 +1063,10 @@
       (guard-fail :invalid-adjudicated-ruling :errors (:errors verified)
                   :workflow-id workflow-id :world world)
 
-      (not= (t/dispute-level world workflow-id) (:ruling/round dispute-ruling))
+      (or (not= (t/dispute-level world workflow-id) (:ruling/round dispute-ruling))
+          (and (some? (:adjudication/round-id reconstructed))
+               (not= (:adjudication/round-id reconstructed)
+                     (:ruling/round dispute-ruling))))
       (guard-fail :ruling-round-mismatch :workflow-id workflow-id :world world)
 
       (= :refuse (:outcome verified))

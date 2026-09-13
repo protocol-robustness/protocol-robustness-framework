@@ -151,7 +151,10 @@
   (let [snapshot-root (get-in world [:adjudication-current-snapshot-root workflow-id])
           snapshot (some #(when (= snapshot-root (:sew/adjudication-snapshot-root %)) %)
                          (get-in world [:adjudication-snapshots workflow-id] []))
-        external-roots (merge (snapshot-roots snapshot) external-roots)
+        ;; A persisted adjudication snapshot is authoritative.  Compatibility
+        ;; root sources may fill only when no snapshot exists; they must never
+        ;; override frozen round inputs.
+        external-roots (merge external-roots (snapshot-roots snapshot))
         missing (remove #(ref/valid-sha256-ref? (get external-roots %))
                         external-live-root-fields)]
     (cond
@@ -201,7 +204,12 @@
                      (live-root :resolution-module (:resolution-module snapshot))
                      :resolution-module/snapshot-root (live-root :module-snapshot snapshot)
                      :resolution/authority-mode authority-mode}))]
-        {:valid? true :basis basis}))))
+        {:valid? true
+         :basis basis
+         :adjudication/round-id (:adjudication/round-id
+                                 (some #(when (= snapshot-root
+                                                (:sew/adjudication-snapshot-root %)) %)
+                                       (get-in world [:adjudication-snapshots workflow-id] [])))}))))
 
 (defn adjudicator-binding-root
   "Stable identity binding for the current SEW adjudicator contract.
