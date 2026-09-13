@@ -109,3 +109,57 @@
        (= (:workflow/id question) (:workflow/id evidence-set))
        (= (:adjudication/round-id question) (:adjudication/round-id evidence-set))
        (= adjudication-case (build-adjudication-case definition evidence-set))))
+
+(defn- subject-root [world workflow-id]
+  (root :sew-adjudication-case-subject-v1
+        {:workflow/id workflow-id
+         :escrow (get-in world [:escrow-transfers workflow-id])}))
+
+(defn reconstruct-authoritative-case
+  "Reconstruct Case V1 from authoritative SEW world state. The evidence set is
+   available only after its round admission has closed; no case/root input is
+   accepted from a caller."
+  [world workflow-id round-id]
+  (let [evidence-set (evidence-admission/reconstruct-evidence-set world workflow-id round-id)
+        predecessor (get-in world [:adjudication-predecessor-decisions workflow-id round-id])]
+    (when (and (integer? workflow-id) (not (neg? workflow-id))
+               (= round-id (get-in world [:dispute-levels workflow-id] 0))
+               evidence-set
+               (:valid? (evidence-admission/validate-evidence-set evidence-set)))
+      (let [question (build-dispute-question {:workflow-id workflow-id :round-id round-id
+                                              :subject-root (subject-root world workflow-id)
+                                              :predecessor-decision-root predecessor})
+            ruling-schema (build-ruling-schema)
+            policy (build-adjudication-policy)
+            definition (build-case-definition question ruling-schema policy)
+            adjudication-case (build-adjudication-case definition evidence-set)]
+        {:question question :ruling-schema ruling-schema :policy policy
+         :case-definition definition :evidence-set evidence-set
+         :adjudication-case adjudication-case}))))
+
+(defn adjudication-round-fence-root [world workflow-id round-id]
+  "The exact state projection Case V1 publication compares before selection."
+  (root :sew-adjudication-case-fence-v1
+        {:workflow/id workflow-id :adjudication/round-id round-id
+         :escrow (get-in world [:escrow-transfers workflow-id])
+         :level (get-in world [:dispute-levels workflow-id] 0)
+         :admission (get-in world [:dispute-evidence-admissions workflow-id round-id])
+         :predecessor-decision (get-in world [:adjudication-predecessor-decisions workflow-id round-id])}))
+
+(defn publish-adjudication-case!
+  "Atomically select the one reconstructed Case V1 artifact for a frozen round.
+   The expected fence detects stale round state; repeated identical publication
+   is idempotent and a distinct existing case is never replaceable."
+  [world workflow-id round-id expected-round-fence]
+  (let [observed-fence (adjudication-round-fence-root world workflow-id round-id)
+        reconstructed (reconstruct-authoritative-case world workflow-id round-id)
+        existing (get-in world [:adjudication-published-cases workflow-id round-id])
+        case-root (get-in reconstructed [:adjudication-case :sew/adjudication-case-root])]
+    (cond
+      (not= expected-round-fence observed-fence) {:ok false :error :stale-adjudication-case-fence :world world}
+      (nil? reconstructed) {:ok false :error :adjudication-case-unavailable :world world}
+      (nil? existing) {:ok true :world (assoc-in world [:adjudication-published-cases workflow-id round-id]
+                                                {:case/root case-root :case (:adjudication-case reconstructed)})
+                        :case (:adjudication-case reconstructed)}
+      (= (:case/root existing) case-root) {:ok true :world world :case (:case existing) :idempotent? true}
+      :else {:ok false :error :conflicting-adjudication-case-publication :world world})))

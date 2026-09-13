@@ -200,11 +200,16 @@
    :is-release     — true = release to recipient, false = refund to sender
    :appeal-deadline — block timestamp after which settlement may execute
    :resolution-hash — bytes32 hex string (opaque in the model)"
-  [{:keys [exists is-release appeal-deadline resolution-hash]}]
-  {:exists          (boolean exists)
-   :is-release      (boolean is-release)
-   :appeal-deadline (or appeal-deadline 0)
-   :resolution-hash resolution-hash})
+   [{:keys [exists is-release appeal-deadline resolution-hash]
+     :as pending}]
+  (merge {:exists          (boolean exists)
+          :is-release      (boolean is-release)
+          :appeal-deadline (or appeal-deadline 0)
+          :resolution-hash resolution-hash}
+         (select-keys pending [:resolution-source :ruling-root
+                               :authentication-verification-root
+                               :adjudication-basis-root
+                               :sew-resolution-basis-root])))
 
 (def empty-pending-settlement
   "Zero value for PendingSettlement (mirrors default mapping value)."

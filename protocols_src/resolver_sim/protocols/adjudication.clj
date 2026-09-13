@@ -75,10 +75,10 @@
     artifact))
 
 (defn verify-ruling-against-basis
-  "Pure generic ruling admission. `adjudicator-verifier` authenticates external
-   adjudicator material and must return exactly `:authenticated? true` plus
-   matching `:adjudicator-root` and `:authority-root`. The caller is purposely
-   absent: submitter identity is not adjudicative identity."
+  "Pure generic ruling admission. `adjudicator-verifier` authenticates the exact
+   ruling and must return a rooted authentication verification that binds the
+   ruling, workflow, authority, and authentication commitment. The caller is
+   purposely absent: submitter identity is not adjudicative identity."
   [adjudication-basis dispute-ruling adjudicator-verifier]
   (let [basis-validation (validate-adjudication-basis adjudication-basis)
         ruling-validation (ruling/validate-dispute-ruling dispute-ruling)
@@ -98,6 +98,11 @@
                  (and (:valid? basis-validation) (:valid? ruling-validation)
                       (not (and (map? verification)
                                 (true? (:authenticated? verification))
+                                (ref/valid-sha256-ref? (:authentication-verification/root verification))
+                                (= (:ruling/root dispute-ruling)
+                                   (:ruling-root verification))
+                                (= (:ruling/authentication-root dispute-ruling)
+                                   (:authentication-root verification))
                                 (= (:adjudication/adjudicator-root adjudication-basis)
                                    (:adjudicator-root verification))
                                 (= (:adjudication/authority-root adjudication-basis)
@@ -110,6 +115,8 @@
       {:valid? true
        :basis-root (:adjudication-basis/root adjudication-basis)
        :ruling-root (:ruling/root dispute-ruling)
+       :authentication-verification-root (:authentication-verification/root verification)
+       :authentication-root (:authentication-root verification)
        :adjudicator-root (:adjudication/adjudicator-root adjudication-basis)
        :outcome (:ruling/outcome dispute-ruling)
        :status (:ruling/status dispute-ruling)}

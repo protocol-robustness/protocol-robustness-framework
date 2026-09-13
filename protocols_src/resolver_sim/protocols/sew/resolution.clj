@@ -15,6 +15,9 @@
             [resolver-sim.protocols.sew.resolution-basis :as resolution-basis]
             [resolver-sim.protocols.sew.dispute-ruling :as dispute-ruling]
             [resolver-sim.protocols.adjudication :as adjudication]
+            [resolver-sim.protocols.adjudication-transition :as adjudication-transition]
+            [resolver-sim.protocols.sew.adjudication-case :as adjudication-case]
+            [resolver-sim.protocols.sew.adjudication-instance :as adjudication-instance]
             [resolver-sim.protocols.sew.accounting :as acct]
             [resolver-sim.protocols.sew.held-mutation-admission :as held-admission]
             [resolver-sim.protocols.sew.registry :as reg]
@@ -28,6 +31,7 @@
             [resolver-sim.evidence.capture :as cap]
             [resolver-sim.evidence.chain :as chain]
             [resolver-sim.hash.canonical :as hc]
+            [resolver-sim.hash.reference :as ref]
             [resolver-sim.protocols.sew.evidence.slashing :as slashing-ev]
             [resolver-sim.logging :as log]))
 
@@ -803,7 +807,41 @@
       (-> world
           (clear-stale-settlement-principal workflow-id)
           (assoc-in [:pending-settlements workflow-id] t/empty-pending-settlement))
-      world)))
+       world)))
+
+(defn- create-pending-settlement
+  "Create the common, non-executable pending settlement record. Resolution
+   admission remains responsible for all authority-specific state and evidence."
+  [world workflow-id is-release resolution-hash pending-identity]
+  (let [snap (t/get-snapshot world workflow-id)
+        window-dur (max (:appeal-window-duration snap 0)
+                        (:challenge-window-duration snap 0))]
+    (when (pos? window-dur)
+      (t/make-pending-settlement
+       (merge {:exists true
+               :is-release is-release
+               :appeal-deadline (+ (time-ctx/block-ts world) window-dur)
+               :resolution-hash resolution-hash}
+              pending-identity)))))
+
+(defn- authenticated-ruling-resolution-hash
+  "Canonical resolution identity for a settled authenticated ruling. The generic
+   adjudication basis and its source SEW basis are distinct commitments."
+  [ruling verification sew-basis]
+  (ref/sha256-ref
+   (hc/domain-hash
+    :sew-authenticated-ruling-resolution-v1
+    (hc/project-canonical-safe
+     {:ruling-root (:ruling/root ruling)
+      :authentication-root (:ruling/authentication-root ruling)
+      :authentication-verification-root (:authentication-verification/root verification)
+      :adjudication-basis-root (:ruling/basis-root ruling)
+      :sew-resolution-basis-root (:sew-resolution-basis/root sew-basis)
+      :dispute-root (:ruling/dispute-root ruling)
+      :evidence-root (:ruling/evidence-root ruling)
+      :policy-root (:ruling/policy-root ruling)
+      :authority-root (:ruling/authority-root ruling)
+      :outcome (:ruling/outcome ruling)}))))
 
 (declare archive-current-pending-settlement)
 
@@ -885,13 +923,10 @@
             (if (:ok finalized)
               (t/ok (lc/cleanup-orphaned-slashes (:world finalized) workflow-id))
               finalized))
-          (let [pending (t/make-pending-settlement
-                         {:exists true
-                          :is-release is-release
-                          :appeal-deadline (+ now window-dur)
-                          :resolution-hash resolution-hash})
-                world'''' (assoc-in world''' [:pending-settlements workflow-id] pending)]
-            (t/ok world'''')))))))
+           (let [pending (create-pending-settlement world''' workflow-id is-release
+                                                    resolution-hash nil)
+                 world'''' (assoc-in world''' [:pending-settlements workflow-id] pending)]
+             (t/ok world'''')))))))
 
 (defn execute-resolution
   "Submit a resolution decision for a :disputed escrow.
@@ -1020,6 +1055,11 @@
                         (resolution-basis/reconstruct-live-resolution-basis
                          world workflow-id external-roots))
         reconstructed-basis (:basis reconstructed)
+        round-id (t/dispute-level world workflow-id)
+        published-case (get-in world [:adjudication-published-cases workflow-id round-id])
+        instance-root (get-in world [:adjudication-current-instance-root workflow-id])
+        instance (get-in world [:adjudication-instances workflow-id instance-root])
+        published-decision (get-in world [:adjudication-decisions workflow-id round-id])
         adjudication-basis (when reconstructed-basis
                             (resolution-basis/project-adjudication-basis reconstructed-basis))
         verified (when (and adjudication-basis
@@ -1063,6 +1103,17 @@
       (guard-fail :invalid-adjudicated-ruling :errors (:errors verified)
                   :workflow-id workflow-id :world world)
 
+      (nil? published-case)
+      (guard-fail :missing-published-adjudication-case :workflow-id workflow-id :world world)
+
+      (or (nil? instance)
+          (not (:valid? (adjudication-instance/validate-instance instance))))
+      (guard-fail :missing-adjudication-instance :workflow-id workflow-id :world world)
+
+      (or (not= (:case/root published-case) (:case/root instance))
+          (not= round-id (:adjudication/round-id instance)))
+      (guard-fail :adjudication-instance-mismatch :workflow-id workflow-id :world world)
+
       (or (not= (t/dispute-level world workflow-id) (:ruling/round dispute-ruling))
           (and (some? (:adjudication/round-id reconstructed))
                (not= (:adjudication/round-id reconstructed)
@@ -1070,7 +1121,14 @@
       (guard-fail :ruling-round-mismatch :workflow-id workflow-id :world world)
 
       (= :refuse (:outcome verified))
-      (let [world' (-> world
+      (let [decision (adjudication-transition/build-decision
+                      {:decision/subject-root (:escrow/root reconstructed-basis)
+                       :decision/case-root (:case/root published-case)
+                       :decision/adjudication-root instance-root
+                       :decision/adjudicator-root (:adjudicator/root instance)
+                       :decision/outcome (:outcome verified)
+                       :decision/temporal-basis-root (:temporal-basis/root instance)})
+            world' (-> world
                        (lc/accrue-yield workflow-id)
                        (assoc-in [:escrow-transfers workflow-id :resolution]
                                  {:refused true
@@ -1078,23 +1136,39 @@
                                   :refused-at (time-ctx/block-ts world)
                                   :refused-hash (:ruling-root verified)
                                   :ruling-root (:ruling-root verified)
+                                  :adjudication-decision-root (:decision/root decision)
                                   :adjudication-basis-root (:basis-root verified)
                                   :sew-resolution-basis-root (:sew-resolution-basis/root sew-basis)
-                                  :resolution-source :authenticated-ruling}))]
-        (t/ok world'))
+                                  :resolution-source :authenticated-ruling})
+                       (assoc-in [:adjudication-decisions workflow-id round-id] decision))]
+        (cond
+          (and published-decision (not= (:decision/root published-decision) (:decision/root decision)))
+          (guard-fail :conflicting-adjudication-decision :workflow-id workflow-id :world world)
+          published-decision (assoc (t/ok world) :idempotent? true)
+          :else (t/ok world')))
 
       :else
-      (let [result (apply-resolution-transition world workflow-id caller
-                                                (= :release (:outcome verified))
-                                                (:ruling-root verified)
-                                                resolution-module-fn
-                                                :resolution-source :authenticated-ruling)]
-        (if (:ok result)
-          (update result :world update-in [:escrow-transfers workflow-id :resolution]
-                  merge {:ruling-root (:ruling-root verified)
-                         :adjudication-basis-root (:basis-root verified)
-                         :sew-resolution-basis-root (:sew-resolution-basis/root sew-basis)})
-          result)))))
+      (let [decision (adjudication-transition/build-decision
+                      {:decision/subject-root (:escrow/root reconstructed-basis)
+                       :decision/case-root (:case/root published-case)
+                       :decision/adjudication-root instance-root
+                       :decision/adjudicator-root (:adjudicator/root instance)
+                       :decision/outcome (:outcome verified)
+                       :decision/temporal-basis-root (:temporal-basis/root instance)})
+            world' (-> world
+                       (assoc-in [:escrow-transfers workflow-id :resolution]
+                                 {:ruling-root (:ruling-root verified)
+                                  :adjudication-decision-root (:decision/root decision)
+                                  :adjudication-basis-root (:basis-root verified)
+                                  :sew-resolution-basis-root (:sew-resolution-basis/root sew-basis)
+                                  :resolution-source :authenticated-ruling
+                                  :settlement-authorized? false})
+                       (assoc-in [:adjudication-decisions workflow-id round-id] decision))]
+        (cond
+          (and published-decision (not= (:decision/root published-decision) (:decision/root decision)))
+          (guard-fail :conflicting-adjudication-decision :workflow-id workflow-id :world world)
+          published-decision (assoc (t/ok world) :idempotent? true)
+          :else (t/ok world'))))))
 
 (defn execute-resolution-with-fenced-adjudicated-ruling
   "Authoritative-store fenced form of adjudicated ruling execution.
