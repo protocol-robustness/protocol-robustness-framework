@@ -737,8 +737,9 @@
             resolution-outcome (get p :resolution-outcome nil)
             is-release (get p :is-release true)
             resolution-hash (get p :resolution-hash "0xsimhash")
-            ruling (:ruling p)
-            resolution-basis (:resolution-basis p)
+             ruling (:ruling p)
+             finality (:finality p)
+             resolution-basis (:resolution-basis p)
             resolution-decision (:resolution-decision p)
             effective-rm-fn (or (when resolution-level-map
                                   (auth/make-kleros-module
@@ -748,9 +749,9 @@
             wf-id (or workflow-id (compat/wf-id event))]
         (cond
           (and ruling resolution-basis)
-          (res/execute-resolution-with-fenced-adjudicated-ruling
-           world wf-id addr resolution-basis ruling external-resolution-root-resolver
-           ruling-verifier effective-rm-fn resolution-state-fence)
+           (res/execute-resolution-with-fenced-adjudicated-ruling
+            world wf-id addr resolution-basis ruling finality external-resolution-root-resolver
+            ruling-verifier effective-rm-fn resolution-state-fence)
 
           ruling
           (res/execute-resolution-with-ruling world wf-id addr ruling

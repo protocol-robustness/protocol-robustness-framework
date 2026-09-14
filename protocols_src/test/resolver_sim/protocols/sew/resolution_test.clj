@@ -7,7 +7,8 @@
             [resolver-sim.protocols.sew.lifecycle :as lc]
             [resolver-sim.protocols.sew.authority :as auth]
             [resolver-sim.protocols.sew.resolution :as res]
-            [resolver-sim.protocols.sew.dispute-ruling :as ruling]
+             [resolver-sim.protocols.sew.dispute-ruling :as ruling]
+             [resolver-sim.protocols.sew.dispute-ruling-finality :as ruling-finality]
             [resolver-sim.protocols.adjudication-authentication-verification :as authentication]
             [resolver-sim.protocols.sew.resolution-basis :as resolution-basis]
             [resolver-sim.protocols.sew.adjudication-case :as adjudication-case]
@@ -81,7 +82,7 @@
   (:basis (resolution-basis/reconstruct-live-resolution-basis
            world 0 (external-resolution-roots))))
 
-(defn- authenticated-ruling [basis outcome instance-root case-root]
+(defn- authenticated-ruling [basis outcome instance-root case-root round]
   (let [generic (resolution-basis/project-adjudication-basis basis)]
     (ruling/build-dispute-ruling
      {:ruling/basis-root (:adjudication-basis/root generic)
@@ -92,13 +93,31 @@
       :ruling/provider :kleros
       :ruling/external-dispute-id "43"
       :ruling/external-ruling-id "8"
-      :ruling/round 0
+      :ruling/round round
       :ruling/outcome outcome
       :ruling/status :final
       :ruling/evidence-root (ruling-root :evidence)
       :ruling/policy-root (:adjudication/policy-root generic)
       :ruling/issued-at 1000
       :ruling/authentication-root (ruling-root :authentication)})))
+
+(declare authoritative-adjudication-world authentication-verification)
+
+(defn- final-round-world [world]
+  (assoc-in world [:params :max-dispute-level] 0))
+
+(defn- high-assurance-inputs [outcome]
+  (let [world (final-round-world (authoritative-adjudication-world (base-world 0)))
+        basis (adjudication-basis world)
+        instance-root (get-in world [:adjudication-current-instance-root 0])
+        case-root (get-in world [:adjudication-published-cases 0 0 :case/root])
+        artifact (authenticated-ruling basis outcome instance-root case-root 0)
+        verification (authentication-verification artifact instance-root)]
+    {:world world
+     :basis basis
+     :artifact artifact
+     :verification verification
+     :finality (ruling-finality/derive-finality world 0 artifact verification)}))
 
 (defn- authentication-verification [ruling instance-root]
   (authentication/build-authentication-verification
@@ -247,39 +266,34 @@
     (is (= (:ruling/root ruling)
            (get-in (:world result) [:escrow-transfers 0 :resolution :ruling-root])))))
 
-(deftest authenticated-ruling-is-the-only-high-assurance-outcome-source
+(deftest high-assurance-ruling-refusal-is-unsupported-by-phase-4-finality
   (let [world (authoritative-adjudication-world (base-world 0))
         basis (adjudication-basis world)
         generic (resolution-basis/project-adjudication-basis basis)
         instance-root (get-in world [:adjudication-current-instance-root 0])
         case-root (get-in world [:adjudication-published-cases 0 0 :case/root])
-        artifact (authenticated-ruling basis :refuse instance-root case-root)
+         artifact (authenticated-ruling basis :refuse instance-root case-root 0)
         ruling-verifier (fn [_ _ _ artifact]
                           {:authentication-verification
                            (authentication-verification artifact instance-root)})
-        result (res/execute-resolution-with-adjudicated-ruling
-                world 0 carol basis artifact (fn [_ _] (external-resolution-roots))
+         result (res/execute-resolution-with-adjudicated-ruling
+                 world 0 carol basis artifact nil (fn [_ _] (external-resolution-roots))
                 ruling-verifier direct-resolver-fn)]
-    (is (:ok result))
-    (is (true? (get-in (:world result) [:escrow-transfers 0 :resolution :refused])))
-    (is (= (:ruling/root artifact)
-           (get-in (:world result) [:escrow-transfers 0 :resolution :ruling-root])))
-    (is (= (:adjudication-basis/root generic)
-           (get-in (:world result) [:escrow-transfers 0 :resolution :adjudication-basis-root])))
+     (is (= :finality-missing (:error result)))
     (is (= :live-resolution-basis-unavailable
-           (:error (res/execute-resolution-with-adjudicated-ruling
-                    world 0 carol basis artifact (constantly {})
-                    ruling-verifier direct-resolver-fn))))))
+            (:error (res/execute-resolution-with-adjudicated-ruling
+                     world 0 carol basis artifact nil (constantly {})
+                     ruling-verifier direct-resolver-fn))))))
 
 (deftest self-valid-authentication-artifact-cannot-bypass-ruling-verifier
   (let [world (authoritative-adjudication-world (base-world 0))
         basis (adjudication-basis world)
         instance-root (get-in world [:adjudication-current-instance-root 0])
         case-root (get-in world [:adjudication-published-cases 0 0 :case/root])
-        artifact (authenticated-ruling basis :release instance-root case-root)
+         artifact (authenticated-ruling basis :release instance-root case-root 0)
         self-valid (authentication-verification artifact instance-root)
-        result (res/execute-resolution-with-adjudicated-ruling
-                world 0 carol basis artifact (fn [_ _] (external-resolution-roots))
+         result (res/execute-resolution-with-adjudicated-ruling
+                 world 0 carol basis artifact nil (fn [_ _] (external-resolution-roots))
                 (fn [& _] nil) direct-resolver-fn)]
     (is (authentication/valid-authentication-verification? self-valid))
     (is (= :invalid-adjudicated-ruling (:error result)))
@@ -292,7 +306,7 @@
         basis (adjudication-basis world)
         instance-root (get-in world [:adjudication-current-instance-root 0])
         case-root (get-in world [:adjudication-published-cases 0 0 :case/root])
-        ruling (authenticated-ruling basis :release instance-root case-root)
+         ruling (authenticated-ruling basis :release instance-root case-root 0)
         generic (resolution-basis/project-adjudication-basis basis)
         verifier (fn [_ _ _ artifact]
                    {:authentication-verification
@@ -303,14 +317,38 @@
         with-case (ruling/build-dispute-ruling
                    (assoc (dissoc ruling :ruling/root)
                           :ruling/case-root (ruling-root :other-case)))]
-    (is (= :ruling-adjudication-lineage-mismatch
-           (:error (res/execute-resolution-with-adjudicated-ruling
-                    world 0 carol basis with-instance
-                    (fn [_ _] (external-resolution-roots)) verifier direct-resolver-fn))))
-    (is (= :ruling-adjudication-lineage-mismatch
-           (:error (res/execute-resolution-with-adjudicated-ruling
-                    world 0 carol basis with-case
-                    (fn [_ _] (external-resolution-roots)) verifier direct-resolver-fn))))))
+     (is (= :finality-missing
+            (:error (res/execute-resolution-with-adjudicated-ruling
+                     world 0 carol basis with-instance nil
+                     (fn [_ _] (external-resolution-roots)) verifier direct-resolver-fn))))
+     (is (= :finality-missing
+            (:error (res/execute-resolution-with-adjudicated-ruling
+                     world 0 carol basis with-case nil
+                     (fn [_ _] (external-resolution-roots)) verifier direct-resolver-fn))))))
+
+(deftest high-assurance-settlement-requires-derived-finality
+  (let [{:keys [world basis artifact verification finality] :as inputs}
+        (high-assurance-inputs :release)
+        verifier (fn [_ _ _ _] {:authentication-verification verification})
+        execute #(res/execute-resolution-with-adjudicated-ruling
+                  world 0 carol basis artifact % (fn [_ _] (external-resolution-roots))
+                  verifier direct-resolver-fn)]
+    (is (some? finality))
+    (is (:ok (execute finality)))
+    (is (= :released (t/escrow-state (:world (execute finality)) 0)))
+    (is (= :finality-missing
+           (:error (execute nil))))))
+
+(deftest high-assurance-settlement-supports-derived-refund-finality
+  (let [{:keys [world basis artifact verification finality]}
+        (high-assurance-inputs :refund)
+        result (res/execute-resolution-with-adjudicated-ruling
+                world 0 carol basis artifact finality
+                (fn [_ _] (external-resolution-roots))
+                (fn [_ _ _ _] {:authentication-verification verification})
+                direct-resolver-fn)]
+    (is (:ok result))
+    (is (= :refunded (t/escrow-state (:world result) 0)))))
 
 (deftest execute-resolution-with-ruling-fails-closed
   (let [ruling (final-ruling :release)

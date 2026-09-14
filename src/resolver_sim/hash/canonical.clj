@@ -265,6 +265,7 @@
    :prf-adjudication-transition-selection-result-v1 "PRF_ADJUDICATION_TRANSITION_SELECTION_RESULT_V1"
    :prf-adjudication-authority-transition-v1 "PRF_ADJUDICATION_AUTHORITY_TRANSITION_V1"
    :prf-dispute-ruling-v1 "PRF_DISPUTE_RULING_V1"
+   :prf-dispute-ruling-finality-v1 "PRF_DISPUTE_RULING_FINALITY_V1"
    :sew-authenticated-ruling-resolution-v1 "SEW_AUTHENTICATED_RULING_RESOLUTION_V1"
    :staged-event-evidence "STAGED_EVENT_EVIDENCE_V1"
    :terminal-evidence-publication "TERMINAL_EVIDENCE_PUBLICATION_V1"

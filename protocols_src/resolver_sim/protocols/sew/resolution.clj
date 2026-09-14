@@ -14,9 +14,10 @@
             [resolver-sim.protocols.sew.resolution-decision :as resolution-decision]
             [resolver-sim.protocols.sew.resolution-basis :as resolution-basis]
             [resolver-sim.protocols.sew.dispute-ruling :as dispute-ruling]
-            [resolver-sim.protocols.adjudication :as adjudication]
-            [resolver-sim.protocols.sew.adjudication-case :as adjudication-case]
-            [resolver-sim.protocols.sew.adjudication-instance :as adjudication-instance]
+             [resolver-sim.protocols.adjudication :as adjudication]
+             [resolver-sim.protocols.sew.adjudication-case :as adjudication-case]
+             [resolver-sim.protocols.sew.adjudication-instance :as adjudication-instance]
+             [resolver-sim.protocols.sew.dispute-ruling-finality :as ruling-finality]
             [resolver-sim.protocols.sew.accounting :as acct]
             [resolver-sim.protocols.sew.held-mutation-admission :as held-admission]
             [resolver-sim.protocols.sew.registry :as reg]
@@ -1056,7 +1057,7 @@
    authority, configuration); it cannot approve a caller-supplied basis.
    `ruling-verifier` receives `(world workflow-id caller ruling)` and must
    return authenticated authority plus the projected adjudicator root."
-  [world workflow-id caller sew-basis dispute-ruling external-root-resolver
+  [world workflow-id caller sew-basis dispute-ruling finality external-root-resolver
    ruling-verifier resolution-module-fn]
   (let [basis-validation (resolution-basis/validate-resolution-basis sew-basis)
         external-roots (when external-root-resolver
@@ -1081,7 +1082,8 @@
                     (fn [_generic-basis artifact]
                       (try
                         (ruling-verifier world workflow-id caller artifact)
-                        (catch Exception _ nil)))))]
+                        (catch Exception _ nil)))
+                    :require-final-status? false))]
     (cond
       (not (:valid? basis-validation))
       (guard-fail :invalid-resolution-basis :errors (:errors basis-validation)
@@ -1114,6 +1116,9 @@
       (guard-fail :invalid-adjudicated-ruling :errors (:errors verified)
                   :workflow-id workflow-id :world world)
 
+      (nil? finality)
+      (guard-fail :finality-missing :workflow-id workflow-id :world world)
+
       (nil? published-case)
       (guard-fail :missing-published-adjudication-case :workflow-id workflow-id :world world)
 
@@ -1136,25 +1141,14 @@
                      (:ruling/round dispute-ruling))))
       (guard-fail :ruling-round-mismatch :workflow-id workflow-id :world world)
 
-      (= :refuse (:outcome verified))
-      (let [world' (-> world
-                       (lc/accrue-yield workflow-id)
-                       (assoc-in [:escrow-transfers workflow-id :resolution]
-                                 {:refused true
-                                  :refused-by caller
-                                  :refused-at (time-ctx/block-ts world)
-                                  :refused-hash (:ruling-root verified)
-                                  :ruling-root (:ruling-root verified)
-                                  :adjudication-basis-root (:basis-root verified)
-                                  :sew-resolution-basis-root (:sew-resolution-basis/root sew-basis)
-                                  :resolution-source :authenticated-ruling})
-                       (assoc-in [:adjudication-decisions workflow-id round-id]
-                                 (:ruling-root verified)))]
-        (cond
-          (and published-decision (not= published-decision (:ruling-root verified)))
-          (guard-fail :conflicting-adjudication-decision :workflow-id workflow-id :world world)
-          published-decision (assoc (t/ok world) :idempotent? true)
-          :else (t/ok world')))
+      (not (:valid? (ruling-finality/validate-finality-against-context
+                     finality world workflow-id dispute-ruling
+                     (:authentication-verification verified))))
+      (guard-fail :invalid-dispute-ruling-finality
+                  :errors (:errors (ruling-finality/validate-finality-against-context
+                                    finality world workflow-id dispute-ruling
+                                    (:authentication-verification verified)))
+                  :workflow-id workflow-id :world world)
 
       :else
       (let [is-release (= :release (:outcome verified))
@@ -1190,7 +1184,13 @@
           (and published-decision (not= published-decision (:ruling-root verified)))
           (guard-fail :conflicting-adjudication-decision :workflow-id workflow-id :world world)
           published-decision (assoc (t/ok world) :idempotent? true)
-          :else (t/ok world'))))))
+          :else
+          (let [finalized (if is-release
+                            (finalize world' workflow-id :released)
+                            (finalize world' workflow-id :refunded))]
+            (if (:ok finalized)
+              (t/ok (lc/cleanup-orphaned-slashes (:world finalized) workflow-id))
+               finalized)))))))
 
 (defn execute-resolution-with-fenced-adjudicated-ruling
   "Authoritative-store fenced form of adjudicated ruling execution.
@@ -1199,7 +1199,7 @@
    workflow and return `{:fenced? true :world fenced-world}`. The returned
    snapshot is reconstructed and verified again by the delegated path, so a
    stale or substituted snapshot cannot be enforced."
-  [world workflow-id caller sew-basis dispute-ruling external-root-resolver
+  [world workflow-id caller sew-basis dispute-ruling finality external-root-resolver
    ruling-verifier resolution-module-fn state-fence]
   (let [expected-state-root (:state-before/root sew-basis)
         fenced (when state-fence
@@ -1216,7 +1216,7 @@
 
       :else
       (execute-resolution-with-adjudicated-ruling
-       (:world fenced) workflow-id caller sew-basis dispute-ruling
+       (:world fenced) workflow-id caller sew-basis dispute-ruling finality
        external-root-resolver ruling-verifier resolution-module-fn))))
 
 (defn execute-resolution-with-decision
@@ -2927,6 +2927,5 @@
   [workflow-id caller escalation-fn]
   (am/update-with-result escalate-dispute workflow-id caller escalation-fn))
 
-(comment
+(comment)
   ;; Debug: add a temp version that prints
-  )

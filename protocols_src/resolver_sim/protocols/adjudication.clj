@@ -83,7 +83,8 @@
    instance, and ruling authentication commitment. The adapter establishes
    credential, external-subject, and provider-evidence semantics. A valid artifact
    alone is not authoritative because it must arrive through this adapter boundary."
-  [adjudication-basis dispute-ruling adjudication-instance-root adjudicator-verifier]
+  [adjudication-basis dispute-ruling adjudication-instance-root adjudicator-verifier
+   & {:keys [require-final-status?] :or {require-final-status? true}}]
   (let [basis-validation (validate-adjudication-basis adjudication-basis)
         ruling-validation (ruling/validate-dispute-ruling dispute-ruling)
         adapter-output (when (and (:valid? basis-validation)
@@ -138,15 +139,17 @@
                  (and (:valid? verification-validation)
                       (not= :authenticated (:authentication-verification/result verification)))
                  (conj :authentication-not-affirmative)
-                 (and (:valid? ruling-validation)
-                      (not= :final (:ruling/status dispute-ruling)))
+                  (and require-final-status?
+                       (:valid? ruling-validation)
+                       (not= :final (:ruling/status dispute-ruling)))
                  (conj :ruling-not-final))]
     (if (empty? errors)
       {:valid? true
        :basis-root (:adjudication-basis/root adjudication-basis)
        :ruling-root (:ruling/root dispute-ruling)
-       :authentication-verification-root (:authentication-verification/root verification)
-       :authentication-root (:ruling/authentication-root dispute-ruling)
+        :authentication-verification-root (:authentication-verification/root verification)
+        :authentication-verification verification
+        :authentication-root (:ruling/authentication-root dispute-ruling)
        :adjudicator-root (:adjudication/adjudicator-root adjudication-basis)
        :outcome (:ruling/outcome dispute-ruling)
        :status (:ruling/status dispute-ruling)}
