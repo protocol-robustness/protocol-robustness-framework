@@ -6,7 +6,8 @@
   (:require [clojure.set :as set]
             [resolver-sim.hash.canonical :as hc]
             [resolver-sim.hash.reference :as ref]
-            [resolver-sim.protocols.sew.dispute-ruling :as ruling]))
+            [resolver-sim.protocols.sew.dispute-ruling :as ruling]
+            [resolver-sim.protocols.adjudication-authentication-verification :as authentication-verification]))
 
 (def ^:const basis-schema "prf/adjudication-basis.v1")
 (def ^:const basis-domain :prf-adjudication-basis-v1)
@@ -75,39 +76,68 @@
     artifact))
 
 (defn verify-ruling-against-basis
-  "Pure generic ruling admission. `adjudicator-verifier` authenticates the exact
-   ruling and must return a rooted authentication verification that binds the
-   ruling, workflow, authority, and authentication commitment. The caller is
-   purposely absent: submitter identity is not adjudicative identity."
-  [adjudication-basis dispute-ruling adjudicator-verifier]
+  "Pure generic ruling admission. The configured provider adapter receives the
+   exact ruling and returns a canonical authentication-verification artifact only
+   after verifying its provider-specific evidence. Generic PRF checks canonical
+   integrity, admitted method, affirmative result, exact ruling, authoritative
+   instance, and ruling authentication commitment. The adapter establishes
+   credential, external-subject, and provider-evidence semantics. A valid artifact
+   alone is not authoritative because it must arrive through this adapter boundary."
+  [adjudication-basis dispute-ruling adjudication-instance-root adjudicator-verifier]
   (let [basis-validation (validate-adjudication-basis adjudication-basis)
         ruling-validation (ruling/validate-dispute-ruling dispute-ruling)
-        verification (when (and (:valid? basis-validation)
-                                (:valid? ruling-validation)
-                                adjudicator-verifier)
-                       (try
-                         (adjudicator-verifier adjudication-basis dispute-ruling)
-                         (catch Exception _ nil)))
+        adapter-output (when (and (:valid? basis-validation)
+                                  (:valid? ruling-validation)
+                                  adjudicator-verifier)
+                         (try
+                           (adjudicator-verifier adjudication-basis dispute-ruling)
+                           (catch Exception _ nil)))
+        verification (:authentication-verification adapter-output)
+        verification-validation
+        (authentication-verification/validate-authentication-verification verification)
+        verification-errors (set (:errors verification-validation))
         errors (cond-> (vec (concat (:errors basis-validation)
                                     (:errors ruling-validation)))
+                 (and (:valid? basis-validation)
+                      (:valid? ruling-validation)
+                      (nil? adjudicator-verifier))
+                 (conj :missing-ruling-verifier)
+                 (and (:valid? basis-validation)
+                      (:valid? ruling-validation)
+                      adjudicator-verifier
+                      (nil? adapter-output))
+                 (conj :provider-verification-failed)
+                 (and (:valid? basis-validation)
+                      (:valid? ruling-validation)
+                      adapter-output
+                      (nil? verification))
+                 (conj :authentication-verification-missing)
+                 (and verification
+                      (not (:valid? verification-validation)))
+                 (conj (cond
+                         (contains? verification-errors :invalid-authentication-method)
+                         :unsupported-authentication-method
+                         :else :invalid-authentication-verification))
                  (and (:valid? basis-validation)
                       (:valid? ruling-validation)
                       (not= (:adjudication-basis/root adjudication-basis)
                             (:ruling/basis-root dispute-ruling)))
                  (conj :ruling-basis-mismatch)
-                 (and (:valid? basis-validation) (:valid? ruling-validation)
-                      (not (and (map? verification)
-                                (true? (:authenticated? verification))
-                                (ref/valid-sha256-ref? (:authentication-verification/root verification))
-                                (= (:ruling/root dispute-ruling)
-                                   (:ruling-root verification))
-                                (= (:ruling/authentication-root dispute-ruling)
-                                   (:authentication-root verification))
-                                (= (:adjudication/adjudicator-root adjudication-basis)
-                                   (:adjudicator-root verification))
-                                (= (:adjudication/authority-root adjudication-basis)
-                                   (:authority-root verification)))))
-                 (conj :unauthenticated-adjudicator-ruling)
+                 (and (:valid? verification-validation)
+                      (not= (:ruling/root dispute-ruling)
+                            (:authentication-verification/ruling-root verification)))
+                 (conj :authentication-verification-ruling-mismatch)
+                 (and (:valid? verification-validation)
+                      (not= (:ruling/authentication-root dispute-ruling)
+                            (:authentication-verification/authentication-root verification)))
+                 (conj :authentication-verification-authentication-mismatch)
+                 (and (:valid? verification-validation)
+                      (not= adjudication-instance-root
+                            (:authentication-verification/adjudication-instance-root verification)))
+                 (conj :authentication-verification-instance-mismatch)
+                 (and (:valid? verification-validation)
+                      (not= :authenticated (:authentication-verification/result verification)))
+                 (conj :authentication-not-affirmative)
                  (and (:valid? ruling-validation)
                       (not= :final (:ruling/status dispute-ruling)))
                  (conj :ruling-not-final))]
@@ -116,7 +146,7 @@
        :basis-root (:adjudication-basis/root adjudication-basis)
        :ruling-root (:ruling/root dispute-ruling)
        :authentication-verification-root (:authentication-verification/root verification)
-       :authentication-root (:authentication-root verification)
+       :authentication-root (:ruling/authentication-root dispute-ruling)
        :adjudicator-root (:adjudication/adjudicator-root adjudication-basis)
        :outcome (:ruling/outcome dispute-ruling)
        :status (:ruling/status dispute-ruling)}

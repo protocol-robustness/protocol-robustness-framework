@@ -17,11 +17,13 @@
 (def ^:private root-key :ruling/root)
 (def ^:private required-fields
   #{:artifact/schema :ruling/basis-root :ruling/dispute-root :ruling/authority-root
+    :ruling/adjudication-instance-root :ruling/case-root
     :ruling/provider :ruling/external-dispute-id :ruling/external-ruling-id
     :ruling/round :ruling/outcome :ruling/status :ruling/evidence-root
     :ruling/policy-root :ruling/issued-at :ruling/authentication-root})
 (def ^:private reference-fields
   #{:ruling/basis-root :ruling/dispute-root :ruling/authority-root
+    :ruling/adjudication-instance-root :ruling/case-root
     :ruling/evidence-root :ruling/policy-root :ruling/authentication-root})
 
 (defn ruling-payload [ruling]

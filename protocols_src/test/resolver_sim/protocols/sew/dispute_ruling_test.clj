@@ -8,8 +8,10 @@
 
 (defn- input []
   {:ruling/basis-root (root :basis)
-     :ruling/dispute-root (root :dispute)
+   :ruling/dispute-root (root :dispute)
    :ruling/authority-root (root :authority)
+   :ruling/adjudication-instance-root (root :instance)
+   :ruling/case-root (root :case)
    :ruling/provider :kleros
    :ruling/external-dispute-id "42"
    :ruling/external-ruling-id "7"
@@ -25,12 +27,13 @@
   (let [artifact (ruling/build-dispute-ruling (input))
         payload (ruling/ruling-payload artifact)
         old-domain-root (str "sha256:" (hc/domain-hash :sew-resolution-decision-v1
-                                                        (hc/project-canonical-safe payload)))]
+                                                       (hc/project-canonical-safe payload)))]
     (is (ruling/valid-dispute-ruling? artifact))
     (is (= (:ruling/root artifact)
            (:ruling/root (ruling/build-dispute-ruling (input))))
         "same payload deterministically reconstructs the same root")
     (doseq [field [:ruling/basis-root :ruling/dispute-root :ruling/authority-root
+                   :ruling/adjudication-instance-root :ruling/case-root
                    :ruling/provider :ruling/external-dispute-id :ruling/external-ruling-id
                    :ruling/round :ruling/outcome :ruling/status :ruling/evidence-root
                    :ruling/policy-root :ruling/issued-at :ruling/authentication-root]]

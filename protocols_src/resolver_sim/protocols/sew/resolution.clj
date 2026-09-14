@@ -806,7 +806,7 @@
       (-> world
           (clear-stale-settlement-principal workflow-id)
           (assoc-in [:pending-settlements workflow-id] t/empty-pending-settlement))
-       world)))
+      world)))
 
 (defn- create-pending-settlement
   "Create the common, non-executable pending settlement record. Resolution
@@ -934,10 +934,10 @@
             (if (:ok finalized)
               (t/ok (lc/cleanup-orphaned-slashes (:world finalized) workflow-id))
               finalized))
-           (let [pending (create-pending-settlement world''' workflow-id is-release
-                                                    resolution-hash nil)
-                 world'''' (assoc-in world''' [:pending-settlements workflow-id] pending)]
-             (t/ok world'''')))))))
+          (let [pending (create-pending-settlement world''' workflow-id is-release
+                                                   resolution-hash nil)
+                world'''' (assoc-in world''' [:pending-settlements workflow-id] pending)]
+            (t/ok world'''')))))))
 
 (defn execute-resolution
   "Submit a resolution decision for a :disputed escrow.
@@ -1072,12 +1072,12 @@
         instance (get-in world [:adjudication-instances workflow-id instance-root])
         published-decision (get-in world [:adjudication-decisions workflow-id round-id])
         adjudication-basis (when reconstructed-basis
-                            (resolution-basis/project-adjudication-basis reconstructed-basis))
+                             (resolution-basis/project-adjudication-basis reconstructed-basis))
         verified (when (and adjudication-basis
                             (= (:sew-resolution-basis/root sew-basis)
                                (:sew-resolution-basis/root reconstructed-basis)))
                    (adjudication/verify-ruling-against-basis
-                    adjudication-basis dispute-ruling
+                    adjudication-basis dispute-ruling instance-root
                     (fn [_generic-basis artifact]
                       (try
                         (ruling-verifier world workflow-id caller artifact)
@@ -1125,6 +1125,11 @@
           (not= round-id (:adjudication/round-id instance)))
       (guard-fail :adjudication-instance-mismatch :workflow-id workflow-id :world world)
 
+      (or (not= instance-root (:ruling/adjudication-instance-root dispute-ruling))
+          (not= (:case/root instance) (:ruling/case-root dispute-ruling))
+          (not= (:case/root published-case) (:ruling/case-root dispute-ruling)))
+      (guard-fail :ruling-adjudication-lineage-mismatch :workflow-id workflow-id :world world)
+
       (or (not= (t/dispute-level world workflow-id) (:ruling/round dispute-ruling))
           (and (some? (:adjudication/round-id reconstructed))
                (not= (:adjudication/round-id reconstructed)
@@ -1143,15 +1148,15 @@
                                   :adjudication-basis-root (:basis-root verified)
                                   :sew-resolution-basis-root (:sew-resolution-basis/root sew-basis)
                                   :resolution-source :authenticated-ruling})
-                        (assoc-in [:adjudication-decisions workflow-id round-id]
-                                  (:ruling-root verified)))]
+                       (assoc-in [:adjudication-decisions workflow-id round-id]
+                                 (:ruling-root verified)))]
         (cond
           (and published-decision (not= published-decision (:ruling-root verified)))
           (guard-fail :conflicting-adjudication-decision :workflow-id workflow-id :world world)
           published-decision (assoc (t/ok world) :idempotent? true)
           :else (t/ok world')))
 
-       :else
+      :else
       (let [is-release (= :release (:outcome verified))
             resolution-hash (authenticated-ruling-resolution-hash
                              dispute-ruling
@@ -1166,7 +1171,7 @@
                               :sew-resolution-basis-root
                               (:sew-resolution-basis/root sew-basis)}
             pending (create-pending-settlement world workflow-id is-release
-                                              resolution-hash pending-identity)
+                                               resolution-hash pending-identity)
             world' (-> world
                        (clear-pending-settlement workflow-id)
                        (lc/accrue-yield workflow-id)
@@ -1348,17 +1353,17 @@
                     :action :execute-pending-settlement
                     :world world)
 
-         (not (:exists pending))
-         (guard-fail :no-pending-settlement :workflow-id workflow-id :world world)
+        (not (:exists pending))
+        (guard-fail :no-pending-settlement :workflow-id workflow-id :world world)
 
-         (and (= :authenticated-ruling
-                 (get-in world [:escrow-transfers workflow-id :resolution :resolution-source]))
-              (not (authenticated-pending-valid?
-                    pending (get-in world [:escrow-transfers workflow-id :resolution]))))
-         (guard-fail :invalid-authenticated-pending-settlement
-                     :workflow-id workflow-id :world world)
+        (and (= :authenticated-ruling
+                (get-in world [:escrow-transfers workflow-id :resolution :resolution-source]))
+             (not (authenticated-pending-valid?
+                   pending (get-in world [:escrow-transfers workflow-id :resolution]))))
+        (guard-fail :invalid-authenticated-pending-settlement
+                    :workflow-id workflow-id :world world)
 
-         (not (t/dispute-active? world workflow-id))
+        (not (t/dispute-active? world workflow-id))
         (guard-fail :transfer-not-in-dispute
                     :escrow-state (t/escrow-state world workflow-id)
                     :workflow-id workflow-id

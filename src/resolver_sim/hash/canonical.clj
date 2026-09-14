@@ -257,6 +257,7 @@
    :sew-adjudication-temporal-basis-v1 "SEW_ADJUDICATION_TEMPORAL_BASIS_V1"
    :sew-protocol-instance-v1 "SEW_PROTOCOL_INSTANCE_V1"
    :prf-adjudication-basis-v1 "PRF_ADJUDICATION_BASIS_V1"
+   :prf-adjudication-authentication-verification-v1 "PRF_ADJUDICATION_AUTHENTICATION_VERIFICATION_V1"
    :prf-adjudication-decision-v1 "PRF_ADJUDICATION_DECISION_V1"
    :prf-adjudicator-identity-v1 "PRF_ADJUDICATOR_IDENTITY_V1"
    :prf-adjudication-transition-eligibility-v1 "PRF_ADJUDICATION_TRANSITION_ELIGIBILITY_V1"
