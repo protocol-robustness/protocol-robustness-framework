@@ -71,7 +71,7 @@
               :state-before/root (:state-before/root resolution-basis)
               :adjudication-snapshot/root (:sew/adjudication-snapshot-root adjudication-snapshot)
               :case/root (:case/root adjudication-case)
-              :instance/root (:sew/adjudication-instance/root adjudication-instance)
+               :instance/root (:adjudication-instance/root adjudication-instance)
               :resolution-basis/root (:sew-resolution-basis/root resolution-basis)
               :ruling/root (:ruling/root dispute-ruling)
               :authentication-verification/root (:authentication-verification/root authentication-verification)
