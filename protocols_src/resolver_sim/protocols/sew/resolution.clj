@@ -1281,9 +1281,9 @@
 (defn execute-resolution-refused
   "Record that the arbitrator refused to rule (Kleros ruling 0).
    Unlike normal resolutions, this does NOT finalize the escrow or create
-   a pending settlement.  The escrow remains :disputed until the
-   max-dispute-duration timeout triggers auto-cancel.
-   The refusal is recorded on the escrow's :resolution map as {:refused true}."
+   a pending settlement. The escrow remains :disputed until the
+   max-dispute-duration timeout triggers auto-cancel. The refusal is recorded
+   on the escrow's :resolution map as {:refused true}."
   [world workflow-id caller resolution-hash resolution-module-fn]
   (cond
     (not (t/valid-workflow-id? world workflow-id))
@@ -1292,6 +1292,13 @@
     (not (t/dispute-active? world workflow-id))
     (guard-fail :transfer-not-in-dispute
                 :escrow-state (t/escrow-state world workflow-id)
+                :workflow-id workflow-id
+                :world world)
+
+    ;; A pending settlement remains the current appealable decision; refusal
+    ;; cannot replace it and strand its existing execution path.
+    (:exists (t/get-pending world workflow-id))
+    (guard-fail :resolution-already-pending
                 :workflow-id workflow-id
                 :world world)
 

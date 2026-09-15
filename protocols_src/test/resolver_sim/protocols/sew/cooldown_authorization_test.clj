@@ -469,6 +469,31 @@
       (time-ctx/advance-time {:to ts})
       project-legacy-time))
 
+(deftest cannot-resolve-rejects-valid-pending-settlement-without-recording-refusal
+  (let [w (world-with-pending 5000)
+        pending (t/get-pending w 0)
+        r (res/execute-resolution-refused w 0 resolver "0xrefused-hash" nil)
+        escrow (get-in (:world r) [:escrow-transfers 0])]
+    (is (false? (:ok r)))
+    (is (= :resolution-already-pending (:error r)))
+    (is (= pending (t/get-pending (:world r) 0))
+        "pending settlement is preserved")
+    (is (every? nil? (map escrow [:resolution/refused
+                                  :resolution/refused-by
+                                  :resolution/refused-at
+                                  :resolution/refused-hash]))
+        "refusal fields remain unset")))
+
+(deftest pending-settlement-executes-at-dispute-deadline-after-refusal-is-rejected
+  (let [w (world-with-pending refused-deadline)
+        refusal (res/execute-resolution-refused w 0 resolver "0xrefused-hash" nil)
+        r (res/automate-timed-actions (advance-to (:world refusal) refused-deadline) 0)]
+    (is (false? (:ok refusal)))
+    (is (= :resolution-already-pending (:error refusal)))
+    (is (true? (:ok r)))
+    (is (= :execute-pending (:action r)))
+    (is (= :released (t/escrow-state (:world r) 0)))))
+
 (deftest cannot-resolve-records-refusal-and-stays-disputed
   (let [w (refused-world 1800)
         r (res/execute-resolution-refused w 0 resolver "0xrefused-hash" nil)]
