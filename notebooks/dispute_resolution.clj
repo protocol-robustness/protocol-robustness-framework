@@ -101,13 +101,12 @@
            {:passed 0 :total 0 :elapsed-ms 0 :results []
             :error (.getMessage e)}))))
 
-;; Realize the delay in a background thread so namespace `require` completes fast.
-;; The future is daemon — killed on JVM exit; fine for `bb test:notebooks`.
-;; Clerk: re-evaluate the notebook after a few seconds to see results.
+;; Keep the suite lazy. Starting a `future` here would leave Clojure's shared
+;; non-daemon executor alive after namespace loading, making CI hang.
 ^{:nextjournal.clerk/visibility {:code :hide :result :hide}
   :nextjournal.clerk/no-cache true}
 (defonce _loader
-  (future (deref live-suite-results)))
+  nil)
 
 ;; ---
 ;; Render helper — shows placeholder until delay is realized
