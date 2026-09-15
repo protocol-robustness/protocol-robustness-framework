@@ -4,8 +4,7 @@
             [clojure.java.io :as io]
             [resolver-sim.hash.canonical :as hc]
             [resolver-sim.pro-rata.allocation :as allocation]
-            [resolver-sim.pro-rata.canonical-effects :as effects]
-            [resolver-sim.pro-rata.effect-compilation-binding-v2 :as binding]
+
             [resolver-sim.pro-rata.effect-compilation-semantics :as semantics]
             [resolver-sim.pro-rata.effect-compilation-v3 :as compilation]
             [resolver-sim.pro-rata.evm :as evm]
@@ -49,16 +48,21 @@
    (:effect-compilation-semantics/root compiler-semantics) compiler-semantics})
 
 (defn project-derived [context]
-  {:allocation/root (get-in context [:artifacts :allocation :allocation/hash])
-   :target-map/root (get-in context [:artifacts :target-map :target-map/root])
-   :effect-compilation-v3/root (get-in context [:artifacts :compilation :effect-compilation/root])
-   :normalized-effects (get-in context [:derived :normalized-effects])
-   :normalized-effects/root (get-in context [:artifacts :compilation :effects/root])
-   :state-before/root (get-in context [:artifacts :canonical-transition :state-before/root])
-   :state-after (get-in context [:derived :state-after])
-   :state-after/root (get-in context [:artifacts :canonical-transition :state-after/root])
-   :canonical-transition/root (get-in context [:artifacts :canonical-transition :canonical-effect-transition/root])
-   :pro-rata-evm-v2/root (get-in context [:artifacts :statement :pro-rata-evm-v2/root])})
+  "Project only reconstructed context data; source and expected values are not capabilities."
+  (let [{:keys [artifacts derived]} (select-keys context [:artifacts :derived])]
+    (cond-> {:allocation/root (get-in artifacts [:allocation :allocation/hash])
+             :target-map/root (get-in artifacts [:target-map :target-map/root])
+             :effect-compilation-v3/root (get-in artifacts [:compilation :effect-compilation/root])
+             :normalized-effects (:normalized-effects derived)
+             :normalized-effects/root (get-in artifacts [:compilation :effects/root])
+             :state-before/root (get-in artifacts [:canonical-transition :state-before/root])
+             :state-after (:state-after derived)
+             :state-after/root (get-in artifacts [:canonical-transition :state-after/root])
+             :canonical-transition/root (get-in artifacts [:canonical-transition :canonical-effect-transition/root])
+             :pro-rata-evm-v2/root (get-in artifacts [:statement :pro-rata-evm-v2/root])}
+      (get-in context [:stage-a :validation :target-map-validation/root])
+      (assoc :target-map-validation/root
+             (get-in context [:stage-a :validation :target-map-validation/root])))))
 
 (defn build-all-active-context
   "Reconstruct the complete all-active artifact graph from inputs and authority."
@@ -86,13 +90,22 @@
                         :effect-compilation compiled
                         :resolve-body resolve-body
                         :configuration-root (:configuration/root semantic-authority)})
-        artifacts (:artifacts reconstructed)]
+        artifacts (:artifacts reconstructed)
+        retained-inputs (body-map allocation target-map compiler-semantics)
+        retained-bodies (merge retained-inputs artifacts
+                               {(:effects/root compiled)
+                                (:normalized-effects (:derived reconstructed))})]
     {:profile :all-active
      :authority semantic-authority
      :source {:inputs inputs}
      :artifacts (assoc artifacts :allocation allocation :target-map target-map
                        :semantics compiler-semantics)
      :derived (:derived reconstructed)
+     :retained-input-bodies retained-inputs
+     :retained-bodies retained-bodies
+     :reconstruction {:state-before state-before
+                      :effect-compilation compiled
+                      :authority semantic-authority}
      :stage-a nil}))
 
 (defn derive-all-active
@@ -100,26 +113,23 @@
   [vector]
   (project-derived (build-all-active-context vector)))
 
-(defn derive-aggregate-held-credit
-  "Derive the aggregate profile from complete Stage A semantic bodies."
-  [{:keys [inputs semantic-authority] :as vector}]
+(defn build-aggregate-stage-a
+  "Build only aggregate-specific inputs through V3 compilation."
+  [{:keys [inputs]}]
   (let [allocation (allocation/allocate (:allocation/request inputs))
         aggregate-quantity (quantity/build-identity (:aggregate-quantity/input inputs))
         quantity-root (:quantity/root aggregate-quantity)
-        target-input (update-in (:target-map/input inputs) [:targets]
-                                (fn [targets]
-                                  (mapv #(assoc % :quantity/root quantity-root) targets)))
-        target-map (target-map/build-aggregate-target-map target-input)
+        target-map (target-map/build-aggregate-target-map
+                    (update-in (:target-map/input inputs) [:targets]
+                               #(mapv (fn [target] (assoc target :quantity/root quantity-root)) %)))
         descriptor (execution-context/build-descriptor (:adapter/input inputs))
-        location-input (update-in (:native-location/input inputs) [:locations]
-                                  (fn [locations]
-                                    (mapv #(assoc % :quantity/root quantity-root) locations)))
         locations (target-map/build-location-map
-                   (assoc location-input :adapter-descriptor-root
-                          (:adapter/descriptor-root descriptor)))
+                   (assoc (update-in (:native-location/input inputs) [:locations]
+                                     #(mapv (fn [location]
+                                              (assoc location :quantity/root quantity-root)) %))
+                          :adapter-descriptor-root (:adapter/descriptor-root descriptor)))
         validation (target-map/validate-aggregate-target-map
-                    {:allocation allocation
-                     :target-map target-map
+                    {:allocation allocation :target-map target-map
                      :allocation-scope-root (:allocation-scope/root target-map)
                      :aggregate-custody-scope-root (:aggregate-custody-scope/root target-map)
                      :adapter-descriptor-root (:adapter/descriptor-root descriptor)
@@ -139,36 +149,127 @@
                    :target-map-validation validation
                    :native-location-map locations
                    :aggregate-quantity aggregate-quantity
-                   :adapter-descriptor descriptor})
-        bodies {(:allocation/hash allocation) allocation
-                (:target-map/root target-map) target-map
-                (:effect-compilation-semantics/root compiler-semantics) compiler-semantics
-                (:target-map-validation/root validation) validation
-                (:native-location-map/root locations) locations
-                (:quantity/root aggregate-quantity) aggregate-quantity
-                (:adapter/descriptor-root descriptor) descriptor}
-        resolve-body #(get bodies %)
-        state-before {quantity-root 100N}
-        canonical-transition (effects/transition state-before
-                                                 (binding/recompute-effects compiled resolve-body))
-        effect-compilation-binding (binding/build compiled canonical-transition)
-        statement (evm/build-statement-v2
-                   {:state-before state-before
-                    :effect-compilation compiled
-                    :effect-compilation-binding effect-compilation-binding
-                    :resolve-body resolve-body
-                    :configuration-root (:configuration/root semantic-authority)})]
-    {:allocation/root (:allocation/hash allocation)
-     :target-map/root (:target-map/root target-map)
-     :target-map-validation/root (:target-map-validation/root validation)
-     :effect-compilation-v3/root (:effect-compilation/root compiled)
-     :normalized-effects (:effects compiled)
-     :normalized-effects/root (:effects/root compiled)
-     :state-before/root (:state-before/root canonical-transition)
-     :state-after (:state-after canonical-transition)
-     :state-after/root (:state-after/root canonical-transition)
-     :canonical-transition/root (:canonical-effect-transition/root canonical-transition)
-     :pro-rata-evm-v2/root (:pro-rata-evm-v2/root statement)}))
+                   :adapter-descriptor descriptor})]
+    {:allocation allocation :target-map target-map :semantics compiler-semantics
+     :validation validation :locations locations :aggregate-quantity aggregate-quantity
+     :descriptor descriptor :compiled compiled
+     :state-before {quantity-root 100N}}))
+
+(defn- retained-input-bodies [{:keys [allocation target-map semantics validation locations
+                                      aggregate-quantity descriptor]}]
+  {(:allocation/hash allocation) allocation
+   (:target-map/root target-map) target-map
+   (:effect-compilation-semantics/root semantics) semantics
+   (:target-map-validation/root validation) validation
+   (:native-location-map/root locations) locations
+   (:quantity/root aggregate-quantity) aggregate-quantity
+   (:adapter/descriptor-root descriptor) descriptor})
+
+(defn- reconstruct-context [stage-a authority]
+  (let [inputs (retained-input-bodies stage-a)
+        reconstructed (evm/reconstruct-v2
+                       {:state-before (:state-before stage-a)
+                        :effect-compilation (:compiled stage-a)
+                        :resolve-body #(get inputs %)
+                        :configuration-root (:configuration/root authority)})
+        artifacts (:artifacts reconstructed)
+        retained-bodies (merge inputs artifacts
+                               {(:effects/root (:compiled stage-a))
+                                (:normalized-effects (:derived reconstructed))})]
+    {:artifacts (assoc artifacts :allocation (:allocation stage-a)
+                       :target-map (:target-map stage-a)
+                       :semantics (:semantics stage-a))
+     :derived (:derived reconstructed)
+     :retained-input-bodies inputs
+     :retained-bodies retained-bodies
+     :reconstruction {:state-before (:state-before stage-a)
+                      :effect-compilation (:compiled stage-a)
+                      :authority authority}}))
+
+(defn build-aggregate-context
+  [{:keys [semantic-authority] :as vector}]
+  (when-not (= :aggregate-held-credit (:profile vector))
+    (throw (ex-info "unsupported conformance profile" {:profile (:profile vector)})))
+  (let [stage-a (build-aggregate-stage-a vector)
+        reconstructed (reconstruct-context stage-a semantic-authority)]
+    (assoc reconstructed :profile :aggregate-held-credit
+           :authority semantic-authority
+           :source {:inputs (:inputs vector)}
+           :stage-a (select-keys stage-a [:validation :locations :aggregate-quantity :descriptor]))))
+
+(defn replay-from-context [context]
+  (let [{:keys [state-before effect-compilation authority]} (:reconstruction context)
+        inputs (:retained-input-bodies context)
+        reconstructed (evm/reconstruct-v2
+                       {:state-before state-before
+                        :effect-compilation effect-compilation
+                        :resolve-body #(get inputs %)
+                        :configuration-root (:configuration/root authority)})]
+    (assoc reconstructed
+           :artifacts (merge (:artifacts context) (:artifacts reconstructed))
+           :stage-a (:stage-a context)
+           :retained-input-bodies inputs)))
+
+(defn derive-aggregate-held-credit [vector]
+  (project-derived (build-aggregate-context vector)))
+
+(defn- root-delta [baseline mutated]
+  (into {}
+        (map (fn [root]
+               [root (if (= (get baseline root) (get mutated root)) :same :changed)]))
+        (sort (into #{} (concat (keys baseline) (keys mutated))))))
+
+(defn- mutation-context [context {:mutation/keys [target apply]}]
+  (when-not (fn? apply)
+    (throw (ex-info "context mutation requires an apply function" {:target target})))
+  (case (first target)
+    :state-before
+    (update-in context (into [:reconstruction :state-before] (rest target)) apply)
+
+    :retained-input-bodies
+    (let [[_ body-root & path] target]
+      (when-not (contains? (:retained-input-bodies context) body-root)
+        (throw (ex-info "mutation target is not a retained reconstruction input"
+                        {:target target})))
+      (update-in context (into [:retained-input-bodies body-root] path) apply))
+
+    (throw (ex-info "unsupported context mutation target" {:target target}))))
+
+(defn run-context-mutation
+  "Run one mutation against the closed reconstruction-input capability.
+   Reconstructed descendants in `context` are intentionally never supplied to
+   `evm/reconstruct-v2`; they remain baseline observations only."
+  [context {:mutation/keys [id class target] :as mutation}]
+  (let [baseline (project-derived context)
+        mutated-context (mutation-context context mutation)
+        {:keys [state-before effect-compilation authority]}
+        (:reconstruction mutated-context)
+        inputs (:retained-input-bodies mutated-context)]
+    (try
+      (let [reconstructed (evm/reconstruct-v2
+                           {:state-before state-before
+                            :effect-compilation effect-compilation
+                            :resolve-body #(get inputs %)
+                            :configuration-root (:configuration/root authority)})
+            observed (project-derived
+                      {:artifacts (merge (:artifacts context) (:artifacts reconstructed))
+                       :derived (:derived reconstructed)
+                       :stage-a (:stage-a context)})]
+        {:mutation/id id
+         :mutation/class class
+         :mutation/target target
+         :baseline {:reconstructed-roots baseline}
+         :mutated {:reconstructed-roots observed}
+         :result :accepted
+         :root-delta (root-delta baseline observed)})
+      (catch clojure.lang.ExceptionInfo error
+        {:mutation/id id
+         :mutation/class class
+         :mutation/target target
+         :baseline {:reconstructed-roots baseline}
+         :result :rejected
+         :rejection {:classification :semantic-verification-rejected
+                     :data (select-keys (ex-data error) [:missing :target])}}))))
 
 (defn compare-derived
   "Compare a derived result to an expected section. This is intentionally

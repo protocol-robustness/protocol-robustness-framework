@@ -26,9 +26,9 @@
   "Map from evidence artifact-kind to the set of attribution keys that must
    be present for evidence of that kind to be valid."
   {:transition [:ctx/run-id :ctx/scenario-id :ctx/step :ctx/event-id]
-   :invariant  [:ctx/run-id :ctx/scenario-id :ctx/step :ctx/invariant-id]
-   :scenario   [:ctx/run-id :ctx/scenario-id]
-   :sweep      [:ctx/run-id :ctx/sweep-id :ctx/scenario-id]})
+   :invariant [:ctx/run-id :ctx/scenario-id :ctx/step :ctx/invariant-id]
+   :scenario [:ctx/run-id :ctx/scenario-id]
+   :sweep [:ctx/run-id :ctx/sweep-id :ctx/scenario-id]})
 
 (defn require-attribution!
   "Assert that the attribution context contains all required keys
@@ -63,9 +63,8 @@
 ;; ── Evidence Record ──────────────────────────────────────────────────────────
 
 (defn- normalize-action
-  "Normalize the legacy unqualified action type at the evidence boundary.
-   Canonical hashing receives only :action/type; conflicting representations
-   fail closed rather than allowing ambiguous evidence."
+  "Normalize actions to the representation required by the canonical action projection.
+   Conflicting or missing action types fail closed rather than allowing ambiguous evidence."
   [action]
   (cond
     (nil? action) nil
@@ -80,7 +79,10 @@
     (-> action
         (assoc :action/type (:type action))
         (dissoc :type))
-    :else action))
+    (contains? action :action/type) action
+    :else
+    (throw (ex-info "Action must have :action/type"
+                    {:action action}))))
 
 (defn make-evidence-record
   "Build a versioned, content-hashed evidence record from a specification map.
@@ -104,46 +106,50 @@
         action (normalize-action action)
         temporal-values (select-keys spec [:step :block-time])
         temporal-present? (mapv #(contains? spec %) [:step :block-time])
+        temporal-complete? (every? true? temporal-present?)
         _ (when (and (some true? temporal-present?)
-                     (not-every? true? temporal-present?))
+                     (not temporal-complete?))
             (throw (ex-info "Evidence temporal context must include both :step and :block-time"
+                            temporal-values)))
+        _ (when (and temporal-complete?
+                     (or (nil? step) (nil? block-time)
+                         (not (integer? step))
+                         (neg? step)))
+            (throw (ex-info "Evidence temporal context requires a non-negative integer :step and non-nil :block-time"
                             temporal-values)))
         context-hash (hc/hash-with-intent {:hash/intent :evidence-record}
                                           (project attribution))
         before-hash (hc/hash-with-intent {:hash/intent :world-structure} before)
         after-hash (hc/hash-with-intent {:hash/intent :world-structure} after)
         action-hash (hc/hash-with-intent {:hash/intent :action} action)
-        action-hash-at (when (every? #(contains? spec %) [:step :block-time])
+        action-hash-at (when temporal-complete?
                          (hc/hash-with-intent {:hash/intent :action-at}
                                               {:action-hash action-hash
                                                :step step
                                                :block-time block-time}))
         result-hash (hc/hash-with-intent {:hash/intent :evidence-record}
                                          (project result))
-        base {:schema-version (evcfg/schema :evidence-record)
-              :artifact-kind artifact-kind
-              :temporal-context (cond-> {}
-                                  (contains? spec :block-time)
-                                  (assoc :block-time block-time)
-                                  (contains? spec :step)
-                                  (assoc :step step))
-              :attribution attribution
-              :context-hash context-hash
-              :before-hash before-hash
-              :after-hash after-hash
-              :action action
-              :action-hash action-hash
-              :action-hash-at action-hash-at
-              :result result
-              :result-hash result-hash}
-        base (cond-> base
-               action-hash-at (assoc :action-hash-at action-hash-at)
+        base (cond-> {:schema-version (evcfg/schema :evidence-record)
+                      :artifact-kind artifact-kind
+                      :temporal-context (cond-> {}
+                                          (contains? spec :block-time)
+                                          (assoc :block-time block-time)
+                                          (contains? spec :step)
+                                          (assoc :step step))
+                      :attribution attribution
+                      :context-hash context-hash
+                      :before-hash before-hash
+                      :after-hash after-hash
+                      :action action
+                      :action-hash action-hash
+                      :result result
+                      :result-hash result-hash}
+               temporal-complete? (assoc :action-hash-at action-hash-at)
                (:ctx/evidence-group-id attribution)
                (assoc :evidence/group-id (:ctx/evidence-group-id attribution)
                       :evidence/layer :generic-trace))
         evidence-hash (hc/hash-with-intent {:hash/intent :evidence-record}
-                                           (project base))
-        group-id (:ctx/evidence-group-id attribution)]
+                                           (project base))]
     (assoc base :evidence-hash evidence-hash)))
 
 ;; ── Evidence Emission ────────────────────────────────────────────────────────
@@ -166,7 +172,7 @@
    Returns the evidence record. Throws if required attribution keys are missing
    or if temporal context is absent."
   [{:keys [artifact-kind block-time step attribution-context] :as spec}]
-  (when-not (and block-time step)
+  (when (or (nil? block-time) (nil? step))
     (throw (ex-info "Missing required temporal context (block-time/step) for evidence"
                     {:block-time block-time :step step})))
   (let [attribution (require-attribution! (or artifact-kind :transition) attribution-context)]

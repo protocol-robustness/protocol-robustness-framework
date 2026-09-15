@@ -48,6 +48,7 @@
    :suite-list 'resolver-sim.commands.suite-list/list-suites
    :backstop 'resolver-sim.commands.backstop/run-default
    :backstop-fast 'resolver-sim.commands.backstop/run-fast
+   :evidence-make 'resolver-sim.commands.evidence/make
    :evidence-verify-chain 'resolver-sim.commands.evidence/verify-chain
    :evidence-validate 'resolver-sim.commands.evidence/validate
    :evidence-coverage 'resolver-sim.commands.evidence/coverage
@@ -199,7 +200,7 @@
    [nil "--key PATH" "Path to private key"]
    [nil "--key-id ID" "Issuer key-id for the certificate signature"]
    [nil "--check FILE" "ref-file: verify a canonical sha256 refs file against file contents"]
-   [nil "--input PATH" "Allocation: input JSON file; use '-' for stdin"]
+   [nil "--input PATH" "Input EDN/JSON specification, or - for stdin"]
    [nil "--member-key N" "Researcher: integer review-member/key for identity resolution"]
    [nil "--dissent-reason STR" "Researcher disagree: reason for dissent"]
    [nil "--outcome-root REF" "Researcher approve: outcome root sha256 ref (enables v2 signing)"]
@@ -251,7 +252,7 @@
   (let [visible (filter (fn [c] (and (command-available? (:id c))
                                      (or (nil? (:surface c)) (= :prf (:surface c)))))
                         (registry/list-commands))
-        cmds    (sort-by (comp #(str/join " " %) :path) visible)
+        cmds (sort-by (comp #(str/join " " %) :path) visible)
         primary #{:benchmark :scenario}]
 
     (println "Benchmark & Scenario Commands:")

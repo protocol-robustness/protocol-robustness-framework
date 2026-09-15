@@ -1,6 +1,8 @@
 # Adding Your Own Game-Theoretic Validation
 
-This guide shows how to add **new game-theoretic checks** to this repository without breaking architecture boundaries.
+This guide shows how to add **new game-theoretic checks** to this repository without breaking architecture boundaries. The included validators and examples are extension templates, not a comprehensive game-theoretic validation supplied by PRF.
+
+Each protocol author is responsible for defining and justifying the model their claim needs: players and utilities, information sets and beliefs, legal strategy space, continuation behavior, search bounds, parameter calibration, and coverage criterion. A passing included or newly-added check establishes only its declared, bounded model and workload.
 
 It covers both lanes:
 

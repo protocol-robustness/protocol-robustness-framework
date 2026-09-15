@@ -262,6 +262,36 @@
         (catch clojure.lang.ExceptionInfo e
           (re-find #"Action :type and :action/type disagree" (.getMessage e))))))
 
+(deftest make-evidence-record-rejects-action-without-type
+  (is (thrown-with-msg? clojure.lang.ExceptionInfo
+                        #"Action must have :action/type"
+                        (ev/make-evidence-record
+                         {:artifact-kind :transition
+                          :before sample-world :after sample-world
+                          :action {:payload :missing-type}
+                          :result sample-result
+                          :attribution sample-attribution}))))
+
+(deftest make-evidence-record-rejects-nil-temporal-values
+  (doseq [spec [{:step nil :block-time 1000}
+                {:step 1 :block-time nil}]]
+    (is (thrown-with-msg? clojure.lang.ExceptionInfo
+                          #"temporal context requires"
+                          (ev/make-evidence-record
+                           (merge {:artifact-kind :transition
+                                   :before sample-world :after sample-world
+                                   :action canonical-action :result sample-result
+                                   :attribution sample-attribution}
+                                  spec))))))
+
+(deftest make-evidence-record-omits-non-temporal-action-hash-at
+  (let [record (ev/make-evidence-record
+                {:artifact-kind :transition
+                 :before sample-world :after sample-world
+                 :action canonical-action :result sample-result
+                 :attribution sample-attribution})]
+    (is (not (contains? record :action-hash-at)))))
+
 (deftest make-evidence-record-hash-changes-when-attribution-changes
   (let [record1 (ev/make-evidence-record
                  {:artifact-kind :transition
@@ -373,6 +403,18 @@
       (is (= :transition (:artifact-kind record)))
       (is (contains? record :attribution))
       (is (string? (:evidence-hash record))))))
+
+(deftest emit-evidence-accepts-zero-temporal-values
+  (binding [attr/*attribution* sample-attribution]
+    (is (string? (:evidence-hash
+                  (ev/emit-evidence!
+                   {:artifact-kind :transition
+                    :block-time 0
+                    :step 0
+                    :before sample-world
+                    :after sample-world
+                    :action sample-action
+                    :result sample-result}))))))
 
 (deftest evidence-hash-commits-optional-group-metadata
   (let [base {:artifact-kind :transition

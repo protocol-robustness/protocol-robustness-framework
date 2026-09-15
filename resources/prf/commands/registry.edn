@@ -71,7 +71,21 @@
    :command/positional-args {:min 0 :max 0}
    :command/description "Validate the command registry, dispatch table, and bb wrapper parity."}
 
-  {:command/id :evidence-verify-chain
+   {:command/id :evidence-make
+    :command/path ["evidence" "make"]
+    :command/title "Construct evidence"
+    :command/category :evidence
+    :command/surface :prf
+    :command/backstop-tier :manual
+    :command/jar-availability :native
+    :command/runtime :jvm
+    :command/options [{:name "--input" :type :string :doc "EDN/JSON specification path, or - for stdin"}
+                      {:name "--json" :type :flag :doc "Emit JSON instead of EDN"}]
+    :command/outputs []
+    :command/positional-args {:min 0 :max 0}
+    :command/description "Construct one canonical evidence record from one explicit specification."}
+
+   {:command/id :evidence-verify-chain
      :command/path ["evidence" "verify-chain"]
      :command/title "Verify evidence chain"
      :command/category :evidence

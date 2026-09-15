@@ -367,8 +367,12 @@ Layer 1 — Economic theory
          └─────────────────────────────────────────────────┘
 ```
 
-The repository currently covers Layer 2 well and provides partial evidence for
-Layer 1. The target end state is a system where:
+The repository currently covers Layer 2 well and provides reusable building
+blocks plus bounded examples for Layer 1. Those examples are not a
+comprehensive game-theoretic validation of Sew or another protocol: the protocol
+author must supply and justify the applicable game model, utilities, information
+sets, strategy space, continuation assumptions, and search coverage. The target
+end state is a system where:
 
 - Every claim made in the research note is directly traceable to a passing test or
 calibrated model output
