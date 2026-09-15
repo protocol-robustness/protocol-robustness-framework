@@ -73,35 +73,35 @@
 (defn- run-one-suite
   [suite-key artifact-dir]
   (chain/with-fresh-evidence-context*
-   (fn []
-     (ar/with-fresh-registry*
-      (fn []
-        (binding [evcfg/*artifact-dir* artifact-dir]
-           (let [result (try (io-fix/run-suite-from-key suite-key :save nil {})
-                            (catch Throwable t
-                              (when (instance? InterruptedException t)
-                                (.interrupt (Thread/currentThread)))
-                              (println "ERROR in" suite-key ":" (.getMessage t))
-                              (.printStackTrace t)
-                              {:ok? false :results []}))]
-            (try (f/emit-suite-result suite-key result)
-                 (catch Throwable t
-                   (println "WARN: emit-suite-result failed for" suite-key ":" (.getMessage t))))
-            {:suite-key suite-key
-             :ok? (:ok? result)
-             :result result})))))))
+    (fn []
+      (ar/with-fresh-registry*
+        (fn []
+          (binding [evcfg/*artifact-dir* artifact-dir]
+            (let [result (try (io-fix/run-suite-from-key suite-key :save nil {})
+                              (catch Throwable t
+                                (when (instance? InterruptedException t)
+                                  (.interrupt (Thread/currentThread)))
+                                (println "ERROR in" suite-key ":" (.getMessage t))
+                                (.printStackTrace t)
+                                {:ok? false :results []}))]
+              (try (f/emit-suite-result suite-key result)
+                   (catch Throwable t
+                     (println "WARN: emit-suite-result failed for" suite-key ":" (.getMessage t))))
+              {:suite-key suite-key
+               :ok? (:ok? result)
+               :result result})))))))
 
 (defn -main
   [& args]
   (let [suite-keys (mapv parse-suite-key args)
         n (count suite-keys)
-         default-id preg/default-protocol-id
-         _ (println (str "Pre-loading default protocol: " default-id "..."))
-         _ (preg/get-protocol default-id)
-         _ (println "Pre-loading protocol namespaces...")
-         _ (doseq [ns-sym (preg/known-protocol-namespaces)]
-           (require ns-sym))
-         _ (println "Loaded" (count (preg/known-protocol-namespaces)) "protocol namespaces.")
+        default-id preg/default-protocol-id
+        _ (println (str "Pre-loading default protocol: " default-id "..."))
+        _ (preg/get-protocol default-id)
+        _ (println "Pre-loading protocol namespaces...")
+        _ (doseq [ns-sym (preg/known-protocol-namespaces)]
+            (require ns-sym))
+        _ (println "Loaded" (count (preg/known-protocol-namespaces)) "protocol namespaces.")
         _ (println (str "Running " n " canonical fixture suites (single JVM, parallel)..."))
         _ (flush)
         start (System/currentTimeMillis)
@@ -159,15 +159,11 @@
       (println (str suite-key " → " (if ok? "PASS" "FAIL")))
       (when-not ok?
         (doseq [r (:results result)]
-          (when (not= :pass (:outcome r))
+          (when (not (:pass? r))
             (println (str "  FAIL: " (:trace-id r) " [" (:outcome r) "]"))))))
     (let [items (mapv (fn [{:keys [suite-key result]}]
                         {:label (str suite-key)
-                         :failures (into []
-                                         (keep (fn [r]
-                                                 (when (not= :pass (:outcome r))
-                                                   (str (:trace-id r) " [" (:outcome r) "]")))
-                                               (:results result)))})
+                         :failures (into [] (keep (fn [r] (when-not (:pass? r) (str (:trace-id r) " [" (:outcome r) "]"))) (:results result)))})
                       results)
           totals {:test n :pass (- n (count failed)) :fail (count failed) :error 0}]
       (println)
