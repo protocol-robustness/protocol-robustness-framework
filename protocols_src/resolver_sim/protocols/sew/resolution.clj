@@ -1,23 +1,25 @@
 (ns resolver-sim.protocols.sew.resolution
   "Pure Clojure port of BaseEscrow resolution and appeal-window logic.
 
-   Covers:
-     execute-resolution          — _executeResolution (resolver submits outcome)
-     execute-pending-settlement  — executePendingSettlement (after appeal deadline)
-     automate-timed-actions      — automateTimedActions (keeper dispatch)
-     escalate-dispute            — escalateDispute (appeal to next round)
+  Covers:
+    execute-resolution          — _executeResolution (resolver submits outcome)
+    execute-pending-settlement  — executePendingSettlement (after appeal deadline)
+    automate-timed-actions      — automateTimedActions (keeper dispatch)
+    escalate-dispute            — escalateDispute (appeal to next round)
 
-   All functions return {:ok bool :world world' :error keyword}."
+  All functions return {:ok bool :world world' :error keyword}."
   (:require [resolver-sim.protocols.sew.types :as t]
+
             [resolver-sim.protocols.sew.state-machine :as sm]
             [resolver-sim.protocols.sew.authority :as auth]
             [resolver-sim.protocols.sew.resolution-decision :as resolution-decision]
             [resolver-sim.protocols.sew.resolution-basis :as resolution-basis]
             [resolver-sim.protocols.sew.dispute-ruling :as dispute-ruling]
-             [resolver-sim.protocols.adjudication :as adjudication]
-             [resolver-sim.protocols.sew.adjudication-case :as adjudication-case]
-             [resolver-sim.protocols.sew.adjudication-instance :as adjudication-instance]
-             [resolver-sim.protocols.sew.dispute-ruling-finality :as ruling-finality]
+            [resolver-sim.protocols.adjudication :as adjudication]
+            [resolver-sim.protocols.sew.adjudication-case :as adjudication-case]
+            [resolver-sim.protocols.sew.adjudication-instance :as adjudication-instance]
+            [resolver-sim.protocols.sew.dispute-ruling-finality :as ruling-finality]
+            [resolver-sim.protocols.sew.dispute-resolution-closure :as closure]
             [resolver-sim.protocols.sew.accounting :as acct]
             [resolver-sim.protocols.sew.held-mutation-admission :as held-admission]
             [resolver-sim.protocols.sew.registry :as reg]
@@ -1189,8 +1191,29 @@
                             (finalize world' workflow-id :released)
                             (finalize world' workflow-id :refunded))]
             (if (:ok finalized)
-              (t/ok (lc/cleanup-orphaned-slashes (:world finalized) workflow-id))
-               finalized)))))))
+              (let [state-after (lc/cleanup-orphaned-slashes (:world finalized) workflow-id)
+                    adjudication-snapshot
+                    (some #(when (= (get-in world [:adjudication-current-snapshot-root workflow-id])
+                                    (:sew/adjudication-snapshot-root %)) %)
+                          (get-in world [:adjudication-snapshots workflow-id] []))
+                    closure-inputs {:state-before world
+                                    :state-after state-after
+                                    :resolution-basis sew-basis
+                                    :dispute-ruling dispute-ruling
+                                    :authentication-verification (:authentication-verification verified)
+                                    :finality finality
+                                    :adjudication-snapshot adjudication-snapshot
+                                    :adjudication-case published-case
+                                    :adjudication-instance instance}
+                    derived-closure (closure/derive-closure closure-inputs)
+                    closure-validation (closure/validate-closure-against-transition
+                                        derived-closure closure-inputs)]
+                (if (:valid? closure-validation)
+                  (assoc (t/ok state-after) :dispute-resolution/closure derived-closure)
+                  (guard-fail :dispute-resolution-closure-not-derivable
+                              :errors (:errors closure-validation)
+                              :workflow-id workflow-id :world world)))
+              finalized)))))))
 
 (defn execute-resolution-with-fenced-adjudicated-ruling
   "Authoritative-store fenced form of adjudicated ruling execution.

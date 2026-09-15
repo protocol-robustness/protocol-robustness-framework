@@ -35,14 +35,14 @@
     (:world s3)))
 
 (deftest duplicate-event-id-escalate-dispute-noops
-  (let [ctx   (context-with-escalation)
-        w0    (disputed-world-with-pending ctx)
-        e1    {:seq 3 :time 1030 :agent "buyer" :action "escalate_dispute"
-               :params {:workflow-id 0 :event-id "evt-esc-1" :hop-id 0}}
-        e2    {:seq 4 :time 1031 :agent "buyer" :action "escalate_dispute"
-               :params {:workflow-id 0 :event-id "evt-esc-1" :hop-id 0}}
-        r1    (replay/process-step sew/protocol ctx w0 e1)
-        r2    (replay/process-step sew/protocol ctx (:world r1) e2)]
+  (let [ctx (context-with-escalation)
+        w0 (disputed-world-with-pending ctx)
+        e1 {:seq 3 :time 1030 :agent "buyer" :action "escalate_dispute"
+            :params {:workflow-id 0 :event-id "evt-esc-1" :hop-id 0}}
+        e2 {:seq 4 :time 1031 :agent "buyer" :action "escalate_dispute"
+            :params {:workflow-id 0 :event-id "evt-esc-1" :hop-id 0}}
+        r1 (replay/process-step sew/protocol ctx w0 e1)
+        r2 (replay/process-step sew/protocol ctx (:world r1) e2)]
     (is (= :ok (get-in r1 [:trace-entry :result])))
     (is (= 1 (t/dispute-level (:world r1) 0)))
     (is (= :ok (get-in r2 [:trace-entry :result])))
@@ -50,14 +50,14 @@
     (is (= 1 (t/dispute-level (:world r2) 0)))))
 
 (deftest duplicate-event-id-challenge-resolution-noops
-  (let [ctx   (context-with-escalation)
-        w0    (disputed-world-with-pending ctx)
-        c1    {:seq 3 :time 1030 :agent "watchdog" :action "challenge_resolution"
-               :params {:workflow-id 0 :event-id "evt-chal-1" :hop-id 0}}
-        c2    {:seq 4 :time 1031 :agent "watchdog" :action "challenge_resolution"
-               :params {:workflow-id 0 :event-id "evt-chal-1" :hop-id 0}}
-        r1    (replay/process-step sew/protocol ctx w0 c1)
-        r2    (replay/process-step sew/protocol ctx (:world r1) c2)]
+  (let [ctx (context-with-escalation)
+        w0 (disputed-world-with-pending ctx)
+        c1 {:seq 3 :time 1030 :agent "watchdog" :action "challenge_resolution"
+            :params {:workflow-id 0 :event-id "evt-chal-1" :hop-id 0}}
+        c2 {:seq 4 :time 1031 :agent "watchdog" :action "challenge_resolution"
+            :params {:workflow-id 0 :event-id "evt-chal-1" :hop-id 0}}
+        r1 (replay/process-step sew/protocol ctx w0 c1)
+        r2 (replay/process-step sew/protocol ctx (:world r1) c2)]
     (is (= :ok (get-in r1 [:trace-entry :result])))
     (is (= 1 (t/dispute-level (:world r1) 0)))
     (is (= :ok (get-in r2 [:trace-entry :result])))
@@ -101,3 +101,52 @@
     (is (= 2 (t/dispute-level (:world r-hop2) 0)))
     (is (not= :no-op-duplicate (get-in r-hop2 [:trace-entry :extra :idempotency]))
         "same event-id on a different hop level must not be deduped")))
+
+(deftest configured-escalation-successor-is-frozen-per-escrow
+  (let [ctx (context-with-escalation)
+        world (disputed-world-with-pending ctx)
+        frozen-snapshot (t/get-snapshot world 0)
+        result (replay/process-step sew/protocol ctx world
+                                    {:seq 3 :time 1030 :agent "buyer" :action "escalate_dispute"
+                                     :params {:workflow-id 0}})]
+    (is (= "0xResolver1" (get-in result [:world :escrow-transfers 0 :dispute-resolver])))
+    (is (= (:resolver-ladder/root frozen-snapshot)
+           (get-in result [:world :module-snapshots 0 :resolver-ladder/root])))
+    (is (= (:resolver-ladder frozen-snapshot)
+           (get-in result [:world :module-snapshots 0 :resolver-ladder])))))
+
+(deftest ordinary-escalation-rejects-callback-successor-not-in-frozen-ladder
+  (let [ctx (assoc (context-with-escalation)
+                   :escalation-fn (fn [_ _ _ _] {:ok true :new-resolver "0xOtherResolver"}))
+        result (replay/process-step sew/protocol ctx (disputed-world-with-pending ctx)
+                                    {:seq 3 :time 1030 :agent "buyer" :action "escalate_dispute"
+                                     :params {:workflow-id 0}})]
+    (is (= :escalation-successor-mismatch (get-in result [:trace-entry :error])))
+    (is (= 0 (t/dispute-level (:world result) 0)))))
+
+(deftest ordinary-escalation-fails-closed-when-frozen-ladder-has-no-successor
+  (let [agents [{:id "buyer" :address "0xBuyer" :type "honest"}
+                {:id "seller" :address "0xSeller" :type "honest"}
+                {:id "resolver0" :address "0xResolver0" :type "resolver"}]
+        ctx (proto/build-execution-context sew/protocol agents
+                                           {:resolver-fee-bps 50
+                                            :resolver-bond-bps 0
+                                            :appeal-window-duration 200
+                                            :escalation-resolvers {:2 "0xResolver2"}})
+        result (replay/process-step sew/protocol ctx (disputed-world-with-pending ctx)
+                                    {:seq 3 :time 1030 :agent "buyer" :action "escalate_dispute"
+                                     :params {:workflow-id 0}})]
+    (is (= :escalation-not-allowed (get-in result [:trace-entry :error])))
+    (is (= 0 (t/dispute-level (:world result) 0)))))
+
+(deftest later-live-escalation-config-cannot-change-the-frozen-ladder
+  (let [ctx (context-with-escalation)
+        world (assoc-in (disputed-world-with-pending ctx)
+                        [:params :escalation-resolvers]
+                        {:1 "0xLaterResolver"})
+        result (replay/process-step sew/protocol ctx world
+                                    {:seq 3 :time 1030 :agent "buyer" :action "escalate_dispute"
+                                     :params {:workflow-id 0}})]
+    (is (= :ok (get-in result [:trace-entry :result])))
+    (is (= "0xResolver1" (get-in result [:world :escrow-transfers 0 :dispute-resolver])))
+    (is (not= "0xLaterResolver" (get-in result [:world :escrow-transfers 0 :dispute-resolver])))))

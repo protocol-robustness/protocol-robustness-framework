@@ -83,6 +83,14 @@
       "evidence"
       {"committed-hash" committed-hash
        "request-hash" (require-field! evidence [:request/hash])
+       "claimant-verdicts" (mapv (fn [v]
+                                   {"claimant" (name (:claimant/id v))
+                                    "expected-allocated" (long (:expected/allocated v))
+                                    "observed-allocated" (long (:observed/allocated v))
+                                    "verdict" (name (:verdict v))
+                                    "request-hash" (get-in v [:reconstruction :request/hash])
+                                    "allocation-hash" (get-in v [:reconstruction :allocation/hash])})
+                                 (require-field! evidence [:claimant-verdicts]))
        "lines" (mapv (fn [[label value]] [label (str value)]) lines)
        "checks" (mapv (fn [c]
                         {"id" (name (:check/id c))

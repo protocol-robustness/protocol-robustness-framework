@@ -9,6 +9,24 @@
 
 (def demo-id :allocation/shortfall)
 
+(defn claimant-verdicts
+  "Reconstruct the allocation independently and issue one verdict per claimant."
+  [rows]
+  (let [reconstructed (scenario/run-allocation)
+        expected-by-id (into {} (map (juxt :row/id :allocated)) (:rows reconstructed))
+        roots {:request/hash (:request/hash reconstructed)
+               :allocation/hash (:allocation/hash reconstructed)}]
+    (mapv (fn [row]
+            (let [id (:row/id row)
+                  expected (get expected-by-id id)
+                  observed (:allocated row)]
+              {:claimant/id id
+               :expected/allocated expected
+               :observed/allocated observed
+               :verdict (if (= expected observed) :pass :fail)
+               :reconstruction roots}))
+          rows)))
+
 (defn run
   "Produce the complete demo model: question, pool, requests, allocation,
    shortfall, conservation, explanation, and technical evidence."
@@ -30,7 +48,8 @@
                       rows)
         total-requested (reduce + 0 (map :requested per-row))
         total-allocated (long allocated-total)
-        total-shortfall (reduce + 0 (map :shortfall per-row))]
+        total-shortfall (reduce + 0 (map :shortfall per-row))
+        claimant-verdicts (claimant-verdicts rows)]
     {:demo/id demo-id
      :demo/question "What happens when $100 of legitimate requests compete for $70 of liquidity?"
      :demo/pool {:available (long available)
@@ -48,6 +67,7 @@
      :demo/explanation "Scarcity is handled by an explicit rule, not by rewriting anyone's request. Every request is filled pro-rata by size, the pool is fully allocated, and the shortfall is reported exactly: what could not be filled stays visible."
      :demo/evidence {:committed-hash hash
                      :request/hash request-hash
+                     :claimant-verdicts claimant-verdicts
                      :lines [["available liquidity" (long available)]
                              ["total requested" total-requested]
                              ["total allocated" total-allocated]

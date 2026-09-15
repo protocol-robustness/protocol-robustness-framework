@@ -25,8 +25,8 @@
     (is (= 21 (:allocated (get by-id :bob))))
     (is (= 14 (:allocated (get by-id :cara))))
     (is (= 15 (:shortfall (get by-id :alice))))
-    (is (= 9  (:shortfall (get by-id :bob))))
-    (is (= 6  (:shortfall (get by-id :cara))))))
+    (is (= 9 (:shortfall (get by-id :bob))))
+    (is (= 6 (:shortfall (get by-id :cara))))))
 
 (deftest conservation-holds
   (let [result (demo/run)
@@ -35,6 +35,17 @@
     (is (= 70 (:allocated c)))
     (is (= 30 (:shortfall c)))
     (is (:holds? c))))
+
+(deftest claimant-verdicts-reconstruct-each-allocation
+  (let [verdicts (get-in (demo/run) [:demo/evidence :claimant-verdicts])
+        by-id (into {} (map (juxt :claimant/id identity)) verdicts)]
+    (is (= 3 (count verdicts)))
+    (is (= {:alice 35 :bob 21 :cara 14}
+           (into {} (map (juxt :claimant/id :observed/allocated)) verdicts)))
+    (is (every? #(= :pass (:verdict %)) verdicts))
+    (is (every? #(and (seq (get-in % [:reconstruction :request/hash]))
+                      (seq (get-in % [:reconstruction :allocation/hash]))) verdicts))
+    (is (= 35 (:expected/allocated (get by-id :alice))))))
 
 (deftest pool-is-fully-allocated
   (let [result (demo/run)]

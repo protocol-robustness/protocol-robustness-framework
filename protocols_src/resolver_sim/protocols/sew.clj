@@ -728,7 +728,7 @@
 
 (defmethod apply-action "execute-resolution"
   [{:keys [agent-index resolution-module-fn resolution-level-map ruling-verifier
-              external-resolution-root-resolver resolution-state-fence]} world event]
+           external-resolution-root-resolver resolution-state-fence]} world event]
   (actx/with-resolved-actor-and-unpaused
     agent-index world event
     (fn [addr]
@@ -737,9 +737,9 @@
             resolution-outcome (get p :resolution-outcome nil)
             is-release (get p :is-release true)
             resolution-hash (get p :resolution-hash "0xsimhash")
-             ruling (:ruling p)
-             finality (:finality p)
-             resolution-basis (:resolution-basis p)
+            ruling (:ruling p)
+            finality (:finality p)
+            resolution-basis (:resolution-basis p)
             resolution-decision (:resolution-decision p)
             effective-rm-fn (or (when resolution-level-map
                                   (auth/make-kleros-module
@@ -749,9 +749,9 @@
             wf-id (or workflow-id (compat/wf-id event))]
         (cond
           (and ruling resolution-basis)
-           (res/execute-resolution-with-fenced-adjudicated-ruling
-            world wf-id addr resolution-basis ruling finality external-resolution-root-resolver
-            ruling-verifier effective-rm-fn resolution-state-fence)
+          (res/execute-resolution-with-fenced-adjudicated-ruling
+           world wf-id addr resolution-basis ruling finality external-resolution-root-resolver
+           ruling-verifier effective-rm-fn resolution-state-fence)
 
           ruling
           (res/execute-resolution-with-ruling world wf-id addr ruling
@@ -817,7 +817,22 @@
     agent-index world event
     (fn [addr]
       (let [workflow-id (compat/wf-id event)
-            result (res/escalate-dispute world workflow-id addr escalation-fn)]
+            frozen-ladder (sew-snapshot/resolver-ladder-successor
+                           (t/get-snapshot world workflow-id)
+                           (t/dispute-level world workflow-id))
+            authoritative-escalation-fn
+            (fn [current-world current-workflow-id caller current-level]
+              (let [callback-result (when escalation-fn
+                                      (escalation-fn current-world current-workflow-id caller current-level))]
+                (cond
+                  (nil? frozen-ladder) callback-result
+                  (not (:ok frozen-ladder)) frozen-ladder
+                  (and (:ok callback-result)
+                       (= (:new-resolver frozen-ladder) (:new-resolver callback-result)))
+                  callback-result
+                  :else
+                  {:ok false :error :escalation-successor-mismatch})))
+            result (res/escalate-dispute world workflow-id addr authoritative-escalation-fn)]
         (if (:ok result)
           (assoc result :extra (merge (:extra result)
                                       (when (:new-level result)

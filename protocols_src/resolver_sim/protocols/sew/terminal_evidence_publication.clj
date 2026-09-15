@@ -1,7 +1,8 @@
 (ns resolver-sim.protocols.sew.terminal-evidence-publication
   "Sew-local immutable terminal publication and exact reachability mapping."
   (:require [resolver-sim.hash.canonical :as hc]
-            [resolver-sim.hash.reference :as ref]))
+            [resolver-sim.hash.reference :as ref]
+            [resolver-sim.protocols.sew.dispute-resolution-terminal-envelope :as envelope]))
 
 (def required-roles #{:staged-capture/hash :terminal-snapshot/hash :outcome-manifest/hash
                       :consumption-receipt/hash :execution-evidence/hash})
@@ -10,7 +11,7 @@
 
 (defn- publication-hash [x]
   (str "sha256:" (hc/domain-hash :terminal-evidence-publication
-                                  (dissoc x :publication/hash))))
+                                 (dissoc x :publication/hash))))
 
 (defn valid-publication? [x]
   (let [objects (:published/objects x)
@@ -47,3 +48,16 @@
                      (compare-and-set! mapping m (assoc m terminal-hash target))
                      {:published? true :mode :new :publication-hash target}
                      :else (recur))))))
+
+(defn publish-authenticated-terminal!
+  "Publish an authenticated release/refund terminal only through an immutable
+   envelope that binds this terminal reservation to the derived closure root."
+  [mapping terminal-hash closure envelope-binding publication]
+  (when-not (and (ref/valid-sha256-ref? (:closure/root closure))
+                 (envelope/valid-envelope? envelope-binding)
+                 (= terminal-hash (:terminal-reservation/hash envelope-binding))
+                 (= (:closure/root closure)
+                    (:dispute-resolution/closure-root envelope-binding)))
+    (throw (ex-info "Authenticated terminal publication lacks a matching closure envelope"
+                    {:reason :missing-or-mismatched-dispute-resolution-closure})))
+  (publish-terminal! mapping terminal-hash publication))
