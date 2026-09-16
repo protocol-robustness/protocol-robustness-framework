@@ -5,6 +5,7 @@
             [resolver-sim.hash.canonical :as hc]
             [resolver-sim.pro-rata.allocation :as allocation]
 
+            [resolver-sim.pro-rata.effect-compilation-binding-v2 :as compilation-binding]
             [resolver-sim.pro-rata.effect-compilation-semantics :as semantics]
             [resolver-sim.pro-rata.effect-compilation-v3 :as compilation]
             [resolver-sim.pro-rata.evm :as evm]
@@ -270,6 +271,72 @@
          :result :rejected
          :rejection {:classification :semantic-verification-rejected
                      :data (select-keys (ex-data error) [:missing :target])}}))))
+
+(defn run-descendant-substitution
+  "Exercise a claimed descendant at the V2 verifier boundary. Unlike
+   `run-context-mutation`, this does not add descendants to reconstruction
+   inputs; it supplies a forged claim only where the production verifier
+   legitimately accepts a statement claim."
+  [context {:keys [mutation rehash] :as substitution}]
+  (let [{:keys [path replacement]} mutation
+        [artifact field] path
+        {:keys [state-before effect-compilation authority]} (:reconstruction context)
+        inputs (:retained-input-bodies context)
+        binding (get-in context [:artifacts :binding])
+        statement (get-in context [:artifacts :statement])]
+    (when-not (and (= artifact :statement) (contains? rehash :outer-artifacts))
+      (throw (ex-info "unsupported descendant substitution" {:substitution substitution})))
+    (let [forged-base (assoc statement field replacement)
+          forged (assoc forged-base :pro-rata-evm-v2/root (evm/statement-v2-root forged-base))
+          valid? (evm/statement-v2-valid?
+                  forged state-before effect-compilation binding #(get inputs %))]
+      {:mutation/id (:case/id substitution)
+       :mutation/class :descendant-substitution
+       :mutation/target path
+       :baseline {:reconstructed-roots (project-derived context)}
+       :mutated {:claimed-statement forged}
+       :result (if valid? :accepted :rejected)
+       :rejection (when-not valid?
+                    {:classification :semantic-verification-rejected})})))
+
+(defn run-effect-substitution
+  "Rehash an attacker-controlled effects commitment and its permitted enclosing
+   artifacts, while the verifier still reconstructs effects from fixed retained
+   semantic bodies."
+  [context {:keys [mutation rehash] :as substitution}]
+  (let [{:keys [path replacement]} mutation
+        {:keys [state-before authority]} (:reconstruction context)
+        inputs (:retained-input-bodies context)
+        canonical-transition (get-in context [:artifacts :canonical-transition])
+        compilation (get-in context [:artifacts :compilation])]
+    (when-not (and (= path [:compilation :effects/root])
+                   (:compilation rehash) (:binding rehash) (:statement rehash))
+      (throw (ex-info "unsupported effect substitution" {:substitution substitution})))
+    (let [forged-compilation-base (assoc compilation :effects/root replacement)
+          forged-compilation (assoc forged-compilation-base :effect-compilation/root
+                                    (compilation/compilation-root forged-compilation-base))
+          binding-base {:effect-compilation-binding/schema compilation-binding/schema-version
+                        :effect-compilation/root (:effect-compilation/root forged-compilation)
+                        :canonical-transition/root (:canonical-effect-transition/root canonical-transition)}
+          forged-binding (assoc binding-base :effect-compilation-binding/root
+                                (compilation-binding/binding-root binding-base))
+          statement-base (assoc (get-in context [:artifacts :statement])
+                                :effect-compilation-binding/root
+                                (:effect-compilation-binding/root forged-binding))
+          forged-statement (assoc statement-base :pro-rata-evm-v2/root
+                                  (evm/statement-v2-root statement-base))
+          valid? (evm/statement-v2-valid? forged-statement state-before forged-compilation
+                                          forged-binding #(get inputs %))]
+      {:mutation/id (:case/id substitution)
+       :mutation/class :descendant-substitution
+       :mutation/target path
+       :baseline {:reconstructed-roots (project-derived context)}
+       :mutated {:claimed-compilation forged-compilation
+                 :claimed-binding forged-binding
+                 :claimed-statement forged-statement}
+       :result (if valid? :accepted :rejected)
+       :rejection (when-not valid?
+                    {:classification :semantic-verification-rejected})})))
 
 (defn compare-derived
   "Compare a derived result to an expected section. This is intentionally

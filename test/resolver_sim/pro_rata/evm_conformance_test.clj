@@ -100,6 +100,28 @@
     (is (= :semantic-verification-rejected
            (get-in result [:rejection :classification])))))
 
+(deftest effect-substitution-is-rejected-after-permitted-rehash
+  (let [context (sut/build-all-active-context (sut/read-vector vector-path))
+        rejection (sut/read-vector "rejection-vectors/effect-substitution.edn")
+        result (sut/run-effect-substitution context rejection)]
+    (is (= :rejected (:result result)))
+    (is (= :semantic-verification-rejected
+           (get-in result [:rejection :classification])))
+    (is (not= (get-in context [:artifacts :compilation :effect-compilation/root])
+              (get-in result [:mutated :claimed-compilation :effect-compilation/root])))
+    (is (not= (get-in context [:artifacts :statement :pro-rata-evm-v2/root])
+              (get-in result [:mutated :claimed-statement :pro-rata-evm-v2/root])))))
+
+(deftest forged-post-state-is-rejected-at-statement-boundary
+  (let [context (sut/build-all-active-context (sut/read-vector vector-path))
+        rejection (sut/read-vector "rejection-vectors/forged-post-state.edn")
+        result (sut/run-descendant-substitution context rejection)]
+    (is (= :rejected (:result result)))
+    (is (= :semantic-verification-rejected
+           (get-in result [:rejection :classification])))
+    (is (not= (get-in result [:mutated :claimed-statement :pro-rata-evm-v2/root])
+              (get-in context [:artifacts :statement :pro-rata-evm-v2/root])))))
+
 (deftest aggregate-path-uses-shared-reconstruction
   (let [source (slurp (io/file "src/resolver_sim/pro_rata/evm_conformance.clj"))]
     (is (.contains source "evm/reconstruct-v2"))
