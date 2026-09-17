@@ -23,7 +23,8 @@ fn main() {
         }
     };
 
-    let result = realized_statement_io::run_realized_statement(&parsed);
+    let detailed = std::env::args().any(|arg| arg == "--detailed");
+    let result = realized_statement_io::run_realized_statement_with_details(&parsed, detailed);
     println!(
         "{}",
         serde_json::to_string(&result).expect("serialize result")

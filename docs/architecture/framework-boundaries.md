@@ -2,6 +2,10 @@
 
 This document is the canonical boundary guide for contributors.
 
+For the adopter-owned definitions required to turn these reusable mechanisms
+into protocol assurance, see `ADOPTER_RESPONSIBILITIES.md`, `SUCCESSOR_RULES.md`,
+and `ADMISSION_INTEGRATION.md`.
+
 Terminology used throughout:
 
 - **framework substrate** — protocol-agnostic replay and adapter infrastructure

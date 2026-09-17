@@ -2,6 +2,10 @@
 
 **Status date:** 2026-07-13. This is a navigation summary, not an assurance claim. A passing scenario or benchmark demonstrates only its declared workload and claim set.
 
+Capability status describes framework mechanisms and reference implementations;
+it does not supply an adopter's protocol policy or complete assurance case. See
+[`docs/architecture/ADOPTER_RESPONSIBILITIES.md`](../architecture/ADOPTER_RESPONSIBILITIES.md).
+
 | Area | Implementation status | Runnable coverage | Solidity/parity status | Evidence and limits |
 |---|---|---|---|---|
 | Protocol-agnostic framework | Operational | Unit tests, deterministic replay, scenario and fixture runners | Not applicable | Core framework capabilities are documented in `README.md` and `docs/architecture/`. |

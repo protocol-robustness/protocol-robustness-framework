@@ -11,6 +11,8 @@ Primary project framing and status live in the root `../README.md`.
 | Set up and run locally | `quickstart/README.md` |
 | Run validation suite | `testing/RUNNING_TESTS.md` |
 | Understand adapter / framework boundaries | `architecture/framework-boundaries.md` |
+| Define adopter-owned protocol and assurance responsibilities | `architecture/ADOPTER_RESPONSIBILITIES.md` |
+| Define successor and admission rules | `architecture/SUCCESSOR_RULES.md`, `architecture/ADMISSION_INTEGRATION.md` |
 | Scenario index and protocol properties | `scenarios.md` |
 | Protocol design findings index | `findings/` |
 | Evidence for external reviewers | `evidence/RESEARCHER_EVIDENCE_PACK.md` |
@@ -117,6 +119,9 @@ Primary project framing and status live in the root `../README.md`.
 | `architecture/ADAPTER_AUTHORING_GUIDE.md` | How to implement a protocol adapter |
 | `architecture/DECISION_FRAMEWORK.md` | Confidence-level calibration for reviewers |
 | `architecture/framework-boundaries.md` | Framework / adapter / Sew / research track boundaries |
+| `architecture/ADOPTER_RESPONSIBILITIES.md` | Protocol-author responsibilities for semantics, policy, and assurance claims |
+| `architecture/SUCCESSOR_RULES.md` | Protocol-owned successor topology, correction, and finalization rules |
+| `architecture/ADMISSION_INTEGRATION.md` | Adopter-owned admission policy and authoritative outcome contract |
 | `architecture/interface-contract.md` | Python/Clojure gRPC bridge interface contract |
 | `architecture/ADR-0003-canonical-scenario-generation-boundary.md` | ADR |
 | `architecture/ADR-0004-cross-protocol-funds-ledger-extraction.md` | ADR |

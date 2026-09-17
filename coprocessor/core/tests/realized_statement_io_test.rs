@@ -19,6 +19,30 @@ fn all_active_input_produces_passing_statement() {
 }
 
 #[test]
+fn detailed_projection_exposes_rows_without_changing_statement_root() {
+    let input = all_active_input();
+    let compact = realized_statement_io::run_realized_statement(&input);
+    let detailed = realized_statement_io::run_realized_statement_with_details(&input, true);
+    assert_eq!(detailed["statement-root"], compact["statement-root"]);
+    assert_eq!(
+        detailed["details"]["projection/schema"],
+        "realized-partial-fill-details.v1"
+    );
+    assert_eq!(
+        detailed["details"]["claim-order"],
+        serde_json::json!(["A", "B", "C"])
+    );
+    assert_eq!(
+        detailed["details"]["realized-results"]
+            .as_array()
+            .unwrap()
+            .len(),
+        3
+    );
+    assert_eq!(detailed["details"]["audit"]["conservation"], true);
+}
+
+#[test]
 fn malformed_input_fails_closed() {
     let input: serde_json::Value = serde_json::from_str(r#"{"available": "10"}"#).unwrap();
     let out = realized_statement_io::run_realized_statement(&input);
@@ -48,6 +72,18 @@ fn request_claim_absent_from_context_is_rejected() {
     let out = realized_statement_io::run_realized_statement(&input);
     assert_eq!(out["result/status"], "rejected");
     assert_eq!(out["rejection/classification"], "unknown-request-claim-id");
+}
+
+#[test]
+fn unsupported_profile_policy_fails_closed() {
+    let mut input = all_active_input();
+    input["policy"]["rounding-policy"] = serde_json::json!("floor");
+    let out = realized_statement_io::run_realized_statement(&input);
+    assert_eq!(out["result/status"], "rejected");
+    assert_eq!(
+        out["rejection/classification"],
+        "unsupported-profile-policy"
+    );
 }
 
 #[test]

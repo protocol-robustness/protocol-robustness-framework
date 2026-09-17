@@ -11,6 +11,11 @@ An open, protocol-agnostic framework for **high-assurance protocol execution, ad
 
 PRF is designed for systems where correctness depends not only on individual calls, but on the interaction of **state, authority, ordering, concurrency, economic rules, and evidence over time**.
 
+PRF provides reusable assurance mechanisms, not a complete protocol policy or
+assurance case. Protocol authors must supply the applicable state, successor,
+admission, economic, game-theoretic, authority, and operational definitions. See
+[`docs/architecture/ADOPTER_RESPONSIBILITIES.md`](docs/architecture/ADOPTER_RESPONSIBILITIES.md).
+
 It is designed to answer questions such as:
 
 > Does the protocol still behave correctly when multiple participants act strategically, adversarially, concurrently, or unexpectedly — and can an independent verifier reconstruct why the resulting state was allowed?

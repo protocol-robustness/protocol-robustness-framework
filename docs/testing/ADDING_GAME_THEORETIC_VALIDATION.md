@@ -4,6 +4,44 @@ This guide shows how to add **new game-theoretic checks** to this repository wit
 
 Each protocol author is responsible for defining and justifying the model their claim needs: players and utilities, information sets and beliefs, legal strategy space, continuation behavior, search bounds, parameter calibration, and coverage criterion. A passing included or newly-added check establishes only its declared, bounded model and workload.
 
+## Required model and coverage checklist
+
+Before an evaluator result is presented as game-theoretic evidence, record:
+
+- **Players and roles** — every actor whose incentives are in scope.
+- **Utility functions** — payoff units, costs, discounting, risk preferences, and
+  utility inputs that are modeled or intentionally excluded.
+- **Information model** — observable state, private information, information
+  sets, beliefs, and any assumptions made when they are unavailable.
+- **Strategy space** — legal actions, parameter ranges, adversarial actions,
+  and actions omitted from exploration.
+- **Continuation model** — recorded trace, explicit policy, equilibrium strategy,
+  stochastic rollout, or other response assumption.
+- **Calibration** — source, version, and uncertainty of economic parameters and
+  behavioral assumptions.
+- **Search bounds** — decision nodes, depth, horizon, branching, pruning,
+  sample count, and stopping conditions.
+- **Coverage criterion** — what must be explored for the claim, which cases were
+  exercised, and which remain unexamined.
+
+If any required input is absent, the evaluator should report `:inconclusive` or
+a narrower result rather than infer a comprehensive model.
+
+## Claim language
+
+Use language that matches the declared model:
+
+| Analysis performed | Permitted framing |
+| --- | --- |
+| One trace and selected deviations | Trace-conditioned deviation evidence |
+| Declared policy with bounded search | Policy-conditioned sequential-rationality evidence |
+| Seeded rollouts or sampled parameter worlds | Statistical or simulation-conditioned evidence |
+| Finite, fully specified game with all relevant subgames/deviations evaluated | SPE, with the exact game abstraction identified |
+
+Do not describe included Sew examples as a comprehensive validation of Sew, and
+do not transfer their results to another protocol without rebuilding the model
+and coverage for that protocol.
+
 It covers both lanes:
 
 1. **Single-trace theory checks** (scenario-level, deterministic replay)

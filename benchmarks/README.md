@@ -3,6 +3,12 @@
 This directory is the canonical source for benchmark definitions, registries,
 packs, scenarios, scoring policies, runner configuration, and public-claims.
 
+Benchmark definitions do not supply an adopter's protocol semantics, successor
+policy, admission criteria, or complete assurance case. Before publishing a
+claim, use the adopter responsibility and claim guidance in
+[`docs/architecture/ADOPTER_RESPONSIBILITIES.md`](../docs/architecture/ADOPTER_RESPONSIBILITIES.md)
+and [`docs/assurance/CLAIM_TEMPLATE.md`](../docs/assurance/CLAIM_TEMPLATE.md).
+
 Human-readable specifications and design documentation are maintained in
 `docs/benchmarks/`.
 
@@ -45,6 +51,12 @@ benchmarks that exercise those properties are:
 
 All lending/yield benchmarks are currently `:experimental` — their definitions
 and runners are implemented, but none is a formal published claim.
+
+Their closed-form checks validate the declared allocation model only. An adopter
+must still define the protocol's economic semantics, evidence threshold,
+admission policy, and scope of any external claim.
+See [`docs/testing/ADDING_CLOSED_FORM_VALIDATION.md`](../docs/testing/ADDING_CLOSED_FORM_VALIDATION.md)
+for the required model, witness, vector, and coverage definitions.
 
 ### One complete runnable path
 

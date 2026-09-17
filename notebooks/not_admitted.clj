@@ -425,6 +425,8 @@
 ;;    failure policy.
 ;; 4. Keep user workflows — including reservations, accounting, dispute handling,
 ;;    corpus selection, and pro-rata policy — in your application or notebook.
+;;    Define the admission policy, authoritative commit, and rejection response
+;;    before presenting the boundary as a production admission path.
 ;;
 ;; `not-admitted` therefore means only: **this supplied candidate did not pass
 ;; the selected admission boundary**. It does not imply a canonical application

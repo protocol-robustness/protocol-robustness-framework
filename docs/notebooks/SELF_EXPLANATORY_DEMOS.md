@@ -19,6 +19,11 @@ the adopter.
 The framework therefore exposes generic primitives rather than prescribing a
 particular operational workflow.
 
+This ownership boundary applies across PRF: adopters also provide successor
+rules, admission criteria, economic equations, game-theoretic models, and the
+scope of any high-assurance claim. See
+`docs/architecture/ADOPTER_RESPONSIBILITIES.md`.
+
 ## Notebook-only amount example
 
 `notebooks/demo_not_admitted.clj` is a user-supplied, notebook-only example. It
@@ -44,6 +49,9 @@ bb test:notebooks
 scoped authority, an unconfigured-chain fail-closed gate, and consecutive
 composition. It deliberately does not prescribe a reservation,
 accounting, cancellation, dispute, or allocation workflow.
+
+For the protocol-owned definitions required to make this an authoritative
+admission path, see `docs/architecture/ADMISSION_INTEGRATION.md`.
 
 The clean-room corpus material remains separately illustrated by
 `notebooks/clean_room_not_admitted.clj`; corpus selection and its rationale are

@@ -14,3 +14,6 @@ The practical development frontier is:
 4. **Finite mechanism-specific game abstractions** — define bounded game profiles for high-value mechanisms such as cancellation, appeals, resolver selection, and shortfall allocation.
 
 Results must expose their analytical scope, including the decision nodes examined, candidate actions, continuation model, search horizon, omitted alternatives, utility assumptions, and statistical uncertainty. The term “SPE” should be reserved for finite, explicitly defined game abstractions in which all relevant subgames and deviations have been evaluated. Current unrestricted-protocol results should be described as trace-conditioned, policy-conditioned, bounded, or statistical sequential-rationality diagnostics. Included Sew checks demonstrate how to construct those diagnostics; they are not a comprehensive validation of Sew or a reusable conclusion for another protocol.
+
+The required model, calibration, search-bound, coverage, and claim-language
+checklist is in `docs/testing/ADDING_GAME_THEORETIC_VALIDATION.md`.

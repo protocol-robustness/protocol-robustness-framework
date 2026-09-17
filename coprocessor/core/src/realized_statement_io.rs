@@ -33,6 +33,14 @@ use std::collections::HashSet;
 /// Fails closed on malformed input, returning a stable rejection envelope
 /// (never a partial statement).
 pub fn run_realized_statement(input: &Value) -> Value {
+    run_realized_statement_with_details(input, false)
+}
+
+/// Run the statement kernel and, when requested, include semantic rows and a
+/// deterministic audit projection. The compact result remains the default
+/// public statement projection; details are diagnostic/conformance material and
+/// are not additional statement-root inputs.
+pub fn run_realized_statement_with_details(input: &Value, detailed: bool) -> Value {
     let reject = |classification: &str, reason: String| -> Value {
         json!({
             "result/status": "rejected",
@@ -165,6 +173,11 @@ pub fn run_realized_statement(input: &Value) -> Value {
         },
         None => None,
     };
+    if let Some(rejection) =
+        validate_supported_profile(&policy_pairs, fail_action_policy.as_deref())
+    {
+        return rejection;
+    }
 
     let round_state = input.get("round-state");
     let rl = lifecycle::round_lifecycle(round_state);
@@ -191,7 +204,7 @@ pub fn run_realized_statement(input: &Value) -> Value {
         &realized,
     );
 
-    json!({
+    let compact = json!({
         "result/status": "passing",
         "schema-version": realized_statement::SCHEMA_VERSION,
         "allocation-context-root": stmt.allocation_context_root,
@@ -202,7 +215,93 @@ pub fn run_realized_statement(input: &Value) -> Value {
         "round-lifecycle-root": stmt.round_lifecycle_root,
         "statement-root": stmt.statement_root,
         "all-active": stmt.all_active,
-    })
+    });
+    if !detailed {
+        return compact;
+    }
+
+    let mut rows = realized
+        .participants
+        .iter()
+        .map(|p| {
+            json!({
+                "claim/id": p.claim_id,
+                "requested": p.requested,
+                "filled": p.filled,
+                "deferred": p.deferred,
+                "haircut": p.haircut,
+                "unrealized": p.unrealized,
+                "disposition": p.disposition().keyword_str(),
+            })
+        })
+        .collect::<Vec<_>>();
+    rows.sort_by(|a, b| a["claim/id"].as_str().cmp(&b["claim/id"].as_str()));
+    let requested_total: i64 = requested.iter().map(|(_, amount)| amount).sum();
+    let filled_total: i64 = realized.participants.iter().map(|p| p.filled).sum();
+    let deferred_total: i64 = realized.participants.iter().map(|p| p.deferred).sum();
+    let haircut_total: i64 = realized.participants.iter().map(|p| p.haircut).sum();
+    Some(compact).map(|mut result| {
+        result["details"] = json!({
+            "projection/schema": "realized-partial-fill-details.v1",
+            "claim-order": rows.iter().map(|row| row["claim/id"].clone()).collect::<Vec<_>>(),
+            "realized-results": rows,
+            "audit": {
+                "available": available,
+                "requested-total": requested_total,
+                "filled-total": filled_total,
+                "deferred-total": deferred_total,
+                "haircut-total": haircut_total,
+                "conservation": filled_total + deferred_total + haircut_total == requested_total,
+                "supported-profile": "largest-remainder-deferred-pro-rata.v1",
+            },
+            "committed-roots": {
+                "allocation-context-root": stmt.allocation_context_root,
+                "request-set-root": stmt.request_set_root,
+                "allocation-policy-root": stmt.allocation_policy_root,
+                "realized-results-root": stmt.realized_results_root,
+                "fail-action-policy-root": stmt.fail_action_policy_root,
+                "round-lifecycle-root": stmt.round_lifecycle_root,
+                "statement-root": stmt.statement_root,
+            },
+        });
+        result
+    }).unwrap()
+}
+
+/// Validate the deliberately narrow external-assurance profile. Unsupported
+/// policies reject; they must not silently normalize into this profile.
+fn validate_supported_profile(
+    policy: &[(String, CanonValue)],
+    fail_action_policy: Option<&[(String, CanonValue)]>,
+) -> Option<Value> {
+    let keyword_is = |pairs: &[(String, CanonValue)], key: &str, expected: &str| {
+        pairs
+            .iter()
+            .find(|(name, _)| name == key)
+            .map(|(_, value)| value)
+            == Some(&CanonValue::Keyword(expected.to_string()))
+    };
+    let supported_policy = policy.len() == 2
+        && keyword_is(policy, "mode", "pro-rata")
+        && keyword_is(policy, "rounding-policy", "largest-remainder");
+    let supported_fail_action = match fail_action_policy {
+        None => true,
+        Some(pairs) => {
+            pairs.len() == 3
+                && keyword_is(pairs, "mode", "pro-rata-treatment")
+                && keyword_is(pairs, "deferred-policy", "same-ratio")
+                && keyword_is(pairs, "haircut-policy", "same-ratio")
+        }
+    };
+    if supported_policy && supported_fail_action {
+        None
+    } else {
+        Some(json!({
+            "result/status": "rejected",
+            "rejection/classification": "unsupported-profile-policy",
+            "rejection/reason": "only largest-remainder-deferred-pro-rata.v1 is supported"
+        }))
+    }
 }
 
 /// Parse a JSON object into (string-key, CanonValue-keyword) policy pairs,
