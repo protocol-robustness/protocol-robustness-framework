@@ -78,6 +78,31 @@ Run the narrowest relevant check first, then expand validation according to the 
 
 If a broad check is intentionally not run, state that clearly in the pull request.
 
+## Public assurance documentation checklist
+
+When adding or changing a public capability, benchmark, notebook, or assurance
+claim, review the following before submitting:
+
+- [ ] Framework mechanisms are separated from adopter/protocol-owned semantics.
+- [ ] Successor topology, admission policy, and authoritative commit rules are
+      identified where relevant.
+- [ ] Economic equations, closed-form checks, witnesses, and required coverage
+      are identified where relevant.
+- [ ] Game-theoretic claims identify players, utilities, information, strategies,
+      continuation assumptions, search bounds, and omitted cases.
+- [ ] The result is classified as implementation evidence, bounded research
+      evidence, or claimable assurance evidence.
+- [ ] Workload, evidence roots, verifier scope, exclusions, and residual risks
+      are stated.
+- [ ] Terms such as “SPE”, “secure”, “fair”, and “production-ready” are limited
+      to the exact model and evidence that support them.
+
+Use [`docs/assurance/CLAIM_TEMPLATE.md`](docs/assurance/CLAIM_TEMPLATE.md) for
+claim-level review and [`docs/architecture/ADOPTER_RESPONSIBILITIES.md`](docs/architecture/ADOPTER_RESPONSIBILITIES.md)
+for the framework/adopter ownership boundary. This is a review guard, not a
+claim that the repository can automatically determine whether a new assurance
+statement is valid.
+
 ## Before submitting a change
 
 1. Run the narrowest relevant test, scenario, benchmark, or reproduction first.
@@ -312,4 +337,3 @@ Research or exploratory code may be accepted with narrower guarantees when those
 ## License
 
 By contributing, you agree that your contributions will be licensed under the same license as this project. See [LICENSE](LICENSE).
-

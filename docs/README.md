@@ -16,6 +16,8 @@ Primary project framing and status live in the root `../README.md`.
 | Scenario index and protocol properties | `scenarios.md` |
 | Protocol design findings index | `findings/` |
 | Evidence for external reviewers | `evidence/RESEARCHER_EVIDENCE_PACK.md` |
+| Frame a bounded or assurance claim | `assurance/CLAIM_TEMPLATE.md` |
+| Review public assurance documentation | `../CONTRIBUTING.md` (Public assurance documentation checklist) |
 | CLI and Babashka task reference | `reference/usage.md` |
 | Machine-readable schema catalog | `../schemas/README.md` |
 | Capability and coverage status | `overview/CAPABILITY_STATUS.md` |

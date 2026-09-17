@@ -5,6 +5,11 @@ This pack is designed for dispute researchers who want to quickly:
 2) inspect assumptions,
 3) try to falsify conclusions.
 
+This is a researcher-oriented evidence pack, not by itself a published
+assurance claim. Classify and scope any result presented externally using
+`docs/assurance/CLAIM_TEMPLATE.md`, including its workload, assumptions,
+coverage limits, and residual risks.
+
 ---
 
 ## 1) Scope and claim framing

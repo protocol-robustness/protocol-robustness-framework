@@ -225,6 +225,7 @@
    :cancellation-derivation "CANCELLATION_DERIVATION_V1"
    :three-member-authority-report "THREE_MEMBER_AUTHORITY_REPORT_V1"
    :canonical-value-sequence "CANONICAL_VALUE_SEQUENCE_V1"
+   :prf-commitment-composition-v1 "PRF_COMMITMENT_COMPOSITION_V1"
    :sew-resolver-ladder-v1 "SEW_RESOLVER_LADDER_V1"
    :sew-action-root "SEW_ACTION_ROOT_V1"
    :sew-request-id-v1 "SEW_REQUEST_ID_V1"

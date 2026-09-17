@@ -36,6 +36,14 @@ Use this template before presenting a PRF result as assurance evidence.
 
 ## Publication Decision
 
-State whether the result is implementation evidence, bounded research evidence,
-or claimable assurance evidence. Do not use “SPE”, “secure”, “fair”, or
+Select exactly one classification and explain why:
+
+| Classification | Meaning | Minimum publication statement |
+| --- | --- | --- |
+| Implementation evidence | Code or a runnable example exists | State the implemented behavior; do not imply a general assurance claim |
+| Bounded research evidence | A declared model and workload produced reproducible results | State assumptions, workload, coverage limits, and residual risks |
+| Claimable assurance evidence | An admission policy accepts the complete, rooted evidence package for the stated claim | State the authority, verifier, policy, evidence roots, and exact claim scope |
+
+Before publication, confirm that every field above is populated or explicitly
+marked not applicable with its reason. Do not use “SPE”, “secure”, “fair”, or
 “production-ready” without defining the exact scope that supports the term.
