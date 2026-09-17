@@ -9,32 +9,29 @@
   All researcher identity is via integer review-member/key resolved through
   the committed review round — no parallel string-keyed representation."
   (:require [clojure.data.json :as json]
-            [clojure.edn :as edn]
-            [clojure.java.io :as io]
             [clojure.string :as str]
             [resolver-sim.benchmark.researcher-force-authorisation :as rfa]
             [resolver-sim.benchmark.review-round :as rr]
-            [resolver-sim.assurance.force-authorisation :as fa]))
+            [resolver-sim.assurance.force-authorisation :as fa]
+            [resolver-sim.commands.boundary :as boundary]))
 
 (defn- stderr
   [& lines]
   (binding [*out* *err*]
     (doseq [line lines] (println line))))
 
+(defn- boundary-error [prefix e]
+  (let [data (ex-data e)
+        message (.getMessage e)]
+    (stderr (str prefix ": " message))
+    {:exit-code (if (= :invalid-option (:error/kind data)) 2 1)
+     :message message
+     :error/kind (:error/kind data)}))
+
 (defn- read-input
   "Read an EDN input document from a file path, or stdin when path is \"-\" or
    absent. Returns the parsed value, or nil on failure."
-  [path]
-  (let [source (if (or (nil? path) (= "-" path))
-                 (io/reader *in*)
-                 (try
-                   (io/reader path)
-                   (catch Exception _ nil)))]
-    (when source
-      (try
-        (edn/read-string (slurp source))
-        (catch Exception _
-          nil)))))
+  [path] (boundary/read-edn path))
 
 (defn- print-json
   [value]
@@ -79,6 +76,10 @@
       (do (stderr (str "researcher " (name cmd) ": --key is required"))
           {:exit-code 2 :message "--key is required"})
 
+      (and (= :disagree cmd) (nil? dissent-reason))
+      (do (stderr "researcher disagree: --dissent-reason is required")
+          {:exit-code 2 :message "--dissent-reason is required"})
+
       :else
       (let [round (:review-round ctx)
             resolved (resolve-researcher-by-key round member-key)]
@@ -119,29 +120,35 @@
   "researcher disagree --input PATH|- --member-key N --key PATH --dissent-reason STR
    Sign a dissenting researcher decision using an integer member-key."
   [opts]
-  (let [{:keys [cmd/args]} opts
-        parsed (parse-opts args (:input opts)
-                           (some-> (:member-key opts) Long/parseLong)
-                           (:key opts) (:dissent-reason opts)
-                           (:outcome-root opts))]
-    (if-let [err (:error parsed)]
-      (do (stderr (str "researcher disagree: " err))
-          {:exit-code 2 :message err})
-      (sign-researcher-decision {:cmd :disagree} parsed))))
+  (try
+    (let [{:keys [cmd/args]} opts
+          parsed (parse-opts args (:input opts)
+                             (some-> (:member-key opts) (boundary/parse-integer "--member-key"))
+                             (:key opts) (:dissent-reason opts)
+                             (:outcome-root opts))]
+      (if-let [err (:error parsed)]
+        (do (stderr (str "researcher disagree: " err))
+            {:exit-code 2 :message err :error/kind :invalid-option})
+        (sign-researcher-decision {:cmd :disagree} parsed)))
+    (catch clojure.lang.ExceptionInfo e
+      (boundary-error "researcher disagree" e))))
 
 (defn approve
   "researcher approve --input PATH|- --member-key N --key PATH [--outcome-root SHA]
    Sign an approving researcher decision using an integer member-key."
   [opts]
-  (let [{:keys [cmd/args]} opts
-        parsed (parse-opts args (:input opts)
-                           (some-> (:member-key opts) Long/parseLong)
-                           (:key opts) (:dissent-reason opts)
-                           (:outcome-root opts))]
-    (if-let [err (:error parsed)]
-      (do (stderr (str "researcher approve: " err))
-          {:exit-code 2 :message err})
-      (sign-researcher-decision {:cmd :approve} parsed))))
+  (try
+    (let [{:keys [cmd/args]} opts
+          parsed (parse-opts args (:input opts)
+                             (some-> (:member-key opts) (boundary/parse-integer "--member-key"))
+                             (:key opts) (:dissent-reason opts)
+                             (:outcome-root opts))]
+      (if-let [err (:error parsed)]
+        (do (stderr (str "researcher approve: " err))
+            {:exit-code 2 :message err :error/kind :invalid-option})
+        (sign-researcher-decision {:cmd :approve} parsed)))
+    (catch clojure.lang.ExceptionInfo e
+      (boundary-error "researcher approve" e))))
 
 (defn- parse-opts
   "Parse CLI args for researcher commands.
@@ -165,19 +172,19 @@
             val (second args)]
         (cond
           (= arg "--input")
-          (recur (subvec args 2) val member-key key dissent-reason outcome-root json)
+          (recur (subvec args 2) (boundary/required-value arg val) member-key key dissent-reason outcome-root json)
 
           (= arg "--member-key")
-          (recur (subvec args 2) input (Long/parseLong val) key dissent-reason outcome-root json)
+          (recur (subvec args 2) input (boundary/parse-integer arg val) key dissent-reason outcome-root json)
 
           (= arg "--key")
-          (recur (subvec args 2) input member-key val dissent-reason outcome-root json)
+          (recur (subvec args 2) input member-key (boundary/required-value arg val) dissent-reason outcome-root json)
 
           (= arg "--dissent-reason")
-          (recur (subvec args 2) input member-key key val outcome-root json)
+          (recur (subvec args 2) input member-key key (boundary/required-value arg val) outcome-root json)
 
           (= arg "--outcome-root")
-          (recur (subvec args 2) input member-key key dissent-reason val json)
+          (recur (subvec args 2) input member-key key dissent-reason (boundary/required-value arg val) json)
 
           (= arg "--json")
           (recur (subvec args 1) input member-key key dissent-reason outcome-root true)
@@ -231,40 +238,46 @@
         (if (nil? ctx)
           (do (stderr "researcher check: failed to read input")
               {:exit-code 1 :message "failed to read input"})
-          (let [record (:authorization/record ctx)
-                consumption-registry (:authorization/consumption-registry ctx)
-                scope-map (:authorization/scope ctx)
-                now-ts (:now-ts ctx
-                                (long (System/currentTimeMillis)))
-                auth-result (fa/verify-authorisation-usable
-                             record consumption-registry scope-map now-ts)
-                outcome (classify-usable-result auth-result record)]
-            (print-json {:outcome outcome
-                         :valid? (:valid? auth-result)
-                         :blocking-reasons (map :detail (:errors auth-result))
-                         :error-codes (map :code (:errors auth-result))})
-            {:exit-code (if (= :usable outcome) 0 1)
-             :message (name outcome)}))))))
+          (if (and (not (:now? parsed)) (nil? (:now-ts ctx)))
+            (do (stderr "researcher check: input requires :now-ts (or --now)")
+                {:exit-code 2 :message "input requires :now-ts (or --now)"})
+            (let [record (:authorization/record ctx)
+                  consumption-registry (:authorization/consumption-registry ctx)
+                  scope-map (:authorization/scope ctx)
+                  now-ts (if (:now? parsed) (long (System/currentTimeMillis)) (:now-ts ctx))
+                  auth-result (fa/verify-authorisation-usable
+                               record consumption-registry scope-map now-ts)
+                  outcome (classify-usable-result auth-result record)]
+              (print-json {:outcome outcome
+                           :valid? (:valid? auth-result)
+                           :blocking-reasons (map :detail (:errors auth-result))
+                           :error-codes (map :code (:errors auth-result))})
+              {:exit-code (if (= :usable outcome) 0 1)
+               :message (name outcome)})))))))
 
 (defn- parse-opts-check
   "Parse CLI args for the researcher check command."
   [raw-args default-input]
   (loop [args (vec raw-args)
          input default-input
-         json false]
+         json false
+         now? false]
     (cond
       (empty? args)
-      {:input input :json json}
+      {:input input :json json :now? now?}
 
       (str/starts-with? (first args) "--")
       (let [arg (first args)
             val (second args)]
         (cond
           (= arg "--input")
-          (recur (subvec args 2) val json)
+          (recur (subvec args 2) (boundary/required-value arg val) json now?)
 
           (= arg "--json")
-          (recur (subvec args 1) input true)
+          (recur (subvec args 1) input true now?)
+
+          (= arg "--now")
+          (recur (subvec args 1) input json true)
 
           (= arg "--help")
           {:error "use: researcher check --input PATH|-"}

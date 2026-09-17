@@ -5,6 +5,7 @@ members = [
     "sp1-program",
     "sp1-script",
     "realized-statement-sp1-program",
+    "realized-execution-sp1-program",
 ]
 
 # Profiles intended to affect the whole workspace build belong on the

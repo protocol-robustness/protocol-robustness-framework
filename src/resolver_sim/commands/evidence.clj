@@ -5,6 +5,7 @@
             [clojure.edn :as edn]
             [clojure.java.io :as io]
             [clojure.set :as set]
+            [clojure.string :as str]
             [resolver-sim.evidence.config :as evcfg]
             [resolver-sim.evidence.chain :as chain]
             [resolver-sim.evidence.registry :as reg]
@@ -19,12 +20,16 @@
 (def ^:private make-evidence-keys
   #{:artifact-kind :block-time :step :before :after :action :result :attribution})
 
+(def ^:private required-make-evidence-keys
+  #{:artifact-kind :before :after :action :result :attribution})
+
 (defn- read-spec
   [path]
   (let [source (if (or (nil? path) (= "-" path)) *in* (io/file path))
         text (slurp source)]
     (if (or (str/ends-with? (str path) ".json")
-            (and (nil? path) (str/starts-with? (str/trim text) "{")))
+            (and (or (nil? path) (= "-" path))
+                 (str/starts-with? (str/trim text) "{")))
       (json/read-str text :key-fn keyword)
       (edn/read-string text))))
 
@@ -38,13 +43,25 @@
   "Construct exactly one canonical evidence record from one explicit spec."
   [{:keys [input json?]}]
   (try
-    (let [spec (read-spec input)
-          unknown (seq (remove make-evidence-keys (keys spec)))]
+    (let [spec (try
+                 (read-spec input)
+                 (catch Exception e
+                   (throw (ex-info (str "Unable to read evidence specification: "
+                                        (.getMessage e))
+                                   {:exit-code 2}
+                                   e))))]
       (when-not (map? spec)
         (throw (ex-info "Evidence specification must be a map" {:exit-code 2})))
-      (when unknown
-        (throw (ex-info (str "Unknown evidence specification field(s): " (pr-str (vec unknown)))
-                        {:exit-code 2 :unknown (vec unknown)})))
+      (let [unknown (seq (remove make-evidence-keys (keys spec)))
+            missing (seq (remove #(and (contains? spec %) (some? (get spec %)))
+                                 required-make-evidence-keys))]
+        (when unknown
+          (throw (ex-info (str "Unknown evidence specification field(s): " (pr-str (vec unknown)))
+                          {:exit-code 2 :unknown (vec unknown)})))
+        (when missing
+          (throw (ex-info (str "Missing required evidence specification field(s): "
+                               (pr-str (vec (sort missing))))
+                          {:exit-code 2 :missing (vec missing)}))))
       (write-record (evidence/make-evidence-record spec) json?)
       {:exit-code 0})
     (catch clojure.lang.ExceptionInfo e

@@ -109,6 +109,21 @@
       (is (= 2 (:exit-code result)))
       (is (str/includes? (:message result) "unknown option")))))
 
+(deftest researcher-member-key-input-errors-are-structured
+  (doseq [[operation args]
+          [[cmd/disagree ["--member-key" "not-an-integer"]]
+           [cmd/approve ["--member-key" "9223372036854775808"]]
+           [cmd/disagree ["--member-key"]]]]
+    (let [result (operation {:cmd/args args})]
+      (is (= 2 (:exit-code result)) args)
+      (is (= :invalid-option (:error/kind result)) args)
+      (is (string? (:message result)) args))))
+
+(deftest disagree-requires-a-dissent-reason
+  (let [result (cmd/disagree {:cmd/args ["--member-key" "1"]})]
+    (is (= 2 (:exit-code result)))
+    (is (= "--dissent-reason is required" (:message result)))))
+
 ;; ── approve ───────────────────────────────────────────────────────────────
 
 (deftest approve-resolves-member-key-and-signs-approval

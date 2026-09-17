@@ -36,3 +36,20 @@
   (let [exit-code (with-in-str (pr-str (assoc spec :typo true))
                     (dispatch/run ["evidence" "make"]))]
     (is (not= 0 exit-code))))
+
+(deftest evidence-make-accepts-json-from-explicit-stdin
+  (let [output (invoke ["evidence" "make" "--input" "-"] (json/write-str spec))
+        record (json/read-str output :key-fn keyword)]
+    (is (= "evidence-record.v1" (:schema-version record)))
+    (is (string? (:evidence-hash record)))))
+
+(deftest evidence-make-rejects-malformed-or-non-map-input
+  (doseq [input ["not-edn" "[]"]]
+    (let [exit-code (with-in-str input
+                      (dispatch/run ["evidence" "make" "--input" "-"]))]
+      (is (= 2 exit-code) input))))
+
+(deftest evidence-make-rejects-missing-required-fields
+  (let [exit-code (with-in-str (pr-str (dissoc spec :result))
+                    (dispatch/run ["evidence" "make"]))]
+    (is (= 2 exit-code))))

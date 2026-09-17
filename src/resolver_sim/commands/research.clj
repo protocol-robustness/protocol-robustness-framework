@@ -1,12 +1,12 @@
 (ns resolver-sim.commands.research
   "Thin public EDN adapters for the canonical researcher workflow."
-  (:require [clojure.edn :as edn]
-            [clojure.java.io :as io]
+  (:require [clojure.java.io :as io]
             [clojure.pprint :as pprint]
             [resolver-sim.benchmark.research-assignment :as assignment]
             [resolver-sim.benchmark.research-command :as command]
             [resolver-sim.benchmark.research-workflow :as workflow]
-            [resolver-sim.composition.semantic :as composition]))
+            [resolver-sim.composition.semantic :as composition]
+            [resolver-sim.commands.boundary :as boundary]))
 
 (defn- restore-composition [context]
   (if-let [portable (:semantic-composition context)]
@@ -36,8 +36,7 @@
     (:reproduced input) (update :reproduced restore-workflow-input)))
 
 (defn- read-edn! [path]
-  (when-not path (throw (ex-info "--input is required" {:exit-code 2})))
-  (restore-workflow-input (edn/read-string (slurp (if (= "-" path) *in* (io/file path))))))
+  (restore-workflow-input (boundary/read-edn path)))
 
 (defn- portable-result [value]
   (cond-> value
@@ -100,11 +99,11 @@
 (defn reproduce [opts]
   (invoke opts (fn [{:keys [mode original reproduced]}]
                  (workflow/reproduce mode original reproduced))
-          #(contains? #{:reproduced :comparable} (:reproduction/status %)) false))
+          #(true? (or (:claimable? %) (:reproduction/claimable? %))) false))
 
 (defn diff [opts]
   (invoke opts (fn [{:keys [left right]}] (workflow/differential left right))
-          :comparison/equivalent? false))
+          #(true? (or (:claimable? %) (:comparison/claimable? %))) false))
 
 (defn inspect [opts]
   (invoke opts (fn [context]
