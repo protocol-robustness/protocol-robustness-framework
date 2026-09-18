@@ -2,24 +2,7 @@ use allocation_kernel::realized_execution::{self, PUBLIC_VALUES_LEN, PUBLIC_VALU
 use serde_json::json;
 
 fn input() -> serde_json::Value {
-    json!({
-        "realized-statement-input": serde_json::from_str::<serde_json::Value>(include_str!("fixtures/realized-statement-all-active.json")).unwrap(),
-        "execution-companion": {
-            "schema-version": "realized-allocation-execution.v1",
-            "claim-recipient-mapping": [
-                {"claim/id": "A", "recipient": "0x1111111111111111111111111111111111111111"},
-                {"claim/id": "B", "recipient": "0x2222222222222222222222222222222222222222"},
-                {"claim/id": "C", "recipient": "0x3333333333333333333333333333333333333333"}
-            ],
-            "token-address": "0x4444444444444444444444444444444444444444",
-            "execution-target": {
-                "allocator-address": "0x5555555555555555555555555555555555555555",
-                "chain-id": "1",
-                "operation-id": "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-                "available-amount": "100"
-            }
-        }
-    })
+    serde_json::from_str(include_str!("fixtures/realized-execution-all-active.json")).unwrap()
 }
 
 #[test]

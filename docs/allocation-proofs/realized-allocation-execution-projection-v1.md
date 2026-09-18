@@ -206,11 +206,30 @@ leaf(C)          = f08fd8ef2d0ea21606cc29d5ccfb387800f0fa09d79858ee4432e903ed98e
 ```
 
 `coprocessor/core/tests/realized_execution_test.rs` asserts the complete
-384-byte public-value hex vector, not only its component fields. To run the
-SP1 guest against a raw execution document without proving, use:
+384-byte public-value hex vector, not only its component fields. The shared canonical fixture is
+`coprocessor/core/tests/fixtures/realized-execution-all-active.json`. To execute
+the SP1 guest without proving, use:
 
 ```bash
 cd coprocessor
-cargo run --release -p allocation-sp1-script --bin realized-execution-prove -- \
-  --input path/to/realized-execution-input.json --execute
+cargo run --locked --release -p allocation-sp1-script --bin realized-execution-prove -- \
+  --input core/tests/fixtures/realized-execution-all-active.json --execute
+```
+
+To export the real EVM Groth16 fixture, use the locked SP1 6.3.1 toolchain and
+the same input:
+
+```bash
+cargo run --locked --release -p allocation-sp1-script --bin realized-execution-evm -- \
+  --input core/tests/fixtures/realized-execution-all-active.json \
+  --fixture ../../prf-evm/src/fixtures/realized-execution-proof-fixture.json
+```
+
+The exporter rejects any difference between native derivation, actual guest
+public values, and the pinned 384-byte vector before writing a fixture. The
+pinned program identity is:
+
+```text
+VK          = 0x00c6ef567e2dba426bca4e4280c5a3a5b85ba6d5d090a9b2b4dcb7762a36739a
+ELF SHA-256 = 0x549f67119f3ef3ffb7f6179ed88fa0a9604707c08df3459287831643f58ce70a
 ```

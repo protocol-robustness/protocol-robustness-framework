@@ -7,7 +7,7 @@
 use clap::Parser;
 use sp1_sdk::{
     blocking::{ProveRequest, Prover, ProverClient},
-    include_elf, Elf, HashableKey, SP1Stdin,
+    include_elf, Elf, HashableKey, ProvingKey, SP1Stdin,
 };
 
 const REALIZED_EXECUTION_ELF: Elf = include_elf!("realized-execution-sp1-program");

@@ -3,11 +3,26 @@
             [clojure.test :refer [deftest is testing]]
             [clojure.data.json :as json]
             [resolver-sim.commands.researcher :as cmd]
+            [resolver-sim.cli.dispatch :as dispatch]
             [resolver-sim.benchmark.researcher-force-authorisation :as rfa]
             [resolver-sim.benchmark.review-round :as rr]
             [resolver-sim.support.ed25519 :as fx]
             [resolver-sim.assurance.force-authorisation :as fa]
             [resolver-sim.hash.reference :as hash-ref]))
+
+(defn- dispatch-result [args]
+  (let [exit-code (atom nil)
+        output (with-out-str (reset! exit-code (dispatch/run args)))]
+    {:exit-code @exit-code :output output}))
+
+(deftest researcher-dispatch-failures-have-cli-exit-contract
+  (doseq [args [["researcher" "disagree" "--member-key" "not-an-integer"]
+                ["researcher" "approve" "--member-key" "9223372036854775808"]
+                ["researcher" "disagree" "--member-key"]
+                ["researcher" "check" "--unknown" "x"]]]
+    (let [{:keys [exit-code output]} (dispatch-result args)]
+      (is (= 2 exit-code) args)
+      (is (string? output) args))))
 
 (defn- write-key-file
   "Write an Ed25519 private key to a temporary PEM file and return its path."
@@ -120,7 +135,9 @@
       (is (string? (:message result)) args))))
 
 (deftest disagree-requires-a-dissent-reason
-  (let [result (cmd/disagree {:cmd/args ["--member-key" "1"]})]
+  (let [result (cmd/disagree {:cmd/args ["--input" (write-input-file {})
+                                         "--member-key" "1"
+                                         "--key" "/missing/key.pem"]})]
     (is (= 2 (:exit-code result)))
     (is (= "--dissent-reason is required" (:message result)))))
 
@@ -160,6 +177,20 @@
       (is (hash-ref/valid-sha256-ref? (:decision/hash decision)))
       (is (nil? (:outcome/root decision))))))
 
+(deftest researcher-signing-preflights-key-and-outcome-root
+  (let [round (make-keyed-round)
+        input (write-input-file (base-input round))
+        key-path (write-key-file (fx/keypair :rk/researcher-a))
+        missing (cmd/approve {:cmd/args ["--input" input "--member-key" "0"
+                                         "--key" "/missing/key.pem"]})
+        malformed (cmd/approve {:cmd/args ["--input" input "--member-key" "0"
+                                           "--key" key-path
+                                           "--outcome-root" "not-a-root"]})]
+    (is (= 2 (:exit-code missing)))
+    (is (= :invalid-key (:error/kind missing)))
+    (is (= 2 (:exit-code malformed)))
+    (is (= :invalid-root (:error/kind malformed)))))
+
 ;; ── check ─────────────────────────────────────────────────────────────────
 
 (deftest check-classifies-usable-authorisation
@@ -177,9 +208,9 @@
                  :authorization/consumption-registry {}
                  :authorization/scope scope}
           stdout (with-out-str
-                   (cmd/check {:cmd/args ["--input" (write-input-file input)]}))
+                   (cmd/check {:cmd/args ["--input" (write-input-file input) "--now"]}))
           parsed (json/read-str stdout :key-fn keyword)
-          result (cmd/check {:cmd/args ["--input" (write-input-file input)]})]
+          result (cmd/check {:cmd/args ["--input" (write-input-file input) "--now"]})]
       (is (= 0 (:exit-code result)))
       (is (= "usable" (:outcome parsed)))
       (is (true? (:valid? parsed))))))
@@ -196,7 +227,7 @@
           input {:authorization/record record
                  :authorization/consumption-registry {}
                  :authorization/scope scope}
-          result (cmd/check {:cmd/args ["--input" (write-input-file input)]})]
+          result (cmd/check {:cmd/args ["--input" (write-input-file input) "--now"]})]
       (is (= 1 (:exit-code result)))
       (is (= "forbidden" (:message result))))))
 
@@ -214,7 +245,7 @@
           input {:authorization/record record
                  :authorization/consumption-registry {}
                  :authorization/scope scope}
-          result (cmd/check {:cmd/args ["--input" (write-input-file input)]})]
+          result (cmd/check {:cmd/args ["--input" (write-input-file input) "--now"]})]
       (is (= 1 (:exit-code result)))
       (is (= "forbidden-authorized" (:message result))))))
 
@@ -233,7 +264,7 @@
           input {:authorization/record record
                  :authorization/consumption-registry {}
                  :authorization/scope bad-scope}
-          result (cmd/check {:cmd/args ["--input" (write-input-file input)]})]
+          result (cmd/check {:cmd/args ["--input" (write-input-file input) "--now"]})]
       (is (= 1 (:exit-code result)))
       (is (= "invalid-parameter-attribution" (:message result))))))
 
@@ -250,9 +281,9 @@
                  :authorization/consumption-registry {}
                  :authorization/scope scope}
           stdout (with-out-str
-                   (cmd/check {:cmd/args ["--input" (write-input-file input)]}))
+                   (cmd/check {:cmd/args ["--input" (write-input-file input) "--now"]}))
           parsed (json/read-str stdout :key-fn keyword)
-          result (cmd/check {:cmd/args ["--input" (write-input-file input)]})]
+          result (cmd/check {:cmd/args ["--input" (write-input-file input) "--now"]})]
       (is (= 1 (:exit-code result)))
       (is (= "forbidden" (:outcome parsed)))
       (is (some #{"missing-scope-hash"} (:error-codes parsed))))))

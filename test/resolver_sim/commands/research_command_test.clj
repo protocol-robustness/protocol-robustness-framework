@@ -7,6 +7,7 @@
             [resolver-sim.benchmark.research-command :as command]
             [resolver-sim.benchmark.research-workflow :as workflow]
             [resolver-sim.commands.research :as research]
+            [resolver-sim.cli.dispatch :as dispatch]
             [resolver-sim.composition.semantic :as composition]
             [resolver-sim.hash.canonical :as hc]
             [resolver-sim.hash.reference :as hash-ref]))
@@ -24,6 +25,16 @@
   (let [result (atom nil)]
     (with-out-str (reset! result (handler {:input (write-input! input)})))
     @result))
+
+(deftest research-dispatch-rejects-unreadable-input
+  (let [exit-code (atom nil)
+        output (with-out-str
+                 (reset! exit-code
+                         (dispatch/run ["research" "run"
+                                        "--input" "/path/that/does/not/exist"
+                                        "--output" "/tmp/research-command-test.edn"])))]
+    (is (= 1 @exit-code))
+    (is (seq output))))
 
 (defn- fixture []
   (let [subject (root :sew-subject)
@@ -139,6 +150,7 @@
         right (assoc-in left [:execution :runtime/worker] "worker-2")
         result (invoke research/diff {:left (persisted left)
                                       :right (persisted right)})]
-    (is (= 0 (:exit-code result)))
+    (is (= 1 (:exit-code result)))
     (is (empty? (get-in result [:result :comparison/canonical-differences])))
-    (is (true? (get-in result [:result :comparison/equivalent?])))))
+    (is (true? (get-in result [:result :comparison/equivalent?])))
+    (is (false? (get-in result [:result :comparison/claimable?])))))

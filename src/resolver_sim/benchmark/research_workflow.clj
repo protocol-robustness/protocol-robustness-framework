@@ -288,7 +288,15 @@
                             (not (and (:verified? left) (:verified? right))) :invalid
                             (= mode :exact-environment) (if exact? :reproduced :mismatch)
                             (= mode :independent-conforming) (if command-same? :comparable :scope-mismatch)
-                            :else :unsupported)}))
+                            :else :unsupported)
+     :reproduction/claimable? (and (:verified? left)
+                                   (:verified? right)
+                                   (= :established
+                                      (get-in left [:research-claim :research-claim/status]))
+                                   (= :established
+                                      (get-in right [:research-claim :research-claim/status]))
+                                   (or (and (= mode :exact-environment) exact?)
+                                       (and (= mode :independent-conforming) command-same?)))}))
 
 (defn- semantic-projection [context]
   (let [execution (:execution context)
@@ -320,4 +328,7 @@
      :comparison/right b
      :comparison/canonical-differences differences
      :comparison/forbidden-canonical-differences differences
-     :comparison/equivalent? (empty? differences)}))
+     :comparison/equivalent? (empty? differences)
+     :comparison/claimable? (and (empty? differences)
+                                 (:verified? (verify left))
+                                 (:verified? (verify right)))}))

@@ -9,10 +9,13 @@
   All researcher identity is via integer review-member/key resolved through
   the committed review round — no parallel string-keyed representation."
   (:require [clojure.data.json :as json]
+            [clojure.java.io :as io]
             [clojure.string :as str]
             [resolver-sim.benchmark.researcher-force-authorisation :as rfa]
             [resolver-sim.benchmark.review-round :as rr]
+            [resolver-sim.benchmark.signing :as signing]
             [resolver-sim.assurance.force-authorisation :as fa]
+            [resolver-sim.hash.reference :as hash-ref]
             [resolver-sim.commands.boundary :as boundary]))
 
 (defn- stderr
@@ -24,7 +27,8 @@
   (let [data (ex-data e)
         message (.getMessage e)]
     (stderr (str prefix ": " message))
-    {:exit-code (if (= :invalid-option (:error/kind data)) 2 1)
+    {:exit-code (if (contains? #{:invalid-option :invalid-key :invalid-root}
+                               (:error/kind data)) 2 1)
      :message message
      :error/kind (:error/kind data)}))
 
@@ -81,19 +85,47 @@
           {:exit-code 2 :message "--dissent-reason is required"})
 
       :else
-      (let [round (:review-round ctx)
+      (let [_ (when-not (and (string? key) (.isFile (io/file key)))
+                (boundary/fail :invalid-key "--key must name a readable key file"))
+            _ (when-not (or (nil? outcome-root)
+                            (hash-ref/valid-sha256-ref? outcome-root))
+                (boundary/fail :invalid-root
+                               "--outcome-root must be a sha256:... reference"))
+            _ (try
+                (signing/load-private-key! key nil)
+                (catch Exception e
+                  (boundary/fail :invalid-key
+                                 (str "--key is not a valid Ed25519 private key: "
+                                      (.getMessage e)))))
+            auth-id (:authorization/id ctx)
+            request-root (:authorisation/request-root ctx)
+            round-hash (:review-round/hash ctx)
+            round (:review-round ctx)
             resolved (resolve-researcher-by-key round member-key)]
-        (if-not resolved
+        (cond
+          (not= round-hash (rr/review-round-root round))
+          (boundary/fail :invalid-option
+                         "input review-round/hash does not match review round")
+
+          (not (hash-ref/valid-sha256-ref? request-root))
+          (boundary/fail :invalid-option
+                         "input authorisation/request-root must be a sha256:... reference")
+
+          (and (some? outcome-root)
+               (contains? ctx :outcome/root)
+               (not= outcome-root (:outcome/root ctx)))
+          (boundary/fail :invalid-root
+                         "--outcome-root does not match input :outcome/root")
+
+          (not resolved)
           (do (stderr (str "researcher " (name cmd)
                            ": member-key " member-key
                            " not found in keyed review round"))
               {:exit-code 2 :message
                (str "member-key " member-key " not found in keyed review round")})
+          :else
           (let [researcher-id (:researcher/id resolved)
-                decision (decision-reason cmd)
-                auth-id (:authorization/id ctx)
-                request-root (:authorisation/request-root ctx)
-                round-hash (:review-round/hash ctx)]
+                decision (decision-reason cmd)]
             (if-not (and researcher-id auth-id request-root round-hash)
               (do (stderr (str "researcher " (name cmd)
                                ": input missing :authorization/id, "
@@ -169,22 +201,23 @@
 
       (str/starts-with? (first args) "--")
       (let [arg (first args)
-            val (second args)]
+            val (second args)
+            remaining (if (some? val) (subvec args 2) [])]
         (cond
           (= arg "--input")
-          (recur (subvec args 2) (boundary/required-value arg val) member-key key dissent-reason outcome-root json)
+          (recur remaining (boundary/required-value arg val) member-key key dissent-reason outcome-root json)
 
           (= arg "--member-key")
-          (recur (subvec args 2) input (boundary/parse-integer arg val) key dissent-reason outcome-root json)
+          (recur remaining input (boundary/parse-integer arg val) key dissent-reason outcome-root json)
 
           (= arg "--key")
-          (recur (subvec args 2) input member-key (boundary/required-value arg val) dissent-reason outcome-root json)
+          (recur remaining input member-key (boundary/required-value arg val) dissent-reason outcome-root json)
 
           (= arg "--dissent-reason")
-          (recur (subvec args 2) input member-key key (boundary/required-value arg val) outcome-root json)
+          (recur remaining input member-key key (boundary/required-value arg val) outcome-root json)
 
           (= arg "--outcome-root")
-          (recur (subvec args 2) input member-key key dissent-reason (boundary/required-value arg val) json)
+          (recur remaining input member-key key dissent-reason (boundary/required-value arg val) json)
 
           (= arg "--json")
           (recur (subvec args 1) input member-key key dissent-reason outcome-root true)
@@ -271,7 +304,8 @@
             val (second args)]
         (cond
           (= arg "--input")
-          (recur (subvec args 2) (boundary/required-value arg val) json now?)
+          (recur (if (some? val) (subvec args 2) [])
+                 (boundary/required-value arg val) json now?)
 
           (= arg "--json")
           (recur (subvec args 1) input true now?)

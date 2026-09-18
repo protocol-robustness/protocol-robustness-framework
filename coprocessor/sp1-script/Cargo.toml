@@ -5,10 +5,10 @@ edition = "2021"
 description = "SP1 host script for the PRF allocation kernel: executes, proves, verifies, and generates EVM-compatible proof fixtures."
 
 [build-dependencies]
-sp1-build = "6.0.1"
+sp1-build = "=6.3.1"
 
 [dependencies]
-sp1-sdk = { version = "6.0.1", features = ["blocking", "native-gnark"] }
+sp1-sdk = { version = "=6.3.1", features = ["blocking", "native-gnark"] }
 allocation-kernel = { path = "../core" }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
@@ -40,6 +40,10 @@ path = "src/bin/realized_statement_verify.rs"
 [[bin]]
 name = "realized-execution-prove"
 path = "src/bin/realized_execution_prove.rs"
+
+[[bin]]
+name = "realized-execution-evm"
+path = "src/bin/realized_execution_evm.rs"
 
 [[bin]]
 name = "realized-statement-evm"
