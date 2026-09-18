@@ -1,6 +1,8 @@
 (ns resolver-sim.allocation.realized-statement-test
-  (:require [clojure.test :refer [deftest is testing]]
+  (:require [clojure.data.json :as json]
+            [clojure.test :refer [deftest is testing]]
             [resolver-sim.allocation.context :as ctx]
+            [resolver-sim.allocation.persisted-statement-admission :as persisted]
             [resolver-sim.allocation.realized-statement :as rs]
             [resolver-sim.allocation.round-state :as round-state]
             [resolver-sim.benchmark.packs.partial-fill.evidence :as pfev]
@@ -58,6 +60,43 @@
             :fail-action-policy {:mode :pro-rata-treatment
                                  :deferred-policy :same-ratio
                                  :haircut-policy :same-ratio}}})
+
+(def ^:private persisted-input-path
+  "scenarios/allocation/a-vs-b-plus-c/realized-statement-input.json")
+
+(defn- persisted-input []
+  (json/read-str (slurp persisted-input-path) :key-fn identity))
+
+(deftest persisted-reconstruction-requires-requested-claim-membership
+  (let [input (persisted-input)
+        unknown (assoc-in input ["requested" "unknown-claim"] "1")
+        exception (try
+                    (persisted/reconstruct-input (json/write-str unknown))
+                    nil
+                    (catch clojure.lang.ExceptionInfo e e))]
+    (is exception)
+    (is (= :unknown-request-claim-id (:reason (ex-data exception))))
+    (is (= "unknown-claim" (:claim-id (ex-data exception))))))
+
+(deftest persisted-reconstruction-permits-context-claimant-omission
+  (testing "The canonical contract permits a request map to select a subset of
+            the committed claimant universe; it does not synthesize omitted rows."
+    (let [input (-> (persisted-input)
+                    (assoc "available" "80")
+                    (assoc "requested" {"A" "50" "B" "30"}))
+          reconstructed (persisted/reconstruct-input (json/write-str input))]
+      (is (= #{"A" "B"} (set (keys (get-in reconstructed [:decision :requested])))))
+      (is (not (contains? (get-in reconstructed [:decision :requested]) "C")))
+      (is (not= "c22333a16df1c1efa352e9daab42ccbd78f4a1d7530ee3ed3cf7527ba62cbd81"
+                (get-in reconstructed [:statement :statement/root]))))))
+
+(deftest persisted-reconstruction-preserves-valid-fixture-root
+  (let [raw (slurp persisted-input-path)
+        first-reconstruction (persisted/reconstruct-input raw)
+        second-reconstruction (persisted/reconstruct-input raw)]
+    (is (= "c22333a16df1c1efa352e9daab42ccbd78f4a1d7530ee3ed3cf7527ba62cbd81"
+           (get-in first-reconstruction [:statement :statement/root])))
+    (is (= (:statement first-reconstruction) (:statement second-reconstruction)))))
 
 (deftest proof-supported-uncapped-partial-fill-has-identical-six-roots-under-parallelism
   (let [policy {:mode :pro-rata :rounding-policy :largest-remainder

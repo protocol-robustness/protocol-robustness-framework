@@ -96,6 +96,9 @@
    :researcher-disagree 'resolver-sim.commands.researcher/disagree
    :researcher-approve 'resolver-sim.commands.researcher/approve
    :researcher-check 'resolver-sim.commands.researcher/check
+   :research-reward-check 'resolver-sim.commands.research/reward-check
+   :research-reward-propose 'resolver-sim.commands.research/reward-propose
+   :research-reward-approve 'resolver-sim.commands.research/reward-approve
    :check-aggregate 'resolver-sim.commands.check-aggregate/run})
 
 (def ^:private sew-command-ids

@@ -5,6 +5,7 @@
             [resolver-sim.benchmark.research-assignment :as assignment]
             [resolver-sim.benchmark.research-command :as command]
             [resolver-sim.benchmark.research-workflow :as workflow]
+            [resolver-sim.benchmark.researcher-reward :as reward]
             [resolver-sim.composition.semantic :as composition]
             [resolver-sim.commands.boundary :as boundary]))
 
@@ -75,6 +76,19 @@
     (catch Exception e
       (println (.getMessage e)) {:exit-code 1})))
 
+(defn- invoke-reward [opts f success?]
+  (try
+    (let [result (f (read-edn! (:input opts)))]
+      (write-result! (:output opts) result)
+      {:exit-code (if (success? result) 0 1) :result result})
+    (catch clojure.lang.ExceptionInfo e
+      (let [message (.getMessage e)]
+        (println message)
+        {:exit-code 2 :error/kind :invalid-reward-input :message message}))
+    (catch Exception e
+      (println (.getMessage e))
+      {:exit-code 1 :error/kind :reward-evaluation-failed :message (.getMessage e)})))
+
 (defn create [opts]
   (invoke opts
           (fn [spec]
@@ -112,3 +126,12 @@
                   :research-execution/root (get-in context [:execution :research-execution/root])
                   :verification (workflow/validate-execution context)})
           #(get-in % [:verification :valid?]) false))
+
+(defn reward-check [opts]
+  (invoke-reward opts reward/evaluate #(true? (:reward/eligible? %))))
+
+(defn reward-propose [opts]
+  (invoke-reward opts reward/build-proposal (constantly true)))
+
+(defn reward-approve [opts]
+  (invoke-reward opts reward/build-obligation (constantly true)))

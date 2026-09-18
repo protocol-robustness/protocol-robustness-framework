@@ -27,7 +27,13 @@
     resolver-sim.pro-rata.target-map
     resolver-sim.pro-rata.exact-verifier
     resolver-sim.pro-rata.evm
-    resolver-sim.pro-rata.evaluation])
+    resolver-sim.pro-rata.evaluation
+    resolver-sim.pro-rata.canonical-effects
+    resolver-sim.pro-rata.effect-compilation-binding-v2
+    resolver-sim.pro-rata.effect-compilation-v3
+    resolver-sim.pro-rata.effect-compilation-v2
+    resolver-sim.pro-rata.effect-compilation-semantics
+    resolver-sim.pro-rata.execution-context])
 
 (def ^:private forbidden-prefixes
   "Namespace prefixes/names the pro-rata semantic closure must never require.

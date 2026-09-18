@@ -1172,11 +1172,26 @@
     :command/options [{:name "--input" :type :string :required true}]
     :command/outputs [] :command/positional-args {:min 0 :max 0}
     :command/description "Compare canonical research semantics while excluding runtime-only variation."}
-   {:command/id :research-inspect :command/path ["research" "inspect"] :command/title "Inspect research roots"
+    {:command/id :research-inspect :command/path ["research" "inspect"] :command/title "Inspect research roots"
     :command/category :research :command/surface :prf :command/backstop-tier :manual :command/jar-availability :native :command/runtime :jvm
     :command/options [{:name "--input" :type :string :required true}]
     :command/outputs [] :command/positional-args {:min 0 :max 0}
     :command/description "Read-only validation and root-oriented inspection of a research execution."}
+    {:command/id :research-reward-check :command/path ["research" "reward-check"] :command/title "Check researcher reward eligibility"
+     :command/category :research :command/surface :prf :command/backstop-tier :manual :command/jar-availability :native :command/runtime :jvm
+     :command/options [{:name "--input" :type :string :required true}]
+     :command/outputs [] :command/positional-args {:min 0 :max 0}
+    :command/description "Determine researcher reward eligibility from a frozen policy and supplied evidence without creating an obligation or moving funds."}
+    {:command/id :research-reward-propose :command/path ["research" "reward-propose"] :command/title "Propose researcher reward"
+     :command/category :research :command/surface :prf :command/backstop-tier :manual :command/jar-availability :native :command/runtime :jvm
+     :command/options [{:name "--input" :type :string :required true}]
+     :command/outputs [] :command/positional-args {:min 0 :max 0}
+     :command/description "Create an immutable researcher reward proposal from eligible evidence and its frozen policy."}
+    {:command/id :research-reward-approve :command/path ["research" "reward-approve"] :command/title "Approve researcher reward obligation"
+     :command/category :research :command/surface :prf :command/backstop-tier :manual :command/jar-availability :native :command/runtime :jvm
+     :command/options [{:name "--input" :type :string :required true}]
+     :command/outputs [] :command/positional-args {:min 0 :max 0}
+     :command/description "Create an immutable researcher reward obligation from an exact eligible proposal and authorized approval authority; does not authorize or record payment."}
 
    {:command/id :researcher-disagree
     :command/path ["researcher" "disagree"]

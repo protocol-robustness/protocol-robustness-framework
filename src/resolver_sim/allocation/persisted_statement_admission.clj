@@ -55,6 +55,13 @@
             (throw (ex-info "requested must be an object" {})))
         requested (into {} (map (fn [[claim amount]]
                                   [claim (parse-amount [:requested claim] amount)])) requested)
+        ctx (context/build-context raw-context)
+        claimant-ids (set (map :claim/id (:claimants ctx)))
+        unknown-claim-ids (seq (remove claimant-ids (keys requested)))
+        _ (when unknown-claim-ids
+            (throw (ex-info "requested claim is absent from allocation context"
+                            {:reason :unknown-request-claim-id
+                             :claim-id (first unknown-claim-ids)})))
         total-requested (reduce + 0 (vals requested))
         _ (when (> available total-requested)
             (throw (ex-info "available exceeds total requested"
@@ -67,7 +74,6 @@
                   available requested (cond-> policy fail-policy
                                               (assoc :fail-action-policy fail-policy)))
         lifecycle (round-state/round-lifecycle {} (get input "round-state"))
-        ctx (context/build-context raw-context)
         statement (admission/recompute-statement
                    {:allocation-context ctx :decision decision :round-lifecycle lifecycle})]
     {:allocation-context ctx
