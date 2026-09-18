@@ -18,8 +18,7 @@
   (:require [clojure.set :as set]
             [resolver-sim.hash.canonical :as hc]
             [resolver-sim.hash.reference :as hash-ref]
-            [resolver-sim.resubmission.genesis :as genesis]
-            [resolver-sim.resubmission.authority-context :as authority-context]))
+            [resolver-sim.resubmission.genesis :as genesis]))
 
 ;; ── Schema constants ──────────────────────────────────────────────────
 
@@ -178,7 +177,7 @@
 
    The checkpoint binds the genesis-committed G0 state-root to the admitted
    authority context. predecessor-root is nil and sequence is 0."
-  [genesis authz authority-context]
+  [genesis _authz authority-context]
   (let [cfg (:configuration genesis)
         config-root (genesis/resubmission-chain-configuration-root cfg)
         genesis-root (genesis/resubmission-chain-genesis-root genesis)

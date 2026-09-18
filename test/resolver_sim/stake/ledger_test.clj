@@ -1,5 +1,5 @@
 (ns resolver-sim.stake.ledger-test
-  (:require [clojure.test :refer [deftest is testing]]
+  (:require [clojure.test :refer [deftest is]]
             [resolver-sim.stake.ledger :as sl]))
 
 (deftest with-fresh-ledger-isolates-state

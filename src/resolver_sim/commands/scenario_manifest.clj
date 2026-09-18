@@ -42,16 +42,13 @@
             (get-in event [:params :shortfall :available-ratio])))
         (:events snapshot)))
 
-(defn- unit-total [declared]
-  (reduce + (map #(get % "amount") declared)))
-
 (defn- shortfall-projection
   "Given declared protected amounts and an optional available-ratio, return the
    available custody and shortfall (value-at-risk) for each affected unit.
    Returns {:available [...] :shortfall [...] :basis str}."
   [declared ratio]
   (if (and ratio (seq declared))
-    (let [shortfall? (< ratio 1.0)
+    (let [_shortfall? (< ratio 1.0)
           projected (mapv (fn [entry]
                             (let [amount (get entry "amount")
                                   avail (long (Math/floor (* amount ratio)))

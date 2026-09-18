@@ -72,7 +72,7 @@ Private keys never enter bundles."
   "Verify a detached envelope produced by build-envelope* under the same
    profile config. Signing bytes are derived from the envelope's own declared
    payload-type, so verification never re-guesses the profile."
-  [{:keys [envelope-schema-version] :as config} envelope public-key]
+  [{:keys [_envelope-schema-version] :as config} envelope public-key]
   (let [shape (validate-envelope* config envelope)]
     (if-not (:valid? shape)
       (assoc shape :reason :malformed-envelope)

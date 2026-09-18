@@ -9,8 +9,7 @@
      4. exposes the resolved scheme on every registered hash intent."
   (:require [clojure.test :refer [deftest is testing run-tests]]
             [resolver-sim.hash.algorithm :as halgo]
-            [resolver-sim.hash.canonical :as hc])
-  (:import [java.security MessageDigest]))
+            [resolver-sim.hash.canonical :as hc]))
 
 (defn -main [& _]
   (run-tests 'resolver-sim.hash.canonical-scheme-test))

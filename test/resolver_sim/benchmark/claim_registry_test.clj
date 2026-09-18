@@ -4,10 +4,10 @@
    Covers explicit path source detection, fail-closed
    validation of external registries, and the security property that an external
    registry can select a compiled evaluator but cannot invent evaluator code."
-  (:require [clojure.java.io :as io]
-            [clojure.string :as str]
-            [clojure.test :refer [deftest is testing]]
-            [resolver-sim.benchmark.claim-registry :as cr]))
+  (:require
+   [clojure.string :as str]
+   [clojure.test :refer [deftest is testing]]
+   [resolver-sim.benchmark.claim-registry :as cr]))
 
 (defn- temp-file
   [content]

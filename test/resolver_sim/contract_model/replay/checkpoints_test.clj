@@ -1,5 +1,5 @@
 (ns resolver-sim.contract-model.replay.checkpoints-test
-  (:require [clojure.test :refer :all]
+  (:require [clojure.test :refer [deftest is]]
             [resolver-sim.contract-model.replay.checkpoints :as checkpoints]))
 
 (deftest secure-checkpoint-update-normal-path

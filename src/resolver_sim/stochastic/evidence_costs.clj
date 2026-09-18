@@ -151,7 +151,7 @@
    
    Under normal load, honest can meet targets.
    Under heavy load, honest falls back to heuristics."
-  [rng strategy difficulty effort-available effort-required]
+  [_rng strategy _difficulty effort-available effort-required]
   (case strategy
     :honest
     (min effort-available effort-required)  ; Do best effort within budget

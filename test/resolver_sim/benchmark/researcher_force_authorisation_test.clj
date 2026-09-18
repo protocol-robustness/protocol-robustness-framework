@@ -1,8 +1,7 @@
 (ns resolver-sim.benchmark.researcher-force-authorisation-test
-  (:require [clojure.test :refer [deftest is testing]]
+  (:require [clojure.test :refer [deftest is]]
             [resolver-sim.benchmark.researcher-force-authorisation :as rfa]
-            [resolver-sim.benchmark.signing :as signing]
-            [resolver-sim.benchmark.review-round :as rr]))
+            [resolver-sim.benchmark.signing :as signing]))
 
 ;; ── Mock key infrastructure ──────────────────────────────────────────────
 ;; Avoids system ssh-keygen dependency. The signing function is redef'd
@@ -23,11 +22,6 @@
                                mock-request-root mock-round-hash
                                decision "/dev/null"
                                :dissent-reason dissent-reason)))
-
-(defn- mock-key-resolver
-  "Mock public key resolver for testing."
-  [researcher-id]
-  "/dev/null")
 
 ;; ── Shared test data ─────────────────────────────────────────────────────
 
@@ -215,8 +209,8 @@
   (let [decisions [(mock-decision "researcher-a" :approve)
                    (mock-decision "researcher-b" :approve)]
         auth (build-auth :decisions decisions)
-        resolver (fn [id] "/dev/null")]
-    (with-redefs [signing/verify-signature (fn [hash sig _] (= sig mock-sig-hex))]
+        resolver (fn [_id] "/dev/null")]
+    (with-redefs [signing/verify-signature (fn [_hash sig _] (= sig mock-sig-hex))]
       (let [result (rfa/verify-decision-signatures resolver auth)]
         (is (:valid? result))
         (is (every? :valid? (:results result)))))))

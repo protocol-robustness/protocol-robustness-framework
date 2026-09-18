@@ -21,12 +21,6 @@
             [resolver-sim.notebook-support.manifest.bundle :as bundle]
             [resolver-sim.notebook-support.manifest.publication :as pub]))
 
-(defn- write-file! [dir name content]
-  (let [f (io/file dir name)]
-    (.mkdirs (io/file dir))
-    (spit f (json/write-str content {:indent true}))
-    (.getPath f)))
-
 (defn -main [& args]
   (let [args-vec (vec args)
         strict? (some #{"--strict"} args-vec)

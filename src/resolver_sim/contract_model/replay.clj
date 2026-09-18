@@ -35,9 +35,6 @@
 ;; JSON serialisation helpers (Generic)
 ;; ---------------------------------------------------------------------------
 
-(defn- kw->json-key [k] (if (keyword? k) (name k) (str k)))
-(defn- kw-val->str [_k v] (if (keyword? v) (name v) v))
-
 ;; ---------------------------------------------------------------------------
 ;; Agent Validation (Generic)
 ;; ---------------------------------------------------------------------------
@@ -82,10 +79,7 @@
 ;; Analysis & Result Interpretation
 ;; ---------------------------------------------------------------------------
 
-(defn- normalize-error-value [error] (analysis/normalize-error-value error))
 (defn- expected-error-key [x] (analysis/expected-error-key x))
-(defn- rejected-entry-key [x] (analysis/rejected-entry-key x))
-(defn- analyze-expected-errors [scenario trace] (analysis/analyze-expected-errors scenario trace))
 
 (defn finalize-scenario-result
   ([scenario result] (analysis/finalize-scenario-result scenario result {}))
@@ -96,9 +90,6 @@
 ;; ---------------------------------------------------------------------------
 
 (defn- advance-world-time [world event-time] (temporal/advance-world-time world event-time))
-(defn- effective-temporal-rules [context] (temporal/effective-temporal-rules context))
-(defn- evaluate-temporal-rules [rules ctx] (temporal/evaluate-temporal-rules rules ctx))
-(defn- maybe-record-temporal! [cfg enabled? id outcome world metrics trace] (temporal/maybe-record-temporal! cfg enabled? id outcome world metrics trace))
 
 ;; ---------------------------------------------------------------------------
 ;; Metrics — registry (must precede validate-scenario which references it)
@@ -106,10 +97,6 @@
 
 (def population-metrics metrics/population-metrics)
 (def base-metrics metrics/base-metrics)
-(defn- metric-key [x] (metrics/metric-key x))
-(defn- falsifies-if-metric-refs [falsifies-if] (metrics/falsifies-if-metric-refs falsifies-if))
-(defn- theory-metric-scope [scenario] (metrics/theory-metric-scope scenario))
-(defn- action->transition-id [action] (analysis/action->transition-id action))
 
 ;; ---------------------------------------------------------------------------
 ;; Input validation (Generic scenario structure)
@@ -126,8 +113,6 @@
 ;; ---------------------------------------------------------------------------
 
 (defn- zero-metrics [protocol] (metrics/zero-metrics protocol))
-(defn- accum-metrics [protocol metrics event trace-entry agent-index world-before]
-  (metrics/accum-metrics protocol metrics event trace-entry agent-index world-before))
 
 (def process-step
   "Forwarding reference — moved to replay.execution."

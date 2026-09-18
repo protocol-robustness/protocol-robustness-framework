@@ -210,7 +210,7 @@
                                      :quorum-report nil}
                         :policies {:accountability/min-stake 1000
                                    :accountability/slash-amount 500}})
-          decision (:decision eval-result)]
+          _decision (:decision eval-result)]
       ;; No slash happened (exonerated)
       (is (= 5000 (sl/get-stake-amount :attestor-1))))))
 
@@ -383,7 +383,7 @@
    Produces paths like \"conflicting-attestations.required-evidence\" for each
    violation type and field — stable across value changes (descriptions, labels)."
   [violations]
-  (sort (mapcat (fn [[vk vv]]
+  (sort (mapcat (fn [[vk _vv]]
                   (map (fn [k] (str (name vk) "." (name k)))
                        [:code :required-evidence :required-checks :slashable?]))
                 violations)))

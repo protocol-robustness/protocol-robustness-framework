@@ -9,7 +9,6 @@
                  = (:falsifier/hash model)
 
    Artifact not yet implemented — placeholder for schema version tracking
-   and content-root integration."
-  (:require [resolver-sim.hash.canonical :as hc]))
+   and content-root integration.")
 
 (def ^:const schema-version "falsifier.v1")

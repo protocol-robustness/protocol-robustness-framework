@@ -63,7 +63,7 @@
    
    This is the Phase P decision rule."
 
-  [{:keys [escrow-size detection-prob attacker-budget bribe-cost-ratio
+  [{:keys [escrow-size detection-prob attacker-budget _bribe-cost-ratio
            fraud-detection-probability] :as params}]
 
   ;; Use fraud-detection-probability if available (Phase I), else default
@@ -95,8 +95,8 @@
    This preserves backward compatibility: if no bribery config, returns
    the original strategy unchanged."
 
-  [original-strategy {:keys [escrow-size detection-prob bribe-cost-ratio
-                             fraud-detection-probability fraud-slash-bps] :as params}]
+  [original-strategy {:keys [_escrow-size _detection-prob bribe-cost-ratio
+                             _fraud-detection-probability fraud-slash-bps] :as params}]
 
   ;; Only apply Phase P logic if:
   ;; 1. We're in a malicious strategy scenario
@@ -149,7 +149,7 @@
    
    Useful for debugging parameter sweeps."
 
-  [{:keys [bribe-cost-ratio fraud-detection-probability fraud-slash-bps escrow-size]}]
+  [{:keys [bribe-cost-ratio fraud-detection-probability _fraud-slash-bps escrow-size]}]
 
   (when (and bribe-cost-ratio fraud-detection-probability)
     (let [cost (calculate-bribery-cost

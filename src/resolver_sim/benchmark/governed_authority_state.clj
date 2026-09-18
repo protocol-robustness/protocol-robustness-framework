@@ -6,7 +6,7 @@
   envelope and the state-addressed material it authenticates."
   (:require [clojure.set :as set]
             [resolver-sim.benchmark.review-governance :as governance]
-            [resolver-sim.benchmark.review-governance-evidence :as evidence]
+
             [resolver-sim.benchmark.governed-authority-resolution :as resolution]
             [resolver-sim.benchmark.governed-authority-result-receipt :as result-receipt]
             [resolver-sim.benchmark.review-round :as rr]

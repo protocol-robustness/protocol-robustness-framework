@@ -236,10 +236,10 @@
    Automatically enriches the entry with resolution attributes derived
    from the replay result's world state."
   ([input] (build-entry-result input {}))
-  ([{:keys [name replay-result scenario source expected-fail?]
-     :or {expected-fail? (boolean (:expected-fail? scenario false))}}
+  ([{:keys [name replay-result scenario source expected-fail?]}
     opts]
-   (let [expectations  (expectation-checks replay-result scenario)
+   (let [expected-fail? (or expected-fail? (boolean (:expected-fail? scenario false)))
+         expectations  (expectation-checks replay-result scenario)
          expected-out  (:expected-outcomes replay-result)
          theory-res    (theory-check replay-result scenario opts)
          checks        (cond-> {}

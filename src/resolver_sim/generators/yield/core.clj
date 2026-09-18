@@ -49,7 +49,7 @@
 
 (defn gen-yield-token-config
   "Token-level yield-config fragment (keyword keys, same shape as scenario JSON after load)."
-  [token]
+  [_token]
   (gen/fmap
    (fn [[apy-bps liq-mode failures ratio-bps]]
      (cond-> {:apy (apy-from-bps apy-bps)

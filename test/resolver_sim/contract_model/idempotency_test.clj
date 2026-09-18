@@ -1,5 +1,5 @@
 (ns resolver-sim.contract-model.idempotency-test
-  (:require [clojure.test :refer [deftest is testing]]
+  (:require [clojure.test :refer [deftest is]]
             [resolver-sim.contract-model.idempotency :as idem]))
 
 (deftest apply-once-applies-first-time-noops-on-duplicate

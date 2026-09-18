@@ -9,7 +9,7 @@
             [resolver-sim.allocation.context :as context]
             [resolver-sim.allocation.proof-admission :as admission]
             [resolver-sim.allocation.round-state :as round-state]
-            [resolver-sim.hash.reference :as hash-ref]
+
             [resolver-sim.yield.partial-fill :as partial-fill])
   (:import [java.security MessageDigest]
            [java.nio.file Files]))

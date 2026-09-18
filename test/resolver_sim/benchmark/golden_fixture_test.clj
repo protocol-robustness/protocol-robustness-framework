@@ -67,7 +67,7 @@
 
 (deftest canonical-indices-golden
   (let [fixture (load-fixture "data/fixtures/review/keyed-canonical-indices.edn")
-        {:keys [canonical-indices expected/hash]} fixture
+        {:keys [_canonical-indices expected/hash]} fixture
         round (:review-round (load-fixture "data/fixtures/review/keyed-review-round.edn"))
         recomputed (ci/build-canonical-indices round)]
     (is (= 3 (:review-member/count recomputed)))

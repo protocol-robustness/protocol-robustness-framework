@@ -1,7 +1,7 @@
 (ns resolver-sim.run.release-attestation-test
   (:require [clojure.edn :as edn]
             [clojure.java.io :as io]
-            [clojure.test :refer :all]
+            [clojure.test :refer [deftest is]]
             [buddy.core.codecs :as codecs]
             [resolver-sim.run.release-attestation :as release]))
 

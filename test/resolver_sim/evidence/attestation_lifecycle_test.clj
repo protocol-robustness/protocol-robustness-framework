@@ -1,5 +1,5 @@
 (ns resolver-sim.evidence.attestation-lifecycle-test
-  (:require [clojure.test :refer [deftest is testing]]
+  (:require [clojure.test :refer [deftest is]]
             [resolver-sim.evidence.attestation :as att]
             [resolver-sim.evidence.attestation-lifecycle :as alc]
             [resolver-sim.evidence.attestation-registry :as ar]

@@ -3,8 +3,7 @@
             [clojure.tools.cli :as cli-opts]
             [resolver-sim.benchmark.cli :as cli]
             [resolver-sim.benchmark.integrity :as integrity]
-            [resolver-sim.benchmark.registry :as registry]
-            [resolver-sim.hash.canonical :as hc]))
+            [resolver-sim.benchmark.registry :as registry]))
 
 (deftest game-theory-strategic-flag-parses-to-strategic
   (testing "the --strategic flag routes the game-theory dispatch to the strategic branch"

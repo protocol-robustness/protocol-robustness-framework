@@ -5,11 +5,11 @@
    dispatching scenarios to the Sew replay engine. These tests
    load real scenario files through the benchmark layer and verify
    that invalid or incomplete scenarios are rejected before execution."
-  (:require [clojure.test :refer [deftest is testing]]
-            [clojure.java.io :as io]
+  (:require [clojure.test :refer [deftest is]]
+
             [resolver-sim.io.scenarios :as scen-io]
             [resolver-sim.io.input-source :as input-source]
-            [resolver-sim.contract-model.replay :as replay]
+
             [resolver-sim.contract-model.replay.validation :as rv]
             [resolver-sim.protocols.registry :as protocols]
             [resolver-sim.benchmark.execution-identity :as exec-id]
@@ -119,7 +119,7 @@
     (is (not (:pre-application-valid? result)))))
 
 (deftest pre-application-rejects-empty-events
-  (let [src (source-for "S02_dr3-dispute-release")
+  (let [_src (source-for "S02_dr3-dispute-release")
         scenario (load-scenario "S02_dr3-dispute-release")
         empty-scenario (assoc scenario :events [])
         ;; Build source that returns empty events
@@ -289,7 +289,7 @@
      4. At least one scenario source can be resolved
      5. Execution plan can be built (no duplicate IDs or hash collisions)
      6. Output directory can be written (if specified)"
-  [manifest-path & {:keys [scenario-output-dir execution-plan-path]}]
+  [manifest-path & {:keys [scenario-output-dir _execution-plan-path]}]
   (let [errors (atom [])]
     ;; 1. Manifest path resolves
     (let [f (java.io.File. manifest-path)]
@@ -461,7 +461,7 @@
         "every event should have :action")))
 
 (deftest pre-application-rejects-scenario-without-events
-  (let [src (source-for "S02_dr3-dispute-release")
+  (let [_src (source-for "S02_dr3-dispute-release")
         scenario (load-scenario "S02_dr3-dispute-release")
         no-events (dissoc scenario :events)
         validation (rv/validate-scenario no-events)]

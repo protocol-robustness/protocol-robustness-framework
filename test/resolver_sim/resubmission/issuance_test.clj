@@ -708,7 +708,7 @@
                                    (:attempt-receipt/submitted-bundle-root candidate)
                                    {:attempt-target/type :use-case-application
                                     :attempt-target/root v2-other-app-root}))))
-          request-b (issue-v2-request state-before cmd2 ordering candidate-b evaluation)]
+          _request-b (issue-v2-request state-before cmd2 ordering candidate-b evaluation)]
       ;; Receipt A signature is valid (it's over receipt A's content)
       ;; but receipt A does not bind attempt B's subject
       (is (:valid? (receipt/verify-receipt-signature-dispatch

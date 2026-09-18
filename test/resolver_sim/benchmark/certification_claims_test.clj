@@ -9,7 +9,7 @@
    scenario therefore MUST change :certification-hash. These tests prove that
    mutation is detected (not just that an aggregate passes)."
   (:require [clojure.test :refer [deftest is testing]]
-            [clojure.edn :as edn]
+
             [resolver-sim.benchmark.runner :as runner]
             [resolver-sim.benchmark.repo :as repo]
             [resolver-sim.protocols.sew :as sew]

@@ -495,9 +495,9 @@
                                         (count junior-resolvers))))
 
         ;; Senior stats
-        total-seniors (count senior-resolvers)
+        _total-seniors (count senior-resolvers)
         coverage-usages (map #(let [senior (val %)
-                                    available (calculate-available-coverage senior)
+                                    _available (calculate-available-coverage senior)
                                     max-coverage (* (:bond-amount senior 0)
                                                     (:utilization-factor senior 0.5))
                                     used (:coverage-used senior 0)]

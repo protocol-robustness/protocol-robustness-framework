@@ -53,10 +53,6 @@
    "set-yield-risk"       "Risk update"
    "yield_claim_deferred" "Claim deferred"})
 
-(defn- action-name [event]
-  (let [a (:action event)]
-    (if (keyword? a) (name a) (str a))))
-
 (defn- format-usd [n]
   (when (number? n)
     (let [v (long n)]
@@ -149,8 +145,8 @@
 
 (defn scenario-card-hiccup
   [entry]
-  (let [{:keys [pass? demo scenario metrics]} entry
-        sid (:scenario-id scenario)
+  (let [{:keys [pass? demo scenario _metrics]} entry
+        _sid (:scenario-id scenario)
         tags (:threat-tags scenario [])
         steps (flow-steps entry)
         chips (headline-metrics entry)
@@ -187,7 +183,7 @@
 (defn detail-panel-hiccup
   [entry]
   (when entry
-    (let [{:keys [scenario pass? path]} entry
+    (let [{:keys [_scenario pass? path]} entry
           trace (get-in entry [:replay-result :trace] [])]
       [:div {:style {:fontSize "12px" :color "#cbd5e1"}}
        [:div {:style {:marginBottom "12px"}}

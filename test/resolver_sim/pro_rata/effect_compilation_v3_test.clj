@@ -51,7 +51,7 @@
                                       :unknown true))))))
 
 (deftest v3-recompilation-is-runtime-orthogonal
-  (let [{:keys [artifact canonical bodies]} (fixture)
+  (let [{:keys [artifact _canonical bodies]} (fixture)
         allocation (get bodies (:realized-allocation/root artifact))
         target-map (get bodies (:target-map/root artifact))
         compiler-semantics (get bodies (:effect-compilation-semantics/root artifact))

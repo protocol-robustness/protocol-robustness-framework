@@ -9,7 +9,7 @@
    :slash-multiplier [1.0 3.0]
    :slashing-detection-probability [0.03 0.30]})
 
-(defn random-point-constrained [rng pte]
+(defn random-point-constrained [rng _pte]
   (let [bond (cond (< (rng/next-double rng) 0.5) 500
                    (< (rng/next-double rng) 0.8) 800
                    :else 1500)
@@ -50,7 +50,7 @@
             (if (> (:malicious-ev cand) (:malicious-ev cur))
               (recur cand (inc i)) (recur cur (inc i))))))))
 
-(defn grid-search [pte]
+(defn grid-search [_pte]
   (let [fees [100 150 200 250 300] bonds [500 800 1000 1500]
         slashes [1.0 1.5 2.0 2.5 3.0] detects [0.03 0.10 0.20 0.30]]
     (for [f fees b bonds s slashes d detects]
@@ -110,5 +110,5 @@
         (>= wr 1.0) (println "  WARNING: Attacker can beat honest!")
         :else (println "  OK: System secure")))))
 
-(defn run-adversarial-search [params & {:keys [n-trials method] :or {n-trials 1000}}]
+(defn run-adversarial-search [_params & {:keys [n-trials _method] :or {n-trials 1000}}]
   (run-pte-analysis :n-trials n-trials :n-restarts 50))

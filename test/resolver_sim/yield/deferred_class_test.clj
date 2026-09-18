@@ -1,7 +1,7 @@
 (ns resolver-sim.yield.deferred-class-test
   "Adversarial tests for deferred-class derivation, lineage anchoring,
    max-lineage-round enforcement, and strict validation of new deferred positions."
-  (:require [clojure.test :refer :all]
+  (:require [clojure.test :refer [deftest is testing]]
             [resolver-sim.yield.pro-rata-propagation-policy :as policy]
             [resolver-sim.yield.modules.liquid-lending :as ll]
             [resolver-sim.yield.position :as pos]))
@@ -69,7 +69,7 @@
     ;; Practical test: use a much smaller max by injecting a custom policy.
     (let [custom-policy (assoc-in policy/shared-withdrawal-policy
                                   [:deferred :max-lineage-round] 3)
-          custom-ref (policy/policy-reference custom-policy)
+          _custom-ref (policy/policy-reference custom-policy)
           ;; We can't easily inject a custom policy into withdraw-shared via the
           ;; standard fixture path, so we test the guard function directly.
           guard policy/check-max-lineage-round!]

@@ -136,7 +136,7 @@
   (testing "altering the mapping without recomputing hash produces :hash-mismatch"
     (let [round (make-keyed-round)
           artifact (ci/build-canonical-indices round)
-          entries (:review-member/canonical-indices artifact)
+          _entries (:review-member/canonical-indices artifact)
           tampered (update-in artifact [:review-member/canonical-indices 0]
                               assoc :researcher/id "impostor")
           result (ci/verify-canonical-indices tampered round)]

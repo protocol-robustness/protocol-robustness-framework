@@ -587,7 +587,7 @@
     (is (some #(= :duplicate-sequences (:reason %)) (:chain/errors result)))))
 
 (deftest chain-link-hash-deterministic
-  "Same inputs always produce the same chain-link hash."
+  ;; Same inputs always produce the same chain-link hash.
   (let [h1 (chain/chain-link-hash "content-hash-abc" 1 nil)
         h2 (chain/chain-link-hash "content-hash-abc" 1 nil)]
     (is (= h1 h2))
@@ -607,7 +607,7 @@
     (is (not= base-hash alt-hash))))
 
 (deftest inject-chain-fields-missing-evidence-hash
-  "inject-chain-fields without an :evidence/hash still produces chain fields."
+  ;; inject-chain-fields without an :evidence/hash still produces chain fields.
   (chain/reset-chain-cursor!)
   (let [result (chain/inject-chain-fields {:scenario/id "S1"})]
     (is (nil? (:evidence/hash result)))
@@ -617,7 +617,7 @@
     (is (string? (:evidence/chain-self-hash result)))))
 
 (deftest inject-chain-fields-monotonic-seq
-  "Consecutive inject-chain-fields calls produce strictly increasing sequences."
+  ;; Consecutive inject-chain-fields calls produce strictly increasing sequences.
   (chain/reset-chain-cursor!)
   (let [e1 (chain/inject-chain-fields {:evidence/hash "h1"})
         e2 (chain/inject-chain-fields {:evidence/hash "h2"})
@@ -630,7 +630,7 @@
     (is (= (:evidence/chain-self-hash e2) (:evidence/chain-prev-hash e3)))))
 
 (deftest inject-chain-fields-after-reset-restarts-seq
-  "Resetting the cursor restarts the sequence from 1."
+  ;; Resetting the cursor restarts the sequence from 1.
   (chain/reset-chain-cursor!)
   (chain/inject-chain-fields {:evidence/hash "h1"})
   (chain/reset-chain-cursor!)

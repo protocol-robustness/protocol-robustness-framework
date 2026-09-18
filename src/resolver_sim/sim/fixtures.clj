@@ -163,7 +163,7 @@
       theory-res (assoc :theory (theory-result/golden-snapshot theory-res theory-decl)))))
 
 (defn- save-golden-report
-  [suite-key result]
+  [_suite-key result]
   (let [path (str (paths/golden-dir) "/" (name (:trace-id result)) ".report.edn")]
     (with-open [w (io/writer path)]
       (pp/pprint (:golden-report result) w))))
@@ -184,7 +184,7 @@
     (golden/compare-reports golden actual (assoc opts :golden-verify-mode mode))))
 
 (defn- compare-golden-report
-  [suite-key result opts]
+  [_suite-key result opts]
   (let [trace-id (:trace-id result)
         path     (str (paths/golden-dir) "/" (name trace-id) ".report.edn")
         report   (:golden-report result)

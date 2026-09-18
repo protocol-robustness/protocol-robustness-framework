@@ -130,7 +130,7 @@
 
 (defn v-frame
   "Standardized 1080x1080 (scaled to 500px) evidence container."
-  [{:keys [title header status-badge footer-left footer-right content-class]} & content]
+  [{:keys [_title header _status-badge footer-left footer-right _content-class]} & content]
   [:div.golden-frame {:style {:width (get tokens/grid :frame)
                               :height (get tokens/grid :frame)
                               :background (get-color :bg/canvas)

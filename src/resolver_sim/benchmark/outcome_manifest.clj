@@ -495,8 +495,7 @@
                                       {:kind (first domain) :ref (second domain)})]
       (cond
         output? root-key
-        :contextual :no-direct-output
-        :else nil))
+        :else :no-direct-output))
 
     :else nil))
 

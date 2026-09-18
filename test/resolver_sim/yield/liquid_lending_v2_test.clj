@@ -6,7 +6,7 @@
    referred to as 'liquid-lending-v2' and has been merged into the main
    liquid-lending module."
   (:require [clojure.set :as set]
-            [clojure.test :refer :all]
+            [clojure.test :refer [deftest is testing]]
             [clojure.test.check.clojure-test :refer [defspec]]
             [clojure.test.check.generators :as gen]
             [clojure.test.check.properties :as prop]
@@ -745,7 +745,7 @@
           t1 (owner-settlement-totals u1)
           t2 (owner-settlement-totals u2)
           total-filled (+ (:filled t1) (:filled t2))
-          total-requested (+ 80 80)
+          _total-requested (+ 80 80)
           ledger (get w :yield/withdrawal-ledger [])]
       (is (<= total-filled 100)
           (str "combined filled " total-filled " must not exceed the 100-unit pool"))

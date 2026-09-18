@@ -142,5 +142,5 @@
             minimized (minimize scenario target)]
         (if-let [output-path (:output options)]
           (with-open [w (io/writer output-path)]
-            (json/write minimized w :key-fn name :value-fn (fn [k v] (if (keyword? v) (name v) v))))
+            (json/write minimized w :key-fn name :value-fn (fn [_k v] (if (keyword? v) (name v) v))))
           (println (json/write-str minimized :key-fn name)))))))

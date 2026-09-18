@@ -794,7 +794,7 @@
 (deftest test-deterrence-sensitivity-and-margins
   (testing "sensitivity outputs are derived from the committed inputs"
     (let [report (sut/evaluate-grim-trigger-deterrence (base-result))
-          df (:discount-factor report)]
+          _df (:discount-factor report)]
       (is (= (/ 1.0 3.0) (:sensitivity/required-minimum-discount report)))
       (is (pos? (:deterrence/margin report)))
       (is (= :strict-pass (:deterrence/slack-classification report)))

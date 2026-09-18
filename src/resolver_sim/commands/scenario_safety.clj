@@ -10,10 +10,8 @@
             [resolver-sim.sensitivity.report :as report]
             [resolver-sim.io.paths :as paths]
             [resolver-sim.sensitivity.sentinel :as sentinel])
-  (:import [java.nio.file Files FileAlreadyExistsException StandardCopyOption]
+  (:import [java.nio.file Files StandardCopyOption]
            [java.security MessageDigest]))
-
-(def ^:private lock-name paths/run-lock)
 
 (def ^:private secret-rules
   "Named rules with IDs, versions, and patterns.
@@ -173,8 +171,9 @@
   [run-root]
   (lifecycle/acquire-run-lock! run-root nil :scenario))
 
-(defn release-lock! [lock]
+(defn release-lock!
   "Compatibility delegate; canonical callers use lifecycle/release-run-lock!."
+  [lock]
   (lifecycle/release-run-lock! lock))
 
 (defn scan-internal-bundle!

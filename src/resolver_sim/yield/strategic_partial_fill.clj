@@ -10,10 +10,10 @@
    claim sets (1-5 claims, request values 0-20, liquidity 0-20) and remain
    deterministic — no stochastic sampling, no state explosion beyond the
    configured scope."
-  (:require [resolver-sim.yield.partial-fill :as pf]
-            [resolver-sim.yield.exact-math :as m]
-            [resolver-sim.validation.deviation-contract :as dc]
-            [resolver-sim.validation.enumeration :as enum]))
+  (:require
+
+   [resolver-sim.validation.deviation-contract :as dc]
+   [resolver-sim.validation.enumeration :as enum]))
 
 ;; ---------------------------------------------------------------------------
 ;; Allocation helper
@@ -84,30 +84,6 @@
   (enum/make-scope :dimensions {:claim-count [1 5] :request [0 20] :liquidity [0 20]}
                    :sampling :stratified
                    :max-states 500))
-
-(defn- enumerate-claim-counts
-  "Generate claim counts from 1 to max."
-  [max-claims]
-  (range 1 (inc max-claims)))
-
-(defn- enumerate-request-vectors
-  "Generate request vectors within bounds.
-   Uses integer partitions of request-max across claim-count claims,
-   with each request in [0, request-max]."
-  [claim-count request-max]
-  (letfn [(partitions [n k]
-            (if (= k 1)
-              [[n]]
-              (mapcat (fn [i]
-                        (map (fn [p] (cons i p))
-                             (partitions (- n i) (dec k))))
-                      (range 0 (inc n)))))]
-    (partitions request-max claim-count)))
-
-(defn- enumerate-liquidity
-  "Generate liquidity values from 0 to liquidity-max."
-  [liquidity-max]
-  (range 0 (inc liquidity-max)))
 
 (defn- enumerate-policies
   "Generate the policy variants to test."

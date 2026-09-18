@@ -507,10 +507,10 @@
    :sweep             [nil run-sweep]
    :adversarial       [nil (fn [p _] (adversarial/run-adversarial-search p))]
    :phase-f-dr        ["\n💰 Running Phase F: Dispute Resolution Economic Parameters"
-                       (fn [p _] (phase-f/run-phase-f-sweep))]
+                       (fn [_p _] (phase-f/run-phase-f-sweep))]
    :phase-c-dr        ["\n🔐 Running Phase C: Dispute Resolution Corruption Economics"
-                       (fn [p _] (phase-c/run-phase-c-sweep))]
+                       (fn [_p _] (phase-c/run-phase-c-sweep))]
    :phase-e-dr        ["\n📋 Running Phase E: Dispute Resolution Evidence Integrity"
-                       (fn [p _] (phase-e/run-phase-e-sweep))]
+                       (fn [_p _] (phase-e/run-phase-e-sweep))]
    :phase-m-dr        ["\n⚖️  Running Phase M: Dispute Resolution Fairness Analysis"
-                       (fn [p _] (phase-m/run-phase-m-sweep))]})
+                       (fn [_p _] (phase-m/run-phase-m-sweep))]})

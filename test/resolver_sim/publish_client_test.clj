@@ -31,7 +31,7 @@
   "Run the authority in-process and capture its stdout, so the client's
    process seam can be exercised without spawning a JVM."
   [private-key key-id assurance]
-  (fn [argv input timeout-ms]
+  (fn [_argv input _timeout-ms]
     (let [out (with-out-str
                 (cmd/run-from-reader (io/reader (java.io.StringReader. input))
                                      private-key
@@ -39,7 +39,7 @@
       {:exit 0 :stdout out :stderr ""})))
 
 (deftest request-certificate-returns-verified-signed-certificate
-  (with-dirs (fn [stage target]
+  (with-dirs (fn [stage _target]
                (let [kp (fx/keypair)
                      _ (write-file stage "summary.json" "{}")
                      entries [{:path "summary.json" :sha256 (manifest/file-sha256 (io/file stage "summary.json"))}]
@@ -56,7 +56,7 @@
                  (is (map? (:signature cert)))))))
 
 (deftest request-certificate-fails-closed-on-modified-set
-  (with-dirs (fn [stage target]
+  (with-dirs (fn [stage _target]
                (let [kp (fx/keypair)
                      _ (write-file stage "summary.json" "{}")
                      entries [{:path "summary.json" :sha256 (manifest/file-sha256 (io/file stage "summary.json"))}]
@@ -72,7 +72,7 @@
                                          :trust-policy (fx/trust-policy kp :artifact-publisher :active)})))))))
 
 (deftest verify-certificate-rejects-wrong-role
-  (with-dirs (fn [stage target]
+  (with-dirs (fn [stage _target]
                (let [kp (fx/keypair)
                      _ (write-file stage "summary.json" "{}")
                      entries [{:path "summary.json" :sha256 (manifest/file-sha256 (io/file stage "summary.json"))}]
@@ -80,7 +80,7 @@
                                                   :run-id "run-1" :manifest entries
                                                   :required ["summary.json"]})
                      runner (fake-authority-runner (:private-key kp) (:key/id kp) :process-isolated)
-                     {:keys [exit stdout]} (runner ["jvm"] (pr-str req) 1000)
+                     {:keys [_exit stdout]} (runner ["jvm"] (pr-str req) 1000)
                      response (read-string stdout)]
                  (let [result (pc/verify-certificate response req
                                                      (fx/trust-policy kp :sensitivity-sentinel :active))]

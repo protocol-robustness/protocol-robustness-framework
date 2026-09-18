@@ -237,7 +237,7 @@
                      :outputs {:bundle/root-hash "sha256:deadbeef"
                                :execution/status :pass}}
         hashes (atom [])]
-    (dotimes [i 5]
+    (dotimes [_i 5]
       (ev-node/with-fresh-registry
         (let [node (ev-node/build-execution-node commit-spec)]
           (is (= 64 (count (:node-hash node))))

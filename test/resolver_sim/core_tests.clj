@@ -50,10 +50,10 @@
 (deftest rng-split-determinism-test
   (testing "RNG splits are deterministic"
     (let [rng1 (rng/make-rng 42)
-          [a b] (rng/split-rng rng1)
+          [a _b] (rng/split-rng rng1)
 
           rng2 (rng/make-rng 42)
-          [c d] (rng/split-rng rng2)]
+          [c _d] (rng/split-rng rng2)]
       ; Same seed + split = same sub-seeds
       (is (== (rng/next-double a) (rng/next-double c))))))
 

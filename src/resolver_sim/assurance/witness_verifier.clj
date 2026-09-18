@@ -105,7 +105,7 @@
 ;; ── Phase 3: Evidence resolution ────────────────────────────────────────────
 
 (defn- resolve-step-evidence
-  [steps evidence-index adapter]
+  [steps evidence-index _adapter]
   (let [checks (atom [])
         resolved (mapv (fn [step]
                          (let [eh (:step/evidence-content-hash step)
@@ -395,7 +395,7 @@
    Returns {:valid? bool
             :witness-result {:valid? bool :checks [...]}
             :chain-result {:chain/status keyword :chain/errors [...]}}."
-  [witness definition event-evidence-dir evidence-registry chain-cursor
+  [witness definition event-evidence-dir evidence-registry _chain-cursor
    & [{:keys [evidence-adapter expected-correlation-id plan-root]}]]
   (let [;; Verify the registry hash
         registry-valid? (:valid (chain/verify-registry-hash evidence-registry))

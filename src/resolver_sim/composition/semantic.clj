@@ -22,9 +22,9 @@
 
    Canonical root domain tag:
      \"SEMANTIC_COMPOSITION_V1\""
-  (:require [resolver-sim.extensions.manifest :as em]
-            [resolver-sim.extensions.resolution :as resolution]
-            [resolver-sim.hash.canonical :as hc]))
+  (:require
+   [resolver-sim.extensions.resolution :as resolution]
+   [resolver-sim.hash.canonical :as hc]))
 
 ;; ── canonical root domain ─────────────────────────────────────────────
 
@@ -633,38 +633,4 @@
 
 ;; ── legacy unchecked constructor (test-only) ──────────────────────────
 
-(defn ^:private unchecked-compose
-  "Low-level unchecked constructor for test fixtures that need to inject
-   arbitrary resolved facts. NOT for authoritative use."
-  [profile selected packages capabilities dependencies
-   action-modules state-modules invariant-modules policy-bindings]
-  (let [provider-roots (into #{} (mapcat (fn [[_ entry]]
-                                           (map :package-root (:providers entry)))
-                                         capabilities))
-        base {:semantic-composition/version semantic-composition-version
-              :semantic-composition/profile profile
-              :semantic-composition/selected selected
-              :semantic-composition/packages packages
-              :semantic-composition/capabilities capabilities
-              :semantic-composition/dependencies dependencies
-              :semantic-composition/provider-package-roots provider-roots
-              :semantic-composition/action-modules action-modules
-              :semantic-composition/state-modules state-modules
-              :semantic-composition/invariant-modules invariant-modules
-              :semantic-composition/policy-bindings policy-bindings}
-        root (hc/domain-hash composition-domain-tag (hc/project-canonical-safe base))]
-    (-> (->SemanticComposition
-         profile
-         []
-         nil
-         packages
-         capabilities
-         dependencies
-         (set selected)
-         provider-roots
-         action-modules
-         state-modules
-         invariant-modules
-         policy-bindings
-         nil)
-        (assoc :root root))))
+

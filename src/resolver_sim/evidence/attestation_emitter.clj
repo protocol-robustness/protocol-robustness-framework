@@ -55,7 +55,7 @@
   [attestor subject claim & [{:keys [signed-at signing-key-id signing-fn
                                      claim-id provenance metadata
                                      run-id scenario-id step vcs-sha trigger]
-                              :as opts}]]
+                              :as _opts}]]
   (let [provenance (or provenance
                        (when (or run-id scenario-id trigger)
                          (ap/provenance-entry
@@ -98,7 +98,7 @@
                                     metadata claim run-id scenario-id step
                                     vcs-sha trigger]
                              :or {claim :verified}
-                             :as opts}]]
+                             :as _opts}]]
   (let [provenance (ap/provenance-for-claim
                     (or trigger :claim-evaluation)
                     claim-result

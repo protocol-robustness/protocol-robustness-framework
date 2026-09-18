@@ -16,7 +16,7 @@
   (testing "without a budget bound, borrowing reports the requested parallelism"
     (is (= 6 (budget/borrowed-parallelism 6))))
   (testing "and a supplied vector maps in stable order with full parallelism"
-    (let [cur (atom 0) mx (atom 0)
+    (let [_cur (atom 0) mx (atom 0)
           values (vec (range 12))]
       (is (= values (#'engine/ordered-detached-mapv 8 identity values)))
       (is (<= @mx 8)))))

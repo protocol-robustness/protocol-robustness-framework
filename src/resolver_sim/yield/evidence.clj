@@ -4,7 +4,7 @@
             [resolver-sim.yield.market-state :as market-state]
             [resolver-sim.hash.reference :as hash-ref]))
 
-(defn- extract-position-evidence [oid pos ms]
+(defn- extract-position-evidence [_oid pos ms]
   {:owner-id (:owner/id pos)
    :module-id (:module/id pos)
    :token (:token pos)
@@ -56,7 +56,7 @@
 
 (defn sum-recognized-losses
   "Sum all recognized principal losses for a token across all positions."
-  [world token]
+  [world _token]
   (let [positions (:yield/positions world {})
         losses (keep (fn [[_ pos]]
                        (when-let [sf (:shortfall pos)]

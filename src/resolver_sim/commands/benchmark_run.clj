@@ -2,7 +2,7 @@
   "Exact-root lifecycle context for canonical benchmark bundles."
   (:require [clojure.java.io :as io]
             [resolver-sim.commands.run-lifecycle :as lifecycle])
-  (:import [java.nio.file Path Paths]
+  (:import [java.nio.file Path]
            [java.time Instant ZoneOffset]
            [java.time.format DateTimeFormatter]
            [java.util UUID]))

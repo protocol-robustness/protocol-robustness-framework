@@ -203,7 +203,7 @@
           resolution (resolve-verifier extensions)
           b (build-authority-basis extensions resolution)
           selected (registry/select-verifier extensions verifier-subject)
-          result (build-authority-result b selected)
+          _result (build-authority-result b selected)
           ;; build a matching extension-map that produces the same registry root
           ;; but has no verifier for the subject (register a different capability)
           no-verifier-ext (-> (registry/empty-extension-map)

@@ -113,21 +113,13 @@
 
 ;; ── Independence ─────────────────────────────────────────────────────────────
 
-(defn- attestor-identity
-  "Extract the identity fields from an attestation for independence checking.
-   V1 uses attestor-id as the primary key, with optional operator and root."
-  [attestation]
-  {:attestor/id (:attestation/attestor-id attestation)
-   :attestor/hash (:attestation/id attestation)
-   :claim/result (:attestation/claim-result attestation)})
-
 (defn- check-independence
   "Check independence of attestations under a policy.
    Returns a map of {:eligible [atts] :excluded [{:attestation/hash :reason}] :conflicts [...]}"
   [attestations policy]
   (let [independence (:quorum/independence policy)
         distinct-attestor? (:distinct-attestor-id? independence true)
-        exclude-delegates? (:exclude-delegates-of-same-root? independence false)]
+        _exclude-delegates? (:exclude-delegates-of-same-root? independence false)]
     (loop [remaining (vec attestations)
            seen #{}
            eligible []
@@ -218,7 +210,7 @@
         ;; Eligibility checks
         eligibility-results (mapv (fn [a]
                                     (let [integrity (check-integrity a)
-                                          sig (check-signature a)
+                                          _sig (check-signature a)
                                           active (check-attestor-active a attestor-registry)
                                           key-auth (check-key-authorized a attestor-registry)
                                           subj (check-subject-matches a scope)

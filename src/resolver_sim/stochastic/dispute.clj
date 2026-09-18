@@ -66,41 +66,27 @@
     :strategy keyword}            ; Strategy used"
   [rng escrow-wei fee-bps bond-bps slash-mult strategy
    appeal-prob-correct appeal-prob-wrong detection-prob
-   & {:keys [senior-resolver-skill resolver-bond-bps resolver-stake-wei l2-detection-prob
+   & {:keys [_senior-resolver-skill resolver-bond-bps resolver-stake-wei _l2-detection-prob
              slashing-detection-delay-weeks allow-slashing?
              unstaking-delay-days freeze-on-detection? freeze-duration-days appeal-window-days
-             detection-type timeout-detection-probability reversal-detection-probability
-             fraud-detection-probability fraud-slash-bps l2-slash-bps reversal-slash-bps timeout-slash-bps
+             _detection-type _timeout-detection-probability _reversal-detection-probability
+             _fraud-detection-probability _fraud-slash-bps _l2-slash-bps _reversal-slash-bps _timeout-slash-bps
              _new-evidence-probability  ; forwarded to prepare-oracle-params via all-kw-args below
              fraud-success-rate fraud-model escalation-assumptions escalation-assumption-band
              p-appeal-wrong p-l1-reversal has-kleros? p-l2-escalation p-l2-reversal
              lazy-correct-prob malicious-correct-prob collusive-correct-prob
              model-appeal-costs? appeal-bond-recovery-rate
              use-endogenous-appeals? endogenous-appeal-recovery endogenous-appeal-cost
-             oracle-fixture oracle-mode oracle-roll-sequence oracle-roll-on-exhaustion
-             fixed-or oracle-roll-trace-enabled? evidence-quality?]
-      :or {senior-resolver-skill 0.95
-           resolver-bond-bps 1000
-           l2-detection-prob 0  ; default 0 means MC Kleros detection disabled unless explicitly set.
-                                 ; The closed-form fraud-survival-probability defaults has-kleros? to true,
-                                 ; creating a potential mismatch: analytical docs show Kleros protection
-                                 ; but MC runs have none.  Enable explicitly via :l2-detection-prob or
-                                 ; load phase-e1-kleros.edn params.
+             _oracle-fixture _oracle-mode _oracle-roll-sequence _oracle-roll-on-exhaustion
+             _fixed-or oracle-roll-trace-enabled? evidence-quality?]
+      :or {resolver-bond-bps 1000
            slashing-detection-delay-weeks 0
            allow-slashing? true
            unstaking-delay-days 14
            freeze-on-detection? true
            freeze-duration-days 3
            appeal-window-days 7
-           detection-type :fraud
-           timeout-detection-probability 0.0
-           reversal-detection-probability 1.0
-            ; fraud-detection-probability intentionally absent (nil) — normalize-detection-probabilities falls back to l1-malicious
-           fraud-slash-bps 0
-           l2-slash-bps 200
-           reversal-slash-bps 0
-           timeout-slash-bps 200
-           _new-evidence-probability 0.0
+             ; fraud-detection-probability intentionally absent (nil) — normalize-detection-probabilities falls back to l1-malicious
            resolver-stake-wei nil
            fraud-success-rate 0.0
            fraud-model :single-stage-ev

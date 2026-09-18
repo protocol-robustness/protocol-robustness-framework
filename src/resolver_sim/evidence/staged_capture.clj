@@ -45,15 +45,15 @@
   [session evidence]
   (when-not (finalized-evidence? evidence)
     (throw (ex-info "Staged event evidence must be finalized" {:reason :invalid-evidence})))
-  (let [result (swap! session
-                      (fn [state]
-                        (when (:sealed? state)
-                          (throw (ex-info "Cannot append to sealed staged capture"
-                                          {:reason :capture-already-sealed})))
-                        (when (:aborted? state)
-                          (throw (ex-info "Cannot append to aborted staged capture"
-                                          {:reason :capture-aborted})))
-                        (update state :staged-evidence/records conj evidence)))]
+  (let [_result (swap! session
+                       (fn [state]
+                         (when (:sealed? state)
+                           (throw (ex-info "Cannot append to sealed staged capture"
+                                           {:reason :capture-already-sealed})))
+                         (when (:aborted? state)
+                           (throw (ex-info "Cannot append to aborted staged capture"
+                                           {:reason :capture-aborted})))
+                         (update state :staged-evidence/records conj evidence)))]
     evidence))
 
 (defn staged-capture-fn

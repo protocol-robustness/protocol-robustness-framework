@@ -3,8 +3,8 @@
    Verifies that every persisted definition and registry artifact uses the
    PRF-owned benchmark identity, not the legacy Sew-pack identity."
   (:require [clojure.edn :as edn]
-            [clojure.java.io :as io]
-            [clojure.test :refer [deftest is testing]]))
+
+            [clojure.test :refer [deftest is]]))
 
 (def canonical-benchmark-path
   "benchmarks/packs/prf-core/force-authorisation-custody-v1.edn")

@@ -478,7 +478,7 @@
         (let [coordinated (accrual/coordinate-recoverable-liquidity-cap
                            world module-id token
                            (mapv second decisions))]
-          (reduce (fn [next-world [[owner-id _] decision]]
+          (reduce (fn [next-world [[_owner-id _] decision]]
                     (accrual/apply-accrual-decision-with-attribution
                      next-world
                      decision))

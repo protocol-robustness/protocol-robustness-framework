@@ -1,5 +1,5 @@
 (ns resolver-sim.yield.invariants-test
-  (:require [clojure.test :refer :all]
+  (:require [clojure.test :refer [deftest is testing]]
             [resolver-sim.contract-model.replay :as replay]
             [resolver-sim.io.scenarios :as io-sc]
             [resolver-sim.scenario.expectations :as expectations]

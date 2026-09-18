@@ -1,5 +1,5 @@
 (ns resolver-sim.pro-rata.canonical-effects-test
-  (:require [clojure.test :refer [deftest is testing]]
+  (:require [clojure.test :refer [deftest is]]
             [resolver-sim.pro-rata.canonical-effects :as sut]))
 
 (defn- root [n] (str "sha256:" (apply str (repeat 63 "0")) n))

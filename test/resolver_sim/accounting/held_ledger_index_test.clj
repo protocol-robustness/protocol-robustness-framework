@@ -3,7 +3,7 @@
    The index is a five-dimensional cumulative map shared between the live
    Sew path and the replay path.  Integer-keyed accessors provide compact
    dimension references matching the review-member pattern."
-  (:require [clojure.test :refer [deftest is testing]]
+  (:require [clojure.test :refer [deftest is]]
             [resolver-sim.accounting.held-ledger-index :as hli]))
 
 ;; ── Empty index ────────────────────────────────────────────────────────────

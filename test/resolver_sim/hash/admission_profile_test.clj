@@ -270,12 +270,13 @@
           covered (set (set/union (set (keys serialized-input-entry-points))
                                   (set (keys non-admission-byte-taking-helpers))))
           missing (set/difference discovered covered)
-          stale (set/difference covered discovered)]      (is (empty? missing))
-         (str "discovered serialized-input entry point(s) not registered or "
-              "exempted: " (pr-str (sort missing)))
-         (is (empty? stale)
-             (str "registered/exempted entry point(s) no longer discovered: "
-                  (pr-str (sort stale)))))))
+          stale (set/difference covered discovered)]
+      (is (empty? missing)
+          (str "discovered serialized-input entry point(s) not registered or "
+               "exempted: " (pr-str (sort missing))))
+      (is (empty? stale)
+          (str "registered/exempted entry point(s) no longer discovered: "
+               (pr-str (sort stale)))))))
 
 ;; ── Boundary probes ─────────────────────────────────────────────────────────
 

@@ -1,5 +1,5 @@
 (ns resolver-sim.community.result-test
-  (:require [clojure.test :refer [deftest is testing]]
+  (:require [clojure.test :refer [deftest is]]
             [resolver-sim.community.result :as result]))
 
 (def sample-evidence

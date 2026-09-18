@@ -19,8 +19,7 @@
    an external custody snapshot below the modeled obligation makes economic
    solvency fail while the internal ledger still reconciles. Requiring
    external coverage with no snapshot reaches :unassessable."
-  (:require [resolver-sim.protocols.sew.financial.solvency :as solvency]
-            [resolver-sim.protocols.sew.financial.liabilities :as liab]))
+  (:require [resolver-sim.protocols.sew.financial.solvency :as solvency]))
 
 (defn- build-world
   [{:keys [custody recognized-loss observed-balances require-external-coverage]}]

@@ -1,6 +1,6 @@
 (ns resolver-sim.build.default-attestation-test
   (:require [clojure.java.io :as io]
-            [clojure.test :refer :all]
+            [clojure.test :refer [deftest is testing]]
             [buddy.core.codecs :as codecs]
             [resolver-sim.build.default-attestation :as att]
             [resolver-sim.build.default-attestation-cli :as att-cli]

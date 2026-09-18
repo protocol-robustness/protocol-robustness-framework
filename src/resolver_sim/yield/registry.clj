@@ -99,7 +99,7 @@
                                        failure-modes shortfall
                                        rate-schedule index-schedule liquidity-schedule module-state-schedule
                                        shortfall-model withdrawal-policy]
-                                :as cfg}]
+                                :as _cfg}]
   {:initial-index     (or initial-index
                           (when initial-index-ray
                             (/ (bigdec initial-index-ray)

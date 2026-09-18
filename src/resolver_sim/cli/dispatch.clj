@@ -6,7 +6,7 @@
   (:require [clojure.java.io :as io]
             [clojure.string :as str]
             [clojure.tools.cli :as cli]
-            [resolver-sim.benchmark.hardening :as hardening]
+
             [resolver-sim.cli.registry :as registry]))
 
 ;; ---------------------------------------------------------------------------
@@ -14,8 +14,6 @@
 ;; Every :command/id with :jar-availability :native must have an entry here.
 ;; Use resolve at runtime to avoid circular load dependencies.
 ;; ---------------------------------------------------------------------------
-
-(def ^:private handler-cache (atom {}))
 
 (declare get-command-handlers)
 
@@ -114,14 +112,6 @@
 
 (defn command-available? [cmd-id]
   (or (not (sew-command-ids cmd-id)) (sew-capable?)))
-
-(defn- load-handler-if-available [cmd-id]
-  "Try to load a handler for the given command ID.
-   Returns the handler var if successful, nil otherwise."
-  (when-let [symbol (get handler-symbols cmd-id)]
-    (try
-      (requiring-resolve symbol)
-      (catch Exception _ nil))))
 
 (defn- handler-for [cmd-id]
   (when (command-available? cmd-id)

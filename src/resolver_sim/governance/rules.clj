@@ -36,11 +36,11 @@
    Used in Phase H (baseline) and throughout Phases P-R."
   []
   (reify GovernanceRules
-    (can-rule-change? [_ epoch rules params]
+    (can-rule-change? [_ _epoch _rules _params]
       false)
-    (apply-rule-change [_ old-rules new-rules params]
+    (apply-rule-change [_ old-rules _new-rules _params]
       {:rules old-rules :delay-epochs 0})
-    (governance-delay [_ params]
+    (governance-delay [_ _params]
       Integer/MAX_VALUE)))
 
 ;; ============ ADAPTIVE RULES (Phase T - future) ============
@@ -103,7 +103,7 @@
 
    Returns: {:valid? bool :errors [str]}
    "
-  [old-rules new-rules]
+  [_old-rules new-rules]
 
   (let [errors (atom [])]
 

@@ -205,7 +205,7 @@
    - corruption-probability: [0.0 - 1.0] reliability of bribe
    
    Returns: decision"
-  [honest-path attack-favors-outcome corruption-probability]
+  [_honest-path attack-favors-outcome corruption-probability]
 
   (if (>= corruption-probability 1.0)
     ; Direct corruption: decision is always favorable
@@ -231,7 +231,7 @@
    - evidence-quality: [0.0 - 1.0]
    
    Returns: {:decision true/false, :was-error boolean}"
-  [rng round ground-truth resolver-honest? corruption-level
+  [rng round ground-truth resolver-honest? _corruption-level
    time-pressure-factor prior-decision difficulty evidence-quality]
 
   (let [decision (if resolver-honest?
@@ -274,7 +274,7 @@
   [rng ground-truth resolver-corruption time-pressures difficulty evidence-quality
    & {:keys [appeal-threshold] :or {appeal-threshold 0.6}}]
 
-  (let [[r0-honest? r1-corrupt? r2-corrupt?] resolver-corruption
+  (let [[r0-honest? r1-corrupt? _r2-corrupt?] resolver-corruption
         [tp0 tp1 tp2] time-pressures
 
         ; Round 0: Initial decision

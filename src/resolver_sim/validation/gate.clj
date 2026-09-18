@@ -7,8 +7,7 @@
 
    Each gate function accepts existing check results and returns a verdict
    map.  No existing checks are modified — the gating is an aggregation
-   layer on top."
-  (:require [resolver-sim.validation.classes :as vc]))
+   layer on top.")
 
 ;; ---------------------------------------------------------------------------
 ;; Status vocabulary

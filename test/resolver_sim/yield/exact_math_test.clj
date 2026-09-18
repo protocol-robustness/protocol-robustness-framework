@@ -1,7 +1,7 @@
 (ns resolver-sim.yield.exact-math-test
   "Property and unit tests for exact ratio arithmetic used in yield accrual
    and partial-fill allocation."
-  (:require [clojure.test :refer :all]
+  (:require [clojure.test :refer [deftest is testing]]
             [resolver-sim.yield.exact-math :as m]))
 
 (deftest test-bps-ratio-roundtrip
@@ -168,7 +168,7 @@
   (testing "rounding debt is conserved"
     (let [claims [{:key :a :amount 3} {:key :b :amount 3} {:key :c :amount 3}]
           result (m/adversarial-rounding 10 claims)
-          sum-remainders (reduce + 0 (map :remainder-exact (:allocations result)))]
+          _sum-remainders (reduce + 0 (map :remainder-exact (:allocations result)))]
       (is (>= (:rounding-debt result) 0)))))
 
 (deftest test-apy-degradation

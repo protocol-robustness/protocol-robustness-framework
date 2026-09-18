@@ -65,8 +65,8 @@
    Optional: :principal (0), :shares (0), :entry-index (1), :status (:active),
              plus all extended fields.
    Shares and entry-index are stored as ratios."
-  [{:keys [token principal shares entry-index status]
-    :or {principal 0 shares 0 entry-index 1 status :active}
+  [{:keys [token principal shares entry-index _status]
+    :or {principal 0 shares 0 entry-index 1}
     :as m}]
   (let [id (:owner/id m)
         module-id (:module/id m)]

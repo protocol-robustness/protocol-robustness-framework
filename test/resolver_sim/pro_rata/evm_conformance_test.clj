@@ -1,7 +1,7 @@
 (ns resolver-sim.pro-rata.evm-conformance-test
   (:require [clojure.java.io :as io]
             [clojure.set :as set]
-            [clojure.test :refer [deftest is testing]]
+            [clojure.test :refer [deftest is]]
             [resolver-sim.pro-rata.evm-conformance :as sut]))
 
 (def vector-path "vectors/all-active-60-40.edn")

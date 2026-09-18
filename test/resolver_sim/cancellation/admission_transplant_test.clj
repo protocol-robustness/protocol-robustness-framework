@@ -8,7 +8,7 @@
    - A transplanted EFFECT (execution-effects bound to a different derived-
      effects root than the operation declares) fails the recomputation match
      and blocks admission with :operation/execution-effects-mismatch."
-  (:require [clojure.test :refer [deftest is testing]]
+  (:require [clojure.test :refer [deftest is]]
             [resolver-sim.cancellation.admission :as admission]
             [resolver-sim.cancellation.operation :as operation]
             [resolver-sim.cancellation.party-command :as command]

@@ -31,7 +31,7 @@
    :concept/section key containing stakeholder-facing summaries.
 
    Called by the benchmark runner after scenario execution completes."
-  [report concepts]
+  [_report concepts]
   {:concept/section
    {:concept/summaries
     (mapv (fn [c]

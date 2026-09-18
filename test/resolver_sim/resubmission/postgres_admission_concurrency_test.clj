@@ -310,9 +310,9 @@
         reservation (reserve-active! *db-a* family "idem-H" "a")
         fr (finalize-request s0 reservation (r "r"))
         rid (:reservation/id reservation)
-        [ra rb] (race!
-                 #(store/abort! *db-a* family rid (:reservation/fence reservation))
-                 #(store/finalize! *db-b* fr))
+        [_ra _rb] (race!
+                   #(store/abort! *db-a* family rid (:reservation/fence reservation))
+                   #(store/finalize! *db-b* fr))
         sn (store/snapshot! *db-a* family)
         finalization (get-in sn [:admission/finalizations rid])]
     ;; Illegal for the reservation to be BOTH finalized and aborted; version must
@@ -356,19 +356,19 @@
 (deftest expiry-boundary-before-at-and-after-deadline
   (testing "after the deadline → expired"
     (let [db *db-a*
-          s0 (store/snapshot! db family)
+          _s0 (store/snapshot! db family)
           reservation (reserve-active! db family "idem-E1" "a")]
       (force-deadline! *ds-a* family (:reservation/id reservation) -1)
       (is (= :expired (reservation-status db family (:reservation/id reservation))))))
   (testing "exactly at the deadline → expired (lease is inclusive of 'now')"
     (let [db *db-b*
-          s0 (store/snapshot! db family)
+          _s0 (store/snapshot! db family)
           reservation (reserve-active! db family "idem-E2" "b")]
       (force-deadline! *ds-b* family (:reservation/id reservation) 0)
       (is (= :expired (reservation-status db family (:reservation/id reservation))))))
   (testing "before the deadline → still active"
     (let [db *db-a*
-          s0 (store/snapshot! db family)
+          _s0 (store/snapshot! db family)
           reservation (reserve-active! db family "idem-E3" "c")]
       (force-deadline! *ds-a* family (:reservation/id reservation) 60)
       (is (= :active (reservation-status db family (:reservation/id reservation)))))))

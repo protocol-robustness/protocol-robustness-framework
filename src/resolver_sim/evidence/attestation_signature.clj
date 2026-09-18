@@ -13,7 +13,7 @@
 
 (def ^:const signature-version "attestation-signature.v1")
 (def ^:private sha256-ref-pattern #"sha256:[0-9a-f]{64}")
-(def ^:private hex-64-pattern #"[0-9a-f]{64}")
+
 (def ^:private hex-128-pattern #"[0-9a-f]{128}")
 
 (defn signing-payload-hash

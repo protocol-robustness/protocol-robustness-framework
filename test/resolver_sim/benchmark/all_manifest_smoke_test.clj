@@ -3,14 +3,14 @@
    the canonical registry, resolve every suite and scenario input, and
    execute a bounded representative matrix to validate the end-to-end
    pipeline without running the full corpus."
-  (:require [clojure.edn :as edn]
-            [clojure.java.io :as io]
-            [clojure.test :refer [deftest is testing]]
-            [resolver-sim.benchmark.runner :as runner]
-            [resolver-sim.evidence.chain :as chain]
-            [resolver-sim.io.input-source :as input-source]
-            [resolver-sim.io.resource-path :as rp]
-            [resolver-sim.scenario.suites :as suites]))
+  (:require
+
+   [clojure.test :refer [deftest is testing]]
+   [resolver-sim.benchmark.runner :as runner]
+   [resolver-sim.evidence.chain :as chain]
+   [resolver-sim.io.input-source :as input-source]
+   [resolver-sim.io.resource-path :as rp]
+   [resolver-sim.scenario.suites :as suites]))
 
 (defn- enumerate-manifests
   "Walk every pack in the canonical registry and return a sequence of

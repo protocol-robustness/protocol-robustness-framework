@@ -4,9 +4,6 @@
   (:require [clojure.data :as data]
             [clojure.pprint :as pp]))
 
-(defn- world-at-step [trace seq-n]
-  (:world (first (filter #(= (:seq %) seq-n) trace))))
-
 (defn diff-traces
   "Compare two simulation trace logs (vectors of steps).
    Returns the first seq number where a divergence is found, plus the diff."

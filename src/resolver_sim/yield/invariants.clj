@@ -6,16 +6,13 @@
             [resolver-sim.yield.partial-fill :as partial-fill]
             [resolver-sim.yield.pro-rata-propagation-policy :as propagation-policy]
             [resolver-sim.pro-rata.allocation :as pro-rata-allocation]
-            [resolver-sim.time.context :as time-ctx]
+
             [resolver-sim.hash.canonical :as hc]
             [resolver-sim.time.deadlines :as dl]
             [resolver-sim.logging :as log]))
 
 (declare check-pro-rata-accounting-reconciles)
 (declare mode-over-allocation-violations)
-
-(defn- inv-result [holds?]
-  {:holds? (boolean holds?)})
 
 (defn- token-name [token]
   (if (keyword? token) (name token) (str token)))
@@ -37,7 +34,7 @@
                  (let [mid (:module/id pos)
                        tok (:token pos)
                        risk (get-in world [:yield/risk mid tok] {})
-                       sf   (:shortfall pos)
+                       _sf   (:shortfall pos)
                        sf-model (get-in world [:yield/shortfall-models mid tok])
                        mtm? (= :mark-to-market (risk/effective-loss-mode risk))
 
@@ -731,7 +728,7 @@
    Returns {:holds? bool :violations [...]}."
   [artifact]
   (let [rows (vec (or (get-in artifact [:evidence :allocation-rows]) []))
-        requested-map (or (:requested artifact) {})
+        _requested-map (or (:requested artifact) {})
         A (get-in artifact [:evidence :available-liquidity])
         total-requested (get-in artifact [:evidence :total-requested])
         shortage (get-in artifact [:evidence :shortage])
@@ -928,7 +925,7 @@
    request breaks the peel instead of passing.
 
    Returns {:ok? bool :rounds n :terminal-deferred amount :reason kw}."
-  [participant round1 records]
+  [_participant round1 records]
   (loop [remaining (remove #(identical? % round1) records)
          current (:deferred round1)
          rounds 1]
@@ -1382,7 +1379,7 @@
       this check catches the gap."
   [world]
   (let [positions (:yield/positions world {})
-        holds? (every? (fn [[oid pos]]
+        holds? (every? (fn [[_oid pos]]
                          (let [mid (:module/id pos)
                                tok (:token pos)
                                status (:status pos)
@@ -2078,16 +2075,16 @@
                                          debit (filter #(and (= :debit (:entry/type %)) (= (:source-account accounting-contract) (:account %))) entries)
                                          participant-credit-entries (filter #(= :credit (:entry/type %)) entries)
                                          credits (filter #(and (= :credit (:entry/type %)) (= (:participant-credit-account accounting-contract) (:account %))) entries)
-                                         credit-errors (mapcat (fn [participant]
-                                                                 (let [fulfilled (long (:fulfilled participant 0))
-                                                                       key [(:token p) (:participant-id participant) (get-in participant [:origin :obligation-id])]
-                                                                       matching (filter #(= key [(:token %) (:participant-id %) (:obligation-id %)]) credits)]
-                                                                   (cond-> []
-                                                                     (and (pos? fulfilled) (empty? matching)) (conj {:propagation-id id :participant-id (:participant-id participant) :reason :participant-credit-missing})
-                                                                     (and (pos? fulfilled) (> (count matching) 1)) (conj {:propagation-id id :participant-id (:participant-id participant) :reason :participant-credit-duplicate})
-                                                                     (and (pos? fulfilled) (= 1 (count matching)) (not= fulfilled (long (:delta (first matching) 0)))) (conj {:propagation-id id :participant-id (:participant-id participant) :reason :participant-credit-mismatch})
-                                                                     (and (zero? fulfilled) (seq matching)) (conj {:propagation-id id :participant-id (:participant-id participant) :reason :unexpected-zero-fulfilment-credit}))))
-                                                               participants)]
+                                         _credit-errors (mapcat (fn [participant]
+                                                                  (let [fulfilled (long (:fulfilled participant 0))
+                                                                        key [(:token p) (:participant-id participant) (get-in participant [:origin :obligation-id])]
+                                                                        matching (filter #(= key [(:token %) (:participant-id %) (:obligation-id %)]) credits)]
+                                                                    (cond-> []
+                                                                      (and (pos? fulfilled) (empty? matching)) (conj {:propagation-id id :participant-id (:participant-id participant) :reason :participant-credit-missing})
+                                                                      (and (pos? fulfilled) (> (count matching) 1)) (conj {:propagation-id id :participant-id (:participant-id participant) :reason :participant-credit-duplicate})
+                                                                      (and (pos? fulfilled) (= 1 (count matching)) (not= fulfilled (long (:delta (first matching) 0)))) (conj {:propagation-id id :participant-id (:participant-id participant) :reason :participant-credit-mismatch})
+                                                                      (and (zero? fulfilled) (seq matching)) (conj {:propagation-id id :participant-id (:participant-id participant) :reason :unexpected-zero-fulfilment-credit}))))
+                                                                participants)]
                                      (cond-> []
                                        (nil? a) (conj {:propagation-id id :reason :missing-propagation-application})
                                        (and a (not (#{"pro-rata-propagation-application.v2" "pro-rata-propagation-application.v3"} (:schema-version a)))) (conj {:propagation-id id :reason :unsupported-application-schema})

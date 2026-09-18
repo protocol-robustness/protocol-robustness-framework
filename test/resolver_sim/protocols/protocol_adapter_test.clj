@@ -38,7 +38,7 @@
             (str name ": structural failure — " (:halt-reason result)))))))
 
 (deftest protocol-interfaces-satisfied
-  "Verify protocol satisfaction for tiered interfaces."
+  ;; Verify protocol satisfaction for tiered interfaces.
   (testing "SewProtocol"
     (is (satisfies? proto/SimulationAdapter sew/protocol))
     (is (satisfies? proto/EconomicModel sew/protocol))

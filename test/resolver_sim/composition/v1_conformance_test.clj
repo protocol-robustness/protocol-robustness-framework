@@ -33,7 +33,7 @@
 
 (deftest production-module-does-not-require-clean-room
   (testing "The V1 namespace has no reference to prf-clean-room"
-    (let [ns-name (str (ns-name *ns*))
+    (let [_ns-name (str (ns-name *ns*))
           clean-room-refs (filter #(re-find #"clean-room|prf-clean-room" (str %))
                                   (keys (ns-publics 'resolver-sim.composition.v1)))]
       (is (empty? clean-room-refs)

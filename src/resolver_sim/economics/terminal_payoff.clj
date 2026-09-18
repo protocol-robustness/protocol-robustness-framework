@@ -156,7 +156,7 @@
    - `locked-duration-seconds` — how long capital was locked
    - `assumptions` — map of economic assumptions (defaults from `default-assumptions`)"
   [resolver-id fee-wei bond-wei slash-multiplier appeal-cost-wei
-   verdict-correct? appeal-filed? appeal-upheld?
+   verdict-correct? appeal-filed? _appeal-upheld?
    fraud-upside-wei fraud-success-rate detection-prob
    locked-duration-seconds
    & {:keys [assumptions]
@@ -207,7 +207,7 @@
 (defn honest-ev-from-payoff
   "Compute honest expected value from the canonical payoff model.
    Delegates to `resolver-payoff` with honest-appropriate assumptions."
-  [fee-wei appeal-prob-if-correct]
+  [fee-wei _appeal-prob-if-correct]
   (let [payoff (resolver-payoff :honest-resolver fee-wei 0 1 0
                                 true false false
                                 0 0.0 0.0 0)]
@@ -216,7 +216,7 @@
 (defn malicious-ev-from-payoff
   "Compute malicious expected value from the canonical payoff model.
    Delegates to `resolver-payoff` with malicious-appropriate assumptions."
-  [fee-wei slashing-loss detection-prob
+  [fee-wei _slashing-loss detection-prob
    & {:keys [fraud-upside fraud-success-rate]
       :or {fraud-upside 0 fraud-success-rate 0.0}}]
   (let [payoff (resolver-payoff :malicious-resolver fee-wei 0 1 0
@@ -342,7 +342,7 @@
   [fee-wei escrow-wei detection-prob
    & {:keys [fraud-upside fraud-success-rate precision]
       :or {fraud-upside 0, fraud-success-rate 0.0, precision 1.0}}]
-  (let [bond-search (fn [f]
+  (let [bond-search (fn [_f]
                       (loop [low 0.0 high (double escrow-wei)]
                         (if (< (- high low) precision)
                           (long high)

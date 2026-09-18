@@ -35,8 +35,7 @@
   re-classing a :stable code is a breaking protocol change.
 
   Constructors validate against the registry so an unregistered code cannot
-  silently cross a boundary."
-  (:require [clojure.string :as str]))
+  silently cross a boundary.")
 
 ;; ── Schema ────────────────────────────────────────────────────────────────────
 

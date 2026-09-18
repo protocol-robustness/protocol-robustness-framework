@@ -1,5 +1,5 @@
 (ns resolver-sim.evidence.timestamping-test
-  (:require [clojure.test :refer :all]
+  (:require [clojure.test :refer [deftest is]]
             [resolver-sim.evidence.timestamping :as ts]
             [resolver-sim.hash.canonical :as hc]))
 

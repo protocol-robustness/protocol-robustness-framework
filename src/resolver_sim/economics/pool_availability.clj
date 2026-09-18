@@ -54,11 +54,6 @@
    :reservation/amount
    :reservation/purpose-root])
 
-(def ^:private component-kind-sign
-  {:base (fn [n] (>= n 0))
-   :bonus (fn [n] (>= n 0))
-   :deduction (fn [n] (<= n 0))})
-
 ;; ── Private normalization helpers ────────────────────────────────────────────
 
 (defn- canonicalize-roots

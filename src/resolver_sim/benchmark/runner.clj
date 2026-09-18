@@ -1097,7 +1097,7 @@
           source-by-id (into {}
                              (map (fn [entry source] [(:execution/id entry) source])
                                   plan
-                                  (for [repetition-index (range (benchmark-run-count benchmark))
+                                  (for [_repetition-index (range (benchmark-run-count benchmark))
                                         scenario scenarios]
                                     scenario)))
           staging-root (when scenario-output-dir

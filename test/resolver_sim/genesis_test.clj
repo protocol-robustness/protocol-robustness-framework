@@ -1,5 +1,5 @@
 (ns resolver-sim.genesis-test
-  (:require [clojure.test :refer :all]
+  (:require [clojure.test :refer [deftest is testing]]
             [clojure.string :as str]
             [clojure.data.json :as json]
             [resolver-sim.genesis :as g]

@@ -1,8 +1,8 @@
 (ns resolver-sim.benchmark.fixtures.artifact-contracts
   "Reusable V3 game-theoretic-validation artifact fixtures for contract,
    migration, and serialization tests."
-  (:require [resolver-sim.hash.canonical :as hc]
-            [resolver-sim.validation.game-theory-profile :as gtp]))
+  (:require
+   [resolver-sim.validation.game-theory-profile :as gtp]))
 
 (def ^:private artifact-version "game-theoretic-validation.artifact.v3")
 

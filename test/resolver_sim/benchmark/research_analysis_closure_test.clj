@@ -1,5 +1,5 @@
 (ns resolver-sim.benchmark.research-analysis-closure-test
-  (:require [clojure.test :refer [deftest is testing]]
+  (:require [clojure.test :refer [deftest is]]
             [resolver-sim.benchmark.incentive-model :as model]
             [resolver-sim.benchmark.incentive-deviation-domain :as domain]
             [resolver-sim.benchmark.outcome-manifest :as outcome]

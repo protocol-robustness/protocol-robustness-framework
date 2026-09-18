@@ -140,7 +140,7 @@
   "Extract slash loss events from a resolver's epoch-history.
    Returns [{:epoch N :profit P :slashed? true}] for epochs with slash events."
   [resolver-history]
-  (->> (for [[ek ed] (:epoch-history resolver-history)
+  (->> (for [[_ek ed] (:epoch-history resolver-history)
              :when (:slashed? ed false)]
          {:epoch   (:epoch ed)
           :profit  (:profit ed 0.0)

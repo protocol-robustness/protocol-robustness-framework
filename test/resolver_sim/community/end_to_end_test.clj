@@ -28,7 +28,7 @@
 
 (deftest positive-fixture-complete-workflow
   (with-temp-dirs
-    (fn [artifact-dir mailbox-dir]
+    (fn [artifact-dir _mailbox-dir]
       (let [task-ref (:task/ref (task/build-task task-spec))]
         (testing "Register task"
           (let [t (task/build-task task-spec)]
@@ -78,7 +78,7 @@
 
 (deftest negative-fixture-challenge-on-mismatch
   (with-temp-dirs
-    (fn [artifact-dir mailbox-dir]
+    (fn [artifact-dir _mailbox-dir]
       (let [task-ref (:task/ref (task/build-task task-spec))]
         (testing "Original runner executes"
           (let [a (att/build-execution-attestation

@@ -4,7 +4,7 @@
    external path; this namespace neither generates nor enrolls keys."
   (:require [clojure.data.json :as json]
             [clojure.edn :as edn]
-            [clojure.java.io :as io]
+
             [clojure.java.shell :as shell]
             [resolver-sim.allocation.persisted-statement-admission :as persisted]
             [resolver-sim.allocation.proof-admission :as admission]

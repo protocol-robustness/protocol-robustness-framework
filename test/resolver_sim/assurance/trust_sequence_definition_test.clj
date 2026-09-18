@@ -1,5 +1,5 @@
 (ns resolver-sim.assurance.trust-sequence-definition-test
-  (:require [clojure.test :refer [deftest is testing]]
+  (:require [clojure.test :refer [deftest is]]
             [resolver-sim.assurance.trust-sequence-definition :as tsd]))
 
 (def valid-provider
@@ -72,10 +72,10 @@
 
 (deftest validate-rejects-duplicate-step-ids
   (let [steps [(first valid-steps) (first valid-steps)]
-        defn (tsd/build-definition
-              {:id :sew.sequence/test
-               :provider valid-provider
-               :steps (vec steps)})
+        _defn (tsd/build-definition
+               {:id :sew.sequence/test
+                :provider valid-provider
+                :steps (vec steps)})
         defn (tsd/build-definition
               {:id :sew.sequence/test
                :provider valid-provider

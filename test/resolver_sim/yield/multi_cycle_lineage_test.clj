@@ -13,12 +13,11 @@
    is a lifecycle/cancellation window. Pro-rata math is deterministic
    largest-remainder. Priority is a witness/ordering attribute in pro-rata
    mode, NOT an allocation-amount determinant."
-  (:require [clojure.test :refer :all]
+  (:require [clojure.test :refer [deftest is testing]]
             [resolver-sim.yield.modules.liquid-lending :as ll]
             [resolver-sim.yield.invariants :as inv]
             [resolver-sim.allocation.persisted-statement-admission :as adm]
-            [resolver-sim.allocation.realized-statement :as rs]
-            [resolver-sim.allocation.round-state :as round-state]
+
             [clojure.data.json :as json]))
 
 ;; ── shared fixture world (identical to lineage_conservation_test) ──────────

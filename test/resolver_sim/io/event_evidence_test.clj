@@ -1,5 +1,5 @@
 (ns resolver-sim.io.event-evidence-test
-  (:require [clojure.test :refer :all]
+  (:require [clojure.test :refer [deftest is testing]]
             [resolver-sim.io.event-evidence :as event-evidence]))
 
 (deftest evidence-filename-uses-unique-chain-sequence

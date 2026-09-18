@@ -1,8 +1,7 @@
 (ns resolver-sim.io.input-source
   "Stable input references for filesystem and classpath-backed executable data."
   (:require [clojure.java.io :as io]
-            [clojure.string :as str]
-            [resolver-sim.io.resource-path :as resource-path])
+            [clojure.string :as str])
   (:import [java.security MessageDigest]
            [java.math BigInteger]))
 

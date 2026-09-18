@@ -1,5 +1,5 @@
 (ns resolver-sim.yield.accounting-test
-  (:require [clojure.test :refer :all]
+  (:require [clojure.test :refer [deftest is testing]]
             [resolver-sim.yield.accounting :as acct]
             [resolver-sim.yield.invariants :as inv]
             [resolver-sim.yield.modules.liquid-lending :as liquid]

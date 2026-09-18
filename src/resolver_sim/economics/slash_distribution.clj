@@ -185,10 +185,6 @@
   [extension-map method]
   (some? (resolve-method-capability extension-map :economics/funding method)))
 
-(defn- supported-rounding?
-  [rounding]
-  (= :floor rounding))
-
 (defn- bips-sum-to-scale?
   [weights scale]
   (= scale (reduce + 0 (vals weights))))
@@ -932,7 +928,7 @@
               (conj v {:violation/id :violation/invalid-gross-amount
                        :details {:gross-amount gross-amount}}))
         ;; validate policy
-        {:keys [valid? violations] :as policy-result}
+        {:keys [valid? violations] :as _policy-result}
         (when policy (validate-policy policy extension-map))
         v (if policy
             (if valid?
@@ -1291,7 +1287,7 @@
             processed (mapv (fn [policy-award]
                               (let [award-id (:award/id policy-award)
                                     stored (get stored-by-id award-id)
-                                    {:keys [award-amount calculation funding violations]}
+                                    {:keys [award-amount calculation funding _violations]}
                                     (independent-award extension-map gross-amount
                                                        policy-award param-values stored)]
                                 (when (and (some? award-amount) (pos? award-amount))

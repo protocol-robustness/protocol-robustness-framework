@@ -224,7 +224,7 @@
 (defn narrative-metrics
   "Computes narrative-safe metrics from artifacts with graceful fallbacks.
    Returns metrics suitable for production visual copy, avoiding hardcoded claims."
-  [{:keys [summary coverage] :as artifacts}]
+  [{:keys [summary coverage] :as _artifacts}]
   (let [scenarios     (or (:scenarios coverage) [])
         total         (count scenarios)
         failures      (or (:failing_scenarios summary)
@@ -258,7 +258,7 @@
   []
   (when (try-require 'resolver-sim.notebook-support.db)
     (let [ds-fn (resolve 'resolver-sim.notebook-support.db/ds-result)]
-      (when-let [ds (and ds-fn (:ds (ds-fn)))]
+      (when-let [_ds (and ds-fn (:ds (ds-fn)))]
         ;; Placeholder for actual XTDB query logic
         nil))))
 

@@ -46,11 +46,6 @@
 (defn- ok [world] {:ok true :world world})
 (defn- err [kw detail] {:ok false :error kw :detail detail})
 
-(defn- held-balance [world token]
-  (long (or (get-in world [:yield/held-balances (name token)])
-            (get-in world [:yield/held-balances token])
-            0)))
-
 (defn- sync-held-from-positions
   "Align custody ledger with active position economic value (post-accrual)."
   [world]
@@ -58,7 +53,7 @@
         ;; Clear previous balances to ensure fresh aggregation
         world' (assoc world :yield/held-balances {})]
     (reduce
-     (fn [w [oid pos]]
+     (fn [w [_oid pos]]
        (if (= (:status pos) :active)
          (let [tok (if (keyword? (:token pos)) (name (:token pos)) (str (:token pos)))
                need (yield-inv/position-custody-need w pos)]
@@ -211,7 +206,7 @@
     {:agent-index (into {} (map (juxt :id identity) agents))
      :protocol-params protocol-params})
 
-  (dispatch-action [_ context world event]
+  (dispatch-action [_ _context world event]
     (dispatch-yield-action world event))
 
   (check-invariants-single [_ world]

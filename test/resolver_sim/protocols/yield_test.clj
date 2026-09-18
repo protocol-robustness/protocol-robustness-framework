@@ -1,5 +1,5 @@
 (ns resolver-sim.protocols.yield-test
-  (:require [clojure.test :refer :all]
+  (:require [clojure.test :refer [deftest is]]
             [resolver-sim.contract-model.replay :as replay]
             [resolver-sim.protocols.protocol :as proto]
             [resolver-sim.protocols.yield :as yp]

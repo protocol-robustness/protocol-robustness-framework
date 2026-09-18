@@ -14,15 +14,6 @@
   (:require [resolver-sim.hash.canonical :as hc]
             [clojure.edn :as edn]))
 
-(defn- sort-maps-for-hash
-  "Recursively sort map keys for deterministic hashing. Used by verify-bundle-hash
-   to match the write-time ordering."
-  [x]
-  (cond
-    (map? x) (into (sorted-map) (map (fn [[k v]] [k (sort-maps-for-hash v)]) x))
-    (coll? x) (into (empty x) (map sort-maps-for-hash x))
-    :else x))
-
 (def ^:private object-tag-reader
   "LEGACY RUNTIME-VALUE COMPATIBILITY ONLY — not a permanent serialization design.
 

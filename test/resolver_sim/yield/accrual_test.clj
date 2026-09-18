@@ -1,6 +1,6 @@
 (ns resolver-sim.yield.accrual-test
   "Tests for the yield accrual decision layer and its 7 short circuits."
-  (:require [clojure.test :refer :all]
+  (:require [clojure.test :refer [deftest is testing]]
             [resolver-sim.yield.accrual :as accrual]
             [resolver-sim.yield.exact-math :as m]
             [resolver-sim.yield.position :as pos]
@@ -43,7 +43,7 @@
    (assoc-in world [:yield/positions "user1"] pos)))
 
 (defn- decision-for
-  ([world pos dt]
+  ([world _pos dt]
    (accrual/accrual-decision world {:module-id :test-mod
                                     :token "USDC"
                                     :position-id "user1"
@@ -392,8 +392,8 @@
                     (assoc-in [:yield/rates :test-mod "USDC"] 0.10)
                     (assoc-in [:yield/accrual-config :test-mod :freeze-on] #{:paused}))
           ;; :frozen is NOT in the custom set, so accrual should proceed
-          unfrozen (-> world
-                       (assoc-in [:yield/module-status :test-mod] :frozen))
+          _unfrozen (-> world
+                        (assoc-in [:yield/module-status :test-mod] :frozen))
           ;; :frozen is NOT in the custom set, so accrual should proceed
           unfrozen (-> world
                        (assoc-in [:yield/module-status :test-mod] :frozen))

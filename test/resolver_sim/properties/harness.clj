@@ -7,8 +7,7 @@
 
    Override trial count:
      clojure -M:test -Dprf.property.trials=500 ...
-   "
-  (:require [clojure.test :refer [is]]))
+   ")
 
 (def ^:const default-trials
   "Default number of property trials for focused/local runs.

@@ -564,9 +564,10 @@
                  {:normalize? false})]
     (first (:results summary))))
 
-(defn- preserve-ns-key [k]
+(defn- preserve-ns-key
   "JSON key function that preserves Clojure keyword namespaces.
    :bundle/hash → \"bundle/hash\", not \"hash\"."
+  [k]
   (if (keyword? k)
     (if-let [ns (namespace k)]
       (str ns "/" (name k))
@@ -989,7 +990,7 @@
 (defn- run-dry
   "Dry-run: count entries without replaying.
    Returns {:exit-code 0 :dry-run true :entry-count n}."
-  [dispatch opts protocol-id]
+  [dispatch _opts protocol-id]
   (let [suite-key (:suite dispatch)]
     {:exit-code   0
      :dry-run     true
@@ -1118,19 +1119,6 @@
     (catch Exception e
       (log-event :warn :run-links-failed
                  :error (.getMessage e)))))
-
-(defn- build-enriched-bundle-root
-  "Merge source provenance and deterministic execution node hashes into the bundle root.
-
-   Only :node-hash and :content-hash are included — NEVER :record-hash, which
-   contains wall-clock audit timestamps and is explicitly audit-only."
-  [bundle-root execution-node source-provenance]
-  (merge bundle-root
-         source-provenance
-         (when execution-node
-           {:execution/node-hash (:node-hash execution-node)
-            :execution/content-hash (:content-hash execution-node)
-            :dag/root-node-hash (:node-hash execution-node)})))
 
 (defn run-and-report
   "CLI dispatcher: full invariant suite, named suite, or single file.
@@ -1361,8 +1349,8 @@
                           (try
                             (let [evidence-root (chain/evidence-root-hash)
                                   exec-hash (some-> execution-node :node-hash)
-                                  bundle-root-hash (some-> execution-node
-                                                           :policy-output :visible :outputs :bundle/root-hash)
+                                  _bundle-root-hash (some-> execution-node
+                                                            :policy-output :visible :outputs :bundle/root-hash)
                                   dag-path (if structured?
                                              (str (io/file execution-dir "execution-dag.json"))
                                              (str (paths/runs-root) "/" run-id "/execution-dag.json"))

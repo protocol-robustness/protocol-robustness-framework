@@ -209,109 +209,108 @@
         staged-worker-failure-root (io/file fixture-root "staged-worker-failure-package")
         manifest (write-dummy-fixture! fixture-root)
         fake-id "benchmark/test-canonical-package-lifecycle"]
-    (do
-      (with-redefs [benchmark-cli/resolve-benchmark-manifest
-                    (fn [id]
-                      (if (= fake-id id)
-                        manifest
-                        (throw (ex-info "unexpected benchmark ID" {:id id}))))]
-        (testing "serial and parallel roots complete, verify, and preserve canonical execution output"
-          (let [serial (command/run-with-root! fake-id (.getPath serial-root) nil :public
-                                               {:execution/parallelism 1 :execution/chunk-size 1})
-                parallel (command/run-with-root! fake-id (.getPath parallel-root) nil :public
-                                                 {:execution/parallelism 2 :execution/chunk-size 1})
-                one-chunk (command/run-with-root! fake-id (.getPath one-chunk-root) nil :public
-                                                  {:execution/parallelism 2 :execution/chunk-size 3})
-                uneven (command/run-with-root! fake-id (.getPath uneven-chunks-root) nil :public
-                                               {:execution/parallelism 2 :execution/chunk-size 2})
-                roots [serial-root parallel-root one-chunk-root uneven-chunks-root]]
-            (is (every? zero? (map :exit-code [serial parallel one-chunk uneven])))
-            (doseq [root roots]
-              (is (.isFile (io/file root "completion.json")))
-              (is (= "passed" (get (benchmark-verify/verify! (.getPath root)) "status")))
-              (is (= 3 (count (semantic-result-roots root))))
-              (is (true? (get-in (evidence root) [:benchmark/execution-closure :closed?]))))
-            (doseq [root (rest roots)]
-              (is (= (package-semantics serial-root)
-                     (package-semantics root))
-                  "Chunk decomposition is operational; package semantics are invariant")
-              (is (= (execution-artifact-bytes serial-root)
-                     (execution-artifact-bytes root))))))
-        (testing "completion.json is bound to the exact semantic package it seals"
-          (let [completion-file (io/file serial-root "completion.json")
-                finalization-file (io/file serial-root "benchmark/finalization.json")
-                evidence-file (io/file serial-root "benchmark/evidence/evidence.edn")
-                artifact-file (first (filter #(.isFile %) (file-seq (io/file serial-root "benchmark/executions"))))
-                completion-bytes (slurp completion-file)
-                finalization-bytes (slurp finalization-file)
-                evidence-bytes (slurp evidence-file)
-                artifact-bytes (java.nio.file.Files/readAllBytes (.toPath artifact-file))]
-            (.mkdirs copied-completion-root)
-            (spit (io/file copied-completion-root "completion.json") completion-bytes)
-            (is (= "failed" (get (benchmark-verify/verify! (.getPath copied-completion-root)) "status"))
-                "A completion marker copied to an incomplete root cannot be accepted")
-            (spit finalization-file "{\"tampered\":true}")
-            (is (= "failed" (get (benchmark-verify/verify! (.getPath serial-root)) "status"))
-                "Completion seals exact finalization bytes")
-            (spit finalization-file finalization-bytes)
-            (.delete artifact-file)
-            (is (= "failed" (get (benchmark-verify/verify! (.getPath serial-root)) "status"))
-                "Completion/package registry closure rejects a missing scenario artifact")
-            (java.nio.file.Files/write (.toPath artifact-file) artifact-bytes
-                                       (make-array java.nio.file.OpenOption 0))
-            (let [changed (assoc-in (edn/read-string evidence-bytes)
-                                    [:benchmark/execution-closure :closed?] false)]
-              (spit evidence-file (pr-str changed)))
-            (is (= "failed" (get (benchmark-verify/verify! (.getPath serial-root)) "status"))
-                "Completion's closure commitment rejects altered closure evidence")
-            (spit evidence-file evidence-bytes)))
-        (testing "a post-publication phase failure cannot complete or verify"
-          (is (thrown-with-msg? clojure.lang.ExceptionInfo #"injected post-execution failure"
-                                (command/run-with-root!
-                                 fake-id (.getPath failed-root) nil :public
-                                 {:execution/parallelism 2
-                                  :execution/chunk-size 1
-                                  :finalize-runner (fn [& _]
-                                                     (throw (ex-info "injected post-execution failure" {})))})))
-          (is (seq (filter #(.isDirectory %) (.listFiles (io/file failed-root "benchmark/executions")))))
-          (is (not (.exists (io/file failed-root "completion.json"))))
-          (is (= "failed" (get (benchmark-verify/verify! (.getPath failed-root)) "status")))
-          (is (not (.exists (io/file failed-root ".run.lock")))))
-        (testing "final artifacts without completion.json are not a committed package"
-          (is (thrown-with-msg? clojure.lang.ExceptionInfo #"injected terminal commit failure"
-                                (command/run-with-root!
-                                 fake-id (.getPath commit-failure-root) nil :public
-                                 {:execution/parallelism 2
-                                  :execution/chunk-size 1
-                                  :complete (fn [& _]
-                                              (throw (ex-info "injected terminal commit failure" {})))})))
+    (with-redefs [benchmark-cli/resolve-benchmark-manifest
+                  (fn [id]
+                    (if (= fake-id id)
+                      manifest
+                      (throw (ex-info "unexpected benchmark ID" {:id id}))))]
+      (testing "serial and parallel roots complete, verify, and preserve canonical execution output"
+        (let [serial (command/run-with-root! fake-id (.getPath serial-root) nil :public
+                                             {:execution/parallelism 1 :execution/chunk-size 1})
+              parallel (command/run-with-root! fake-id (.getPath parallel-root) nil :public
+                                               {:execution/parallelism 2 :execution/chunk-size 1})
+              one-chunk (command/run-with-root! fake-id (.getPath one-chunk-root) nil :public
+                                                {:execution/parallelism 2 :execution/chunk-size 3})
+              uneven (command/run-with-root! fake-id (.getPath uneven-chunks-root) nil :public
+                                             {:execution/parallelism 2 :execution/chunk-size 2})
+              roots [serial-root parallel-root one-chunk-root uneven-chunks-root]]
+          (is (every? zero? (map :exit-code [serial parallel one-chunk uneven])))
+          (doseq [root roots]
+            (is (.isFile (io/file root "completion.json")))
+            (is (= "passed" (get (benchmark-verify/verify! (.getPath root)) "status")))
+            (is (= 3 (count (semantic-result-roots root))))
+            (is (true? (get-in (evidence root) [:benchmark/execution-closure :closed?]))))
+          (doseq [root (rest roots)]
+            (is (= (package-semantics serial-root)
+                   (package-semantics root))
+                "Chunk decomposition is operational; package semantics are invariant")
+            (is (= (execution-artifact-bytes serial-root)
+                   (execution-artifact-bytes root))))))
+      (testing "completion.json is bound to the exact semantic package it seals"
+        (let [completion-file (io/file serial-root "completion.json")
+              finalization-file (io/file serial-root "benchmark/finalization.json")
+              evidence-file (io/file serial-root "benchmark/evidence/evidence.edn")
+              artifact-file (first (filter #(.isFile %) (file-seq (io/file serial-root "benchmark/executions"))))
+              completion-bytes (slurp completion-file)
+              finalization-bytes (slurp finalization-file)
+              evidence-bytes (slurp evidence-file)
+              artifact-bytes (java.nio.file.Files/readAllBytes (.toPath artifact-file))]
+          (.mkdirs copied-completion-root)
+          (spit (io/file copied-completion-root "completion.json") completion-bytes)
+          (is (= "failed" (get (benchmark-verify/verify! (.getPath copied-completion-root)) "status"))
+              "A completion marker copied to an incomplete root cannot be accepted")
+          (spit finalization-file "{\"tampered\":true}")
+          (is (= "failed" (get (benchmark-verify/verify! (.getPath serial-root)) "status"))
+              "Completion seals exact finalization bytes")
+          (spit finalization-file finalization-bytes)
+          (.delete artifact-file)
+          (is (= "failed" (get (benchmark-verify/verify! (.getPath serial-root)) "status"))
+              "Completion/package registry closure rejects a missing scenario artifact")
+          (java.nio.file.Files/write (.toPath artifact-file) artifact-bytes
+                                     (make-array java.nio.file.OpenOption 0))
+          (let [changed (assoc-in (edn/read-string evidence-bytes)
+                                  [:benchmark/execution-closure :closed?] false)]
+            (spit evidence-file (pr-str changed)))
+          (is (= "failed" (get (benchmark-verify/verify! (.getPath serial-root)) "status"))
+              "Completion's closure commitment rejects altered closure evidence")
+          (spit evidence-file evidence-bytes)))
+      (testing "a post-publication phase failure cannot complete or verify"
+        (is (thrown-with-msg? clojure.lang.ExceptionInfo #"injected post-execution failure"
+                              (command/run-with-root!
+                               fake-id (.getPath failed-root) nil :public
+                               {:execution/parallelism 2
+                                :execution/chunk-size 1
+                                :finalize-runner (fn [& _]
+                                                   (throw (ex-info "injected post-execution failure" {})))})))
+        (is (seq (filter #(.isDirectory %) (.listFiles (io/file failed-root "benchmark/executions")))))
+        (is (not (.exists (io/file failed-root "completion.json"))))
+        (is (= "failed" (get (benchmark-verify/verify! (.getPath failed-root)) "status")))
+        (is (not (.exists (io/file failed-root ".run.lock")))))
+      (testing "final artifacts without completion.json are not a committed package"
+        (is (thrown-with-msg? clojure.lang.ExceptionInfo #"injected terminal commit failure"
+                              (command/run-with-root!
+                               fake-id (.getPath commit-failure-root) nil :public
+                               {:execution/parallelism 2
+                                :execution/chunk-size 1
+                                :complete (fn [& _]
+                                            (throw (ex-info "injected terminal commit failure" {})))})))
           ;; Every phase before :complete has materialized its final files, but
           ;; completion.json is the sole terminal commit marker.
-          (is (.isFile (io/file commit-failure-root "benchmark/finalization.json")))
-          (is (.isFile (io/file commit-failure-root "manifest/run-package-index.json")))
-          (is (not (.exists (io/file commit-failure-root "completion.json"))))
-          (is (= "failed" (get (benchmark-verify/verify! (.getPath commit-failure-root)) "status")))
-          (is (not (.exists (io/file commit-failure-root ".run.lock")))))
-        (testing "a worker failure leaves diagnostic staging but no canonical execution artifacts"
-          (let [real-execute @#'runner/execute-scenario
-                calls (atom 0)]
-            (with-redefs [runner/execute-scenario
-                          (fn [& args]
-                            (if (= 2 (swap! calls inc))
-                              (throw (ex-info "injected staged worker failure" {:reason :test}))
-                              (apply real-execute args)))]
-              (is (thrown-with-msg? clojure.lang.ExceptionInfo #"finalization aborted"
-                                    (command/run-with-root!
-                                     fake-id (.getPath staged-worker-failure-root) nil :public
-                                     {:execution/parallelism 1 :execution/chunk-size 1}))))
-            (let [staging (io/file staged-worker-failure-root "benchmark/.staging/benchmark-executions")
-                  canonical (io/file staged-worker-failure-root "benchmark/executions")]
-              (is (seq (filter #(.isDirectory %) (or (.listFiles staging) (make-array java.io.File 0)))))
-              (is (empty? (filter #(.isDirectory %) (or (.listFiles canonical) (make-array java.io.File 0)))))
-              (is (not (.exists (io/file staged-worker-failure-root "completion.json"))))
-              (is (= "failed"
-                     (get (benchmark-verify/verify! (.getPath staged-worker-failure-root)) "status"))))))
-        (delete-tree! fixture-root)))))
+        (is (.isFile (io/file commit-failure-root "benchmark/finalization.json")))
+        (is (.isFile (io/file commit-failure-root "manifest/run-package-index.json")))
+        (is (not (.exists (io/file commit-failure-root "completion.json"))))
+        (is (= "failed" (get (benchmark-verify/verify! (.getPath commit-failure-root)) "status")))
+        (is (not (.exists (io/file commit-failure-root ".run.lock")))))
+      (testing "a worker failure leaves diagnostic staging but no canonical execution artifacts"
+        (let [real-execute @#'runner/execute-scenario
+              calls (atom 0)]
+          (with-redefs [runner/execute-scenario
+                        (fn [& args]
+                          (if (= 2 (swap! calls inc))
+                            (throw (ex-info "injected staged worker failure" {:reason :test}))
+                            (apply real-execute args)))]
+            (is (thrown-with-msg? clojure.lang.ExceptionInfo #"finalization aborted"
+                                  (command/run-with-root!
+                                   fake-id (.getPath staged-worker-failure-root) nil :public
+                                   {:execution/parallelism 1 :execution/chunk-size 1}))))
+          (let [staging (io/file staged-worker-failure-root "benchmark/.staging/benchmark-executions")
+                canonical (io/file staged-worker-failure-root "benchmark/executions")]
+            (is (seq (filter #(.isDirectory %) (or (.listFiles staging) (make-array java.io.File 0)))))
+            (is (empty? (filter #(.isDirectory %) (or (.listFiles canonical) (make-array java.io.File 0)))))
+            (is (not (.exists (io/file staged-worker-failure-root "completion.json"))))
+            (is (= "failed"
+                   (get (benchmark-verify/verify! (.getPath staged-worker-failure-root)) "status"))))))
+      (delete-tree! fixture-root))))
 
 (deftest frozen-research-pack-is-bound-by-input-set-and-package-closure
   (let [fixture-root (temp-dir)

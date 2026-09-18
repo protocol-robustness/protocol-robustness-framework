@@ -7,8 +7,7 @@
             [clojure.java.io :as io]
             [clojure.string :as str]
             [resolver-sim.evidence.chain :as chain]
-            [resolver-sim.evidence.config :as evcfg]
-            [resolver-sim.evidence.confidence :as confidence])
+            [resolver-sim.evidence.config :as evcfg])
   (:import [java.security MessageDigest]
            [java.nio.file Files StandardCopyOption]
            [java.util UUID]))

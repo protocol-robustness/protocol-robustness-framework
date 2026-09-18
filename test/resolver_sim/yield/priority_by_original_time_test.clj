@@ -6,7 +6,7 @@
    - Shared withdrawal participant ordering by original-priority
    - Deferred position priority preservation across partial-fill cycles
    - Full lifecycle: deposit → shortfall → deferred → later withdrawal"
-  (:require [clojure.test :refer :all]
+  (:require [clojure.test :refer [deftest is testing]]
             [resolver-sim.yield.modules.liquid-lending :as ll]
             [resolver-sim.yield.position :as pos]
             [resolver-sim.yield.invariants :as inv]))
@@ -46,13 +46,6 @@
   (->> (:deferred-position-history position {})
        vals
        (sort-by :position/round)))
-
-(defn- priority-source-label
-  "Return the priority-source value for the latest deferred position.
-   :inherited-from-prior-lineage when a prior deferred existed,
-   :from-precondition for first deferral."
-  [position]
-  (get-in position [:deferred-position :position/original-priority-source]))
 
 ;; ── Fixture suite 1: Deposit sequence numbering ──────────────────────────
 

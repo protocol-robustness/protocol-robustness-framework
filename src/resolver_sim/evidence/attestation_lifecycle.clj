@@ -111,14 +111,14 @@
                     :superseded-by new-id
                     :reason reason
                     :updated-at now}
-        new-record-fn (fn [existing]
-                        (let [existing-supersedes (:supersedes existing [])]
-                          {:state :active
-                           :supersedes (if (some #{old-id} existing-supersedes)
-                                         existing-supersedes
-                                         (conj existing-supersedes old-id))
-                           :reason reason
-                           :updated-at now}))]
+        _new-record-fn (fn [existing]
+                         (let [existing-supersedes (:supersedes existing [])]
+                           {:state :active
+                            :supersedes (if (some #{old-id} existing-supersedes)
+                                          existing-supersedes
+                                          (conj existing-supersedes old-id))
+                            :reason reason
+                            :updated-at now}))]
     (swap! *lifecycle-registry* update old-id merge old-record)
     (swap! *lifecycle-registry* (fn [reg]
                                   (let [existing (get reg new-id {})

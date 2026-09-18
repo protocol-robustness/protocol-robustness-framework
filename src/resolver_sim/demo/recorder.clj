@@ -242,9 +242,9 @@
   (let [mode-idx (.indexOf (vec args) "--mode")
         mode-val (if (>= mode-idx 0) (nth args (inc mode-idx) "auto") "auto")
         mode-kw (keyword mode-val)
-        filtered (keep-indexed (fn [i x] (when-not (or (= x "--mode")
-                                                       (= x mode-val))
-                                           x)) args)
+        filtered (keep-indexed (fn [_i x] (when-not (or (= x "--mode")
+                                                        (= x mode-val))
+                                            x)) args)
         args' (vec filtered)
         validate-only? (= (first args') "--validate")
         id (if validate-only? (second args') (first args'))]

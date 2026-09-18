@@ -1,8 +1,7 @@
 (ns resolver-sim.community.design-scrutiny-test
   (:require [clojure.test :refer [deftest is]]
             [resolver-sim.community.attestation :as att]
-            [resolver-sim.community.mailbox :as mailbox]
-            [resolver-sim.community.task :as task]))
+            [resolver-sim.community.mailbox :as mailbox]))
 
 (def H1 "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")
 (def H2 "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb")

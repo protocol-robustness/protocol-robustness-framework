@@ -120,7 +120,7 @@
    by a method-specific verifier."
   [{:keys [research-command incentive-model deviation-domain research-assignment
            outcome-manifest analysis-engine/id analysis-engine/version
-           analysis-output/proposition-id analysis-output/metric-id
+           analysis-output/proposition-id analysis-output/_metric-id
            analysis-output/result analysis-output/result-descriptor
            analysis-output/closure-root analysis-output/evidence-root]}]
   (let [descriptor-validation (validate-result-descriptor result-descriptor)]

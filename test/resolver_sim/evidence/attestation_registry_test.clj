@@ -1,12 +1,12 @@
 (ns resolver-sim.evidence.attestation-registry-test
-  (:require [clojure.test :refer [deftest is testing]]
+  (:require [clojure.test :refer [deftest is]]
             [resolver-sim.evidence.attestation :as att]
             [resolver-sim.evidence.attestation-registry :as ar]
             [resolver-sim.evidence.chain :as chain]))
 
-(defn- attestor [] {:type :ci-runner :id :ci-validation})
-
 (defn- subject [] {:type :evidence-node :hash "sha256:abc"})
+
+(defn- attestor [] {:type :ci-runner :id :ci-validation})
 
 (defn- claim-subject [] {:type :claim :claim-id :accounting-consistency})
 

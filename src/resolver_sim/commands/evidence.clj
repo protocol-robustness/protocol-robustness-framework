@@ -114,7 +114,7 @@
 
 (defn verify-chain
   "Verify evidence chain hashes and links for an explicit legacy artifact directory."
-  [{:keys [artifact-dir strict? json?] :as opts}]
+  [{:keys [artifact-dir _strict? _json?] :as _opts}]
   (let [dir (ensure-dir artifact-dir nil)]
     (if-not (.exists dir)
       {:exit-code 3 :message "Artifact directory not found"}
@@ -169,7 +169,7 @@
    A registry-gap type (e.g. :guard-rejected, :resolver-rotation) that exists
    in evidence artifacts but is not in the mechanism map will NOT trigger
    a failure — only absent canonical types are reported as missing."
-  [{:keys [artifact-dir json?] :as opts}]
+  [{:keys [artifact-dir _json?] :as _opts}]
   (let [dir (ensure-dir artifact-dir nil)]
     (if-not (.exists dir)
       {:exit-code 3 :message "Artifact directory not found"}
@@ -201,7 +201,7 @@
    captured evidence directory. Coverage is reported in default mode and is
    promoted to a gate only with :strict? because a single run need not exercise
    every protocol evidence type."
-  [{:keys [fast? full? artifact-dir json? strict?] :as opts}]
+  [{:keys [_fast? _full? artifact-dir _json? strict?] :as opts}]
   (println "Running evidence backstop...")
   (flush)
   (let [suite-complete? (boolean (run-suite-for-evidence))

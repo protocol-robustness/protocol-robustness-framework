@@ -5,7 +5,7 @@
    All invariant enforcement flows through replay/process-step which is already
    tested in replay_test.clj; these tests focus on session lifecycle and
    thread-safety contracts."
-  (:require [clojure.test                    :refer [deftest is testing run-tests]]
+  (:require [clojure.test :refer [deftest is]]
             [resolver-sim.server.session     :as session])
   (:import [java.util.concurrent Executors CountDownLatch]))
 
@@ -24,9 +24,6 @@
 
 (defn- create! [sid]
   (session/create-session! sid agents params 1000))
-
-(defn- create-step! [sid event]
-  (session/step-session! sid event))
 
 (def ^:private create-event
   {:seq 0 :time 1000 :agent "buyer" :action "create_escrow"
@@ -83,7 +80,7 @@
       (is (= :no-agents (:error r))))))
 
 (deftest test-create-session-string-keys-accepted
-  "Agents with string map keys (from JSON parse) must be normalised."
+  ;; Agents with string map keys (from JSON parse) must be normalised.
   (session/with-fresh-sessions
     (let [sid    (fresh-sid)
           agents [{"id" "buyer" "address" "0xbuyer" "type" "honest"}]
@@ -130,7 +127,7 @@
       (session/destroy-session! sid))))
 
 (deftest test-step-rejected-action-does-not-halt
-  "Unknown-agent revert is non-fatal — session remains alive."
+  ;; Unknown-agent revert is non-fatal — session remains alive.
   (session/with-fresh-sessions
     (let [sid   (fresh-sid)]
       (create! sid)

@@ -1,5 +1,5 @@
 (ns resolver-sim.scenario.golden-test
-  (:require [clojure.test :refer [deftest is testing]]
+  (:require [clojure.test :refer [deftest is]]
             [resolver-sim.scenario.golden :as golden]
             [resolver-sim.scenario.runner :as runner]
             [resolver-sim.sim.fixtures :as fixtures]))
@@ -57,7 +57,7 @@
     (is (false? (runner/scenario-pass? entry {})))))
 
 (deftest golden-failure-invariant-before-render
-  "Failed golden comparison must be reflected in :pass? at judgement time."
+  ;; Failed golden comparison must be reflected in :pass? at judgement time.
   (let [actual (assoc base-replay :outcome :fail)
         cmp    (golden/compare-reports base-replay actual {:golden-verify-mode :replay-only})
         base   (runner/build-entry-result

@@ -12,7 +12,7 @@
    3. Explicitly reject unsupported options via structured ex-info
    4. Perform no persistent evidence or diagnostic I/O"
   (:require [clojure.string :as str]
-            [resolver-sim.contract-model.replay.flags :as replay-flags]
+
             [resolver-sim.protocols.protocol :as proto]))
 
 ;; ---------------------------------------------------------------------------
@@ -146,7 +146,7 @@
   (fn [profile protocol] [profile (proto/protocol-id protocol)]))
 
 (defmethod simple-execution-plan :default
-  [profile protocol]
+  [_profile _protocol]
   {:execution {:profile :simple :engine :canonical-loop}
    :run (fn [protocol scenario replay-opts]
           (canonical-simple-run protocol scenario replay-opts {}))})
@@ -218,7 +218,7 @@
 ;; ---------------------------------------------------------------------------
 
 (defmethod simple-execution-plan [:simple "yield-v1"]
-  [profile protocol]
+  [_profile _protocol]
   {:execution {:profile :simple
                :engine :canonical-loop
                :adapter/id :yield-v1-canonical

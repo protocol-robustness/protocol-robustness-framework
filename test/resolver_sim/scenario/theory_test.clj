@@ -298,7 +298,7 @@
                                          {:falsifies-if
                                           {:before {:event "release"
                                                     :predicate {:eventually {:metric :x :op :> :value 8}}}}})
-          eval-tree (first (:evidence result))]
+          _eval-tree (first (:evidence result))]
       (is (= :falsified (:status result))
           "Should falsify: before release, step2 has x=10 > 8"))
     ;; Test scope correctness:

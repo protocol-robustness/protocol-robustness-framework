@@ -158,7 +158,7 @@
 (deftest zero-trial-resolvers-get-clean-record
   (testing "resolvers assigned 0 trials in an epoch get a well-formed zero record"
     (let [;; More resolvers than trials so some must get zero
-          many-resolvers-params (assoc test-params :n-resolvers 100)
+          _many-resolvers-params (assoc test-params :n-resolvers 100)
           small-n-trials        5
           resolver-ids          (mapv #(str "r" %) (range 100))
           trial-pool            (vec (repeat small-n-trials

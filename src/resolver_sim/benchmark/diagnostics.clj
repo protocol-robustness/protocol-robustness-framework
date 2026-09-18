@@ -80,7 +80,7 @@
   []
   (try
     (let [root (vcs/root)
-          commit (vcs/commit-sha)]
+          _commit (vcs/commit-sha)]
       (pass (str "VCS root: " (pr-str root) " (nullable — no exception thrown)")))
     (catch Exception e
       (fail (str "VCS check threw exception: " (.getMessage e))))))
@@ -165,14 +165,6 @@
     :label "Executable scenario"}
    {:path hash-ref/reference-validation-suite-manifest
     :label "Reference validation suite"}])
-
-(defn- resolve-source
-  "Determine whether a path resolved via filesystem or classpath."
-  [path-spec]
-  (cond
-    (.exists (java.io.File. path-spec)) :filesystem
-    (rp/path-exists? path-spec) :classpath
-    :else nil))
 
 (defn verify-portability
   "Self-test: load all built-in resources from classpath.

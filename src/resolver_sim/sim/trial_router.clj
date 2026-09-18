@@ -359,7 +359,7 @@
               others     (filterv #(not (contains? target-ids %)) ids-vec)
               n-trials   (count trial-pool)
               n-targets  (count targets)
-              n-others   (count others)
+              _n-others   (count others)
               ;; Route pressure * n-trials to targets, remainder to others
               n-for-targets (if (pos? n-targets)
                               (min n-trials (long (Math/round (* pressure n-trials))))

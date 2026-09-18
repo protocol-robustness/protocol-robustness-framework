@@ -1,6 +1,6 @@
 (ns resolver-sim.resubmission.admission-authorization-test
   (:require [clojure.test :refer [deftest is]]
-            [resolver-sim.resubmission.admission :as admission]
+
             [resolver-sim.resubmission.admission-authorization :as auth]
             [resolver-sim.support.ed25519 :as ed]))
 

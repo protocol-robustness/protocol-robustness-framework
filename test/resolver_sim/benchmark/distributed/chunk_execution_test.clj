@@ -52,7 +52,7 @@
 (deftest rejects-worker-substitution-and-caller-result-root-influence
   (is (thrown? clojure.lang.ExceptionInfo
                (sut/execute-chunk! {:claimed-chunk claim :resolved-executions entries :sensitivity-root (root "c") :executable-distribution-root (root "d")
-                                    :execute-entry! (fn [entry] {:execution/id "other" :staged-artifact-manifest/root (root "d")})})))
+                                    :execute-entry! (fn [_entry] {:execution/id "other" :staged-artifact-manifest/root (root "d")})})))
   (let [manifest (execute claim entries)
         malicious (sut/execute-chunk!
                    {:claimed-chunk claim

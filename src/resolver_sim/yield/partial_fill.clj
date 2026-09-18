@@ -49,30 +49,6 @@
    :policy default-partial-fill-policy
    :evidence {:schema-version schema-version}})
 
-(defn- fill-order-set
-  "Convert fill-order vector to a set for membership checks."
-  [fill-order]
-  (set fill-order))
-
-(defn- position-bucket
-  "Get a position's value for a given bucket key."
-  [pos bucket]
-  (case bucket
-    :principal        (long (:principal pos 0))
-    :realized-yield   (long (:realized-yield pos 0))
-    :unrealized-yield (max 0 (long (:unrealized-yield pos 0)))
-    :deferred-yield   (long (:deferred-yield pos 0))
-    0))
-
-(defn- position-bucket-name
-  [bucket]
-  (case bucket
-    :principal "principal"
-    :realized-yield "realized_yield"
-    :unrealized-yield "unrealized_yield"
-    :deferred-yield "deferred_yield"
-    "unknown"))
-
 (defn- normalize-token [token]
   (tok/normalize token))
 
@@ -418,7 +394,7 @@
                                       (min principal-owed principal-cap)
                                       principal-owed)
             principal-filled (min principal-effective-cap available-liquidity)
-            principal-deferred (max 0 (- principal-owed principal-filled))
+            _principal-deferred (max 0 (- principal-owed principal-filled))
             remaining (- available-liquidity principal-filled)
             yield-total (reduce + 0 (map #(long (:owed %)) yield-rows))
             total (+ principal-owed yield-total)
@@ -691,12 +667,12 @@
                    :shortage 0
                    :fill-mode mode}}
        (case mode
-         :pro-rata        (calculate-fulfillment-pro-rata available requested policy
-                                                          (select-keys opts [:rows :progress-atom :execution/claimant-parallelism :execution/quiescence-timeout-seconds]))
+         :pro-rata (calculate-fulfillment-pro-rata available requested policy
+                                                   (select-keys opts [:rows :progress-atom :execution/claimant-parallelism :execution/quiescence-timeout-seconds]))
          :principal-first (calculate-fulfillment-principal-first available requested policy
                                                                  (select-keys opts [:rows :progress-atom]))
-         :waterfall       (calculate-fulfillment-waterfall available requested policy
-                                                           (select-keys opts [:rows :progress-atom])))))))
+         :waterfall (calculate-fulfillment-waterfall available requested policy
+                                                     (select-keys opts [:rows :progress-atom])))))))
 
 (defn partial-fill?
   "True if the settlement decision represents a partial fill."
@@ -858,7 +834,7 @@
 
 (defn residual-policy-root
   "Content-addressed root over a committed residual disposition policy."
-  [{:keys [destination] :as policy}]
+  [{:keys [_destination] :as policy}]
   (hc/hash-with-intent {:hash/intent :projection-artifact}
                        (assoc policy :kind :liquidity/residual-policy
                               :schema-version "liquidity-residual-policy.v1")))
@@ -1114,7 +1090,7 @@
 
 (defn- ensure-token!
   "Fail closed when token is missing from a row that requires it."
-  [token row reason-code reason-data]
+  [token _row reason-code reason-data]
   (when-not token
     (throw (ex-info
             (str "Token missing in output projection: " reason-code)
@@ -1521,9 +1497,9 @@
    :adversarial-rounding), which then opt out of rounding-derived checks."
   [rounding-policy]
   (case rounding-policy
-    :floor                      :exact-floor
-    :floor-and-carry            :bounded-carry
-    :largest-remainder          :bounded-carry
+    :floor :exact-floor
+    :floor-and-carry :bounded-carry
+    :largest-remainder :bounded-carry
     :principal-protective-floor :principal-protective
     nil))
 
@@ -1587,13 +1563,13 @@
    :largest-remainder. :floor is a distinct exact-floor algorithm in both shapes."
   [rounding-policy execution-shape]
   (case execution-shape
-    :rows   (if (= :floor rounding-policy) :floor :largest-remainder)
+    :rows (if (= :floor rounding-policy) :floor :largest-remainder)
     :single (case rounding-policy
-              :floor                      :floor
-              :largest-remainder          :largest-remainder
-              :floor-and-carry            :largest-remainder
+              :floor :floor
+              :largest-remainder :largest-remainder
+              :floor-and-carry :largest-remainder
               :principal-protective-floor :principal-protective-floor
-              :adversarial-rounding       :adversarial-rounding
+              :adversarial-rounding :adversarial-rounding
               :largest-remainder)
     (if (= :floor rounding-policy) :floor :largest-remainder)))
 
@@ -1612,7 +1588,7 @@
   (when (seq positive-claims)
     (let [ideals (compute-ideal-fills positive-claims total-requested available)
           violations (atom [])
-          _ (doseq [[k {:keys [requested ideal-exact ideal-floor]}]
+          _ (doseq [[k {:keys [requested _ideal-exact ideal-floor]}]
                     (sort-by key ideals)]
               (let [actual (long (get filled k 0))
                     error (- actual ideal-floor)
@@ -1649,27 +1625,27 @@
   "Maps each partial-fill check-id to its validation class.
    Allocation-property checks verify the allocation rule itself;
    algebraic-integrity checks verify arithmetic/structural consistency."
-  {:partial-fill/conservation            :validation.class/algebraic-integrity
-   :partial-fill/capacity-bound          :validation.class/algebraic-integrity
-   :partial-fill/per-claim-bound         :validation.class/algebraic-integrity
-   :partial-fill/per-claim-conservation  :validation.class/algebraic-integrity
-   :partial-fill/claim-key-consistency   :validation.class/algebraic-integrity
-   :partial-fill/non-negative-amounts    :validation.class/algebraic-integrity
+  {:partial-fill/conservation :validation.class/algebraic-integrity
+   :partial-fill/capacity-bound :validation.class/algebraic-integrity
+   :partial-fill/per-claim-bound :validation.class/algebraic-integrity
+   :partial-fill/per-claim-conservation :validation.class/algebraic-integrity
+   :partial-fill/claim-key-consistency :validation.class/algebraic-integrity
+   :partial-fill/non-negative-amounts :validation.class/algebraic-integrity
    :partial-fill/deferred-haircut-overlap :validation.class/algebraic-integrity
    :partial-fill/deferred-haircut-sum-bound :validation.class/algebraic-integrity
    :partial-fill/evidence-self-consistency :validation.class/algebraic-integrity
    :partial-fill/unrealized-bucket-valid :validation.class/algebraic-integrity
    :partial-fill/decision-artifact-format :validation.class/algebraic-integrity
    :partial-fill/settlement-mode-consistency :validation.class/algebraic-integrity
-   :partial-fill/settlement-mode-valid   :validation.class/algebraic-integrity
-   :partial-fill/mode-valid              :validation.class/algebraic-integrity
-   :partial-fill/exact-pro-rata          :validation.class/allocation-property
-   :partial-fill/rounding-fairness       :validation.class/allocation-property
-   :partial-fill/fail-action-fairness    :validation.class/allocation-property
+   :partial-fill/settlement-mode-valid :validation.class/algebraic-integrity
+   :partial-fill/mode-valid :validation.class/algebraic-integrity
+   :partial-fill/exact-pro-rata :validation.class/allocation-property
+   :partial-fill/rounding-fairness :validation.class/allocation-property
+   :partial-fill/fail-action-fairness :validation.class/allocation-property
    :partial-fill/rounding-fairness-ideal :validation.class/allocation-property
    :partial-fill/rounding-fairness-remainder-ranking :validation.class/allocation-property
    :partial-fill/principal-first-priority :validation.class/allocation-property
-   :partial-fill/waterfall-priority      :validation.class/allocation-property
+   :partial-fill/waterfall-priority :validation.class/allocation-property
    :partial-fill/rounding-residual-bounded :validation.class/allocation-property
    :partial-fill/effective-rounding-consistency :validation.class/allocation-property})
 
@@ -2272,12 +2248,12 @@
    Fix: Ensures that deferred amounts are moved out of their source buckets
    to avoid double-counting when :accrue-residual-as-unrealized is active."
   [position decision]
-  (let [filled (:filled decision)
+  (let [_filled (:filled decision)
         deferred (:deferred decision)
         haircut (:haircut decision)
         policy (:policy decision)
         post-accrual (get policy :post-partial-fill-accrual :accrue-residual-as-unrealized)
-        {:keys [principal realized-yield deferred-yield] :as deltas}
+        {:keys [principal realized-yield deferred-yield] :as _deltas}
         (validate-partial-fill-application! position decision)
         p-delta principal
         r-delta realized-yield

@@ -771,7 +771,7 @@
         uncovered-level-count (count coverage-gaps)
         ;; Collect all check results for gate evaluation
         all-check-results (mapcat :check-results level-verdicts)
-        all-witnesses (mapcat :witnesses level-verdicts)
+        _all-witnesses (mapcat :witnesses level-verdicts)
         integrity-verdicts (keep :integrity-gate level-verdicts)
         validation-classes (->> (concat
                                  (keep :validation-class all-check-results)

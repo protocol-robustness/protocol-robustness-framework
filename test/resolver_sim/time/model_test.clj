@@ -1,5 +1,5 @@
 (ns resolver-sim.time.model-test
-  (:require [clojure.test :refer :all]
+  (:require [clojure.test :refer [deftest is]]
             [resolver-sim.time.model :as tm]
             [resolver-sim.time.deadlines :as td]
             [resolver-sim.time.invariants :as tinv]))

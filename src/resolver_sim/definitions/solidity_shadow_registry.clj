@@ -616,7 +616,7 @@
                                               "resolver-sim.economics"
                                               "resolver-sim.time"
                                               "resolver-sim.fixtures"}}))
-  ([{:keys [include-protocols? ignore-prefixes]}]
+  ([{:keys [_include-protocols? ignore-prefixes]}]
    (let [registered @known-simulation-paths
          all-nses (collect-simulation-namespaces)
          ignored? (fn [ns]

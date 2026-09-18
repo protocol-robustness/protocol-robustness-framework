@@ -40,30 +40,6 @@
 (use-fixtures :once skip-if-no-db)
 (use-fixtures :each pg-fixture)
 
-(defn- durable-resolver [resolved]
-  (let [entries [[:use-case-application :application/root]
-                 [:capability-binding :binding/root]
-                 [:capability-descriptor nil]
-                 [:executable-distribution :executable-distribution/root]
-                 [:output :pro-rata-output/root]
-                 [:allocation :allocation/hash]
-                 [:pro-rata-application :application/root]
-                 [:pro-rata-transition :transition/root]
-                 [:canonical-transition :canonical-effect-transition/root]
-                 [:receipt :applied-effect-receipt/root]
-                 [:protocol-transaction-realization :protocol-transaction-realization/root]
-                 [:transition-binding :transition-binding/root]
-                 [:protocol-effect-realization :protocol-effect-realization/root]]
-        objects (into {}
-                      (map (fn [[k field]]
-                             (let [body (get resolved k)
-                                   root (if (= k :capability-descriptor)
-                                          (ref/sha256-ref (manifest/capability-descriptor-root body))
-                                          (ref/sha256-ref (get body field)))]
-                               [root body])))
-                      entries)]
-    #(get objects %)))
-
 (defn- prepared []
   (let [resolved (@#'fixture/fixture)
         publication-binding (binding/build-binding resolved)

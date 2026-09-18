@@ -1,5 +1,5 @@
 (ns resolver-sim.contract-model.replay-flags-test
-  (:require [clojure.test :refer :all]
+  (:require [clojure.test :refer [deftest is testing]]
             [resolver-sim.contract-model.replay :as replay]
             [resolver-sim.contract-model.replay.flags :as flags]
             [resolver-sim.protocols.dummy :as dummy]))

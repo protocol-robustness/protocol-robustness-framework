@@ -7,7 +7,7 @@
      - Step-count and revision tracking
      - Concurrent CAS contention
      - Domain-level economic races (withdraw-shared double-spend, propagation idempotency)"
-  (:require [clojure.test :refer [deftest is testing]]
+  (:require [clojure.test :refer [deftest is]]
             [resolver-sim.world.authority :as auth])
   (:import [java.util.concurrent CountDownLatch]))
 

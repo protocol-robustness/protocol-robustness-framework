@@ -81,7 +81,7 @@
    Returns node IDs in order with leaves (no deps) first.
    Uses Kahn's algorithm. Throws on cycle detection."
   [definitions]
-  (let [ids (set (keep :id definitions))
+  (let [_ids (set (keep :id definitions))
         raw-deps (fn [id]
                    (vec (or (:depends-on (some #(when (= id (:id %)) %) definitions)) [])))
         graph (into {} (map (fn [{:keys [id]}] [id (raw-deps id)]) definitions))

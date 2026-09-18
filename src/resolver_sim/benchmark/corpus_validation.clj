@@ -11,7 +11,7 @@
             [resolver-sim.scenario.suites :as suites]
             [resolver-sim.hash.canonical :as canonical]
             [resolver-sim.yield.invariants :as yield-invariants]
-            [resolver-sim.yield.accounting :as yield-accounting]
+
             [resolver-sim.pro-rata.claims :as pro-rata-claims]
             [resolver-sim.protocols.sew.economics :as sew-economics]
             [resolver-sim.validation.scenario-registry :as scenario-registry]
@@ -71,7 +71,7 @@
   (let [registry (resource-path/edn-read resource-path/canonical-registry-path)
         pack-ids (map :pack/id (:packs registry))
         duplicates (->> (frequencies pack-ids)
-                        (filter (fn [[id n]] (> n 1)))
+                        (filter (fn [[_id n]] (> n 1)))
                         vec)]
     {:check :unique-identities :duplicates duplicates}))
 
@@ -211,7 +211,7 @@
   ([]
    (let [slash-vector-dir "test-vectors/pro-rata"
          resource-url (io/resource slash-vector-dir)
-         violations (atom [])]
+         _violations (atom [])]
      (if (nil? resource-url)
        {:check :contract-case-coverage
         :status :fail
@@ -240,21 +240,6 @@
 ;; ── P1: Negative corpus / rejection witnesses ────────────────────────────────
 
 (def negative-corpus-dir "test-vectors/negative-corpus")
-
-(defn- normalize-allocation
-  "Convert JSON-deserialized allocation values (strings) to Clojure native types
-   (bigint) expected by the focus evaluators.
-   Non-integer strings are left as-is to preserve the violation."
-  [alloc]
-  (into {} (for [[k v] alloc]
-             (cond
-               (string? v)
-               (try
-                 [k (bigint v)]
-                 (catch NumberFormatException _
-                   [k v]))
-               (map? v) [k (normalize-allocation v)]
-               :else [k v]))))
 
 (defn- normalize-result
   "Normalize a fixture's result map, converting numeric string values
@@ -632,10 +617,6 @@
      {:check :conservation
       :holds? (:holds? result)
       :violations (:violations result)})))
-
-(defn- resource-ref [path]
-  (if (or (.startsWith path "resource:") (.startsWith path "classpath:")) path
-      (str "resource:" path)))
 
 (defn validate-corpus!
   "Return a summary or throw with all discovered registry-reachable corpus errors.

@@ -38,16 +38,6 @@
               :participant-id id
               :sequence 1}}))
 
-(defn- gen-unique-vector
-  "Generate a vector of n participants with unique IDs from the pool.
-   Each participant gets an independent generated amount."
-  [gen-fn n]
-  (let [ids (vec (take n participant-id-pool))]
-    (gen/fmap
-     (fn [amounts]
-       (mapv (fn [id amount] (gen-fn id amount)) ids amounts))
-     (gen/vector (gen/choose 1 200) n))))
-
 (def gen-case
   "Generate a valid semantic case with unique participant IDs.
    source-balance is always >= total-allocated."

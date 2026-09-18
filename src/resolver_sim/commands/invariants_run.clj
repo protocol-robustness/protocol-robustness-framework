@@ -47,7 +47,7 @@
     (spit f (json/write-str data :escape-slash false :escape-unicode false))))
 
 (defn run
-  [{:keys [run-root protocol] :as opts}]
+  [{:keys [run-root protocol] :as _opts}]
   (let [protocol-id (or protocol "sew-v1")]
     (when-not run-root
       (println "Usage: invariants run --run-root DIR")
@@ -84,9 +84,9 @@
             failed (filterv #(= :fail (:outcome %)) results)
             xfailed (filterv #(= :xfail (:outcome %)) results)
             unknown (filterv #(not ((into #{} [:pass :fail :xfail]) (:outcome %))) results)
-            internal-tests (filterv #(= :tests (:scenario/type %)) results)
+            _internal-tests (filterv #(= :tests (:scenario/type %)) results)
             root-dir-str run-root
-            details-dir (str run-root "/details")
+            _details-dir (str run-root "/details")
             detail-entries (mapv
                             (fn [r]
                               (let [sid (or (:scenario-id r) (:trace-id r) (:name r)

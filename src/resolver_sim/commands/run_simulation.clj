@@ -12,7 +12,7 @@
 (defn run
   "Run a simulation, server, invariants, or diff-traces depending on options.
    Parses :cmd/raw-args with the original core.cli option definitions."
-  [{:keys [cmd/raw-args] :as opts}]
+  [{:keys [cmd/raw-args] :as _opts}]
   (let [{:keys [options errors summary]} (cli/parse-opts raw-args core-cli/cli-options)]
     (cond
       errors

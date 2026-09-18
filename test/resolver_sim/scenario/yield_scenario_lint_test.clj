@@ -1,5 +1,5 @@
 (ns resolver-sim.scenario.yield-scenario-lint-test
-  (:require [clojure.test :refer [deftest is testing]]
+  (:require [clojure.test :refer [deftest is]]
             [resolver-sim.scenario.yield-scenario-lint :as lint]))
 
 (deftest detects-missing-failure-modes

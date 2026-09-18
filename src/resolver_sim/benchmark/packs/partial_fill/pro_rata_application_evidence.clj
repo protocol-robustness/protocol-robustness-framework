@@ -15,7 +15,7 @@
   (:require [resolver-sim.hash.canonical :as hc]
             [resolver-sim.yield.partial-fill :as pf]
             [resolver-sim.yield.invariants :as yield-inv]
-            [resolver-sim.benchmark.packs.partial-fill.evidence :as pf-ev]
+
             [resolver-sim.hash.reference :as hash-ref]))
 
 (def ^:const schema-version "pro-rata-application-evidence.v1")
@@ -87,7 +87,7 @@
           acct-ok (:holds? acct-result)
           prop-complete (yield-inv/check-pro-rata-propagation-complete
                          world-after)
-          prop-complete-ok (every? (fn [[k v]] (or (true? v) (nil? v)))
+          prop-complete-ok (every? (fn [[_k v]] (or (true? v) (nil? v)))
                                    prop-complete)
           ;; ── State write-back ──────────────────────────────────────────
           wb-ok (and (seq state-write-back-evidence)
@@ -101,8 +101,8 @@
           ladder-levels (mapcat :levels evidence-ladder)
           state-wb-status (some #(when (= "state-written-back" (:level %)) %)
                                 ladder-levels)
-          cont-status (some #(when (= "continuity-consumed" (:level %)) %)
-                            ladder-levels)
+          _cont-status (some #(when (= "continuity-consumed" (:level %)) %)
+                             ladder-levels)
           deferred-ca-ok (= "verified" (or (:status state-wb-status) ""))
           ;; ── Current-amount continuity ─────────────────────────────────
           amt-ok (or (empty? continuity-evidence)
@@ -114,9 +114,9 @@
           cont-classification (continuity-status continuity-evidence)
           ;; ── Apparent application vs accounting reconciliation ─────────
           app-accounting (get operational-outcome :authoritative-application)
-          accounting-only-ok (and (not= :fail app-accounting)
+          _accounting-only-ok (and (not= :fail app-accounting)
                                   ;; state write-back may fail while accounting passes
-                                  (some? app-accounting))
+                                   (some? app-accounting))
           ;; ── Build verification map ────────────────────────────────────
           verification {:propagation-valid? (true? prop-valid)
                         :propagation-binding-valid?

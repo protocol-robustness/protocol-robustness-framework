@@ -1,5 +1,5 @@
 (ns resolver-sim.benchmark.research-workflow-test
-  (:require [clojure.test :refer [deftest is testing]]
+  (:require [clojure.test :refer [deftest is]]
             [resolver-sim.benchmark.incentive-deviation-domain :as domain]
             [resolver-sim.benchmark.incentive-model :as model]
             [resolver-sim.benchmark.outcome-manifest :as outcome]
@@ -144,7 +144,7 @@
     (is (:comparison/equivalent? same))
     (is (empty? (:comparison/forbidden-canonical-differences same)))
     (is (not (:comparison/equivalent? different)))
-    (contains? (:comparison/canonical-differences different) :output-roots)))
+    (is (contains? (:comparison/canonical-differences different) :output-roots))))
 
 (defn- cc3-provenance-source []
   (let [state-a (root :cc3-state-a)

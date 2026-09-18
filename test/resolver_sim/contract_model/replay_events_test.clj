@@ -4,7 +4,7 @@
             [resolver-sim.contract-model.replay.flags :as flags]
             [resolver-sim.contract-model.replay.metrics :as metrics]
             [resolver-sim.contract-model.replay.execution :as execution]
-            [resolver-sim.evidence.chain :as chain]
+
             [resolver-sim.yield.risk-monitor :as risk]
             [resolver-sim.protocols.dummy :as dummy]))
 

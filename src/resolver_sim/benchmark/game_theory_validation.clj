@@ -358,9 +358,8 @@
      :format   — :edn, :json, or :both (default :both)
 
    Returns {:exit-code int :summary map :output-files [str] :checks-skipped [...]}."
-  [& {:keys [suite out-dir format]
-      :or {out-dir "./prf-out/game-theory"
-           format :both}}]
+  [& {:keys [suite out-dir _format]
+      :or {out-dir "./prf-out/game-theory"}}]
   (let [suites-to-run (if suite
                         (filter #(= (:suite-key %) suite) equilibrium-suites)
                         equilibrium-suites)

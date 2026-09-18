@@ -134,7 +134,7 @@
 
 (defn notebook-card
   "Render a notebook card for the hub grid."
-  [{:keys [id path title summary categories status risk audience tags threats]}]
+  [{:keys [_id path title summary _categories status risk audience _tags threats]}]
   (let [href (notebook-url path)]
     [:div {:style {:border "1px solid #e2e8f0" :borderRadius "8px"
                    :padding "14px 16px" :background "#ffffff"

@@ -10,7 +10,7 @@
             [resolver-sim.benchmark.coverage :as coverage]
             [resolver-sim.benchmark.claim-registry :as claim-registry]
             [resolver-sim.hash.reference :as hash-ref]
-            [resolver-sim.io.input-source :as input-source]
+
             [resolver-sim.io.scenarios :as io-sc]
             [resolver-sim.config.paths :as paths]
             [resolver-sim.scenario.suites :as suites]))
@@ -31,9 +31,6 @@
 
 (defn- file-exists? [path]
   (.exists (io/file path)))
-
-(defn- path-str [path]
-  (if (instance? java.io.File path) (.getPath ^java.io.File path) (str path)))
 
 ;; ───────────────────────────────────────────────────────────────────────
 ;; Global registry validation
@@ -79,7 +76,7 @@
     (when filename (str (paths/benchmarks-scoring-dir) "/" filename))))
 
 (defn- validate-pack-registry
-  [errors pack-file domain-ids pack-id]
+  [errors pack-file domain-ids _pack-id]
   (let [data (read-edn pack-file)]
     (if (nil? data)
       (swap! errors conj (str "Pack registry unreadable: " pack-file))
@@ -374,7 +371,7 @@
                         :scoring (:benchmark/scoring-rule m)
                         :runner (:benchmark/runner-policy m)})))))))
     (let [groups (group-by (juxt :suite :claims :scoring :runner) @active-manifests)]
-      (doseq [[key entries] (sort-by (comp count second) groups)
+      (doseq [[_key entries] (sort-by (comp count second) groups)
               :when (> (count entries) 1)]
         (let [ids (map :benchmark/id entries)]
           (swap! errors conj (str "Duplicate active benchmark structure: " (str/join ", " ids)

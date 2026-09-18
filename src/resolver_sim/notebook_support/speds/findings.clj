@@ -287,7 +287,7 @@
                                     :low "informational"
                                     "review required"))}))
 
-(defn- canonical-outcome [artifacts scenario sid sev st-kind classification story-spec]
+(defn- canonical-outcome [_artifacts scenario sid sev st-kind classification story-spec]
   {:outcome-model/version "v0.1"
    :outcome
    {:class (->outcome-class classification)
@@ -344,10 +344,6 @@
 
 (defn- priority [severity]
   (case severity "high" 90 "medium" 60 "low" 30 10))
-
-(defn- truncate-safe [s n]
-  (let [v (str (or s ""))]
-    (subs v 0 (min n (count v)))))
 
 (defn- trace-digest
   [trace]

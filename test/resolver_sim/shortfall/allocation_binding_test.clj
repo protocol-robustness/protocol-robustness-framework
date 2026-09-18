@@ -78,7 +78,7 @@
                        {:label :evm-asset-root
                         :context (assoc context :asset/root
                                         "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb")})]
-    (doseq [{:keys [label context]} substitutions]
+    (doseq [{:keys [_label context]} substitutions]
       (is (raises? #(lineage/build-binding
                      {:reserve-binding (reserve-binding context)
                       :reserve-observation reserve-observation

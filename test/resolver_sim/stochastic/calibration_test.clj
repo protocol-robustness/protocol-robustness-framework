@@ -361,9 +361,9 @@
   (testing "malicious with fraud-success-rate=0.22 has higher mean profit than rate=0.0"
     (let [base-opts  {}
           upside-opts {:fraud-success-rate 0.22}
-          {:keys [mean-malice] :as base-r}
+          {:keys [_mean-malice] :as _base-r}
           (run-mc-mean 500 42 10000 150 700 2.5 :malicious 0.1 base-opts)
-          {:keys [mean-malice mean-malice-up] :as up-r}
+          {:keys [mean-malice _mean-malice-up] :as up-r}
           (run-mc-mean 500 42 10000 150 700 2.5 :malicious 0.1 upside-opts)
           mean-malice-up (:mean-malice up-r)]
       (is (>= mean-malice-up mean-malice)

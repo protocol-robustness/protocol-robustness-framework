@@ -160,12 +160,13 @@
    :effects/kind (get effect-kinds kind)
    :effects/by by})
 
-(defn- cancellation-final? [world workflow-id path cancel-strategy]
+(defn- cancellation-final?
   "Determine if the cancellation is final based on SEW protocol logic.
    Mirrors sender-cancel/recipient-cancel in lifecycle.clj:
    - The protocol sets the caller's status, then checks if the OTHER party
      has already agreed (which completes mutual consent).
    - So for sender-cancel we check recipient-status, and vice versa."
+  [world workflow-id path cancel-strategy]
   (case path
     (:sender-cancel :recipient-cancel)
     (cond

@@ -3,8 +3,7 @@
    Production callers construct this context; authority evaluation consumes only
    the derived answers, never independently supplied governance/time callbacks."
   (:require [resolver-sim.genesis :as genesis]
-            [resolver-sim.benchmark.review-governance :as governance]
-            [resolver-sim.benchmark.review-round :as round]))
+            [resolver-sim.benchmark.review-governance :as governance]))
 
 (defn resolve-context
   "Resolve one direct P0 graph: canonical configuration -> direct governance

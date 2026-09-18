@@ -1,5 +1,5 @@
 (ns resolver-sim.economics.pool-availability-test
-  (:require [clojure.test :refer [deftest is testing]]
+  (:require [clojure.test :refer [deftest is]]
             [resolver-sim.economics.pool-availability :as pa]))
 
 (defn- valid-pool-input

@@ -1,5 +1,5 @@
 (ns resolver-sim.hash.canonical-test
-  (:require [clojure.test :refer :all]
+  (:require [clojure.test :refer [are deftest is testing]]
             [clojure.data.json :as json]
             [clojure.set :as set]
             [clojure.string :as str]
@@ -9,7 +9,6 @@
             [resolver-sim.hash.canonical :as hc]
             [resolver-sim.pro-rata.evaluation :as pro-rata-evaluation])
   (:import [java.util Arrays]
-           [java.security MessageDigest]
            [java.time Instant]))
 
 (defn bytes= [a b]
@@ -1655,7 +1654,7 @@
 ;; ──────────────────────────────────────────────────────────────────────────────
 
 (deftest test-build-pro-rata-allocation-result-artifact
-  (let [proj-fixture (:pro-rata-allocation-result phase-1-projection-fixtures)
+  (let [_proj-fixture (:pro-rata-allocation-result phase-1-projection-fixtures)
         projection-artifact (:projection-artifact phase-1-projection-fixtures)
         allocation-result {:allocations [{:id :alice :allocated 100 :unmet 0}
                                          {:id :bob :allocated 50 :unmet 0}]

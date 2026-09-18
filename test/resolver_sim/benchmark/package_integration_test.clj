@@ -6,7 +6,7 @@
    Each scenario builds a complete simulated package, validates that every
    profile recomputes correctly, and confirms that cross-artifact
    verification catches every intended failure mode."
-  (:require [clojure.test :refer [deftest is testing]]
+  (:require [clojure.test :refer [deftest is]]
             [resolver-sim.hash.canonical :as hc]
             [resolver-sim.pro-rata.allocation :as alloc]
             [resolver-sim.benchmark.outcome-manifest :as om]
@@ -20,17 +20,19 @@
 ;; Simulated package helpers
 ;; ═══════════════════════════════════════════════════════════════════════════
 
-(defn- sha256-bytes [m]
+(defn- sha256-bytes
   "Compute a deterministic sha256 hex and byte-length for a map.
    Used to simulate the package-index ref triple {:sha256 ... :bytes ...}."
+  [m]
   (let [json (pr-str m)]
     {:sha256 (str "sha256:" (hc/domain-hash :evidence-collection m))
      :bytes (count (.getBytes json "UTF-8"))}))
 
-(defn- build-package [artifact-map]
+(defn- build-package
   "Build a simulated package index from a flat map of artifact-id -> artifact.
    Returns {:index {id {:sha256 id :ref ... :bytes ...}}
             :artifacts artifact-map}."
+  [artifact-map]
   (let [index (into {} (map (fn [[id art]]
                               [id (merge {:ref (str "artifacts/" (name id) ".json")
                                           :artifact-sha256 id}
@@ -39,8 +41,9 @@
     {:index index
      :artifacts artifact-map}))
 
-(defn- resolve-from-package [package]
+(defn- resolve-from-package
   "Return a package-resolver fn that resolves artifact sha256s from the package."
+  [package]
   (let [artifacts (:artifacts package)]
     (fn [sha256]
       (get artifacts sha256))))
@@ -183,10 +186,10 @@
         "independent allocation verifier matches")))
 
 (deftest pkg-force-authorised-execution
-  (let [manifest (om/build-manifest
-                  (assoc (into {} (build-pro-rata-manifest))
-                         :benchmark/content-root content-root
-                         :benchmark/model-root model-root))
+  (let [_manifest (om/build-manifest
+                   (assoc (into {} (build-pro-rata-manifest))
+                          :benchmark/content-root content-root
+                          :benchmark/model-root model-root))
         auth (rfa/build-authorisation
               {:authorisation/id :authorisation/pkg-fa
                :authorisation/policy {:policy/id :research/three-member
@@ -246,7 +249,7 @@
                            :reservation reservation
                            :outcome-manifest fa-manifest
                            :consumption-receipt receipt
-                           :public-key-resolver (fn [id] "/dev/null")})
+                           :public-key-resolver (fn [_id] "/dev/null")})
         policy-artifact {"policy_sha256" "sha256:policy"
                          "schema_version" "force-authorisation-policy.v1"
                          "member_count" 3 "threshold" 2}
@@ -399,7 +402,7 @@
                     :application-evidence-hash app-hash
                     :theorem-outcomes []
                     :conclusions []})
-        exec-hash (:evidence-profile/hash exec-prof)]
+        _exec-hash (:evidence-profile/hash exec-prof)]
     ;; Corrupt allocation profile reference in execution profile
     (let [bad-prof (assoc exec-prof :evidence-profile/allocation-evidence-hash
                           "sha256:nonexistent")

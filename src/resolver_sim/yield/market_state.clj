@@ -38,11 +38,11 @@
         default-apy (if (some? risk-apy) risk-apy 0.04)]
     (let [schedules* (or schedules {:rate-schedule nil :index-schedule nil :liquidity-schedule nil :module-state-schedule nil})
           sched-apy (try (schedule/get-value-at-time (:rate-schedule schedules*) time default-apy)
-                         (catch Exception e (log/error! "apy-lookup-failed" {:time time}) default-apy))
+                         (catch Exception _e (log/error! "apy-lookup-failed" {:time time}) default-apy))
           sched-ratio (try (schedule/get-value-at-time (:liquidity-schedule schedules*) time 1.0)
-                           (catch Exception e (log/error! "liquidity-lookup-failed" {:time time}) 1.0))
+                           (catch Exception _e (log/error! "liquidity-lookup-failed" {:time time}) 1.0))
           sched-state (try (schedule/get-value-at-time (:module-state-schedule schedules*) time :normal)
-                           (catch Exception e (log/error! "module-state-lookup-failed" {:time time}) :normal))]
+                           (catch Exception _e (log/error! "module-state-lookup-failed" {:time time}) :normal))]
       (let [risk-lmode (:liquidity-mode risk)
             risk-fm    (:failure-modes risk)
             resolved-state (cond
@@ -57,7 +57,7 @@
                               sched-ratio))]
         {:apy (if (some? risk-apy) risk-apy sched-apy)
          :index (try (schedule/get-value-at-time (:index-schedule schedules*) time nil)
-                     (catch Exception e (log/error! "index-lookup-failed" {:time time}) nil))
+                     (catch Exception _e (log/error! "index-lookup-failed" {:time time}) nil))
          :available-ratio final-ratio
          :module-state resolved-state
          :shortfall-model (if resolved-mid

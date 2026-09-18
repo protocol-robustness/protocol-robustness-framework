@@ -1,16 +1,15 @@
 (ns resolver-sim.evidence.attestation-policy-test
-  (:require [clojure.test :refer [deftest is testing]]
+  (:require [clojure.test :refer [deftest is]]
             [resolver-sim.evidence.attestation :as att]
             [resolver-sim.evidence.attestation-registry :as ar]
             [resolver-sim.evidence.attestation-policy :as apol]))
 
 (defn- attestor [] {:type :ci-runner :id :ci-validation})
-(defn- subject [] {:type :evidence-node :hash "sha256:abc"})
 
 (defn- build-a
   [& {:keys [signed-at claim claim-id signing-key-id attestor-id subject-kind subject-hash]
       :or {signed-at "2025-01-01T00:00:00Z" claim :verified}}]
-  (let [a (or attestor-id :ci-validation)
+  (let [_a (or attestor-id :ci-validation)
         sk (or subject-kind :evidence-node)
         sh (or subject-hash "sha256:abc")]
     (att/build-attestation
@@ -49,8 +48,8 @@
 (deftest register-policy-overwrites-existing
   (apol/with-fresh-registry
     (apol/register-policy! (default-policy))
-    (let [p2 (apol/register-policy!
-              {:policy-id :default :description "v2" :rules []})]
+    (let [_p2 (apol/register-policy!
+               {:policy-id :default :description "v2" :rules []})]
       (is (= "v2" (:description (apol/find-policy :default)))))))
 
 (deftest find-policy-returns-nil-for-unknown

@@ -347,11 +347,6 @@
       (seq structured)
       (assoc :sentinel/structured-sources existing-structured))))
 
-(defn- build-provenance
-  "Deprecated — use build-sensitivity-derivation instead."
-  [effective & sources]
-  (apply build-sensitivity-derivation effective sources))
-
 ;; ── Downgrade Prevention ────────────────────────────────────────────────────
 
 (defn assert-no-downgrade!

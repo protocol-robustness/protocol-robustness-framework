@@ -244,7 +244,7 @@
    (gen/tuple (gen/choose 1 500) (gen/choose 0 200) (gen/choose 0 200))))
 
 (deftest decision-hash-deterministic
-  "Same position and liquidity always produce the same decision artifact hash."
+  ;; Same position and liquidity always produce the same decision artifact hash.
   (let [prop (prop/for-all [pos (gen-simple-position)
                             liquidity (gen/choose 0 500)]
                            (let [policy {:mode :pro-rata :rounding-policy :largest-remainder}
@@ -285,7 +285,7 @@
     (is (:pass? res) (pbh/report-failure res))))
 
 (deftest application-hash-deterministic
-  "Same application always produces the same hash."
+  ;; Same application always produces the same hash.
   (let [prop (prop/for-all [c h/gen-any-case]
                            (let [world (h/build-propagations-from-case c)
                                  app (first (vals (:yield/applied-pro-rata-propagations world)))
@@ -296,7 +296,7 @@
     (is (:pass? res) (pbh/report-failure res))))
 
 (deftest application-hash-sensitive-to-committed-fields
-  "Changing a committed field in the application produces a different hash."
+  ;; Changing a committed field in the application produces a different hash.
   (let [prop (prop/for-all [c h/gen-any-case
                             k (gen/elements [:calculation-id :outcome-hash :policy-hash])]
                            (let [world (h/build-propagations-from-case c)
@@ -347,7 +347,7 @@
     (is (:pass? res) (pbh/report-failure res))))
 
 (deftest application-has-required-structure
-  "Every generated application artifact has all required fields."
+  ;; Every generated application artifact has all required fields.
   (let [prop (prop/for-all [c h/gen-any-case]
                            (let [world (h/build-propagations-from-case c)
                                  app (first (vals (:yield/applied-pro-rata-propagations world)))]
@@ -375,7 +375,7 @@
     (is (:pass? res) (pbh/report-failure res))))
 
 (deftest summary-conservation-holds
-  "For every propagation: summary.available = summary.allocated + summary.unallocated-residual."
+  ;; For every propagation: summary.available = summary.allocated + summary.unallocated-residual.
   (let [prop (prop/for-all [c h/gen-any-case]
                            (let [summary (get-in (first (vals (:yield/pro-rata-propagations
                                                                (h/build-propagations-from-case c)))) [:summary])]
@@ -472,7 +472,7 @@
 ;; ============================================================================
 
 (deftest single-participant-propagation-reconciles
-  "A propagation with a single participant passes all invariants."
+  ;; A propagation with a single participant passes all invariants.
   (let [prop (prop/for-all [c h/gen-case]
                            (let [single-participant (update c :participants #(vec (take 1 %)))
                                  world (h/build-propagations-from-case single-participant)

@@ -15,7 +15,7 @@
 
 (deftest repeated-grim-trigger-first-epoch-cooperates
   (testing "grim-trigger stays honest in first epoch"
-    (let [rng (rng/make-rng 1)
+    (let [_rng (rng/make-rng 1)
           resolver {:strategy :honest :epoch-history {:epoch-1 {:trials 1 :profit 1.0}}}
           cfg {:allowed-targets #{:honest :malicious}
                :strategy-space #{:honest :malicious}}
@@ -27,7 +27,7 @@
 
 (deftest repeated-grim-trigger-defects-on-defection
   (testing "grim-trigger switches to malicious after detecting defection"
-    (let [rng (rng/make-rng 1)
+    (let [_rng (rng/make-rng 1)
           resolver {:strategy :honest :epoch-history {:epoch-1 {:trials 1 :profit 100.0}}}
           cfg {:allowed-targets #{:honest :malicious :lazy}
                :strategy-space #{:honest :malicious :lazy}
@@ -41,7 +41,7 @@
 
 (deftest repeated-tit-for-tat-cooperates-first-epoch
   (testing "tit-for-tat stays honest in first epoch"
-    (let [rng (rng/make-rng 1)
+    (let [_rng (rng/make-rng 1)
           resolver {:strategy :honest :epoch-history {:epoch-1 {:trials 1 :profit 1.0}}}
           cfg {:allowed-targets #{:honest :malicious}}
           result (d/select-next-strategy :repeated/tit-for-tat
@@ -51,7 +51,7 @@
 
 (deftest repeated-tit-for-tat-retaliates
   (testing "tit-for-tat switches to malicious when opponents defected"
-    (let [rng (rng/make-rng 1)
+    (let [_rng (rng/make-rng 1)
           resolver {:strategy :honest :epoch-history {:epoch-1 {:trials 1 :profit 100.0}}}
           cfg {:allowed-targets #{:honest :malicious :lazy}
                :strategy-space #{:honest :malicious :lazy}}
@@ -64,7 +64,7 @@
 
 (deftest repeated-tit-for-tat-returns-to-cooperation
   (testing "tit-for-tat returns to honest when opponents cooperate"
-    (let [rng (rng/make-rng 1)
+    (let [_rng (rng/make-rng 1)
           resolver {:strategy :malicious :epoch-history {:epoch-1 {:trials 1 :profit 50.0}}}
           cfg {:allowed-targets #{:honest :malicious :lazy}
                :strategy-space #{:honest :malicious :lazy}}

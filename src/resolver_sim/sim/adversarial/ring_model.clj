@@ -175,7 +175,7 @@
 
 (defn ring-summary
   "Return a compact summary map suitable for epoch logging."
-  [ring epoch-result]
+  [_ring epoch-result]
   {:active-count (:active-count epoch-result)
    :exits-count  (count (:exits epoch-result))
    :entries      (count (or (:entries epoch-result) []))

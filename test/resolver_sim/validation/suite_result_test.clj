@@ -1,5 +1,5 @@
 (ns resolver-sim.validation.suite-result-test
-  (:require [clojure.test :refer :all]
+  (:require [clojure.test :refer [deftest is]]
             [resolver-sim.validation.suite-result :as sut]))
 
 (deftest test-check-reducer

@@ -4,7 +4,7 @@
             [clojure.edn :as edn]
             [resolver-sim.assurance.trust-sequence-definition :as tsd]
             [resolver-sim.assurance.witness-verifier :as wv]
-            [resolver-sim.evidence.chain :as chain]
+
             [resolver-sim.run.package-index :as pkg]
             [resolver-sim.config.paths :as paths]
             [resolver-sim.hash.reference :as hash-ref]))

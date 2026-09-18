@@ -5,7 +5,7 @@
    referenced by the five generic claims."
   (:require [clojure.edn :as edn]
             [clojure.java.io :as io]
-            [clojure.set :as set]
+
             [clojure.test :refer [deftest is testing]]
             [resolver-sim.hash.reference :as hash-ref]))
 

@@ -636,22 +636,6 @@
 ;; Type Validation
 ;; ──────────────────────────────────────────────────────────────────────────────
 
-(defn- canonical-type?
-  "Return true if v is a supported canonical type."
-  [v]
-  (or (nil? v)
-      (instance? Boolean v)
-      (instance? Long v)
-      (instance? Integer v)
-      (instance? Short v)
-      (instance? Byte v)
-      (instance? clojure.lang.BigInt v)
-      (instance? BigInteger v)
-      (instance? String v)
-      (instance? clojure.lang.Keyword v)
-      (instance? clojure.lang.IPersistentVector v)
-      (instance? clojure.lang.IPersistentMap v)))
-
 (defn- map-key-type?
   "Return true if k is a permitted map key type."
   [k]
@@ -3621,7 +3605,7 @@ name (an alias)."
   [intent-kw value]
   (let [contract (resolve-intent intent-kw)
         excludes (:intent/excludes contract)
-        violations (volatile! [])]
+        _violations (volatile! [])]
     ;; Tree-walk type checks
     (let [type-preds (keep #(when-let [c (get exclude-type-checkers %)]
                               c)

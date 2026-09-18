@@ -348,7 +348,7 @@
                     epoch-snapshot
                     (reduce-kv
                      (fn [m id r]
-                       (let [eh (get (:epoch-history r) (keyword (str "epoch-" epoch-num)) {})]
+                       (let [_eh (get (:epoch-history r) (keyword (str "epoch-" epoch-num)) {})]
                          (assoc m id
                                 {:profit     (rep/cumulative-profit r)
                                  :reputation (rep/win-rate r)

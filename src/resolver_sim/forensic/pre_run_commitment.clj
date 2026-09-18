@@ -34,7 +34,7 @@
   "Build the pre-run commitment map for a given run context.
    context may include :suite-key, :scenario-paths, :run-id."
   ([context] (build-commitment context nil))
-  ([{:keys [suite-key scenario-paths run-id] :as context} runner-jar-path]
+  ([{:keys [suite-key _scenario-paths run-id] :as _context} runner-jar-path]
    (let [source (src-hash/source-hash)
          deps (deps-hash/deps-hash)
          corpus (when suite-key (try (corpus-hash/corpus-hash suite-key) (catch Exception _ nil)))

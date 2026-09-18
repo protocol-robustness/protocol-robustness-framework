@@ -162,7 +162,7 @@
   "Evaluate governed review-seat constitution before any positions are read.
    `members` are round entries containing :researcher/id and :role; their ID is
    interpreted as the canonical :reviewer/member-id in P0 governed rounds."
-  [governance policy-id members constituted-at]
+  [governance policy-id members _constituted-at]
   (let [g-validation (validate-governance governance)
         policy (policy-by-id governance policy-id)
         member-ids (mapv :researcher/id members)

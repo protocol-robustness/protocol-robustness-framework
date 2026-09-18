@@ -11,8 +11,7 @@
             [clojure.string :as str]
             [resolver-sim.config.hardening :as hardening]
             [resolver-sim.lab.json :as lab-json])
-  (:import [java.io File]
-           [java.nio.file Files]
+  (:import [java.nio.file Files]
            [java.util.concurrent TimeUnit]))
 
 (defn current-classpath
@@ -108,7 +107,7 @@
   (let [request-file (write-request-file! runs-dir run-id request)
         output-file (str request-file ".result.json")
         argv (runner-argv request-file run-id output-file)
-        {:keys [code output timed-out?]} (run-process argv timeout-ms)
+        {:keys [code _output timed-out?]} (run-process argv timeout-ms)
         result (if (and output-file (.exists (io/file output-file)))
                  (lab-json/read-str (slurp output-file))
                  {:lab-run/id run-id

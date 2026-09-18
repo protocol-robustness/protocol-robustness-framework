@@ -1,5 +1,5 @@
 (ns resolver-sim.yield.module-test
-  (:require [clojure.test :refer :all]
+  (:require [clojure.test :refer [deftest is]]
             [resolver-sim.yield.module :as ymod]
             [resolver-sim.yield.registry :as reg]
             [resolver-sim.yield.modules.liquid-lending :as liquid]

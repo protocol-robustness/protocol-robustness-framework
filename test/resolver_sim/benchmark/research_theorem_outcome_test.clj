@@ -1,5 +1,5 @@
 (ns resolver-sim.benchmark.research-theorem-outcome-test
-  (:require [clojure.test :refer [deftest is testing]]
+  (:require [clojure.test :refer [deftest is]]
             [resolver-sim.benchmark.research-theorem-outcome :as rto]))
 
 (def ^:const minimal-theorem

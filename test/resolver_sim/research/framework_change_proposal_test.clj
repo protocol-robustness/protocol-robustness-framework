@@ -1,5 +1,5 @@
 (ns resolver-sim.research.framework-change-proposal-test
-  (:require [clojure.test :refer [deftest is testing]]
+  (:require [clojure.test :refer [deftest is]]
             [resolver-sim.research.framework-change-proposal :as fcp]))
 
 (def sample-target

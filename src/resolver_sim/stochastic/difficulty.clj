@@ -141,7 +141,7 @@
    3. With low honest profit (high slashing risk)
    
    Returns true if dispute is attractive target."
-  [difficulty escrow-wei attacker-budget-remaining]
+  [difficulty _escrow-wei attacker-budget-remaining]
   (and
    (> attacker-budget-remaining 0)
     ; Prefer hard > medium > easy
@@ -155,7 +155,7 @@
    
    Returns function that ranks disputes by attack value.
    Higher value = better target for attacker."
-  [num-disputes num-attackers]
+  [_num-disputes _num-attackers]
   (fn [difficulty escrow-wei]
     (let [base-value
           (case difficulty

@@ -73,12 +73,11 @@
      (if budgeted
        (let [acquired (budget/acquire-many! parallelism)]
          (try
-           (do
-             (realization/record! {:budget-limited? (< acquired parallelism)
-                                   :realized-parallelism acquired})
-             (if (< acquired 2)
-               (mapv f values)
-               (run-claimant-tasks! acquired quiescence-timeout-seconds f values)))
+           (realization/record! {:budget-limited? (< acquired parallelism)
+                                 :realized-parallelism acquired})
+           (if (< acquired 2)
+             (mapv f values)
+             (run-claimant-tasks! acquired quiescence-timeout-seconds f values))
            (finally
              (budget/release-many! acquired))))
        (do

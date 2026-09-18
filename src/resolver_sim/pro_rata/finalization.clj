@@ -5,12 +5,12 @@
    ordering, and binding artifacts exist. It does not construct them and it does
    not own claimant execution. Its one lane callback is the durable PostgreSQL
    publication transaction."
-  (:require [resolver-sim.execution.finalization-lane :as lane]
-            [resolver-sim.execution.realization :as realization]
-            [resolver-sim.pro-rata.allocation :as allocation]
-            [resolver-sim.pro-rata.invocation-publication-binding :as binding]
-            [resolver-sim.pro-rata.postgres-publication-store :as postgres]
-            [resolver-sim.pro-rata.publication :as publication]))
+  (:require
+   [resolver-sim.execution.realization :as realization]
+   [resolver-sim.pro-rata.allocation :as allocation]
+   [resolver-sim.pro-rata.invocation-publication-binding :as binding]
+   [resolver-sim.pro-rata.postgres-publication-store :as postgres]
+   [resolver-sim.pro-rata.publication :as publication]))
 
 (defn finalization-commitments
   "Derive and validate the roots bound to an authority-level finalization lane.

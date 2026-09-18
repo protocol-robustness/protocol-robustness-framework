@@ -155,7 +155,7 @@
       ["Artifacts are not all within the run root"])))
 
 (defn run
-  [{:keys [run-root] :as opts}]
+  [{:keys [run-root] :as _opts}]
   (if-not run-root
     (do (println "Usage: verify-run --run-root DIR")
         {:exit-code 2 :message "Missing --run-root"})

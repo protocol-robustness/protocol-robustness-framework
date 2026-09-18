@@ -82,13 +82,6 @@
 
 ;; ── Sensitivity status codes ────────────────────────────────────────────────
 
-(def ^:private sensitivity-status-codes
-  #{:sensitivity-status/evaluated
-    :sensitivity-status/no-declaration-structural-only
-    :sensitivity-status/not-scanned
-    :sensitivity-status/evaluation-failed
-    :sensitivity-status/malformed-declaration})
-
 ;; ── Structured source helpers ───────────────────────────────────────────────
 
 (defn- scenario-source-record

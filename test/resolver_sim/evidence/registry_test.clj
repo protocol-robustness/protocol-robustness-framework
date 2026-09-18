@@ -8,7 +8,7 @@
    - \"Is the registry structurally valid?\""
   (:require [clojure.data.json :as json]
             [clojure.java.io :as io]
-            [clojure.test :refer [deftest is testing use-fixtures]]
+            [clojure.test :refer [deftest is testing]]
             [resolver-sim.evidence.registry :as reg]
             [resolver-sim.evidence.registry-validation :as reg-val]
             [resolver-sim.io.event-evidence :as evidence]))
@@ -96,7 +96,7 @@
 
 (deftest registry-query-helpers
   (let [dir (str (System/getProperty "java.io.tmpdir") "/reg-test-" (java.util.UUID/randomUUID))
-        artifacts (setup-events dir)
+        _artifacts (setup-events dir)
         {:keys [registry]} (reg/write-evidence-registry! dir)]
     (testing "evidence-for-event"
       (let [results (reg/evidence-for-event registry 0)]

@@ -206,7 +206,7 @@
 
 (defn provenance-footer [run]
   (let [manifest (:manifest run)
-        registry (:registry run)
+        _registry (:registry run)
         run-id   (get manifest :run_id "—")
         registry-sha (or (get-in manifest [:framework :registry_sha256]) "—")
         git-commit   (get-in manifest [:framework :git_commit] "—")

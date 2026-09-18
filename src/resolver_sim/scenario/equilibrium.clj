@@ -165,10 +165,6 @@
                                  :detail detail :required required :available available
                                  :validation-class (get property-class property)))
 
-(defn- not-applicable [property reason-kw detail & opts]
-  (eq-result/not-applicable-result property reason-kw
-                                   (assoc opts :detail detail)))
-
 ;; ---------------------------------------------------------------------------
 ;; Mechanism-property validators (generic — Sew-specific validators are in
 ;; protocols/sew/equilibrium.clj and injected via mechanism-property-validators)

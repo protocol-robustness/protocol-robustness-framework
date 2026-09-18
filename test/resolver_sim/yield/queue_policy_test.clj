@@ -3,7 +3,7 @@
    queue domain (module/token/pool), queue key (original priority + immutable
    secondary position id), deterministic ordering, and cross-pool
    incomparability."
-  (:require [clojure.test :refer :all]
+  (:require [clojure.test :refer [deftest is testing]]
             [resolver-sim.yield.modules.liquid-lending :as ll]))
 
 (def test-mod

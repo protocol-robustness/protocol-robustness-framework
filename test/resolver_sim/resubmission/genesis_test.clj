@@ -3,7 +3,7 @@
    configuration validation/root, genesis construction, validation, root
    determinism, chain-id derivation, and store realization."
   (:require [clojure.edn :as edn]
-            [clojure.test :refer :all]
+            [clojure.test :refer [deftest is testing]]
             [clojure.string :as str]
             [resolver-sim.genesis :as deployment-genesis]
             [resolver-sim.hash.canonical :as hc]

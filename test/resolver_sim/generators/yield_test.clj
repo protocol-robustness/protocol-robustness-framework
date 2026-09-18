@@ -1,5 +1,5 @@
 (ns resolver-sim.generators.yield-test
-  (:require [clojure.test :refer :all]
+  (:require [clojure.test :refer [deftest is]]
             [clojure.test.check :as tc]
             [clojure.test.check.properties :as prop]
             [resolver-sim.contract-model.replay :as replay]

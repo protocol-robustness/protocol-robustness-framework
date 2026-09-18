@@ -1,7 +1,6 @@
 (ns resolver-sim.observability.available-actions-test
-  (:require [clojure.test :refer [deftest is testing]]
-            [resolver-sim.observability.available-actions :as actions]
-            [resolver-sim.hash.reference :as refs]))
+  (:require [clojure.test :refer [deftest is]]
+            [resolver-sim.observability.available-actions :as actions]))
 
 (def state-root (str "sha256:" (apply str (repeat 64 "a"))))
 

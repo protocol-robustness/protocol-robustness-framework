@@ -27,23 +27,6 @@
     :tie-break-policy :canonical-row-id
     :redistribution-policy :unallocated}))
 
-(defn- valid-evidence []
-  (evidence/mechanism-evidence-artifact (valid-allocation)))
-
-(defn- valid-application []
-  (let [a (root "a")
-        b (root "b")
-        alloc (valid-allocation)
-        proposed (evidence/proposed-effects alloc)]
-    (app/authorize
-     {:allocation-root (:allocation/hash alloc)
-      :proposed-effects-root (:proposed-effects/root proposed)
-      :protocol-effect-set-root (:proposed-effects/root proposed)
-      :state-before-root a
-      :policy-root b
-      :authorization-root (hc/domain-hash :authorized-effect-execution {})
-      :consumption-key :test-consumption})))
-
 (defn- valid-evm-artifact []
   (let [alloc (valid-allocation)]
     (evm/build-application
@@ -494,7 +477,7 @@
              :operation-semantics-root (root "3")
              :trace-policy-root (root "4")})
         trace (transact/execute {q1 100 q2 0} tx canonical {:max-fixed-steps 10 :max-steps-per-effect 5})
-        semantics (transact/build-binding-semantics :effect-exact)]
+        _semantics (transact/build-binding-semantics :effect-exact)]
     (testing "binding mode mismatch (swapped semantics root) throws"
       (is (thrown? Exception
                    (transact/bind-transition canonical tx trace (root "swapped")))))))

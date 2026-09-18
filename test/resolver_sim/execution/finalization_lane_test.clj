@@ -14,12 +14,6 @@
   ([opts]
    (lane/open (merge {:requires-quiescence? true} opts))))
 
-(defn- drain-lane!
-  "Complete all contributing work and quiesce all phases on the lane."
-  [lane contributor-count executor-phases]
-  (dotimes [_ contributor-count] (lane/end-contributor! lane))
-  (dotimes [_ executor-phases] (lane/record-quiesced! lane)))
-
 ;; ── Test 1: Two concurrent finalizers ──────────────────────────────────────
 
 (deftest two-concurrent-finalizers-exactly-one-wins
@@ -114,7 +108,7 @@
        lane
        {:closed-result-set-root "root-A"
         :basis-root "basis-A"}
-       (fn [ticket] {:committed {:root "root-A"}}))
+       (fn [_ticket] {:committed {:root "root-A"}}))
       ;; The closed-root in the ticket is bound at finalize-lane! time,
       ;; from opts, not from the lane atom. The lane atom's lifecycle is
       ;; what's immutable after closure.
@@ -136,7 +130,7 @@
                   {:observed-parent-root "parent-B"
                    :closed-result-set-root "root-A"
                    :basis-root "basis-A"}
-                  (fn [ticket]
+                  (fn [_ticket]
                     (reset! write-called? true)
                     {:committed {:ok true}}))]
       (is (= :rejected (:status result))
@@ -158,7 +152,7 @@
                   lane
                   {:closed-result-set-root "root-A"
                    :basis-root "basis-A"}
-                  (fn [ticket]
+                  (fn [_ticket]
                     (throw (ex-info "write failed" {}))))]
       (is (= :rejected (:status result))
           "Finalization rejected on write throw")
@@ -181,12 +175,12 @@
                         lane
                         {:closed-result-set-root "root-A"
                          :basis-root "basis-A"}
-                        (fn [ticket] {:committed {:ok true}}))
+                        (fn [_ticket] {:committed {:ok true}}))
           second-result (lane/finalize-lane!
                          lane
                          {:closed-result-set-root "root-A"
                           :basis-root "basis-A"}
-                         (fn [ticket] {:committed {:ok true}}))]
+                         (fn [_ticket] {:committed {:ok true}}))]
       (is (= :committed (:status first-result))
           "First finalization succeeded")
       (is (= :rejected (:status second-result))
@@ -276,7 +270,7 @@
                         {:closed-result-set-root "root-A"
                          :basis-root "basis-A"}
                         (fn [ticket] {:committed {:ticket ticket}}))
-          gen (:finalizer/lane-generation (:ticket first-result))]
+          _gen (:finalizer/lane-generation (:ticket first-result))]
       ;; Attempt to finalize again — the lane is no longer EXECUTION_CLOSED
       (let [second-result (lane/finalize-lane!
                            lane
@@ -307,7 +301,7 @@
                                             shared-lane
                                             {:closed-result-set-root "root"
                                              :basis-root "basis"}
-                                            (fn [ticket]
+                                            (fn [_ticket]
                                               {:committed {:ok true}}))]
                                 (if (= :committed (:status result))
                                   (.incrementAndGet winners)
@@ -407,7 +401,7 @@
                   lane
                   {:closed-result-set-root "root"
                    :basis-root "basis"}
-                  (fn [ticket] {:committed {:ok true}}))]
+                  (fn [_ticket] {:committed {:ok true}}))]
       (is (= :committed (:status result))
           "Finalization succeeds without parent-fence when expected-parent is nil"))))
 
@@ -421,7 +415,7 @@
                   {:closed-result-set-root "root"
                    :basis-root "basis"
                    :valid-basis? false}
-                  (fn [ticket]
+                  (fn [_ticket]
                     (reset! write-called? true)
                     {:committed {:ok true}}))]
       (is (= :rejected (:status result))

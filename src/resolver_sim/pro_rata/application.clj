@@ -131,7 +131,7 @@
         (= (:applied-effect-receipt/root receipt)
            (hc/domain-hash :applied-effect-receipt
                            (dissoc receipt :applied-effect-receipt/root)))))
-  ([receipt compilation canonical-transition]
+  ([receipt _compilation _canonical-transition]
    (case (:schema-version receipt)
      "applied-effect-receipt.v1" (receipt-valid? receipt)
      "applied-effect-receipt.v2" false

@@ -11,7 +11,7 @@
    Round-2 (available 260, re-admitted deferred 70/63/63/64 with caps 30/40/50):
      alice 30, bob 40, carol 50, dan 64 (satisfied); deferred 40/23/13/0.
    Cumulative: 60/77/87/100, all conserving the original 100 request."
-  (:require [clojure.test :refer :all]
+  (:require [clojure.test :refer [deftest is testing]]
             [resolver-sim.yield.invariants :as inv]
             [resolver-sim.yield.modules.liquid-lending :as ll]))
 

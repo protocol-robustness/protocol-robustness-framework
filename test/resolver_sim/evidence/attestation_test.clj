@@ -13,7 +13,7 @@
   {:type :evidence-node :hash "sha256:abcdef1234567890"})
 
 (defn- sample-signing-fn
-  [body]
+  [_body]
   {:algorithm :ed25519
    :public-key-id "key-001"
    :signature-bytes "deadbeef"})
@@ -84,10 +84,10 @@
         signing-fn (fn [data] (reset! called-with data) {:algorithm :ed25519
                                                          :public-key-id "key-001"
                                                          :signature-bytes "deadbeef"})
-        result (att/build-attestation (valid-attestor) (valid-subject) :verified
-                                      {:signing-key-id "key-001"
-                                       :signing-fn signing-fn
-                                       :metadata {:env "test"}})]
+        _result (att/build-attestation (valid-attestor) (valid-subject) :verified
+                                       {:signing-key-id "key-001"
+                                        :signing-fn signing-fn
+                                        :metadata {:env "test"}})]
     (is (= :attestation-record (:intent @called-with))
         "signing-fn must receive the canonical projection with intent")
     (is (map? (:artifact @called-with))

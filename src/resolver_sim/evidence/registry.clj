@@ -43,7 +43,7 @@
   "Derive evidence role from importance or type."
   [artifact]
   (let [imp (or (:evidence/importance artifact) :diagnostic)
-        etype (:evidence/type artifact)]
+        _etype (:evidence/type artifact)]
     (or (when (keyword? imp)
           (case imp
             :core :core
@@ -51,14 +51,6 @@
             :trace :trace
             nil))
         :diagnostic)))
-
-(defn- extract-links
-  "Derive cross-links for an evidence entry from the artifact data and indexes."
-  [artifact event-idx group-idx]
-  (let [etype (:evidence/type artifact)
-        gid (:evidence/group-id artifact)]
-    {:mechanism (io-evidence/mechanism-for-type etype)
-     :targeted-count (if (and gid group-idx) (count (get group-idx gid [])) 0)}))
 
 ;; ── Registry Builder ─────────────────────────────────────────────────────────
 
@@ -145,7 +137,7 @@
                                  {:hash/world-after wa}))))
                           artifacts)
             ;; Build indexes
-            indexed-entries (reduce (fn [m e] (assoc m (:evidence/id e) e)) {} entries)
+            _indexed-entries (reduce (fn [m e] (assoc m (:evidence/id e) e)) {} entries)
             by-event-idx (reduce (fn [acc e]
                                    (if-let [ei (:event/index e)]
                                      (update acc ei (fnil conj []) (:evidence/id e))

@@ -4,11 +4,10 @@
   (:require [clojure.data.json :as json]
             [clojure.java.io :as io]
             [clojure.string :as str]
-            [clojure.test :refer [deftest is testing use-fixtures]]
+            [clojure.test :refer [deftest is]]
             [resolver-sim.commands.run-lifecycle :as lifecycle]
             [resolver-sim.commands.benchmark-inventory :as inventory]
-            [resolver-sim.commands.benchmark-conclusion :as conclusion]
-            [resolver-sim.evidence.chain :as chain])
+            [resolver-sim.commands.benchmark-conclusion :as conclusion])
   (:import [java.nio.file Files StandardCopyOption]))
 
 (defn- temp-dir []

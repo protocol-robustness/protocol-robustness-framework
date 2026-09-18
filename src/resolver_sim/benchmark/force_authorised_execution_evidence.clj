@@ -21,7 +21,7 @@
    but does not produce this particular profile."
   (:require [resolver-sim.hash.canonical :as hc]
             [resolver-sim.benchmark.researcher-force-authorisation :as rfa]
-            [resolver-sim.benchmark.outcome-manifest :as om]
+
             [resolver-sim.benchmark.review-aggregate-check :as rac]
             [resolver-sim.benchmark.review-governance :as rg]
             [resolver-sim.assurance.three-member-authority :as tma]

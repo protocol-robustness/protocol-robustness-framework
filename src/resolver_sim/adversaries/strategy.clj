@@ -25,7 +25,7 @@
 
 (defn estimate-evidence-cost
   "Estimate evidence cost from parameters."
-  [params difficulty]
+  [_params difficulty]
   (case difficulty
     :easy 1000
     :medium 5000
@@ -73,13 +73,13 @@
   (should-attack? [_ params]
     (< (next-double params) 0.5))
 
-  (attack-type [_ params]
+  (attack-type [_ _params]
     :none)
 
-  (budget-allocation [_ params]
+  (budget-allocation [_ _params]
     {:bribery 0.0 :evidence 0.0 :collusion 0.0})
 
-  (expected-profit [_ attack-type params]
+  (expected-profit [_ _attack-type _params]
     0)
 
   (observe-outcome! [_ _outcome]
@@ -101,7 +101,7 @@
         :bribery
         :none)))
 
-  (budget-allocation [_ params]
+  (budget-allocation [_ _params]
     {:bribery 1.0 :evidence 0.0 :collusion 0.0})
 
   (expected-profit [_ attack-type params]
@@ -130,7 +130,7 @@
         (< bribery-cost available-budget) :bribery
         :else :none)))
 
-  (budget-allocation [_ params]
+  (budget-allocation [_ _params]
     {:bribery 0.4 :evidence 0.6 :collusion 0.0})
 
   (expected-profit [_ attack-type params]
@@ -150,7 +150,7 @@
 (deftype AdaptiveAttacker [beliefs-atom learning-rate]
   Adversary
 
-  (should-attack? [_ params]
+  (should-attack? [_ _params]
     (some #(> % 0) @beliefs-atom))
 
   (attack-type [_ params]
@@ -163,7 +163,7 @@
         (let [best-idx (.indexOf ^java.util.List beliefs (apply max beliefs))]
           (nth [:bribery :evidence :collusion] best-idx)))))
 
-  (budget-allocation [_ params]
+  (budget-allocation [_ _params]
     (let [beliefs @beliefs-atom
           total   (apply + beliefs)
           norm    #(if (pos? total) (/ (double %) (double total)) 0.0)]
@@ -171,7 +171,7 @@
        :evidence  (norm (nth beliefs 1))
        :collusion (norm (nth beliefs 2))}))
 
-  (expected-profit [_ attack-type params]
+  (expected-profit [_ attack-type _params]
     (let [beliefs @beliefs-atom]
       (case attack-type
         :bribery   (nth beliefs 0)

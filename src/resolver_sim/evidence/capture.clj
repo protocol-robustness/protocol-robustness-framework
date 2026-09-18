@@ -159,10 +159,10 @@
    Default implementation returns nil (no-op) until bound.
    Callers can rebind to `noop-capture` to suppress evidence globally."
   (fn
-    ([reason pre post inputs] nil)
-    ([reason pre post inputs calc] nil)
-    ([reason pre post inputs calc ctx-or-opts] nil)
-    ([evidence] nil)))
+    ([_reason _pre _post _inputs] nil)
+    ([_reason _pre _post _inputs _calc] nil)
+    ([_reason _pre _post _inputs _calc _ctx-or-opts] nil)
+    ([_evidence] nil)))
 
 (def noop-capture
   "The default no-op evidence capture implementation.
@@ -171,10 +171,10 @@
    Defined as a literal fn so it is never affected by alter-var-root
    from resolver-sim.io.event-evidence."
   (fn
-    ([reason pre post inputs] nil)
-    ([reason pre post inputs calc] nil)
-    ([reason pre post inputs calc ctx-or-opts] nil)
-    ([evidence] nil)))
+    ([_reason _pre _post _inputs] nil)
+    ([_reason _pre _post _inputs _calc] nil)
+    ([_reason _pre _post _inputs _calc _ctx-or-opts] nil)
+    ([_evidence] nil)))
 
 (defn capture-event-evidence!
   "Delegate to the bound I/O implementation of event evidence capture.

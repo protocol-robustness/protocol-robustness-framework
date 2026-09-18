@@ -1,10 +1,10 @@
 (ns resolver-sim.shortfall.reserve-binding
   "Source-specific binding between a validated reserve observation and Shortfall V2."
-  (:require [clojure.set :as set]
-            [resolver-sim.hash.canonical :as hc]
-            [resolver-sim.shortfall.context-v2 :as context-v2]
-            [resolver-sim.shortfall.evm-asset :as asset]
-            [resolver-sim.shortfall.reserve-observation :as observation]))
+  (:require
+   [resolver-sim.hash.canonical :as hc]
+   [resolver-sim.shortfall.context-v2 :as context-v2]
+   [resolver-sim.shortfall.evm-asset :as asset]
+   [resolver-sim.shortfall.reserve-observation :as observation]))
 
 (def ^:const schema-version "prf/onchain-shortfall-reserve-binding.v1")
 (def ^:private domain "prf.onchain-shortfall-reserve-binding.v1")

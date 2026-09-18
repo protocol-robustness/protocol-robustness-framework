@@ -67,7 +67,7 @@
 
 (defn build-diff-artifact
   "Build a single diff-evidence artifact map."
-  [trace-entry before-world after-world event-index group-id changes]
+  [trace-entry _before-world _after-world event-index group-id changes]
   (let [etype (:action trace-entry)
         ts (:time trace-entry)
         diff-sha256 (stable-diff-hash changes)]
@@ -103,8 +103,8 @@
    
    The first entry (index 0) always produces an artifact showing the
    transition from nil (pre-init) to the initial world state."
-  [trace & {:keys [scenario-id run-id group-id-fn]
-            :or {scenario-id "unknown" run-id "unknown"
+  [trace & {:keys [_scenario-id run-id group-id-fn]
+            :or {run-id "unknown"
                  group-id-fn (fn [idx action] (str run-id ":" idx ":" action))}}]
   (let [worlds (keep :world trace)
         pairs (map vector (cons nil worlds) worlds)]
@@ -222,8 +222,6 @@
    {:path-prefix :sequencer :domain :internal :label "Sequencer state" :suppress-from-summary? true}
    {:path-prefix :block-time :domain :internal :label "Temporal clock" :suppress-from-summary? true}
    {:path-prefix :temporal :domain :internal :label "Temporal context" :suppress-from-summary? true}])
-
-(declare build-enhanced-diff-artifact build-fully-classified-diff-artifact build-domain-summary classify-diff-changes classify-diff-changes-semantic build-enhanced-domain-summary)
 
 (defn- classify-path
   "Classify a path vector (e.g. [:total-held :USDC]) into a domain, label, and
@@ -383,8 +381,6 @@
 ;;   :financial-boundary  ? Change at a financial domain boundary
 ;;   :diagnostic-only     ? Internal/administrative, not analysis-relevant
 ;;   :unknown             ? Cannot classify, researcher should inspect
-
-(declare build-enhanced-diff-artifact build-fully-classified-diff-artifact build-domain-summary classify-diff-changes classify-diff-changes-semantic build-enhanced-domain-summary)
 
 ;; ?? Structural Diff Algorithm ????????????????????????????????????????????????
 

@@ -1,5 +1,5 @@
 (ns resolver-sim.benchmark.researcher-run-report-test
-  (:require [clojure.test :refer [deftest is testing]]
+  (:require [clojure.test :refer [deftest is]]
             [resolver-sim.benchmark.researcher-run-report :as rrr]
             [resolver-sim.benchmark.outcome-manifest :as om]))
 

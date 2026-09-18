@@ -33,7 +33,7 @@
     (.update digest (.getBytes text "UTF-8"))
     (format "%064x" (java.math.BigInteger. 1 (.digest digest)))))
 
-(defn evaluate [{:keys [scenario/id participants events] :as scenario}]
+(defn evaluate [{:keys [scenario/id participants events] :as _scenario}]
   (let [balances (or (:balances participants) {})
         offer (first (filter #(= :offer (:event/type %)) events))
         accept (first (filter #(= :accept (:event/type %)) events))

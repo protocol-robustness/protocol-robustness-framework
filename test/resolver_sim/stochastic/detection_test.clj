@@ -2,7 +2,7 @@
   "Tests for probabilistic detection helpers, including the new-evidence-probability
    gate that controls Track 2 pending-evidence reversal slashing and the
    L2 (Kleros) backstop detection."
-  (:require [clojure.test :refer :all]
+  (:require [clojure.test :refer [deftest is testing]]
             [resolver-sim.stochastic.detection :as detection]
             [resolver-sim.stochastic.rng :as rng]
             [resolver-sim.io.params :as io-params]

@@ -7,7 +7,7 @@
             [resolver-sim.contract-model.replay :as replay]
             [resolver-sim.evidence.chain :as chain]
             [resolver-sim.evidence.config :as evidence-config]
-            [resolver-sim.io.input-source :as input-source]
+
             [resolver-sim.protocols.registry :as protocols]
             [resolver-sim.io.edn :as ppedn]))
 

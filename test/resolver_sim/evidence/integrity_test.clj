@@ -25,7 +25,7 @@
 
   (testing "registry-hash-mismatch-test"
     (chain/reset-registry!)
-    (let [ev {:evidence-hash "valid-hash" :data "foo"}
+    (let [_ev {:evidence-hash "valid-hash" :data "foo"}
           registry (chain/build-registry)]
       ;; Manually tamper with the registry hash
       (let [tampered (assoc registry :registry-hash "wrong-hash")]

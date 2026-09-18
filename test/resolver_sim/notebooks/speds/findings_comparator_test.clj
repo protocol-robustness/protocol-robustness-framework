@@ -50,7 +50,7 @@
 
 (deftest findings-include-definitions-hash
   (let [bundle (findings/generate-findings-bundle sample-artifacts)
-        f26   (finding-by-id bundle "S26_forking-strategist-l1-reversal")]
+        _f26   (finding-by-id bundle "S26_forking-strategist-l1-reversal")]
     (is (string? (get-in bundle [:provenance :definitions/hash])))
     (is (string? (get-in bundle [:provenance :definitions/hash])))))
 

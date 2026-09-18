@@ -1,6 +1,6 @@
 (ns resolver-sim.commands.evidence-cli-test
   (:require [clojure.data.json :as json]
-            [clojure.test :refer [deftest is testing]]
+            [clojure.test :refer [deftest is]]
             [resolver-sim.cli.dispatch :as dispatch]
             [resolver-sim.hash.canonical :as hc]))
 

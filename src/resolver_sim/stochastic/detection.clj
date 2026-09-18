@@ -23,7 +23,6 @@
   #{:detection :appeal})
 
 ;; Back-compat alias for internal references
-(def ^:private detection-roll-kinds oracle-detection-roll-kinds)
 
 (def default-slash-bps
   "Canonical defaults for slash-bps parameter fallbacks.
@@ -225,7 +224,7 @@
   (let [rolls (:rolls effective)]
     (when (map? rolls)
       (reduce-kv
-       (fn [warnings roll-kind roll-seq]
+       (fn [warnings roll-kind _roll-seq]
          (if-let [prob-key (detection-kind->prob-key roll-kind)]
            (let [default  (get detection-kind->default-prob roll-kind 0.0)
                  prob     (get params prob-key default)]
@@ -346,7 +345,7 @@
     (swap! (:oracle-roll-trace params) conj entry)))
 
 (defn- mark-fixture-exhausted!
-  [params on-exhaustion]
+  [params _on-exhaustion]
   (when-let [flag (:oracle-fixture/exhausted? params)]
     (reset! flag true))
   params)
@@ -480,7 +479,7 @@
   (:roll/value (oracle-roll-event params roll-kind)))
 
 (defn- appeal-threshold-roll
-  [rng params roll-kind threshold]
+  [_rng params roll-kind threshold]
   (let [roll-event (oracle-roll-event params roll-kind)
         detected? (roll-detect? (:roll/value roll-event) threshold)]
     (trace-decision! params roll-event threshold detected?)

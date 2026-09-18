@@ -10,7 +10,7 @@
    - :context/version, :context/source (normalized separately)
    - :replay-profile, :protocol-id (simple-only additions)
    - :scenario-normalizations (simple-only addition)"
-  (:require [clojure.test :refer :all]
+  (:require [clojure.test :refer [deftest is]]
             [resolver-sim.contract-model.replay :as replay]
             [resolver-sim.contract-model.replay.flags :as flags]
             [resolver-sim.contract-model.replay.profile-adapter :as adapter]
@@ -23,11 +23,6 @@
 ;; ===========================================================================
 ;; Helpers
 ;; ===========================================================================
-
-(defn- load-scenario
-  "Load a scenario from a resource path."
-  [path]
-  (io-scenarios/load-scenario-file path))
 
 (defn- terminal-world-hash
   "Canonical semantic hash of the terminal valid world, when replay produced one."
@@ -175,7 +170,7 @@
   (let [scenario {:scenario-id "purity-test" :initial-block-time 1000
                   :agents [{:id "a" :address "0xA"}]
                   :events [{:seq 0 :time 1000 :agent "a" :action "noop" :params {}}]}
-        original (assoc scenario :schema-version "1.0")
+        _original (assoc scenario :schema-version "1.0")
         prep-result (replay/prepare-simple-scenario scenario)]
     (is (= "1.0" (get-in prep-result [:scenario :schema-version])))
     (is (not (contains? scenario :schema-version))

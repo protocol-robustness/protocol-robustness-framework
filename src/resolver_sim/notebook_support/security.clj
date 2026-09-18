@@ -239,9 +239,10 @@
    {:name "Time Lock"
     :ids  [:time-lock-integrity]}])
 
-(defn invariant-table [highlighted-ids]
+(defn invariant-table
   "Renders a 3-column table of invariant groups with status indicators.
    highlighted-ids: set of IDs with known issues (shown in amber)."
+  [highlighted-ids]
   [:div {:style {:font-family "JetBrains Mono, monospace" :font-size "11px"}}
    (for [{group-name :name ids :ids} invariant-groups]
      [:div {:key group-name :style {:margin-bottom "16px"}}
@@ -273,7 +274,7 @@
    :inconclusive  {:color "#fbbf24" :bg "#1c1007" :border "#d97706"
                    :label "INCONCLUSIVE"}})
 
-(defn claim-row [{:claim/keys [id description status confidence assumptions]}]
+(defn claim-row [{:claim/keys [id description status _confidence assumptions]}]
   (let [{:keys [color bg border label]} (get claim-status-style (keyword status)
                                              (get claim-status-style :not-evaluated))]
     [:div {:style {:border-left (str "3px solid " border) :background bg

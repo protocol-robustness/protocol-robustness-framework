@@ -50,7 +50,7 @@
 
 (defn apply-withdrawal-policy
   "Apply market-state withdrawal policy to a gross amount."
-  [world module-id token gross-amount principal]
+  [world module-id token gross-amount _principal]
   (let [ms (market-state/get-market-state world module-id token (time-ctx/block-ts world))
         policy (:withdrawal-policy ms)
         shortfall-model (:shortfall-model ms)

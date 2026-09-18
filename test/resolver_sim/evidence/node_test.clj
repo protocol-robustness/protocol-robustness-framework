@@ -620,8 +620,8 @@
         "Creation provenance is advisory metadata and does not affect evidence-node identity")))
 
 (deftest creation-provenance-separately-committed-detects-tampering
-  (let [in-band-node (node/build-execution-node (base-node-spec {:creation-provenance :in-band}))
-        out-of-band-node (node/build-execution-node (base-node-spec {:creation-provenance :out-of-band}))
+  (let [_in-band-node (node/build-execution-node (base-node-spec {:creation-provenance :in-band}))
+        _out-of-band-node (node/build-execution-node (base-node-spec {:creation-provenance :out-of-band}))
         in-band-provenance-root (hc/hash-with-intent {:hash/intent :creation-provenance}
                                                      {:creation/provenance :in-band})
         out-of-band-provenance-root (hc/hash-with-intent {:hash/intent :creation-provenance}

@@ -76,7 +76,7 @@
    all-active V3 projection remains unchanged."
   [{:keys [allocation target-map semantics allocation-policy-root
            target-map-validation native-location-map aggregate-quantity
-           adapter-descriptor] :as input}]
+           adapter-descriptor] :as _input}]
   (let [profile (:effect-compilation/profile semantics)]
     (when-not (and (allocation/allocation-hash-valid? allocation)
                    (= (:target-map/root target-map)

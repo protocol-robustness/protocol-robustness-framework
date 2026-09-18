@@ -323,8 +323,9 @@
 
 ;;; Output hash tests - token-dimensioned application output commitment
 
-(defn- create-test-application-with-output []
+(defn- create-test-application-with-output
   "Create a test application with output hash for use in output-hash tests."
+  []
   (let [entries valid-entries
         entry-hash (pf/accounting-entry-set-hash entries)
         policy (propagation-policy/normalize-and-validate propagation-policy/shared-withdrawal-policy)
@@ -579,7 +580,7 @@
           prop-id (ffirst (:yield/pro-rata-propagations world))
           prop (get-in world [:yield/pro-rata-propagations prop-id])
           calc-ref (:calculation-ref prop)
-          decision (get-in world [:yield/partial-fill-decisions calc-ref])
+          _decision (get-in world [:yield/partial-fill-decisions calc-ref])
           world-tampered (assoc-in world [:yield/partial-fill-decisions calc-ref :filled] {:alice 0 :bob 0})
           results-valid (inv/check-pro-rata-propagation-complete world)
           results-tampered (inv/check-pro-rata-propagation-complete world-tampered)]
@@ -589,7 +590,7 @@
 
 (deftest v2-propagation-without-allocation-decision-is-detected
   (let [world (v2-propagation-world)
-        prop-id (ffirst (:yield/pro-rata-propagations world))
+        _prop-id (ffirst (:yield/pro-rata-propagations world))
         world' (update world :yield/partial-fill-decisions empty)
         result (inv/check-pro-rata-propagation-complete world')]
     (is (= :fail (get-in result [:checks :allocation-decision-binding-valid]))

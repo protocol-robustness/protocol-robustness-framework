@@ -6,7 +6,7 @@
    liveness-preserving no-op (world returned unchanged, skip recorded) instead of
    throwing, while a present module that lacks the requested op is still a
    genuine error."
-  (:require [clojure.test :refer :all]
+  (:require [clojure.test :refer [deftest is testing]]
             [resolver-sim.yield.ops :as ops]
             [resolver-sim.yield.registry :as registry]
             [resolver-sim.yield.exact-math :as m]))

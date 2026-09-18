@@ -265,7 +265,7 @@
       {:to strategy :skip? true})))
 
 (defmethod select-next-strategy :repeated/tit-for-tat
-  [_ {:keys [rate rng cfg epoch previous-epoch-strategies]} resolver]
+  [_ {:keys [_rate _rng cfg epoch previous-epoch-strategies]} resolver]
   (let [strategy (:strategy resolver)]
     (if (<= epoch 1)
       {:to strategy :skip? true}  ;; Cooperate in first epoch
@@ -284,7 +284,7 @@
             {:to strategy :skip? true}))))))
 
 (defmethod select-next-strategy :repeated/forgiving
-  [_ {:keys [rate rng cfg epoch previous-epoch-strategies]} resolver]
+  [_ {:keys [_rate rng cfg epoch previous-epoch-strategies]} resolver]
   (let [strategy (:strategy resolver)]
     (if (<= epoch 1)
       {:to strategy :skip? true}

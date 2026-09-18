@@ -1,5 +1,5 @@
 (ns resolver-sim.validation.gate-test
-  (:require [clojure.test :refer [deftest is testing]]
+  (:require [clojure.test :refer [deftest is]]
             [resolver-sim.validation.gate :as gate]))
 
 (deftest integrity-gate-passes-with-clean-checks

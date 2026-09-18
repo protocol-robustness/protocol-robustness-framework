@@ -366,7 +366,7 @@
         failure-details (get-in artifact [:result :failure-details])
          ;; Attestation presence
         is-attestation (some? (:attestation/id artifact))
-        claim-result (:attestation/claim-result artifact)
+        _claim-result (:attestation/claim-result artifact)
         claim-id (:attestation/claim-id artifact)
          ;; Claim result
         holds? (:holds? artifact)

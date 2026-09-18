@@ -1,10 +1,10 @@
 (ns resolver-sim.commands.run-lifecycle-test
   (:require [clojure.data.json :as json]
             [clojure.java.io :as io]
-            [clojure.test :refer [deftest is testing]]
+            [clojure.test :refer [deftest is]]
             [resolver-sim.commands.run-lifecycle :as lifecycle]
             [resolver-sim.io.input-source])
-  (:import [java.nio.file Files Paths]))
+  (:import [java.nio.file Files]))
 
 (defn- temp-dir []
   (.toFile (Files/createTempDirectory "run-lifecycle-" (make-array java.nio.file.attribute.FileAttribute 0))))

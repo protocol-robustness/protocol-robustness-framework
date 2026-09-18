@@ -1,9 +1,9 @@
 (ns resolver-sim.contract-model.replay-simple-characterization-test
-  (:require [clojure.test :refer :all]
+  (:require [clojure.test :refer [deftest is]]
             [resolver-sim.contract-model.replay :as replay]
             [resolver-sim.contract-model.replay.flags :as flags]
             [resolver-sim.contract-model.replay.profile-adapter :as adapter]
-            [resolver-sim.contract-model.replay.yield :as yield-replay]
+
             [resolver-sim.protocols.dummy :as dummy]
             [resolver-sim.protocols.yield :as yp]
             [resolver-sim.yield.risk-monitor :as risk]))
@@ -259,7 +259,7 @@
     (is (pos? (:events-processed result)))))
 
 (deftest minimal-defaults-cover-all-flag-keys
-  (let [result (replay/simple-replay dummy/protocol minimal-scenario)]
+  (let [_result (replay/simple-replay dummy/protocol minimal-scenario)]
     (is (= :none (:evidence-mode flags/minimal-replay-flags))
         "evidence-mode defaults to :none")
     (is (false? (:temporal-enabled? flags/minimal-replay-flags))

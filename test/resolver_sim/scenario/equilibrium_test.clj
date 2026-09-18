@@ -1221,7 +1221,7 @@
           r (-> (eq/evaluate-equilibrium theory result)
                 :equilibrium-results :resolver-reputation-spe)
           ;; Find the execute_resolution row in the regret table
-          rows (get-in r [:observed :counterexamples] [])
+          _rows (get-in r [:observed :counterexamples] [])
           ;; Get the actual projection to inspect the regret-table directly
           raw-proj (-> (sew-proj/trace-end-projection sew-protocol/protocol result)
                        (assoc :spe-config {:regret-threshold 9999

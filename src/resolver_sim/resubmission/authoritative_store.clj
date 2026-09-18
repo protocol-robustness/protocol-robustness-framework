@@ -19,7 +19,7 @@
   stage."
   (:require [resolver-sim.resubmission.authoritative-checkpoint :as auth-ckpt]
             [resolver-sim.resubmission.authority-context :as authority-context]
-            [resolver-sim.resubmission.disposition :as disposition]
+
             [resolver-sim.resubmission.genesis-authorization :as genesis-authz]
             [resolver-sim.resubmission.transition :as transition]
             [resolver-sim.transaction.ordering :as ordering]))

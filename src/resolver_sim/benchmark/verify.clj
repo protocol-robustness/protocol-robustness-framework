@@ -231,7 +231,7 @@
             package-closure (when (get-in package-context [:completion-report :valid?])
                               (package-index/validate-benchmark-package-closure
                                run-root (:completion package-context) (get-in package-context [:package-index :index])))
-            registry-paths (set (map #(get % "path") (get registry "artifacts" [])))
+            _registry-paths (set (map #(get % "path") (get registry "artifacts" [])))
             execution-closure (verify-execution-closure root registry)
             recalculated-conservation (recalculate-conservation root conservation)
             inputs (get assurance "input_set")

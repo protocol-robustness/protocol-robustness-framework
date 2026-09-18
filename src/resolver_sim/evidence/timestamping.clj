@@ -199,11 +199,12 @@
    Returns {:tsa-envelope <metadata> :tsr-path <path> :tsa-path <path> :tsq-path <path>}
    or {:error <message>}."
   [registry-hash & {:keys [tsa-url dir timeout-ms provider-name]
-                    :or {timeout-ms (hardening/value :tsa-timeout-ms {:fallback 30000})
-                         provider-name (some-> (or tsa-url *tsa-url*)
-                                               (java.net.URI.)
-                                               (.getHost))}}]
-  (let [url (or tsa-url *tsa-url*)]
+                    :or {timeout-ms (hardening/value :tsa-timeout-ms {:fallback 30000})}}]
+  (let [url (or tsa-url *tsa-url*)
+        provider-name (or provider-name
+                          (some-> (or tsa-url *tsa-url*)
+                                  (java.net.URI.)
+                                  (.getHost)))]
     (if-not url
       {:error "No TSA URL configured. Set *tsa-url* or pass :tsa-url."}
       (let [digest (sha-256-digest (.getBytes registry-hash "UTF-8"))

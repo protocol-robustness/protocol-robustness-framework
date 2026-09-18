@@ -10,7 +10,7 @@
    benchmark-review-round.v2 constituted over three independent seated
    principals, and three distinct Ed25519-signed approving positions over
    the same target outcome (see canonical-governance-fixture below)."
-  (:require [clojure.test :refer :all]
+  (:require [clojure.test :refer [deftest is testing]]
             [clojure.string :as str]
             [resolver-sim.hash.canonical :as hc]
             [resolver-sim.hash.reference :as hash-ref]

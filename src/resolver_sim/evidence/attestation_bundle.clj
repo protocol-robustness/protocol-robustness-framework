@@ -172,7 +172,7 @@
      :options          — map with :bundle-dir (output directory)
 
    Returns the bundle manifest map."
-  [{:keys [attestations claim-results evidence-nodes registries sensitivity-report
+  [{:keys [attestations claim-results evidence-nodes _registries sensitivity-report
            sensitivity-provenance out-of-process-sensitivity completeness-profile options]
     :or {attestations [] claim-results [] evidence-nodes []
          completeness-profile acp/review-profile}}]
@@ -857,7 +857,7 @@
    trusted-bundle-root — caller-authorized destination root (required)
 
    Returns the bundle directory path."
-  ([bundle objects-map]
+  ([_bundle _objects-map]
    (throw (ex-info "write-attestation-bundle! requires an explicit trusted bundle root"
                    {:hint "Pass trusted-bundle-root as the third argument"})))
   ([bundle objects-map trusted-bundle-root]

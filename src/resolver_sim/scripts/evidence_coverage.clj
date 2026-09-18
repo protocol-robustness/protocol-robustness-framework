@@ -73,7 +73,7 @@
   "Check if a function body (from defn-line to its end) contains any
    capture-event-evidence! call.  Follows calls to evidence-helpers
    (known functions that internally call capture-event-evidence!)."
-  [lines defn-line call-lines evidence-helpers]
+  [lines defn-line call-lines _evidence-helpers]
   (let [[_ end] (form-range lines defn-line)]
     (some (fn [cl] (and (>= cl defn-line) (< cl end))) call-lines)))
 
@@ -96,7 +96,7 @@
    are NOT accompanied by an attr/with-attribution block in the same function.
    Evidence-helpers are known to capture evidence on behalf of callers who
    supply the attribution context, so they are excluded from this check."
-  [lines defn-line capture-lines attribution-lines evidence-helpers fn-name]
+  [lines defn-line _capture-lines _attribution-lines evidence-helpers fn-name]
   (let [[s e] (function-lines-range lines defn-line)
         f-captures (find-lines-in-range lines s e capture-call-pattern)
         f-attribs (find-lines-in-range lines s e attribution-call-pattern)]
@@ -137,7 +137,7 @@
                                          (inc i)))
                                      lines))
         total (count defns)
-        covered (filter (fn [[fn-name defn-line]]
+        covered (filter (fn [[_fn-name defn-line]]
                           (function-calls-evidence? lines defn-line call-lines evidence-helpers))
                         defns)
         uncovered (remove (fn [[fn-name defn-line]]

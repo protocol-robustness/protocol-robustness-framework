@@ -1,5 +1,5 @@
 (ns resolver-sim.economics.award-calculation-test
-  (:require [clojure.test :refer [deftest is testing]]
+  (:require [clojure.test :refer [deftest is]]
             [resolver-sim.economics.award-calculation :as ac]
             [resolver-sim.economics.award-policy :as ap]))
 

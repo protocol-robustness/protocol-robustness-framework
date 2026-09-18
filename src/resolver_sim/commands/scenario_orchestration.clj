@@ -34,7 +34,7 @@
             [resolver-sim.util.thread-quiescence :as quiesce]))
 (def ^:private phases [:check-runtime :execute :write-manifest :extract-artifacts :scan-sensitivity :finalize-registry :validate-registry :finalize-run-evidence :build-attestation-bundle :write-canonical-assurance :write-verdict-policy :write-diagnostic :write-pro-rata-mechanism-index :refresh-inventory :refresh-registry :revalidate-registry :write-package-index])
 (defn- p [x] (str x))
-(defn- checked [phase command result] (if (zero? (:exit result)) result (throw (ex-info "Required scenario finalization phase failed" {:phase phase :command command :exit-code (:exit result) :out (:out result) :err (:err result)}))))
+
 (defn- layout! [c] (doseq [x [(:run/root c) (:manifest/dir c) (:scenario/root c) (:execution/dir c) (:forensic/dir c) (:summaries/dir c)]] (.mkdirs (io/file (p x)))) (spit (io/file (p (:run/root c)) paths/run-state) (pr-str {:run/id (:run/id c) :state :running})) c)
 (defn default-check-runtime! [_] {})
 (defn default-execute! [c]
@@ -55,7 +55,7 @@
                  :scenario/input-snapshot-relative (:input/snapshot-relative provenance)
                  :scenario-slug (:scenario/slug c) :scenario-root (p (:scenario/root c)) :execution-dir (p (:execution/dir c)) :artifact-dir (p (:forensic/dir c)) :summary-dir (p (:summaries/dir c)) :manifest-dir (p (:manifest/dir c)) :output-file (p (:replay/file c))} {:report-format (:report-format c)})]
     (assoc result :input/provenance provenance :scenario/id scenario-id :execution/id execution-id)))
-(defn- process! [phase command] (checked phase command (apply shell/sh command)))
+
 (defn default-write-manifest! [c e] (manifest/write! c e))
 (defn default-extract-artifacts! [c execution]
   (let [result (extraction/extract! c execution)]
@@ -149,9 +149,9 @@
                                              :semantic/outcome (if (zero? (:exit-code execution)) :pass :fail)
                                              :cli/exit-code (:exit-code execution)
                                              :bundle/root-hash (:bundle/hash bundle-root)}})
-        runner-written (runner-finalization/write!
-                        (io/file (p (:execution/dir c)) "runner-finalization.json")
-                        runner-artifact)]
+        _runner-written (runner-finalization/write!
+                         (io/file (p (:execution/dir c)) "runner-finalization.json")
+                         runner-artifact)]
     (let [written (finalization/write-run-finalization!
                    {:finalization-path output-path
                     :reconciliation-report-path reconciliation-report-path
@@ -306,8 +306,8 @@
    Evidence membership is determined by the committed finalization output,
    not by scanning the filesystem."
   [c execution]
-  (let [run-root (io/file (p (:run/root c)))
-        bundle-root (:bundle-root execution)
+  (let [_run-root (io/file (p (:run/root c)))
+        _bundle-root (:bundle-root execution)
         run-result (:run-result execution)
         profile-mode :review
         fail-closed? true

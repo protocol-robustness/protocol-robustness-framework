@@ -1,5 +1,5 @@
 (ns resolver-sim.resubmission.receipt-obligation-store-test
-  (:require [clojure.test :refer [deftest is testing]]
+  (:require [clojure.test :refer [deftest is]]
             [resolver-sim.resubmission.receipt :as receipt]
             [resolver-sim.resubmission.receipt-obligation :as obligation]
             [resolver-sim.resubmission.store :as store]))

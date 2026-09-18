@@ -5,10 +5,8 @@
             [resolver-sim.protocols.sew.types :as t]
             [resolver-sim.protocols.sew.lifecycle :as lc]
             [resolver-sim.protocols.sew.snapshot-fixtures :as snap-fix]
-            [resolver-sim.protocols.sew.state-machine :as sm]
-            [resolver-sim.time.context :as time-ctx]
-            [resolver-sim.cancellation.sew-projection :as proj]
-            [resolver-sim.cancellation.semantic :as semantic]))
+
+            [resolver-sim.cancellation.sew-projection :as proj]))
 
 (def alice "0xAlice")
 (def bob "0xBob")
@@ -53,9 +51,10 @@
 (defn- set-block-time [world ts]
   (assoc world :block-time ts))
 
-(defn- execute-and-project [world workflow-id path & [cancel-strategy]]
+(defn- execute-and-project
   "Execute Surface A path and project from the SAME initial world state.
    Returns [initial-world resulting-world projected-map exec-result]."
+  [world workflow-id path & [cancel-strategy]]
   (let [initial-world world
         exec-result (case path
                       :sender-cancel (lc/sender-cancel initial-world workflow-id alice cancel-strategy)
@@ -256,7 +255,7 @@
   (let [w (-> (world-disputed-with-auto-cancel-time 5000)
               (assoc-in [:pending-settlements 0] {:exists true})
               (set-block-time 6000))
-        [_ result proj-map exec] (execute-and-project w 0 :auto-cancel-disputed-on-auto-time)]
+        [_ _result proj-map exec] (execute-and-project w 0 :auto-cancel-disputed-on-auto-time)]
     (is (false? (:ok exec)))
     (is (true? (get-in proj-map [:projection/inputs :projection/admissibility :admissibility/pending-settlement])))))
 
@@ -273,7 +272,7 @@
   (let [w (-> (world-disputed)
               (assoc-in [:escrow-transfers 0 :auto-cancel-time] 0)
               (set-block-time 6000))
-        [_ result proj-map exec] (execute-and-project w 0 :auto-cancel-disputed-on-auto-time)]
+        [_ _result proj-map exec] (execute-and-project w 0 :auto-cancel-disputed-on-auto-time)]
     (is (false? (:ok exec)))
     (is (false? (get-in proj-map [:projection/inputs :projection/admissibility :admissibility/auto-cancel-due-on-disputed])))))
 
@@ -281,20 +280,20 @@
 
 (deftest auto-cancel-two-paths-are-distinct
   (let [w1 (-> (world-disputed-with-auto-cancel-time 2000) (set-block-time 1500))
-        [_ r1 p1 e1] (execute-and-project w1 0 :auto-cancel-disputed-escrow)
-        [_ r2 p2 e2] (execute-and-project w1 0 :auto-cancel-disputed-on-auto-time)]
+        [_ _r1 _p1 e1] (execute-and-project w1 0 :auto-cancel-disputed-escrow)
+        [_ _r2 _p2 e2] (execute-and-project w1 0 :auto-cancel-disputed-on-auto-time)]
     (is (false? (:ok e1)))
     (is (false? (:ok e2)))
 
     (let [w2 (-> (world-disputed-with-auto-cancel-time 2000) (set-block-time 2500))
-          [_ r3 p3 e3] (execute-and-project w2 0 :auto-cancel-disputed-escrow)
-          [_ r4 p4 e4] (execute-and-project w2 0 :auto-cancel-disputed-on-auto-time)]
+          [_ _r3 _p3 e3] (execute-and-project w2 0 :auto-cancel-disputed-escrow)
+          [_ _r4 _p4 e4] (execute-and-project w2 0 :auto-cancel-disputed-on-auto-time)]
       (is (false? (:ok e3)))
       (is (true? (:ok e4)))
 
       (let [w3 (-> (world-disputed-with-auto-cancel-time 2000) (set-block-time 5000))
-            [_ r5 p5 e5] (execute-and-project w3 0 :auto-cancel-disputed-escrow)
-            [_ r6 p6 e6] (execute-and-project w3 0 :auto-cancel-disputed-on-auto-time)]
+            [_ _r5 _p5 e5] (execute-and-project w3 0 :auto-cancel-disputed-escrow)
+            [_ _r6 _p6 e6] (execute-and-project w3 0 :auto-cancel-disputed-on-auto-time)]
         (is (true? (:ok e5)))
         (is (true? (:ok e6)))))))
 
@@ -348,7 +347,7 @@
 (deftest state-after-projection-matches-execution
   (testing "sender-cancel unilateral"
     (let [w (world-with-one-escrow)
-          [_ result proj-map _] (execute-and-project w 0 :sender-cancel {:can-cancel? true :unilateral-cancel? true})
+          [_ result _proj-map _] (execute-and-project w 0 :sender-cancel {:can-cancel? true :unilateral-cancel? true})
           state-after (proj/project-state-after result 0 :sender-cancel)]
       (is (= (t/escrow-state result 0) (:state-after/escrow-state state-after)))
       (is (= (:sender-status (t/get-transfer result 0)) (:state-after/sender-status state-after)))
@@ -356,20 +355,20 @@
 
     (testing "recipient-cancel unilateral"
       (let [w (world-with-one-escrow)
-            [_ result proj-map _] (execute-and-project w 0 :recipient-cancel {:can-cancel? true :unilateral-cancel? true})
+            [_ result _proj-map _] (execute-and-project w 0 :recipient-cancel {:can-cancel? true :unilateral-cancel? true})
             state-after (proj/project-state-after result 0 :recipient-cancel)]
         (is (= (t/escrow-state result 0) (:state-after/escrow-state state-after)))))
 
     (testing "auto-cancel-disputed-escrow"
       (let [w (-> (world-disputed-with-auto-cancel-time 5000) (set-block-time 6000))
-            [_ result proj-map _] (execute-and-project w 0 :auto-cancel-disputed-escrow)
+            [_ result _proj-map _] (execute-and-project w 0 :auto-cancel-disputed-escrow)
             state-after (proj/project-state-after result 0 :auto-cancel-disputed-escrow)]
         (is (= (t/escrow-state result 0) (:state-after/escrow-state state-after)))
         (is (true? (:state-after/terminal? state-after)))))
 
     (testing "auto-cancel-disputed-on-auto-time"
       (let [w (-> (world-disputed-with-auto-cancel-time 5000) (set-block-time 6000))
-            [_ result proj-map _] (execute-and-project w 0 :auto-cancel-disputed-on-auto-time)
+            [_ result _proj-map _] (execute-and-project w 0 :auto-cancel-disputed-on-auto-time)
             state-after (proj/project-state-after result 0 :auto-cancel-disputed-on-auto-time)]
         (is (= (t/escrow-state result 0) (:state-after/escrow-state state-after)))
         (is (true? (:state-after/terminal? state-after)))))))

@@ -8,7 +8,7 @@
    semantic roots, and that killing one subprocess neither damages a concurrent
    run nor the service (a subsequent run completes)."
   (:require [clojure.string :as str]
-            [clojure.test :refer [deftest is testing]]
+            [clojure.test :refer [deftest is]]
             [resolver-sim.lab.exec :as exec]
             [resolver-sim.lab.runner :as runner]))
 

@@ -76,7 +76,7 @@
 
 (deftest claimant-hook-value-not-masking-binding-loss
   (testing "control: when the hook is NOT bound, zero observations occur"
-    (let [submitter-thread (Thread/currentThread)
+    (let [_submitter-thread (Thread/currentThread)
           observations (atom [])
           items [{:id :a :weight 1 :cap nil}
                  {:id :b :weight 1 :cap nil}

@@ -12,9 +12,6 @@
   []
   (set (map :scenario-id (take 24 (sync/all-invariant-scenario-maps)))))
 
-(defn- scenario-by-id [sid]
-  (some #(when (= sid (:scenario-id %)) %) (sync/all-invariant-scenario-maps)))
-
 (deftest baseline-doc-summaries-complete
   (testing "every baseline S01–S23 scenario-id has a doc summary"
     (let [missing (remove doc/summary (baseline-s01-s23-ids))]

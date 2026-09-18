@@ -1,6 +1,6 @@
 (ns resolver-sim.io.fixtures-test
   "Tests for fixture-reference resolution and fixture loading."
-  (:require [clojure.test :refer [deftest is testing]]
+  (:require [clojure.test :refer [deftest is]]
             [resolver-sim.io.fixtures :as sut]
             [resolver-sim.util.deep-merge :as dm]))
 

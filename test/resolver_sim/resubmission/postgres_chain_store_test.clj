@@ -4,7 +4,7 @@
   (:require [clojure.test :refer [deftest is use-fixtures]]
             [next.jdbc :as jdbc]
             [resolver-sim.resubmission.receipt-daemon :as daemon]
-            [resolver-sim.resubmission.receipt-worker :as worker]
+
             [resolver-sim.db.pool :as pool]
             [resolver-sim.resubmission.postgres-chain-store :as pg]
             [resolver-sim.resubmission.receipt :as receipt]

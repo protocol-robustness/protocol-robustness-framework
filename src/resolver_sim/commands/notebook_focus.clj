@@ -30,7 +30,7 @@
 
 (defn focus
   "Pin the notebook to a specific run-id."
-  [{:keys [run-id] :as opts}]
+  [{:keys [run-id] :as _opts}]
   (cond
     (not (seq run-id))
     (do (println "Usage: bb notebook:focus <run-id>")

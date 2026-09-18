@@ -1,5 +1,5 @@
 (ns resolver-sim.benchmark.case-set-test
-  (:require [clojure.test :refer [deftest is testing]]
+  (:require [clojure.test :refer [deftest is]]
             [resolver-sim.benchmark.case-set :as cs]))
 
 (def sample-plan

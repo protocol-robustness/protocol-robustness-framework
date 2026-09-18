@@ -21,9 +21,6 @@
   #{:issue/id :scenario/id :kind :severity :status-kind :title
     :story/family :priority :evidence/refs :provenance :one_line_description})
 
-(defn- priority [sev]
-  (case sev :high 90 :medium 60 :low 30 10))
-
 (defn- truncate-safe [s n]
   (let [v (str (or s ""))]
     (subs v 0 (min n (count v)))))

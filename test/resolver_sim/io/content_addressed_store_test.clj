@@ -359,7 +359,7 @@
                         (while (not @stop)
                           (try
                             (swap! observations conj (store/resolve-artifact backend hash))
-                            (catch Exception e (swap! observations conj :error)))))
+                            (catch Exception _e (swap! observations conj :error)))))
                       "cas-no-torn-read-reader")]
           (.setDaemon reader true)
           (.start reader)

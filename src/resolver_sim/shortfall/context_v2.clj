@@ -2,8 +2,7 @@
   "Shortfall V2: the V1 context with an unambiguous canonical EVM asset root."
   (:require [clojure.set :as set]
             [resolver-sim.hash.canonical :as hc]
-            [resolver-sim.shortfall.context :as v1]
-            [resolver-sim.shortfall.evm-asset :as asset]))
+            [resolver-sim.shortfall.context :as v1]))
 
 (def ^:const schema-version "prf/shortfall-context.v2")
 

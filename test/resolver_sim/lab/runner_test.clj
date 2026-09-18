@@ -2,12 +2,12 @@
   "End-to-end lab tests: registry -> validate -> execute -> normalize -> expose
    evidence, for every V1 experiment, plus determinism and evidence-correspondence
    guarantees."
-  (:require [clojure.string :as str]
-            [clojure.test :refer [deftest is testing]]
-            [resolver-sim.lab.exec :as exec]
-            [resolver-sim.lab.runner :as runner]
-            [resolver-sim.pro-rata.allocation :as allocation]
-            [resolver-sim.pro-rata.invariants :as invariants]))
+  (:require
+   [clojure.test :refer [deftest is testing]]
+   [resolver-sim.lab.exec :as exec]
+   [resolver-sim.lab.runner :as runner]
+   [resolver-sim.pro-rata.allocation :as allocation]
+   [resolver-sim.pro-rata.invariants :as invariants]))
 
 (def ^:private requests
   [{:experiment "withdrawal-constrained-liquidity.v1"

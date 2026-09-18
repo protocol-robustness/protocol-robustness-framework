@@ -2,10 +2,11 @@
   "Yield-engine metrics for provider-only replay (no Sew escrow fields)."
   (:require [resolver-sim.yield.market-state :as market-state]))
 
-(defn- all-positions [world]
+(defn- all-positions
   "Read yield positions from world state.
    Checks :yield/positions (standard), :yield-positions (legacy), and
    :yield-evidence (yield-v1 replay trace snapshot format)."
+  [world]
   (or (:yield/positions world)
       (:yield-positions world)
       (when-let [ev (:yield-evidence world)]

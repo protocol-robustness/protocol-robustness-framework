@@ -62,46 +62,12 @@
             (:benchmarks pack-reg)))
     (do (log/warn! :pack-registry-not-found {:path pack-reg-path}) [])))
 
-(defn application-default-manifest
-  "Return application default manifest authority and its non-semantic locator.
-   The caller must verify the locator resolves to the committed manifest root."
-  [application]
-  (when-let [setting (:application/default-benchmark-manifest application)]
-    (let [validation (semantic-setting/validate-setting setting)
-          root (get-in setting [:setting/value :benchmark-manifest/root])
-          source (get-in setting [:setting/resolution :benchmark-manifest/source])]
-      (when-not (:valid? validation)
-        (throw (ex-info "Invalid application default benchmark setting" validation)))
-      (when-not (and (hash-ref/valid-sha256-ref? root) (string? source))
-        (throw (ex-info "Application default benchmark setting requires manifest root and resolution source"
-                        {:setting setting})))
-      {:benchmark-manifest/root root
-       :benchmark-manifest/source source})))
-
-(defn- resolve-application-default-manifest
-  [{:benchmark-manifest/keys [root source]}]
-  (let [loaded (rp/edn-read source)
-        observed-root (:benchmark-manifest/root loaded)]
-    (when-not (benchmark-manifest/rooted-manifest? loaded)
-      (throw (ex-info "Application default locator resolved an unrooted benchmark manifest"
-                      {:reason :benchmark-manifest/unrooted-default
-                       :expected/root root
-                       :source source})))
-    (when-not (= root observed-root)
-      (throw (ex-info "Application default benchmark manifest root mismatch"
-                      {:reason :benchmark-manifest/root-mismatch
-                       :expected/root root
-                       :observed/root observed-root
-                       :source source})))
-    source))
-
 (defn- load-index
   "Read benchmarks/registry.edn, walk the pack hierarchy, and return
    a flat list of benchmark entries in the same format as the legacy
    BENCHMARKS.edn (each with :id, :description, :manifest).
 
-   The canonical registry is authoritative; a missing registry is an empty
-   index rather than an implicit legacy fallback."
+   Falls back to BENCHMARKS.edn if the canonical registry is missing."
   []
   (if-let [registry (try (rp/edn-read rp/canonical-registry-path)
                          (catch Exception _ nil))]
@@ -110,8 +76,10 @@
                (load-pack-benchmarks (:pack/id pack)
                                      (rp/pack-registry-path (:pack/registry pack))))
              (:packs registry))}
-    (do (log/warn! :registry-edn-not-found {:path rp/canonical-registry-path})
-        {:benchmarks []})))
+    (do (log/warn! :registry-edn-not-found {:message "Falling back to BENCHMARKS.edn"})
+        (when-let [legacy (try (rp/edn-read (paths/benchmarks-legacy))
+                               (catch Exception _ nil))]
+          {:benchmarks legacy}))))
 
 (def cli-options
   [["-o" "--output PATH" "Output path for evidence bundle"
@@ -190,6 +158,41 @@
 (def exit-missing-scenario (defaults/default [:commands :exit-missing-scenario] 4))
 (def exit-invalid-params (defaults/default [:commands :exit-invalid-params] 5))
 (def exit-duplicate-registries (defaults/default [:commands :exit-duplicate-registries] 6))
+
+;; ── Application default manifest ───────────────────────────────────────────────
+
+(defn application-default-manifest
+  "Return application default manifest authority and its non-semantic locator.
+   The caller must verify the locator resolves to the committed manifest root."
+  [application]
+  (when-let [setting (:application/default-benchmark-manifest application)]
+    (let [validation (semantic-setting/validate-setting setting)
+          root (get-in setting [:setting/value :benchmark-manifest/root])
+          source (get-in setting [:setting/resolution :benchmark-manifest/source])]
+      (when-not (:valid? validation)
+        (throw (ex-info "Invalid application default benchmark setting" validation)))
+      (when-not (and (hash-ref/valid-sha256-ref? root) (string? source))
+        (throw (ex-info "Application default benchmark setting requires manifest root and resolution source"
+                        {:setting setting})))
+      {:benchmark-manifest/root root
+       :benchmark-manifest/source source})))
+
+(defn- resolve-application-default-manifest
+  [{:benchmark-manifest/keys [root source]}]
+  (let [loaded (rp/edn-read source)
+        observed-root (:benchmark-manifest/root loaded)]
+    (when-not (benchmark-manifest/rooted-manifest? loaded)
+      (throw (ex-info "Application default locator resolved an unrooted benchmark manifest"
+                      {:reason :benchmark-manifest/unrooted-default
+                       :expected/root root
+                       :source source})))
+    (when-not (= root observed-root)
+      (throw (ex-info "Application default benchmark manifest root mismatch"
+                      {:reason :benchmark-manifest/root-mismatch
+                       :expected/root root
+                       :observed/root observed-root
+                       :source source})))
+    source))
 
 ;; ── Shared orchestration ───────────────────────────────────────────────────────
 
@@ -295,7 +298,7 @@
   (System/exit (if valid? 0 1)))
 
 (defn- dispatch-validate
-  [args options]
+  [args _options]
   (let [subcmd (first args)]
     (case subcmd
       "resources"
@@ -304,7 +307,7 @@
       (print-validate-result (validation/validate-all)))))
 
 (defn- dispatch-game-theory
-  [args options]
+  [_args options]
   (let [{:keys [suite format out claim-id strategic]} options]
     (if strategic
       (binding [chain/*allow-dirty* true]
@@ -345,7 +348,7 @@
         (System/exit (:exit-code result))))))
 
 (defn- dispatch-list
-  [args options]
+  [args _options]
   (let [subcmd (first args)]
     (case subcmd
       "game-theory-checks"
@@ -362,7 +365,7 @@
           (System/exit 1)))))
 
 (defn- dispatch-explain
-  [args options]
+  [args _options]
   (let [topic (first args)]
     (case topic
       "game-theory"
@@ -378,7 +381,7 @@
 
 (defn- print-doctor-report
   "Print a doctor report to stdout."
-  [{:keys [healthy? checks exit-code output-files] :as report}]
+  [{:keys [healthy? checks _exit-code output-files] :as _report}]
   (println "\nDoctor — Runtime Health Check")
   (println (apply str (repeat 35 "─")))
   (println "Status:" (if healthy? "HEALTHY" "ISSUES DETECTED"))
@@ -389,14 +392,14 @@
     (println "  Report:" f)))
 
 (defn- dispatch-doctor
-  [args options]
+  [_args options]
   (let [out-dir (or (:out options) "./prf-out/doctor")
         report (diagnostics/doctor :out-dir out-dir)]
     (print-doctor-report report)
     (System/exit (:exit-code report))))
 
 (defn- dispatch-verify-portability
-  [args options]
+  [_args options]
   (let [out-dir (or (:out options) "./prf-out/verify")
         result (diagnostics/verify-portability :out-dir out-dir)]
     (println "\nPortability Verification"
@@ -430,14 +433,6 @@
    "verify-portability"
    [[nil "--out DIR" "Output directory" :default "./prf-out/verify"]]})
 
-(defn- parse-sub-opts
-  "Parse options for a specific subcommand.
-   Merges subcommand-specific options with global cli-options."
-  [args subcmd]
-  (let [extra-opts (get subcommand-options subcmd [])
-        all-opts (into cli-options extra-opts)]
-    (parse-opts args all-opts)))
-
 ;; ── Main dispatch ──────────────────────────────────────────────────────────────
 
 (defn- subcommand?
@@ -459,18 +454,18 @@
       (if errors
         (do (run! println errors) (System/exit 1))
         (case subcmd
-          "run-benchmark" (dispatch-run-and-report arguments options)
-          "validate" (dispatch-validate arguments options)
-          "validate-game-theory" (dispatch-game-theory arguments options)
+          "run-benchmark"          (dispatch-run-and-report arguments options)
+          "validate"               (dispatch-validate arguments options)
+          "validate-game-theory"   (dispatch-game-theory arguments options)
           "game-theoretic-validation" (dispatch-game-theory arguments options)
-          "list" (dispatch-list arguments options)
-          "explain" (dispatch-explain arguments options)
-          "doctor" (dispatch-doctor arguments options)
-          "verify-portability" (dispatch-verify-portability arguments options)
+          "list"                   (dispatch-list arguments options)
+          "explain"                (dispatch-explain arguments options)
+          "doctor"                 (dispatch-doctor arguments options)
+          "verify-portability"     (dispatch-verify-portability arguments options)
           ;; fallback
           (dispatch-run-and-report arguments options)))))
     ;; Flag-based dispatch: parse with global options only
-  (let [{:keys [options arguments errors summary]} (parse-opts args cli-options)]
+  (let [{:keys [options arguments errors _summary]} (parse-opts args cli-options)]
     (cond
       errors
       (do (run! println errors) (System/exit 1))

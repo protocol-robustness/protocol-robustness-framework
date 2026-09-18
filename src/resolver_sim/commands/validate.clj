@@ -23,7 +23,7 @@
 
 (defn run
   "Run the structural validation pipeline: lint, notebook checks, SPEDS."
-  [{:keys [strict? json?] :as opts}]
+  [{:keys [_strict? _json?] :as _opts}]
   (println "Structural validation...")
   (let [lint-ok   (ok? "Lint (src:test)" #(sh "clojure" "-M:lint/core"))
         nb-ok     (ok? "Notebook support checks"
@@ -38,7 +38,7 @@
 
 (defn fmt-check
   "Check code formatting with cljfmt."
-  [{:keys [json?] :as opts}]
+  [{:keys [_json?] :as _opts}]
   (println "Checking formatting...")
   (flush)
   (let [exit (sh "clojure" "-M:fmt/check")]
@@ -49,7 +49,7 @@
 
 (defn lint
   "Lint source and test code with clj-kondo."
-  [{:keys [json?] :as opts}]
+  [{:keys [_json?] :as _opts}]
   (println "Linting source...")
   (flush)
   (let [exit (sh "clojure" "-M:lint/core")]

@@ -1,5 +1,5 @@
 (ns resolver-sim.evidence.attestation-emitter-test
-  (:require [clojure.test :refer [deftest is testing]]
+  (:require [clojure.test :refer [deftest is]]
             [resolver-sim.evidence.attestation-emitter :as ae]
             [resolver-sim.evidence.attestation-registry :as ar]))
 
@@ -171,12 +171,12 @@
 
 (deftest emit-claim-result-different-results-different-attestations
   (ar/with-fresh-registry
-    (let [result-a (ae/emit-claim-result-attestation!
-                    (attestor) (sample-claim-result :claim-result-hash "sha256:aaa")
-                    {:signed-at "2025-01-01T00:00:00Z"})
-          result-b (ae/emit-claim-result-attestation!
-                    (attestor) (sample-claim-result :claim-result-hash "sha256:bbb")
-                    {:signed-at "2025-01-01T00:00:00Z"})
+    (let [_result-a (ae/emit-claim-result-attestation!
+                     (attestor) (sample-claim-result :claim-result-hash "sha256:aaa")
+                     {:signed-at "2025-01-01T00:00:00Z"})
+          _result-b (ae/emit-claim-result-attestation!
+                     (attestor) (sample-claim-result :claim-result-hash "sha256:bbb")
+                     {:signed-at "2025-01-01T00:00:00Z"})
           a1 (first (ar/find-attestations-by-subject "sha256:aaa"))
           a2 (first (ar/find-attestations-by-subject "sha256:bbb"))]
       (is (some? a1))

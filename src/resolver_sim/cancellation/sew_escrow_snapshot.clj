@@ -9,11 +9,6 @@
 (def dispute-statuses #{:raise-dispute :none :agree-to-cancel})
 (def supported-states #{:pending :disputed :released :refunded :resolved})
 
-(defn- valid-state? [snapshot]
-  (and (contains? supported-states (:escrow/state snapshot))
-       (contains? cancellation-statuses (:sender/cancellation-status snapshot))
-       (contains? cancellation-statuses (:recipient/cancellation-status snapshot))))
-
 (defn snapshot-errors [snapshot]
   (vec (remove nil?
                [(when-not (map? snapshot) :snapshot/not-a-map)

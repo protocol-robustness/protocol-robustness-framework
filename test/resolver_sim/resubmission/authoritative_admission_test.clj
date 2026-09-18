@@ -6,7 +6,7 @@
     - transition dispatch for apply-authoritative-disposition
     - authoritative store CAS on checkpoint head
     - disjoint result types (:authoritative vs :local-replay)"
-  (:require [clojure.test :refer :all]
+  (:require [clojure.test :refer [deftest is testing]]
             [clojure.string :as str]
             [resolver-sim.hash.canonical :as hc]
             [resolver-sim.hash.reference :as hash-ref]

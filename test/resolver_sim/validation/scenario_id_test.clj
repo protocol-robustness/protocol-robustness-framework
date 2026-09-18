@@ -1,5 +1,5 @@
 (ns resolver-sim.validation.scenario-id-test
-  (:require [clojure.test :refer :all]
+  (:require [clojure.test :refer [deftest is testing]]
             [resolver-sim.validation.scenario-id :refer [validate-scenario-id!]]))
 
 (deftest test-validate-scenario-id

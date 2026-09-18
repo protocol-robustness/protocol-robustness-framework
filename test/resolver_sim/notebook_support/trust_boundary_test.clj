@@ -1,5 +1,5 @@
 (ns resolver-sim.notebook-support.trust-boundary-test
-  (:require [clojure.test :refer [deftest is testing]]
+  (:require [clojure.test :refer [deftest is]]
             [clojure.java.io :as io]
             [resolver-sim.notebook-support.trust-boundary :as tb]
             [resolver-sim.assurance.witness-verifier :as wv]))

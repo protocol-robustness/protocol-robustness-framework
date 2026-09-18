@@ -12,11 +12,6 @@
   (or (get-in world [:yield/positions oid])
       (get-in world [:yield-positions oid])))
 
-(defn- yield-positions-map [world]
-  (or (:yield/positions world)
-      (:yield-positions world)
-      {}))
-
 (defn compute-yield-metrics
   "Extract numeric yield metrics from the final trace snapshot.
 

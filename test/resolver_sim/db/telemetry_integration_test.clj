@@ -65,7 +65,7 @@
 
 (deftest test-write-and-read-batch
   (testing "Writing 5 honest trials and reading them back"
-    (let [outcomes (run-n-trials 5 :honest)
+    (let [_outcomes (run-n-trials 5 :honest)
           stored   (sew-db/sew-trial-outcomes *ds* {:batch-id *batch-id*})]
       (is (= 5 (count stored)) "5 rows written")
       (is (every? #(= :honest (:trial/strategy %)) stored) "all strategy=honest")

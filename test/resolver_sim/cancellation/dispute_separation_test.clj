@@ -8,7 +8,7 @@
    implemented contract path in this repository — see
    docs/cancellation/CANCELLATION_ARTIFACT_MAP.md. These tests pin the
    existing separation that does exist."
-  (:require [clojure.test :refer [deftest is testing]]
+  (:require [clojure.test :refer [deftest is]]
             [resolver-sim.cancellation.ordinary-planner :as planner]
             [resolver-sim.cancellation.party-preconditions :as party]
             [resolver-sim.cancellation.sew-escrow-snapshot :as snapshot]))

@@ -1,5 +1,5 @@
 (ns resolver-sim.stochastic.params-test
-  (:require [clojure.test :refer :all]
+  (:require [clojure.test :refer [deftest is testing]]
             [resolver-sim.stochastic.params :as params]))
 
 ;; ── from-snap tests (unchanged) ──────────────────────────────────────────────

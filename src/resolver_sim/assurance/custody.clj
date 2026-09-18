@@ -539,7 +539,7 @@
      (let [replayed
            (reduce (fn [{total-held :total-held
                          index :held-ledger/index
-                         positions :held/positions} adjustment]
+                         _positions :held/positions} adjustment]
                      (let [{direction :held/direction
                             token :token
                             amount :amount

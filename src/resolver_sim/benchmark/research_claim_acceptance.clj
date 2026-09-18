@@ -40,7 +40,7 @@
     {:valid? (empty? errors) :errors errors}))
 
 (defn build-policy [{:keys [acceptance-policy/id acceptance-policy/authority-root]
-                     :as fields}]
+                     :as _fields}]
   (let [policy {:schema/version policy-schema-version
                 :acceptance-policy/id id
                 :acceptance-policy/authority-root authority-root

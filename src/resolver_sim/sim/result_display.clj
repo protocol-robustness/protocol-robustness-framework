@@ -122,7 +122,7 @@
         base)
       base)))
 
-(defn- scenario-verbose-detail [r opts]
+(defn- scenario-verbose-detail [r _opts]
   (let [lines (vec
                (concat
                 (when-let [attrs (:attributes r)]

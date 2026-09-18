@@ -120,7 +120,7 @@
                         ". Run bb demo:record " id-str " first."))
           false)
       (let [;; Read cols/rows from demo spec playback config, default 96x36
-            spec-path (str "demos/" id-str "/demo.edn")
+            _spec-path (str "demos/" id-str "/demo.edn")
             spec (try (demo-spec/find-spec id-str) (catch Exception _ nil))
             pb (when spec (demo-spec/playback-config spec))
             cols (get-in pb [:terminal :cols] 120)

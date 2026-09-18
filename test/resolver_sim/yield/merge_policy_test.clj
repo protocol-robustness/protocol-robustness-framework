@@ -2,7 +2,7 @@
   "Merge policy: multi-origin deferred lineages are forbidden. Every deferred
    lineage must commit a single, consistent origin identifier across all of its
    active and archived records."
-  (:require [clojure.test :refer :all]
+  (:require [clojure.test :refer [deftest is testing]]
             [resolver-sim.yield.modules.liquid-lending :as ll]))
 
 (def test-mod

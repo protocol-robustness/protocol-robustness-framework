@@ -1,7 +1,6 @@
 (ns resolver-sim.benchmark.research-benchmark-model-test
-  (:require [clojure.test :refer [deftest is testing]]
-            [resolver-sim.benchmark.research-benchmark-model :as rbm]
-            [resolver-sim.hash.canonical :as hc]))
+  (:require [clojure.test :refer [deftest is]]
+            [resolver-sim.benchmark.research-benchmark-model :as rbm]))
 
 (def sample-model-input
   {:model/id :model/yield-partial-fill

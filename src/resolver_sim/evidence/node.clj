@@ -610,7 +610,7 @@
    by their exact raw bytes (readAllBytes). Returns {:sha256 ... :bytes n}
    so the content registry, artifact registry, and finalization/assurance roots
    all agree on one deterministic identity per logical execution file."
-  [path file]
+  [_path file]
   (let [bytes (canonical-artifact-bytes file)]
     {:sha256 (hash-bytes bytes)
      :bytes (alength bytes)}))

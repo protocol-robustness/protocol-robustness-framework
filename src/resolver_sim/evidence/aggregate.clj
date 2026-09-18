@@ -38,7 +38,7 @@
    delegating the specific payload structure to domain constructors."
   [{:keys [evidence-type
            schema-version
-           world
+           _world
            frame
            subject
            inputs

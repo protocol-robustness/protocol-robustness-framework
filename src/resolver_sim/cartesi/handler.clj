@@ -115,7 +115,7 @@
       (emit-report {:error (.getMessage e)})
       "accept")))
 
-(defn -main [& args]
+(defn -main [& _args]
   (println "HTTP rollup_server url is " rollup-server)
   (loop [status "accept"]
     (let [finish-body (json/write-str {:status status})

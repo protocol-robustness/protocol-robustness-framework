@@ -14,8 +14,7 @@
             [resolver-sim.evidence.capture :as cap]
             [resolver-sim.evidence.config :as evcfg]
             [resolver-sim.evidence.chain :as chain]
-            [resolver-sim.hash.canonical :as hc]
-            [resolver-sim.util.attribution :as attr]))
+            [resolver-sim.hash.canonical :as hc]))
 
 (defn noop-capture
   "In-memory no-op evidence capture.

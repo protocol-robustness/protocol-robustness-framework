@@ -48,8 +48,9 @@
    (:target-map/root target-map) target-map
    (:effect-compilation-semantics/root compiler-semantics) compiler-semantics})
 
-(defn project-derived [context]
+(defn project-derived
   "Project only reconstructed context data; source and expected values are not capabilities."
+  [context]
   (let [{:keys [artifacts derived]} (select-keys context [:artifacts :derived])]
     (cond-> {:allocation/root (get-in artifacts [:allocation :allocation/hash])
              :target-map/root (get-in artifacts [:target-map :target-map/root])
@@ -280,7 +281,7 @@
   [context {:keys [mutation rehash] :as substitution}]
   (let [{:keys [path replacement]} mutation
         [artifact field] path
-        {:keys [state-before effect-compilation authority]} (:reconstruction context)
+        {:keys [state-before effect-compilation _authority]} (:reconstruction context)
         inputs (:retained-input-bodies context)
         binding (get-in context [:artifacts :binding])
         statement (get-in context [:artifacts :statement])]
@@ -305,7 +306,7 @@
    semantic bodies."
   [context {:keys [mutation rehash] :as substitution}]
   (let [{:keys [path replacement]} mutation
-        {:keys [state-before authority]} (:reconstruction context)
+        {:keys [state-before _authority]} (:reconstruction context)
         inputs (:retained-input-bodies context)
         canonical-transition (get-in context [:artifacts :canonical-transition])
         compilation (get-in context [:artifacts :compilation])]

@@ -137,7 +137,7 @@
 (defn- resolve-recoverable-liquidity
   "Get the recoverable module assets for a token.
    Uses :total-held as the primary proxy, with :yield/held-balances as a fallback."
-  [world module-id token]
+  [world _module-id token]
   (let [tok (normalize-token token)
         tok-name (name tok)
         held-sew (or (get-in world [:total-held tok])

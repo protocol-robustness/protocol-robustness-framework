@@ -1,5 +1,5 @@
 (ns resolver-sim.economics.bounty-payable-test
-  (:require [clojure.test :refer [deftest is testing]]
+  (:require [clojure.test :refer [deftest is]]
             [resolver-sim.economics.bounty-payable :as bp]))
 
 (deftest build-bounty-payable-valid

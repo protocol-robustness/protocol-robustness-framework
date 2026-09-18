@@ -1,5 +1,5 @@
 (ns resolver-sim.benchmark.review-governance-test
-  (:require [clojure.test :refer [deftest is testing]]
+  (:require [clojure.test :refer [deftest is]]
             [resolver-sim.benchmark.review-governance :as rg]
             [resolver-sim.benchmark.review-round :as rr]
             [resolver-sim.assurance.three-member-authority :as tma]

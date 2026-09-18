@@ -26,7 +26,7 @@
    The content-root policy is versioned — a future change in included
    components or ordering must create a new policy version."
   (:require [clojure.set]
-            [clojure.string :as str]
+
             [resolver-sim.hash.canonical :as hc]
             [resolver-sim.hash.reference :as hash-ref]
             [resolver-sim.benchmark.research-benchmark-model :as model]))

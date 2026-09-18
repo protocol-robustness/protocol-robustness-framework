@@ -21,8 +21,6 @@
   "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb")
 (def ^:private extension-resolution-root
   "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd")
-(def ^:private submission-registry-root
-  "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc")
 
 (def ^:private verifier-registry-body
   {:schema "verifier-registry.v1"
@@ -32,10 +30,6 @@
 (def ^:private publisher-authority-body
   {:schema "publisher-authority.v1"
    :entries [{:publisher-authority/public-key "pub-key-1"}]})
-
-(def ^:private submission-registry-body
-  {:schema "submission-registry.v1"
-   :entries []})
 
 (defn- build-authority-basis []
   (authority-basis/build
@@ -223,11 +217,6 @@
                                            configuration))}
      :bodies bodies}))
 
-(def ^:private v1-configuration
-  {:configuration/schema genesis/resubmission-chain-configuration-schema
-   :disposition-authority/public-key nil
-   :receipt-authority/public-key nil})
-
 (deftest configuration-v3-binds-definition-and-authority-basis
   (let [v1 {:configuration/schema genesis/resubmission-chain-configuration-schema
             :disposition-authority/public-key nil
@@ -235,7 +224,7 @@
         v1-root "sha256:199e84173c0013469e63e9195e60c3d04658933c2546f8ffa059039d0b36a1f7"
         {:keys [configuration definition authority-basis]} (fixture)
         changed (assoc configuration :attempt-acceptance-definition/root (root :other))
-        v2-like (dissoc configuration :attempt-acceptance-authority-basis/root)]
+        _v2-like (dissoc configuration :attempt-acceptance-authority-basis/root)]
     (is (= v1-root (genesis/resubmission-chain-configuration-root v1)))
     (is (nil? (genesis/authorized-attempt-acceptance-definition-root v1)))
     (is (nil? (genesis/authorized-attempt-acceptance-authority-basis-root v1)))
@@ -267,8 +256,8 @@
       (let [v1 {:configuration/schema genesis/resubmission-chain-configuration-schema
                 :disposition-authority/public-key nil
                 :receipt-authority/public-key nil}
-            v1-bodies {(:attempt-acceptance-definition/root (:definition (fixture)))
-                       (:definition (fixture))}
+            _v1-bodies {(:attempt-acceptance-definition/root (:definition (fixture)))
+                        (:definition (fixture))}
             v1-resolver {:resolve-artifact bodies}]
         (is (thrown-with-msg? clojure.lang.ExceptionInfo
                               #"invalid acceptance definition"
@@ -383,13 +372,13 @@
           (is (contains? check-ids :prf.resubmission.acceptance/results-binding-v1))))))
 
   (deftest v3-rejects-unauthorized-verifier
-    (let [{:keys [resolver configuration submitted-bundle-root]} (fixture)
+    (let [{:keys [_resolver configuration submitted-bundle-root]} (fixture)
           f (fixture)
           bad-submission-basis (assoc-in f [:submission-basis :results-artifact]
                                          {:artifact/id "results-1"
                                           :results/verifier-id "verifier-999"})
-          bad-bodies (assoc f :submission-basis bad-submission-basis
-                            (:submission-basis-root f) bad-submission-basis)
+          _bad-bodies (assoc f :submission-basis bad-submission-basis
+                             (:submission-basis-root f) bad-submission-basis)
           bad-resolver (assoc-in f [:resolver :resolve-artifact]
                                  (assoc (:bodies f)
                                         (:submission-basis-root f) bad-submission-basis))
@@ -409,7 +398,7 @@
                     findings))))))
 
   (deftest v3-rejects-unauthorized-publisher
-    (let [{:keys [resolver configuration definition authority-basis]} (fixture)
+    (let [{:keys [resolver configuration definition _authority-basis]} (fixture)
           f (fixture)
           bad-submission-basis (assoc-in f [:submission-basis :publisher-policy]
                                          {:policy/id "publisher-1"

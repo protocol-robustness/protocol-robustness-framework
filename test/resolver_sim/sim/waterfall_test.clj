@@ -39,7 +39,7 @@
                                  :slash-amount 200
                                  :reason :fraud
                                  :epoch 0}))
-          {:keys [resolvers seniors events]} (process-events pool events)
+          {:keys [resolvers _seniors events]} (process-events pool events)
           junior-remaining (get-in resolvers ["j0_0" :bond-remaining])
           junior-paid-total (reduce + (map :junior-paid events))
           senior-paid-total (reduce + (map :senior-paid events))]
@@ -301,7 +301,7 @@
     (let [rng-inst (rng/make-rng 42)
           mix {:honest 0.80 :malicious 0.10 :lazy 0.05 :collusive 0.05}
           draws (repeatedly 200 #(waterfall/draw-strategy rng-inst mix))
-          {:keys [honest malicious] :as counts} (frequencies draws)]
+          {:keys [honest _malicious] :as counts} (frequencies draws)]
       (is (contains? counts :honest))
       (is (contains? counts :malicious))
       (is (> honest 100) "honest should be the majority"))))

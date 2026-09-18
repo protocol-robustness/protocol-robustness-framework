@@ -10,7 +10,7 @@
    to canonical.clj. These diagnostic projections are not themselves
    content-addressed artifacts."
   (:require [resolver-sim.hash.reference :as ref]
-            [resolver-sim.io.content-addressed-store :as cas]
+
             [resolver-sim.pro-rata.publication :as publication]
             [resolver-sim.pro-rata.invocation-publication-binding :as binding]
             [resolver-sim.pro-rata.effect-compilation-binding-v2 :as compilation-binding]

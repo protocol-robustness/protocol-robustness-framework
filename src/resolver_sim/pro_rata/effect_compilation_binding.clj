@@ -104,7 +104,7 @@
   "Verify a binding only when its compilation is exactly reproducible from
    retained bodies. The resolver is `(fn [root] retained-body-or-nil)`; without
    it verification fails closed."
-  ([binding compilation-artifact canonical-transition]
+  ([_binding _compilation-artifact _canonical-transition]
    false)
   ([binding compilation-artifact canonical-transition resolve-body]
    (try

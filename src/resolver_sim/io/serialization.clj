@@ -40,7 +40,7 @@
       :else (str this)))
 
   nil
-  (to-json-data [this] nil))
+  (to-json-data [_this] nil))
 
 (defn- json-key [k]
   (if (keyword? k) (name k) (str k)))

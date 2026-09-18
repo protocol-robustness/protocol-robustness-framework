@@ -457,7 +457,7 @@
 (deftest verify-ordering-chain-commit-monotonicity-and-conflict-key
   (testing "a non-monotonic commit-index is rejected"
     (let [s (store/new-resubmission-store family)
-          r1 (protocol/transact! s nil nil (fn [st] (transition/apply-action st (admit-cmd :child "sha256:R1" :seq 1 :basis "sha256:B1" :link "sha256:L1" :idem "sha256:I1"))))
+          _r1 (protocol/transact! s nil nil (fn [st] (transition/apply-action st (admit-cmd :child "sha256:R1" :seq 1 :basis "sha256:B1" :link "sha256:L1" :idem "sha256:I1"))))
           r2 (protocol/transact! s nil nil (fn [st] (transition/apply-action st (admit-cmd :child "sha256:R2" :seq 2 :parent "sha256:R1" :basis "sha256:B2" :link "sha256:L2" :idem "sha256:I2"))))
           o2 (:transaction-ordering r2)
           ;; a true successor of o2 (correct prev-hash + state fixed point) but

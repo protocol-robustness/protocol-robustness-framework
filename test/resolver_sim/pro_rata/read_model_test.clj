@@ -6,38 +6,15 @@
             [resolver-sim.pro-rata.read-model :as read-model]
             [resolver-sim.pro-rata.publication :as publication]
             [resolver-sim.pro-rata.invocation-publication-binding :as binding]
-            [resolver-sim.pro-rata.invocation-publication-binding-test :as fixture]
-            [resolver-sim.pro-rata.postgres-publication-store :as pg])
+            [resolver-sim.pro-rata.invocation-publication-binding-test :as fixture])
   (:import [java.nio.file Files FileAttribute]))
 
 ;; ── Helpers ────────────────────────────────────────────────────────────────
-
-(def ^:private root-field-map
-  "Maps artifact role keywords to the field holding their self-root, for CAS
-   persistence during tests."
-  {:publication/head :publication/head-root
-   :publication/ordering :transaction-ordering/hash
-   :publication/binding :pro-rata-invocation-publication-binding/root
-   :capability-binding :binding/root
-   :use-case-application :application/root
-   :executable-distribution :executable-distribution/root
-   :pro-rata-output :pro-rata-output/root
-   :allocation :allocation/hash
-   :canonical-transition :canonical-effect-transition/root
-   :pro-rata-transition :transition/root
-   :applied-effect-receipt :applied-effect-receipt/root
-   :protocol-transaction-realization :protocol-transaction-realization/root})
 
 (defn- temp-cas-store []
   (cas/create-store
    (str (Files/createTempDirectory "resolver-sim-read-model"
                                    (make-array FileAttribute 0)))))
-
-(defn- put! [store root field-key artifact]
-  (cas/put-if-absent! store
-                      {:hash-reference root
-                       :artifact artifact
-                       :verify #(true? %)}))
 
 (defn- build-test-chain
   "Build a complete V1 publication chain in a CAS store.

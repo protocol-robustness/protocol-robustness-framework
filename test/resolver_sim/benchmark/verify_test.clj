@@ -20,7 +20,7 @@
 (defn- read-json! [file] (json/read-str (slurp file)))
 (defn- sha [file] (str "sha256:" (lifecycle/sha256-file file)))
 (def sha-ref sha)
-(defn- canonical-sha [file] (lifecycle/sha256-file file))
+
 (defn- entries [root paths]
   (mapv (fn [path] (let [file (io/file root path)] {"path" path "sha256" (lifecycle/sha256-file file)})) paths))
 

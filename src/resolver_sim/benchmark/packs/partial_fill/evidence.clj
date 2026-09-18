@@ -898,7 +898,7 @@
      (fn [[prop-id prop]]
        (let [app (get applications prop-id)
              decision (get decisions (:calculation-ref prop))
-             participants (:participants prop [])
+             _participants (:participants prop [])
              level-status
              (fn [level status & {:keys [reason]}]
                (cond-> {:level level :status (name status)}

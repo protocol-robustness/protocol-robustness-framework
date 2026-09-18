@@ -7,10 +7,10 @@
    When verifying a supersession, the consumer MUST verify that the
    committed force_authorisation_policy_hash matches the resolved
    policy artifact — never trust an unverified registry lookup."
-  (:require [clojure.java.io :as io]
-            [resolver-sim.commands.run-lifecycle :as lifecycle]
-            [resolver-sim.hash.canonical :as canonical]
-            [resolver-sim.hash.reference :as hash-ref]))
+  (:require
+
+   [resolver-sim.hash.canonical :as canonical]
+   [resolver-sim.hash.reference :as hash-ref]))
 
 (def ^:const schema-version "force-authorisation-policy.v1")
 (def ^:const domain :prf-force-authorisation-policy-v1)

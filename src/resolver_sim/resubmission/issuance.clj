@@ -29,7 +29,7 @@
   (:require [resolver-sim.transaction.ordering :as ordering]
             [resolver-sim.resubmission.attempt-subject :as attempt-subject]
             [resolver-sim.resubmission.acceptance-evaluation :as evaluation]
-            [resolver-sim.resubmission.receipt :as receipt]
+
             [resolver-sim.hash.reference :as hash-ref]))
 
 (def ^:const request-domain-v1
@@ -119,7 +119,7 @@
   [receipt ordering]
   (and (map? ordering)
        (map? receipt)
-       (let [chain (:attempt-receipt/chain receipt)]
+       (let [_chain (:attempt-receipt/chain receipt)]
          (and (:valid? (ordering/verify-ordering ordering))
               (= :prf.resubmission/admit-child (:transaction/action ordering))
               (= (:transaction-ordering/hash ordering)

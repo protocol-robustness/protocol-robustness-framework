@@ -86,7 +86,7 @@
        :world world}
       (let [event (first events)
             step   (execution/process-step protocol context world event)
-            {:keys [ok? world trace-entry halted?]} step
+            {:keys [_ok? world trace-entry halted?]} step
             metrics' (metrics/accum-metrics protocol metrics event trace-entry
                                             (:agent-index context) world)
             trace'   (conj trace trace-entry)]

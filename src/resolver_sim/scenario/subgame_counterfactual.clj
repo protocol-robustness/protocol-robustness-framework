@@ -54,12 +54,6 @@
    :version "v1"
    :undefined-policy :inconclusive})
 
-(def ^:private strategic-actions
-  "Cross-protocol action-name convention for bounded strategic-node analysis.
-   Creation is intentionally excluded because it has no prior subgame state."
-  #{"raise-dispute" "escalate-dispute" "execute-resolution"
-    "sender-cancel" "recipient-cancel" "appeal-slash" "resolve-appeal"})
-
 (def ^:private action-alternatives
   {"raise_dispute" ["settle_now" "wait"]
    "escalate_dispute" ["settle_now" "wait"]
@@ -503,7 +497,7 @@
 (defn- node->table-row
   [{:keys [raw-trace terminal-state continuation-policy replay-boundary utility-spec
            strategy-profile backward-induction-ctx world-checkpoints
-           protocol agents protocol-params scenario-id] :as row-ctx}
+           protocol agents protocol-params scenario-id] :as _row-ctx}
    {:keys [agent address action] :as node}
    spe-config]
   (let [node-seq        (:seq node)
@@ -640,7 +634,7 @@
    :spe/inconclusive-missing-actions  — some nodes lack alternatives
    :spe/inconclusive-missing-utility  — some nodes lack defined utility
    :spe/inconclusive-continuation-undefined — other inconclusive cases"
-  [status evaluated-count max-regret threshold exceed-count rows]
+  [status evaluated-count max-regret _threshold _exceed-count rows]
   (cond
     (zero? evaluated-count)
     (let [class-issues (mapv :classification rows)]

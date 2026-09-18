@@ -8,8 +8,7 @@
    3. If per-strategy classified data is available, run the classified check
       (honest exit rate ≤ 10%, productive exit rate ≤ 20%).
    4. Otherwise, run the aggregate fallback check (40% threshold).
-   5. Record :evaluation-mode as :classified, :fallback, or :invalid-evidence."
-  (:require [clojure.string :as str]))
+   5. Record :evaluation-mode as :classified, :fallback, or :invalid-evidence.")
 
 ;; ── Configurable assumptions ──────────────────────────────────────────────────
 
@@ -130,7 +129,7 @@
   "Validate internal consistency of participation data.
    Returns nil if consistent, or a reason keyword describing the first
    inconsistency found."
-  [result passthrough]
+  [result _passthrough]
   (let [initial   (:initial-resolver-count result)
         stats     (:aggregated-stats result {})
         exits     (:total-resolver-exits stats 0)

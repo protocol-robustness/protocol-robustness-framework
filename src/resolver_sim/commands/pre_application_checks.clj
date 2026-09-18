@@ -38,7 +38,7 @@
   "Pre-application checks command handler.
    Validates an outcome manifest for benchmark readiness.
    Reads from --manifest path, or uses a canonical fixture."
-  [{:keys [manifest] :as opts}]
+  [{:keys [manifest] :as _opts}]
   (let [manifest-data (if manifest
                         (edn/read-string (slurp (io/file manifest)))
                         (do (println "  No --manifest provided, using canonical fixture")

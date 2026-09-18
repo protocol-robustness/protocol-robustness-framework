@@ -36,12 +36,6 @@
   (boolean (and (string? value)
                 (re-matches #"sha256:[0-9a-f]{64}" value))))
 
-(defn- sha256-utf8-ref [s]
-  (when (string? s)
-    (let [digest (MessageDigest/getInstance "SHA-256")]
-      (.update digest (.getBytes s "UTF-8"))
-      (str "sha256:" (codecs/bytes->hex (.digest digest))))))
-
 (defn- sha256-bytes-ref [bytes]
   (let [digest (MessageDigest/getInstance "SHA-256")]
     (.update digest bytes)

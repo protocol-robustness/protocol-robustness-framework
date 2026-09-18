@@ -13,14 +13,14 @@
        simple global rate limit;
      - sanitized errors: no stack traces, every failure carries a
        LAB-RUN-ID reference an operator can trace in the logs.";
-  (:require [clojure.data.json :as json]
-            [clojure.java.io :as io]
-            [clojure.string :as str]
-            [resolver-sim.config.hardening :as hardening]
-            [resolver-sim.lab.exec :as exec]
-            [resolver-sim.lab.json :as lab-json]
-            [resolver-sim.lab.registry :as registry]
-            [resolver-sim.lab.runner :as lab-runner])
+  (:require
+   [clojure.java.io :as io]
+   [clojure.string :as str]
+   [resolver-sim.config.hardening :as hardening]
+   [resolver-sim.lab.exec :as exec]
+   [resolver-sim.lab.json :as lab-json]
+   [resolver-sim.lab.registry :as registry]
+   [resolver-sim.lab.runner :as lab-runner])
   (:import [com.sun.net.httpserver HttpExchange HttpServer]
            [java.io ByteArrayOutputStream InputStream]
            [java.net InetSocketAddress]
@@ -40,7 +40,7 @@
    fallbacks matching the historical literals. CLI values supplied via
    start! options win over environment, then config/defaults.edn, then
    the code fallback."
-  [{:keys [port max-concurrent]}]
+  [{:keys [port _max-concurrent]}]
   {:max-body-bytes          (hardening/value :lab-http-max-body-bytes {:fallback (* 64 1024)})
    :timeout-ms              (hardening/value :lab-http-timeout-ms {:fallback 90000})
    :max-concurrent          (hardening/value :lab-http-max-concurrent-runs {:fallback 2})

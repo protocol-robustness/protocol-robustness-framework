@@ -1,5 +1,5 @@
 (ns resolver-sim.benchmark.researcher-reward-test
-  (:require [clojure.test :refer [deftest is testing]]
+  (:require [clojure.test :refer [deftest is]]
             [resolver-sim.benchmark.researcher-reward :as reward]
             [resolver-sim.hash.reference :as hash-ref]))
 

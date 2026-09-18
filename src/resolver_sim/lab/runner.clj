@@ -15,7 +15,7 @@
   (:require [clojure.string :as str]
             [resolver-sim.hash.canonical :as hc]
             [resolver-sim.lab.json :as lab-json]
-            [resolver-sim.lab.registry :as registry]
+
             [resolver-sim.lab.validation :as validation]
             [resolver-sim.lab.experiments.withdrawal :as withdrawal]
             [resolver-sim.lab.experiments.insolvency :as insolvency]

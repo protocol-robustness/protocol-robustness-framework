@@ -1,6 +1,6 @@
 (ns resolver-sim.shortfall.provenance-test
-  (:require [clojure.test :refer [deftest is testing]]
-            [resolver-sim.hash.canonical :as hc]
+  (:require [clojure.test :refer [deftest is]]
+
             [resolver-sim.shortfall.evm-asset :as asset]
             [resolver-sim.shortfall.reserve-observation :as observation]
             [resolver-sim.shortfall.context-v2 :as context-v2]

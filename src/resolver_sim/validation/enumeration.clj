@@ -17,7 +17,7 @@
                              seed]             ;; random seed (for :random sampling)
 
   Object
-  (toString [this]
+  (toString [_this]
     (str "#EnumerationScope{:dimensions " dimensions
          " :sampling " sampling
          " :max-states " max-states "}")))
@@ -76,7 +76,7 @@
    of state maps."
   [scope]
   (let [{:keys [claim-count request liquidity]} (:dimensions scope)
-        cc-min (first claim-count) cc-max (last claim-count)
+        _cc-min (first claim-count) cc-max (last claim-count)
         rq-max (last request) lq-max (last liquidity)
         states (atom [])
         _ (swap! states conj {:claims [0] :claim-count 1 :request-sum 0 :liquidity 0})

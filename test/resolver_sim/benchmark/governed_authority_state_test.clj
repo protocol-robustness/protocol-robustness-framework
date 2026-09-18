@@ -70,9 +70,10 @@
   ([]
    (key-set ["k1" "k2"])))
 
-(defn- governance-body [key-ids]
+(defn- governance-body
   "Build a valid review-governance.v1 body whose active principal r1 owns the
     given key-ids."
+  [key-ids]
   {:schema-version "review-governance.v1"
    :governance/epoch 0
    :governance/roles #{:reviewer}
@@ -102,9 +103,10 @@
    {:schema-version "position-time-basis.v1"
     :position-acceptance-roots []}))
 
-(defn- position-time-index-body [round-root]
+(defn- position-time-index-body
   "Build a valid governed-authority-position-time-index.v1 body cross-referencing
     the given round root and an empty position-time-basis root."
+  [round-root]
   {:artifact/schema state/position-time-index-schema
    :position-time-basis/root test-ptb-root
    :review-round/root round-root
@@ -1898,11 +1900,12 @@
 
 ;; ── C1: strict authoritative consumer ────────────────────────────────────────
 
-(defn- sample-authorisation []
+(defn- sample-authorisation
   "Build a minimal force-authorisation artifact for testing the
    evaluate-authority-with-frozen-material entry point. The report will show
    :not-authorised because positions are not actually valid, but the
    evaluator must run without error on B3 material only."
+  []
   {:artifact/schema "force-authorisation.v1"
    :authorisation/id "auth-1"
    :authorisation/request-root (hash-ref "req1")

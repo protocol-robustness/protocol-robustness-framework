@@ -12,7 +12,7 @@
      • directory location strings for fixtures, scenarios, results"
   (:require [resolver-sim.evidence.config :as evcfg]
             [resolver-sim.io.artifacts :as arts]
-            [resolver-sim.hash.reference :as hash-ref]
+
             [resolver-sim.config.paths :as cfg-paths]))
 
 ;; ── Registry-backed filename aliases for canonical artifacts ──────────

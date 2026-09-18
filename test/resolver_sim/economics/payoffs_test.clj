@@ -3,7 +3,7 @@
             [clojure.test :refer [deftest is testing]]
             [resolver-sim.economics.payoffs :as payoffs]
             [resolver-sim.execution.budget :as budget]
-            [resolver-sim.execution.observation :as observation]
+
             [resolver-sim.execution.realization :as realization]
             [resolver-sim.execution.runtime-profile :as runtime-profile]
             [resolver-sim.hash.canonical :as hc]

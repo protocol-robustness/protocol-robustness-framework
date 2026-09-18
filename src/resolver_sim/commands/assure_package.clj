@@ -8,8 +8,7 @@
 
    Usage:  clojure -M:cli/sew assure-package --run-root DIR"
   (:require [clojure.java.io :as io]
-            [clojure.data.json :as json]
-            [resolver-sim.hash.canonical :as hc]))
+            [clojure.data.json :as json]))
 
 (defn- slurp-json
   [path]
@@ -64,7 +63,7 @@
   "Evaluate package assurance for a verified invariant registry suite run root.
    Options:
      :run-root DIR  — required, path to the verified run package"
-  [{:keys [run-root] :as opts}]
+  [{:keys [run-root] :as _opts}]
   (if-not run-root
     (do (println "Usage: assure-package --run-root DIR")
         {:exit-code 2 :message "Missing --run-root"})

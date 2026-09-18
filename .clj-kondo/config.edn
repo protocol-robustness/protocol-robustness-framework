@@ -1,3 +1,8 @@
 {:hooks
  {:macroexpand {clojure.test.check.clojure-test/defspec
-                hooks.test-check-hooks/defspec}}}
+                hooks.test-check-hooks/defspec}}
+ :linters
+ {:redundant-let {:level :off}
+  :inline-def {:level :off}
+  :uninitialized-var {:level :off}
+  :missing-else-branch {:level :off}}}

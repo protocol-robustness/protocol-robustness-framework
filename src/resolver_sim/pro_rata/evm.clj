@@ -35,7 +35,7 @@
    `:applications` is deliberately machine-readable evidence; the complete
    post-state remains committed independently by `:state-after/root`."
   [{:keys [state-before-root allocation-root application-policy-root
-           state-after-root applications] :as application}]
+           state-after-root applications] :as _application}]
   (when-not (vector? applications)
     (throw (ex-info "pro-rata application rows must be a vector" {:value applications})))
   (let [base {:schema-version allocation-schema
@@ -69,7 +69,7 @@
    application explanation. Callers must first derive the complete post-state
    through their canonical protocol kernel and pass its recomputed root."
   [{:keys [state-before-root allocation-root application-policy-root
-           application-root state-after-root] :as transition}]
+           application-root state-after-root] :as _transition}]
   (let [base {:schema-version transition-schema
               :state-before/root state-before-root
               :allocation/root allocation-root
@@ -106,7 +106,7 @@
   [{:keys [configuration-root allocation-input-root allocation-root
            state-before-root application-root state-after-root
            program-identity-root statement-schema-root
-           asserted-provenance attested-provenance] :as provenance}]
+           asserted-provenance attested-provenance] :as _provenance}]
   (let [base {:schema-version provenance-schema
               :configuration/root configuration-root
               :allocation-input/root allocation-input-root
@@ -145,7 +145,7 @@
   "Compose the three semantic facts under a configured admission identity.
    The resulting SHA-256 reference is the only value that belongs in the
    `:evm-bytes32-v1` public projection."
-  [{:keys [allocation-root transition-root provenance-root configuration-root] :as statement}]
+  [{:keys [allocation-root transition-root provenance-root configuration-root] :as _statement}]
   (let [base {:schema-version statement-schema
               :allocation/root allocation-root
               :transition/root transition-root
@@ -173,17 +173,6 @@
                                           :state-before/root
                                           :state-after/root
                                           :configuration/root])))
-
-(defn- derived-transition!
-  [{:keys [state-before effect-compilation effect-compilation-binding resolve-body]}]
-  (when-not (map? state-before)
-    (throw (ex-info "EVM V2 requires canonical state-before data" {})))
-  (let [normalized-effects (compilation-binding/recompute-effects effect-compilation resolve-body)
-        canonical-transition (effects/transition state-before normalized-effects)]
-    (when-not (compilation-binding/valid? effect-compilation-binding effect-compilation
-                                          canonical-transition resolve-body)
-      (throw (ex-info "EVM V2 compilation binding does not match derived transition" {})))
-    canonical-transition))
 
 (defn reconstruct-v2
   "Reconstruct the complete production V2 derivation graph. This is the sole

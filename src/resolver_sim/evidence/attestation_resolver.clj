@@ -19,9 +19,9 @@
      {:valid? false
       :error :missing | :hash-mismatch | :unsupported-algorithm | :unparseable-reference
       :detail ...}"
-  (:require [resolver-sim.evidence.attestation-registry :as ar]
-            [resolver-sim.evidence.attestation-integrity :as integrity]
-            [resolver-sim.evidence.attestation :as att]))
+  (:require
+
+   [resolver-sim.evidence.attestation :as att]))
 
 ;; ── Reference format ─────────────────────────────────────────────────────────
 
@@ -95,7 +95,7 @@
                               (try
                                 (verify-fn attestation)
                                 (catch Exception _ false)))
-                    all-ok? (and hash-ok? schema-ok?)]
+                    _all-ok? (and hash-ok? schema-ok?)]
                 (if (not hash-ok?)
                   {:valid? false
                    :error :hash-mismatch

@@ -582,7 +582,7 @@
 
 (deftest certificate-with-canonical-indices-valid
   (let [round (make-keyed-round)
-        indices (ci/build-canonical-indices round)
+        _indices (ci/build-canonical-indices round)
         cert (build-with-ci
               :round round
               :reports (mapv (fn [id] (make-report id "sha256:A")) ["a" "b" "c"])
@@ -609,7 +609,7 @@
 
 (deftest certificate-canonical-indices-hash-binds-to-certificate-hash
   (let [round (make-keyed-round)
-        indices (ci/build-canonical-indices round)
+        _indices (ci/build-canonical-indices round)
         cert (build-with-ci
               :round round
               :reports (mapv (fn [id] (make-report id "sha256:A")) ["a" "b" "c"])

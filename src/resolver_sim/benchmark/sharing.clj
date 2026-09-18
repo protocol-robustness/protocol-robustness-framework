@@ -130,7 +130,7 @@
         (let [{:keys [exit err]} (shell/sh "cp" "-R" (.getPath graph-dir) (.getPath tmp-dir))]
           (when-not (zero? exit)
             (throw (ex-info "Could not stage evidence DAG artifacts" {:error err})))))
-      (let [{manifest-path :path manifest-sha256 :sha256}
+      (let [{_manifest-path :path manifest-sha256 :sha256}
             (write-export-manifest! tmp-dir (:evidence/hash evidence))
             {create-exit :exit create-err :err}
             (shell/sh "tar" "--sort=name" "--mtime=2026-01-01" "--owner=0" "--group=0"
@@ -182,7 +182,7 @@
         (do
           (println "IPFS publication failed:" (str/trim err))
           nil)))
-    (catch java.io.IOException e
+    (catch java.io.IOException _e
       (println "IPFS publication unavailable: could not run `ipfs`."
                "Install the IPFS CLI and ensure it is on PATH.")
       nil)))

@@ -7,7 +7,7 @@
             [resolver-sim.evidence.chain :as chain]
             [resolver-sim.evidence.finalization :as finalization]
             [resolver-sim.evidence.node :as evidence-node]
-            [resolver-sim.hash.canonical :as canonical]
+
             [resolver-sim.hash.reference :as hash-ref]
             [resolver-sim.io.paths :as paths]
             [resolver-sim.run.verdict-policy :as verdict-policy]

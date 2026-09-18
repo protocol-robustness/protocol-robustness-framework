@@ -46,7 +46,7 @@
 ;; ---------------------------------------------------------------------------
 
 (deftest conservation-uniform-budgets
-  "G1 — sum of allocations must equal total-disputes (uniform budget case)."
+  ;; G1 — sum of allocations must equal total-disputes (uniform budget case).
   (testing "10 resolvers, equal budgets, 100 disputes"
     (let [ids    (map #(str "r-" %) (range 10))
           budgets (zipmap ids (repeat 100.0))
@@ -60,14 +60,14 @@
       (is (= 100 (reduce + 0 (vals result))) "Conservation holds with non-divisible total"))))
 
 (deftest conservation-heterogeneous-budgets
-  "G1 — conservation must hold even with very different budgets."
+  ;; G1 — conservation must hold even with very different budgets.
   (let [ids    ["heavy" "light" "medium"]
         budgets {"heavy" 200.0 "light" 50.0 "medium" 100.0}
         result  (ec/prorata-dispute-load ids budgets 300)]
     (is (= 300 (reduce + 0 (vals result))) "Conservation with heterogeneous budgets")))
 
 (deftest conservation-prime-total
-  "G1 — conservation with a prime total forces non-trivial remainders."
+  ;; G1 — conservation with a prime total forces non-trivial remainders.
   (let [ids    ["a" "b" "c"]
         budgets {"a" 1.0 "b" 1.0 "c" 1.0}
         result  (ec/prorata-dispute-load ids budgets 97)]
@@ -78,7 +78,7 @@
 ;; ---------------------------------------------------------------------------
 
 (deftest quota-rule-uniform
-  "G2 — each alloc must be floor(q_i) or ceil(q_i), uniform budgets."
+  ;; G2 — each alloc must be floor(q_i) or ceil(q_i), uniform budgets.
   (let [ids    (map #(str "r-" %) (range 5))
         budgets (zipmap ids (repeat 100.0))
         total   13
@@ -88,7 +88,7 @@
         "Quota rule satisfied for all 5 resolvers")))
 
 (deftest quota-rule-heterogeneous
-  "G2 — quota rule satisfied under heterogeneous budgets."
+  ;; G2 — quota rule satisfied under heterogeneous budgets.
   (let [ids     ["a" "b" "c" "d"]
         budgets {"a" 300.0 "b" 100.0 "c" 50.0 "d" 50.0}
         total   100
@@ -101,7 +101,7 @@
 ;; ---------------------------------------------------------------------------
 
 (deftest non-negative-allocations
-  "G3 — no resolver receives a negative dispute count, even with a 0-budget entry."
+  ;; G3 — no resolver receives a negative dispute count, even with a 0-budget entry.
   (let [ids    ["x" "y" "z"]
         budgets {"x" 0.0 "y" 100.0 "z" 50.0}
         result  (ec/prorata-dispute-load ids budgets 50)]
@@ -112,7 +112,7 @@
 ;; ---------------------------------------------------------------------------
 
 (deftest all-ids-present
-  "G4 — every resolver-id must appear in the result, including zero-budget ones."
+  ;; G4 — every resolver-id must appear in the result, including zero-budget ones.
   (let [ids    ["r1" "r2" "r3"]
         budgets {"r1" 100.0 "r2" 0.0 "r3" 50.0}
         result  (ec/prorata-dispute-load ids budgets 30)]
@@ -123,7 +123,7 @@
 ;; ---------------------------------------------------------------------------
 
 (deftest determinism
-  "G5 — same inputs always produce the same output (no hidden RNG)."
+  ;; G5 — same inputs always produce the same output (no hidden RNG).
   (let [ids    ["a" "b" "c"]
         budgets {"a" 100.0 "b" 200.0 "c" 150.0}
         r1 (ec/prorata-dispute-load ids budgets 77)
@@ -158,7 +158,7 @@
     (is (<= 29 small-d 30)   "Small resolver gets ~1× disputes: [29,30]")))
 
 (deftest proportional-3-way-exact
-  "Three resolvers with budgets 3:2:1 and a divisible total → exact ratio."
+  ;; Three resolvers with budgets 3:2:1 and a divisible total → exact ratio.
   (let [ids    ["a" "b" "c"]
         budgets {"a" 300.0 "b" 200.0 "c" 100.0}
         total   60
@@ -171,7 +171,7 @@
 ;; ---------------------------------------------------------------------------
 
 (deftest zero-total-disputes
-  "When total-disputes=0, all resolvers receive 0 (trivial conservation)."
+  ;; When total-disputes=0, all resolvers receive 0 (trivial conservation).
   (let [ids    ["r1" "r2"]
         budgets {"r1" 100.0 "r2" 200.0}
         result  (ec/prorata-dispute-load ids budgets 0)]
@@ -179,14 +179,14 @@
     (is (= 0 (reduce + 0 (vals result))))))
 
 (deftest single-resolver-receives-all
-  "Single resolver receives all disputes."
+  ;; Single resolver receives all disputes.
   (let [ids    ["solo"]
         budgets {"solo" 100.0}
         result  (ec/prorata-dispute-load ids budgets 47)]
     (is (= {"solo" 47} result))))
 
 (deftest empty-resolver-list
-  "Empty resolver list returns empty map."
+  ;; Empty resolver list returns empty map.
   (let [result (ec/prorata-dispute-load [] {} 100)]
     (is (= {} result))))
 

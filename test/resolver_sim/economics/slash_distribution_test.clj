@@ -303,8 +303,8 @@
 
 (deftest single-award-odd-remainder-bounty
   (testing "odd award amount with remainder: remainder goes to remainder-to"
-    (let [params {:source-root "sha256:test"
-                  :values {:test.parameter/reward-rate 7}}     ;; 1000 * 7 / 10000 = 0 (floor)
+    (let [_params {:source-root "sha256:test"
+                   :values {:test.parameter/reward-rate 7}}     ;; 1000 * 7 / 10000 = 0 (floor)
           gross 10000
           params {:source-root "sha256:test"
                   :values {:test.parameter/reward-rate 50}}    ;; 10000 * 50 / 10000 = 50
@@ -914,7 +914,7 @@
         dist (-> (:distribution result)
                  (assoc-in [:distribution/awards 0 :beneficiary] nil)
                  (update :distribution/hash (fn [_] "ignored")))
-        {:keys [valid? violations]} (sd/verify-distribution dist)]
+        {:keys [_valid? violations]} (sd/verify-distribution dist)]
     ;; hash will also mismatch, but specific violation should exist
     (is (some #(= :violation/missing-beneficiary (:violation/id %)) violations))))
 

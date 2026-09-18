@@ -100,7 +100,7 @@
 (deftest check1-state-before-and-state-after-swappable
   (let [ctx (base-setup)
         op (:op ctx)
-        artifacts (:artifacts ctx)
+        _artifacts (:artifacts ctx)
         sa-root (get-in op [:execution :state-after-root])
         sb-root (get-in op [:target :state-before-root])
         swapped (-> op

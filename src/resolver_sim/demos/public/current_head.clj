@@ -34,7 +34,7 @@
   (walk/postwalk #(if (map? %) (into (sorted-map) %) %) x))
 
 (defn project []
-  (let [{:keys [r1 r2 stale head-before head-after root]} (run)
+  (let [{:keys [_r1 r2 stale head-before head-after root]} (run)
         artifact
         {"schema" schema-id
          "demo" {"id" demo-id "version" 1

@@ -44,7 +44,7 @@
   (attr/with-attribution {:accrue/module-id (:module/id module)
                           :accrue/token (:token op)
                           :accrue/strategy (get-in world [:yield/adversary (:module/id module) :strategy] :drain)}
-    (let [{:keys [token dt]} op
+    (let [{:keys [token _dt]} op
           mid (:module/id module)
           strategy (get-in world [:yield/adversary mid :strategy] :drain)
           index (or (get-in world [:yield/indices mid token]) 1.0)

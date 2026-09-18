@@ -7,7 +7,7 @@
             [clojure.java.io :as io]
             [clojure.java.shell :as shell]
             [clojure.string :as str]
-            [clojure.test :refer [deftest is testing]]
+            [clojure.test :refer [deftest is]]
             [resolver-sim.commands.scenario-run :as scenario-command]
             [resolver-sim.hash.reference :as hash-ref]))
 
@@ -46,9 +46,6 @@
 
 (defn- registry [run-root]
   (json/read-str (slurp (io/file run-root "manifest/artifacts.json")) :key-fn keyword))
-
-(defn- run-files [run-root]
-  (set (map #(.getCanonicalPath %) (file-seq (io/file run-root)))))
 
 (defn- root-relative? [run-root path]
   (let [p (java.nio.file.Paths/get path (make-array String 0))]

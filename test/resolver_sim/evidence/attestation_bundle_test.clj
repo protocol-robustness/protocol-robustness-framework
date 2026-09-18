@@ -9,8 +9,7 @@
             [resolver-sim.sensitivity.contract :as c]
             [resolver-sim.sensitivity.sentinel :as sentinel]
             [resolver-sim.signed-external-decision :as sed]
-            [resolver-sim.support.ed25519 :as fx])
-  (:import [java.util UUID]))
+            [resolver-sim.support.ed25519 :as fx]))
 
 (defn- attestor [] {:type :ci-runner :id :ci-validation})
 (defn- subject [] {:type :evidence-node :hash "sha256:abc"})

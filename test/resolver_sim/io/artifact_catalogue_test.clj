@@ -33,11 +33,11 @@
 
 (deftest code-artifacts-appear-in-evidence-config
   (let [cfg (load-evidence-config)
-        config-artifacts (set (map :id (:artifacts cfg)))]
+        _config-artifacts (set (map :id (:artifacts cfg)))]
     (doseq [code-id code-artifact-ids]
       (let [code-file (arts/artifact-file code-id)
             ;; config/evidence.json uses string IDs like "run-completion"
-            config-id (name code-id)
+            _config-id (name code-id)
             matching (filter #(= (:file %) code-file) (:artifacts cfg))]
         (if (seq matching)
           (is (= 1 (count matching))

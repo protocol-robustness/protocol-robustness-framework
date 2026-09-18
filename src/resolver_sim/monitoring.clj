@@ -49,7 +49,7 @@
 (defn- build-dynamic-mbean []
   (let [mbean-info (atom nil)]
     (reify DynamicMBean
-      (getAttribute [this name]
+      (getAttribute [_this name]
         (case name
           "ScenariosRun" (long (:scenarios-run @counters))
           "ScenariosPassed" (long (:scenarios-passed @counters))
@@ -58,23 +58,23 @@
           "UptimeSeconds" (long (/ (- (System/currentTimeMillis) (:start-ms @counters)) 1000))
           "Running" (:running @counters)
           (throw (javax.management.AttributeNotFoundException. name))))
-      (setAttribute [this attribute]
+      (setAttribute [_this attribute]
         (throw (javax.management.AttributeNotFoundException. (.getName attribute))))
       (getAttributes [this names]
         (javax.management.AttributeList.
          (mapv (fn [n] (javax.management.Attribute. n (.getAttribute this n))) names)))
-      (setAttributes [this attributes] attributes)
-      (invoke [this action-name params sig]
+      (setAttributes [_this attributes] attributes)
+      (invoke [_this action-name _params _sig]
         (when (= "resetCounters" action-name)
           (swap! counters assoc :scenarios-run 0 :scenarios-passed 0 :scenarios-failed 0 :evidence-captured 0))
         nil)
-      (getMBeanInfo [this] (or @mbean-info (reset! mbean-info (build-mbean-info)))))))
+      (getMBeanInfo [_this] (or @mbean-info (reset! mbean-info (build-mbean-info)))))))
 
 (defn start!
   "Register the monitoring MBean on the platform MBeanServer.
    Port is accepted for compatibility but ignored — JMX port is configured
    via JVM system properties."
-  [& [port]]
+  [& [_port]]
   (let [server (ManagementFactory/getPlatformMBeanServer)]
     (when-not (.isRegistered server mbean-name)
       (.registerMBean server (build-dynamic-mbean) mbean-name)
@@ -93,7 +93,7 @@
 
 (defn -main
   "Start JMX monitoring system and block waiting for shutdown signal."
-  [& args]
+  [& _args]
   (println "resolver-sim JMX monitoring starting...")
   (start!)
   (println "Monitoring MBean registered: resolver-sim:type=Monitoring")

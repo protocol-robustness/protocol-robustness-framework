@@ -23,8 +23,7 @@
    See also resolver-sim.hash.canonical for domain-separated canonical hashing.
 
    ════════════════════════════════════════════════════════════════"
-  (:import [java.security MessageDigest]
-           [java.math BigInteger]))
+  (:import [java.security MessageDigest]))
 
 (def ^:const sha256-ref-prefix "sha256:")
 

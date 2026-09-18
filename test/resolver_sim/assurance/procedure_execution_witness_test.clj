@@ -1,8 +1,8 @@
 (ns resolver-sim.assurance.procedure-execution-witness-test
-  (:require [clojure.test :refer [deftest is testing use-fixtures]]
+  (:require [clojure.test :refer [deftest is]]
             [clojure.java.io :as io]
             [clojure.data.json :as json]
-            [clojure.edn :as edn]
+
             [resolver-sim.assurance.trust-sequence-definition :as tsd]
             [resolver-sim.assurance.procedure-execution-witness :as pew]
             [resolver-sim.assurance.witness-verifier :as wv]
@@ -507,7 +507,7 @@
             b (wv/verify-witness (:witness ctx) (:definition ctx) ev-idx opts)]
         (is (= (:valid? a) (:valid? b)))
         (is (= (count (:checks a)) (count (:checks b))))
-        (is (every? (fn [{:keys [check/code check/status]}]
+        (is (every? (fn [{:keys [check/code check/_status]}]
                       (= (:check/status (some #(when (= code (:check/code %)) %) (:checks a)))
                          (:check/status (some #(when (= code (:check/code %)) %) (:checks b)))))
                     (:checks a))))

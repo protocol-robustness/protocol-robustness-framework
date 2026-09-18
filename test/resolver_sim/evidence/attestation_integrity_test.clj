@@ -1,5 +1,5 @@
 (ns resolver-sim.evidence.attestation-integrity-test
-  (:require [clojure.test :refer [deftest is testing]]
+  (:require [clojure.test :refer [deftest is]]
             [resolver-sim.evidence.attestation :as att]
             [resolver-sim.evidence.attestation-integrity :as ai]
             [resolver-sim.evidence.attestation-registry :as ar]))

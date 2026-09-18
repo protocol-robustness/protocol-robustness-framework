@@ -275,7 +275,7 @@
                              :halt-reason nil
                              :scenario/evidence-root (apply str (repeat 64 "b"))
                              :invariant-results [{:id :inv/b :result :pass}]}]}
-        {:keys [exit-code artifact]}
+        {:keys [_exit-code artifact]}
         (with-redefs [resolver-sim.benchmark.runner/load-manifest (fn [_] manifest)
                       resolver-sim.benchmark.runner/run-benchmark (fn [_] evidence)
                       resolver-sim.scenario.suites/suite-paths
@@ -342,7 +342,7 @@
                              :halt-reason nil
                              :scenario/evidence-root (apply str (repeat 64 "b"))
                              :invariant-results [{:id :inv/b :result :pass}]}]}
-        {:keys [exit-code artifact]}
+        {:keys [_exit-code artifact]}
         (with-redefs [resolver-sim.benchmark.runner/load-manifest (fn [_] manifest)
                       resolver-sim.benchmark.runner/run-benchmark (fn [_] evidence)
                       resolver-sim.scenario.suites/suite-paths
@@ -411,7 +411,7 @@
                       resolver-sim.scenario.suites/suite-paths
                       (fn [_] ["scenarios/edn/S-DR-043-payout-shortfall-deferred.edn"])
                       resolver-sim.io.scenarios/load-scenario-file
-                      (fn [path] scenario-043)]
+                      (fn [_path] scenario-043)]
           (sut/run-strategic-claim-validation
            :claim-id :claim/partial-fill-rounding-integrity
            :out-dir out-dir))]
@@ -801,7 +801,7 @@
                                               :out-dir out-dir))]
     (testing "diagnostic-observation results are visible but do not enter the gate"
       (let [all-results (:strategic-property-results artifact)
-            declared-results (:strategic-declared-property-results artifact)
+            _declared-results (:strategic-declared-property-results artifact)
             diagnostic-results (filter #(= :diagnostic-observation (:property-role %)) all-results)
             declared-only (filter #(= :declared-property (:property-role %)) all-results)]
         ;; diagnostic observation is visible
@@ -843,7 +843,7 @@
                           resolver-sim.scenario.suites/suite-paths
                           (fn [_] ["scenarios/edn/S-DR-043-payout-shortfall-deferred.edn"])
                           resolver-sim.io.scenarios/load-scenario-file
-                          (fn [path] scenario-043)
+                          (fn [_path] scenario-043)
                           resolver-sim.yield.strategic-partial-fill/validate-strategic-properties
                           (fn [& _]
                             {:summary {:states-examined 100}
@@ -1002,7 +1002,7 @@
                       resolver-sim.scenario.suites/suite-paths
                       (fn [_] ["scenarios/edn/S-DR-043-payout-shortfall-deferred.edn"])
                       resolver-sim.io.scenarios/load-scenario-file
-                      (fn [path] scenario-043)
+                      (fn [_path] scenario-043)
                       resolver-sim.yield.strategic-partial-fill/validate-strategic-properties
                       (fn [& _]
                         {:summary {:states-examined 100}
@@ -1049,7 +1049,7 @@
                (get-in dr [:diagnostic-transform :semantic-purpose])))))
 
     (testing "property-role distinguishes declared from diagnostic"
-      (let [by-prop (into {} (map (juxt :property identity)) adapter-results)]
+      (let [_by-prop (into {} (map (juxt :property identity)) adapter-results)]
         ;; The real validator marks all as :diagnostic-observation by default
         ;; unless :declared-property-ids is supplied
         (doseq [result adapter-results]

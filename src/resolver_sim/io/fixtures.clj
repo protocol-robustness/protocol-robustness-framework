@@ -188,7 +188,7 @@
   "Validate a resolved fixture reference map. Returns nil or throws."
   [ref-entry]
   (when (map? ref-entry)
-    (let [{:keys [slot ref path content-hash]} ref-entry]
+    (let [{:keys [slot ref _path content-hash]} ref-entry]
       (when-not slot
         (throw (ex-info "Fixture ref missing :slot" {:ref-entry ref-entry})))
       (when-not ref

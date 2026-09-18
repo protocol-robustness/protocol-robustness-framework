@@ -98,8 +98,8 @@
    subsequent lines are events arrays.
    Compatible with asciinema 2.x players."
   ([text] (text->asciicast-str text {:duration 5.0}))
-  ([text {:keys [duration title command]
-          :or   {duration 5.0 title "demo" command ""}}]
+  ([text {:keys [duration _title _command]
+          :or   {duration 5.0}}]
    (let [lines (str/split-lines text)
          n (count lines)
          delay-per-line (if (pos? n) (/ (float duration) n) 0.1)

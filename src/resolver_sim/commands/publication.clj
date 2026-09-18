@@ -55,31 +55,6 @@
               role (name (:artifact-role edge))]
           (println (format "  %-45s %-18s %s" role root edge-status)))))))
 
-(defn- print-diagnostic-report
-  "Print a human-readable diagnostic result from resolve-authoritative-publication."
-  [result]
-  (let [authority (:authority result)
-        correspondence (:correspondence result)
-        semantic (:semantic-recompilation result)
-        reachability (:reachability result)]
-    (println "Publication Diagnostics")
-    (println (format "  authority:              %s%s"
-                     (name (:status authority))
-                     (when-let [r (:reason authority)]
-                       (str " (" (name r) ")"))))
-    (println (format "  correspondence:         %s%s"
-                     (name (:status correspondence))
-                     (when-let [r (:reason correspondence)]
-                       (str " (" (name r) ")"))))
-    (println (format "  semantic-recompilation: %s%s"
-                     (name (:status semantic))
-                     (when-let [r (:reason semantic)]
-                       (str " (" (name r) ")"))))
-    (println (format "  reachability:           %s%s"
-                     (name (:status reachability))
-                     (when-let [r (:reason reachability)]
-                       (str " (" (name r) ")"))))))
-
 (defn- trace-from-head-root
   "CAS-only trace from a publication head root."
   [head-root opts]

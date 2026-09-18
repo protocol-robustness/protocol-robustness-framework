@@ -89,7 +89,7 @@
   - Cannot earn new fees
   - CAN appeal existing slashes (contract feature)"
   [pending-state resolver-id]
-  (not (empty? (get-pending-slashes-for-resolver pending-state resolver-id))))
+  (seq (get-pending-slashes-for-resolver pending-state resolver-id)))
 
 ;; ============================================================================
 ;; VULNERABILITY WINDOW ANALYSIS
@@ -112,7 +112,7 @@
   Returns:
   - :vulnerability-window-epochs: How many epochs until slash executes
   - :max-earnings-during-window: Rough estimate of fees earned during window"
-  [governance-response-days resolution-fee-per-dispute]
+  [governance-response-days _resolution-fee-per-dispute]
   (let [epochs-per-4-days (/ governance-response-days 4)
         response-epochs (long (Math/ceil epochs-per-4-days))
 

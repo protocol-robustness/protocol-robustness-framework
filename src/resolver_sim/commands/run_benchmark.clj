@@ -9,9 +9,9 @@
             [resolver-sim.benchmark.cli :as benchmark-cli]
             [resolver-sim.benchmark.hardening :as hardening]
             [resolver-sim.benchmark.claim-registry :as claim-registry]
-            [resolver-sim.benchmark.integrity :as integrity]
+
             [resolver-sim.benchmark.research-pack :as research-pack]
-            [resolver-sim.composition.semantic :as semantic-composition]
+
             [resolver-sim.hash.canonical :as canonical]
             [resolver-sim.hash.reference :as hash-ref]
             [resolver-sim.commands.benchmark-conclusion :as conclusion]
@@ -34,7 +34,7 @@
             [resolver-sim.run.distribution-provenance :as distribution]
             [resolver-sim.validation.integration.artifact-registry :as artifact-registry]
             [resolver-sim.commands.witness-build :as witness-build]
-            [resolver-sim.assurance.witness-verifier :as wv]
+
             [resolver-sim.util.thread-quiescence :as quiesce])
   (:import [java.nio.file Files StandardCopyOption]))
 
@@ -52,10 +52,6 @@
   [claim-registry-path & body]
   `(binding [*claim-registry-path* ~claim-registry-path]
      ~@body))
-
-(defn- finalize-registry! [context]
-  (inventory/build! context)
-  (registry/finalize! (:run/root context)))
 
 (defn- validate-registry! [context]
   (let [registry-file (io/file (str (:manifest/dir context)) "artifacts.json")
@@ -118,7 +114,7 @@
     (lifecycle/atomic-json! target value)
     value))
 
-(defn- write-finalization! [context conclusion]
+(defn- write-finalization! [context _conclusion]
   (let [root (:run/root context)
         content-registry (io/file (str root) "benchmark/evidence/content-registry.json")
         assurance (io/file (str root) "benchmark/assertions/benchmark-assurance.json")
@@ -358,7 +354,7 @@
         :run_package_index_sha256 (sha-ref package-index-file)
         :run_package_index_bytes (.length package-index-file)}))))
 
-(defn- write-verdict-policy! [context evidence conclusion]
+(defn- write-verdict-policy! [context _evidence conclusion]
   (let [root (io/file (str (:run/root context)))
         assurance (json/read-str (slurp (io/file root "benchmark/assertions/benchmark-assurance.json")))
         artifact (verdict-policy/build

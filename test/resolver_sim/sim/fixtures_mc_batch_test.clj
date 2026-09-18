@@ -1,5 +1,5 @@
 (ns resolver-sim.sim.fixtures-mc-batch-test
-  (:require [clojure.test :refer :all]
+  (:require [clojure.test :refer [deftest is testing]]
             [resolver-sim.sim.fixtures :as fixtures]
             [resolver-sim.sim.batch :as batch]
             [resolver-sim.stochastic.params :as params]

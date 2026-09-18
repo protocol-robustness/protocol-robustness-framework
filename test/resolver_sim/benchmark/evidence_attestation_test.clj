@@ -2,12 +2,12 @@
   "Producer attestation for benchmark final evidence:
    integrity gate → detached Ed25519 binding → anti-transplant verification.
    Unsigned bundles remain first-class (integrity-assured only)."
-  (:require [clojure.edn :as edn]
-            [clojure.java.io :as io]
-            [clojure.test :refer [deftest is testing]]
-            [resolver-sim.benchmark.evidence-attestation :as att]
-            [resolver-sim.benchmark.final-evidence-boundary-test :as boundary]
-            [resolver-sim.benchmark.integrity :as integrity])
+  (:require
+   [clojure.java.io :as io]
+   [clojure.test :refer [deftest is testing]]
+   [resolver-sim.benchmark.evidence-attestation :as att]
+   [resolver-sim.benchmark.final-evidence-boundary-test :as boundary]
+   [resolver-sim.benchmark.integrity :as integrity])
   (:import [java.nio.file Files]
            [java.security KeyPairGenerator]))
 
@@ -58,7 +58,7 @@
       (is (= :demo-pack (get-in attestation [:payload :subject :benchmark/id]))))))
 
 (deftest transplant-onto-different-evidence-fails
-  (let [{:keys [path bundle]} (persisted-bundle! "victim.edn")
+  (let [{:keys [_path bundle]} (persisted-bundle! "victim.edn")
         other (#'boundary/finalize
                (#'boundary/make-bundle {:commitment-version "bundle-root.v2"}))
         kp (keypair)
@@ -70,7 +70,7 @@
         (is (= :subject-mismatch (:reason result)))))))
 
 (deftest tampered-evidence-after-signing-is-caught
-  (let [{:keys [path bundle]} (persisted-bundle! "tampered.edn")
+  (let [{:keys [_path bundle]} (persisted-bundle! "tampered.edn")
         kp (keypair)
         attestation (att/build-attestation bundle "k1" (.getPrivate kp))
         mutated (assoc-in bundle [:results 0 :outcome] :failed)]

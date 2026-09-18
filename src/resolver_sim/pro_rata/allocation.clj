@@ -385,7 +385,7 @@
                              :redistribution-policy redistribution-policy}
           request-hash (hc/hash-with-intent {:hash/intent :projection-artifact}
                                             canonical-request)
-          total-weight (reduce + 0 (map :weight rows))
+          _total-weight (reduce + 0 (map :weight rows))
           allocation-request {:amount available
                               :items rows
                               :id-fn :row/id

@@ -1708,7 +1708,7 @@
   ([authorisation reservation manifest receipt profile]
    (force-authorisation-summary authorisation reservation manifest receipt profile nil))
   ([authorisation reservation manifest receipt profile review-round]
-   (let [fa-sec (:execution/force-authorisation manifest)
+   (let [_fa-sec (:execution/force-authorisation manifest)
          thresh (:authorisation/threshold authorisation)
          dec-refs (:authorisation/decision-references authorisation)
          approvals (filter #(= :approve (:decision %)) dec-refs)

@@ -12,9 +12,9 @@
   This namespace provides the single verification routine both verifiers delegate
   to, eliminating the write-only gap that existed when only the benchmark verifier
   recomputed provenance commitments."
-  (:require [clojure.string :as str]
-            [resolver-sim.hash.canonical :as canonical]
-            [resolver-sim.hash.reference :as hash-ref]))
+  (:require
+   [resolver-sim.hash.canonical :as canonical]
+   [resolver-sim.hash.reference :as hash-ref]))
 
 (def ^:private allowed-values
   #{"in-band" "out-of-band"})

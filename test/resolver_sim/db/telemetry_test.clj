@@ -5,7 +5,7 @@
    They verify the pure conversion functions (trial->outcome-record,
    trial->event-records) and confirm that all write calls are no-ops
    on a nil datasource."
-  (:require [clojure.test :refer [deftest testing is are]]
+  (:require [clojure.test :refer [deftest testing is]]
             [resolver-sim.protocols.sew.runner    :as runner]
             [resolver-sim.protocols.sew           :as sew]
             [resolver-sim.protocols.sew.types     :as t]

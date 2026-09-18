@@ -1101,7 +1101,7 @@
     (let [tampered-auth (assoc auth
                                :authorisation/request-root
                                "sha256:different-request")
-          usable (rfa/verify-authorisation-usable tampered-auth)]
+          _usable (rfa/verify-authorisation-usable tampered-auth)]
       ;; Changing request root doesn't affect signatures (it's not in the
       ;; decision preimage) but affects the structural commitment.
       ;; validate-authorisation should still pass if the hash is recomputed,
@@ -1162,12 +1162,12 @@
                         :reservation/plan-root plan-root})]
     ;; 4. Simulate execution (or fail)
       (let [fail? fail-after-reservation?
-            resulting-outcome-hash (if fail? "sha256:failed-outcome"
-                                       (str "sha256:"
-                                            (hc/domain-hash :benchmark-outcome
-                                                            {:type :executed
-                                                             :plan plan-root
-                                                             :content executed-content-root})))
+            _resulting-outcome-hash (if fail? "sha256:failed-outcome"
+                                        (str "sha256:"
+                                             (hc/domain-hash :benchmark-outcome
+                                                             {:type :executed
+                                                              :plan plan-root
+                                                              :content executed-content-root})))
             status (if fail? :failed-after-consumption :consumed)
           ;; 5. Build outcome manifest (references reservation, NOT receipt)
             fa-section {:authorisation-hash (:authorisation/hash auth)
@@ -1758,11 +1758,11 @@
   "Build a FA artifact and execute it, returning all artifacts."
   [authorisation-id reviewer-ids round-id round-hash]
   (let [ck (str "sha256:ck-" (name authorisation-id))
-        round {:review-round/id round-id
-               :review-round/hash round-hash
-               :review-round/members
-               (mapv (fn [rid] {:researcher/id rid :role :model-steward})
-                     reviewer-ids)}
+        _round {:review-round/id round-id
+                :review-round/hash round-hash
+                :review-round/members
+                (mapv (fn [rid] {:researcher/id rid :role :model-steward})
+                      reviewer-ids)}
         auth (rfa/build-authorisation
               {:authorisation/id authorisation-id
                :authorisation/policy {:policy/id :research/three-member
@@ -1858,7 +1858,7 @@
                   :review-round/policy-root "sha256:policy"})
         ;; The interaction topology is identical: both rounds have keys #{0 1 2}
         ;; with roles {model-steward, independent-reproducer, adversarial-reviewer}
-        mapping {0 0, 1 1, 2 2}]
+        _mapping {0 0, 1 1, 2 2}]
     (testing "different global identities produce different round hashes"
       (is (not= (:review-round/id round-a) (:review-round/id round-b)))
       (is (not= "alice" (rr/researcher-id-for-member-key round-b 0))))
@@ -1962,7 +1962,7 @@
              :authorisation/decision-references signed-decisions
              :authorisation/threshold {:required 2 :eligible 3}})
         ; 7. Negative test: wrong key for researcher
-        wrong-key-decision
+        _wrong-key-decision
         (with-redefs [signing/sign-hash (fn [_ _ _] "deadbeef")]
           (rfa/build-signed-decision
            "researcher-a" :authorisation/bad-key

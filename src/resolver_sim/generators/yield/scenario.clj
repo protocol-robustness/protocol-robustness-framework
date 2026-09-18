@@ -71,7 +71,7 @@
      :expectations {:expected-outcomes [{:seq 0 :action "yield_deposit" :expect "rejected"}]}})))
 
 (def gen-yield-scenario
-  (gen/bind gen/pos-int
+  (gen/bind (gen/large-integer* {:min 1})
             (fn [seed]
               (gen/bind (gen/tuple ycore/gen-yield-config yevents/gen-yield-event-sequence)
                         (fn [[yc events]]

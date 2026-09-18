@@ -46,9 +46,9 @@
 
         l2-detected-count (count (filter :l2-detected? results))
 
-        pending-slashed (count (filter :slashing-pending? results))
-        pending-delay-weeks (if (empty? results) 0
-                                (double (mean (map :slashing-delay-weeks (filter :slashing-pending? results)))))
+        _pending-slashed (count (filter :slashing-pending? results))
+        _pending-delay-weeks (if (empty? results) 0
+                                 (double (mean (map :slashing-delay-weeks (filter :slashing-pending? results)))))
 
         frozen-count (count (filter :frozen? results))
         escaped-count (count (filter :escaped? results))

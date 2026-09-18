@@ -1,5 +1,5 @@
 (ns resolver-sim.research.changelog-challenge-test
-  (:require [clojure.test :refer [deftest is testing]]
+  (:require [clojure.test :refer [deftest is]]
             [clojure.java.io :as io]
             [resolver-sim.research.changelog-challenge :as cc]))
 

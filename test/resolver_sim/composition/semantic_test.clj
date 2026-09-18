@@ -146,7 +146,7 @@
 
 (defmacro skip-if-not-physical
   "Skip a test body when the physical extension is not available."
-  [body]
+  [_body]
   `(testing "skipped: physical extension unavailable"
      (is (nil? (fa/scope-verification-capability))
          "physical extension is not on the classpath; test is a no-op")))

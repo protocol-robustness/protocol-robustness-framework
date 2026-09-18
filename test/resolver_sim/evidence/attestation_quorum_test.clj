@@ -1,5 +1,5 @@
 (ns resolver-sim.evidence.attestation-quorum-test
-  (:require [clojure.test :refer [deftest is testing]]
+  (:require [clojure.test :refer [deftest is]]
             [resolver-sim.evidence.attestation :as att]
             [resolver-sim.evidence.attestation-quorum :as aq]
             [resolver-sim.hash.canonical :as hc]))

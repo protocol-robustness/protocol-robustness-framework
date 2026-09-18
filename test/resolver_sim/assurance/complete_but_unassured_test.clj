@@ -4,13 +4,13 @@
    and release-ineligible.
    This distinguishes \"evidence preserved in a complete package\" from
    \"successful assurance.\""
-  (:require [clojure.test :refer [deftest is testing]]
+  (:require [clojure.test :refer [deftest is]]
             [clojure.java.io :as io]
             [clojure.data.json :as json]
-            [clojure.edn :as edn]
+
             [resolver-sim.assurance.trust-sequence-definition :as tsd]
             [resolver-sim.assurance.procedure-execution-witness :as pew]
-            [resolver-sim.assurance.witness-verifier :as wv]
+
             [resolver-sim.commands.witness-build :as wb]
             [resolver-sim.hash.canonical :as hc]
             [resolver-sim.evidence.chain :as chain]

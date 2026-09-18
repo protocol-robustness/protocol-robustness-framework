@@ -12,7 +12,7 @@
      clojure -M:test -e \"(require 'resolver-sim.resubmission.postgres-admission-store-test) (clojure.test/run-tests 'resolver-sim.resubmission.postgres-admission-store-test)\"
    "
   (:require [clojure.edn :as edn]
-            [clojure.test :refer [deftest is testing use-fixtures]]
+            [clojure.test :refer [deftest is use-fixtures]]
             [next.jdbc.result-set :as rs]
             [resolver-sim.resubmission.admission :as admission]
             [resolver-sim.resubmission.admission-store :as store]

@@ -1,5 +1,5 @@
 (ns resolver-sim.hash.canonical-byte-contract-test
-  (:require [clojure.test :refer [deftest is testing]]
+  (:require [clojure.test :refer [deftest is]]
             [resolver-sim.hash.canonical :as hc]))
 
 (deftest byte-contract-exposes-value-and-framed-preimage

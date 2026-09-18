@@ -94,7 +94,7 @@
 
    Returns: Double between 0 and 1"
   [resolver epoch params]
-  (let [total-loss    (:total-slashing-loss resolver 0.0)
+  (let [_total-loss    (:total-slashing-loss resolver 0.0)
         times-slashed (:total-slashed resolver 0)
         total-profit  (:total-profit resolver 0.0)
         strategy      (:strategy resolver)

@@ -314,15 +314,6 @@
   [content]
   (:claims/mechanism-result content))
 
-(defn- mechanism-result-check
-  [evidence-nodes checker]
-  (if-let [result (some-> evidence-nodes evidence-content mechanism-result)]
-    (let [violations (checker result)]
-      {:holds? (empty? violations)
-       :violations (vec violations)})
-    {:holds? false
-     :violations [{:type :missing-mechanism-allocation-result}]}))
-
 (defn check-cap-respecting
   [{:keys [evidence-nodes]}]
   (let [content (evidence-content evidence-nodes)]

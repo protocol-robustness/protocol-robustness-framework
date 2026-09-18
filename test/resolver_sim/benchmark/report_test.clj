@@ -446,10 +446,6 @@
   [pack-name]
   (str "data/fixtures/benchmark-reports/" pack-name ".evidence.edn"))
 
-(defn- load-evidence-fixture
-  [pack-name]
-  (edn/read-string (slurp (evidence-bundle-path pack-name))))
-
 (defn- report-fixture
   [pack-name]
   (edn/read-string (slurp (str "data/fixtures/benchmark-reports/" pack-name ".report.edn"))))

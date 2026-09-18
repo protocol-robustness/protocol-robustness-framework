@@ -1,5 +1,5 @@
 (ns resolver-sim.contract-model.replay-yield-test
-  (:require [clojure.test :refer :all]
+  (:require [clojure.test :refer [deftest is]]
             [resolver-sim.contract-model.replay :as replay]
             [resolver-sim.contract-model.replay.execution :as execution]
             [resolver-sim.contract-model.replay.frames :as frames]

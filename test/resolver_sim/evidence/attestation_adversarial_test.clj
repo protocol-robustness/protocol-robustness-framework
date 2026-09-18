@@ -1,11 +1,11 @@
 (ns resolver-sim.evidence.attestation-adversarial-test
-  (:require [clojure.test :refer [deftest is testing]]
+  (:require [clojure.test :refer [deftest is]]
             [resolver-sim.evidence.attestation :as att]
             [resolver-sim.evidence.attestation-registry :as ar]))
 
 (defn- valid-attestor [] {:type :ci-runner :id :ci-validation})
 (defn- valid-subject [] {:type :evidence-node :hash "sha256:abcdef1234567890"})
-(defn- sample-signing-fn [body] {:algorithm :ed25519 :public-key-id "key-001" :signature-bytes "deadbeef"})
+(defn- sample-signing-fn [_body] {:algorithm :ed25519 :public-key-id "key-001" :signature-bytes "deadbeef"})
 
 ;; ── Builder adversarial: unsupported / bad inputs that the builder accepts ──
 

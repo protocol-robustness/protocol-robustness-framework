@@ -63,5 +63,5 @@
 
 (defn validate
   "Validate concept data files and the concept registry."
-  [opts]
+  [_opts]
   (validate-concepts (paths/concepts-dir)))
