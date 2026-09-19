@@ -257,12 +257,12 @@
                                   :analysis-closure analysis
                                   :analysis-output analysis-output}))
           claim (when (and output-verification
-                           (analysis/verification-valid? output-verification))
+                           (analysis/verification-valid? output-verification analysis-output))
                   (analysis/derive-claim analysis-output output-verification incentive-model))]
       {:verified? (and (= :accepted (:submission/status submission))
                        (closure/closure-valid? analysis)
                        (or (nil? analysis-output)
-                           (analysis/verification-valid? output-verification)))
+                           (analysis/verification-valid? output-verification analysis-output)))
        :submission submission
        :analysis-closure analysis
        :analysis-output-verification output-verification

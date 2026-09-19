@@ -410,7 +410,7 @@
   {:id             :resubmission-chain
    :path           "notebooks/resubmission_chain.clj"
    :title          "The Chain Decides — current-head & Resubmission Admission"
-   :summary        "The resubmission chain's admission cutpoint: one successor per parent, the parent must be the current head, and every pinned rejection is recomputed here by the real chain facade. Demo C shows a stale-head attempt being refused without moving the head."
+   :summary        "The resubmission chain's admission cutpoint: one successor per parent, the parent must be the current head, and every pinned rejection is recomputed here by the real chain facade. Demo C shows a stale-head attempt being refused without moving the head. A worked correction walks one rejected chain event to a single admissible successor: a derived :corrected-result kind, order-sensitive research-command-trace.v2 provenance, exact vs independent-replay distinction, and the mode-specific and receipt/disposition/chain-state boundaries."
    :categories     [:evidence-artifacts :adversarial]
    :audience       [:researcher :auditor :reviewer]
    :status         :draft

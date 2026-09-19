@@ -2,11 +2,39 @@
 //! implementation (CANONICAL_HASH_SPEC_V1_BINARY_ENCODING_ABI). These lock the
 //! exact bytes the Rust kernel must produce.
 
-use allocation_kernel::canonical::CanonValue;
+use allocation_kernel::canonical::{domain_hash, CanonValue};
 use num_bigint::BigInt;
 
 fn hex_bytes(s: &str) -> Vec<u8> {
     hex::decode(s).unwrap()
+}
+
+#[test]
+fn shortfall_allocation_binding_matches_clojure_fixture() {
+    let value = CanonValue::map(vec![
+        (
+            CanonValue::keyword("operation-id"),
+            CanonValue::str("0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"),
+        ),
+        (
+            CanonValue::keyword("realized-statement/root"),
+            CanonValue::str("0192241094868308c7f32adc9961b6c433de328d456c6a23ff21a46e441fd45b"),
+        ),
+        (
+            CanonValue::keyword("reserve-binding/root"),
+            CanonValue::str(
+                "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            ),
+        ),
+        (
+            CanonValue::keyword("schema-version"),
+            CanonValue::str("prf/onchain-shortfall-allocation-binding.v1"),
+        ),
+    ]);
+    assert_eq!(
+        domain_hash("prf.onchain-shortfall-allocation-binding.v1", &value),
+        "3ec7d888f09ccbe2c3310dd59c84d17eb8f1d768b1aca0558f03c8735a65165c"
+    );
 }
 
 #[test]

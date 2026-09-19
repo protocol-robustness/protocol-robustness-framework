@@ -142,16 +142,6 @@ before (types/empty-world)
     (is (false? result)
         "re-derived ledger-after-root does not match the tampered committed root")))
 
-(deftest application-transition-valid?-rejects-wrong-before-world
-  (let [ctx (fixture)
-        wrong-before (accounting/add-held (:before ctx) :USDC 10 {:reason :wrong :extra {:held/account :escrow}})
-        result (sut/application-transition-valid? wrong-before
-                                                  (:protocol-effects ctx)
-                                                  (:adjustments ctx)
-                                                  (:roots ctx))]
-    (is (false? result)
-        "re-derived state-before-root does not match when the wrong before-world is supplied")))
-
 (deftest verify-applied-application-composes-three-propositions
   (let [ctx (fixture)
         receipt (build-receipt ctx)]

@@ -158,6 +158,34 @@
     (is (thrown? clojure.lang.ExceptionInfo
                  (analysis/derive-claim output-a verification-b (:incentive-model context))))))
 
+(deftest claim-rejects-self-rooted-verification-substitution
+  (let [context (fixture)
+        analysis-output (output context :supported)
+        verification (analysis/verify-output (assoc context :analysis-output analysis-output))]
+    (doseq [field [:research-analysis-verification/command-root
+                   :research-analysis-verification/model-root
+                   :research-analysis-verification/domain-root
+                   :research-analysis-verification/assignment-root
+                   :research-analysis-verification/outcome-root]]
+      (let [forged (-> verification
+                       (assoc field (root :substituted))
+                       (assoc :research-analysis-verification/root
+                              (analysis/verification-root
+                               (assoc verification field (root :substituted)))))]
+        (is (thrown? clojure.lang.ExceptionInfo
+                     (analysis/derive-claim analysis-output forged
+                                            (:incentive-model context))))))
+    (let [forged (-> verification
+                     (assoc :research-analysis-verification/claim-status :verified-general)
+                     (assoc :research-analysis-verification/root
+                            (analysis/verification-root
+                             (assoc verification
+                                    :research-analysis-verification/claim-status
+                                    :verified-general))))]
+      (is (thrown? clojure.lang.ExceptionInfo
+                   (analysis/derive-claim analysis-output forged
+                                          (:incentive-model context)))))))
+
 (deftest verifier-rejects-relationship-valid-but-invalid-outcome-manifest
   (let [context (fixture)
         analysis-output (output context :supported)

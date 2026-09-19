@@ -8,6 +8,7 @@
   (:require [resolver-sim.benchmark.incentive-deviation-domain :as domain]
             [resolver-sim.benchmark.incentive-model :as model]
             [resolver-sim.benchmark.outcome-manifest :as outcome]
+            [resolver-sim.benchmark.research-analysis-closure :as closure]
             [resolver-sim.benchmark.research-assignment :as assignment]
             [resolver-sim.benchmark.research-command :as command]
             [resolver-sim.hash.canonical :as hc]
@@ -200,8 +201,8 @@
 (defn verify-output
   "Independently check an output's declared research context and self-root.
 
-  Outcome manifests must be canonically valid before their roots can
-  authenticate the output context."
+  Outcome manifests and the analysis closure are canonically reconstructed
+  before their roots can authenticate the output context."
   [{:keys [research-command incentive-model deviation-domain research-assignment
            outcome-manifest analysis-output analysis-closure]}]
   (let [output-check (validate-output analysis-output)
@@ -211,6 +212,11 @@
         assignment-check (assignment/validate-assignment research-assignment)
         outcome-validation (outcome/validate-manifest outcome-manifest)
         outcome-check (outcome/outcome-complete-for-command? research-command outcome-manifest)
+        derived-closure (closure/verify-closure {:research-command research-command
+                                                 :incentive-model incentive-model
+                                                 :deviation-domain deviation-domain
+                                                 :research-assignment research-assignment
+                                                 :outcome-manifest outcome-manifest})
         errors (cond-> []
                  (not (:valid? output-check)) (into (:errors output-check))
                  (not (:valid? command-check)) (conj :invalid-research-command)
@@ -219,6 +225,7 @@
                  (not (:valid? assignment-check)) (conj :invalid-research-assignment)
                  (not (:valid? outcome-validation)) (conj :invalid-outcome-manifest)
                  (not (:complete? outcome-check)) (conj :incomplete-outcome-manifest)
+                 (not (closure/closure-valid? derived-closure)) (conj :invalid-analysis-closure)
                  (not= (:incentive-model/root incentive-model) (:deviation-domain/incentive-model-root deviation-domain)) (conj :domain-model-mismatch)
                  (not= (:command/hash research-command) (:research-assignment/command-root research-assignment)) (conj :assignment-command-mismatch)
                  (not= (:command/hash research-command) (:analysis-output/command-root analysis-output)) (conj :output-command-mismatch)
@@ -226,9 +233,10 @@
                  (not= (:deviation-domain/root deviation-domain) (:analysis-output/domain-root analysis-output)) (conj :output-domain-mismatch)
                  (not= (:research-assignment/hash research-assignment) (:analysis-output/assignment-root analysis-output)) (conj :output-assignment-mismatch)
                  (not= (:benchmark-outcome/hash outcome-manifest) (:analysis-output/outcome-root analysis-output)) (conj :output-outcome-mismatch)
+                 (not= (:research-analysis/root derived-closure) (:analysis-output/closure-root analysis-output)) (conj :output-closure-mismatch)
                  (and analysis-closure
                       (not= (:research-analysis/root analysis-closure)
-                            (:analysis-output/closure-root analysis-output))) (conj :output-closure-mismatch))
+                            (:research-analysis/root derived-closure))) (conj :supplied-closure-mismatch))
         base {:schema-version verification-schema-version
               :research-analysis-verification/output-root (:research-analysis-output/root analysis-output)
               :research-analysis-verification/command-root (:command/hash research-command)
@@ -241,10 +249,28 @@
     (assoc base :research-analysis-verification/root (verification-root base)
            :errors (vec errors))))
 
-(defn verification-valid? [verification]
-  (and (= :verified (:research-analysis-verification/status verification))
-       (= (:research-analysis-verification/root verification)
-          (verification-root verification))))
+(defn verification-valid?
+  ([verification]
+   (and (= :verified (:research-analysis-verification/status verification))
+        (= (:research-analysis-verification/root verification)
+           (verification-root verification))
+        (empty? (:errors verification))))
+  ([verification analysis-output]
+   (and (verification-valid? verification)
+        (= (:research-analysis-output/root analysis-output)
+           (:research-analysis-verification/output-root verification))
+        (= (:analysis-output/command-root analysis-output)
+           (:research-analysis-verification/command-root verification))
+        (= (:analysis-output/model-root analysis-output)
+           (:research-analysis-verification/model-root verification))
+        (= (:analysis-output/domain-root analysis-output)
+           (:research-analysis-verification/domain-root verification))
+        (= (:analysis-output/assignment-root analysis-output)
+           (:research-analysis-verification/assignment-root verification))
+        (= (:analysis-output/outcome-root analysis-output)
+           (:research-analysis-verification/outcome-root verification))
+        (= (verified-claim-status analysis-output)
+           (:research-analysis-verification/claim-status verification)))))
 
 (defn derive-claim
   "Derive a researcher-comparable claim only from the exact verified output.
@@ -253,12 +279,9 @@
   (let [output-validation (validate-output analysis-output)]
     (when-not (:valid? output-validation)
       (throw (ex-info "Research analysis output is not valid" output-validation)))
-    (when-not (verification-valid? verification)
-      (throw (ex-info "Research analysis verification is not valid" {:verification verification})))
-    (when-not (= (:research-analysis-output/root analysis-output)
-                 (:research-analysis-verification/output-root verification))
-      (throw (ex-info "Research analysis verification does not bind this output"
-                      {:reason :verification-output-mismatch})))
+    (when-not (verification-valid? verification analysis-output)
+      (throw (ex-info "Research analysis verification is not valid or does not bind this output"
+                      {:verification verification})))
     (let [model-validation (model/validate-model incentive-model)]
       (when-not (:valid? model-validation)
         (throw (ex-info "Incentive model is not valid" model-validation)))
