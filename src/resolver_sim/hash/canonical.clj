@@ -202,6 +202,8 @@
    :researcher-reward-key "RESEARCHER_REWARD_KEY_V1"
    :research-claim-acceptance-policy "RESEARCH_CLAIM_ACCEPTANCE_POLICY_V1"
    :research-claim-acceptance "RESEARCH_CLAIM_ACCEPTANCE_V1"
+   :research-claim-lifecycle-transition "RESEARCH_CLAIM_LIFECYCLE_TRANSITION_V1"
+   :research-claim-lifecycle-state "RESEARCH_CLAIM_LIFECYCLE_STATE_V1"
    :incentive-model "INCENTIVE_MODEL_V1"
    :incentive-deviation-domain "INCENTIVE_DEVIATION_DOMAIN_V1"
    :research-analysis-closure "RESEARCH_ANALYSIS_CLOSURE_V1"
