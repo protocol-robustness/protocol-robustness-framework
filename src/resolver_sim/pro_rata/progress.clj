@@ -1,10 +1,11 @@
 (ns resolver-sim.pro-rata.progress
   "Runtime-only progress event model for pro-rata work.
 
-   This namespace owns the *event vocabulary*, a deterministic *reducer* from
-   events to a snapshot, and the *atom adapter*. It is deliberately operational:
-   nothing here participates in, or is hashed into, a canonical request, result,
-   evidence, or statement root.
+   Adapter functions (progress-atom-observer, normalize-progress-observer,
+   report-pro-rata-progress!, counting-observer, terminal-failed) are delegated
+   to resolver-sim.economics.progress — the shared generic layer.  This
+   namespace retains the pro-rata-specific *event vocabulary*, *typed legacy
+   reducer*, and the pro-rata-schema-stamped initial-progress / atom factory.
 
    Model
    -----
@@ -45,9 +46,31 @@
    .v1; they are routed through the isolated `legacy-untyped-event->snapshot`
    adapter, which stamps `:progress/compat :untyped-event` so any such use is
    visibly detectable. Do not extend that adapter with new behavior. New work
-   adds a typed event to `event-types` and a `reducer` case.")
+   adds a typed event to `event-types` and a `reducer` case."
+  (:require [resolver-sim.economics.progress :as econ-progress]))
 
 (def schema-version "pro-rata-progress.v1")
+
+;; ---------------------------------------------------------------------------
+;; Delegated adapters (generic layer in resolver-sim.economics.progress)
+;; ---------------------------------------------------------------------------
+
+(def counting-observer econ-progress/counting-observer)
+(def terminal-failed econ-progress/terminal-failed)
+
+(defn report-pro-rata-progress!
+  "Small safe dispatch primitive for runtime progress events.
+
+   The allocator emits events and knows nothing about how progress is stored.
+   Observer exceptions are swallowed so a broken observer can never influence
+   allocation semantics; callers that want the error count use
+   progress/counting-observer (usable without a progress atom)."
+  [observer event]
+  (econ-progress/report-progress! observer event))
+
+;; ---------------------------------------------------------------------------
+;; Pro-rata-specific event vocabulary
+;; ---------------------------------------------------------------------------
 
 (def statuses
   "Documented progress statuses. :completed/:failed/:cancelled are terminal."
@@ -81,6 +104,10 @@
     :evm-verification-completed
     :statement-admitted})
 
+;; ---------------------------------------------------------------------------
+;; Pro-rata-schema-stamped initial progress & atom factory
+;; ---------------------------------------------------------------------------
+
 (defn initial-progress
   "Initial progress snapshot.
    Optional :programme/id and :allocation/id are preserved operationally when
@@ -104,34 +131,9 @@
   ([] (atom (initial-progress)))
   ([opts] (atom (initial-progress opts))))
 
-(declare reducer)
-
-(defn progress-atom-observer
-  "Return an event observer that reduces events into `progress-atom`, the
-   current snapshot. This is an adapter: the public abstraction is the event
-   stream, not the atom. Observer exceptions are swallowed (semantic
-   non-interference) and counted in the snapshot's operational :observer-errors."
-  [progress-atom]
-  (fn [event]
-    (try
-      (swap! progress-atom reducer event)
-      (catch Exception _
-        (swap! progress-atom update :observer-errors (fnil inc 0))
-        nil))))
-
-(defn counting-observer
-  "Wrap a raw progress consumer so observer exceptions are swallowed (semantic
-   non-interference) and counted in a caller-visible operational atom. Usable
-   without any progress atom: a callback-only caller retains the same
-   non-interference guarantee while still observing :observer-errors.
-
-   Returns {:observe (fn [event]) :errors (atom n)}."
-  [consumer]
-  (let [errors (atom 0)]
-    {:observe (fn [event]
-                (try (consumer event)
-                     (catch Exception _ (swap! errors inc) nil)))
-     :errors errors}))
+;; ---------------------------------------------------------------------------
+;; Typed reducer and observer (pro-rata-specific: typed vs legacy dispatch)
+;; ---------------------------------------------------------------------------
 
 (def ^:private snapshot-event-keys
   "Snapshot fields an event may contribute directly (operational only)."
@@ -216,15 +218,18 @@
         (merge-typed-snapshot s e))
       (legacy-untyped-event->snapshot s e))))
 
-(defn terminal-failed
-  "Force a terminal :failed snapshot for the given phase. Operational only; kept
-   free of stack traces and machine-specific exception strings."
-  ([phase] (terminal-failed phase {}))
-  ([phase {:keys [error-category]}]
-   (cond-> (assoc (initial-progress)
-                  :status :failed
-                  :phase phase)
-     error-category (assoc :error/category error-category))))
+(defn progress-atom-observer
+  "Return an event observer that reduces events into `progress-atom`, the
+   current snapshot. This is an adapter: the public abstraction is the event
+   stream, not the atom. Observer exceptions are swallowed (semantic
+   non-interference) and counted in the snapshot's operational :observer-errors."
+  [progress-atom]
+  (fn [event]
+    (try
+      (swap! progress-atom reducer event)
+      (catch Exception _
+        (swap! progress-atom update :observer-errors (fnil inc 0))
+        nil))))
 
 (defn normalize-progress-observer
   "Normalize a runtime progress observer to an event-consuming function.
@@ -235,15 +240,3 @@
     (fn? observer) observer
     (instance? clojure.lang.IAtom observer) (progress-atom-observer observer)
     :else nil))
-
-(defn report-pro-rata-progress!
-  "Small safe dispatch primitive for runtime progress events.
-
-   The allocator emits events and knows nothing about how progress is stored.
-   Observer exceptions are swallowed so a broken observer can never influence
-   allocation semantics; callers that want the error count use
-   progress/counting-observer (usable without a progress atom)."
-  [observer event]
-  (when-let [emit (normalize-progress-observer observer)]
-    (try (emit event)
-         (catch Exception _ nil))))

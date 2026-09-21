@@ -10,8 +10,8 @@
             [resolver-sim.definitions.passive-registries :as registries]
             [resolver-sim.execution.budget :as budget]
             [resolver-sim.hash.canonical :as hc]
-            [resolver-sim.pro-rata.exact-verifier :as exact-verifier]
-            [resolver-sim.pro-rata.progress :as progress]
+            [resolver-sim.economics.progress :as progress]
+            [resolver-sim.economics.verification :as verification]
             [resolver-sim.util.thread-quiescence :as quiesce])
   (:import [java.util.concurrent Callable Executors]))
 
@@ -53,40 +53,11 @@
 
 (def default-pro-rata-projection-definition-id :projection/pro-rata-slash-obligation)
 
-(def make-pro-rata-progress-atom
-  "Caller-owned progress atom adapter. The atom holds the current progress
-   snapshot (see resolver-sim.pro-rata.progress); it is operational state and
-   deliberately absent from every canonical request. Concurrent allocations
-   remain isolated because the atom is caller-owned."
-  progress/make-progress-atom)
-
-(def progress-atom-observer
-  "Return an event observer that reduces events into `progress-atom`. This is a
-   convenience adapter for notebooks; public allocation APIs also accept
-   :on-progress directly so callers can use logs, channels, or UIs."
-  progress/progress-atom-observer)
-
-(defn- normalize-progress-observer
-  "Normalize a runtime progress observer to an event-consuming function.
-   An atom is adapted to the reducer-based progress-atom-observer; a function is
-   used directly; anything else observes nothing."
-  [observer]
-  (cond
-    (fn? observer) observer
-    (instance? clojure.lang.IAtom observer) (progress/progress-atom-observer observer)
-    :else nil))
-
 (defn- report-pro-rata-progress!
   "Small safe dispatch primitive for runtime progress events.
-
-   The allocator emits events and knows nothing about how progress is stored.
-   Observer exceptions are swallowed so a broken observer can never influence
-   allocation semantics; callers that want the error count use
-   progress/counting-observer (usable without a progress atom)."
+   Delegates to economics.progress/report-progress! for safe dispatch."
   [observer event]
-  (when-let [emit (normalize-progress-observer observer)]
-    (try (emit event)
-         (catch Exception _ nil))))
+  (progress/report-progress! observer event))
 
 (def ^:dynamic *pro-rata-parallelism*
   "Runtime-only claimant worker budget. It is deliberately absent from every
@@ -795,7 +766,7 @@
                                              {:progress-atom progress-atom
                                               :on-progress on-progress})
         replay (allocate-from-projection projection)
-        weight-verification (exact-verifier/verify-weighted-proportionality
+        weight-verification (verification/verify-weighted-proportionality
                              {:amount amount
                               :items participants
                               :rounding (:rounding policy)

@@ -97,6 +97,7 @@
 
 (def population-metrics metrics/population-metrics)
 (def base-metrics metrics/base-metrics)
+(def accum-metrics metrics/accum-metrics)
 
 ;; ---------------------------------------------------------------------------
 ;; Input validation (Generic scenario structure)

@@ -183,6 +183,35 @@
     (is (= (:allocation/hash result) (:allocation/hash reordered)))
     (is (= p1 p2))))
 
+(deftest work-stealing-is-canonically-equivalent-to-sequential
+  (let [{:keys [axis obligations result]} (fixture)
+        input {:researcher-axis axis :allocation-result result :obligations obligations}
+        sequential (projection/build-projection input {:mode :sequential})
+        one-worker (projection/build-projection input {:mode :work-stealing :workers 1})
+        stolen (projection/build-projection
+                input
+                {:mode :work-stealing
+                 :workers 2
+                 :delay-fn (fn [obligation]
+                             (case (:researcher/id obligation)
+                               "researcher-a" 25
+                               "researcher-b" 0
+                               5))})
+        repeated (projection/build-projection
+                  input
+                  {:mode :work-stealing
+                   :workers 8
+                   :delay-fn (fn [_] 1)})
+        empty-input (projection/build-projection
+                     (assoc input :obligations [])
+                     {:mode :work-stealing :workers 4})]
+    (is (= sequential one-worker))
+    (is (= sequential stolen))
+    (is (= sequential repeated))
+    (is (= [] (:bindings empty-input)))
+    (is (= (:researcher-pro-rata-projection/root sequential)
+           (:researcher-pro-rata-projection/root stolen)))))
+
 (deftest real-zero-row-remains-distinct-from-missing-row
   (let [{:keys [axis o1]} (fixture)
         result (allocation-result [{:row/id :row/zero

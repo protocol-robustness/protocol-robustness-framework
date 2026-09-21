@@ -9,7 +9,8 @@
             [resolver-sim.hash.canonical :as hc]
             [resolver-sim.hash.reference :as hash-ref]
             [resolver-sim.pro-rata.allocation :as allocation]
-            [resolver-sim.pro-rata.invariants :as invariants]))
+            [resolver-sim.pro-rata.invariants :as invariants])
+  (:import [java.util.concurrent ConcurrentLinkedDeque]))
 
 (def ^:const projection-schema "researcher-pro-rata-projection.v1")
 (def ^:const projection-domain "PRF_RESEARCHER_PRO_RATA_PROJECTION_V1")
@@ -42,47 +43,82 @@
 (defn- row-order [row]
   (allocation/canonical-id-key (:row/id row)))
 
+(defn execute-work-units
+  "Execute keyed pure work units sequentially or through a bounded shared deque.
+
+   Scheduling is operational only. Results are returned in work-unit key order,
+   never completion or worker order. `:delay-fn` is a deterministic test hook
+   and is not part of any canonical artifact."
+  [{:keys [mode workers delay-fn]
+    :or {mode :sequential workers 1}}
+   work-units f]
+  (let [work-units (vec work-units)
+        delay-fn (or delay-fn (constantly 0))
+        run-one (fn [[key unit]]
+                  (let [delay-ms (delay-fn unit)]
+                    (when (pos? delay-ms)
+                      (Thread/sleep (long delay-ms)))
+                    [key (f unit)]))]
+    (if (= mode :sequential)
+      (mapv run-one work-units)
+      (if (= mode :work-stealing)
+        (let [worker-count (max 1 (min (int workers) (max 1 (count work-units))))
+              queue (ConcurrentLinkedDeque. (reverse work-units))
+              results (atom {})
+              worker (fn []
+                       (loop [unit (.pollFirst queue)]
+                         (when unit
+                           (swap! results assoc (first unit) (run-one unit))
+                           (recur (.pollFirst queue)))))]
+          (let [futures (doall (repeatedly worker-count #(future (worker))))]
+            (doseq [future futures] @future)
+            (vec (sort-by first (vals @results)))))
+        (throw (ex-info "unsupported work-unit execution mode" {:mode mode}))))))
+
+(defn- build-binding [researcher-axis row-by-obligation obligation]
+  (let [researcher-id (:researcher/id obligation)
+        coordinate (researcher-axis/researcher-coordinate researcher-axis researcher-id)
+        obligation-root (:researcher-reward-obligation/root obligation)
+        matching-rows (sort-by row-order (get row-by-obligation obligation-root []))]
+    {:researcher/key (:key coordinate)
+     :researcher/id researcher-id
+     :researcher-reward-obligation/root obligation-root
+     :row/ids (mapv :row/id matching-rows)}))
+
 (defn build-projection
   "Build a rooted researcher-coordinate -> pro-rata row projection.
 
    Every binding is one valid researcher reward obligation. Its root is matched
    exactly against pro-rata :obligation/id; zero, one, or many rows are valid.
    Unrelated pro-rata rows remain outside this additive projection."
-  [{:keys [researcher-axis allocation-result obligations]}]
-  (let [allocation-result (valid-allocation-result! allocation-result)
-        obligations (valid-obligations! obligations)
-        rows (:rows allocation-result)
-        row-ids (mapv :row/id rows)
-        row-by-obligation (group-by :obligation/id rows)
-        bindings (->> obligations
-                      (map (fn [obligation]
-                             (let [researcher-id (:researcher/id obligation)
-                                   coordinate (researcher-axis/researcher-coordinate
-                                               researcher-axis researcher-id)
-                                   obligation-root (:researcher-reward-obligation/root obligation)
-                                   matching-rows (sort-by row-order
-                                                          (get row-by-obligation obligation-root []))]
-                               {:researcher/key (:key coordinate)
-                                :researcher/id researcher-id
-                                :researcher-reward-obligation/root obligation-root
-                                :row/ids (mapv :row/id matching-rows)})))
-                      (sort-by (juxt :researcher/key
-                                     :researcher-reward-obligation/root))
-                      vec)
-        bound-row-ids (mapcat :row/ids bindings)]
-    (when-not (= (count bound-row-ids) (count (distinct bound-row-ids)))
-      (throw (ex-info "pro-rata row is bound more than once"
-                      {:row-ids bound-row-ids})))
-    (when-not (= (count row-ids) (count (distinct row-ids)))
-      (throw (ex-info "pro-rata allocation result has duplicate row IDs"
-                      {:row-ids row-ids})))
-    (let [projection {:artifact/schema projection-schema
-                      :researcher-axis/root (:axis/root researcher-axis)
-                      :allocation/root (:allocation/hash allocation-result)
-                      :bindings bindings}]
-      (assoc projection
-             :researcher-pro-rata-projection/root
-             (projection-root projection)))))
+  ([input] (build-projection input {}))
+  ([{:keys [researcher-axis allocation-result obligations]} execution-options]
+   (let [allocation-result (valid-allocation-result! allocation-result)
+         obligations (valid-obligations! obligations)
+         rows (:rows allocation-result)
+         row-ids (mapv :row/id rows)
+         row-by-obligation (group-by :obligation/id rows)
+         keyed-obligations (map-indexed vector obligations)
+         bindings (->> (execute-work-units execution-options keyed-obligations
+                                           #(build-binding researcher-axis
+                                                           row-by-obligation %))
+                       (sort-by (juxt (comp :researcher/key second)
+                                      (comp :researcher-reward-obligation/root second)))
+                       (mapv second))
+         bound-row-ids (mapcat :row/ids bindings)]
+     (when-not (= (count bound-row-ids) (count (distinct bound-row-ids)))
+       (throw (ex-info "pro-rata row is bound more than once"
+                       {:row-ids bound-row-ids})))
+     (when-not (= (count row-ids) (count (distinct row-ids)))
+       (throw (ex-info "pro-rata allocation result has duplicate row IDs"
+                       {:row-ids row-ids})))
+     (let [projection {:artifact/schema projection-schema
+                       :researcher-axis/root (:axis/root researcher-axis)
+                       :allocation/root (:allocation/hash allocation-result)
+                       :bindings bindings}]
+       (assoc projection
+              :researcher-pro-rata-projection/root
+              (projection-root projection))))))
 
 (defn validate-projection
   "Validate a projection against its researcher axis, obligations, and allocation result."
