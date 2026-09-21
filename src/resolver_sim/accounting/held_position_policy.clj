@@ -54,6 +54,8 @@
                         :scope-keys [:held/slash-id :held/bond-id :held/workflow-id :held/actor]}
    :appeal-bond-returned {:held/account :appeal-bond
                           :scope-keys [:held/slash-id :held/bond-id :held/workflow-id :held/actor]}
+   :appeal-bond-distributed {:held/account :appeal-bond
+                             :scope-keys [:held/slash-id :held/bond-id :held/workflow-id :held/actor]}
    :appeal-bond-slashed {:held/account :appeal-bond
                          :scope-keys [:held/slash-id :held/bond-id :held/workflow-id :held/actor]}
    :appeal-bond-forfeited {:held/account :appeal-bond

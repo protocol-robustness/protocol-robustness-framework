@@ -9,6 +9,7 @@
             [resolver-sim.scenario.theory-result :as theory-result]
             [resolver-sim.scenario.yield-metrics :as yield-metrics]
             [resolver-sim.scenario.yield-provider-metrics :as yield-provider-metrics]
+            [resolver-sim.protocols.sew.appeal-bond-projection :as appeal-bond-projection]
             [resolver-sim.time.context :as time-ctx]))
 
 (defn action->transition-id
@@ -79,6 +80,37 @@
   ([scenario result] (finalize-scenario-result scenario result {}))
   ([scenario result flags]
    (let [result'      (merge-metrics-for-profile result scenario flags)
+         terminal-world (or (:world result') (:last-valid-world result'))
+         bond-records (get terminal-world :appeal-bond/records {})
+         bond-projection (when (seq bond-records)
+                           (appeal-bond-projection/project-appeal-bonds terminal-world))
+         bond-metrics (when (:valid? bond-projection)
+                        (appeal-bond-projection/derive-appeal-bond-metrics bond-projection))
+         projection-ok? (or (empty? bond-records) (:valid? bond-projection))
+         legacy-bond-refund-total
+         (reduce + 0
+                 (for [[_ domains] (get terminal-world :claimable-v2 {})
+                       amount (vals (get domains :bond/refund {}))]
+                   (or amount 0)))
+         legacy-slash-count
+         (count (for [[_ slash] (merge (get terminal-world :pending-fraud-slashes {})
+                                       (get terminal-world :reversal-slash-history {}))
+                      :when (= :executed (:status slash))]
+                  slash))
+         resolution-reverted-on-failure?
+         (boolean (some #(and (= :rejected (:result %))
+                              (= "execute_resolution" (:action %)))
+                        (:trace result')))
+         result' (cond-> result'
+                   bond-projection (assoc :appeal-bond/projection bond-projection)
+                   bond-metrics (update :metrics merge bond-metrics)
+                   (seq (:trace result')) (update :metrics merge
+                                                  {:resolver_bond_refunded (pos? legacy-bond-refund-total)
+                                                   :slash_count legacy-slash-count})
+                   (seq (:trace result')) (assoc-in [:metrics :resolution_reverted_on_failure]
+                                                    resolution-reverted-on-failure?)
+                   (seq (:trace result')) (assoc-in [:metrics :resolution_attempt_reverted]
+                                                    resolution-reverted-on-failure?))
          outcomes     (expectations/analyze-expected-outcomes scenario (:trace result'))
          expect       (when (:expectations scenario)
                         (expectations/evaluate-expectations result' (:expectations scenario)))
@@ -89,7 +121,6 @@
                                                             :theory (:theory scenario))
 
          ;; Step 7: Add temporal evidence envelope
-         terminal-world (:world result')
          time-ctx      (when terminal-world (time-ctx/temporal-context terminal-world))
          result-ev     (cond-> result''
                          time-ctx (assoc :time-evidence {:schema-version (or (:schema-version time-ctx) "temporal-context.v2")
@@ -98,15 +129,17 @@
          outcomes-ok? (:ok? outcomes true)
          expect-ok?   (or (nil? expect) (:ok? expect))
          theory-ok?   (or (nil? (:falsified? result-ev)) (not (:falsified? result-ev)))
-         checks-ok?   (and outcomes-ok? expect-ok? theory-ok?)]
+         checks-ok?   (and projection-ok? outcomes-ok? expect-ok? theory-ok?)]
      (cond-> (assoc result-ev
                     :expected-outcomes outcomes
                     :expectations expect)
        (and (= (:outcome result-ev) :pass) (not checks-ok?))
        (assoc :outcome :fail
-              :halt-reason (cond (not outcomes-ok?) :expected-outcome-mismatch
+              :halt-reason (cond (not projection-ok?) :invalid-appeal-bond-projection
+                                 (not outcomes-ok?) :expected-outcome-mismatch
                                  (not expect-ok?)   :expectation-mismatch
                                  (not theory-ok?)   :theory-falsified)
               :expectation-violations
-              (vec (concat (:violations outcomes [])
+              (vec (concat (when-not projection-ok? (:errors bond-projection))
+                           (:violations outcomes [])
                            (:violations expect []))))))))

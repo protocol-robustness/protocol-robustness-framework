@@ -102,7 +102,7 @@
         forged (assoc-in f [:outcome-manifest :benchmark-outcome/hash] (root :forged))
         report (closure/verify-closure forged)]
     (is (= :invalid (:research-analysis/status report)))
-    (is (some #(re-find #"manifest root or schema is invalid" %) (:errors report)))))
+    (is (some #(re-find #"outcome-hash mismatch" %) (:errors report)))))
 
 (deftest unsupported-deviation-method-fails-closed
   (let [f (fixture)

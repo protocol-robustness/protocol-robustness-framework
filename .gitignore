@@ -1,6 +1,7 @@
 # Build output
 .sp1-proof-cache/
 **/target
+coprocessor/.go-cache
 /out
 .cpcache
 .clj-kondo/.cache
@@ -64,6 +65,7 @@ notebook.log
 .calva
 .eca
 .joyride
+.zed
 
 # AI tools
 .kilo

@@ -58,32 +58,33 @@
     :integer            — bounded integer (optionally :min/:max)
     :positive-integer   — integer > 0
     :string             — non-blank string"
-  {:lab-http-port                  {:type :integer :min 1 :max 65535}
-   :lab-http-region                {:type :string}
-   :lab-http-max-body-bytes        {:type :positive-integer}
-   :lab-http-timeout-ms            {:type :positive-integer}
-   :lab-http-max-concurrent-runs   {:type :positive-integer}
-   :lab-http-rate-limit-window-ms  {:type :positive-integer}
+  {:lab-http-port {:type :integer :min 1 :max 65535}
+   :lab-http-region {:type :string}
+   :lab-http-max-body-bytes {:type :positive-integer}
+   :lab-http-timeout-ms {:type :positive-integer}
+   :lab-http-max-concurrent-runs {:type :positive-integer}
+   :lab-http-rate-limit-window-ms {:type :positive-integer}
    :lab-http-rate-limit-max-requests {:type :positive-integer}
-   :lab-http-thread-pool-size      {:type :positive-integer}
-   :lab-exec-timeout-ms            {:type :positive-integer}
-   :lab-publish-s3-timeout-s       {:type :positive-integer}
-   :publish-timeout-ms             {:type :positive-integer}
-   :publish-max-io-chars           {:type :positive-integer}
-   :publish-max-request-bytes      {:type :positive-integer}
-   :sentinel-timeout-ms            {:type :positive-integer}
-   :sentinel-max-io-chars          {:type :positive-integer}
-   :sentinel-max-request-bytes     {:type :positive-integer}
+   :lab-http-thread-pool-size {:type :positive-integer}
+   :lab-exec-timeout-ms {:type :positive-integer}
+   :lab-publish-s3-timeout-s {:type :positive-integer}
+   :publish-timeout-ms {:type :positive-integer}
+   :publish-max-io-chars {:type :positive-integer}
+   :publish-max-request-bytes {:type :positive-integer}
+   :sentinel-timeout-ms {:type :positive-integer}
+   :sentinel-max-io-chars {:type :positive-integer}
+   :sentinel-max-request-bytes {:type :positive-integer}
    :resubmission-max-request-bytes {:type :positive-integer}
-   :db-pool-size                   {:type :positive-integer}
-   :db-pool-min-idle               {:type :positive-integer}
-   :db-pool-idle-timeout-ms        {:type :positive-integer}
-   :db-pool-connection-timeout-ms  {:type :positive-integer}
-   :db-pool-max-lifetime-ms        {:type :positive-integer}
-   :tsa-timeout-ms                 {:type :positive-integer}
-   :conformance-max-bundle-bytes   {:type :positive-integer}
-   :notebook-port                  {:type :integer :min 1 :max 65535}
-   :notebook-api-port              {:type :integer :min 1 :max 65535}})
+   :db-pool-size {:type :positive-integer}
+   :db-pool-min-idle {:type :positive-integer}
+   :db-pool-idle-timeout-ms {:type :positive-integer}
+   :db-pool-connection-timeout-ms {:type :positive-integer}
+   :db-pool-max-lifetime-ms {:type :positive-integer}
+   :tsa-timeout-ms {:type :positive-integer}
+   :conformance-max-bundle-bytes {:type :positive-integer}
+   :notebook-port {:type :integer :min 1 :max 65535}
+   :notebook-api-port {:type :integer :min 1 :max 65535}
+   :default-parallelism {:type :positive-integer}})
 
 (defn load-defaults
   "Return the parsed :hardening map from config/defaults.edn, or {} when
@@ -179,3 +180,9 @@
 
          :else
          (coerce key spec base))))))
+
+(defn default-parallelism
+  "Resolve the runtime claimant parallelism default from CLI, environment, or config."
+  ([] (default-parallelism nil))
+  ([cli-value]
+   (value :default-parallelism {:cli-value cli-value :fallback 1})))

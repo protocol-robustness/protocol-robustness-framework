@@ -975,7 +975,13 @@
          proto-state (extract-protocol-state summary)
          run-result (if proto-state (merge run-result proto-state) run-result)
          exit-code (if (= :pass (:status run-result)) 0 1)
-         bundle-root (br/build-bundle-root run-request run-result source-provenance)]
+         bundle-root (try
+                       (br/build-bundle-root run-request run-result source-provenance)
+                       (catch Exception e
+                         (throw (ex-info "Bundle-root construction failed"
+                                         {:stage :build-bundle-root
+                                          :cause-data (ex-data e)}
+                                         e))))]
      {:exit-code exit-code
       :dispatch-key dispatch-key
       :summary summary
@@ -1449,7 +1455,10 @@
                          :execution-node execution-node})))))
           ;; Top-level catch: produce minimal output on complete failure
               (catch Exception t
-                (log-event :error :run-failed :error (.getMessage t) :exception (str (class t)))
+                (log-event :error :run-failed :error (.getMessage t)
+                           :exception (str (class t))
+                           :error-data (ex-data t)
+                           :cause-data (some-> t ex-cause ex-data))
               ;; Never rewrite a scenario finalization from this recovery path:
               ;; publication errors occur after a completed chain may already exist.
                 (let [minimal-root (build-minimal-error-root dispatch protocol-id source-provenance t)

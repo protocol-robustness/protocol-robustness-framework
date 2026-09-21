@@ -16,13 +16,20 @@
     (is (= 30 (config-defaults/default [:hardening :quiescence-timeout-seconds] :missing)))
     (is (= 16 (config-defaults/default [:hardening :claimant-parallel-threshold] :missing)))))
 
+(deftest default-parallelism-is-centralized
+  (testing "default parallelism is serial unless explicitly configured"
+    (is (= 1 (hardening/default-parallelism nil {})))
+    (is (= 1 (config-defaults/default [:hardening :default-parallelism] :missing)))))
+
 (deftest env-vars-override-defaults
   (testing "PRF_* env vars override the config defaults"
     (is (= 12 (hardening/parallel-ceiling nil {"PRF_PARALLEL_CEILING" "12"})))
     (is (= 45 (hardening/quiescence-timeout-seconds nil
                                                     {"PRF_QUIESCENCE_TIMEOUT_SECONDS" "45"})))
     (is (= 24 (hardening/claimant-parallel-threshold nil
-                                                     {"PRF_CLAIMANT_PARALLEL_THRESHOLD" "24"})))))
+                                                     {"PRF_CLAIMANT_PARALLEL_THRESHOLD" "24"})))
+    (is (= 4 (hardening/default-parallelism nil
+                                            {"PRF_DEFAULT_PARALLELISM" "4"})))))
 
 (deftest cli-overrides-env-and-defaults
   (testing "explicit CLI value wins over env and default"

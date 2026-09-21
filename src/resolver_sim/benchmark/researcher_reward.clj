@@ -1,6 +1,9 @@
 (ns resolver-sim.benchmark.researcher-reward
   "Frozen researcher reward policy and deterministic eligibility evaluation."
-  (:require [resolver-sim.hash.canonical :as hc]
+  (:require [resolver-sim.benchmark.research-analysis :as analysis]
+            [resolver-sim.benchmark.research-assignment :as assignment]
+            [resolver-sim.benchmark.research-assignment-target-binding :as target-binding]
+            [resolver-sim.hash.canonical :as hc]
             [resolver-sim.hash.reference :as hash-ref]))
 
 (def ^:const policy-schema-version "researcher-reward-policy.v1")
@@ -194,3 +197,81 @@
        (root? (:approval-authority/root obligation))
        (string? (:approval-authority/id obligation))
        (= (:researcher-reward-obligation/root obligation) (obligation-root obligation))))
+
+(defn verify-adversarial-finding-lineage
+  "Verify an existing reward obligation backwards to the exact Solidity subject
+   commissioned by its generic research assignment. This composes validators;
+   it creates no reward, target, evidence, or claim artifact."
+  [{:keys [obligation proposal eligibility policy claim verification analysis-output
+           research-command incentive-model deviation-domain research-assignment
+           outcome-manifest target-binding]}]
+  (let [expected-verification
+        (analysis/verify-output
+         {:research-command research-command
+          :incentive-model incentive-model
+          :deviation-domain deviation-domain
+          :research-assignment research-assignment
+          :outcome-manifest outcome-manifest
+          :analysis-output analysis-output})
+        expected-claim (when (analysis/verification-valid?
+                              expected-verification analysis-output)
+                         (analysis/derive-claim analysis-output expected-verification
+                                                incentive-model))
+        errors (cond-> []
+                 (not (valid-obligation? obligation)) (conj :invalid-obligation)
+                 (not (valid-proposal? proposal)) (conj :invalid-proposal)
+                 (not (valid-eligibility? eligibility)) (conj :invalid-eligibility)
+                 (not= (:researcher-reward-proposal/root obligation)
+                       (:researcher-reward-proposal/root proposal))
+                 (conj :obligation-proposal-mismatch)
+                 (not= (:researcher-reward-eligibility/root obligation)
+                       (:researcher-reward-eligibility/root eligibility))
+                 (conj :obligation-eligibility-mismatch)
+                 (not= (:researcher-reward-eligibility/root proposal)
+                       (:researcher-reward-eligibility/root eligibility))
+                 (conj :proposal-eligibility-mismatch)
+                 (not= (:researcher-reward-policy/root eligibility)
+                       (:researcher-reward-policy/root policy))
+                 (conj :eligibility-policy-mismatch)
+                 (not= (:research-assignment/root eligibility)
+                       (:research-assignment/hash research-assignment))
+                 (conj :eligibility-assignment-mismatch)
+                 (not= (:research-assignment/root obligation)
+                       (:research-assignment/hash research-assignment))
+                 (conj :obligation-assignment-mismatch)
+                 (not= (:research-assignment-target-binding/assignment-root target-binding)
+                       (:research-assignment/hash research-assignment))
+                 (conj :target-binding-assignment-mismatch)
+                 (not (:valid? (target-binding/validate-binding target-binding)))
+                 (conj :invalid-target-binding)
+                 (not (:valid? (assignment/validate-assignment research-assignment)))
+                 (conj :invalid-research-assignment)
+                 (not (:valid? (analysis/validate-claim claim))) (conj :invalid-claim)
+                 (not= (:research-analysis-verification/root verification)
+                       (:research-analysis-verification/root expected-verification))
+                 (conj :verification-reconstruction-mismatch)
+                 (not= (:research-claim/root claim) (:research-claim/root expected-claim))
+                 (conj :claim-reconstruction-mismatch)
+                 (not= (:research-claim/root claim)
+                       (:contribution/root eligibility))
+                 (conj :contribution-claim-mismatch)
+                 (not= :adversarial-finding (:contribution/type eligibility))
+                 (conj :not-adversarial-finding)
+                 (not= (:research-claim/subject-root claim)
+                       (:research-assignment-target-binding/subject-root target-binding))
+                 (conj :claim-subject-mismatch)
+                 (not= (:research-claim/root claim)
+                       (get-in eligibility [:claim/evidence :research-claim/root]))
+                 (conj :eligibility-claim-evidence-mismatch)
+                 (not= (:research-analysis-verification/root verification)
+                       (get-in eligibility [:verification/evidence
+                                            :research-analysis-verification/root]))
+                 (conj :eligibility-verification-evidence-mismatch))]
+    {:valid? (empty? errors)
+     :errors errors
+     :research-assignment-target-binding/root
+     (:research-assignment-target-binding/root target-binding)
+     :solidity-target/root (:solidity-target/root target-binding)
+     :research-claim/root (:research-claim/root claim)
+     :researcher-reward-obligation/root
+     (:researcher-reward-obligation/root obligation)}))

@@ -52,3 +52,7 @@ path = "src/bin/realized_statement_evm.rs"
 [[bin]]
 name = "source-bound-prove"
 path = "src/bin/source_bound_prove.rs"
+
+[[bin]]
+name = "source-bound-v2-prove"
+path = "src/bin/source_bound_v2_prove.rs"

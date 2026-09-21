@@ -384,9 +384,9 @@
 
    "appeal-slash"
    {:reasons #{:appeal-bond-custody}
-    :authorization/class :governance-intervention
-    :authorization/path :exceptional
-    :checks #{:with-governance-actor}
+    :authorization/class :subject-appeal
+    :authorization/path :subject
+    :checks #{:with-resolved-actor}
     :sources #{:replay-context/agent-index}
     :capacity-context-required? true}
 
@@ -525,7 +525,6 @@
     "propose-fraud-slash"
     "propose-fraud-group-slash"
     "resolve-fraud-group-appeal"
-    "appeal-slash"
     "resolve-appeal"
     "set-yield-risk"
     "force-reversal-slash"
@@ -2184,25 +2183,17 @@
                              {:evidence-hash (:evidence-hash p)})))))
 
 (defmethod apply-action "appeal-slash"
-  [{:keys [agent-index] :as context} world event]
-  (run-governance-action context world event
-                         (fn [addr _agent governance-prov]
-                           (let [workflow-id (event-workflow-id event)
-                                 slash-id (event-slash-id event)
-                                 slash-entry (get-in world [:pending-fraud-slashes slash-id])
-                                 resolver-caller (or (:resolver slash-entry) addr)
-                                 provenance (build-force-authorisation-provenance
-                                             context event addr
-                                             {:reason :appeal-bond-custody
-                                              :capacity-context {:workflow-id workflow-id
-                                                                 :slash-id slash-id
-                                                                 :resolver resolver-caller}
-                                              :authorization-provenance governance-prov})
-                                 result (res/appeal-slash world workflow-id resolver-caller slash-id
-                                                          :authorization-provenance provenance)]
-                             (if (:ok result)
-                               (update result :extra merge {:authorization/provenance provenance})
-                               result)))))
+  [{:keys [agent-index]} world event]
+  (actx/with-resolved-actor
+    agent-index event
+    (fn [addr]
+      (res/appeal-slash world
+                        (event-workflow-id event)
+                        addr
+                        (event-slash-id event)
+                        :authorization-provenance
+                        {:authorization/type :subject-appeal
+                         :authorization/source :scenario-declared}))))
 
 (defmethod apply-action "resolve-appeal"
   [{:keys [agent-index] :as context} world event]

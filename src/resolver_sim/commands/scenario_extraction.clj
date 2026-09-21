@@ -5,6 +5,8 @@
             [clojure.string :as str])
   (:import [java.nio.file Files StandardCopyOption]))
 
+(declare json-safe-value)
+
 (defn normalize-replay [bundle]
   (if (contains? #{"bundle-root.v1" "bundle-root.v2"} (:bundle/schema-version bundle))
     (let [results (get-in bundle [:overview :results])
@@ -23,8 +25,12 @@
         (assoc bundle :scenario-id scenario-id :outcome (:outcome overview)
                :events-processed (or (:events-processed replay) (count (:trace replay)))
                :source {:scenario-id scenario-id}
-               :trace (:trace replay) :metrics (:metrics replay) :world (:world replay))))
-    bundle))
+               :trace (:trace replay) :metrics (:metrics replay)
+                              ;; Keep raw replay state unchanged, but ensure the structured
+                              ;; extraction projection cannot carry runtime-only leaves into
+                              ;; canonical hashing.
+               :world (json-safe-value (:world replay))))
+      bundle)))
 
 (defn- action [event] (or (:action event) (:event-type event) "?"))
 (defn- action-name [event] (let [value (action event)] (if (keyword? value) (name value) (str value))))
@@ -364,7 +370,7 @@
          raw (when source (json/read-str source))
          bundle (if execution
                   (assoc (:bundle-root execution)
-                         :run/scenario-results (get-in execution [:run-result :results]))
+                         :run/scenario-results (json-safe-value (get-in execution [:run-result :results])))
                   (json/read-str source :key-fn keyword))
          replay (normalize-replay bundle)
          raw-world (if execution

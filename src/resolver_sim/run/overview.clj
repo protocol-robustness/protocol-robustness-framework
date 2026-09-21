@@ -47,7 +47,8 @@
                             (keys base))]
         (assoc base :scenario-hash
                (hc/hash-with-intent {:hash/intent :scenario}
-                                    (select-keys entry fallback-keys)))))))
+                                    (hc/project-committable-content
+                                     (select-keys entry fallback-keys))))))))
 
 (defn build-overview
   "Build a normalized overview from a :scenario-run/result map.
@@ -79,7 +80,8 @@
               :consensus {:eligible? true
                           :basis :normalized-result-hash}}
         ;; Self-referential hash: compute hash over canonical fields (excl. :overview/hash)
-        overview-h (hc/hash-with-intent {:hash/intent :run-overview} base)]
+        overview-h (hc/hash-with-intent {:hash/intent :run-overview}
+                                        (hc/project-committable-content base))]
     (assoc base :overview/hash overview-h)))
 
 (defn overview-hash

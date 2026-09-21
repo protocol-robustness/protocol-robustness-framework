@@ -9,7 +9,7 @@
 
    Part of the pro-rata semantic closure: must never depend on protocol, runner,
    research, application, or generic-economics allocator namespaces."
-  (:require [resolver-sim.config.defaults :as config-defaults]
+  (:require [resolver-sim.config.hardening :as hardening] [resolver-sim.config.defaults :as config-defaults]
             [resolver-sim.execution.budget :as budget]
             [resolver-sim.execution.realization :as realization]
             [resolver-sim.pro-rata.progress :as progress]
@@ -29,7 +29,7 @@
   "Runtime-only claimant worker budget. It is deliberately absent from every
    canonical request, decision, evidence, and proof projection. Defaults to the
    value in config/defaults.edn (:hardening :pro-rata-parallelism)."
-  (config-defaults/default [:hardening :pro-rata-parallelism] 1))
+  (hardening/value :default-parallelism {:fallback 1}))
 
 (def ^:dynamic *pro-rata-parallel-threshold*
   "Minimum claimant count at which detached claimant determination may use the

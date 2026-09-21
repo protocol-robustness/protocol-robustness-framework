@@ -105,7 +105,8 @@
                 (fn? x) (str (.getName (class x)))
                 :else x))]
       (let [cleaned (sorted m)]
-        (hc/hash-with-intent {:hash/intent :protocol-state :section label} cleaned)))))
+        (hc/hash-with-intent {:hash/intent :protocol-state :section label}
+                             (hc/project-committable-content cleaned))))))
 
 ;; ── Registry snapshot helpers ─────────────────────────────────────────────────
 
@@ -126,7 +127,9 @@
 (defn- registry-hash
   "Compute a stable hash of a registry value."
   [registry]
-  (hc/hash-with-intent {:hash/intent :registry} (canonicalize-registry registry)))
+  (hc/hash-with-intent {:hash/intent :registry}
+                       (hc/project-committable-content
+                        (canonicalize-registry registry))))
 
 (defn- lazy-resolve
   "Resolve a var by fully-qualified symbol, loading the namespace if needed."
@@ -250,7 +253,13 @@
    (build-bundle-root request result nil))
   ([request result source-provenance]
    (let [overview (overview/build-overview result)
-         overview-h (overview/overview-hash overview)
+         overview-h (try
+                      (overview/overview-hash overview)
+                      (catch Exception e
+                        (throw (ex-info "Bundle overview hash failed"
+                                        {:stage :overview-hash
+                                         :cause-data (ex-data e)}
+                                        e))))
          req (select-keys request
                           [:runner/backend :runner-selection
                            :suite/key :protocol/default-id
@@ -329,7 +338,7 @@
                         :sentinel/risk-meta-hash (when-let [rm (:risk-meta run-sensitivity)]
                                                    (hc/hash-with-intent
                                                     {:hash/intent :evidence-record}
-                                                    rm))
+                                                    (hc/project-committable-content rm)))
                         :sentinel/scenario-count (count results)
                         :sentinel/sensitive-scenario-count
                         (count (filter (fn [r]

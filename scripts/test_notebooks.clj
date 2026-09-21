@@ -16,11 +16,9 @@
 
 (def ^:const per-notebook-timeout-seconds
   "Maximum seconds to wait for a single notebook's subprocess.
-   Covers cold-JVM startup (~40s) plus expensive top-level computation.
-   notebooks/workbench_v2.clj alone needs ~400s (heavy top-level scenario
-   work), so this is set comfortably above that. With per-notebook isolation a
-   slow or hung notebook only delays its own result, never the whole gate."
-  600)
+   Keep this bounded so the repository-wide gate cannot spend tens of minutes
+   serially waiting on hung notebook loads."
+  120)
 
 (def ^:const classpath-alias
   "Alias used to launch each notebook subprocess. Must include every path a
@@ -59,6 +57,13 @@
     (.start t)
     {:string-builder sb :thread t}))
 
+(defn- destroy-process-tree! [^Process proc]
+  (doseq [^java.lang.ProcessHandle child (reverse (vec (.descendants (.toHandle proc))))]
+    (.destroyForcibly child))
+  (.destroyForcibly proc)
+  (.waitFor proc 5 java.util.concurrent.TimeUnit/SECONDS)
+  nil)
+
 (defn load-notebook-isolated
   "Require a notebook namespace in a fresh JVM, with a timeout.
 
@@ -75,7 +80,7 @@
       (let [exit (.exitValue proc)]
         (.join thread 5000)
         {:ok? (zero? exit) :exit exit :output (str string-builder)})
-      (do (.destroy proc)
+      (do (destroy-process-tree! proc)
           (.join thread 5000)
           {:ok? false :exit :timeout :output (str string-builder)}))))
 

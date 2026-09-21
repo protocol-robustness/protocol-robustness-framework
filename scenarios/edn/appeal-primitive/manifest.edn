@@ -1,0 +1,16 @@
+{:suite/id "appeal-primitive-assurance"
+ :suite/version "v1"
+ :projection/version "appeal-bond-projection.v1"
+ :families
+ [{:id "AP-ID" :focus :identity-round-isolation}
+  {:id "AP-DISP" :focus :terminal-disposition-uniqueness}
+  {:id "AP-CONS" :focus :per-bond-conservation}
+  {:id "AP-CLAIM" :focus :entitlement-and-claim-accounting}
+  {:id "AP-CAUSE" :focus :mandatory-disposition-lineage}
+  {:id "AP-ATOM" :focus :revert-atomicity}
+  {:id "AP-REPLAY" :focus :duplicate-operation-rejection}
+  {:id "AP-POLICY" :focus :posting-time-policy-snapshot}]
+ :admission {:requires :authoritative-appeal-bond-lifecycle-records
+             :forbids [:aggregate-identity-reconstruction
+                       :scenario-metric-as-evidence
+                       :protocol-world-mutation-for-revert-receipts]}}

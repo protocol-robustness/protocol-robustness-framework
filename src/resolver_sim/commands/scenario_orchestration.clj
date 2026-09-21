@@ -616,6 +616,10 @@
                              result)
                            (catch Throwable error
                              (swap! records conj {:phase phase :status :failed :error (.getMessage error)})
+                             (log/error! :scenario-phase-failed
+                                         {:phase phase
+                                          :error (.getMessage error)
+                                          :data (ex-data error)})
                              (throw error))))]
          (try
            (run-phase :check-runtime nil)

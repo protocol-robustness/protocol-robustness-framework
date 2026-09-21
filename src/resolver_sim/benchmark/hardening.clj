@@ -81,6 +81,17 @@
                     (base-default [:hardening :quiescence-timeout-seconds]
                                   default-quiescence-timeout-seconds))))
 
+(defn default-parallelism
+  "Resolve the runtime claimant parallelism default.
+
+   CLI callers may override this explicitly; otherwise PRF_DEFAULT_PARALLELISM
+   overrides the config/defaults.edn value."
+  ([] (default-parallelism nil (or (System/getenv) {})))
+  ([cli-value] (default-parallelism cli-value (or (System/getenv) {})))
+  ([cli-value env]
+   (resolve-integer cli-value env "PRF_DEFAULT_PARALLELISM"
+                    (base-default [:hardening :default-parallelism] 1))))
+
 (defn claimant-parallel-threshold
   "Resolve the claimant-count parallel threshold.
 

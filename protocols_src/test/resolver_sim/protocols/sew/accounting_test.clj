@@ -2067,6 +2067,15 @@
                                                 :from alice
                                                 :amount-after-fee 0})
                (assoc-in [:bond-balances 0 alice] 980)
+               (assoc :appeal-bond/records
+                      {"appeal-bond:0:0xAlice:0"
+                       {:bond/id "appeal-bond:0:0xAlice:0" :workflow/id 0 :dispute/id "dispute:0"
+                        :appeal/ordinal 0 :escalation/from-level 0 :escalation/to-level 1
+                        :posting-operation/id "post-appeal-bond:0:0xAlice:0" :asset usdc
+                        :bond/posted-amount 980 :bond/posting-fee 0 :bond/custodied-amount 980
+                        :bond/payer alice :bond/funder alice :posting-cause/type :appeal-posted
+                        :posting-cause/root "post-root:0" :bond/status :open
+                        :bond/remaining-custody 980}})
                (assoc-in [:total-held usdc] 980)
                (assoc-in [:held/positions [:held/position usdc :appeal-bond "0-0xAlice" 0 alice]] 980)
                (assoc-in [:held-ledger/index :by-token usdc] 980)
@@ -2092,6 +2101,15 @@
                                                :from alice
                                                :amount-after-fee 0})
               (assoc-in [:bond-balances 0 alice] 980)
+              (assoc :appeal-bond/records
+                      {"appeal-bond:0:0xAlice:0"
+                       {:bond/id "appeal-bond:0:0xAlice:0" :workflow/id 0 :dispute/id "dispute:0"
+                        :appeal/ordinal 0 :escalation/from-level 0 :escalation/to-level 1
+                        :posting-operation/id "post-appeal-bond:0:0xAlice:0" :asset usdc
+                        :bond/posted-amount 980 :bond/posting-fee 0 :bond/custodied-amount 980
+                        :bond/payer alice :bond/funder alice :posting-cause/type :appeal-posted
+                        :posting-cause/root "post-root:0" :bond/status :open
+                        :bond/remaining-custody 980}})
               (assoc-in [:total-held usdc] 980)
               (assoc-in [:held/positions [:held/position usdc :appeal-bond "0-0xAlice" 0 alice]] 980)
               (assoc-in [:held-ledger/index :by-token usdc] 980)
@@ -2100,9 +2118,41 @@
     (is (true? (:ok r)))
     (is (= 980 (:returned r)))
     (is (= 0 (get-in (:world r) [:bond-balances 0 alice] 0)))
-    (is (= 980 (get-in (:world r) [:claimable-v2 0 :settlement/principal alice] 0)))
+    (is (= 980 (get-in (:world r) [:claimable-v2 0 :bond/refund alice] 0)))
     (is (= :appeal-bond-returned
            (:held/reason (last (:held-adjustments (:world r))))))))
+
+
+(deftest withdraw-preserves-two-same-recipient-appeal-bond-entitlements
+  (let [bond-a "appeal-bond:0:0xAlice:0"
+        bond-b "appeal-bond:0:0xAlice:1"
+        record (fn [bond-id ordinal amount]
+                 {:bond/id bond-id :workflow/id 0 :dispute/id "dispute:0"
+                  :appeal/ordinal ordinal :escalation/from-level ordinal
+                  :escalation/to-level (inc ordinal)
+                  :posting-operation/id (str "post:" ordinal) :asset usdc
+                  :bond/posted-amount amount :bond/posting-fee 0
+                  :bond/custodied-amount amount :bond/payer alice :bond/funder alice
+                  :posting-cause/type :appeal-posted :posting-cause/root (str "post-root:" ordinal)
+                  :bond/status :disposed :bond/remaining-custody 0})
+        w (-> (base-world)
+              (assoc-in [:escrow-transfers 0 :escrow-state] :released)
+              (assoc :appeal-bond/records {bond-a (record bond-a 0 40)
+                                            bond-b (record bond-b 1 60)})
+              (assoc :appeal-bond/claims
+                     {bond-a {alice {:allocated 40 :claimable 40 :claimed 0 :asset usdc}}
+                      bond-b {alice {:allocated 60 :claimable 60 :claimed 0 :asset usdc}}})
+              (assoc-in [:claimable-v2 0 :bond/refund alice] 100))
+        r (ac/withdraw-escrow w 0 alice)
+        after (:world r)]
+    (is (true? (:ok r)))
+    (is (= 100 (:amount r)))
+    (is (= {:allocated 40 :claimable 0 :claimed 40 :asset usdc}
+           (get-in after [:appeal-bond/claims bond-a alice])))
+    (is (= {:allocated 60 :claimable 0 :claimed 60 :asset usdc}
+           (get-in after [:appeal-bond/claims bond-b alice])))
+    (is (= 40 (get-in after [:appeal-bond/claims bond-a alice :allocated])))
+    (is (= 60 (get-in after [:appeal-bond/claims bond-b alice :allocated])))))
 
 ;; ---------------------------------------------------------------------------
 ;; Invariants

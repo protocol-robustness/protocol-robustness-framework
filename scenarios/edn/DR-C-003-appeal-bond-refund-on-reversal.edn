@@ -12,7 +12,7 @@
                         "Distribution failure is silently swallowed without reverting resolution"]}
  :expectations {:terminal-state "released"
                 :must-hold ["refund_claimable_created"]
-                :metrics {:refund_amount {:eq 1000000}
+                :metrics {:refund_amount {:eq 246}
                           :bond_distributed true
                           :resolution_reverted_on_failure false}}
  :threat {:family "bond-lifecycle" :attack "missing-refund" :severity "critical"

@@ -268,6 +268,9 @@
        :analysis-output-verification output-verification
        :research-claim claim})))
 
+(def ^:private claimable-reproduction-statuses
+  #{:counterexample-found :verified-on-declared-domain :verified-general})
+
 (defn reproduce
   "Compare a persisted execution with an independently supplied reproduction
    context. Exact mode requires execution identity equality; conforming mode
@@ -289,14 +292,15 @@
                             (= mode :exact-environment) (if exact? :reproduced :mismatch)
                             (= mode :independent-conforming) (if command-same? :comparable :scope-mismatch)
                             :else :unsupported)
-     :reproduction/claimable? (and (:verified? left)
-                                   (:verified? right)
-                                   (= :established
-                                      (get-in left [:research-claim :research-claim/status]))
-                                   (= :established
-                                      (get-in right [:research-claim :research-claim/status]))
-                                   (or (and (= mode :exact-environment) exact?)
-                                       (and (= mode :independent-conforming) command-same?)))}))
+     :reproduction/claimable?
+     (and (:verified? left)
+          (:verified? right)
+          (contains? claimable-reproduction-statuses
+                     (get-in left [:research-claim :research-claim/status]))
+          (contains? claimable-reproduction-statuses
+                     (get-in right [:research-claim :research-claim/status]))
+          (or (and (= mode :exact-environment) exact?)
+              (and (= mode :independent-conforming) command-same?)))}))
 
 (defn- semantic-projection [context]
   (let [execution (:execution context)

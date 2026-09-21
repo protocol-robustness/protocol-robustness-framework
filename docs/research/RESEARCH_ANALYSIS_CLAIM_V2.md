@@ -33,3 +33,28 @@ Counterexample results require both a witness root and a descriptor that
 declares the witness schema. The generic framework commits to recoverability
 and descriptor binding; domain-specific verifiers remain responsible for
 interpreting and validating the witness contents.
+
+## Status
+
+**RESEARCH ANALYSIS — COMPLETE**
+
+- Production correctness work: **CLOSED**
+- Focused assurance validation: **PASS**
+- Method-specific proof verification: **INTENTIONALLY DEFERRED**
+- Notebook-wide validation: **OPERATIONALLY INCOMPLETE**
+- Broad backstop: **OPERATIONALLY INCOMPLETE / unrelated timeout**
+
+The assurance boundary is deliberate:
+
+```text
+research-analysis-verification.v1
+    verifies what the implemented method can establish
+
+research-analytical-claim.v2
+    binds that verified result
+```
+
+Neither artifact implies a stronger theorem or general-proof class unless a
+method-specific verifier establishes it under an explicit contract. The
+deferred verifier is not a convenience gap and must not be filled by weakening
+this boundary.

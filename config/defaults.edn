@@ -19,7 +19,8 @@
           :max-payload-bytes 1048576
           :max-collection-depth 64
           :max-collection-members 100000}
-:hardening {:parallel-ceiling 8
+ :hardening {:default-parallelism 1
+             :parallel-ceiling 8
 :quiescence-timeout-seconds 30
 :claimant-parallel-threshold 16
 

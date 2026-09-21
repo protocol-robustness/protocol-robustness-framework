@@ -53,6 +53,11 @@
     (pos? (:challenge-bond-bps snap 0))
     (payoffs/calculate-bps-amount amount-after-fee (:challenge-bond-bps snap))
 
+    ;; Ordinary DRM escalation uses the appeal-bond-bps policy when no
+    ;; challenge-specific override is configured.
+    (pos? (:appeal-bond-bps snap 0))
+    (payoffs/calculate-bps-amount amount-after-fee (:appeal-bond-bps snap))
+
     (pos? (:appeal-bond-amount snap 0))
     (:appeal-bond-amount snap)
 

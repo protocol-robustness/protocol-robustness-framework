@@ -135,6 +135,31 @@
     (is (= :comparable (:reproduction/status independent)))
     (is (false? (:reproduction/exact-execution-match? independent)))))
 
+(deftest reproduction-claimability-uses-analytical-claim-v2-statuses
+  (let [execution-root (root :execution)
+        command-root (root :command)
+        context (fn [side]
+                  {:side side
+                   :execution {:research-execution/root execution-root}
+                   :research-command {:command/hash command-root}})
+        reproduce-with-statuses
+        (fn [left-status right-status]
+          (with-redefs [workflow/verify
+                        (fn [{:keys [side]}]
+                          {:verified? true
+                           :research-claim
+                           {:research-claim/status
+                            (get {:left left-status :right right-status} side)}})]
+            (workflow/reproduce :exact-environment (context :left) (context :right))))]
+    (doseq [status [:counterexample-found
+                    :verified-on-declared-domain
+                    :verified-general]]
+      (is (:reproduction/claimable? (reproduce-with-statuses status status)) status))
+    (is (false? (:reproduction/claimable?
+                 (reproduce-with-statuses :not-established :counterexample-found))))
+    (is (false? (:reproduction/claimable?
+                 (reproduce-with-statuses :counterexample-found :not-established))))))
+
 (deftest differential-ignores-runtime-provenance-and-reports-semantic-change
   (let [context (fixture)
         runtime-variant (assoc-in context [:execution :runtime/worker] "worker-2")

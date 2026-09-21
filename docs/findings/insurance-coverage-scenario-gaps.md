@@ -12,8 +12,8 @@
 
 | Scenario / Test | What it covers | Limits |
 |---|---|---|
-| **S39** (`s39-dr3-senior-coverage-delegation`) | Senior bond registration + junior delegation | Stops after delegation. No slash event occurs. Covers `senior-coverage-not-exceeded?` invariant only. |
-| **Phase K tests** | Auto-slashing + manual fraud-slash → `bond-distribution :insurance` | Slashes flow through resolver stake, not through senior-bond coverage. Insurance accrual works but coverage mechanism is never exercised. |
+| **S39** (`s39-dr3-senior-coverage-delegation`) | Senior bond registration + junior delegation | Registration/delegation capacity path; does not slash. |
+| **S108–S113** | End-to-end delegated coverage consumption, exhaustion, multi-junior, gradual exhaustion, over-capacity rejection, and insurance-bps override | Canonical invariant scenarios now exercise the senior-bond coverage path and insurance accounting. |
 | **Slashing test** `slash-distribution-tracks-retained-reserves` | Bond-distribution tracking after slash | Unit test, not a scenario. No coverage path. |
 | **Waterfall simulator** (`waterfall.clj`, `delegation.clj`) | Senior/junior pool adequacy, coverage consumption | Standalone research model. Uses separate data model — not connected to Sew protocol state or invariants. |
 
@@ -27,12 +27,14 @@ delegate-to-senior    →  [+:reserved-coverage N]  (capped at coverage-max)
 ```
 
 And an invariant that checks:
+And there are invariants that check:
 
 ```
 reserved-coverage <= coverage-max      (invariants.clj:1281)
+slash-distribution-consistent?         (invariants.clj)
 ```
 
-But there is **no code path that consumes `:reserved-coverage`** during a slash event. The `distribute-slashed-funds` function (`accounting.clj:831`) distributes slashed resolver stake to `:bond-distribution` buckets but never reads or decrements `:senior-bonds`. Coverage is **ornamental** — tracked but never used.
+The delegated slash path now consumes `:reserved-coverage` in `registry/slash-resolver-stake` before distributing the slash through `accounting/distribute-slashed-funds`. The canonical S108–S113 scenarios verify consumption, exhaustion, multi-junior isolation, gradual depletion, rejection at the coverage cap, and the insurance allocation override.
 
 ### What the waterfall research model has (but Sew protocol doesn't wire)
 
@@ -50,25 +52,23 @@ This logic exists only in the research simulation. The Sew protocol actions (`re
 
 ## Scenario Gaps (Prioritized)
 
-### Gap A (CRITICAL): Coverage pool never consumed
+### Gap A (RESOLVED): Coverage pool consumption
 
-The biggest gap. S39 proves registration + delegation work, and Phase K tests prove `bond-distribution :insurance` accrues during slashes. But **no scenario chains them together** because the protocol has no function to consume coverage.
+S108 now chains senior registration, junior delegation, fraud slash proposal/execution, senior coverage consumption, insurance allocation, and invariant checks. The implementation debits `[:senior-bonds <senior-addr> :reserved-coverage]` in `registry/slash-resolver-stake` before distributing the slash.
 
-**Required fix before scenario can pass**: Wire `distribute-slashed-funds` (or a new function) to decrement `[:senior-bonds <senior-addr> :reserved-coverage]` when a delegated junior is slashed, and credit the insurance bucket proportionally. Without this, any "slash-while-delegated" scenario will pass trivially (since coverage is never consumed) while the contract-level economic safety path remains untested.
+### Gap B (RESOLVED): End-to-end slash-through-coverage
 
-### Gap B (HIGH): End-to-end slash-through-coverage
-
-Once the coverage wire exists, add a scenario:
+S108 covers the primary path:
 
 ```
 1. senior registers bond with coverage-max = 10000
-2. junior delegates coverage = 8000
-3. junior incurs slash (fraud) → coverage consumed from senior → bond-distribution :insurance credited
-4. invariant: slash-distribution-consistent? holds (insurance + protocol + retained + liabilities = total slashed)
-5. invariant: senior-coverage-not-exceeded? holds (reserved <= coverage-max after consumption)
+2. junior delegates coverage = 5000
+3. junior incurs a 3000 fraud slash
+4. senior coverage is consumed and bond-distribution :insurance is credited
+5. slash-distribution-consistent? and senior-coverage-not-exceeded? hold
 ```
 
-This is the primary economic safety path that every delegated resolver setup relies on.
+S109–S113 extend this with coverage exhaustion, multiple juniors, gradual depletion, over-capacity rejection, and insurance-bps configuration.
 
 ### Gap C (HIGH): Coverage exhaustion
 

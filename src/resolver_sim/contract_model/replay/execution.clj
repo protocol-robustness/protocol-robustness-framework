@@ -79,6 +79,19 @@
     :essential (#{:transition :invariant-failure} evidence-type)
     :none false))
 
+(defn- experimental-fault-result [context world event]
+  (let [fault (get-in context [:scenario :fault-injection])]
+    (when (and (= :distribution-dependency-failure (:kind fault))
+               (= :experimental-only (:scope fault))
+               (= (:seq event) (:event-seq fault))
+               (= "execute_resolution" (:action event)))
+      {:ok false
+       :world world
+       :error :distribution-dependency-failure
+       :detail {:fault/scope :experimental-only
+                :fault/kind :distribution-dependency-failure
+                :fault/event-seq (:seq event)}})))
+
 (defn apply-action-with-evidence
   "Dispatch an action through the protocol layer and emit a content-hashed
    evidence record for the transition.
@@ -95,7 +108,8 @@
   [protocol context world event]
   (let [action (:action event)
         pre-world world
-        result (proto/dispatch-action protocol context world event)
+        result (or (experimental-fault-result context world event)
+                   (proto/dispatch-action protocol context world event))
         post-world (:world result)
         flags (or (:replay-flags context) replay-flags/default-replay-flags)
         evidence (when (and (map? post-world)
@@ -111,7 +125,7 @@
                          :before pre-world
                          :after post-world
                          :action action
-                         :result (dissoc result :world)}))
+                         :result (select-keys result [:ok :ok? :error :result])}))
                      (catch Exception e
                        (log/error! :evidence-emission-failed
                                    {:action action :step (:seq event) :error (.getMessage e)})
@@ -444,6 +458,20 @@
                              (merge (when-not (:ok? inv-single) (:violations inv-single))
                                     (when-not (:ok? inv-trans) (:violations inv-trans))
                                     (:violations assurance)))]
+        (when violated?
+          (log/error! :transition-invariant-divergence
+                      {:scenario-id (get-in context [:scenario :scenario-id])
+                       :seq (:seq event)
+                       :action (:action event)
+                       :violations (keys all-violations)
+                       :before (select-keys world-t [:previous-decisions :escrow-transfers
+                                                     :pending-settlements :held-adjustments
+                                                     :held-ledger/index :resolver-stakes
+                                                     :resolver-slash-total :dispute-levels])
+                       :after (select-keys world-next [:previous-decisions :escrow-transfers
+                                                       :pending-settlements :held-adjustments
+                                                       :held-ledger/index :resolver-stakes
+                                                       :resolver-slash-total :dispute-levels])}))
 
         ;; Assemble base runtime context from values available before projection.
         ;; Invariant attestation uses this; projection fields are enriched below.
@@ -514,8 +542,7 @@
                 :yield/execution-node-hash (:node-hash yield-node)
                 :world (proto/world-snapshot protocol final-world)
                 :projection proj
-                :projection-hash (:ctx/projection-hash projection-ctx)
-                :guard-context (:guard-context result)}
+                :projection-hash (:ctx/projection-hash projection-ctx)}
                :halted? violated?})))))))
 
 ;; ---------------------------------------------------------------------------
@@ -545,7 +572,7 @@
                 allow-open-entities? allow-open-disputes?
                 agents temporal-cfg temporal-enabled? agent-index
                 scenario replay-flags run-id]} options
-        context (assoc context :run-id run-id)
+        context (assoc context :run-id run-id :scenario scenario)
         check-inv? (:check-invariants? (or replay-flags replay-flags/default-replay-flags) true)
         metrics-profile (:metrics-profile replay-flags :sew-integrated)
         supports-alias? (satisfies? proto/SimulationAdapter protocol)]

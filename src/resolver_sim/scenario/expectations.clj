@@ -247,7 +247,17 @@
                   :actual   actual}))))
 
     ;; 3. Metric expectations
-    (doseq [m (:metrics expectations)]
+    (doseq [m (let [declared (:metrics expectations)]
+                (if (map? declared)
+                  (map (fn [[name spec]]
+                         (if (map? spec)
+                           (let [[op value] (first spec)]
+                             {:name name
+                              :op (case op :eq ":=" :gt ":>" :gte ":>=" :lt ":<" :lte ":<=" ":=")
+                              :value value})
+                           {:name name :op ":=" :value spec}))
+                       declared)
+                  declared))]
       (swap! summary update :expectations/total inc)
       (let [actual (get metrics (theory/metric-key (:name m)))
             target (:value m)

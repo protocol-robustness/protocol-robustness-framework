@@ -1,6 +1,9 @@
 {:scenario-id "dr-c-006-appeal-bond-distribution-failure-atomic"
  :schema-version "1.0"
  :allow-open-disputes? true
+ :fault-injection {:kind :distribution-dependency-failure
+                   :event-seq 4
+                   :scope :experimental-only}
  :purpose "behavioural-correction"
  :title "Bond distribution failure atomically reverts the resolution"
  :description "When distributeAppealBond fails during recordResolution (e.g., bond already consumed), the entire resolution must revert. Verifies that no try/catch silently swallows distribution failures, and that resolution cannot complete without successful bond settlement."

@@ -7,6 +7,7 @@ members = [
     "realized-statement-sp1-program",
     "realized-execution-sp1-program",
     "source-bound-sp1-program",
+    "source-bound-v2-sp1-program",
 ]
 
 # Profiles intended to affect the whole workspace build belong on the

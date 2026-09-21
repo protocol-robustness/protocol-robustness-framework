@@ -139,14 +139,18 @@
    benchmark/runner.clj; it is extracted so the writer and verifiers cannot
    drift."
   [bundle]
-  (into (sorted-map) (hashable-evidence bundle)))
+  (into (sorted-map)
+        (hc/project-committable-content
+         (hashable-evidence bundle))))
 
 (defn bundle-root-hash
   "Hash of `bundle` under the :current scheme (bundle-root.v2 semantics):
    canonical-projection → :bundle-root intent hash. Equivalent to the legacy
    writer-inline composition; see canonical-projection."
   [bundle]
-  (hc/hash-with-intent {:hash/intent :bundle-root} (canonical-projection bundle)))
+  (let [projection (canonical-projection bundle)]
+    (hc/validate-canonical-value! projection)
+    (hc/hash-with-intent {:hash/intent :bundle-root} projection)))
 
 (defn- scheme-hash
   "Compute the bundle-root commitment hash for exactly one scheme, over

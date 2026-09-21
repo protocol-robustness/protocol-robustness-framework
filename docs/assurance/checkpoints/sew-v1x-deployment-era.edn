@@ -1,0 +1,30 @@
+{:checkpoint/id :sew-v1x-deployment-era
+ :status :historical
+ :classification :legacy
+ :target
+ {:protocol :sew
+  :deployment
+  {:repo "sew-protocol"
+   :registry-path "deploy-registry/base-sepolia/v1.x/2026-02-19.json"
+   :documentation-commit "8f7fa9734f715a4660fd7b8f0eaaaa381958c349"
+   :deployment-date "2026-02-19T11:52:00Z"
+   :network :base-sepolia
+   :chain-id 84532
+   :source-build-commit :unknown
+   :runtime-codehashes :unknown}
+  :compiler
+  {:solc "0.8.20"
+   :optimizer-runs 10
+   :via-ir true}}
+ :prf
+ {:repo "agent-c"
+  :commit :unknown
+  :scenario-corpus-root :unknown
+  :model-root :unknown
+  :runner-root :unknown}
+ :evidence
+ {:deployment-manifest "sew-protocol/deploy-registry/base-sepolia/v1.x/2026-02-19.json"
+  :deployment-report :unknown
+  :forge :unknown
+  :aderyn :unknown
+  :scenario-results :unknown}}

@@ -4010,6 +4010,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "source-bound-v2-sp1-program"
+version = "0.1.0"
+dependencies = [
+ "allocation-kernel",
+ "serde_json",
+ "sp1-zkvm",
+]
+
+[[package]]
 name = "sp1-build"
 version = "6.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"

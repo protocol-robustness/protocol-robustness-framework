@@ -195,6 +195,8 @@
    :research-command-trace-v2 "RESEARCH_COMMAND_TRACE_V2"
    :dimension-support-v1 "DIMENSION_SUPPORT_V1"
    :research-assignment "RESEARCH_ASSIGNMENT_V1"
+   :research-assignment-solidity-target "RESEARCH_ASSIGNMENT_SOLIDITY_TARGET_V1"
+   :research-assignment-target-binding "RESEARCH_ASSIGNMENT_TARGET_BINDING_V1"
    :researcher-reward-policy "RESEARCHER_REWARD_POLICY_V1"
    :researcher-reward-eligibility "RESEARCHER_REWARD_ELIGIBILITY_V1"
    :researcher-reward-proposal "RESEARCHER_REWARD_PROPOSAL_V1"
@@ -209,7 +211,9 @@
    :research-analysis-closure "RESEARCH_ANALYSIS_CLOSURE_V1"
    :research-analysis-output "RESEARCH_ANALYSIS_OUTPUT_V1"
    :research-analysis-result-descriptor "RESEARCH_ANALYSIS_RESULT_DESCRIPTOR_V1"
-   :research-analysis-verification "RESEARCH_ANALYSIS_VERIFICATION_V1"
+    :research-analysis-verification "RESEARCH_ANALYSIS_VERIFICATION_V1"
+    :research-analysis-comparison-v1 "RESEARCH_ANALYSIS_COMPARISON_V1"
+    :research-analysis-composition-v1 "RESEARCH_ANALYSIS_COMPOSITION_V1"
    :research-analytical-claim "RESEARCH_ANALYTICAL_CLAIM_V1"
    :research-analytical-claim-v2 "RESEARCH_ANALYTICAL_CLAIM_V2"
    :runtime-profile "RUNTIME_PROFILE_V1"
@@ -930,6 +934,11 @@
               (sequential? x) (mapv walk x)
               :else x))]
     (walk v)))
+
+(defn project-committable-content-for-intent
+  "Intent-compatible arity wrapper for project-committable-content."
+  [value _intent]
+  (project-committable-content value))
 
 ;; ──────────────────────────────────────────────────────────────────────────────
 ;; Projection Helpers
@@ -2341,7 +2350,33 @@
    Usage: (hash-with-intent {:hash/intent :world-structure} data)
 
    Per INTENT_REGISTRY_SPEC_V1, each field is required."
-  {:replay-frame
+  {:research-analysis-comparison-v1
+   {:intent/name :research-analysis-comparison-v1
+    :intent/domain-tag "RESEARCH_ANALYSIS_COMPARISON_V1"
+    :intent/description "Canonical identity of a rooted coordinate-level research analysis comparison"
+    :intent/includes #{:artifact/schema :research-definition/root :subject-roots
+                       :case-axis/root :measure-axis/root :researcher-axis/root
+                       :comparison/policy :comparison/inputs :comparison/output
+                       :proof-of-possession/lineage}
+    :intent/excludes #{:research-analysis-comparison/root :runtime-values :functions}
+    :intent/projection-fn project-canonical-artifact
+    :intent/version 1}
+
+   :research-analysis-composition-v1
+   {:intent/name :research-analysis-composition-v1
+    :intent/domain-tag "RESEARCH_ANALYSIS_COMPOSITION_V1"
+    :intent/description "Canonical identity of a deterministic derived research analysis composition"
+    :intent/includes #{:artifact/schema :research-definition/root :subject-roots
+                       :case-axis/root :measure-axis/root :researcher-axis/root
+                       :composition/operator :composition/policy
+                       :composition/input-analysis-roots :composition/output
+                       :proof-of-possession/lineage
+                       :research-analysis/general-ic-proven?}
+    :intent/excludes #{:research-analysis-composition/root :runtime-values :functions}
+    :intent/projection-fn project-canonical-artifact
+    :intent/version 1}
+
+   :replay-frame
    {:intent/name :replay-frame
     :intent/domain-tag "PRF_REPLAY_FRAME_V1"
     :intent/description "Canonical identity of an accepted sequential replay frame"
@@ -2599,7 +2634,7 @@ name (an alias)."
     :intent/description "Normalized run overview for runner comparison and consensus"
     :intent/includes #{:overview-metadata :scenario-results :totals :suite-info}
     :intent/excludes #{:execution/raw :diagnostics :timestamps :absolute-paths :host-info}
-    :intent/projection-fn project-identity
+    :intent/projection-fn project-committable-content-for-intent
     :intent/version 1}
 
    :benchmark-certification

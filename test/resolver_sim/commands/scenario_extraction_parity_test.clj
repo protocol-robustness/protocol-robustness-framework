@@ -88,6 +88,20 @@
 (deftest python-and-clojure-failed-outcome-projections-have-semantic-parity
   (compare-trace-projection! failed-replay))
 
+(deftest normalize-replay-projects-runtime-only-world-leaves
+  (let [runtime (java.time.Instant/parse "1970-01-01T00:00:00Z")
+        bundle {:bundle/schema-version "bundle-root.v2"
+                :overview {:results [{:scenario-id "runtime-world" :outcome :pass}]}
+                :run/scenario-results [{:replay-result {:scenario-id "runtime-world"
+                                                        :trace []
+                                                        :metrics {}
+                                                        :world {:time runtime
+                                                                :operation (fn [] :runtime)}}}]}
+        normalized (extraction/normalize-replay bundle)
+        world (:world normalized)]
+    (is (= "1970-01-01T00:00:00Z" (:time world)))
+    (is (string? (:operation world)))))
+
 (deftest public-world-projection-removes-secret-bearing-fields
   (let [replay {:source {:scenario-id "sensitive-fixture"}
                 :world {"safe" "visible" "api_key" "must-not-export"

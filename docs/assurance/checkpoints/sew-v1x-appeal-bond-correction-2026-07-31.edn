@@ -1,0 +1,60 @@
+{:checkpoint/id :sew-v1x-appeal-bond-correction-2026-07-31
+ :status :historical
+ :classification :correction
+ :review-purpose :bond-ledger-differential
+ :target
+ {:protocol :sew
+  :reference-behavior
+  {:repo "sew-protocol"
+   :commit "5f84818df95d35edbd0a8c74565043fccd81ff15"
+   :commit-role :corrected-reference-behavior}
+  :bond-ledger-review
+  {:repo "sew-protocol"
+   :commit "4959328684a26ebfdbd9a1c467a07e43dc27647c"
+   :commit-role :prf-review-compatibility-implementation}
+  :deployment {:status :not-established
+               :source-build-commit :unknown
+               :runtime-codehashes :unknown}}
+ :prf
+ {:repo "agent-c"
+  :commit "633f19557f1aaf34d71b26bf68289f55ea830a26"
+  :commit-role :appeal-bond-behavioral-correction-scenarios
+  :model-root :unknown
+  :runner-root :unknown}
+ :scenarios
+ [{:scenario/id "dr-c-001-appeal-bond-sybil-scaling"
+   :path "scenarios/edn/DR-C-001-appeal-bond-sybil-scaling.edn"
+   :sha256 "aecd24770b86fda67ad6ec44eeefc9b6483d99a8e7c9b7b1ebdf1bf8e87f3e8b"
+   :classification :correction}
+  {:scenario/id "dr-c-002-slash-appeal-bond-lifecycle"
+   :path "scenarios/edn/DR-C-002-slash-appeal-bond-lifecycle.edn"
+   :sha256 "2dc2c0899d41a179015df652b7b0e0b860f8365d4586560f02b8fc084b8636b"
+   :classification :correction}
+  {:scenario/id "dr-c-003-appeal-bond-refund-on-reversal"
+   :path "scenarios/edn/DR-C-003-appeal-bond-refund-on-reversal.edn"
+   :sha256 "7f970795a957345037075556fe68588deee371756a81f68b44b33db497791cfd"
+   :classification :correction}
+  {:scenario/id "dr-c-004-appeal-bond-resolver-payout"
+   :path "scenarios/edn/DR-C-004-appeal-bond-resolver-payout.edn"
+   :sha256 "b8a86dbfdb6c82d3d84480239ca13efc917708be2e57d5143548b184f8791f06"
+   :classification :correction}
+  {:scenario/id "dr-c-005-appeal-bond-forfeit-reserve"
+   :path "scenarios/edn/DR-C-005-appeal-bond-forfeit-reserve.edn"
+   :sha256 "52fb62bb373579e6fdf562bf0217341bf488b12860cc50945fd85d7960099439"
+   :classification :correction}
+  {:scenario/id "dr-c-006-appeal-bond-distribution-failure-atomic"
+   :path "scenarios/edn/DR-C-006-appeal-bond-distribution-failure-atomic.edn"
+   :sha256 "0f3aaa16686fbfd7f2d17fcc24c9ea73a96c1b51c5b1635a7b6c67c4771a25e7"
+   :classification :correction}
+  {:scenario/id "dr-n-002-reversal-slash-appeal-rejected"
+   :path "scenarios/edn/DR-N-002-reversal-slash-appeal-rejected.edn"
+   :sha256 "d2fe6e2a5be08eb1e9d78a12a26188eaeab836130b8e9c740084c26c9cebf6e2"
+   :classification :correction}]
+ :evidence
+ {:forge {:status :bound-by-commit-message
+           :full-suite "1459 passed / 0 failed"
+           :bond-behaviour-correction "15/15"}
+  :bond-ledger-differential {:status :bound-by-commit-message
+                             :cases 10}
+  :aderyn :unknown
+  :scenario-results :unknown}}

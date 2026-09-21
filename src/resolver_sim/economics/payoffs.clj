@@ -6,7 +6,7 @@
    - resolver-sim.protocols.<protocol>/* adapts protocol-specific state and policy
      into generic economics functions.
    - Generic economics must never depend on protocol namespaces."
-  (:require [resolver-sim.config.defaults :as config-defaults]
+  (:require [resolver-sim.config.hardening :as hardening] [resolver-sim.config.defaults :as config-defaults]
             [resolver-sim.definitions.passive-registries :as registries]
             [resolver-sim.execution.budget :as budget]
             [resolver-sim.hash.canonical :as hc]
@@ -63,7 +63,7 @@
   "Runtime-only claimant worker budget. It is deliberately absent from every
    canonical request, decision, evidence, and proof projection. Defaults to the
    value in config/defaults.edn (:hardening :pro-rata-parallelism)."
-  (config-defaults/default [:hardening :pro-rata-parallelism] 1))
+  (hardening/value :default-parallelism {:fallback 1}))
 
 (def ^:dynamic *pro-rata-parallel-threshold*
   "Minimum claimant count at which detached claimant determination may use the

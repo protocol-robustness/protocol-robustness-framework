@@ -5,4 +5,5 @@ fn main() {
     build_program_with_args("../realized-statement-sp1-program", Default::default());
     build_program_with_args("../realized-execution-sp1-program", Default::default());
     build_program_with_args("../source-bound-sp1-program", Default::default());
+    build_program_with_args("../source-bound-v2-sp1-program", Default::default());
 }

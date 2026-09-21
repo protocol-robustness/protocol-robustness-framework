@@ -1706,6 +1706,10 @@
     ;; class identity as a stable descriptor to keep the persisted evidence
     ;; identical to the form that the :bundle-root commitment was computed over.
     (instance? java.lang.Class x) {:type :class :name (.getName x)}
+    ;; Filesystem paths and UUIDs can occur in replay provenance, but their
+    ;; runtime classes are not part of the evidence contract.
+    (instance? java.nio.file.Path x) (str x)
+    (instance? java.util.UUID x) (str x)
     ;; Instant → ISO-8601 string, matching project-world-to-structure-view's
     ;; :instant→iso8601-string contract. Persisting the canonical form (instead
     ;; of a #object[java.time.Instant ...] tag) keeps evidence fully portable
