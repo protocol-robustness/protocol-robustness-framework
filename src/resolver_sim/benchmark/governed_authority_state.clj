@@ -627,7 +627,7 @@
   #{:resolved :missing-signing-key-id :key-not-found
     :key-not-governance-eligible :principal-not-constituted})
 
-(defn- resolve-position-status
+(defn resolve-position-status
   "AUTH-K2 resolution status for a single decision reference, derived from
    committed material only — never caller-asserted.
 

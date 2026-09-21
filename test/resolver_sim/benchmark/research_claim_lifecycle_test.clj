@@ -326,3 +326,42 @@
     (is (not= (:research-claim-lifecycle/root (lifecycle/reconstruct-research-claim-lifecycle
                                                (update log :transitions butlast)))
               (:research-claim-lifecycle/root reconstructed)))))
+
+(deftest authoritative-persisted-state-validation-requires-full-binding
+  (let [context (fixture)
+        log (first-acceptance-log context)
+        persisted (lifecycle/reconstruct-research-claim-lifecycle log)]
+    (is (:valid? (lifecycle/validate-persisted-state-authoritative
+                  persisted log)))
+    (is (not (:valid? (lifecycle/validate-persisted-state-authoritative
+                       persisted (dissoc log :acceptances)))))
+    (is (some #{:missing-acceptance-artifacts}
+              (:errors (lifecycle/validate-persisted-state-authoritative
+                        persisted (assoc log :acceptances {})))))))
+
+(deftest authoritative-path-detects-unbound-transition-in-log
+  (let [context (fixture)
+        a0 (accept! context 0)
+        a1 (reject! context 1)
+        log {:claim-root (:research-claim/root (:claim context))
+             :policy-root (:research-claim-acceptance-policy/root (:policy context))
+             :transitions [(lifecycle/build-transition
+                            {:acceptance a0 :from :unseen :to :accepted
+                             :sequence 0 :supersession? false})
+                           (lifecycle/build-transition
+                            {:acceptance a1 :from :accepted :to :superseded
+                             :sequence 1 :supersession? true})]
+             :acceptances {0 a0}}
+        persisted (lifecycle/reconstruct-research-claim-lifecycle
+                   (assoc log :acceptances {0 a0 1 a1}))]
+    (is (some #{:missing-acceptance-artifacts}
+              (:errors (lifecycle/validate-persisted-state-authoritative
+                        persisted log))))))
+
+(deftest authoritative-path-rejects-unbound-substitution
+  (let [context (fixture)
+        log (first-acceptance-log context)
+        persisted (lifecycle/reconstruct-research-claim-lifecycle log)
+        forged (assoc persisted :research-claim-lifecycle/state :rejected)]
+    (is (not (:valid? (lifecycle/validate-persisted-state-authoritative
+                       forged log))))))

@@ -191,3 +191,29 @@
              (not= state reconstructed) (conj :state-mismatch)
              (not= (:research-claim-lifecycle/root state) (state-root state))
              (conj :state-root-mismatch))})
+
+(defn validate-persisted-state-authoritative
+  "NORMATIVE persisted-state validation path.
+
+   Reconstructs the current state from the authoritative log in fully-bound
+   mode (requiring a resolved acceptance artifact for every transition) and
+   requires the result to equal the persisted state and root exactly.
+
+   This is the assurance path for production persisted-state validation. It
+   refuses to run structurally: unlike `reconstruct-research-claim-lifecycle`,
+   which may reconstruct without resolved acceptances for lower-level tests and
+   tooling, this path will not silently degrade to structural assurance. A
+   genesis log (empty transitions) has nothing to bind and is accepted."
+  [persisted {:keys [claim-root policy-root transitions acceptances] :as log}]
+  (let [transitions (vec transitions)
+        bound? (or (empty? transitions)
+                   (and (map? acceptances)
+                        (every? #(contains? acceptances
+                                            (:research-claim-lifecycle/sequence %))
+                                transitions)))]
+    (if-not bound?
+      {:valid? false :errors [:missing-acceptance-artifacts]}
+      (validate-persisted-state
+       persisted
+       (reconstruct-research-claim-lifecycle
+        (assoc log :acceptances acceptances))))))
