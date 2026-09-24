@@ -38,6 +38,22 @@ The appeal-bond work has added or changed:
 
 The July checkpoint is hash-bound by `docs/assurance/checkpoints/sew-v1x-appeal-bond-correction-2026-07-31.edn` and described by the external claim overlay at `docs/assurance/checkpoints/sew-v1x-appeal-bond-claim-overlay.edn`. The verifier intentionally reports current working-copy divergence for changed scenario bytes. The September candidate is tracked separately and is not a deployment assertion. No Solidity deployment/canonicalization mapping should be declared until source/deployment identity and reversal semantics are closed.
 
+## Scenario lineage findings
+
+The currently established path history is:
+
+| Scenario | First known revision | July checkpoint | Current finding |
+|---|---|---|---|
+| `DR-C-001` | `cf89cee28703` (2026-06-29) | present at `633f1955` | exact first semantic introduction requires further path-level diff |
+| `DR-C-002` | `cf89cee28703` (2026-06-29) | present at `633f1955` | current timing/sequence hash differs from July checkpoint |
+| `DR-C-003` | `633f19557f1a` (2026-07-31) | initial committed correction scenario | current compatibility/denomination descendant differs |
+| `DR-C-004` | `633f19557f1a` (2026-07-31) | initial committed correction scenario | current successor classification requires review |
+| `DR-C-005` | `633f19557f1a` (2026-07-31) | initial committed correction scenario | current causal forfeiture path remains incomplete |
+| `DR-C-006` | `633f19557f1a` (2026-07-31) | initial committed correction scenario | current explicit fault-injection descendant differs |
+| `DR-N-002` | `cf89cee28703` (2026-06-29) | July hash bound | modified in `b3594fff`, `d54a23c0`, and `12916800`; no further path diff after `12916800` was observed through the September checkpoint; semantic classification of those historical edits remains `UNKNOWN / REQUIRES DECISION` |
+
+`DR-N-002` therefore must not be described as unchanged merely because its current scenario text was not edited in the September working copy. Its current hash is `327415a8c599b318b0f04ab00ac9c131c5e8e45310a364a4f5ae618f721e895d`, while the July checkpoint hash is `d2fe6e2a5be08eb1e9d78a12a26188eaeab836130b8e9c740084c26c9cebf6e2`.
+
 ## Completion gate
 
 Create the lineage IDs only after:

@@ -2,6 +2,7 @@
   (:require [clojure.test :refer [deftest is]]
             [resolver-sim.benchmark.research-analysis-composition :as composition]
             [resolver-sim.benchmark.research-analysis-comparison-test :as fixture]
+            [resolver-sim.benchmark.incentive-target-qualification :as qualification]
             [resolver-sim.benchmark.researcher-reward :as reward]))
 
 (def exact-policy
@@ -55,7 +56,7 @@
                  (composition/compose-analyses [a b]
                                                (assoc exact-policy :operator :majority))))))
 
-(deftest composition-root-is-an-incentive-target-without-economic-semantics
+(deftest composition-root-is-a-valid-incentive-target
   (let [a (fixture/analysis
            "sha256:5555555555555555555555555555555555555555555555555555555555555555"
            {:researcher/id "alice"} {[0 0] 1N} nil)
@@ -88,3 +89,53 @@
     (is (some #{:verification-failed} (:reward/reasons eligibility)))
     (is (false? (:research-analysis/general-ic-proven? derived)))
     (is (not (contains? derived :reward/amount)))))
+
+(deftest target-scoped-possession-qualification-blocks-required-gap
+  (let [a (fixture/analysis
+           "sha256:5555555555555555555555555555555555555555555555555555555555555555"
+           {:researcher/id "alice"} {[0 0] 1N}
+           {:proof-of-possession/requirement :required
+            :proof-of-possession/status :established})
+        b (fixture/analysis
+           "sha256:6666666666666666666666666666666666666666666666666666666666666666"
+           {:researcher/id "bob"} {[0 0] 2N}
+           {:proof-of-possession/requirement :required
+            :proof-of-possession/status :not-established})
+        derived (composition/compose-analyses [a b] exact-policy)
+        result (qualification/qualify
+                {:target-root (:research-analysis-composition/root derived)
+                 :possession-lineage (:proof-of-possession/lineage derived)
+                 :possession-scope :target})]
+    (is (map? derived))
+    (is (false? (:incentive/qualified? result)))
+    (is (= [:proof-of-possession-required-not-established]
+           (:incentive/reasons result)))))
+
+(deftest requested-possession-is-visible-but-nonblocking
+  (let [result (qualification/qualify
+                {:target-root "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+                 :possession-lineage
+                 [{:researcher/id "alice"
+                   :proof-of-possession/requirement :requested
+                   :proof-of-possession/status :not-established}]
+                 :possession-scope :target})]
+    (is (true? (:incentive/qualified? result)))
+    (is (true? (:possession/outstanding-request? result)))
+    (is (= :requested-but-not-established
+           (get-in result [:possession/evaluations 0
+                           :proof-of-possession/outcome])))))
+
+(deftest contributor-scoped-possession-qualification-is-explicit
+  (let [lineage [{:researcher/id "alice"
+                  :proof-of-possession/requirement :required
+                  :proof-of-possession/status :established}
+                 {:researcher/id "bob"
+                  :proof-of-possession/requirement :required
+                  :proof-of-possession/status :not-established}]
+        base {:target-root "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+              :possession-lineage lineage
+              :possession-scope :contributor}]
+    (is (true? (:incentive/qualified? (qualification/qualify
+                                       (assoc base :contributor "alice")))))
+    (is (false? (:incentive/qualified? (qualification/qualify
+                                        (assoc base :contributor "bob")))))))

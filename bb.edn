@@ -281,12 +281,16 @@ check:ownership
                    "-M" "-m" "resolver-sim.validation.scenario-registry")}
 
   assurance:verify-checkpoint
-  {:doc "Verify a hash-bound assurance checkpoint without modifying scenario files"
-   :task (apply shell "bb" "scripts/assurance/verify_checkpoint.clj" *command-line-args*)}
+  {:doc "Verify a hash-bound assurance checkpoint from its bound historical revisions"
+   :task (apply shell "bb" "scripts/assurance/verify_checkpoint.clj" "verify-checkpoint" *command-line-args*)}
 
   assurance:verify-corpus
   {:doc "Compatibility alias for assurance checkpoint verification"
-   :task (apply shell "bb" "scripts/assurance/verify_checkpoint.clj" *command-line-args*)}
+   :task (apply shell "bb" "scripts/assurance/verify_checkpoint.clj" "verify-checkpoint" *command-line-args*)}
+
+  assurance:check-worktree
+  {:doc "Compare current scenario files against a historical checkpoint"
+   :task (apply shell "bb" "scripts/assurance/verify_checkpoint.clj" "check-worktree" *command-line-args*)}
 
   risk:projection
   {:doc "Generate risk-observation.v1 (SPEDS scenario risk observation) artifact + risk card over the latest event-evidence bundle"

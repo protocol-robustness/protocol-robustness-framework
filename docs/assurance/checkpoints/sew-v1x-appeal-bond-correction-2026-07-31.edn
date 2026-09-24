@@ -28,7 +28,7 @@
    :classification :correction}
   {:scenario/id "dr-c-002-slash-appeal-bond-lifecycle"
    :path "scenarios/edn/DR-C-002-slash-appeal-bond-lifecycle.edn"
-   :sha256 "2dc2c0899d41a179015df652b7b0e0b860f8365d4586560f02b8fc084b8636b"
+   :sha256 "2dc2c0899d41a179015df652b7b0e0b860f8365d4586560f02b8fc084b8636b5"
    :classification :correction}
   {:scenario/id "dr-c-003-appeal-bond-refund-on-reversal"
    :path "scenarios/edn/DR-C-003-appeal-bond-refund-on-reversal.edn"
@@ -50,6 +50,10 @@
    :path "scenarios/edn/DR-N-002-reversal-slash-appeal-rejected.edn"
    :sha256 "d2fe6e2a5be08eb1e9d78a12a26188eaeab836130b8e9c740084c26c9cebf6e2"
    :classification :correction}]
+ :roots
+ {:corpus "e9e20bd245eb26191b620a3731c19112b5fdc6f268818739b20b3dd0c206b206"
+  :overlay "b1751e6d473a7f438023f1678e1412bc47c356a8b23e89d7d31d1e3108c7e267"
+  :checkpoint "e95e52883fd1fe5c542f5589f4d8ce81a2a995f732623ac7ccad2f39bc0c53ce"}
  :evidence
  {:forge {:status :bound-by-commit-message
            :full-suite "1459 passed / 0 failed"

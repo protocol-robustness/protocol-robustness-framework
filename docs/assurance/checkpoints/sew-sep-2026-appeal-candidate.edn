@@ -30,7 +30,7 @@
    :derived-from {:checkpoint/id :sew-v1x-appeal-bond-correction-2026-07-31}}
   {:scenario/id "dr-n-002-reversal-slash-appeal-rejected"
    :path "scenarios/edn/DR-N-002-reversal-slash-appeal-rejected.edn"
-   :sha256 :not-recomputed
+   :sha256 "327415a8c599b318b0f04ab00ac9c131c5e8e45310a364a4f5ae618f721e895d"
    :classification :compatibility
    :derived-from {:checkpoint/id :sew-v1x-appeal-bond-correction-2026-07-31}}]
  :claim-notes

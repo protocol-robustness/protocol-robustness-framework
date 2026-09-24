@@ -22,6 +22,10 @@
   :scenario-corpus-root :unknown
   :model-root :unknown
   :runner-root :unknown}
+ :roots
+ {:corpus "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+  :overlay :none
+  :checkpoint "23a897346401bb197bab30ebc89239baf0c27c664816c09b74ae0d32c89584d4"}
  :evidence
  {:deployment-manifest "sew-protocol/deploy-registry/base-sepolia/v1.x/2026-02-19.json"
   :deployment-report :unknown
