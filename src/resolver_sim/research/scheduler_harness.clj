@@ -418,6 +418,12 @@
                        {} (:tasks workload))]
     (scores (dec (count (:tasks workload))))))
 
+(defn policy-subject-root [policy adaptive?]
+  (when-not ((set policies) policy)
+    (throw (ex-info "Unsupported scheduler policy" {:policy policy})))
+  (rooted :scheduler-implementation.v1
+          {:policy policy :adaptive? adaptive? :model-version 1}))
+
 (defn run-policy
   "Simulate one policy on the exact supplied rooted workload. A common
    canonical task-result function is checked independently at each commit."
@@ -467,8 +473,7 @@
                 :workload/root (:workload/root workload)
                 :scheduler/policy policy :scheduler/adaptive-granularity? adaptive?
                 :scheduler/implementation-root
-                (rooted :scheduler-implementation.v1
-                        {:policy policy :adaptive? adaptive? :model-version 1})
+                (policy-subject-root policy adaptive?)
                 :committed/root actual :expected/root expected
                 :metrics metrics :worker-busy-ms (:utilization final)
                 :speculation/accounting
