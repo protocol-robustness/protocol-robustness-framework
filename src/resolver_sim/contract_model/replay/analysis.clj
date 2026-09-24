@@ -102,18 +102,22 @@
   (vec
    (keep (fn [{:keys [seq action expected-status expected-cause evidence] :as requirement}]
            (if evidence
-             (let [receipt (some :appeal-bond/transition-receipt trace)
-                   bond (:appeal-bond receipt)
-                   roots-valid? (and (= :valid (:pre-status bond))
-                                     (= :valid (:post-status bond))
-                                     (some? (:pre-root bond))
-                                     (some? (:post-root bond)))]
-               (when-not (and (= evidence :appeal-bond-semantic-pre-post-roots) roots-valid?)
-                 {:requirement requirement :observed receipt}))
+             (let [valid-receipt
+                   (some (fn [entry]
+                           (let [receipt (:appeal-bond/transition-receipt entry)
+                                 bond (:appeal-bond receipt)]
+                             (when (and (= :valid (:pre-status bond))
+                                        (= :valid (:post-status bond))
+                                        (some? (:pre-root bond))
+                                        (some? (:post-root bond)))
+                               receipt)))
+                         trace)]
+               (when-not (and (= evidence :appeal-bond-semantic-pre-post-roots) valid-receipt)
+                 {:requirement requirement :observed valid-receipt}))
              (let [entry (some #(when (and (= seq (:seq %))
                                            (= (trace-action-name %) (-> action str str/lower-case
                                                                         (str/replace "-" "_"))))
-                                 %)
+                                  %)
                                trace)
                    rejected? (and entry (= :rejected (:result entry)))
                    status-ok? (case expected-status
@@ -139,10 +143,32 @@
         recipient (get-in scenario [:claim-to :scope :recipient])
         entitlement (get (:entitlements query) recipient)
         disposition-allocation (get-in disposition [:allocations recipient])
-        first-terminal-accepted? (boolean (some #(accepted-action? % "resolve_appeal") trace))
+        identity-checkpoint (get-in result [:world-checkpoints 6])
+        identity-projection (when identity-checkpoint
+                              (appeal-bond-projection/project-appeal-bonds identity-checkpoint))
+        identity-bonds (when (:valid? identity-projection)
+                         (appeal-bond-projection/query-bonds-by-workflow-funder
+                          identity-projection 0 "0xchallenger"))
+        identity-a (first identity-bonds)
+        identity-b (second identity-bonds)
+        terminal-operation-seqs (->> (get-in scenario [:claim-to :requires])
+                                     (keep #(when (and (:seq %)
+                                                       (= "execute_resolution" (:action %)))
+                                              (:seq %)))
+                                     vec)
+        first-terminal-receipt (some #(when (= (first terminal-operation-seqs)
+                                               (get-in % [:appeal-bond/transition-receipt :operation/seq]))
+                                        (:appeal-bond/transition-receipt %))
+                                     trace)
+        second-terminal-receipt (some #(when (= (second terminal-operation-seqs)
+                                                (get-in % [:appeal-bond/transition-receipt :operation/seq]))
+                                         (:appeal-bond/transition-receipt %))
+                                      trace)
+        first-terminal-accepted? (boolean (and first-terminal-receipt
+                                               (= :applied (:execution/status first-terminal-receipt))))
         terminal-rejection? (boolean (some #(rejected-action? % "resolve_appeal") trace))
         atom-receipt (some #(when (= :distribution-dependency-failure (:error %))
-                               (:appeal-bond/transition-receipt %))
+                              (:appeal-bond/transition-receipt %))
                            trace)
         atom-bond (:appeal-bond atom-receipt)
         atom-roots-valid? (and (= :valid (:pre-status atom-bond))
@@ -153,6 +179,22 @@
         (cond-> {}
           (and query (expected? :terminal_disposition_count))
           (assoc :terminal_disposition_count disposition-count)
+
+          (expected? :bond_a_id_distinct_from_b)
+          (assoc :bond_a_id_distinct_from_b
+                 (and identity-a identity-b
+                      (not= (:bond/id identity-a) (:bond/id identity-b))))
+
+          (expected? :bond_b_open_at_coexistence)
+          (assoc :bond_b_open_at_coexistence
+                 (and identity-b
+                      (= :open (:bond/status identity-b))))
+
+          (expected? :bond_a_ordinal)
+          (assoc :bond_a_ordinal (:appeal/ordinal identity-a))
+
+          (expected? :bond_b_ordinal)
+          (assoc :bond_b_ordinal (:appeal/ordinal identity-b))
 
           (and query (expected? :historical_disposition_unchanged))
           ;; The validated projection contains one immutable, lineage-bound
@@ -165,6 +207,14 @@
           (and query (expected? :second_terminal_operation_reverted))
           (assoc :second_terminal_operation_reverted
                  (and first-terminal-accepted? terminal-rejection?))
+
+          (and query (expected? :second_terminal_operation_no_duplicate_effect))
+          (assoc :second_terminal_operation_no_duplicate_effect
+                 (and first-terminal-accepted?
+                      second-terminal-receipt
+                      (= :applied (:execution/status second-terminal-receipt))
+                      (= (:pre-root (:appeal-bond second-terminal-receipt))
+                         (:post-root (:appeal-bond second-terminal-receipt)))))
 
           (and query entitlement (expected? :allocation_unchanged_after_claim))
           (assoc :allocation_unchanged_after_claim
@@ -180,9 +230,17 @@
           (and query (expected? :first_terminal_operation_accepted))
           (assoc :first_terminal_operation_accepted first-terminal-accepted?)
 
-          (and query (expected? :replay_reverted))
+          (expected? :replay_reverted)
           (assoc :replay_reverted
                  (and first-terminal-accepted? terminal-rejection?))
+
+          (and (expected? :replay_no_duplicate_effect))
+          (assoc :replay_no_duplicate_effect
+                 (and first-terminal-accepted?
+                      second-terminal-receipt
+                      (= :applied (:execution/status second-terminal-receipt))
+                      (= (:pre-root (:appeal-bond second-terminal-receipt))
+                         (:post-root (:appeal-bond second-terminal-receipt)))))
 
           (and query (expected? :disposition_count))
           (assoc :disposition_count disposition-count)
@@ -191,6 +249,11 @@
           (assoc :duplicate_entitlement
                  (not (and (> (count (:entitlements query)) 1)
                            (> disposition-count 1))))
+
+          (and query (expected? :no_duplicate_entitlement))
+          (assoc :no_duplicate_entitlement
+                 (and (= 1 disposition-count)
+                      (= 1 (count (:entitlements query)))))
 
           ;; Execution status remains trace evidence, distinct from semantic roots.
           (and (expected? :operation_reverted)
@@ -256,6 +319,8 @@
                    bond-metrics (update :metrics merge bond-metrics)
                    primitive-bond-metrics (update :metrics merge primitive-bond-metrics)
                    primitive-bond-query (assoc :appeal-bond/primitive-query primitive-bond-query)
+                   (seq (:trace result')) (assoc :appeal-bond/transition-receipts
+                                                 (vec (keep :appeal-bond/transition-receipt (:trace result'))))
                    (seq (:trace result')) (update :metrics merge
                                                   {:resolver_bond_refunded (pos? legacy-bond-refund-total)
                                                    :slash_count legacy-slash-count})

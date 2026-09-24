@@ -102,6 +102,8 @@
                  "operation-a" world world)]
     (is (= :reverted (:execution/status receipt)))
     (is (= :distribution-dependency-failure (get-in receipt [:execution/cause :type])))
+    (is (= :valid (get-in receipt [:appeal-bond :pre-status])))
+    (is (= :valid (get-in receipt [:appeal-bond :post-status])))
     (is (= "operation-a" (:operation/id receipt)))
     (is (= (get-in receipt [:appeal-bond :pre-root])
            (get-in receipt [:appeal-bond :post-root])))))
@@ -140,3 +142,12 @@
         result (projection/query-bonds-by-workflow-funder p 0 "0xchallenger")]
     (is (= ["bond-a" "bond-b"] (mapv :bond/id result)))
     (is (= [1 2] (mapv :appeal/ordinal result)))))
+
+(deftest semantic-root-commits-runtime-float-fields-exactly
+  (let [record (assoc (open-record "bond-a") :bond/policy-ratio 1.0)
+        p (projection/project-appeal-bonds
+           {:appeal-bond/records {"bond-a" record}
+            :appeal-bond/dispositions {}
+            :appeal-bond/claims {}})]
+    (is (:valid? p))
+    (is (string? (projection/appeal-bond-semantic-root p)))))

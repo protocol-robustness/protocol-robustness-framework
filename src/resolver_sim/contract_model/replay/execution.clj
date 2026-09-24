@@ -112,8 +112,9 @@
            :errors (:errors projection)}))
       (catch Exception e
         {:evidence/status :invalid
-         :error :appeal-bond-projection-error
-         :detail (.getMessage e)}))))
+         :errors [{:code :appeal-bond-projection-error
+                   :message (.getMessage e)
+                   :data (ex-data e)}]}))))
 
 (defn- canonical-operation-id [event block-time]
   (let [action-hash (hc/hash-with-intent

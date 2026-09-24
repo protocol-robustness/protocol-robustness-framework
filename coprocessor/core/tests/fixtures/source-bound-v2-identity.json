@@ -1,6 +1,6 @@
 {
   "schema_version": "source-bound-v2-identity.v1",
-  "status": "host-identity-verified-proof-fixture-regeneration-pending",
+  "status": "proof-fixture-verified", 
   "sp1_version": "6.3.1",
   "proof_system": "groth16",
   "program_id": "source-bound-v2-sp1-program.v2",
@@ -12,9 +12,10 @@
   "canonical_public_values_sha256": "0x6cf0f75a8b242a393168c8f37d909d6a0d4f86abac0a480928e2c7c9c4fa8ffa",
   "proof_fixture": {
     "path": "source-bound-v2-proof-fixture.json",
-    "status": "stale-identity",
-    "vkey": "0x001814a1a8eec1def90e64219838359bf15ea4eef13f155c11973064a1c9ff68",
-    "elf_sha256": "0xef6afe7ea493c068c1415716fb8e4d9f0b0c866fa7f21d997084fd918bcffdfd",
-    "note": "The semantic 192-byte public values are unchanged; the proof artifact must be regenerated before admission configuration or verifier roots are frozen."
+    "status": "verified",
+    "vkey": "0x0089abceac18acb8d0686b81ea542b933339353807924bc021a9fe3820888127",
+    "elf_sha256": "0x1994d8b67004de3d5dfffc176434ae63f3d7ac32ae875d72093943ff8e82247b",
+    "proof_sha256": "0x25f63c77b7ba7d3f3fbef865da8c1d8e0fa2dadc2b9290e2604fc4bdfb2678aa",
+    "public_values_sha256": "0x6cf0f75a8b242a393168c8f37d909d6a0d4f86abac0a480928e2c7c9c4fa8ffa"
   }
 }

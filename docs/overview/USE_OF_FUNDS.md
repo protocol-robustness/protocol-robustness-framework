@@ -30,7 +30,17 @@ Global custody overlays:
 - `bond-distribution-total`
 - `retained-slash-reserves`
 
-## Conservation identity (token level)
+## Legacy reporting identity
+
+The following identity remains the current `:funds-ledger-view` reporting
+calculation. It is not the authoritative conservation contract for new
+accounting work because `released` and `refunded` are finalized allocation
+counters, while a claimable may still be inside protocol custody.
+
+The authoritative target bucket meanings and conservation boundary are defined
+in [`../architecture/SEW_ACCOUNTING_SEMANTICS_V1.md`](../architecture/SEW_ACCOUNTING_SEMANTICS_V1.md).
+
+## Legacy reporting identity (token level)
 
 For each token, the invariant expectation is:
 
@@ -47,7 +57,8 @@ At system level, conservation is checked by summing the token equations:
 
 `Σ(held + released + refunded) = Σ(escrow-deposited + bond-deposited)`
 
-This is the primary invariant used to derive drift.
+This is the current reporting calculation used to derive drift. It must not be
+used as proof that modeled value crossed the protocol boundary.
 
 ## Inflow / outflow interpretation
 
@@ -59,8 +70,9 @@ This is the primary invariant used to derive drift.
   - refunded
   - withdrawn (claimable withdrawals)
 
-`withdrawn` is a custody movement metric for analysis and does not replace
-the core conservation equation above.
+`withdrawn` is a custody movement metric for analysis and does not replace the
+legacy reporting equation above. The target contract distinguishes allocation,
+claimability, and actual external withdrawal.
 
 ## Exclusions and assumptions
 

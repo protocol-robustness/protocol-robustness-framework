@@ -12,7 +12,7 @@
     (is (= (harness/canonical-root workload) (first roots)))
     (is (every? #(= 1 (get-in % [:metrics :committed-root-agreement])) runs))
     (is (= [0 0 0 0] (mapv #(get-in % [:metrics :speculative-tasks-executed])
-                        (butlast runs))))
+                           (butlast runs))))
     (is (= 3 (get-in speculative [:metrics :speculative-tasks-executed])))
     (is (= 2 (get-in speculative [:metrics :speculative-tasks-accepted])))
     (is (= 1 (get-in speculative [:metrics :speculative-tasks-discarded])))
@@ -41,7 +41,7 @@
     (is (= 1 (count (set (map :workload/root runs)))))
     (is (some (fn [policy]
                 (not= (get-in (harness/run-policy workload policy false)
-                             [:metrics :makespan-ms])
+                              [:metrics :makespan-ms])
                       (get-in (harness/run-policy workload policy true)
                               [:metrics :makespan-ms])))
               harness/policies))))
@@ -52,7 +52,7 @@
         scaled (harness/workload {:id :scaled :cpu-scale 2 :gpu-scale 3
                                   :tool-scale 4 :transfer-bytes 16})
         all-fail (harness/workload {:id :all-fail
-                                   :false-predictions #{3 4 6}})]
+                                    :false-predictions #{3 4 6}})]
     (is (thrown? clojure.lang.ExceptionInfo
                  (harness/run-policy wrong :static false)))
     (is (not= (:workload/root workload) (:workload/root scaled)))

@@ -57,7 +57,6 @@ dependencies = [
  "num-bigint 0.4.8",
  "num-integer",
  "num-traits",
- "serde",
  "serde_json",
  "sha2",
  "sha3",
@@ -68,8 +67,6 @@ name = "allocation-sp1-program"
 version = "0.1.0"
 dependencies = [
  "allocation-kernel",
- "hex",
- "serde",
  "serde_json",
  "sp1-zkvm",
 ]
@@ -3039,7 +3036,6 @@ version = "0.1.0"
 dependencies = [
  "allocation-kernel",
  "hex",
- "serde",
  "serde_json",
  "sp1-zkvm",
 ]

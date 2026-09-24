@@ -2391,7 +2391,7 @@
     :intent/includes #{:projection/version :appeal-bond/records
                        :appeal-bond/dispositions :appeal-bond/claims}
     :intent/excludes #{:aggregate-ledgers :scenario-metrics :runtime-values :functions}
-    :intent/projection-fn project-canonical-safe-for-intent
+    :intent/projection-fn project-committable-content-for-intent
     :intent/version 1}
 
    :replay-frame
