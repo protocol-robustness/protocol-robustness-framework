@@ -100,22 +100,31 @@
 
 (defn- required-operation-violations [scenario trace]
   (vec
-   (keep (fn [{:keys [seq action expected-status expected-cause] :as requirement}]
-           (let [entry (some #(when (and (= seq (:seq %))
-                                         (= (trace-action-name %) (-> action str str/lower-case
-                                                                      (str/replace "-" "_"))))
-                                %)
-                             trace)
-                 rejected? (and entry (= :rejected (:result entry)))
-                 status-ok? (case expected-status
-                              :accepted (and entry (not rejected?) (nil? (:error entry)))
-                              :rejected (and entry rejected?)
-                              false)
-                 cause (or (:reject-class entry) (:error entry))
-                 cause-ok? (or (nil? expected-cause) (= expected-cause cause))]
-             (when-not (and status-ok? cause-ok?)
-               {:requirement requirement
-                :observed (select-keys entry [:seq :action :result :error :reject-class])})))
+   (keep (fn [{:keys [seq action expected-status expected-cause evidence] :as requirement}]
+           (if evidence
+             (let [receipt (some :appeal-bond/transition-receipt trace)
+                   bond (:appeal-bond receipt)
+                   roots-valid? (and (= :valid (:pre-status bond))
+                                     (= :valid (:post-status bond))
+                                     (some? (:pre-root bond))
+                                     (some? (:post-root bond)))]
+               (when-not (and (= evidence :appeal-bond-semantic-pre-post-roots) roots-valid?)
+                 {:requirement requirement :observed receipt}))
+             (let [entry (some #(when (and (= seq (:seq %))
+                                           (= (trace-action-name %) (-> action str str/lower-case
+                                                                        (str/replace "-" "_"))))
+                                 %)
+                               trace)
+                   rejected? (and entry (= :rejected (:result entry)))
+                   status-ok? (case expected-status
+                                :accepted (and entry (not rejected?) (nil? (:error entry)))
+                                :rejected (and entry rejected?)
+                                false)
+                   cause (or (:reject-class entry) (:error entry))
+                   cause-ok? (or (nil? expected-cause) (= expected-cause cause))]
+               (when-not (and status-ok? cause-ok?)
+                 {:requirement requirement
+                  :observed (select-keys entry [:seq :action :result :error :reject-class])}))))
          (get-in scenario [:claim-to :requires] []))))
 
 (defn- primitive-bond-metrics [scenario result query]
@@ -132,6 +141,14 @@
         disposition-allocation (get-in disposition [:allocations recipient])
         first-terminal-accepted? (boolean (some #(accepted-action? % "resolve_appeal") trace))
         terminal-rejection? (boolean (some #(rejected-action? % "resolve_appeal") trace))
+        atom-receipt (some #(when (= :distribution-dependency-failure (:error %))
+                               (:appeal-bond/transition-receipt %))
+                           trace)
+        atom-bond (:appeal-bond atom-receipt)
+        atom-roots-valid? (and (= :valid (:pre-status atom-bond))
+                               (= :valid (:post-status atom-bond))
+                               (some? (:pre-root atom-bond))
+                               (some? (:post-root atom-bond)))
         metric-values
         (cond-> {}
           (and query (expected? :terminal_disposition_count))
@@ -175,10 +192,18 @@
                  (not (and (> (count (:entitlements query)) 1)
                            (> disposition-count 1))))
 
-          ;; Execution status is intentionally not projected into bond state.
+          ;; Execution status remains trace evidence, distinct from semantic roots.
           (and (expected? :operation_reverted)
-               (some #(rejected-action? % "execute_resolution") trace))
-          (assoc :operation_reverted true))]
+               atom-receipt
+               (= :reverted (:execution/status atom-receipt))
+               (= :distribution-dependency-failure (get-in atom-receipt [:execution/cause :type])))
+          (assoc :operation_reverted true)
+
+          (and (expected? :bond_state_unchanged) atom-roots-valid?)
+          (assoc :bond_state_unchanged (= (:pre-root atom-bond) (:post-root atom-bond)))
+
+          (and (expected? :partial_distribution) atom-roots-valid?)
+          (assoc :partial_distribution (not= (:pre-root atom-bond) (:post-root atom-bond))))]
     metric-values))
 
 (defn finalize-scenario-result

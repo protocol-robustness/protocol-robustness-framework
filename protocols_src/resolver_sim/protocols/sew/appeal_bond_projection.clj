@@ -3,7 +3,8 @@
 
    This namespace deliberately does not infer identity from aggregate ledgers.
    Missing, duplicate, or inconsistent lifecycle records fail closed."
-  (:require [clojure.string :as str]))
+  (:require [clojure.string :as str]
+            [resolver-sim.hash.canonical :as hc]))
 
 (def projection-version "appeal-bond-projection.v1")
 
@@ -180,6 +181,23 @@
          (sort-by :appeal/ordinal)
          (mapv #(select-keys % [:bond/id :workflow/id :appeal/ordinal :bond/status
                                 :bond/remaining-custody])))))
+
+(defn appeal-bond-semantic-state
+  "Canonical semantic state committed by appeal-bond transition receipts.
+   It deliberately excludes aggregate reconciliation ledgers and unrelated
+   protocol world state; every included field is validated by this projection."
+  [projection]
+  (let [p (validate-appeal-bond-projection projection)]
+    {:projection/version (:projection/version p)
+     :appeal-bond/records (:appeal-bond/records p)
+     :appeal-bond/dispositions (:appeal-bond/dispositions p)
+     :appeal-bond/claims (:appeal-bond/claims p)}))
+
+(defn appeal-bond-semantic-root
+  "Domain-separated root for validated ordinary appeal-bond semantic state."
+  [projection]
+  (hc/hash-with-intent {:hash/intent :appeal-bond-semantic-state}
+                       (appeal-bond-semantic-state projection)))
 
 (defn derive-appeal-bond-metrics
   "Scenario metrics are queries over the validated semantic projection." 

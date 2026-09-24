@@ -92,6 +92,60 @@
                 :fault/kind :distribution-dependency-failure
                 :fault/event-seq (:seq event)}})))
 
+(defn- appeal-bond-projection-evidence
+  "Return externally-derived semantic-root evidence for a world. The receipt
+   layer never writes this material back into protocol state."
+  [world]
+  (if-not (or (contains? world :appeal-bond/records)
+              (contains? world :appeal-bond/dispositions)
+              (contains? world :appeal-bond/claims))
+    {:evidence/status :unavailable
+     :reason :appeal-bond-domain-unavailable}
+    (try
+      (let [project (requiring-resolve 'resolver-sim.protocols.sew.appeal-bond-projection/project-appeal-bonds)
+            root (requiring-resolve 'resolver-sim.protocols.sew.appeal-bond-projection/appeal-bond-semantic-root)
+            projection (project world)]
+        (if (:valid? projection)
+          {:evidence/status :valid
+           :root (root projection)}
+          {:evidence/status :invalid
+           :errors (:errors projection)}))
+      (catch Exception e
+        {:evidence/status :invalid
+         :error :appeal-bond-projection-error
+         :detail (.getMessage e)}))))
+
+(defn- canonical-operation-id [event block-time]
+  (let [action-hash (hc/hash-with-intent
+                     {:hash/intent :action}
+                     {:action/type (:action event)
+                      :action/content (:params event)})]
+    (hc/hash-with-intent {:hash/intent :action-at}
+                         {:action-hash action-hash
+                          :step (:seq event)
+                          :block-time block-time})))
+
+(defn- appeal-bond-transition-receipt
+  [event result operation-id pre-world post-world]
+  (let [operation-id (or operation-id (canonical-operation-id event (:block-time pre-world)))
+        pre (appeal-bond-projection-evidence pre-world)
+        post (appeal-bond-projection-evidence post-world)
+        applied? (:ok result)]
+    {:transition-receipt/version 1
+     :operation/id operation-id
+     :operation/type (analysis/action->transition-id (:action event))
+     :operation/seq (:seq event)
+     :execution/status (if applied? :applied :reverted)
+     :execution/cause (when-not applied?
+                        {:type (:error result)
+                         :root operation-id})
+     :appeal-bond {:pre-root (:root pre)
+                   :post-root (:root post)
+                   :pre-status (:evidence/status pre)
+                   :post-status (:evidence/status post)
+                   :pre-errors (:errors pre)
+                   :post-errors (:errors post)}}))
+
 (defn apply-action-with-evidence
   "Dispatch an action through the protocol layer and emit a content-hashed
    evidence record for the transition.
@@ -498,6 +552,9 @@
                 metadata (if (satisfies? proto/AnalysisModule protocol)
                            (proto/classify-transition protocol (:action event) result-kw)
                            nil)
+                appeal-bond-receipt (appeal-bond-transition-receipt
+                                     event result (:ctx/evidence-hash replay-ctx)
+                                     world-t final-world)
                 yield-delta (when (and ok? (yield-accounting-action? (:action event)))
                               (yield-accounting-delta world-t final-world))
                 yield-node (when (and yield-delta
@@ -538,6 +595,7 @@
                 :violations all-violations
                 :transition-assurance (:result assurance)
                 :trace-metadata metadata
+                :appeal-bond/transition-receipt appeal-bond-receipt
                 :yield/accounting-delta yield-delta
                 :yield/execution-node-hash (:node-hash yield-node)
                 :world (proto/world-snapshot protocol final-world)

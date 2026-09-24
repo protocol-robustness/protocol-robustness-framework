@@ -74,6 +74,7 @@
    :evm-projection "EVM_PROJECTION_V1"
    :invariant-attestation "INVARIANT_ATTESTATION_V1"
    :projection-evidence "PROJECTION_EVIDENCE_V1"
+   :appeal-bond-semantic-state "APPEAL_BOND_SEMANTIC_STATE_V1"
    :checkpoint-evidence "CHECKPOINT_EVIDENCE_V1"
    :run-overview "RUN_OVERVIEW_V1"
    :benchmark-certification "BENCHMARK_CERTIFICATION_V1"
@@ -99,6 +100,7 @@
    :action-at "ACTION_AT_V1"
    :pro-rata-allocation-result "PRO_RATA_ALLOCATION_RESULT_V1"
    :pro-rata-allocation-policy "PRO_RATA_ALLOCATION_POLICY_V1"
+   :pro-rata-policy-outcome "PRO_RATA_POLICY_OUTCOME_V1"
    :pro-rata-proposed-effects "PRO_RATA_PROPOSED_EFFECTS_V1"
    :pro-rata-effect-refinement "PRO_RATA_EFFECT_REFINEMENT_V1"
    :pro-rata-allocation-application "PRO_RATA_ALLOCATION_APPLICATION_V1"
@@ -975,6 +977,11 @@
     (map? v) (into {} (map (fn [[k vv]] [k (project-canonical-safe vv)]) v))
     (sequential? v) (mapv project-canonical-safe v)
     :else v))
+
+(defn project-canonical-safe-for-intent
+  "Intent-compatible arity wrapper for canonical-safe projection."
+  [value _intent]
+  (project-canonical-safe value))
 
 ;; ──────────────────────────────────────────────────────────────────────────────
 ;; World State Projection
@@ -2377,6 +2384,16 @@
     :intent/projection-fn project-canonical-artifact
     :intent/version 1}
 
+   :appeal-bond-semantic-state
+   {:intent/name :appeal-bond-semantic-state
+    :intent/domain-tag "APPEAL_BOND_SEMANTIC_STATE_V1"
+    :intent/description "Canonical semantic state of validated ordinary appeal bonds for transition evidence"
+    :intent/includes #{:projection/version :appeal-bond/records
+                       :appeal-bond/dispositions :appeal-bond/claims}
+    :intent/excludes #{:aggregate-ledgers :scenario-metrics :runtime-values :functions}
+    :intent/projection-fn project-canonical-safe-for-intent
+    :intent/version 1}
+
    :replay-frame
    {:intent/name :replay-frame
     :intent/domain-tag "PRF_REPLAY_FRAME_V1"
@@ -2730,6 +2747,17 @@ name (an alias)."
     :intent/includes #{:schema/version :mechanism/id :mechanism/version
                        :rounding-policy :tie-break-policy :redistribution-policy}
     :intent/excludes #{:runtime-values :functions}
+    :intent/projection-fn (fn [value _] value)
+    :intent/version 1}
+
+   :pro-rata-policy-outcome
+   {:intent/name :pro-rata-policy-outcome
+    :intent/domain-tag "PRO_RATA_POLICY_OUTCOME_V1"
+    :intent/description "Canonical consequence recording that a validated pro-rata result satisfied its derived policy"
+    :intent/includes #{:schema/version :mechanism/id :mechanism/version
+                       :request/root :policy/root :allocation-result/root
+                       :outcome/status :rounding/outcome :violations}
+    :intent/excludes #{:outcome/root :runtime-values :functions}
     :intent/projection-fn (fn [value _] value)
     :intent/version 1}
 

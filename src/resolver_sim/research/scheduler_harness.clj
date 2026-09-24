@@ -161,7 +161,7 @@
 
 (defn- issue-task [state task mode]
   (let [available (count (filter #(and (eligible? task (:id %))
-                                      (not (contains? (:running state) (:id %)))) workers))
+                                       (not (contains? (:running state) (:id %)))) workers))
         chunks (if (and (:adaptive? state) (= mode :normal)
                         (>= (:pieces task) 2) (>= available 2)
                         (>= (apply max (vals (:costs task))) 12))
@@ -176,7 +176,7 @@
                          :work-ms 0 :finish-workers [] :verified? false})]
     (reduce (fn [s part]
               (queue-job s target-worker {:type :task :task task-id
-                                         :part part :chunks chunks :mode mode}))
+                                          :part part :chunks chunks :mode mode}))
             state (range chunks))))
 
 (defn- any-running-task? [state task-id]
@@ -475,7 +475,7 @@
                 {:accepted-work-ms (:speculative-work-accepted-ms metrics)
                  :discarded-work-ms (:speculative-work-discarded-ms metrics)
                  :total-executed-work-ms (+ (:speculative-work-accepted-ms metrics)
-                                             (:speculative-work-discarded-ms metrics))
+                                            (:speculative-work-discarded-ms metrics))
                  :accepted-tasks (:speculative-tasks-accepted metrics)
                  :discarded-tasks (:speculative-tasks-discarded metrics)
                  :prediction-correct (:speculative-predictions-correct metrics)
@@ -656,7 +656,7 @@
                 :researcher {:researcher/id (str "scheduler/" (name policy))}
                 :analysis/coordinates coordinates
                 :analysis/policy-root (rooted :scheduler-policy-subject.v1
-                                               {:policy policy :fixed-granularity true})
+                                              {:policy policy :fixed-granularity true})
                 :proof-of-possession nil}]
       (assoc body :research-analysis/root
              (rooted :scheduler-policy-analysis.v1 body)))))
@@ -709,11 +709,11 @@
                                   left-makespan (:left/makespan-ms entry)
                                   right-makespan (:right/makespan-ms entry)]
                               (assoc a coordinate
-                                   {:case/parameters (:case/parameters entry)
-                                    :policy/makespan-ms
-                                    (assoc (:policy/makespan-ms (get a coordinate {}))
-                                           left-policy left-makespan
-                                           right-policy right-makespan)})))
+                                     {:case/parameters (:case/parameters entry)
+                                      :policy/makespan-ms
+                                      (assoc (:policy/makespan-ms (get a coordinate {}))
+                                             left-policy left-makespan
+                                             right-policy right-makespan)})))
                           acc entries))
                 {} (vals deltas))]
     (mapv (fn [[coordinate {:keys [case/parameters policy/makespan-ms]}]]
@@ -750,8 +750,8 @@
    (mapcat (fn [policy]
              (for [outcome [:win :tie :loss]
                    :let [coordinates (vec (filter #(= outcome
-                                                     (get-in % [:global-region/policy-outcomes
-                                                                policy :global-region/outcome]))
+                                                      (get-in % [:global-region/policy-outcomes
+                                                                 policy :global-region/outcome]))
                                                   global-regions))]
                    :when (seq coordinates)]
                {:policy-region {:policy policy
@@ -779,7 +779,7 @@
         bounded-count (reduce * 1
                               (map (fn [axis]
                                      (count (filter #(<= (get-in constraints [axis :min]) %
-                                                        (get-in constraints [axis :max]))
+                                                         (get-in constraints [axis :max]))
                                                     (get axes axis))))
                                    axis-ids))]
     {:policy (:policy policy-region)
@@ -812,7 +812,7 @@
 (defn- policy-region-summary [global-regions]
   (into (sorted-map)
         (for [policy policies]
-                          [policy (reduce (fn [summary region]
+          [policy (reduce (fn [summary region]
                             (let [outcome (get-in region [:global-region/policy-outcomes
                                                           policy :global-region/outcome])]
                               (update summary ({:win :wins :tie :ties :loss :losses} outcome)
@@ -836,8 +836,8 @@
          params-by-coordinate (into {}
                                     (map (fn [params]
                                            [(select-keys params [:prediction/success-permille
-                                                                :gpu/bottleneck-scale
-                                                                :transfer/bytes])
+                                                                 :gpu/bottleneck-scale
+                                                                 :transfer/bytes])
                                             params])
                                          params))
          workload-for-case (into {}
@@ -886,9 +886,9 @@
          derived-regions (region-derivation frozen comparisons default-margin-thresholds axes)
          regions (:global/winner-regions derived-regions)
          roots-identical? (every? true?
-                                 (for [case cases]
-                                   (apply = (map #(get-in runs [% (:case/id case) :committed/root])
-                                                 policies))))
+                                  (for [case cases]
+                                    (apply = (map #(get-in runs [% (:case/id case) :committed/root])
+                                                  policies))))
          result (assoc sweep-base
                        :sweep/subject-root sweep-root
                        :runs runs :matrices matrices :analyses analyses
@@ -916,7 +916,7 @@
    :human-readable-region-summaries
    (get-in result [:derived-region-analysis :human-readable-region-summaries])
    :regions (mapv #(select-keys % [:case/parameters :global-region/winners
-                                    :global-region/minimum-makespan-ms])
+                                   :global-region/minimum-makespan-ms])
                   (:regions result))
    :analysis-comparison-roots
    (into (sorted-map) (map (fn [[pair comparison]]
