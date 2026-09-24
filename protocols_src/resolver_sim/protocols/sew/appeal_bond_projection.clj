@@ -110,6 +110,77 @@
 (defn validate-appeal-bond-projection [projection]
   (if (:valid? projection) projection (throw (ex-info "invalid appeal bond projection" projection))))
 
+(defn query-bond-conservation
+  "Read-only query for exactly one authoritative bond in a validated projection.
+   Select by canonical bond ID, or by the complete workflow/funder/ordinal identity.
+   Missing or ambiguous selectors fail closed."
+  [projection selector]
+  (let [p (validate-appeal-bond-projection projection)
+        records (vals (:appeal-bond/records p))
+        identity-keys [:bond/id :workflow/id :dispute/id :bond/funder :appeal/ordinal]
+        supplied-identity (select-keys selector identity-keys)
+        candidates (filter (fn [record]
+                            (every? (fn [[key value]] (= value (get record key)))
+                                    supplied-identity))
+                          records)]
+    (cond
+      (empty? candidates)
+      {:valid? false :error :bond-not-found :selector selector}
+
+      (not= 1 (count candidates))
+      {:valid? false :error :ambiguous-bond-selector
+       :selector selector :bond-ids (mapv :bond/id candidates)}
+
+      :else
+      (let [record (first candidates)
+            disposition (first (filter #(= (:bond/id record) (:bond/id %))
+                                       (vals (:appeal-bond/dispositions p))))
+            terminal-total (or (:total disposition) 0)
+            allocation-map (or (:allocations disposition) {})
+            claims (get-in p [:appeal-bond/claims (:bond/id record)] {})
+            posted (:bond/posted-amount record)
+            fee (:bond/posting-fee record)
+            custody (:bond/custodied-amount record)
+            remaining (:bond/remaining-custody record)]
+        {:valid? true
+         :bond/id (:bond/id record)
+         :workflow/id (:workflow/id record)
+         :dispute/id (:dispute/id record)
+         :bond/funder (:bond/funder record)
+         :appeal/ordinal (:appeal/ordinal record)
+         :bond/status (:bond/status record)
+         :bond/posted-amount posted
+         :bond/posting-fee fee
+         :bond/custodied-amount custody
+         :bond/remaining-custody remaining
+         :terminal-allocation-total terminal-total
+         :disposition-count (if disposition 1 0)
+         :disposition/id (:disposition/id disposition)
+         :disposition/kind (:kind disposition)
+         :disposition/allocations allocation-map
+         :entitlements claims
+         :bond-conservation-holds (= posted (+ fee custody))
+         :remaining-custody-after-disposition remaining
+         :remaining-custody-invariant (if (= :disposed (:bond/status record))
+                                        (zero? remaining)
+                                        (= remaining custody))
+         :terminal-allocations-equal-custody (if (= :disposed (:bond/status record))
+                                               (= terminal-total custody)
+                                               (zero? terminal-total))}))))
+
+(defn query-bonds-by-workflow-funder
+  "Read-only collection query for identity analysis. This does not select a
+   mutation target; callers must still use query-bond-conservation with a
+   canonical bond ID before mutating any bond."
+  [projection workflow-id funder]
+  (let [p (validate-appeal-bond-projection projection)]
+    (->> (vals (:appeal-bond/records p))
+         (filter #(and (= workflow-id (:workflow/id %))
+                       (= funder (:bond/funder %))))
+         (sort-by :appeal/ordinal)
+         (mapv #(select-keys % [:bond/id :workflow/id :appeal/ordinal :bond/status
+                                :bond/remaining-custody])))))
+
 (defn derive-appeal-bond-metrics
   "Scenario metrics are queries over the validated semantic projection." 
   [projection]

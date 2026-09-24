@@ -75,6 +75,112 @@
                         (yield-provider-metrics/merge-provider-metrics scenario))
     (yield-metrics/merge-yield-metrics result)))
 
+(defn- trace-action-name [entry]
+  (-> (or (:action entry) "")
+      str
+      str/lower-case
+      (str/replace "-" "_")))
+
+(defn- rejected-action? [entry action]
+  (and (= :rejected (:result entry))
+       (= action (trace-action-name entry))))
+
+(defn- accepted-action? [entry action]
+  (and (not= :rejected (:result entry))
+       (= action (trace-action-name entry))))
+
+(defn- primitive-bond-query [scenario projection]
+  (when (and (:valid? projection)
+             (= :primitive-native (:classification (:claim-to scenario))))
+    (let [scope (get-in scenario [:claim-to :scope])
+          selector (or (:bond scope)
+                       (when-let [bond-id (:bond-id scope)] {:bond/id bond-id}))]
+      (when selector
+        (appeal-bond-projection/query-bond-conservation projection selector)))))
+
+(defn- required-operation-violations [scenario trace]
+  (vec
+   (keep (fn [{:keys [seq action expected-status expected-cause] :as requirement}]
+           (let [entry (some #(when (and (= seq (:seq %))
+                                         (= (trace-action-name %) (-> action str str/lower-case
+                                                                      (str/replace "-" "_"))))
+                                %)
+                             trace)
+                 rejected? (and entry (= :rejected (:result entry)))
+                 status-ok? (case expected-status
+                              :accepted (and entry (not rejected?) (nil? (:error entry)))
+                              :rejected (and entry rejected?)
+                              false)
+                 cause (or (:reject-class entry) (:error entry))
+                 cause-ok? (or (nil? expected-cause) (= expected-cause cause))]
+             (when-not (and status-ok? cause-ok?)
+               {:requirement requirement
+                :observed (select-keys entry [:seq :action :result :error :reject-class])})))
+         (get-in scenario [:claim-to :requires] []))))
+
+(defn- primitive-bond-metrics [scenario result query]
+  (let [trace (:trace result)
+        expectations (set (keys (get-in scenario [:expectations :metrics] {})))
+        expected? (fn [metric] (contains? expectations metric))
+        disposition-count (:disposition-count query)
+        disposition (when query
+                      {:id (:disposition/id query)
+                       :kind (:disposition/kind query)
+                       :allocations (:disposition/allocations query)})
+        recipient (get-in scenario [:claim-to :scope :recipient])
+        entitlement (get (:entitlements query) recipient)
+        disposition-allocation (get-in disposition [:allocations recipient])
+        first-terminal-accepted? (boolean (some #(accepted-action? % "resolve_appeal") trace))
+        terminal-rejection? (boolean (some #(rejected-action? % "resolve_appeal") trace))
+        metric-values
+        (cond-> {}
+          (and query (expected? :terminal_disposition_count))
+          (assoc :terminal_disposition_count disposition-count)
+
+          (and query (expected? :historical_disposition_unchanged))
+          ;; The validated projection contains one immutable, lineage-bound
+          ;; disposition. Temporal pre/post equality remains execution evidence.
+          (assoc :historical_disposition_unchanged
+                 (and (= 1 disposition-count)
+                      (some? (:id disposition))
+                      (some? (:kind disposition))))
+
+          (and query (expected? :second_terminal_operation_reverted))
+          (assoc :second_terminal_operation_reverted
+                 (and first-terminal-accepted? terminal-rejection?))
+
+          (and query entitlement (expected? :allocation_unchanged_after_claim))
+          (assoc :allocation_unchanged_after_claim
+                 (= disposition-allocation (:allocated entitlement)))
+
+          (and query entitlement (expected? :claimable_after_full_claim))
+          (assoc :claimable_after_full_claim (:claimable entitlement))
+
+          (and query entitlement (expected? :claimed_equals_allocated))
+          (assoc :claimed_equals_allocated
+                 (= (:claimed entitlement) (:allocated entitlement)))
+
+          (and query (expected? :first_terminal_operation_accepted))
+          (assoc :first_terminal_operation_accepted first-terminal-accepted?)
+
+          (and query (expected? :replay_reverted))
+          (assoc :replay_reverted
+                 (and first-terminal-accepted? terminal-rejection?))
+
+          (and query (expected? :disposition_count))
+          (assoc :disposition_count disposition-count)
+
+          (and query (expected? :duplicate_entitlement))
+          (assoc :duplicate_entitlement
+                 (not (and (> (count (:entitlements query)) 1)
+                           (> disposition-count 1))))
+
+          ;; Execution status is intentionally not projected into bond state.
+          (and (expected? :operation_reverted)
+               (some #(rejected-action? % "execute_resolution") trace))
+          (assoc :operation_reverted true))]
+    metric-values))
+
 (defn finalize-scenario-result
   "Apply yield metrics, expected-outcomes, and :expectations checks."
   ([scenario result] (finalize-scenario-result scenario result {}))
@@ -86,7 +192,26 @@
                            (appeal-bond-projection/project-appeal-bonds terminal-world))
          bond-metrics (when (:valid? bond-projection)
                         (appeal-bond-projection/derive-appeal-bond-metrics bond-projection))
-         projection-ok? (or (empty? bond-records) (:valid? bond-projection))
+         primitive-bond-query (primitive-bond-query scenario bond-projection)
+         primitive-bond-metrics
+         (merge
+          (when (:valid? primitive-bond-query)
+            {:bond_conservation_holds (:bond-conservation-holds primitive-bond-query)
+             :remaining_custody_after_disposition (:remaining-custody-after-disposition primitive-bond-query)
+             :terminal_allocations_equal_custody (:terminal-allocations-equal-custody primitive-bond-query)})
+          (primitive-bond-metrics scenario result' primitive-bond-query))
+         required-violations (required-operation-violations scenario (:trace result'))
+         primitive-expected? (= :primitive-native (:classification (:claim-to scenario)))
+         primitive-metrics-present? (or (seq primitive-bond-metrics)
+                                        (some #(contains? (:metrics result') %)
+                                              (keys (get-in scenario [:expectations :metrics] {}))))
+         prerequisite-violations (vec (concat required-violations
+                                              (when (and primitive-expected?
+                                                         (pos? (get-in result' [:metrics :invariant-violations] 0))
+                                                         (not primitive-metrics-present?))
+                                                [{:reason :predecessor-invariant-failure
+                                                  :observed (get-in result' [:metrics :invariant-violations])}])))
+         projection-ok?  (or (empty? bond-records) (:valid? bond-projection))
          legacy-bond-refund-total
          (reduce + 0
                  (for [[_ domains] (get terminal-world :claimable-v2 {})
@@ -104,6 +229,8 @@
          result' (cond-> result'
                    bond-projection (assoc :appeal-bond/projection bond-projection)
                    bond-metrics (update :metrics merge bond-metrics)
+                   primitive-bond-metrics (update :metrics merge primitive-bond-metrics)
+                   primitive-bond-query (assoc :appeal-bond/primitive-query primitive-bond-query)
                    (seq (:trace result')) (update :metrics merge
                                                   {:resolver_bond_refunded (pos? legacy-bond-refund-total)
                                                    :slash_count legacy-slash-count})
@@ -129,17 +256,31 @@
          outcomes-ok? (:ok? outcomes true)
          expect-ok?   (or (nil? expect) (:ok? expect))
          theory-ok?   (or (nil? (:falsified? result-ev)) (not (:falsified? result-ev)))
-         checks-ok?   (and projection-ok? outcomes-ok? expect-ok? theory-ok?)]
-     (cond-> (assoc result-ev
-                    :expected-outcomes outcomes
-                    :expectations expect)
-       (and (= (:outcome result-ev) :pass) (not checks-ok?))
-       (assoc :outcome :fail
-              :halt-reason (cond (not projection-ok?) :invalid-appeal-bond-projection
-                                 (not outcomes-ok?) :expected-outcome-mismatch
-                                 (not expect-ok?)   :expectation-mismatch
-                                 (not theory-ok?)   :theory-falsified)
-              :expectation-violations
-              (vec (concat (when-not projection-ok? (:errors bond-projection))
-                           (:violations outcomes [])
-                           (:violations expect []))))))))
+         checks-ok?   (and projection-ok? outcomes-ok? expect-ok? theory-ok?)
+         blocked?     (seq prerequisite-violations)]
+     (let [base-result (assoc result-ev
+                              :assurance/status (if blocked? :blocked (if checks-ok? :pass :failed))
+                              :assurance/prerequisite-violations prerequisite-violations
+                              :expected-outcomes outcomes
+                              :expectations expect)]
+       (cond
+         blocked?
+         (assoc base-result
+                :outcome :blocked
+                :halt-reason :assurance-prerequisite-unmet
+                :expectation-violations
+                (vec (concat prerequisite-violations (:violations outcomes []) (:violations expect []))))
+
+         (and (= (:outcome result-ev) :pass) (not checks-ok?))
+         (assoc base-result
+                :outcome :fail
+                :halt-reason (cond (not projection-ok?) :invalid-appeal-bond-projection
+                                   (not outcomes-ok?) :expected-outcome-mismatch
+                                   (not expect-ok?) :expectation-mismatch
+                                   (not theory-ok?) :theory-falsified)
+                :expectation-violations
+                (vec (concat (when-not projection-ok? (:errors bond-projection))
+                             (:violations outcomes [])
+                             (:violations expect []))))
+
+         :else base-result)))))

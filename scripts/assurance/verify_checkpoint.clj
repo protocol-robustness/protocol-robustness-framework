@@ -156,7 +156,8 @@
                               [{:error :corpus-root-mismatch
                                 :expected (get-in checkpoint [:roots :corpus])
                                 :observed actual-corpus-root}])
-                            (when (and (get-in checkpoint [:roots :overlay])
+                            (when (and (not (or (nil? (get-in checkpoint [:roots :overlay]))
+                                                                 (= :none (get-in checkpoint [:roots :overlay]))))
                                        (not= (get-in checkpoint [:roots :overlay]) actual-overlay-root))
                               [{:error :overlay-root-mismatch}])
                             (when (and (get-in checkpoint [:roots :checkpoint])

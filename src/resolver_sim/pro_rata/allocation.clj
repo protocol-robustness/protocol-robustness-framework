@@ -28,6 +28,29 @@
 
 (def ^:const mechanism-version 1)
 
+(def ^:const allocation-policy-schema-version "pro-rata-allocation-policy.v1")
+
+(defn allocation-policy-root
+  "Derive the canonical domain-neutral policy identity from an authoritative
+  pro-rata allocation result. This is a read-only lineage projection: it does
+  not alter the existing allocation result artifact or its root."
+  [result]
+  (when-not (and (= "pro-rata-allocation-result.v1" (:schema-version result))
+                 (map? (:mechanism result))
+                 (contains? result :rounding-policy)
+                 (contains? result :tie-break-policy)
+                 (contains? result :redistribution-policy))
+    (throw (ex-info "Cannot derive pro-rata policy root from allocation result"
+                    {:reason :primitive-result-invalid})))
+  (hc/hash-with-intent
+   {:hash/intent :pro-rata-allocation-policy}
+   {:schema/version allocation-policy-schema-version
+    :mechanism/id (get-in result [:mechanism :id])
+    :mechanism/version (get-in result [:mechanism :version])
+    :rounding-policy (:rounding-policy result)
+    :tie-break-policy (:tie-break-policy result)
+    :redistribution-policy (:redistribution-policy result)}))
+
 (defn- non-negative-integer?
   [value]
   (and (integer? value) (not (neg? value))))

@@ -98,6 +98,7 @@
    :action "ACTION_V1"
    :action-at "ACTION_AT_V1"
    :pro-rata-allocation-result "PRO_RATA_ALLOCATION_RESULT_V1"
+   :pro-rata-allocation-policy "PRO_RATA_ALLOCATION_POLICY_V1"
    :pro-rata-proposed-effects "PRO_RATA_PROPOSED_EFFECTS_V1"
    :pro-rata-effect-refinement "PRO_RATA_EFFECT_REFINEMENT_V1"
    :pro-rata-allocation-application "PRO_RATA_ALLOCATION_APPLICATION_V1"
@@ -211,9 +212,9 @@
    :research-analysis-closure "RESEARCH_ANALYSIS_CLOSURE_V1"
    :research-analysis-output "RESEARCH_ANALYSIS_OUTPUT_V1"
    :research-analysis-result-descriptor "RESEARCH_ANALYSIS_RESULT_DESCRIPTOR_V1"
-    :research-analysis-verification "RESEARCH_ANALYSIS_VERIFICATION_V1"
-    :research-analysis-comparison-v1 "RESEARCH_ANALYSIS_COMPARISON_V1"
-    :research-analysis-composition-v1 "RESEARCH_ANALYSIS_COMPOSITION_V1"
+   :research-analysis-verification "RESEARCH_ANALYSIS_VERIFICATION_V1"
+   :research-analysis-comparison-v1 "RESEARCH_ANALYSIS_COMPARISON_V1"
+   :research-analysis-composition-v1 "RESEARCH_ANALYSIS_COMPOSITION_V1"
    :research-analytical-claim "RESEARCH_ANALYTICAL_CLAIM_V1"
    :research-analytical-claim-v2 "RESEARCH_ANALYTICAL_CLAIM_V2"
    :runtime-profile "RUNTIME_PROFILE_V1"
@@ -2720,6 +2721,16 @@ name (an alias)."
                        :invariant-links}
     :intent/excludes #{:allocation-result-hash :metadata :external-refs :runtime-values}
     :intent/projection-fn project-pro-rata-allocation-result
+    :intent/version 1}
+
+   :pro-rata-allocation-policy
+   {:intent/name :pro-rata-allocation-policy
+    :intent/domain-tag "PRO_RATA_ALLOCATION_POLICY_V1"
+    :intent/description "Canonical identity of the domain-neutral pro-rata mechanism and policy choices"
+    :intent/includes #{:schema/version :mechanism/id :mechanism/version
+                       :rounding-policy :tie-break-policy :redistribution-policy}
+    :intent/excludes #{:runtime-values :functions}
+    :intent/projection-fn (fn [value _] value)
     :intent/version 1}
 
    :priority-order-v1

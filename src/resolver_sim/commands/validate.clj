@@ -28,7 +28,8 @@
   (let [lint-ok   (ok? "Lint (src:test)" #(sh "clojure" "-M:lint/core"))
         nb-ok     (ok? "Notebook support checks"
                        #(do (require '[resolver-sim.notebook-support.checks]) 0))
-        all-nb-ok (ok? "All notebooks load" #(sh "bb" "test:notebooks"))
+        all-nb-ok (ok? "All notebooks load"
+                       #(sh "timeout" "--kill-after=5s" "900s" "bb" "test:notebooks"))
         speds-ok  (ok? "SPEDS tests" #(sh "bb" "test:speds"))]
     (if (and lint-ok nb-ok all-nb-ok speds-ok)
       (do (println "VALIDATION PASSED")

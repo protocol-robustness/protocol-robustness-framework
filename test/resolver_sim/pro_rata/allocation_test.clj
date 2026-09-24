@@ -299,3 +299,18 @@
     (is (some #(= :pro-rata/unexpected-residual-reason (:reason %))
               (invariants/residual-violations
                (assoc no-weight :unallocated-residual 0))))))
+
+(deftest allocation-policy-root-is-derived-and-policy-sensitive
+  (let [base {:allocation/id :policy-root
+              :available 3
+              :rows [{:row/id :a :obligation/id :a :requested 3 :weight 1}
+                     {:row/id :b :obligation/id :b :requested 3 :weight 1}]}
+        largest-remainder (allocation/allocate base)
+        floor (allocation/allocate (assoc base :rounding-policy :floor))]
+    (is (= (allocation/allocation-policy-root largest-remainder)
+           (allocation/allocation-policy-root largest-remainder)))
+    (is (not= (allocation/allocation-policy-root largest-remainder)
+              (allocation/allocation-policy-root floor)))
+    (is (thrown-with-msg? clojure.lang.ExceptionInfo
+                          #"Cannot derive pro-rata policy root"
+                          (allocation/allocation-policy-root {})))))

@@ -34,7 +34,7 @@
                                    :researcher/id (:researcher/id entry)))
                           selected)
         blocking (filterv #(= :required-but-not-established
-                               (:proof-of-possession/outcome %)) evaluations)]
+                              (:proof-of-possession/outcome %)) evaluations)]
     {:artifact/schema schema
      :incentive-target/root target-root
      :possession/scope possession-scope
