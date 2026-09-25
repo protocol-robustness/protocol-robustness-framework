@@ -152,6 +152,18 @@
   (root :accounting-partial-result-v1
         (dissoc partial :accounting-partial-result/root)))
 
+(defn partial-semantic-root
+  "The canonical accounting consequence of one partition, excluding execution
+   provenance. Independent runners may produce the same semantic partial while
+   retaining different `accounting-partial-result.v1` roots."
+  [partial]
+  (root :canonical-accounting-partial-v1
+        {:artifact/schema "canonical-accounting-partial.v1"
+         :accounting-request/root (:accounting-request/root partial)
+         :accounting-work-unit/root (:accounting-work-unit/root partial)
+         :partition/source-roots (:partition/source-roots partial)
+         :accounting/values (:accounting/values partial)}))
+
 (defn- expected-partial-values [request work-unit]
   (let [source-map (into {} (map (juxt :source/root identity)
                                   (:accounting/sources request)))]
@@ -219,6 +231,43 @@
                              :accounting-work-unit/root unit-root
                              :existing/root (:accounting-partial-result/root existing)
                              :incoming/root (:accounting-partial-result/root partial)})))))
+
+(defn semantic-partial-equivalent?
+  "True where two valid forensic partials represent the same rooted accounting
+   consequence. This does not make them the same execution attempt."
+  [left right]
+  (= (partial-semantic-root left) (partial-semantic-root right)))
+
+(defn accounting-completeness
+  "Derived, non-mutating completeness view for a frozen request and plan.
+   It is deliberately independent of corroboration/proof thresholds."
+  [request plan ingestion]
+  (when-not (and (= (:accounting-request/root request)
+                    (:accounting-request/root plan))
+                 (= (:accounting-partition-plan/root plan)
+                    (try (partition-plan-root plan) (catch Exception _ nil))))
+    (throw (ex-info "Invalid accounting completeness request or partition plan" {})))
+  (let [units (:partition/work-units plan)
+        unit-by-root (into {} (map (juxt :accounting-work-unit/root identity) units))
+        required (set (keys unit-by-root))
+        supplied (set (keys ingestion))
+        missing (set/difference required supplied)
+        extra (set/difference supplied required)
+        invalid (->> ingestion
+                     (keep (fn [[unit-root partial]]
+                             (let [unit (unit-by-root unit-root)]
+                               (when-not (and unit (valid-partial-result? request unit partial))
+                                 unit-root)))) set)]
+    {:accounting-request/root (:accounting-request/root request)
+     :accounting-partition-plan/root (:accounting-partition-plan/root plan)
+     :accounting/required-work-unit-roots (vec (sort required))
+     :accounting/complete-work-unit-roots
+     (vec (sort (set/difference (set (keys ingestion)) invalid extra)))
+     :accounting/missing-work-unit-roots (vec (sort missing))
+     :accounting/unexpected-work-unit-roots (vec (sort extra))
+     :accounting/invalid-work-unit-roots (vec (sort invalid))
+     :accounting/completeness
+     (if (and (empty? missing) (empty? extra) (empty? invalid)) :complete :incomplete)}))
 
 (defn reconciliation-root [artifact]
   (root :accounting-reconciliation-v1

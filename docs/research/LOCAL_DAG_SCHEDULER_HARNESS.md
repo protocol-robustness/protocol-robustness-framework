@@ -623,6 +623,55 @@ conflict. Reconciliation rejects missing/extra partitions, duplicate/omitted
 sources, bad roots, provenance substitution, and a partitioned total unequal
 to the serial fold.
 
+### Accounting completeness versus assurance sufficiency
+
+These are separate gates:
+
+```text
+semantic completeness
+= every work unit required by the rooted partition plan has one valid,
+  exactly-once canonical partial contribution
+
+assurance sufficiency
+= the policy-required independent executions, implementations, and proofs
+  around one already-defined semantic obligation have been obtained
+```
+
+`canonical-accounting-partial.v1` is the derived semantic projection of a
+forensic partial: request root, work-unit root, source roots, and integer
+values, excluding runner/implementation evidence. Two independently executed
+partials may therefore be semantically equivalent while remaining separate
+forensic attempts. Only one is ingested as the canonical accounting
+contribution; replaying it is idempotent. A different canonical contribution
+for that work unit remains a hard conflict.
+
+`accounting-completeness` derives the exact required, complete, missing,
+unexpected, and invalid work-unit roots from the frozen plan and ingestion. It
+is the gate used by reconciliation. Cancellation, proof completion, duplicate
+execution evidence, and assurance thresholds never turn a missing partition
+into zero or permit a global accounting result. Completed partials remain
+historical forensic artifacts when a user cancels an incomplete request and may
+only be considered by a future resume workflow when its exact request,
+partition, dependency, and implementation context is compatible.
+
+`evaluate-accounting-obligation-sufficiency` evaluates each work unit in
+isolation. Its execution job must bind that work-unit root as workload; runs
+from another partition cannot satisfy its threshold. `:different` and
+`:not-comparable` observations preserve disagreement and prevent matching
+sufficiency. A generated proof does not satisfy a verified-proof requirement.
+
+Work is derived as `:semantic-required`, `:assurance-required`, or
+`:assurance-redundant`. Only the last category may be cancelled as surplus:
+it already has its canonical partial and its own assurance policy is ready.
+`cancellation-on-accounting-obligation-sufficiency` accepts target roots only
+when they equal the satisfied work-unit root, preventing target substitution.
+The control-aware accounting work selector may steal semantic-required or
+assurance-required work, but skips observed-cancelled/surplus work. Thus P1
+sufficiency can cancel P1 replicas while P2, if incomplete, remains stealable.
+
+Early execution sufficiency accelerates assurance completion; it never permits
+incomplete accounting.
+
 The resulting `canonical-accounting-result.v1` root binds only the accounting
 request and semantic values. Consequently, independent implementations may
 produce the same semantic result. The separate
@@ -658,6 +707,81 @@ Interaction and accounting artifacts remain research evidence. They do not
 establish general IC, claim acceptance, proof, application authority,
 incentive qualification, or direct consumption.
 
+## Responsive cancellation and early execution sufficiency
+
+Remote research control is transport-independent. A cancellation is published
+as `research-job-cancellation.v1`, binding the job, monotonically interpreted
+logical control epoch, reason category, deterministic model cutpoint, scope,
+and any scoped target roots. Rebuilding or processing the same event reproduces
+the same root and creates no additional semantic transition or downstream
+incentive fact.
+
+Publication is not observation. `research-realized-reachability.v1` records a
+specific simulated delivery/retrieval attempt and distinguishes declared
+reachability from a realized usable path. Its route kinds cover dependency,
+job, cancellation, proof-job, and verification delivery. It claims only a
+deterministic simulated observation, not physical network delivery.
+`research-runner-control-observation.v1` may be constructed only from realized
+cancellation-delivery evidence and binds the runner/participation, optional
+assignment (nil before assignment), highest observed control epoch,
+cancellation root, observation cutpoint, and last started/completed work-unit
+roots. `:observed` and `:stopped-acknowledged` are distinct states. An
+unreachable route cannot produce an observation receipt.
+
+`research-cancellation-policy.v1` declares `:immediate`, `:cooperative`, or
+`:atomic` behavior, optionally by work-unit root. The deterministic simulator
+retains only completed atomic operation roots:
+
+- `:immediate` discards an incomplete current operation and starts no next one;
+- `:cooperative` finishes through the next declared safe checkpoint;
+- `:atomic` finishes the current small operation and starts no next one.
+
+This prevents an interrupted operation from masquerading as a partial canonical
+result. `research-work-lifecycle-event.v1` separately preserves start,
+completion, and stop cutpoints together with the highest control epoch and
+cancellation root observed at that event. Those facts can later support
+start-cutoff, completion-cutoff, or bounded-finish incentive research without
+deciding eligibility or payment here. Cancellation never erases pre-existing
+work or failure evidence.
+
+Once a cancellation is observed and applicable, assignment, start, stealing,
+retry, proof generation, verification, and corroboration gates return the
+selection outcome `:cancelled` with `:execution/failure? false`. Existing V1
+assignment and execution functions remain unchanged; `controlled-steal-next`
+is the compositional control-aware entry point. In-flight operations use their
+declared cancellation mode. No synchronous coordinator-to-every-runner RPC is
+part of the semantics: a future pub/sub, gossip, durable-store, fan-out, or
+polling transport can realize the same artifacts.
+
+`research-execution-sufficiency-policy.v1` composes (rather than revises) the
+existing execution and assurance policy roots. It declares independent minimums
+for valid runs, matching runs, runner identities, sites, implementation roots,
+proof generation, and verified proof under one verifier-registry root.
+`research-execution-sufficiency-evaluation.v1` deduplicates canonical run,
+proof, and verification constituents before counting. Another worker process
+does not create a new runner identity, and three runners using one
+implementation still realize one implementation root. No requirement silently
+waives another.
+
+When every declared dimension is satisfied the status is `:result-ready`.
+This is early execution assurance sufficiency, not accelerated acceptance.
+Where policy permits it, a deterministic `:execution-sufficient` cancellation
+may target surplus outstanding run slots. Completed evidence is retained and
+in-flight work follows the same cancellation rules. Result readiness does not
+establish claim acceptance, primitive validity, proof (unless separately
+verified), AllocationBindingV1 admission, application authority, direct
+consumption, or capital movement.
+
+`research-execution-control-analysis.v1` reports exact counts and deterministic
+model cutpoints for eligibility, assignment, realized reachability, starts,
+completions, cancellations, proofs, implementation diversity, first-result and
+sufficiency milestones, propagation lag, and post-cancellation excess events.
+`:cancelled`, `:failed`, `:missing`, and `:not-comparable` remain distinct.
+The explicitly named `:first-complete-runner` observation carries
+`:semantic-authority :none`; being first grants no rank, weight, validity, or
+application authority. Runtime wall-clock timestamps and logs remain
+noncanonical diagnostics.
+
 ## Hardware-calibration seam
 
 Model milliseconds are controlled fixture costs, not physical benchmark
@@ -686,3 +810,95 @@ Focused checks:
 ```sh
 clojure -M:test -e '(load-file "test/resolver_sim/research/scheduler_harness_test.clj") (let [r (clojure.test/run-tests (find-ns (symbol (str "resolver-sim.research." "scheduler-harness-test"))))] (when (pos? (+ (:fail r) (:error r))) (System/exit 1)))'
 ```
+
+## Forensic evidence foundation
+
+The distributed-research and accelerated-accounting artifacts use the existing
+canonical `resolver-sim.evidence.node` DAG. They do not create a scheduler,
+accounting, or research-specific evidence system. The thin
+`resolver-sim.evidence.forensic-graph` composition adds typed bindings to
+ordinary evidence nodes: exact subject root and kind, epistemic role, causal
+artifact roots, actor role, optional cutpoint, visibility, and explicit gaps.
+Existing node hashing, parent-link validation, bootstrap-root handling, and
+DAG-cycle detection remain authoritative.
+
+For this research infrastructure, *forensic-grade* means sufficient canonical
+evidence to reconstruct the relevant execution or derivation, authoritative
+inputs and policies, transformations and actors/environments, and to detect
+substitution or omission while distinguishing declared, observed, derived,
+validated, verified, proved, and attested facts. It does not mean
+court-admissible, tamper-proof, malicious-host-proof, confidential, or remote
+attested.
+
+Semantic identity and forensic identity are deliberately separate. A
+`canonical-accounting-partial.v1` or semantic execution result keeps its same
+root when independently executed by another runner, implementation, prover, or
+at a different runtime time. Each execution/provenance envelope is a separate
+evidence-node root. This permits corroboration and incident reconstruction
+without contaminating semantic result identity.
+
+```text
+authoritative inputs / claims / positions
+  -> declared dependency, environment, and policy roots
+  -> assignment and execution attempt
+  -> observation at a declared cutpoint
+  -> semantic result or canonical accounting partial
+  -> fixed validation / proof generation / verification
+  -> reconciliation or downstream research analysis
+```
+
+Each arrow is represented by an explicit node parent or a typed rooted causal
+artifact reference, not inferred merely from timestamps. Linear evidence
+chains remain appropriate when sequence matters; the evidence-node DAG is used
+when lineage branches or merges. A consequence node must name causal parents,
+so a consequential artifact cannot silently become an orphan.
+
+Where artifact handling matters, a node may also bind ordered-independent
+`custody-roots`: immutable roots for creation, storage, transfer/resolution,
+assignment, or environment-recipient facts. This is canonical artifact-handling
+lineage, not a claim of legal chain of custody. It supports encrypted/private
+bundles through their ciphertext/content commitments and intended environment
+recipient roots without disclosing plaintext.
+
+Forensic cutpoints are canonical state/observation boundaries, not necessarily
+a new schema: for example execution-before, action, execution-after, before or
+after cancellation observation, and before or after reconciliation. The future
+Anvil adapter will populate the same graph with declared/observed pre-state,
+action, and post-state bindings. The current declaration-only fixture records
+an explicit `:not-observed` / `:declaration-only` gap rather than pretending an
+Anvil observation occurred.
+
+Gaps are first-class facts: `:not-observed`, `:not-available`,
+`:not-verifiable`, `:not-applicable`, and `:conflicting`. Optional gaps do not
+invalidate unrelated evidence. A required-evidence profile can require exact
+roles for exact subjects; unmet required roles produce a policy failure and an
+explicit gap. Incompatible observations of the same subject/observation key
+are retained as conflict branches—there is no first/last/majority resolution
+in this layer.
+
+Visibility is explicit: `:public`, `:restricted`, `:sealed`, or
+`:commitment-only`. Forensic completeness therefore does not require public
+plaintext. Possession positions remain separate from readability, usability,
+authority, and consumption: a runner can possess encrypted material while a
+sealed execution environment is the only usable plaintext recipient.
+
+The same lineage applies across the relevant paths:
+
+- Distributed execution binds job, dependency set, policy, environment,
+  assignment, attempt, run evidence, validation, and assurance result.
+- Accelerated accounting binds source claims/positions, partition plan and work
+  unit, semantic partial, independent execution provenance, canonical partial,
+  reconciliation, and canonical accounting result.
+- Control binds cancellation publication, attempted delivery/realized
+  reachability, runner observation, and work-lifecycle consequence. Publication
+  is not treated as observation.
+- Proof provenance binds the execution/result, dependency closure, program and
+  verifier identity, prover/environment, proof-generation receipt, and later
+  verification as distinct facts. Generated does not mean verified.
+
+Generic attestations may attach to an evidence-node subject where needed. They
+add authentication/provenance only; they do not redefine the underlying
+semantic artifact. The graph validator is
+`validate-forensic-evidence-graph`: it composes generic node DAG validation
+with typed subject, causal-parent, profile, gap, and conflict checks. Runtime
+logs remain diagnostic and are never required for reconstruction.

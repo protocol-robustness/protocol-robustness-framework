@@ -317,6 +317,31 @@
   (root :research-run-assurance-evidence-v1
         (dissoc evidence :research-run-assurance-evidence/root)))
 
+(defn valid-run-assurance-evidence?
+  "Validate the closed V1 assurance consequence without re-running execution."
+  [evidence]
+  (and (map? evidence)
+       (= run-assurance-schema (:artifact/schema evidence))
+       (= #{:artifact/schema :research-execution-job-assurance/root
+            :research-run-evidence/root :resolved-research-dependency-set/root
+            :research-implementation-identity/root
+            :research-fixed-validation-receipt/root :runner/reference
+            :runner/site-id :semantic-result/root :semantic-result/status
+            :application-authority/status
+            :research-run-assurance-evidence/root}
+          (set (keys evidence)))
+       (every? root? [(:research-execution-job-assurance/root evidence)
+                      (:research-run-evidence/root evidence)
+                      (:resolved-research-dependency-set/root evidence)
+                      (:research-implementation-identity/root evidence)
+                      (:research-fixed-validation-receipt/root evidence)
+                      (:runner/reference evidence) (:semantic-result/root evidence)])
+       (keyword? (:runner/site-id evidence))
+       (= :execution-result-only (:semantic-result/status evidence))
+       (= :not-established (:application-authority/status evidence))
+       (= (:research-run-assurance-evidence/root evidence)
+          (try (run-assurance-root evidence) (catch Exception _ nil)))))
+
 (defn build-run-assurance-evidence
   [assured-job run-evidence resolved-dependencies implementation validation-receipt]
   (when-not (and (= (:research-execution-job-assurance/root assured-job)
