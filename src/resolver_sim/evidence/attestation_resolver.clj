@@ -20,8 +20,7 @@
       :error :missing | :hash-mismatch | :unsupported-algorithm | :unparseable-reference
       :detail ...}"
   (:require
-
-   [resolver-sim.evidence.attestation :as att]))
+   [resolver-sim.evidence.attestation-registry :as ar]))
 
 ;; ── Reference format ─────────────────────────────────────────────────────────
 
