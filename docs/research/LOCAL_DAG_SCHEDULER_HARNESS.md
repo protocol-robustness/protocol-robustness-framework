@@ -568,6 +568,96 @@ operations on them. A future algebraic acceleration must name a concrete
 operation, its declared properties, a counterexample when a property is absent,
 and a root-equality test for permitted reordering/splitting.
 
+## Semantic accounting and safe parallel reduction
+
+The research accounting layer is downstream of claims and upstream of any
+pro-rata request. It does not change the allocator or
+`build-allocation-binding-v1`:
+
+```text
+source evidence
+→ claim
+→ claim-to target grouping
+→ accounting position / accounting request
+→ partitioned accounting work
+→ canonical accounting basis
+→ later canonical pro-rata request
+→ existing allocator and AllocationBindingV1
+```
+
+`claim-to-relation.v1` is a directional `claimant → target` commitment with one
+primary rooted target. A collection is represented by a separately rooted
+`claim-target-aggregate.v1`; it is not an ambiguous target list. Claim-to does
+not mean ownership, custody, possession, authority, payment, acceptance, or an
+inter-claim relationship. Existing related-claims and lifecycle machinery keep
+their present meanings.
+
+The qualified position artifacts are deliberately separate.
+`possession-position.v1` records availability, possession, readability,
+usability, and authority independently at a rooted cutpoint. Thus a runner may
+possess encrypted bytes while lacking plaintext readability and authority.
+`accounting-position.v1` records integer category values for a rooted subject,
+domain, cutpoint, source set, definition, and policy. It is accounting state,
+not a capital movement or application authorization.
+
+V1 accelerated accounting supports only
+`:accounting.operation/sum-by-category.v1`. Its closed
+`accounting-reduction-contract.v1` declares associative, commutative, and
+partition-independent reduction; it explicitly declares non-idempotent source
+addition, order-insensitivity, and no global constraint. Integers alone do not
+grant those properties. Any altered/unsupported contract is rejected.
+
+An `accounting-request.v1` freezes the source rows, cutpoint, accounting policy,
+definition, and reduction contract. `accounting-partition-plan.v1` contains
+rooted `accounting-work-unit.v1` constituents with exact source coverage plus
+dependency, implementation, capability, privacy, and environment constraints
+usable by the existing whole-job work-stealing seam. The scheduler may use a
+work-unit root as a job workload root; work stealing does not change its
+semantic contents.
+
+Each `accounting-partial-result.v1` binds its exact work unit and source roots
+to integer values, run-assurance evidence, implementation, runner, resolved
+dependencies, and environment. Reingesting the same rooted partial is an
+idempotent no-op. A different partial for the same work unit is a hard
+conflict. Reconciliation rejects missing/extra partitions, duplicate/omitted
+sources, bad roots, provenance substitution, and a partitioned total unequal
+to the serial fold.
+
+The resulting `canonical-accounting-result.v1` root binds only the accounting
+request and semantic values. Consequently, independent implementations may
+produce the same semantic result. The separate
+`accounting-reconciliation.v1` root binds every partial result and preserves
+runner/implementation/dependency/environment lineage. This distinction gives
+both serial equivalence and forensic reconstruction without making runtime
+logs authoritative.
+
+This does not parallelize pro-rata arithmetic. Caps, residuals, rounding, and
+active-set redistribution may require global state and remain exclusively in
+the existing authoritative allocator.
+
+## Exact coordinate interactions
+
+`research-axis-semantics.v1` explicitly distinguishes nominal, ordered,
+integer, metric, additive, and interaction-eligible properties. None is
+inferred from integer representation. The researcher axis is constrained to
+nominal, non-metric, non-additive, and interaction-ineligible semantics; its
+dense integer key remains a root-scoped lookup coordinate only.
+
+`research-coordinate-interaction.v1` currently implements one exact finite-grid
+method: integer difference-of-differences over four explicitly comparable
+observations. It can describe an explicit categorical contrast against an
+integer axis without pretending that categories form a metric space. Missing
+observations produce `:missing`; incompatible policies, domains, measures, or
+constituents produce `:not-comparable` with a reason. Neither becomes numeric
+zero. Comparable zero and nonzero interactions are reported as `:equal` and
+`:different`, while the exact integer remains authoritative. Every constituent
+analysis/observation root is retained, so substitution changes interaction
+provenance even when the numeric value happens to remain equal.
+
+Interaction and accounting artifacts remain research evidence. They do not
+establish general IC, claim acceptance, proof, application authority,
+incentive qualification, or direct consumption.
+
 ## Hardware-calibration seam
 
 Model milliseconds are controlled fixture costs, not physical benchmark
