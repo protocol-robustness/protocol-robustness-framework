@@ -902,3 +902,91 @@ semantic artifact. The graph validator is
 `validate-forensic-evidence-graph`: it composes generic node DAG validation
 with typed subject, causal-parent, profile, gap, and conflict checks. Runtime
 logs remain diagnostic and are never required for reconstruction.
+
+## Observed local Anvil execution
+
+`resolver-sim.research.anvil-executor` is the first real process/RPC backend.
+It does not reinterpret `research-execution-environment.v1`: that artifact is
+still declaration-only. A fresh isolated local Anvil process produces the
+successor `research-execution-environment-observation.v1`, followed by
+`research-anvil-execution-receipt.v1` and
+`research-observed-fixed-validation-receipt.v1`.
+
+The adapter starts Anvil with a fixed mnemonic, explicit chain ID, and genesis
+timestamp; establishes actual JSON-RPC reachability; observes the tool version,
+chain ID, declared contract runtime code, selected pre-state balances, submitted
+action, receipt status, and selected post-state balances; then terminates its
+own process. Port, PID, transaction hash, temporary paths, and wall-clock time
+are runtime diagnostics and never enter semantic roots. A receipt binds the
+job, assignment, runner participation, declared/observed environment,
+dependency closure, implementation, canonical pre-state, executed action,
+post-state, and semantic result.
+
+The initial real fixture is deliberately small: a value transfer between fixed
+Anvil development accounts. It verifies the real execution boundary without
+making Sew, pro-rata arithmetic, or canonical accounting itself EVM-specific.
+Declared contract identities, when present, are checked with `eth_getCode` and
+canonical runtime-code roots. A sealed dependency is rejected: this local
+adapter is not confidential execution.
+
+The assurance label is `:observed-local-execution`. It establishes neither
+remote-host integrity, remote attestation, confidentiality, cryptographic
+proof, nor application authority. A future proof job can consume the receipt's
+exact job/dependency/implementation/pre-action/post-state/result roots without
+depending on process logs.
+
+## Observed-run SP1 statement foundation
+
+`research-observed-run-proof-statement.v1` is the single proof projection for
+an observed assured run. `derive-observed-run-proof-statement-v1` accepts only
+`research-observed-run-evidence.v1` and
+`research-run-assurance-evidence.v1`; it validates their mutual roots and
+derives the statement. It does not accept separately supplied job, dependency,
+implementation, environment, pre-state, action, post-state, or result roots.
+The prover input carries the canonical observed-run and run-assurance bodies
+plus their directly referenced source artifact bodies. The guest recomputes
+their domain-separated canonical roots, checks the required cross-bindings
+(including the exact observed fixed-validation receipt), and derives the
+public-value tuple from that witness. It rejects projection-only input and
+mixed-run witnesses even when the outer source artifacts have been re-rooted.
+
+Its fixed public-value order commits twelve SHA-256 roots: assured job,
+observed run, run assurance, dependency set, implementation, declared and
+observed environment, pre-state, executed action, post-state, semantic result,
+and observed fixed validation. The companion
+`coprocessor/observed-run-sp1-program` guest commits the 384 raw root bytes
+only after validating the source witness and deriving those roots itself.
+This proves canonical identity and required lineage consistency; it does not
+independently rerun every fixed-validation check, prove EVM transition
+correctness, or establish runner/host integrity. The forensic DAG remains a
+richer provenance envelope and is not itself the proved statement.
+
+The real host path is `resolver-sim.research.observed-run-sp1-host`. Its input
+EDN bundle contains the two authoritative artifacts plus separate operational
+configuration for prover participation, verifier reference, the existing
+verifier-registry extension map, and a logical verification cutpoint. It does
+not accept constituent statement roots. Run it with:
+
+```sh
+SP1_PROVER=cpu clojure -M -m resolver-sim.research.observed-run-sp1-host \
+  --input observed-run-proof-input.edn --output-dir observed-run-proof-output
+```
+
+The command freezes the 384-byte `observed-run-roots-384.v1` values and current
+guest semantics. It first invokes the SP1 6.3.1 host to generate a real Core
+proof and persist the proof envelope plus actual ELF SHA-256, VKey, proof digest
+and public-values digest. It then creates
+`research-proof-generation-receipt.v1` with status `:generated-unverified`.
+An independent host invocation verifies the persisted envelope against the
+same compiled guest ELF/VKey and the witness-derived public values. Only after
+that succeeds does the wrapper create
+`research-proof-verification-evidence.v1`. A failed verification leaves no
+verification evidence and does not promote proof generation to verified.
+
+The verifier rejects altered proof bytes, altered public values, ELF/VKey
+substitution, and a different witness/run whose derived public values do not
+match. These checks establish SP1 proof validity for the committed lineage
+statement, not EVM transition correctness, runner honesty, remote attestation,
+or application authority. The generic verifier-registry root is recorded as
+the selected verification context; this local command does not activate a
+production verifier or authority policy.

@@ -79,6 +79,7 @@ dependencies = [
  "bincode",
  "clap",
  "hex",
+ "observed-run-sp1-program",
  "serde",
  "serde_json",
  "sha2",
@@ -2254,6 +2255,16 @@ dependencies = [
  "indexmap 2.14.1",
  "memchr",
  "ruzstd",
+]
+
+[[package]]
+name = "observed-run-sp1-program"
+version = "0.1.0"
+dependencies = [
+ "allocation-kernel",
+ "hex",
+ "serde_json",
+ "sp1-zkvm",
 ]
 
 [[package]]
