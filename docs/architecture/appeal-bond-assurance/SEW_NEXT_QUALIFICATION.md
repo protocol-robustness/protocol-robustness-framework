@@ -115,9 +115,11 @@ These must clear before Sew Next is presented as the default/public implementati
    the canonical (wired) `ResolverIncentiveModule` path; a formal Solidity
    equivalence/regression layer (e.g. `BondBehaviourCorrection`, `TraceEquivalence`)
    must run against the candidate and the reference.
-4. **Multi-bond claim ambiguity** — Bond A / Bond B → same recipient → same asset
-   aggregate withdrawal is unresolved (`REQUIRES DECISION`); not guessed via
-   map-order/FIFO/LIFO.
+4. **Multi-bond claim consumption** — Bond A / Bond B → same recipient → same
+   asset aggregate withdrawal is **canonically aggregate-only** (Solidity
+   `ResolverIncentiveModule` pools per `(escrow, workflow, recipient)`); encoded
+   in PRF as `query-bond-claim-attribution` (fail-closed). No per-bond
+   FIFO/LIFO/latest/map-order rule exists or is inferred.
 5. **Adversarial/economic breadth** — the tranche is small by design; broader
    adversarial and economic coverage remains.
 6. **Historical compatibility divergences** — `DR-C-003` denomination

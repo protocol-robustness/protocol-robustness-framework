@@ -5,6 +5,21 @@ custody with the `ResolverIncentiveModule -> BondLedger` architecture. A passing
 Solidity unit suite alone is insufficient: the candidate must preserve the
 canonical Sew semantic projection under the supported asset domain.
 
+> **Composition / wiring note.** The canonical deployment wiring for the current
+> September candidate uses `DecentralizedResolutionModule` with **`ResolverIncentiveModule`**
+> as the incentive module (inline appeal-bond custody). The `ResolverIncentiveModule -> BondLedger`
+> architecture described here is the **intended successor** — `shared/BondLedger` and the
+> `ResolverIncentiveModuleV2BondLedger` facade are present in the tree but **not wired** into the
+> deploy scripts, allowlist, or manifest. The frozen topology is recorded in
+> [`SEW_NEXT_DEPLOYMENT_COMPOSITION.md`](SEW_NEXT_DEPLOYMENT_COMPOSITION.md).
+> This distinction matters so PRF evidence is clearly attributed to the wired (canonical) graph.
+>
+> **Profiles.** Two supported compositions are separated under explicit profile identities
+> (see [`DECISION-appeal-bond-profiles.md`](DECISION-appeal-bond-profiles.md)):
+> Profile A `sew-dr-v2-inline-custody` (supported reference baseline, inline appealBonds) and
+> Profile B `sew-dr-v2-bondledger` (intended next-release candidate, BondLedger-backed facade).
+> Profile B is wired by an additive deploy script and does not replace or deprecate Profile A.
+
 ## Layer A — legacy behavioural equivalence
 
 The established scenario corpus remains immutable migration evidence:
@@ -73,7 +88,7 @@ primitive-native metrics/evidence, not merely because execution completed.
 | `AP-DISP-001` | exactly one terminal disposition; second attempt produces no duplicate effect; history immutable | higher-round `execute_resolution` (accepted) → replayed `execute_resolution` (idempotent no-op) | scoped projection (`terminal_disposition_count` = 1, `second_terminal_operation_no_duplicate_effect`, `historical_disposition_unchanged`) | **system/workflow-level** resolution idempotence (second op applied with equal roots) | **PASS** |
 | `AP-REPLAY-001` | replayed terminal operation rejected / no duplicate effect; one disposition, one entitlement | same ordinary path (seq 4 accepted → seq 5 replay) | scoped projection (`first_terminal_operation_accepted`, `replay_no_duplicate_effect`, `disposition_count` = 1, `no_duplicate_entitlement`) | **system/workflow-level** ordinary-resolution idempotence, not a primitive-level `:already-disposed` guard | **PASS** |
 | `AP-CLAIM-001` | allocation survives claim consumption; `allocated = claimable + claimed`; full claim leaves `claimable = 0`, `claimed = allocated` | pending settlement → `withdraw_escrow` after legitimate workflow finality | per-bond entitlement projection (`allocated` / `claimable` / `claimed`), disposition/claim immutability | workflow finality prerequisite (see § claim semantics) | **PASS** |
-| `AP-ID-001` | same workflow + same funder + distinct appeal ordinals → distinct bond IDs, settled one does not mutate the other | post first bond (ordinal 0) → higher-round resolution → post second bond (ordinal 1), observed at coexistence checkpoint | `query-bonds-by-workflow-funder` over a retained world checkpoint (index 6), distinguishing by `:bond/id` and `:appeal/ordinal` | scoped bond-projection identity query | **PASS** |
+| `AP-ID-001` | same workflow + same funder + distinct appeal ordinals → distinct bond IDs, settled one does not mutate the other | post first bond (ordinal 0) → higher-round resolution → post second bond (ordinal 1), observed at earliest coexistence checkpoint | scoped projection identity selector over retained world-checkpoints, grouping by `(workflow/id, bond/funder)` and distinguishing by `:bond/id` + `:appeal/ordinal` | scoped bond-projection identity query | **PASS** |
 
 ### Disposition/replay layer distinction (AP-DISP / AP-REPLAY)
 
@@ -144,16 +159,31 @@ allocated = claimable + claimed
 and, for full consumption, `claimable = 0`, `claimed = allocated`. The historical
 `allocated` and the disposition/allocation identity are **unchanged** — claim
 consumption moves entitlement from `claimable` to `claimed` without rewriting
-historical disposition evidence. Multi-bond claim ambiguity (Bond A / Bond B →
-same recipient → same asset) remains unresolved and is **not** guessed via
-map-order/FIFO/LIFO.
+historical disposition evidence. Multi-bond claim attribution (Bond A / Bond B →
+same recipient → same asset) is **resolved as aggregate-only** by Solidity
+inspection and encoded in PRF — see [Multi-bond claim attribution —
+RESOLVED](#multi-bond-claim-attribution--resolved-aggregate-only-encoded-in-prf).
 
 ### Identity semantics (AP-ID)
 
-AP-ID observes the proof at the earliest coexistence point, immediately after the
-second challenge posts its bond (world-checkpoint index 6, retained via
-`:world-checkpoint-policy :retain-all`), **without** driving through unrelated
-final settlement (the seq-6 `withdraw_escrow` is expected `:rejected`).
+AP-ID observes the proof at the **earliest unambiguous coexistence point** — the
+first retained checkpoint where a repeated `(workflow/id, bond/funder)` bond group
+appears (immediately after the second challenge posts its bond), **without**
+driving through unrelated final settlement (the seq-6 `withdraw_escrow` is
+expected `:rejected`).
+
+The identity proof is established by a fail-closed scoped selector over retained
+world-checkpoints. This selector is **assurance-framework behavior**, not part of
+the candidate scenario's semantic claim:
+
+- it groups validated appeal-bond records by `(workflow/id, bond/funder)` and
+  returns exactly one unambiguous repeated-bond group; zero results or multiple
+distinct repeated-bond groups fail closed to no value;
+- it no longer depends on world-checkpoint index `6` or the funder address
+  `0xchallenger`;
+- bond A vs bond B are identified by `:bond/id` and `:appeal/ordinal` (`0` vs `1`).
+
+Observed properties at the earliest coexistence point:
 
 - same workflow `0`, same funder `0xchallenger`;
 - appeal ordinal `0` (bond A) vs appeal ordinal `1` (bond B);
@@ -161,6 +191,98 @@ final settlement (the seq-6 `withdraw_escrow` is expected `:rejected`).
 - `bond_b_open_at_coexistence true` — the second bond coexists and is open;
 - cross-bond isolation: operating on one bond's lifecycle does not mutate the
 other's semantic projection.
+
+### Qualified properties (qualification boundary)
+
+The six qualified properties, recorded so later work cannot accidentally overstate
+or understate them:
+
+```text
+AP-CONS
+Per-bond accounting conserves posted amount through fee, custody,
+terminal allocation and remaining custody.
+
+AP-DISP
+After terminal disposition, subsequent execution cannot create a
+second terminal appeal-bond semantic effect.
+
+AP-REPLAY
+Replay cannot duplicate disposition, entitlement or custody effect.
+
+AP-ATOM
+The expected distribution-dependency failure reverts atomically over
+the appeal-bond semantic state, demonstrated by valid equal pre/post
+semantic roots.
+
+AP-CLAIM
+For a single bond, allocation/disposition provenance survives a
+legitimate claim transition and allocated = claimable + claimed.
+
+AP-ID
+Bonds for the same workflow/funder at different appeal ordinals have
+distinct authoritative identities, established at their earliest
+unambiguous coexistence point.
+```
+
+### AP-DISP / AP-REPLAY layer distinction
+
+Neither AP-DISP nor AP-REPLAY is recorded as proving that the second terminal
+operation is **rejected**. The observed semantics are:
+
+```text
+first execution:
+  applied, semantic mutation
+
+second/replayed execution:
+  applied/no-op at the appeal-bond semantic layer
+  equal pre/post appeal-bond roots
+```
+
+The qualified property is **semantic idempotence / no duplicate effect**, not a
+lower-level `:already-disposed` duplicate-write rejection. Any summary of the
+qualification result must preserve this distinction (see the
+[Disposition/replay layer distinction](#dispositionreplay-layer-distinction-ap-disp--ap-replay)
+section above).
+
+### Multi-bond claim attribution — RESOLVED (aggregate-only), encoded in PRF
+
+```text
+Bond A -> recipient R -> asset T
+Bond B -> recipient R -> asset T
+
+R performs an aggregate claim/withdrawal for T.
+```
+
+Solidity inspection (`sew-protocol`) resolves the semantic boundary. In the
+**canonical, deployed `ResolverIncentiveModule`**, claim consumption is
+**aggregate-only per `(escrowContract, workflowId, recipient)`**:
+
+- refunds credit a single workflow-level pool —
+  `claimableBondRefunds[escrow][workflow][recipient] += amount` — and
+  `claimBondRefund` reads the whole pool, transfers it, and `delete`s the entry;
+  there is **no round/bond key on the claimable**;
+- resolver payments are identical — `claimablePayments[escrow][workflow][sender]`
+  is a single balance deleted whole on `claimPayment`;
+- the per-round `appealBonds[escrow][workflow][round]` records exist for
+  **posting/disposition**, not for independently-consumed per-round claimable.
+
+The **alternative** `BondLedger` + `V2BondLedger` (unwired review substrate)
+keeps `_claimable[bondId][recipient]` bond-specific internally, but its
+`claimBondRefundLedger`/`claimPaymentLedger` expose an **aggregate claim** that
+iterates fixed rounds 1..2 and emits a single workflow-level `BondRefundClaimed`;
+the caller cannot select a bond or claim a partial amount.
+
+Therefore the canonical module **cannot authoritatively attribute** an aggregate
+withdrawal to Bond A versus Bond B, and PRF must not infer FIFO, LIFO, latest,
+map order, or any other per-bond consumption rule (none is protocol semantics).
+
+This is now **encoded in PRF** as a fail-closed read-only query
+`appeal-bond-projection/query-bond-claim-attribution`, which classifies a
+`(workflow/id, recipient)` pair as `:single-bond` (per-bond attribution
+authoritative), `:aggregate-multi-bond` (consumption aggregate-only, not
+bond-attributable), or `:none`. A per-bond AP-CLAIM-002 would test semantics the
+canonical module does **not** have, so it is deliberately **not** added. This is a
+resolved semantic boundary, **not** a failure of `AP-CLAIM-001` (single-bond).
 
 ### Candidate suite identity (frozen)
 
@@ -195,9 +317,14 @@ historical checkpoint; the July checkpoint verifies independently of worktree dr
 bb validate                        → VALIDATION PASSED
 SPEDS                              → 66 tests / 265 assertions / 0 failures
 appeal_bond_projection_test        → 9 tests / 26 assertions / 0 failures
+analysis selector tests            → 3 tests / 6 assertions / 0 failures
 checkpoint_verification_test       → 3 tests / 9 assertions / 0 failures
 bb lint                            → 0 errors
 ```
+
+All six primitive-native scenarios pass. `analysis` selector tests cover the
+fail-closed AP-ID identity selector (earliest coexistence, zero-result and
+multiple-group ambiguity fail closed).
 
 Unrelated repository warnings were not resolved by this tranche and are not
 claimed to be.
@@ -221,7 +348,8 @@ globally assured. Separately tracked remaining areas:
 - Solidity deployment wiring;
 - runtime/deployed bytecode↔build equivalence;
 - broader adversarial/economic coverage;
-- multi-bond claim ambiguity (if still unresolved);
+- canonical multi-bond claim consumption is aggregate-only (resolved; see
+  [Multi-bond claim attribution](#multi-bond-claim-attribution--resolved-aggregate-only-encoded-in-prf));
 - historical compatibility divergences (e.g. DR-C-003 denomination, DR-C-004
   resolver `:distribution`, DR-C-005 forfeiture lifecycle, DR-N-002 lineage).
 

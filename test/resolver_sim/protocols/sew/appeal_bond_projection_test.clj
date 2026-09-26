@@ -151,3 +151,54 @@
             :appeal-bond/claims {}})]
     (is (:valid? p))
     (is (string? (projection/appeal-bond-semantic-root p)))))
+
+;; ---- claim-consumption semantic boundary --------------------------------
+;; Canonical Sew (`ResolverIncentiveModule`) consumes claims aggregate-only per
+;; (escrow, workflow, recipient). Per-bond `claimable`/`claimed` attribution is
+;; authoritative only when exactly one bond in a workflow carries benefit for a
+;; recipient; otherwise consumption is aggregate-only and must not be guessed.
+
+(defn- attribution-projection [records claims]
+  {:valid? true
+   :appeal-bond/records records
+   :appeal-bond/dispositions {}
+   :appeal-bond/claims claims})
+
+(deftest claim-attribution-single-bond-is-authoritative
+  (let [p (attribution-projection
+           {"bond-a" (open-record "bond-a")}
+           {"bond-a" {"0xr" {:allocated 90 :claimable 90 :claimed 0}}})
+        r (projection/query-bond-claim-attribution p 0 "0xr")]
+    (is (= :single-bond (:attribution r)))
+    (is (= "bond-a" (:bond/id r)))))
+
+(deftest claim-attribution-aggregate-multi-bond-is-not-bond-attributable
+  (let [p (attribution-projection
+           {"bond-a" (open-record "bond-a")
+            "bond-b" (open-record "bond-b")}
+           {"bond-a" {"0xr" {:allocated 90 :claimable 90 :claimed 0}}
+            "bond-b" {"0xr" {:allocated 80 :claimable 80 :claimed 0}}})
+        r (projection/query-bond-claim-attribution p 0 "0xr")]
+    (is (= :aggregate-multi-bond (:attribution r)))
+    (is (= ["bond-a" "bond-b"] (:bond/ids r)))))
+
+(deftest claim-attribution-none-when-no-claimable
+  (let [p (attribution-projection
+           {"bond-a" (open-record "bond-a")}
+           {"bond-a" {"0xr" {:allocated 90 :claimable 0 :claimed 90}}})
+        r (projection/query-bond-claim-attribution p 0 "0xr")]
+    (is (= :none (:attribution r)))
+    (is (= [] (:bond/ids r)))))
+
+(deftest claim-attribution-is-scoped-per-workflow
+  ;; Solidity aggregates the pool by workflowId; a bond in another workflow
+  ;; must not make a workflow's attribution ambiguous.
+  (let [other-workflow (assoc (open-record "bond-b") :workflow/id 1)
+        p (attribution-projection
+           {"bond-a" (open-record "bond-a")
+            "bond-b" other-workflow}
+           {"bond-a" {"0xr" {:allocated 90 :claimable 90 :claimed 0}}
+            "bond-b" {"0xr" {:allocated 80 :claimable 80 :claimed 0}}})
+        r (projection/query-bond-claim-attribution p 0 "0xr")]
+    (is (= :single-bond (:attribution r)))
+    (is (= "bond-a" (:bond/id r)))))

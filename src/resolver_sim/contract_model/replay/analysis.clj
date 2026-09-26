@@ -131,6 +131,40 @@
                   :observed (select-keys entry [:seq :action :result :error :reject-class])}))))
          (get-in scenario [:claim-to :requires] []))))
 
+(defn- repeated-bond-groups
+  "From a validated appeal-bond projection, return every (workflow, funder) bond
+   group containing at least two distinct bonds, each sorted by appeal ordinal.
+   Used to identify repeated appeal bonds posted by the same funder across
+   rounds, without coupling to a specific checkpoint index or fixture address."
+  [projection]
+  (->> (vals (:appeal-bond/records projection))
+       (group-by (juxt :workflow/id :bond/funder))
+       vals
+       (keep (fn [group]
+               (let [bonds (->> group
+                                (sort-by :appeal/ordinal)
+                                (mapv #(select-keys %
+                                                    [:bond/id :workflow/id :appeal/ordinal
+                                                     :bond/status :bond/remaining-custody])))]
+                 (when (>= (count bonds) 2) bonds))))))
+
+(defn- earliest-coexistence-bond-pair
+  "Earliest retained checkpoint at which exactly one unambiguous repeated-bond
+   group (same workflow + same funder, distinct appeal ordinals) coexists.
+   Returns the bond pair sorted by appeal ordinal, or nil — failing closed —
+   when no repeated-bond group is present or when multiple distinct groups
+   coexist (ambiguous selector). Checkpoints are scanned in ascending seq order."
+  [result]
+  (->> (:world-checkpoints result)
+       (sort-by key)
+       (keep (fn [[_ world]]
+               (let [projection (appeal-bond-projection/project-appeal-bonds world)]
+                 (when (:valid? projection)
+                   (let [groups (repeated-bond-groups projection)]
+                     (when (= 1 (count groups))
+                       (first groups)))))))
+       first))
+
 (defn- primitive-bond-metrics [scenario result query]
   (let [trace (:trace result)
         expectations (set (keys (get-in scenario [:expectations :metrics] {})))
@@ -143,12 +177,7 @@
         recipient (get-in scenario [:claim-to :scope :recipient])
         entitlement (get (:entitlements query) recipient)
         disposition-allocation (get-in disposition [:allocations recipient])
-        identity-checkpoint (get-in result [:world-checkpoints 6])
-        identity-projection (when identity-checkpoint
-                              (appeal-bond-projection/project-appeal-bonds identity-checkpoint))
-        identity-bonds (when (:valid? identity-projection)
-                         (appeal-bond-projection/query-bonds-by-workflow-funder
-                          identity-projection 0 "0xchallenger"))
+        identity-bonds (earliest-coexistence-bond-pair result)
         identity-a (first identity-bonds)
         identity-b (second identity-bonds)
         terminal-operation-seqs (->> (get-in scenario [:claim-to :requires])

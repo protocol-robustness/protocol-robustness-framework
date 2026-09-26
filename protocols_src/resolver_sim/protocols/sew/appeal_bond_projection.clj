@@ -182,6 +182,49 @@
          (mapv #(select-keys % [:bond/id :workflow/id :appeal/ordinal :bond/status
                                 :bond/remaining-custody])))))
 
+(defn query-bond-claim-attribution
+  "Classify how authoritative a recipient's claim consumption is within one
+   workflow, reflecting the **canonical Sew module** semantic boundary.
+
+   In the deployed `ResolverIncentiveModule`, claim consumption is aggregate per
+   `(escrowContract, workflowId, recipient)`: `claimableBondRefunds` and
+   `claimablePayments` are single workflow-level pools credited via `+=` and
+   deleted whole on claim. A per-round/bond `claimable` is never consumed
+   independently, so a recipient's entitlement across multiple bonds of one
+   workflow collapses into a single pool.
+
+   Consequently, per-bond `claimable`/`claimed` attribution is authoritative only
+   when exactly one bond in the workflow carries **pending claimable** entitlement
+   for that recipient. When two or more bonds carry pending claimable, an
+   aggregate withdrawal cannot be attributed, consumption is aggregate-only and
+   PRF must NOT infer FIFO/LIFO/latest/map-order per-bond attribution. Fully
+   consumed bonds (`claimable = 0`) carry no pending claimable and do not
+   contribute to the ambiguous pool.
+
+   Returns (always `:valid? true` for a validated projection):
+     {:attribution :single-bond        :bond/id <id>}
+     {:attribution :aggregate-multi-bond :bond/ids [...]}   (sorted)
+     {:attribution :none               :bond/ids []}
+   Throws on an invalid/unvalidated projection (fail closed)."
+  [projection workflow-id recipient]
+  (let [p (validate-appeal-bond-projection projection)
+        carrying (fn [record]
+                   (some (fn [[r ent]]
+                           (and (= recipient r)
+                                (pos? (long (or (:claimable ent) 0)))))
+                         (get-in p [:appeal-bond/claims (:bond/id record)] {})))
+        bond-ids (->> (vals (:appeal-bond/records p))
+                      (filter #(= workflow-id (:workflow/id %)))
+                      (filter carrying)
+                      (map :bond/id)
+                      (sort)
+                      vec)]
+    (cond
+      (empty? bond-ids) {:valid? true :attribution :none :bond/ids []}
+      (= 1 (count bond-ids)) {:valid? true :attribution :single-bond
+                              :bond/id (first bond-ids)}
+      :else {:valid? true :attribution :aggregate-multi-bond :bond/ids bond-ids})))
+
 (defn appeal-bond-semantic-state
   "Canonical semantic state committed by appeal-bond transition receipts.
    It deliberately excludes aggregate reconciliation ledgers and unrelated
