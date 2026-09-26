@@ -25,16 +25,16 @@
   (and (= observed-run-schema (:artifact/schema evidence))
        (= :observed-local-execution (:execution/assurance evidence))
        (every? root? (map evidence
-                           [:research-execution-job/root :research-run-assignment/root
-                            :runner-participation/root :runner/reference
-                            :research-execution-environment/root
-                            :research-execution-environment-observation/root
-                            :resolved-research-dependency-set/root
-                            :research-implementation-identity/root
-                            :environment-before/root :executed-action/root
-                            :environment-after/root :semantic-result/root
-                            :research-observed-fixed-validation-receipt/root
-                            :forensic-evidence-root :research-observed-run-evidence/root]))
+                          [:research-execution-job/root :research-run-assignment/root
+                           :runner-participation/root :runner/reference
+                           :research-execution-environment/root
+                           :research-execution-environment-observation/root
+                           :resolved-research-dependency-set/root
+                           :research-implementation-identity/root
+                           :environment-before/root :executed-action/root
+                           :environment-after/root :semantic-result/root
+                           :research-observed-fixed-validation-receipt/root
+                           :forensic-evidence-root :research-observed-run-evidence/root]))
        (let [w (:proof/source-artifacts evidence)
              a (:assured-job w) asn (:assignment w) rp (:runner-participation w)
              deps (:resolved-dependencies w) impl (:implementation w)
@@ -101,11 +101,11 @@
               :role :derived :actor actor :visibility :commitment-only
               :parent-nodes [(:node-hash env)]
               :causal-parent-roots [(:research-execution-job/root receipt)
-                                     (:resolved-research-dependency-set/root receipt)
-                                     (:environment-before/root receipt)
-                                     (:executed-action/root receipt)
-                                     (:environment-after/root receipt)
-                                     (:semantic-result/root receipt)]})
+                                    (:resolved-research-dependency-set/root receipt)
+                                    (:environment-before/root receipt)
+                                    (:executed-action/root receipt)
+                                    (:environment-after/root receipt)
+                                    (:semantic-result/root receipt)]})
         fixed (forensic/build-forensic-evidence-node
                {:subject {:subject/root (:research-observed-fixed-validation-receipt/root validation)
                           :subject/kind :research-execution/fixed-validation}

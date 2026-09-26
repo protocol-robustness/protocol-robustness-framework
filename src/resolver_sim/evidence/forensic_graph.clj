@@ -107,7 +107,7 @@
            observation-key observed-root gap consequence? status]
     :or {visibility :commitment-only parent-nodes [] consequence? false status :pass}}]
   (let [extension (forensic-extension
-                    {:subject subject :role role :visibility visibility
+                   {:subject subject :role role :visibility visibility
                     :causal-parent-roots causal-parent-roots :custody-roots custody-roots :actor actor
                     :cutpoint cutpoint :observation-key observation-key
                     :observed-root observed-root :gap gap
@@ -244,7 +244,7 @@
                           causal-errors
                           (when-not profile-valid? [{:error :forensic/invalid-profile}])
                           (when (seq required-gaps) [{:error :forensic/required-evidence-missing
-                                                     :gaps (vec required-gaps)}])
+                                                      :gaps (vec required-gaps)}])
                           (when (seq conflict-list) [{:error :forensic/conflicting-observations
                                                       :conflicts conflict-list}])))
      :gaps gaps

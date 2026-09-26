@@ -106,36 +106,36 @@
 
 (defn- placement-projection [state task worker dependency-info attempt-id]
   (let [body (merge (:evidence-context state)
-             {:distributed-experiment-profile/root
-              (get-in state [:profile :distributed-experiment-profile/root])
-              :distributed-scheduler-policy/root
-              (get-in state [:policy :distributed-scheduler-policy/root])
-              :workload/root (get-in state [:workload :workload/root])
-              :task/id (:id task)
-              :execution/attempt-id attempt-id
-              :worker/id (:worker/id worker)
-              :site/id (:worker/site-id worker)
-              :distributed-dependency-set/root
-              (get-in dependency-info [:dependency-set :distributed-dependency-set/root])
-              :transfer/paths (mapv #(when % (select-keys % [:transfer/path-id
-                                                              :transfer/from-site
-                                                              :transfer/to-site
-                                                              :transfer/distance
-                                                              :transfer/time-ms
-                                                              :transfer/bytes]))
-                                    (:transfers dependency-info))})]
+                    {:distributed-experiment-profile/root
+                     (get-in state [:profile :distributed-experiment-profile/root])
+                     :distributed-scheduler-policy/root
+                     (get-in state [:policy :distributed-scheduler-policy/root])
+                     :workload/root (get-in state [:workload :workload/root])
+                     :task/id (:id task)
+                     :execution/attempt-id attempt-id
+                     :worker/id (:worker/id worker)
+                     :site/id (:worker/site-id worker)
+                     :distributed-dependency-set/root
+                     (get-in dependency-info [:dependency-set :distributed-dependency-set/root])
+                     :transfer/paths (mapv #(when % (select-keys % [:transfer/path-id
+                                                                    :transfer/from-site
+                                                                    :transfer/to-site
+                                                                    :transfer/distance
+                                                                    :transfer/time-ms
+                                                                    :transfer/bytes]))
+                                           (:transfers dependency-info))})]
     (assoc body :distributed-placement-projection/root
            (root :distributed-placement-projection-v1 body))))
 
 (defn- attempt-id [state task-id ordinal]
   (root :distributed-execution-attempt-v1
         (merge (:evidence-context state)
-        {:distributed-experiment-profile/root
-         (get-in state [:profile :distributed-experiment-profile/root])
-         :distributed-scheduler-policy/root
-         (get-in state [:policy :distributed-scheduler-policy/root])
-         :workload/root (get-in state [:workload :workload/root])
-         :task/id task-id :attempt/ordinal ordinal})))
+               {:distributed-experiment-profile/root
+                (get-in state [:profile :distributed-experiment-profile/root])
+                :distributed-scheduler-policy/root
+                (get-in state [:policy :distributed-scheduler-policy/root])
+                :workload/root (get-in state [:workload :workload/root])
+                :task/id task-id :attempt/ordinal ordinal})))
 
 (defn- failure-cause [state worker dependency-info]
   (let [site (profile/site (:profile state) (:worker/site-id worker))]
@@ -165,21 +165,21 @@
     (failure/build-receipt
      (cond->
       (merge (:evidence-context state)
-      {:distributed-experiment-profile/root
-       (get-in state [:profile :distributed-experiment-profile/root])
-       :workload/root (get-in state [:workload :workload/root])
-       :distributed-scheduler-policy/root
-       (get-in state [:policy :distributed-scheduler-policy/root])
-       :execution/attempt-id attempt
-       :attempt/ordinal ordinal
-       :task/id (:id task)
-       :worker/id (:worker/id worker)
-       :site/id (:worker/site-id worker)
-       :distributed-dependency-set/root
-       (get-in dependency-info [:dependency-set :distributed-dependency-set/root])
-       :distributed-placement-projection/root
-       (:distributed-placement-projection/root placement)
-       :failure/cause cause})
+             {:distributed-experiment-profile/root
+              (get-in state [:profile :distributed-experiment-profile/root])
+              :workload/root (get-in state [:workload :workload/root])
+              :distributed-scheduler-policy/root
+              (get-in state [:policy :distributed-scheduler-policy/root])
+              :execution/attempt-id attempt
+              :attempt/ordinal ordinal
+              :task/id (:id task)
+              :worker/id (:worker/id worker)
+              :site/id (:worker/site-id worker)
+              :distributed-dependency-set/root
+              (get-in dependency-info [:dependency-set :distributed-dependency-set/root])
+              :distributed-placement-projection/root
+              (:distributed-placement-projection/root placement)
+              :failure/cause cause})
        failed-dependency
        (assoc :dependency/task-id (:dependency/task-id failed-dependency)
               :dependency/root (:dependency/root failed-dependency)
@@ -194,22 +194,22 @@
 (defn- successful-attempt [state task worker dependency-info placement attempt ordinal
                            start finish result-root]
   (let [body (merge (:evidence-context state)
-             {:artifact/schema attempt-schema
-              :distributed-experiment-profile/root
-              (get-in state [:profile :distributed-experiment-profile/root])
-              :workload/root (get-in state [:workload :workload/root])
-              :distributed-scheduler-policy/root
-              (get-in state [:policy :distributed-scheduler-policy/root])
-              :execution/attempt-id attempt :attempt/ordinal ordinal
-              :task/id (:id task) :worker/id (:worker/id worker)
-              :site/id (:worker/site-id worker)
-              :distributed-dependency-set/root
-              (get-in dependency-info [:dependency-set :distributed-dependency-set/root])
-              :distributed-placement-projection/root
-              (:distributed-placement-projection/root placement)
-              :execution/start-ms start :execution/finish-ms finish
-              :execution/outcome :complete
-              :task-result/root result-root})]
+                    {:artifact/schema attempt-schema
+                     :distributed-experiment-profile/root
+                     (get-in state [:profile :distributed-experiment-profile/root])
+                     :workload/root (get-in state [:workload :workload/root])
+                     :distributed-scheduler-policy/root
+                     (get-in state [:policy :distributed-scheduler-policy/root])
+                     :execution/attempt-id attempt :attempt/ordinal ordinal
+                     :task/id (:id task) :worker/id (:worker/id worker)
+                     :site/id (:worker/site-id worker)
+                     :distributed-dependency-set/root
+                     (get-in dependency-info [:dependency-set :distributed-dependency-set/root])
+                     :distributed-placement-projection/root
+                     (:distributed-placement-projection/root placement)
+                     :execution/start-ms start :execution/finish-ms finish
+                     :execution/outcome :complete
+                     :task-result/root result-root})]
     (assoc body :distributed-execution-attempt/root
            (root :distributed-execution-attempt-v1 body))))
 
@@ -235,7 +235,7 @@
 
 (defn- fallback-worker [state task failed-worker]
   (some #(when (and (= (:worker/id %) (:home task))
-                     (not= (:worker/id %) (:worker/id failed-worker))) %)
+                    (not= (:worker/id %) (:worker/id failed-worker))) %)
         (eligible-workers state task)))
 
 (defn- execute-task [state task]
@@ -268,22 +268,22 @@
 (defn- preflight-failure [workload profile policy observed-profile-root evidence-context]
   (let [attempt (root :distributed-execution-attempt-v1
                       (merge evidence-context
-                      {:workload/root (:workload/root workload)
-                       :distributed-experiment-profile/root
-                       (:distributed-experiment-profile/root profile)
-                       :observed-profile/root observed-profile-root
-                       :attempt/kind :preflight}))]
+                             {:workload/root (:workload/root workload)
+                              :distributed-experiment-profile/root
+                              (:distributed-experiment-profile/root profile)
+                              :observed-profile/root observed-profile-root
+                              :attempt/kind :preflight}))]
     (failure/build-receipt
      (merge evidence-context
-     {:distributed-experiment-profile/root
-      (:distributed-experiment-profile/root profile)
-      :workload/root (:workload/root workload)
-      :distributed-scheduler-policy/root
-      (:distributed-scheduler-policy/root policy)
-      :execution/attempt-id attempt
-      :failure/cause :distribution-preflight-mismatch
-      :expected-profile/root (:distributed-experiment-profile/root profile)
-      :observed-profile/root observed-profile-root}))))
+            {:distributed-experiment-profile/root
+             (:distributed-experiment-profile/root profile)
+             :workload/root (:workload/root workload)
+             :distributed-scheduler-policy/root
+             (:distributed-scheduler-policy/root policy)
+             :execution/attempt-id attempt
+             :failure/cause :distribution-preflight-mismatch
+             :expected-profile/root (:distributed-experiment-profile/root profile)
+             :observed-profile/root observed-profile-root}))))
 
 (defn run
   "Run a rooted workload under an explicit profile and policy.
@@ -311,8 +311,8 @@
       :distributed-scheduler-policy/root
       (:distributed-scheduler-policy/root distributed-policy)
       :failure-receipts [(preflight-failure workload distributed-profile
-                                           distributed-policy observed-profile-root
-                                           evidence-context)]}
+                                            distributed-policy observed-profile-root
+                                            evidence-context)]}
      (let [initial {:workload workload :profile distributed-profile
                     :policy distributed-policy
                     :evidence-context evidence-context

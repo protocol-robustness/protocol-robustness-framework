@@ -13,6 +13,8 @@ Primary project framing and status live in the root `../README.md`.
 | Understand adapter / framework boundaries | `architecture/framework-boundaries.md` |
 | Define adopter-owned protocol and assurance responsibilities | `architecture/ADOPTER_RESPONSIBILITIES.md` |
 | Define Sew accounting conservation semantics and bucket taxonomy | `architecture/SEW_ACCOUNTING_SEMANTICS_V1.md` |
+| Define Sew canonical domain-qualified asset identity | `architecture/SEW_ASSET_IDENTITY_V1.md` |
+| Define Sew canonical accounting projection | `architecture/SEW_ACCOUNTING_PROJECTION_V1.md` |
 | Define successor and admission rules | `architecture/SUCCESSOR_RULES.md`, `architecture/ADMISSION_INTEGRATION.md` |
 | Scenario index and protocol properties | `scenarios.md` |
 | Protocol design findings index | `findings/` |

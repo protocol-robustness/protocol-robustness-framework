@@ -172,87 +172,87 @@
         (throw (ex-info "Sealed dependencies require a confidential executor"
                         {:cause :sealed-dependency-unsupported})))
       (let [declared-version (get-in execution-environment [:tool/identity :tool/version])
-        actual-version (anvil-version)]
-    (when-not (= declared-version actual-version)
-      (throw (ex-info "Observed Anvil version differs from declaration"
-                      {:cause :environment-version-mismatch :declared declared-version :observed actual-version})))
-    (let [{:keys [process url]} (start-anvil! (or runtime-chain-id (:evm/chain-id execution-environment)))]
-      (try
-        (let [client-version (wait-rpc! url process)
-              chain-hex (rpc url 4 "eth_chainId" [])
-              observed-chain (Long/parseLong (subs chain-hex 2) 16)
-              _ (when-not (= observed-chain (:evm/chain-id execution-environment))
-                  (throw (ex-info "Observed chain id differs" {:cause :chain-id-mismatch})))
-              accounts (rpc url 5 "eth_accounts" [])
-              from (or (:from action) (first accounts))
-              to (or (:to action) (second accounts))
-              action (assoc action :from from :to to :data (or (:data action) "0x"))
-              actual-action-root (action-root action)
-              _ (when-not (= expected-action-root actual-action-root)
-                  (throw (ex-info "Declared action differs from executed action" {:cause :action-mismatch})))
-              monitored (vec (sort (set [from to])))
-              pre (observe-projection url observed-chain (:deployment/code-identities execution-environment) monitored)
-              pre-root (state-root pre)
-              mismatched-code (seq (filter #(not= (:deployment/code-root %) (:declared-code-root %))
-                                           (:projection/code-identities pre)))
-              _ (when mismatched-code
-                  (throw (ex-info "Observed runtime bytecode differs" {:cause :contract-code-mismatch})))
-              _ (when (and expected-prestate-root (not= expected-prestate-root pre-root))
-                  (throw (ex-info "Observed pre-state differs" {:cause :execution-prestate-mismatch})))
-              observation-body {:artifact/schema observation-schema
-                                :research-execution-environment/root (:research-execution-environment/root execution-environment)
-                                :observation/assurance :observed-local-execution
-                                :tool/identity {:tool/name :anvil :tool/version actual-version}
-                                :evm/chain-id observed-chain
-                                :rpc/client-version client-version
-                                :observed-code-identities (:projection/code-identities pre)}
-              observation (assoc observation-body :research-execution-environment-observation/root
-                                 (observation-root observation-body))]
-          (if (= cancellation-stage :after-reachability)
-            {:execution/status :cancelled :process/launched? true
-             :realized-reachability :rpc-reachable :control/cutpoint :before-action
-             :environment-observation observation}
-            (let [tx (rpc url 6 "eth_sendTransaction"
-                        [{"from" from "to" to "value" (quantity (:value-wei action))
-                         "data" (:data action)}])
-                chain-receipt (receipt! url tx)
-                _ (when-not (= "0x1" (get chain-receipt "status"))
-                    (throw (ex-info "Anvil action reverted" {:cause :task-execution-failed})))
-                post (observe-projection url observed-chain (:deployment/code-identities execution-environment) monitored)
-                post-root (state-root post)
-                _ (when (and expected-poststate-root (not= expected-poststate-root post-root))
-                    (throw (ex-info "Observed post-state differs" {:cause :execution-poststate-mismatch})))
-                semantic {:semantic/operation :evm-value-transfer
-                          :semantic/from from :semantic/to to
-                          :semantic/value-wei (:value-wei action)
-                          :semantic/post-balances (:projection/balances post)}
-                result-root (semantic-result-root semantic)
-                receipt-body {:artifact/schema receipt-schema
-                              :research-execution-job/root (:research-execution-job/root job)
-                              :research-run-assignment/root (:research-run-assignment/root assignment)
-                              :runner-participation/root (:runner-participation/root runner-participation)
-                              :runner/reference (:runner/reference runner-participation)
-                              :runner/site-id (:runner/site-id runner-participation)
-                              :research-execution-environment/root (:research-execution-environment/root execution-environment)
-                              :research-execution-environment/body execution-environment
-                              :research-execution-environment-observation/root (:research-execution-environment-observation/root observation)
-                              :research-execution-environment-observation/body observation
-                              :resolved-research-dependency-set/root (:resolved-research-dependency-set/root resolved-dependencies)
-                              :research-implementation-identity/root implementation-root
-                              :environment-before/root pre-root :executed-action/root actual-action-root
-                              :environment-after/root post-root :semantic-result/root result-root
-                              :execution/assurance :observed-local-execution
-                              :execution/transaction-status :success}
-                receipt (assoc receipt-body :research-anvil-execution-receipt/root (receipt-root receipt-body))
-                validation-body {:artifact/schema validation-schema
-                                 :research-anvil-execution-receipt/root (:research-anvil-execution-receipt/root receipt)
-                                 :validation/checks (mapv #(hash-map :check/id % :check/status :pass) fixed-checks)
-                                 :validation/status :passed}
-                validation (assoc validation-body :research-observed-fixed-validation-receipt/root
-                                  (validation-root validation-body))]
-            {:execution/status :complete :realized-reachability :rpc-action-completed
-             :environment-observation observation :pre-state pre :post-state post :semantic-result semantic
-             :receipt receipt :fixed-validation validation
+            actual-version (anvil-version)]
+        (when-not (= declared-version actual-version)
+          (throw (ex-info "Observed Anvil version differs from declaration"
+                          {:cause :environment-version-mismatch :declared declared-version :observed actual-version})))
+        (let [{:keys [process url]} (start-anvil! (or runtime-chain-id (:evm/chain-id execution-environment)))]
+          (try
+            (let [client-version (wait-rpc! url process)
+                  chain-hex (rpc url 4 "eth_chainId" [])
+                  observed-chain (Long/parseLong (subs chain-hex 2) 16)
+                  _ (when-not (= observed-chain (:evm/chain-id execution-environment))
+                      (throw (ex-info "Observed chain id differs" {:cause :chain-id-mismatch})))
+                  accounts (rpc url 5 "eth_accounts" [])
+                  from (or (:from action) (first accounts))
+                  to (or (:to action) (second accounts))
+                  action (assoc action :from from :to to :data (or (:data action) "0x"))
+                  actual-action-root (action-root action)
+                  _ (when-not (= expected-action-root actual-action-root)
+                      (throw (ex-info "Declared action differs from executed action" {:cause :action-mismatch})))
+                  monitored (vec (sort (set [from to])))
+                  pre (observe-projection url observed-chain (:deployment/code-identities execution-environment) monitored)
+                  pre-root (state-root pre)
+                  mismatched-code (seq (filter #(not= (:deployment/code-root %) (:declared-code-root %))
+                                               (:projection/code-identities pre)))
+                  _ (when mismatched-code
+                      (throw (ex-info "Observed runtime bytecode differs" {:cause :contract-code-mismatch})))
+                  _ (when (and expected-prestate-root (not= expected-prestate-root pre-root))
+                      (throw (ex-info "Observed pre-state differs" {:cause :execution-prestate-mismatch})))
+                  observation-body {:artifact/schema observation-schema
+                                    :research-execution-environment/root (:research-execution-environment/root execution-environment)
+                                    :observation/assurance :observed-local-execution
+                                    :tool/identity {:tool/name :anvil :tool/version actual-version}
+                                    :evm/chain-id observed-chain
+                                    :rpc/client-version client-version
+                                    :observed-code-identities (:projection/code-identities pre)}
+                  observation (assoc observation-body :research-execution-environment-observation/root
+                                     (observation-root observation-body))]
+              (if (= cancellation-stage :after-reachability)
+                {:execution/status :cancelled :process/launched? true
+                 :realized-reachability :rpc-reachable :control/cutpoint :before-action
+                 :environment-observation observation}
+                (let [tx (rpc url 6 "eth_sendTransaction"
+                              [{"from" from "to" to "value" (quantity (:value-wei action))
+                                "data" (:data action)}])
+                      chain-receipt (receipt! url tx)
+                      _ (when-not (= "0x1" (get chain-receipt "status"))
+                          (throw (ex-info "Anvil action reverted" {:cause :task-execution-failed})))
+                      post (observe-projection url observed-chain (:deployment/code-identities execution-environment) monitored)
+                      post-root (state-root post)
+                      _ (when (and expected-poststate-root (not= expected-poststate-root post-root))
+                          (throw (ex-info "Observed post-state differs" {:cause :execution-poststate-mismatch})))
+                      semantic {:semantic/operation :evm-value-transfer
+                                :semantic/from from :semantic/to to
+                                :semantic/value-wei (:value-wei action)
+                                :semantic/post-balances (:projection/balances post)}
+                      result-root (semantic-result-root semantic)
+                      receipt-body {:artifact/schema receipt-schema
+                                    :research-execution-job/root (:research-execution-job/root job)
+                                    :research-run-assignment/root (:research-run-assignment/root assignment)
+                                    :runner-participation/root (:runner-participation/root runner-participation)
+                                    :runner/reference (:runner/reference runner-participation)
+                                    :runner/site-id (:runner/site-id runner-participation)
+                                    :research-execution-environment/root (:research-execution-environment/root execution-environment)
+                                    :research-execution-environment/body execution-environment
+                                    :research-execution-environment-observation/root (:research-execution-environment-observation/root observation)
+                                    :research-execution-environment-observation/body observation
+                                    :resolved-research-dependency-set/root (:resolved-research-dependency-set/root resolved-dependencies)
+                                    :research-implementation-identity/root implementation-root
+                                    :environment-before/root pre-root :executed-action/root actual-action-root
+                                    :environment-after/root post-root :semantic-result/root result-root
+                                    :execution/assurance :observed-local-execution
+                                    :execution/transaction-status :success}
+                      receipt (assoc receipt-body :research-anvil-execution-receipt/root (receipt-root receipt-body))
+                      validation-body {:artifact/schema validation-schema
+                                       :research-anvil-execution-receipt/root (:research-anvil-execution-receipt/root receipt)
+                                       :validation/checks (mapv #(hash-map :check/id % :check/status :pass) fixed-checks)
+                                       :validation/status :passed}
+                      validation (assoc validation-body :research-observed-fixed-validation-receipt/root
+                                        (validation-root validation-body))]
+                  {:execution/status :complete :realized-reachability :rpc-action-completed
+                   :environment-observation observation :pre-state pre :post-state post :semantic-result semantic
+                   :receipt receipt :fixed-validation validation
              ;; Transaction hash is forensic runtime evidence, intentionally not in receipt root.
-             :runtime/transaction-hash tx :runtime/port (subs url (inc (.lastIndexOf url ":")))})))
-        (finally (stop! process))))))))
+                   :runtime/transaction-hash tx :runtime/port (subs url (inc (.lastIndexOf url ":")))})))
+            (finally (stop! process))))))))

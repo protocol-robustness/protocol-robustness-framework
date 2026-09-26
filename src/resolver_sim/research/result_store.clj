@@ -66,7 +66,7 @@
             (recur)))))))
 
 (defn missing-cells
-  "Return manifest cells that lack a non-conflicting completed result." 
+  "Return manifest cells that lack a non-conflicting completed result."
   [store execution-manifest]
   (->> (:dispatch/cells execution-manifest)
        (filter #(not= :complete (cell-status store (:research-execution-cell/root %))))

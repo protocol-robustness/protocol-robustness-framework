@@ -73,7 +73,7 @@
                 :dep/scenarios :dep/solidity :dep/contract :dep/anvil
                 :dep/toolchain]]
       (let [changed (mapv #(if (= id (:dependency/id %))
-                            (assoc % :dependency/artifact-root (fixture/fake-root \0)) %)
+                             (assoc % :dependency/artifact-root (fixture/fake-root \0)) %)
                           dependency-entries)]
         (is (not= (:research-dependency-manifest/root base)
                   (:research-dependency-manifest/root
@@ -104,7 +104,7 @@
 (deftest ordinary-readable-resolution-cannot-satisfy-sealed-dependency
   (let [env (fixture/anvil-environment)
         {:keys [manifest policy resolutions]} (dependency-context
-                                                (:research-execution-environment/root env))
+                                               (:research-execution-environment/root env))
         ordinary (mapv #(if (= :dep/sealed-data (:dependency/id %))
                           (-> %
                               (assoc :resolution/acquisition-mode :authenticated-private)
@@ -192,7 +192,7 @@
                 assurance-policy]} context
         assignment (remote/steal-next job env execution-policy runner assignments)
         distributed-run (distributed/run fixture/workload profile
-                                             fixture/distributed-policy-artifact)
+                                         fixture/distributed-policy-artifact)
         run-evidence (remote/build-run-evidence
                       job env execution-policy runner assignment distributed-run
                       {:environment-before-root (:environment/initial-state-root env)

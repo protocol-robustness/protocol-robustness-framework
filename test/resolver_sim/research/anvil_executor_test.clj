@@ -17,7 +17,7 @@
                                ^java.util.List ["cargo" "run" "--quiet" "--manifest-path"
                                                 "coprocessor/observed-run-sp1-program/Cargo.toml"
                                                 "--bin" "observed-run-witness-check"])
-                         (.directory (java.io.File. "."))))]
+                          (.directory (java.io.File. "."))))]
     (with-open [writer (java.io.OutputStreamWriter. (.getOutputStream process))]
       (.write writer (json/write-str input)))
     (let [stdout (slurp (.getInputStream process))
@@ -138,7 +138,7 @@
 (deftest fresh-real-anvil-execution-is-observed-and-replayable
   (let [first-run (anvil/execute! (context))
         second-run (anvil/execute! (context {:expected-prestate-root (get-in first-run [:receipt :environment-before/root])
-                                              :expected-poststate-root (get-in first-run [:receipt :environment-after/root])}))]
+                                             :expected-poststate-root (get-in first-run [:receipt :environment-after/root])}))]
     (is (= :complete (:execution/status first-run)))
     (is (= :rpc-action-completed (:realized-reachability first-run)))
     (is (= :observed-local-execution (get-in first-run [:receipt :execution/assurance])))
@@ -192,7 +192,7 @@
     (is (= :rpc-reachable (:realized-reachability after-reachability)))
     (is (= :sealed-dependency-unsupported
            (:cause (ex-data (try (anvil/execute! (context {:dependency-manifest (:manifest sealed)
-                                                            :resolved-dependencies (:resolved sealed)})) nil
+                                                           :resolved-dependencies (:resolved sealed)})) nil
                                  (catch clojure.lang.ExceptionInfo e e))))))))
 
 (deftest observed-run-adapts-into-existing-v1-assurance-and-forensic-dag
@@ -319,49 +319,48 @@
       ;; the execution receipt while the observed-run claim remains bound to the
       ;; original one.  Re-root both top-level artifacts so rejection depends on
       ;; guest lineage checks, not merely stale outer hashes.
-      (let [alternate-env (env [{:deployment/address to :deployment/code-root (root 88)}])
-            support (:proof/source-artifacts observed-run)
-            rec (:anvil-receipt support)
-            rec-body (-> rec
-                         (assoc :research-execution-environment/body alternate-env)
-                         (dissoc :research-anvil-execution-receipt/root))
-            rec* (assoc rec-body :research-anvil-execution-receipt/root
-                        (anvil/receipt-root rec-body))
-            fixed (:fixed-validation support)
-            fixed-body (-> fixed
-                           (assoc :research-anvil-execution-receipt/root
-                                  (:research-anvil-execution-receipt/root rec*))
-                           (dissoc :research-observed-fixed-validation-receipt/root))
-            fixed* (assoc fixed-body :research-observed-fixed-validation-receipt/root
-                          (anvil/validation-root fixed-body))
-            support* (assoc support :execution-environment alternate-env
-                                   :anvil-receipt rec* :fixed-validation fixed*)
-            observed-body (-> observed-run
-                              (assoc :proof/source-artifacts support*
-                                     :research-observed-fixed-validation-receipt/root
-                                     (:research-observed-fixed-validation-receipt/root fixed*))
-                              (dissoc :research-observed-run-evidence/root))
-            observed* (assoc observed-body :research-observed-run-evidence/root
-                             (observed/observed-run-root observed-body))
-            assurance-body (-> run-assurance
-                               (assoc :research-run-evidence/root
-                                      (:research-observed-run-evidence/root observed*)
-                                      :research-fixed-validation-receipt/root
-                                      (:research-observed-fixed-validation-receipt/root fixed*))
-                               (dissoc :research-run-assurance-evidence/root))
-            assurance* (assoc assurance-body :research-run-assurance-evidence/root
-                               (assurance/run-assurance-root assurance-body))
-            wire (deref #'statement/wire-value)
-            malicious-input {"schema" statement/schema
-                             "observed_run" (wire observed*)
-                             "run_assurance" (wire assurance*)}
-            rejected (guest-projection malicious-input)]
-        (is (not= 0 (:status rejected)))))
-      )
+        (let [alternate-env (env [{:deployment/address to :deployment/code-root (root 88)}])
+              support (:proof/source-artifacts observed-run)
+              rec (:anvil-receipt support)
+              rec-body (-> rec
+                           (assoc :research-execution-environment/body alternate-env)
+                           (dissoc :research-anvil-execution-receipt/root))
+              rec* (assoc rec-body :research-anvil-execution-receipt/root
+                          (anvil/receipt-root rec-body))
+              fixed (:fixed-validation support)
+              fixed-body (-> fixed
+                             (assoc :research-anvil-execution-receipt/root
+                                    (:research-anvil-execution-receipt/root rec*))
+                             (dissoc :research-observed-fixed-validation-receipt/root))
+              fixed* (assoc fixed-body :research-observed-fixed-validation-receipt/root
+                            (anvil/validation-root fixed-body))
+              support* (assoc support :execution-environment alternate-env
+                              :anvil-receipt rec* :fixed-validation fixed*)
+              observed-body (-> observed-run
+                                (assoc :proof/source-artifacts support*
+                                       :research-observed-fixed-validation-receipt/root
+                                       (:research-observed-fixed-validation-receipt/root fixed*))
+                                (dissoc :research-observed-run-evidence/root))
+              observed* (assoc observed-body :research-observed-run-evidence/root
+                               (observed/observed-run-root observed-body))
+              assurance-body (-> run-assurance
+                                 (assoc :research-run-evidence/root
+                                        (:research-observed-run-evidence/root observed*)
+                                        :research-fixed-validation-receipt/root
+                                        (:research-observed-fixed-validation-receipt/root fixed*))
+                                 (dissoc :research-run-assurance-evidence/root))
+              assurance* (assoc assurance-body :research-run-assurance-evidence/root
+                                (assurance/run-assurance-root assurance-body))
+              wire (deref #'statement/wire-value)
+              malicious-input {"schema" statement/schema
+                               "observed_run" (wire observed*)
+                               "run_assurance" (wire assurance*)}
+              rejected (guest-projection malicious-input)]
+          (is (not= 0 (:status rejected))))))
     (is (thrown? clojure.lang.ExceptionInfo
                  (observed/build-observed-run-assurance
                   {:assured-job assured-job :assignment (assoc (:assignment c)
-                                                                 :research-run-assignment/root (root 99))
+                                                               :research-run-assignment/root (root 99))
                    :runner-participation (:runner-participation c)
                    :resolved-dependencies (:resolved dependencies) :implementation implementation
                    :receipt (:receipt result) :validation validation})))))

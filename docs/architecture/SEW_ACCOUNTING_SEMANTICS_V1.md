@@ -135,7 +135,9 @@ need coverage.
 
 ## Boundaries retained for later work
 
-This record intentionally does not yet define canonical asset identity,
-projection/root shape, cutpoint binding, asset observation provenance, valuation,
-or proof programs. Those follow this semantic boundary; they must use these
-bucket meanings rather than reinterpreting legacy counters.
+Canonical asset identity is defined separately in
+`SEW_ASSET_IDENTITY_V1.md`; the projection boundary is defined in
+`SEW_ACCOUNTING_PROJECTION_V1.md`. These records do not define asset
+observation provenance, valuation, or proof programs. Those follow these
+semantic boundaries and must use the asset identity, projection, and bucket
+meanings rather than reinterpreting legacy counters.

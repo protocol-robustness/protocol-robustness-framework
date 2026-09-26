@@ -329,9 +329,22 @@ The A-2 build/source/runtime identity must bind the full transitive deployment c
 13. `SewToken`
 14. `GovGovernor`
 
-For each: source revision, compiler version (repo: solc 0.8.37, viaIR=true, runs=10,
-evmVersion=cancun), optimizer settings, library links, constructor args, creation
-bytecode hash, runtime bytecode hash, ABI hash, deployment address, runtime codehash.
+For each: source revision, compiler version, optimizer settings, library links, constructor
+args, creation bytecode hash, runtime bytecode hash, ABI hash, deployment address, runtime
+codehash.
+
+The A-2 deployable bundle is forge-based (build.artifactSource: forge), so the bindable
+build settings are the forge profile, not the hardhat config:
+
+    solc 0.8.37 (foundry.toml solc)
+    evmVersion: osaka
+    optimizerRuns: 200
+    viaIR: true
+
+Verified from config/deployable-allowlist-bondledger.json + deployables-bondledger/manifest.json
+(build.settings = osaka / runs 200 / viaIR true, compiler 0.8.37+commit.f401782d). The
+hardhat config (hardhat.config.ts: cancun / runs 10) is NOT the bindable deployable build
+and must not be cited as the A-2 build identity.
 
 Profile B is the main next-release build identity. Profile A retains its existing
 honest provenance status; do **not** spend equivalent effort reconstructing unrecoverable

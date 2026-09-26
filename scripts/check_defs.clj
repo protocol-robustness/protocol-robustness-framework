@@ -75,7 +75,13 @@
 
 (defn- write-golden! [inventory]
   (io/make-parents golden-path)
-  (spit golden-path (with-out-str (prn inventory))))
+  ;; one line per namespace entry so ripgrep hits stay self-contained
+  (spit golden-path
+        (str "{"
+             (str/join "\n "
+                       (map (fn [[k v]] (str (pr-str k) " " (pr-str v)))
+                            inventory))
+             "}\n")))
 
 (defn- load-golden []
   (if (.exists (io/file golden-path))

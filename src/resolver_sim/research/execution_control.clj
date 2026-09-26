@@ -377,7 +377,7 @@
                              (:research-execution-job-assurance/root %)) proof-receipts))
     (throw (ex-info "Invalid execution sufficiency inputs" {})))
   (let [runs (vals (into {} (map (juxt :research-run-assurance-evidence/root identity)
-                                  run-evidence)))
+                                 run-evidence)))
         proofs (vals (into {} (map (juxt :research-proof-generation-receipt/root identity)
                                    proof-receipts)))
         verifications (vals (into {} (map (juxt :research-proof-verification-evidence/root
@@ -500,8 +500,7 @@
                                        (= (:semantic-result/root run-assurance)
                                           (accounting/partial-semantic-root partial)))
                                   (or (nil? partial)
-                                      (accounting/valid-partial-result? request work-unit partial))
-                                  )))
+                                      (accounting/valid-partial-result? request work-unit partial)))))
                          executions)
                  (every? proof/valid-receipt? proof-receipts)
                  (every? valid-proof-verification? proof-verifications))
@@ -514,21 +513,21 @@
                            (into {}
                                  (map (juxt (comp :research-run-assurance-evidence/root
                                                   :run-assurance)
-                                             identity)
+                                            identity)
                                       valid-executions)))
         semantic-groups (group-by #(accounting/partial-semantic-root (:partial %))
                                   unique-executions)
         [semantic-root matching] (first (sort-by (fn [[root members]]
-                                                    [(- (count members)) root])
-                                                  semantic-groups))
+                                                   [(- (count members)) root])
+                                                 semantic-groups))
         matching (vec matching)
         disagreement? (or (> (count semantic-groups) 1)
                           (some #(contains? #{:different :not-comparable}
-                                             (:comparison/status %)) executions))
+                                            (:comparison/status %)) executions))
         runners (set (map #(get-in % [:run-assurance :runner/reference]) matching))
         sites (set (map #(get-in % [:run-assurance :runner/site-id]) matching))
         implementations (set (map #(get-in % [:run-assurance
-                                               :research-implementation-identity/root]) matching))
+                                              :research-implementation-identity/root]) matching))
         matching-proofs (filter #(= semantic-root (:semantic-result/root %)) proof-receipts)
         matching-proof-roots (set (map :research-proof-generation-receipt/root matching-proofs))
         verified (filter #(and (= :verified (:proof-verification/status %))
@@ -540,13 +539,13 @@
         checks {:semantic-result-present (boolean (seq matching))
                 :comparable-results (not disagreement?)
                 :valid-runs (>= (count unique-executions)
-                                 (:sufficiency/required-valid-runs policy))
+                                (:sufficiency/required-valid-runs policy))
                 :matching-runs (>= (count matching)
-                                    (:sufficiency/required-matching-runs policy))
+                                   (:sufficiency/required-matching-runs policy))
                 :distinct-runners (>= (count runners)
-                                       (:sufficiency/minimum-distinct-runners policy))
+                                      (:sufficiency/minimum-distinct-runners policy))
                 :distinct-sites (>= (count sites)
-                                     (:sufficiency/minimum-distinct-sites policy))
+                                    (:sufficiency/minimum-distinct-sites policy))
                 :distinct-implementations
                 (>= (count implementations)
                     (:sufficiency/minimum-distinct-implementations policy))
@@ -576,7 +575,7 @@
    become redundant only after that partial and the unit-local policy hold."
   [request plan ingestion work-unit obligation-sufficiency]
   (when-not (some #(= (:accounting-work-unit/root work-unit)
-                       (:accounting-work-unit/root %))
+                      (:accounting-work-unit/root %))
                   (:partition/work-units plan))
     (throw (ex-info "Accounting work unit is outside partition plan" {})))
   (let [partial (get ingestion (:accounting-work-unit/root work-unit))
@@ -711,7 +710,7 @@
               :analysis/first-stage-observations
               {:first-complete-runner
                (if-let [event (first (sort-by (juxt :work/event-cutpoint
-                                                     :runner/reference)
+                                                    :runner/reference)
                                               (get events-by-kind :completed)))]
                  {:runner/reference (:runner/reference event)
                   :cutpoint (:work/event-cutpoint event)

@@ -87,7 +87,7 @@
 
 (deftest commitment-only-private-custody-does-not-require-plaintext
   (let [sealed (evidence job-subject :declared :visibility :sealed
-                        :custody-roots [(root 70)])
+                         :custody-roots [(root 70)])
         graph (forensic/validate-forensic-evidence-graph
                {:nodes [sealed] :artifact-roots [(root 70) (root 90)]})]
     (is (:valid? graph))

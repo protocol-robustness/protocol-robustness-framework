@@ -19,7 +19,8 @@
                                          basis-amount × slash-bps (reversal)
      35. reversal-slash-executions-accounted — every executed reversal slash is in resolver-slash-total"
   (:require [clojure.set :as set]
-            [resolver-sim.protocols.sew.accounting    :as acct]
+             [resolver-sim.protocols.sew.accounting    :as acct]
+             [resolver-sim.protocols.sew.accounting-projection :as accounting-projection]
             [resolver-sim.protocols.sew.authority     :as auth]
             [resolver-sim.protocols.sew.types         :as t]
             [resolver-sim.yield.accounting            :as yield-acct]
@@ -84,7 +85,8 @@
     :bond-slash-bounded
     :fee-cap
     :no-stale-automatable-escrows
-    :conservation-of-funds
+     :conservation-of-funds
+     :accounting-projection
     ;; Claimable accounting boundaries (see settlement-*-boundary?, bond-boundary?, etc.)
     :settlement-principal-boundary
     :settlement-yield-boundary
@@ -1394,8 +1396,27 @@
           {:token token :accounted accounted :inflow inflow
            :diff (- accounted inflow)
            :held held :fees fees :withdrawn withdrawn :claimable claimable :distributed distributed})]
-    {:holds?     (empty? violations)
-     :violations (vec violations)}))
+     {:holds?     (empty? violations)
+      :violations (vec violations)}))
+
+(defn accounting-projection?
+  "Validate a supplied projection, or derive one from explicit world metadata.
+   Missing metadata is explicitly not evaluated rather than treated as a pass."
+  [world]
+  (if-let [projection (or (:accounting-projection world)
+                          (when (:accounting/assets world)
+                            (accounting-projection/derive-accounting-projection world)))]
+    (let [result (accounting-projection/accounting-projection-valid? projection)]
+      {:holds? (and (:valid? result)
+                    (= :pass (:conservation-status result)))
+       :status (if (= :not-evaluated (:conservation-status result))
+                 :not-evaluated
+                 :evaluated)
+       :violations (if (:valid? result) [] [{:type :invalid-accounting-projection
+                                             :error (:error result)}])})
+    {:holds? false
+     :status :not-evaluated
+     :violations [{:type :accounting-projection-missing}]}))
 
 (defn workflow-max-yield
   "Maximum yield claimable for a workflow — shared with claimable-classification rows."
@@ -2624,7 +2645,8 @@
                      :bond-slash-bounded            (bond-slash-bounded? world)
                      :fee-cap                       (fee-cap-holds? world)
                      :no-stale-automatable-escrows  (no-stale-automatable-escrows? world)
-                     :conservation-of-funds         (conservation-of-funds? world)
+                      :conservation-of-funds         (conservation-of-funds? world)
+                      :accounting-projection        (accounting-projection? world)
                      :settlement-principal-boundary (settlement-principal-boundary? world)
                      :settlement-yield-boundary     (settlement-yield-boundary? world)
                      :liability-slash-boundary      (liability-slash-boundary? world)
@@ -2689,7 +2711,11 @@
                                        :expected-failure? expected-fail?
                                        :unused-expected-failure? (and expected-fail? actually-holds?))])))
          unused-expected (filter #(:unused-expected-failure %) (vals results))
-         all-hold? (every? #(:holds? %) (vals results))]
+          all-hold? (every? (fn [[id result]]
+                              (or (:holds? result)
+                                  (and (= id :accounting-projection)
+                                       (= :not-evaluated (:status result)))))
+                            results)]
     {:all-hold? all-hold?
      :results   results
      :unused-expected-failures (seq unused-expected)})))

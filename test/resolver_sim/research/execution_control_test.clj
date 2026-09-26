@@ -252,7 +252,7 @@
     (is (= :deterministic-model-cutpoints (:analysis/time-semantics a)))
     (is (= 9 (get-in a [:analysis/model-time :time-to-first-valid-result])))
     (is (= :none (get-in a [:analysis/first-stage-observations
-                             :first-complete-runner :semantic-authority])))
+                            :first-complete-runner :semantic-authority])))
     (is (= :failed (:analysis/status failed)))
     (is (not= :cancelled (:analysis/status failed)))
     (is (= :missing (get-in a [:analysis/model-time :time-to-first-valid-proof])))))

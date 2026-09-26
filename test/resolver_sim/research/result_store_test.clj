@@ -61,7 +61,7 @@
   (let [result (fixture-result)
         result-store (store/new-store)
         manifest {:dispatch/cells [{:research-execution-cell/root (:research-execution-cell/root result)}
-                                   {:research-execution-cell/root "sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"}] }]
+                                   {:research-execution-cell/root "sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"}]}]
     (store/put-result! result-store result)
     (is (= [(second (:dispatch/cells manifest))]
            (store/missing-cells result-store manifest)))))

@@ -41,9 +41,9 @@
     {:frozen frozen
      :manifest execution-manifest
      :scope {:policy-by-subject-root (into {}
-                                            (map (fn [policy]
-                                                   [(harness/policy-subject-root policy false) policy])
-                                                 policies))
+                                           (map (fn [policy]
+                                                  [(harness/policy-subject-root policy false) policy])
+                                                policies))
              :workload-by-root (into {} (map (juxt :workload/root identity) workloads))}}))
 
 (deftest sequential-and-thread-pool-execution-have-identical-result-sets

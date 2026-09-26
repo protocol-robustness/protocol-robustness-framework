@@ -76,7 +76,7 @@
                    (topology {:replicas {1 [:site/a]}})
                    (profile/build-profile
                     {:sites (mapv #(if (= :site/b (:site/id %))
-                                    (assoc % :site/available? false) %) (:topology/sites base))
+                                     (assoc % :site/available? false) %) (:topology/sites base))
                      :workers (:topology/workers base)
                      :links (:topology/links base)
                      :dependency-replicas {}})
@@ -93,13 +93,13 @@
                    (profile/build-profile
                     {:sites (:topology/sites base)
                      :workers (mapv #(if (= :cpu-1 (:worker/id %))
-                                      (assoc % :worker/site-id :site/a) %) (:topology/workers base))
+                                       (assoc % :worker/site-id :site/a) %) (:topology/workers base))
                      :links (:topology/links base)
                      :dependency-replicas {}})
                    (profile/build-profile
                     {:sites (:topology/sites base)
                      :workers (mapv #(if (= :cpu-1 (:worker/id %))
-                                      (assoc % :worker/resource-kinds [:gpu]) %) (:topology/workers base))
+                                       (assoc % :worker/resource-kinds [:gpu]) %) (:topology/workers base))
                      :links (:topology/links base)
                      :dependency-replicas {}})]]
     (is (every? #(not= (:distributed-experiment-profile/root base)
@@ -109,7 +109,7 @@
   (is (not= (:distributed-scheduler-policy/root ordinary-policy)
             (:distributed-scheduler-policy/root aware-policy)))
   (is (not= (:distributed-scheduler-policy/root ordinary-policy)
-             (:distributed-scheduler-policy/root
+            (:distributed-scheduler-policy/root
              (policy/build-policy {:kind :distributed-work-stealing
                                    :retry-limit 1})))))
 

@@ -308,7 +308,7 @@
     (is (= :not-ready (:sufficiency/status evaluation)))
     (is (= p1-a (get ingestion (:accounting-work-unit/root p1))))
     (is (= :incomplete (:accounting/completeness
-                         (accounting/accounting-completeness request plan ingestion))))
+                        (accounting/accounting-completeness request plan ingestion))))
     (is (= :user-requested (:cancellation/reason cancel)))))
 
 (deftest conflicting-observed-output-remains-diagnostic-and-prevents-early-cancellation
@@ -316,7 +316,7 @@
         {:keys [job execution-policy]} (accounting-job p1)
         p (policy execution-policy)
         conflicting-run (assured-run (fake-root 999) (fake-root 12) :site/b
-                                    (fake-root 22) 32)
+                                     (fake-root 22) 32)
         evaluation (control/evaluate-accounting-obligation-sufficiency
                     job request plan p1 p
                     [execution-a {:partial nil :run-assurance conflicting-run

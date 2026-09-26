@@ -169,7 +169,13 @@ that is the Sept candidate work.
 
 ## 5. Unwired / alternative classification (verified)
 
-| Contract | Present? | In manifest/allowlist? | Wired by 85/86? | Classification |
+Profile B (`sew-dr-v2-bondledger`) is now a **separately-wired deployment profile** in
+`deploy/87_bondledger_profile.ts`, validated locally (deterministic hardhat read-back, see
+`SEW_NEXT_QUALIFICATION.md` §5d). It deploys a fresh DRM + `ResolverIncentiveModuleV2BondLedger`
++ `BondLedger`, distinct from the canonical 85/86 Profile-A graph. The table below remains the
+Profile-A classification; Profile-B components are annotated with their Profile-B status.
+
+| Contract | Present? | In Profile-A allowlist? | Wired by 85/86? | Classification |
 | --- | --- | --- | --- | --- |
 | `shared/BondLedger`, `IBondLedger` | yes | **no** | no | ALTERNATIVE-UNWIRED (review substrate) |
 | `ResolverIncentiveModuleV2BondLedger` | yes | **no** | no | ALTERNATIVE-UNWIRED (BondLedger-backed facade) |
@@ -177,10 +183,22 @@ that is the Sept candidate work.
 | `EscrowAppeals` / `IEscrowAppeal` | yes | **no** | no | ALTERNATIVE-UNWIRED (Sept appeal hardening) |
 | `KlerosArbitrableProxy` | yes | **no** | no | ADDITIVE-UNWIRED (latent handoff) |
 
-**Consequence for qualification:** PRF evidence for appeal-bond semantics attaches to the
-**canonical `ResolverIncentiveModule`** graph, not to BondLedger or its facade. Any later claim
-that a BondLedger-backed path is "the" implementation is premature until that composition is
-explicitly wired and bound.
+**Consequence for qualification:** the canonical `deploy/85/86` Profile-A graph remains the
+`ResolverIncentiveModule` inline-custody composition; PRF evidence for appeal-bond semantics
+attaches to it. Profile B is a separately-logged deployment profile (fresh DRM ->
+`V2BondLedger` facade -> `BondLedger`) that is locally deployable and read-back-validated;
+its BondLedger-backed path is only "the implementation" within that explicitly selected
+Profile-B profile, not the canonical default.
+
+**Profile-B closure (as locally validated, `SEW_NEXT_QUALIFICATION.md` §5d):** the fresh
+Profile-B graph now also includes a **fresh `EscrowVault`** (with a fresh
+`ModuleSnapshotRegistry` prerequisite, since the current `EscrowVault` constructor requires
+non-empty module-management code, and a freshly deployed `EscrowVaultAccountingLibrary` to
+satisfy its library link). On the deterministic local run both previously-open bindings are now
+satisfied and read back from chain: `BondLedger.authorizedCaller(facade) == true` (via the real
+local `TimelockController` path, no deployer bypass) and `drm.registeredEscrow(vault) == true`.
+Only the persistent-network (baseSepolia) `runtime codehash` binding under the A-2 forge build
+remains outstanding for full A-4 (Task 3).
 
 ---
 

@@ -4,6 +4,7 @@
    Decomposed from contract-model/replay to improve kernel modularity."
   (:require [clojure.set                    :as set]
             [clojure.string                 :as str]
+            [resolver-sim.contract-model.replay.metrics   :as metrics]
             [resolver-sim.definitions.registry :as defs]
             [resolver-sim.scenario.expectations :as expectations]
             [resolver-sim.scenario.theory-result :as theory-result]
@@ -165,9 +166,25 @@
                        (first groups)))))))
        first))
 
+(defn- expected-metric-keys
+  "Set of expected metric flags used to decide which primitive bond metric values
+   to compute. Accepts both supported `:expectations :metrics` shapes without
+   assuming one:
+   - legacy map shape (Sew): `{:metric-key predicate-map ...}` → `#{:metric-key ...}`
+   - descriptor-vector shape (yield-v1): `[{:name 'yield/x' :value v} ...]` → `#{:yield/x ...}`
+   Either way this is closed over for an empty/absent value (never throws)."
+  [scenario]
+  (let [metrics (get-in scenario [:expectations :metrics])]
+    (cond
+      (map? metrics) (set (keys metrics))
+      (sequential? metrics) (into #{}
+                                  (keep #(when (map? %) (metrics/metric-key (:name %))))
+                                  metrics)
+      :else #{})))
+
 (defn- primitive-bond-metrics [scenario result query]
   (let [trace (:trace result)
-        expectations (set (keys (get-in scenario [:expectations :metrics] {})))
+        expectations (expected-metric-keys scenario)
         expected? (fn [metric] (contains? expectations metric))
         disposition-count (:disposition-count query)
         disposition (when query
@@ -321,7 +338,7 @@
          primitive-expected? (= :primitive-native (:classification (:claim-to scenario)))
          primitive-metrics-present? (or (seq primitive-bond-metrics)
                                         (some #(contains? (:metrics result') %)
-                                              (keys (get-in scenario [:expectations :metrics] {}))))
+                                              (expected-metric-keys scenario)))
          prerequisite-violations (vec (concat required-violations
                                               (when (and primitive-expected?
                                                          (pos? (get-in result' [:metrics :invariant-violations] 0))

@@ -19,16 +19,16 @@
         result-store (populated-store scope manifest)
         static-root (harness/policy-subject-root :static false)
         analysis (compiler/compile-policy-analysis frozen manifest result-store static-root
-                                                  {:execution/repeat-id 0
-                                                   :execution/fixture-id :fixture/parallel})]
+                                                   {:execution/repeat-id 0
+                                                    :execution/fixture-id :fixture/parallel})]
     (is (= :complete (:analysis/status analysis)))
     (is (= 2 (count (:analysis/coordinates analysis))))
     (is (every? integer? (vals (:analysis/coordinates analysis))))
     (is (= #{:complete} (set (vals (:analysis/cell-statuses analysis)))))
     (is (re-matches #"sha256:[0-9a-f]{64}" (:research-analysis/root analysis)))
     (is (= analysis (compiler/compile-policy-analysis frozen manifest result-store static-root
-                                                       {:execution/repeat-id 0
-                                                        :execution/fixture-id :fixture/parallel})))))
+                                                      {:execution/repeat-id 0
+                                                       :execution/fixture-id :fixture/parallel})))))
 
 (deftest missing-and-conflicting-cells-remain-explicit
   (let [{:keys [frozen manifest scope]} (fixture/fixture [:static :work-stealing])

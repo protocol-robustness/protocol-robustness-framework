@@ -23,9 +23,9 @@ appeal/identity/conservation/disposition/atomicity semantics (see
 | Sew Next successor/model boundary | `4959328684a26ebfdbd9a1c467a07e43dc27647c` onward; merged at `f588fe022e325d27c877ab777558bcf63772a7f9` | readable successor / candidate architecture | not yet deployed/canonical | compatibility + primitive-native assurance |
 
 Current JJ candidate ancestry for Sew Next is the September `main` line
-(`96600050` → working copy `f01cfde0`), which continues the successor/readability
-programme (`reorg` subdirs, v1/v2 incentive consolidation, yield cleanup,
-aderyn-fix hardening, governance-controlled recovery).
+(`96600050` (`aderyn report fixes`) → working copy `tmznvrqn` / `02d1fdf3`), which
+continues the successor/readability programme (`reorg` subdirs, v1/v2 incentive
+consolidation, yield cleanup, aderyn-fix hardening, governance-controlled recovery).
 
 ## 2. Method
 
@@ -56,8 +56,8 @@ commit diff and in deployment wiring (deploy scripts, `config/deployable-allowli
 | Aave / aderyn security repairs (`5d304e65`, `f7d04ed2`, `26cda2b9`, `96600050`, `495defad`) | principal validation, CEI ordering, recorded aToken vs live config, supply-delta accounting, address/access-control hardening, governance-controlled recovery (whitelist + timelock) | SECURITY-REPAIR / HARDENING | behavior hardening; recovery now governance-gated | commit diffs + `docs/security/ADERYN_FINDINGS.md` |
 | `DefaultResolutionModule` | single-resolver, no-escalation `IResolutionModule` with `setResolver`/`ResolverUpdated` | ADDITIVE — not wired into canonical candidate deploy scripts; testnet/manual + governance role lists only | no deployment impact in candidate path | deploy scripts vs testnet scripts; allowlist |
 | Kleros handoff (`IKlerosHandoffResolutionModule`, `KlerosArbitrableProxy`) | escalation arbitration handoff capability | ADDITIVE-UNWIRED | latent; not in deploy scripts/allowlist | grep deploy path |
-| **BondLedger extraction** (`49593286`, `2533d0b0`) | `BondLedger.sol`, `IBondLedger.sol`, `ResolverIncentiveModuleV2BondLedger` facade, differential suite | ALTERNATIVE-UNWIRED (review substrate) | **not wired**: not in deploy scripts, allowlist, or registry; only `scripts/print-contract-sizes.ts`; no `AUTHORIZED_CALLER` grants | deploy/wiring grep |
-| **Extracted appeal primitive** (PRF, not Solidity deployment) | reusable appeal-bond projection/query layer | candidate architecture | not wired into deployment (`BondLedger` unwired) | primitive-native PRF tranche (below) |
+| **BondLedger extraction** (`49593286`, `2533d0b0`) | `BondLedger.sol`, `IBondLedger.sol`, `ResolverIncentiveModuleV2BondLedger` facade, differential suite | ALTERNATIVE-UNWIRED (review substrate) → now a **separately-wired, non-canonical Profile-B** deployment profile (`deploy/87_bondledger_profile.ts` + `config/deployable-allowlist-bondledger.json`, locally read-back validated, see §5d) | **not the canonical default**; not wired by 85/86 (Profile A); `AUTHORIZED_CALLER` grant on `BondLedger` still governance-pending (TimelockController path) | deploy/wiring grep + ADR `DECISION-appeal-bond-profiles.md` + §5d |
+| **Extracted appeal primitive** (PRF, not Solidity deployment) | reusable appeal-bond projection/query layer | candidate architecture | not part of the canonical Profile-A deployment (Profile-B BondLedger wiring is separate, see §5d/ADR) | primitive-native PRF tranche (below) |
 | Clojure `/ PRF` drift (C002/C003/C006/N002) | non-Solidity; documented separately | descendant drift | n/a | `README.md` historical-isolation note |
 
 ### Canonical appeal-bond terminal disposition in the candidate
@@ -75,8 +75,10 @@ DecentralizedResolutionModule.finalizeDispute / closeByMutualAgreement
 This is the production path that the completed PRF appeal tranche exercises
 (`execute_resolution` → `apply-resolution-transition` →
 `settle-appeal-bond-on-resolution`, with the transition receipt at the replay
-boundary). The BondLedger `V2BondLedger` facade is **not** the live incentive
-module; the deployed/allowlisted module is `ResolverIncentiveModule`.
+boundary). In the **canonical Profile-A default**, the BondLedger `V2BondLedger`
+facade is **not** the live incentive module; the canonical/allowlisted module is
+`ResolverIncentiveModule`. The facade + `BondLedger` are live only within the
+explicitly-selected, separately-wired Profile-B profile (see §5d / ADR).
 
 ## 4. The completed appeal tranche as successor-assurance evidence
 
@@ -112,9 +114,12 @@ These must clear before Sew Next is presented as the default/public implementati
 2. **Runtime bytecode ↔ build equivalence** — still `NOT YET BOUND` for the V1
    deployment reference; the same must be established for any promoted Sew Next path.
 3. **Solidity equivalence proof** — the PRF success uses the successor projection and
-   the canonical (wired) `ResolverIncentiveModule` path; a formal Solidity
-   equivalence/regression layer (e.g. `BondBehaviourCorrection`, `TraceEquivalence`)
-   must run against the candidate and the reference.
+   the canonical (wired) `ResolverIncentiveModule` path. The formal Solidity
+   equivalence/regression layer now runs and passes on the A-2-bound working copy
+   (`BondLedgerDifferential 11/11`, `TraceEquivalence 38/38`, `BondBehaviourCorrection
+   15/15`; see section 5c). The on-chain A-4 read-back of Profile B is now validated on a
+   deterministic local hardhat deployment (see section 5d); remaining is the historical
+   binding of the February reference runtime and live/persistent Profile-B runtime codehash.
 4. **Multi-bond claim consumption** — Bond A / Bond B → same recipient → same
    asset aggregate withdrawal is **canonically aggregate-only** (Solidity
    `ResolverIncentiveModule` pools per `(escrow, workflow, recipient)`); encoded
@@ -131,6 +136,251 @@ These must clear before Sew Next is presented as the default/public implementati
    material semantic divergence from the reference; it must be treated as an
    intended divergence with its own decision record, not silently folded into
    "compatibility".
+
+## 5b. A-2 Profile-B build identity (bound deployable bundle)
+
+Step A-2 binds every Profile-B canonical artifact to a reproducible build identity. The
+deployable bundle for Profile B is now produced and its deterministic root recorded:
+
+```text
+allowlist: config/deployable-allowlist-bondledger.json (buildProfile: sew-dr-v2-bondledger)
+manifest:  deployables-bondledger/manifest.json
+bundleRoot: f92f6f56d9cc2f293d49b002ae7918dc5e846cded293fec92c3f5970a1f5ea07
+bundleVersion: 0.1.0
+packageName: @sew/deployables-bondledger
+build.artifactSource: forge
+build.compiler: solc 0.8.37+commit.f401782d
+build.settings: evmVersion osaka / optimizerRuns 200 / viaIR true
+source.commit: tmznvrqn (jj change id, current working copy), commitSource jj, dirty true
+```
+
+14 closure artifacts are bound by creation/runtime bytecode SHA-256, ABI SHA-256 and file
+SHA-256 (4 profile-specific, 6 shared protocol, 4 shared governance). Key hashes:
+
+```text
+BondLedger                    creation d709fa785a..  runtime 0b177d12b85a..
+ResolverIncentiveModuleV2BondLedger
+                              creation 7124b9a01a62.. runtime 8e919f951da3..
+DecentralizedResolutionModule creation 18897ef088b9.. runtime 93ce3db1e802..
+EscrowVault                   creation d279a181b139.. runtime 4f2d3e5e8dfc.. (has link refs)
+PaymentCalculationLibrary     creation 9213fde6136f.. runtime b73836adb4cf..
+TimelockController (OZ)       creation 8ff9443a9518.. runtime c77b0218ed36..
+```
+
+The manifest/machinery lives in sew-protocol: `scripts/export-deployables.ts` now accepts an
+explicit positional allowlist path + export dir (required for non-default profiles) and
+passes the loaded allowlist into validation. `deployables/` and `deployables-bondledger/` are
+gitignored; the allowlist + export tooling are tracked.
+
+**Runtime codehash status (see section 5d):** deterministic A-2 codehash is now bound for the 9
+static Profile-B closure contracts via `scripts/bind-runtime-codehash.ts`, with no network
+needed. The 5 address-dependent contracts (immutables/linked lib) still need a persistent-network
+read-back (baseSepolia) or constructor-arg patching. A deterministic local Profile-B deployment
+now exists and its addresses + bindings were read back (section 5d); A-2 additionally records
+source/build/bytecode identity.
+
+## 5c. Reference vs candidate semantic equivalence (differential evidence)
+
+Step 4 assesses whether the Profile-B BondLedger candidate is semantically equivalent to the
+Profile-A reference behavior. The authoritative harness is `BondLedgerDifferential.t.sol`,
+which deploys two identical stacks that differ only in the incentive module (Profile A:
+inline-custody `ResolverIncentiveModule`; Profile B: `ResolverIncentiveModuleV2BondLedger`
+facade over `BondLedger`) and runs identical scenarios, asserting equal economic/state metrics.
+
+Forge results on the A-2-bound working copy (`solc 0.8.37, evmVersion osaka, runs 200,
+viaIR true`):
+
+```text
+BondLedgerDifferential.t.sol   11/11  pass   refund, claims, forfeiture reserve,
+                                              failed-appeal resolver allocations, odd-split
+                                              remainder, finalize cleanup, eth bond,
+                                              fee-bearing net principal, double-resolution
+                                              idempotence, invalid-authority rejection,
+                                              + rooted forensic lineage on BondLedger
+TraceEquivalence.t.sol         38/38  pass   duplicate-trace vs inline equivalence, v2
+                                              lifecycle, negative/version-reject guards,
+                                              invariants
+BondBehaviourCorrection.t.sol  15/15  pass   corrected appeal refund/payout/forfeit
+                                              accounting, no double distribution/resolver
+                                              payout, authority + event guards
+```
+
+Mapping the frozen PRF appeal claims to both implementation mechanisms and the Solidity
+evidence that demonstrates expected equivalence:
+
+| Property | Profile A mechanism | Profile B mechanism | Solidity evidence |
+| --- | --- | --- | --- |
+| AP-CONS (per-bond conservation) | `ResolverIncentiveModule` inline custody | `BondLedger` per-bond settlement | `test_diff_oddSplit_remainderRecipient`, `test_diff_successfulAppeal_refund` |
+| AP-DISP (no duplicate terminal effect) | bond distributed guard | `BondLedger` terminal/consumed state | `test_diff_doubleResolution_idempotent` |
+| AP-REPLAY (replay cannot duplicate effect) | resolution/system-level idempotence | `BondLedger` settlement idempotence | `test_diff_doubleResolution_idempotent`, TraceEquivalence v2 lifecycle |
+| AP-ATOM (reverted-op atomicity) | distribution failure reverts resolution | BondLedger atomic settlement | `test_no_silent_noop_distributionFailureRevertsResolution` |
+| AP-CLAIM (allocated = claimable + claimed) | aggregate recipient/token claim | bond-addressed `claimFor` (attribution diverges) | `test_diff_claims_moveFunds`; aggregation is canonical Profile A |
+| AP-ID (distinct round-bound bond IDs) | distinct bond IDs in DRM | `BondLedger` bond identity | `test_bondLedgerOutcome_hasRootedForensicLineage` |
+
+Classification discipline:
+
+- Economic and state/effect equivalence across the differential corpus is established
+  (equal claimable, reservable, allocations, conservation).
+- Attribution/provenance **diverges by design**: Profile A is aggregate-only per
+  (escrow, workflow, recipient); Profile B is bond-addressed. This is the recorded
+  claim-attribution divergence, not a trace-only difference.
+- Trace/interface divergence is expected and not treated as semantic incompatibility
+  (e.g. revert vs idempotent no-op, different events/internal call path).
+
+These Forge runs are evidence that the **current working-copy source** (bound at A-2) is
+self-consistent; they do not claim the historical February deployment passed this corpus.
+
+## 5d. A-4 status: on-chain Profile-B deployment read-back (VALIDATED — deterministic local hardhat)
+
+A-4 requires a real Profile-B deployment and reading critical bindings back from chain
+(`EscrowVault.disputeResolutionModule`, DRM `incentiveModule`, `facade.bondLedger()`,
+`BondLedger` `AUTHORIZED_CALLER`, governance `ROLE_TIMELOCK`), producing a Profile-B manifest
+with addresses and runtime codehashes.
+
+**Resolved blocker.** The previous attempt against the local `hardhat` network failed during
+hardhat-deploy dependency resolution with `RangeError: Maximum call stack size exceeded` at
+`recurseDependencies`. The root cause was a **pre-existing deploy-script dependency cycle**
+through umbrella/grouping tags:
+
+```text
+85_dr3_modules.ts  depends on `governance` (umbrella tag incl. 95_finalize_governance)
+95_finalize_governance.ts depends on `dr3`/`dr3-modules`/`governance` (incl. itself + 85)
+
+cycle: 85 -> 95 -> 85  and  85 -> 95 -> 86 -> 85;  self-cycle: 95 depends on tag `governance`
+```
+
+This is unrelated to Profile B — the same cycle would recur on any fresh network with no saved
+deployments, and is short-circuited on persistent networks where earlier artifacts already
+exist. Two surgical deploy-script fixes break the cycle without changing Solidity or the
+intended Profile-B topology, plus a new read-only graph validator:
+
+1. `deploy/85_dr3_modules.ts`: `func.dependencies = ['timelock', 'token']` (precise phases;
+   was `['core', 'module-management', 'governance']`).
+2. `deploy/87_bondledger_profile.ts`: `func.dependencies = ['decentralized-resolution-module']`
+   (was `['dr3', 'decentralized-resolution-module']`).
+3. `deploy/95_finalize_governance.ts`: deps trimmed to precise phase tags only
+   (`aave-yield-module`, `guardian`, `escrow`, `module-management`,
+   `decentralized-resolution-module`); removed umbrella `dr3`/`dr3-modules`/`governance`/`core`.
+4. New `scripts/validate-deploy-graph.ts`: read-only DFS validator (parses `func.tags`/`func.dependencies`,
+   expands dependency tags to carrier scripts, `visiting`/`visited` sets) —
+   **`RESULT: OK — deploy dependency graph is acyclic`** (only benign warning: `05_create2_factory`
+   depends on tag `vault` carried by no script — dangling, outside the Profile-B closure).
+
+**Long-term convention (recorded):** precise phase tags may be dependencies; umbrella/grouping
+tags (`dr3`, `governance`, `core`, `all`, ...) are CLI selection only and must NOT appear in
+`func.dependencies`.
+
+Two additional fresh-local-only constructor/access-control defects were repaired in the deploy
+scripts while getting the Profile-B path to complete (no Solidity changed):
+
+- `deploy/85_dr3_modules.ts`: `DRMAdminFacet` deploy `args`/`registerDeployment`
+  `constructorArgs` corrected from `[timelockAddr, stableToken]` to `[]` — the facet has a
+  zero-arg (implicit) constructor (verified: no `constructor` in `DRMAdminFacet.sol`/
+  `DRMStorageBase.sol`; foundry uses `new DRMAdminFacet()`).
+- `deploy/86_decentralized_resolution_module.ts`: step 7 (seeding DRMAdminFacet's own
+  direct-call role registry) made best-effort/non-fatal. Because `DRMAdminFacet` grants
+  `DEFAULT_ADMIN_ROLE` to no one at construction, its own registry cannot be seeded after
+  deployment; governance flows through DRM delegation (where TimelockController already holds
+  `ROLE_TIMELOCK`), so the script now logs a note and skips instead of reverting.
+- `deploy/87_bondledger_profile.ts`: fresh Profile-B DRM now bootstraps `setAdminFacet(shared
+  facet)` (was missing — the delegated `setIncentiveModule` would revert `AdminFacetNotSet`)
+  and grants the deployer temporary `ROLE_TIMELOCK` on the fresh DRM to drive the delegated
+  setters, mirroring the deploy/86 documented bootstrap. `setBondTokenRegistry(shared)` is
+  also wired to match the documented activation ops.
+
+**Resulting fresh-local Profile-B deployment completed and read-back captured**
+(`DEPLOY_PROFILE=sew-dr-v2-bondledger` + `hardhat deploy --network hardhat --tags
+sew-dr-v2-bondledger`):
+
+```text
+Profile-B DRM   (DecentralizedResolutionModuleProfileB): 0x59b670e9fA9D0A427751Af201D676719a970857b
+BondLedger:                                           0x4ed7c70F96B99c776995fB64377f0d4aB3B0e1C1
+Facade (ResolverIncentiveModuleV2BondLedger):         0x322813Fd9A801c5507c9de605d63CEA4f2CE6c44
+Fresh EscrowVault (EscrowVaultProfileB):              0x7a2088a1bFc9d81c55368AE168C2C02570cB814F
+
+readback {
+  profile: "sew-dr-v2-bondledger",
+  drm: "0x59b670e9fA9D0A427751Af201D676719a970857b",
+  bondLedger: "0x4ed7c70F96B99c776995fB64377f0d4aB3B0e1C1",
+  facade: "0x322813Fd9A801c5507c9de605d63CEA4f2CE6c44",
+  "facade.bondLedger()": "0x4ed7c70F96B99c776995fB64377f0d4aB3B0e1C1",
+  "ledger.authorizedCaller(facade)": true,
+  "drm.incentiveModule()": "0x322813Fd9A801c5507c9de605d63CEA4f2CE6c44",
+  "drm.registeredEscrow(escrowVault)": true,
+  "ledger.ROLE_TIMELOCK(timelock)": true
+}
+
+codehash (keccak256 of unlinked on-chain runtime, local hardhat build — cancun/runs 10):
+  DRM(Profile-B)                        0x5ea78fa0a91d08a3c8479ff4b866bde5511a0aa804121101f9bc36933f2af0d3
+  BondLedger                            0x9571eab2842432a446575a456dadb9f03fef3efca1ec2961f92a7f0817476dcf
+  Facade(V2BondLedger)                  0x6a5a111b16410b86822bee3fd3cede494d048411e00e951cb9e66a72260bb1ae
+```
+
+Authenticated bindings that hold: `facade.bondLedger() == BondLedger`, `drm.incentiveModule()
+== facade`, `ledger.authorizedCaller(facade) == true`, `drm.registeredEscrow(vault) == true`,
+governance `ROLE_TIMELOCK` granted to TimelockController. The tight load-bearing assertions in
+deploy/87 (facade bound to ledger; DRM incentive == facade) pass.
+
+Two previously-outstanding fields are now **satisfied** in this deterministic local run:
+
+- `ledger.authorizedCaller(facade) == true`: on the local `hardhat` network the deployer is the
+  temporary `TimelockController` admin, so deploy/87 drives the **real TimelockController path**
+  (grant admin `PROPOSER_ROLE` → `schedule` `BondLedger.addAuthorizedCaller(facade)` → advance
+  the clock past the delay → `execute`). There is no deployer-level bypass; final authority stays
+  with the governance stack. Off-local the script emits rather than bypasses.
+- `drm.registeredEscrow(escrowVault) == true`: when no vault arrives via
+  `PROFILE_B_ESCROW_VAULT` / `PROFILE_B_REUSE_VAULT=true`, deploy/87 now deploys a **fresh
+  Profile-B `EscrowVault`** (with a fresh `ModuleSnapshotRegistry` prerequisite, since the
+  current `EscrowVault` constructor requires non-empty module-management code) linked against a
+  freshly deployed `EscrowVaultAccountingLibrary`, registers it on the Profile-B DRM, and
+  asserts `registeredEscrowContracts(vault) == true`.
+
+**Runtime codehash advancement (A-4 Task 3, no live deployment / no gas):** for every Profile-B
+closure contract whose deployed runtime has NO library link references and NO immutables, the
+on-chain runtime codehash is a pure function of the compiled bytecode
+(`codehash = keccak256(bytes(deployedBytecode.object))`), independent of network/address/args.
+A new read-only tool `sew-protocol/scripts/bind-runtime-codehash.ts` computes this from the A-2
+forge build (`out/`) and verifies `out/` matches the manifest `runtimeBytecodeSha256` for all 14
+closure artifacts (confirmed). Deterministic A-2 runtime codehashes now bound (9 contracts):
+
+```text
+BondLedger                        0x6cab00879ae422f4e12af0017cfe866966a06f97f6998824480aa0927ebf62b9
+DecentralizedResolutionModule     0xecead10b8c86e9c2f338cc7e457df322087f3363d83aed662af255230a5ecbd8
+ResolverStakingModule             0xbd69fd3c46addd22842f35b36f7fdb98dc5a34a7344ee34ab7c3040365c2e7ba
+ResolverSlashingModule            0x436ea982f36813162d931c9625f1adaa67c9210413c86998cc3a4d12478889bf
+BondTokenRegistry                 0x453487a92cae5a9e50975ef9e7d0d5a31bf33f3eec9f3c280a3cdf0286891447
+DRMAdminFacet                     0x995876b7f7a634f99dfa8459bfa88689984f991d5165e10a1f9236275ea1e0d9
+PaymentCalculationLibrary         0x9a89943c3bebbedf4de326f8df91454a1b0657b88d161d3475af44c7d9ce900d
+TimelockController                0x89c0c46844401dc8593204726c810a058fc38c2b17220a8b43e1b4578cdda70c
+EscrowGovernanceTimelock          0xb3a6b317474585a0bc36c1347e81269fb35963a2f49a45284354c5f26f7de6e3
+```
+
+A baseSepolia Profile-B deployment compiled with the same A-2 build settings MUST produce these
+exact `eth_getCode` hashes for those contracts. The remaining five closure contracts still carry
+immutables and/or a linked library and are `ADDRESS_DEPENDENT` (code filled at construction from
+constructor args / linked-library address): `ResolverIncentiveModuleV2BondLedger` (1 immutable),
+`EscrowVault` (1 immutable + 1 linked lib), `InsurancePoolVault` (1 immutable), `SewToken`
+(7 immutables), `GovGovernor` (8 immutables). Those still require a persistent-network read-back
+(or deterministic immutable/link patching from the exact constructor args) to bind a live codehash.
+Note the manifest `runtimeBytecodeSha256` is SHA-256 over the normalized bytecode string (ASCII),
+NOT the on-chain codehash — the tool reports both; do not conflate them.
+
+Status for A-4:
+
+```text
+Profile-B graph deploy + read-back wiring (deploy/87):  COMPLETED — deterministic local hardhat
+   DRM <-> facade <-> BondLedger bindings read back from chain and asserted.
+   escrow vault binding: SATISFIED (fresh Profile-B vault, registered on DRM).
+   BondLedger facade authorization: SATISFIED via real TimelockController path (local).
+
+On-chain runtime codehash binding (A-2 forge build): PARTIALLY CLOSED — deterministic
+   codehash bound for 9 static closure contracts (scripts/bind-runtime-codehash.ts), no live
+   deployment needed. 5 address-dependent contracts (Facade, EscrowVault, InsurancePoolVault,
+   SewToken, GovGovernor) still require a persistent-network read-back (or constructor-arg
+   immutable/link patching) — this is the remaining A-4 Task 3 item.
+
+A-2 bundleRoot source/build/bytecode identity: BOUND (f92f6f56..., see section 5b)
+``````
 
 ## 6. Provenance preservation
 
@@ -150,6 +400,14 @@ modified to produce this matrix.
 
 - **Runtime bytecode ↔ build/source equivalence** for the V1 deployment reference
   and for any Sew Next path: `UNKNOWN / NOT YET BOUND`.
+- **Profile-B on-chain runtime codehash on baseSepolia (A-4 Task 3)**: **partially closed.**
+  `scripts/bind-runtime-codehash.ts` (section 5d) deterministically binds the A-2 runtime
+  codehash for the 9 static closure contracts (no link/immutables) from the forge `out/` build
+  (osaka / runs 200 / viaIR) — a live read-back would confirm those same values. Still outstanding:
+  the 5 `ADDRESS_DEPENDENT` contracts (Facade, EscrowVault, InsurancePoolVault, SewToken,
+  GovGovernor), whose deployed code is filled at construction, require a persistent-network
+  read-back (or constructor-arg immutable/link patching). The local `hardhat` codehashes are a
+  different (cancun/runs 10) build and are NOT the A-2 binding.
 - **Compiler/optimizer input for historical baselines**: `UNKNOWN / NOT YET BOUND`;
   current `foundry.toml` (solc 0.8.37, optimizer 200, via-IR) is a current-config
   fact, not a historical binding.
@@ -166,8 +424,10 @@ modified to produce this matrix.
 | --- | --- |
 | V1 corrected reference | `5f84818df95d35edbd0a8c74565043fccd81ff15` (Change `prkkryowwknxzptpxlwyuzomospnopqk`) |
 | BondLedger review intro | `4959328684a26ebfdbd9a1c467a07e43dc27647c`; merged `f588fe022e325d27c877ab777558bcf63772a7f9` |
-| Current candidate | Working copy `f01cfde0`; parent `96600050` (`aderyn report fixes`) |
-| Deployment/wiring evidence | `deploy/`, `config/deployable-allowlist.json`, `deploy-registry/`, `deployables/manifest.json` |
+| Current candidate | Working copy `tmznvrqn` (02d1fdf3); parent `96600050` (`aderyn report fixes`) |
+| Profile-B deployable bundle (A-2) | `config/deployable-allowlist-bondledger.json` + `deployables-bondledger/manifest.json`; bundleRoot `f92f6f56d9cc2f293d49b002ae7918dc5e846cded293fec92c3f5970a1f5ea07`; source anchor `tmznvrqn` |
 | Appeal tranche freeze | `docs/architecture/appeal-bond-assurance/README.md` |
 | Compatibility divergences | `DR-C-003-denomination-decision.md`, `DR-C-005-forfeiture-provenance.md`, `version-lineage.md` |
 | Solidity stability statement | `sew-protocol/docs/security/SOLIDITY_STABILITY_STATEMENT.md` |
+| Profile-B fresh-local deployment read-back (A-4) | `hardhat deploy --network hardhat --tags sew-dr-v2-bondledger` (`DEPLOY_PROFILE=sew-dr-v2-bondledger`); addresses + bindings in section 5d |
+| Deploy-graph validator | `sew-protocol/scripts/validate-deploy-graph.ts` (DFS, `visiting`/`visited`) — `RESULT: OK — acyclic` |

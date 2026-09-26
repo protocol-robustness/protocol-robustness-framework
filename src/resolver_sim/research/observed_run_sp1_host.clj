@@ -81,8 +81,8 @@
                          "--metadata" (str metadata-path)]
                   verification-path (into ["--verification" (str verification-path)]))
         process (.start (doto (ProcessBuilder. ^java.util.List command)
-                         (.directory (io/file "."))
-                         (.redirectErrorStream true)))
+                          (.directory (io/file "."))
+                          (.redirectErrorStream true)))
         output (slurp (.getInputStream process))
         status (.waitFor process)]
     (when-not (zero? status)

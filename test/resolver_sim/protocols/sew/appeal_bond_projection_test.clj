@@ -48,15 +48,15 @@
      {:appeal-bond/records {"bond-a" record}
       :appeal-bond/dispositions {"disp-a" disposition}
       :appeal-bond/claims {"bond-a" {"0xchallenger"
-                                      {:allocated 90 :claimable 90 :claimed 0}}}})))
+                                     {:allocated 90 :claimable 90 :claimed 0}}}})))
 
 (deftest scoped-query-exposes-disposition-and-entitlement
   (let [p (disposed-projection)
         result (projection/query-bond-conservation p
-                                                    {:bond/id "bond-a"
-                                                     :workflow/id 0
-                                                     :bond/funder "0xchallenger"
-                                                     :appeal/ordinal 1})]
+                                                   {:bond/id "bond-a"
+                                                    :workflow/id 0
+                                                    :bond/funder "0xchallenger"
+                                                    :appeal/ordinal 1})]
     (is (:valid? result))
     (is (= 1 (:disposition-count result)))
     (is (= :refund (:disposition/kind result)))
@@ -67,8 +67,8 @@
 (deftest selector-components-must-identify-the-same-bond
   (let [p (disposed-projection)
         result (projection/query-bond-conservation p
-                                                    {:bond/id "bond-a"
-                                                     :workflow/id 99})]
+                                                   {:bond/id "bond-a"
+                                                    :workflow/id 99})]
     (is (false? (:valid? result)))
     (is (= :bond-not-found (:error result)))))
 
@@ -83,8 +83,8 @@
 (deftest invalid-projection-cannot-produce-a-semantic-root
   (let [invalid (projection/project-appeal-bonds
                  {:appeal-bond/records {"bond-a" (assoc (open-record "bond-a")
-                                                            :bond/status :disposed
-                                                            :bond/remaining-custody 0)}
+                                                        :bond/status :disposed
+                                                        :bond/remaining-custody 0)}
                   :appeal-bond/dispositions {}
                   :appeal-bond/claims {}})]
     (is (false? (:valid? invalid)))
@@ -113,17 +113,17 @@
              :appeal-bond/dispositions {}
              :appeal-bond/claims {}}
         post {:appeal-bond/records {"bond-a" (assoc (open-record "bond-a")
-                                                       :bond/status :disposed
-                                                       :bond/remaining-custody 0)}
+                                                    :bond/status :disposed
+                                                    :bond/remaining-custody 0)}
               :appeal-bond/dispositions {"disp-a" {:disposition/id "disp-a"
-                                                    :bond/id "bond-a"
-                                                    :kind :refund
-                                                    :cause/type :resolution-reversed
-                                                    :cause/root "cause-a"
-                                                    :allocations {"0xchallenger" 90}
-                                                    :total 90}}
+                                                   :bond/id "bond-a"
+                                                   :kind :refund
+                                                   :cause/type :resolution-reversed
+                                                   :cause/root "cause-a"
+                                                   :allocations {"0xchallenger" 90}
+                                                   :total 90}}
               :appeal-bond/claims {"bond-a" {"0xchallenger"
-                                              {:allocated 90 :claimable 90 :claimed 0}}}}
+                                             {:allocated 90 :claimable 90 :claimed 0}}}}
         receipt (#'execution/appeal-bond-transition-receipt
                  {:seq 8 :action "execute_resolution" :params {:workflow-id 0}}
                  {:ok true}

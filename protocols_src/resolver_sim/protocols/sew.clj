@@ -2553,9 +2553,10 @@
                            ;; the adversarial yield module :drain/:bloat, or pro-rata
                            ;; propagation that assocs :total-held directly) must explicitly
                            ;; clear this flag, keeping strong replay honestly :not-evaluated.
-                   (assoc-in [:params :held-adjustments/complete?] true)
-                   (yield-proto/init-world pp (:yield-config scenario)))]
-      (let [world (if (and fot-bps (pos? fot-bps) (seq s-tokens))
+                    (assoc-in [:params :held-adjustments/complete?] true)
+                    (yield-proto/init-world pp (:yield-config scenario)))
+           base (sew-proj/attach-scenario-accounting-metadata base scenario)]
+       (let [world (if (and fot-bps (pos? fot-bps) (seq s-tokens))
                     (reduce (fn [w tok] (assoc-in w [:token-fot-bps tok] fot-bps)) base s-tokens)
                     base)]
         ;; A supplied semantic composition owns live-region admission. Legacy
@@ -2928,6 +2929,9 @@
     (case target-type
       :funds-ledger-view
       (sew-proj/funds-ledger-view data)
+
+      :accounting-projection-v1
+      (sew-proj/accounting-projection-v1 data)
 
       :world-view
       {:block-time (:block-time data)

@@ -166,7 +166,7 @@
 
 (defn- expected-partial-values [request work-unit]
   (let [source-map (into {} (map (juxt :source/root identity)
-                                  (:accounting/sources request)))]
+                                 (:accounting/sources request)))]
     (reduce (fn [m source-root]
               (let [{:accounting/keys [category value]} (get source-map source-root)]
                 (update m category (fnil + 0) value)))

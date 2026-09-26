@@ -352,7 +352,7 @@
    must derive and verify them at execution cutpoints."
   [job execution-environment execution-policy runner-participation assignment
    distributed-run {:keys [environment-before-root action-input-root
-                            environment-after-root]}]
+                           environment-after-root]}]
   (when-not (and (valid-job? job)
                  (:valid? (environment/validate-environment execution-environment))
                  (valid-execution-policy? execution-policy)

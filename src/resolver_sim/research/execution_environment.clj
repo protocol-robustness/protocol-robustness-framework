@@ -70,7 +70,7 @@
                                      (:deployment/code-identities environment))))
                     (= (count (:deployment/code-identities environment))
                        (count (set (map :deployment/address
-                                       (:deployment/code-identities environment)))))
+                                        (:deployment/code-identities environment)))))
                     (every? valid-code-identity?
                             (:deployment/code-identities environment))))
           (conj :execution-environment/invalid-code-identities)

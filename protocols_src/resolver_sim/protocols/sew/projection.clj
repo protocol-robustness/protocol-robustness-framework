@@ -16,6 +16,7 @@
             [resolver-sim.scenario.projection :as proj]
             [resolver-sim.protocols.sew.claimable-outcome :as claim-outcome]
             [resolver-sim.protocols.sew.invariants :as inv]
+            [resolver-sim.protocols.sew.accounting-projection :as accounting-projection]
             [resolver-sim.protocols.sew.trace-metadata :as meta]
             [resolver-sim.protocols.sew.types :as t]
             [resolver-sim.yield.evidence :as ye]
@@ -585,4 +586,31 @@
      :conservation {:holds?        (:holds? conservation)
                     :drift-total   drift-total
                     :drift-by-token drift-by-token
-                    :violations    (:violations conservation [])}}))
+                     :violations    (:violations conservation [])}}))
+
+(defn accounting-projection-v1
+  "Return the supplied canonical accounting projection, when present.
+
+   Projection construction remains explicit because legacy Sew worlds do not
+   yet carry enough committed asset/source metadata to infer one safely."
+  [world]
+  (if-let [projection (:accounting-projection world)]
+    (assoc projection :accounting-projection/validation
+           (accounting-projection/accounting-projection-valid? projection))
+    (let [derived (accounting-projection/derive-accounting-projection world)]
+      (if (:accounting-projection/root derived)
+        (assoc derived :accounting-projection/validation
+               (accounting-projection/accounting-projection-valid? derived))
+        derived))))
+
+(def with-accounting-metadata
+  "Attach explicit accounting metadata to a Sew world for scenario setup."
+  accounting-projection/with-accounting-metadata)
+
+(defn attach-scenario-accounting-metadata
+  "Attach only the explicitly declared accounting metadata from a scenario.
+   Legacy `:token-params` are intentionally not converted into identities."
+  [world scenario]
+  (if (contains? scenario :accounting-metadata)
+    (with-accounting-metadata world (:accounting-metadata scenario))
+    world))
