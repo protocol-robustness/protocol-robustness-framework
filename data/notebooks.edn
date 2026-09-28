@@ -178,6 +178,34 @@
     :presentation   {:theme :simulation-scenarios :kind :analysis
                      :audience-level :intermediate}}
 
+  {:id             :reproduction-comparability
+   :path           "notebooks/reproduction_comparability.clj"
+   :title          "Reproduction Comparability"
+   :summary        "Shows why only runs with identical rooted research scopes can disagree; changed case or measure scopes are not comparable."
+   :categories     [:replay-determinism :evidence-artifacts]
+   :audience       [:researcher :auditor]
+   :status         :verified
+   :risk           :informational
+   :protocol-areas [:benchmark]
+   :tags           ["reproduction" "comparability" "research-definition" "scope"]
+   :presentation   {:theme :evidence-reproducibility :kind :analysis
+                    :audience-level :intro
+                    :question "When does a different research result represent disagreement rather than a different study?"}}
+
+  {:id             :notebook-comparison
+   :path           "notebooks/notebook_comparison.clj"
+   :title          "Notebook Comparison"
+   :summary        "Loads explicit rooted outputs from executable notebooks and compares them without comparing notebook source or rendered HTML."
+   :categories     [:replay-determinism :evidence-artifacts]
+   :audience       [:researcher :auditor]
+   :status         :experimental
+   :risk           :informational
+   :protocol-areas [:benchmark]
+   :tags           ["notebooks" "comparison" "reproduction" "scope"]
+   :presentation   {:theme :evidence-reproducibility :kind :analysis
+                    :audience-level :intro
+                    :question "Can two executable notebooks be compared without comparing their source text?"}}
+
   {:id             :dispute-resolution
    :path           "notebooks/dispute_resolution.clj"
    :title          "Dispute Resolution — Protocol Analysis"

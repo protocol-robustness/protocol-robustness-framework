@@ -59,5 +59,9 @@ name = "source-bound-v2-prove"
 path = "src/bin/source_bound_v2_prove.rs"
 
 [[bin]]
+name = "source-bound-entitlement-prove"
+path = "src/bin/source_bound_entitlement_prove.rs"
+
+[[bin]]
 name = "observed-run-sp1-prove"
 path = "src/bin/observed_run_sp1_prove.rs"

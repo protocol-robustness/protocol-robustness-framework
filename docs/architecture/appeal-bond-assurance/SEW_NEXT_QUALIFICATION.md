@@ -375,12 +375,60 @@ Profile-B graph deploy + read-back wiring (deploy/87):  COMPLETED — determinis
 
 On-chain runtime codehash binding (A-2 forge build): PARTIALLY CLOSED — deterministic
    codehash bound for 9 static closure contracts (scripts/bind-runtime-codehash.ts), no live
-   deployment needed. 5 address-dependent contracts (Facade, EscrowVault, InsurancePoolVault,
-   SewToken, GovGovernor) still require a persistent-network read-back (or constructor-arg
-   immutable/link patching) — this is the remaining A-4 Task 3 item.
+   deployment needed. The previously address-dependent 5 (Facade, EscrowVault, InsurancePoolVault,
+   SewToken, GovGovernor) are now bound via a real local anvil deployment against the
+   deployment-pipeline (hardhat) build; see table below. GovGovernor + EscrowGovernanceTimelock
+   are deployed by the separate governance tag and were not part of the sew-dr-v2-bondledger tag.
 
 A-2 bundleRoot source/build/bytecode identity: BOUND (f92f6f56..., see section 5b)
-``````
+```
+
+**Local anvil deployment runtime read-back (A-4 Task 3, deterministic local chain).** The
+Profile-B closure was deployed end-to-end onto a local anvil node started with a raised
+`--code-size-limit 49152` (48 KiB), because three closure contracts exceed the real EIP-170
+24 KiB limit (`EscrowVault` 38,069 B, `DecentralizedResolutionModule` 32,130 B,
+`ResolverIncentiveModuleV2BondLedger` 25,369 B) and would be rejected by a default anvil
+(which enforces EIP-170). This confirms the Profile-B closure needs a raised code-size limit to
+deploy on a real chain; the 24 KiB over-limit contracts are a known EIP-170 blocker.
+**Deployment decision:** there will be no real-network (baseSepolia/mainnet) Profile-B deploy
+until Ethereum raises the 24 KiB EIP-170 contract-size limit in an upcoming release. The
+over-limit contracts will not be split for EIP-170; until the limit is raised, the local anvil
+deployment at `--code-size-limit 49152` is the standing qualification vehicle, and these
+codehashes are the deployment-pipeline runtime binding. The read-back drives the real local
+TimelockController path (`ledger.authorizedCaller(facade) == true`) and asserts the fresh
+Profile-B EscrowVault is registered (`drm.registeredEscrow(vault) == true`).
+
+`keccak256(eth_getCode)` runtime codehashes read back from the anvil chain
+(`scripts/readback-anvil-codehash.cjs`, read-only):
+
+```text
+BondLedger                        0x9571eab2842432a446575a456dadb9f03fef3efca1ec2961f92a7f0817476dcf
+BondTokenRegistry                 0x3e236a6c17da308d8d11f20fc4adfd7be9e103898da051fdbfa9a0455a239c4d
+DecentralizedResolutionModule     0x5ea78fa0a91d08a3c8479ff4b866bde5511a0aa804121101f9bc36933f2af0d3
+DRMAdminFacet                     0x5afd9e5a276a7da457e4f14dc27998bdaf84b2a03ea54735359b2a89896e6dce
+EscrowVaultAccountingLibrary      0x6cf93193d29a45190944b5942547327b18aad386b7c19c2b825800f624f24b54
+EscrowVaultProfileB               0x52a3d4d972da5c3d2e02eb0a55dfa77be4d0973c9624ac60be33ed97d65c9e51
+InsurancePoolVault                0x710aa079507668473081ca6c49e723723cbe7e84834b92effbdf1cd8e1ba2fed
+ModuleSnapshotRegistryProfileB    0xaddeeb50484098ef559f466a432c7a2fca483444bdd5333a05ca83f7b0978d3c
+PaymentCalculationLibrary         0x1a81bb1b8c6fd42d7c187437d35d10c098478c5738a7c47a60ff77020c52e95c
+ResolverIncentiveModule           0x7ec49b5b3631cdf33baf71acab2ebe1d22b13a6a8fc9736b1325a9d7ef3f017c
+ResolverIncentiveModuleV2BondLedger 0x6a5a111b16410b86822bee3fd3cede494d048411e00e951cb9e66a72260bb1ae
+ResolverSlashingModule            0x3bc5abf84c06acbd8445c91918dd71e19c80cc738f9a74f5cbf7fbc11c49697c
+ResolverStakingModule             0x283f9ef02cf518389c8e26225797a0a78553a2fd04b730d3d3f5af047d4e7ba8
+SewToken                          0xa18bad68265ad778947eae04b4fc6e1d46612f62e2ac98e016cda4351086382a
+TimelockController                0x4ca85edb43352cee6bb38d7ef780a2f2ba90d3a3cf15ace962c4d58cfd9e7fab
+```
+
+These anvil codehashes are bound to the **deployment-pipeline (hardhat-deploy) build** — solc
+0.8.37, viaIR, `cancun` EVM, `runs` from `SOLC_RUNS` (default 10) — i.e. the same build a
+baseSepolia hardhat-deploy run would use. They resolve the address/immutable/linked-library
+code for the 5 previously address-dependent contracts, but are a **different build identity**
+from the A-2 forge deterministic binding above (`osaka`, `runs 200`). Do not conflate the two:
+- A-2 forge codehashes (the 9 static ones above) = `keccak256(bytes(deployedBytecode.object))`
+  of the A-2 `out/` build.
+- Anvil/hardhat codehashes (this table) = `keccak256(eth_getCode)` of the deployment-pipeline
+  build actually deployed by hardhat-deploy.
+```
 
 ## 6. Provenance preservation
 
