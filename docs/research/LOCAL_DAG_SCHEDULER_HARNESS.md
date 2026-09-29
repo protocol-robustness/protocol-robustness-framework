@@ -21,6 +21,77 @@ completion/failure records, and `result-set` compares their runtime-independent
 cell outcome projection. A worker failure stays as an explicit failed cell;
 there is no shared mutable aggregate and no production scheduler integration.
 
+## First real runner-transport phase
+
+`resolver-sim.research.runner-transport` is a deliberately small, research-only
+adapter for the next experimental boundary: independent runner processes may
+receive rooted job assignments and canonical cancellation controls over an
+actual HTTP/TCP route. It reuses the existing
+`research-realized-reachability.v1` and
+`research-runner-control-observation.v1` artifacts rather than creating a
+parallel transport-evidence system.
+
+The canonical facts are still the job, assignment, runner participation,
+cancellation, logical cutpoint, realized/unreachable outcome, and (only after
+an HTTP acknowledgement) the runner control observation. Socket address, port,
+process identity, shared test secret, wall-clock time, and HTTP diagnostics are
+runtime-only. `:reachability/meaning` is transport-neutral: a route is
+realized only when a delivery attempt obtains the required response; publication
+or declared topology is not delivery.
+
+The adapter validates canonical job/assignment/runner bindings before a runner
+stores work. Its HMAC header is a lab boundary that detects an incorrect shared
+secret; it is not a credential system, TLS, replay protection, remote
+attestation, or a production security protocol. A deployment experiment must
+put the same endpoint on separate hosts and supply mutually authenticated,
+replay-safe transport before any claim of real runner independence.
+
+`start-runner!` accepts an optional runtime-only `advertise-url`, allowing a
+coordinator to contact a separately hosted runner without putting hostnames or
+ports into canonical runner identity.
+
+Cancellation remains cooperative: a published cancellation can prevent a later
+job delivery; a runner control observation exists only once the runner has
+actually responded. If a route cannot be contacted, the result is explicit
+unreachable reachability evidence—not an acknowledgement and not a task
+failure.
+
+The coordinator endpoint now also has a constrained `/v1/results` return route. It accepts
+only a validated `research-observed-run-evidence.v1` plus its existing
+`research-run-assurance-evidence.v1` consequence, and only for an assignment
+the runner has already accepted. It rejects declaration/simulation-only run
+evidence, wrong assignment/runner/job bindings, and invalid assurance linkage.
+Repeated identical observed evidence is idempotent. Result delivery neither
+chooses between competing results nor establishes primitive validity or
+application authority; it simply makes a future remote observed executor able
+to return its existing forensic artifacts without a second result format.
+
+This phase still does not execute work remotely or send accounting partitions;
+its assignment and observed-result envelopes are intentionally compatible with
+those future work units.
+
+### Dispatched observed-Anvil work
+
+`research-observed-execution-work.v1` is the narrow rooted work bundle for the
+existing fresh-Anvil adapter. It binds the full validated job/assignment/runner
+context, declared environment, dependency closure, implementation, assured-job,
+exact action, and expected action/state roots. A runner may execute it only
+when the bundle exactly matches its accepted assignment and it has a configured
+runtime coordinator return endpoint. The resulting observed-run and V1
+assurance artifacts are returned to the coordinator through `/v1/results`;
+the runner never invents a second result or proof format.
+
+This is observed execution on a remote host, not remote attestation or host
+integrity. Anvil/tool identity remains a fixed validation input: a bundle
+declared for one Anvil version is rejected on a runner with a different observed
+version before action execution.
+
+Run the focused transport tests (they create local loopback listeners):
+
+```sh
+clojure -M:test -e '(require (quote resolver-sim.research.runner-transport-test)) (let [{:keys [fail error]} (clojure.test/run-tests (quote resolver-sim.research.runner-transport-test))] (when (pos? (+ fail error)) (System/exit 1)))'
+```
+
 `resolver-sim.research.result-store` is the current research-local
 content-addressed result store. A completed rooted cell result is indexed both
 by its result root and by its execution-cell root. Re-inserting identical

@@ -26,7 +26,7 @@
 (def cancellation-scopes #{:entire-job :surplus-run-slots :proof-jobs :verification-work})
 (def cancellation-modes #{:immediate :cooperative :atomic})
 (def route-kinds #{:dependency-retrieval :job-delivery :cancellation-delivery
-                   :proof-job-delivery :verification-delivery})
+                   :proof-job-delivery :verification-delivery :result-delivery})
 (def reachability-outcomes #{:realized :unreachable})
 (def lifecycle-kinds #{:started :completed :stopped})
 
@@ -104,7 +104,10 @@
               :reachability/outcome outcome
               :reachability/realized? (= :realized outcome)
               :reachability/attempt-cutpoint attempt-cutpoint
-              :reachability/meaning :simulated-usable-path-observation}
+              ;; The evidence is transport-neutral.  A deterministic simulator
+              ;; and the lab HTTP adapter can both establish this fact; neither
+              ;; publication nor declared topology alone establishes it.
+              :reachability/meaning :transport-usable-path-observation}
         rooted (assoc body :research-realized-reachability/root
                       (reachability-root body))]
     rooted))

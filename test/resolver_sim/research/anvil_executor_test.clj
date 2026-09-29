@@ -7,6 +7,7 @@
             [resolver-sim.research.execution-assurance :as assurance]
             [resolver-sim.research.execution-environment :as environment]
             [resolver-sim.research.observed-assurance :as observed]
+            [resolver-sim.research.observed-execution-work :as observed-work]
             [resolver-sim.research.observed-run-proof-statement :as statement]
             [resolver-sim.research.remote-execution :as remote]
             [resolver-sim.research.remote-execution-test :as remote-fixture]
@@ -127,7 +128,17 @@
                   :runner-participation participant :resolved-dependencies (:resolved dependencies)
                   :implementation implementation :receipt (:receipt result)
                   :validation (:fixed-validation result)})]
-    {:observed-run-evidence (:observed-run-evidence adapted)
+    {:observed-execution-work
+     (observed-work/build-work
+      {:job job :assignment assignment :runner-participation participant
+       :execution-environment (:execution-environment c)
+       :dependency-manifest (:manifest dependencies)
+       :resolved-dependencies (:resolved dependencies)
+       :implementation implementation :assured-job assured-job
+       :action (:action c) :expected-action-root (:expected-action-root c)
+       :expected-prestate-root (get-in result [:receipt :environment-before/root])
+       :expected-poststate-root (get-in result [:receipt :environment-after/root])})
+     :observed-run-evidence (:observed-run-evidence adapted)
      :run-assurance-evidence (:run-assurance-evidence adapted)
      :proof-host-config
      {:prover-participation (remote-fixture/runner \d :anonymous :site/d :qualifications [])
