@@ -865,6 +865,128 @@ This does not parallelize pro-rata arithmetic. Caps, residuals, rounding, and
 active-set redistribution may require global state and remain exclusively in
 the existing authoritative allocator.
 
+### Word-span evidence and exact accounting-basis comparison
+
+The research-only `word-accounting` fixture partitions a frozen document into
+individual non-whitespace UTF-16 word spans. An opted-in runner with
+`:capability/word-span` steals the lowest-index pending span. Each assignment
+and observation binds the document, plan, span, and runner; reconciliation
+requires every span exactly once and reconstructs the original word sequence.
+The tokenizer and offsets are declared and rooted. Reordering assignment or
+completion leaves the word-sequence and derived `accounting-request.v1` roots
+unchanged, while the forensic observation/reconciliation roots change.
+`research-word-accounting-basis.v1` links the request to all word observations.
+
+The fixture accepts only a closed four-field line grammar: qualified category,
+signed integer, subject root, and claim-to root. These are *declared research
+rows*. Parsing a line labelled appeal bond, withdrawal, custodian holding, or
+incentive does not prove a bond was posted, a withdrawal was authorized, custody
+existed, or an incentive was earned. Real source-evidence validation and
+economic admission remain separate.
+
+`research-accounting-basis-comparison.v1` is a derived exact-integer view over
+two complete partition plans. It sums only the declared associative
+`:accounting.operation/sum-by-category.v1`, checks each result against the
+serial fold, and reports right-minus-left category deltas. Different domains,
+cutpoints, accounting definitions, policies, or reduction contracts produce
+`:not-comparable`, with no numeric delta. `:equal` and `:different` retain the
+exact underlying values and constituent request/plan roots. This comparison
+does not create a canonical accounting result, combine allocations, or alter
+the pro-rata allocator. A production-grade pro-rata input additionally needs
+validated per-claimant liability/entitlement grouping, not merely these
+category totals.
+
+This fixture currently uses a deterministic local research selector, not
+cross-host word dispatch. Existing Anvil-based accounting transport assures
+the Anvil action, not the subsequently calculated accounting partial; it must
+not be cited as independent assurance of the accounting arithmetic. A future
+native/remote accounting executor needs a truthful partial-result-to-assurance
+binding before the full high-assurance pipeline is claimed.
+
+## Fine-grained research-analysis observation work
+
+`research-observation-work-plan.v1` freezes one stealable work unit per
+case × measure coordinate for one policy subject and repeat. The work unit
+binds the existing execution cell, case, measure, and axis-scoped coordinate;
+it does not re-execute the cell for every measure. Opted-in participants with
+`:capability/research-observation` may take the next pending unit through a
+deterministic local selector. Assignment and observation roots retain runner
+provenance separately from the semantic research-analysis root.
+
+Each observation is rederived from the content-addressed result store (or the
+explicit cell failure report) during reconciliation. Exact coordinate coverage
+is required. Identical redelivery is idempotent; conflicting or substituted
+observations fail; an observation made before its source cell later conflicts
+becomes stale and cannot reconcile. Complete cells contribute exact integers
+or explicit missing measures; conflicting cells contribute `:not-comparable`;
+failed and absent cells retain their separate cell statuses and contribute
+`:missing` coordinates. Neither missing nor failure is numeric zero.
+
+The existing compiler and the observation-work path use the same checked
+analysis assembly, so changing assignment/completion order changes forensic
+reconciliation identity but not `research-analysis/root`. Comparison and
+interaction remain downstream of the resulting independent analyses. This is
+a controlled local research selector, not cross-host observation transport or
+a demonstrated speedup. Per-coordinate work can be smaller than dispatch
+overhead; case-level measure bundles remain an important granularity ablation.
+
+The execution report's local runtime-diagnostic failure status has the same
+evidence limitation as the existing compiler: it is not a canonical failure
+receipt. Distributed typed failure receipts should be used when authoritative
+failure provenance is required.
+
+This local path is the semantic reference for later distributed observation
+work. A remote transport must carry these already-rooted work-unit identities
+and return evidence for the existing exact-coverage admission path; it must
+not introduce a new distributed-analysis format. Tests reject duplicate
+claims, wrong-parent observations, stale source results, conflicting evidence,
+and absent units. Reversed completion order preserves the analysis root.
+An abandoned observation unit cannot yield a complete reconciled analysis:
+the existing serial compiler may represent its absent source cell as
+`:incomplete`, while exact-coverage observation reconciliation refuses to
+manufacture a result until that unit is observed or reassigned.
+
+Runner durability tests currently restart runner objects from persisted
+journals in one JVM. They do not yet qualify an OS-process kill/restart. That
+subprocess boundary should be tested before connecting these work units to
+cross-host transport. No observation-level speedup is claimed.
+
+## Closed research-claim evidence coordinates
+
+`research-claim-evidence-plan.v1` freezes one existing proposition's command,
+model, domain, assignment, outcome, closure, result descriptor, case, measure,
+and source-result commitments before the downstream analysis output's evidence
+root is chosen. Its first closed plan has three rooted coordinates: exact
+result value, result classification (including a counterexample witness when
+declared), and outcome commitment. These are evidence obligations, not
+coordinates of the claim itself. The plan has exact finite coverage; open-ended
+findings, dissent, and independent reproductions are not made falsely
+"complete" by this mechanism.
+
+An eligible local runner can take a coordinate assignment and recompute its
+projection from the frozen source artifacts. Identical redelivery is
+idempotent. Missing, duplicate-claimed, stale, wrong-parent, and conflicting
+observations cannot reconcile. `:supporting`, `:contradicting`, and
+`:inconclusive` remain distinct; a counterexample witness is retained and
+cannot be outvoted. Runner and assignment roots belong only to the forensic
+observation/reconciliation, while `research-claim-evidence-manifest.v1` binds
+the exact coordinate results without runner or completion-order fields.
+
+`build-output-from-evidence` first performs checked exact reconciliation and
+then supplies the semantic manifest root to the existing
+`research-analysis-output.v1` builder; callers do not supply that root to the
+adapter. From there the unchanged
+`verify-output → derive-claim → acceptance lifecycle` remains the only claim
+authority path. The fixture shows serial and stolen collection yielding the
+same verified output and analytical-claim root, with different forensic roots.
+This first experiment checks source projection and lineage; it does **not**
+independently reproduce the engine calculation, prove a general claim, or
+turn runner agreement into claim acceptance. Researcher positions remain a
+separate nominal assessment layer. The existing generic verifier does not
+independently inspect the new manifest body: its assurance is the pre-output
+adapter's checked reconciliation plus the established output/root binding,
+not a new verifier proof contract.
+
 ## Exact coordinate interactions
 
 `research-axis-semantics.v1` explicitly distinguishes nominal, ordered,

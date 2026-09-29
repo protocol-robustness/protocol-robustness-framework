@@ -8,7 +8,9 @@
             [resolver-sim.benchmark.research-assignment :as assignment]
             [resolver-sim.benchmark.research-command :as command]
             [resolver-sim.hash.canonical :as hc]
-            [resolver-sim.hash.reference :as hash-ref]))
+            [resolver-sim.hash.reference :as hash-ref]
+            [resolver-sim.research.claim-evidence-work :as claim-work]
+            [resolver-sim.research.runner-participation :as participation]))
 
 (defn- root [label]
   (hash-ref/sha256-ref (hc/domain-hash :evidence-record {:label label})))
@@ -93,6 +95,51 @@
                                                             (root :witness))
                                      :schema-version analysis/result-schema-version}
             :analysis-output/evidence-root (root classification)))))
+
+(defn- claim-descriptor []
+  (analysis/build-result-descriptor
+   {:measure/id :metric/net-payoff-delta
+    :measure/value-domain :integer
+    :measure/unit :unit/abstract
+    :measure/direction :lower-is-better
+    :measure/comparison-semantics :exact-integer}))
+
+(defn- claim-runner [n]
+  (participation/build-participation
+   {:runner-reference (root (keyword (str "claim-runner-" n)))
+    :disclosure-mode :pseudonymous
+    :site-id (keyword "claim-site" (str n))
+    :opted-in? true :available? true
+    :capabilities [:capability/claim-evidence]
+    :job-classes [:job/research-claim-evidence]
+    :environment-kinds [:execution-environment/local]
+    :qualification-references []}))
+
+(defn- collect-claim-evidence [context descriptor result plan runners]
+  (loop [assignments [] ingestion {} n 0]
+    (let [runner (nth runners (mod n (count runners)))
+          assignment (claim-work/steal-next plan runner assignments)]
+      (if assignment
+        (recur (conj assignments assignment)
+               (claim-work/ingest
+                ingestion (claim-work/observe
+                           context :claim/incentive-compatibility descriptor result
+                           plan assignment runner))
+               (inc n))
+        {:assignments assignments :ingestion ingestion}))))
+
+(defn- claim-from-evidence [context descriptor result plan work participants]
+  (let [analysis-output
+        (:analysis-output
+         (claim-work/build-output-from-evidence
+          context :claim/incentive-compatibility descriptor result plan
+          (:assignments work) participants (:ingestion work)
+          :engine/observed-trace "1"))
+        verification (analysis/verify-output
+                      (assoc context :analysis-output analysis-output))]
+    {:output analysis-output :verification verification
+     :claim (analysis/derive-claim analysis-output verification
+                                  (:incentive-model context))}))
 
 (deftest generic-verification-preserves-theorem-boundary
   (let [context (fixture)
@@ -231,3 +278,144 @@
     (is (= :invalid (:research-analysis-verification/status verification)))
     (is (some #{:output-root-mismatch :output-closure-mismatch}
               (:errors verification)))))
+
+(deftest closed-claim-evidence-preserves-output-and-claim-across-stealing
+  (let [context (fixture)
+        descriptor (claim-descriptor)
+        result (:analysis-output/result (output context :supported))
+        plan (claim-work/build-plan context :claim/incentive-compatibility
+                                    descriptor result)
+        a (claim-runner 1) b (claim-runner 2)
+        serial-work (collect-claim-evidence context descriptor result plan [a])
+        stolen-work (collect-claim-evidence context descriptor result plan [b a])
+        serial (claim-work/reconcile
+                context :claim/incentive-compatibility descriptor result plan
+                (:assignments serial-work) [a] (:ingestion serial-work))
+        reverse-completion (claim-work/reconcile
+                            context :claim/incentive-compatibility descriptor result
+                            plan (:assignments serial-work) [a]
+                            (reduce claim-work/ingest {}
+                                    (reverse (vals (:ingestion serial-work)))))
+        stolen (claim-work/reconcile
+                context :claim/incentive-compatibility descriptor result plan
+                (:assignments stolen-work) [a b] (:ingestion stolen-work))
+        serial-claim (claim-from-evidence context descriptor result plan
+                                          serial-work [a])
+        stolen-claim (claim-from-evidence context descriptor result plan
+                                          stolen-work [a b])]
+    (is (= 3 (count (claim-work/coordinates plan))))
+    (is (= serial reverse-completion))
+    (is (= (:semantic-evidence serial) (:semantic-evidence stolen)))
+    (is (not= (:forensic-reconciliation serial)
+              (:forensic-reconciliation stolen)))
+    (is (= (:output serial-claim) (:output stolen-claim)))
+    (is (= (:research-claim-evidence-manifest/root (:semantic-evidence serial))
+           (:analysis-output/evidence-root (:output serial-claim))))
+    (is (= (:verification serial-claim) (:verification stolen-claim)))
+    (is (= (:claim serial-claim) (:claim stolen-claim)))
+    (is (= :not-established
+           (get-in serial-claim [:claim :research-claim/status])))
+    (is (analysis/verification-valid? (:verification serial-claim)))
+    (is (= (:ingestion serial-work)
+           (reduce claim-work/ingest (:ingestion serial-work)
+                   (vals (:ingestion serial-work)))))))
+
+(deftest claim-evidence-rejects-gaps-substitution-and-conflicting-delivery
+  (let [context (fixture)
+        descriptor (claim-descriptor)
+        result (:analysis-output/result (output context :supported))
+        plan (claim-work/build-plan context :claim/incentive-compatibility
+                                    descriptor result)
+        a (claim-runner 1)
+        work (collect-claim-evidence context descriptor result plan [a])
+        [coordinate-root observed] (first (:ingestion work))
+        wrong-parent (assoc observed :research-claim-evidence-plan/root
+                            (root :other-evidence-plan))
+        wrong-parent (assoc wrong-parent :research-claim-evidence-observation/root
+                            (hash-ref/sha256-ref
+                             (hc/domain-hash
+                              :research-claim-evidence-observation-v1
+                              (dissoc wrong-parent
+                                      :research-claim-evidence-observation/root))))
+        conflict (assoc observed :evidence/semantic-result
+                        (assoc (:evidence/semantic-result observed)
+                               :evidence/status :contradicting))
+        changed-context (assoc context :outcome-manifest
+                               (outcome/build-manifest
+                                {:benchmark/content-root
+                                 (get-in context [:incentive-model
+                                                  :incentive-model/subject-root])
+                                 :benchmark/model-root
+                                 (get-in context [:incentive-model
+                                                  :incentive-model/root])
+                                 :execution/status :completed
+                                 :execution/command-root
+                                 (get-in context [:research-command :command/hash])
+                                 :outcomes/operational-root (root :operational)
+                                 :outcomes/incentive-compatibility-root
+                                 (root :other-ic)}))
+        conflict-error (try (claim-work/ingest (:ingestion work) conflict)
+                            nil (catch clojure.lang.ExceptionInfo e e))]
+    (is (thrown? clojure.lang.ExceptionInfo
+                 (claim-work/reconcile
+                  context :claim/incentive-compatibility descriptor result plan
+                  (:assignments work) [a]
+                  (dissoc (:ingestion work) coordinate-root))))
+    (is (thrown? clojure.lang.ExceptionInfo
+                 (claim-work/build-output-from-evidence
+                  context :claim/incentive-compatibility descriptor result plan
+                  (:assignments work) [a]
+                  (dissoc (:ingestion work) coordinate-root)
+                  :engine/observed-trace "1")))
+    (is (thrown? clojure.lang.ExceptionInfo
+                 (claim-work/reconcile
+                  context :claim/incentive-compatibility descriptor result plan
+                  (conj (:assignments work) (first (:assignments work))) [a]
+                  (:ingestion work))))
+    (is (thrown? clojure.lang.ExceptionInfo
+                 (claim-work/reconcile
+                  context :claim/incentive-compatibility descriptor result plan
+                  (:assignments work) [a]
+                  (assoc (:ingestion work) coordinate-root wrong-parent))))
+    (is (= :claim-evidence-coordinate-conflict
+           (:conflict/type (ex-data conflict-error))))
+    (is (= observed (get (:ingestion work) coordinate-root)))
+    (is (thrown? clojure.lang.ExceptionInfo
+                 (claim-work/observe
+                  context :claim/another-proposition descriptor result plan
+                  (first (:assignments work)) a)))
+    (is (thrown? clojure.lang.ExceptionInfo
+                 (claim-work/observe
+                  context :claim/incentive-compatibility descriptor
+                  (assoc result :result/value 99) plan
+                  (first (:assignments work)) a)))
+    (is (thrown? clojure.lang.ExceptionInfo
+                 (claim-work/observe
+                  changed-context :claim/incentive-compatibility descriptor result plan
+                  (first (:assignments work)) a)))
+    (is (thrown? clojure.lang.ExceptionInfo
+                 (claim-work/reconcile
+                  context :claim/incentive-compatibility descriptor
+                  (assoc result :result/value 99) plan
+                  (:assignments work) [a] (:ingestion work))))))
+
+(deftest claim-evidence-counterexample-is-preserved-not-outvoted
+  (let [context (fixture)
+        descriptor (claim-descriptor)
+        result (:analysis-output/result (output context :counterexample-found))
+        plan (claim-work/build-plan context :claim/incentive-compatibility
+                                    descriptor result)
+        a (claim-runner 1) b (claim-runner 2)
+        work (collect-claim-evidence context descriptor result plan [a b])
+        reconciled (claim-work/reconcile
+                    context :claim/incentive-compatibility descriptor result plan
+                    (:assignments work) [a b] (:ingestion work))
+        claim (claim-from-evidence context descriptor result plan work [a b])
+        classification (some #(when (= :contradicting (:evidence/status %)) %)
+                             (get-in reconciled [:semantic-evidence
+                                                 :evidence/coordinate-results]))]
+    (is classification)
+    (is (= (:result/witness-root result)
+           (get-in classification [:evidence/value :result/witness-root])))
+    (is (= :counterexample-found
+           (get-in claim [:claim :research-claim/status])))))
