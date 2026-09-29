@@ -4,7 +4,8 @@ use clap::Parser;
 use sha2::{Digest, Sha256};
 use sp1_sdk::{
     blocking::{ProveRequest, Prover, ProverClient},
-    include_elf, Elf, HashableKey, ProvingKey, SP1Stdin,
+    include_elf, Elf, HashableKey, ProvingKey, SP1Proof, SP1ProofMode,
+    SP1ProofWithPublicValues, SP1Stdin,
 };
 use std::time::Instant;
 
@@ -165,6 +166,9 @@ fn main() {
         println!("public_values: 0x{}", hex::encode(public_values.as_slice()));
         println!("cycles: {}", report.total_instruction_count());
     } else {
+        if let Err(reason) = &expected {
+            panic!("cannot prove rejected successor witness: {reason}");
+        }
         let client = ProverClient::from_env();
         let pk = client.setup(ELF).expect("setup successor ELF");
         let vkey = pk.verifying_key().bytes32().to_string();
@@ -176,13 +180,23 @@ fn main() {
             return;
         }
         let expected = expected.expect("successor input rejected");
-        let proof = client.prove(&pk, stdin).run().expect("prove successor ELF");
+        // `--prove` is the EVM proof path. The SDK defaults to Core proofs,
+        // whose `bytes()` method panics because they are not on-chain proofs.
+        let proof = client
+            .prove(&pk, stdin)
+            .groth16()
+            .run()
+            .expect("generate successor Groth16 proof");
         client
             .verify(&proof, pk.verifying_key(), None)
             .expect("verify successor proof");
         assert_eq!(proof.public_values.as_slice(), expected.as_slice());
         assert_matches_vector_golden(&vector_case, proof.public_values.as_slice());
+        let proof_system = require_groth16(&proof)
+            .unwrap_or_else(|reason| panic!("{reason}"));
+        let onchain_proof_bytes = proof.bytes();
         println!("proof public values match Rust core (288 bytes)");
+        println!("proof system: {proof_system}");
         print_source_identity(&source);
         println!("program_id: {PROGRAM_ID}");
         println!("vkey: {vkey}");
@@ -196,11 +210,56 @@ fn main() {
                 "public_values_length": allocation_kernel::source_bound_entitlement::PUBLIC_VALUES_LEN,
                 "public_values": format!("0x{}", hex::encode(&expected)),
                 "source": source,
-                "proof_system": "compressed",
-                "proof": format!("0x{}", hex::encode(proof.bytes())),
+                "proof_system": proof_system,
+                "proof": format!("0x{}", hex::encode(&onchain_proof_bytes)),
             });
             std::fs::write(path, serde_json::to_string_pretty(&fixture).unwrap()).unwrap();
+            println!("on-chain proof bytes: {}", onchain_proof_bytes.len());
+            println!(
+                "on-chain proof sha256: 0x{}",
+                hex::encode(Sha256::digest(&onchain_proof_bytes))
+            );
         }
+    }
+}
+
+fn require_groth16(proof: &SP1ProofWithPublicValues) -> Result<&'static str, String> {
+    let mode = match &proof.proof {
+        SP1Proof::Core(_) => SP1ProofMode::Core,
+        SP1Proof::Compressed(_) => SP1ProofMode::Compressed,
+        SP1Proof::Plonk(_) => SP1ProofMode::Plonk,
+        SP1Proof::Groth16(_) => SP1ProofMode::Groth16,
+    };
+    fixture_proof_system(mode)
+}
+
+fn fixture_proof_system(mode: SP1ProofMode) -> Result<&'static str, String> {
+    match mode {
+        SP1ProofMode::Groth16 => Ok("groth16"),
+        other => Err(format!("expected Groth16 EVM proof, got {other:?}")),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::fixture_proof_system;
+    use sp1_sdk::SP1ProofMode;
+
+    #[test]
+    fn evm_fixture_accepts_only_groth16_proofs() {
+        assert_eq!(fixture_proof_system(SP1ProofMode::Groth16), Ok("groth16"));
+    }
+
+    #[test]
+    fn evm_fixture_rejects_core_and_compressed_proofs() {
+        assert_eq!(
+            fixture_proof_system(SP1ProofMode::Core),
+            Err("expected Groth16 EVM proof, got Core".to_owned())
+        );
+        assert_eq!(
+            fixture_proof_system(SP1ProofMode::Compressed),
+            Err("expected Groth16 EVM proof, got Compressed".to_owned())
+        );
     }
 }
 
@@ -213,13 +272,7 @@ fn assert_matches_vector_golden(
             .expected_public_values
             .as_deref()
             .expect("passing vector must have golden public-values")
-            .strip_prefix("0x")
-            .unwrap_or_else(|| {
-                panic!(
-                    "vector {} golden public-values must have 0x prefix",
-                    vector.id
-                )
-            });
+            .trim_start_matches("0x");
         let expected = hex::decode(expected).unwrap_or_else(|error| {
             panic!("vector {} has malformed golden bytes: {error}", vector.id)
         });

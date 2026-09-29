@@ -3,6 +3,7 @@
 //! This is test/proof-harness plumbing only. It does not define protocol
 //! derivation semantics; the materialized witness is passed to the reviewed
 //! `allocation_kernel::source_bound_entitlement::derive` function.
+#![allow(dead_code)] // Core conformance tests only need the materialized witness.
 
 use serde_json::{json, Value};
 

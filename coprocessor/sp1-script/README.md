@@ -23,6 +23,24 @@ cargo run --release --bin realized-statement-prove -- --prove \
 # Generate and verify a core proof
 cargo run --release --bin allocation-prove -- --prove --input <input.json>
 
+# Execute one source-bound entitlement conformance vector against its golden
+cargo run --manifest-path Cargo.toml --bin source-bound-entitlement-prove -- \
+  --execute --vectors ../../etc/conformance/vectors/source-bound-entitlement-v1.json \
+  --vector A-minimum-realistic
+
+# Generate and verify an EVM-compatible Groth16 proof for that vector; the
+# proof fixture includes vector provenance and Groth16 on-chain proof bytes
+cargo run --manifest-path Cargo.toml --bin source-bound-entitlement-prove -- \
+  --prove --vectors ../../etc/conformance/vectors/source-bound-entitlement-v1.json \
+  --vector A-minimum-realistic --fixture ../../results/source-bound-entitlement-proof-v1.json
+
+# The legacy --input form accepts exactly one raw successor witness JSON object.
+# For example, extract the identity vector's base witness from the bundle:
+jq -c '."base-input"' ../../etc/conformance/vectors/source-bound-entitlement-v1.json \
+  > /tmp/source-bound-entitlement-base-input.json
+cargo run --manifest-path Cargo.toml --bin source-bound-entitlement-prove -- \
+  --prove --input /tmp/source-bound-entitlement-base-input.json
+
 # Print the program verification key
 cargo run --release --bin allocation-vkey
 

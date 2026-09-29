@@ -1089,6 +1089,21 @@ The local environment exposes 17 GB free under `/opt`, but the sandbox cannot
 write there; proof setup was not attempted. No verifier or deployment identity
 has been activated.
 
+The host accepts either one raw witness through `--input`, or a conformance
+bundle and vector ID through `--vectors <bundle> --vector <id>`. Vector mode
+uses the shared Rust materializer also used by the core conformance test and
+checks guest/proof public values against the selected vector's golden bytes.
+Generated proof fixtures record the bundle content hash, vector ID, and exact
+materialized witness hash; filesystem paths remain excluded. Example:
+
+```bash
+cargo run --manifest-path coprocessor/sp1-script/Cargo.toml \
+  --bin source-bound-entitlement-prove -- --prove \
+  --vectors etc/conformance/vectors/source-bound-entitlement-v1.json \
+  --vector A-minimum-realistic \
+  --fixture /path/to/source-bound-entitlement-proof-v1.json
+```
+
 ## Accounting and conservation
 
 At every successful reserve transition:
