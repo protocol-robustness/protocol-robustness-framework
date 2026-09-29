@@ -16,7 +16,9 @@
     :runner.forensic/result-redelivered
     :runner.forensic/coordinator-acknowledged
     :runner.forensic/cancellation-observed
-    :runner.forensic/restart-interrupted})
+    :runner.forensic/restart-interrupted
+    :runner.forensic/reproduction-result-posted
+    :runner.forensic/reproduction-result-redelivered})
 
 (defn- root? [x] (hash-ref/valid-sha256-ref? x))
 (defn- node-ref [node] (str "sha256:" (:node-hash node)))
@@ -131,6 +133,7 @@
                 {:error :runner-forensic/retry-without-prior-unacknowledged-attempt
                  :work-root work-root})
               (for [[work-root completed-work] (:completed-work state)
+                    :when (not (:reproduction-execution completed-work))
                     :let [observed (:observed-run-evidence completed-work)
                           assurance (:run-assurance-evidence completed-work)
                           assignment (get-in observed [:proof/source-artifacts :assignment])]
@@ -143,6 +146,7 @@
                  :work-root work-root})
               ;; A stored completed artifact must have all causal stages.
               (for [[work-root completed-work] (:completed-work state)
+                    :when (not (:reproduction-execution completed-work))
                     :let [observed (:observed-run-evidence completed-work)
                           observed-root (:research-observed-run-evidence/root observed)
                           delivery-status (get-in completed-work [:result-delivery :delivery/status])
@@ -155,6 +159,8 @@
                  :work-root work-root :observed-run-root observed-root})
               (when coordinator-state
                 (for [n acknowledged
+                      :when (not= :research-runner/reproduction-result-acknowledgement
+                                  (get-in n [:extensions :forensic/subject :subject/kind]))
                       :let [observed-root (get-in n [:extensions :forensic/subject :subject/root])
                             completed (some (fn [[_ entry]]
                                               (when (= observed-root

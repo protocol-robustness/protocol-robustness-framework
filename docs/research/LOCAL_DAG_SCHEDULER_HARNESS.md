@@ -946,10 +946,13 @@ the existing serial compiler may represent its absent source cell as
 `:incomplete`, while exact-coverage observation reconciliation refuses to
 manufacture a result until that unit is observed or reassigned.
 
-Runner durability tests currently restart runner objects from persisted
-journals in one JVM. They do not yet qualify an OS-process kill/restart. That
-subprocess boundary should be tested before connecting these work units to
-cross-host transport. No observation-level speedup is claimed.
+Runner durability is qualified across an OS-process boundary for the critical
+completed-but-unacknowledged case: a child JVM completes the Anvil-backed
+execution while its coordinator is unreachable, is forcibly terminated, then a
+fresh JVM reloads the journal and redelivers the retained result. The runner
+does not re-execute the work, and coordinator ingestion is semantically
+idempotent. This remains local-process durability; it is not cross-host
+transport qualification. No observation-level speedup is claimed.
 
 ## Closed research-claim evidence coordinates
 
@@ -968,9 +971,29 @@ projection from the frozen source artifacts. Identical redelivery is
 idempotent. Missing, duplicate-claimed, stale, wrong-parent, and conflicting
 observations cannot reconcile. `:supporting`, `:contradicting`, and
 `:inconclusive` remain distinct; a counterexample witness is retained and
-cannot be outvoted. Runner and assignment roots belong only to the forensic
-observation/reconciliation, while `research-claim-evidence-manifest.v1` binds
+cannot be outvoted. Reconciliation also rejects a syntactically complete,
+individually rooted set that mixes a genuine coordinate from another source
+result into this plan, even if that coordinate is relabelled and re-rooted.
+Runner and assignment roots belong only to the forensic observation/reconciliation,
+while `research-claim-evidence-manifest.v1` binds
 the exact coordinate results without runner or completion-order fields.
+
+The lab runner transport can dispatch one such coordinate over its authenticated
+HTTP boundary. The standard rooted execution job/assignment binds the runner and
+uses the existing coordinate root as `:workload/root`; the transport envelope
+carries the existing plan, source result, descriptor, and coordinate assignment.
+The runner returns the existing rooted claim-evidence observation. No new
+distributed-analysis artifact or claim-evidence status is introduced. A realized
+reachability artifact records the actual request/response path; local HTTP tests
+exercise the route, while cross-host equivalence remains a separate qualification
+step. A single coordinate was also sent to the authorized remote host through a
+temporary SSH port-forward and returned the exact local observation root; the
+host's direct runner port was not publicly reachable, so no public port was
+opened. A two-runner HTTP schedule dispatches coordinates in reverse completion
+order and assigns them differently from local collection; it produces the same
+semantic evidence manifest, analysis output, verification, and claim roots while
+retaining a different forensic reconciliation root. A full multi-coordinate
+aggregate over the remote host remains to be qualified.
 
 `build-output-from-evidence` first performs checked exact reconciliation and
 then supplies the semantic manifest root to the existing
@@ -986,6 +1009,27 @@ separate nominal assessment layer. The existing generic verifier does not
 independently inspect the new manifest body: its assurance is the pre-output
 adapter's checked reconciliation plus the established output/root binding,
 not a new verifier proof contract.
+
+## Independent recomputation qualification fixture
+
+`reproduction-input.v1`, `reproduction-execution.v1`, and
+`reproduction-evidence.v1` establish a separate, deliberately small evidence
+mode. The reference computation is a deterministic integer affine reduction
+with a declared threshold. Input contains only the operand vectors, threshold,
+result-descriptor root, and case root. Its execution is bound to the existing
+`research-implementation-identity.v1`, runs without any expected or original
+result, and records a newly computed canonical result.
+
+Only after that fresh execution does comparison accept an authoritative
+recorded result. It emits `:reproduced`, `:counterexample-found`, `:failed`, or
+`:not-comparable`; disagreement retains the newly computed result and a witness
+root. Input/implementation substitutions change execution identity. Runner,
+host, duration, assignment, and completion order are absent from semantic
+execution identity and belong to future forensic scheduling evidence. This is
+a reference/qualification fixture, not substantive research evidence and not
+a change to `verify-output`, claim derivation, or acceptance. A later distinct
+implementation may reuse the same input/result comparison semantics, but needs
+its own implementation identity; no organizational-independence claim is made.
 
 ## Exact coordinate interactions
 
@@ -1318,3 +1362,12 @@ completed evidence remains historical and may be retained while the next
 stage—result delivery—is stopped. Cancellation cannot retroactively erase an
 observed execution. Runtime-only adapter hooks exercise these cutpoints in the
 qualification suite; they are not rooted scheduler policy fields.
+
+### Real analysis-engine reproduction
+
+The existing exact coordinate-interaction engine now supports fresh
+same-implementation reproduction with canonical input, source-bound implementation
+identity, structured output, post-execution comparison and generic forensic linkage.
+The affine qualification semantics remain frozen. See
+[the candidate audit and evidence boundaries](REAL_ENGINE_REPRODUCTION.md) and
+`resources/research/interaction-reproduction.edn` for the recorded real-engine fixture.

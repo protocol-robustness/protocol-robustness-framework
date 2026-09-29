@@ -15,6 +15,60 @@
 (def transport-secret "research-lab-test-secret")
 (defn- root [n] (str "sha256:" (format "%064x" n)))
 
+(defn- launch-runner-process [config]
+  (let [configuration-file (java.io.File/createTempFile "prf-runner-process-config-" ".edn")
+        ready-file (java.io.File/createTempFile "prf-runner-process-ready-" ".edn")
+        log-file (java.io.File/createTempFile "prf-runner-process-log-" ".txt")
+        _ready-deleted (.delete ready-file)
+        _configuration-written (spit configuration-file (pr-str config))
+        builder (doto (ProcessBuilder.
+                       ^java.util.List
+                       ["clojure" "-M:test" "-m"
+                        "resolver-sim.research.runner-process-fixture"
+                        (.getAbsolutePath configuration-file)
+                        (.getAbsolutePath ready-file)])
+                  (.directory (java.io.File. (System/getProperty "user.dir")))
+                  (.redirectErrorStream true)
+                  (.redirectOutput log-file))
+        process (.start builder)]
+    {:process process :configuration-file configuration-file
+     :ready-file ready-file :log-file log-file}))
+
+(defn- await-file [file log-file process timeout-ms]
+  (let [deadline (+ (System/currentTimeMillis) timeout-ms)]
+    (loop []
+      (cond
+        (.exists file) (clojure.edn/read-string (slurp file))
+        (not (.isAlive process))
+        (throw (ex-info "Runner child process exited before readiness"
+                        {:exit-code (.exitValue process)
+                         :log (slurp log-file)}))
+        (< deadline (System/currentTimeMillis))
+        (throw (ex-info "Timed out waiting for runner child process" {}))
+        :else (do (Thread/sleep 50) (recur))))))
+
+(defn- await-journal [state-file predicate timeout-ms]
+  (let [deadline (+ (System/currentTimeMillis) timeout-ms)]
+    (loop []
+      (let [journal (when (.exists state-file)
+                      (try (clojure.edn/read-string (slurp state-file))
+                           (catch Exception _ nil)))]
+        (cond
+          (and journal (predicate journal)) journal
+          (< deadline (System/currentTimeMillis))
+          (throw (ex-info "Timed out waiting for runner journal state"
+                          {:journal journal}))
+          :else (do (Thread/sleep 50) (recur)))))))
+
+(defn- stop-process! [process]
+  (when (.isAlive process)
+    (.destroyForcibly process)
+    (.waitFor process)))
+
+(defn- delete-process-fixtures! [{:keys [configuration-file ready-file log-file]}]
+  (doseq [file [configuration-file ready-file log-file]]
+    (.delete ^java.io.File file)))
+
 (defn- accounting-request-and-plan [base]
   (let [contract (accounting/build-reduction-contract)
         source (fn [n category value]
@@ -478,6 +532,95 @@
           (transport/stop-runner! restarted)
           (transport/stop-coordinator! coordinator)
           (.delete state-file))))))
+
+(deftest child-jvm-crash-after-completion-redelivers-without-reexecution
+  (let [fixture (anvil-fixture/observed-run-proof-input)
+        work (:observed-execution-work fixture)
+        job (:work/job work)
+        assignment (:work/assignment work)
+        participant (:work/runner-participation work)
+        work-root (:research-observed-execution-work/root work)
+        state-file (java.io.File/createTempFile "prf-runner-subprocess-state-" ".edn")
+        first-runner (atom nil) restarted (atom nil)
+        first-info (atom nil)
+        second-info (atom nil)
+        endpoint {:transport/base-url "http://127.0.0.1:1"
+                  :transport/auth-secret transport-secret
+                  :transport/request-timeout-ms 100}]
+    (.delete state-file)
+    (try
+      (reset! first-info
+              (launch-runner-process
+               {:runner-participation participant :auth-secret transport-secret
+                :state-path (.getAbsolutePath state-file)
+                :coordinator-root coordinator-root :coordinator-endpoint endpoint
+                :recovery-logical-cutpoint 5}))
+      (reset! first-runner @first-info)
+      (let [ready (await-file (:ready-file @first-info) (:log-file @first-info)
+                              (:process @first-info) 60000)]
+      (let [delivery (transport/deliver-job!
+                      {:coordinator-root coordinator-root
+                       :endpoint {:transport/base-url
+                                  (:runner/base-url ready)
+                                  :transport/auth-secret transport-secret
+                                  :transport/request-timeout-ms 30000}
+                       :job job :assignment assignment :execution-work work
+                       :logical-cutpoint 6})
+            completed (await-journal
+                       state-file #(= :unreachable
+                                      (get-in % [:runner-runtime/state :completed-work
+                                                 work-root :result-delivery :delivery/status]))
+                       60000)]
+        (is (= :accepted (:delivery/status delivery)))
+        (is (= :completed
+               (get-in completed [:runner-runtime/state :work-states work-root :work/status])))
+        (is (= 1 (count (filter #(= :execution-started (:work/event %))
+                                (get-in completed [:runner-runtime/state :work-states
+                                                   work-root :work/history])))))
+        (stop-process! (:process @first-runner))))
+      (let [coordinator (transport/start-coordinator!
+                         {:coordinator-root coordinator-root :assignments [assignment]
+                          :auth-secret transport-secret})]
+        (try
+          (reset! second-info
+                  (launch-runner-process
+                   {:runner-participation participant :auth-secret transport-secret
+                    :state-path (.getAbsolutePath state-file)
+                    :coordinator-root coordinator-root
+                    :coordinator-endpoint
+                    (transport/coordinator-endpoint coordinator transport-secret 30000)
+                    :recovery-logical-cutpoint 10}))
+          (reset! restarted @second-info)
+          (is (:runner/ready?
+               (await-file (:ready-file @second-info) (:log-file @second-info)
+                           (:process @second-info) 60000)))
+          (let [journal (await-journal
+                         state-file #(= :result-acknowledged
+                                        (get-in % [:runner-runtime/state :work-states
+                                                   work-root :work/status]))
+                         30000)
+                completed (get-in journal [:runner-runtime/state :completed-work work-root])
+                evidence (:observed-run-evidence completed)
+                coordinator-state (transport/coordinator-state coordinator)]
+            (is (= [:unreachable :accepted]
+                   (mapv :delivery/status (:result-deliveries completed))))
+            (is (= 1 (count (:observed-results coordinator-state))))
+            (is (= evidence
+                   (get-in coordinator-state
+                           [:observed-results
+                            (:research-observed-run-evidence/root evidence)
+                            :observed-run-evidence])))
+            (is (= 1 (count (filter #(= :execution-started (:work/event %))
+                                    (get-in journal [:runner-runtime/state :work-states
+                                                     work-root :work/history]))))))
+          (finally (stop-process! (:process @restarted))
+                   (transport/stop-coordinator! coordinator))))
+      (finally
+        (when-let [process (:process @first-runner)] (stop-process! process))
+        (when-let [process (:process @restarted)] (stop-process! process))
+        (.delete ^java.io.File state-file)
+        (when @first-info (delete-process-fixtures! @first-info))
+        (when @second-info (delete-process-fixtures! @second-info))))))
 
 (deftest persisted-interruption-and-cancellation-follow-safe-recovery-rules
   (let [fixture (anvil-fixture/observed-run-proof-input)

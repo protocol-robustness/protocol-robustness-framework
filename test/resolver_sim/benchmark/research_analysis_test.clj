@@ -10,7 +10,10 @@
             [resolver-sim.hash.canonical :as hc]
             [resolver-sim.hash.reference :as hash-ref]
             [resolver-sim.research.claim-evidence-work :as claim-work]
-            [resolver-sim.research.runner-participation :as participation]))
+            [resolver-sim.research.runner-participation :as participation]
+            [resolver-sim.research.remote-execution :as remote]
+            [resolver-sim.research.remote-execution-test :as remote-fixture]
+            [resolver-sim.research.runner-transport :as transport]))
 
 (defn- root [label]
   (hash-ref/sha256-ref (hc/domain-hash :evidence-record {:label label})))
@@ -419,3 +422,258 @@
            (get-in classification [:evidence/value :result/witness-root])))
     (is (= :counterexample-found
            (get-in claim [:claim :research-claim/status])))))
+
+(deftest claim-evidence-rejects-complete-but-mixed-source-coordinates
+  (let [context (fixture)
+        descriptor (claim-descriptor)
+        supported (:analysis-output/result (output context :supported))
+        counterexample (:analysis-output/result
+                        (output context :counterexample-found))
+        proposition :claim/incentive-compatibility
+        supported-plan (claim-work/build-plan context proposition descriptor supported)
+        counterexample-plan (claim-work/build-plan context proposition descriptor
+                                                   counterexample)
+        runner (claim-runner 1)
+        supported-work (collect-claim-evidence context descriptor supported
+                                               supported-plan [runner])
+        counterexample-work (collect-claim-evidence context descriptor counterexample
+                                                   counterexample-plan [runner])
+        classification-coordinate
+        (first (filter #(= :result-classification (:evidence/role %))
+                       (claim-work/coordinates supported-plan)))
+        foreign-coordinate
+        (first (filter #(= :result-classification (:evidence/role %))
+                       (claim-work/coordinates counterexample-plan)))
+        foreign-observation
+        (get (:ingestion counterexample-work)
+             (:research-claim-evidence-coordinate/root foreign-coordinate))
+        target-coordinate-root (:research-claim-evidence-coordinate/root
+                                classification-coordinate)
+        foreign-semantic
+        (assoc (:evidence/semantic-result foreign-observation)
+               :research-claim-evidence-coordinate/root target-coordinate-root)
+        foreign-semantic
+        (assoc foreign-semantic
+               :research-claim-evidence-coordinate-result/root
+               (hash-ref/sha256-ref
+                (hc/domain-hash
+                 :research-claim-evidence-coordinate-result-v1
+                 (dissoc foreign-semantic
+                         :research-claim-evidence-coordinate-result/root))))
+        mixed-observation
+        (assoc foreign-observation
+               :research-claim-evidence-plan/root
+               (:research-claim-evidence-plan/root supported-plan)
+               :research-claim-evidence-coordinate/root target-coordinate-root
+               :evidence/semantic-result foreign-semantic)
+        mixed-observation
+        (assoc mixed-observation
+               :research-claim-evidence-observation/root
+               (hash-ref/sha256-ref
+                (hc/domain-hash
+                 :research-claim-evidence-observation-v1
+                 (dissoc mixed-observation
+                         :research-claim-evidence-observation/root))))
+        mixed-ingestion (assoc (:ingestion supported-work)
+                               target-coordinate-root mixed-observation)]
+    ;; Every coordinate is present and each submitted observation is rooted,
+    ;; but a genuine counterexample classification from another result cannot
+    ;; be relabelled as part of the supported result's evidence set.
+    (is (= 3 (count mixed-ingestion)))
+    (is (= :contradicting
+           (get-in mixed-observation
+                   [:evidence/semantic-result :evidence/status])))
+    (is (thrown? clojure.lang.ExceptionInfo
+                 (claim-work/reconcile
+                  context proposition descriptor supported supported-plan
+                  (:assignments supported-work) [runner] mixed-ingestion)))))
+
+(deftest rooted-claim-coordinate-transports-through-runner-http
+  (let [context (fixture)
+        descriptor (claim-descriptor)
+        result (:analysis-output/result (output context :supported))
+        proposition :claim/incentive-compatibility
+        plan (claim-work/build-plan context proposition descriptor result)
+        participant
+        (participation/build-participation
+         {:runner-reference (root :http-claim-runner)
+          :disclosure-mode :pseudonymous :site-id :site/claim-http
+          :opted-in? true :available? true
+          :capabilities [:capability/claim-evidence :capability/anvil]
+          :job-classes [:job/research-claim-evidence]
+          :environment-kinds [:execution-environment/local :anvil]
+          :qualification-references [remote-fixture/qualification-root]})
+        coordinate-assignment (claim-work/steal-next plan participant [])
+        coordinate-root (:research-claim-evidence-coordinate/root
+                         coordinate-assignment)
+        environment (remote-fixture/anvil-environment)
+        execution-policy
+        (remote-fixture/execution-policy
+         {:objective :fastest :required-runs 1 :required-matching-runs 1
+          :distinct-by [] :repeat-runner-policy :permitted})
+        job (remote/build-job
+             {:job-class :job/research-claim-evidence
+              :workload-root coordinate-root
+              :distributed-profile-root
+              (:distributed-experiment-profile/root
+               (remote-fixture/local-profile))
+              :distributed-policy-root
+              (:distributed-scheduler-policy/root
+               remote-fixture/distributed-policy-artifact)
+              :execution-environment-root
+              (:research-execution-environment/root environment)
+              :execution-policy-root
+              (:research-execution-policy/root execution-policy)})
+        job-assignment (remote/steal-next job environment execution-policy
+                                         participant [])
+        wrong-workload-job
+        (let [changed (assoc job :workload/root (root :different-coordinate))]
+          (assoc changed :research-execution-job/root (remote/job-root changed)))
+        wrong-workload-assignment
+        (remote/steal-next wrong-workload-job environment execution-policy
+                            participant [])
+        claim-payload {:context context :proposition-id proposition
+                       :descriptor descriptor :result result :plan plan
+                       :coordinate-assignment coordinate-assignment
+                       :runner-participation participant}
+        local-observation (claim-work/observe context proposition descriptor result
+                                              plan coordinate-assignment participant)
+        remote-url (System/getenv "PRF_CLAIM_EVIDENCE_RUNNER_URL")
+        runner (when-not remote-url
+                 (transport/start-runner!
+                  {:runner-participation participant
+                   :auth-secret "claim-evidence-test"}))
+        runner-url (or remote-url (:transport/base-url runner))]
+    (try
+      (let [delivered (transport/deliver-claim-evidence-coordinate!
+                       {:coordinator-root (root :claim-coordinator)
+                        :endpoint {:transport/base-url runner-url
+                                   :transport/auth-secret "claim-evidence-test"}
+                        :job job :assignment job-assignment
+                        :claim-evidence-work claim-payload :logical-cutpoint 11})
+            observation (:research-claim-evidence-observation delivered)]
+        (is (= :accepted (:delivery/status delivered)))
+        (is (= local-observation observation))
+        (is (= coordinate-root
+               (:research-claim-evidence-coordinate/root observation)))
+        (is (= :realized
+               (get-in delivered [:reachability
+                                  :reachability/outcome])))
+        (is (thrown? clojure.lang.ExceptionInfo
+                     (transport/deliver-claim-evidence-coordinate!
+                      {:coordinator-root (root :claim-coordinator)
+                       :endpoint {:transport/base-url runner-url
+                                  :transport/auth-secret "claim-evidence-test"}
+                       :job wrong-workload-job :assignment wrong-workload-assignment
+                       :claim-evidence-work claim-payload :logical-cutpoint 12}))))
+      (finally (when runner (transport/stop-runner! runner))))))
+
+(deftest local-and-http-coordinate-schedules-preserve-semantic-roots
+  (let [context (fixture)
+        descriptor (claim-descriptor)
+        result (:analysis-output/result (output context :supported))
+        proposition :claim/incentive-compatibility
+        plan (claim-work/build-plan context proposition descriptor result)
+        participant
+        (fn [label site]
+          (participation/build-participation
+           {:runner-reference (root label) :disclosure-mode :pseudonymous
+            :site-id site :opted-in? true :available? true
+            :capabilities [:capability/claim-evidence :capability/anvil]
+            :job-classes [:job/research-claim-evidence]
+            :environment-kinds [:execution-environment/local :anvil]
+            :qualification-references [remote-fixture/qualification-root]}))
+        runner-a (participant :equivalence-runner-a :site/equivalence-a)
+        runner-b (participant :equivalence-runner-b :site/equivalence-b)
+        participants [runner-a runner-b]
+        local-work (collect-claim-evidence context descriptor result plan participants)
+        local-reconciled (claim-work/reconcile
+                          context proposition descriptor result plan
+                          (:assignments local-work) participants (:ingestion local-work))
+        local-claim (claim-from-evidence context descriptor result plan local-work participants)
+        remote-runners
+        (mapv #(transport/start-runner!
+                {:runner-participation % :auth-secret "claim-equivalence-test"})
+              participants)
+        runner-by-root (into {} (map (juxt #(get-in % [:runner-participation
+                                                       :runner-participation/root])
+                                           identity)
+                                     remote-runners))
+        remote-coordinate-assignments
+        (loop [coordinates (claim-work/coordinates plan) assignments [] result []]
+          (if (seq coordinates)
+            (let [target (nth [runner-b runner-a runner-b] (count assignments))
+                  assigned (claim-work/steal-next plan target assignments)]
+              (recur (next coordinates) (conj assignments assigned)
+                     (conj result assigned)))
+            result))
+        environment (remote-fixture/anvil-environment)
+        execution-policy
+        (remote-fixture/execution-policy
+         {:objective :fastest :required-runs 1 :required-matching-runs 1
+          :distinct-by [] :repeat-runner-policy :permitted})
+        profile (remote-fixture/local-profile)
+        distributed-policy-root
+        (:distributed-scheduler-policy/root remote-fixture/distributed-policy-artifact)]
+    (try
+      (let [{remote-assignments :assignments remote-ingestion :ingestion}
+            (reduce
+             (fn [{:keys [assignments ingestion]} coordinate-assignment]
+               (let [target-participant
+                     (first (filter #(= (:runner-participation/root %)
+                                        (:runner-participation/root coordinate-assignment))
+                                    participants))
+                     coordinate-root
+                     (:research-claim-evidence-coordinate/root coordinate-assignment)
+                     job (remote/build-job
+                          {:job-class :job/research-claim-evidence
+                           :workload-root coordinate-root
+                           :distributed-profile-root
+                           (:distributed-experiment-profile/root profile)
+                           :distributed-policy-root distributed-policy-root
+                           :execution-environment-root
+                           (:research-execution-environment/root environment)
+                           :execution-policy-root
+                           (:research-execution-policy/root execution-policy)})
+                     job-assignment
+                     (remote/steal-next job environment execution-policy
+                                        target-participant [])
+                     participant-root (:runner-participation/root target-participant)
+                     runner (get runner-by-root participant-root)
+                     returned
+                     (transport/deliver-claim-evidence-coordinate!
+                      {:coordinator-root (root :claim-equivalence-coordinator)
+                       :endpoint {:transport/base-url (:transport/base-url runner)
+                                  :transport/auth-secret "claim-equivalence-test"}
+                       :job job :assignment job-assignment
+                       :claim-evidence-work
+                       {:context context :proposition-id proposition
+                        :descriptor descriptor :result result :plan plan
+                        :coordinate-assignment coordinate-assignment
+                        :runner-participation target-participant}
+                       :logical-cutpoint (inc (count assignments))})]
+                 (is (= :accepted (:delivery/status returned)))
+                 {:assignments (conj assignments coordinate-assignment)
+                  :ingestion (claim-work/ingest
+                              ingestion
+                              (:research-claim-evidence-observation returned))}))
+             {:assignments [] :ingestion {}}
+             (reverse remote-coordinate-assignments))
+            remote-reconciled (claim-work/reconcile
+                               context proposition descriptor result plan
+                               remote-assignments participants remote-ingestion)
+            remote-work {:assignments remote-assignments :ingestion remote-ingestion}
+            remote-claim (claim-from-evidence context descriptor result plan
+                                              remote-work participants)]
+        (is (= (get-in local-reconciled
+                       [:semantic-evidence :research-claim-evidence-manifest/root])
+               (get-in remote-reconciled
+                       [:semantic-evidence :research-claim-evidence-manifest/root])))
+        (is (not= (:forensic-reconciliation local-reconciled)
+                  (:forensic-reconciliation remote-reconciled)))
+        (is (= (:output local-claim) (:output remote-claim)))
+        (is (= (:verification local-claim) (:verification remote-claim)))
+        (is (= (:claim local-claim) (:claim remote-claim))))
+      (finally
+        (doseq [runner remote-runners]
+          (transport/stop-runner! runner))))))
