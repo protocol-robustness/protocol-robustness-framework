@@ -85,6 +85,26 @@
                 :accounting/sources sources}]
       (assoc body :accounting-request/root (request-root body)))))
 
+(defn valid-request?
+  "Validate the immutable source basis without treating a symbolic accounting
+   version as sufficient provenance."
+  [request]
+  (and (= request-schema (:artifact/schema request))
+       (qualified-keyword? (:accounting/domain request))
+       (every? root? [(:accounting/cutpoint-root request)
+                      (:accounting-definition/root request)
+                      (:accounting-policy/root request)
+                      (:accounting-reduction-contract/root request)])
+       (vector? (:accounting/sources request))
+       (seq (:accounting/sources request))
+       (= (:accounting/sources request)
+          (vec (sort-by :source/root (:accounting/sources request))))
+       (every? valid-source? (:accounting/sources request))
+       (= (count (:accounting/sources request))
+          (count (set (map :source/root (:accounting/sources request)))))
+       (= (:accounting-request/root request)
+          (try (request-root request) (catch Exception _ nil)))))
+
 (defn serial-values
   "Authoritative serial fold for the one supported V1 operation."
   [request]
@@ -148,6 +168,31 @@
                 :partition/coverage :complete-exactly-once}]
       (assoc body :accounting-partition-plan/root (partition-plan-root body)))))
 
+(defn valid-partition-plan?
+  [request plan]
+  (and (valid-request? request)
+       (= partition-plan-schema (:artifact/schema plan))
+       (= (:accounting-request/root request) (:accounting-request/root plan))
+       (= (:accounting-reduction-contract/root request)
+          (:accounting-reduction-contract/root plan))
+       (vector? (:partition/work-units plan))
+       (seq (:partition/work-units plan))
+       (= (:accounting-partition-plan/root plan)
+          (try (partition-plan-root plan) (catch Exception _ nil)))
+       (let [units (:partition/work-units plan)
+             sources (mapcat :partition/source-roots units)]
+         (and (every? #(and (= work-unit-schema (:artifact/schema %))
+                            (= (:accounting-request/root request)
+                               (:accounting-request/root %))
+                            (= (:accounting-work-unit/root %)
+                               (try (work-unit-root %) (catch Exception _ nil)))
+                            (integer? (:partition/index %))
+                            (not (neg? (:partition/index %)))) units)
+              (= (count units) (count (set (map :partition/index units))))
+              (= (set (map :source/root (:accounting/sources request)))
+                 (set sources))
+              (= (count sources) (count (set sources)))))))
+
 (defn partial-root [partial]
   (root :accounting-partial-result-v1
         (dissoc partial :accounting-partial-result/root)))
@@ -164,7 +209,10 @@
          :partition/source-roots (:partition/source-roots partial)
          :accounting/values (:accounting/values partial)}))
 
-(defn- expected-partial-values [request work-unit]
+(defn partial-values
+  "Canonical values for one declared partition. This is intentionally the
+   closed V1 sum-by-category operation, not an inferred generic reduction."
+  [request work-unit]
   (let [source-map (into {} (map (juxt :source/root identity)
                                  (:accounting/sources request)))]
     (reduce (fn [m source-root]
@@ -181,7 +229,7 @@
           (:accounting-work-unit/root partial))
        (= (:partition/index work-unit) (:partition/index partial))
        (= (:partition/source-roots work-unit) (:partition/source-roots partial))
-       (= (expected-partial-values request work-unit) (:accounting/values partial))
+       (= (partial-values request work-unit) (:accounting/values partial))
        (integer-map? (:accounting/values partial))
        (every? root? [(:research-run-assurance-evidence/root partial)
                       (:research-implementation-identity/root partial)
@@ -194,7 +242,7 @@
 (defn build-partial-result
   [{:keys [request work-unit values run-assurance-root implementation-root
            runner-reference resolved-dependency-set-root execution-environment-root]}]
-  (let [expected-values (expected-partial-values request work-unit)]
+  (let [expected-values (partial-values request work-unit)]
     (when-not (and (= (:accounting-request/root request)
                       (:accounting-request/root work-unit))
                    (= values expected-values) (integer-map? values)

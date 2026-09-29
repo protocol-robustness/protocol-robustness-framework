@@ -23,7 +23,12 @@
     :parameters {:custody 1000 :recognized-loss 0 :observed-balances 700}}
    {:experiment "pro-rata-allocation.v1"
     :parameters {:available 1000 :alice-requested 500 :bob-requested 300
-                 :carol-requested 200 :rounding-policy "largest-remainder"}}])
+                 :carol-requested 200 :rounding-policy "largest-remainder"}}
+   {:experiment "pro-rata-allocation.v1"
+    :parameters {:available 1 :alice-requested 3 :bob-requested 3
+                 :carol-requested 2 :cap-alice 1
+                 :rounding-policy "floor"
+                 :redistribution-policy "unallocated"}}])
 
 (defn- run-in-process [request]
   (runner/execute request (runner/generate-run-id)))
@@ -125,15 +130,17 @@
 (deftest evidence-correspondence-pro-rata-findings-match-engine
   ;; Findings reported by the lab are the pro-rata engine's own
   ;; invariant violations, not lab-recomputed checks.
-  (doseq [req [(nth requests 1) (nth requests 4)]]
+  (doseq [req [(nth requests 4) (nth requests 5)]]
     (let [result (run-in-process req)
           params (get-in result [:inputs])
           available (long (or (:available params) (:available-liquidity params)))
           requested (mapv long [(or (:alice-requested params) 0)
                                 (or (:bob-requested params) 0)
                                 (or (:carol-requested params) 0)])
-          rows (mapv (fn [[id n]] {:row/id id :obligation/id :claim
-                                   :requested n :weight n :cap n})
+          rows (mapv (fn [[id n]] (cond-> {:row/id id :obligation/id :claim
+                                           :requested n :weight n}
+                                    (and (= id :party/alice) (:cap-alice params))
+                                    (assoc :cap (long (:cap-alice params)))))
                      [[:party/alice (nth requested 0)]
                       [:party/bob (nth requested 1)]
                       [:party/carol (nth requested 2)]])
@@ -143,15 +150,44 @@
                           :allocation/id [:test]
                           :available available
                           :rows rows
-                          :rounding-policy :largest-remainder
+                          :rounding-policy (keyword (or (:rounding-policy params)
+                                                         "largest-remainder"))
                           :tie-break-policy :canonical-row-id
-                          :redistribution-policy :unallocated})
+                          :redistribution-policy
+                          (keyword (or (:redistribution-policy params) "unallocated"))})
           violations (invariants/result-violations engine-result)
           reported-findings (:findings result)
-          prf-findings (filter #(= :prf (:findings/origin %)) reported-findings)]
-      (is (seq prf-findings))
+          prf-findings (filter #(= :prf (:findings/origin %)) reported-findings)
+          finding-prefixes
+          {:pro-rata/request-hash "request-hash"
+           :pro-rata/allocation-hash "allocation-hash"
+           :pro-rata/cap-respecting "cap-respecting"
+           :pro-rata/quota-bounded "quota-bounded"
+           :pro-rata/residual-reason "residual-"
+           :pro-rata/aggregate-conservation "aggregate-conservation"
+           :pro-rata/round-trace "round-trace"
+           :pro-rata/fractional-remainder "fractional-remainder"
+           :pro-rata/canonical-remainder-assignment "canonical-remainder-assignment"}
+          expected-finding-ids (set (keys finding-prefixes))
+          findings-by-id (into {} (map (juxt :findings/id identity)) prf-findings)
+          unreported-violation-families
+          (for [violation violations
+                :let [reason (name (:reason violation))]
+                :when (not-any? (fn [[id prefix]]
+                                  (and (contains? expected-finding-ids id)
+                                       (clojure.string/starts-with? reason prefix)))
+                                finding-prefixes)]
+            (:reason violation))]
+      (is (= expected-finding-ids (set (keys findings-by-id))))
+      (is (empty? unreported-violation-families)
+          (str "engine violation families without findings: " unreported-violation-families))
+      (is (empty? violations) (str "engine violations: " violations))
       (is (every? #(= :pass (:findings/status %)) prf-findings)
-          (str "engine violations: " (count violations))))))
+          (str "non-passing PRF findings: " (filter #(not= :pass (:findings/status %)) prf-findings)))
+      (when (= "floor" (:rounding-policy params))
+        (is (pos? (:unallocated-residual engine-result)))
+        (is (= (:unallocated-residual engine-result)
+               (get-in result [:outcome :unallocated-residual])))))))
 
 (deftest execution-error-carries-reference-not-stack
   (let [result (runner/execute {:experiment "pro-rata-allocation.v1"

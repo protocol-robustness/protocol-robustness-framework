@@ -66,9 +66,61 @@ chooses between competing results nor establishes primitive validity or
 application authority; it simply makes a future remote observed executor able
 to return its existing forensic artifacts without a second result format.
 
-This phase still does not execute work remotely or send accounting partitions;
-its assignment and observed-result envelopes are intentionally compatible with
-those future work units.
+The adapter now dispatches observed-Anvil work and rooted accounting partitions
+through the same envelopes. It remains a research transport: neither endpoint
+establishes runner independence, attestation, or application authority.
+
+### Small durable runner recovery journal
+
+`start-runner!` optionally accepts runtime-only `:state-path`. The local EDN
+journal atomically retains accepted jobs/assignments, work bundles, work-state
+and attempt history, cancellation state, completed evidence, and every result
+delivery attempt. It is a durable runtime record of existing rooted artifacts,
+not a new canonical result or distributed database.
+
+Recovery uses fixed state rules:
+
+```text
+never started / accepted  -> eligible for a later valid delivery
+executing at process loss  -> :interrupted; fresh isolated retry only on redelivery
+completed, unacknowledged -> redeliver exact retained evidence; never re-execute
+result acknowledged       -> terminal
+cancelled                 -> never resurrect work
+```
+
+On startup, the runner marks incomplete execution attempts as interrupted and,
+when a coordinator endpoint is configured, retries only retained unreachable
+result deliveries. A recovery logical cutpoint is explicitly supplied as
+runtime configuration; PID, port, filesystem path, and wall time remain outside
+semantic roots.
+
+### Causal runner reconstruction
+
+The journal is only recovery storage. Its forensic facts are projected as
+ordinary typed nodes in the existing `resolver-sim.evidence.forensic-graph`
+DAG and retained with the journal so they survive restart. There is no
+runner-specific authoritative audit log.
+
+```text
+accepted assignment delivery
+  → execution start
+  → observed completion
+  → result post / redelivery
+  → coordinator acknowledgement
+```
+
+Cancellation observation and restart interruption are separate causal branches.
+`forensic-reconstruction` composes the generic DAG validator with runner
+obligations. It rejects execution without accepted assignment, result/post
+without execution completion, retry without a prior unacknowledged attempt,
+execution after terminal cancellation, duplicate successful execution of one
+exclusive work item, assignment/result substitution, and a completed local
+result with no recorded result-delivery attempt. These checks use roots and
+causal parents, not runtime log order or wall-clock timestamps.
+
+When supplied the coordinator state as well, reconstruction additionally binds
+each recorded acknowledgement to that coordinator's exact assignment,
+observed-run root, and run-assurance root.
 
 ### Dispatched observed-Anvil work
 
@@ -686,6 +738,64 @@ usable by the existing whole-job work-stealing seam. The scheduler may use a
 work-unit root as a job workload root; work stealing does not change its
 semantic contents.
 
+### Distributed accounting-partition execution
+
+`research-accounting-execution-work.v1` is the narrow transport adapter for a
+partition. It binds one immutable accounting request, partition plan and work
+unit to an existing rooted observed-execution work bundle. A participating
+runner can receive it through the ordinary authenticated runner transport,
+produce observed run/assurance evidence, and return an
+`accounting-partial-result.v1`. The coordinator validates the returned partial
+against the frozen request and unit, ingests it by work-unit root, and retains
+the observed result separately from the semantic accounting contribution.
+
+The adapter does not introduce another reduction or assert that the Anvil
+action itself computes accounting values. V1 values remain the declared
+sum-by-category projection of the frozen source set. The observed execution
+binds the distributed runner, implementation, dependency closure, environment,
+and assurance evidence around that calculation. Two independent runners can
+return distinct forensic partials for distinct units; reconciliation still
+requires exact coverage of every plan unit before forming a canonical global
+accounting result.
+
+### Next accounting qualification: appeal bonds and fine-grained evidence work
+
+The first domain fixture for broader partitioned accounting should be the
+appeal-bond lifecycle. Existing held-position policy classifies posted,
+returned, distributed, slashed, and forfeited movements under `:appeal-bond`
+with slash, bond, workflow, and actor scope. Withdrawal ledger rows, held
+custody adjustments, custodian positions, and incentive-related source entries
+may also supply frozen accounting inputs where their own authoritative
+projections and validation rules exist. These entries must be sourced from
+canonical records and retain their source roots; category names alone do not
+establish valid economic state.
+
+The accounting qualification flow is: frozen source set and definition,
+deterministic disjoint partition plan, one rooted assignment per attempted
+partition execution, independently observed run evidence, a validated partial
+for each partition, unit-local assurance evaluation, exact admitted partition
+set, then deterministic reconciliation. The aggregate is unavailable while
+any required partition lacks an admitted semantic partial. Independent runs
+may corroborate one partition without creating extra accounting contributions.
+Incentive-target qualification for a runner's contribution and accounting of
+incentive/bond economic entries are separate downstream subjects; neither
+grants payment authority through this research transport.
+
+Fine-grained work stealing may operate on canonical word spans for evidence
+extraction from bond or withdrawal documents. Such a work unit must bind the
+source artifact root, exact span boundary and tokenization/version, declared
+operation, and deterministic merge rule; overlap and omitted spans fail the
+coverage check. Extracted observations then require their ordinary claim,
+custody, or accounting admission checks. Word-level scheduling cannot split an
+order-sensitive bond lifecycle transition or change the canonical accounting
+primitive. Benchmark both span scheduling overhead and appeal-bond accounting
+cost before calling either a performance bottleneck.
+
+This domain qualification remains outstanding. The current two-partition
+HTTP fixture proves the generic accounting envelope and serial-equivalent
+reduction, but uses synthetic source rows and does not yet validate
+appeal-bond, withdrawal, custodian, or incentive source projections end to end.
+
 Each `accounting-partial-result.v1` binds its exact work unit and source roots
 to integer values, run-assurance evidence, implementation, runner, resolved
 dependencies, and environment. Reingesting the same rooted partial is an
@@ -1061,3 +1171,28 @@ statement, not EVM transition correctness, runner honesty, remote attestation,
 or application authority. The generic verifier-registry root is recorded as
 the selected verification context; this local command does not activate a
 production verifier or authority policy.
+
+## Runner recovery and cancellation qualification
+
+The lab transport uses at-least-once HTTP delivery with exactly-once semantic
+application. The runner's small durable runtime journal retains accepted
+assignments, work state/history, cancellation state, completed observed
+evidence, and result-delivery attempts. The coordinator has a similarly small
+runtime journal for immutable assignment/dispatch intent, dispatch attempts,
+and idempotently ingested observed results. Neither journal is a semantic
+result artifact or an alternative evidence system.
+
+On restart, an interrupted execution is recorded as `:interrupted` and may
+only receive a fresh isolated retry after valid redelivery. Completed work is
+never re-executed merely because the coordinator acknowledgement was lost:
+the exact retained observed/run-assurance evidence is redelivered. Conversely,
+a coordinator may retain a pending immutable dispatch while its runner is
+unavailable and retry it when that runner returns.
+
+Cancellation is evaluated at declared safe boundaries. Before acceptance or
+before a deferred work item begins, it prevents semantic execution. The Anvil
+operation itself is atomic: if cancellation is observed after that action, its
+completed evidence remains historical and may be retained while the next
+stage—result delivery—is stopped. Cancellation cannot retroactively erase an
+observed execution. Runtime-only adapter hooks exercise these cutpoints in the
+qualification suite; they are not rooted scheduler policy fields.

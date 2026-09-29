@@ -61,15 +61,18 @@
                     "allocation hash does not recompute")}
          {:id :pro-rata/cap-respecting :label "Cap respecting"}
          {:id :pro-rata/quota-bounded :label "Quota bounded"}
+         {:id :pro-rata/aggregate-conservation :label "Aggregate conservation"
+          :violation-prefix "aggregate-conservation"}
          {:id :pro-rata/residual-reason :label "Residual declared"
           :detail (:residual-reason result)}
          {:id :pro-rata/round-trace :label "Round trace conservation"}
          {:id :pro-rata/fractional-remainder :label "Fractional remainder total"}
          {:id :pro-rata/canonical-remainder-assignment :label "Canonical remainder assignment"
           :detail (:rounding-policy result)}]]
-    (mapv (fn [{:keys [id label detail]}]
+    (mapv (fn [{:keys [id label detail violation-prefix]}]
             (let [bad (->> violations
-                           (filter #(str/starts-with? (name (:reason %)) (name id)))
+                           (filter #(str/starts-with? (name (:reason %))
+                                                      (or violation-prefix (name id))))
                            first)]
               {:findings/id id
                :findings/status (if bad :fail :pass)

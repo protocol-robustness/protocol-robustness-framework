@@ -282,6 +282,7 @@
    :research-observed-fixed-validation-receipt-v1 "RESEARCH_OBSERVED_FIXED_VALIDATION_RECEIPT_V1"
    :research-observed-run-evidence-v1 "RESEARCH_OBSERVED_RUN_EVIDENCE_V1"
    :research-observed-execution-work-v1 "RESEARCH_OBSERVED_EXECUTION_WORK_V1"
+   :research-accounting-execution-work-v1 "RESEARCH_ACCOUNTING_EXECUTION_WORK_V1"
    :research-observed-run-proof-statement-v1 "RESEARCH_OBSERVED_RUN_PROOF_STATEMENT_V1"
    :anvil-runtime-code-v1 "ANVIL_RUNTIME_CODE_V1"
    :anvil-state-projection-v1 "ANVIL_STATE_PROJECTION_V1"
