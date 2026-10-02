@@ -44,9 +44,9 @@
         first-run (execute-all document plan [a b])
         second-run (execute-all document plan [b a])
         first-result (words/reconcile-words document plan (:assignments first-run)
-                                             [a b] (:ingestion first-run))
+                                            [a b] (:ingestion first-run))
         second-result (words/reconcile-words document plan (:assignments second-run)
-                                              [a b] (:ingestion second-run))
+                                             [a b] (:ingestion second-run))
         input {:accounting-domain :accounting-domain/declared-research-fixture
                :cutpoint-root (root 20)
                :accounting-definition-root (root 21)
@@ -131,9 +131,9 @@
                                         (assoc ingestion unit-root altered))))
     (let [other (second (vals ingestion))
           substituted (assoc one :word/index (:word/index other)
-                              :word/start (:word/start other)
-                              :word/end (:word/end other)
-                              :word/text (:word/text other))
+                             :word/start (:word/start other)
+                             :word/end (:word/end other)
+                             :word/text (:word/text other))
           substituted (assoc substituted :research-word-observation/root
                              ((deref #'resolver-sim.research.word-accounting/observation-root)
                               substituted))]

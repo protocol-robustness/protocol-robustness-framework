@@ -15,6 +15,60 @@
 (def transport-secret "research-lab-test-secret")
 (defn- root [n] (str "sha256:" (format "%064x" n)))
 
+(defn- launch-runner-process [config]
+  (let [configuration-file (java.io.File/createTempFile "prf-runner-process-config-" ".edn")
+        ready-file (java.io.File/createTempFile "prf-runner-process-ready-" ".edn")
+        log-file (java.io.File/createTempFile "prf-runner-process-log-" ".txt")
+        _ready-deleted (.delete ready-file)
+        _configuration-written (spit configuration-file (pr-str config))
+        builder (doto (ProcessBuilder.
+                       ^java.util.List
+                       ["clojure" "-M:test" "-m"
+                        "resolver-sim.research.runner-process-fixture"
+                        (.getAbsolutePath configuration-file)
+                        (.getAbsolutePath ready-file)])
+                  (.directory (java.io.File. (System/getProperty "user.dir")))
+                  (.redirectErrorStream true)
+                  (.redirectOutput log-file))
+        process (.start builder)]
+    {:process process :configuration-file configuration-file
+     :ready-file ready-file :log-file log-file}))
+
+(defn- await-file [file log-file process timeout-ms]
+  (let [deadline (+ (System/currentTimeMillis) timeout-ms)]
+    (loop []
+      (cond
+        (.exists file) (clojure.edn/read-string (slurp file))
+        (not (.isAlive process))
+        (throw (ex-info "Runner child process exited before readiness"
+                        {:exit-code (.exitValue process)
+                         :log (slurp log-file)}))
+        (< deadline (System/currentTimeMillis))
+        (throw (ex-info "Timed out waiting for runner child process" {}))
+        :else (do (Thread/sleep 50) (recur))))))
+
+(defn- await-journal [state-file predicate timeout-ms]
+  (let [deadline (+ (System/currentTimeMillis) timeout-ms)]
+    (loop []
+      (let [journal (when (.exists state-file)
+                      (try (clojure.edn/read-string (slurp state-file))
+                           (catch Exception _ nil)))]
+        (cond
+          (and journal (predicate journal)) journal
+          (< deadline (System/currentTimeMillis))
+          (throw (ex-info "Timed out waiting for runner journal state"
+                          {:journal journal}))
+          :else (do (Thread/sleep 50) (recur)))))))
+
+(defn- stop-process! [process]
+  (when (.isAlive process)
+    (.destroyForcibly process)
+    (.waitFor process)))
+
+(defn- delete-process-fixtures! [{:keys [configuration-file ready-file log-file]}]
+  (doseq [file [configuration-file ready-file log-file]]
+    (.delete ^java.io.File file)))
+
 (defn- accounting-request-and-plan [base]
   (let [contract (accounting/build-reduction-contract)
         source (fn [n category value]
@@ -121,56 +175,56 @@
 (deftest real-http-job-delivery-respects-distinct-runner-assignments
   (let [setup-data (setup)]
     (with-runners! setup-data (fn [runner-a runner-b]
-      (let [a (transport/deliver-job! {:coordinator-root coordinator-root
-                                       :endpoint (transport/coordinator-endpoint runner-a transport-secret)
-                                       :job (:job setup-data)
-                                       :assignment (:assignment-a setup-data)
-                                       :logical-cutpoint 1})
-            b (transport/deliver-job! {:coordinator-root coordinator-root
-                                       :endpoint (transport/coordinator-endpoint runner-b transport-secret)
-                                       :job (:job setup-data)
-                                       :assignment (:assignment-b setup-data)
-                                       :logical-cutpoint 2})]
-        (is (= :accepted (:delivery/status a)))
-        (is (= :accepted (:delivery/status b)))
-        (is (:reachability/realized? (:reachability a)))
-        (is (:reachability/realized? (:reachability b)))
-        (is (not= (:runner/reference (:assignment-a setup-data))
-                  (:runner/reference (:assignment-b setup-data))))
-        (is (not= (:transport/state runner-a) (:transport/state runner-b)))
-        (is (= (:assignment-a setup-data)
-               (get-in (transport/runner-state runner-a)
-                       [:assignments (:research-run-assignment/root
-                                      (:assignment-a setup-data))])))
-        (is (= (:assignment-b setup-data)
-               (get-in (transport/runner-state runner-b)
-                       [:assignments (:research-run-assignment/root
-                                      (:assignment-b setup-data))]))))))))
+                                (let [a (transport/deliver-job! {:coordinator-root coordinator-root
+                                                                 :endpoint (transport/coordinator-endpoint runner-a transport-secret)
+                                                                 :job (:job setup-data)
+                                                                 :assignment (:assignment-a setup-data)
+                                                                 :logical-cutpoint 1})
+                                      b (transport/deliver-job! {:coordinator-root coordinator-root
+                                                                 :endpoint (transport/coordinator-endpoint runner-b transport-secret)
+                                                                 :job (:job setup-data)
+                                                                 :assignment (:assignment-b setup-data)
+                                                                 :logical-cutpoint 2})]
+                                  (is (= :accepted (:delivery/status a)))
+                                  (is (= :accepted (:delivery/status b)))
+                                  (is (:reachability/realized? (:reachability a)))
+                                  (is (:reachability/realized? (:reachability b)))
+                                  (is (not= (:runner/reference (:assignment-a setup-data))
+                                            (:runner/reference (:assignment-b setup-data))))
+                                  (is (not= (:transport/state runner-a) (:transport/state runner-b)))
+                                  (is (= (:assignment-a setup-data)
+                                         (get-in (transport/runner-state runner-a)
+                                                 [:assignments (:research-run-assignment/root
+                                                                (:assignment-a setup-data))])))
+                                  (is (= (:assignment-b setup-data)
+                                         (get-in (transport/runner-state runner-b)
+                                                 [:assignments (:research-run-assignment/root
+                                                                (:assignment-b setup-data))]))))))))
 
 (deftest authentication-failure-is-not-mislabeled-as-unreachable
   (let [setup-data (setup)]
     (with-runners! setup-data (fn [runner-a _runner-b]
-      (is (thrown-with-msg? clojure.lang.ExceptionInfo
-                            #"authentication"
-                            (transport/deliver-job!
-                             {:coordinator-root coordinator-root
-                              :endpoint (transport/coordinator-endpoint runner-a "wrong-secret")
-                              :job (:job setup-data)
-                              :assignment (:assignment-a setup-data)})))
-      (is (empty? (:assignments (transport/runner-state runner-a))))))))
+                                (is (thrown-with-msg? clojure.lang.ExceptionInfo
+                                                      #"authentication"
+                                                      (transport/deliver-job!
+                                                       {:coordinator-root coordinator-root
+                                                        :endpoint (transport/coordinator-endpoint runner-a "wrong-secret")
+                                                        :job (:job setup-data)
+                                                        :assignment (:assignment-a setup-data)})))
+                                (is (empty? (:assignments (transport/runner-state runner-a))))))))
 
 (deftest runner-cannot-accept-an-assignment-rooted-to-another-runner
   (let [setup-data (setup)]
     (with-runners! setup-data (fn [runner-a runner-b]
-      (is (thrown-with-msg? clojure.lang.ExceptionInfo
-                            #"rejected job delivery"
-                            (transport/deliver-job!
-                             {:coordinator-root coordinator-root
-                              :endpoint (transport/coordinator-endpoint runner-b transport-secret)
-                              :job (:job setup-data)
-                              :assignment (:assignment-a setup-data)})))
-      (is (empty? (:assignments (transport/runner-state runner-a))))
-      (is (empty? (:assignments (transport/runner-state runner-b))))))))
+                                (is (thrown-with-msg? clojure.lang.ExceptionInfo
+                                                      #"rejected job delivery"
+                                                      (transport/deliver-job!
+                                                       {:coordinator-root coordinator-root
+                                                        :endpoint (transport/coordinator-endpoint runner-b transport-secret)
+                                                        :job (:job setup-data)
+                                                        :assignment (:assignment-a setup-data)})))
+                                (is (empty? (:assignments (transport/runner-state runner-a))))
+                                (is (empty? (:assignments (transport/runner-state runner-b))))))))
 
 (deftest observed-result-route-rejects-unvalidated-or-unbound-evidence
   (let [setup-data (setup)]
@@ -226,10 +280,10 @@
                        [:observed-results
                         (:research-observed-run-evidence/root observed)
                         :observed-run-evidence]))))
-        (is (:valid? (transport/forensic-reconstruction runner coordinator)))
+      (is (:valid? (transport/forensic-reconstruction runner coordinator)))
       (finally
         (transport/stop-runner! runner)
-         (transport/stop-coordinator! coordinator)))))
+        (transport/stop-coordinator! coordinator)))))
 
 (deftest dispatched-accounting-partitions-reconcile-from-returned-forensic-partials
   (let [base (anvil-fixture/observed-run-proof-input)
@@ -245,9 +299,9 @@
                      {:coordinator-root coordinator-root :assignments assignments
                       :auth-secret transport-secret})
         runner-a (transport/start-runner!
-                {:runner-participation participant-a :auth-secret transport-secret
-                 :coordinator-root coordinator-root
-                 :coordinator-endpoint (transport/coordinator-endpoint coordinator transport-secret)})
+                  {:runner-participation participant-a :auth-secret transport-secret
+                   :coordinator-root coordinator-root
+                   :coordinator-endpoint (transport/coordinator-endpoint coordinator transport-secret)})
         runner-b (transport/start-runner!
                   {:runner-participation participant-b :auth-secret transport-secret
                    :coordinator-root coordinator-root
@@ -273,7 +327,7 @@
         (is (= (accounting/serial-values request) (:accounting/values result)))
         (is (= 2 (count (:accounting-partial-result/roots result))))
         (is (every? (set (map #(get-in % [:run-assurance-evidence
-                                           :research-run-assurance-evidence/root])
+                                          :research-run-assurance-evidence/root])
                               (vals (:observed-results state))))
                     (map :research-run-assurance-evidence/root (vals partials)))))
       (finally
@@ -479,6 +533,95 @@
           (transport/stop-coordinator! coordinator)
           (.delete state-file))))))
 
+(deftest child-jvm-crash-after-completion-redelivers-without-reexecution
+  (let [fixture (anvil-fixture/observed-run-proof-input)
+        work (:observed-execution-work fixture)
+        job (:work/job work)
+        assignment (:work/assignment work)
+        participant (:work/runner-participation work)
+        work-root (:research-observed-execution-work/root work)
+        state-file (java.io.File/createTempFile "prf-runner-subprocess-state-" ".edn")
+        first-runner (atom nil) restarted (atom nil)
+        first-info (atom nil)
+        second-info (atom nil)
+        endpoint {:transport/base-url "http://127.0.0.1:1"
+                  :transport/auth-secret transport-secret
+                  :transport/request-timeout-ms 100}]
+    (.delete state-file)
+    (try
+      (reset! first-info
+              (launch-runner-process
+               {:runner-participation participant :auth-secret transport-secret
+                :state-path (.getAbsolutePath state-file)
+                :coordinator-root coordinator-root :coordinator-endpoint endpoint
+                :recovery-logical-cutpoint 5}))
+      (reset! first-runner @first-info)
+      (let [ready (await-file (:ready-file @first-info) (:log-file @first-info)
+                              (:process @first-info) 60000)]
+        (let [delivery (transport/deliver-job!
+                        {:coordinator-root coordinator-root
+                         :endpoint {:transport/base-url
+                                    (:runner/base-url ready)
+                                    :transport/auth-secret transport-secret
+                                    :transport/request-timeout-ms 30000}
+                         :job job :assignment assignment :execution-work work
+                         :logical-cutpoint 6})
+              completed (await-journal
+                         state-file #(= :unreachable
+                                        (get-in % [:runner-runtime/state :completed-work
+                                                   work-root :result-delivery :delivery/status]))
+                         60000)]
+          (is (= :accepted (:delivery/status delivery)))
+          (is (= :completed
+                 (get-in completed [:runner-runtime/state :work-states work-root :work/status])))
+          (is (= 1 (count (filter #(= :execution-started (:work/event %))
+                                  (get-in completed [:runner-runtime/state :work-states
+                                                     work-root :work/history])))))
+          (stop-process! (:process @first-runner))))
+      (let [coordinator (transport/start-coordinator!
+                         {:coordinator-root coordinator-root :assignments [assignment]
+                          :auth-secret transport-secret})]
+        (try
+          (reset! second-info
+                  (launch-runner-process
+                   {:runner-participation participant :auth-secret transport-secret
+                    :state-path (.getAbsolutePath state-file)
+                    :coordinator-root coordinator-root
+                    :coordinator-endpoint
+                    (transport/coordinator-endpoint coordinator transport-secret 30000)
+                    :recovery-logical-cutpoint 10}))
+          (reset! restarted @second-info)
+          (is (:runner/ready?
+               (await-file (:ready-file @second-info) (:log-file @second-info)
+                           (:process @second-info) 60000)))
+          (let [journal (await-journal
+                         state-file #(= :result-acknowledged
+                                        (get-in % [:runner-runtime/state :work-states
+                                                   work-root :work/status]))
+                         30000)
+                completed (get-in journal [:runner-runtime/state :completed-work work-root])
+                evidence (:observed-run-evidence completed)
+                coordinator-state (transport/coordinator-state coordinator)]
+            (is (= [:unreachable :accepted]
+                   (mapv :delivery/status (:result-deliveries completed))))
+            (is (= 1 (count (:observed-results coordinator-state))))
+            (is (= evidence
+                   (get-in coordinator-state
+                           [:observed-results
+                            (:research-observed-run-evidence/root evidence)
+                            :observed-run-evidence])))
+            (is (= 1 (count (filter #(= :execution-started (:work/event %))
+                                    (get-in journal [:runner-runtime/state :work-states
+                                                     work-root :work/history]))))))
+          (finally (stop-process! (:process @restarted))
+                   (transport/stop-coordinator! coordinator))))
+      (finally
+        (when-let [process (:process @first-runner)] (stop-process! process))
+        (when-let [process (:process @restarted)] (stop-process! process))
+        (.delete ^java.io.File state-file)
+        (when @first-info (delete-process-fixtures! @first-info))
+        (when @second-info (delete-process-fixtures! @second-info))))))
+
 (deftest persisted-interruption-and-cancellation-follow-safe-recovery-rules
   (let [fixture (anvil-fixture/observed-run-proof-input)
         work (:observed-execution-work fixture)
@@ -535,7 +678,7 @@
                              :logical-cutpoint 8})]
               (is (= :cancelled-before-start (:delivery/status delivery)))
               (is (= :cancelled (get-in (transport/runner-state runner)
-                                         [:work-states work-root :work/status])))
+                                        [:work-states work-root :work/status])))
               (is (empty? (:completed-work (transport/runner-state runner)))))
             (finally (transport/stop-runner! runner)))))
       (finally
@@ -545,53 +688,53 @@
 (deftest cancellation-delivery-is-realized-separately-from-unreachable-runner
   (let [setup-data (setup)]
     (with-runners! setup-data (fn [runner-a runner-b]
-      (transport/deliver-job! {:coordinator-root coordinator-root
-                               :endpoint (transport/coordinator-endpoint runner-a transport-secret)
-                               :job (:job setup-data) :assignment (:assignment-a setup-data)})
-      (transport/deliver-job! {:coordinator-root coordinator-root
-                               :endpoint (transport/coordinator-endpoint runner-b transport-secret)
-                               :job (:job setup-data) :assignment (:assignment-b setup-data)})
-      (let [cancel (control/build-cancellation
-                    {:job-root (:research-execution-job/root (:job setup-data))
-                     :control-epoch 1 :reason :user-requested
-                     :requested-cutpoint 3 :scope :entire-job :target-roots []})
-            observed (transport/deliver-cancellation!
-                      {:coordinator-root coordinator-root
-                       :endpoint (transport/coordinator-endpoint runner-a transport-secret)
-                       :cancellation cancel :runner-participation (:runner-a setup-data)
-                       :assignment (:assignment-a setup-data) :logical-cutpoint 4})]
-        (is (= :observed (:delivery/status observed)))
-        (is (control/cancellation-observed? cancel (:observation observed)))
-        (transport/stop-runner! runner-b)
-        (let [unreachable (transport/deliver-cancellation!
-                           {:coordinator-root coordinator-root
-                            :endpoint (transport/coordinator-endpoint runner-b transport-secret)
-                            :cancellation cancel :runner-participation (:runner-b setup-data)
-                            :assignment (:assignment-b setup-data) :logical-cutpoint 5})]
-          (is (= :unreachable (:delivery/status unreachable)))
-          (is (false? (:reachability/realized? (:reachability unreachable))))
-          (is (nil? (:observation unreachable)))))))))
+                                (transport/deliver-job! {:coordinator-root coordinator-root
+                                                         :endpoint (transport/coordinator-endpoint runner-a transport-secret)
+                                                         :job (:job setup-data) :assignment (:assignment-a setup-data)})
+                                (transport/deliver-job! {:coordinator-root coordinator-root
+                                                         :endpoint (transport/coordinator-endpoint runner-b transport-secret)
+                                                         :job (:job setup-data) :assignment (:assignment-b setup-data)})
+                                (let [cancel (control/build-cancellation
+                                              {:job-root (:research-execution-job/root (:job setup-data))
+                                               :control-epoch 1 :reason :user-requested
+                                               :requested-cutpoint 3 :scope :entire-job :target-roots []})
+                                      observed (transport/deliver-cancellation!
+                                                {:coordinator-root coordinator-root
+                                                 :endpoint (transport/coordinator-endpoint runner-a transport-secret)
+                                                 :cancellation cancel :runner-participation (:runner-a setup-data)
+                                                 :assignment (:assignment-a setup-data) :logical-cutpoint 4})]
+                                  (is (= :observed (:delivery/status observed)))
+                                  (is (control/cancellation-observed? cancel (:observation observed)))
+                                  (transport/stop-runner! runner-b)
+                                  (let [unreachable (transport/deliver-cancellation!
+                                                     {:coordinator-root coordinator-root
+                                                      :endpoint (transport/coordinator-endpoint runner-b transport-secret)
+                                                      :cancellation cancel :runner-participation (:runner-b setup-data)
+                                                      :assignment (:assignment-b setup-data) :logical-cutpoint 5})]
+                                    (is (= :unreachable (:delivery/status unreachable)))
+                                    (is (false? (:reachability/realized? (:reachability unreachable))))
+                                    (is (nil? (:observation unreachable)))))))))
 
 (deftest pre-delivered-cancellation-prevents-later-work-delivery
   (let [setup-data (setup)]
     (with-runners! setup-data (fn [runner-a _runner-b]
-      (let [cancel (control/build-cancellation
-                    {:job-root (:research-execution-job/root (:job setup-data))
-                     :control-epoch 1 :reason :user-requested
-                     :requested-cutpoint 1 :scope :entire-job :target-roots []})
-            observed (transport/deliver-cancellation!
-                      {:coordinator-root coordinator-root
-                       :endpoint (transport/coordinator-endpoint runner-a transport-secret)
-                       :cancellation cancel :runner-participation (:runner-a setup-data)
-                       :assignment (:assignment-a setup-data) :logical-cutpoint 2})
-            delivery (transport/deliver-job!
-                      {:coordinator-root coordinator-root
-                       :endpoint (transport/coordinator-endpoint runner-a transport-secret)
-                       :job (:job setup-data) :assignment (:assignment-a setup-data)
-                       :logical-cutpoint 3})]
-        (is (= :observed (:delivery/status observed)))
-        (is (= :cancelled-before-start (:delivery/status delivery)))
-        (is (empty? (:assignments (transport/runner-state runner-a)))))))))
+                                (let [cancel (control/build-cancellation
+                                              {:job-root (:research-execution-job/root (:job setup-data))
+                                               :control-epoch 1 :reason :user-requested
+                                               :requested-cutpoint 1 :scope :entire-job :target-roots []})
+                                      observed (transport/deliver-cancellation!
+                                                {:coordinator-root coordinator-root
+                                                 :endpoint (transport/coordinator-endpoint runner-a transport-secret)
+                                                 :cancellation cancel :runner-participation (:runner-a setup-data)
+                                                 :assignment (:assignment-a setup-data) :logical-cutpoint 2})
+                                      delivery (transport/deliver-job!
+                                                {:coordinator-root coordinator-root
+                                                 :endpoint (transport/coordinator-endpoint runner-a transport-secret)
+                                                 :job (:job setup-data) :assignment (:assignment-a setup-data)
+                                                 :logical-cutpoint 3})]
+                                  (is (= :observed (:delivery/status observed)))
+                                  (is (= :cancelled-before-start (:delivery/status delivery)))
+                                  (is (empty? (:assignments (transport/runner-state runner-a)))))))))
 
 (deftest coordinator-persists-dispatch-while-runner-is-unavailable-and-retries-on-return
   (let [fixture (anvil-fixture/observed-run-proof-input)

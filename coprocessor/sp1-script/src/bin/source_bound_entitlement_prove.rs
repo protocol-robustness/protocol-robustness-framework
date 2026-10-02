@@ -4,8 +4,8 @@ use clap::Parser;
 use sha2::{Digest, Sha256};
 use sp1_sdk::{
     blocking::{ProveRequest, Prover, ProverClient},
-    include_elf, Elf, HashableKey, ProvingKey, SP1Proof, SP1ProofMode,
-    SP1ProofWithPublicValues, SP1Stdin,
+    include_elf, Elf, HashableKey, ProvingKey, SP1Proof, SP1ProofMode, SP1ProofWithPublicValues,
+    SP1Stdin,
 };
 use std::time::Instant;
 
@@ -192,8 +192,7 @@ fn main() {
             .expect("verify successor proof");
         assert_eq!(proof.public_values.as_slice(), expected.as_slice());
         assert_matches_vector_golden(&vector_case, proof.public_values.as_slice());
-        let proof_system = require_groth16(&proof)
-            .unwrap_or_else(|reason| panic!("{reason}"));
+        let proof_system = require_groth16(&proof).unwrap_or_else(|reason| panic!("{reason}"));
         let onchain_proof_bytes = proof.bytes();
         println!("proof public values match Rust core (288 bytes)");
         println!("proof system: {proof_system}");

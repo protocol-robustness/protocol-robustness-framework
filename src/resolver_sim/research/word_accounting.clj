@@ -51,7 +51,7 @@
                         :research-accounting-word-document-v1)))
 
 (defn- unit-root [unit] (root :research-word-work-unit-v1
-                             (dissoc unit :research-word-work-unit/root)))
+                              (dissoc unit :research-word-work-unit/root)))
 
 (defn build-plan [document]
   (when-not (valid-document? document)
@@ -125,7 +125,7 @@
 
 (defn observe-word [document plan assignment runner]
   (let [unit (some #(when (= (:research-word-work-unit/root %)
-                            (:research-word-work-unit/root assignment)) %)
+                             (:research-word-work-unit/root assignment)) %)
                    (:word/work-units plan))
         word (when unit (nth (:document/words document) (:word/index unit) nil))]
     (when-not (and (valid-plan? document plan) unit word (eligible-runner? runner)
@@ -155,29 +155,29 @@
   (let [unit (some #(when (= (:research-word-work-unit/root %)
                              (:research-word-work-unit/root assignment)) %)
                    (:word/work-units plan))]
-   (and (= observation-schema (:artifact/schema observation))
-       unit
-       (= assignment-schema (:artifact/schema assignment))
-       (= (:research-word-assignment/root assignment)
-          (assignment-root assignment))
-       (= (:research-word-assignment/root assignment)
-          (:research-word-assignment/root observation))
-       (= (:research-word-work-unit/root assignment)
-          (:research-word-work-unit/root observation))
-       (= (:runner-participation/root assignment)
-          (:runner-participation/root observation))
-       (= (:research-accounting-word-document/root document)
-          (:research-accounting-word-document/root observation))
-       (= (:research-word-partition-plan/root plan)
-          (:research-word-partition-plan/root observation))
-       (= :recomputed-from-declared-text (:observation/method observation))
-       (= (select-keys unit [:word/index :word/start :word/end])
-          (select-keys observation [:word/index :word/start :word/end]))
-       (= (select-keys (nth (:document/words document) (:word/index observation) nil)
-                       [:word/index :word/start :word/end :word/text])
-          (select-keys observation [:word/index :word/start :word/end :word/text]))
-       (= (:research-word-observation/root observation)
-          (observation-root observation)))))
+    (and (= observation-schema (:artifact/schema observation))
+         unit
+         (= assignment-schema (:artifact/schema assignment))
+         (= (:research-word-assignment/root assignment)
+            (assignment-root assignment))
+         (= (:research-word-assignment/root assignment)
+            (:research-word-assignment/root observation))
+         (= (:research-word-work-unit/root assignment)
+            (:research-word-work-unit/root observation))
+         (= (:runner-participation/root assignment)
+            (:runner-participation/root observation))
+         (= (:research-accounting-word-document/root document)
+            (:research-accounting-word-document/root observation))
+         (= (:research-word-partition-plan/root plan)
+            (:research-word-partition-plan/root observation))
+         (= :recomputed-from-declared-text (:observation/method observation))
+         (= (select-keys unit [:word/index :word/start :word/end])
+            (select-keys observation [:word/index :word/start :word/end]))
+         (= (select-keys (nth (:document/words document) (:word/index observation) nil)
+                         [:word/index :word/start :word/end :word/text])
+            (select-keys observation [:word/index :word/start :word/end :word/text]))
+         (= (:research-word-observation/root observation)
+            (observation-root observation)))))
 
 (defn ingest-observation [ingestion observation]
   (let [unit-root (:research-word-work-unit/root observation)
@@ -285,7 +285,7 @@
               (:research-word-observation/roots reconciliation)
               :accounting-request/root (:accounting-request/root request)
               :accounting/source-roots (vec (sort (map :source/root
-                                                     (:accounting/sources request))))
+                                                       (:accounting/sources request))))
               :basis/meaning :declared-research-input-not-economic-admission}
         evidence (assoc body :research-word-accounting-basis/root
                         (root :research-word-accounting-basis-v1 body))]

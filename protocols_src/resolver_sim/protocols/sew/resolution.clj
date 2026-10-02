@@ -251,39 +251,25 @@
 ;; so process-step can capture rejection context in trace entries.
 ;; ---------------------------------------------------------------------------
 
-(defn- guard-evidence-value
-  "Normalize runtime-only values in guard evidence without changing protocol state."
-  [value]
-  (cond
-    (instance? java.time.Instant value) (.toString ^java.time.Instant value)
-    (set? value) (vec (sort-by str (map guard-evidence-value value)))
-    (map? value) (into {} (map (fn [[k v]] [k (guard-evidence-value v)]) value))
-    (sequential? value) (mapv guard-evidence-value value)
-    (or (nil? value)
-        (string? value)
-        (keyword? value)
-        (symbol? value)
-        (number? value)
-        (boolean? value)) value
-    :else (str value)))
-
 (defn- guard-fail [error-kw & {:as ctx}]
   (attr/log-with-attr :debug "guard/rejected" (assoc ctx :error error-kw))
-  (let [result (assoc (t/fail error-kw) :world (:world ctx))
-        evidence-context (into {}
-                               (keep (fn [key]
-                                       (when (contains? ctx key)
-                                         [key (guard-evidence-value (get ctx key))]))
-                                     [:caller :workflow-id :resolver
-                                      :current-level :cooldown-seconds
-                                      :subject-type :subject-id :slash-id
-                                      :appeal-deadline]))]
-    (cap/capture-event-evidence!
-     :guard-rejected
-     {:guard/error (str error-kw)}
-     {:guard/error (str error-kw)}
-     {:guard/context (pr-str evidence-context)}
-     nil)
+  (let [result (assoc (t/fail error-kw) :guard-context ctx :world (:world ctx))
+        subject-type (or (:subject-type ctx) :guard)
+        subject-id (or (:subject-id ctx) (:workflow-id ctx) (:resolver ctx) "unknown")]
+    (attr/with-attribution {:subject/type subject-type
+                            :subject/id subject-id
+                            :action/type :guard/reject
+                            :evidence/reason error-kw}
+      (cap/capture-event-evidence!
+       :guard-rejected
+       {:guard/before {:error error-kw :context (dissoc ctx :world)}}
+       {:guard/after {:error error-kw}}
+       {:guard/error error-kw
+        :guard/context (dissoc ctx :world)}
+       nil
+       (when (:world ctx)
+         {:world-before (:world ctx)
+          :world-after (:world ctx)})))
     result))
 
 (defn- reversal-slash-exists?
@@ -913,9 +899,6 @@
                             (:challenge-window-duration snap 0))
             now (time-ctx/block-ts world)
             final-round? (t/final-round? world workflow-id)
-            reversal-appeal-window? (and final-round?
-                                        (pos? (:reversal-slash-bps snap 0))
-                                        (pos? window-dur))
             world' (-> world
                        (handle-reversal-slashing workflow-id is-release)
                        (reverse-reversal-slash-on-vindication workflow-id is-release))
@@ -944,21 +927,20 @@
                                  (:evidence-hash decision-evidence)
                                  (assoc :decision-evidence-hash (:evidence-hash decision-evidence))
                                  authorization-provenance
-                                 (assoc :authorization/provenance authorization-provenance)))
-            world'''' (acct/settle-appeal-bond-on-resolution world''' workflow-id is-release)]
-        (if (or (and final-round? (not reversal-appeal-window?))
-                (not (pos? window-dur)))
+                                 (assoc :authorization/provenance authorization-provenance)))]
+        (if (or final-round? (not (pos? window-dur)))
           (let [finalized (if is-release
-                            (finalize world'''' workflow-id :released
+                            (finalize world''' workflow-id :released
                                       :authorization-provenance authorization-provenance)
-                            (finalize world'''' workflow-id :refunded
+                            (finalize world''' workflow-id :refunded
                                       :authorization-provenance authorization-provenance))]
             (if (:ok finalized)
               (t/ok (lc/cleanup-orphaned-slashes (:world finalized) workflow-id))
               finalized))
-          (let [pending (create-pending-settlement world'''' workflow-id is-release
+          (let [world-settled (acct/settle-appeal-bond-on-resolution world''' workflow-id is-release)
+                pending (create-pending-settlement world-settled workflow-id is-release
                                                    resolution-hash nil)
-                world'''' (assoc-in world'''' [:pending-settlements workflow-id] pending)]
+                world'''' (assoc-in world-settled [:pending-settlements workflow-id] pending)]
             (t/ok world'''')))))))
 
 (defn execute-resolution
@@ -2738,29 +2720,24 @@
             (emit-appeal-resolution! world' :reversed))
 
           (pos? bond-held)
-          (let [world-base' (-> world-base
-                                (acct/sub-held bond-token
-                                               bond-held
-                                               {:action "resolve-appeal"
-                                                :reason :appeal-bond-forfeited
-                                                :authorization-provenance authorization-provenance
-                                                :extra {:held/action "resolve-appeal"
-                                                        :held/workflow-id wf-id
-                                                        :held/slash-id slash-id
-                                                        :held/actor resolver
-                                                        :held/appeal-outcome :rejected}})
-                                (update-in [:pending-fraud-slashes slash-id]
-                                           append-authorization-provenance
-                                           "resolve-appeal"
-                                           authorization-provenance)
-                                (assoc-in [:pending-fraud-slashes slash-id :status] :pending)
-                                (assoc-in [:pending-fraud-slashes slash-id :appeal-deadline]
-                                          (dec (time-ctx/block-ts world)))
-                                (update-in [:appeal-bond-distributions-by-token bond-token] (fnil + 0) bond-held)
-                                (update :appeal-bonds-forfeited-insurance (fnil + 0) bond-held))
-                execution (execute-fraud-slash world-base' wf-id slash-id
-                                                :execution-provenance authorization-provenance)
-                world' (or (:world execution) world-base')]
+          (let [world' (-> world-base
+                           (acct/sub-held bond-token
+                                          bond-held
+                                          {:action "resolve-appeal"
+                                           :reason :appeal-bond-forfeited
+                                           :authorization-provenance authorization-provenance
+                                           :extra {:held/action "resolve-appeal"
+                                                   :held/workflow-id wf-id
+                                                   :held/slash-id slash-id
+                                                   :held/actor resolver
+                                                   :held/appeal-outcome :rejected}})
+                           (update-in [:pending-fraud-slashes slash-id]
+                                      append-authorization-provenance
+                                      "resolve-appeal"
+                                      authorization-provenance)
+                           (assoc-in [:pending-fraud-slashes slash-id :status] :pending)
+                           (update-in [:appeal-bond-distributions-by-token bond-token] (fnil + 0) bond-held)
+                           (update :appeal-bonds-forfeited-insurance (fnil + 0) bond-held))]
             (emit-decision-evidence!
              {:decision-id (str "resolve-appeal-" slash-id)
               :step (time-ctx/block-ts world)

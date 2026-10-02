@@ -151,7 +151,7 @@
                           :available available
                           :rows rows
                           :rounding-policy (keyword (or (:rounding-policy params)
-                                                         "largest-remainder"))
+                                                        "largest-remainder"))
                           :tie-break-policy :canonical-row-id
                           :redistribution-policy
                           (keyword (or (:redistribution-policy params) "unallocated"))})

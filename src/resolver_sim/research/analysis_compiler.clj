@@ -43,8 +43,8 @@
         (every? (fn [research-case]
                   (let [status (get statuses (:case/id research-case))
                         values (map #(get coordinates
-                                           [(case-index (:case/id research-case))
-                                            (measure-index (:measure/id %))])
+                                          [(case-index (:case/id research-case))
+                                           (measure-index (:measure/id %))])
                                     measures)]
                     (case status
                       :complete (every? #(or (integer? %) (= :missing %)) values)

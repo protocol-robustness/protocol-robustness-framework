@@ -79,7 +79,7 @@
 
 (defn valid-plan? [frozen execution-manifest plan]
   (= plan (try (build-plan frozen execution-manifest
-                          (:policy-subject/root plan) (:analysis/repeat plan))
+                           (:policy-subject/root plan) (:analysis/repeat plan))
                (catch Exception _ nil))))
 
 (defn- eligible? [runner]
@@ -116,7 +116,7 @@
       (throw (ex-info "Invalid observation steal state" {})))
     (when (eligible? runner)
       (when-let [unit (first (remove #(contains? claimed-set
-                                                (:research-observation-work-unit/root %))
+                                                 (:research-observation-work-unit/root %))
                                      units))]
         (rooted :research-observation-assignment-v1
                 :research-observation-assignment/root
@@ -139,7 +139,7 @@
 (defn observe
   [frozen execution-manifest plan assignment runner result-store execution-report]
   (let [unit (some #(when (= (:research-observation-work-unit/root %)
-                            (:research-observation-work-unit/root assignment)) %)
+                             (:research-observation-work-unit/root assignment)) %)
                    (:observation/work-units plan))]
     (when-not (and (valid-plan? frozen execution-manifest plan)
                    unit (eligible? runner)

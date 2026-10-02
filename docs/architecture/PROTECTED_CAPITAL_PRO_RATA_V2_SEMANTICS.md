@@ -1066,28 +1066,40 @@ authority. The beneficiary profile is read only from the authenticated
 construction.
 
 The new program family is `source-bound-entitlement-sp1-program.v1`, distinct
-from the historical source-bound V2 guest. The candidate ELF at
-`coprocessor/target/elf-compilation/riscv64im-succinct-zkvm-elf/release/source-bound-entitlement-sp1-program`
-has SHA-256
-`5b23beb5834483401a3a7e5a8499186292a9c3555499ee0c2bed4bed787543ee`.
-This is an execution-qualified candidate, not yet a frozen proof identity.
-SP1 6.3.1 light execution completes the one-claim minimal witness and B2
-vectors A–E; all successful outputs match Rust core and the 288-byte golden
-fixtures. The reordered witness is byte-identical to A, alternate salts change
-only the EVM entitlement table root word, and the authenticated profile
-variation executes successfully. Unknown top-level derived-root fields halt
-with a nonzero guest exit code.
+from the historical source-bound V2 guest. Its qualified identity is:
+
+```text
+public-values schema: prf/source-bound-entitlement-public-values.v1
+public-values length: 288 bytes
+SP1 SDK: 6.3.1
+proof system: Groth16
+VKey: 0x003cb0ac41d9c5cd78fe461b5ba27dfb08cd74490c9526fa762e7e392ee7bac5
+ELF SHA-256: 0x7e9cf1b3479a4b6fb8836b50b30b55d00736ac860eaba4230f057d4687bc0e39
+```
+
+SP1 6.3.1 light execution completes vectors A–E; all successful outputs match
+Rust core and the 288-byte golden fixtures. The reordered witness is
+byte-identical to A, alternate salts change only the EVM entitlement table
+root word, and the authenticated profile variation executes successfully.
+Vector F (duplicate claim) is rejected by the guest. Unknown top-level
+derived-root fields halt with a nonzero guest exit code.
 
 The initial 300-second stall was in `ProverClient::from_env()` construction in
 the execute branch: with no `SP1_PROVER` override it initialized the CPU
 prover node before local execution. Execute mode now uses
 `ProverClient::builder().light().build()`, which does no proving setup. Host
 diagnostics also check the SP1 report exit code; execute may return an `Ok`
-result containing a nonzero guest exit code for a rejected witness. VKey
-extraction and cryptographic proof generation/verification remain pending.
-The local environment exposes 17 GB free under `/opt`, but the sandbox cannot
-write there; proof setup was not attempted. No verifier or deployment identity
-has been activated.
+result containing a nonzero guest exit code for a rejected witness. A Groth16
+proof for vector A was generated, verified through the SP1 SDK against the
+VKey derived from this ELF, checked byte-for-byte against Rust core and the
+golden public values, and serialized as on-chain proof bytes. The fixture is
+at `/opt/prf-b3-target/source-bound-entitlement-proof-v1.json` in the proving
+environment; its source identifies bundle SHA-256
+`0xa8a9310fbc439a7d9d21d60078cfce78f714cdaafeebd8d27c2b0a80e2310848`, vector
+`A-minimum-realistic`, and witness SHA-256
+`0x83b41d2bd9d6c81b3d89823b097be01209b0c2dd0cf3bd45b37340b2744be5c1`.
+The serialized Groth16 proof is 356 bytes. No verifier-registry entry or
+deployment identity has been activated.
 
 The host accepts either one raw witness through `--input`, or a conformance
 bundle and vector ID through `--vectors <bundle> --vector <id>`. Vector mode

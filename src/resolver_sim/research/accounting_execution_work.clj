@@ -83,9 +83,9 @@
                   :run-assurance-root
                   (:research-run-assurance-evidence/root run-assurance-evidence)
                   :implementation-root (get-in embedded [:work/implementation
-                                                        :research-implementation-identity/root])
+                                                         :research-implementation-identity/root])
                   :runner-reference (get-in embedded [:work/runner-participation
-                                                       :runner/reference])
+                                                      :runner/reference])
                   :resolved-dependency-set-root
                   (get-in embedded [:work/resolved-dependencies
                                     :resolved-research-dependency-set/root])

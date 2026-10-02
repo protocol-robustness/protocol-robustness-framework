@@ -738,7 +738,8 @@
                                 :parallelism 2}]
     (binding [realization/*claimant-execution-runtime-profile-root* (:runtime-profile/root profile)
               realization/*claimant-execution-observation-sink* #(swap! emitted conj %)
-              engine/*pro-rata-parallel-threshold* 1]
+              engine/*pro-rata-parallel-threshold* 1
+              engine/*pro-rata-parallelism* 1]
       (is (= (allocation/allocate-pro-rata serial-request)
              (allocation/allocate-pro-rata serial-request)))
       (allocation/allocate-pro-rata parallel-request)

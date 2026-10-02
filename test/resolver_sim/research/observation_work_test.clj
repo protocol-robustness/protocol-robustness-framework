@@ -89,9 +89,9 @@
     (is (= serial (:analysis result-ab) (:analysis result-ba)))
     (is (= result-ab reverse-completion))
     (is (not= (get-in result-ab [:forensic-reconciliation
-                                :research-observation-reconciliation/root])
+                                 :research-observation-reconciliation/root])
               (get-in result-ba [:forensic-reconciliation
-                                :research-observation-reconciliation/root])))
+                                 :research-observation-reconciliation/root])))
     (is (= (:ingestion ab)
            (reduce observations/ingest (:ingestion ab) (vals (:ingestion ab)))))
     (is (nil? (observations/steal-next frozen manifest plan
@@ -106,7 +106,7 @@
         plan (observations/build-plan frozen manifest policy-root repeat-fixture)
         a (participant 1 true)
         {:keys [assignments ingestion]} (execute-all frozen manifest plan [a]
-                                                    store report)
+                                                     store report)
         [unit-root observation] (first ingestion)]
     (is (thrown? clojure.lang.ExceptionInfo
                  (observations/reconcile frozen manifest plan assignments [a]
@@ -226,7 +226,7 @@
         error (try (observations/ingest duplicate conflict)
                    nil (catch clojure.lang.ExceptionInfo e e))]
     (is (= 1 (count (filter #(= unit-root
-                               (:research-observation-work-unit/root %))
+                                (:research-observation-work-unit/root %))
                             (vals duplicate)))))
     (is (= admitted (get duplicate unit-root)))
     (is (= unit-root (:research-observation-work-unit/root (ex-data error))))

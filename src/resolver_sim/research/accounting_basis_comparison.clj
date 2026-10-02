@@ -39,7 +39,7 @@
                     :accounting-definition/root :accounting-policy/root
                     :accounting-reduction-contract/root]
         mismatches (vec (filter #(not= (get left-request %)
-                                      (get right-request %)) dimensions))
+                                       (get right-request %)) dimensions))
         comparable? (empty? mismatches)
         categories (sort (into (set (keys left-values)) (keys right-values)))
         deltas (when comparable?

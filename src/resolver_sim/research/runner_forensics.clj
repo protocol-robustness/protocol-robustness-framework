@@ -16,7 +16,9 @@
     :runner.forensic/result-redelivered
     :runner.forensic/coordinator-acknowledged
     :runner.forensic/cancellation-observed
-    :runner.forensic/restart-interrupted})
+    :runner.forensic/restart-interrupted
+    :runner.forensic/reproduction-result-posted
+    :runner.forensic/reproduction-result-redelivered})
 
 (defn- root? [x] (hash-ref/valid-sha256-ref? x))
 (defn- node-ref [node] (str "sha256:" (:node-hash node)))
@@ -72,128 +74,132 @@
   ([state] (validate-runner-reconstruction state nil))
   ([state coordinator-state]
    (let [nodes (nodes state)
-        artifacts (set (rooted-values (dissoc state :forensic-evidence-nodes)))
-        graph (forensic/validate-forensic-evidence-graph
-               {:nodes nodes :artifact-roots artifacts})
-        delivery (nodes-by-event nodes :runner.forensic/delivery-accepted)
-        started (nodes-by-event nodes :runner.forensic/execution-started)
-        completed (nodes-by-event nodes :runner.forensic/execution-completed)
-        posted (concat (nodes-by-event nodes :runner.forensic/result-posted)
-                       (nodes-by-event nodes :runner.forensic/result-redelivered))
-        acknowledged (nodes-by-event nodes :runner.forensic/coordinator-acknowledged)
-        cancellation (nodes-by-event nodes :runner.forensic/cancellation-observed)
-        delivery-hashes (set (map :node-hash delivery))
-        started-hashes (set (map :node-hash started))
-        completed-hashes (set (map :node-hash completed))
-        posted-hashes (set (map :node-hash posted))
-        errors
-        (vec (concat
+         artifacts (set (rooted-values (dissoc state :forensic-evidence-nodes)))
+         graph (forensic/validate-forensic-evidence-graph
+                {:nodes nodes :artifact-roots artifacts})
+         delivery (nodes-by-event nodes :runner.forensic/delivery-accepted)
+         started (nodes-by-event nodes :runner.forensic/execution-started)
+         completed (nodes-by-event nodes :runner.forensic/execution-completed)
+         posted (concat (nodes-by-event nodes :runner.forensic/result-posted)
+                        (nodes-by-event nodes :runner.forensic/result-redelivered))
+         acknowledged (nodes-by-event nodes :runner.forensic/coordinator-acknowledged)
+         cancellation (nodes-by-event nodes :runner.forensic/cancellation-observed)
+         delivery-hashes (set (map :node-hash delivery))
+         started-hashes (set (map :node-hash started))
+         completed-hashes (set (map :node-hash completed))
+         posted-hashes (set (map :node-hash posted))
+         errors
+         (vec (concat
               ;; No execution may appear without causally depending on accepted
               ;; assignment delivery, and no result may omit completed execution.
-              (for [n started :when (empty? (set/intersection delivery-hashes (parent-hashes n)))]
-                {:error :runner-forensic/execution-without-accepted-assignment
-                 :node-hash (:node-hash n)})
-              (for [n completed :when (empty? (set/intersection started-hashes (parent-hashes n)))]
-                {:error :runner-forensic/result-without-execution-lineage
-                 :node-hash (:node-hash n)})
-              (for [n posted :when (empty? (set/intersection completed-hashes (parent-hashes n)))]
-                {:error :runner-forensic/result-post-without-completion
-                 :node-hash (:node-hash n)})
-              (for [n acknowledged :when (empty? (set/intersection posted-hashes (parent-hashes n)))]
-                {:error :runner-forensic/acknowledgement-without-result-post
-                 :node-hash (:node-hash n)})
+               (for [n started :when (empty? (set/intersection delivery-hashes (parent-hashes n)))]
+                 {:error :runner-forensic/execution-without-accepted-assignment
+                  :node-hash (:node-hash n)})
+               (for [n completed :when (empty? (set/intersection started-hashes (parent-hashes n)))]
+                 {:error :runner-forensic/result-without-execution-lineage
+                  :node-hash (:node-hash n)})
+               (for [n posted :when (empty? (set/intersection completed-hashes (parent-hashes n)))]
+                 {:error :runner-forensic/result-post-without-completion
+                  :node-hash (:node-hash n)})
+               (for [n acknowledged :when (empty? (set/intersection posted-hashes (parent-hashes n)))]
+                 {:error :runner-forensic/acknowledgement-without-result-post
+                  :node-hash (:node-hash n)})
               ;; A redelivery must cause from an earlier delivery attempt.
-              (for [n (nodes-by-event nodes :runner.forensic/result-redelivered)
-                    :when (empty? (set/intersection posted-hashes (parent-hashes n)))]
-                {:error :runner-forensic/retry-without-prior-delivery-attempt
-                 :node-hash (:node-hash n)})
+               (for [n (nodes-by-event nodes :runner.forensic/result-redelivered)
+                     :when (empty? (set/intersection posted-hashes (parent-hashes n)))]
+                 {:error :runner-forensic/retry-without-prior-delivery-attempt
+                  :node-hash (:node-hash n)})
               ;; One exclusive work item cannot have two success nodes.
-              (for [[subject entries] (group-by #(get-in % [:extensions :forensic/subject :subject/root]) completed)
-                    :when (> (count entries) 1)]
-                {:error :runner-forensic/two-successful-executions-for-exclusive-work
-                 :subject-root subject :node-hashes (vec (sort (map :node-hash entries)))})
-              (for [[work-root work-state] (:work-states state)
-                    :let [events (:work/history work-state)
-                          cancellation-index (first (keep-indexed
-                                                    (fn [idx event]
-                                                      (when (= :cancellation-observed
-                                                               (:work/event event)) idx)) events))]
-                    :when (and cancellation-index
-                               (some #(= :execution-started (:work/event %))
-                                     (drop (inc cancellation-index) events)))]
-                {:error :runner-forensic/execution-after-terminal-cancellation
-                 :work-root work-root})
-              (for [[work-root completed-work] (:completed-work state)
-                    :let [deliveries (:result-deliveries completed-work)]
-                    :when (and (> (count deliveries) 1)
-                               (not-every? #(= :unreachable (:delivery/status %))
-                                           (butlast deliveries)))]
-                {:error :runner-forensic/retry-without-prior-unacknowledged-attempt
-                 :work-root work-root})
-              (for [[work-root completed-work] (:completed-work state)
-                    :let [observed (:observed-run-evidence completed-work)
-                          assurance (:run-assurance-evidence completed-work)
-                          assignment (get-in observed [:proof/source-artifacts :assignment])]
-                    :when (not (and (= assignment
-                                       (get-in state [:assignments
-                                                      (:research-run-assignment/root assignment)]))
-                                    (= (:research-observed-run-evidence/root observed)
-                                       (:research-run-evidence/root assurance))))]
-                {:error :runner-forensic/coordinator-ingestion-assignment-or-result-substitution
-                 :work-root work-root})
+               (for [[subject entries] (group-by #(get-in % [:extensions :forensic/subject :subject/root]) completed)
+                     :when (> (count entries) 1)]
+                 {:error :runner-forensic/two-successful-executions-for-exclusive-work
+                  :subject-root subject :node-hashes (vec (sort (map :node-hash entries)))})
+               (for [[work-root work-state] (:work-states state)
+                     :let [events (:work/history work-state)
+                           cancellation-index (first (keep-indexed
+                                                      (fn [idx event]
+                                                        (when (= :cancellation-observed
+                                                                 (:work/event event)) idx)) events))]
+                     :when (and cancellation-index
+                                (some #(= :execution-started (:work/event %))
+                                      (drop (inc cancellation-index) events)))]
+                 {:error :runner-forensic/execution-after-terminal-cancellation
+                  :work-root work-root})
+               (for [[work-root completed-work] (:completed-work state)
+                     :let [deliveries (:result-deliveries completed-work)]
+                     :when (and (> (count deliveries) 1)
+                                (not-every? #(= :unreachable (:delivery/status %))
+                                            (butlast deliveries)))]
+                 {:error :runner-forensic/retry-without-prior-unacknowledged-attempt
+                  :work-root work-root})
+               (for [[work-root completed-work] (:completed-work state)
+                     :when (not (:reproduction-execution completed-work))
+                     :let [observed (:observed-run-evidence completed-work)
+                           assurance (:run-assurance-evidence completed-work)
+                           assignment (get-in observed [:proof/source-artifacts :assignment])]
+                     :when (not (and (= assignment
+                                        (get-in state [:assignments
+                                                       (:research-run-assignment/root assignment)]))
+                                     (= (:research-observed-run-evidence/root observed)
+                                        (:research-run-evidence/root assurance))))]
+                 {:error :runner-forensic/coordinator-ingestion-assignment-or-result-substitution
+                  :work-root work-root})
               ;; A stored completed artifact must have all causal stages.
-              (for [[work-root completed-work] (:completed-work state)
-                    :let [observed (:observed-run-evidence completed-work)
-                          observed-root (:research-observed-run-evidence/root observed)
-                          delivery-status (get-in completed-work [:result-delivery :delivery/status])
-                          result-nodes (filter #(= observed-root
-                                                   (get-in % [:extensions :forensic/subject :subject/root]))
-                                               posted)]
-                    :when (and (not= :cancelled-before-delivery delivery-status)
-                               (empty? result-nodes))]
-                {:error :runner-forensic/missing-result-delivery-attempt
-                 :work-root work-root :observed-run-root observed-root})
-              (when coordinator-state
-                (for [n acknowledged
-                      :let [observed-root (get-in n [:extensions :forensic/subject :subject/root])
-                            completed (some (fn [[_ entry]]
-                                              (when (= observed-root
-                                                       (get-in entry [:observed-run-evidence
-                                                                      :research-observed-run-evidence/root]))
-                                                entry))
-                                            (:completed-work state))
-                            coordinator-entry (get-in coordinator-state
-                                                      [:observed-results observed-root])]
-                      :when (not (and completed coordinator-entry
-                                      (= (:assignment coordinator-entry)
-                                         (get-in completed [:observed-run-evidence
-                                                            :proof/source-artifacts :assignment]))
-                                      (= (get-in coordinator-entry [:observed-run-evidence
-                                                                  :research-observed-run-evidence/root])
-                                         observed-root)
-                                      (= (get-in coordinator-entry [:run-assurance-evidence
-                                                                  :research-run-assurance-evidence/root])
-                                         (get-in completed [:run-assurance-evidence
-                                                            :research-run-assurance-evidence/root]))))]
-                  {:error :runner-forensic/coordinator-acknowledgement-substitution-or-missing
-                   :observed-run-root observed-root}))
+               (for [[work-root completed-work] (:completed-work state)
+                     :when (not (:reproduction-execution completed-work))
+                     :let [observed (:observed-run-evidence completed-work)
+                           observed-root (:research-observed-run-evidence/root observed)
+                           delivery-status (get-in completed-work [:result-delivery :delivery/status])
+                           result-nodes (filter #(= observed-root
+                                                    (get-in % [:extensions :forensic/subject :subject/root]))
+                                                posted)]
+                     :when (and (not= :cancelled-before-delivery delivery-status)
+                                (empty? result-nodes))]
+                 {:error :runner-forensic/missing-result-delivery-attempt
+                  :work-root work-root :observed-run-root observed-root})
+               (when coordinator-state
+                 (for [n acknowledged
+                       :when (not= :research-runner/reproduction-result-acknowledgement
+                                   (get-in n [:extensions :forensic/subject :subject/kind]))
+                       :let [observed-root (get-in n [:extensions :forensic/subject :subject/root])
+                             completed (some (fn [[_ entry]]
+                                               (when (= observed-root
+                                                        (get-in entry [:observed-run-evidence
+                                                                       :research-observed-run-evidence/root]))
+                                                 entry))
+                                             (:completed-work state))
+                             coordinator-entry (get-in coordinator-state
+                                                       [:observed-results observed-root])]
+                       :when (not (and completed coordinator-entry
+                                       (= (:assignment coordinator-entry)
+                                          (get-in completed [:observed-run-evidence
+                                                             :proof/source-artifacts :assignment]))
+                                       (= (get-in coordinator-entry [:observed-run-evidence
+                                                                     :research-observed-run-evidence/root])
+                                          observed-root)
+                                       (= (get-in coordinator-entry [:run-assurance-evidence
+                                                                     :research-run-assurance-evidence/root])
+                                          (get-in completed [:run-assurance-evidence
+                                                             :research-run-assurance-evidence/root]))))]
+                   {:error :runner-forensic/coordinator-acknowledgement-substitution-or-missing
+                    :observed-run-root observed-root}))
               ;; Persisted cancellation is terminal for its job: an execution
               ;; start carrying that job as a causal root is a contradiction.
-              (for [c cancellation
-                    s started
-                    :when (contains? (set (get-in s [:extensions :forensic/causal-parent-roots]))
-                                     (get-in c [:extensions :forensic/subject :subject/root]))]
-                {:error :runner-forensic/execution-after-terminal-cancellation
-                 :execution-node (:node-hash s) :cancellation-node (:node-hash c)})))]
-    {:valid? (and (:valid? graph) (empty? errors))
-     :graph graph :errors errors
-     :summary {:node-count (count nodes)
-               :delivery-count (count delivery)
-               :execution-count (count started)
-               :completion-count (count completed)
-               :result-post-count (count posted)
-               :acknowledgement-count (count acknowledged)
-               :cancellation-count (count cancellation)}})))
+               (for [c cancellation
+                     s started
+                     :when (contains? (set (get-in s [:extensions :forensic/causal-parent-roots]))
+                                      (get-in c [:extensions :forensic/subject :subject/root]))]
+                 {:error :runner-forensic/execution-after-terminal-cancellation
+                  :execution-node (:node-hash s) :cancellation-node (:node-hash c)})))]
+     {:valid? (and (:valid? graph) (empty? errors))
+      :graph graph :errors errors
+      :summary {:node-count (count nodes)
+                :delivery-count (count delivery)
+                :execution-count (count started)
+                :completion-count (count completed)
+                :result-post-count (count posted)
+                :acknowledgement-count (count acknowledged)
+                :cancellation-count (count cancellation)}})))
 
 (defn latest-node-hash
   [state event-key subject-root]

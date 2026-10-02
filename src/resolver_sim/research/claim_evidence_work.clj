@@ -150,7 +150,7 @@
    independently reproduce an engine calculation or establish a theorem."
   [context proposition-id descriptor result plan assignment runner]
   (let [coordinate (some #(when (= (:research-claim-evidence-coordinate/root %)
-                                  (:research-claim-evidence-coordinate/root assignment)) %)
+                                   (:research-claim-evidence-coordinate/root assignment)) %)
                          (coordinates plan))]
     (when-not (and (valid-plan? context proposition-id descriptor result plan)
                    coordinate (eligible? runner)
@@ -205,7 +205,7 @@
   (let [units (coordinates plan)
         required (set (map :research-claim-evidence-coordinate/root units))
         by-coordinate (into {} (map (juxt :research-claim-evidence-coordinate/root
-                                        identity) assignments))
+                                          identity) assignments))
         by-participant (into {} (map (juxt :runner-participation/root identity)
                                      participants))]
     (when-not (and (= required (set (keys ingestion)) (set (keys by-coordinate)))
@@ -236,15 +236,15 @@
                             :evidence/coverage :complete-exactly-once
                             :evidence/meaning :source-projection-not-claim-proof})
           forensic (rooted :research-claim-evidence-reconciliation-v1
-                          :research-claim-evidence-reconciliation/root
-                          {:artifact/schema reconciliation-schema
-                           :research-claim-evidence-plan/root
-                           (:research-claim-evidence-plan/root plan)
-                           :research-claim-evidence-manifest/root
-                           (:research-claim-evidence-manifest/root semantic)
-                           :research-claim-evidence-observation/roots
-                           (vec (sort (map :research-claim-evidence-observation/root
-                                           ordered)))})]
+                           :research-claim-evidence-reconciliation/root
+                           {:artifact/schema reconciliation-schema
+                            :research-claim-evidence-plan/root
+                            (:research-claim-evidence-plan/root plan)
+                            :research-claim-evidence-manifest/root
+                            (:research-claim-evidence-manifest/root semantic)
+                            :research-claim-evidence-observation/roots
+                            (vec (sort (map :research-claim-evidence-observation/root
+                                            ordered)))})]
       {:semantic-evidence semantic :forensic-reconciliation forensic})))
 
 (defn build-output-from-evidence
