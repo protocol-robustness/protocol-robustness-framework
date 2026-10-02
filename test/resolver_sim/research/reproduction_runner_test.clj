@@ -776,3 +776,48 @@
         (kill-runner-process! child)
         (doseq [file [journal entered release]] (.delete ^java.io.File file))
         (transport/stop-coordinator! coordinator)))))
+
+(deftest multi-host-reproduction-preserves-semantic-roots
+  ;; Opt-in integration test. A runner process on a second host is reached
+  ;; through runtime-only SSH forwarding; the rooted bundle/protocol is the
+  ;; same one used by local dispatch.
+  (if-not (and (seq (System/getenv "PRF_REMOTE_RUNNER_URL"))
+               (seq (System/getenv "PRF_REMOTE_COORDINATOR_PORT")))
+    (is true "set PRF_REMOTE_RUNNER_URL and PRF_REMOTE_COORDINATOR_PORT for live-host qualification")
+    (let [{:keys [job assignment bundle original] :as artifacts} (setup-artifacts)
+          coordinator-port (Integer/parseInt (System/getenv "PRF_REMOTE_COORDINATOR_PORT"))
+          runner-url (System/getenv "PRF_REMOTE_RUNNER_URL")
+          coordinator (transport/start-coordinator!
+                       {:coordinator-root coordinator-root :assignments [assignment]
+                        :auth-secret secret :bind-address "127.0.0.1"
+                        :port coordinator-port})
+          remote-endpoint {:transport/base-url runner-url
+                           :transport/auth-secret secret
+                           :transport/request-timeout-ms 30000}
+          local-execution (reproduction/execute (:input artifacts)
+                                               (:implementation artifacts))]
+      (try
+        (let [dispatched (transport/dispatch-reproduction!
+                         coordinator {:endpoint remote-endpoint :job job
+                                      :assignment assignment :reproduction-work bundle
+                                      :authoritative-result original
+                                      :logical-cutpoint 1})
+              execution (:reproduction-execution dispatched)
+              admitted (vals (:reproduction-results
+                              (transport/coordinator-state coordinator)))]
+          (is (= :accepted (get-in dispatched [:delivery :delivery/status]))
+              (pr-str (:delivery dispatched)))
+          (is (= (:reproduction-input/root (:work/reproduction-input bundle))
+                 (:reproduction-input/root execution)))
+          (is (= (:research-implementation-identity/root (:work/implementation bundle))
+                 (:research-implementation-identity/root
+                  execution)))
+          (is (= (:reproduction-execution/root local-execution)
+                 (:reproduction-execution/root execution)))
+          (is (= :reproduced (:reproduction/status (:reproduction-evidence dispatched))))
+          (is (= 1 (count admitted)))
+          (is (= (:reproduction-execution/root execution)
+                 (get-in (first admitted)
+                         [:reproduction-execution :reproduction-execution/root])))
+          (is (= assignment (:assignment (first admitted)))))
+        (finally (transport/stop-coordinator! coordinator))))))

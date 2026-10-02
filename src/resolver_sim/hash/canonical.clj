@@ -269,6 +269,13 @@
    :canonical-accounting-partial-v1 "CANONICAL_ACCOUNTING_PARTIAL_V1"
    :research-axis-semantics-v1 "RESEARCH_AXIS_SEMANTICS_V1"
    :research-coordinate-interaction-v1 "RESEARCH_COORDINATE_INTERACTION_V1"
+   :research-dependency-closed-interaction-implementation-v1
+   "RESEARCH_DEPENDENCY_CLOSED_INTERACTION_IMPLEMENTATION_V1"
+   :research-dependency-closed-source-v1 "RESEARCH_DEPENDENCY_CLOSED_SOURCE_V1"
+   :research-dependency-closed-resolution-v1 "RESEARCH_DEPENDENCY_CLOSED_RESOLUTION_V1"
+   :research-dependency-closed-axis-v1 "RESEARCH_DEPENDENCY_CLOSED_AXIS_V1"
+   :research-dependency-closed-observation-v1
+   "RESEARCH_DEPENDENCY_CLOSED_OBSERVATION_V1"
    :research-job-cancellation-v1 "RESEARCH_JOB_CANCELLATION_V1"
    :research-realized-reachability-v1 "RESEARCH_REALIZED_REACHABILITY_V1"
    :research-runner-control-observation-v1 "RESEARCH_RUNNER_CONTROL_OBSERVATION_V1"

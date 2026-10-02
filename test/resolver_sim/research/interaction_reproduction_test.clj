@@ -90,3 +90,48 @@
     (is (= :completed (:execution/outcome execution)))
     (is (= :missing (:interaction/status (:execution/fresh-result execution))))
     (is (= :not-comparable (:reproduction/status (replay/compare-execution execution original))))))
+
+(deftest dependency-closed-reproduction-freshly-obtains-upstream-observations
+  ;; This is deliberately not a projection of the four supplied observation
+  ;; values used by the prior fixture. Each execution rebuilds the frozen
+  ;; definition, executes all four rooted cells, stores their results, compiles
+  ;; the analysis, and only then derives the interaction.
+  (let [input (replay/build-dependency-closed-input)
+        implementation (replay/dependency-closed-implementation input)
+        first-execution (replay/execute input implementation)
+        second-execution (replay/execute input implementation)
+        authoritative-result (:execution/fresh-result first-execution)
+        evidence (replay/compare-execution second-execution authoritative-result)]
+    (is (= :research/dependency-closed-interaction-v1 (:computation/kind input)))
+    (is (= :completed (:execution/outcome first-execution)))
+    (is (= first-execution second-execution))
+    (is (replay/valid-execution? first-execution))
+    (is (= 4 (count (:execution/upstream-cell-result-roots first-execution))))
+    (is (= 4 (count (:execution/upstream-observation-roots first-execution))))
+    (is (= 4 (count (set (:execution/upstream-cell-result-roots first-execution)))))
+    (is (= :reproduced (:reproduction/status evidence)))
+    (is (thrown? clojure.lang.ArityException
+                 (apply replay/execute [input implementation authoritative-result])))
+    (is (thrown? clojure.lang.ExceptionInfo
+                 (replay/build-dependency-closed-input
+                  (assoc (:computation/input input) :expected authoritative-result))))
+    (is (thrown? clojure.lang.ExceptionInfo
+                 (replay/execute input
+                                 (replay/implementation
+                                  (:resolved-research-dependency-set/root implementation)
+                                  "1.0.0"))))))
+
+(deftest dependency-closed-input-and-implementation-are-semantic-identities
+  (let [input (replay/build-dependency-closed-input)
+        changed (replay/build-dependency-closed-input
+                 (assoc-in (:computation/input input)
+                           [:research/source :research/question]
+                           "Do independently rerun cell observations support the interaction?"))
+        implementation (replay/dependency-closed-implementation input)
+        changed-implementation (replay/dependency-closed-implementation changed)]
+    (is (not= (:reproduction-input/root input) (:reproduction-input/root changed)))
+    (is (not= (:research-implementation-identity/root implementation)
+              (:research-implementation-identity/root changed-implementation)))
+    ;; Runtime metadata is not admissible computation input.
+    (is (false? (replay/valid-input?
+                 (assoc input :runner :runner/a :host "host-a" :timing-ms 5))))))

@@ -69,7 +69,8 @@ The evidence ladder remains:
 
 - Source projection: inspect/project a supplied authoritative result.
 - Same-implementation reproduction: freshly rerun canonical input through identified code.
-- Independent-implementation reproduction: deferred; genuinely different implementation.
+- Independent-implementation reproduction: a separately written interaction reducer
+  now computes equivalent results using row contrasts (see below).
 - Counterexample: retain a fresh materially disagreeing computation, never vote it away.
 
 Runner, assignment, host, transport, timing and completion order are outside the
@@ -107,3 +108,89 @@ durable `:executing` transition, then restarts them against the same journal.
 Coordinator crash after result persistence but before acknowledgement is still
 covered by existing in-process restart/idempotence tests, not a literal
 coordinator-process kill test.
+
+## Live multi-host qualification
+
+`multi-host-reproduction-preserves-semantic-roots` is an opt-in integration
+test for a runner on a separate host. It dispatches the same rooted work bundle
+used by local runner tests and checks the returned input, implementation,
+execution root, `:reproduced` comparison, and coordinator admission against a
+fresh local execution. Runner identity and assignment remain forensic context;
+they do not alter the semantic execution root.
+
+The test uses SSH local/reverse forwarding on loopback, not a public listener:
+
+```sh
+# From the coordinator machine; keep this session open.
+ssh -o ExitOnForwardFailure=yes -N \
+  -L 127.0.0.1:39106:127.0.0.1:39105 \
+  -R 127.0.0.1:39107:127.0.0.1:39107 ubuntu@<runner-host>
+
+# On the runner host, from the synchronized PRF checkout.
+clojure -M:test -m resolver-sim.research.remote-runner-fixture \
+  durable-reproduction-test-secret 39107 /tmp/prf-multihost-runner-state.edn
+
+# On the coordinator machine, from the PRF checkout.
+PRF_REMOTE_RUNNER_URL=http://127.0.0.1:39106 \
+PRF_REMOTE_COORDINATOR_PORT=39107 \
+clojure -M:test -e "(require 'clojure.test 'resolver-sim.research.reproduction-runner-test) (clojure.test/test-vars [#'resolver-sim.research.reproduction-runner-test/multi-host-reproduction-preserves-semantic-roots])"
+```
+
+The fixed loopback ports and test secret are runtime-only lab settings, not
+canonical inputs. Stop the runner and forwarding session after the test. This
+qualifies cross-host dispatch over an authenticated SSH tunnel; it does not yet
+qualify direct public network reachability, multi-host cancellation, failure
+recovery across hosts, or independent implementation reproduction.
+
+## Dependency-closed interaction reproduction
+
+`interaction-reproduction/build-dependency-closed-input` establishes the next
+reproduction tier for a small deterministic scheduler-analysis fixture. Its
+input contains the declared research-definition source, selected two-by-two
+parameter axes, the makespan measure, static policy and a repeat descriptor—
+never the four expected observations or their expected interaction. Execution
+freezes that source before generating any cases.
+
+Each fresh execution resolves its declared dependency closure, regenerates the
+four execution cells, stores the new cell results, compiles the policy analysis,
+derives four source-bound observations, and only then runs exact
+difference-of-differences. The reproduction execution retains roots for the
+dependency manifest/set, upstream execution manifest, compiled analysis, four
+cell results and four observations. These are provenance for the fresh
+computation, not caller-supplied results.
+
+Comparison remains strictly downstream: a prior authoritative interaction may
+be provided only after the fresh execution returns. Two executions with equal
+roots are same-implementation reproduction, not independent-implementation
+corroboration. Changing any declared research source input changes the replay
+input and dependency/implementation closure identities. Runner, host, timing,
+assignment and completion order remain forensic runtime context.
+
+## Artifact-distinct interaction implementation
+
+`interaction-contrast/compute` is a separately written reducer: it computes the
+upper-row contrast minus the lower-row contrast, rather than calling the original
+four-term reducer. `interaction-reproduction/contrast-implementation` binds its
+source bytes through `research-implementation-identity.v1`. The existing replay
+input, execution, comparison and runner work schemas are unchanged. Runner
+admission recognizes the two explicit implementations, not arbitrary source roots.
+
+For equal inputs, both reducers produce the same canonical interaction result.
+Their implementation and reproduction-execution roots differ; comparison may
+still be `:reproduced`. Expected results remain available only to comparison.
+Tests disable the original reducer while executing the alternative, check signed
+and arbitrary-precision integer examples, retain disagreement witnesses, and
+dispatch the alternative through the existing local HTTP runner substrate.
+
+This establishes **artifact-level independent implementation of the interaction
+reduction only**. It does not establish organizational independence, independent
+upstream observations, or a second implementation of the dependency-closed
+scheduler pipeline. Version-only changes are not independent implementations.
+Arithmetic uses Clojure checked integer operations, as does the original engine:
+bounded-long intermediate overflow can fail, and equivalent formulas can have
+different overflow boundaries. Arbitrary-precision inputs avoid that limitation;
+no universal bounded-long equivalence or performance advantage is claimed.
+
+Source-projection evidence remains distinct. Reproduction adds evidence nodes;
+it does not modify verification, claim derivation, acceptance or researcher
+positions, and establishes neither proof nor application authority.

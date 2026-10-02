@@ -20,11 +20,8 @@
        (:valid? (participation/validate-participation (:work/runner-participation w)))
        (replay/valid-input? (:work/reproduction-input w))
        (assurance/valid-implementation? (:work/implementation w))
-       (= (:implementation/artifact-root (:work/implementation w))
-          (:implementation/artifact-root
-           (replay/implementation
-            (:resolved-research-dependency-set/root (:work/implementation w))
-            (:implementation/semantic-version (:work/implementation w)))))
+       (replay/valid-implementation-for-input? (:work/reproduction-input w)
+                                             (:work/implementation w))
        (= (:reproduction-input/root (:work/reproduction-input w)) (:workload/root (:work/job w)))
        (= (:research-execution-job/root (:work/job w))
           (:research-execution-job/root (:work/assignment w)))
