@@ -272,6 +272,8 @@
    :canonical-accounting-partial-v1 "CANONICAL_ACCOUNTING_PARTIAL_V1"
    :research-axis-semantics-v1 "RESEARCH_AXIS_SEMANTICS_V1"
    :research-coordinate-interaction-v1 "RESEARCH_COORDINATE_INTERACTION_V1"
+   :coordinate-derived-result-v1 "COORDINATE_DERIVED_RESULT_V1"
+   :researcher-evidence-attribution-v1 "RESEARCHER_EVIDENCE_ATTRIBUTION_V1"
    :research-dependency-closed-interaction-implementation-v1
    "RESEARCH_DEPENDENCY_CLOSED_INTERACTION_IMPLEMENTATION_V1"
    :research-dependency-closed-source-v1 "RESEARCH_DEPENDENCY_CLOSED_SOURCE_V1"

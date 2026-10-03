@@ -105,3 +105,23 @@
       (finally
         (transport/stop-runner! runner)
         (transport/stop-coordinator! coordinator)))))
+
+(deftest overflow-is-an-explicit-common-domain-boundary
+  (let [{:keys [input implementation]} (fixture/fixture)
+        alternate (replay/contrast-implementation
+                   (:resolved-research-dependency-set/root implementation) "1.0.0")
+        args (reduce (fn [args [coordinate value]]
+                       (assoc-in args [:observations coordinate :observation/value] value))
+                     (:computation/input input)
+                     (map vector [:x1-y1 :x1-y2 :x2-y1 :x2-y2] [-1 -1 0 Long/MAX_VALUE]))
+        input (replay/build-input args)
+        first-run (replay/execute input implementation)
+        second-run (replay/execute input alternate)
+        result (:execution/fresh-result second-run)]
+    (is (= :failed (:execution/outcome first-run)))
+    (is (= :completed (:execution/outcome second-run)))
+    (is (= Long/MAX_VALUE (:interaction/value result)))
+    (doseq [execution [first-run second-run]]
+      (is (= :not-comparable (:reproduction/status (replay/compare-execution execution result))))
+      (is (= :outside-common-arithmetic-domain
+             (:comparison/reason (replay/comparison-assessment execution result)))))))

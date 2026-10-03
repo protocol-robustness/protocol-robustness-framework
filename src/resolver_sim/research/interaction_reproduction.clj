@@ -484,6 +484,8 @@
 (defn comparison-assessment
   "Derived comparability view; no claim authority. Reasons are not an assurance ladder."
   [execution original]
+  (when-not (and (valid-execution? execution) (map? original))
+    (throw (ex-info "Missing or invalid fresh execution" {})))
   (let [fresh (:execution/fresh-result execution)
         valid? (try (valid-result? original) (catch Exception _ false))
         scope-keys [:interaction/method :interaction/x-axis-semantics-root
@@ -495,10 +497,9 @@
                         (try
                           ;; Both implementations must be defined, without promoting
                           ;; checked longs or changing either operation's arithmetic.
-                          (+ (v :x2-y2) (- (v :x2-y1)) (- (v :x1-y2)) (v :x1-y1))
-                          (- (- (v :x2-y2) (v :x2-y1))
-                             (- (v :x1-y2) (v :x1-y1)))
-                          false
+                          (not= (+ (v :x2-y2) (- (v :x2-y1)) (- (v :x1-y2)) (v :x1-y1))
+                                (- (- (v :x2-y2) (v :x2-y1))
+                                   (- (v :x1-y2) (v :x1-y1))))
                           (catch ArithmeticException _ true))))
         reason (cond overflow? :outside-common-arithmetic-domain
                      (= :failed (:execution/outcome execution)) :execution-failed
@@ -514,22 +515,13 @@
     (throw (ex-info "Missing or invalid fresh execution" {})))
   (let [fresh (:execution/fresh-result execution)
         original-valid? (try (valid-result? original) (catch Exception _ false))
-        ;; Result identity includes all observation, axis, level and scope bindings.
-        scope-keys [:interaction/method :interaction/x-axis-semantics-root
-                    :interaction/y-axis-semantics-root :interaction/levels
-                    :interaction/constituent-observation-roots
-                    :interaction/research-analysis-roots :interaction/arithmetic]
-        comparable? (and original-valid?
-                         (= (select-keys fresh scope-keys) (select-keys original scope-keys))
-                         (every? #(contains? #{:equal :different} (:interaction/status %))
-                                 [fresh original]))
         fresh-root (:research-coordinate-interaction/root fresh)
         original-root (when original-valid? (:research-coordinate-interaction/root original))
         assessment (comparison-assessment execution original)
         status (cond (= :outside-common-arithmetic-domain (:comparison/reason assessment))
                      :not-comparable
                      (= :failed (:execution/outcome execution)) :failed
-                     (not comparable?) :not-comparable
+                     (not (:comparison/comparable? assessment)) :not-comparable
                      (= fresh original) :reproduced
                      :else :counterexample-found)
         body (cond-> {:artifact/schema reproduction/evidence-schema

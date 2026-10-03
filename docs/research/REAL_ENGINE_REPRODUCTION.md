@@ -191,6 +191,22 @@ bounded-long intermediate overflow can fail, and equivalent formulas can have
 different overflow boundaries. Arbitrary-precision inputs avoid that limitation;
 no universal bounded-long equivalence or performance advantage is claimed.
 
+Comparison now explicitly requires the **common valid arithmetic domain**:
+if either checked expression overflows, the evidence is `:not-comparable`, not
+disagreement or universal equivalence. Execution failure remains recorded; it is
+not rewritten into success. `comparison-assessment` exposes downstream reasons:
+`outside-common-arithmetic-domain`, `incompatible-result-schema-or-identity`,
+`different-semantic-scope`, `unavailable-or-not-comparable-observation`, and
+`execution-failed`. Non-arithmetic execution failure remains `:failed`.
+Scope includes method, axes, levels, source observations/analyses and arithmetic;
+different accounting policies/domains/measures already propagate through the
+interaction engine's non-comparable status. Missing evidence never becomes zero.
+The research-resolution notebook displays executable comparison examples and
+their reasons, including an equal scalar outside the common checked-long domain.
+
 Source-projection evidence remains distinct. Reproduction adds evidence nodes;
 it does not modify verification, claim derivation, acceptance or researcher
 positions, and establishes neither proof nor application authority.
+
+The narrow composition and nominal attribution contracts are documented in
+[Derived coordinates and attribution](DERIVED_COORDINATES_AND_ATTRIBUTION.md).

@@ -32,11 +32,76 @@
 (ns notebooks.research-resolution
   (:require [nextjournal.clerk :as clerk]
             [clojure.string :as str]
+            [clojure.edn :as edn]
+            [clojure.java.io :as io]
+            [resolver-sim.research.derived-coordinate :as derived]
             [resolver-sim.benchmark.research-command :as rc]
             [resolver-sim.benchmark.researcher-position :as rp]
             [resolver-sim.benchmark.research-conclusion :as concl]
             [resolver-sim.benchmark.review-round :as rr]
-            [resolver-sim.benchmark.review-aggregate-check :as rac]))
+            [resolver-sim.benchmark.review-aggregate-check :as rac]
+            [resolver-sim.research.coordinate-interaction :as interaction]
+            [resolver-sim.research.interaction-reproduction :as reproduction]))
+
+;; ## Reproduction comparison: agreement requires comparability
+;;
+;; This qualification example computes before comparing. Equal scalar values
+;; alone are insufficient: scope, available observations and the common checked
+;; arithmetic domain must match. These outcomes are evidence, not claim acceptance.
+
+(def comparison-root (str "sha256:" (apply str (repeat 64 "a"))))
+(def comparison-axis
+  (interaction/build-axis-semantics
+   {:axis-root comparison-root :axis-kind :parameter :data-kind :integer
+    :ordered? true :integer? true :metric? false :additive? false
+    :interaction-eligible? true}))
+(defn comparison-input [values]
+  (reproduction/build-input
+   {:x-axis comparison-axis :y-axis comparison-axis
+    :levels {:x1 0 :x2 1 :y1 0 :y2 1}
+    :observations
+    (into {} (map (fn [coordinate value]
+                    [coordinate {:observation/root comparison-root
+                                 :research-analysis/root comparison-root
+                                 :accounting-policy/root comparison-root
+                                 :experiment/domain :qualification/interaction
+                                 :measure/id :measure/value :observation/status :equal
+                                 :observation/value value :observation/reason nil}])
+                  [:x1-y1 :x1-y2 :x2-y1 :x2-y2] values))}))
+(def comparison-implementation
+  (reproduction/contrast-implementation comparison-root "1.0.0"))
+(def comparison-run
+  (reproduction/execute (comparison-input [10 13 14 25]) comparison-implementation))
+(def comparison-result (:execution/fresh-result comparison-run))
+(def overflow-run
+  (reproduction/execute (comparison-input [-1 -1 0 Long/MAX_VALUE]) comparison-implementation))
+(def reproduction-comparisons
+  (mapv (fn [[label execution expected]]
+          (merge {:case label
+                  :outcome (:reproduction/status (reproduction/compare-execution execution expected))}
+                 (reproduction/comparison-assessment execution expected)))
+        [["Common domain: equivalent" comparison-run comparison-result]
+         ["Different result schema" comparison-run {:artifact/schema "incompatible"}]
+         ["Checked-long domain differs" overflow-run (:execution/fresh-result overflow-run)]]))
+(clerk/table reproduction-comparisons)
+
+;; ## Numeric derivation is not researcher arithmetic
+;;
+;; The qualification fixture contributes only canonical engine inputs here.
+;; The operator computes freshly; it does not inspect an expected result.
+;; Structural diff, semantic comparison and numeric differential remain distinct.
+;; Researcher, runner and implementation identifiers cannot be numeric operands.
+;; Anonymous attribution can retain a scoped reference without disclosing a name;
+;; such attribution is declared evidence, not authentication or a vote.
+
+(def derived-coordinate-input
+  (:computation/input (:input (edn/read-string
+                              (slurp (io/resource "research/interaction-reproduction.edn"))))))
+(def derived-coordinate-result
+  (let [{:keys [x-axis y-axis levels observations]} derived-coordinate-input]
+    (derived/derive-interaction x-axis y-axis levels observations)))
+(select-keys derived-coordinate-result
+             [:derived/operator :derived/status :derived/value :derived/reason :derived/result-root])
 
 ;; ## Stage 1 — What was run
 ;;
