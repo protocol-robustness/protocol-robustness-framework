@@ -71,7 +71,8 @@
         requirements {:dependency-set-root (:dependency roots)
                       :execution-environment-root (:environment roots)
                       :allowed-implementation-roots
-                      [(:implementation-a roots) (:implementation-b roots)]
+                      [(:implementation-a roots) (:implementation-b roots)
+                       (str "sha256:" (format "%064x" 23))]
                       :required-capabilities [:capability/accounting]
                       :privacy-requirement :public}
         plan (accounting/build-partition-plan
@@ -138,6 +139,51 @@
                  (accounting/build-partition-plan
                   request [[(fake-root \6) (fake-root \7)]
                            [(fake-root \7) (fake-root \8)]]
+                  {:dependency-set-root (:dependency roots)
+                   :execution-environment-root (:environment roots)
+                   :allowed-implementation-roots [(:implementation-a roots)]
+                   :required-capabilities [:capability/accounting]
+                   :privacy-requirement :public})))))
+
+(deftest partial-provenance-must-match-its-exact-partition
+  (let [{:keys [contract request plan]} (accounting-fixture)
+        unit (first (:partition/work-units plan))
+        valid (accounting-partial request unit (:implementation-a roots)
+                                  (:runner-a roots) (:run-a roots))
+        substitute (fn [partial key value]
+                     (let [body (assoc partial key value)]
+                       (assoc body :accounting-partial-result/root
+                              (accounting/partial-root body))))]
+    (doseq [partial [(substitute valid :resolved-research-dependency-set/root (:policy roots))
+                     (substitute valid :research-execution-environment/root (:policy roots))
+                     (substitute valid :research-implementation-identity/root (:policy roots))]]
+      (is (false? (accounting/valid-partial-result? request unit partial)))
+      (is (thrown? clojure.lang.ExceptionInfo
+                   (accounting/reconcile request contract plan
+                                         (accounting/ingest-partial {} partial)))))))
+
+(deftest stale-source-snapshot-and-wrong-parent-cannot-reconcile
+  (let [{:keys [contract request plan]} (accounting-fixture)
+        [u0 u1] (:partition/work-units plan)
+        p0 (accounting-partial request u0 (:implementation-a roots) (:runner-a roots) (:run-a roots))
+        p1 (accounting-partial request u1 (:implementation-b roots) (:runner-b roots) (:run-b roots))
+        changed-request (accounting/build-request
+                         {:accounting-domain (:accounting/domain request)
+                          :cutpoint-root (:axis-x roots)
+                          :accounting-definition-root (:accounting-definition/root request)
+                          :accounting-policy-root (:accounting-policy/root request)
+                          :reduction-contract contract :sources (:accounting/sources request)})]
+    (is (not= (:accounting-request/root request) (:accounting-request/root changed-request)))
+    (is (thrown? clojure.lang.ExceptionInfo
+                 (accounting/reconcile changed-request contract plan
+                                       (-> {} (accounting/ingest-partial p0)
+                                           (accounting/ingest-partial p1)))))
+    (is (thrown? clojure.lang.ExceptionInfo
+                 (accounting/build-partition-plan
+                  request [[(get-in request [:accounting/sources 0 :source/root])
+                            (get-in request [:accounting/sources 1 :source/root])]
+                           [(get-in request [:accounting/sources 1 :source/root])
+                            (get-in request [:accounting/sources 2 :source/root])]]
                   {:dependency-set-root (:dependency roots)
                    :execution-environment-root (:environment roots)
                    :allowed-implementation-roots [(:implementation-a roots)]

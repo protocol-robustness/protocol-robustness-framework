@@ -178,10 +178,10 @@
                               {:request request :work-unit unit
                                :values {:accounting/unit 1}
                                :run-assurance-root (fake-root (+ 700 (:partition/index unit)))
-                               :implementation-root (fake-root 800)
+                               :implementation-root (fake-root 507)
                                :runner-reference (fake-root (+ 900 (:partition/index unit)))
-                               :resolved-dependency-set-root (fake-root 1000)
-                               :execution-environment-root (fake-root 1100)})))
+                               :resolved-dependency-set-root (fake-root 505)
+                               :execution-environment-root (fake-root 506)})))
                           {} complete)
         status (accounting/accounting-completeness request plan ingestion)]
     (is (= :incomplete (:accounting/completeness status)))

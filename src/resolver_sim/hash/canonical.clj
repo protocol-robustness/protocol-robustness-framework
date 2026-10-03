@@ -274,6 +274,12 @@
    :research-coordinate-interaction-v1 "RESEARCH_COORDINATE_INTERACTION_V1"
    :coordinate-derived-result-v1 "COORDINATE_DERIVED_RESULT_V1"
    :researcher-evidence-attribution-v1 "RESEARCHER_EVIDENCE_ATTRIBUTION_V1"
+   :research-participant-assurance-v1 "RESEARCH_PARTICIPANT_ASSURANCE_V1"
+   :research-native-execution-environment-v1 "RESEARCH_NATIVE_EXECUTION_ENVIRONMENT_V1"
+   :research-native-accounting-implementation-v1 "RESEARCH_NATIVE_ACCOUNTING_IMPLEMENTATION_V1"
+   :research-native-accounting-work-v1 "RESEARCH_NATIVE_ACCOUNTING_WORK_V1"
+   :research-native-accounting-run-v1 "RESEARCH_NATIVE_ACCOUNTING_RUN_V1"
+   :research-native-accounting-validation-v1 "RESEARCH_NATIVE_ACCOUNTING_VALIDATION_V1"
    :research-dependency-closed-interaction-implementation-v1
    "RESEARCH_DEPENDENCY_CLOSED_INTERACTION_IMPLEMENTATION_V1"
    :research-dependency-closed-source-v1 "RESEARCH_DEPENDENCY_CLOSED_SOURCE_V1"

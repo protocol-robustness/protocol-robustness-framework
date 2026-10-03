@@ -40,7 +40,7 @@
        (string? (:deployment/address entry))
        (root? (:deployment/code-root entry))))
 
-(defn validate-environment [environment]
+(defn- validate-anvil-environment [environment]
   (let [errors
         (cond-> []
           (not (map? environment)) (conj :execution-environment/not-a-map)
@@ -83,6 +83,39 @@
                      (try (environment-root environment) (catch Exception _ nil))))
           (conj :execution-environment/root-mismatch))]
     {:valid? (empty? errors) :errors (vec errors)}))
+
+(def native-schema "research-native-execution-environment.v1")
+(defn native-environment-root [environment]
+  (hash-ref/sha256-ref
+   (hc/domain-hash :research-native-execution-environment-v1
+                   (dissoc environment :research-execution-environment/root))))
+
+(defn validate-environment [environment]
+  (if (= native-schema (:artifact/schema environment))
+    (let [valid? (and (= #{:artifact/schema :execution-environment/kind :runtime/clojure-version
+                          :runtime/jvm-version :environment/arithmetic :forensic/assurance
+                          :research-execution-environment/root} (set (keys environment)))
+                      (= :clojure-jvm (:execution-environment/kind environment))
+                      (every? #(and (string? %) (seq %))
+                              (map environment [:runtime/clojure-version :runtime/jvm-version]))
+                      (= :clojure-checked-integer (:environment/arithmetic environment))
+                      (= :declaration-only (:forensic/assurance environment))
+                      (= (:research-execution-environment/root environment)
+                         (try (native-environment-root environment) (catch Exception _ nil))))]
+      {:valid? (boolean valid?) :errors (if valid? [] [:execution-environment/invalid-native-declaration])})
+    (validate-anvil-environment environment)))
+
+(defn build-native-environment
+  ([] (build-native-environment {:clojure-version (clojure-version)
+                                :jvm-version (System/getProperty "java.version")}))
+  ([{:keys [clojure-version jvm-version]}]
+   (let [body {:artifact/schema native-schema :execution-environment/kind :clojure-jvm
+               :runtime/clojure-version clojure-version :runtime/jvm-version jvm-version
+               :environment/arithmetic :clojure-checked-integer :forensic/assurance :declaration-only}
+         result (assoc body :research-execution-environment/root (native-environment-root body))]
+     (when-not (:valid? (validate-environment result))
+       (throw (ex-info "Invalid native environment" {})))
+     result)))
 
 (defn build-anvil-environment
   [{:keys [tool-version chain-id state-source code-identities

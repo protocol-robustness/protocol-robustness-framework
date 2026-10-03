@@ -6,6 +6,7 @@
    it does not define a runner-specific audit-log schema or alternate DAG."
   (:require [clojure.set :as set]
             [resolver-sim.evidence.forensic-graph :as forensic]
+            [resolver-sim.research.native-accounting-work :as native-accounting]
             [resolver-sim.hash.reference :as hash-ref]))
 
 (def event-keys
@@ -133,7 +134,8 @@
                  {:error :runner-forensic/retry-without-prior-unacknowledged-attempt
                   :work-root work-root})
                (for [[work-root completed-work] (:completed-work state)
-                     :when (not (:reproduction-execution completed-work))
+                     :when (not (or (:reproduction-execution completed-work)
+                                    (:native-accounting-execution completed-work)))
                      :let [observed (:observed-run-evidence completed-work)
                            assurance (:run-assurance-evidence completed-work)
                            assignment (get-in observed [:proof/source-artifacts :assignment])]
@@ -146,7 +148,8 @@
                   :work-root work-root})
               ;; A stored completed artifact must have all causal stages.
                (for [[work-root completed-work] (:completed-work state)
-                     :when (not (:reproduction-execution completed-work))
+                     :when (not (or (:reproduction-execution completed-work)
+                                    (:native-accounting-execution completed-work)))
                      :let [observed (:observed-run-evidence completed-work)
                            observed-root (:research-observed-run-evidence/root observed)
                            delivery-status (get-in completed-work [:result-delivery :delivery/status])
@@ -157,10 +160,38 @@
                                 (empty? result-nodes))]
                  {:error :runner-forensic/missing-result-delivery-attempt
                   :work-root work-root :observed-run-root observed-root})
+               (for [[work-root entry] (:completed-work state)
+                     :let [execution (:native-accounting-execution entry)]
+                     :when execution
+                     :let [work (get-in state [:work-items work-root])
+                           assignment (:assignment entry)
+                           eroot (native-accounting/execution-root execution)]
+                     :when (not (and (= assignment (:work/assignment work)
+                                        (get-in state [:assignments (:research-run-assignment/root assignment)]))
+                                     (try (native-accounting/validate-execution work execution)
+                                          (catch Exception _ false))
+                                     (or (= :cancelled-before-delivery
+                                            (get-in entry [:result-delivery :delivery/status]))
+                                         (some #(= eroot (get-in % [:extensions :forensic/subject :subject/root])) posted))))]
+                 {:error :runner-forensic/native-accounting-lineage-or-delivery-gap :work-root work-root})
                (when coordinator-state
                  (for [n acknowledged
-                       :when (not= :research-runner/reproduction-result-acknowledgement
-                                   (get-in n [:extensions :forensic/subject :subject/kind]))
+                       :when (= :research-runner/native-accounting-result-acknowledgement
+                                (get-in n [:extensions :forensic/subject :subject/kind]))
+                       :let [eroot (get-in n [:extensions :forensic/subject :subject/root])
+                             entry (some (fn [[_ entry]]
+                                           (when (= eroot (native-accounting/execution-root (:native-accounting-execution entry))) entry))
+                                         (:completed-work state))
+                             recorded (get-in coordinator-state
+                                              [:native-accounting-results [(:research-run-assignment/root (:assignment entry)) eroot]])]
+                       :when (not (and entry recorded (= (:assignment entry) (:assignment recorded))
+                                       (= (:native-accounting-execution entry) (:native-accounting-execution recorded))))]
+                   {:error :runner-forensic/native-accounting-acknowledgement-substitution :execution-root eroot}))
+               (when coordinator-state
+                 (for [n acknowledged
+                       :when (not (contains? #{:research-runner/reproduction-result-acknowledgement
+                                              :research-runner/native-accounting-result-acknowledgement}
+                                            (get-in n [:extensions :forensic/subject :subject/kind])))
                        :let [observed-root (get-in n [:extensions :forensic/subject :subject/root])
                              completed (some (fn [[_ entry]]
                                                (when (= observed-root

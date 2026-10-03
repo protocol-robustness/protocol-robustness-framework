@@ -6,7 +6,6 @@
    cannot replace them with ad-hoc caller supplied roots."
   (:require [resolver-sim.hash.canonical :as hc]
             [resolver-sim.hash.reference :as hash-ref]
-            [resolver-sim.research.anvil-executor :as anvil]
             [resolver-sim.research.dependency-assurance :as dependency]
             [resolver-sim.research.execution-assurance :as assurance]
             [resolver-sim.research.execution-environment :as environment]
@@ -17,6 +16,12 @@
 (def ^:const schema "research-observed-execution-work.v1")
 (defn- root [x] (hash-ref/sha256-ref (hc/domain-hash :research-observed-execution-work-v1 x)))
 (defn work-root [x] (root (dissoc x :research-observed-execution-work/root)))
+
+(defn- anvil-operation [operation]
+  ;; Keep the Anvil adapter behind the observed-EVM work boundary. Requiring
+  ;; this namespace is also useful to generic transports that only need to
+  ;; recognize the work schema; those paths must not load Anvil configuration.
+  (requiring-resolve (symbol "resolver-sim.research.anvil-executor" operation)))
 
 (defn valid-work? [work]
   (and (= schema (:artifact/schema work))
@@ -29,7 +34,7 @@
        (assurance/valid-implementation? (:work/implementation work))
        (assurance/valid-assured-job? (:work/assured-job work))
        (map? (:work/action work))
-       (= (:work/expected-action-root work) (anvil/action-root (:work/action work)))
+       (= (:work/expected-action-root work) ((anvil-operation "action-root") (:work/action work)))
        (= (:research-execution-job/root (:work/job work))
           (:research-execution-job/root (:work/assignment work))
           (:research-execution-job/root (:work/assured-job work)))
@@ -71,7 +76,7 @@
   [work]
   (when-not (valid-work? work)
     (throw (ex-info "Invalid observed execution work bundle" {})))
-  (let [result (anvil/execute! {:job (:work/job work)
+  (let [result ((anvil-operation "execute!") {:job (:work/job work)
                                 :assignment (:work/assignment work)
                                 :runner-participation (:work/runner-participation work)
                                 :execution-environment (:work/execution-environment work)

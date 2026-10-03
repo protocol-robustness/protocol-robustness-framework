@@ -76,3 +76,7 @@ No claim verification, derivation, acceptance, researcher positions, pro-rata
 arithmetic, networking, incentives or runtime scheduling semantics are changed.
 Further operators need their own explicit permission and comparability contracts;
 being integer-valued never supplies those properties automatically.
+
+Distinctness assurance around attributed reproductions is defined separately in
+[Participant assurance](PARTICIPANT_ASSURANCE.md); it preserves this coordinate
+and attribution layer and leaves real-world independence unknown without evidence.

@@ -5,7 +5,6 @@
   (:require [resolver-sim.evidence.forensic-graph :as forensic]
             [resolver-sim.hash.canonical :as hc]
             [resolver-sim.hash.reference :as hash-ref]
-            [resolver-sim.research.anvil-executor :as anvil]
             [resolver-sim.research.dependency-assurance :as dependency]
             [resolver-sim.research.execution-assurance :as assurance]
             [resolver-sim.research.execution-environment :as environment]
@@ -15,6 +14,8 @@
 (def ^:const observed-run-schema "research-observed-run-evidence.v1")
 (defn- root [domain x] (hash-ref/sha256-ref (hc/domain-hash domain x)))
 (defn- root? [x] (hash-ref/valid-sha256-ref? x))
+(defn- anvil-validator [operation]
+  (requiring-resolve (symbol "resolver-sim.research.anvil-executor" operation)))
 (defn observed-run-root [x]
   (root :research-observed-run-evidence-v1 (dissoc x :research-observed-run-evidence/root)))
 
@@ -47,9 +48,9 @@
               (dependency/valid-resolved-set? (:resolved-dependencies w))
               (assurance/valid-implementation? (:implementation w))
               (:valid? (environment/validate-environment (:execution-environment w)))
-              (anvil/valid-observation? (:environment-observation w))
-              (anvil/valid-receipt? (:anvil-receipt w))
-              (anvil/valid-fixed-validation? fixed)
+              ((anvil-validator "valid-observation?") (:environment-observation w))
+              ((anvil-validator "valid-receipt?") (:anvil-receipt w))
+              ((anvil-validator "valid-fixed-validation?") fixed)
               (= (:research-execution-job/root evidence) (:research-execution-job/root a)
                  (:research-execution-job/root asn) (:research-execution-job/root rec))
               (= (:research-run-assignment/root evidence) (:research-run-assignment/root asn)
@@ -129,9 +130,10 @@
                  (:valid? (participation/validate-participation runner-participation))
                  (dependency/valid-resolved-set? resolved-dependencies)
                  (assurance/valid-implementation? implementation)
-                 (anvil/valid-receipt? receipt)
-                 (anvil/valid-observation? (:research-execution-environment-observation/body receipt))
-                 (anvil/valid-fixed-validation? validation)
+                 ((anvil-validator "valid-receipt?") receipt)
+                 ((anvil-validator "valid-observation?")
+                  (:research-execution-environment-observation/body receipt))
+                 ((anvil-validator "valid-fixed-validation?") validation)
                  (= (:research-anvil-execution-receipt/root receipt)
                     (:research-anvil-execution-receipt/root validation))
                  (= (:research-execution-job/root assured-job) (:research-execution-job/root receipt))

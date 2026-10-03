@@ -901,7 +901,11 @@ cross-host word dispatch. Existing Anvil-based accounting transport assures
 the Anvil action, not the subsequently calculated accounting partial; it must
 not be cited as independent assurance of the accounting arithmetic. A future
 native/remote accounting executor needs a truthful partial-result-to-assurance
-binding before the full high-assurance pipeline is claimed.
+binding before the full high-assurance pipeline is claimed. The new
+[native account-level executor](NATIVE_ACCOUNTING_EXECUTION.md) provides that
+direct arithmetic-to-assurance binding through the durable runner substrate,
+without changing the older Anvil envelope. Batch-level multi-runner accounting
+and independent assurance remain subsequent milestones.
 
 ## Fine-grained research-analysis observation work
 

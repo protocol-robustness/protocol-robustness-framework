@@ -11,6 +11,7 @@
             [resolver-sim.hash.reference :as hash-ref]
             [resolver-sim.research.accelerated-accounting :as accounting]
             [resolver-sim.research.accounting-execution-work :as accounting-work]
+            [resolver-sim.research.native-accounting-work :as native-accounting]
             [resolver-sim.research.claim-evidence-work :as claim-evidence]
             [resolver-sim.research.execution-control :as control]
             [resolver-sim.research.execution-assurance :as assurance]
@@ -87,6 +88,7 @@
 
 (defn- observed-work-for [work]
   (cond
+    (native-accounting/valid-work? work) work
     (reproduction-work/valid-work? work) work
     (observed-work/valid-work? work) work
     (accounting-work/valid-work? work) (:accounting/observed-execution-work work)
@@ -94,6 +96,7 @@
 
 (defn- work-root [work]
   (cond
+    (native-accounting/valid-work? work) (:research-native-accounting-work/root work)
     (reproduction-work/valid-work? work) (:research-reproduction-execution-work/root work)
     (observed-work/valid-work? work) (:research-observed-execution-work/root work)
     (accounting-work/valid-work? work) (:research-accounting-execution-work/root work)))
@@ -111,7 +114,7 @@
 (def ^:private initial-coordinator-state
   {:assignments {} :dispatch-intents {} :dispatch-history {}
    :observed-results {} :accounting-contexts {} :accounting-partials {}
-   :reproduction-results {}})
+   :reproduction-results {} :native-accounting-results {}})
 
 (defn- valid-runtime-state? [state]
   (and (map? state)
@@ -120,9 +123,8 @@
 
 (defn- valid-coordinator-runtime-state? [state]
   (and (map? state)
-       (or (= (set (keys initial-coordinator-state)) (set (keys state)))
-           (= (disj (set (keys initial-coordinator-state)) :reproduction-results)
-              (set (keys state))))
+       (= (disj (set (keys initial-coordinator-state)) :reproduction-results :native-accounting-results)
+          (disj (set (keys state)) :reproduction-results :native-accounting-results))
        (every? map? (vals state))))
 
 (defn- journal-body [runner state]
@@ -195,7 +197,8 @@
                               (throw (ex-info "Coordinator assignment substitution" {:assignment/root root})))))
                         (-> state
                             (update :assignments merge (:assignments fresh))
-                            (update :reproduction-results #(or % {})))))))))
+                            (update :reproduction-results #(or % {}))
+                            (update :native-accounting-results #(or % {})))))))))
 
 (defn- write-coordinator-runtime-state! [coordinator state]
   (when-let [path (:transport/state-path coordinator)]
@@ -281,8 +284,8 @@
      (reduce-kv
       (fn [state work-root work-state]
         (if (= :executing (:work/status work-state))
-          (let [reproduction? (= "research-reproduction-execution-work.v1"
-                                 (:artifact/schema (get-in state [:work-items work-root])))
+          (let [reproduction? (contains? #{"research-reproduction-execution-work.v1" "research-native-accounting-work.v1"}
+                                        (:artifact/schema (get-in state [:work-items work-root])))
                 recovered-status (if reproduction? :outcome-unknown :interrupted)
                 event {:work/event (if reproduction?
                                      :execution-outcome-unknown-after-restart
@@ -450,7 +453,8 @@
                                                :parent-nodes [] :observed-root root})))))))
                             work-status (get-in state [:work-states root :work/status])
                             _ (when (and (= :completed work-status)
-                                         (reproduction-work/valid-work? execution-work)
+                                         (or (reproduction-work/valid-work? execution-work)
+                                             (native-accounting/valid-work? execution-work))
                                          (contains? #{:pending :unreachable}
                                                     (get-in state [:completed-work root
                                                                    :result-delivery :delivery/status])))
@@ -554,11 +558,19 @@
                       (let [work-job (:research-execution-job/root
                                       (:work/job (observed-work-for work)))
                             status (get-in state [:work-states work-root :work/status])]
-                        (if (and (= job-root work-job)
-                                 (not (contains? #{:completed :result-acknowledged} status)))
-                          (append-work-event state work-root :cancelled logical-cutpoint
-                                             :cancellation-observed)
-                          state)))
+                        (cond
+                          (and (= job-root work-job)
+                               (get-in state [:completed-work work-root :native-accounting-execution])
+                               (contains? #{:pending :unreachable}
+                                          (get-in state [:completed-work work-root :result-delivery :delivery/status])))
+                          (-> state
+                              (assoc-in [:completed-work work-root :result-delivery]
+                                        {:delivery/status :cancelled-before-delivery})
+                              (append-work-event work-root :completed logical-cutpoint :result-delivery-suppressed))
+                          (and (= job-root work-job)
+                               (not (contains? #{:completed :result-acknowledged} status)))
+                          (append-work-event state work-root :cancelled logical-cutpoint :cancellation-observed)
+                          :else state)))
                     (assoc-in state [:cancellations job-root] cancellation)
                     (:work-items state)))))
               (let [assignment (assignment-for-job @(:transport/state runner) job-root)]
@@ -661,6 +673,19 @@
          (= (:research-implementation-identity/root (:work/implementation work))
             (:research-implementation-identity/root reproduction-execution)))))
 
+(defn- computed-execution-root [execution]
+  (or (:reproduction-execution/root execution) (native-accounting/execution-root execution)))
+
+(defn- valid-native-accounting-delivery? [state {:keys [job assignment native-accounting-execution]}]
+  (try
+    (let [ar (:research-run-assignment/root assignment)
+          work (get-in state [:dispatch-intents ar :execution-work])]
+      (and (= assignment (get-in state [:assignments ar]))
+           (= job (:work/job work)) (= assignment (:work/assignment work))
+           (native-accounting/valid-work? work)
+           (native-accounting/validate-execution work native-accounting-execution)))
+    (catch Exception _ false)))
+
 (defn- coordinator-reproduction-handler [coordinator]
   (reify HttpHandler
     (handle [_ exchange]
@@ -680,21 +705,41 @@
           (try
             (let [message (edn/read-string (String. payload StandardCharsets/UTF_8))
                   state (coordinator-state coordinator)]
-              (if-not (and (= :research/reproduction-result-delivery (:transport/kind message))
-                           (valid-reproduction-result-delivery? state message))
+              (if-not (case (:transport/kind message)
+                        :research/reproduction-result-delivery (valid-reproduction-result-delivery? state message)
+                        :research/native-accounting-result-delivery (valid-native-accounting-delivery? state message)
+                        false)
                 (response! exchange 422 {:transport/status :invalid-reproduction-result})
-                (let [{:keys [job assignment reproduction-execution]} message
-                      eroot (:reproduction-execution/root reproduction-execution)
+                (let [{:keys [job assignment reproduction-execution native-accounting-execution]} message
+                      native? (some? native-accounting-execution)
+                      execution (or native-accounting-execution reproduction-execution)
+                      eroot (computed-execution-root execution)
                       result-key [(:research-run-assignment/root assignment) eroot]
-                      previous (get-in state [:reproduction-results result-key])
-                      entry (select-keys message [:job :assignment :reproduction-execution])]
+                      result-map (if native? :native-accounting-results :reproduction-results)
+                      previous (get-in state [result-map result-key])
+                      entry (select-keys message (if native? [:job :assignment :native-accounting-execution]
+                                                    [:job :assignment :reproduction-execution]))]
                   (when (and previous (not= previous entry))
                     (throw (ex-info "Reproduction result substitution" {})))
                   (when-let [event! (:transport/test-event coordinator)]
                     (event! (if previous :duplicate-result-recognized
                                 :new-result-recognized)))
                   (update-coordinator-state!
-                   coordinator #(if previous % (assoc-in % [:reproduction-results result-key] entry)))
+                   coordinator
+                   (fn [state]
+                     (if previous state
+                         (let [state (assoc-in state [result-map result-key] entry)]
+                           (if-not native? state
+                             (let [work (get-in state [:dispatch-intents (:research-run-assignment/root assignment) :execution-work])
+                                   plan-root (get-in work [:accounting/partition-plan :accounting-partition-plan/root])
+                                   context {:request (:accounting/request work) :partition-plan (:accounting/partition-plan work)}
+                                   prior (get-in state [:accounting-contexts plan-root])]
+                               (when (and prior (not= prior context))
+                                 (throw (ex-info "Native accounting context substitution" {})))
+                               (-> state
+                                   (assoc-in [:accounting-contexts plan-root] context)
+                                   (update-in [:accounting-partials plan-root] (fnil accounting/ingest-partial {})
+                                              (:accounting-partial native-accounting-execution)))))))))
                   ;; Runtime-only fault-injection seam. It runs after the
                   ;; atomic journal write and before the HTTP acknowledgement;
                   ;; no canonical scheduler or result identity depends on it.
@@ -704,7 +749,7 @@
                              {:transport/status (if previous :already-recorded :accepted)
                               :research-execution-job/root (:research-execution-job/root job)
                               :research-run-assignment/root (:research-run-assignment/root assignment)
-                              :reproduction-execution/root eroot
+                              (if native? :research-native-accounting-run/root :reproduction-execution/root) eroot
                               :coordinator/root (:coordinator/root coordinator)})
                   (when-let [event! (:transport/test-event coordinator)]
                     (event! :acknowledgement-emitted)))))
@@ -826,6 +871,7 @@
       (persist-dispatch-intent! coordinator dispatch))
     (.createContext server "/v1/results" (coordinator-result-handler coordinator))
     (.createContext server "/v1/reproductions" (coordinator-reproduction-handler coordinator))
+    (.createContext server "/v1/accounting" (coordinator-reproduction-handler coordinator))
     (.setExecutor server nil)
     (.start server)
     (let [coordinator (assoc coordinator :transport/base-url
@@ -871,22 +917,32 @@
         {:http/status nil :transport/error :unreachable
          :transport/exception-class (.getName (class e))}))))
 
-(defn deliver-reproduction-result!
+(defn- deliver-computation-result!
   "At-least-once delivery of a persisted fresh execution artifact. The expected
    result is deliberately absent; comparison remains a later consumer step."
-  [{:keys [coordinator-root endpoint job assignment reproduction-execution logical-cutpoint
+  [{:keys [coordinator-root endpoint job assignment reproduction-execution native-accounting-execution logical-cutpoint
            test-event]}]
   (when-not (and (remote/valid-job? job) (remote/valid-assignment? assignment)
-                 (reproduction/valid-execution? reproduction-execution)
+                 (if native-accounting-execution
+                   (and (hash-ref/valid-sha256-ref? (native-accounting/execution-root native-accounting-execution))
+                        (= (:research-execution-job/root job)
+                           (get-in native-accounting-execution [:run-evidence :research-execution-job/root]))
+                        (= (:research-run-assignment/root assignment)
+                           (get-in native-accounting-execution [:run-evidence :research-run-assignment/root])))
+                   (reproduction/valid-execution? reproduction-execution))
                  (= (:research-execution-job/root job)
                     (:research-execution-job/root assignment))
-                 (= (:reproduction-input/root reproduction-execution) (:workload/root job)))
+                 (or native-accounting-execution
+                     (= (:reproduction-input/root reproduction-execution) (:workload/root job))))
     (throw (ex-info "Invalid reproduction result delivery" {})))
   (when test-event (test-event :result-post-initiated))
-  (let [response (post-edn! endpoint "/v1/reproductions"
-                            {:transport/kind :research/reproduction-result-delivery
+  (let [execution (or native-accounting-execution reproduction-execution)
+        result-root (computed-execution-root execution)
+        response (post-edn! endpoint (if native-accounting-execution "/v1/accounting" "/v1/reproductions")
+                            {:transport/kind (if native-accounting-execution :research/native-accounting-result-delivery
+                                                :research/reproduction-result-delivery)
                              :job job :assignment assignment
-                             :reproduction-execution reproduction-execution
+                             (if native-accounting-execution :native-accounting-execution :reproduction-execution) execution
                              :logical-cutpoint logical-cutpoint})
         body (:transport/response response) status (:transport/status body)]
     (when test-event
@@ -900,30 +956,40 @@
        :reachability (control/build-reachability
                       {:job-root (:research-execution-job/root job)
                        :route-kind :result-delivery
-                       :subject-root (:reproduction-execution/root reproduction-execution)
+                       :subject-root result-root
                        :source-root (:runner/reference assignment)
                        :destination-root coordinator-root
                        :declared-reachable? true :outcome :unreachable
                        :attempt-cutpoint logical-cutpoint})}
       (and (= 200 (:http/status response))
            (contains? #{:accepted :already-recorded} status)
-           (= (:reproduction-execution/root reproduction-execution)
-              (:reproduction-execution/root body))
+           (= result-root (get body (if native-accounting-execution :research-native-accounting-run/root :reproduction-execution/root)))
            (= (:research-run-assignment/root assignment)
               (:research-run-assignment/root body)))
       {:delivery/status status
        :reachability (control/build-reachability
                       {:job-root (:research-execution-job/root job)
                        :route-kind :result-delivery
-                       :subject-root (:reproduction-execution/root reproduction-execution)
+                       :subject-root result-root
                        :source-root (:runner/reference assignment)
                        :destination-root coordinator-root
                        :declared-reachable? true :outcome :realized
                        :attempt-cutpoint logical-cutpoint})}
       :else (throw (ex-info "Coordinator rejected reproduction result" {:response response})))))
 
+(defn deliver-reproduction-result! [message]
+  (when (or (nil? (:reproduction-execution message)) (:native-accounting-execution message))
+    (throw (ex-info "Expected reproduction result" {})))
+  (deliver-computation-result! message))
+
+(defn deliver-native-accounting-result! [message]
+  (when (or (nil? (:native-accounting-execution message)) (:reproduction-execution message))
+    (throw (ex-info "Expected native accounting result" {})))
+  (deliver-computation-result! message))
+
 (defn- execute-reproduction-delivered-work! [runner work logical-cutpoint]
   (let [root (work-root work)
+        native? (native-accounting/valid-work? work)
         job (:work/job work)
         assignment (:work/assignment work)
         job-root (:research-execution-job/root job)
@@ -944,19 +1010,20 @@
          (record-forensic-event
           state runner
           {:event-key :runner.forensic/execution-started :subject-root root
-           :subject-kind :research-runner/reproduction-work
+           :subject-kind (if native? :research-runner/native-accounting-work :research-runner/reproduction-work)
            :causal-parent-roots [job-root (:research-run-assignment/root assignment) root]
            :parent-nodes (cond-> [] delivery-node (conj delivery-node))
-           :observed-root (:reproduction-input/root (:work/reproduction-input work))}))))
+           :observed-root (if native? (:accounting-work-unit/root (:accounting/work-unit work))
+                              (:reproduction-input/root (:work/reproduction-input work)))}))))
     ;; Runtime-only qualification hook at the durable executing boundary.
     ;; A process death here is recovered as outcome-unknown, never complete.
     (when-let [hook (:transport/before-reproduction-compute runner)]
       (hook runner work logical-cutpoint))
-    (let [execution (reproduction-work/execute-work! work)
+    (let [execution (if native? (native-accounting/execute-work! work) (reproduction-work/execute-work! work))
           ;; Persist the completed deterministic computation before attempting
           ;; network delivery. Restart can only replay this exact value.
           initial {:job job :assignment assignment
-                   :reproduction-execution execution
+                   (if native? :native-accounting-execution :reproduction-execution) execution
                    :result-delivery {:delivery/status :pending}
                    :result-deliveries []}]
       (update-runtime-state!
@@ -964,32 +1031,35 @@
        (fn [state]
          (let [complete-node (runner-forensics/build-event-node
                               {:event-key :runner.forensic/execution-completed
-                               :subject-root root :subject-kind :research-runner/reproduction-work
+                               :subject-root root :subject-kind (if native? :research-runner/native-accounting-work :research-runner/reproduction-work)
                                :actor-root (:runner/reference (:runner-participation runner))
                                :causal-parent-roots [job-root
                                                      (:research-run-assignment/root assignment)
-                                                     (:reproduction-execution/root execution)]
+                                                     (computed-execution-root execution)]
                                :parent-nodes (cond-> []
                                                (runner-forensics/latest-node-hash
                                                 state :runner.forensic/execution-started root)
                                                (conj (runner-forensics/latest-node-hash
                                                       state :runner.forensic/execution-started root)))
-                               :observed-root (:reproduction-execution/root execution)
+                               :observed-root (computed-execution-root execution)
                                :consequence? true})]
-           (-> state
-               (assoc-in [:completed-work root] initial)
-               (append-work-event root :completed logical-cutpoint :execution-completed)
-               (runner-forensics/record-node complete-node)))))
+           (let [state (-> state
+                           (assoc-in [:completed-work root] initial)
+                           (append-work-event root :completed logical-cutpoint :execution-completed)
+                           (runner-forensics/record-node complete-node))]
+             (if native?
+               (reduce runner-forensics/record-node state (native-accounting/evidence-nodes work execution))
+               state)))))
       (when-let [hook (:transport/before-result-delivery runner)]
         (hook runner work logical-cutpoint))
       (let [cancelled? (contains? (:cancellations (runner-state runner)) job-root)
             delivered (if cancelled?
                         {:delivery/status :cancelled-before-delivery}
-                        (deliver-reproduction-result!
+                        (deliver-computation-result!
                          {:coordinator-root (:transport/coordinator-root runner)
                           :endpoint (:transport/coordinator-endpoint runner)
                           :job job :assignment assignment
-                          :reproduction-execution execution
+                          (if native? :native-accounting-execution :reproduction-execution) execution
                           :logical-cutpoint logical-cutpoint
                           :test-event (:transport/test-event runner)}))]
         (update-runtime-state!
@@ -1009,10 +1079,11 @@
                           (record-forensic-event
                            state runner
                            {:event-key :runner.forensic/result-posted
-                            :subject-root (:reproduction-execution/root execution)
-                            :subject-kind :research-runner/reproduction-result-delivery
+                            :subject-root (computed-execution-root execution)
+                            :subject-kind (if native? :research-runner/native-accounting-result-delivery
+                                              :research-runner/reproduction-result-delivery)
                             :causal-parent-roots (cond-> [(:research-run-assignment/root assignment)
-                                                          (:reproduction-execution/root execution)]
+                                                          (computed-execution-root execution)]
                                                    (get-in delivered
                                                            [:reachability
                                                             :research-realized-reachability/root])
@@ -1021,23 +1092,24 @@
                                                                   :research-realized-reachability/root])))
                             :parent-nodes [(runner-forensics/latest-node-hash
                                             state :runner.forensic/execution-completed root)]
-                            :observed-root (:reproduction-execution/root execution)}))]
+                            :observed-root (computed-execution-root execution)}))]
              (if (and posted (acknowledge-result? delivered))
                (record-forensic-event
                 posted runner
                 {:event-key :runner.forensic/coordinator-acknowledged
-                 :subject-root (:reproduction-execution/root execution)
-                 :subject-kind :research-runner/reproduction-result-acknowledgement
+                 :subject-root (computed-execution-root execution)
+                 :subject-kind (if native? :research-runner/native-accounting-result-acknowledgement
+                                   :research-runner/reproduction-result-acknowledgement)
                  :causal-parent-roots
-                 (cond-> [(:reproduction-execution/root execution)]
+                 (cond-> [(computed-execution-root execution)]
                    (get-in delivered
                            [:reachability :research-realized-reachability/root])
                    (conj (get-in delivered
                                  [:reachability :research-realized-reachability/root])))
                  :parent-nodes [(runner-forensics/latest-node-hash
                                  posted :runner.forensic/result-posted
-                                 (:reproduction-execution/root execution))]
-                 :observed-root (:reproduction-execution/root execution)
+                                 (computed-execution-root execution))]
+                 :observed-root (computed-execution-root execution)
                  :consequence? true})
                (or posted state)))))
         {:execution execution :result-delivery delivered}))))
@@ -1176,7 +1248,7 @@
        :result-delivery returned})))
 
 (defn execute-delivered-work! [runner work logical-cutpoint]
-  (if (reproduction-work/valid-work? work)
+  (if (or (reproduction-work/valid-work? work) (native-accounting/valid-work? work))
     (execute-reproduction-delivered-work! runner work logical-cutpoint)
     (execute-delivered-work-existing! runner work logical-cutpoint)))
 
@@ -1195,7 +1267,7 @@
      (throw (ex-info "Invalid result retry parameters" {})))
    (let [pending (->> (:completed-work (runner-state runner))
                       (filter (fn [[_ completed]]
-                                (and (not (:reproduction-execution completed))
+                                (and (not (:reproduction-execution completed)) (not (:native-accounting-execution completed))
                                      (= :unreachable
                                         (get-in completed [:result-delivery :delivery/status])))))
                       (sort-by key))]
@@ -1265,21 +1337,22 @@
 (defn retry-undelivered-reproduction-results! [runner endpoint logical-cutpoint]
   (let [pending (->> (:completed-work (runner-state runner))
                      (filter (fn [[_ entry]]
-                               (and (:reproduction-execution entry)
+                               (and (or (:reproduction-execution entry) (:native-accounting-execution entry))
                                     (contains? #{:pending :unreachable}
                                                (get-in entry [:result-delivery :delivery/status])))))
                      (sort-by key))]
     (mapv
      (fn [[root completed]]
-       (let [execution (:reproduction-execution completed)
+       (let [native? (some? (:native-accounting-execution completed))
+             execution (or (:native-accounting-execution completed) (:reproduction-execution completed))
              assignment (:assignment completed)
              job (:job completed)
              test-event (:transport/test-event runner)
              _ (when test-event (test-event :runner-retry-initiated))
-             delivered (deliver-reproduction-result!
+             delivered (deliver-computation-result!
                         {:coordinator-root (:transport/coordinator-root runner)
                          :endpoint endpoint :job job :assignment assignment
-                         :reproduction-execution execution :logical-cutpoint logical-cutpoint
+                         (if native? :native-accounting-execution :reproduction-execution) execution :logical-cutpoint logical-cutpoint
                          :test-event test-event})]
          (update-runtime-state!
           runner
@@ -1292,17 +1365,18 @@
                                                logical-cutpoint :result-redelivery))
                   previous (runner-forensics/latest-node-hash
                             state :runner.forensic/result-posted
-                            (:reproduction-execution/root execution))
+                            (computed-execution-root execution))
                   redelivery (record-forensic-event
                               state runner
                               {:event-key (if previous
                                             :runner.forensic/result-redelivered
                                             :runner.forensic/result-posted)
-                               :subject-root (:reproduction-execution/root execution)
-                               :subject-kind :research-runner/reproduction-result-delivery
+                               :subject-root (computed-execution-root execution)
+                               :subject-kind (if native? :research-runner/native-accounting-result-delivery
+                                                 :research-runner/reproduction-result-delivery)
                                :causal-parent-roots
                                (cond-> [(:research-run-assignment/root assignment)
-                                        (:reproduction-execution/root execution)]
+                                        (computed-execution-root execution)]
                                  (get-in delivered
                                          [:reachability :research-realized-reachability/root])
                                  (conj (get-in delivered
@@ -1311,15 +1385,16 @@
                                :parent-nodes (cond-> [(runner-forensics/latest-node-hash
                                                        state :runner.forensic/execution-completed root)]
                                                previous (conj previous))
-                               :observed-root (:reproduction-execution/root execution)})]
+                               :observed-root (computed-execution-root execution)})]
               (if (and redelivery (acknowledge-result? delivered))
                 (record-forensic-event
                  redelivery runner
                  {:event-key :runner.forensic/coordinator-acknowledged
-                  :subject-root (:reproduction-execution/root execution)
-                  :subject-kind :research-runner/reproduction-result-acknowledgement
+                  :subject-root (computed-execution-root execution)
+                  :subject-kind (if native? :research-runner/native-accounting-result-acknowledgement
+                                    :research-runner/reproduction-result-acknowledgement)
                   :causal-parent-roots
-                  (cond-> [(:reproduction-execution/root execution)]
+                  (cond-> [(computed-execution-root execution)]
                     (get-in delivered
                             [:reachability :research-realized-reachability/root])
                     (conj (get-in delivered
@@ -1328,15 +1403,15 @@
                                   redelivery (if previous
                                                :runner.forensic/result-redelivered
                                                :runner.forensic/result-posted)
-                                  (:reproduction-execution/root execution))]
-                  :observed-root (:reproduction-execution/root execution)
+                                  (computed-execution-root execution))]
+                  :observed-root (computed-execution-root execution)
                   :consequence? true})
                 (or redelivery state)))))
          (when test-event
            (test-event (if (acknowledge-result? delivered)
                          :runner-acknowledgement-recorded
                          :runner-redelivery-not-acknowledged)))
-         {:reproduction-execution/root (:reproduction-execution/root execution)
+         {(if native? :research-native-accounting-run/root :reproduction-execution/root) (computed-execution-root execution)
           :delivery delivered}))
      pending)))
 
@@ -1516,6 +1591,21 @@
       (and execution authoritative-result)
       (assoc :reproduction-evidence
              (reproduction/compare-execution execution authoritative-result)))))
+
+(defn dispatch-native-accounting!
+  "Dispatch the rooted account partition and admit its directly assured partial.
+   Job and assignment are derived from the bundle; expected values are absent."
+  [coordinator {:keys [endpoint accounting-work logical-cutpoint] :or {logical-cutpoint 0}}]
+  (when-not (native-accounting/valid-work? accounting-work)
+    (throw (ex-info "Invalid native accounting dispatch bundle" {})))
+  (let [job (:work/job accounting-work) assignment (:work/assignment accounting-work)
+        delivery (dispatch-job! coordinator {:endpoint endpoint :job job :assignment assignment
+                                              :execution-work accounting-work :logical-cutpoint logical-cutpoint})
+        entry (some (fn [[_ result]]
+                      (when (= (:research-run-assignment/root assignment)
+                               (:research-run-assignment/root (:assignment result))) result))
+                    (:native-accounting-results (coordinator-state coordinator)))]
+    {:delivery delivery :native-accounting-execution (:native-accounting-execution entry)}))
 
 (defn retry-pending-dispatches!
   "Re-attempt persisted dispatch intents after a runner returns. It never

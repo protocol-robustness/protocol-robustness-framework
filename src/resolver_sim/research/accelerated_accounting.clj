@@ -229,6 +229,15 @@
           (:accounting-work-unit/root partial))
        (= (:partition/index work-unit) (:partition/index partial))
        (= (:partition/source-roots work-unit) (:partition/source-roots partial))
+       ;; The result must preserve the execution constraints declared by its
+       ;; exact partition. Merely supplying some valid dependency/implementation
+       ;; roots would otherwise admit stale-source or unauthorized code output.
+       (contains? (set (:work-unit/allowed-implementation-roots work-unit))
+                  (:research-implementation-identity/root partial))
+       (= (:work-unit/dependency-set-root work-unit)
+          (:resolved-research-dependency-set/root partial))
+       (= (:work-unit/execution-environment-root work-unit)
+          (:research-execution-environment/root partial))
        (= (partial-values request work-unit) (:accounting/values partial))
        (integer-map? (:accounting/values partial))
        (every? root? [(:research-run-assurance-evidence/root partial)
