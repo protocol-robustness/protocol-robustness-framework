@@ -1,4 +1,5 @@
 {:benchmark/id              :benchmark/sew-escrow-dispute-v1
+ :benchmark/solidity-revision "solidity-stable-2026-10"
   :benchmark/version         1
   :benchmark/status          :active
   :benchmark/domain          :domain/escrow-dispute-resolution

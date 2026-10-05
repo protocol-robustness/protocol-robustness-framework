@@ -15,6 +15,7 @@
    with deferred recovery (S103), and resolver stake shortfall with
    action blocking (S104)."
  :benchmark/runner-policy   :runner-policy/deterministic-local-v1
+ :benchmark/solidity-binding :none
  :benchmark/evidence-policy :evidence-policy/forensic-standard-v1
    :benchmark/scoring-rule    :scoring/shortfall-allocation-v0
     :benchmark/property-types  #{:fairness :safety}

@@ -1,5 +1,6 @@
 {:suite/id :suites/timelock-regression
  :suite/title "Timelock multi-escalation regression"
+ :suite/sew-revision "solidity-stable-2026-10"
  :suite/purpose "Verify that multiple escalations cannot happen in the same block, preventing atomicity attacks on resolution layers."
  :suite/prevents "Resolution spamming and authority skipping."
  :suite/class :ordering

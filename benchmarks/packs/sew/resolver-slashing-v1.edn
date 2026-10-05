@@ -10,6 +10,7 @@
     coverage, over-slashing prevention, and appeal bond adequacy."
   :benchmark/runner-policy   :runner-policy/deterministic-local-v1
  :benchmark/evidence-policy :evidence-policy/forensic-standard-v1
+ :benchmark/solidity-revision "solidity-stable-2026-10"
    :benchmark/scoring-rule    :scoring/severity-weighted-robustness-v1
    :benchmark/property-types  #{:safety}
    :benchmark/property-claims {:safety [:claim/slashing-conservation

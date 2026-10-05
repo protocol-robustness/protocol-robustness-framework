@@ -1,5 +1,6 @@
 {:suite/id :suites/same-block-ordering
  :suite/title "Same-block ordering regression"
+ :suite/sew-revision "solidity-stable-2026-10"
  :suite/purpose "Ensure sequential same-timestamp actions produce deterministic state transitions."
  :suite/prevents "State inconsistency from atomic create-dispute-resolution sequences."
  :suite/class :ordering

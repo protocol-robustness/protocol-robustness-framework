@@ -1,5 +1,6 @@
 {:suite/id       :suites/all-invariants
  :suite/title    "Full invariant regression suite"
+ :suite/sew-revision "solidity-stable-2026-10"
  :suite/purpose  "Run all 24 deterministic scenarios through the replay engine, verifying every protocol invariant passes under standard baseline parameters."
  :suite/prevents "Regressions in any of the 13+ checked invariants across escrow lifecycle, resolution, escalation, and fee accounting."
  :suite/class    :safety

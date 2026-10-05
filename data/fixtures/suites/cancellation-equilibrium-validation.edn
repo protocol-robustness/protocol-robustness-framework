@@ -3,6 +3,7 @@
 :suite/purpose  "Verify that cancellation paths maintain equilibrium properties and do not create profitable strategic deviations. Covers mutual cancel, dispute-timeout auto-cancel, status-clearing regression, cancellation-time via automate-timed-actions, deadline boundary, and dispute-orphaned auto-cancel scenarios."
 :suite/prevents "Undetected profitable unilateral deviations from cancellation paths; stale status regressions in counterfactual analysis; missing coverage for auto-cancel-time via keeper path, deadline boundary, and dispute-blocking attack."
  :suite/class    :safety
+ :suite/sew-revision "solidity-stable-2026-10"
  :suite/criticality :high
 
  :protocol   :protocol/baseline

@@ -1,5 +1,6 @@
 {:benchmark/id :benchmark/force-authorisation-custody-v1
  :benchmark/version 1
+ :benchmark/solidity-binding :none
  :benchmark/status :experimental
  :benchmark/coverage-status :bounded
  :benchmark/capability :capability/force-authorisation

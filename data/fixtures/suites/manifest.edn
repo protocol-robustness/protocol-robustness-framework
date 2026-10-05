@@ -1,4 +1,5 @@
 {
+ :suite/solidity-binding :none
     :suites/all-invariants {:file "all-invariants.edn" :title "Full invariant regression suite" :class :safety :criticality :critical}
     :suites/baseline-safety {:file "baseline-safety.edn" :title "Baseline safety properties" :class :safety :criticality :high}
     :suites/escalation-collision {:file "escalation-collision.edn" :title "Escalation collision scenarios" :class :adversarial :criticality :medium}

@@ -1,5 +1,6 @@
 {:suite/id       :suites/equivalence-accounting-min
  :suite/title    "Equivalence Accounting-Min Semantics"
+ :suite/sew-revision "solidity-stable-2026-10"
  :suite/purpose  "Verify lightweight accounting comparison semantics for held deltas, fee monotonicity, and pending create/clear consistency."
  :suite/prevents "False equivalence where terminal state matches but accounting side-effects drift."
  :suite/class    :economic

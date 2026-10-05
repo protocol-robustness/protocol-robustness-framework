@@ -1,4 +1,5 @@
 {:benchmark/id              :benchmark/prf-evidence-integrity-v1
+ :benchmark/solidity-binding :none
    :benchmark/version         1
    :benchmark/domain          :domain/evidence-integrity
    :benchmark/protocol        :protocol/prf

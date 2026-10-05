@@ -3,6 +3,7 @@
   :benchmark/status          :active
   :benchmark/coverage-status :demonstrated
   :benchmark/workload        :workload/sew-dispute-safety-v1
+  :benchmark/solidity-revision "solidity-stable-2026-10"
   :benchmark/domain          :domain/evidence-integrity
   :benchmark/protocol        :protocol/prf
    :benchmark/scenario-suite  :suite/prf-replay-v1

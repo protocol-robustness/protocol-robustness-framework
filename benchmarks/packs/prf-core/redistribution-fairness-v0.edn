@@ -1,5 +1,6 @@
 {:benchmark/id              :benchmark/prf-redistribution-fairness-v0
  :benchmark/version         0
+ :benchmark/solidity-binding :none
  :benchmark/status          :experimental
  :benchmark/coverage-status :partial
  :benchmark/experimental-reason

@@ -1,4 +1,5 @@
 {:benchmark/id              :benchmark/prf-yield-partial-fill-v0
+ :benchmark/solidity-binding :none
   :benchmark/version         0
   :benchmark/status          :experimental
   :benchmark/domain          :domain/protocol-value-conservation

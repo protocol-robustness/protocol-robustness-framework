@@ -16,6 +16,7 @@
    simulator-backed scenarios that exercise resolver accountability,
    liveness under adversarial load, and pull-first fund safety."
  :benchmark/runner-policy   :runner-policy/deterministic-local-v1
+ :benchmark/solidity-binding :none
  :benchmark/evidence-policy :evidence-policy/forensic-standard-v1
    :benchmark/scoring-rule    :scoring/robustness-dimensions-v0
     :benchmark/property-types  #{:integrity :safety :liveness}

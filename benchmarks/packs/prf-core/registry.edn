@@ -1,4 +1,5 @@
 {:registry/spec :spec/pack-registry-v1
+ :benchmark/solidity-binding :none
  :registry/version 1
  :pack/id :pack/prf-core
  :pack/description "Core PRF benchmark infrastructure pack"

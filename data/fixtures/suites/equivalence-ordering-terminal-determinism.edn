@@ -1,5 +1,6 @@
 {:suite/id       :suites/equivalence-ordering-terminal-determinism
  :suite/title    "Equivalence Ordering/Terminal/Determinism"
+ :suite/sew-revision "solidity-stable-2026-10"
  :suite/purpose  "Verify same-block ordering safety, terminal-state absorbency, and replay determinism."
  :suite/prevents "Order-dependent terminal drift and non-deterministic replay trajectories."
  :suite/class    :ordering

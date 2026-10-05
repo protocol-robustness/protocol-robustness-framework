@@ -1,5 +1,6 @@
 {:suite/id :suites/governance-decay-explicit
  :suite/title "Governance Decay Explicit and Governance Approval"
+ :suite/sew-revision "solidity-stable-2026-10"
  :suite/purpose "Exercise explicit governance-quality decay assumptions and approval-gated slashing execution."
  :suite/prevents "False confidence from implicit defaults in decay/approval modeling."
  :suite/class :governance

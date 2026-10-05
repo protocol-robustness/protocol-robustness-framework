@@ -1,5 +1,6 @@
 {:suite/id       :suites/equivalence-economic-stress
  :suite/title    "Equivalence Economic Stress"
+ :suite/sew-revision "solidity-stable-2026-10"
  :suite/purpose  "Verify FoT rounding conservation, stake-withdraw/slash ordering, and cross-token isolation."
  :suite/prevents "Silent accounting drift, underflow paths, and token-bucket contamination."
  :suite/class    :economic
