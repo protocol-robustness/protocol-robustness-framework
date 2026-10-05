@@ -58,34 +58,41 @@ def sha256_file(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
-def _sew_provenance(sew_repo: Path) -> tuple[str, str]:
-    """Return (revision, branch) for the sew-protocol checkout, best-effort."""
-    try:
-        rev = subprocess.run(
-            ["git", "rev-parse", "HEAD"], cwd=sew_repo, capture_output=True, text=True, timeout=30
-        )
-        revision = rev.stdout.strip() if rev.returncode == 0 else "unknown"
-    except Exception:
-        revision = "unknown"
-    try:
-        br = subprocess.run(
-            ["git", "branch", "--show-current"], cwd=sew_repo, capture_output=True, text=True, timeout=30
-        )
-        branch = br.stdout.strip() if br.returncode == 0 and br.stdout.strip() else "detached"
-    except Exception:
-        branch = "unknown"
-    return (revision, branch)
+def _git_info(repo: Path) -> tuple[str, str, str, bool]:
+    """Return (revision, branch, tag, dirty) for a git checkout, best-effort."""
+    def run(args: list[str]) -> str:
+        try:
+            r = subprocess.run(args, cwd=repo, capture_output=True, text=True, timeout=30)
+            return r.stdout.strip() if r.returncode == 0 else ""
+        except Exception:
+            return ""
+    revision = run(["git", "rev-parse", "HEAD"]) or "unknown"
+    branch = run(["git", "branch", "--show-current"]) or "detached"
+    tag = run(["git", "describe", "--tags", "--exact-match"]) or ""
+    dirty = bool(run(["git", "status", "--porcelain"]))
+    return (revision, branch, tag, dirty)
 
 
-def _stamp_provenance(path: Path, revision: str, branch: str) -> None:
-    """Inject sew_protocol_revision / sew_protocol_branch into a JSON trace fixture."""
+def _stamp_provenance(path: Path, sew: tuple, model: tuple) -> None:
+    """Inject Solidity + model provenance into a JSON trace fixture.
+
+    Authoritative identity is the commit SHA; branch/tag are descriptive only.
+    A dirty working tree is surfaced via a '-dirty' suffix and provenance_dirty
+    so an uncommitted tree cannot masquerade as validation of a clean commit.
+    """
     try:
         data = json.loads(path.read_text("utf-8"))
     except (json.JSONDecodeError, OSError):
         return
     if isinstance(data, dict):
-        data["sew_protocol_revision"] = revision
-        data["sew_protocol_branch"] = branch
+        sew_rev, sew_branch, sew_tag, sew_dirty = sew
+        mod_rev, mod_branch, _mod_tag, mod_dirty = model
+        data["sew_protocol_revision"] = sew_rev + ("-dirty" if sew_dirty else "")
+        data["sew_protocol_branch"] = sew_branch
+        data["sew_protocol_tag"] = sew_tag
+        data["resolver_sim_revision"] = mod_rev + ("-dirty" if mod_dirty else "")
+        data["resolver_sim_branch"] = mod_branch
+        data["provenance_dirty"] = bool(sew_dirty or mod_dirty)
         path.write_text(json.dumps(data, indent=2, ensure_ascii=False) + "\n", "utf-8")
 
 
@@ -127,9 +134,14 @@ def main() -> None:
     generated = 0
     failed = 0
 
-    sew_revision, sew_branch = _sew_provenance(sew_repo)
-    print(f"sew-protocol revision: {sew_revision}")
-    print(f"sew-protocol branch:   {sew_branch}")
+    sew = _git_info(sew_repo)
+    model = _git_info(repo_root)
+    print(f"sew-protocol revision: {sew[0]}")
+    print(f"sew-protocol branch:   {sew[1]}")
+    print(f"sew-protocol tag:      {sew[2] or '(none)'}")
+    print(f"resolver-sim revision: {model[0]}")
+    if sew[3] or model[3]:
+        print("WARNING: dirty working tree detected — provenance will be marked '-dirty'")
 
     for entry in entries:
         entry_id = entry.get("id", "unknown")
@@ -184,9 +196,9 @@ def main() -> None:
         abs_dest.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(abs_source, abs_dest)
 
-        # Stamp provenance (revision/branch) so it is clear which Solidity
-        # revision/branch this trace's expected behavior targets.
-        _stamp_provenance(abs_dest, sew_revision, sew_branch)
+        # Stamp provenance (solidity + model revisions) so it is clear which exact
+        # model↔Solidity comparison this trace's expected behavior is tied to.
+        _stamp_provenance(abs_dest, sew, model)
 
         src_sha = sha256_file(abs_source)
         dst_sha = sha256_file(abs_dest)

@@ -48,6 +48,23 @@ jobs:
           pip install -r test/forensic_python/requirements.txt
           pip install jsonschema
 
+      - name: Checkout sew-protocol (for trace provenance gate)
+        # GH_PAT must be a read-only credential scoped to the sew-protocol repo
+        # (fine-grained PAT / GitHub App token / deploy key preferred over a broad PAT).
+        # The gate is skipped if no such credential is provisioned, so it cannot
+        # break the pipeline until it is configured.
+        if: ${{ secrets.GH_PAT != '' }}
+        uses: actions/checkout@v4
+        with:
+          repository: Sew-Protocol/sew-protocol
+          path: ../sew-protocol
+          token: ${{ secrets.GH_PAT }}
+
+      - name: Gate — trace fixtures carry Solidity-version provenance
+        if: ${{ secrets.GH_PAT != '' }}
+        run: |
+          make trace-provenance SEW_SOLIDITY_PATH=../sew-protocol
+
       - name: Clean previous artifacts
         run: rm -rf suites/reference-validation-v1/actual
 

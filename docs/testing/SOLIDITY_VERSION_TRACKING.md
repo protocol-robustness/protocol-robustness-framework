@@ -12,11 +12,25 @@ on trace fixtures and scenarios, not by maintaining a second model codebase.
 
 Each trace fixture records:
 - `generated_by` — the simulator that produced it (e.g. `resolver-sim/cdrs-0.2`).
-- `sew_protocol_revision` — the sew-protocol commit or tag the expected behavior targets.
+- `sew_protocol_revision` — the sew-protocol **commit SHA** the expected behavior targets.
 - `sew_protocol_branch` — the sew-protocol branch (`main` or `appeal-primitive`).
+- `sew_protocol_tag` — the sew-protocol tag resolved at that revision (descriptive; the SHA is authoritative).
+- `resolver_sim_revision` — the **resolver-sim (model) commit SHA** that generated the trace.
+- `resolver_sim_branch` — the model branch (descriptive).
+- `provenance_dirty` — true if either repo's working tree was dirty at sync time; a dirty tree is also
+  surfaced as a `-dirty` suffix on the revision fields so uncommitted changes cannot masquerade as
+  validation of a clean commit.
 
 These fields are stamped by `scripts/trace-solidity-sync.py` and required by
 `scripts/trace-solidity-verify`.
+
+The authoritative statement for any fixture is therefore:
+
+```
+model:    resolver-sim @ <resolver_sim_revision>
+solidity: sew-protocol @ <sew_protocol_revision>
+          tag: <sew_protocol_tag>
+```
 
 ## Version timeline
 
@@ -28,8 +42,8 @@ These fields are stamped by `scripts/trace-solidity-sync.py` and required by
 ## How to tell which Solidity revision a result applies to
 
 1. **Trace fixtures** — read `sew_protocol_revision` / `sew_protocol_branch` from the fixture JSON.
-2. **Scenario fixtures** — carry a `sew_revision` field (see per-version organization below).
-3. **Benchmark results** — manifests record the `sew_protocol_revision` they were run against.
+2. **Scenario fixtures** — carry a `:suite/sew-revision` (EDN keyword) or `sew_revision` field.
+3. **Benchmark manifests** — record a `:benchmark/solidity-revision` (EDN keyword) field for the sew-specific packs.
 4. **Invariant mapping** — `docs/testing/SIMULATOR_TO_SOLIDITY_INVARIANT_MAPPING.md` states the
    target revision in its Version provenance block.
 

@@ -89,6 +89,10 @@ docs-as-code-check-sew:
 verify-reference-validation-v1:
 	./suites/reference-validation-v1/scripts/verify.sh
 
+.PHONY: trace-provenance
+trace-provenance:
+	python3 scripts/trace-solidity-verify --sew-repo "$${SEW_SOLIDITY_PATH:-../sew-protocol}"
+
 .PHONY: clean-reference-validation-v1
 clean-reference-validation-v1:
 	./suites/reference-validation-v1/scripts/clean.sh
