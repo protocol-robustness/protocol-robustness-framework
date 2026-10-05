@@ -775,6 +775,96 @@ dispatcher adapter, the adapter has runtime code, and its executor getter equals
 the intended Assured Operations executor. The deployment check reads those values
 after binding; an unbound or mismatched controller must remain fail-closed.
 
+This route-binding invariant establishes connectivity only. Production admission
+has an additional provenance requirement: every security-critical component in
+the protected execution route must resolve to the intended canonically admitted
+deployment/release identity. For the pro-rata route this includes the controller,
+adapter and executor, and may include verifier/admission contracts where they are
+part of the admitted trust path. Address equality and code presence alone do not
+establish this provenance.
+
+### Frozen Assured Operations components
+
+The following components are frozen as the conformance baseline. Do not modify
+them unless one of the two boundary-substitution experiments below demonstrates
+an actual contradiction in their semantics:
+
+- `AssuredOperationEnvelope.v1` and `ProtectedOperationRegistration.v1`;
+- registration revision selection and activation semantics;
+- one-shot nonce consumption and rollback semantics;
+- state/projection binding and consumed-projection recording;
+- the dispatcher-mediated execution path;
+- permanent pro-rata execution-route binding;
+- forensic evidence composition using existing operation, execution,
+  observation and receipt artifacts;
+- the deployment-route operational invariant above.
+
+The next experiments are substitutions at existing boundaries only:
+
+1. Replace mock assurance admission with real V2/SP1 verification.
+2. Replace the trusted deployment-sealer seam with canonical deployment
+   provenance.
+
+For each experiment, hold the frozen components and operation model constant.
+If a substitution appears to require changing one, document the concrete
+contradiction and its reproducer before considering a revision. Do not combine
+the two experiments or broaden the profile while evaluating them.
+
+### Current milestone status
+
+| Milestone | Status |
+|---|---|
+| Assured Operations architecture | ✓ |
+| Treasury composition | ✓ |
+| Treasury enforcement | ✓ |
+| Governance composition/enforcement | ✓ |
+| Pro-rata composition | ✓ |
+| Pro-rata route closure | ✓ |
+| Deployment-route operational invariant | ✓ |
+| Real V2/SP1 admission | AO conformance harness prepared; fresh proof run pending |
+| Canonical deployment provenance | Prerequisite gap: runtime admission surface not yet exposed |
+| Execution-engine/L2 decision | Deferred |
+
+The real-proof experiment must use a V2 proof generated or validated against the
+exact deployment manifest and prepared operation under test. Preserve with the
+result: program/ELF identity, VKey, public values, prepared-operation and source
+assurance inputs, relevant contract addresses/configuration, chain-instance
+context where the existing V2 proposition binds it, proof bytes identity, and
+verification/admission result. The acceptance matrix includes wrong proof,
+wrong prepared operation, wrong deployment/configuration where existing V2
+semantics bind it, stale projection rejection, closed direct `ratifyAndFund`,
+and unchanged envelope, registration, executor, nonce and allocator behavior.
+The only intended substitution is mock admission to existing V2/SP1 verification
+and admission. A proof fixture from a different deployment does not satisfy this
+gate. No proof-system proposition is to be expanded solely for Assured Operations.
+
+The AO-specific runner at
+`examples/assured-operations/pro-rata-conformance/run-real-v2-sp1.sh` supplies the
+Gate E deployment and prover commands, retains a fresh manifest/input/proof
+fixture, source-state metadata and inventories, and the complete run log. It
+runs the AO conformance test against the same Anvil deployment before Gate E's
+separate consumer test. The AO test writes a route manifest
+linking the Gate E manifest digest to the fork-local executor, adapter,
+registration, proof and resulting V2 observation. After success, the runner
+checks pre/post source inventories and public-value/operation correspondence,
+then writes a separate `real-v2-sp1-evidence-manifest.json` that hashes the
+completed log and retained artifacts. This avoids making a runtime output
+depend on the final log index. The run is not yet complete:
+fresh proof generation and runtime conformance remain pending. Gate E's own
+direct-ratification test is only auxiliary and does not satisfy AO acceptance.
+
+Canonical deployment provenance remains a prerequisite gap, not an Assured
+Operations defect. Its minimum proposition is: “this exact deployed runtime
+instance is an admitted instance of canonical release R under admission policy
+P.” The eventual evidence must compose release/candidate evidence, admission,
+deployed-instance observation, runtime-code and constructor/configuration
+binding, and the resulting canonical admitted deployment identity. For pro-rata,
+it must resolve the controller → adapter → executor route, plus verifier or
+admission contracts when they are part of the security-critical trust path.
+Assured Operations consumes that admitted result; it does not define or own the
+deployment registry semantics. Until the runtime admission surface exists, do
+not replace the trusted sealer with an invented registry or umbrella root.
+
 | Consumer | What the fixture establishes | Remaining enforcement gap |
 |---|---|---|
 | Treasury withdrawal | A target with one executor-only outgoing route supports exact admission, one-shot consumption, rollback and financial reconstruction. | It is a controlled fixture; production deployment admission and asset-observation provenance remain separate. |

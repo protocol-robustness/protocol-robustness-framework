@@ -242,6 +242,26 @@ Assured Operations executor. The deployment fixture asserts these conditions
 after binding by independently reading the controller and adapter state. An
 unbound or mismatched controller remains fail-closed.
 
+Route binding proves connectivity, not production provenance. Production
+admission must also establish that each security-critical component in the
+protected route resolves to the intended canonically admitted deployment/release
+identity. For pro-rata this includes the controller, adapter and executor, plus
+verifier/admission contracts where they participate in the trust path. Address
+and code-presence checks alone do not establish provenance.
+
+### Frozen conformance baseline
+
+Treat the envelope and registration schemas, registration revision semantics,
+nonce consumption, state/projection binding, dispatcher path, permanent
+pro-rata route binding, forensic evidence composition, and deployment-route
+invariant as frozen. Change one only if a boundary-substitution experiment
+demonstrates an actual contradiction, with a concrete reproducer.
+
+The next experiments are independent substitutions at existing boundaries:
+mock assurance admission to real V2/SP1 verification, then the trusted
+deployment sealer to canonical deployment provenance. Keep the operation model
+and frozen components constant in each experiment; do not bundle the substitutions.
+
 The exact projection records the pre-call reserve commitment and revision and
 post-call reserve/allocator balances, V2 assurance state, and ratification state.
 The existing V2 allocator operation and reserve observation preserve allocation,
@@ -255,6 +275,51 @@ separate experiments. Reconsider execution-engine support only after all three
 have passed, then identify what repeated security-critical machinery or bypass
 surface remains across treasury, governance and pro-rata. A small standard guard
 would not by itself justify engine enforcement.
+
+Current milestone status: architecture ✓; treasury composition ✓; treasury
+enforcement ✓; governance composition/enforcement ✓; pro-rata composition ✓;
+pro-rata route closure ✓; deployment-route invariant ✓; real SP1 admission is
+next, with an AO-specific Gate E runner prepared; canonical deployment
+provenance is a prerequisite gap because the inspected runtime does not expose
+the necessary admission surface;
+execution-engine/L2 decision deferred.
+
+Run the fresh real V2/SP1 AO substitution from the repository root:
+
+```sh
+bash examples/assured-operations/pro-rata-conformance/run-real-v2-sp1.sh
+```
+
+The runner uses the local Anvil development key, deploys the Gate E Option A
+V2 topology, materializes and proves the live prepared operation, then runs
+`ProRataRealProofConformanceTest` against that deployment before the Gate E
+consumer test. It keeps the V2 deployment manifest, prover input, proof fixture,
+AO route-manifest overlay, source-state record and source inventories, plus the
+complete deploy/prove/test log under
+`examples/assured-operations/pro-rata-conformance/artifacts/real-v2-sp1/` and
+refuses to overwrite existing artifacts. The source record includes JJ/Git
+revision context, dirty-state metadata, tool versions and hashes of the relevant
+source inventories and prover binary. Failed runs retain their log and any
+artifacts already produced. After success, the runner compares pre/post source
+inventories, checks proof public values against the deployed and AO-dispatched
+operation, and records the exact AO envelope/calldata, registration revision and
+pre-call projection witness in the route manifest. It writes
+`real-v2-sp1-evidence-manifest.json` last. That final index
+hashes the completed run log and the other retained evidence; the AO route
+manifest itself remains a runtime output and does not include the log hash. The
+Gate E consumer test result is recorded as auxiliary; all six AO proof-path
+cases and the post-run consistency checks gate the AO result. The prover binary
+can be built with:
+
+```sh
+cargo build --release --manifest-path coprocessor/Cargo.toml \
+  -p allocation-sp1-script --bin source-bound-v2-prove
+```
+
+The AO test verifies through the existing V2 admission path, rejects tampered
+proof/public values and configuration substitutions, rejects stale projections
+and direct ratification, and checks the resulting V2 funding and observation.
+The runtime experiment remains pending until this runner completes successfully.
 
 ## Governance upgrade conformance result
 
