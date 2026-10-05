@@ -1,8 +1,8 @@
 (ns resolver-sim.protocols.sew.invariants
   "Checkable invariant predicates for the Sew contract model.
 
-   These mirror the runtime guards in InvariantGuardInternal.sol and define
-   the specification for future Foundry invariant tests and Halmos properties.
+   These mirror the runtime accounting/state invariants enforced by the Sew escrow
+   contracts and define the specification for the Foundry invariant tests and Halmos properties.
 
    Each predicate takes a world-state map and returns a map:
      {:holds? bool :violations [...]}

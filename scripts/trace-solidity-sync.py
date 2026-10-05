@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import json
 import os
 import re
 import shutil
@@ -57,6 +58,38 @@ def sha256_file(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
+def _sew_provenance(sew_repo: Path) -> tuple[str, str]:
+    """Return (revision, branch) for the sew-protocol checkout, best-effort."""
+    try:
+        rev = subprocess.run(
+            ["git", "rev-parse", "HEAD"], cwd=sew_repo, capture_output=True, text=True, timeout=30
+        )
+        revision = rev.stdout.strip() if rev.returncode == 0 else "unknown"
+    except Exception:
+        revision = "unknown"
+    try:
+        br = subprocess.run(
+            ["git", "branch", "--show-current"], cwd=sew_repo, capture_output=True, text=True, timeout=30
+        )
+        branch = br.stdout.strip() if br.returncode == 0 and br.stdout.strip() else "detached"
+    except Exception:
+        branch = "unknown"
+    return (revision, branch)
+
+
+def _stamp_provenance(path: Path, revision: str, branch: str) -> None:
+    """Inject sew_protocol_revision / sew_protocol_branch into a JSON trace fixture."""
+    try:
+        data = json.loads(path.read_text("utf-8"))
+    except (json.JSONDecodeError, OSError):
+        return
+    if isinstance(data, dict):
+        data["sew_protocol_revision"] = revision
+        data["sew_protocol_branch"] = branch
+        path.write_text(json.dumps(data, indent=2, ensure_ascii=False) + "\n", "utf-8")
+
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Sync traces to sew-protocol")
     parser.add_argument("--sew-repo", default=None)
@@ -93,6 +126,10 @@ def main() -> None:
     copied = 0
     generated = 0
     failed = 0
+
+    sew_revision, sew_branch = _sew_provenance(sew_repo)
+    print(f"sew-protocol revision: {sew_revision}")
+    print(f"sew-protocol branch:   {sew_branch}")
 
     for entry in entries:
         entry_id = entry.get("id", "unknown")
@@ -147,12 +184,16 @@ def main() -> None:
         abs_dest.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(abs_source, abs_dest)
 
+        # Stamp provenance (revision/branch) so it is clear which Solidity
+        # revision/branch this trace's expected behavior targets.
+        _stamp_provenance(abs_dest, sew_revision, sew_branch)
+
         src_sha = sha256_file(abs_source)
         dst_sha = sha256_file(abs_dest)
         print(f"    source sha256:      {src_sha}")
         print(f"    destination sha256: {dst_sha}")
         if src_sha != dst_sha:
-            print(f"    [WARN] SHA-256 mismatch after copy")
+            print(f"    [NOTE] destination differs (provenance stamped)")
 
         copied += 1
 

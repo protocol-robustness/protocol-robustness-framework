@@ -4,6 +4,18 @@ This table maps canonical Sew simulator invariants (`src/resolver_sim/protocols/
 
 > Maintenance note: update this file whenever a new canonical invariant is added or Solidity coverage changes.
 
+## Version provenance
+
+This mapping applies to a specific sew-protocol revision. Because the contract surface evolved (stable baseline → minor fixes → appeal-primitive), invariants/traces are tied to the Solidity revision they were validated against.
+
+| Solidity revision (tag) | sew-protocol branch | Notes |
+|---|---|---|
+| `solidity-stable-2026-10` | `main` | The older, more thoroughly tested contract baseline. Most model testing has run against this. |
+| `appeal-primitive-v1-2026-10` | `appeal-primitive` | Current default branch. Same overall architecture; contract additions and some function/event renames. |
+
+- Trace fixtures carry `sew_protocol_revision` / `sew_protocol_branch` (stamped by `scripts/trace-solidity-sync.py`; verified by `scripts/trace-solidity-verify`).
+- When updating this mapping or regenerating traces, stamp the target sew-protocol revision and record it here.
+
 ## Core mapping
 
 | Canonical invariant ID (simulator) | Solidity equivalent/assertion | Current coverage |

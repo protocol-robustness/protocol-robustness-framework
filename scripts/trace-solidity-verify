@@ -265,6 +265,12 @@ def main() -> None:
             if dest_path.exists():
                 try:
                     fx = json.loads(dest_path.read_text("utf-8"))
+                    if not fx.get("sew_protocol_revision") or not fx.get("sew_protocol_branch"):
+                        issues.append(
+                            "fixture missing provenance (sew_protocol_revision / sew_protocol_branch) "
+                            "— run trace-solidity-sync to stamp"
+                        )
+                        entry_ok = False
                     combo = (str(fx.get("cdrs_version", "")), str(fx.get("schema_version", "")))
                     if combo not in SUPPORTED_FIXTURE_SPECS:
                         issues.append(

@@ -434,6 +434,7 @@
        :schema_version    "2"
        :scenario_id       (:scenario-id result)
        :description       (str "Generated trace: " (:scenario-id result))
+       :generated_by      "resolver-sim/cdrs-0.2"
        :trace_kind        trace-kind
         :fee_bps           (get-in scenario [:protocol-params :resolver-fee-bps] 100)
         :appeal_window_duration (get-in scenario [:protocol-params :appeal-window-duration] 0)
