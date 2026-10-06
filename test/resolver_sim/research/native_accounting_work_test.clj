@@ -1,6 +1,7 @@
 (ns resolver-sim.research.native-accounting-work-test
   (:require [clojure.test :refer [deftest is]]
             [resolver-sim.research.native-accounting-work :as native]
+            [resolver-sim.research.accounting-implementation-comparison :as impl-comparison]
             [resolver-sim.research.native-accounting-batch :as batch]
             [resolver-sim.research.accelerated-accounting :as accounting]
             [resolver-sim.research.execution-assurance :as assurance]
@@ -20,27 +21,40 @@
 (defn source [id account category value]
   {:source/root (root id) :accounting/subject-root (root account)
    :accounting/category category :accounting/value value :claim-to/root (root (+ id 1000))})
-(defn basis []
+(defn basis
+  ([] (basis nil nil nil))
+  ([account-count sources-per-account cutpoint-id]
   (let [contract (accounting/build-reduction-contract)
+        sources (if account-count
+                  (for [account-index (range account-count)
+                        row (range sources-per-account)
+                        :let [account-id (+ 100 account-index)
+                              source-id (+ 10000 (* account-index 1000) row)]]
+                    (source source-id account-id :accounting/bond
+                            (- (mod (* 37 (inc source-id)) 101) 50)))
+                  [(source 11 100 :accounting/bond 30)
+                   (source 12 100 :accounting/bond -5)
+                   (source 13 200 :accounting/bond 9)])
         request (accounting/build-request
-                 {:accounting-domain :accounting-domain/native-reference :cutpoint-root (root 1)
+                 {:accounting-domain :accounting-domain/native-reference
+                  :cutpoint-root (root (or cutpoint-id 1))
                   :accounting-definition-root (root 2) :accounting-policy-root (root 3)
-                  :reduction-contract contract
-                  :sources [(source 11 100 :accounting/bond 30)
-                            (source 12 100 :accounting/bond -5)
-                            (source 13 200 :accounting/bond 9)]})]
-    {:contract contract :request request :accounts (native/account-requests request contract)}))
+                 :reduction-contract contract :sources sources})]
+    {:contract contract :request request :accounts (native/account-requests request contract)})))
 
 (defn work-fixture
   ([] (work-fixture 100 301))
   ([account runner-id] (work-fixture account runner-id {}))
-  ([account runner-id {:keys [runtime privacy partitions partition-index
+  ([account runner-id {:keys [runtime privacy partitions partition-count partition-index
+                              account-count sources-per-account cutpoint-id
                               implementation-kind implementation-kinds required-runs run-index
                               minimum-distinct-implementations]
                       :or {privacy :public partition-index 0
                            implementation-kind :primary implementation-kinds [:primary]
                            required-runs 1 run-index 0 minimum-distinct-implementations 1}}]
-   (let [{:keys [accounts contract]} (basis)
+   (let [{:keys [accounts contract]} (if account-count
+                                       (basis account-count sources-per-account cutpoint-id)
+                                       (basis))
          request (get accounts (root account))
          env (if runtime (environment/build-native-environment runtime) (environment/build-native-environment))
          manifest (dependency/build-manifest
@@ -67,8 +81,17 @@
                 :independent (native/independent-implementation
                               (:resolved-research-dependency-set/root resolved))}
          impl (get impls implementation-kind)
+         source-roots (mapv :source/root (:accounting/sources request))
+         generated-partitions
+         (when partition-count
+           (when-not (and (integer? partition-count) (pos? partition-count)
+                          (<= partition-count (count source-roots)))
+             (throw (ex-info "Partition count must fit nonempty accounting source subsets"
+                             {:partition-count partition-count :source-count (count source-roots)})))
+           (mapv #(vec (take-nth partition-count (drop % source-roots)))
+                 (range partition-count)))
          plan (accounting/build-partition-plan
-               request (or partitions [(mapv :source/root (:accounting/sources request))])
+               request (or partitions generated-partitions [source-roots])
                {:dependency-set-root (:resolved-research-dependency-set/root resolved)
                 :allowed-implementation-roots (mapv #(get-in impls [% :research-implementation-identity/root])
                                                      implementation-kinds)
@@ -186,6 +209,94 @@
     (is (= (accounting/serial-values (:request primary0)) (:accounting/values mixed)))
     (is (= 2 (get-in alternate1 [:work :work/assurance-policy
                                  :assurance/minimum-distinct-implementations])))))
+
+(deftest independent-accounting-comparison-binds-two-fresh-executions
+  (let [shared-implementations [:primary :independent]
+        left-fixture (work-fixture 100 301
+                                   {:implementation-kind :primary
+                                    :implementation-kinds shared-implementations})
+        right-fixture (work-fixture 100 302
+                                    {:implementation-kind :independent
+                                     :implementation-kinds shared-implementations})
+        left-work (:work left-fixture)
+        right-work (:work right-fixture)
+        left-result (native/execute-work! left-work)
+        right-result (native/execute-work! right-work)
+        comparison (impl-comparison/compare-implementations left-work left-result
+                                                            right-work right-result)
+        left-aggregate (accounting/reconcile
+                        (:request left-fixture) (:contract left-fixture) (:plan left-fixture)
+                        (accounting/ingest-partial {} (:accounting-partial left-result)))
+        right-aggregate (accounting/reconcile
+                         (:request right-fixture) (:contract right-fixture) (:plan right-fixture)
+                         (accounting/ingest-partial {} (:accounting-partial right-result)))
+        node (impl-comparison/evidence-node
+              left-work left-result right-work right-result comparison)]
+    (is (= :equal (:comparison/status comparison)))
+    (is (= :artifact-level-independent-implementation
+           (:comparison/assurance-classification comparison)))
+    (is (true? (:comparison/implementation-distinct? comparison)))
+    (is (= (:comparison/left-semantic-partial-root comparison)
+           (:comparison/right-semantic-partial-root comparison)))
+    (is (not= (:comparison/left-execution-root comparison)
+              (:comparison/right-execution-root comparison)))
+    (is (not= (:comparison/left-assurance-root comparison)
+              (:comparison/right-assurance-root comparison)))
+    (is (= (:canonical-accounting-result/root left-aggregate)
+           (:canonical-accounting-result/root right-aggregate)))
+    (is (impl-comparison/valid-comparison?
+         left-work left-result right-work right-result comparison))
+    (is (= 2 (count (:parent-hashes node))))
+    (is (= #{(:node-hash (last (native/evidence-nodes left-work left-result)))
+             (:node-hash (last (native/evidence-nodes right-work right-result)))}
+           (set (:parent-hashes node))))
+    (is (= :accounting/implementation-comparison
+           (get-in node [:extensions :forensic/subject :subject/kind])))))
+
+(deftest implementation-comparison-keeps-domain-mismatches-not-comparable
+  (let [shared-implementations [:primary :independent]
+        left-fixture (work-fixture 100 301
+                                   {:implementation-kind :primary
+                                    :implementation-kinds shared-implementations})
+        right-fixture (work-fixture 200 302
+                                    {:implementation-kind :independent
+                                     :implementation-kinds shared-implementations})
+        left-work (:work left-fixture)
+        right-work (:work right-fixture)
+        left-result (native/execute-work! left-work)
+        right-result (native/execute-work! right-work)
+        comparison (impl-comparison/compare-implementations left-work left-result
+                                                            right-work right-result)]
+    (is (= :not-comparable (:comparison/status comparison)))
+    (is (= [:different-accounting-request :different-accounting-partition
+            :different-dependency-closure]
+           (:comparison/not-comparable-reasons comparison)))
+    (is (nil? (:comparison/values comparison)))
+    (is (nil? (:comparison/mismatch-witness comparison)))
+    (is (impl-comparison/valid-comparison?
+         left-work left-result right-work right-result comparison))))
+
+(deftest implementation-comparison-rejects-result-or-provenance-substitution
+  (let [shared-implementations [:primary :independent]
+        left-fixture (work-fixture 100 301
+                                   {:implementation-kind :primary
+                                    :implementation-kinds shared-implementations})
+        right-fixture (work-fixture 100 302
+                                    {:implementation-kind :independent
+                                     :implementation-kinds shared-implementations})
+        left-work (:work left-fixture)
+        right-work (:work right-fixture)
+        left-result (native/execute-work! left-work)
+        right-result (native/execute-work! right-work)
+        comparison (impl-comparison/compare-implementations left-work left-result
+                                                            right-work right-result)
+        wrong-run (assoc right-result :run-evidence (:run-evidence left-result))]
+    (is (thrown? clojure.lang.ExceptionInfo
+                 (impl-comparison/compare-implementations left-work left-result right-work wrong-run)))
+    (is (false? (impl-comparison/valid-comparison?
+                 left-work left-result right-work right-result
+                 (assoc comparison :comparison/right-execution-root
+                        (:comparison/left-execution-root comparison)))))))
 
 (deftest native-work-and-results-reject-substitution
   (let [{:keys [work]} (work-fixture)

@@ -129,6 +129,57 @@ organizational independence. Incentive and withdrawal/custodian/bond policies
 may later consume rooted evidence; this executor establishes no payment or
 withdrawal entitlement.
 
+## Independent implementation comparison
+
+`accounting-implementation-comparison/compare-implementations` accepts two work/result pairs,
+validates both executions through the existing fixed-validation path, then
+derives `research-accounting-implementation-comparison.v1` from those artifacts.
+It does not accept caller-supplied expected values or constituent roots. The
+comparison binds both work, execution, assurance, semantic-partial,
+implementation, dependency-closure, request and partition roots. Its generic
+forensic evidence node has both execution branches as parents.
+
+An exact comparison is made only when both executions bind the same accounting
+request and partition, reduction contract, resolved dependency closure and
+execution environment. Otherwise the result is `:not-comparable`, with explicit
+reasons and no numeric delta. `:equal` means the independently derived category
+maps match; `:different` retains per-category left/right values as a witness.
+This is evidence of implementation-level result agreement, not proof that
+either implementation or the underlying accounting basis is correct. The
+current arithmetic domain is Clojure's arbitrary-precision integers, so the
+two supported implementations share an exact integer domain and have no
+checked-long overflow boundary. A future implementation with a different
+overflow/domain contract must declare that semantic difference and remain
+`:not-comparable` unless an explicit common-domain rule is established.
+
+The qualification tests run both implementations freshly on the same frozen
+account request/partition: the canonical partial and reconciled accounting
+result roots agree, while implementation, execution, and run-assurance roots
+differ. A changed account request remains `:not-comparable`, not a numeric
+disagreement. The distinctness asserted here is artifact-level only; the
+implementations share the Clojure/JVM runtime and this does not establish
+organizational, intellectual, machine, or participant independence.
+The comparison implementation is deliberately outside
+`native_accounting_work.clj`, whose source root is part of the accounting
+implementation identity; adding assurance logic therefore does not change the
+accounting algorithm's identity.
+
+The frozen assurance statement for this fixture is:
+
+```text
+implementation-artifact distinctness  established
+fresh execution identity distinctness established
+exact result equivalence               established
+different human researchers            unknown
+different organizations                unknown
+different machines                     not implied
+intellectual independence              not implied
+```
+
+The two executions are separate fresh computations, but currently run under
+the same local Clojure/JVM environment. “Independent” here is limited to the
+identified implementation artifacts and execution instances above.
+
 `native-accounting-batch/dispatch-and-reconcile!` composes existing partition
 bundles for one frozen request/plan. It validates exact work-unit and
 assignment coverage before dispatch, submits assigned work concurrently to
@@ -219,6 +270,136 @@ after exact partition coverage is admitted; an unreachable runner leaves the
 aggregate incomplete. The successful cross-host run used a fresh runner journal
 and SSH forwarding to a separate host; no real network scheduler or production
 worker service was involved.
+
+### Cross-host cancellation and durable recovery qualification
+
+The opt-in `live-cross-host-accounting-cancellation-and-same-journal-recovery`
+test exercises the current runner bundle across an SSH tunnel. Its three
+cutpoints are deliberately distinct:
+
+```text
+cancellation observed before dispatch
+  → runner restart with the same journal
+  → no execution evidence and no accounting result
+
+atomic partition execution persisted, before result post
+  → cancellation observed over the tunnel
+  → runner restart with the same journal
+  → completed execution retained, delivery suppressed
+
+coordinator durably ingests partition, before HTTP acknowledgement
+  → remote runner process killed
+  → same runner journal restarted
+  → identical result redelivered and recognized as already recorded
+```
+
+### Performance pilot (measurement only)
+
+`test/resolver_sim/research/native_accounting_performance.clj` is an opt-in
+measurement driver. It compares direct serial execution, partitioned execution
+through local runner/coordinator HTTP endpoints, and (when the existing SSH
+tunnel variables are present) a split local/remote-runner execution. It checks
+canonical result-root equality for every sample. Timings are ephemeral
+`System.nanoTime` observations, not rooted experiment inputs or performance
+claims. No scheduler policy or accounting identity changes are made.
+
+Example local pilot:
+
+```sh
+clojure -M:test -m resolver-sim.research.native-accounting-performance 1 16 1,2,4 3
+```
+
+Arguments are comma-separated account counts, source rows per account,
+partition counts per account, and repetitions. One discarded warm-up is run for
+each coordinate. With the remote runner prestarted and the established SSH
+forwards active, set `PRF_REMOTE_ACCOUNTING_RUNNER_URL` and
+`PRF_REMOTE_ACCOUNTING_COORDINATOR_PORT` to include cross-host measurements.
+Remote runner startup is excluded; local coordinator/runner startup, dispatch,
+execution, result delivery, and reconciliation are separately timed. Preserve
+the emitted EDN as runtime measurement evidence if a pilot needs later review;
+do not treat it as a canonical result artifact.
+
+The initial pilot used one account, 16 source rows, three measured repetitions,
+and partition counts 1/2/4. Median end-to-end times were:
+
+| Mode | Partitions | Median |
+| --- | ---: | ---: |
+| Direct serial | 1 | 23.7 ms |
+| Partitioned local HTTP | 1 | 166.9 ms |
+| Partitioned local HTTP | 2 | 277.0 ms |
+| Partitioned local HTTP | 4 | 397.0 ms |
+| SSH-tunnel split local/remote | 2 | 702.7 ms |
+| SSH-tunnel split local/remote | 4 | 1,894.4 ms |
+
+All modes produced the same canonical accounting result root within each
+repetition. At this tiny workload, transport and per-work-unit assurance
+overhead dominate; partitioning is slower, and this does not identify a
+break-even grain. The remote participant was the previously qualified runner
+reference `sha256:93ee43c12ef8ff7940c754045607d15ab3f29e48e99fab08d2905cbbe03336f7`
+on `ubuntu@16.170.12.190`; its service was prestarted and stopped after the
+pilot. The split used one local and one remote runner; at four partitions the
+three remote partitions were sent sequentially to that single remote runner.
+This was SSH-tunnel execution only—not public-network, failure-tolerance,
+multi-remote-runner scaling, or hardware-independent qualification. The next
+useful measurement is a targeted larger-source-count sweep with repeated
+samples and recorded machine conditions; avoid extrapolating these small-case
+ratios.
+
+The last case distinguishes resuming persisted execution from replacement
+execution: the recovered journal retains one execution start and the exact
+execution root, while the coordinator retains one semantic ingestion and the
+redelivery is acknowledged as `:already-recorded`. The local execution,
+remote partial and coordinator-reconciled result have matching semantic roots.
+Test-only coordinator
+events record one new-result recognition and one duplicate recognition. The
+coordinator makes two response attempts: the first targets the killed runner
+connection, and the retry response is received. The live test passed 31
+assertions with zero failures/errors. The local native-accounting process
+suite passed 8 tests / 38 assertions; changed test namespaces lint cleanly.
+
+The current staged remote content set was 82 manifest files plus
+`src/resolver_sim/definitions/passive_registries.clj`, identified for this
+qualification by the sorted per-file SHA-256 content-set hash:
+
+```text
+e8a6c0c15122b751c9a3ff717989e1ed063e0c6e1ec744408e6cbd4a323e7908
+```
+
+This is staging/qualification provenance, not a semantic implementation root.
+The earlier `f3486534…` and `132cc6a8…` hashes continue to identify their own
+historical source bundles. The existing `prf-runner-lab` checkout was not
+used or modified. The temporary SSH tunnel and remote runner processes were
+stopped after the test. This qualification does not establish public-network
+reachability, cross-host crash recovery beyond same-journal process restart,
+cross-host cancellation during arbitrary computation, or scaling/performance.
+
+The distributed accounting qualification is frozen at this boundary:
+
+| Capability | Status |
+| --- | --- |
+| Native accounting execution | Complete |
+| Exact partition reconciliation | Complete |
+| Local process durability | Complete |
+| Cross-host execution and canonical equivalence | Complete |
+| Cross-host pre-execution cancellation | Complete |
+| Cross-host post-computation cancellation | Complete |
+| Same-journal remote recovery | Complete |
+| Duplicate delivery / idempotent ingestion | Complete |
+| Minimal staged qualification bundle | Complete |
+| Artifact-level implementation comparison | Complete |
+| Public-network reachability | Not qualified |
+| Arbitrary network partitions | Not qualified |
+| Different-host journal recovery | Not qualified |
+| Performance / scaling | Not qualified |
+| Hermetic transitive source closure | Not qualified |
+
+The next performance study should compare serial execution, partitioned local
+execution and SSH-tunneled cross-host execution over the same rooted accounting
+requests. It should report useful accounting time separately from runner
+startup, dispatch, result transfer, durable journal writes, and reconciliation;
+vary partition size/count and account count; and identify break-even regions
+without changing scheduler policy or canonical identities. The current timing
+fixtures establish correctness only and are not performance evidence.
 
 Still deferred are source adapters from authoritative appeal-bond lifecycle,
 withdrawal-ledger, custodian-position, and incentive evidence; cross-host

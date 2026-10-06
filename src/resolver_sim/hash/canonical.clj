@@ -311,6 +311,8 @@
    :research-word-sequence-v1 "RESEARCH_WORD_SEQUENCE_V1"
    :research-word-accounting-basis-v1 "RESEARCH_WORD_ACCOUNTING_BASIS_V1"
    :research-accounting-basis-comparison-v1 "RESEARCH_ACCOUNTING_BASIS_COMPARISON_V1"
+   :research-accounting-implementation-comparison-v1
+   "RESEARCH_ACCOUNTING_IMPLEMENTATION_COMPARISON_V1"
    :research-observation-work-plan-v1 "RESEARCH_OBSERVATION_WORK_PLAN_V1"
    :research-observation-work-unit-v1 "RESEARCH_OBSERVATION_WORK_UNIT_V1"
    :research-observation-assignment-v1 "RESEARCH_OBSERVATION_ASSIGNMENT_V1"
