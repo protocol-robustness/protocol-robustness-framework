@@ -10,6 +10,7 @@ members = [
     "source-bound-v2-sp1-program",
     "source-bound-entitlement-sp1-program",
     "observed-run-sp1-program",
+    "accounting-arithmetic-sp1-program",
 ]
 
 # Profiles intended to affect the whole workspace build belong on the

@@ -4,6 +4,7 @@
 //! declared public-output boundary (PRF result == native Rust result).
 
 pub mod assertions;
+pub mod accounting_arithmetic;
 pub mod canonical;
 pub mod json_projection;
 pub mod kernel;

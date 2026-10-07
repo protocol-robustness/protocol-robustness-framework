@@ -29,7 +29,7 @@
                   (for [account-index (range account-count)
                         row (range sources-per-account)
                         :let [account-id (+ 100 account-index)
-                              source-id (+ 10000 (* account-index 1000) row)]]
+                              source-id (+ 10000 (* account-index sources-per-account) row)]]
                     (source source-id account-id :accounting/bond
                             (- (mod (* 37 (inc source-id)) 101) 50)))
                   [(source 11 100 :accounting/bond 30)
@@ -46,15 +46,15 @@
   ([] (work-fixture 100 301))
   ([account runner-id] (work-fixture account runner-id {}))
   ([account runner-id {:keys [runtime privacy partitions partition-count partition-index
-                              account-count sources-per-account cutpoint-id
+                              account-count sources-per-account cutpoint-id account-basis
                               implementation-kind implementation-kinds required-runs run-index
                               minimum-distinct-implementations]
                       :or {privacy :public partition-index 0
                            implementation-kind :primary implementation-kinds [:primary]
                            required-runs 1 run-index 0 minimum-distinct-implementations 1}}]
-   (let [{:keys [accounts contract]} (if account-count
+   (let [{:keys [accounts contract]} (or account-basis (if account-count
                                        (basis account-count sources-per-account cutpoint-id)
-                                       (basis))
+                                       (basis)))
          request (get accounts (root account))
          env (if runtime (environment/build-native-environment runtime) (environment/build-native-environment))
          manifest (dependency/build-manifest

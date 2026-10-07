@@ -5,6 +5,11 @@ Unlike the older Anvil/accounting envelope, its run assurance binds the
 canonical accounting partial, not an unrelated EVM action. It does not allocate
 capital, accept claims, authorize withdrawals, or change pro-rata arithmetic.
 
+The separate [accounting arithmetic proof foundation](ACCOUNTING_ARITHMETIC_PROOF_FOUNDATION.md)
+defines the closed statement needed before replacing coordinator arithmetic
+recomputation with verified proof-backed admission. It does not change this
+V1 execution or reconciliation path, and does not claim a generated proof.
+
 ## Account and partition boundaries
 
 `native-accounting-work/account-requests` deterministically groups a validated
@@ -32,8 +37,9 @@ frozen source request
 Missing partitions, unexpected account/request contributions, source overlap
 and conflicting partials remain errors. An exact partial delivery replay is
 idempotent. Arrival order cannot affect the reconciled result. This slice does
-not introduce a cross-account aggregate artifact or a batch-level completeness
-gate; those are subsequent multi-runner orchestration work.
+not introduce a cross-account aggregate artifact. The runtime parent-account
+completeness gate described below requires every account's existing canonical
+result before reporting the parent batch complete.
 
 ## New envelopes, reused semantics
 
@@ -306,20 +312,24 @@ claims. No scheduler policy or accounting identity changes are made.
 Example local pilot:
 
 ```sh
-clojure -M:test -m resolver-sim.research.native-accounting-performance 1 16 1,2,4 3
+clojure -M:test -m resolver-sim.research.native-accounting-performance 4 100 1 3 1,2,4
 ```
 
 Arguments are comma-separated account counts, source rows per account,
-partition counts per account, and repetitions. One discarded warm-up is run for
-each coordinate. With the remote runner prestarted and the established SSH
+partition counts per account, repetitions, and actual worker capacities. One
+discarded warm-up is run for each coordinate. The default favors whole-account
+units and varies worker capacity independently from partition count. With the
+remote runner prestarted and the established SSH
 forwards active, set `PRF_REMOTE_ACCOUNTING_RUNNER_URL` and
 `PRF_REMOTE_ACCOUNTING_COORDINATOR_PORT` to include cross-host measurements.
-Remote runner startup is excluded; local coordinator/runner startup, dispatch,
-execution, result delivery, and reconciliation are separately timed. Preserve
+Remote runner startup is excluded. Work construction and local coordinator/
+runner startup have separate elapsed timers; dispatch, admission and
+reconciliation share an elapsed window, with optional detailed stage profiling
+described below. Preserve
 the emitted EDN as runtime measurement evidence if a pilot needs later review;
 do not treat it as a canonical result artifact.
 
-The initial pilot used one account, 16 source rows, three measured repetitions,
+The historical initial pilot used one account, 16 source rows, three measured repetitions,
 and partition counts 1/2/4. Median end-to-end times were:
 
 | Mode | Partitions | Median |
@@ -343,7 +353,9 @@ This was SSH-tunnel execution only—not public-network, failure-tolerance,
 multi-remote-runner scaling, or hardware-independent qualification. The next
 useful measurement is a targeted larger-source-count sweep with repeated
 samples and recorded machine conditions; avoid extrapolating these small-case
-ratios.
+ratios. Its end-to-end values excluded work construction and predate the revised
+account-oriented driver; they are not directly comparable to that driver's
+end-to-end measurements.
 
 The last case distinguishes resuming persisted execution from replacement
 execution: the recovered journal retains one execution start and the exact
@@ -403,7 +415,7 @@ fixtures establish correctness only and are not performance evidence.
 
 Still deferred are source adapters from authoritative appeal-bond lifecycle,
 withdrawal-ledger, custodian-position, and incentive evidence; cross-host
-word-span work stealing; larger multi-account batches; and scaling/performance
+word-span work stealing; larger multi-account qualification; and scaling/performance
 measurements. Generic integer rows or category labels are not substitutes for
 validating those domain-specific source projections. No incentive payout,
 withdrawal authorization, custody authority, or bond liability is created here.
@@ -414,3 +426,81 @@ unit suite):
 ```sh
 clojure -M:test -e '(require (quote resolver-sim.research.native-accounting-process-test)) (let [{:keys [fail error]} (clojure.test/run-tests (quote resolver-sim.research.native-accounting-process-test))] (shutdown-agents) (when (pos? (+ fail error)) (System/exit 1)))'
 ```
+
+## Bounded account execution and parent completeness
+
+`native-accounting-batch/dispatch-accounts-and-reconcile!` consumes an existing
+canonical parent accounting request, its reduction contract, and already-rooted
+native work assignments. It derives the exact account requests from the parent
+and validates every account's exact partition plan before starting any delivery.
+Missing accounts, duplicate partitions, wrong snapshots and requests from a
+different parent are rejected at this gate.
+
+Runtime options `:max-concurrent-dispatches` and `:max-outstanding-per-runner`
+bound global and per-runner outstanding delivery/execution work. The scheduler
+scans past pending work for a busy runner so another eligible assigned runner
+can use available capacity. Runner identity, rather than endpoint or process
+identity, defines the per-runner bound. Existing transport applies cancellation,
+retry, durable completion and idempotent delivery semantics.
+
+The returned map binds `:accounting/parent-request-root`, the exact required
+account set, per-account completeness/reconciliation, incomplete accounts, and
+all dispatch outcomes. It is a runtime completeness view over existing
+canonical account results. It does not define another canonical accounting
+schema. A failed or cancelled account leaves the parent incomplete and retains
+other completed accounts; a missing account never contributes zero. Reversing
+delivery order or changing concurrency leaves canonical account result roots
+unchanged. Every existing arithmetic validation and serial-equivalence check
+still runs. Parent `:complete` means semantic accounting completeness;
+additional corroboration/proof thresholds remain separate execution assurance
+obligations, evaluated by the existing per-obligation control layer.
+
+## Diagnostic arithmetic and protocol profiling
+
+The test-only `native-accounting-profile/profile-call` temporarily wraps existing
+functions in an isolated measurement JVM. It measures selected-implementation
+computation, arithmetic revalidation, work binding, canonical hashing, evidence
+construction, coordinator admission, result-delivery round trips, HTTP body
+reads/response writes, actual configured journal writes, reconciliation, and
+the final serial fold. Public artifacts and production validators are unchanged.
+Wrapper restoration, including on failure, and identical profiled/unprofiled
+execution artifacts are tested.
+
+Enable detailed profiling and actual local durable journals explicitly:
+
+```sh
+PRF_ACCOUNTING_PERFORMANCE_PROFILE=1 PRF_ACCOUNTING_PERFORMANCE_DURABLE=1 \
+  clojure -M:test -m resolver-sim.research.native-accounting-performance 4 10 1 1 2
+```
+
+Timers are inclusive and can overlap across nesting and threads; their sums
+are not elapsed critical-path time. Profiling adds overhead and must be disabled
+for ordinary latency comparisons. The scope is the current JVM. Remote compute
+and remote journal timings are `:not-observed`; wire-transfer-only time is
+`:not-isolated`. A result-delivery round trip includes coordinator admission.
+With durability disabled, journal-write measurements are absent rather than
+fabricated. Temporary local journal directories and started servers are cleaned
+up on normal completion and startup/measurement failure.
+
+The first diagnostic run used four accounts with ten rows each and two local
+runners. It observed 40 partition folds across the execution/validation paths
+and four whole-account serial folds in reconciliation, plus 20 runner journal
+writes and 13 coordinator journal writes. Raw serial addition across the 40
+rows took about 0.16 ms; the profiled protocol window took about 1.03 seconds.
+These are diagnostic observations from this machine, not a throughput claim.
+
+An uninstrumented follow-up used four accounts with 100 rows each, one whole
+account per unit, two repetitions, and 1/2/4 actual local runners. All canonical
+roots matched. Dispatch/admission/reconciliation times ranged from 3.05–4.25 s,
+2.07–4.36 s, and 1.64–3.55 s respectively; local journals were disabled. The
+small sample and substantial runtime variation do not establish a scaling law
+or break-even regime. No new live cross-host run was performed in this pass.
+
+Moving arithmetic assurance off the coordinator remains a separate next step:
+V1 native validation still means same-implementation recomputation, and V1
+reconciliation still checks serial equivalence. A rooted assertion that another
+runner recomputed a value cannot by itself replace those checks. A successor or
+composition path needs explicit verifiable assurance and must preserve source
+coverage, arithmetic validity and canonical account result identity. Full-source
+hashing and coverage scans also remain, so eliminating arithmetic revalidation
+alone does not establish coordinator work proportional only to partition count.

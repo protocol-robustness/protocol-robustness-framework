@@ -3,6 +3,15 @@
 version = 4
 
 [[package]]
+name = "accounting-arithmetic-sp1-program"
+version = "0.1.0"
+dependencies = [
+ "allocation-kernel",
+ "serde_json",
+ "sp1-zkvm",
+]
+
+[[package]]
 name = "addchain"
 version = "0.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
