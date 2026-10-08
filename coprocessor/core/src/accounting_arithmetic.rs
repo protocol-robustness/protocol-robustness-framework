@@ -185,6 +185,18 @@ fn contract_body() -> C {
 /// Validate witness identities, exact plan coverage and selected-source arithmetic.
 /// Derive five raw SHA-256 roots (160 bytes); no caller-provided projection.
 pub fn derive_public_values(input: &Value) -> Result<Vec<u8>, String> {
+    derive_public_values_inner(input, true)
+}
+
+/// Derive the exact expected public commitments for a host verifier without
+/// repeating the accounting fold. This validates canonical identities and
+/// coverage only; the proof verifier must still authenticate a guest execution
+/// that called `derive_public_values` (the arithmetic-checking entry point).
+pub fn derive_public_commitments(input: &Value) -> Result<Vec<u8>, String> {
+    derive_public_values_inner(input, false)
+}
+
+fn derive_public_values_inner(input: &Value, check_arithmetic: bool) -> Result<Vec<u8>, String> {
     if input["schema"] != "research-accounting-arithmetic-statement.v1" {
         return Err("unsupported statement".into());
     }
@@ -244,7 +256,9 @@ pub fn derive_public_values(input: &Value) -> Result<Vec<u8>, String> {
     if rows.is_empty() {
         return Err("empty request".into());
     }
-    sum(rows.values().copied())?; // Common checked-long serial domain.
+    if check_arithmetic {
+        sum(rows.values().copied())?; // Common checked-long serial domain.
+    }
     let pr = root(
         &plan,
         "ACCOUNTING_PARTITION_PLAN_V1",
@@ -289,10 +303,12 @@ pub fn derive_public_values(input: &Value) -> Result<Vec<u8>, String> {
     if field(&partial, "partition/source-roots")? != field(unit, "partition/source-roots")? {
         return Err("partial coverage mismatch".into());
     }
-    let sources = sorted_roots(field(unit, "partition/source-roots")?)?;
-    let actual = sum(sources.iter().map(|s| rows[s]))?;
-    if field(&partial, "accounting/values")?.encode() != actual.encode() {
-        return Err("incorrect arithmetic".into());
+    if check_arithmetic {
+        let sources = sorted_roots(field(unit, "partition/source-roots")?)?;
+        let actual = sum(sources.iter().map(|s| rows[s]))?;
+        if field(&partial, "accounting/values")?.encode() != actual.encode() {
+            return Err("incorrect arithmetic".into());
+        }
     }
     let sr = root(
         &partial,

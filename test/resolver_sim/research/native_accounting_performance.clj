@@ -46,6 +46,9 @@
         value (f)]
     {:value value :elapsed-ns (- (System/nanoTime) started)}))
 
+(defn- transport-batch-size []
+  (or (some-> (System/getenv "PRF_ACCOUNTING_PERFORMANCE_BATCH_SIZE") parse-long) 1))
+
 (defn- fixture-matrix [account-count source-count partitions cutpoint mode workers]
   (let [basis (fixture/basis account-count source-count cutpoint)]
     (vec
@@ -125,7 +128,8 @@
                 (mapv (fn [{:keys [work]}]
                         {:work work :endpoint (endpoint-for (get-in work [:work/assignment :runner/reference]))
                          :logical-cutpoint 1}) fixtures)
-                {:max-concurrent-dispatches workers :max-outstanding-per-runner 1})]
+                {:max-concurrent-dispatches workers :max-outstanding-per-runner 1
+                 :max-transport-batch-size (transport-batch-size)})]
     (when-not (= :complete (:accounting/batch-status result))
       (throw (ex-info "Performance sample has incomplete account coverage" result)))
     result))
@@ -163,6 +167,7 @@
         {:mode :partitioned-local :accounts account-count :sources-per-account source-count
          :partitions-per-account partitions
          :actual-worker-count (count runners)
+         :transport-batch-size (transport-batch-size)
          :durable-journals-enabled? (some? directory)
          :max-concurrent-dispatches workers
          :work-construction-ns (:elapsed-ns construction)
@@ -215,6 +220,7 @@
         {:mode :cross-host-ssh-tunnel :accounts account-count :sources-per-account source-count
          :partitions-per-account partitions
          :actual-worker-count 2 :max-concurrent-dispatches 2
+         :transport-batch-size (transport-batch-size)
          :local-durable-journals-enabled? (some? directory)
          :remote-journal-profile :not-observed
          :work-construction-ns (:elapsed-ns construction)
@@ -291,6 +297,7 @@
                      :measurement/source-counts-per-account sources-per-account
                      :measurement/partition-counts partition-counts
                      :measurement/worker-capacities worker-counts
+                     :measurement/transport-batch-size (transport-batch-size)
                      :measurement/local-durable-journals-enabled?
                      (= "1" (System/getenv "PRF_ACCOUNTING_PERFORMANCE_DURABLE"))
                      :measurement/instrumented?

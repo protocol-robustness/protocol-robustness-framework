@@ -3,6 +3,8 @@
             [clojure.test :refer [deftest is]]
             [resolver-sim.research.accelerated-accounting :as accounting]
             [resolver-sim.research.accounting-execution-work :as accounting-work]
+            [resolver-sim.research.native-accounting-work :as native-accounting]
+            [resolver-sim.research.native-accounting-work-test :as native-accounting-fixture]
             [resolver-sim.research.execution-assurance :as assurance]
             [resolver-sim.research.observed-execution-work :as observed-work]
             [resolver-sim.research.execution-control :as control]
@@ -171,6 +173,129 @@
       (finally
         (transport/stop-runner! runner-a)
         (transport/stop-runner! runner-b)))))
+
+(deftest proof-backed-transport-rejects-unbound-execution-before-posting
+  (is (try
+        (transport/deliver-native-accounting-proof!
+         {:runner {:transport/state (atom {:completed-work {} :work-items {}})}
+          :endpoint {:transport/base-url "not-a-valid-endpoint"
+                     :transport/auth-secret transport-secret}
+          :work-root (root 901) :proof-file "/does/not/exist"
+          :metadata {} :generation-receipt {} :logical-cutpoint 1})
+        false
+        (catch Exception _ true))))
+
+(deftest proof-delivery-artifact-persists-before-journal-reference
+  (let [directory (java.nio.file.Files/createTempDirectory
+                   "prf-proof-delivery-journal-test-"
+                   (make-array java.nio.file.attribute.FileAttribute 0))
+        source (.resolve directory "source-proof.bin")
+        state-path (.resolve directory "runner-state.edn")
+        bytes (.getBytes "real-proof-artifact-bytes" java.nio.charset.StandardCharsets/UTF_8)
+        runner {:transport/state-path (str state-path)
+                :transport/state
+                (atom {:jobs {} :assignments {} :work-items {} :work-states {}
+                       :cancellations {} :completed-work {}
+                       :forensic-evidence-nodes {}})}
+        persist-proof (ns-resolve 'resolver-sim.research.runner-transport
+                                  'persist-proof-file!)
+        update-state (ns-resolve 'resolver-sim.research.runner-transport
+                                 'update-runtime-state!)]
+    (try
+      (java.nio.file.Files/write source bytes (make-array java.nio.file.OpenOption 0))
+      (let [{:keys [proof/content-root proof/file] :as stored}
+            (persist-proof runner source)]
+        (update-state runner assoc-in
+                      [:completed-work (root 902) :proof-delivery]
+                      (assoc stored :delivery {:delivery/status :pending}))
+        (let [journal (clojure.edn/read-string (slurp (.toFile state-path)))
+              persisted (get-in journal [:runner-runtime/state :completed-work
+                                         (root 902) :proof-delivery])]
+          (is (= content-root (:proof/content-root persisted)))
+          (is (= :pending (get-in persisted [:delivery :delivery/status])))
+          (is (= (seq bytes)
+                 (seq (java.nio.file.Files/readAllBytes
+                       (java.nio.file.Paths/get file (make-array String 0))))))))
+      (finally
+        (doseq [path [source state-path]]
+          (java.nio.file.Files/deleteIfExists path))
+        (let [artifact-dir (.resolveSibling state-path "runner-state.edn.proof-artifacts")]
+          (when (java.nio.file.Files/exists artifact-dir
+                                           (make-array java.nio.file.LinkOption 0))
+            (with-open [paths (java.nio.file.Files/list artifact-dir)]
+              (doseq [path (iterator-seq (.iterator paths))]
+                (java.nio.file.Files/deleteIfExists path)))
+            (java.nio.file.Files/deleteIfExists artifact-dir)))
+        (java.nio.file.Files/deleteIfExists directory)))))
+
+(deftest persisted-proof-delivery-retries-same-bytes-without-reexecution
+  (let [{:keys [work participant]} (native-accounting-fixture/work-fixture 100 301)
+        execution (native-accounting/execute-work! work)
+        work-root (:research-native-accounting-work/root work)
+        directory (java.nio.file.Files/createTempDirectory
+                   "prf-proof-redelivery-test-"
+                   (make-array java.nio.file.attribute.FileAttribute 0))
+        source (.resolve directory "source-proof.bin")
+        state-path (.resolve directory "runner-state.edn")
+        bytes (.getBytes "persisted-proof-for-redelivery"
+                         java.nio.charset.StandardCharsets/UTF_8)
+        state {:jobs {} :assignments {} :work-items {work-root work}
+               :work-states {} :cancellations {}
+               :completed-work {work-root {:job (:work/job work)
+                                            :assignment (:work/assignment work)
+                                            :native-accounting-execution execution}}
+               :forensic-evidence-nodes {}}
+        runner {:transport/state-path (str state-path)
+                :transport/coordinator-root coordinator-root
+                :runner-participation participant
+                :transport/state (atom state)}
+        persist-proof (ns-resolve 'resolver-sim.research.runner-transport
+                                  'persist-proof-file!)
+        update-state (ns-resolve 'resolver-sim.research.runner-transport
+                                 'update-runtime-state!)
+        post-var (ns-resolve 'resolver-sim.research.runner-transport 'post-edn!)
+        posted (atom nil)]
+    (try
+      (java.nio.file.Files/write source bytes (make-array java.nio.file.OpenOption 0))
+      (let [stored (merge (persist-proof runner source)
+                          {:proof/metadata {"fixture" "test"}
+                           :research-proof-generation-receipt {:fixture/root (root 903)}
+                           :delivery {:delivery/status :unreachable}
+                           :proof-deliveries [{:delivery/status :unreachable}]})]
+        (update-state runner assoc-in
+                      [:completed-work work-root :proof-delivery] stored)
+        (with-redefs-fn
+          {post-var (fn [_ _ message]
+                      (reset! posted message)
+                      {:http/status 200
+                       :transport/response
+                       {:transport/status :already-admitted
+                        :accounting-proof-backed-admission/root (root 904)}})}
+          #(let [result (transport/retry-undelivered-accounting-proofs!
+                         runner {:transport/base-url "http://fixture.invalid"
+                                 :transport/auth-secret transport-secret} 8)
+                 persisted (get-in (transport/runner-state runner)
+                                   [:completed-work work-root :proof-delivery])
+                 decoded (.decode (java.util.Base64/getDecoder)
+                                  ^String (:proof/base64 @posted))]
+             (is (= :already-admitted
+                    (get-in (first result) [:delivery :delivery/status])))
+             (is (= (seq bytes) (seq decoded)))
+             (is (= 2 (count (:proof-deliveries persisted))))
+             (is (= (:research-native-accounting-work/root work)
+                    (get-in @posted [:native-accounting-execution :run-evidence
+                                     :research-native-accounting-work/root]))))))
+      (finally
+        (java.nio.file.Files/deleteIfExists source)
+        (java.nio.file.Files/deleteIfExists state-path)
+        (let [artifact-dir (.resolveSibling state-path "runner-state.edn.proof-artifacts")]
+          (when (java.nio.file.Files/exists artifact-dir
+                                           (make-array java.nio.file.LinkOption 0))
+            (with-open [paths (java.nio.file.Files/list artifact-dir)]
+              (doseq [path (iterator-seq (.iterator paths))]
+                (java.nio.file.Files/deleteIfExists path)))
+            (java.nio.file.Files/deleteIfExists artifact-dir)))
+        (java.nio.file.Files/deleteIfExists directory)))))
 
 (deftest real-http-job-delivery-respects-distinct-runner-assignments
   (let [setup-data (setup)]

@@ -319,6 +319,57 @@ Arguments are comma-separated account counts, source rows per account,
 partition counts per account, repetitions, and actual worker capacities. One
 discarded warm-up is run for each coordinate. The default favors whole-account
 units and varies worker capacity independently from partition count. With the
+`PRF_ACCOUNTING_PERFORMANCE_BATCH_SIZE` environment variable, the local pilot
+can group up to 32 already-rooted assignments for the same runner and endpoint
+into one authenticated HTTP request. The default is one assignment per request.
+Each assignment still has its own persisted dispatch intent, work state, result
+delivery, coordinator admission and retry history. Batching is a runtime
+transport choice; it never changes the canonical partition plan or result root.
+
+The runner indexes accepted accounting request and partition-plan bodies by
+their canonical roots. This runtime input cache is rebuilt from its existing
+journal after restart. Later partitions assigned to the same runner may carry
+only those roots over HTTP. A cache miss triggers a full resend; reconstructed
+work passes the original `valid-work?` and assignment checks before execution.
+The coordinator's cache hint is ephemeral and can safely be lost. Neither
+cache presence nor a batch acknowledgement counts as independent execution.
+Within one transport batch, the first partition for a request/plan pair carries
+the full inputs and later partitions of that pair carry only their roots. Items
+are applied in batch order; if the full item was cancelled or otherwise did not
+populate the cache, each missed reference is retried with its full, unchanged
+rooted work. This is wire-payload deduplication, not a new semantic partition or
+runner-side computation cache. Distinct accounts still carry distinct requests,
+and the durable runner journal still records the accepted full work for each
+partition. The optimization therefore targets repeated partitions of a large
+account; it does not remove coordinator-side arithmetic recomputation.
+
+A local payload fixture with one 200-row account and four partitions shrank the
+four delivery-message bodies from 408,517 to 148,123 UTF-8 EDN bytes (63.7%)
+when repeated inputs were referenced. A single uninstrumented local timing
+sample for that coordinate measured 8.27 s with one-item delivery and 7.13 s
+with four-item batching and references; both yielded the same canonical account
+root. This comparison combines HTTP batching with input-reference effects and
+is too small to establish a performance regime. Direct serial execution in
+those samples took about 0.45 s, so the high-assurance partitioned path remains
+slower for this small workload.
+
+For a 200-source-row account with two partitions, the EDN work body for a
+later partition was 102,608 bytes in full and 17,348 bytes with request/plan
+references (83.1% fewer work-body bytes). This excludes HTTP headers and the
+result-delivery path. The runner must already possess the exact validated
+request and plan roots; otherwise the sender retransmits the full body.
+
+An initial local transport pilot used four independent accounts with 100 rows
+each, one runner, two measured repetitions per mode, and one warm-up per mode.
+Median end-to-end time was 5.08 s with batch size one and 4.12 s with batch
+size four. Both yielded the same canonical account-result roots as serial
+execution, whose median was about 0.98 s. This pilot ran without durable journals,
+separate JVM launches, and only two samples per mode; it indicates a possible
+small-unit transport benefit, not a scaling or cross-host performance claim.
+Coordinator arithmetic validation and reconciliation still dominate the
+assurance boundary. Batching does not remove their required V1 checks.
+
+With the
 remote runner prestarted and the established SSH
 forwards active, set `PRF_REMOTE_ACCOUNTING_RUNNER_URL` and
 `PRF_REMOTE_ACCOUNTING_COORDINATOR_PORT` to include cross-host measurements.

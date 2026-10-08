@@ -19,11 +19,13 @@
   (delay (shell/sh "cargo" "build" "--offline" "--manifest-path" "coprocessor/Cargo.toml"
                    "-p" "allocation-kernel" "--bin" "accounting_arithmetic_statement")))
 
-(defn guest [input]
+(defn guest
+  ([input] (guest input []))
+  ([input args]
   (when-not (zero? (:exit @rust-build))
     (throw (ex-info "Arithmetic validator build failed" @rust-build)))
-  (shell/sh "coprocessor/target/debug/accounting_arithmetic_statement"
-            :in (json/write-str input)))
+  (apply shell/sh "coprocessor/target/debug/accounting_arithmetic_statement"
+         (concat args [:in (json/write-str input)]))))
 
 (deftest cross-language-arithmetic-and-identity-conformance
   (let [{:keys [request contract plan partial]} (proof-fixture)
@@ -70,6 +72,19 @@
     (is (not (zero? (:exit (guest (assoc input "partial" (#'statement/wire canonical)))))))
     (is (re-find #"incorrect arithmetic"
                  (:err (guest (assoc input "partial" (#'statement/wire canonical))))))))
+
+(deftest coordinator-witness-derivation-does-not-recompute-but-guest-still-rejects
+  (let [{:keys [request contract plan partial]} (proof-fixture)
+        wrong (assoc partial :accounting/values {:accounting/debit 999})
+        wrong (assoc wrong :accounting-partial-result/root (accounting/partial-root wrong))
+        input (statement/proof-input-for-verification request contract plan wrong)]
+    (is (= input (statement/proof-input-for-verification request contract plan wrong)))
+    (is (not (zero? (:exit (guest input)))))
+    (let [commitments (guest input ["--commitments-only"])]
+      (is (zero? (:exit commitments)) (:err commitments))
+      (is (= (str (statement/public-values-hex
+                   (statement/derive-commitment-projection request contract plan wrong)) "\n")
+             (:out commitments))))))
 
 (deftest partition-omission-with-recomputed-plan-root-is-rejected
   (let [{:keys [request contract plan partial]} (proof-fixture)

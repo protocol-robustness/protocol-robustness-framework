@@ -6,6 +6,7 @@
             [resolver-sim.research.native-accounting-work-test :as fixture]
             [resolver-sim.research.native-accounting-profile :as profile]
             [resolver-sim.research.native-accounting-performance :as performance]
+            [resolver-sim.research.execution-control :as control]
             [resolver-sim.research.runner-transport :as transport])
   (:import [java.util.concurrent CountDownLatch TimeUnit]
            [java.nio.file Files]
@@ -60,6 +61,291 @@
         (is (= :not-observed (:remote-stages timings))))
       (finally
         (doseq [runner runners] (transport/stop-runner! runner))
+        (transport/stop-coordinator! coordinator)))))
+
+(deftest batched-account-delivery-keeps-independent-results-and-idempotent-replay
+  (let [basis (fixture/basis 3 6 988)
+        fixtures (mapv #(fixture/work-fixture (+ 100 %) 301 {:account-basis basis}) (range 3))
+        coordinator (transport/start-coordinator!
+                     {:coordinator-root fixture/coordinator-root :auth-secret fixture/secret
+                      :assignments (mapv :assignment fixtures)})
+        runner (transport/start-runner!
+                {:runner-participation (:participant (first fixtures))
+                 :auth-secret fixture/secret :coordinator-root fixture/coordinator-root
+                 :coordinator-endpoint (transport/coordinator-endpoint coordinator fixture/secret 30000)})
+        endpoint (transport/coordinator-endpoint runner fixture/secret 30000)
+        dispatches (mapv #(hash-map :work (:work %) :endpoint endpoint) fixtures)]
+    (try
+      (let [options {:max-concurrent-dispatches 1 :max-transport-batch-size 3}
+            first-result (batch/dispatch-accounts-and-reconcile!
+                          coordinator (:request basis) (:contract basis) dispatches options)
+            replay (batch/dispatch-accounts-and-reconcile!
+                    coordinator (:request basis) (:contract basis) (vec (reverse dispatches)) options)]
+        (is (= :complete (:accounting/batch-status first-result)))
+        (is (= (semantic-results first-result) (semantic-results replay)))
+        (is (= 3 (count (:native-accounting-results (transport/coordinator-state coordinator)))))
+        (is (every? #(= 1 (get-in % [:work/attempt-sequence]))
+                    (vals (:work-states (transport/runner-state runner)))))
+        (is (every? #(= :full-batch (get-in % [:dispatch :delivery :delivery/cache-status]))
+                    (:accounting/dispatch-outcomes first-result)))
+        (is (= 3 (count (:dispatch-intents (transport/coordinator-state coordinator)))))
+        (let [a (:work (first fixtures))
+              b (:work (second fixtures))
+              prior (transport/runner-state runner)
+              substituted (assoc b :accounting/request
+                                 {:accounting-request/root
+                                  (get-in a [:accounting/request :accounting-request/root])})
+              [status _] ((ns-resolve 'resolver-sim.research.runner-transport
+                                      'apply-job-message!)
+                          runner {:transport/kind :research/job-delivery
+                                  :job (:work/job b) :assignment (:work/assignment b)
+                                  :execution-work substituted :execute? true :logical-cutpoint 1})]
+          (is (= 422 status))
+          (is (= prior (transport/runner-state runner)))))
+      (finally
+        (transport/stop-runner! runner)
+        (transport/stop-coordinator! coordinator)))))
+
+(deftest rooted-accounting-input-cache-survives-runner-restart
+  (let [basis (fixture/basis 1 8 989)
+        fixtures (mapv #(fixture/work-fixture 100 301
+                                              {:account-basis basis :partition-count 2
+                                               :partition-index %}) (range 2))
+        directory (Files/createTempDirectory "accounting-input-cache-" (make-array FileAttribute 0))
+        path (str (.resolve directory "runner.edn"))
+        coordinator (transport/start-coordinator!
+                     {:coordinator-root fixture/coordinator-root :auth-secret fixture/secret
+                      :assignments (mapv :assignment fixtures)})
+        config {:runner-participation (:participant (first fixtures))
+                :auth-secret fixture/secret :coordinator-root fixture/coordinator-root
+                :coordinator-endpoint (transport/coordinator-endpoint coordinator fixture/secret 30000)
+                :state-path path}
+        runner (transport/start-runner! config)]
+    (try
+      (let [first-delivery (transport/dispatch-native-accounting!
+                            coordinator {:endpoint (transport/coordinator-endpoint runner fixture/secret 30000)
+                                         :accounting-work (:work (first fixtures))})]
+        (is (= :accepted (get-in first-delivery [:delivery :delivery/status])))
+        (transport/stop-runner! runner)
+        (let [restarted (transport/start-runner! config)
+              second-work (:work (second fixtures))]
+          (try
+            (let [preview (transport/deliver-job!
+                           {:coordinator-root fixture/coordinator-root
+                            :endpoint (transport/coordinator-endpoint restarted fixture/secret 30000)
+                            :job (:work/job second-work)
+                            :assignment (:work/assignment second-work)
+                            :execution-work second-work :execute? false
+                            :use-cached-accounting-input? true})
+                  second-delivery (transport/dispatch-native-accounting!
+                                   coordinator {:endpoint (transport/coordinator-endpoint restarted fixture/secret 30000)
+                                                :accounting-work second-work})
+                  work-root (native/work-root second-work)]
+              (is (= :referenced (:delivery/cache-status preview)))
+              (is (= :accepted (:delivery/status preview)))
+              (is (native/valid-work? (get-in (transport/runner-state restarted) [:work-items work-root])))
+              (is (= :accepted (get-in second-delivery [:delivery :delivery/status])))
+              (is (= 2 (count (:native-accounting-results (transport/coordinator-state coordinator))))))
+            (finally (transport/stop-runner! restarted)))))
+      (finally
+        (transport/stop-runner! runner)
+        (transport/stop-coordinator! coordinator)
+        (Files/deleteIfExists (.resolve directory "runner.edn"))
+        (Files/deleteIfExists directory)))))
+
+(deftest coordinator-reuses-request-and-plan-for-later-partition
+  (let [basis (fixture/basis 1 8 990)
+        fixtures (mapv #(fixture/work-fixture 100 301
+                                              {:account-basis basis :partition-count 2
+                                               :partition-index %}) (range 2))
+        coordinator (transport/start-coordinator!
+                     {:coordinator-root fixture/coordinator-root :auth-secret fixture/secret
+                      :assignments (mapv :assignment fixtures)})
+        runner (transport/start-runner!
+                {:runner-participation (:participant (first fixtures))
+                 :auth-secret fixture/secret :coordinator-root fixture/coordinator-root
+                 :coordinator-endpoint (transport/coordinator-endpoint coordinator fixture/secret 30000)})
+        endpoint (transport/coordinator-endpoint runner fixture/secret 30000)
+        dispatches (mapv #(hash-map :work (:work %) :endpoint endpoint) fixtures)]
+    (try
+      (let [result (batch/dispatch-accounts-and-reconcile!
+                    coordinator (:request basis) (:contract basis) dispatches
+                    {:max-concurrent-dispatches 1 :max-outstanding-per-runner 1})
+            statuses (frequencies (map #(get-in % [:dispatch :delivery :delivery/cache-status])
+                                     (:accounting/dispatch-outcomes result)))]
+        (is (= :complete (:accounting/batch-status result)))
+        (is (= {:full 1 :referenced 1} statuses))
+        (is (= (accounting/serial-values (first (vals (:accounts basis))))
+               (get-in result [:accounting/account-results (fixture/root 100)
+                               :accounting/reconciliation :accounting/values]))))
+      (finally
+        (transport/stop-runner! runner)
+        (transport/stop-coordinator! coordinator)))))
+
+(deftest batch-reuses-rooted-account-inputs-within-one-envelope
+  (let [basis (fixture/basis 1 12 991)
+        fixtures (mapv #(fixture/work-fixture 100 301
+                                              {:account-basis basis :partition-count 3
+                                               :partition-index %}) (range 3))
+        coordinator (transport/start-coordinator!
+                     {:coordinator-root fixture/coordinator-root :auth-secret fixture/secret
+                      :assignments (mapv :assignment fixtures)})
+        runner (transport/start-runner!
+                {:runner-participation (:participant (first fixtures))
+                 :auth-secret fixture/secret :coordinator-root fixture/coordinator-root
+                 :coordinator-endpoint (transport/coordinator-endpoint coordinator fixture/secret 30000)})
+        endpoint (transport/coordinator-endpoint runner fixture/secret 30000)]
+    (try
+      (let [result (batch/dispatch-accounts-and-reconcile!
+                    coordinator (:request basis) (:contract basis)
+                    (mapv #(hash-map :work (:work %) :endpoint endpoint) fixtures)
+                    {:max-concurrent-dispatches 1 :max-transport-batch-size 3})
+            statuses (frequencies (map #(get-in % [:dispatch :delivery :delivery/cache-status])
+                                     (:accounting/dispatch-outcomes result)))]
+        (is (= :complete (:accounting/batch-status result)))
+        (is (= {:full-batch 1 :referenced-batch 2} statuses))
+        (is (= 3 (count (:native-accounting-results (transport/coordinator-state coordinator)))))
+        (doseq [{:keys [work]} fixtures]
+          (is (= work (get-in (transport/runner-state runner)
+                              [:work-items (native/work-root work)]))))
+        (is (= (accounting/serial-values (first (vals (:accounts basis))))
+               (get-in result [:accounting/account-results (fixture/root 100)
+                               :accounting/reconciliation :accounting/values]))))
+      (finally
+        (transport/stop-runner! runner)
+        (transport/stop-coordinator! coordinator)))))
+
+(deftest repeated-account-batch-payload-has-one-full-input-copy
+  (let [basis (fixture/basis 1 200 991)
+        fixtures (mapv #(fixture/work-fixture 100 301
+                                              {:account-basis basis :partition-count 4
+                                               :partition-index %}) (range 4))
+        items (mapv #(hash-map :accounting-work (:work %) :logical-cutpoint 0) fixtures)
+        messages ((ns-resolve 'resolver-sim.research.runner-transport
+                              'accounting-batch-messages) items)
+        full-messages (mapv (fn [message item]
+                              (assoc message :execution-work (:accounting-work item)))
+                            messages items)]
+    (is (= 4 (count messages)))
+    (is (= (:work (first fixtures)) (:execution-work (first messages))))
+    (doseq [[message fixture] (map vector (rest messages) (rest fixtures))]
+      (is (= {:accounting-request/root
+              (get-in fixture [:work :accounting/request :accounting-request/root])}
+             (get-in message [:execution-work :accounting/request])))
+      (is (= {:accounting-partition-plan/root
+              (get-in fixture [:work :accounting/partition-plan
+                               :accounting-partition-plan/root])}
+             (get-in message [:execution-work :accounting/partition-plan]))))
+    (is (< (count (pr-str messages)) (count (pr-str full-messages))))))
+
+(deftest batch-reference-miss-after-cancelled-first-item-resends-full-work
+  (let [basis (fixture/basis 1 8 991)
+        fixtures (mapv #(fixture/work-fixture 100 301
+                                              {:account-basis basis :partition-count 2
+                                               :partition-index %}) (range 2))
+        coordinator (transport/start-coordinator!
+                     {:coordinator-root fixture/coordinator-root :auth-secret fixture/secret
+                      :assignments (mapv :assignment fixtures)})
+        runner (transport/start-runner!
+                {:runner-participation (:participant (first fixtures))
+                 :auth-secret fixture/secret :coordinator-root fixture/coordinator-root
+                 :coordinator-endpoint (transport/coordinator-endpoint coordinator fixture/secret 30000)})
+        endpoint (transport/coordinator-endpoint runner fixture/secret 30000)
+        first-work (:work (first fixtures))
+        cancellation (control/build-cancellation
+                      {:job-root (get-in first-work [:work/job :research-execution-job/root])
+                       :control-epoch 1 :reason :user-requested
+                       :requested-cutpoint 1 :scope :entire-job :target-roots []})]
+    (try
+      (is (= :observed
+             (:delivery/status
+              (transport/deliver-cancellation!
+               {:coordinator-root fixture/coordinator-root :endpoint endpoint
+                :cancellation cancellation
+                :runner-participation (:participant (first fixtures))
+                :assignment (:assignment (first fixtures)) :logical-cutpoint 1}))))
+      (let [result (batch/dispatch-accounts-and-reconcile!
+                    coordinator (:request basis) (:contract basis)
+                    (mapv #(hash-map :work (:work %) :endpoint endpoint) fixtures)
+                    {:max-concurrent-dispatches 1 :max-transport-batch-size 2})
+            outcomes (into {} (map (juxt :accounting-work-unit/root identity)
+                                   (:accounting/dispatch-outcomes result)))
+            first-outcome (get outcomes (get-in first-work
+                                                [:accounting/work-unit :accounting-work-unit/root]))
+            second-outcome (get outcomes (get-in (second fixtures)
+                                                 [:work :accounting/work-unit
+                                                  :accounting-work-unit/root]))]
+        (is (= :incomplete (:accounting/batch-status result)))
+        (is (= :cancelled-before-start
+               (get-in first-outcome [:dispatch :delivery :delivery/status])))
+        (is (= :miss-resent-full-batch
+               (get-in second-outcome [:dispatch :delivery :delivery/cache-status])))
+        (is (= :accepted (get-in second-outcome [:dispatch :delivery :delivery/status])))
+        (is (= 1 (count (:native-accounting-results (transport/coordinator-state coordinator)))))
+        (is (nil? (get-in result [:accounting/account-results (fixture/root 100)
+                                 :accounting/reconciliation]))))
+      (finally
+        (transport/stop-runner! runner)
+        (transport/stop-coordinator! coordinator)))))
+
+(deftest empty-cache-resends-full-work-without-changing-identity
+  (let [{:keys [work participant]} (fixture/work-fixture)
+        runner (transport/start-runner! {:runner-participation participant
+                                         :auth-secret fixture/secret})]
+    (try
+      (let [delivered (transport/deliver-job!
+                       {:coordinator-root fixture/coordinator-root
+                        :endpoint (transport/coordinator-endpoint runner fixture/secret 30000)
+                        :job (:work/job work) :assignment (:work/assignment work)
+                        :execution-work work :execute? false
+                        :use-cached-accounting-input? true})]
+        (is (= :accepted (:delivery/status delivered)))
+        (is (= :miss-resent-full (:delivery/cache-status delivered)))
+        (is (= work (get-in (transport/runner-state runner)
+                            [:work-items (native/work-root work)])))
+        (is (empty? (:completed-work (transport/runner-state runner)))))
+      (finally (transport/stop-runner! runner)))))
+
+(deftest batched-cancellation-preserves-other-account-and-missing-coverage
+  (let [basis (fixture/basis 2 6 992)
+        fixtures (mapv #(fixture/work-fixture (+ 100 %) 301 {:account-basis basis}) (range 2))
+        coordinator (transport/start-coordinator!
+                     {:coordinator-root fixture/coordinator-root :auth-secret fixture/secret
+                      :assignments (mapv :assignment fixtures)})
+        runner (transport/start-runner!
+                {:runner-participation (:participant (first fixtures))
+                 :auth-secret fixture/secret :coordinator-root fixture/coordinator-root
+                 :coordinator-endpoint (transport/coordinator-endpoint coordinator fixture/secret 30000)})
+        endpoint (transport/coordinator-endpoint runner fixture/secret 30000)
+        first-work (:work (first fixtures))
+        cancellation (control/build-cancellation
+                      {:job-root (get-in first-work [:work/job :research-execution-job/root])
+                       :control-epoch 1 :reason :user-requested
+                       :requested-cutpoint 1 :scope :entire-job :target-roots []})]
+    (try
+      (is (= :observed
+             (:delivery/status
+              (transport/deliver-cancellation!
+               {:coordinator-root fixture/coordinator-root :endpoint endpoint
+                :cancellation cancellation
+                :runner-participation (:participant (first fixtures))
+                :assignment (:assignment (first fixtures)) :logical-cutpoint 1}))))
+      (let [result (batch/dispatch-accounts-and-reconcile!
+                    coordinator (:request basis) (:contract basis)
+                    (mapv #(hash-map :work (:work %) :endpoint endpoint) fixtures)
+                    {:max-concurrent-dispatches 1 :max-transport-batch-size 2})
+            statuses (set (map #(get-in % [:dispatch :delivery :delivery/status])
+                               (:accounting/dispatch-outcomes result)))]
+        (is (= :incomplete (:accounting/batch-status result)))
+        (is (= #{:cancelled-before-start :accepted} statuses))
+        (is (= [(fixture/root 100)] (:accounting/incomplete-account-roots result)))
+        (is (nil? (get-in result [:accounting/account-results (fixture/root 100)
+                                 :accounting/reconciliation])))
+        (is (= :complete (get-in result [:accounting/account-results (fixture/root 101)
+                                       :accounting/status])))
+        (is (= 1 (count (:native-accounting-results (transport/coordinator-state coordinator))))))
+      (finally
+        (transport/stop-runner! runner)
         (transport/stop-coordinator! coordinator)))))
 
 (deftest malformed-parent-batches-fail-before-dispatch

@@ -3,6 +3,21 @@
 version = 4
 
 [[package]]
+name = "accounting-arithmetic-sp1-host"
+version = "0.1.0"
+dependencies = [
+ "allocation-kernel",
+ "bincode",
+ "clap",
+ "hex",
+ "serde",
+ "serde_json",
+ "sha2",
+ "sp1-build",
+ "sp1-sdk",
+]
+
+[[package]]
 name = "accounting-arithmetic-sp1-program"
 version = "0.1.0"
 dependencies = [

@@ -6,10 +6,12 @@
    canonical evidence through the existing execution-control artifacts. The
    shared transport secret, socket address, process identity, and HTTP logs are
    runtime-only. They never define a job or result root."
-  (:require [clojure.edn :as edn]
+  (:require [clojure.data.json :as json]
+            [clojure.edn :as edn]
             [clojure.java.io :as io]
             [resolver-sim.hash.reference :as hash-ref]
             [resolver-sim.research.accelerated-accounting :as accounting]
+            [resolver-sim.research.accounting-proof-admission :as accounting-proof-admission]
             [resolver-sim.research.accounting-execution-work :as accounting-work]
             [resolver-sim.research.native-accounting-work :as native-accounting]
             [resolver-sim.research.claim-evidence-work :as claim-evidence]
@@ -27,9 +29,10 @@
            [java.net.http HttpClient HttpRequest HttpRequest$BodyPublishers
             HttpResponse$BodyHandlers]
            [java.nio.charset StandardCharsets]
-           [java.nio.file AtomicMoveNotSupportedException Files StandardCopyOption]
+           [java.nio.file AtomicMoveNotSupportedException Files Path StandardCopyOption]
            [java.security MessageDigest]
            [java.time Duration]
+           [java.util Base64]
            [java.util.concurrent Executors ExecutorService]
            [javax.crypto Mac]
            [javax.crypto.spec SecretKeySpec]))
@@ -41,6 +44,8 @@
 (def ^:private coordinator-state-write-lock (Object.))
 (declare deliver-observed-result! deliver-reproduction-result! execute-delivered-work!
          retry-undelivered-results! retry-undelivered-reproduction-results!
+         retry-undelivered-accounting-proofs!
+         admit-native-accounting-proof!
          runner-state
          coordinator-state)
 
@@ -101,6 +106,55 @@
     (observed-work/valid-work? work) (:research-observed-execution-work/root work)
     (accounting-work/valid-work? work) (:research-accounting-execution-work/root work)))
 
+(defn- accounting-cache-from-state [state]
+  ;; The journal already retains accepted, full work bodies. Rebuild this
+  ;; runtime index after restart; the index itself is never authoritative.
+  (reduce (fn [cache work]
+            (if (= "research-native-accounting-work.v1" (:artifact/schema work))
+              (let [request (:accounting/request work)
+                    plan (:accounting/partition-plan work)]
+                (-> cache
+                    (assoc-in [:requests (:accounting-request/root request)] request)
+                    (assoc-in [:plans (:accounting-partition-plan/root plan)] plan)))
+              cache))
+          {:requests {} :plans {}} (vals (:work-items state))))
+
+(defn- accounting-reference? [value root-key]
+  (and (map? value) (= #{root-key} (set (keys value)))
+       (hash-ref/valid-sha256-ref? (get value root-key))))
+
+(defn- resolve-accounting-inputs [runner work]
+  (if-not (= "research-native-accounting-work.v1" (:artifact/schema work))
+    {:work work}
+    (let [request (:accounting/request work)
+          plan (:accounting/partition-plan work)
+          request-ref? (accounting-reference? request :accounting-request/root)
+          plan-ref? (accounting-reference? plan :accounting-partition-plan/root)
+          cache @(:transport/accounting-input-cache runner)
+          resolved-request (if request-ref?
+                             (get-in cache [:requests (:accounting-request/root request)]) request)
+          resolved-plan (if plan-ref?
+                          (get-in cache [:plans (:accounting-partition-plan/root plan)]) plan)]
+      (if (or (and request-ref? (nil? resolved-request))
+              (and plan-ref? (nil? resolved-plan)))
+        {:cache-miss? true
+         :missing-roots (vec (remove nil?
+                                     [(when (nil? resolved-request) (:accounting-request/root request))
+                                      (when (nil? resolved-plan) (:accounting-partition-plan/root plan))]))}
+        {:work (assoc work :accounting/request resolved-request
+                     :accounting/partition-plan resolved-plan)}))))
+
+(defn- remember-accounting-inputs! [runner work]
+  (when (= "research-native-accounting-work.v1" (:artifact/schema work))
+    (swap! (:transport/accounting-input-cache runner)
+           (fn [cache]
+             (-> cache
+                 (assoc-in [:requests (get-in work [:accounting/request :accounting-request/root])]
+                           (:accounting/request work))
+                 (assoc-in [:plans (get-in work [:accounting/partition-plan
+                                                :accounting-partition-plan/root])]
+                           (:accounting/partition-plan work)))))))
+
 (def ^:private runner-journal-schema "research-runner-runtime-journal.v1")
 (def ^:private initial-runner-state
   {:jobs {} :assignments {} :work-items {} :work-states {}
@@ -114,7 +168,8 @@
 (def ^:private initial-coordinator-state
   {:assignments {} :dispatch-intents {} :dispatch-history {}
    :observed-results {} :accounting-contexts {} :accounting-partials {}
-   :reproduction-results {} :native-accounting-results {}})
+   :reproduction-results {} :native-accounting-results {}
+   :accounting-proof-admissions {}})
 
 (defn- valid-runtime-state? [state]
   (and (map? state)
@@ -123,8 +178,10 @@
 
 (defn- valid-coordinator-runtime-state? [state]
   (and (map? state)
-       (= (disj (set (keys initial-coordinator-state)) :reproduction-results :native-accounting-results)
-          (disj (set (keys state)) :reproduction-results :native-accounting-results))
+       (= (disj (set (keys initial-coordinator-state)) :reproduction-results
+                :native-accounting-results :accounting-proof-admissions)
+          (disj (set (keys state)) :reproduction-results
+                :native-accounting-results :accounting-proof-admissions))
        (every? map? (vals state))))
 
 (defn- journal-body [runner state]
@@ -198,7 +255,8 @@
                         (-> state
                             (update :assignments merge (:assignments fresh))
                             (update :reproduction-results #(or % {}))
-                            (update :native-accounting-results #(or % {})))))))))
+                            (update :native-accounting-results #(or % {}))
+                            (update :accounting-proof-admissions #(or % {})))))))))
 
 (defn- write-coordinator-runtime-state! [coordinator state]
   (when-let [path (:transport/state-path coordinator)]
@@ -388,6 +446,90 @@
                                                    run-assurance-evidence))
            true))))
 
+(defn- apply-job-message! [runner message]
+  (try
+    (let [resolved (resolve-accounting-inputs runner (:execution-work message))
+          message (assoc message :execution-work (:work resolved))]
+      (cond
+        (:cache-miss? resolved)
+        [409 {:transport/status :accounting-input-cache-miss
+              :transport/missing-roots (:missing-roots resolved)}]
+
+        (not (and (= :research/job-delivery (:transport/kind message))
+                  (valid-delivery? runner message)))
+        [422 {:transport/status :invalid-delivery}]
+
+        :else
+        (let [{:keys [job assignment logical-cutpoint execution-work execute?]} message
+              job-root (:research-execution-job/root job)
+              cancellation (get-in @(:transport/state runner) [:cancellations job-root])]
+          (if cancellation
+            [200 {:transport/status :cancelled-before-start
+                  :research-execution-job/root job-root
+                  :research-run-assignment/root (:research-run-assignment/root assignment)
+                  :runner/reference (:runner/reference (:runner-participation runner))
+                  :transport/logical-cutpoint logical-cutpoint}]
+            (do
+              (when (and execution-work
+                         (not (valid-work-delivery? runner job assignment execution-work)))
+                (throw (ex-info "Invalid dispatched observed execution work" {})))
+              (let [root (when execution-work (work-root execution-work))
+                    state (update-runtime-state!
+                           runner
+                           (fn [state]
+                             (let [state (-> state
+                                             (assoc-in [:jobs job-root] job)
+                                             (assoc-in [:assignments
+                                                        (:research-run-assignment/root assignment)]
+                                                       assignment))]
+                               (if-not execution-work
+                                 state
+                                 (let [known (get-in state [:work-states root])
+                                       state (if known state
+                                                 (-> state
+                                                     (assoc-in [:work-items root] execution-work)
+                                                     (append-work-event root :accepted logical-cutpoint
+                                                                        :delivery-accepted)))]
+                                   (record-forensic-event
+                                    state runner
+                                    {:event-key :runner.forensic/delivery-accepted
+                                     :subject-root (:research-run-assignment/root assignment)
+                                     :subject-kind :research-runner/assignment-delivery
+                                     :causal-parent-roots [job-root
+                                                           (:research-run-assignment/root assignment)
+                                                           root]
+                                     :parent-nodes [] :observed-root root}))))))
+                    _ (when (and execution-work (native-accounting/valid-work? execution-work))
+                        (remember-accounting-inputs! runner execution-work))
+                    work-status (get-in state [:work-states root :work/status])
+                    _ (when (and (= :completed work-status)
+                                 (or (reproduction-work/valid-work? execution-work)
+                                     (native-accounting/valid-work? execution-work))
+                                 (contains? #{:pending :unreachable}
+                                            (get-in state [:completed-work root
+                                                           :result-delivery :delivery/status])))
+                        (retry-undelivered-reproduction-results!
+                         runner (:transport/coordinator-endpoint runner) logical-cutpoint))
+                    execution-result (when (and (not= false execute?) execution-work
+                                                (contains? #{:accepted :interrupted
+                                                             :outcome-unknown} work-status))
+                                       (execute-delivered-work! runner execution-work logical-cutpoint))]
+                [200 {:transport/status (if (and execution-work
+                                                 (contains? #{:completed :result-acknowledged}
+                                                            work-status))
+                                          :already-completed :accepted)
+                      :research-execution-job/root job-root
+                      :research-run-assignment/root (:research-run-assignment/root assignment)
+                      :runner/reference (:runner/reference (:runner-participation runner))
+                      :transport/execution-status (cond execution-result :complete
+                                                        (and execution-work (= false execute?)) :deferred
+                                                        :else nil)
+                      :transport/logical-cutpoint logical-cutpoint}]))))))
+    (catch clojure.lang.ExceptionInfo e
+      [422 {:transport/status :execution-failed
+            :execution/failure-cause (or (:cause (ex-data e)) :task-execution-failed)}])
+    (catch Exception _ [422 {:transport/status :invalid-delivery}])))
+
 (defn- job-handler [runner]
   (reify HttpHandler
     (handle [_ exchange]
@@ -397,93 +539,23 @@
         (cond
           (not= "POST" (.getRequestMethod exchange))
           (response! exchange 405 {:transport/status :method-not-allowed})
-
           (not (authenticated? secret payload supplied))
           (response! exchange 401 {:transport/status :authentication-rejected})
-
           :else
           (try
             (let [message (edn/read-string (String. payload StandardCharsets/UTF_8))]
-              (if-not (and (= :research/job-delivery (:transport/kind message))
-                           (valid-delivery? runner message))
-                (response! exchange 422 {:transport/status :invalid-delivery})
-                (let [{:keys [job assignment logical-cutpoint execution-work execute?]} message
-                      job-root (:research-execution-job/root job)
-                      cancellation (get-in @(:transport/state runner)
-                                           [:cancellations job-root])]
-                  (if cancellation
+              (if (= :research/job-delivery-batch (:transport/kind message))
+                (let [items (:transport/items message)]
+                  (if-not (and (vector? items) (<= 1 (count items) 32))
+                    (response! exchange 422 {:transport/status :invalid-delivery})
                     (response! exchange 200
-                               {:transport/status :cancelled-before-start
-                                :research-execution-job/root job-root
-                                :research-run-assignment/root
-                                (:research-run-assignment/root assignment)
-                                :runner/reference
-                                (:runner/reference (:runner-participation runner))
-                                :transport/logical-cutpoint logical-cutpoint})
-                    (do
-                      (when (and execution-work
-                                 (not (valid-work-delivery? runner job assignment execution-work)))
-                        (throw (ex-info "Invalid dispatched observed execution work" {})))
-                      (let [root (when execution-work (work-root execution-work))
-                            state (update-runtime-state!
-                                   runner
-                                   (fn [state]
-                                     (let [state (-> state
-                                                     (assoc-in [:jobs job-root] job)
-                                                     (assoc-in [:assignments
-                                                                (:research-run-assignment/root assignment)]
-                                                               assignment))]
-                                       (if-not execution-work
-                                         state
-                                         (let [known (get-in state [:work-states root])]
-                                           (let [state (if known
-                                                         state
-                                                         (-> state
-                                                             (assoc-in [:work-items root] execution-work)
-                                                             (append-work-event root :accepted logical-cutpoint
-                                                                                :delivery-accepted)))]
-                                             (record-forensic-event
-                                              state runner
-                                              {:event-key :runner.forensic/delivery-accepted
-                                               :subject-root (:research-run-assignment/root assignment)
-                                               :subject-kind :research-runner/assignment-delivery
-                                               :causal-parent-roots [job-root
-                                                                     (:research-run-assignment/root assignment)
-                                                                     root]
-                                               :parent-nodes [] :observed-root root})))))))
-                            work-status (get-in state [:work-states root :work/status])
-                            _ (when (and (= :completed work-status)
-                                         (or (reproduction-work/valid-work? execution-work)
-                                             (native-accounting/valid-work? execution-work))
-                                         (contains? #{:pending :unreachable}
-                                                    (get-in state [:completed-work root
-                                                                   :result-delivery :delivery/status])))
-                                (retry-undelivered-reproduction-results!
-                                 runner (:transport/coordinator-endpoint runner) logical-cutpoint))
-                            execution-result (when (and (not= false execute?) execution-work
-                                                        (contains? #{:accepted :interrupted
-                                                                     :outcome-unknown} work-status))
-                                               (execute-delivered-work! runner execution-work logical-cutpoint))]
-                        (response! exchange 200
-                                   {:transport/status (if (and execution-work
-                                                               (contains? #{:completed :result-acknowledged}
-                                                                          work-status))
-                                                        :already-completed :accepted)
-                                    :research-execution-job/root job-root
-                                    :research-run-assignment/root
-                                    (:research-run-assignment/root assignment)
-                                    :runner/reference
-                                    (:runner/reference (:runner-participation runner))
-                                    :transport/execution-status (cond
-                                                                  execution-result :complete
-                                                                  (and execution-work (= false execute?)) :deferred
-                                                                  :else nil)
-                                    :transport/logical-cutpoint logical-cutpoint})))))))
-            (catch clojure.lang.ExceptionInfo e
-              (let [cause (or (:cause (ex-data e)) :task-execution-failed)]
-                (response! exchange 422
-                           {:transport/status :execution-failed
-                            :execution/failure-cause cause})))
+                               {:transport/status :batch-processed
+                                :transport/results (mapv (fn [item]
+                                                           (let [[status body] (apply-job-message! runner item)]
+                                                             {:http/status status :transport/response body}))
+                                                         items)})))
+                (let [[status body] (apply-job-message! runner message)]
+                  (response! exchange status body))))
             (catch Exception _
               (response! exchange 422 {:transport/status :invalid-delivery}))))))))
 
@@ -756,6 +828,64 @@
             (catch Exception _
               (response! exchange 422 {:transport/status :invalid-reproduction-result}))))))))
 
+(defn- coordinator-accounting-proof-handler [coordinator]
+  (reify HttpHandler
+    (handle [_ exchange]
+      (let [payload (request-body exchange)
+            supplied (some-> exchange .getRequestHeaders (.getFirst mac-header))]
+        (cond
+          (not= "POST" (.getRequestMethod exchange))
+          (response! exchange 405 {:transport/status :method-not-allowed})
+          (not (authenticated? (:transport/auth-secret coordinator) payload supplied))
+          (response! exchange 401 {:transport/status :authentication-rejected})
+          (> (alength ^bytes payload) (* 32 1024 1024))
+          (response! exchange 413 {:transport/status :proof-bundle-too-large})
+          :else
+          (try
+            (let [message (edn/read-string (String. payload StandardCharsets/UTF_8))
+                  job (:job message)
+                  assignment (:assignment message)
+                  execution (:native-accounting-execution message)
+                  proof-bytes (.decode (Base64/getDecoder) ^String (:proof/base64 message))
+                  metadata (:proof/metadata message)
+                  generation-receipt (:research-proof-generation-receipt message)
+                  verification-config (:transport/accounting-proof-verification coordinator)]
+              (when-not (and (= :research/native-accounting-proof-delivery
+                                (:transport/kind message))
+                             (remote/valid-job? job)
+                             (= job (get-in (coordinator-state coordinator)
+                                            [:dispatch-intents
+                                             (:research-run-assignment/root assignment)
+                                             :execution-work :work/job]))
+                             (map? metadata) (map? generation-receipt)
+                             (map? verification-config))
+                (throw (ex-info "Incomplete proof-backed accounting delivery" {})))
+              (let [temp (Files/createTempDirectory "prf-accounting-proof-delivery-"
+                                                    (make-array java.nio.file.attribute.FileAttribute 0))
+                    proof-path (.resolve temp "proof.bin")
+                    metadata-path (.resolve temp "metadata.json")]
+                (try
+                  (Files/write proof-path proof-bytes (make-array java.nio.file.OpenOption 0))
+                  (Files/write metadata-path
+                               (.getBytes (json/write-str metadata) StandardCharsets/UTF_8)
+                               (make-array java.nio.file.OpenOption 0))
+                  (response! exchange 200
+                             (admit-native-accounting-proof!
+                              coordinator
+                              (merge verification-config
+                                     {:assignment assignment :execution execution
+                                      :proof-file (str proof-path)
+                                      :metadata-file (str metadata-path)
+                                      :generation-receipt generation-receipt})))
+                  (finally
+                    (Files/deleteIfExists proof-path)
+                    (Files/deleteIfExists metadata-path)
+                    (Files/deleteIfExists temp)))))
+            (catch Exception e
+              (response! exchange 422
+                         {:transport/status :proof-admission-rejected
+                          :cause (or (:cause (ex-data e)) :invalid-proof-backed-delivery)}))))))))
+
 (defn start-runner!
   "Start one independent, authenticated lab-runner endpoint.
 
@@ -789,6 +919,7 @@
         server (HttpServer/create (InetSocketAddress. bind-address (int port)) 0)
         executor (Executors/newCachedThreadPool)
         runner (assoc bootstrap :transport/state state :transport/server server
+                      :transport/accounting-input-cache (atom (accounting-cache-from-state @state))
                       :transport/executor executor)]
     (.createContext server "/v1/jobs" (job-handler runner))
     (.createContext server "/v1/claim-evidence" (claim-evidence-handler runner))
@@ -804,7 +935,9 @@
       (when coordinator-endpoint
         (retry-undelivered-results! runner coordinator-endpoint recovery-logical-cutpoint)
         (retry-undelivered-reproduction-results! runner coordinator-endpoint
-                                                 recovery-logical-cutpoint))
+                                                 recovery-logical-cutpoint)
+        (retry-undelivered-accounting-proofs! runner coordinator-endpoint
+                                              recovery-logical-cutpoint))
       (write-runtime-state! runner (runner-state runner))
       runner)))
 
@@ -843,7 +976,8 @@
    canonical scheduler decisions; the server only records observed evidence
    bound to one of them. Its address and secret are runtime-only."
   [{:keys [coordinator-root assignments auth-secret bind-address port advertise-url state-path
-           after-reproduction-persisted test-event initial-dispatches]
+           after-reproduction-persisted test-event initial-dispatches
+           accounting-proof-verification]
     :or {bind-address "127.0.0.1" port 0}}]
   (when-not (and (hash-ref/valid-sha256-ref? coordinator-root)
                  (vector? assignments) (every? remote/valid-assignment? assignments)
@@ -861,6 +995,8 @@
                      :transport/auth-secret auth-secret
                      :transport/state-path state-path
                      :transport/state state
+                     :transport/accounting-input-known (atom #{})
+                     :transport/accounting-proof-verification accounting-proof-verification
                      :transport/after-reproduction-persisted after-reproduction-persisted
                      :transport/test-event test-event
                      :transport/server server}]
@@ -872,6 +1008,7 @@
     (.createContext server "/v1/results" (coordinator-result-handler coordinator))
     (.createContext server "/v1/reproductions" (coordinator-reproduction-handler coordinator))
     (.createContext server "/v1/accounting" (coordinator-reproduction-handler coordinator))
+    (.createContext server "/v1/accounting-proof" (coordinator-accounting-proof-handler coordinator))
     (.setExecutor server nil)
     (.start server)
     (let [coordinator (assoc coordinator :transport/base-url
@@ -885,6 +1022,76 @@
   nil)
 
 (defn coordinator-state [coordinator] @(:transport/state coordinator))
+
+(defn admit-native-accounting-proof!
+  "Coordinator-side alternative admission for a completed native accounting
+   assignment. The coordinator structurally validates execution lineage and
+   runs the real SP1 verifier before ingesting the partial. The existing V1
+   delivery path and its arithmetic recomputation remain unchanged."
+  [coordinator {:keys [assignment execution proof-file metadata-file
+                       generation-receipt verifier-participation verifier-reference
+                       verifier-registry-extension-map verification-cutpoint]}]
+  (let [assignment-root (:research-run-assignment/root assignment)
+        state (coordinator-state coordinator)
+        intent (get-in state [:dispatch-intents assignment-root])
+        work (:execution-work intent)]
+    (when-not (and (remote/valid-assignment? assignment)
+                   (= assignment (get-in state [:assignments assignment-root]))
+                   (= assignment (:work/assignment work))
+                   (:execute? intent)
+                   (native-accounting/valid-work? work))
+      (throw (ex-info "Proof-backed accounting admission has no matching assignment"
+                      {:cause :accounting-assignment-mismatch})))
+    (let [admission (accounting-proof-admission/verify-and-build!
+                     {:work work :execution execution :proof-file proof-file
+                      :metadata-file metadata-file :generation-receipt generation-receipt
+                      :verifier-participation verifier-participation
+                      :verifier-reference verifier-reference
+                      :verifier-registry-extension-map verifier-registry-extension-map
+                      :verification-cutpoint verification-cutpoint})
+          plan-root (get-in work [:accounting/partition-plan :accounting-partition-plan/root])
+          plan-context (select-keys work [:accounting/request :accounting/partition-plan])
+          partial (:accounting-partial execution)
+          admission-root (:accounting-proof-backed-admission/root admission)
+          execution-root (native-accounting/execution-root execution)
+          result-key [assignment-root execution-root]
+          previous (get-in state [:native-accounting-results result-key])]
+      (when (and previous
+                 (not= (:native-accounting-execution previous) execution))
+        (throw (ex-info "Accounting assignment already has another execution"
+                        {:cause :accounting-execution-conflict})))
+      (update-coordinator-state!
+       coordinator
+       (fn [current]
+         (let [current-intent (get-in current [:dispatch-intents assignment-root])
+               _ (when-not (and (= assignment (get-in current [:assignments assignment-root]))
+                                (= work (:execution-work current-intent))
+                                (:execute? current-intent))
+                   (throw (ex-info "Proof admission assignment changed during verification"
+                                   {:cause :accounting-assignment-mismatch})))
+               prior-context (get-in current [:accounting-contexts plan-root])
+               existing (get-in current [:accounting-proof-admissions admission-root])]
+           (when (and prior-context (not= prior-context plan-context))
+             (throw (ex-info "Accounting request/plan context substitution" {})))
+           (when (and existing (not= existing admission))
+             (throw (ex-info "Proof admission root collision" {})))
+           (-> current
+               (assoc-in [:accounting-contexts plan-root] plan-context)
+               (assoc-in [:native-accounting-results result-key]
+                         {:job (:work/job work) :assignment assignment
+                          :native-accounting-execution execution})
+               (assoc-in [:accounting-proof-admissions admission-root] admission)
+               (update-in [:accounting-partials plan-root]
+                          (fnil accounting/ingest-partial {}) partial)))))
+      {:transport/status (if (and previous
+                                  (get-in state [:accounting-proof-admissions admission-root]))
+                           :already-admitted :accepted)
+       :accounting-proof-backed-admission/root admission-root
+       :accounting-partial-result/root (:accounting-partial-result/root partial)
+       :canonical-accounting-partial/root
+       (:canonical-accounting-partial/root admission)
+       :research-proof-verification-evidence/root
+       (:research-proof-verification-evidence/root admission)})))
 
 (defn coordinator-endpoint
   "Return a runtime-only transport endpoint from a started runner or coordinator."
@@ -916,6 +1123,150 @@
       (catch Exception e
         {:http/status nil :transport/error :unreachable
          :transport/exception-class (.getName (class e))}))))
+
+(defn- persisted-proof-path [runner content-root]
+  (when-not (:transport/state-path runner)
+    (throw (ex-info "Durable proof delivery requires a runner journal" {})))
+  (let [directory (.resolveSibling (.toPath (io/file (:transport/state-path runner)))
+                                   (str (.getFileName (.toPath (io/file (:transport/state-path runner))))
+                                        ".proof-artifacts"))]
+    (.resolve (Files/createDirectories directory (make-array java.nio.file.attribute.FileAttribute 0))
+              (subs content-root 7))))
+
+(defn- path-of [value]
+  (if (instance? Path value) value (.toPath (io/file value))))
+
+(defn- persist-proof-file! [runner proof-file]
+  (let [bytes (Files/readAllBytes (path-of proof-file))]
+    (when (or (zero? (alength ^bytes bytes)) (> (alength ^bytes bytes) (* 24 1024 1024)))
+      (throw (ex-info "SP1 proof size is outside the accounting transport limit" {})))
+    (let [content-root (str "sha256:" (hex (.digest (MessageDigest/getInstance "SHA-256") bytes)))
+          target (persisted-proof-path runner content-root)]
+      (when-not (Files/exists target (make-array java.nio.file.LinkOption 0))
+        (let [temporary (Files/createTempFile (.getParent target) ".proof-" ".tmp"
+                                              (make-array java.nio.file.attribute.FileAttribute 0))]
+          (try
+            (Files/write temporary bytes (make-array java.nio.file.OpenOption 0))
+            (try
+              (Files/move temporary target
+                          (into-array StandardCopyOption [StandardCopyOption/ATOMIC_MOVE
+                                                          StandardCopyOption/REPLACE_EXISTING]))
+              (catch AtomicMoveNotSupportedException _
+                (Files/move temporary target
+                            (into-array StandardCopyOption [StandardCopyOption/REPLACE_EXISTING]))))
+            (finally (Files/deleteIfExists temporary)))))
+      {:proof/content-root content-root :proof/file (str target)})))
+
+(defn- proof-delivery-attempt! [runner endpoint job assignment execution delivery-bundle logical-cutpoint]
+  (if (contains? (:cancellations (runner-state runner))
+                 (:research-execution-job/root job))
+    {:delivery/status :cancelled-before-delivery}
+  (let [bytes (Files/readAllBytes (path-of (:proof/file delivery-bundle)))
+          observed-content-root
+          (str "sha256:" (hex (.digest (MessageDigest/getInstance "SHA-256") bytes)))
+          _ (when-not (= (:proof/content-root delivery-bundle) observed-content-root)
+              (throw (ex-info "Persisted proof artifact content changed" {})))
+          response (post-edn! endpoint "/v1/accounting-proof"
+                              {:transport/kind :research/native-accounting-proof-delivery
+                               :job job :assignment assignment
+                               :native-accounting-execution execution
+                               :proof/base64 (.encodeToString (Base64/getEncoder) bytes)
+                               :proof/metadata (:proof/metadata delivery-bundle)
+                               :research-proof-generation-receipt
+                               (:research-proof-generation-receipt delivery-bundle)
+                               :logical-cutpoint logical-cutpoint})
+          body (:transport/response response)]
+      (cond
+        (nil? (:http/status response))
+        {:delivery/status :unreachable}
+        (and (= 200 (:http/status response))
+             (contains? #{:accepted :already-admitted} (:transport/status body)))
+        {:delivery/status (:transport/status body)
+         :accounting-proof-backed-admission/root
+         (:accounting-proof-backed-admission/root body)
+         :reachability
+         (control/build-reachability
+          {:job-root (:research-execution-job/root job) :route-kind :proof-job-delivery
+           :subject-root (:proof/content-root delivery-bundle)
+           :source-root (:runner/reference (:runner-participation runner))
+           :destination-root (:transport/coordinator-root runner)
+           :declared-reachable? true :outcome :realized
+           :attempt-cutpoint logical-cutpoint})}
+        :else {:delivery/status :rejected
+               :transport/status (:transport/status body)}))))
+
+(defn deliver-native-accounting-proof!
+  "Attach a real, already-generated proof to completed native accounting work
+   and deliver it. The work/job/assignment/execution are taken from the
+   runner's durable journal; only the proof output is supplied. Proof bytes are
+   persisted before the pending delivery state, so restart retries delivery
+   without rerunning accounting or proving. The coordinator owns verification
+   policy."
+  [{:keys [runner endpoint work-root proof-file metadata generation-receipt
+           logical-cutpoint]}]
+  (let [completed (get-in (runner-state runner) [:completed-work work-root])
+        work (get-in (runner-state runner) [:work-items work-root])
+        job (:job completed) assignment (:assignment completed)
+        execution (:native-accounting-execution completed)]
+    (when-not (and completed execution (native-accounting/valid-work? work)
+                   (= (:work/assignment work) assignment)
+                   (= (:research-native-accounting-work/root work) work-root)
+                   (map? metadata) (map? generation-receipt)
+                   (Files/isRegularFile (path-of proof-file)
+                                        (make-array java.nio.file.LinkOption 0))
+                   (integer? logical-cutpoint) (not (neg? logical-cutpoint)))
+      (throw (ex-info "Proof delivery must target completed journaled accounting work" {})))
+    (let [persisted (persist-proof-file! runner proof-file)
+          bundle (merge persisted {:proof/metadata metadata
+                                   :research-proof-generation-receipt generation-receipt})]
+      (update-runtime-state!
+       runner
+       (fn [state]
+         (let [prior (get-in state [:completed-work work-root :proof-delivery])]
+           (when (and prior (not= (select-keys prior [:proof/content-root :proof/metadata
+                                                       :research-proof-generation-receipt])
+                                  (select-keys bundle [:proof/content-root :proof/metadata
+                                                       :research-proof-generation-receipt])))
+             (throw (ex-info "Conflicting proof bundle for completed accounting work" {})))
+           (assoc-in state [:completed-work work-root :proof-delivery]
+                     (merge bundle (select-keys prior [:proof-deliveries :delivery]))))))
+      (let [delivered (proof-delivery-attempt! runner endpoint job assignment execution
+                                                (get-in (runner-state runner)
+                                                        [:completed-work work-root :proof-delivery])
+                                                logical-cutpoint)]
+        (update-runtime-state!
+         runner
+         (fn [state]
+           (-> state
+               (assoc-in [:completed-work work-root :proof-delivery :delivery] delivered)
+               (update-in [:completed-work work-root :proof-delivery :proof-deliveries]
+                          (fnil conj []) delivered))))
+        delivered))))
+
+(defn retry-undelivered-accounting-proofs! [runner endpoint logical-cutpoint]
+  (when-not (and (map? endpoint) (integer? logical-cutpoint)
+                 (not (neg? logical-cutpoint)))
+    (throw (ex-info "Invalid proof-delivery retry parameters" {})))
+  (let [pending (->> (:completed-work (runner-state runner))
+                     (filter (fn [[_ entry]]
+                               (contains? #{:pending :unreachable}
+                                          (get-in entry [:proof-delivery :delivery :delivery/status]))))
+                     (sort-by key))]
+    (mapv
+     (fn [[work-root completed]]
+       (let [delivered (proof-delivery-attempt!
+                        runner endpoint (:job completed) (:assignment completed)
+                        (:native-accounting-execution completed) (:proof-delivery completed)
+                        logical-cutpoint)]
+         (update-runtime-state!
+          runner
+          (fn [state]
+            (-> state
+                (assoc-in [:completed-work work-root :proof-delivery :delivery] delivered)
+                (update-in [:completed-work work-root :proof-delivery :proof-deliveries]
+                           (fnil conj []) delivered))))
+         {:work-root work-root :delivery delivered}))
+     pending)))
 
 (defn- deliver-computation-result!
   "At-least-once delivery of a persisted fresh execution artifact. The expected
@@ -1415,11 +1766,56 @@
           :delivery delivered}))
      pending)))
 
+(defn- accounting-input-refs [work]
+  (assoc work
+         :accounting/request {:accounting-request/root
+                              (get-in work [:accounting/request :accounting-request/root])}
+         :accounting/partition-plan {:accounting-partition-plan/root
+                                     (get-in work [:accounting/partition-plan
+                                                   :accounting-partition-plan/root])}))
+
+(defn- interpret-job-delivery
+  [coordinator-root job assignment logical-cutpoint response cache-status]
+  (let [body (:transport/response response)
+        status (:transport/status body)]
+    (cond
+      (= :authentication-rejected status)
+      (throw (ex-info "Runner rejected transport authentication"
+                      {:transport/error :authentication-rejected}))
+      (nil? (:http/status response))
+      {:delivery/status :unreachable :delivery/cache-status cache-status
+       :reachability (control/build-reachability
+                      {:job-root (:research-execution-job/root job)
+                       :route-kind :job-delivery
+                       :subject-root (:research-run-assignment/root assignment)
+                       :source-root coordinator-root
+                       :destination-root (:runner/reference assignment)
+                       :declared-reachable? true :outcome :unreachable
+                       :attempt-cutpoint logical-cutpoint})}
+      (and (= 200 (:http/status response))
+           (contains? #{:accepted :cancelled-before-start :already-completed} status)
+           (= (:research-execution-job/root job)
+              (:research-execution-job/root body))
+           (= (:research-run-assignment/root assignment)
+              (:research-run-assignment/root body))
+           (= (:runner/reference assignment) (:runner/reference body)))
+      {:delivery/status status :delivery/cache-status cache-status
+       :reachability (control/build-reachability
+                      {:job-root (:research-execution-job/root job)
+                       :route-kind :job-delivery
+                       :subject-root (:research-run-assignment/root assignment)
+                       :source-root coordinator-root
+                       :destination-root (:runner/reference assignment)
+                       :declared-reachable? true :outcome :realized
+                       :attempt-cutpoint logical-cutpoint})}
+      :else (throw (ex-info "Runner rejected job delivery" {:response response})))))
+
 (defn deliver-job!
   "Deliver a rooted job/assignment over HTTP and produce existing canonical
    realized-reachability evidence. Authentication rejection is a transport
    boundary failure, not a false claim that the route was unreachable."
-  [{:keys [coordinator-root endpoint job assignment execution-work logical-cutpoint execute?]
+  [{:keys [coordinator-root endpoint job assignment execution-work logical-cutpoint execute?
+           use-cached-accounting-input?]
     :or {logical-cutpoint 0 execute? true}}]
   (when-not (and (remote/valid-job? job) (remote/valid-assignment? assignment)
                  (= (:research-execution-job/root job)
@@ -1430,49 +1826,25 @@
                                              (observed-work-for execution-work))}
                                            job assignment execution-work)))
     (throw (ex-info "Invalid job delivery lineage" {})))
-  (let [response (post-edn! endpoint "/v1/jobs"
-                            {:transport/kind :research/job-delivery
-                             :job job :assignment assignment
-                             :execution-work execution-work
-                             :execute? execute?
-                             :logical-cutpoint logical-cutpoint})
-        body (:transport/response response)
-        status (:transport/status body)]
-    (cond
-      (= :authentication-rejected status)
-      (throw (ex-info "Runner rejected transport authentication"
-                      {:transport/error :authentication-rejected}))
-
-      (nil? (:http/status response))
-      {:delivery/status :unreachable
-       :reachability (control/build-reachability
-                      {:job-root (:research-execution-job/root job)
-                       :route-kind :job-delivery
-                       :subject-root (:research-run-assignment/root assignment)
-                       :source-root coordinator-root
-                       :destination-root (:runner/reference assignment)
-                       :declared-reachable? true :outcome :unreachable
-                       :attempt-cutpoint logical-cutpoint})}
-
-      (and (= 200 (:http/status response))
-           (contains? #{:accepted :cancelled-before-start :already-completed} status)
-           (= (:research-execution-job/root job)
-              (:research-execution-job/root body))
-           (= (:research-run-assignment/root assignment)
-              (:research-run-assignment/root body))
-           (= (:runner/reference assignment) (:runner/reference body)))
-      {:delivery/status status
-       :reachability (control/build-reachability
-                      {:job-root (:research-execution-job/root job)
-                       :route-kind :job-delivery
-                       :subject-root (:research-run-assignment/root assignment)
-                       :source-root coordinator-root
-                       :destination-root (:runner/reference assignment)
-                       :declared-reachable? true :outcome :realized
-                       :attempt-cutpoint logical-cutpoint})}
-
-      :else
-      (throw (ex-info "Runner rejected job delivery" {:response response})))))
+  (let [message {:transport/kind :research/job-delivery
+                 :job job :assignment assignment :execution-work execution-work
+                 :execute? execute? :logical-cutpoint logical-cutpoint}
+        referenced? (and use-cached-accounting-input?
+                         (native-accounting/valid-work? execution-work))
+        first-response (post-edn! endpoint "/v1/jobs"
+                                  (if referenced?
+                                    (assoc message :execution-work (accounting-input-refs execution-work))
+                                    message))
+        cache-miss? (and referenced?
+                         (= :accounting-input-cache-miss
+                            (get-in first-response [:transport/response :transport/status])))
+        response (if cache-miss? (post-edn! endpoint "/v1/jobs" message) first-response)
+        cache-status (cond cache-miss? :miss-resent-full
+                           referenced? :referenced
+                           (native-accounting/valid-work? execution-work) :full
+                           :else :not-applicable)]
+    (interpret-job-delivery coordinator-root job assignment logical-cutpoint
+                            response cache-status)))
 
 (defn deliver-claim-evidence-coordinate!
   "Transport one existing rooted claim-evidence coordinate to an opted-in
@@ -1539,6 +1911,31 @@
         (throw (ex-info "Runner rejected claim-evidence coordinate delivery"
                         {:response response}))))))
 
+(defn- note-dispatch-delivery!
+  [coordinator endpoint assignment execution-work logical-cutpoint delivery]
+  (let [assignment-root (:research-run-assignment/root assignment)
+        cache-key (when (native-accounting/valid-work? execution-work)
+                    [(:transport/base-url endpoint) (:runner/reference assignment)
+                     (get-in execution-work [:accounting/request :accounting-request/root])
+                     (get-in execution-work [:accounting/partition-plan
+                                             :accounting-partition-plan/root])])]
+    (when (and cache-key (contains? #{:accepted :already-completed}
+                                    (:delivery/status delivery)))
+      (swap! (:transport/accounting-input-known coordinator) conj cache-key))
+    (update-coordinator-state!
+     coordinator
+     (fn [state]
+       (-> state
+           (assoc-in [:dispatch-intents assignment-root :dispatch/status]
+                     (if (= :unreachable (:delivery/status delivery)) :pending :delivered))
+           (update-in [:dispatch-intents assignment-root :dispatch/history]
+                      (fnil conj []) {:dispatch/logical-cutpoint logical-cutpoint
+                                      :dispatch/delivery-status (:delivery/status delivery)
+                                      :dispatch/cache-status (:delivery/cache-status delivery)
+                                      :dispatch/reachability-root
+                                      (get-in delivery [:reachability
+                                                        :research-realized-reachability/root])}))))))
+
 (defn dispatch-job!
   "Persist coordinator dispatch intent before attempting delivery. Repeated
    transport attempts are at-least-once; the immutable assignment/work bundle
@@ -1548,23 +1945,22 @@
                 :or {logical-cutpoint 0 execute? true} :as dispatch}]
   (when-not (and (remote/valid-job? job) (remote/valid-assignment? assignment))
     (throw (ex-info "Invalid coordinator dispatch" {})))
-  (let [assignment-root (persist-dispatch-intent! coordinator dispatch)]
+  (let [_ (persist-dispatch-intent! coordinator dispatch)
+        cache-key (when (native-accounting/valid-work? execution-work)
+                    [(:transport/base-url endpoint) (:runner/reference assignment)
+                     (get-in execution-work [:accounting/request :accounting-request/root])
+                     (get-in execution-work [:accounting/partition-plan
+                                             :accounting-partition-plan/root])])]
     (let [delivery (deliver-job! {:coordinator-root (:coordinator/root coordinator)
                                   :endpoint endpoint :job job :assignment assignment
                                   :execution-work execution-work :logical-cutpoint logical-cutpoint
-                                  :execute? execute?})]
-      (update-coordinator-state!
-       coordinator
-       (fn [state]
-         (-> state
-             (assoc-in [:dispatch-intents assignment-root :dispatch/status]
-                       (if (= :unreachable (:delivery/status delivery)) :pending :delivered))
-             (update-in [:dispatch-intents assignment-root :dispatch/history]
-                        (fnil conj []) {:dispatch/logical-cutpoint logical-cutpoint
-                                        :dispatch/delivery-status (:delivery/status delivery)
-                                        :dispatch/reachability-root
-                                        (get-in delivery [:reachability
-                                                          :research-realized-reachability/root])}))))
+                                  :execute? execute?
+                                  :use-cached-accounting-input?
+                                  (and cache-key
+                                       (contains? @(:transport/accounting-input-known coordinator)
+                                                  cache-key))})]
+      (note-dispatch-delivery! coordinator endpoint assignment execution-work
+                               logical-cutpoint delivery)
       delivery)))
 
 (defn dispatch-reproduction!
@@ -1606,6 +2002,98 @@
                                (:research-run-assignment/root (:assignment result))) result))
                     (:native-accounting-results (coordinator-state coordinator)))]
     {:delivery delivery :native-accounting-execution (:native-accounting-execution entry)}))
+
+(defn- accounting-batch-messages [items]
+  (second
+   (reduce
+    (fn [[seen messages] item]
+      (let [work (:accounting-work item)
+            input-key [(get-in work [:accounting/request :accounting-request/root])
+                       (get-in work [:accounting/partition-plan
+                                     :accounting-partition-plan/root])]
+            repeated? (contains? seen input-key)]
+        [(conj seen input-key)
+         (conj messages
+               {:transport/kind :research/job-delivery
+                :job (:work/job work) :assignment (:work/assignment work)
+                :execution-work (if repeated? (accounting-input-refs work) work)
+                :execute? true :logical-cutpoint (:logical-cutpoint item 0)})]))
+    [#{} []] items)))
+
+(defn dispatch-native-accounting-batch!
+  "Send several already-rooted native work units to one runner in one HTTP
+   envelope. Repeated account inputs within that envelope are sent by root
+   after their first full occurrence. Every assignment keeps its own intent,
+   result admission and retry history. A lost batch response leaves its
+   assignments pending; redelivery uses the ordinary idempotent path."
+  [coordinator endpoint items]
+  (let [works (mapv :accounting-work items)
+        assignments (mapv :work/assignment works)
+        runner-roots (set (map :runner/reference assignments))]
+    (when-not (and (vector? items) (<= 1 (count items) 32)
+                   (map? endpoint) (= 1 (count runner-roots))
+                   (= (count assignments)
+                      (count (set (map :research-run-assignment/root assignments))))
+                   (every? native-accounting/valid-work? works)
+                   (every? #(and (integer? (:logical-cutpoint % 0))
+                                 (not (neg? (:logical-cutpoint % 0)))) items))
+      (throw (ex-info "Invalid native accounting transport batch" {})))
+    (doseq [work works]
+      (persist-dispatch-intent! coordinator
+                                {:job (:work/job work)
+                                 :assignment (:work/assignment work)
+                                 :execution-work work :execute? true}))
+    (let [messages (accounting-batch-messages items)
+          response (post-edn! endpoint "/v1/jobs"
+                              {:transport/kind :research/job-delivery-batch
+                               :transport/items messages})
+          replies (get-in response [:transport/response :transport/results])]
+      (when (and (:http/status response)
+                 (not (and (= 200 (:http/status response))
+                           (= :batch-processed
+                              (get-in response [:transport/response :transport/status]))
+                           (vector? replies) (= (count replies) (count items)))))
+        (throw (ex-info "Runner rejected native accounting batch" {:response response})))
+      (mapv
+       (fn [index item reply]
+         (let [work (:accounting-work item)
+               assignment (:work/assignment work)
+               cutpoint (:logical-cutpoint item 0)
+               unit-root (get-in work [:accounting/work-unit :accounting-work-unit/root])]
+           (try
+             (let [referenced? (accounting-reference?
+                                (get-in (nth messages index)
+                                        [:execution-work :accounting/request])
+                                :accounting-request/root)
+                   cache-miss? (and referenced?
+                                    (= :accounting-input-cache-miss
+                                       (get-in reply [:transport/response :transport/status])))
+                   delivery (if cache-miss?
+                              (deliver-job! {:coordinator-root (:coordinator/root coordinator)
+                                             :endpoint endpoint :job (:work/job work)
+                                             :assignment assignment :execution-work work
+                                             :logical-cutpoint cutpoint})
+                              (interpret-job-delivery
+                               (:coordinator/root coordinator) (:work/job work)
+                               assignment cutpoint (or reply {:http/status nil})
+                               (if referenced? :referenced-batch :full-batch)))
+                   delivery (if cache-miss?
+                              (assoc delivery :delivery/cache-status :miss-resent-full-batch)
+                              delivery)
+                   _ (note-dispatch-delivery! coordinator endpoint assignment work
+                                              cutpoint delivery)
+                   entry (some (fn [[_ result]]
+                                 (when (= (:research-run-assignment/root assignment)
+                                          (:research-run-assignment/root (:assignment result)))
+                                   result))
+                               (:native-accounting-results (coordinator-state coordinator)))]
+               {:accounting-work-unit/root unit-root
+                :dispatch {:delivery delivery
+                           :native-accounting-execution (:native-accounting-execution entry)}})
+             (catch Exception e
+               {:accounting-work-unit/root unit-root
+                :dispatch/status :failed :failure/class (.getName (class e))}))))
+       (range (count items)) items (or replies (repeat nil))))))
 
 (defn retry-pending-dispatches!
   "Re-attempt persisted dispatch intents after a runner returns. It never

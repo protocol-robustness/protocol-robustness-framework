@@ -216,13 +216,27 @@
                         :semantic-result/root semantic :semantic-result/status :execution-result-only
                         :application-authority/status :not-established}
         assured (assoc assurance-body :research-run-assurance-evidence/root (assurance/run-assurance-root assurance-body))
-        partial (accounting/build-partial-result
-                 {:request request :work-unit unit :values values
-                  :run-assurance-root (:research-run-assurance-evidence/root assured)
-                  :implementation-root (:research-implementation-identity/root impl)
-                  :runner-reference (:runner/reference assignment)
-                  :resolved-dependency-set-root (:work-unit/dependency-set-root unit)
-                  :execution-environment-root (:work-unit/execution-environment-root unit)})]
+        ;; The envelope is built from the supplied value map. Callers that
+        ;; establish execution validity still compare it with the arithmetic
+        ;; result; proof-backed admission can instead bind this envelope and
+        ;; let the SP1 guest establish the sum.
+        partial-body {:artifact/schema accounting/partial-schema
+                      :accounting-request/root (:accounting-request/root request)
+                      :accounting-work-unit/root (:accounting-work-unit/root unit)
+                      :partition/index (:partition/index unit)
+                      :partition/source-roots (:partition/source-roots unit)
+                      :accounting/values (into (sorted-map) values)
+                      :research-run-assurance-evidence/root
+                      (:research-run-assurance-evidence/root assured)
+                      :research-implementation-identity/root
+                      (:research-implementation-identity/root impl)
+                      :runner/reference (:runner/reference assignment)
+                      :resolved-research-dependency-set/root
+                      (:work-unit/dependency-set-root unit)
+                      :research-execution-environment/root
+                      (:work-unit/execution-environment-root unit)}
+        partial (assoc partial-body :accounting-partial-result/root
+                       (accounting/partial-root partial-body))]
     {:run-evidence run :fixed-validation validation :run-assurance-evidence assured :accounting-partial partial}))
 
 (defn validate-execution [work result]
@@ -234,6 +248,31 @@
                  (assurance/valid-run-assurance-evidence? (:run-assurance-evidence result)))
     (throw (ex-info "Native accounting execution lineage or arithmetic mismatch" {})))
   result)
+
+(defn validate-execution-lineage
+  "Validate the canonical native execution envelope without recomputing its
+   arithmetic. This is not sufficient by itself to admit a partial: callers
+   must pair it with an arithmetic proof for the exact request/plan/unit and
+   partial roots. Ordinary V1 admission continues to use validate-execution."
+  [work result]
+  (let [partial (:accounting-partial result)
+        values (:accounting/values partial)
+        expected (when (and (valid-work? work)
+                            (= accounting/partial-schema (:artifact/schema partial))
+                            (map? values)
+                            (every? integer? (vals values)))
+                   (derive-evidence
+                    work values
+                    (select-keys (:work/execution-environment work)
+                                 [:runtime/clojure-version :runtime/jvm-version
+                                  :environment/arithmetic])))]
+    (when-not (and expected
+                   (= expected result)
+                   (assurance/valid-run-assurance-evidence?
+                    (:run-assurance-evidence result)))
+      (throw (ex-info "Native accounting execution lineage mismatch"
+                      {:cause :accounting-execution-lineage-mismatch})))
+    result))
 
 (defn execute-work! [work]
   (when-not (valid-work? work) (throw (ex-info "Invalid native accounting work" {})))

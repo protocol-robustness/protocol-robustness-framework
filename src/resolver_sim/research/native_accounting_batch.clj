@@ -90,9 +90,24 @@
 
 (defn- runner-root [item] (get-in item [:work :work/assignment :runner/reference]))
 
-(defn- bounded-dispatch! [coordinator dispatches capacity per-runner]
+(defn- dispatch-group [coordinator items]
+  (if (= 1 (count items))
+    [(dispatch-one coordinator (first items))]
+    (try
+      (transport/dispatch-native-accounting-batch!
+       coordinator (:endpoint (first items))
+       (mapv (fn [item]
+               {:accounting-work (:work item)
+                :logical-cutpoint (:logical-cutpoint item 0)}) items))
+      (catch Exception e
+        (mapv (fn [item]
+                {:accounting-work-unit/root (dispatch-root item)
+                 :dispatch/status :failed :failure/class (.getName (class e))}) items)))))
+
+(defn- bounded-dispatch! [coordinator dispatches capacity per-runner batch-size]
   (when-not (and (integer? capacity) (pos? capacity)
-                 (integer? per-runner) (pos? per-runner))
+                 (integer? per-runner) (pos? per-runner)
+                 (integer? batch-size) (<= 1 batch-size 32))
     (throw (ex-info "Accounting dispatch limits must be positive integers" {})))
   (let [pool (Executors/newFixedThreadPool capacity)
         completion (ExecutorCompletionService. pool)]
@@ -106,15 +121,20 @@
                                      (when (< (get active (runner-root item) 0) per-runner) i))
                                    pending)))]
             (let [item (nth pending index)
-                  task (bound-fn [] (dispatch-one coordinator item))
+                  same-runner? (fn [candidate]
+                                 (and (= (runner-root item) (runner-root candidate))
+                                      (= (:endpoint item) (:endpoint candidate))))
+                  selected (->> pending (filter same-runner?) (take batch-size) vec)
+                  selected-roots (set (map dispatch-root selected))
+                  task (bound-fn [] (dispatch-group coordinator selected))
                   submitted (.submit completion ^Callable (reify Callable (call [_] (task))))
                   runner (runner-root item)]
-              (recur (into (subvec pending 0 index) (subvec pending (inc index)))
+              (recur (vec (remove #(contains? selected-roots (dispatch-root %)) pending))
                      (assoc running submitted runner) (update active runner (fnil inc 0)) results))
             (let [finished (.take completion)
                   runner (get running finished)]
               (recur pending (dissoc running finished) (update active runner dec)
-                     (conj results (.get finished)))))))
+                     (into results (.get finished)))))))
       (finally (.shutdownNow pool)))))
 
 (defn dispatch-accounts-and-reconcile!
@@ -126,8 +146,9 @@
    the result is a completeness view over existing canonical account results,
    not a new canonical accounting artifact."
   [coordinator parent-request contract dispatches
-   {:keys [max-concurrent-dispatches max-outstanding-per-runner]
-    :or {max-concurrent-dispatches 4 max-outstanding-per-runner 1}}]
+   {:keys [max-concurrent-dispatches max-outstanding-per-runner max-transport-batch-size]
+    :or {max-concurrent-dispatches 4 max-outstanding-per-runner 1
+         max-transport-batch-size 1}}]
   (let [accounts (native/account-requests parent-request contract)
         groups (group-by #(get-in % [:work :accounting/request :accounting-request/root]) dispatches)
         expected (set (map :accounting-request/root (vals accounts)))
@@ -145,7 +166,7 @@
                                     (throw (ex-info "Accounting account request substitution" {})))
                                   [account (assoc context :dispatches items)]))) accounts)
           outcomes (bounded-dispatch! coordinator dispatches max-concurrent-dispatches
-                                      max-outstanding-per-runner)
+                                      max-outstanding-per-runner max-transport-batch-size)
           outcome-by-unit (into {} (map (juxt :accounting-work-unit/root identity) outcomes))
           state (transport/coordinator-state coordinator)
           results (into
