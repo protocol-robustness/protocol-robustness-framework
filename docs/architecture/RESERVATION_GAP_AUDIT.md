@@ -174,3 +174,31 @@ The temporary compilation uses exact copied companion sources with a minimal
 ERC-20 interface and test token. Real proof admission, arbitrary-token testing,
 and a persistent invariant runner were not added. No Clojure source, registry,
 canonical identity, Solidity implementation, SP1 program or public values changed.
+
+## Follow-up — funded-operation cancellation/refund
+
+Inspection of the companion working copy on 2026-10-08 found that the successor
+entitlement route had since gained an allocator-owned `Funded -> Cancelled`
+refund to its recorded reserve source. Its ratification controller makes this
+available only while the operation remains `Funded`; activation and cancellation
+therefore cannot both succeed. The successor regression test checks the exact
+reserve return, zero allocator balance and allowance, terminal state, and
+restored reserve availability.
+
+The legacy V2 route still lacked this transition, so it now records the funding
+reserve and exposes `cancelAndRefund` through the ratification controller and
+reserve. The end-to-end test uses the real reserve and allocator with mocked
+assurance: it funds 90 from a 100-token reserve, cancels, and verifies 100 back
+in reserve, zero allocator balance/allowance, `Cancelled` allocator state,
+`CancelledRefunded` controller state, zero reserved amount, revision 2, and 90
+available above the protected floor. This closes the pre-reliance funded-custody
+gap for both routes without adding refund logic to the allocator's activated
+successor state.
+
+Focused companion results: 33 tests passed across the legacy ratification,
+successor ratification, and ReserveV2 suites; after adding the final successor
+allowance/accounting assertions, its seven-test suite passed again. These use
+local test tokens and mock assurance; the cancellation behavior is exercised
+through the production reserve, allocator, and controller in the legacy path.
+The earlier R3 finding remains the historical state observed on 2026-10-06;
+post-activation settlement/withdrawal is a separate lifecycle question.
