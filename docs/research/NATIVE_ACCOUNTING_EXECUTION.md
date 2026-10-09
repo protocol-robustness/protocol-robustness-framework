@@ -693,6 +693,16 @@ observational only, not an established latency improvement. The profiler now
 also reports request, partition-plan, dependency-manifest/policy, and dependency
 resolution stages independently to help locate future safe reductions.
 
+Two additional exact duplicate checks were then removed from `valid-work?`:
+partition-plan validation already validates its request, and dependency
+resolution already validates its manifest and policy. The same 4-account ×
+200-source profile still produced the identical four result roots. Caller-side
+request validation calls fell from 354 to 178, and dependency manifest/policy
+validation calls from 384 to 208 each; partition-plan validations and full work
+bindings remained 176 each. This is a call-count result, not a latency claim.
+The fixed checks remain reachable through the partition-plan and dependency
+resolution validators, and focused tests assert those paths execute.
+
 The existing transport-batch option was also tested at batch sizes 1 and 4 for
 four accounts × 200 sources, four partitions/account, four runners, durable
 journals, and two repetitions. In this coordinate, batch size 1 had a 13.83 s
