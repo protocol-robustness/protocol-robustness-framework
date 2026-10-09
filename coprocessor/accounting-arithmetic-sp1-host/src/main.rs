@@ -113,15 +113,30 @@ fn check_binding(
     proof_bytes: &[u8],
     pk: &impl ProvingKey,
 ) -> Result<(), String> {
-    if metadata.schema != "research-accounting-arithmetic-sp1-proof-artifact.v1"
-        || metadata.proof_program != PROGRAM_ID
-        || metadata.proof_program_elf_sha256 != sha256_ref(&ELF)
-        || metadata.proof_program_vkey != pk.verifying_key().bytes32().to_string()
-        || metadata.proof_system != "sp1-v6.3.1-core"
-        || metadata.proof_encoding != PROOF_ENCODING
-        || metadata.public_values_schema != PUBLIC_VALUES_SCHEMA
-    {
-        return Err("accounting proof program, ELF, VKey, system, or schema substitution".into());
+    let mut mismatches = Vec::new();
+    if metadata.schema != "research-accounting-arithmetic-sp1-proof-artifact.v1" {
+        mismatches.push("artifact schema");
+    }
+    if metadata.proof_program != PROGRAM_ID {
+        mismatches.push("program id");
+    }
+    if metadata.proof_program_elf_sha256 != sha256_ref(&ELF) {
+        mismatches.push("ELF root");
+    }
+    if metadata.proof_program_vkey != pk.verifying_key().bytes32().to_string() {
+        mismatches.push("VKey");
+    }
+    if metadata.proof_system != "sp1-v6.3.1-core" {
+        mismatches.push("proof system");
+    }
+    if metadata.proof_encoding != PROOF_ENCODING {
+        mismatches.push("proof encoding");
+    }
+    if metadata.public_values_schema != PUBLIC_VALUES_SCHEMA {
+        mismatches.push("public-values schema");
+    }
+    if !mismatches.is_empty() {
+        return Err(format!("accounting proof metadata mismatch: {}", mismatches.join(", ")));
     }
     if metadata.proof_sha256 != sha256_ref(proof_bytes)
         || metadata.public_values_sha256 != sha256_ref(proof.public_values.as_slice())

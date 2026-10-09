@@ -884,7 +884,11 @@
             (catch Exception e
               (response! exchange 422
                          {:transport/status :proof-admission-rejected
-                          :cause (or (:cause (ex-data e)) :invalid-proof-backed-delivery)}))))))))
+                          :cause (or (:cause (ex-data e)) :invalid-proof-backed-delivery)
+                          ;; Runtime diagnostic only. Never included in a canonical
+                          ;; artifact/root; it lets the sender distinguish lineage
+                          ;; rejection from a local verifier/toolchain failure.
+                          :diagnostic (or (:diagnostic (ex-data e)) (.getMessage e))}))))))))
 
 (defn start-runner!
   "Start one independent, authenticated lab-runner endpoint.
@@ -1178,7 +1182,12 @@
           body (:transport/response response)]
       (cond
         (nil? (:http/status response))
-        {:delivery/status :unreachable}
+        {:delivery/status :unreachable
+         ;; Preserve only runtime transport diagnostics here. They are useful
+         ;; for distinguishing connection/setup failures from coordinator
+         ;; rejection and are deliberately excluded from canonical artifacts.
+         :transport/error (:transport/error response)
+         :transport/exception-class (:transport/exception-class response)}
         (and (= 200 (:http/status response))
              (contains? #{:accepted :already-admitted} (:transport/status body)))
         {:delivery/status (:transport/status body)
@@ -1193,7 +1202,10 @@
            :declared-reachable? true :outcome :realized
            :attempt-cutpoint logical-cutpoint})}
         :else {:delivery/status :rejected
-               :transport/status (:transport/status body)}))))
+               :transport/status (:transport/status body)
+               :transport/cause (:cause body)
+               :transport/diagnostic (:diagnostic body)
+               :transport/http-status (:http/status response)}))))
 
 (defn deliver-native-accounting-proof!
   "Attach a real, already-generated proof to completed native accounting work

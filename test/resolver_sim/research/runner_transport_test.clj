@@ -297,6 +297,59 @@
             (java.nio.file.Files/deleteIfExists artifact-dir)))
         (java.nio.file.Files/deleteIfExists directory)))))
 
+(deftest proof-delivery-retains-coordinator-rejection-cause
+  (let [{:keys [work participant]} (native-accounting-fixture/work-fixture 100 301)
+        execution (native-accounting/execute-work! work)
+        work-root (:research-native-accounting-work/root work)
+        directory (java.nio.file.Files/createTempDirectory
+                   "prf-proof-rejection-test-"
+                   (make-array java.nio.file.attribute.FileAttribute 0))
+        source (.resolve directory "proof.bin")
+        state-path (.resolve directory "runner-state.edn")
+        state {:jobs {} :assignments {} :work-items {work-root work}
+               :work-states {} :cancellations {}
+               :completed-work {work-root {:job (:work/job work)
+                                            :assignment (:work/assignment work)
+                                            :native-accounting-execution execution}}
+               :forensic-evidence-nodes {}}
+        runner {:transport/state-path (str state-path)
+                :transport/coordinator-root coordinator-root
+                :runner-participation participant
+                :transport/state (atom state)}
+        post-var (ns-resolve 'resolver-sim.research.runner-transport 'post-edn!)]
+    (try
+      (java.nio.file.Files/write source (.getBytes "proof" java.nio.charset.StandardCharsets/UTF_8)
+                                 (make-array java.nio.file.OpenOption 0))
+      (with-redefs-fn
+        {post-var (fn [_ _ _]
+                    {:http/status 422
+                     :transport/response {:transport/status :proof-admission-rejected
+                                          :cause :accounting-proof-context-mismatch
+                                          :diagnostic "verifier fixture detail"}})}
+        #(let [delivery (transport/deliver-native-accounting-proof!
+                         {:runner runner
+                          :endpoint {:transport/base-url "http://fixture.invalid"
+                                     :transport/auth-secret transport-secret}
+                          :work-root work-root :proof-file source :metadata {:test true}
+                          :generation-receipt {:test/root (root 905)}
+                          :logical-cutpoint 9})]
+           (is (= :rejected (:delivery/status delivery)))
+           (is (= :proof-admission-rejected (:transport/status delivery)))
+           (is (= :accounting-proof-context-mismatch (:transport/cause delivery)))
+           (is (= "verifier fixture detail" (:transport/diagnostic delivery)))
+           (is (= 422 (:transport/http-status delivery)))))
+      (finally
+        (java.nio.file.Files/deleteIfExists source)
+        (java.nio.file.Files/deleteIfExists state-path)
+        (let [artifact-dir (.resolveSibling state-path "runner-state.edn.proof-artifacts")]
+          (when (java.nio.file.Files/exists artifact-dir
+                                           (make-array java.nio.file.LinkOption 0))
+            (with-open [paths (java.nio.file.Files/list artifact-dir)]
+              (doseq [path (iterator-seq (.iterator paths))]
+                (java.nio.file.Files/deleteIfExists path)))
+            (java.nio.file.Files/deleteIfExists artifact-dir)))
+        (java.nio.file.Files/deleteIfExists directory)))))
+
 (deftest real-http-job-delivery-respects-distinct-runner-assignments
   (let [setup-data (setup)]
     (with-runners! setup-data (fn [runner-a runner-b]
