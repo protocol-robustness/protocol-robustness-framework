@@ -17,6 +17,49 @@
 (def transport-secret "research-lab-test-secret")
 (defn- root [n] (str "sha256:" (format "%064x" n)))
 
+(deftest runtime-delta-journal-round-trips-checkpoints-and-ignores-torn-tail
+  (let [work (:observed-execution-work (anvil-fixture/observed-run-proof-input))
+        participant (:work/runner-participation work)
+        state-path (java.io.File/createTempFile "runner-delta-journal-" ".edn")
+        initial {:jobs {} :assignments {} :work-items {} :work-states {}
+                 :cancellations {} :completed-work {} :forensic-evidence-nodes {}}
+        runner {:transport/state-path (.getAbsolutePath state-path)
+                :transport/journal (atom {:sequence 0 :format :new})
+                :runner-participation participant :transport/coordinator-root coordinator-root}
+        write-state (var-get (ns-resolve 'resolver-sim.research.runner-transport
+                                         'write-runtime-state!))
+        load-state (var-get (ns-resolve 'resolver-sim.research.runner-transport
+                                        'read-runtime-journal))
+        first-state (assoc-in initial [:completed-work (root 1)]
+                              {:observed-run-evidence {:root (root 2)}
+                               :history [{:event :completed}]})
+        second-state (update-in first-state [:completed-work (root 1) :history]
+                                conj {:event :delivery-pending})
+        third-state (assoc-in second-state [:completed-work (root 1) :result-deliveries]
+                              [{:status :unreachable}])]
+    (try
+      (write-state runner initial initial)
+      (with-redefs-fn {(ns-resolve 'resolver-sim.research.runner-transport
+                                   'journal-checkpoint-interval) 2}
+        (fn []
+          (write-state runner initial first-state)
+          (write-state runner first-state second-state)
+          (write-state runner second-state third-state)))
+      (let [decoded (transport/read-runtime-journal-file (.getAbsolutePath state-path))]
+        (is (= "research-runner-runtime-journal.v2" (:artifact/schema decoded)))
+        (is (= third-state (:runner-runtime/state decoded)))
+        (is (= 3 (:journal/sequence decoded))))
+      (java.nio.file.Files/writeString
+       (.toPath state-path) "{:journal/record :delta :journal/sequence 4"
+       java.nio.charset.StandardCharsets/UTF_8
+       (into-array java.nio.file.OpenOption [java.nio.file.StandardOpenOption/APPEND]))
+      (is (= third-state
+             (:runner-runtime/state
+              (transport/read-runtime-journal-file (.getAbsolutePath state-path)))))
+      (is (= third-state (:state (load-state (.getAbsolutePath state-path) runner))))
+      (is (.endsWith (slurp state-path) "\n"))
+      (finally (.delete state-path)))))
+
 (defn- launch-runner-process [config]
   (let [configuration-file (java.io.File/createTempFile "prf-runner-process-config-" ".edn")
         ready-file (java.io.File/createTempFile "prf-runner-process-ready-" ".edn")
@@ -39,21 +82,25 @@
 (defn- await-file [file log-file process timeout-ms]
   (let [deadline (+ (System/currentTimeMillis) timeout-ms)]
     (loop []
-      (cond
-        (.exists file) (clojure.edn/read-string (slurp file))
-        (not (.isAlive process))
-        (throw (ex-info "Runner child process exited before readiness"
-                        {:exit-code (.exitValue process)
-                         :log (slurp log-file)}))
-        (< deadline (System/currentTimeMillis))
-        (throw (ex-info "Timed out waiting for runner child process" {}))
-        :else (do (Thread/sleep 50) (recur))))))
+      (let [ready (when (.exists file)
+                    (try (clojure.edn/read-string (slurp file))
+                         (catch Exception _ nil)))]
+        (cond
+          (and (map? ready) (:runner/ready? ready)) ready
+          (not (.isAlive process))
+          (throw (ex-info "Runner child process exited before readiness"
+                          {:exit-code (.exitValue process) :marker ready
+                           :log (slurp log-file)}))
+          (< deadline (System/currentTimeMillis))
+          (throw (ex-info "Timed out waiting for runner child process"
+                          {:marker ready :log (slurp log-file)}))
+          :else (do (Thread/sleep 50) (recur)))))))
 
 (defn- await-journal [state-file predicate timeout-ms]
   (let [deadline (+ (System/currentTimeMillis) timeout-ms)]
     (loop []
       (let [journal (when (.exists state-file)
-                      (try (clojure.edn/read-string (slurp state-file))
+                      (try (transport/read-runtime-journal-file (.getPath state-file))
                            (catch Exception _ nil)))]
         (cond
           (and journal (predicate journal)) journal
@@ -193,6 +240,7 @@
         state-path (.resolve directory "runner-state.edn")
         bytes (.getBytes "real-proof-artifact-bytes" java.nio.charset.StandardCharsets/UTF_8)
         runner {:transport/state-path (str state-path)
+                :transport/journal (atom {:sequence 0 :format :new})
                 :transport/state
                 (atom {:jobs {} :assignments {} :work-items {} :work-states {}
                        :cancellations {} :completed-work {}
@@ -208,7 +256,7 @@
         (update-state runner assoc-in
                       [:completed-work (root 902) :proof-delivery]
                       (assoc stored :delivery {:delivery/status :pending}))
-        (let [journal (clojure.edn/read-string (slurp (.toFile state-path)))
+        (let [journal (transport/read-runtime-journal-file (str state-path))
               persisted (get-in journal [:runner-runtime/state :completed-work
                                          (root 902) :proof-delivery])]
           (is (= content-root (:proof/content-root persisted)))
@@ -246,6 +294,7 @@
                                             :native-accounting-execution execution}}
                :forensic-evidence-nodes {}}
         runner {:transport/state-path (str state-path)
+                :transport/journal (atom {:sequence 0 :format :new})
                 :transport/coordinator-root coordinator-root
                 :runner-participation participant
                 :transport/state (atom state)}
@@ -313,6 +362,7 @@
                                             :native-accounting-execution execution}}
                :forensic-evidence-nodes {}}
         runner {:transport/state-path (str state-path)
+                :transport/journal (atom {:sequence 0 :format :new})
                 :transport/coordinator-root coordinator-root
                 :runner-participation participant
                 :transport/state (atom state)}
@@ -367,6 +417,7 @@
                                             :native-accounting-execution execution}}
                :forensic-evidence-nodes {}}
         runner {:transport/state-path (str state-path)
+                :transport/journal (atom {:sequence 0 :format :new})
                 :transport/coordinator-root coordinator-root
                 :runner-participation participant
                 :transport/state (atom state)}
@@ -772,7 +823,7 @@
                        :endpoint (transport/coordinator-endpoint restarted transport-secret 30000)
                        :job (:work/job work) :assignment assignment :execution-work work
                        :logical-cutpoint 10})
-              journal (clojure.edn/read-string (slurp state-file))]
+              journal (transport/read-runtime-journal-file (.getPath state-file))]
           (is (= :result-acknowledged
                  (get-in (transport/runner-state restarted)
                          [:work-states work-root :work/status])))
@@ -786,7 +837,7 @@
           (is (= 1 (count (filter #(= :execution-started (:work/event %))
                                   (get-in (transport/runner-state restarted)
                                           [:work-states work-root :work/history])))))
-          (is (= "research-runner-runtime-journal.v1" (:artifact/schema journal)))
+          (is (= "research-runner-runtime-journal.v2" (:artifact/schema journal)))
           (is (= (:runner-participation/root (:work/runner-participation work))
                  (:runner-participation/root journal))))
         (finally
@@ -805,6 +856,7 @@
         first-runner (atom nil) restarted (atom nil)
         first-info (atom nil)
         second-info (atom nil)
+        completed-evidence (atom nil)
         endpoint {:transport/base-url "http://127.0.0.1:1"
                   :transport/auth-secret transport-secret
                   :transport/request-timeout-ms 100}]
@@ -838,6 +890,10 @@
           (is (= 1 (count (filter #(= :execution-started (:work/event %))
                                   (get-in completed [:runner-runtime/state :work-states
                                                      work-root :work/history])))))
+          (reset! completed-evidence
+                  (select-keys (get-in completed [:runner-runtime/state :completed-work work-root])
+                               [:observed-run-evidence :run-assurance-evidence
+                                :accounting-context :accounting-partial]))
           (stop-process! (:process @first-runner))))
       (let [coordinator (transport/start-coordinator!
                          {:coordinator-root coordinator-root :assignments [assignment]
@@ -865,6 +921,10 @@
                 coordinator-state (transport/coordinator-state coordinator)]
             (is (= [:unreachable :accepted]
                    (mapv :delivery/status (:result-deliveries completed))))
+            (is (= (pr-str @completed-evidence)
+                   (pr-str (select-keys completed
+                                        [:observed-run-evidence :run-assurance-evidence
+                                         :accounting-context :accounting-partial]))))
             (is (= 1 (count (:observed-results coordinator-state))))
             (is (= evidence
                    (get-in coordinator-state

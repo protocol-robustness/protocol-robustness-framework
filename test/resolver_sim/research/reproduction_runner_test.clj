@@ -73,7 +73,7 @@
   (let [deadline (+ (System/currentTimeMillis) 60000)]
     (loop []
       (let [journal (when (.exists ^java.io.File file)
-                      (try (clojure.edn/read-string (slurp file))
+                      (try (transport/read-runtime-journal-file (.getPath file))
                            (catch Exception _ nil)))]
         (cond
           (and journal (pred (:runner-runtime/state journal))) journal
@@ -545,7 +545,7 @@
         (is (:coordinator/ready? ready))
         (is (re-find #"^http://127\.0\.0\.1:[0-9]+$"
                      (:transport/base-url blocked-endpoint)))
-        (let [journal (clojure.edn/read-string (slurp coordinator-journal))
+        (let [journal (transport/read-runtime-journal-file (.getPath coordinator-journal))
               intent (get-in journal [:coordinator-runtime/state :dispatch-intents
                                       (:research-run-assignment/root assignment)])]
           (is (= job (:job intent)))
@@ -573,7 +573,7 @@
           (is (= [:listener-accepting :handler-entered :request-body-received
                   :new-result-recognized :semantic-result-persisted]
                  (clojure.edn/read-string (slurp events))))
-          (let [persisted (clojure.edn/read-string (slurp coordinator-journal))]
+          (let [persisted (transport/read-runtime-journal-file (.getPath coordinator-journal))]
             (is (= 1 (count (get-in persisted [:coordinator-runtime/state
                                                :reproduction-results])))))
           (trace! :sigkill-issued)
@@ -607,8 +607,8 @@
                                                   (get-in % [:work-states work-root :work/status])))]
                 (is (= 1 (count (:reproduction-results (transport/coordinator-state coordinator)))))
                 (is (= 1 (count (:reproduction-results
-                                 (get-in (clojure.edn/read-string
-                                          (slurp coordinator-journal))
+                                 (get-in (transport/read-runtime-journal-file
+                                          (.getPath coordinator-journal))
                                          [:coordinator-runtime/state])))))
                 (is (= 2 (count (get-in recovered [:runner-runtime/state :completed-work
                                                    work-root :result-deliveries]))))

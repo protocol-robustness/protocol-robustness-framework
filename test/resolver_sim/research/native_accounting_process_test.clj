@@ -1,7 +1,6 @@
 (ns resolver-sim.research.native-accounting-process-test
   "Literal OS process-loss qualification of native accounting payloads."
-  (:require [clojure.edn :as edn]
-            [clojure.string :as str]
+  (:require [clojure.string :as str]
             [clojure.test :refer [deftest is]]
             [resolver-sim.research.native-accounting-work :as native]
             [resolver-sim.research.accelerated-accounting :as accounting]
@@ -121,8 +120,12 @@
                       (shell-quote path))))
 
 (defn- remote-runner-state [target runner]
-  (:runner-runtime/state
-   (edn/read-string (remote-shell! target (str "cat " (shell-quote (:journal runner)))))))
+  (let [file (java.io.File/createTempFile "remote-runner-journal-" ".edn")]
+    (try
+      (spit file (str (remote-shell! target
+                                     (str "cat " (shell-quote (:journal runner)))) "\n"))
+      (:runner-runtime/state (transport/read-runtime-journal-file (.getAbsolutePath file)))
+      (finally (.delete file)))))
 
 (defn- local-file-barrier [entered release stage]
   (fn [_ _]
@@ -285,7 +288,8 @@
                          (catch Throwable e {:failure e})))]
     (try
       (await-stage entered (:process child) (:log-file child) :after-reproduction-persisted)
-      (let [state (:coordinator-runtime/state (edn/read-string (slurp coordinator-journal)))]
+      (let [state (:coordinator-runtime/state
+                   (transport/read-runtime-journal-file (.getAbsolutePath coordinator-journal)))]
         (is (= 1 (count (:native-accounting-results state))))
         (is (= 1 (count (get-in state [:accounting-partials (get-in work [:accounting/partition-plan :accounting-partition-plan/root])])))))
       (kill! child) (join! task)

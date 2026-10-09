@@ -9,6 +9,7 @@
   (:require [clojure.data.json :as json]
             [clojure.edn :as edn]
             [clojure.java.io :as io]
+            [clojure.string :as str]
             [resolver-sim.hash.reference :as hash-ref]
             [resolver-sim.research.accelerated-accounting :as accounting]
             [resolver-sim.research.accounting-proof-admission :as accounting-proof-admission]
@@ -29,7 +30,10 @@
            [java.net.http HttpClient HttpRequest HttpRequest$BodyPublishers
             HttpResponse$BodyHandlers]
            [java.nio.charset StandardCharsets]
-           [java.nio.file AtomicMoveNotSupportedException Files Path StandardCopyOption]
+           [java.nio ByteBuffer]
+           [java.nio.channels FileChannel]
+           [java.nio.file AtomicMoveNotSupportedException Files Path StandardCopyOption
+            StandardOpenOption]
            [java.security MessageDigest]
            [java.time Duration]
            [java.util Base64]
@@ -170,7 +174,8 @@
                                                 :accounting-partition-plan/root])]
                            (:accounting/partition-plan work)))))))
 
-(def ^:private runner-journal-schema "research-runner-runtime-journal.v1")
+(def ^:private runner-journal-schema "research-runner-runtime-journal.v2")
+(def ^:private legacy-runner-journal-schema "research-runner-runtime-journal.v1")
 (def ^:private initial-runner-state
   {:jobs {} :assignments {} :work-items {} :work-states {}
    :cancellations {} :completed-work {} :forensic-evidence-nodes {}})
@@ -179,7 +184,8 @@
 ;; journal: canonical job/assignment/work constituents plus transport history.
 ;; It is not a coordinator-owned semantic result store or a second evidence
 ;; architecture.
-(def ^:private coordinator-journal-schema "research-coordinator-runtime-journal.v1")
+(def ^:private coordinator-journal-schema "research-coordinator-runtime-journal.v2")
+(def ^:private legacy-coordinator-journal-schema "research-coordinator-runtime-journal.v1")
 (def ^:private initial-coordinator-state
   {:assignments {} :dispatch-intents {} :dispatch-history {}
    :observed-results {} :accounting-contexts {} :accounting-partials {}
@@ -199,96 +205,231 @@
                 :native-accounting-results :accounting-proof-admissions))
        (every? map? (vals state))))
 
-(defn- journal-body [runner state]
-  {:artifact/schema runner-journal-schema
-   :runner-participation/root
-   (:runner-participation/root (:runner-participation runner))
-   :coordinator/root (:transport/coordinator-root runner)
-   :runner-runtime/state state})
+(def ^:private journal-checkpoint-interval 128)
 
-(defn- read-runtime-state [path runner]
-  (if-not path
-    initial-runner-state
-    (let [file (io/file path)]
-      (if-not (.exists file)
-        initial-runner-state
-        (let [journal (edn/read-string (slurp file))]
-          (when-not (and (= runner-journal-schema (:artifact/schema journal))
-                         (= (:runner-participation/root (:runner-participation runner))
-                            (:runner-participation/root journal))
-                         (= (:transport/coordinator-root runner) (:coordinator/root journal))
-                         (valid-runtime-state? (:runner-runtime/state journal)))
-            (throw (ex-info "Invalid or foreign persisted runner state"
-                            {:state-path path})))
-          (:runner-runtime/state journal))))))
+(defn- append-vector? [before after]
+  (and (vector? before) (vector? after) (<= (count before) (count after))
+       (= before (subvec after 0 (count before)))))
 
-(defn- write-runtime-state! [runner state]
-  (when-let [path (:transport/state-path runner)]
-    (let [target (.toPath (io/file path))
-          parent (or (.getParent target) (.toPath (io/file ".")))]
-      (Files/createDirectories parent (make-array java.nio.file.attribute.FileAttribute 0))
-      (let [temporary (Files/createTempFile parent ".research-runner-state-" ".edn"
-                                            (make-array java.nio.file.attribute.FileAttribute 0))]
+(defn- state-delta [before after]
+  (letfn [(walk [path old new old? new?]
+            (cond
+              (and old? new? (= old new)) []
+              (not new?) [{:op :delete :path path}]
+              (not old?) [{:op :set :path path :value new}]
+              (and (map? old) (map? new))
+              (mapcat (fn [k]
+                        (walk (conj path k) (get old k) (get new k)
+                              (contains? old k) (contains? new k)))
+                      (sort-by pr-str (into (set (keys old)) (keys new))))
+              (append-vector? old new)
+              [{:op :append :path path :values (subvec new (count old))}]
+              :else [{:op :set :path path :value new}]))]
+    (vec (walk [] before after true true))))
+
+(defn- apply-state-delta [state changes]
+  (reduce (fn [current {:keys [op path value values]}]
+            (case op
+              :set (if (empty? path) value (assoc-in current path value))
+              :delete (if (empty? path) {} (update-in current (butlast path) dissoc (last path)))
+              :append (update-in current path into values)
+              (throw (ex-info "Unknown runtime journal operation" {:op op}))))
+          state changes))
+
+(defn- checkpoint-record [schema owner-fields state sequence]
+  (merge {:artifact/schema schema :journal/record :checkpoint
+          :journal/sequence sequence :runner-runtime/state state}
+         owner-fields))
+
+(defn- parse-complete-journal-lines [path]
+  (let [raw (slurp path)
+        all-lines (str/split raw #"\n" -1)
+        lines (butlast all-lines)
+        valid-bytes (reduce + 0 (map #(+ (alength (.getBytes ^String % StandardCharsets/UTF_8)) 1) lines))]
+    {:records (mapv edn/read-string (remove empty? lines))
+     :terminated? (or (empty? raw) (.endsWith ^String raw "\n"))
+     :valid-bytes valid-bytes}))
+
+(defn- recover-journal [path expected-schema legacy-schema owner-fields state-key initial-state
+                       valid-state? truncate-incomplete-tail?]
+  (if-not (and path (.exists (io/file path)))
+    {:state initial-state :sequence 0 :format :new}
+    (let [raw (slurp path)
+          first-form (try (edn/read-string raw) (catch Exception _ nil))]
+      (if (= legacy-schema (:artifact/schema first-form))
+        (let [state (get first-form state-key)]
+          (when-not (and (every? (fn [[k v]] (= v (get first-form k))) owner-fields)
+                         (valid-state? state))
+            (throw (ex-info "Invalid or foreign legacy runtime journal" {:state-path path})))
+          {:state state :sequence 0 :format :legacy})
+        (let [{:keys [records terminated? valid-bytes]} (parse-complete-journal-lines path)
+              header (first records)]
+          (when-not (and (= expected-schema (:artifact/schema header))
+                         (= :checkpoint (:journal/record header))
+                         (integer? (:journal/sequence header))
+                         (not (neg? (:journal/sequence header)))
+                         (every? (fn [[k v]] (= v (get header k))) owner-fields)
+                         (valid-state? (get header state-key)))
+            (throw (ex-info "Invalid or foreign runtime journal" {:state-path path})))
+          (let [recovered
+                (reduce (fn [{:keys [state sequence]} record]
+                          (let [next-sequence (:journal/sequence record)]
+                            (when-not (= (inc sequence) next-sequence)
+                              (throw (ex-info "Runtime journal sequence discontinuity"
+                                              {:state-path path :expected (inc sequence)
+                                               :actual next-sequence})))
+                            (case (:journal/record record)
+                              :delta (let [next-state (apply-state-delta state (:journal/changes record))]
+                                       (when-not (valid-state? next-state)
+                                         (throw (ex-info "Invalid runtime journal delta result"
+                                                         {:state-path path :sequence next-sequence})))
+                                       {:state next-state :sequence next-sequence})
+                              :checkpoint (let [next-state (get record state-key)]
+                                            (when-not (valid-state? next-state)
+                                              (throw (ex-info "Invalid runtime journal checkpoint"
+                                                              {:state-path path :sequence next-sequence})))
+                                            {:state next-state :sequence next-sequence})
+                              (throw (ex-info "Unknown runtime journal record"
+                                              {:state-path path :record (:journal/record record)})))))
+                        {:state (get header state-key)
+                         :sequence (:journal/sequence header)} (rest records))]
+            ;; Ignore and remove only an incomplete final append after a process
+            ;; kill. Every complete record remains part of recovered state.
+            (when (and truncate-incomplete-tail? (not terminated?))
+              (with-open [channel (FileChannel/open (.toPath (io/file path))
+                                                    (into-array StandardOpenOption [StandardOpenOption/WRITE]))]
+                (.truncate channel (long valid-bytes))))
+            (assoc recovered :format :v2)))))))
+
+(defn- append-journal-record! [path record]
+  (with-open [channel (FileChannel/open (.toPath (io/file path))
+                                        (into-array StandardOpenOption
+                                                    [StandardOpenOption/CREATE StandardOpenOption/WRITE
+                                                     StandardOpenOption/APPEND]))]
+    (let [bytes (.getBytes (str (pr-str record) "\n") StandardCharsets/UTF_8)
+          buffer (ByteBuffer/wrap bytes)]
+      (while (.hasRemaining buffer) (.write channel buffer)))))
+
+(defn- replace-journal-with-checkpoint! [path record]
+  (let [target (.toPath (io/file path))
+        parent (or (.getParent target) (.toPath (io/file ".")))]
+    (Files/createDirectories parent (make-array java.nio.file.attribute.FileAttribute 0))
+    (let [temporary (Files/createTempFile parent ".research-runtime-journal-" ".edn"
+                                          (make-array java.nio.file.attribute.FileAttribute 0))]
+      (try
+        (Files/writeString temporary (str (pr-str record) "\n") StandardCharsets/UTF_8
+                           (make-array java.nio.file.OpenOption 0))
         (try
-          (Files/writeString temporary (pr-str (journal-body runner state)) StandardCharsets/UTF_8
-                             (make-array java.nio.file.OpenOption 0))
-          (try
+          (Files/move temporary target
+                      (into-array StandardCopyOption [StandardCopyOption/ATOMIC_MOVE
+                                                      StandardCopyOption/REPLACE_EXISTING]))
+          (catch AtomicMoveNotSupportedException _
             (Files/move temporary target
-                        (into-array StandardCopyOption [StandardCopyOption/ATOMIC_MOVE
-                                                        StandardCopyOption/REPLACE_EXISTING]))
-            (catch AtomicMoveNotSupportedException _
-              (Files/move temporary target
-                          (into-array StandardCopyOption [StandardCopyOption/REPLACE_EXISTING]))))
-          (finally
-            (Files/deleteIfExists temporary)))))))
+                        (into-array StandardCopyOption [StandardCopyOption/REPLACE_EXISTING]))))
+        (finally (Files/deleteIfExists temporary))))))
 
-(defn- coordinator-journal-body [coordinator state]
-  {:artifact/schema coordinator-journal-schema
-   :coordinator/root (:coordinator/root coordinator)
-   :coordinator-runtime/state state})
+(defn- runner-owner-fields [runner]
+  {:runner-participation/root
+   (:runner-participation/root (:runner-participation runner))
+   :coordinator/root (:transport/coordinator-root runner)})
+
+(defn- read-runtime-journal [path runner]
+  (recover-journal path runner-journal-schema legacy-runner-journal-schema
+                   (runner-owner-fields runner) :runner-runtime/state
+                   initial-runner-state valid-runtime-state? true))
+
+(defn read-runtime-journal-file
+  "Decode a runner/coordinator runtime journal for diagnostics and recovery
+   tests. The returned state is reconstructed from checkpoint and delta records;
+   this is not a semantic artifact or a trust decision."
+  [path]
+  (let [first-line (first (str/split (slurp path) #"\n"))
+        header (edn/read-string first-line)]
+    (case (:artifact/schema header)
+      "research-runner-runtime-journal.v2"
+      (let [recovered (recover-journal path runner-journal-schema
+                                       legacy-runner-journal-schema
+                                       (select-keys header [:runner-participation/root :coordinator/root])
+                                       :runner-runtime/state initial-runner-state
+                                       valid-runtime-state? false)]
+        (assoc header :runner-runtime/state (:state recovered)
+               :journal/sequence (:sequence recovered)))
+      "research-coordinator-runtime-journal.v2"
+      (let [recovered (recover-journal path coordinator-journal-schema
+                                       legacy-coordinator-journal-schema
+                                       (select-keys header [:coordinator/root])
+                                       :coordinator-runtime/state initial-coordinator-state
+                                       valid-coordinator-runtime-state? false)]
+        (assoc header :coordinator-runtime/state (:state recovered)
+               :journal/sequence (:sequence recovered)))
+      "research-runner-runtime-journal.v1" header
+      "research-coordinator-runtime-journal.v1" header
+      (throw (ex-info "Unsupported runtime journal schema"
+                      {:state-path path :schema (:artifact/schema header)})))))
+
+(defn- write-runtime-state! [runner before state]
+  (when-let [path (:transport/state-path runner)]
+    (let [journal (:transport/journal runner)
+          {:keys [sequence format]} @journal
+          owner-fields (runner-owner-fields runner)
+          next-sequence (inc sequence)
+          checkpoint? (or (#{:new :legacy} format)
+                          (zero? (mod next-sequence journal-checkpoint-interval)))
+          record (if checkpoint?
+                   (checkpoint-record runner-journal-schema owner-fields state
+                                      (if (#{:new :legacy} format) 0 next-sequence))
+                   {:artifact/schema runner-journal-schema :journal/record :delta
+                    :journal/sequence next-sequence :journal/changes (state-delta before state)})]
+      (when (or (not= before state) (#{:new :legacy} format))
+        (if checkpoint? (replace-journal-with-checkpoint! path record)
+            (append-journal-record! path record))
+        (reset! journal {:sequence (:journal/sequence record) :format :v2})))))
 
 (defn- read-coordinator-runtime-state [path coordinator assignments]
   (let [fresh (assoc initial-coordinator-state :assignments
-                     (into {} (map (juxt :research-run-assignment/root identity) assignments)))]
-    (if-not path fresh
-            (let [file (io/file path)]
-              (if-not (.exists file) fresh
-                      (let [journal (edn/read-string (slurp file))
-                            state (:coordinator-runtime/state journal)]
-                        (when-not (and (= coordinator-journal-schema (:artifact/schema journal))
-                                       (= (:coordinator/root coordinator) (:coordinator/root journal))
-                                       (valid-coordinator-runtime-state? state))
-                          (throw (ex-info "Invalid or foreign persisted coordinator state"
-                                          {:state-path path})))
-            ;; A recovery may repeat declared assignments, but may never swap a
-            ;; persisted assignment under an existing root.
-                        (doseq [assignment assignments]
-                          (let [root (:research-run-assignment/root assignment)
-                                old (get-in state [:assignments root])]
-                            (when (and old (not= old assignment))
-                              (throw (ex-info "Coordinator assignment substitution" {:assignment/root root})))))
-                        (-> state
-                            (update :assignments merge (:assignments fresh))
-                            (update :reproduction-results #(or % {}))
-                            (update :native-accounting-results #(or % {}))
-                            (update :accounting-proof-admissions #(or % {})))))))))
+                     (into {} (map (juxt :research-run-assignment/root identity) assignments)))
+        recovered (recover-journal path coordinator-journal-schema
+                                   legacy-coordinator-journal-schema
+                                   {:coordinator/root (:coordinator/root coordinator)}
+                                   :coordinator-runtime/state initial-coordinator-state
+                                   valid-coordinator-runtime-state? true)
+        state (:state recovered)]
+    ;; A recovery may repeat declared assignments, but may never swap a
+    ;; persisted assignment under an existing root.
+    (doseq [assignment assignments]
+      (let [root (:research-run-assignment/root assignment)
+            old (get-in state [:assignments root])]
+        (when (and old (not= old assignment))
+          (throw (ex-info "Coordinator assignment substitution" {:assignment/root root})))))
+    {:state (-> state
+                (update :assignments merge (:assignments fresh))
+                (update :reproduction-results #(or % {}))
+                (update :native-accounting-results #(or % {}))
+                (update :accounting-proof-admissions #(or % {})))
+     :persisted-state state
+     :journal (select-keys recovered [:sequence :format])}))
 
-(defn- write-coordinator-runtime-state! [coordinator state]
+(defn- coordinator-checkpoint-record [coordinator state sequence]
+  {:artifact/schema coordinator-journal-schema :journal/record :checkpoint
+   :journal/sequence sequence :coordinator/root (:coordinator/root coordinator)
+   :coordinator-runtime/state state})
+
+(defn- write-coordinator-runtime-state! [coordinator before state]
   (when-let [path (:transport/state-path coordinator)]
-    (let [target (.toPath (io/file path))
-          parent (or (.getParent target) (.toPath (io/file ".")))]
-      (Files/createDirectories parent (make-array java.nio.file.attribute.FileAttribute 0))
-      (let [temporary (Files/createTempFile parent ".research-coordinator-state-" ".edn"
-                                            (make-array java.nio.file.attribute.FileAttribute 0))]
-        (try
-          (Files/writeString temporary (pr-str (coordinator-journal-body coordinator state))
-                             StandardCharsets/UTF_8 (make-array java.nio.file.OpenOption 0))
-          (try
-            (Files/move temporary target (into-array StandardCopyOption [StandardCopyOption/ATOMIC_MOVE
-                                                                         StandardCopyOption/REPLACE_EXISTING]))
-            (catch AtomicMoveNotSupportedException _
-              (Files/move temporary target (into-array StandardCopyOption [StandardCopyOption/REPLACE_EXISTING]))))
-          (finally (Files/deleteIfExists temporary)))))))
+    (let [journal (:transport/journal coordinator)
+          {:keys [sequence format]} @journal
+          next-sequence (inc sequence)
+          checkpoint? (or (#{:new :legacy} format)
+                          (zero? (mod next-sequence journal-checkpoint-interval)))
+          record (if checkpoint?
+                   (coordinator-checkpoint-record coordinator state
+                                                  (if (#{:new :legacy} format) 0 next-sequence))
+                   {:artifact/schema coordinator-journal-schema :journal/record :delta
+                    :journal/sequence next-sequence :journal/changes (state-delta before state)})]
+      (when (or (not= before state) (#{:new :legacy} format))
+        (if checkpoint? (replace-journal-with-checkpoint! path record)
+            (append-journal-record! path record))
+        (reset! journal {:sequence (:journal/sequence record) :format :v2})))))
 
 (defn- update-runtime-state!
   "Persist an all-or-nothing runtime transition. This journal is not a new
@@ -296,14 +437,20 @@
    a runner restart."
   [runner f & args]
   (locking runner-state-write-lock
-    (let [state (apply swap! (:transport/state runner) f args)]
-      (write-runtime-state! runner state)
+    (let [old @(:transport/state runner)
+          state (apply f old args)]
+      (when-not (= old state)
+        (reset! (:transport/state runner) state)
+        (write-runtime-state! runner old state))
       state)))
 
 (defn- update-coordinator-state! [coordinator f & args]
   (locking coordinator-state-write-lock
-    (let [state (apply swap! (:transport/state coordinator) f args)]
-      (write-coordinator-runtime-state! coordinator state)
+    (let [old @(:transport/state coordinator)
+          state (apply f old args)]
+      (when-not (= old state)
+        (reset! (:transport/state coordinator) state)
+        (write-coordinator-runtime-state! coordinator old state))
       state)))
 
 (defn- append-work-event [state work-root status cutpoint event]
@@ -933,10 +1080,12 @@
                    :transport/before-reproduction-compute before-reproduction-compute
                    :transport/test-event test-event
                    :transport/state-path state-path}
-        state (atom (read-runtime-state state-path bootstrap))
+        recovered-journal (read-runtime-journal state-path bootstrap)
+        state (atom (:state recovered-journal))
         server (HttpServer/create (InetSocketAddress. bind-address (int port)) 0)
         executor (Executors/newCachedThreadPool)
         runner (assoc bootstrap :transport/state state :transport/server server
+                      :transport/journal (atom (select-keys recovered-journal [:sequence :format]))
                       :transport/accounting-input-cache (atom (accounting-cache-from-state @state))
                       :transport/executor executor)]
     (.createContext server "/v1/jobs" (job-handler runner))
@@ -956,7 +1105,7 @@
                                                  recovery-logical-cutpoint)
         (retry-undelivered-accounting-proofs! runner coordinator-endpoint
                                               recovery-logical-cutpoint))
-      (write-runtime-state! runner (runner-state runner))
+      (write-runtime-state! runner (runner-state runner) (runner-state runner))
       runner)))
 
 (defn stop-runner! [runner]
@@ -1012,17 +1161,21 @@
                  (or (nil? initial-dispatches) (vector? initial-dispatches)))
     (throw (ex-info "Invalid research coordinator transport configuration" {})))
   (let [bootstrap {:coordinator/root coordinator-root :transport/state-path state-path}
-        state (atom (read-coordinator-runtime-state state-path bootstrap assignments))
+        recovered-journal (read-coordinator-runtime-state state-path bootstrap assignments)
+        state (atom (:state recovered-journal))
         server (HttpServer/create (InetSocketAddress. bind-address (int port)) 0)
         coordinator {:coordinator/root coordinator-root
                      :transport/auth-secret auth-secret
                      :transport/state-path state-path
                      :transport/state state
+                     :transport/journal (atom (:journal recovered-journal))
                      :transport/accounting-input-known (atom #{})
                      :transport/accounting-proof-verification accounting-proof-verification
                      :transport/after-reproduction-persisted after-reproduction-persisted
                      :transport/test-event test-event
                      :transport/server server}]
+    (write-coordinator-runtime-state! coordinator (:persisted-state recovered-journal)
+                                       (coordinator-state coordinator))
     ;; Test/recovery fixtures can restore already-canonical dispatch intents
     ;; before the listener is advertised as ready. This does not bypass result
     ;; validation: it seeds the same intent dispatch-job! persists normally.
@@ -1037,7 +1190,8 @@
     (let [coordinator (assoc coordinator :transport/base-url
                              (or advertise-url
                                  (str "http://" bind-address ":" (.getPort (.getAddress server)))))]
-      (write-coordinator-runtime-state! coordinator (coordinator-state coordinator))
+      (write-coordinator-runtime-state! coordinator (coordinator-state coordinator)
+                                         (coordinator-state coordinator))
       coordinator)))
 
 (defn stop-coordinator! [coordinator]

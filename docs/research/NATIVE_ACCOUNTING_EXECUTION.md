@@ -751,6 +751,54 @@ validation has not yet demonstrated a useful-work break-even; further work
 should target measured hashing/journal/transport overhead and use more repeated
 samples before making performance claims.
 
+### Durable runtime journal serialization
+
+The runner and coordinator runtime journals were full-state snapshots: every
+state transition serialized the entire accumulated state with `pr-str`, wrote a
+temporary file, and atomically replaced the prior snapshot. This made the
+journal a measured candidate for optimization. The runtime-only V2 journal now
+stores one full checkpoint followed by append-only EDN transition deltas. Map
+changes are path-scoped, and vector histories use append records when the old
+vector is an exact prefix. A full atomic checkpoint replaces the file every 128
+transitions. Existing V1 snapshots remain readable and migrate to V2 on the
+first subsequent state change. An incomplete final append is ignored and
+truncated on restart; malformed complete records remain errors. Runtime
+transition ordering is unchanged: accepted, executing, completed, delivery,
+and acknowledgement changes are each persisted before the next stage proceeds.
+Exact no-op state updates no longer write a redundant journal record.
+
+A matched uninstrumented local run used four accounts × 100 source rows,
+four partitions per account, four runners, batch size one, durable journals,
+one warm-up, and five samples before and after. Corresponding serial and
+partitioned result roots matched in every repetition.
+
+| Mode | Before median (range) | After median (range) |
+| --- | ---: | ---: |
+| Direct serial | 0.578 s (0.475–0.641) | 0.613 s (0.598–0.872) |
+| Partitioned local | 7.145 s (6.157–7.732) | 4.371 s (4.261–4.424) |
+| Paired partitioned/serial ratio median | 12.37× | 7.04× |
+
+The partitioned median fell 38.8%, substantially beyond the observed
+partitioned sample range; the serial control remained comparable, with a
+slightly higher and more variable after median. This supports retaining the
+journal optimization for this coordinate, but does not establish a general
+speedup regime: partitioned execution is still about seven times slower than
+serial here. In one same-coordinate instrumented sample, inclusive coordinator
+journal-write time fell from 4.01 s across 49 calls to 0.17 s across 49 calls;
+runner journal-write time fell from 1.61 s across 72 calls to 0.26 s across 68
+calls. Those profile totals include serialization and concurrent nested work;
+they are not filesystem-only timings.
+
+Recovery was checked across literal runner and coordinator process kills,
+including execution before/during work, completed-result redelivery,
+persist-before-ack coordinator restart, cancellation, and accounting recovery.
+Tests compare the retained execution-evidence EDN serialization byte-for-byte
+and verify that duplicate semantic ingestion remains idempotent. A
+separate journal test exercises checkpoint rollover and a torn trailing append.
+The journal format is an internal runtime recovery detail, not a semantic
+artifact; host paths, process IDs, and write timing remain outside accounting
+roots.
+
 A follow-up uninstrumented durable-journal run used the same 4-account ×
 100-source, four-partition, four-runner coordinate, with one warm-up and two
 measured repetitions. The median end-to-end times were 0.86 s for direct serial

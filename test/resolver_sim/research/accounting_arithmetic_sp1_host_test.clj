@@ -107,6 +107,7 @@
   (let [work-root (:research-native-accounting-work/root work)
         state-path (.resolve directory (str label "-runner-state.edn"))]
     {:runner {:transport/state-path (str state-path)
+              :transport/journal (atom {:sequence 0 :format :new})
               :transport/coordinator-root coordinator-root
               :runner-participation participant
               :transport/state
