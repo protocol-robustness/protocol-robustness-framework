@@ -100,7 +100,9 @@
            (assurance/valid-assurance-policy? assurance-policy)
            (assurance/valid-assured-job? assured-job)
            (assurance/valid-implementation? implementation)
-           (accounting/valid-request? request) (accounting/valid-partition-plan? request plan)
+           ;; valid-partition-plan? validates the request root and body itself;
+           ;; avoid walking/hashing the large source vector a second time here.
+           (accounting/valid-partition-plan? request plan)
            (= (:accounting-reduction-contract/root request)
               (:accounting-reduction-contract/root (accounting/build-reduction-contract)))
            (some #{unit} (:partition/work-units plan))

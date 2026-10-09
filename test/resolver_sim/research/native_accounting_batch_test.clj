@@ -444,6 +444,8 @@
     (is (identical? original native/execute-work!))
     (is (= 1 (get-in measured [:runtime/profile :stages [:executor :execution] :calls])))
     (is (= 1 (get-in measured [:runtime/profile :stages [:executor :work-binding-validation] :calls])))
+    (is (= 1 (get-in measured [:runtime/profile :stages [:executor :accounting-request-validation] :calls]))
+        "partition-plan validation already checks its exact request")
     (is (= 1 (get-in measured [:runtime/profile :stages [:executor :execution-validation] :calls])))
     (is (thrown? clojure.lang.ExceptionInfo
                  (profile/profile-call #(throw (ex-info "Expected failure" {})))))
