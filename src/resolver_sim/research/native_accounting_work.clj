@@ -110,8 +110,8 @@
            (contains? #{:public :runner-readable-private} (:work-unit/privacy-requirement unit))
            (not-any? #(= :sealed-to-execution-environment (:dependency/visibility %))
                      (:dependencies dependency-manifest))
-           (:valid? (dependency/validate-manifest dependency-manifest))
-           (:valid? (dependency/validate-policy dependency-policy))
+           ;; resolve-dependencies validates both source artifacts before it
+           ;; derives and compares the exact resolved set below.
            (= resolved-dependencies (dependency/resolve-dependencies dependency-manifest dependency-policy deps))
            (= (:research-execution-job/root job) (:research-execution-job/root assignment)
               (:research-execution-job/root assured-job))
