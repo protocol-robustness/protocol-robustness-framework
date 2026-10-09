@@ -594,6 +594,30 @@ not part of the results above. The current driver prints its EDN result only
 after the entire matrix completes; incremental sample emission would be a useful
 non-semantic harness improvement before attempting a larger matrix.
 
+## Avoiding duplicate work-binding validation
+
+The profile exposed two redundant full `valid-work?` walks: the runner checked
+work before execution and then checked it again while validating its freshly
+derived execution; coordinator admission checked work and then called the public
+execution validator, which checked that same stored work again. The runner now
+performs one complete work-binding validation before computation, while still
+recomputing and validating the result/evidence. Coordinator delivery likewise
+relies on the public validator for its one complete work-binding check. This
+does not remove or weaken arithmetic validation, fixed validation, assignment
+binding, result reconstruction, or reconciliation.
+
+Focused profiling assertions now require one work-binding validation in local
+execution and one at coordinator admission per delivered assignment. The
+work/execution, batch/admission, and runner-transport suites passed 51 tests and
+301 assertions; the native accounting process-kill/restart suite passed 8 tests
+and 38 assertions. Changed namespaces linted with zero warnings/errors. A targeted
+post-change run of the four-account, 200-row, four-partition, four-runner case
+measured 16.00 s median end-to-end with durable local journals and matching
+canonical roots. This is not a valid before/after speedup claim: it was run in a
+separate invocation with a different coordinate matrix/order, and its serial
+control was also faster than in the earlier sweep. The structural reduction in
+validation calls is established; its isolated latency effect remains unmeasured.
+
 Moving arithmetic assurance off the coordinator remains a separate next step:
 V1 native validation still means same-implementation recomputation, and V1
 reconciliation still checks serial equivalence. A rooted assertion that another

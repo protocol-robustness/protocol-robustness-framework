@@ -239,15 +239,21 @@
                        (accounting/partial-root partial-body))]
     {:run-evidence run :fixed-validation validation :run-assurance-evidence assured :accounting-partial partial}))
 
-(defn validate-execution [work result]
-  (when-not (and (valid-work? work)
-                 (= result (derive-evidence work (computed-partial-values (:accounting/request work) (:accounting/work-unit work)
+(defn- validate-execution-after-work-validation [work result]
+  (when-not (and (= result (derive-evidence work (computed-partial-values (:accounting/request work)
+                                                                           (:accounting/work-unit work)
                                                                            (:work/implementation work))
                                              (select-keys (:work/execution-environment work)
-                                                          [:runtime/clojure-version :runtime/jvm-version :environment/arithmetic])))
+                                                          [:runtime/clojure-version :runtime/jvm-version
+                                                           :environment/arithmetic])))
                  (assurance/valid-run-assurance-evidence? (:run-assurance-evidence result)))
     (throw (ex-info "Native accounting execution lineage or arithmetic mismatch" {})))
   result)
+
+(defn validate-execution [work result]
+  (when-not (valid-work? work)
+    (throw (ex-info "Native accounting execution lineage or arithmetic mismatch" {})))
+  (validate-execution-after-work-validation work result))
 
 (defn validate-execution-lineage
   "Validate the canonical native execution envelope without recomputing its
@@ -283,7 +289,10 @@
     (let [values (computed-partial-values (:accounting/request work) (:accounting/work-unit work)
                                           (:work/implementation work))
           result (derive-evidence work values (select-keys runtime [:runtime/clojure-version :runtime/jvm-version :environment/arithmetic]))]
-      (validate-execution work result))))
+      ;; `valid-work?` was already applied before computation. Retain full
+      ;; arithmetic/result validation without repeating the same deep binding
+      ;; walk for this immutable work value.
+      (validate-execution-after-work-validation work result))))
 
 (defn execution-root [result] (get-in result [:run-evidence :research-native-accounting-run/root]))
 (defn evidence-nodes [work result]

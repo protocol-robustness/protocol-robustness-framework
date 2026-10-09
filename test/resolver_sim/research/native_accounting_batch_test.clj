@@ -56,6 +56,7 @@
           (is (= (accounting/serial-values request)
                  (get-in result [:accounting/account-results account :accounting/reconciliation :accounting/values]))))
         (is (pos? (get-in timings [:stages [:coordinator :partition-arithmetic-recomputation] :calls] 0)))
+        (is (= 4 (get-in timings [:stages [:coordinator :work-binding-validation] :calls])))
         (is (= 4 (get-in timings [:stages [:executor-delivery :result-delivery-round-trip] :calls])))
         (is (= 4 (get-in timings [:stages [:reconciliation :full-serial-fold] :calls])))
         (is (= :not-observed (:remote-stages timings))))
@@ -419,6 +420,8 @@
     (is (= expected (:value measured)))
     (is (identical? original native/execute-work!))
     (is (= 1 (get-in measured [:runtime/profile :stages [:executor :execution] :calls])))
+    (is (= 1 (get-in measured [:runtime/profile :stages [:executor :work-binding-validation] :calls])))
+    (is (= 1 (get-in measured [:runtime/profile :stages [:executor :execution-validation] :calls])))
     (is (thrown? clojure.lang.ExceptionInfo
                  (profile/profile-call #(throw (ex-info "Expected failure" {})))))
     (is (identical? original native/execute-work!))))

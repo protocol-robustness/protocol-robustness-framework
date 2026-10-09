@@ -43,7 +43,9 @@
           transport-var #(ns-resolve 'resolver-sim.research.runner-transport %)
           journal? #(some? (:transport/state-path (first %)))
           definitions [[#'native/execute-work! :execution :executor false nil]
-                       [#'native/validate-execution :execution-validation nil true nil]
+                       [(ns-resolve 'resolver-sim.research.native-accounting-work
+                                    'validate-execution-after-work-validation)
+                        :execution-validation nil true nil]
                        [#'native/computed-partial-values :selected-implementation-arithmetic nil false nil]
                        [#'accounting/partial-values :partition-arithmetic nil false nil]
                        [#'accounting/valid-partial-result? :partial-validation nil true nil]

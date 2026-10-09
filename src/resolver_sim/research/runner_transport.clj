@@ -754,7 +754,6 @@
           work (get-in state [:dispatch-intents ar :execution-work])]
       (and (= assignment (get-in state [:assignments ar]))
            (= job (:work/job work)) (= assignment (:work/assignment work))
-           (native-accounting/valid-work? work)
            (native-accounting/validate-execution work native-accounting-execution)))
     (catch Exception _ false)))
 
