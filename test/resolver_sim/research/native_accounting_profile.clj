@@ -4,6 +4,7 @@
    overlap and are not additive or elapsed critical-path time."
   (:require [resolver-sim.hash.canonical :as canonical]
             [resolver-sim.research.accelerated-accounting :as accounting]
+            [resolver-sim.research.dependency-assurance :as dependency]
             [resolver-sim.research.native-accounting-work :as native]
             [resolver-sim.research.runner-transport :as transport]))
 
@@ -49,10 +50,15 @@
                        [#'native/computed-partial-values :selected-implementation-arithmetic nil false nil]
                        [#'accounting/partial-values :partition-arithmetic nil false nil]
                        [#'accounting/valid-partial-result? :partial-validation nil true nil]
+                       [#'accounting/valid-request? :accounting-request-validation nil true nil]
+                       [#'accounting/valid-partition-plan? :partition-plan-validation nil true nil]
                        [#'accounting/build-partial-result :partial-construction nil true nil]
                        [#'accounting/serial-values :full-serial-fold nil false nil]
                        [#'accounting/reconcile :reconciliation :reconciliation true nil]
                        [#'native/valid-work? :work-binding-validation nil false nil]
+                       [#'dependency/validate-manifest :dependency-manifest-validation nil true nil]
+                       [#'dependency/validate-policy :dependency-policy-validation nil true nil]
+                       [#'dependency/resolve-dependencies :dependency-resolution nil false nil]
                        [#'native/build-work :work-construction :construction false nil]
                        [(ns-resolve 'resolver-sim.research.native-accounting-work
                                     'evidence-nodes-after-execution-validation)

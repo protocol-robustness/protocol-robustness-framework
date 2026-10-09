@@ -675,6 +675,24 @@ partitioned/serial ratios did not improve. Canonical hashing and journal writes
 remain prominent runtime costs; reducing them requires preserving verification
 of the full immutable input and every required durable transition.
 
+## Runtime cache discrimination
+
+The transport cache's batch mode needs to identify native-accounting envelopes
+to select request/plan references and record cache status. It now uses the
+versioned artifact schema for that runtime-only branch instead of calling the
+full semantic work validator merely to choose a cache path. This is not an
+admission decision: the work is still fully validated before delivery is
+accepted or execution begins. A same-coordinate instrumented run
+(4 accounts × 200 sources, four partitions/account, four local runners, batch
+size 1) preserved all four canonical result roots and reduced caller-side
+validation counts from 224 to 176 each for work binding, request validation,
+and partition-plan validation. Canonical hashing calls fell from 7,317 to
+5,925. The profiled wall-time samples were 12.93 s before and 11.43 s after;
+because these are separate instrumented invocations, that difference is
+observational only, not an established latency improvement. The profiler now
+also reports request, partition-plan, dependency-manifest/policy, and dependency
+resolution stages independently to help locate future safe reductions.
+
 The existing transport-batch option was also tested at batch sizes 1 and 4 for
 four accounts × 200 sources, four partitions/account, four runners, durable
 journals, and two repetitions. In this coordinate, batch size 1 had a 13.83 s

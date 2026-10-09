@@ -106,6 +106,11 @@
     (observed-work/valid-work? work) (:research-observed-execution-work/root work)
     (accounting-work/valid-work? work) (:research-accounting-execution-work/root work)))
 
+(defn- native-accounting-work-shape? [work]
+  ;; Runtime dispatch/cache discriminator only, never an admission check.
+  ;; Work is still fully validated at each trust boundary before acceptance.
+  (= "research-native-accounting-work.v1" (:artifact/schema work)))
+
 (defn- accounting-cache-from-state [state]
   ;; The journal already retains accepted, full work bodies. Rebuild this
   ;; runtime index after restart; the index itself is never authoritative.
@@ -1844,7 +1849,7 @@
                  :job job :assignment assignment :execution-work execution-work
                  :execute? execute? :logical-cutpoint logical-cutpoint}
         referenced? (and use-cached-accounting-input?
-                         (native-accounting/valid-work? execution-work))
+                         (native-accounting-work-shape? execution-work))
         first-response (post-edn! endpoint "/v1/jobs"
                                   (if referenced?
                                     (assoc message :execution-work (accounting-input-refs execution-work))
@@ -1855,7 +1860,7 @@
         response (if cache-miss? (post-edn! endpoint "/v1/jobs" message) first-response)
         cache-status (cond cache-miss? :miss-resent-full
                            referenced? :referenced
-                           (native-accounting/valid-work? execution-work) :full
+                           (native-accounting-work-shape? execution-work) :full
                            :else :not-applicable)]
     (interpret-job-delivery coordinator-root job assignment logical-cutpoint
                             response cache-status)))
@@ -1928,7 +1933,7 @@
 (defn- note-dispatch-delivery!
   [coordinator endpoint assignment execution-work logical-cutpoint delivery]
   (let [assignment-root (:research-run-assignment/root assignment)
-        cache-key (when (native-accounting/valid-work? execution-work)
+        cache-key (when (native-accounting-work-shape? execution-work)
                     [(:transport/base-url endpoint) (:runner/reference assignment)
                      (get-in execution-work [:accounting/request :accounting-request/root])
                      (get-in execution-work [:accounting/partition-plan
@@ -1960,7 +1965,7 @@
   (when-not (and (remote/valid-job? job) (remote/valid-assignment? assignment))
     (throw (ex-info "Invalid coordinator dispatch" {})))
   (let [_ (persist-dispatch-intent! coordinator dispatch)
-        cache-key (when (native-accounting/valid-work? execution-work)
+        cache-key (when (native-accounting-work-shape? execution-work)
                     [(:transport/base-url endpoint) (:runner/reference assignment)
                      (get-in execution-work [:accounting/request :accounting-request/root])
                      (get-in execution-work [:accounting/partition-plan
