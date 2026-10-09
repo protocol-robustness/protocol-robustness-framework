@@ -547,6 +547,53 @@ roots matched. Dispatch/admission/reconciliation times ranged from 3.05–4.25 s
 small sample and substantial runtime variation do not establish a scaling law
 or break-even regime. No new live cross-host run was performed in this pass.
 
+A subsequent durability-enabled local sweep used four accounts with 200 source
+rows each (800 total), partition counts 1 and 4, actual runner counts 1 and 4,
+and two measured repetitions per coordinate. One warm-up was run per coordinate.
+The existing direct-serial mode and all partitioned modes produced identical
+canonical account-result roots. Remote execution was not configured. With
+durable local journals enabled, the two-sample median end-to-end times were:
+
+| Mode | Partitions/account | Runners | Median end-to-end |
+| --- | ---: | ---: | ---: |
+| Direct serial | 1 | 1 | 2.17 s |
+| Partitioned local HTTP | 1 | 1 | 12.14 s |
+| Partitioned local HTTP | 1 | 4 | 5.86 s |
+| Partitioned local HTTP | 4 | 1 | 51.74 s |
+| Partitioned local HTTP | 4 | 4 | 19.52 s |
+
+For two repetitions, the reported median is the midpoint of the two samples.
+The same 4-partition workload was about 2.65× faster with four runners than
+with one, but remained about 9× slower than direct serial execution. Increasing
+partition count from one to four also multiplied construction and protocol work;
+more work units did not create more compute capacity. This is a local protocol
+measurement, not evidence of cross-host scaling or a useful-work speedup.
+
+A separate instrumented run of the four-account, 200-row, four-partition,
+four-runner coordinate took 18.57 s in its profiled local path. Instrumentation
+is intrusive, so this duration must not be compared to the uninstrumented table.
+It did, however, separate assurance stages: across 16 partition executions,
+the selected-implementation and partition arithmetic wrappers each recorded
+about 4 ms of inclusive work; coordinator-side instances were about 3–4 ms
+each. In contrast, coordinator work-binding validation was about 4.16 s,
+canonical hashing about 3.96 s, result admission about 4.23 s, and configured
+coordinator journal writes about 4.29 s inclusive. Runner execution wrappers
+were about 4.43 s and configured runner journal writes about 1.56 s inclusive.
+These stage timers are nested/concurrent and overlap; they must not be summed
+as elapsed time. The evidence does not support attributing this case's scaling
+limit to arithmetic recomputation alone. Repeated root/binding validation,
+hashing, admission, serialization/journaling, and local HTTP protocol are more
+prominent candidates for follow-up profiling. Any optimization must preserve
+the fixed validation floor and canonical evidence; a cache would need to be
+keyed by immutable canonical roots and must not turn runtime cache presence into
+assurance.
+
+The larger proposed 1,000-row/account sweep was manually stopped after roughly
+10 minutes without incremental output. It yielded no usable measurements and is
+not part of the results above. The current driver prints its EDN result only
+after the entire matrix completes; incremental sample emission would be a useful
+non-semantic harness improvement before attempting a larger matrix.
+
 Moving arithmetic assurance off the coordinator remains a separate next step:
 V1 native validation still means same-implementation recomputation, and V1
 reconciliation still checks serial equivalence. A rooted assertion that another
