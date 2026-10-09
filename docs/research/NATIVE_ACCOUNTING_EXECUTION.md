@@ -660,3 +660,23 @@ composition path needs explicit verifiable assurance and must preserve source
 coverage, arithmetic validity and canonical account result identity. Full-source
 hashing and coverage scans also remain, so eliminating arithmetic revalidation
 alone does not establish coordinator work proportional only to partition count.
+
+A matched post-optimization rerun used the same four-account × 200-source,
+durable-journal matrix, partition counts (1/4), runner counts (1/4), warm-up
+count, and repetition count as the earlier sweep. Canonical roots matched in all
+eight measured local samples. The two-sample local/serial median ratios were:
+
+| Partitions/account | Runners | Before | After both validation reductions |
+| ---: | ---: | ---: | ---: |
+| 1 | 1 | 5.60× | 6.16× |
+| 1 | 4 | 2.72× | 3.21× |
+| 4 | 1 | 23.19× | 26.43× |
+| 4 | 4 | 8.81× | 10.70× |
+
+Both serial and partitioned absolute times were lower in the later JVM run, but
+the normalized ratios did not improve. With only two repetitions and substantial
+between-run variation, these numbers do not establish that the code change
+improved or regressed latency. They do establish that reducing redundant
+validation has not yet demonstrated a useful-work break-even; further work
+should target measured hashing/journal/transport overhead and use more repeated
+samples before making performance claims.
