@@ -652,6 +652,39 @@ coordinate matrix/order, and its serial control was also faster than in the
 earlier sweep. The structural reduction in repeated checks is established; its
 isolated latency effect remains unmeasured.
 
+A same-coordinate instrumented profile before and after both validation
+reductions used four accounts × 200 rows, four partitions/account, four runners,
+and durable journals. It recorded the following inclusive stage totals:
+
+| Stage | Before | After |
+| --- | ---: | ---: |
+| Profiled whole local path | 18.57 s | 14.84 s |
+| Dispatch/admission/reconciliation window | 15.54 s | 11.96 s |
+| Coordinator work-binding validation | 4.16 s / 32 calls | 1.84 s / 16 calls |
+| Coordinator canonical hashing | 3.96 s | 1.78 s |
+| Coordinator result admission | 4.23 s | 1.91 s |
+| Runner forensic-node derivation | 2.70 s | 0.51 s |
+| Coordinator journal writes | 4.29 s | 3.81 s |
+
+After the change, forensic-node derivation records no work-binding or arithmetic
+recomputation calls; coordinator admission validates each assigned work once.
+The profiled whole-path and stage totals are inclusive, nested and concurrent,
+and each profile is one sample. These observations corroborate the call-count
+reduction, but do not override the uninstrumented comparison above, whose
+partitioned/serial ratios did not improve. Canonical hashing and journal writes
+remain prominent runtime costs; reducing them requires preserving verification
+of the full immutable input and every required durable transition.
+
+The existing transport-batch option was also tested at batch sizes 1 and 4 for
+four accounts × 200 sources, four partitions/account, four runners, durable
+journals, and two repetitions. In this coordinate, batch size 1 had a 13.83 s
+two-sample midpoint for partitioned execution versus 19.05 s at batch size 4;
+each run's serial control was 1.29 s and 1.66 s respectively. All semantic
+roots matched. The partitioned/serial ratio was 10.70× versus 11.47×. This small
+separate-invocation comparison does not establish that batching is generally
+slower, but provides no basis to increase the default batch size. Batching
+remains a runtime tuning variable, not a semantic change.
+
 Moving arithmetic assurance off the coordinator remains a separate next step:
 V1 native validation still means same-implementation recomputation, and V1
 reconciliation still checks serial equivalence. A rooted assertion that another
