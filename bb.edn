@@ -280,6 +280,10 @@ check:ownership
     :task (clojure {:dir "." :extra-deps {}}
                    "-M" "-m" "resolver-sim.validation.scenario-registry")}
 
+  canonical-artifacts:validate
+   {:doc "Validate the proposed canonical artifact baseline. Usage: bb canonical-artifacts:validate <manifest.edn> <prf-root> <prf-evm-root>"
+    :task (apply shell "bb" "scripts/validate/canonical_artifacts.clj" *command-line-args*)}
+
   assurance:verify-checkpoint
   {:doc "Verify a hash-bound assurance checkpoint from its bound historical revisions"
    :task (apply shell "bb" "scripts/assurance/verify_checkpoint.clj" "verify-checkpoint" *command-line-args*)}

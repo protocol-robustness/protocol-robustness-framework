@@ -461,14 +461,45 @@ capital lifecycle requires the dependency boundary work above. Shortfall and
 deployment remain assembly consumers throughout. This proposal performs none
 of those source moves.
 
-## Validation performed for this proposal
+## Baseline validator (non-runtime)
+
+The inventory remains explicitly `:proposed` and has no runtime consumer. The
+checked-in deterministic validator checks the closed v1 shape, unique IDs and
+names, sole owners, status/hash consistency, declared shared domains, input
+references and cycles, source-reference existence, cross-language conformance
+references, and the frozen identity baseline. It prevents canonical-owned
+entries from depending on domain-owned entries and pro-rata entries from
+depending on capital-lifecycle entries; it also rejects cycles in artifact
+parent relationships. The manifest records current capital-lifecycle links to
+pro-rata and Shortfall explicitly as extraction adapter work. The validator
+does not prove implementations or replace conformance tests.
+
+Run it with both repository roots supplied:
+
+```bash
+bb canonical-artifacts:validate \
+  docs/architecture/canonical-artifacts/canonical-artifacts.v1.edn \
+  /path/to/prf \
+  /path/to/prf-evm
+```
+
+The validator pins the baseline identity tuple digest
+`0d0af1b9e7e487f334c11f6a7029a6026caa75af9383e899db03747eb4a6c71a`.
+Adding an entry or changing a pinned identity tuple requires an explicit review
+and corresponding validator-baseline update; coverage/reference corrections do
+not alter the pin. New successor definitions must retain a distinct name and
+hash domain. This pin protects definition identity; it is not a new canonical
+artifact root or a runtime registry commitment.
+
+## Original validation performed for this proposal
 
 - Babashka parsed the actual EDN file as data. An isolated temporary checker
   validated the documented closed shapes, IDs/names, ownership/status enums,
   domain declarations and shared-domain exception, input references and cycles,
   source paths/symbols, and local Markdown links: **34 entries, 146 distinct
-  source references, zero errors**. The checker is not installed as runtime or
-  CI infrastructure; the proposed adoption gates above remain to be wired.
+  source references, zero errors**. That was the proposal-time review; the
+  checked-in static validator and task above now retain the narrow baseline
+  checks without adding a runtime consumer.
 - The required `bb backstop` was attempted. Its yield unit stage passed **179
   tests / 969 assertions**. The CLI scenario stage reported **139/140 passing**,
   with S106 `reversal-track2-evidence-appeal` failing after `:not-resolver` and

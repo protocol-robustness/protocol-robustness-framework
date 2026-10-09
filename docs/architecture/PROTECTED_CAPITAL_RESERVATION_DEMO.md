@@ -71,8 +71,9 @@ The registry remains proposed and paused. Generic `AllocationBindingV1` remains
 specified/unregistered. Prepared-operation domain reuse and reserve-observation
 compatibility must be reviewed before extending this demo to a cross-language
 proof path. The earlier registry inventory describes its inspection snapshot;
-the current checkout has successor decoding and activation, but no allocator
-cancel-and-refund path. That remains a blocker for a cancellation demo.
+the current companion now has pre-activation cancel-and-refund routes for legacy
+V2 and successor entitlement operations. They are outside this reservation
+demo's claim boundary; an activation/settlement demo remains separate work.
 
 Supported reserve assets must be exact-transfer, non-rebasing ERC-20s with
 conventional `balanceOf` semantics. Exact-delta checks enforce transfer
@@ -90,3 +91,12 @@ the expected custom errors and unchanged observed state. The final state was
 gross 100, protected 10, reserved 0, available 90, revision 2, with zero
 allocator balance and allowance. The retained local report was
 `/tmp/prf-reservation-demo-no-deps-20261006.json`; reports are not checked in.
+
+On 2026-10-09, the same flow passed against companion HEAD
+`e2143c9924fd7f0eaac2b6b7e77a866c5ef93297`. The temporary build shim now
+includes the allocator's proof-mode source interface and a local Requested-mode
+implementation. All five negative cases reverted with the expected errors and
+unchanged observed state. Final balances were gross 100, protected 10, reserved
+0, available 90, revision 2, with zero allocator balance and allowance. The
+report is `/tmp/prf-protected-ops-step1-20261009.json`; it records two unrelated
+companion working-tree changes and is not checked in.

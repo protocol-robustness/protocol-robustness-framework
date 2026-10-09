@@ -77,6 +77,7 @@ SOURCE_PATHS = [
     "src/applications/shortfall/OnchainShortfallReserveV2.sol",
     "src/applications/pro-rata/ProductionProRataAllocatorV2.sol",
     "src/interfaces/IEntitlementRepresentationV1.sol",
+    "src/interfaces/IEntitlementProofModeSource.sol",
     "src/interfaces/IOnchainShortfallEntitlementReserveV1.sol",
     "src/interfaces/IOnchainShortfallReserveV2.sol",
     "src/interfaces/IShortfallAllocatorV2.sol",
@@ -120,6 +121,10 @@ contract ReservationDemoToken {
         balanceOf[to] += amount;
         return true;
     }
+}
+
+contract DemoEntitlementProofModeSource {
+    function currentEntitlementProofMode() external pure returns (uint8) { return 0; }
 }
 """
 
@@ -206,8 +211,11 @@ def demonstrate(chain, repo, directory, build, root):
         return address
 
     token = deploy("src/demo/ReservationDemoToken.sol", "ReservationDemoToken", "constructor()")
+    proof_mode = deploy("src/demo/ReservationDemoToken.sol", "DemoEntitlementProofModeSource",
+                        "constructor()")
     allocator = deploy("src/applications/pro-rata/ProductionProRataAllocatorV2.sol",
-                       "ProductionProRataAllocatorV2", "constructor(address)", chain.sender)
+                       "ProductionProRataAllocatorV2", "constructor(address,address)",
+                       chain.sender, proof_mode)
     reserve = deploy("src/applications/shortfall/OnchainShortfallReserveV2.sol",
                      "OnchainShortfallReserveV2", "constructor(address,address,uint256,address)",
                      token, chain.sender, 10, allocator)
