@@ -73,6 +73,9 @@
         (is (empty? (:accounting/incomplete-account-roots result)))
         (is (= (:accounting-request/root (:request basis)) (:accounting/parent-request-root result)))
         (is (= (semantic-results result) (semantic-results replay)))
+        (is (= 2 (get-in result [:runtime/dispatch-profile :dispatch/capacity])))
+        (is (pos? (get-in result [:runtime/dispatch-profile :dispatch/wall-ns])))
+        (is (= 2 (count (get-in result [:runtime/dispatch-profile :dispatch/per-runner-call-time-ns]))))
         (doseq [[account request] (:accounts basis)]
           (is (= (accounting/serial-values request)
                  (get-in result [:accounting/account-results account :accounting/reconciliation :accounting/values]))))
@@ -86,6 +89,80 @@
       (finally
         (doseq [runner runners] (transport/stop-runner! runner))
         (transport/stop-coordinator! coordinator)))))
+
+(deftest pull-dispatch-reassigns-only-pending-rooted-work-and-preserves-accounting-roots
+  (let [{:keys [basis fixtures]} (account-fixtures)
+        participants (mapv #(-> (fixture/work-fixture 100 % {:account-basis basis}) :participant)
+                           (range 301 305))
+        coordinator (transport/start-coordinator!
+                     {:coordinator-root fixture/coordinator-root :auth-secret fixture/secret
+                      :assignments (mapv :assignment fixtures)})
+        runners (mapv #(transport/start-runner!
+                        {:runner-participation % :auth-secret fixture/secret
+                         :coordinator-root fixture/coordinator-root
+                         :coordinator-endpoint (transport/coordinator-endpoint coordinator fixture/secret 30000)})
+                      participants)
+        routes (mapv (fn [participant runner]
+                       {:participation participant
+                        :endpoint (transport/coordinator-endpoint runner fixture/secret 30000)})
+                     participants runners)
+        dispatches (mapv (fn [{:keys [work]}]
+                           {:work work :eligible-runners routes :logical-cutpoint 1}) fixtures)
+        expected-results
+        (into (sorted-map)
+              (map (fn [{:keys [work request plan contract]}]
+                     (let [partial (:accounting-partial (native/execute-work! work))
+                           reconciliation (accounting/reconcile request contract plan
+                                                               (accounting/ingest-partial {} partial))]
+                       [(native/account-root request (:accounting/work-unit work))
+                        (:canonical-accounting-result/root reconciliation)])))
+              fixtures)]
+    (try
+      (let [result (batch/dispatch-accounts-and-reconcile!
+                    coordinator (:request basis) (:contract basis) dispatches
+                    {:max-concurrent-dispatches 4 :max-outstanding-per-runner 1
+                     :assignment-allowed? (constantly true)})
+            state (transport/coordinator-state coordinator)
+            admitted (vals (:native-accounting-results state))
+            assigned-runner-roots (set (map :runner/reference
+                                            (map :assignment admitted)))
+            expected-runner-roots (set (map :runner/reference participants))]
+        (is (= :complete (:accounting/batch-status result)))
+        (is (= expected-runner-roots assigned-runner-roots))
+        (is (= 4 (count admitted)) "each rooted account unit is admitted once")
+        (is (= expected-results (semantic-results result)))
+        (is (= 4 (get-in result [:runtime/dispatch-profile :dispatch/work-unit-count])))
+        (is (= (set (keys (:accounts basis))) (set (keys (:accounting/account-results result))))))
+      (finally
+        (doseq [runner runners] (transport/stop-runner! runner))
+        (transport/stop-coordinator! coordinator)))))
+
+(deftest pull-dispatch-does-not-create-assignments-after-control-denies-work
+  (let [{:keys [basis fixtures]} (account-fixtures)
+        participants (mapv #(-> (fixture/work-fixture 100 % {:account-basis basis}) :participant)
+                           (range 301 305))
+        assignments (mapv :assignment fixtures)
+        coordinator (transport/start-coordinator!
+                     {:coordinator-root fixture/coordinator-root :auth-secret fixture/secret
+                      :assignments assignments})
+        routes (mapv (fn [participant]
+                       {:participation participant
+                        :endpoint {:transport/base-url "http://127.0.0.1:1"}}) participants)
+        dispatches (mapv (fn [{:keys [work]}]
+                           {:work work :eligible-runners routes}) fixtures)]
+    (try
+      (let [result (batch/dispatch-accounts-and-reconcile!
+                    coordinator (:request basis) (:contract basis) dispatches
+                    {:assignment-allowed? (fn [_ _] false)})
+            state (transport/coordinator-state coordinator)]
+        (is (= :incomplete (:accounting/batch-status result)))
+        (is (= 4 (count (filter #(= :cancelled-before-assignment (:dispatch/status %))
+                                (:accounting/dispatch-outcomes result)))))
+        (is (empty? (:dispatch-intents state)))
+        (is (= (set (map :research-run-assignment/root assignments))
+               (set (keys (:assignments state)))))
+        (is (empty? (:accounting-partials state))))
+      (finally (transport/stop-coordinator! coordinator)))))
 
 (deftest native-dispatch-validates-sender-work-once-before-persisting-intent
   (let [basis (fixture/basis 1 4 986)

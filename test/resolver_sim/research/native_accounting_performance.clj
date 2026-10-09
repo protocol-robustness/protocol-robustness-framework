@@ -50,7 +50,24 @@
   (or (some-> (System/getenv "PRF_ACCOUNTING_PERFORMANCE_BATCH_SIZE") parse-long) 1))
 
 (defn- fixture-matrix [account-count source-count partitions cutpoint mode workers]
-  (let [basis (fixture/basis account-count source-count cutpoint)]
+  (let [basis (if (sequential? source-count)
+                (let [contract (accounting/build-reduction-contract)
+                      sources (mapcat (fn [account-index row-count]
+                                        (for [row (range row-count)
+                                              :let [source-id (+ 10000 (* account-index 1000000) row)]]
+                                          (fixture/source source-id (+ 100 account-index)
+                                                          :accounting/bond
+                                                          (- (mod (* 37 (inc source-id)) 101) 50))))
+                                      (range) source-count)
+                      request (accounting/build-request
+                               {:accounting-domain :accounting-domain/native-reference
+                                :cutpoint-root (fixture/root cutpoint)
+                                :accounting-definition-root (fixture/root 2)
+                                :accounting-policy-root (fixture/root 3)
+                                :reduction-contract contract :sources (vec sources)})]
+                  {:contract contract :request request
+                   :accounts (native/account-requests request contract)})
+                (fixture/basis account-count source-count cutpoint))]
     (vec
    (for [account-index (range account-count)
          partition-index (range partitions)
@@ -126,10 +143,14 @@
         result (batch/dispatch-accounts-and-reconcile!
                 coordinator parent (:contract first-fixture)
                 (mapv (fn [{:keys [work]}]
-                        {:work work :endpoint (endpoint-for (get-in work [:work/assignment :runner/reference]))
-                         :logical-cutpoint 1}) fixtures)
+                        (let [route (endpoint-for (get-in work [:work/assignment :runner/reference]))]
+                          (merge {:work work :logical-cutpoint 1}
+                                 (if (and (map? route) (:eligible-runners route))
+                                   route
+                                   {:endpoint route})))) fixtures)
                 {:max-concurrent-dispatches workers :max-outstanding-per-runner 1
-                 :max-transport-batch-size (transport-batch-size)})]
+                 :max-transport-batch-size (transport-batch-size)
+                 :assignment-allowed? (constantly true)})]
     (when-not (= :complete (:accounting/batch-status result))
       (throw (ex-info "Performance sample has incomplete account coverage" result)))
     result))
@@ -145,7 +166,10 @@
     :state-path (journal-path directory "coordinator.edn")
     :auth-secret fixture/secret :bind-address "127.0.0.1" :port 0}))
 
-(defn- local-sample [account-count source-count partitions cutpoint workers]
+(defn- local-sample
+  ([account-count source-count partitions cutpoint workers]
+   (local-sample account-count source-count partitions cutpoint workers :fixed))
+  ([account-count source-count partitions cutpoint workers assignment-mode]
   (with-runtimes
    (fn [directory coordinator-registry runner-registry]
     (let [construction (elapsed #(fixture-matrix account-count source-count partitions cutpoint :local workers))
@@ -158,13 +182,22 @@
                       #(dispatch-accounts
                         coordinator fixtures
                         (fn [runner-root]
-                          (let [runner (some (fn [r]
-                                               (when (= runner-root
-                                                        (get-in r [:runner-participation :runner/reference])) r))
-                                             runners)]
-                            (transport/coordinator-endpoint runner fixture/secret 60000))) workers))
+                          (let [endpoint-for (fn [runner]
+                                               (transport/coordinator-endpoint runner fixture/secret 60000))]
+                            (if (= :pull assignment-mode)
+                              {:eligible-runners
+                               (mapv (fn [runner]
+                                       {:participation (:runner-participation runner)
+                                        :endpoint (endpoint-for runner)}) runners)}
+                              (let [runner (some (fn [r]
+                                                   (when (= runner-root
+                                                            (get-in r [:runner-participation :runner/reference])) r))
+                                                 runners)]
+                                (endpoint-for runner))))) workers))
             roots (batch-roots (:value dispatch))]
-        {:mode :partitioned-local :accounts account-count :sources-per-account source-count
+        {:mode (if (= :pull assignment-mode) :partitioned-local-pull :partitioned-local)
+         :assignment-mode assignment-mode :accounts account-count
+         :sources-per-account (if (sequential? source-count) (apply max source-count) source-count)
          :partitions-per-account partitions
          :actual-worker-count (count runners)
          :transport-batch-size (transport-batch-size)
@@ -174,9 +207,10 @@
          :coordinator-startup-ns (:elapsed-ns coordinator-start)
          :runner-startup-ns (:elapsed-ns runner-start)
          :dispatch-admission-reconciliation-ns (:elapsed-ns dispatch)
+         :dispatch-profile (get-in dispatch [:value :runtime/dispatch-profile])
          :end-to-end-ns (+ (:elapsed-ns construction) (:elapsed-ns coordinator-start)
                            (:elapsed-ns runner-start) (:elapsed-ns dispatch))
-         :canonical-result-roots roots})))))
+         :canonical-result-roots roots}))))))
 
 (defn- cross-host-sample [account-count source-count partitions cutpoint]
   (when (< (* account-count partitions) 2)
@@ -228,6 +262,7 @@
          :local-runner-startup-ns (:elapsed-ns local-runner-start)
          :remote-runner-startup-included? false
          :dispatch-admission-reconciliation-ns (:elapsed-ns dispatch)
+         :dispatch-profile (get-in dispatch [:value :runtime/dispatch-profile])
          :end-to-end-ns (+ (:elapsed-ns construction) (:elapsed-ns coordinator-start)
                            (:elapsed-ns local-runner-start) (:elapsed-ns dispatch))
          :canonical-result-roots (batch-roots (:value dispatch))})))))
@@ -258,12 +293,13 @@
                :serial/end-to-end-ns (:end-to-end-ns serial)
                :partitioned-local/end-to-end-ns (:end-to-end-ns local)
                :cross-host/end-to-end-ns (:end-to-end-ns cross-host)
+               :dispatch-profile (:dispatch-profile local)
                :canonical-result-roots (:canonical-result-roots serial)}]
     (.write ^java.io.Writer writer (str (pr-str event) "\n"))
     (.flush ^java.io.Writer writer)
     event))
 
-(defn -main [& [account-counts sources-per-account partition-counts repetitions worker-counts]]
+(defn- standard-main [account-counts sources-per-account partition-counts repetitions worker-counts]
   (let [account-counts (ints account-counts [1 4])
         sources-per-account (ints sources-per-account [10 100])
         partition-counts (ints partition-counts [1])
@@ -339,3 +375,54 @@
       (prn measurement)
       (finally
         (shutdown-agents)))))
+
+(defn- skew-main [worker-count account-count heavy-account-count heavy-source-count light-source-count repetitions]
+  (let [worker-count (parse-long worker-count)
+        account-count (parse-long account-count)
+        heavy-account-count (parse-long heavy-account-count)
+        heavy-source-count (parse-long heavy-source-count)
+        light-source-count (parse-long light-source-count)
+        repetitions (parse-long repetitions)
+        heavy-indices (set (take heavy-account-count (range 0 account-count worker-count)))
+        source-counts (mapv #(if (contains? heavy-indices %) heavy-source-count light-source-count)
+                           (range account-count))
+        cutpoint (+ 970000000 account-count (* worker-count 1000))]
+    (when-not (and (every? pos-int? [worker-count account-count heavy-account-count
+                                    heavy-source-count light-source-count repetitions])
+                   (<= heavy-account-count (count (range 0 account-count worker-count)))
+                   (< heavy-account-count account-count))
+      (throw (ex-info "Skew benchmark requires heavy accounts clustered on one runner and at least one light account" {})))
+    (let [warmup-serial (serial-sample account-count source-counts cutpoint)
+          warmup-local (local-sample account-count source-counts 1 cutpoint worker-count)
+          warmup-pull (local-sample account-count source-counts 1 cutpoint worker-count :pull)
+          samples (mapv (fn [rep]
+                         (let [serial (serial-sample account-count source-counts (+ cutpoint rep 1))
+                               local (local-sample account-count source-counts 1 (+ cutpoint rep 1) worker-count)
+                               pull (local-sample account-count source-counts 1 (+ cutpoint rep 1)
+                                                  worker-count :pull)]
+                           (when-not (and (= (:canonical-result-roots serial)
+                                             (:canonical-result-roots local))
+                                          (= (:canonical-result-roots serial)
+                                             (:canonical-result-roots pull)))
+                             (throw (ex-info "Skew benchmark changed canonical accounting roots"
+                                             {:serial (:canonical-result-roots serial)
+                                              :local (:canonical-result-roots local)
+                                              :pull (:canonical-result-roots pull)})))
+                           {:repetition rep :serial serial :partitioned-local local
+                            :partitioned-pull pull}))
+                       (range repetitions))]
+      (prn {:research/measurement :native-accounting-skew-diagnostic.v1
+            :measurement/canonical? false
+            :measurement/pull-selection :least-active-eligible-then-runner-reference
+            :measurement/account-source-counts source-counts
+            :measurement/heavy-runner-account-indices (vec (sort heavy-indices))
+            :measurement/worker-capacity worker-count
+            :measurement/warmup {:serial/end-to-end-ns (:end-to-end-ns warmup-serial)
+                                 :partitioned/end-to-end-ns (:end-to-end-ns warmup-local)
+                                 :pull/end-to-end-ns (:end-to-end-ns warmup-pull)}
+            :measurement/samples samples}))))
+
+(defn -main [& args]
+  (if (= "--skew" (first args))
+    (apply skew-main (rest args))
+    (apply standard-main args)))

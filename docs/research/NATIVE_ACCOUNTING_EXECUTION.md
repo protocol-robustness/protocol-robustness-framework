@@ -813,3 +813,56 @@ delivery states are separate recovery cutpoints, and weakening their
 persist-before-next-stage ordering would invalidate the crash/restart contract.
 The next performance work should therefore target a measured optimization
 that preserves those cutpoints, rather than batching durable state transitions.
+
+### Dispatch occupancy diagnostic
+
+The bounded account dispatcher now returns a runtime-only profile of dispatch
+group call intervals: occupied dispatch slots, aggregate call time, idle slot
+capacity, per-runner call time, duration spread, and the interval from first to
+last group completion. These are coordinator-side send-to-response intervals;
+they include transport, runner work and coordinator response handling. They do
+not measure runner CPU utilization and are not canonical research artifacts.
+
+On the 4-account × 100-source, four-partition durable local coordinate, three
+repetitions at capacities 1, 2 and 4 had median dispatch-slot utilization of
+99.9%, 99.1% and 95.5%, respectively. Median dispatch/admission/reconciliation
+time fell from 5.56 s at capacity 1 to 3.29 s at capacity 2 and 2.20 s at
+capacity 4; canonical roots matched the serial control in all nine samples. A
+separate three-sample capacity-4 run showed near-balanced per-runner call time
+(1.6–1.8 s per runner in two samples) and group duration ranges of 361–569 ms
+and 369–476 ms. Its third sample was a runtime outlier (2.3–4.2 s overall).
+
+The first-to-last completion interval is naturally large when 16 required
+units drain through four workers; it is not itself a straggler measure. The
+balanced fixture showed little idle dispatch capacity for work stealing to
+recover. A follow-up skew diagnostic used 16 accounts, four local runners, and
+one partition per account. Four 1,000-source accounts were assigned to runner
+301; the other runners received four 10-source accounts each. A pull variant
+selected an eligible idle runner for each still-pending unit, tied by canonical
+runner reference, and created a new rooted assignment before dispatch. Once a
+unit was dispatched it was never moved. Pull routing requires a live
+`:assignment-allowed?` callback before creating each assignment; a denied unit
+is reported as `:cancelled-before-assignment` and keeps the aggregate
+incomplete. The benchmark supplies an always-allowed callback because it has
+no cancellation event. The work-unit roots remained the same.
+
+Across three paired repetitions, serial medians were 3.77 s, fixed assignment
+13.98 s, and pull assignment 10.54 s. Pull reduced partitioned median time by
+24.5%; all serial, fixed, and pull canonical accounting roots matched in every
+repetition. Dispatch-slot utilization rose from a 30.3% median under fixed
+assignment to 66.0% under pull, while idle slot capacity fell from 24.0 s to
+8.0 s per run. These are send-to-response intervals, not CPU time. The result
+supports pending-account pull scheduling for uneven account sizes, not
+arbitrary stealing of accepted or executing work. The pull path remains about
+2.8 times slower than direct serial execution on this fixture, so it does not
+resolve the per-unit assurance and transport overhead. It also cannot split
+one large account; that would need a separate accounting partition plan and its
+exact coverage/reconciliation obligations.
+
+The skew diagnostic is reproducible with:
+
+```sh
+PRF_ACCOUNTING_PERFORMANCE_DURABLE=1 \
+  clojure -M:test -m resolver-sim.research.native-accounting-performance \
+  --skew 4 16 4 1000 10 3
+```
