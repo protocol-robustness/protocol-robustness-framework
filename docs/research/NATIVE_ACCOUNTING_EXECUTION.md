@@ -594,6 +594,23 @@ not part of the results above. The current driver prints its EDN result only
 after the entire matrix completes; incremental sample emission would be a useful
 non-semantic harness improvement before attempting a larger matrix.
 
+The performance driver now supports `PRF_ACCOUNTING_PERFORMANCE_PROGRESS=1`.
+After each measured coordinate has passed its local/cross-host canonical-root
+equality check, it flushes one compact runtime-only EDN event to stderr. The
+complete versioned measurement remains one EDN form on stdout, so existing
+result-file consumers are unchanged. For example:
+
+```sh
+PRF_ACCOUNTING_PERFORMANCE_PROGRESS=1 PRF_ACCOUNTING_PERFORMANCE_DURABLE=1 \
+  clojure -M:test -m resolver-sim.research.native-accounting-performance \
+  4 1000 1,4 2 1,2,4 > /tmp/native-accounting-measurement.edn
+```
+
+Progress events are diagnostic only and do not change warmups, inputs, dispatch,
+root checks, or result identities. If a later coordinate fails, earlier flushed
+events remain visible while stdout does not contain a misleading completed
+measurement artifact.
+
 ## Avoiding duplicate work-binding validation
 
 The profile exposed two redundant full `valid-work?` walks: the runner checked

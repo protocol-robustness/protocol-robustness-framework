@@ -1,5 +1,6 @@
 (ns resolver-sim.research.native-accounting-batch-test
   (:require [clojure.test :refer [deftest is]]
+            [clojure.edn :as edn]
             [resolver-sim.research.accelerated-accounting :as accounting]
             [resolver-sim.research.native-accounting-batch :as batch]
             [resolver-sim.research.native-accounting-work :as native]
@@ -9,6 +10,7 @@
             [resolver-sim.research.execution-control :as control]
             [resolver-sim.research.runner-transport :as transport])
   (:import [java.util.concurrent CountDownLatch TimeUnit]
+           [java.io StringWriter]
            [java.nio.file Files]
            [java.nio.file.attribute FileAttribute]))
 
@@ -23,6 +25,25 @@
         (map (fn [[account r]] [account (get-in r [:accounting/reconciliation
                                                    :canonical-accounting-result/root])]))
         (:accounting/account-results result)))
+
+(deftest performance-progress-is-separate-edn-and-keeps-result-roots
+  (let [writer (StringWriter.)
+        root (fixture/root 991)
+        sample {:repetition 2
+                :serial {:end-to-end-ns 120 :canonical-result-roots [root]}
+                :partitioned-local {:accounts 3 :sources-per-account 20
+                                    :partitions-per-account 4 :actual-worker-count 2
+                                    :end-to-end-ns 450 :canonical-result-roots [root]}
+                :cross-host nil}
+        event (performance/emit-progress! writer 7 sample)
+        decoded (edn/read-string (.toString writer))]
+    (is (= event decoded))
+    (is (= :native-accounting-sample-complete (:research/measurement-event decoded)))
+    (is (= 7 (:measurement/progress-index decoded)))
+    (is (= 450 (:partitioned-local/end-to-end-ns decoded)))
+    (is (= [root] (:canonical-result-roots decoded)))
+    (is (not (contains? decoded :runner/reference)))
+    (is (nil? (:cross-host/end-to-end-ns decoded)))))
 
 (deftest actual-account-dispatch-preserves-parent-coverage-and-semantic-roots
   (let [{:keys [basis fixtures]} (account-fixtures)

@@ -241,6 +241,28 @@
       (assoc value :runtime/profile timings))
     (assoc (f) :runtime/profile {:status :not-collected})))
 
+(defn emit-progress!
+  "Write one runtime-only EDN progress record. The final measurement artifact
+   remains the single EDN form printed by `-main` to stdout."
+  [writer index sample]
+  (let [serial (:serial sample)
+        local (:partitioned-local sample)
+        cross-host (:cross-host sample)
+        event {:research/measurement-event :native-accounting-sample-complete
+               :measurement/progress-index index
+               :repetition (:repetition sample)
+               :accounts (:accounts local)
+               :sources-per-account (:sources-per-account local)
+               :partitions-per-account (:partitions-per-account local)
+               :actual-worker-count (:actual-worker-count local)
+               :serial/end-to-end-ns (:end-to-end-ns serial)
+               :partitioned-local/end-to-end-ns (:end-to-end-ns local)
+               :cross-host/end-to-end-ns (:end-to-end-ns cross-host)
+               :canonical-result-roots (:canonical-result-roots serial)}]
+    (.write ^java.io.Writer writer (str (pr-str event) "\n"))
+    (.flush ^java.io.Writer writer)
+    event))
+
 (defn -main [& [account-counts sources-per-account partition-counts repetitions worker-counts]]
   (let [account-counts (ints account-counts [1 4])
         sources-per-account (ints sources-per-account [10 100])
@@ -253,6 +275,8 @@
             (throw (ex-info "Measurement axes and repetitions must be positive integers" {})))
         cross-host? (boolean (and (seq (System/getenv "PRF_REMOTE_ACCOUNTING_RUNNER_URL"))
                                   (seq (System/getenv "PRF_REMOTE_ACCOUNTING_COORDINATOR_PORT"))))
+        stream-progress? (= "1" (System/getenv "PRF_ACCOUNTING_PERFORMANCE_PROGRESS"))
+        completed-samples (atom 0)
         warmups (vec
                  (for [accounts account-counts
                        source-count sources-per-account
@@ -288,8 +312,11 @@
                (throw (ex-info "Performance modes changed canonical accounting results"
                                {:serial expected :local (:canonical-result-roots local)
                                 :cross-host (:canonical-result-roots cross-host)})))
-             {:repetition rep :serial serial :partitioned-local local
-              :cross-host cross-host})))
+             (let [sample {:repetition rep :serial serial :partitioned-local local
+                           :cross-host cross-host}]
+               (when stream-progress?
+                 (emit-progress! *err* (swap! completed-samples inc) sample))
+               sample))))
         measurement {:research/measurement :native-accounting-performance.v1
                      :measurement/canonical? false
                      :measurement/clock :jvm-system-nano-time
