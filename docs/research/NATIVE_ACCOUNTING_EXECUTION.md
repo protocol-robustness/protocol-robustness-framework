@@ -750,3 +750,18 @@ improved or regressed latency. They do establish that reducing redundant
 validation has not yet demonstrated a useful-work break-even; further work
 should target measured hashing/journal/transport overhead and use more repeated
 samples before making performance claims.
+
+A follow-up uninstrumented durable-journal run used the same 4-account ×
+100-source, four-partition, four-runner coordinate, with one warm-up and two
+measured repetitions. The median end-to-end times were 0.86 s for direct serial
+execution and 7.05 s for partitioned local execution (about 8.2× slower).
+Canonical result roots matched between modes within each repetition. This
+confirms that the large gap is not solely an artifact of the detailed profiler,
+but it remains one small JVM-local sample set and does not establish a general
+scaling result. The instrumented run's journal-write totals are inclusive
+serialization/write observations; they do not isolate filesystem latency.
+Journal transitions were not coalesced: accepted, executing, completed and
+delivery states are separate recovery cutpoints, and weakening their
+persist-before-next-stage ordering would invalidate the crash/restart contract.
+The next performance work should therefore target a measured optimization
+that preserves those cutpoints, rather than batching durable state transitions.
