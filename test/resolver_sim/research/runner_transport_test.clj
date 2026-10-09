@@ -350,6 +350,89 @@
             (java.nio.file.Files/deleteIfExists artifact-dir)))
         (java.nio.file.Files/deleteIfExists directory)))))
 
+(deftest slow-proof-verification-timeout-retries-identical-persisted-proof
+  (let [{:keys [work participant]} (native-accounting-fixture/work-fixture 100 301)
+        execution (native-accounting/execute-work! work)
+        work-root (:research-native-accounting-work/root work)
+        directory (java.nio.file.Files/createTempDirectory
+                   "prf-slow-proof-delivery-test-"
+                   (make-array java.nio.file.attribute.FileAttribute 0))
+        source (.resolve directory "proof.bin")
+        state-path (.resolve directory "runner-state.edn")
+        bytes (.getBytes "same-proof-bytes-on-retry" java.nio.charset.StandardCharsets/UTF_8)
+        state {:jobs {} :assignments {} :work-items {work-root work}
+               :work-states {} :cancellations {}
+               :completed-work {work-root {:job (:work/job work)
+                                            :assignment (:work/assignment work)
+                                            :native-accounting-execution execution}}
+               :forensic-evidence-nodes {}}
+        runner {:transport/state-path (str state-path)
+                :transport/coordinator-root coordinator-root
+                :runner-participation participant
+                :transport/state (atom state)}
+        server (com.sun.net.httpserver.HttpServer/create
+                (java.net.InetSocketAddress. "127.0.0.1" 0) 0)
+        arrivals (atom [])
+        auth transport-secret
+        _ (.createContext
+           server "/v1/accounting-proof"
+           (reify com.sun.net.httpserver.HttpHandler
+             (handle [_ exchange]
+               (let [body (.readAllBytes (.getRequestBody exchange))
+                     message (clojure.edn/read-string
+                              (String. body java.nio.charset.StandardCharsets/UTF_8))
+                     attempt (swap! arrivals conj (:proof/base64 message))]
+                 (when (= 1 (count attempt)) (Thread/sleep 150))
+                 (let [response (.getBytes
+                                 (pr-str {:transport/status :accepted
+                                          :accounting-proof-backed-admission/root (root 904)})
+                                 java.nio.charset.StandardCharsets/UTF_8)]
+                   (try
+                     (.sendResponseHeaders exchange 200 (long (alength response)))
+                     (with-open [out (.getResponseBody exchange)]
+                       (.write out response))
+                     (catch java.io.IOException _)))))))
+        _ (.setExecutor server nil)]
+    (try
+      (java.nio.file.Files/write source bytes (make-array java.nio.file.OpenOption 0))
+      (.start server)
+      (let [endpoint {:transport/base-url (str "http://127.0.0.1:"
+                                               (.getPort (.getAddress server)))
+                      :transport/auth-secret auth :transport/request-timeout-ms 20}
+            first-attempt
+            (transport/deliver-native-accounting-proof!
+             {:runner runner :endpoint endpoint :work-root work-root :proof-file source
+              :metadata {"test" "slow-verifier"} :generation-receipt {:test/root (root 903)}
+              :logical-cutpoint 1})]
+        (is (= :unreachable (:delivery/status first-attempt)))
+        (is (= :unreachable (:transport/error first-attempt)))
+        ;; Let the first handler finish after the sender's bounded timeout.
+        (Thread/sleep 200)
+        (let [retry (transport/retry-undelivered-accounting-proofs!
+                     runner (assoc endpoint :transport/request-timeout-ms 2000) 2)
+              persisted (get-in (transport/runner-state runner)
+                                [:completed-work work-root :proof-delivery])]
+          (is (= :accepted (get-in (first retry) [:delivery :delivery/status])))
+          (is (= 2 (count @arrivals)))
+          (is (= (first @arrivals) (second @arrivals)))
+          (is (= 2 (count (:proof-deliveries persisted))))
+          (is (= (seq bytes)
+                 (seq (java.nio.file.Files/readAllBytes
+                       (java.nio.file.Paths/get (:proof/file persisted)
+                                                (make-array String 0))))))))
+      (finally
+        (.stop server 0)
+        (java.nio.file.Files/deleteIfExists source)
+        (java.nio.file.Files/deleteIfExists state-path)
+        (let [artifact-dir (.resolveSibling state-path "runner-state.edn.proof-artifacts")]
+          (when (java.nio.file.Files/exists artifact-dir
+                                           (make-array java.nio.file.LinkOption 0))
+            (with-open [paths (java.nio.file.Files/list artifact-dir)]
+              (doseq [path (iterator-seq (.iterator paths))]
+                (java.nio.file.Files/deleteIfExists path)))
+            (java.nio.file.Files/deleteIfExists artifact-dir)))
+        (java.nio.file.Files/deleteIfExists directory)))))
+
 (deftest real-http-job-delivery-respects-distinct-runner-assignments
   (let [setup-data (setup)]
     (with-runners! setup-data (fn [runner-a runner-b]

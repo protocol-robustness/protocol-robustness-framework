@@ -63,6 +63,18 @@ directory, and applies its own verifier configuration. Sender-local paths and
 sender-selected verifier policy are never trusted. Ordinary `/v1/accounting`
 delivery is unchanged and continues to use V1 recomputation.
 
+Real proof verification takes materially longer than ordinary result
+delivery. Callers should configure the runner endpoint timeout explicitly, for
+example with `(coordinator-endpoint coordinator secret 180000)`. This is
+runtime transport configuration and is excluded from proof/accounting roots.
+A timed-out sender retains the content-addressed proof and may redeliver the
+same bytes; coordinator admission remains idempotent. The transport regression
+test exercises a slow first response and successful retry with byte-identical
+proof delivery. The external SP1 host process also has a runtime-only
+600,000 ms deadline, configurable with `PRF_ACCOUNTING_SP1_HOST_TIMEOUT_MS` or
+the dynamic `*host-command-timeout-ms*` binding. On expiry the host process and
+its descendants are terminated and no verification evidence is emitted.
+
 This path proves the checked-i64 arithmetic statement for the exact partition.
 It does not prove source-claim truth or the full accounting result. Global
 reconciliation still requires exact plan coverage and currently performs its
@@ -130,6 +142,31 @@ research results. Release compilation first exhausted the root filesystem
 while building SP1's nested helper; retrying with the already-built SP1 helper
 through `SP1_CORE_RUNNER_OVERRIDE_BINARY` and placing the target on the
 workspace mount succeeded.
+
+Proof metadata records the exact ELF and VKey used. A proof produced against an
+older embedded ELF/VKey is intentionally rejected by a verifier built with a
+different program identity, even if the arithmetic input and resulting scalar
+match. Fresh proof generation and coordinator verification have passed over
+the authenticated HTTP delivery endpoint using the same current host binary.
+This establishes exact build-artifact binding; it does not establish
+bit-for-bit reproducible SP1 guest builds. Until that is separately qualified,
+retain the ELF/program artifact associated with each recorded identity if
+historical proof re-verification is required.
+
+The opt-in real proof-delivery qualification generates a fresh proof, delivers
+it to a live coordinator, checks successful cryptographic admission, then
+checks wrong proof bytes, modified public values, program/VKey substitution,
+and cross-run substitution against the authoritative verifier API. These
+substitution negatives fail lineage/metadata preflight before launching the
+cryptographic verifier; the positive coordinator admission performs real
+cryptographic verification.
+
+```sh
+SP1_PROVER=cpu \
+PRF_RUN_REAL_SP1_DELIVERY_E2E=1 \
+PRF_ACCOUNTING_SP1_HOST_BIN="$PWD/coprocessor/target/release/accounting-arithmetic-sp1-host" \
+clojure -M:test -e '(require (quote clojure.test) (quote resolver-sim.research.accounting-arithmetic-sp1-host-test)) (let [r (clojure.test/run-tests (quote resolver-sim.research.accounting-arithmetic-sp1-host-test))] (System/exit (+ (:fail r) (:error r))))'
+```
 
 Existing V1 receipts cannot silently change from “arithmetic recomputed” to
 “proof checked.” Proof-backed admission is a separate artifact and API.

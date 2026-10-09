@@ -19,12 +19,27 @@
   (:import [java.nio.charset StandardCharsets]
            [java.nio.file Files Path]
            [java.security MessageDigest]
-           [java.util HexFormat]))
+           [java.util HexFormat]
+           [java.util.concurrent TimeUnit]))
 
 (def ^:private host-manifest "coprocessor/accounting-arithmetic-sp1-host/Cargo.toml")
 (def ^:private host-bin "accounting-arithmetic-sp1-host")
 (def ^:private host-binary-path "coprocessor/target/release/accounting-arithmetic-sp1-host")
 (defonce ^:private compiled-host-binary (atom nil))
+
+(defn- configured-host-command-timeout-ms []
+  (if-let [value (System/getenv "PRF_ACCOUNTING_SP1_HOST_TIMEOUT_MS")]
+    (try
+      (Long/parseLong value)
+      (catch NumberFormatException e
+        (throw (ex-info "PRF_ACCOUNTING_SP1_HOST_TIMEOUT_MS must be an integer"
+                        {:value value} e))))
+    600000))
+
+(def ^:dynamic *host-command-timeout-ms*
+  "Runtime-only deadline for the external SP1 host process. A timeout never
+   changes proof identity; it leaves the persisted proof bundle retryable."
+  (configured-host-command-timeout-ms))
 
 (defn- sha256-ref-bytes [^bytes bytes]
   (hash-ref/sha256-ref
@@ -72,18 +87,38 @@
                 path))))))
 
 (defn- invoke-host! [mode input proof metadata verification]
+  (when-not (and (integer? *host-command-timeout-ms*) (pos? *host-command-timeout-ms*))
+    (throw (ex-info "Invalid accounting SP1 host command timeout"
+                    {:timeout-ms *host-command-timeout-ms*})))
   (let [command (cond-> [(ensure-host-binary!) "--mode" (name mode)
                          "--input" (str input) "--proof" (str proof)
                          "--metadata" (str metadata)]
                   verification (into ["--verification" (str verification)]))
-        process (.start (doto (ProcessBuilder. ^java.util.List command)
-                          (.directory (io/file ".")) (.redirectErrorStream true)))
-        output (slurp (.getInputStream process))
-        status (.waitFor process)]
-    (when-not (zero? status)
-      (throw (ex-info "Accounting SP1 host command failed"
-                      {:mode mode :exit status :diagnostic output})))
-    output))
+        output-path (Files/createTempFile "prf-accounting-sp1-host-" ".log"
+                                          (make-array java.nio.file.attribute.FileAttribute 0))
+        builder (doto (ProcessBuilder. ^java.util.List command)
+                  (.directory (io/file ".")) (.redirectErrorStream true))
+        _ (.redirectOutput builder (.toFile output-path))
+        process (.start builder)]
+    (try
+      (if (.waitFor process (long *host-command-timeout-ms*) TimeUnit/MILLISECONDS)
+        (let [output (slurp (.toFile output-path))
+              status (.exitValue process)]
+          (when-not (zero? status)
+            (throw (ex-info "Accounting SP1 host command failed"
+                            {:mode mode :exit status :diagnostic output})))
+          output)
+        (do
+          (doseq [child (iterator-seq (.iterator (.descendants (.toHandle process))))]
+            (.destroyForcibly child))
+          (.destroyForcibly process)
+          (.waitFor process)
+          (throw (ex-info "Accounting SP1 host command timed out"
+                          {:mode mode :cause :host-command-timeout
+                           :timeout-ms *host-command-timeout-ms*
+                           :diagnostic (slurp (.toFile output-path))}))))
+      (finally
+        (Files/deleteIfExists output-path)))))
 
 (defn- read-json [^Path path]
   (json/read-str (slurp (.toFile path))))
@@ -273,7 +308,15 @@
         assurance-root (:research-run-assurance-evidence/root assurance)
         registry-root (verification-basis/verifier-registry-root
                        verifier-registry-extension-map)
-        _ (when-not (and (:valid? (participation/validate-participation verifier-participation))
+        _ (when-not (and (= "research-accounting-arithmetic-sp1-proof-artifact.v1"
+                            (get metadata "schema"))
+                         (= "accounting-arithmetic-sp1-program.v1"
+                            (get metadata "proof_program"))
+                         (= "sp1-v6.3.1-core" (get metadata "proof_system"))
+                         (= "sp1-sdk-bincode.v1" (get metadata "proof_encoding"))
+                         (= "accounting-arithmetic-roots-160.v1"
+                            (get metadata "public_values_schema"))
+                         (:valid? (participation/validate-participation verifier-participation))
                          (hash-ref/valid-sha256-ref? verifier-reference)
                          (integer? verification-cutpoint) (not (neg? verification-cutpoint))
                          (proof/receipt-matches-context? generation-receipt assured-job-root
