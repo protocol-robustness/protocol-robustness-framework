@@ -611,6 +611,16 @@ root checks, or result identities. If a later coordinate fails, earlier flushed
 events remain visible while stdout does not contain a misleading completed
 measurement artifact.
 
+Using the progress-enabled driver, one larger durability-enabled coordinate
+completed: four accounts × 1,000 sources/account, four partitions/account, four
+local runners, one warm-up and one measured sample. The serial native path took
+6.82 s; partitioned local execution took 68.58 s, including 12.61 s work
+construction and 55.95 s in dispatch/admission/reconciliation. All four
+canonical account-result roots matched. This single sample is not a scaling law,
+but it shows no break-even at 4,000 total source rows under this local protocol.
+The progress event was flushed before the final stdout measurement was parsed;
+both carried the same result-root vector.
+
 ## Avoiding duplicate work-binding validation
 
 The profile exposed two redundant full `valid-work?` walks: the runner checked
