@@ -87,6 +87,51 @@
         (doseq [runner runners] (transport/stop-runner! runner))
         (transport/stop-coordinator! coordinator)))))
 
+(deftest native-dispatch-validates-sender-work-once-before-persisting-intent
+  (let [basis (fixture/basis 1 4 986)
+        work (:work (fixture/work-fixture 100 301 {:account-basis basis}))
+        coordinator (transport/start-coordinator!
+                     {:coordinator-root fixture/coordinator-root
+                      :auth-secret fixture/secret
+                      :assignments [(:work/assignment work)]})
+        deliver-var (ns-resolve 'resolver-sim.research.runner-transport
+                                'deliver-job-after-validation!)]
+    (try
+      (let [validation-count (atom 0)
+            validate native/valid-work?
+            result (with-redefs-fn
+                    {#'native/valid-work?
+                     (fn [candidate]
+                       (swap! validation-count inc)
+                       (validate candidate))
+                     deliver-var (fn [_] {:delivery/status :unreachable})}
+                    #(transport/dispatch-native-accounting!
+                      coordinator {:endpoint {:transport/base-url "http://127.0.0.1:1"}
+                                   :accounting-work work}))]
+        (is (= :unreachable (get-in result [:delivery :delivery/status])))
+        (is (= 1 @validation-count)
+            "dispatch intent validates before persistence; sender does not repeat it")
+        (is (= 1 (count (:dispatch-intents (transport/coordinator-state coordinator)))))
+        (is (nil? (:native-accounting-execution result))))
+      (finally
+        (transport/stop-coordinator! coordinator)))))
+
+(deftest invalid-native-dispatch-does-not-persist-an-intent
+  (let [basis (fixture/basis 1 4 985)
+        work (:work (fixture/work-fixture 100 301 {:account-basis basis}))
+        coordinator (transport/start-coordinator!
+                     {:coordinator-root fixture/coordinator-root
+                      :auth-secret fixture/secret
+                      :assignments [(:work/assignment work)]})
+        invalid (assoc work :accounting/request
+                       {:accounting-request/root (fixture/root 999)})]
+    (try
+      (is (thrown? clojure.lang.ExceptionInfo
+                   (transport/dispatch-native-accounting!
+                    coordinator {:endpoint {} :accounting-work invalid})))
+      (is (empty? (:dispatch-intents (transport/coordinator-state coordinator))))
+      (finally (transport/stop-coordinator! coordinator)))))
+
 (deftest batched-account-delivery-keeps-independent-results-and-idempotent-replay
   (let [basis (fixture/basis 3 6 988)
         fixtures (mapv #(fixture/work-fixture (+ 100 %) 301 {:account-basis basis}) (range 3))

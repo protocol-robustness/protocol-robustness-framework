@@ -106,6 +106,16 @@
     (observed-work/valid-work? work) (:research-observed-execution-work/root work)
     (accounting-work/valid-work? work) (:research-accounting-execution-work/root work)))
 
+(defn- work-root-value [work]
+  ;; Read a root only after the enclosing dispatch-intent path has validated
+  ;; the matching schema. Kept separate from work-root, which is a validator.
+  (case (:artifact/schema work)
+    "research-native-accounting-work.v1" (:research-native-accounting-work/root work)
+    "research-reproduction-execution-work.v1" (:research-reproduction-execution-work/root work)
+    "research-observed-execution-work.v1" (:research-observed-execution-work/root work)
+    "research-accounting-execution-work.v1" (:research-accounting-execution-work/root work)
+    nil))
+
 (defn- native-accounting-work-shape? [work]
   ;; Runtime dispatch/cache discriminator only, never an admission check.
   ;; Work is still fully validated at each trust boundary before acceptance.
@@ -958,26 +968,31 @@
 (defn runner-state [runner] @(:transport/state runner))
 
 (defn- persist-dispatch-intent! [coordinator {:keys [job assignment execution-work execute?]}]
-  (when-not (and (remote/valid-job? job) (remote/valid-assignment? assignment)
-                 (= (:research-execution-job/root job)
-                    (:research-execution-job/root assignment))
-                 (work-root execution-work))
-    (throw (ex-info "Invalid coordinator dispatch intent" {})))
-  (let [assignment-root (:research-run-assignment/root assignment)
-        intent {:job job :assignment assignment :execution-work execution-work
-                :execute? (if (nil? execute?) true execute?)}]
-    (update-coordinator-state!
-     coordinator
-     (fn [state]
-       (let [old (get-in state [:dispatch-intents assignment-root])]
-         (when (and old (not= (select-keys old [:job :assignment :execution-work :execute?]) intent))
-           (throw (ex-info "Coordinator dispatch substitution"
-                           {:assignment/root assignment-root})))
-         (-> state
-             (assoc-in [:assignments assignment-root] assignment)
-             (assoc-in [:dispatch-intents assignment-root]
-                       (or old (assoc intent :dispatch/status :pending :dispatch/history [])))))))
-    assignment-root))
+  (let [bound-work (observed-work-for execution-work)
+        execution-work-root (when bound-work (work-root-value execution-work))]
+    (when-not (and (remote/valid-job? job) (remote/valid-assignment? assignment)
+                   (= (:research-execution-job/root job)
+                      (:research-execution-job/root assignment))
+                   bound-work
+                   (= job (:work/job bound-work))
+                   (= assignment (:work/assignment bound-work))
+                   (hash-ref/valid-sha256-ref? execution-work-root))
+      (throw (ex-info "Invalid coordinator dispatch intent" {})))
+    (let [assignment-root (:research-run-assignment/root assignment)
+          intent {:job job :assignment assignment :execution-work execution-work
+                  :execute? (if (nil? execute?) true execute?)}]
+      (update-coordinator-state!
+       coordinator
+       (fn [state]
+         (let [old (get-in state [:dispatch-intents assignment-root])]
+           (when (and old (not= (select-keys old [:job :assignment :execution-work :execute?]) intent))
+             (throw (ex-info "Coordinator dispatch substitution"
+                             {:assignment/root assignment-root})))
+           (-> state
+               (assoc-in [:assignments assignment-root] assignment)
+               (assoc-in [:dispatch-intents assignment-root]
+                         (or old (assoc intent :dispatch/status :pending :dispatch/history [])))))))
+      assignment-root)))
 
 (defn start-coordinator!
   "Start the research-only coordinator result sink. `assignments` are already
@@ -1829,22 +1844,10 @@
                        :attempt-cutpoint logical-cutpoint})}
       :else (throw (ex-info "Runner rejected job delivery" {:response response})))))
 
-(defn deliver-job!
-  "Deliver a rooted job/assignment over HTTP and produce existing canonical
-   realized-reachability evidence. Authentication rejection is a transport
-   boundary failure, not a false claim that the route was unreachable."
+(defn- deliver-job-after-validation!
   [{:keys [coordinator-root endpoint job assignment execution-work logical-cutpoint execute?
            use-cached-accounting-input?]
     :or {logical-cutpoint 0 execute? true}}]
-  (when-not (and (remote/valid-job? job) (remote/valid-assignment? assignment)
-                 (= (:research-execution-job/root job)
-                    (:research-execution-job/root assignment))
-                 (or (nil? execution-work)
-                     (valid-work-delivery? {:runner-participation
-                                            (:work/runner-participation
-                                             (observed-work-for execution-work))}
-                                           job assignment execution-work)))
-    (throw (ex-info "Invalid job delivery lineage" {})))
   (let [message {:transport/kind :research/job-delivery
                  :job job :assignment assignment :execution-work execution-work
                  :execute? execute? :logical-cutpoint logical-cutpoint}
@@ -1864,6 +1867,21 @@
                            :else :not-applicable)]
     (interpret-job-delivery coordinator-root job assignment logical-cutpoint
                             response cache-status)))
+
+(defn deliver-job!
+  "Deliver a rooted job/assignment over HTTP and produce existing canonical
+   realized-reachability evidence. Authentication rejection is a transport
+   boundary failure, not a false claim that the route was unreachable."
+  [{:keys [job assignment execution-work] :as dispatch}]
+  (when-not (and (remote/valid-job? job) (remote/valid-assignment? assignment)
+                 (= (:research-execution-job/root job)
+                    (:research-execution-job/root assignment))
+                 (or (nil? execution-work)
+                     (let [work (observed-work-for execution-work)]
+                       (and work (= job (:work/job work))
+                            (= assignment (:work/assignment work))))))
+    (throw (ex-info "Invalid job delivery lineage" {})))
+  (deliver-job-after-validation! dispatch))
 
 (defn deliver-claim-evidence-coordinate!
   "Transport one existing rooted claim-evidence coordinate to an opted-in
@@ -1970,14 +1988,15 @@
                      (get-in execution-work [:accounting/request :accounting-request/root])
                      (get-in execution-work [:accounting/partition-plan
                                              :accounting-partition-plan/root])])]
-    (let [delivery (deliver-job! {:coordinator-root (:coordinator/root coordinator)
-                                  :endpoint endpoint :job job :assignment assignment
-                                  :execution-work execution-work :logical-cutpoint logical-cutpoint
-                                  :execute? execute?
-                                  :use-cached-accounting-input?
-                                  (and cache-key
-                                       (contains? @(:transport/accounting-input-known coordinator)
-                                                  cache-key))})]
+    (let [delivery (deliver-job-after-validation!
+                    {:coordinator-root (:coordinator/root coordinator)
+                     :endpoint endpoint :job job :assignment assignment
+                     :execution-work execution-work :logical-cutpoint logical-cutpoint
+                     :execute? execute?
+                     :use-cached-accounting-input?
+                     (and cache-key
+                          (contains? @(:transport/accounting-input-known coordinator)
+                                     cache-key))})]
       (note-dispatch-delivery! coordinator endpoint assignment execution-work
                                logical-cutpoint delivery)
       delivery)))
@@ -1989,10 +2008,6 @@
   [coordinator {:keys [endpoint job assignment reproduction-work authoritative-result
                        logical-cutpoint]
                 :or {logical-cutpoint 0}}]
-  (when-not (and (reproduction-work/valid-work? reproduction-work)
-                 (= job (:work/job reproduction-work))
-                 (= assignment (:work/assignment reproduction-work)))
-    (throw (ex-info "Invalid reproduction dispatch bundle" {})))
   (let [delivery (dispatch-job! coordinator
                                 {:endpoint endpoint :job job :assignment assignment
                                  :execution-work reproduction-work
@@ -2011,8 +2026,6 @@
   "Dispatch the rooted account partition and admit its directly assured partial.
    Job and assignment are derived from the bundle; expected values are absent."
   [coordinator {:keys [endpoint accounting-work logical-cutpoint] :or {logical-cutpoint 0}}]
-  (when-not (native-accounting/valid-work? accounting-work)
-    (throw (ex-info "Invalid native accounting dispatch bundle" {})))
   (let [job (:work/job accounting-work) assignment (:work/assignment accounting-work)
         delivery (dispatch-job! coordinator {:endpoint endpoint :job job :assignment assignment
                                               :execution-work accounting-work :logical-cutpoint logical-cutpoint})

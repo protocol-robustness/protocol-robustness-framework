@@ -703,6 +703,15 @@ bindings remained 176 each. This is a call-count result, not a latency claim.
 The fixed checks remain reachable through the partition-plan and dependency
 resolution validators, and focused tests assert those paths execute.
 
+The single-work dispatch path also avoids repeating validation on the sender.
+Dispatch-intent persistence is the sender's validation point; the internal send
+step reuses that checked immutable bundle, while the public direct-delivery API,
+remote runner, and coordinator admission retain their own checks. A same-coordinate
+profile preserved the same four result roots and reduced caller-side full work
+bindings from 176 to 128. Invalid work is rejected before a dispatch intent is
+persisted. This is another structural call-count reduction; the sample timing
+is not treated as a performance claim.
+
 The existing transport-batch option was also tested at batch sizes 1 and 4 for
 four accounts × 200 sources, four partitions/account, four runners, durable
 journals, and two repetitions. In this coordinate, batch size 1 had a 13.83 s
