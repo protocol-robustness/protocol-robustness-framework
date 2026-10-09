@@ -148,10 +148,22 @@ older embedded ELF/VKey is intentionally rejected by a verifier built with a
 different program identity, even if the arithmetic input and resulting scalar
 match. Fresh proof generation and coordinator verification have passed over
 the authenticated HTTP delivery endpoint using the same current host binary.
-This establishes exact build-artifact binding; it does not establish
-bit-for-bit reproducible SP1 guest builds. Until that is separately qualified,
-retain the ELF/program artifact associated with each recorded identity if
-historical proof re-verification is required.
+
+A clean release rebuild of `accounting-arithmetic-sp1-host` under a separate
+`CARGO_TARGET_DIR` produced the same guest ELF bytes as the previously
+qualified build:
+
+```text
+sha256: a152827b3e500afb583c203f890a17225612a0ec2e31cc5745bff7f4daf57849
+```
+
+This qualifies byte-for-byte guest ELF stability across target-directory
+relocation using the same pinned SP1 6.3.1 dependencies, Rust toolchain,
+Cargo home and source checkout. It does not qualify independent Cargo caches,
+toolchain versions, operating systems, or fully hermetic transitive source
+closure. Proof metadata still records exact ELF and VKey identities; retain the
+ELF/program artifact associated with each recorded identity for historical
+re-verification across future toolchain changes.
 
 The opt-in real proof-delivery qualification generates a fresh proof, delivers
 it to a live coordinator, checks successful cryptographic admission, then
