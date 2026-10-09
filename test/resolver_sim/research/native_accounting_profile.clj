@@ -54,7 +54,9 @@
                        [#'accounting/reconcile :reconciliation :reconciliation true nil]
                        [#'native/valid-work? :work-binding-validation nil false nil]
                        [#'native/build-work :work-construction :construction false nil]
-                       [#'native/evidence-nodes :forensic-evidence :executor-evidence false nil]
+                       [(ns-resolve 'resolver-sim.research.native-accounting-work
+                                    'evidence-nodes-after-execution-validation)
+                        :forensic-evidence :executor-evidence false nil]
                        [#'canonical/domain-hash :canonical-hashing nil false nil]
                        [#'transport/dispatch-native-accounting! :dispatch-round-trip nil false nil]
                        [(transport-var 'deliver-computation-result!)

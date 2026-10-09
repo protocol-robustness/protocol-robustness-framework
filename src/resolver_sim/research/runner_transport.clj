@@ -1381,7 +1381,10 @@
     ;; A process death here is recovered as outcome-unknown, never complete.
     (when-let [hook (:transport/before-reproduction-compute runner)]
       (hook runner work logical-cutpoint))
-    (let [execution (if native? (native-accounting/execute-work! work) (reproduction-work/execute-work! work))
+    (let [{:keys [execution forensic-evidence-nodes]}
+          (if native?
+            (native-accounting/execute-work-with-evidence! work)
+            {:execution (reproduction-work/execute-work! work)})
           ;; Persist the completed deterministic computation before attempting
           ;; network delivery. Restart can only replay this exact value.
           initial {:job job :assignment assignment
@@ -1410,7 +1413,7 @@
                            (append-work-event root :completed logical-cutpoint :execution-completed)
                            (runner-forensics/record-node complete-node))]
              (if native?
-               (reduce runner-forensics/record-node state (native-accounting/evidence-nodes work execution))
+               (reduce runner-forensics/record-node state forensic-evidence-nodes)
                state)))))
       (when-let [hook (:transport/before-result-delivery runner)]
         (hook runner work logical-cutpoint))

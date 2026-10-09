@@ -78,6 +78,8 @@
                  (get-in result [:accounting/account-results account :accounting/reconciliation :accounting/values]))))
         (is (pos? (get-in timings [:stages [:coordinator :partition-arithmetic-recomputation] :calls] 0)))
         (is (= 4 (get-in timings [:stages [:coordinator :work-binding-validation] :calls])))
+        (is (= 0 (get-in timings [:stages [:executor-evidence :work-binding-validation] :calls] 0)))
+        (is (= 0 (get-in timings [:stages [:executor-evidence :execution-validation] :calls] 0)))
         (is (= 4 (get-in timings [:stages [:executor-delivery :result-delivery-round-trip] :calls])))
         (is (= 4 (get-in timings [:stages [:reconciliation :full-serial-fold] :calls])))
         (is (= :not-observed (:remote-stages timings))))
@@ -446,6 +448,22 @@
     (is (thrown? clojure.lang.ExceptionInfo
                  (profile/profile-call #(throw (ex-info "Expected failure" {})))))
     (is (identical? original native/execute-work!))))
+
+(deftest execute-with-forensic-evidence-preserves-public-artifacts
+  (let [work (:work (fixture/work-fixture))
+        execution (native/execute-work! work)
+        nodes (native/evidence-nodes work execution)
+        measured (profile/profile-call #(native/execute-work-with-evidence! work))
+        combined (:value measured)]
+    (is (= execution (:execution combined)))
+    (is (= (mapv :extensions nodes)
+           (mapv :extensions (:forensic-evidence-nodes combined))))
+    (is (= 1 (get-in measured [:runtime/profile :stages [:executor :work-binding-validation] :calls])))
+    (is (= 1 (get-in measured [:runtime/profile :stages [:executor :execution-validation] :calls])))
+    (is (= 1 (get-in measured [:runtime/profile :stages [:executor-evidence :forensic-evidence] :calls])))
+    (is (= 0 (get-in measured [:runtime/profile :stages [:executor-evidence :work-binding-validation] :calls] 0)))
+    (is (= 0 (get-in measured [:runtime/profile :stages [:executor-evidence :selected-implementation-recomputation] :calls] 0)))
+    (is (= 0 (get-in measured [:runtime/profile :stages [:executor-evidence :partition-arithmetic-recomputation] :calls] 0)))) )
 
 (deftest cancelled-account-cannot-become-zero-or-complete
   (let [{:keys [basis fixtures]} (account-fixtures)

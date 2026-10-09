@@ -295,8 +295,7 @@
       (validate-execution-after-work-validation work result))))
 
 (defn execution-root [result] (get-in result [:run-evidence :research-native-accounting-run/root]))
-(defn evidence-nodes [work result]
-  (validate-execution work result)
+(defn- evidence-nodes-after-execution-validation [work result]
   (let [run-node (forensic/build-forensic-evidence-node
                   {:subject {:subject/kind :accounting/native-execution :subject/root (execution-root result)}
                    :role :observed :visibility :restricted
@@ -335,3 +334,18 @@
                           :causal-parent-roots [(get-in result [:accounting-partial :accounting-partial-result/root])]
                           :consequence? true})]
       [run-node validation-node assured-node partial-node semantic-node])))
+
+(defn evidence-nodes [work result]
+  (validate-execution work result)
+  (evidence-nodes-after-execution-validation work result))
+
+(defn execute-work-with-evidence!
+  "Execute and validate native accounting work once, then derive its forensic
+   nodes from that just-validated result. The returned execution and node
+   artifacts are the same as `execute-work!` plus `evidence-nodes`; this only
+   avoids revalidating a value that never left this process."
+  [work]
+  (let [execution (execute-work! work)]
+    {:execution execution
+     :forensic-evidence-nodes
+     (evidence-nodes-after-execution-validation work execution)}))

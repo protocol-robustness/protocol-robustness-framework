@@ -623,27 +623,34 @@ both carried the same result-root vector.
 
 ## Avoiding duplicate work-binding validation
 
-The profile exposed two redundant full `valid-work?` walks: the runner checked
+The profile exposed redundant work at two boundaries. First, the runner checked
 work before execution and then checked it again while validating its freshly
-derived execution; coordinator admission checked work and then called the public
-execution validator, which checked that same stored work again. The runner now
-performs one complete work-binding validation before computation, while still
-recomputing and validating the result/evidence. Coordinator delivery likewise
-relies on the public validator for its one complete work-binding check. This
-does not remove or weaken arithmetic validation, fixed validation, assignment
-binding, result reconstruction, or reconciliation.
+derived result. Second, after that complete result validation, it called the
+public forensic-node builder, which validated the execution and recomputed its
+arithmetic yet again. Coordinator admission also checked work before calling the
+public execution validator, which repeated that work check. The runner now has a
+combined execute-and-evidence path: it validates work before computation,
+recomputes/validates the result as before, then derives forensic nodes from that
+just-validated in-process result. The public `evidence-nodes` API remains strict
+for supplied artifacts. Coordinator delivery relies on its public validator for
+one complete work-binding check. This does not remove or weaken the fixed
+validation floor, assignment binding, the existing same-implementation result
+recomputation, result reconstruction, or reconciliation.
 
-Focused profiling assertions now require one work-binding validation in local
-execution and one at coordinator admission per delivered assignment. The
-work/execution, batch/admission, and runner-transport suites passed 51 tests and
-301 assertions; the native accounting process-kill/restart suite passed 8 tests
-and 38 assertions. Changed namespaces linted with zero warnings/errors. A targeted
-post-change run of the four-account, 200-row, four-partition, four-runner case
-measured 16.00 s median end-to-end with durable local journals and matching
-canonical roots. This is not a valid before/after speedup claim: it was run in a
-separate invocation with a different coordinate matrix/order, and its serial
-control was also faster than in the earlier sweep. The structural reduction in
-validation calls is established; its isolated latency effect remains unmeasured.
+Focused profiling assertions require one work-binding validation before local
+execution, one result/evidence recomputation during validation, and no extra
+work/arithmetic validation in forensic-node derivation. Coordinator admission
+per delivered assignment performs one work-binding validation. The work,
+batch/admission, transport, and process-kill/restart suites passed 61 tests and
+354 assertions; after the final two zero-recomputation assertions were added,
+the batch suite passed again with 16 tests and 111 assertions. Changed
+namespaces linted with zero warnings/errors. A targeted post-change run
+of the four-account, 200-row, four-partition, four-runner case measured 16.00 s
+with durable local journals and matching canonical roots. This is not a valid
+before/after speedup claim: it was run in a separate invocation with a different
+coordinate matrix/order, and its serial control was also faster than in the
+earlier sweep. The structural reduction in repeated checks is established; its
+isolated latency effect remains unmeasured.
 
 Moving arithmetic assurance off the coordinator remains a separate next step:
 V1 native validation still means same-implementation recomputation, and V1
