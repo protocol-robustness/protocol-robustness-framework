@@ -21,10 +21,7 @@
   "Coerce a value to a non-negative bigint; nil becomes 0 and fractional or
    negative-hostile values fail explicitly."
   [x]
-  (let [x (or x 0)]
-    (if (integer? x)
-      (max 0 (bigint x))
-      (throw (ex-info "Expected an integer amount" {:value x})))))
+  (allocation-kernel/non-negative-integer x))
 
 (def ^:dynamic *pro-rata-parallelism*
   "Runtime-only claimant worker budget. It is deliberately absent from every

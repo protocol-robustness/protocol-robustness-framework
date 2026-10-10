@@ -1,6 +1,15 @@
 (ns prf.pro-rata.kernel
   "Pure exact-integer quota allocation kernel shared by PRF adapters.")
 
+(defn non-negative-integer
+  "Coerce a value to a non-negative bigint; nil becomes 0 and fractional or
+   negative-hostile values fail explicitly."
+  [x]
+  (let [x (or x 0)]
+    (if (integer? x)
+      (max 0 (bigint x))
+      (throw (ex-info "Expected an integer amount" {:value x})))))
+
 (defn pro-rata-requests
   [amount prepared total-weight rounding ordering-policy]
   (let [floors (mapv (fn [{:keys [weight]}]
