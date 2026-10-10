@@ -27,7 +27,9 @@ PRF/
 │       ├── redistribution.clj      active-set cap redistribution
 │       ├── identity.clj, runtime.clj package roots and serial adapter
 │       └── witness.clj, result.clj, policy.clj
-│   └── test/                        package conformance runner (vectors still external)
+│   └── test/
+│       ├── fixtures/                pinned allocation vector and byte subset
+│       └── prf/pro_rata/            package conformance runner
 ├── src/resolver_sim/pro_rata/       PRF runtime/hash adapters; further domain code
 ├── src/resolver_sim/allocation/     realized statement and lifecycle coupling
 ├── pro_rata_contract_src/           independent frozen reference; shared effects
@@ -140,22 +142,30 @@ the allocation API.
 
 ## Conformance ownership and release gates
 
-The package runner verifies the portable release manifest and runs vectors from
-a caller-supplied fixture root. The normative vectors and byte files remain at
-their current repository paths until the package is physically released. Keep
-host behavior under separate integration coverage.
+The package runner uses a pinned copy of the allocation-specific vectors and
+result bytes. Each file digest and the fixture manifest digest are checked; the
+fixture manifest records the existing portable release root
+`b863e04a61d0dded845dc3351626ebf57c4d5abea7e18ea19a89cacf4b1ad12a`, which is
+unchanged. Run from `packages/pro-rata-allocation/clj` with
+`clojure -M:conformance`; an alternate fixture root may be passed for comparison.
+The aggregate portable contract keeps its generic transition fixtures at their
+existing location and ownership.
 
 | Current material | Proposed destination and constraint |
 |---|---|
 | `portable-pro-rata-contract/vectors/` allocation vectors and matching allocation-result canonical bytes | `pro-rata-allocation`; preserve bytes/roots, negative cases, row order and rounding/redistribution policies |
 | Portable allocation reference in `pro_rata_contract_src/.../contract.clj` | Independent allocation reference owned by pro-rata; separate its generic effects/transition material deliberately |
-| `packages/pro-rata-allocation/clj/test/prf/pro_rata/conformance_runner.clj` and `clojure -M:conformance <fixture-root>` | Package-owned portable release manifest, root, byte, and request-root checks; PRF wrapper parity remains integration coverage |
+| `packages/pro-rata-allocation/clj/test/prf/pro_rata/conformance_runner.clj` and the package `test/fixtures/` bundle | Package-owned allocation roots, canonical bytes, pinned fixture integrity, and request-rejection cases; PRF wrapper parity remains integration coverage |
 | Allocation/pro-rata characterization tests | Semantic arithmetic cases travel with pro-rata; executor, progress and realization cases stay with host adapters |
 | `resources/test-vectors/pro-rata/policy-outcome-conformance-v1.edn` | Pro-rata policy/outcome contract; implementation is still host-located beyond the extracted policy basis |
 | `coprocessor/core/tests/realized_statement_conformance.rs`, statement fixtures and corresponding Clojure tests | Pro-rata realized-statement profile; preserve explicit context/lifecycle adapters |
 | Source-bound entitlement vectors and Rust/SP1 materializer | Capital-lifecycle owns entitlement projection conformance; preserve mixed source-bound cases as explicit Shortfall/allocation/lifecycle integration coverage. Fixture location does not confer semantic ownership on SP1/deployment |
 | Solidity execution/admission/custody tests | Companion integration coverage for the relevant projection and lifecycle profile; not primitive allocation SHA-256 equivalence by itself |
 
+The negative allocation vector contains two request mutations and four result
+projection mutations. The package runner exercises both request rejections.
+The package has no external-result verifier API, so the four result mutation
+cases remain an explicit conformance gap instead of being counted as passed.
 The registry correctly marks the primitive request/result/policy Rust
 implementations missing. Rust realized-fill/statement code implements a different
 profile; it does not establish support for the complete public primitive
@@ -168,8 +178,9 @@ Minimum gates before an independently consumable release:
 
 1. Pin the qualified package version when a release artifact exists; preserve
    wrapper/integration parity while replacing the local dependency.
-2. Extend the runner to negative admission/policy cases and move the pinned fixture
-   bundle with the package without changing its frozen release root.
+2. Add an allocation-owned result verifier only if that contract belongs in the
+   public package; otherwise retain result-mutation checks at the relevant
+   implementation boundary.
 3. Package and qualify each additional artifact profile separately. Establish
    matching supported Rust coverage and companion conformance where required.
    Keep missing implementations and profile restrictions explicit.
@@ -189,15 +200,16 @@ baseline, not release guarantees.
 
 | Next slice | Estimated passes |
 |---|---:|
-| Explicit PRF package dependency + consumer parity | 1–2 |
-| Extend negative conformance and bundle pinned fixtures with the package | 1–2 |
-| Separate/pin allocation reference, specs and vectors from shared effects | 1–2 |
+| Extract allocation-owned spec/reference from mixed portable contract material | 1–2 |
+| Add external allocation-result verification, if the public package contract requires it | 1–2 |
+| Qualify and publish a versioned allocation package artifact | 2–3 |
 | Policy/outcome and evaluation artifact extraction | 2–3 |
 | Realized allocation statement Clojure/Rust extraction with context/lifecycle adapters | 3–5 |
 | Capital-lifecycle extraction with allocation-neutral inputs | 4–7 |
 
-The public adapter and positive-vector runner are now in place. The first two
-remaining slices prepare the Clojure primitive for independent release. Rust implementation of the missing primitive profile and completion
-of unimplemented production lifecycle semantics are additional work. Each slice
-can leave PRF usable through compatibility adapters; physical repository splits
-and release operations follow qualification rather than preceding it.
+The public adapter, explicit PRF local dependency, pinned allocation fixture
+bundle, and positive plus request-negative runner are now in place. Rust
+implementation of the missing primitive profile and completion of unimplemented
+production lifecycle semantics are additional work. Each slice can leave PRF
+usable through compatibility adapters; physical repository splits and release
+operations follow qualification rather than preceding it.

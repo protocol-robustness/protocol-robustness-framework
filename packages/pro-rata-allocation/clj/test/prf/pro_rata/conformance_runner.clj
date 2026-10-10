@@ -1,16 +1,21 @@
 (ns prf.pro-rata.conformance-runner
-  "Standalone runner for frozen portable allocation roots and canonical bytes."
+  "Standalone runner for frozen allocation roots, bytes, and request admission."
   (:require [clojure.edn :as edn]
             [clojure.string :as str]
             [clojure.java.io :as io]
             [clojure.test :as test :refer [deftest]]
             [prf.canonical.codec :as codec]
-            [prf.canonical.hash :as canonical-hash]
             [prf.pro-rata.api :as api]
             [prf.pro-rata.identity :as identity]
             [prf.pro-rata.result :as result]))
 
 (def ^:dynamic *fixture-root* nil)
+
+(def ^:private portable-release-root
+  "b863e04a61d0dded845dc3351626ebf57c4d5abea7e18ea19a89cacf4b1ad12a")
+
+(def ^:private allocation-fixture-manifest-sha256
+  "7d47f0f7e7692bf29646ca073450b2e38dd110c38e8282e618cb4083e5ce695a")
 
 (defn- sha256-hex [^bytes bytes]
   (let [digest (.digest (java.security.MessageDigest/getInstance "SHA-256") bytes)]
@@ -19,17 +24,19 @@
 (defn- fixture-edn [root relative-path]
   (edn/read-string (slurp (io/file root relative-path))))
 
-(deftest portable-release-manifest-is-intact
-  (let [manifest (fixture-edn *fixture-root* "manifest.edn")]
+(deftest allocation-fixture-bundle-is-intact
+  (let [manifest-bytes (java.nio.file.Files/readAllBytes
+                        (.toPath (io/file *fixture-root* "allocation-fixtures.v1.edn")))
+        manifest (edn/read-string (String. manifest-bytes java.nio.charset.StandardCharsets/UTF_8))]
+    (test/is (= allocation-fixture-manifest-sha256 (sha256-hex manifest-bytes))
+             "package allocation fixture manifest digest")
+    (test/is (= portable-release-root (:source-release-root manifest))
+             "source portable release root is unchanged")
     (doseq [{:keys [path sha256]} (:files manifest)]
       (let [bytes (java.nio.file.Files/readAllBytes
                    (.toPath (io/file *fixture-root* path)))]
         (test/is (= sha256 (sha256-hex bytes)) (str "file digest: " path))))
-    (test/is (= (:portable-contract/release-root manifest)
-                (canonical-hash/hash-with-domain
-                 "PORTABLE_PRO_RATA_CONTRACT_RELEASE_V1"
-                 (dissoc manifest :portable-contract/release-root)))
-             "portable release root")))
+    (test/is (seq (:files manifest)) "allocation fixtures are registered")))
 
 (deftest allocation-vectors-match-frozen-roots-and-bytes
   (let [vector-dir (io/file *fixture-root* "vectors")
@@ -52,9 +59,26 @@
                       (identity/request-root (:canonical-request allocation)))
                    (str "request root: " (.getName file))))))))
 
+(deftest negative-allocation-requests-are-rejected
+  (let [negative (fixture-edn *fixture-root* "vectors/negative-allocation-001.edn")
+        basis (fixture-edn *fixture-root* "vectors/cap-clamping-001.edn")
+        expected-reasons {:duplicate-row-identity :duplicate-allocation-row-id
+                          :policy-substitution :unsupported-tie-break-policy}
+        request-mutations (filter :request (:mutations negative))]
+    (test/is (= (count expected-reasons) (count request-mutations))
+             "all currently supported negative request mutations are covered")
+    (doseq [{:keys [mutation/id request]} request-mutations]
+      (let [outcome (try
+                      (api/allocate (merge (:request basis) request))
+                      nil
+                      (catch clojure.lang.ExceptionInfo error
+                        (:reason (ex-data error))))]
+        (test/is (= (get expected-reasons id) outcome)
+                 (str "negative request rejected: " id))))))
+
 (defn -main
   [& [fixture-root]]
-  (let [fixture-root (io/file (or fixture-root "../../../portable-pro-rata-contract"))]
+  (let [fixture-root (io/file (or fixture-root "test/fixtures/portable-pro-rata-contract"))]
     (when-not (.isDirectory fixture-root)
       (throw (ex-info "Portable contract fixture directory not found"
                       {:fixture-root (.getPath fixture-root)})))
