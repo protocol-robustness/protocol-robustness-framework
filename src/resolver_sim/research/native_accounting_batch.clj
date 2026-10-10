@@ -215,6 +215,11 @@
            (map (fn [[runner groups]]
                   [runner (reduce + 0 (map #(- (:finished-ns %) (:started-ns %)) groups))]))
            per-runner)
+     :dispatch/per-runner-finish-tail-ns
+     (into (sorted-map)
+           (map (fn [[runner groups]]
+                  [runner (- end (apply max (map :finished-ns groups)))]))
+           per-runner)
      :dispatch/idle-capacity-ns (max 0 (- (* capacity wall) busy))
      :dispatch/utilization-permille (if (pos? (* capacity wall))
                                       (quot (* 1000 busy) (* capacity wall)) 0)
@@ -244,14 +249,13 @@
           (if (and (empty? pending) (empty? running))
             {:outcomes (vec (sort-by :accounting-work-unit/root results))
              :profile (dispatch-profile @intervals capacity)}
-            (if-let [[index route]
+            (if-let [[_ route]
                      (when (< (count running) capacity)
                        (first (keep-indexed
                                (fn [i item]
                                  (when-let [route (available-route item active per-runner assignment-allowed?)]
                                    [i route])) pending)))]
-              (let [item (nth pending index)
-                    selected (->> pending
+              (let [selected (->> pending
                                   (filter #(some (fn [candidate-route]
                                                    (and (= (get-in route [:participation :runner/reference])
                                                            (get-in candidate-route [:participation :runner/reference]))
@@ -267,7 +271,7 @@
                                (finally
                                  (swap! intervals conj {:started-ns started
                                                         :finished-ns (System/nanoTime)
-                                                        :runner-root (runner-root item)
+                                                        :runner-root (runner-root (first selected))
                                                         :work-unit-count (count selected)})))))
                     submitted (.submit completion ^Callable (reify Callable (call [_] (task))))
                     runner (get-in route [:participation :runner/reference])]

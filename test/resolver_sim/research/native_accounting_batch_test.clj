@@ -90,6 +90,24 @@
         (doseq [runner runners] (transport/stop-runner! runner))
         (transport/stop-coordinator! coordinator)))))
 
+(deftest scheduling-diagnostic-design-is-explicit-and-counterbalanced
+  (is (= [10 10 10 10] (performance/scheduling-layout :homogeneous 2 4 10)))
+  (is (= [40 10 40 10] (performance/scheduling-layout :skewed 2 4 10)))
+  (is (= [80 10 10 10] (performance/scheduling-layout :long-tail 2 4 10)))
+  (is (thrown? clojure.lang.ExceptionInfo (performance/scheduling-layout :unknown 2 4 10)))
+  (is (thrown? clojure.lang.ExceptionInfo (performance/scheduling-layout :skewed 5 4 10)))
+  (let [orders (map performance/scheduling-order (range 6))]
+    (is (= 6 (count (set orders))))
+    (doseq [position (range 3)]
+      (is (= {:serial 2 :fixed 2 :pull 2}
+             (frequencies (map #(nth % position) orders))))))
+  (let [p (#'batch/dispatch-profile
+            [{:runner-root :a :started-ns 0 :finished-ns 10 :work-unit-count 1}
+             {:runner-root :b :started-ns 0 :finished-ns 30 :work-unit-count 1}] 2)]
+    (is (= {:a 20 :b 0} (:dispatch/per-runner-finish-tail-ns p)))
+    (is (= 20 (:dispatch/idle-capacity-ns p)))
+    (is (= 2 (:dispatch/max-concurrent-groups p)))))
+
 (deftest pull-dispatch-reassigns-only-pending-rooted-work-and-preserves-accounting-roots
   (let [{:keys [basis fixtures]} (account-fixtures)
         participants (mapv #(-> (fixture/work-fixture 100 % {:account-basis basis}) :participant)
@@ -129,6 +147,11 @@
             expected-runner-roots (set (map :runner/reference participants))]
         (is (= :complete (:accounting/batch-status result)))
         (is (= expected-runner-roots assigned-runner-roots))
+        (is (= assigned-runner-roots
+               (set (keys (get-in result [:runtime/dispatch-profile :dispatch/per-runner-call-time-ns]))))
+            "pull occupancy is attributed to actual execution runners, not frozen initial assignments")
+        (is (= assigned-runner-roots
+               (set (keys (get-in result [:runtime/dispatch-profile :dispatch/per-runner-finish-tail-ns])))))
         (is (= 4 (count admitted)) "each rooted account unit is admitted once")
         (is (= expected-results (semantic-results result)))
         (is (= 4 (get-in result [:runtime/dispatch-profile :dispatch/work-unit-count])))

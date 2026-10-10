@@ -47,6 +47,12 @@
      :benchmark/status :experimental
      :benchmark/status-updated "2026-07-13"}
 
+   {:benchmark/id :benchmark/prf-yield-partial-fill-v1
+     :benchmark/domain :domain/protocol-value-conservation
+     :benchmark/file "yield-partial-fill-v1.edn"
+     :benchmark/status :experimental
+     :benchmark/status-updated "2026-10-10"}
+
    {:benchmark/id :benchmark/force-authorisation-custody-v1
      :benchmark/domain :domain/protocol-value-conservation
      :benchmark/file "force-authorisation-custody-v1.edn"

@@ -100,6 +100,22 @@
           (is (contains? packs :pack/sew) "Sew pack must be present")
           (is (contains? packs :pack/prf-core) "PRF core pack must be present"))))))
 
+(deftest yield-partial-fill-v1-is-additive-coverage-not-a-performance-claim
+  (let [v0 (rp/edn-read "benchmarks/packs/prf-core/yield-partial-fill-v0.edn")
+        v1 (rp/edn-read "benchmarks/packs/prf-core/yield-partial-fill-v1.edn")
+        ids (mapv :scenario/id (:benchmark/scenarios v1))]
+    (is (= :benchmark/prf-yield-partial-fill-v0 (:benchmark/id v0)))
+    (is (= ["Y06_multi-party-pro-rata-shortfall"
+            "Y07_adversarial-shortfall-exploit"]
+           (mapv :scenario/id (:benchmark/scenarios v0))))
+    (is (= :benchmark/prf-yield-partial-fill-v1 (:benchmark/id v1)))
+    (is (= 1 (:benchmark/version v1)))
+    (is (= 9 (count ids)))
+    (is (= (set ids) (set (map #(subs % (count "scenarios/edn/") (- (count %) 4))
+                              (suites/suite-paths :suite/yield-partial-fill-v1))))
+        "Pack declarations and rooted suite identify the same existing scenarios")
+    (is (re-find #"not a throughput workload" (:benchmark/scenario-suite-description v1)))))
+
 (def bounded-candidates
   "Benchmarks with small suites selected for bounded end-to-end execution.
    Selected from the Sew pack because the runner's default SewAdapter handles

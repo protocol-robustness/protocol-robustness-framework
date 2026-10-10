@@ -65,6 +65,17 @@ OVERLAP WARNING:
    "Y13_all-caps-residual-liquidity"
    "Y14_round-two-shared-liquidity"])
 
+(def ^:private yield-partial-fill-v1-scenario-ids
+  ["Y06_multi-party-pro-rata-shortfall"
+   "Y07_adversarial-shortfall-exploit"
+   "Y08_optimal-strategy-load-stress"
+   "Y09_shared-pool-zero-liquidity-pro-rata"
+   "Y10_shared-pool-largest-remainder-pro-rata"
+   "Y11_cap-constrained-pro-rata-redistribution"
+   "Y12_cascading-cap-redistribution"
+   "Y13_all-caps-residual-liquidity"
+   "Y14_round-two-shared-liquidity"])
+
 (def ^:private dispute-resolution-scenario-ids
   ["S-DR-001-basic-release-ruling"
    "S-DR-002-basic-refund-ruling"
@@ -337,6 +348,15 @@ OVERLAP WARNING:
     :title        "Yield provider benchmark suite"
     :description  "Standalone yield-v1 provider scenarios for partial-fill
        benchmark evaluation. Used by the yield-partial-fill-v0 benchmark pack."
+    :kind         :file-path-suite
+    :ci-tier      :provider}
+   :suite/yield-partial-fill-v1
+   {:scenario-ids yield-partial-fill-v1-scenario-ids
+    :protocol-id  "yield-v1"
+    :title        "Yield partial-fill benchmark suite v1"
+    :description  "Expanded partial-fill coverage for adversarial ordering,
+       zero liquidity, rounding, redistribution caps, residuals, and round-two
+       lineage. Used by the yield-partial-fill-v1 benchmark pack."
     :kind         :file-path-suite
     :ci-tier      :provider}})
 

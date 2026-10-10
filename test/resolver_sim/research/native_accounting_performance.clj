@@ -422,7 +422,70 @@
                                  :pull/end-to-end-ns (:end-to-end-ns warmup-pull)}
             :measurement/samples samples}))))
 
+(defn scheduling-layout
+  "Explicit synthetic source counts; no simulated sleeps or supplied results."
+  [distribution workers accounts rows]
+  (when-not (and (every? pos-int? [workers accounts rows])
+                 (<= workers accounts)
+                 (#{:homogeneous :skewed :long-tail} distribution))
+    (throw (ex-info "Invalid scheduling diagnostic dimensions" {})))
+  (mapv (fn [i]
+          (case distribution
+            :homogeneous rows
+            :skewed (if (zero? (mod i workers)) (* 4 rows) rows)
+            :long-tail (if (zero? i) (* 8 rows) rows)))
+        (range accounts)))
+
+(defn scheduling-order [repetition]
+  (nth [[:serial :fixed :pull] [:pull :serial :fixed] [:fixed :pull :serial]
+        [:pull :fixed :serial] [:fixed :serial :pull] [:serial :pull :fixed]]
+       (mod repetition 6)))
+
+(defn- scheduling-main [workers accounts rows repetitions]
+  (let [[workers accounts rows repetitions] (mapv parse-long [workers accounts rows repetitions])]
+    (when-not (pos-int? repetitions)
+      (throw (ex-info "Scheduling repetitions must be positive" {})))
+    (try
+      (prn
+        {:research/measurement :native-accounting-scheduling-diagnostic.v1
+         :measurement/canonical? false
+         :measurement/workload :synthetic-source-rows-real-native-accounting
+         :measurement/instrumented? false
+         :measurement/worker-capacity workers
+         :measurement/durable? (= "1" (System/getenv "PRF_ACCOUNTING_PERFORMANCE_DURABLE"))
+         :measurement/distributions
+         (mapv
+           (fn [distribution]
+             (let [counts (scheduling-layout distribution workers accounts rows)
+                   ;; Identical frozen input across warmup, repetitions and policies.
+                   cutpoint 980000000
+                   run (fn [mode]
+                         (if (= :serial mode)
+                           (serial-sample accounts counts cutpoint)
+                           (local-sample accounts counts 1 cutpoint workers mode)))
+                   warmup (into {} (map (fn [mode] [mode (run mode)])) [:serial :fixed :pull])
+                   expected (:canonical-result-roots (:serial warmup))
+                   checked (fn [sample]
+                             (when (and (not= :serial (:mode sample))
+                                        (not= workers (:actual-worker-count sample)))
+                               (throw (ex-info "Scheduling diagnostic did not start matched capacity" {})))
+                             (when-not (= expected (:canonical-result-roots sample))
+                               (throw (ex-info "Scheduling changed canonical accounting roots"
+                                               {:distribution distribution :mode (:mode sample)})))
+                             sample)]
+               (doseq [sample (vals warmup)] (checked sample))
+               {:distribution distribution :account-source-counts counts
+                :samples
+                (mapv (fn [rep]
+                        (let [order (scheduling-order rep)]
+                          {:repetition rep :execution-order order
+                           :policies (into {} (map (fn [mode] [mode (checked (run mode))])) order)}))
+                      (range repetitions))}))
+           [:homogeneous :skewed :long-tail])})
+      (finally (shutdown-agents)))))
+
 (defn -main [& args]
-  (if (= "--skew" (first args))
-    (apply skew-main (rest args))
+  (case (first args)
+    "--skew" (apply skew-main (rest args))
+    "--scheduling" (apply scheduling-main (rest args))
     (apply standard-main args)))

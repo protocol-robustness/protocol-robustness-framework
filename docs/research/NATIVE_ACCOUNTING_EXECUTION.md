@@ -19,6 +19,43 @@ identity; no inference about its owner, custody, authority or economic truth is
 made. Domain, cutpoint, definition, policy and exact source rows are retained.
 Equal category names on different accounts therefore do not merge balances.
 
+## Partial-fill accounting source projection
+
+`resolver-sim.benchmark.packs.partial-fill.accounting-projection` provides a
+separately rooted `partial-fill-accounting-source-map.v1` bridge from a verified
+partial-fill application evidence profile to native accounting source rows.
+The bridge verifies the profile against supplied application-evidence inputs,
+requires its propagation and accounting reconciliation checks to pass, and
+binds the exact canonical application output root.
+
+Each output accounting entry must have an explicit mapping to an
+`accounting/subject-root` and a valid `claim-to-relation.v1`. Participant,
+obligation, account, and token identifiers are not promoted into roots by
+hashing. The map must cover every canonical output entry exactly once. Its
+derived source rows preserve debit/credit category and signed integer delta;
+source identities bind the map and exact output entry. Link the map to the
+accounting request/source rows in the generic forensic evidence graph so the
+upstream application lineage remains discoverable.
+
+Claim-to generation for yield accounting is deferred. A participant credit
+could later reference a genuine canonical participant claim, once that claim
+artifact exists. The pool-side debit is a funding movement: it is not a
+claimant and must not be represented as either an individual or aggregate
+claim. The current source-map adapter accepts only explicitly supplied rooted
+relations and does not derive them from participant/obligation IDs. Because
+`accounting-request.v1` currently requires `claim-to/root` on every source, it
+cannot yet represent a complete yield-accounting source set containing that
+debit without a false relation. Do not fabricate one; authoritative canonical
+claim artifacts and a compatible representation for non-claim movements are
+dependencies for a later slice. This is a deferred accounting-data dependency,
+not a Gate E or protected-capital priority change.
+
+This is an identity/provenance seam, not a performance result. The
+`yield-partial-fill-v1` pack is edge-case coverage; it does not create a large
+accounting workload or establish that parallel execution beats serial
+execution. A realistic benchmark still needs validated application outputs
+with authoritative subject and claim-to bindings.
+
 Each account request can have multiple existing `accounting-work-unit.v1`
 partitions. A native work envelope must identify exactly one unit in its frozen
 exact-coverage plan, and that unit must contain sources for exactly one account.
@@ -866,3 +903,50 @@ PRF_ACCOUNTING_PERFORMANCE_DURABLE=1 \
   clojure -M:test -m resolver-sim.research.native-accounting-performance \
   --skew 4 16 4 1000 10 3
 ```
+### Frozen-grain scheduling diagnostic
+
+The existing pending-unit pull dispatcher is the reference implementation for
+this investigation; no new scheduler, lease, reassignment protocol or dynamic
+partitioning is introduced. It assigns only unstarted whole-account units to
+eligible routes. It is least-active scheduling, **not cost-aware stealing**.
+
+Run a small counterbalanced diagnostic with actual local HTTP runners and
+durable journals:
+
+```sh
+PRF_ACCOUNTING_PERFORMANCE_DURABLE=1 \
+clojure -M:test -m resolver-sim.research.native-accounting-performance \
+  --scheduling 2 4 10 6
+```
+
+Arguments are workers, accounts, baseline rows/account and repetitions. Three
+explicit synthetic source distributions exercise real native accounting:
+homogeneous, heavy accounts clustered on one initial runner, and one long-tail
+account. Each account remains one immutable semantic work unit. All policies
+and repetitions use the same frozen cutpoint/input and must match the serial
+canonical account-result roots. One warmup precedes measurement; six execution
+orders counterbalance serial/fixed/pull position. No timing profiler is used.
+Serial is direct execution, not a durability-equivalent runner baseline.
+
+Dispatch occupancy measures send-to-response time, including transport,
+validation and persistence, **not CPU utilization**. Per-runner finish tail is
+the interval from that runner's last dispatch completion to the global last
+completion; it excludes never-used runners (aggregate idle capacity includes
+unused capacity). Pull attribution now uses the actually selected runner rather
+than the original assignment runner. Earlier aggregate occupancy calculations
+were unaffected, but earlier per-runner attribution should not be relied on.
+
+This is a scheduler diagnostic, not a substantive scenario benchmark or proof
+of speedup. A cost model, remote word-level tasks and accepted-work stealing
+remain deferred. Use measured skew and protocol costs to justify any further
+scheduler changes, rather than increasing partition count to seek a gain.
+
+Initial exploratory run (2 local HTTP workers, 4 accounts, 10 baseline rows,
+durable journals, 6 repetitions) preserved canonical roots throughout. Median
+end-to-end milliseconds for serial / fixed / pull were: homogeneous
+321 / 1156 / 1171; skewed 400 / 1372 / 1354; long-tail 409 / 1361 / 1474.
+This does not establish a pull speedup. Tests briefly overlapped the beginning
+of the diagnostic, so these are exploratory numbers, not isolated performance
+qualification. No remote host, CPU-utilization, scaling or realistic scenario
+speedup claim follows from this run.
+
