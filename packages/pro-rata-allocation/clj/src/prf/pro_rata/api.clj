@@ -2,6 +2,7 @@
   "Package-owned allocation flow with runtime and hashing supplied by adapters."
   (:require [prf.pro-rata.request :as request]
             [prf.pro-rata.result :as result]
+            [prf.pro-rata.runtime :as runtime]
             [prf.pro-rata.witness :as witness]))
 
 (defn- rounding-mode [policy]
@@ -18,33 +19,36 @@
                     {:reason :missing-allocation-adapter :adapter key}))))
 
 (defn allocate
-  "Run the package-owned allocation flow through explicit runtime adapters.
+  "Run allocation with package defaults or explicit host runtime adapters.
 
-   Adapters supply `:execute-allocation` (runtime execution), `:hash-request`
-   (canonical request identity), and `:hash-result` (result identity). The
-   semantic request, witness, and result shapes are owned here."
-  [public-request {:keys [execute-allocation hash-request hash-result] :as adapters}]
-  (doseq [key [:execute-allocation :hash-request :hash-result]]
-    (require-adapter-function! adapters key))
-  (let [normalized (request/normalize public-request)
-        {:keys [available rows rounding-policy redistribution-policy canonical-request]}
-        normalized
-        request-hash (hash-request canonical-request)
-        execution-request {:amount available
-                           :items rows
-                           :id-fn :row/id
-                           :weight-fn :weight
-                           :cap-fn :effective-cap
-                           :rounding (rounding-mode rounding-policy)
-                           :remainder-policy :unallocated
-                           :ordering-policy :canonical-id
-                           :on-progress (:on-progress public-request)
-                           :progress-atom (:progress-atom public-request)
+   One argument uses the package serial runtime and frozen PRF-compatible hash
+   identities. It accepts callback progress observers; a progress atom requires
+   the explicit host adapter arity. The two-argument form accepts
+   `:execute-allocation`, `:hash-request`, and `:hash-result` adapters."
+  ([public-request]
+   (allocate public-request (runtime/serial-adapters public-request)))
+  ([public-request {:keys [execute-allocation hash-request hash-result] :as adapters}]
+   (doseq [key [:execute-allocation :hash-request :hash-result]]
+     (require-adapter-function! adapters key))
+   (let [normalized (request/normalize public-request)
+         {:keys [available rows rounding-policy redistribution-policy canonical-request]}
+         normalized
+         request-hash (hash-request canonical-request)
+         execution-request {:amount available
+                            :items rows
+                            :id-fn :row/id
+                            :weight-fn :weight
+                            :cap-fn :effective-cap
+                            :rounding (rounding-mode rounding-policy)
+                            :remainder-policy :unallocated
+                            :ordering-policy :canonical-id
+                            :on-progress (:on-progress public-request)
+                            :progress-atom (:progress-atom public-request)
                            ;; Operational inputs are omitted from canonical-request.
-                           :parallelism (:parallelism public-request)
-                           :execution/quiescence-timeout-seconds
-                           (:execution/quiescence-timeout-seconds public-request)}
-        allocation (execute-allocation execution-request redistribution-policy)
-        allocation-witness (witness/witness-rows available rows rounding-policy redistribution-policy)
-        result-base (result/assemble normalized request-hash allocation allocation-witness)]
-    (assoc result-base :allocation/hash (hash-result (result/root-input result-base)))))
+                            :parallelism (:parallelism public-request)
+                            :execution/quiescence-timeout-seconds
+                            (:execution/quiescence-timeout-seconds public-request)}
+         allocation (execute-allocation execution-request redistribution-policy)
+         allocation-witness (witness/witness-rows available rows rounding-policy redistribution-policy)
+         result-base (result/assemble normalized request-hash allocation allocation-witness)]
+     (assoc result-base :allocation/hash (hash-result (result/root-input result-base))))))

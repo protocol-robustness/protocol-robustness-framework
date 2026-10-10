@@ -14,13 +14,11 @@
    pro-rata namespaces must never depend on protocol, runner, research,
    application, or generic-economics allocator namespaces."
   (:require [resolver-sim.execution.realization :as realization]
-            [resolver-sim.hash.canonical :as hc]
             [resolver-sim.pro-rata.engine :as engine]
             [resolver-sim.pro-rata.redistribution :as redistribution]
-            [resolver-sim.pro-rata-contract.contract :as portable-contract]
             [prf.pro-rata.rows :as allocation-rows]
             [prf.pro-rata.api :as allocation-api]
-            [prf.pro-rata.policy :as allocation-policy]))
+            [prf.pro-rata.identity :as allocation-identity]))
 
 (defn allocate-pro-rata [request]
   (let [state (realization/open)]
@@ -38,9 +36,7 @@
   pro-rata allocation result. This is a read-only lineage projection: it does
   not alter the existing allocation result artifact or its root."
   [result]
-  (hc/hash-with-intent
-   {:hash/intent :pro-rata-allocation-policy}
-   (allocation-policy/identity-basis result)))
+  (allocation-identity/allocation-policy-root result))
 
 (defn canonical-id-key
   "A typed, byte-stable ordering key for identities.  `pr-str` is deliberately
@@ -83,8 +79,8 @@
   (allocation-api/allocate
    request
    {:execute-allocation execute-allocation
-    :hash-request #(hc/hash-with-intent {:hash/intent :projection-artifact} %)
-    :hash-result portable-contract/allocation-result-root}))
+    :hash-request allocation-identity/request-root
+    :hash-result allocation-identity/allocation-result-root}))
 
 (defn allocation-hash-valid?
   "Return true only when the persisted result hash commits to every witness
@@ -92,4 +88,4 @@
    (:allocation/fractional-remainder-total) are excluded from recomputation."
   [result]
   (= (:allocation/hash result)
-     (portable-contract/allocation-result-root result)))
+     (allocation-identity/allocation-result-root result)))

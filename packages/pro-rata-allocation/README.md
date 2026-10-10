@@ -1,8 +1,8 @@
 # Pro-rata allocation package boundary
 
 Status: independently loadable **Clojure source package**, consumed locally by
-PRF. It has no published version, package-owned conformance runner, Rust crate,
-or independently qualified release yet. The canonical registry remains proposed
+PRF. It has a package-owned positive-vector runner, but no published version,
+Rust crate, or independently qualified release yet. The canonical registry remains proposed
 and non-runtime. This review covers the extracted primitive; the wider pro-rata
 artifact family still needs extraction.
 
@@ -16,16 +16,18 @@ Current ownership and location:
 
 ```text
 PRF/
-├── packages/canonical/clj/          typed canonical codec
+├── packages/canonical/clj/          typed canonical codec + generic domain hashing
 ├── packages/pro-rata-allocation/clj/
 │   ├── deps.edn                    Clojure + explicit canonical local dependency
 │   └── src/prf/pro_rata/
-│       ├── api.clj                  normalized request → allocation/witness/result
+│       ├── api.clj                  public one-argument and adapter entry points
 │       ├── request.clj, rows.clj    validation and canonical row ordering
 │       ├── kernel.clj              normalization, quotas, largest remainder
 │       ├── single_pass.clj         allocation with explicit runtime callbacks
 │       ├── redistribution.clj      active-set cap redistribution
+│       ├── identity.clj, runtime.clj package roots and serial adapter
 │       └── witness.clj, result.clj, policy.clj
+│   └── test/                        package conformance runner (vectors still external)
 ├── src/resolver_sim/pro_rata/       PRF runtime/hash adapters; further domain code
 ├── src/resolver_sim/allocation/     realized statement and lifecycle coupling
 ├── pro_rata_contract_src/           independent frozen reference; shared effects
@@ -55,36 +57,43 @@ identities must remain distinct throughout extraction.
 
 ## Dependency closure and public adapters
 
-All nine `prf.pro-rata.*` namespaces require only other namespaces in this
-package or `prf.canonical.codec`; the codec has no PRF host dependencies. The
+All eleven `prf.pro-rata.*` namespaces require only package namespaces or the
+canonical package. `prf.canonical.codec` and `prf.canonical.hash` have no PRF
+host dependencies. The
 package `deps.edn` exposes only `src` and declares its sibling canonical package
 through `:local/root "../../canonical/clj"`. PRF currently adds both source roots
 to its main classpath. This proves a source dependency boundary; PRF has not yet
 switched to a pinned package dependency or release artifact.
 
-`prf.pro-rata.api/allocate` takes a public request and three adapters:
+`prf.pro-rata.api/allocate` has a default one-argument entry point and an
+adapter-taking arity:
 
-| Adapter | Required contract | Current PRF assembly |
+| Adapter | Required contract | Implementation |
 |---|---|---|
-| `:execute-allocation` | `(execution-request redistribution-policy)`; dispatches the supported policy to the package algorithm and returns its result | `src/resolver_sim/pro_rata/allocation.clj`, private `execute-allocation`; scoped PRF wrappers delegate to the package |
-| `:hash-request` | Commits the normalized canonical request with the frozen intent projection | PRF `hash-with-intent` using `:projection-artifact` |
-| `:hash-result` | Commits the projected result passed by the API | Portable `allocation-result-root`; its redundant projection preserves the same root |
+| `:execute-allocation` | `(execution-request redistribution-policy)`; dispatches to the selected semantic algorithm | Package serial runtime by default; PRF supplies its budgeted executor, progress, and realization scopes |
+| `:hash-request` | Commit normalized canonical request with the frozen projection-artifact intent | Package `identity/request-root`; PRF calls the same function |
+| `:hash-result` | Commit the result projection passed by the API | Package `identity/allocation-result-root`; PRF calls the same function |
+
+The default runtime is serial, preserves input and failure order, and delivers
+function progress callbacks while swallowing callback exceptions. A lone
+`:progress-atom` requires the explicit adapter arity because its reducer belongs
+to the host. The PRF runtime keeps dynamic parallelism, executor budgets,
+quiescence, atom progress, and realization completion.
 
 Request and result both use `PROJECTION_ARTIFACT_V1`, but their preimages differ:
 
-- Request: `{:intent :projection-artifact :artifact canonical-request}` under the
-  existing PRF intent projection.
+- Request: `{:intent :projection-artifact :artifact canonical-request}`.
 - Result: `prf.pro-rata.result/root-input`, without `:allocation/hash` or the
   diagnostic `:allocation/fractional-remainder-total`; there is no request-style
   intent envelope around the result.
-- Policy: `prf.pro-rata.policy/identity-basis` under
-  `PRO_RATA_ALLOCATION_POLICY_V1` through the PRF policy hash adapter.
+- Policy: `prf.pro-rata.policy/identity-basis` wrapped in its existing
+  `:pro-rata-allocation-policy` identity and hashed under
+  `PRO_RATA_ALLOCATION_POLICY_V1`.
 
 The frozen scheme is SHA-256 of domain UTF-8 bytes followed by typed canonical
 bytes. JSON serialization and EVM keccak commitments are different contracts.
-The package API accepts adapters explicitly; it does not certify their outputs.
-The independent reference and pinned bytes/roots are the conformance authority.
-Do not replace the PRF intent projection with a raw request hash during packaging.
+The default and PRF adapters share these package projections. The independent
+reference and pinned bytes/roots remain the conformance authority.
 
 `single-pass/allocate` and `redistribution/allocate` take an execution request
 and runtime callbacks:
@@ -100,44 +109,46 @@ and runtime callbacks:
 PRF owns executor budgets, dynamic binding conveyance, timeout/quiescence,
 realization completion, and progress delivery. The extracted algorithms own cap
 commitment, round progression, arithmetic, and output ordering. Runtime options
-and hooks remain excluded from canonical request identity. A production runtime
-adapter must preserve these contracts rather than copy the illustrative serial
-adapter below.
+and hooks remain excluded from canonical request identity. The PRF adapter supplies production executor and progress behavior.
 
-### Standalone arithmetic example
+### Standalone public API
 
 Run from `packages/pro-rata-allocation/clj`:
 
-```bash
-clojure -M -e '
-(require (quote [prf.pro-rata.redistribution :as allocation]))
-(let [runtime {:effective-claimant-parallelism (fn [& _] 1)
-               :ordered-detached-mapv (fn [_ _ f values] (mapv f values))
-               :report-progress! (fn [& _])}
-      result (allocation/allocate
-              {:amount 100
-               :items [{:id :a :weight 1 :cap 10}
-                       {:id :b :weight 1 :cap 40}
-                       {:id :c :weight 1}]}
-              runtime)]
-  (prn (mapv :allocated (:allocations result))))'
+```clojure
+(require '[prf.pro-rata.api :as allocation])
+
+(allocation/allocate
+ {:schema-version "pro-rata-allocation-request.v1"
+  :mechanism/version 1
+  :allocation/id :example/one
+  :available 100
+  :rows [{:row/id :row/a :obligation/id :ob/a :requested 100 :weight 1 :cap 10}
+         {:row/id :row/b :obligation/id :ob/b :requested 100 :weight 1 :cap 40}
+         {:row/id :row/c :obligation/id :ob/c :requested 100 :weight 1 :cap nil}]
+  :rounding-policy :largest-remainder
+  :tie-break-policy :canonical-row-id
+  :redistribution-policy :redistribute-cap-excess})
 ```
 
-Expected: `[10N 40N 50N]`. This example demonstrates package-only arithmetic;
-it supplies no progress observer, parallel execution, timeout enforcement,
-canonical public artifact hash, source assurance, or custody lifecycle.
+The call returns the normalized request, allocation witness, result identity and
+canonical SHA-256 root. The deterministic serial runtime supports an
+`:on-progress` function. Pass host adapters for progress atoms or parallel
+execution. Source binding, beneficiary consequences, and custody stay outside
+the allocation API.
 
 ## Conformance ownership and release gates
 
-Keep one authoritative set of frozen vectors at the existing paths until the
-package can run them independently. Move each set with the semantic contract it
-specifies; host behavior needs separate integration coverage.
+The package runner verifies the portable release manifest and runs vectors from
+a caller-supplied fixture root. The normative vectors and byte files remain at
+their current repository paths until the package is physically released. Keep
+host behavior under separate integration coverage.
 
 | Current material | Proposed destination and constraint |
 |---|---|
 | `portable-pro-rata-contract/vectors/` allocation vectors and matching allocation-result canonical bytes | `pro-rata-allocation`; preserve bytes/roots, negative cases, row order and rounding/redistribution policies |
 | Portable allocation reference in `pro_rata_contract_src/.../contract.clj` | Independent allocation reference owned by pro-rata; separate its generic effects/transition material deliberately |
-| `test/resolver_sim/pro_rata/portable_contract_vectors_test.clj` | Package conformance runner for primitive results; retain PRF wrapper parity assertions as integration coverage |
+| `packages/pro-rata-allocation/clj/test/prf/pro_rata/conformance_runner.clj` and `clojure -M:conformance <fixture-root>` | Package-owned portable release manifest, root, byte, and request-root checks; PRF wrapper parity remains integration coverage |
 | Allocation/pro-rata characterization tests | Semantic arithmetic cases travel with pro-rata; executor, progress and realization cases stay with host adapters |
 | `resources/test-vectors/pro-rata/policy-outcome-conformance-v1.edn` | Pro-rata policy/outcome contract; implementation is still host-located beyond the extracted policy basis |
 | `coprocessor/core/tests/realized_statement_conformance.rs`, statement fixtures and corresponding Clojure tests | Pro-rata realized-statement profile; preserve explicit context/lifecycle adapters |
@@ -147,18 +158,18 @@ specifies; host behavior needs separate integration coverage.
 The registry correctly marks the primitive request/result/policy Rust
 implementations missing. Rust realized-fill/statement code implements a different
 profile; it does not establish support for the complete public primitive
-request/result/witness format. Solidity support is profile-specific too. Do not
-promote the registry's partial conformance status from a Clojure package smoke.
+request/result/witness format. Solidity support is profile-specific too. The
+package runner provides positive frozen-vector evidence but does not complete
+negative admission, independent Rust, or Solidity profile conformance, so the
+registry conformance status remains `:partial`.
 
 Minimum gates before an independently consumable release:
 
-1. Assemble the public API with exact frozen request/result/policy hash adapters
-   and a documented supported runtime. Run with only declared package dependencies.
-2. Give that package its own runner for positive/negative allocation vectors,
-   canonical bytes, roots and policy cases. Keep the reference independent.
-3. Make PRF consume an explicit local package dependency, then a pinned version;
-   prove wrapper/integration parity before removing classpath source entries.
-4. Package and qualify each additional artifact profile separately. Establish
+1. Make PRF consume an explicit local package dependency, then a pinned version;
+   prove wrapper/integration parity before removing source entries from its classpath.
+2. Extend the runner to negative admission/policy cases and move the pinned fixture
+   bundle with the package without changing its frozen release root.
+3. Package and qualify each additional artifact profile separately. Establish
    matching supported Rust coverage and companion conformance where required.
    Keep missing implementations and profile restrictions explicit.
 
@@ -177,15 +188,15 @@ baseline, not release guarantees.
 
 | Next slice | Estimated passes |
 |---|---:|
-| Public adapter assembly + package-owned primitive conformance runner | 1–2 |
 | Explicit PRF package dependency + consumer parity | 1–2 |
+| Extend negative conformance and bundle pinned fixtures with the package | 1–2 |
 | Separate/pin allocation reference, specs and vectors from shared effects | 1–2 |
 | Policy/outcome and evaluation artifact extraction | 2–3 |
 | Realized allocation statement Clojure/Rust extraction with context/lifecycle adapters | 3–5 |
 | Capital-lifecycle extraction with allocation-neutral inputs | 4–7 |
 
-The first three slices prepare the existing Clojure primitive for independent
-consumption. Rust implementation of the missing primitive profile and completion
+The public adapter and positive-vector runner are now in place. The first two
+remaining slices prepare the Clojure primitive for independent release. Rust implementation of the missing primitive profile and completion
 of unimplemented production lifecycle semantics are additional work. Each slice
 can leave PRF usable through compatibility adapters; physical repository splits
 and release operations follow qualification rather than preceding it.
