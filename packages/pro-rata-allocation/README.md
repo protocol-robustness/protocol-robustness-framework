@@ -1,10 +1,12 @@
 # Pro-rata allocation package boundary
 
 Status: independently loadable **Clojure source package**, consumed locally by
-PRF. It has a package-owned conformance runner, but no published version,
-Rust crate, or independently qualified release yet. The canonical registry remains proposed
-and non-runtime. This review covers the extracted primitive; the wider pro-rata
-artifact family still needs extraction.
+PRF. A reproducible `0.1.0-rc.1` source bundle is available under `releases/`;
+it includes the canonical Clojure source dependency and its conformance
+fixtures. This is a qualified local candidate, not a remote registry release.
+The Rust primitive profile remains missing and the registry remains proposed
+and non-runtime. This review covers the extracted primitive; the wider
+pro-rata artifact family still needs extraction.
 
 Definitions and authority: [proposed registry](../../docs/architecture/canonical-artifacts/canonical-artifacts.v1.edn),
 [package-local V1 allocation profile](ALLOCATION_V1.md),
@@ -167,6 +169,13 @@ against the package API while the effects/transition oracle remains in the PRF
 contract source. This is test material only; the package runtime has no
 dependency on the PRF reference source.
 
+Rebuild the checked-in candidate archive from the PRF root with
+`python3 scripts/package_pro_rata_allocation.py`. The builder emits a stable
+gzip tarball and a SHA-256 sidecar in `packages/pro-rata-allocation/releases/`.
+After extraction, run `clojure -M:conformance` from
+`packages/pro-rata-allocation/clj`; the bundle contains the sibling canonical
+source needed by its local dependency declaration.
+
 | Current material | Proposed destination and constraint |
 |---|---|
 | `portable-pro-rata-contract/vectors/` allocation vectors and matching allocation-result canonical bytes | `pro-rata-allocation`; preserve bytes/roots, negative cases, row order and rounding/redistribution policies |
@@ -191,7 +200,8 @@ incomplete, so the registry conformance status remains `:partial`.
 
 Minimum gates before an independently consumable release:
 
-1. Pin the qualified package version when a release artifact exists; preserve
+1. Publish the checked local candidate to an agreed package repository once
+   canonical source has a stable dependency coordinate; preserve
    wrapper/integration parity while replacing the local dependency.
 2. Package and qualify each additional artifact profile separately. Establish
    matching supported Rust coverage and companion conformance where required.
