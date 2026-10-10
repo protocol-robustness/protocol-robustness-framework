@@ -75,6 +75,50 @@
         (test/is (true? (reference/verify-allocation-result request oracle))
                  (str "independent allocation self-verification: " (.getName file)))))))
 
+(defn- apply-result-mutation [allocation-result mutation-entry]
+  (let [mutation-id (:mutation/id mutation-entry)
+        mutation-result (:result mutation-entry)]
+    (case mutation-id
+      :canonical-row-order-disagreement
+      (let [rows-by-id (into {} (map (juxt :row/id identity) (:rows allocation-result)))]
+        (assoc allocation-result :rows (mapv rows-by-id (:rows/order mutation-result))))
+
+      :cap-mutation
+      (update allocation-result :rows
+              (fn [rows]
+                (mapv #(if (= (:row/id mutation-result) (:row/id %))
+                         (merge % (dissoc mutation-result :row/id))
+                         %)
+                      rows)))
+
+      (:redistribution-witness-mutation :malformed-allocation-witness)
+      (assoc allocation-result :allocation/rounds (:allocation/rounds mutation-result))
+
+      allocation-result)))
+
+(deftest result-verifier-accepts-derived-results-and-rejects-frozen-mutations
+  (let [negative (fixture-edn *fixture-root* "vectors/negative-allocation-001.edn")
+        basis (fixture-edn *fixture-root* "vectors/cap-clamping-001.edn")
+        request (:request basis)
+        derived (api/allocate request)
+        result-mutations (filter :result (:mutations negative))]
+    (test/is (true? (api/verify-result request derived)))
+    (test/is (true? (api/verify-result request
+                                       (assoc derived :allocation/fractional-remainder-total
+                                              {:diagnostic/changed true})))
+             "V1 diagnostic remainder total is outside verification")
+    (test/is (= 4 (count result-mutations))
+             "all frozen result mutations are exercised")
+    (doseq [entry result-mutations
+            :let [mutated (apply-result-mutation derived entry)
+                  outcome (try
+                            (api/verify-result request mutated)
+                            nil
+                            (catch clojure.lang.ExceptionInfo error
+                              (:reason (ex-data error))))]]
+      (test/is (= :portable-contract/projection-mismatch outcome)
+               (str "result mutation rejected: " (:mutation/id entry))))))
+
 (deftest negative-allocation-requests-are-rejected
   (let [negative (fixture-edn *fixture-root* "vectors/negative-allocation-001.edn")
         basis (fixture-edn *fixture-root* "vectors/cap-clamping-001.edn")

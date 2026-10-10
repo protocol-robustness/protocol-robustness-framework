@@ -52,3 +52,19 @@
          allocation-witness (witness/witness-rows available rows rounding-policy redistribution-policy)
          result-base (result/assemble normalized request-hash allocation allocation-witness)]
      (assoc result-base :allocation/hash (hash-result (result/root-input result-base))))))
+
+(defn verify-result
+  "Validate a supplied result against the deterministic allocation for request.
+
+   Returns true for an exact semantic result, including its root and witness.
+   Throws `ExceptionInfo` with `:portable-contract/projection-mismatch` for any
+   result that differs from the derived result. The diagnostic fractional
+   remainder total is excluded from verification, as specified by V1."
+  [public-request supplied-result]
+  (let [expected-result (allocate public-request)
+        root-excluded #{:allocation/fractional-remainder-total}]
+    (when-not (= (apply dissoc expected-result root-excluded)
+                 (apply dissoc supplied-result root-excluded))
+      (throw (ex-info "Invalid portable pro-rata allocation result"
+                      {:reason :portable-contract/projection-mismatch})))
+    true))

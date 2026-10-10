@@ -135,13 +135,17 @@ Run from `packages/pro-rata-allocation/clj`:
   :rounding-policy :largest-remainder
   :tie-break-policy :canonical-row-id
   :redistribution-policy :redistribute-cap-excess})
+
+(allocation/verify-result request result)
 ```
 
 The call returns the normalized request, allocation witness, result identity and
 canonical SHA-256 root. The deterministic serial runtime supports an
 `:on-progress` function. Pass host adapters for progress atoms or parallel
-execution. Source binding, beneficiary consequences, and custody stay outside
-the allocation API.
+execution. `verify-result` derives the allocation again, rejects any changed
+semantic result field or root, and ignores the noncanonical fractional
+remainder diagnostic. Source binding, beneficiary consequences, and custody
+stay outside the allocation API.
 
 ## Conformance ownership and release gates
 
@@ -175,25 +179,21 @@ dependency on the PRF reference source.
 | Solidity execution/admission/custody tests | Companion integration coverage for the relevant projection and lifecycle profile; not primitive allocation SHA-256 equivalence by itself |
 
 The negative allocation vector contains two request mutations and four result
-projection mutations. The package runner exercises both request rejections.
-The package has no external-result verifier API, so the four result mutation
-cases remain an explicit conformance gap instead of being counted as passed.
-The registry correctly marks the primitive request/result/policy Rust
-implementations missing. Rust realized-fill/statement code implements a different
-profile; it does not establish support for the complete public primitive
-request/result/witness format. Solidity support is profile-specific too. The
-package runner provides positive frozen-vector evidence but does not complete
-negative admission, independent Rust, or Solidity profile conformance, so the
-registry conformance status remains `:partial`.
+projection mutations. The package runner exercises both request rejections and
+all four result rejections through `verify-result`. The registry correctly
+marks the primitive request/result/policy Rust implementations missing. Rust
+realized-fill/statement code implements a different profile; it does not
+establish support for the complete public primitive request/result/witness
+format. Solidity support is profile-specific too. The
+package runner provides positive frozen-vector, independent-reference, and
+negative Clojure evidence, but Rust and Solidity profile conformance remain
+incomplete, so the registry conformance status remains `:partial`.
 
 Minimum gates before an independently consumable release:
 
 1. Pin the qualified package version when a release artifact exists; preserve
    wrapper/integration parity while replacing the local dependency.
-2. Add an allocation-owned result verifier only if that contract belongs in the
-   public package; otherwise retain result-mutation checks at the relevant
-   implementation boundary.
-3. Package and qualify each additional artifact profile separately. Establish
+2. Package and qualify each additional artifact profile separately. Establish
    matching supported Rust coverage and companion conformance where required.
    Keep missing implementations and profile restrictions explicit.
 
@@ -212,7 +212,6 @@ baseline, not release guarantees.
 
 | Next slice | Estimated passes |
 |---|---:|
-| Add external allocation-result verification, if the public package contract requires it | 1–2 |
 | Qualify and publish a versioned allocation package artifact | 2–3 |
 | Policy/outcome and evaluation artifact extraction | 2–3 |
 | Realized allocation statement Clojure/Rust extraction with context/lifecycle adapters | 3–5 |
