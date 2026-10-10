@@ -2,7 +2,7 @@
 ;; Registry entry IDs are administrative keys, not new canonical identities.
 {:registry/schema "canonical-artifacts.v1"
  :registry/status :proposed
- :registry/encoding {:scheme "canonical-hash-scheme.v1" :definition [:prf "src/resolver_sim/hash/canonical.clj" "canonical-bytes"] :normative [:prf "docs/specs/evidence/CANONICAL_HASH_SPEC_V1_BINARY_ENCODING_ABI.md"]}
+ :registry/encoding {:scheme "canonical-hash-scheme.v1" :definition [:prf "packages/canonical/clj/src/prf/canonical/codec.clj" "canonical-bytes"] :normative [:prf "docs/specs/evidence/CANONICAL_HASH_SPEC_V1_BINARY_ENCODING_ABI.md"]}
  :registry/shared-domains [{:domain "PROJECTION_ARTIFACT_V1" :artifacts [:primitive-request :primitive-result]}]
  :registry/entries
  [
