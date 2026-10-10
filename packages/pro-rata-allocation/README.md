@@ -32,7 +32,7 @@ PRF/
 │       │   └── witness.clj, result.clj, policy.clj
 │       └── test/
 │           ├── fixtures/             pinned allocation vector and byte subset
-│           └── prf/pro_rata/         package conformance runner
+│           └── prf/pro_rata/         independent allocation oracle + runner
 ├── src/resolver_sim/pro_rata/       PRF runtime/hash adapters; further domain code
 ├── src/resolver_sim/allocation/     realized statement and lifecycle coupling
 ├── pro_rata_contract_src/           independent frozen reference; shared effects
@@ -154,19 +154,20 @@ unchanged. Run from `packages/pro-rata-allocation/clj` with
 The aggregate portable contract keeps its generic transition fixtures at their
 existing location and ownership.
 
-The independent Clojure reference still lives in
+The frozen Clojure reference remains in
 `pro_rata_contract_src/resolver_sim/pro_rata_contract/contract.clj`, where
-allocation and canonical effect transitions share a namespace. This package
-profile extracts the normative allocation section only. Moving the reference
-requires a test-only allocation oracle boundary that retains an independent
-canonical encoder and leaves the effects/transition oracle in place; the current
-package runner does not claim independent-reference equivalence.
+allocation and canonical effect transitions share a namespace. The package test
+tree now contains an allocation-only copy of that oracle and its independent
+canonical encoder. Its conformance runner compares complete allocation results
+against the package API while the effects/transition oracle remains in the PRF
+contract source. This is test material only; the package runtime has no
+dependency on the PRF reference source.
 
 | Current material | Proposed destination and constraint |
 |---|---|
 | `portable-pro-rata-contract/vectors/` allocation vectors and matching allocation-result canonical bytes | `pro-rata-allocation`; preserve bytes/roots, negative cases, row order and rounding/redistribution policies |
-| Allocation functions in `pro_rata_contract_src/resolver_sim/pro_rata_contract/contract.clj` | Independent allocation reference belongs with pro-rata; isolate its oracle and canonical codec from generic effects/transition functions before moving |
-| `packages/pro-rata-allocation/clj/test/prf/pro_rata/conformance_runner.clj` and the package `test/fixtures/` bundle | Package-owned allocation roots, canonical bytes, pinned fixture integrity, and request-rejection cases; PRF wrapper parity remains integration coverage |
+| Allocation functions in `pro_rata_contract_src/resolver_sim/pro_rata_contract/contract.clj` | Frozen aggregate reference remains in place; allocation-only oracle copy and independent codec now live under package test sources, separate from generic effects/transition functions |
+| `packages/pro-rata-allocation/clj/test/prf/pro_rata/` and the package `test/fixtures/` bundle | Package-owned allocation roots, canonical bytes, independent-reference equivalence, pinned fixture integrity, and request-rejection cases; PRF wrapper parity remains integration coverage |
 | Allocation/pro-rata characterization tests | Semantic arithmetic cases travel with pro-rata; executor, progress and realization cases stay with host adapters |
 | `resources/test-vectors/pro-rata/policy-outcome-conformance-v1.edn` | Pro-rata policy/outcome contract; implementation is still host-located beyond the extracted policy basis |
 | `coprocessor/core/tests/realized_statement_conformance.rs`, statement fixtures and corresponding Clojure tests | Pro-rata realized-statement profile; preserve explicit context/lifecycle adapters |
@@ -211,7 +212,6 @@ baseline, not release guarantees.
 
 | Next slice | Estimated passes |
 |---|---:|
-| Extract allocation-only independent reference into package test sources | 1–2 |
 | Add external allocation-result verification, if the public package contract requires it | 1–2 |
 | Qualify and publish a versioned allocation package artifact | 2–3 |
 | Policy/outcome and evaluation artifact extraction | 2–3 |

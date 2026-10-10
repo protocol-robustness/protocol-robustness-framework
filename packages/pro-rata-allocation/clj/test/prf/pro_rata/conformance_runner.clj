@@ -7,7 +7,8 @@
             [prf.canonical.codec :as codec]
             [prf.pro-rata.api :as api]
             [prf.pro-rata.identity :as identity]
-            [prf.pro-rata.result :as result]))
+            [prf.pro-rata.result :as result]
+            [prf.pro-rata.reference :as reference]))
 
 (def ^:dynamic *fixture-root* nil)
 
@@ -58,6 +59,21 @@
           (test/is (= expected-request-root
                       (identity/request-root (:canonical-request allocation)))
                    (str "request root: " (.getName file))))))))
+
+(deftest allocation-vectors-match-independent-reference
+  (let [vector-dir (io/file *fixture-root* "vectors")
+        vector-files (->> (.listFiles vector-dir)
+                          (filter #(and (.isFile %) (.endsWith (.getName %) ".edn")))
+                          (sort-by #(.getName %)))]
+    (doseq [file vector-files
+            :let [{:keys [request expected]} (edn/read-string (slurp file))]
+            :when expected]
+      (let [actual (api/allocate request)
+            oracle (reference/allocate request)]
+        (test/is (= oracle actual)
+                 (str "independent allocation reference: " (.getName file)))
+        (test/is (true? (reference/verify-allocation-result request oracle))
+                 (str "independent allocation self-verification: " (.getName file)))))))
 
 (deftest negative-allocation-requests-are-rejected
   (let [negative (fixture-edn *fixture-root* "vectors/negative-allocation-001.edn")
