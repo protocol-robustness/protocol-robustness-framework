@@ -1,13 +1,14 @@
 # Pro-rata allocation package boundary
 
 Status: independently loadable **Clojure source package**, consumed locally by
-PRF. It has a package-owned positive-vector runner, but no published version,
+PRF. It has a package-owned conformance runner, but no published version,
 Rust crate, or independently qualified release yet. The canonical registry remains proposed
 and non-runtime. This review covers the extracted primitive; the wider pro-rata
 artifact family still needs extraction.
 
 Definitions and authority: [proposed registry](../../docs/architecture/canonical-artifacts/canonical-artifacts.v1.edn),
-[portable contract spec](../../portable-pro-rata-contract/SPEC.md), and
+[package-local V1 allocation profile](ALLOCATION_V1.md),
+[frozen portable contract](../../portable-pro-rata-contract/SPEC.md), and
 [NOW semantic freeze](../../docs/architecture/PROTECTED_CAPITAL_PRO_RATA_V2_SEMANTICS.md).
 
 ## Current and target trees
@@ -17,19 +18,21 @@ Current ownership and location:
 ```text
 PRF/
 ├── packages/canonical/clj/          typed canonical codec + generic domain hashing
-├── packages/pro-rata-allocation/clj/
-│   ├── deps.edn                    Clojure + explicit canonical local dependency
-│   └── src/prf/pro_rata/
-│       ├── api.clj                  public one-argument and adapter entry points
-│       ├── request.clj, rows.clj    validation and canonical row ordering
-│       ├── kernel.clj              normalization, quotas, largest remainder
-│       ├── single_pass.clj         allocation with explicit runtime callbacks
-│       ├── redistribution.clj      active-set cap redistribution
-│       ├── identity.clj, runtime.clj package roots and serial adapter
-│       └── witness.clj, result.clj, policy.clj
-│   └── test/
-│       ├── fixtures/                pinned allocation vector and byte subset
-│       └── prf/pro_rata/            package conformance runner
+├── packages/pro-rata-allocation/
+│   ├── ALLOCATION_V1.md             package-owned section 4 profile
+│   └── clj/
+│       ├── deps.edn                 Clojure + explicit canonical local dependency
+│       ├── src/prf/pro_rata/
+│       │   ├── api.clj              public one-argument and adapter entry points
+│       │   ├── request.clj, rows.clj validation and canonical row ordering
+│       │   ├── kernel.clj           normalization, quotas, largest remainder
+│       │   ├── single_pass.clj      allocation with explicit runtime callbacks
+│       │   ├── redistribution.clj   active-set cap redistribution
+│       │   ├── identity.clj, runtime.clj package roots and serial adapter
+│       │   └── witness.clj, result.clj, policy.clj
+│       └── test/
+│           ├── fixtures/             pinned allocation vector and byte subset
+│           └── prf/pro_rata/         package conformance runner
 ├── src/resolver_sim/pro_rata/       PRF runtime/hash adapters; further domain code
 ├── src/resolver_sim/allocation/     realized statement and lifecycle coupling
 ├── pro_rata_contract_src/           independent frozen reference; shared effects
@@ -151,10 +154,18 @@ unchanged. Run from `packages/pro-rata-allocation/clj` with
 The aggregate portable contract keeps its generic transition fixtures at their
 existing location and ownership.
 
+The independent Clojure reference still lives in
+`pro_rata_contract_src/resolver_sim/pro_rata_contract/contract.clj`, where
+allocation and canonical effect transitions share a namespace. This package
+profile extracts the normative allocation section only. Moving the reference
+requires a test-only allocation oracle boundary that retains an independent
+canonical encoder and leaves the effects/transition oracle in place; the current
+package runner does not claim independent-reference equivalence.
+
 | Current material | Proposed destination and constraint |
 |---|---|
 | `portable-pro-rata-contract/vectors/` allocation vectors and matching allocation-result canonical bytes | `pro-rata-allocation`; preserve bytes/roots, negative cases, row order and rounding/redistribution policies |
-| Portable allocation reference in `pro_rata_contract_src/.../contract.clj` | Independent allocation reference owned by pro-rata; separate its generic effects/transition material deliberately |
+| Allocation functions in `pro_rata_contract_src/resolver_sim/pro_rata_contract/contract.clj` | Independent allocation reference belongs with pro-rata; isolate its oracle and canonical codec from generic effects/transition functions before moving |
 | `packages/pro-rata-allocation/clj/test/prf/pro_rata/conformance_runner.clj` and the package `test/fixtures/` bundle | Package-owned allocation roots, canonical bytes, pinned fixture integrity, and request-rejection cases; PRF wrapper parity remains integration coverage |
 | Allocation/pro-rata characterization tests | Semantic arithmetic cases travel with pro-rata; executor, progress and realization cases stay with host adapters |
 | `resources/test-vectors/pro-rata/policy-outcome-conformance-v1.edn` | Pro-rata policy/outcome contract; implementation is still host-located beyond the extracted policy basis |
@@ -200,7 +211,7 @@ baseline, not release guarantees.
 
 | Next slice | Estimated passes |
 |---|---:|
-| Extract allocation-owned spec/reference from mixed portable contract material | 1–2 |
+| Extract allocation-only independent reference into package test sources | 1–2 |
 | Add external allocation-result verification, if the public package contract requires it | 1–2 |
 | Qualify and publish a versioned allocation package artifact | 2–3 |
 | Policy/outcome and evaluation artifact extraction | 2–3 |
