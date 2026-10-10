@@ -7,6 +7,7 @@
             [prf.canonical.codec :as codec]
             [prf.pro-rata.api :as api]
             [prf.pro-rata.identity :as identity]
+            [prf.pro-rata.outcome :as outcome]
             [prf.pro-rata.result :as result]
             [prf.pro-rata.reference :as reference]))
 
@@ -135,6 +136,23 @@
                         (:reason (ex-data error))))]
         (test/is (= (get expected-reasons id) outcome)
                  (str "negative request rejected: " id))))))
+
+(deftest policy-outcome-is-standalone-and-domain-separated
+  (let [request {:allocation/id :conformance/policy-outcome
+                 :available 5
+                 :rows [{:row/id :a :obligation/id :a :requested 5 :weight 1}
+                        {:row/id :b :obligation/id :b :requested 5 :weight 1}]}
+        result (api/allocate request)
+        policy-outcome (outcome/build-policy-outcome result)]
+    (test/is (= "pro-rata-policy-outcome.v1" (:schema/version policy-outcome)))
+    (test/is (= "PRO_RATA_POLICY_OUTCOME_V1" outcome/outcome-domain))
+    (test/is (= (:allocation/hash result) (:allocation-result/root policy-outcome)))
+    (test/is (= policy-outcome (outcome/validate-policy-outcome! policy-outcome)))
+    (test/is (= :binding-invalid
+                (try
+                  (outcome/validate-policy-outcome! (assoc policy-outcome :policy/root "changed"))
+                  nil
+                  (catch clojure.lang.ExceptionInfo error (:reason (ex-data error))))))))
 
 (defn -main
   [& [fixture-root]]

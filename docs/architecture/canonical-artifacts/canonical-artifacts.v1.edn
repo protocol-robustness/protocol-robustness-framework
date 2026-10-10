@@ -57,13 +57,13 @@
    :artifact/owner :pro-rata-allocation
    :artifact/class :A
    :artifact/status :implemented-current
-   :artifact/hash {:algorithm :sha256 :domain "PRO_RATA_POLICY_OUTCOME_V1" :registration [:prf "src/resolver_sim/hash/canonical.clj" "domain-tags"] :derivation [:prf "src/resolver_sim/pro_rata/policy_outcome.clj" "policy-outcome-preimage"]}
+   :artifact/hash {:algorithm :sha256 :domain "PRO_RATA_POLICY_OUTCOME_V1" :registration [:prf "src/resolver_sim/hash/canonical.clj" "domain-tags"] :derivation [:prf "packages/pro-rata-allocation/clj/src/prf/pro_rata/outcome.clj" "policy-outcome-preimage"]}
    :artifact/inputs {:artifacts [:primitive-result :primitive-policy] :related []}
    :artifact/implementations
-   {:clojure {:status :implemented :sources [[:prf "src/resolver_sim/pro_rata/policy_outcome.clj" "build-pro-rata-policy-outcome-v1"] [:prf "src/resolver_sim/pro_rata/policy_outcome.clj" "validate-pro-rata-policy-outcome-v1!"]]}
+   {:clojure {:status :implemented :sources [[:prf "packages/pro-rata-allocation/clj/src/prf/pro_rata/outcome.clj" "build-policy-outcome"] [:prf "packages/pro-rata-allocation/clj/src/prf/pro_rata/outcome.clj" "validate-policy-outcome!"] [:prf "src/resolver_sim/pro_rata/policy_outcome.clj" "build-pro-rata-policy-outcome-v1"]]}
     :rust {:status :missing :sources []}
     :solidity {:status :not-required :sources []}}
-   :artifact/conformance {:status :partial :sources [[:prf "resources/test-vectors/pro-rata/policy-outcome-conformance-v1.edn"] [:prf "test/resolver_sim/pro_rata/policy_outcome_test.clj"]]}
+   :artifact/conformance {:status :partial :sources [[:prf "resources/test-vectors/pro-rata/policy-outcome-conformance-v1.edn"] [:prf "test/resolver_sim/pro_rata/policy_outcome_test.clj"] [:prf "packages/pro-rata-allocation/clj/test/prf/pro_rata/conformance_runner.clj" "policy-outcome-is-standalone-and-domain-separated"]]}
    :artifact/normative [[:prf "docs/architecture/PROTECTED_CAPITAL_PRO_RATA_V2_SEMANTICS.md"]]}
 
   {:artifact/id :evaluation-package

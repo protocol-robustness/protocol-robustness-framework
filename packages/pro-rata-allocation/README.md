@@ -31,7 +31,7 @@ PRF/
 │       │   ├── single_pass.clj      allocation with explicit runtime callbacks
 │       │   ├── redistribution.clj   active-set cap redistribution
 │       │   ├── identity.clj, runtime.clj package roots and serial adapter
-│       │   └── witness.clj, result.clj, policy.clj
+│       │   └── witness.clj, result.clj, policy.clj, outcome.clj
 │       └── test/
 │           ├── fixtures/             pinned allocation vector and byte subset
 │           └── prf/pro_rata/         independent allocation oracle + runner
@@ -100,8 +100,14 @@ Request and result both use `PROJECTION_ARTIFACT_V1`, but their preimages differ
 
 The frozen scheme is SHA-256 of domain UTF-8 bytes followed by typed canonical
 bytes. JSON serialization and EVM keccak commitments are different contracts.
-The default and PRF adapters share these package projections. The independent
-reference and pinned bytes/roots remain the conformance authority.
+The default and PRF adapters share these package projections. The policy
+outcome builder and validator also live in this package and retain the frozen
+`PRO_RATA_POLICY_OUTCOME_V1` domain and preimage. PRF keeps its compatibility
+functions and the stronger host-side primitive witness check before building
+the outcome. Context-bound evaluation packages and their provenance envelopes
+remain in PRF because they combine execution, claims, and application inputs.
+The independent reference and pinned bytes/roots remain the conformance
+authority.
 
 `single-pass/allocate` and `redistribution/allocate` take an execution request
 and runtime callbacks:
