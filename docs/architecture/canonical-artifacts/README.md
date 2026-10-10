@@ -15,6 +15,21 @@ including its B1, B2 and B3 additions. Older design documents are supporting
 records; their stale implementation-status prose does not override that record
 or the inspected code.
 
+## Incremental package extraction
+
+The independently loadable Clojure source package now contains normalization,
+row ordering, policy/result projections, witness derivation, single-pass
+allocation, and active-set cap redistribution. PRF continues to supply explicit
+execution and hash adapters. The manifest records those package implementations
+alongside the retained PRF entry points and portable reference implementation.
+Its 34 identity definitions, owners, domains, baseline pin, and proposed status
+are unchanged.
+
+See [the package boundary review](../../../packages/pro-rata-allocation/README.md)
+for current/target trees, adapter contracts, conformance ownership, remaining
+release gates, and estimates in coding passes. This is a source package boundary;
+separate repositories and a production-qualified package release remain pending.
+
 ## Decisions and extraction blockers
 
 1. `canonical` owns encoding, hash schemes, domain/intent registration mechanics

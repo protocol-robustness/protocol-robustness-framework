@@ -15,7 +15,7 @@
    :artifact/hash {:algorithm :sha256 :domain "PROJECTION_ARTIFACT_V1" :registration [:prf "src/resolver_sim/hash/canonical.clj" "domain-tags"] :derivation [:prf "src/resolver_sim/pro_rata/allocation.clj" "allocate"]}
    :artifact/inputs {:artifacts [] :related [[:G "normalized rows, policy fields and fixed available quantity"]]}
    :artifact/implementations
-   {:clojure {:status :implemented :sources [[:prf "src/resolver_sim/pro_rata/allocation.clj" "allocate"] [:prf "pro_rata_contract_src/resolver_sim/pro_rata_contract/contract.clj" "allocate"]]}
+   {:clojure {:status :implemented :sources [[:prf "packages/pro-rata-allocation/clj/src/prf/pro_rata/request.clj" "normalize"] [:prf "packages/pro-rata-allocation/clj/src/prf/pro_rata/rows.clj" "canonical-rows"] [:prf "packages/pro-rata-allocation/clj/src/prf/pro_rata/api.clj" "allocate"] [:prf "src/resolver_sim/pro_rata/allocation.clj" "allocate"] [:prf "pro_rata_contract_src/resolver_sim/pro_rata_contract/contract.clj" "allocate"]]}
     :rust {:status :missing :sources []}
     :solidity {:status :not-required :sources []}}
    :artifact/conformance {:status :partial :sources [[:prf "portable-pro-rata-contract/vectors"] [:prf "portable-pro-rata-contract/canonical-bytes"] [:prf "test/resolver_sim/pro_rata/portable_contract_vectors_test.clj"] [:prf "test/resolver_sim/pro_rata/allocation_test.clj"]]}
@@ -30,7 +30,7 @@
    :artifact/hash {:algorithm :sha256 :domain "PROJECTION_ARTIFACT_V1" :registration [:prf "pro_rata_contract_src/resolver_sim/pro_rata_contract/contract.clj" "domains"] :derivation [:prf "pro_rata_contract_src/resolver_sim/pro_rata_contract/contract.clj" "allocation-result-root"]}
    :artifact/inputs {:artifacts [:primitive-request] :related []}
    :artifact/implementations
-   {:clojure {:status :implemented :sources [[:prf "src/resolver_sim/pro_rata/allocation.clj" "allocate"] [:prf "src/resolver_sim/pro_rata/allocation.clj" "allocation-hash-valid?"] [:prf "pro_rata_contract_src/resolver_sim/pro_rata_contract/contract.clj" "allocate"] [:prf "pro_rata_contract_src/resolver_sim/pro_rata_contract/contract.clj" "verify-allocation-result"]]}
+   {:clojure {:status :implemented :sources [[:prf "packages/pro-rata-allocation/clj/src/prf/pro_rata/api.clj" "allocate"] [:prf "packages/pro-rata-allocation/clj/src/prf/pro_rata/result.clj" "assemble"] [:prf "packages/pro-rata-allocation/clj/src/prf/pro_rata/result.clj" "root-input"] [:prf "packages/pro-rata-allocation/clj/src/prf/pro_rata/witness.clj" "witness-rows"] [:prf "packages/pro-rata-allocation/clj/src/prf/pro_rata/kernel.clj" "pro-rata-requests"] [:prf "packages/pro-rata-allocation/clj/src/prf/pro_rata/single_pass.clj" "allocate"] [:prf "packages/pro-rata-allocation/clj/src/prf/pro_rata/redistribution.clj" "allocate"] [:prf "src/resolver_sim/pro_rata/allocation.clj" "allocate"] [:prf "src/resolver_sim/pro_rata/allocation.clj" "allocation-hash-valid?"] [:prf "pro_rata_contract_src/resolver_sim/pro_rata_contract/contract.clj" "allocate"] [:prf "pro_rata_contract_src/resolver_sim/pro_rata_contract/contract.clj" "verify-allocation-result"]]}
     :rust {:status :missing :sources []}
     :solidity {:status :not-required :sources []}}
    :artifact/conformance {:status :partial :sources [[:prf "portable-pro-rata-contract/vectors"] [:prf "portable-pro-rata-contract/canonical-bytes"] [:prf "test/resolver_sim/pro_rata/portable_contract_vectors_test.clj"] [:prf "test/resolver_sim/pro_rata/allocation_test.clj"]]}
@@ -45,7 +45,7 @@
    :artifact/hash {:algorithm :sha256 :domain "PRO_RATA_ALLOCATION_POLICY_V1" :registration [:prf "src/resolver_sim/hash/canonical.clj" "domain-tags"] :derivation [:prf "src/resolver_sim/pro_rata/allocation.clj" "allocation-policy-root"]}
    :artifact/inputs {:artifacts [:primitive-result] :related []}
    :artifact/implementations
-   {:clojure {:status :implemented :sources [[:prf "src/resolver_sim/pro_rata/allocation.clj" "allocation-policy-root"]]}
+   {:clojure {:status :implemented :sources [[:prf "packages/pro-rata-allocation/clj/src/prf/pro_rata/policy.clj" "identity-basis"] [:prf "src/resolver_sim/pro_rata/allocation.clj" "allocation-policy-root"]]}
     :rust {:status :missing :sources []}
     :solidity {:status :not-required :sources []}}
    :artifact/conformance {:status :partial :sources [[:prf "resources/test-vectors/pro-rata/policy-outcome-conformance-v1.edn"] [:prf "test/resolver_sim/pro_rata/policy_outcome_test.clj"]]}
