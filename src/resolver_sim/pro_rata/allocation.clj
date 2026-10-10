@@ -20,7 +20,8 @@
             [resolver-sim.pro-rata-contract.contract :as portable-contract]
             [prf.pro-rata.rows :as allocation-rows]
             [prf.pro-rata.witness :as witness]
-            [prf.pro-rata.request :as allocation-request]))
+            [prf.pro-rata.request :as allocation-request]
+            [prf.pro-rata.result :as allocation-result]))
 
 (defn allocate-pro-rata [request]
   (let [state (realization/open)]
@@ -96,12 +97,9 @@
    no account, token, participant, or transition semantics."
   [request]
   (let [normalized (allocation-request/normalize request)
-        allocation-id (:allocation/id normalized)
-        req-mechanism-version (:mechanism/version normalized)
         available (:available normalized)
         rows (:rows normalized)
         rounding-policy (:rounding-policy normalized)
-        tie-break-policy (:tie-break-policy normalized)
         redistribution-policy (:redistribution-policy normalized)
         on-progress (:on-progress request)
         progress-atom (:progress-atom request)
@@ -130,53 +128,10 @@
                        :redistribute-cap-excess
                        (redistribution/allocate-pro-rata-with-redistribution
                         (assoc allocation-request :ordering-policy :canonical-id)))
-          by-id (into {} (map (juxt :id identity) (:allocations allocation)))
           witness (witness-rows available rows rounding-policy redistribution-policy)
-          witness-by-id (into {} (map (juxt :row/id identity) (:rows witness)))
-          fractional-total (let [remainder-rows (keep :fractional-remainder (vals witness-by-id))
-                                 total-ratio (reduce (fn [r {:keys [remainder-numerator remainder-denominator]}]
-                                                       (if (zero? remainder-denominator)
-                                                         r
-                                                         (+ r (/ remainder-numerator remainder-denominator))))
-                                                     0
-                                                     remainder-rows)]
-                             (cond
-                               (zero? total-ratio)
-                               {:rational/numerator 0 :rational/denominator 1}
-                               (instance? clojure.lang.Ratio total-ratio)
-                               {:rational/numerator (numerator total-ratio)
-                                :rational/denominator (denominator total-ratio)}
-                               (integer? total-ratio)
-                               {:rational/numerator total-ratio :rational/denominator 1}
-                               :else
-                               (throw (ex-info "Unexpected fractional-remainder-total type"
-                                               {:type (type total-ratio) :value total-ratio}))))
-          result-base
-          {:schema-version "pro-rata-allocation-result.v1"
-           :mechanism {:id :mechanism/pro-rata-allocation :version req-mechanism-version}
-           :allocation/id allocation-id
-           :canonical-request canonical-request
-           :request/hash request-hash
-           :available available
-           :allocated-total (bigint (:total-allocated allocation))
-           :unallocated-residual (bigint (:remainder allocation))
-           :rounding-policy rounding-policy
-           :tie-break-policy tie-break-policy
-           :redistribution-policy redistribution-policy
-           :redistribution (:redistribution allocation)
-           :allocation/rounds (:allocation/rounds witness)
-           :residual-reason (if (pos? (:remainder allocation))
-                              (:residual-reason witness)
-                              :none)
-           :rows (mapv (fn [row]
-                         (let [{:keys [allocated unmet]} (get by-id (:row/id row))]
-                           (assoc (get witness-by-id (:row/id row))
-                                  :allocated allocated
-                                  :unmet (or unmet 0))))
-                       rows)}
+          result-base (allocation-result/assemble normalized request-hash allocation witness)
           allocation-hash (portable-contract/allocation-result-root result-base)]
-      (assoc result-base :allocation/hash allocation-hash
-             :allocation/fractional-remainder-total fractional-total))))
+      (assoc result-base :allocation/hash allocation-hash))))
 
 (defn allocation-hash-valid?
   "Return true only when the persisted result hash commits to every witness
