@@ -61,9 +61,10 @@ All eleven `prf.pro-rata.*` namespaces require only package namespaces or the
 canonical package. `prf.canonical.codec` and `prf.canonical.hash` have no PRF
 host dependencies. The
 package `deps.edn` exposes only `src` and declares its sibling canonical package
-through `:local/root "../../canonical/clj"`. PRF currently adds both source roots
-to its main classpath. This proves a source dependency boundary; PRF has not yet
-switched to a pinned package dependency or release artifact.
+through `:local/root "../../canonical/clj"`. PRF declares this package through a
+local dependency, which brings the canonical package transitively. This proves
+an explicit build dependency boundary; it is not a pinned version or release
+artifact.
 
 `prf.pro-rata.api/allocate` has a default one-argument entry point and an
 adapter-taking arity:
@@ -165,8 +166,8 @@ registry conformance status remains `:partial`.
 
 Minimum gates before an independently consumable release:
 
-1. Make PRF consume an explicit local package dependency, then a pinned version;
-   prove wrapper/integration parity before removing source entries from its classpath.
+1. Pin the qualified package version when a release artifact exists; preserve
+   wrapper/integration parity while replacing the local dependency.
 2. Extend the runner to negative admission/policy cases and move the pinned fixture
    bundle with the package without changing its frozen release root.
 3. Package and qualify each additional artifact profile separately. Establish
