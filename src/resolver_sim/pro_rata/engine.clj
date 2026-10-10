@@ -10,6 +10,7 @@
    Part of the pro-rata semantic closure: must never depend on protocol, runner,
    research, application, or generic-economics allocator namespaces."
   (:require [prf.pro-rata.kernel :as allocation-kernel]
+            [prf.pro-rata.single-pass :as single-pass]
             [resolver-sim.config.hardening :as hardening] [resolver-sim.config.defaults :as config-defaults]
             [resolver-sim.execution.budget :as budget]
             [resolver-sim.execution.realization :as realization]
@@ -125,10 +126,6 @@
                :executor-parallelism parallelism})))
     (realization/record-quiesced!)))
 
-(defn- pro-rata-requests
-  [amount prepared total-weight rounding ordering-policy]
-  (allocation-kernel/pro-rata-requests amount prepared total-weight rounding ordering-policy))
-
 (defn allocate-pro-rata*
   "Unscoped semantic implementation for one pro-rata allocation.
 
@@ -143,80 +140,9 @@
    - :ordering-policy :input-order breaks equal-remainder ties by input order
    - :ordering-policy :canonical-id breaks equal-remainder ties by stable item ID,
      making allocation ownership independent of input order"
-  [{:keys [amount items id-fn weight-fn cap-fn rounding remainder-policy ordering-policy
-           progress-atom on-progress parallelism execution/quiescence-timeout-seconds]
-    :or {id-fn :id
-         weight-fn :weight
-         cap-fn (constantly nil)
-         rounding :floor
-         remainder-policy :unallocated
-         ordering-policy :input-order}}]
-  (when-not (#{:floor :floor-with-largest-remainder} rounding)
-    (throw (ex-info "Unsupported pro-rata rounding policy" {:rounding rounding})))
-  (when-not (= :unallocated remainder-policy)
-    (throw (ex-info "Unsupported pro-rata remainder policy" {:remainder-policy remainder-policy})))
-  (when-not (#{:input-order :canonical-id} ordering-policy)
-    (throw (ex-info "Unsupported pro-rata ordering policy" {:ordering-policy ordering-policy})))
-  (let [progress-observer (or on-progress progress-atom)
-        amount (non-negative-integer amount)
-        items (vec (or items []))
-        total-items (count items)
-        claimant-parallelism (effective-claimant-parallelism parallelism total-items progress-observer)
-        _ (progress/report-pro-rata-progress! progress-observer
-                                              {:event :phase-started
-                                               :status :running
-                                               :phase :preparing
-                                               :current 0
-                                               :total total-items})
-        prepared (ordered-detached-mapv
-                  claimant-parallelism quiescence-timeout-seconds
-                  (fn [[idx item]]
-                    (let [weight (non-negative-integer (weight-fn item))
-                          cap-raw (cap-fn item)
-                          cap (when (some? cap-raw)
-                                (non-negative-integer cap-raw))]
-                      {:idx idx
-                       :item item
-                       :id (id-fn item)
-                       :weight weight
-                       :cap cap}))
-                  (mapv vector (range) items))
-        total-weight (reduce +' 0 (map :weight prepared))
-        _ (progress/report-pro-rata-progress! progress-observer {:event :phase-started :phase :requesting})
-        requests (if (zero? total-weight)
-                   (repeat (count prepared) 0)
-                   (pro-rata-requests amount prepared total-weight rounding ordering-policy))
-        _ (progress/report-pro-rata-progress! progress-observer {:event :phase-started :phase :allocating})
-        allocations (ordered-detached-mapv
-                     claimant-parallelism quiescence-timeout-seconds
-                     (fn [[{:keys [id weight cap]} requested]]
-                       (let [allocated (min requested (or cap requested))
-                             unmet (- requested allocated)]
-                         ;; Parallel eligibility requires no observer, so this
-                         ;; preserves legacy callback sequencing on the serial path.
-                         (progress/report-pro-rata-progress! progress-observer
-                                                             {:event :claimants-completed
-                                                              :delta 1})
-                         {:id id
-                          :allocated allocated
-                          :unmet unmet
-                          :weight weight
-                          :cap cap}))
-                     (mapv vector prepared requests))
-        total-allocated (reduce +' 0 (map :allocated allocations))
-        total-unmet (reduce +' 0 (map :unmet allocations))
-        remainder (- amount total-allocated total-unmet)
-        result {:allocations allocations
-                :total-requested amount
-                :total-allocated total-allocated
-                :total-unmet total-unmet
-                :remainder remainder
-                :policy {:rounding rounding
-                         :remainder-policy remainder-policy
-                         :ordering-policy ordering-policy
-                         :total-weight total-weight}}]
-    (progress/report-pro-rata-progress! progress-observer
-                                        {:event :allocation-completed
-                                         :status :completed
-                                         :phase :completed})
-    result))
+  [request]
+  (single-pass/allocate
+   request
+   {:effective-claimant-parallelism effective-claimant-parallelism
+    :ordered-detached-mapv ordered-detached-mapv
+    :report-progress! progress/report-pro-rata-progress!}))
