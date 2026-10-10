@@ -9,7 +9,8 @@
 
    Part of the pro-rata semantic closure: must never depend on protocol, runner,
    research, application, or generic-economics allocator namespaces."
-  (:require [resolver-sim.config.hardening :as hardening] [resolver-sim.config.defaults :as config-defaults]
+  (:require [prf.pro-rata.kernel :as allocation-kernel]
+            [resolver-sim.config.hardening :as hardening] [resolver-sim.config.defaults :as config-defaults]
             [resolver-sim.execution.budget :as budget]
             [resolver-sim.execution.realization :as realization]
             [resolver-sim.pro-rata.progress :as progress]
@@ -129,34 +130,7 @@
 
 (defn- pro-rata-requests
   [amount prepared total-weight rounding ordering-policy]
-  (let [floors (mapv (fn [{:keys [weight]}]
-                       (quot (* amount weight) total-weight))
-                     prepared)]
-    (case rounding
-      :floor
-      floors
-
-      :floor-with-largest-remainder
-      (let [allocated (reduce +' 0 floors)
-            shortage (- amount allocated)
-            remainders (mapv (fn [{:keys [idx id weight]}]
-                               {:idx idx
-                                :id id
-                                :remainder (mod (* amount weight) total-weight)})
-                             prepared)
-            tie-key (case ordering-policy
-                      :input-order :idx
-                      :canonical-id :id)
-            remainder-order (->> remainders
-                                 (sort-by (juxt (comp - :remainder) tie-key))
-                                 (map :idx)
-                                 (take shortage)
-                                 set)]
-        (mapv (fn [idx allocated]
-                (if (contains? remainder-order idx)
-                  (inc allocated)
-                  allocated))
-              (range) floors)))))
+  (allocation-kernel/pro-rata-requests amount prepared total-weight rounding ordering-policy))
 
 (defn allocate-pro-rata*
   "Unscoped semantic implementation for one pro-rata allocation.
