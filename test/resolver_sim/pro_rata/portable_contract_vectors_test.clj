@@ -2,6 +2,7 @@
   (:require [clojure.edn :as edn]
             [clojure.java.io :as io]
             [clojure.test :refer [deftest is]]
+            [resolver-sim.hash.canonical :as canonical-hash]
             [resolver-sim.pro-rata.allocation :as production]
             [resolver-sim.pro-rata-contract.contract :as portable]))
 
@@ -19,4 +20,9 @@
           portable-result (portable/allocate request)
           production-result (production/allocate request)]
       (is (= portable-result production-result) name)
-      (is (= (:allocation/hash expected) (:allocation/hash production-result)) name))))
+      (is (= (:allocation/hash expected) (:allocation/hash production-result)) name)
+      (is (= (:request/hash production-result)
+             (canonical-hash/hash-with-intent
+              {:hash/intent :projection-artifact}
+              (:canonical-request production-result)))
+          (str name " request hash remains compatible with legacy intent projection")))))

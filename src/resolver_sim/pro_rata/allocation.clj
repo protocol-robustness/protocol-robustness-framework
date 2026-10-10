@@ -19,9 +19,8 @@
             [resolver-sim.pro-rata.redistribution :as redistribution]
             [resolver-sim.pro-rata-contract.contract :as portable-contract]
             [prf.pro-rata.rows :as allocation-rows]
-            [prf.pro-rata.witness :as witness]
-            [prf.pro-rata.request :as allocation-request]
-            [prf.pro-rata.result :as allocation-result]))
+            [prf.pro-rata.api :as allocation-api]
+            [prf.pro-rata.policy :as allocation-policy]))
 
 (defn allocate-pro-rata [request]
   (let [state (realization/open)]
@@ -39,21 +38,9 @@
   pro-rata allocation result. This is a read-only lineage projection: it does
   not alter the existing allocation result artifact or its root."
   [result]
-  (when-not (and (= "pro-rata-allocation-result.v1" (:schema-version result))
-                 (map? (:mechanism result))
-                 (contains? result :rounding-policy)
-                 (contains? result :tie-break-policy)
-                 (contains? result :redistribution-policy))
-    (throw (ex-info "Cannot derive pro-rata policy root from allocation result"
-                    {:reason :primitive-result-invalid})))
   (hc/hash-with-intent
    {:hash/intent :pro-rata-allocation-policy}
-   {:schema/version allocation-policy-schema-version
-    :mechanism/id (get-in result [:mechanism :id])
-    :mechanism/version (get-in result [:mechanism :version])
-    :rounding-policy (:rounding-policy result)
-    :tie-break-policy (:tie-break-policy result)
-    :redistribution-policy (:redistribution-policy result)}))
+   (allocation-policy/identity-basis result)))
 
 (defn canonical-id-key
   "A typed, byte-stable ordering key for identities.  `pr-str` is deliberately
@@ -70,18 +57,15 @@
   [rows]
   (allocation-rows/canonical-rows rows))
 
-(defn- rounding->payoffs
-  [rounding-policy]
-  (case rounding-policy
-    :largest-remainder :floor-with-largest-remainder
-    :floor :floor
-    (throw (ex-info "Invalid pro-rata allocation request"
-                    {:reason :unsupported-rounding-policy
-                     :rounding-policy rounding-policy}))))
+(defn- execute-allocation
+  [execution-request redistribution-policy]
+  (case redistribution-policy
+    :unallocated
+    (allocate-pro-rata execution-request)
 
-(defn- witness-rows
-  [available rows rounding-policy redistribution-policy]
-  (witness/witness-rows available rows rounding-policy redistribution-policy))
+    :redistribute-cap-excess
+    (redistribution/allocate-pro-rata-with-redistribution
+     (assoc execution-request :ordering-policy :canonical-id))))
 
 (defn allocate
   "Allocate a constrained integer quantity across canonical allocation rows.
@@ -96,42 +80,11 @@
    The result is a hash-committed mathematical evidence envelope. It contains
    no account, token, participant, or transition semantics."
   [request]
-  (let [normalized (allocation-request/normalize request)
-        available (:available normalized)
-        rows (:rows normalized)
-        rounding-policy (:rounding-policy normalized)
-        redistribution-policy (:redistribution-policy normalized)
-        on-progress (:on-progress request)
-        progress-atom (:progress-atom request)
-        parallelism (:parallelism request)
-        quiescence-timeout-seconds (:execution/quiescence-timeout-seconds request)]
-    (let [canonical-request (:canonical-request normalized)
-          request-hash (hc/hash-with-intent {:hash/intent :projection-artifact}
-                                            canonical-request)
-          _total-weight (reduce + 0 (map :weight rows))
-          allocation-request {:amount available
-                              :items rows
-                              :id-fn :row/id
-                              :weight-fn :weight
-                              :cap-fn :effective-cap
-                              :rounding (rounding->payoffs rounding-policy)
-                              :remainder-policy :unallocated
-                              :ordering-policy :canonical-id
-                              :on-progress on-progress
-                              :progress-atom progress-atom
-                              ;; Operational only: omitted from canonical-request.
-                              :parallelism parallelism
-                              :execution/quiescence-timeout-seconds quiescence-timeout-seconds}
-          allocation (case redistribution-policy
-                       :unallocated
-                       (allocate-pro-rata allocation-request)
-                       :redistribute-cap-excess
-                       (redistribution/allocate-pro-rata-with-redistribution
-                        (assoc allocation-request :ordering-policy :canonical-id)))
-          witness (witness-rows available rows rounding-policy redistribution-policy)
-          result-base (allocation-result/assemble normalized request-hash allocation witness)
-          allocation-hash (portable-contract/allocation-result-root result-base)]
-      (assoc result-base :allocation/hash allocation-hash))))
+  (allocation-api/allocate
+   request
+   {:execute-allocation execute-allocation
+    :hash-request #(hc/hash-with-intent {:hash/intent :projection-artifact} %)
+    :hash-result portable-contract/allocation-result-root}))
 
 (defn allocation-hash-valid?
   "Return true only when the persisted result hash commits to every witness
