@@ -24,6 +24,13 @@
       (throw (ex-info "Unexpected fractional-remainder-total type"
                       {:type (type total-ratio) :value total-ratio})))))
 
+(defn root-input
+  "Project a result to the fields committed by its allocation root.
+
+   Excludes the self hash and the diagnostic fractional-remainder total."
+  [result]
+  (dissoc result :allocation/hash :allocation/fractional-remainder-total))
+
 (defn assemble
   "Assemble result fields from normalized input, allocator output, and witness.
 

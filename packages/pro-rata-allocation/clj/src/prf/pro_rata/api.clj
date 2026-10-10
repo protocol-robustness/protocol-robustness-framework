@@ -46,6 +46,5 @@
                            (:execution/quiescence-timeout-seconds public-request)}
         allocation (execute-allocation execution-request redistribution-policy)
         allocation-witness (witness/witness-rows available rows rounding-policy redistribution-policy)
-        result-base (result/assemble normalized request-hash allocation allocation-witness)
-        root-input (dissoc result-base :allocation/fractional-remainder-total)]
-    (assoc result-base :allocation/hash (hash-result root-input))))
+        result-base (result/assemble normalized request-hash allocation allocation-witness)]
+    (assoc result-base :allocation/hash (hash-result (result/root-input result-base)))))
