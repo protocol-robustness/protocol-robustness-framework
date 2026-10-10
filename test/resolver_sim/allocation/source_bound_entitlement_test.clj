@@ -178,3 +178,19 @@
     (is (contains? descriptor :table-summary-scheme))
     (is (not= root
               (hc/domain-hash :entitlement-representation-descriptor-v1 changed)))))
+
+(deftest controlled-source-root-is-committed-by-prepared-operation
+  (let [base (:base-input (fixture))
+        unbound (sut/derive base)
+        committed-root (str "0x" (:realized-statement-root unbound))
+        bound (assoc-in base [:prepared-operation :policy-root] committed-root)
+        accepted (sut/derive-controlled-source bound)
+        changed-source (assoc-in bound [:realized-statement-input :requested :claim-a] "49")]
+    (is (= (:realized-statement-root unbound) (:realized-statement-root accepted)))
+    (is (= committed-root (get-in bound [:prepared-operation :policy-root])))
+    (is (thrown-with-msg? clojure.lang.ExceptionInfo
+                          #"policy-root must equal realized statement root"
+                          (sut/derive-controlled-source changed-source)))
+    (is (thrown-with-msg? clojure.lang.ExceptionInfo
+                          #"policy-root must equal realized statement root"
+                          (sut/derive-controlled-source base)))))

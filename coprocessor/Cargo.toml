@@ -9,6 +9,7 @@ members = [
     "source-bound-sp1-program",
     "source-bound-v2-sp1-program",
     "source-bound-entitlement-sp1-program",
+    "controlled-entitlement-source-sp1-program",
     "observed-run-sp1-program",
     "accounting-arithmetic-sp1-program",
     "accounting-arithmetic-sp1-host",

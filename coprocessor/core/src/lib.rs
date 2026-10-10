@@ -3,9 +3,10 @@
 //! Reproduces the PRF reference allocation computation byte-for-byte at the
 //! declared public-output boundary (PRF result == native Rust result).
 
-pub mod assertions;
 pub mod accounting_arithmetic;
+pub mod assertions;
 pub mod canonical;
+pub mod controlled_entitlement_source;
 pub mod json_projection;
 pub mod kernel;
 pub mod lifecycle;

@@ -63,5 +63,9 @@ name = "source-bound-entitlement-prove"
 path = "src/bin/source_bound_entitlement_prove.rs"
 
 [[bin]]
+name = "controlled-entitlement-source-prove"
+path = "src/bin/controlled_entitlement_source_prove.rs"
+
+[[bin]]
 name = "observed-run-sp1-prove"
 path = "src/bin/observed_run_sp1_prove.rs"

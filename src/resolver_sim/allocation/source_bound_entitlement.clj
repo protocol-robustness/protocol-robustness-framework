@@ -373,6 +373,23 @@
        :public-words (mapv hc/bytes->hex words)
        :public-values (hc/bytes->hex encoded)})))
 
+(defn derive-controlled-source
+  "Derive the successor projection only when the prepared operation commits to
+   the reconstructed realized-statement root. This controlled-source profile
+   is suitable for fixed conformance inputs, not production claims authority."
+  [input]
+  (let [derived (derive input)
+        statement-root (:realized-statement-root derived)
+        digest (when (and (string? statement-root)
+                          (re-matches #"[0-9a-f]{64}" statement-root))
+                 statement-root)
+        expected (when digest (str "0x" digest))
+        committed (get-in input [:prepared-operation :policy-root])]
+    (when-not (= expected committed)
+      (throw (ex-info "prepared-operation policy-root must equal realized statement root"
+                      {:expected expected :actual committed})))
+    derived))
+
 (defn fixture-projection
   "Human-reviewable JSON-compatible projection used by Clojure/Rust vectors."
   [derived]

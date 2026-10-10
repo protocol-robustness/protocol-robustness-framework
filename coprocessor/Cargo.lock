@@ -659,6 +659,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3d52eff69cd5e647efe296129160853a42795992097e8af39800e1060caeea9b"
 
 [[package]]
+name = "controlled-entitlement-source-sp1-program"
+version = "0.1.0"
+dependencies = [
+ "allocation-kernel",
+ "serde_json",
+ "sp1-zkvm",
+]
+
+[[package]]
 name = "core-foundation-sys"
 version = "0.8.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"

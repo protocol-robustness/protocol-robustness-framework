@@ -10,5 +10,9 @@ fn main() {
         "../source-bound-entitlement-sp1-program",
         Default::default(),
     );
+    build_program_with_args(
+        "../controlled-entitlement-source-sp1-program",
+        Default::default(),
+    );
     build_program_with_args("../observed-run-sp1-program", Default::default());
 }
