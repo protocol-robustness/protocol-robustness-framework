@@ -2,5 +2,6 @@
 
 pub mod allocation_roots;
 pub mod exact_ratio;
+pub mod kernel_types;
 pub mod realized_fill;
 pub mod realized_statement;
