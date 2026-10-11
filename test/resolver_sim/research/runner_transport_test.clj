@@ -269,7 +269,7 @@
           (java.nio.file.Files/deleteIfExists path))
         (let [artifact-dir (.resolveSibling state-path "runner-state.edn.proof-artifacts")]
           (when (java.nio.file.Files/exists artifact-dir
-                                           (make-array java.nio.file.LinkOption 0))
+                                            (make-array java.nio.file.LinkOption 0))
             (with-open [paths (java.nio.file.Files/list artifact-dir)]
               (doseq [path (iterator-seq (.iterator paths))]
                 (java.nio.file.Files/deleteIfExists path)))
@@ -290,8 +290,8 @@
         state {:jobs {} :assignments {} :work-items {work-root work}
                :work-states {} :cancellations {}
                :completed-work {work-root {:job (:work/job work)
-                                            :assignment (:work/assignment work)
-                                            :native-accounting-execution execution}}
+                                           :assignment (:work/assignment work)
+                                           :native-accounting-execution execution}}
                :forensic-evidence-nodes {}}
         runner {:transport/state-path (str state-path)
                 :transport/journal (atom {:sequence 0 :format :new})
@@ -339,7 +339,7 @@
         (java.nio.file.Files/deleteIfExists state-path)
         (let [artifact-dir (.resolveSibling state-path "runner-state.edn.proof-artifacts")]
           (when (java.nio.file.Files/exists artifact-dir
-                                           (make-array java.nio.file.LinkOption 0))
+                                            (make-array java.nio.file.LinkOption 0))
             (with-open [paths (java.nio.file.Files/list artifact-dir)]
               (doseq [path (iterator-seq (.iterator paths))]
                 (java.nio.file.Files/deleteIfExists path)))
@@ -358,8 +358,8 @@
         state {:jobs {} :assignments {} :work-items {work-root work}
                :work-states {} :cancellations {}
                :completed-work {work-root {:job (:work/job work)
-                                            :assignment (:work/assignment work)
-                                            :native-accounting-execution execution}}
+                                           :assignment (:work/assignment work)
+                                           :native-accounting-execution execution}}
                :forensic-evidence-nodes {}}
         runner {:transport/state-path (str state-path)
                 :transport/journal (atom {:sequence 0 :format :new})
@@ -393,7 +393,7 @@
         (java.nio.file.Files/deleteIfExists state-path)
         (let [artifact-dir (.resolveSibling state-path "runner-state.edn.proof-artifacts")]
           (when (java.nio.file.Files/exists artifact-dir
-                                           (make-array java.nio.file.LinkOption 0))
+                                            (make-array java.nio.file.LinkOption 0))
             (with-open [paths (java.nio.file.Files/list artifact-dir)]
               (doseq [path (iterator-seq (.iterator paths))]
                 (java.nio.file.Files/deleteIfExists path)))
@@ -413,8 +413,8 @@
         state {:jobs {} :assignments {} :work-items {work-root work}
                :work-states {} :cancellations {}
                :completed-work {work-root {:job (:work/job work)
-                                            :assignment (:work/assignment work)
-                                            :native-accounting-execution execution}}
+                                           :assignment (:work/assignment work)
+                                           :native-accounting-execution execution}}
                :forensic-evidence-nodes {}}
         runner {:transport/state-path (str state-path)
                 :transport/journal (atom {:sequence 0 :format :new})
@@ -477,7 +477,7 @@
         (java.nio.file.Files/deleteIfExists state-path)
         (let [artifact-dir (.resolveSibling state-path "runner-state.edn.proof-artifacts")]
           (when (java.nio.file.Files/exists artifact-dir
-                                           (make-array java.nio.file.LinkOption 0))
+                                            (make-array java.nio.file.LinkOption 0))
             (with-open [paths (java.nio.file.Files/list artifact-dir)]
               (doseq [path (iterator-seq (.iterator paths))]
                 (java.nio.file.Files/deleteIfExists path)))

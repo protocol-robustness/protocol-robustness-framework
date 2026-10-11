@@ -24,23 +24,23 @@
 (defn basis
   ([] (basis nil nil nil))
   ([account-count sources-per-account cutpoint-id]
-  (let [contract (accounting/build-reduction-contract)
-        sources (if account-count
-                  (for [account-index (range account-count)
-                        row (range sources-per-account)
-                        :let [account-id (+ 100 account-index)
-                              source-id (+ 10000 (* account-index sources-per-account) row)]]
-                    (source source-id account-id :accounting/bond
-                            (- (mod (* 37 (inc source-id)) 101) 50)))
-                  [(source 11 100 :accounting/bond 30)
-                   (source 12 100 :accounting/bond -5)
-                   (source 13 200 :accounting/bond 9)])
-        request (accounting/build-request
-                 {:accounting-domain :accounting-domain/native-reference
-                  :cutpoint-root (root (or cutpoint-id 1))
-                  :accounting-definition-root (root 2) :accounting-policy-root (root 3)
-                 :reduction-contract contract :sources sources})]
-    {:contract contract :request request :accounts (native/account-requests request contract)})))
+   (let [contract (accounting/build-reduction-contract)
+         sources (if account-count
+                   (for [account-index (range account-count)
+                         row (range sources-per-account)
+                         :let [account-id (+ 100 account-index)
+                               source-id (+ 10000 (* account-index sources-per-account) row)]]
+                     (source source-id account-id :accounting/bond
+                             (- (mod (* 37 (inc source-id)) 101) 50)))
+                   [(source 11 100 :accounting/bond 30)
+                    (source 12 100 :accounting/bond -5)
+                    (source 13 200 :accounting/bond 9)])
+         request (accounting/build-request
+                  {:accounting-domain :accounting-domain/native-reference
+                   :cutpoint-root (root (or cutpoint-id 1))
+                   :accounting-definition-root (root 2) :accounting-policy-root (root 3)
+                   :reduction-contract contract :sources sources})]
+     {:contract contract :request request :accounts (native/account-requests request contract)})))
 
 (defn work-fixture
   ([] (work-fixture 100 301))
@@ -49,12 +49,12 @@
                               account-count sources-per-account cutpoint-id account-basis
                               implementation-kind implementation-kinds required-runs run-index
                               minimum-distinct-implementations]
-                      :or {privacy :public partition-index 0
-                           implementation-kind :primary implementation-kinds [:primary]
-                           required-runs 1 run-index 0 minimum-distinct-implementations 1}}]
+                       :or {privacy :public partition-index 0
+                            implementation-kind :primary implementation-kinds [:primary]
+                            required-runs 1 run-index 0 minimum-distinct-implementations 1}}]
    (let [{:keys [accounts contract]} (or account-basis (if account-count
-                                       (basis account-count sources-per-account cutpoint-id)
-                                       (basis)))
+                                                         (basis account-count sources-per-account cutpoint-id)
+                                                         (basis)))
          request (get accounts (root account))
          env (if runtime (environment/build-native-environment runtime) (environment/build-native-environment))
          manifest (dependency/build-manifest
@@ -94,15 +94,15 @@
                request (or partitions generated-partitions [source-roots])
                {:dependency-set-root (:resolved-research-dependency-set/root resolved)
                 :allowed-implementation-roots (mapv #(get-in impls [% :research-implementation-identity/root])
-                                                     implementation-kinds)
+                                                    implementation-kinds)
                 :required-capabilities [:capability/accounting] :privacy-requirement privacy
                 :execution-environment-root (:research-execution-environment/root env)})
          unit (nth (:partition/work-units plan) partition-index)
          policy (fixture/execution-policy {:objective :fastest :required-runs required-runs
-                                            :required-matching-runs 1
-                                            :distinct-by [] :repeat-runner-policy :permitted
-                                            :qualification-references [] :required-capabilities [:capability/accounting]
-                                            :environment-kinds [:clojure-jvm]})
+                                           :required-matching-runs 1
+                                           :distinct-by [] :repeat-runner-policy :permitted
+                                           :qualification-references [] :required-capabilities [:capability/accounting]
+                                           :environment-kinds [:clojure-jvm]})
          job (remote/build-job
               {:job-class :job/research-calculation :workload-root (:accounting-work-unit/root unit)
                :distributed-profile-root (root 8) :distributed-policy-root (root 9)
@@ -339,7 +339,7 @@
     (is (thrown? clojure.lang.ExceptionInfo
                  (accounting/reconcile (:request a) (:contract a) (:plan a)
                                        (accounting/ingest-partial forward
-                                        (:accounting-partial (native/execute-work! (:work (work-fixture 200 303))))))))))
+                                                                  (:accounting-partial (native/execute-work! (:work (work-fixture 200 303))))))))))
 
 (deftest multi-runner-batch-reconciles-exact-plan-and-is-order-independent
   (let [partitions [[(root 11)] [(root 12)]]
@@ -347,8 +347,8 @@
         right (work-fixture 100 302 {:partitions partitions :partition-index 1})
         works [(:work left) (:work right)]
         coordinator (transport/start-coordinator!
-                    {:coordinator-root coordinator-root
-                     :assignments (mapv :work/assignment works) :auth-secret secret})
+                     {:coordinator-root coordinator-root
+                      :assignments (mapv :work/assignment works) :auth-secret secret})
         runners (mapv (fn [fixture]
                         (transport/start-runner!
                          {:runner-participation (:participant fixture)
@@ -366,7 +366,7 @@
             replay (batch/dispatch-and-reconcile! coordinator (:contract left)
                                                   (vec (reverse dispatches)))
             aggregate (get-in result [:accounting/reconciliation
-                                       :canonical-accounting-result/root])]
+                                      :canonical-accounting-result/root])]
         (is (= :complete (:accounting/batch-status result)))
         (is (= (:accounting/required-work-unit-roots (:accounting/completeness result))
                (vec (sort (map :accounting-work-unit/root
@@ -421,7 +421,7 @@
                                 (transport/runner-state runner) state)]
             (is (:valid? reconstruction) (pr-str reconstruction)))
           (is (false? (:valid? (runner-forensics/validate-runner-reconstruction
-                               (transport/runner-state runner) (assoc state :native-accounting-results {})))))
+                                (transport/runner-state runner) (assoc state :native-accounting-results {})))))
           (is (= :result-acknowledged
                  (get-in (transport/runner-state runner) [:work-states (:research-native-accounting-work/root work) :work/status])))))
       (finally (transport/stop-runner! runner) (transport/stop-coordinator! coordinator)))))
@@ -432,8 +432,8 @@
         runner-file (java.io.File/createTempFile "native-runner-" ".edn")
         _remove-empty-files (do (.delete coordinator-file) (.delete runner-file))
         start-coordinator (fn [] (transport/start-coordinator!
-                                 {:coordinator-root coordinator-root :assignments [assignment] :auth-secret secret
-                                  :bind-address "127.0.0.1" :port 0 :state-path (.getAbsolutePath coordinator-file)}))
+                                  {:coordinator-root coordinator-root :assignments [assignment] :auth-secret secret
+                                   :bind-address "127.0.0.1" :port 0 :state-path (.getAbsolutePath coordinator-file)}))
         coordinator (start-coordinator)
         runner (start-runner participant coordinator (.getAbsolutePath runner-file)
                              (fn [& _] (transport/stop-coordinator! coordinator)))]
@@ -475,7 +475,7 @@
     (try
       (reset! runner-endpoint (transport/coordinator-endpoint runner secret 30000))
       (transport/dispatch-native-accounting! coordinator
-                                            {:endpoint (transport/coordinator-endpoint runner secret 30000) :accounting-work work})
+                                             {:endpoint (transport/coordinator-endpoint runner secret 30000) :accounting-work work})
       (let [completed (get-in (transport/runner-state runner) [:completed-work (:research-native-accounting-work/root work)])]
         (is (= :cancelled-before-delivery (get-in completed [:result-delivery :delivery/status])))
         (is (= (:native-accounting-execution completed)
@@ -519,9 +519,9 @@
                        :requested-cutpoint 2 :scope :entire-job :target-roots []})]
     (try
       (transport/dispatch-native-accounting! coordinator
-                                            {:endpoint (transport/coordinator-endpoint runner secret 30000) :accounting-work work})
+                                             {:endpoint (transport/coordinator-endpoint runner secret 30000) :accounting-work work})
       (let [saved (get-in (transport/runner-state runner)
-                         [:completed-work (:research-native-accounting-work/root work) :native-accounting-execution])]
+                          [:completed-work (:research-native-accounting-work/root work) :native-accounting-execution])]
         (is saved)
         (transport/deliver-cancellation!
          {:coordinator-root coordinator-root :endpoint (transport/coordinator-endpoint runner secret)
@@ -529,7 +529,7 @@
         (is (empty? (transport/retry-undelivered-reproduction-results!
                      runner (transport/coordinator-endpoint coordinator secret) 3)))
         (is (= saved (get-in (transport/runner-state runner)
-                            [:completed-work (:research-native-accounting-work/root work) :native-accounting-execution])))
+                             [:completed-work (:research-native-accounting-work/root work) :native-accounting-execution])))
         (is (= :cancelled-before-delivery
                (get-in (transport/runner-state runner)
                        [:completed-work (:research-native-accounting-work/root work) :result-delivery :delivery/status]))))

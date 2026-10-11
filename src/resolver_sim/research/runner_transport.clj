@@ -161,7 +161,7 @@
                                      [(when (nil? resolved-request) (:accounting-request/root request))
                                       (when (nil? resolved-plan) (:accounting-partition-plan/root plan))]))}
         {:work (assoc work :accounting/request resolved-request
-                     :accounting/partition-plan resolved-plan)}))))
+                      :accounting/partition-plan resolved-plan)}))))
 
 (defn- remember-accounting-inputs! [runner work]
   (when (= "research-native-accounting-work.v1" (:artifact/schema work))
@@ -171,7 +171,7 @@
                  (assoc-in [:requests (get-in work [:accounting/request :accounting-request/root])]
                            (:accounting/request work))
                  (assoc-in [:plans (get-in work [:accounting/partition-plan
-                                                :accounting-partition-plan/root])]
+                                                 :accounting-partition-plan/root])]
                            (:accounting/partition-plan work)))))))
 
 (def ^:private runner-journal-schema "research-runner-runtime-journal.v2")
@@ -251,7 +251,7 @@
      :valid-bytes valid-bytes}))
 
 (defn- recover-journal [path expected-schema legacy-schema owner-fields state-key initial-state
-                       valid-state? truncate-incomplete-tail?]
+                        valid-state? truncate-incomplete-tail?]
   (if-not (and path (.exists (io/file path)))
     {:state initial-state :sequence 0 :format :new}
     (let [raw (slurp path)
@@ -505,7 +505,7 @@
       (fn [state work-root work-state]
         (if (= :executing (:work/status work-state))
           (let [reproduction? (contains? #{"research-reproduction-execution-work.v1" "research-native-accounting-work.v1"}
-                                        (:artifact/schema (get-in state [:work-items work-root])))
+                                         (:artifact/schema (get-in state [:work-items work-root])))
                 recovered-status (if reproduction? :outcome-unknown :interrupted)
                 event {:work/event (if reproduction?
                                      :execution-outcome-unknown-after-restart
@@ -951,7 +951,7 @@
                       result-map (if native? :native-accounting-results :reproduction-results)
                       previous (get-in state [result-map result-key])
                       entry (select-keys message (if native? [:job :assignment :native-accounting-execution]
-                                                    [:job :assignment :reproduction-execution]))]
+                                                     [:job :assignment :reproduction-execution]))]
                   (when (and previous (not= previous entry))
                     (throw (ex-info "Reproduction result substitution" {})))
                   (when-let [event! (:transport/test-event coordinator)]
@@ -963,16 +963,16 @@
                      (if previous state
                          (let [state (assoc-in state [result-map result-key] entry)]
                            (if-not native? state
-                             (let [work (get-in state [:dispatch-intents (:research-run-assignment/root assignment) :execution-work])
-                                   plan-root (get-in work [:accounting/partition-plan :accounting-partition-plan/root])
-                                   context {:request (:accounting/request work) :partition-plan (:accounting/partition-plan work)}
-                                   prior (get-in state [:accounting-contexts plan-root])]
-                               (when (and prior (not= prior context))
-                                 (throw (ex-info "Native accounting context substitution" {})))
-                               (-> state
-                                   (assoc-in [:accounting-contexts plan-root] context)
-                                   (update-in [:accounting-partials plan-root] (fnil accounting/ingest-partial {})
-                                              (:accounting-partial native-accounting-execution)))))))))
+                                   (let [work (get-in state [:dispatch-intents (:research-run-assignment/root assignment) :execution-work])
+                                         plan-root (get-in work [:accounting/partition-plan :accounting-partition-plan/root])
+                                         context {:request (:accounting/request work) :partition-plan (:accounting/partition-plan work)}
+                                         prior (get-in state [:accounting-contexts plan-root])]
+                                     (when (and prior (not= prior context))
+                                       (throw (ex-info "Native accounting context substitution" {})))
+                                     (-> state
+                                         (assoc-in [:accounting-contexts plan-root] context)
+                                         (update-in [:accounting-partials plan-root] (fnil accounting/ingest-partial {})
+                                                    (:accounting-partial native-accounting-execution)))))))))
                   ;; Runtime-only fault-injection seam. It runs after the
                   ;; atomic journal write and before the HTTP acknowledgement;
                   ;; no canonical scheduler or result identity depends on it.
@@ -1175,7 +1175,7 @@
                      :transport/test-event test-event
                      :transport/server server}]
     (write-coordinator-runtime-state! coordinator (:persisted-state recovered-journal)
-                                       (coordinator-state coordinator))
+                                      (coordinator-state coordinator))
     ;; Test/recovery fixtures can restore already-canonical dispatch intents
     ;; before the listener is advertised as ready. This does not bypass result
     ;; validation: it seeds the same intent dispatch-job! persists normally.
@@ -1191,7 +1191,7 @@
                              (or advertise-url
                                  (str "http://" bind-address ":" (.getPort (.getAddress server)))))]
       (write-coordinator-runtime-state! coordinator (coordinator-state coordinator)
-                                         (coordinator-state coordinator))
+                                        (coordinator-state coordinator))
       coordinator)))
 
 (defn stop-coordinator! [coordinator]
@@ -1338,7 +1338,7 @@
   (if (contains? (:cancellations (runner-state runner))
                  (:research-execution-job/root job))
     {:delivery/status :cancelled-before-delivery}
-  (let [bytes (Files/readAllBytes (path-of (:proof/file delivery-bundle)))
+    (let [bytes (Files/readAllBytes (path-of (:proof/file delivery-bundle)))
           observed-content-root
           (str "sha256:" (hex (.digest (MessageDigest/getInstance "SHA-256") bytes)))
           _ (when-not (= (:proof/content-root delivery-bundle) observed-content-root)
@@ -1409,16 +1409,16 @@
        (fn [state]
          (let [prior (get-in state [:completed-work work-root :proof-delivery])]
            (when (and prior (not= (select-keys prior [:proof/content-root :proof/metadata
-                                                       :research-proof-generation-receipt])
+                                                      :research-proof-generation-receipt])
                                   (select-keys bundle [:proof/content-root :proof/metadata
                                                        :research-proof-generation-receipt])))
              (throw (ex-info "Conflicting proof bundle for completed accounting work" {})))
            (assoc-in state [:completed-work work-root :proof-delivery]
                      (merge bundle (select-keys prior [:proof-deliveries :delivery]))))))
       (let [delivered (proof-delivery-attempt! runner endpoint job assignment execution
-                                                (get-in (runner-state runner)
-                                                        [:completed-work work-root :proof-delivery])
-                                                logical-cutpoint)]
+                                               (get-in (runner-state runner)
+                                                       [:completed-work work-root :proof-delivery])
+                                               logical-cutpoint)]
         (update-runtime-state!
          runner
          (fn [state]
@@ -1476,7 +1476,7 @@
         result-root (computed-execution-root execution)
         response (post-edn! endpoint (if native-accounting-execution "/v1/accounting" "/v1/reproductions")
                             {:transport/kind (if native-accounting-execution :research/native-accounting-result-delivery
-                                                :research/reproduction-result-delivery)
+                                                 :research/reproduction-result-delivery)
                              :job job :assignment assignment
                              (if native-accounting-execution :native-accounting-execution :reproduction-execution) execution
                              :logical-cutpoint logical-cutpoint})
@@ -2182,7 +2182,7 @@
   [coordinator {:keys [endpoint accounting-work logical-cutpoint] :or {logical-cutpoint 0}}]
   (let [job (:work/job accounting-work) assignment (:work/assignment accounting-work)
         delivery (dispatch-job! coordinator {:endpoint endpoint :job job :assignment assignment
-                                              :execution-work accounting-work :logical-cutpoint logical-cutpoint})
+                                             :execution-work accounting-work :logical-cutpoint logical-cutpoint})
         entry (some (fn [[_ result]]
                       (when (= (:research-run-assignment/root assignment)
                                (:research-run-assignment/root (:assignment result))) result))

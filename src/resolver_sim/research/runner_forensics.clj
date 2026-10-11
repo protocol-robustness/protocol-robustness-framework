@@ -190,8 +190,8 @@
                (when coordinator-state
                  (for [n acknowledged
                        :when (not (contains? #{:research-runner/reproduction-result-acknowledgement
-                                              :research-runner/native-accounting-result-acknowledgement}
-                                            (get-in n [:extensions :forensic/subject :subject/kind])))
+                                               :research-runner/native-accounting-result-acknowledgement}
+                                             (get-in n [:extensions :forensic/subject :subject/kind])))
                        :let [observed-root (get-in n [:extensions :forensic/subject :subject/root])
                              completed (some (fn [[_ entry]]
                                                (when (= observed-root

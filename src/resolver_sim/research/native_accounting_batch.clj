@@ -100,7 +100,7 @@
         completeness (accounting/accounting-completeness request plan ingestion)
         complete? (and (= :complete (:accounting/completeness completeness))
                        (every? #(contains? #{:accepted :already-completed}
-                                            (get-in % [:dispatch :delivery :delivery/status]))
+                                           (get-in % [:dispatch :delivery :delivery/status]))
                                outcomes))]
     (cond-> {:accounting/batch-status (if complete? :complete :incomplete)
              :accounting/request-root (:accounting-request/root request)
@@ -135,19 +135,19 @@
 
 (defn- available-route [item active per-runner assignment-allowed?]
   (let [work (:work item)]
-   (->> (eligible-routes item)
-       (filter (fn [{:keys [participation endpoint]}]
-                 (and (map? endpoint)
-                      (route-permitted? assignment-allowed? item
-                                        {:participation participation :endpoint endpoint})
-                      (:eligible? (remote/eligibility (:work/job work)
-                                                      (:work/execution-environment work)
-                                                      (:work/execution-policy work)
-                                                      participation))
-                      (< (get active (:runner/reference participation) 0) per-runner))))
-       (sort-by (juxt #(get active (get-in % [:participation :runner/reference]) 0)
-                      #(get-in % [:participation :runner/reference])))
-       first)))
+    (->> (eligible-routes item)
+         (filter (fn [{:keys [participation endpoint]}]
+                   (and (map? endpoint)
+                        (route-permitted? assignment-allowed? item
+                                          {:participation participation :endpoint endpoint})
+                        (:eligible? (remote/eligibility (:work/job work)
+                                                        (:work/execution-environment work)
+                                                        (:work/execution-policy work)
+                                                        participation))
+                        (< (get active (:runner/reference participation) 0) per-runner))))
+         (sort-by (juxt #(get active (get-in % [:participation :runner/reference]) 0)
+                        #(get-in % [:participation :runner/reference])))
+         first)))
 
 (defn- bind-work-to-route [item {:keys [participation endpoint]}]
   (let [work (:work item)
@@ -228,7 +228,7 @@
                                           (- last-finish first-finish) 0)}))
 
 (defn- bounded-dispatch! [coordinator dispatches capacity per-runner batch-size
-                         assignment-allowed?]
+                          assignment-allowed?]
   (when-not (and (integer? capacity) (pos? capacity)
                  (integer? per-runner) (pos? per-runner)
                  (integer? batch-size) (<= 1 batch-size 32))
@@ -328,11 +328,11 @@
                    (sorted-map)
                    (map (fn [[account {:keys [request plan dispatches]}]]
                           (let [ingestion (get-in state [:accounting-partials
-                                                        (:accounting-partition-plan/root plan)] {})
+                                                         (:accounting-partition-plan/root plan)] {})
                                 coverage (accounting/accounting-completeness request plan ingestion)
                                 delivered? (every? #(contains? #{:accepted :already-completed}
-                                                              (get-in (outcome-by-unit (dispatch-root %))
-                                                                      [:dispatch :delivery :delivery/status]))
+                                                               (get-in (outcome-by-unit (dispatch-root %))
+                                                                       [:dispatch :delivery :delivery/status]))
                                                    dispatches)
                                 complete? (and delivered? (= :complete (:accounting/completeness coverage)))]
                             [account (cond-> {:accounting/status (if complete? :complete :incomplete)

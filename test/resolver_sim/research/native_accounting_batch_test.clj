@@ -18,7 +18,7 @@
   (let [basis (fixture/basis 4 10 987)]
     {:basis basis
      :fixtures (mapv #(fixture/work-fixture (+ 100 %) (+ 301 (mod % 2))
-                                          {:account-basis basis}) (range 4))}))
+                                            {:account-basis basis}) (range 4))}))
 
 (defn- semantic-results [result]
   (into (sorted-map)
@@ -56,8 +56,8 @@
                          :coordinator-endpoint (transport/coordinator-endpoint coordinator fixture/secret 30000)})
                       (take 2 fixtures))
         dispatches (mapv (fn [i f] {:work (:work f)
-                                   :endpoint (transport/coordinator-endpoint (nth runners (mod i 2))
-                                                                            fixture/secret 30000)})
+                                    :endpoint (transport/coordinator-endpoint (nth runners (mod i 2))
+                                                                              fixture/secret 30000)})
                          (range) fixtures)]
     (try
       (let [{result :value timings :runtime/profile}
@@ -102,8 +102,8 @@
       (is (= {:serial 2 :fixed 2 :pull 2}
              (frequencies (map #(nth % position) orders))))))
   (let [p (#'batch/dispatch-profile
-            [{:runner-root :a :started-ns 0 :finished-ns 10 :work-unit-count 1}
-             {:runner-root :b :started-ns 0 :finished-ns 30 :work-unit-count 1}] 2)]
+           [{:runner-root :a :started-ns 0 :finished-ns 10 :work-unit-count 1}
+            {:runner-root :b :started-ns 0 :finished-ns 30 :work-unit-count 1}] 2)]
     (is (= {:a 20 :b 0} (:dispatch/per-runner-finish-tail-ns p)))
     (is (= 20 (:dispatch/idle-capacity-ns p)))
     (is (= 2 (:dispatch/max-concurrent-groups p)))))
@@ -131,7 +131,7 @@
               (map (fn [{:keys [work request plan contract]}]
                      (let [partial (:accounting-partial (native/execute-work! work))
                            reconciliation (accounting/reconcile request contract plan
-                                                               (accounting/ingest-partial {} partial))]
+                                                                (accounting/ingest-partial {} partial))]
                        [(native/account-root request (:accounting/work-unit work))
                         (:canonical-accounting-result/root reconciliation)])))
               fixtures)]
@@ -200,14 +200,14 @@
       (let [validation-count (atom 0)
             validate native/valid-work?
             result (with-redefs-fn
-                    {#'native/valid-work?
-                     (fn [candidate]
-                       (swap! validation-count inc)
-                       (validate candidate))
-                     deliver-var (fn [_] {:delivery/status :unreachable})}
-                    #(transport/dispatch-native-accounting!
-                      coordinator {:endpoint {:transport/base-url "http://127.0.0.1:1"}
-                                   :accounting-work work}))]
+                     {#'native/valid-work?
+                      (fn [candidate]
+                        (swap! validation-count inc)
+                        (validate candidate))
+                      deliver-var (fn [_] {:delivery/status :unreachable})}
+                     #(transport/dispatch-native-accounting!
+                       coordinator {:endpoint {:transport/base-url "http://127.0.0.1:1"}
+                                    :accounting-work work}))]
         (is (= :unreachable (get-in result [:delivery :delivery/status])))
         (is (= 1 @validation-count)
             "dispatch intent validates before persistence; sender does not repeat it")
@@ -341,7 +341,7 @@
                     coordinator (:request basis) (:contract basis) dispatches
                     {:max-concurrent-dispatches 1 :max-outstanding-per-runner 1})
             statuses (frequencies (map #(get-in % [:dispatch :delivery :delivery/cache-status])
-                                     (:accounting/dispatch-outcomes result)))]
+                                       (:accounting/dispatch-outcomes result)))]
         (is (= :complete (:accounting/batch-status result)))
         (is (= {:full 1 :referenced 1} statuses))
         (is (= (accounting/serial-values (first (vals (:accounts basis))))
@@ -370,7 +370,7 @@
                     (mapv #(hash-map :work (:work %) :endpoint endpoint) fixtures)
                     {:max-concurrent-dispatches 1 :max-transport-batch-size 3})
             statuses (frequencies (map #(get-in % [:dispatch :delivery :delivery/cache-status])
-                                     (:accounting/dispatch-outcomes result)))]
+                                       (:accounting/dispatch-outcomes result)))]
         (is (= :complete (:accounting/batch-status result)))
         (is (= {:full-batch 1 :referenced-batch 2} statuses))
         (is (= 3 (count (:native-accounting-results (transport/coordinator-state coordinator)))))
@@ -452,7 +452,7 @@
         (is (= :accepted (get-in second-outcome [:dispatch :delivery :delivery/status])))
         (is (= 1 (count (:native-accounting-results (transport/coordinator-state coordinator)))))
         (is (nil? (get-in result [:accounting/account-results (fixture/root 100)
-                                 :accounting/reconciliation]))))
+                                  :accounting/reconciliation]))))
       (finally
         (transport/stop-runner! runner)
         (transport/stop-coordinator! coordinator)))))
@@ -509,9 +509,9 @@
         (is (= #{:cancelled-before-start :accepted} statuses))
         (is (= [(fixture/root 100)] (:accounting/incomplete-account-roots result)))
         (is (nil? (get-in result [:accounting/account-results (fixture/root 100)
-                                 :accounting/reconciliation])))
+                                  :accounting/reconciliation])))
         (is (= :complete (get-in result [:accounting/account-results (fixture/root 101)
-                                       :accounting/status])))
+                                         :accounting/status])))
         (is (= 1 (count (:native-accounting-results (transport/coordinator-state coordinator))))))
       (finally
         (transport/stop-runner! runner)
@@ -528,7 +528,7 @@
                      (batch/dispatch-accounts-and-reconcile! nil (:request basis) (:contract basis) bad {}))))
       (is (thrown? clojure.lang.ExceptionInfo
                    (batch/dispatch-accounts-and-reconcile! nil (:request (fixture/basis 4 11 987))
-                                                         (:contract basis) items {})))
+                                                           (:contract basis) items {})))
       (doseq [limits [{:max-concurrent-dispatches 0} {:max-outstanding-per-runner 0}]]
         (is (thrown? clojure.lang.ExceptionInfo
                      (batch/dispatch-accounts-and-reconcile! nil (:request basis) (:contract basis) items limits))))
@@ -555,17 +555,17 @@
                         (when-not (.await release 10 TimeUnit/SECONDS)
                           (throw (ex-info "Test dispatch barrier timed out" {})))
                         (if (= (fixture/root 103) (native/account-root (:accounting/request accounting-work)
-                                                                     (:accounting/work-unit accounting-work)))
+                                                                       (:accounting/work-unit accounting-work)))
                           (throw (ex-info "Unavailable runner for final account" {}))
                           (let [execution (get executions (native/work-root accounting-work))
                                 plan (get-in accounting-work [:accounting/partition-plan :accounting-partition-plan/root])]
                             (swap! state update-in [:accounting-partials plan] (fnil accounting/ingest-partial {})
                                    (:accounting-partial execution))
                             {:delivery {:delivery/status :accepted} :native-accounting-execution execution}))
-                        (finally (swap! active update runner dec))))) ]
+                        (finally (swap! active update runner dec)))))]
       (let [task (future (batch/dispatch-accounts-and-reconcile! nil (:request basis) (:contract basis) items
-                                                              {:max-concurrent-dispatches 2
-                                                               :max-outstanding-per-runner 1}))]
+                                                                 {:max-concurrent-dispatches 2
+                                                                  :max-outstanding-per-runner 1}))]
         (try
           (is (.await entered 10 TimeUnit/SECONDS))
           (.countDown release)
@@ -576,7 +576,7 @@
             (is (= :incomplete (:accounting/batch-status result)))
             (is (= [(fixture/root 103)] (:accounting/incomplete-account-roots result)))
             (is (= 3 (count (filter #(= :complete (:accounting/status %))
-                                   (vals (:accounting/account-results result))))))
+                                    (vals (:accounting/account-results result))))))
             (is (nil? (get-in result [:accounting/account-results (fixture/root 103) :accounting/reconciliation]))))
           (finally (.countDown release) (future-cancel task)))))))
 
@@ -614,14 +614,14 @@
     (is (= 1 (get-in measured [:runtime/profile :stages [:executor-evidence :forensic-evidence] :calls])))
     (is (= 0 (get-in measured [:runtime/profile :stages [:executor-evidence :work-binding-validation] :calls] 0)))
     (is (= 0 (get-in measured [:runtime/profile :stages [:executor-evidence :selected-implementation-recomputation] :calls] 0)))
-    (is (= 0 (get-in measured [:runtime/profile :stages [:executor-evidence :partition-arithmetic-recomputation] :calls] 0)))) )
+    (is (= 0 (get-in measured [:runtime/profile :stages [:executor-evidence :partition-arithmetic-recomputation] :calls] 0)))))
 
 (deftest cancelled-account-cannot-become-zero-or-complete
   (let [{:keys [basis fixtures]} (account-fixtures)
         partials (into {} (map (fn [f]
-                                [(get-in f [:plan :accounting-partition-plan/root])
-                                 (accounting/ingest-partial {} (:accounting-partial (native/execute-work! (:work f))))])
-                              (take 3 fixtures)))
+                                 [(get-in f [:plan :accounting-partition-plan/root])
+                                  (accounting/ingest-partial {} (:accounting-partial (native/execute-work! (:work f))))])
+                               (take 3 fixtures)))
         items (mapv #(hash-map :work (:work %) :endpoint {}) fixtures)]
     (with-redefs [transport/coordinator-state (fn [_] {:accounting-partials partials})
                   transport/dispatch-native-accounting!
@@ -642,7 +642,7 @@
   (let [directory (.toFile (Files/createTempDirectory "accounting-startup-failure-" (make-array FileAttribute 0)))
         scratch-var (ns-resolve 'resolver-sim.research.native-accounting-performance 'scratch-directory)]
     (with-redefs-fn {scratch-var (constantly directory)
-                    #'transport/start-coordinator! (fn [& _] (throw (ex-info "Socket unavailable" {})))}
+                     #'transport/start-coordinator! (fn [& _] (throw (ex-info "Socket unavailable" {})))}
       #(is (thrown-with-msg? clojure.lang.ExceptionInfo #"Socket unavailable"
-                            (performance/-main "1" "10" "1" "1" "1"))))
+                             (performance/-main "1" "10" "1" "1" "1"))))
     (is (not (.exists directory)))))

@@ -93,8 +93,8 @@
 (defn validate-environment [environment]
   (if (= native-schema (:artifact/schema environment))
     (let [valid? (and (= #{:artifact/schema :execution-environment/kind :runtime/clojure-version
-                          :runtime/jvm-version :environment/arithmetic :forensic/assurance
-                          :research-execution-environment/root} (set (keys environment)))
+                           :runtime/jvm-version :environment/arithmetic :forensic/assurance
+                           :research-execution-environment/root} (set (keys environment)))
                       (= :clojure-jvm (:execution-environment/kind environment))
                       (every? #(and (string? %) (seq %))
                               (map environment [:runtime/clojure-version :runtime/jvm-version]))
@@ -107,7 +107,7 @@
 
 (defn build-native-environment
   ([] (build-native-environment {:clojure-version (clojure-version)
-                                :jvm-version (System/getProperty "java.version")}))
+                                 :jvm-version (System/getProperty "java.version")}))
   ([{:keys [clojure-version jvm-version]}]
    (let [body {:artifact/schema native-schema :execution-environment/kind :clojure-jvm
                :runtime/clojure-version clojure-version :runtime/jvm-version jvm-version

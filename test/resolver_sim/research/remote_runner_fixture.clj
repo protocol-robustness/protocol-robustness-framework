@@ -45,7 +45,7 @@
 
 (defn- start-reproduction-runner! [auth-secret coordinator-port state-path]
   (let [fixture-runner (requiring-resolve
-                       'resolver-sim.research.remote-execution-test/runner)
+                        'resolver-sim.research.remote-execution-test/runner)
         fake-root (requiring-resolve
                    'resolver-sim.research.remote-execution-test/fake-root)
         coordinator-port (Integer/parseInt coordinator-port)
@@ -71,8 +71,8 @@
     :qualification-references []}))
 
 (defn- start-native-accounting-runner! [auth-secret coordinator-port state-path
-                                       & [runner-id partition-index listen-port
-                                          block-stage entered-path release-path]]
+                                        & [runner-id partition-index listen-port
+                                           block-stage entered-path release-path]]
   (let [_ (when (contains? (loaded-libs) 'resolver-sim.research.anvil-executor)
             (throw (ex-info "Native accounting runner loaded the Anvil executor" {})))
         _ (when (and partition-index (not= 1 partition-index))

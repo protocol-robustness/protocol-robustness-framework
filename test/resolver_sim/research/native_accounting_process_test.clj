@@ -55,8 +55,8 @@
 
 (defn- remote-shell! [target command]
   (let [process (-> (ProcessBuilder. ^java.util.List
-                                    ["ssh" "-o" "BatchMode=yes" "-o" "ConnectTimeout=8"
-                                     target command])
+                     ["ssh" "-o" "BatchMode=yes" "-o" "ConnectTimeout=8"
+                      target command])
                     (.redirectErrorStream true)
                     .start)
         output (future (slurp (.getInputStream process)))
@@ -77,34 +77,34 @@
    (remote-runner! target remote-dir coordinator-port listen-port work block? nil))
   ([target remote-dir coordinator-port listen-port work block? prior]
    (let [id (str "native-accounting-control-" (java.util.UUID/randomUUID))
-        run-dir (or (:run-dir prior) (str remote-dir "/" id))
-        journal (str run-dir "/runner.edn")
-        log (str run-dir "/runner.log")
-        pid-file (str run-dir "/runner.pid")
-        entered (str run-dir "/before-result-delivery.edn")
-        release (str run-dir "/release")
-        block-stage (if block? "before-result-delivery" "none")
-        runner-command (str "cd " (shell-quote remote-dir) " && echo $$ > " (shell-quote pid-file)
-                            " && exec clojure -M:test -m "
-                            "resolver-sim.research.remote-runner-fixture "
-                            (shell-quote fixture/secret) " " coordinator-port " "
-                            (shell-quote journal) " native-accounting 302 1 " listen-port " "
-                            block-stage " " (shell-quote entered) " " (shell-quote release))
-        command (str "mkdir -p " (shell-quote run-dir) " && setsid -f sh -c "
-                     (shell-quote runner-command) " >" (shell-quote log)
-                     " 2>&1 </dev/null; for i in $(seq 1 100); do "
-                     "if test -s " (shell-quote pid-file) "; then cat " (shell-quote pid-file)
-                     "; exit 0; fi; sleep 0.1; done; echo runner-pid-not-written; exit 1")
-        pid (remote-shell! target command)]
-    (try
-      (remote-shell! target
-                     (str "timeout 90 sh -c 'until grep -q :remote-runner-ready \"$1\"; do sleep 0.1; done' _ "
-                          (shell-quote log) " || { tail -80 " (shell-quote log) "; exit 1; }"))
-      {:pid pid :run-dir run-dir :journal journal :log log :pid-file pid-file
-       :entered entered :release release :work work :block? block?}
-      (catch Throwable e
-        (try (remote-kill-runner! target pid listen-port) (catch Throwable _))
-        (throw e))))))
+         run-dir (or (:run-dir prior) (str remote-dir "/" id))
+         journal (str run-dir "/runner.edn")
+         log (str run-dir "/runner.log")
+         pid-file (str run-dir "/runner.pid")
+         entered (str run-dir "/before-result-delivery.edn")
+         release (str run-dir "/release")
+         block-stage (if block? "before-result-delivery" "none")
+         runner-command (str "cd " (shell-quote remote-dir) " && echo $$ > " (shell-quote pid-file)
+                             " && exec clojure -M:test -m "
+                             "resolver-sim.research.remote-runner-fixture "
+                             (shell-quote fixture/secret) " " coordinator-port " "
+                             (shell-quote journal) " native-accounting 302 1 " listen-port " "
+                             block-stage " " (shell-quote entered) " " (shell-quote release))
+         command (str "mkdir -p " (shell-quote run-dir) " && setsid -f sh -c "
+                      (shell-quote runner-command) " >" (shell-quote log)
+                      " 2>&1 </dev/null; for i in $(seq 1 100); do "
+                      "if test -s " (shell-quote pid-file) "; then cat " (shell-quote pid-file)
+                      "; exit 0; fi; sleep 0.1; done; echo runner-pid-not-written; exit 1")
+         pid (remote-shell! target command)]
+     (try
+       (remote-shell! target
+                      (str "timeout 90 sh -c 'until grep -q :remote-runner-ready \"$1\"; do sleep 0.1; done' _ "
+                           (shell-quote log) " || { tail -80 " (shell-quote log) "; exit 1; }"))
+       {:pid pid :run-dir run-dir :journal journal :log log :pid-file pid-file
+        :entered entered :release release :work work :block? block?}
+       (catch Throwable e
+         (try (remote-kill-runner! target pid listen-port) (catch Throwable _))
+         (throw e))))))
 
 (defn- remote-kill-runner! [target runner listen-port]
   (let [pid (if (map? runner) (:pid runner) runner)]
@@ -253,7 +253,7 @@
         ;; A recomputation would block at this actual-arithmetic hook and never
         ;; reach readiness; recovery must only deliver persisted evidence.
         (let [restarted (launch (assoc config :block-at :during-native-accounting-compute
-                                      :entered-path (.getAbsolutePath entered) :release-path (.getAbsolutePath release)))]
+                                       :entered-path (.getAbsolutePath entered) :release-path (.getAbsolutePath release)))]
           (try
             (ready! restarted)
             (let [state (state! journal #(= :result-acknowledged (get-in % [:work-states wr :work/status])))
@@ -285,7 +285,7 @@
                            {:coordinator-root fixture/coordinator-root
                             :endpoint (transport/coordinator-endpoint runner fixture/secret 10000)
                             :job job :assignment assignment :execution-work work})
-                         (catch Throwable e {:failure e})))]
+                          (catch Throwable e {:failure e})))]
     (try
       (await-stage entered (:process child) (:log-file child) :after-reproduction-persisted)
       (let [state (:coordinator-runtime/state
@@ -319,8 +319,8 @@
                        :requested-cutpoint 0 :scope :entire-job :target-roots []})]
     (try
       (is (= :observed (:delivery/status (transport/deliver-cancellation!
-                                        {:coordinator-root fixture/coordinator-root :endpoint (endpoint (ready! child) :runner/base-url)
-                                         :cancellation cancellation :runner-participation participant :assignment assignment}))))
+                                          {:coordinator-root fixture/coordinator-root :endpoint (endpoint (ready! child) :runner/base-url)
+                                           :cancellation cancellation :runner-participation participant :assignment assignment}))))
       (kill! child)
       (let [restarted (launch config)]
         (try
@@ -350,8 +350,8 @@
       (await-stage entered (:process child) (:log-file child) :before-result-delivery)
       (let [saved (get-in (state! journal #(contains? (:completed-work %) wr)) [:completed-work wr :native-accounting-execution])]
         (is (= :observed (:delivery/status (transport/deliver-cancellation!
-                                          {:coordinator-root fixture/coordinator-root :endpoint (endpoint ready :runner/base-url)
-                                           :cancellation cancellation :runner-participation participant :assignment assignment}))))
+                                            {:coordinator-root fixture/coordinator-root :endpoint (endpoint ready :runner/base-url)
+                                             :cancellation cancellation :runner-participation participant :assignment assignment}))))
         ;; Kill without releasing the blocked delivery handler: cancellation
         ;; must already have durably suppressed pending result delivery.
         (kill! child) (join! task)
@@ -410,8 +410,8 @@
               remote-reconciliation (when (= 2 (count distributed))
                                       (accounting/reconcile request contract plan distributed))]
           (is (:native-accounting-execution (transport/dispatch-native-accounting!
-                                              coordinator {:endpoint remote-endpoint
-                                                           :accounting-work remote-work :logical-cutpoint 3})))
+                                             coordinator {:endpoint remote-endpoint
+                                                          :accounting-work remote-work :logical-cutpoint 3})))
           (is (= {:accounting/bond 25} (:accounting/values remote-reconciliation)))
           (is (= (:accounting/values local-reconciliation) (:accounting/values remote-reconciliation)))
           (is (= (:canonical-accounting-result/root local-reconciliation)
@@ -468,10 +468,10 @@
             (reset! coordinator (start-live-coordinator assignment coordinator-port coordinator-journal))
             (reset! runner (remote-runner! target remote-dir coordinator-port listen-port work true))
             (let [task (future
-                        (try (transport/dispatch-native-accounting!
-                              @coordinator {:endpoint (remote-endpoint runner-url)
-                                            :accounting-work work :logical-cutpoint 1})
-                             (catch Throwable e {:failure e})))
+                         (try (transport/dispatch-native-accounting!
+                               @coordinator {:endpoint (remote-endpoint runner-url)
+                                             :accounting-work work :logical-cutpoint 1})
+                              (catch Throwable e {:failure e})))
                   _ (remote-wait-file! target (:entered @runner))
                   saved-state (remote-runner-state target @runner)
                   saved-execution (get-in saved-state
@@ -518,10 +518,10 @@
                                                         barrier #(swap! events conj %)))
             (reset! runner (remote-runner! target remote-dir coordinator-port listen-port work false))
             (let [task (future
-                        (try (transport/dispatch-native-accounting!
-                              @coordinator {:endpoint (remote-endpoint runner-url)
-                                            :accounting-work work :logical-cutpoint 1})
-                             (catch Throwable e {:failure e})))
+                         (try (transport/dispatch-native-accounting!
+                               @coordinator {:endpoint (remote-endpoint runner-url)
+                                             :accounting-work work :logical-cutpoint 1})
+                              (catch Throwable e {:failure e})))
                   _ (await-local-file! entered)
                   persisted (transport/coordinator-state @coordinator)
                   wr (:research-native-accounting-work/root work)

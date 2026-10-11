@@ -72,109 +72,109 @@
 
 (defn valid-work? [work]
   (boolean (try
-    (let [{:work/keys [job assignment runner-participation execution-environment dependency-manifest
-                      dependency-policy resolved-dependencies implementation assured-job execution-policy
-                      assurance-policy]} work
-          request (:accounting/request work) plan (:accounting/partition-plan work)
-          unit (:accounting/work-unit work)
-          deps (:resolved/dependencies resolved-dependencies)
-          dependency-roots (into {} (map (juxt :dependency/id :dependency/artifact-root)
-                                         (:dependencies dependency-manifest)))
-          declared-dependency-ids (set (map :dependency/id (:dependencies dependency-manifest)))
-          selected-code-dependency (if (= (:implementation/algorithm-id implementation)
-                                          independent-accounting/algorithm-id)
-                                     :accounting/independent-code
-                                     :accounting/code)]
-      (and (= schema (:artifact/schema work))
-           (= #{:artifact/schema :work/job :work/assignment :work/runner-participation
-                :work/execution-environment :work/dependency-manifest :work/dependency-policy
-                :work/resolved-dependencies :work/implementation :work/assured-job
-                :work/execution-policy :work/assurance-policy :accounting/request
-                :accounting/partition-plan :accounting/work-unit :research-native-accounting-work/root}
-              (set (keys work)))
-           (remote/valid-job? job) (remote/valid-assignment? assignment)
-           (:valid? (participation/validate-participation runner-participation))
-           (= environment/native-schema (:artifact/schema execution-environment))
-           (:valid? (environment/validate-environment execution-environment))
-           (remote/valid-execution-policy? execution-policy)
-           (assurance/valid-assurance-policy? assurance-policy)
-           (assurance/valid-assured-job? assured-job)
-           (assurance/valid-implementation? implementation)
+             (let [{:work/keys [job assignment runner-participation execution-environment dependency-manifest
+                                dependency-policy resolved-dependencies implementation assured-job execution-policy
+                                assurance-policy]} work
+                   request (:accounting/request work) plan (:accounting/partition-plan work)
+                   unit (:accounting/work-unit work)
+                   deps (:resolved/dependencies resolved-dependencies)
+                   dependency-roots (into {} (map (juxt :dependency/id :dependency/artifact-root)
+                                                  (:dependencies dependency-manifest)))
+                   declared-dependency-ids (set (map :dependency/id (:dependencies dependency-manifest)))
+                   selected-code-dependency (if (= (:implementation/algorithm-id implementation)
+                                                   independent-accounting/algorithm-id)
+                                              :accounting/independent-code
+                                              :accounting/code)]
+               (and (= schema (:artifact/schema work))
+                    (= #{:artifact/schema :work/job :work/assignment :work/runner-participation
+                         :work/execution-environment :work/dependency-manifest :work/dependency-policy
+                         :work/resolved-dependencies :work/implementation :work/assured-job
+                         :work/execution-policy :work/assurance-policy :accounting/request
+                         :accounting/partition-plan :accounting/work-unit :research-native-accounting-work/root}
+                       (set (keys work)))
+                    (remote/valid-job? job) (remote/valid-assignment? assignment)
+                    (:valid? (participation/validate-participation runner-participation))
+                    (= environment/native-schema (:artifact/schema execution-environment))
+                    (:valid? (environment/validate-environment execution-environment))
+                    (remote/valid-execution-policy? execution-policy)
+                    (assurance/valid-assurance-policy? assurance-policy)
+                    (assurance/valid-assured-job? assured-job)
+                    (assurance/valid-implementation? implementation)
            ;; valid-partition-plan? validates the request root and body itself;
            ;; avoid walking/hashing the large source vector a second time here.
-           (accounting/valid-partition-plan? request plan)
-           (= (:accounting-reduction-contract/root request)
-              (:accounting-reduction-contract/root (accounting/build-reduction-contract)))
-           (some #{unit} (:partition/work-units plan))
-           (account-root request unit)
-           (contains? #{:public :runner-readable-private} (:work-unit/privacy-requirement unit))
-           (not-any? #(= :sealed-to-execution-environment (:dependency/visibility %))
-                     (:dependencies dependency-manifest))
+                    (accounting/valid-partition-plan? request plan)
+                    (= (:accounting-reduction-contract/root request)
+                       (:accounting-reduction-contract/root (accounting/build-reduction-contract)))
+                    (some #{unit} (:partition/work-units plan))
+                    (account-root request unit)
+                    (contains? #{:public :runner-readable-private} (:work-unit/privacy-requirement unit))
+                    (not-any? #(= :sealed-to-execution-environment (:dependency/visibility %))
+                              (:dependencies dependency-manifest))
            ;; resolve-dependencies validates both source artifacts before it
            ;; derives and compares the exact resolved set below.
-           (= resolved-dependencies (dependency/resolve-dependencies dependency-manifest dependency-policy deps))
-           (= (:research-execution-job/root job) (:research-execution-job/root assignment)
-              (:research-execution-job/root assured-job))
-           (= (:workload/root job) (:accounting-work-unit/root unit))
-           (= (:research-execution-environment/root job) (:research-execution-environment/root assignment)
-              (:research-execution-environment/root execution-environment) (:work-unit/execution-environment-root unit))
-           (= (:runner-participation/root runner-participation) (:runner-participation/root assignment))
-           (= (:runner/reference runner-participation) (:runner/reference assignment))
-           (= (:runner/site-id runner-participation) (:runner/site-id assignment))
-           (:eligible? (remote/eligibility job execution-environment execution-policy runner-participation))
-           (= (:research-run-slot/root assignment)
-              (:research-run-slot/root (nth (remote/run-slots job execution-policy) (:run-slot/index assignment) nil)))
-           (set/subset? (set (:work-unit/required-capabilities unit)) (set (:runner/capabilities runner-participation)))
-           (= (:research-dependency-manifest/root dependency-manifest) (:research-dependency-manifest/root assured-job))
-           (= (:research-dependency-policy/root dependency-policy) (:research-dependency-policy/root assured-job)
-              (:research-dependency-policy/root assurance-policy))
-           (= (:research-execution-policy/root execution-policy) (:research-execution-policy/root job)
-              (:research-execution-policy/root assurance-policy))
-           (= (:research-execution-assurance-policy/root assurance-policy) (:research-execution-assurance-policy/root assured-job))
-           (= (:execution/required-runs assurance-policy) (:execution/required-runs execution-policy))
-           (<= (:assurance/minimum-distinct-implementations assurance-policy)
-               (count (set (:work-unit/allowed-implementation-roots unit))))
-           (not (:proof-generation/required? assurance-policy))
-           (= (:resolved-research-dependency-set/root resolved-dependencies)
-              (:resolved-research-dependency-set/root implementation) (:resolved-research-dependency-set/root assured-job)
-              (:work-unit/dependency-set-root unit))
-           (contains? (set (:research-implementation-identity/roots assured-job)) (:research-implementation-identity/root implementation))
-           (contains? (set (:work-unit/allowed-implementation-roots unit)) (:research-implementation-identity/root implementation))
-           (or (and (= (:implementation/algorithm-id implementation) accounting/supported-operation)
-                    (= (:implementation/artifact-root implementation) (implementation-artifact-root)))
-               (and (= (:implementation/algorithm-id implementation) independent-accounting/algorithm-id)
-                    (= (:implementation/artifact-root implementation) (independent-implementation-artifact-root))))
-           (= :clojure/jvm (:implementation/language-runtime-family implementation))
-           (contains? declared-dependency-ids :accounting/code)
-           (contains? declared-dependency-ids :accounting/runtime)
-           (contains? declared-dependency-ids :accounting/sources)
-           (set/subset? (set/difference declared-dependency-ids #{:accounting/independent-code})
-                        #{:accounting/code :accounting/runtime :accounting/sources})
-           (= :clojure-model (some (fn [d] (when (= :accounting/code (:dependency/id d))
-                                                (:dependency/class d)))
-                                   (:dependencies dependency-manifest)))
-           (= :runtime-toolchain (some (fn [d] (when (= :accounting/runtime (:dependency/id d))
-                                                    (:dependency/class d)))
-                                       (:dependencies dependency-manifest)))
-           (= :dataset-fixture (some (fn [d] (when (= :accounting/sources (:dependency/id d))
-                                                 (:dependency/class d)))
-                                     (:dependencies dependency-manifest)))
-           (or (not (contains? declared-dependency-ids :accounting/independent-code))
-               (= :clojure-model (some #(when (= :accounting/independent-code (:dependency/id %))
-                                          (:dependency/class %)) (:dependencies dependency-manifest))))
-           (= {:accounting/runtime (:research-execution-environment/root execution-environment)
-               :accounting/sources (:accounting-request/root request)}
-              (select-keys dependency-roots
-                           [:accounting/runtime :accounting/sources]))
-           (= (:implementation/artifact-root implementation)
-              (get dependency-roots selected-code-dependency))
-           (= (implementation-artifact-root) (get dependency-roots :accounting/code))
-           (if (contains? declared-dependency-ids :accounting/independent-code)
-             (= (get dependency-roots :accounting/independent-code)
-                (independent-implementation-artifact-root))
-             (nil? (get dependency-roots :accounting/independent-code)))
-           (= (:research-native-accounting-work/root work) (work-root work))))
-    (catch Exception _ false))))
+                    (= resolved-dependencies (dependency/resolve-dependencies dependency-manifest dependency-policy deps))
+                    (= (:research-execution-job/root job) (:research-execution-job/root assignment)
+                       (:research-execution-job/root assured-job))
+                    (= (:workload/root job) (:accounting-work-unit/root unit))
+                    (= (:research-execution-environment/root job) (:research-execution-environment/root assignment)
+                       (:research-execution-environment/root execution-environment) (:work-unit/execution-environment-root unit))
+                    (= (:runner-participation/root runner-participation) (:runner-participation/root assignment))
+                    (= (:runner/reference runner-participation) (:runner/reference assignment))
+                    (= (:runner/site-id runner-participation) (:runner/site-id assignment))
+                    (:eligible? (remote/eligibility job execution-environment execution-policy runner-participation))
+                    (= (:research-run-slot/root assignment)
+                       (:research-run-slot/root (nth (remote/run-slots job execution-policy) (:run-slot/index assignment) nil)))
+                    (set/subset? (set (:work-unit/required-capabilities unit)) (set (:runner/capabilities runner-participation)))
+                    (= (:research-dependency-manifest/root dependency-manifest) (:research-dependency-manifest/root assured-job))
+                    (= (:research-dependency-policy/root dependency-policy) (:research-dependency-policy/root assured-job)
+                       (:research-dependency-policy/root assurance-policy))
+                    (= (:research-execution-policy/root execution-policy) (:research-execution-policy/root job)
+                       (:research-execution-policy/root assurance-policy))
+                    (= (:research-execution-assurance-policy/root assurance-policy) (:research-execution-assurance-policy/root assured-job))
+                    (= (:execution/required-runs assurance-policy) (:execution/required-runs execution-policy))
+                    (<= (:assurance/minimum-distinct-implementations assurance-policy)
+                        (count (set (:work-unit/allowed-implementation-roots unit))))
+                    (not (:proof-generation/required? assurance-policy))
+                    (= (:resolved-research-dependency-set/root resolved-dependencies)
+                       (:resolved-research-dependency-set/root implementation) (:resolved-research-dependency-set/root assured-job)
+                       (:work-unit/dependency-set-root unit))
+                    (contains? (set (:research-implementation-identity/roots assured-job)) (:research-implementation-identity/root implementation))
+                    (contains? (set (:work-unit/allowed-implementation-roots unit)) (:research-implementation-identity/root implementation))
+                    (or (and (= (:implementation/algorithm-id implementation) accounting/supported-operation)
+                             (= (:implementation/artifact-root implementation) (implementation-artifact-root)))
+                        (and (= (:implementation/algorithm-id implementation) independent-accounting/algorithm-id)
+                             (= (:implementation/artifact-root implementation) (independent-implementation-artifact-root))))
+                    (= :clojure/jvm (:implementation/language-runtime-family implementation))
+                    (contains? declared-dependency-ids :accounting/code)
+                    (contains? declared-dependency-ids :accounting/runtime)
+                    (contains? declared-dependency-ids :accounting/sources)
+                    (set/subset? (set/difference declared-dependency-ids #{:accounting/independent-code})
+                                 #{:accounting/code :accounting/runtime :accounting/sources})
+                    (= :clojure-model (some (fn [d] (when (= :accounting/code (:dependency/id d))
+                                                      (:dependency/class d)))
+                                            (:dependencies dependency-manifest)))
+                    (= :runtime-toolchain (some (fn [d] (when (= :accounting/runtime (:dependency/id d))
+                                                          (:dependency/class d)))
+                                                (:dependencies dependency-manifest)))
+                    (= :dataset-fixture (some (fn [d] (when (= :accounting/sources (:dependency/id d))
+                                                        (:dependency/class d)))
+                                              (:dependencies dependency-manifest)))
+                    (or (not (contains? declared-dependency-ids :accounting/independent-code))
+                        (= :clojure-model (some #(when (= :accounting/independent-code (:dependency/id %))
+                                                   (:dependency/class %)) (:dependencies dependency-manifest))))
+                    (= {:accounting/runtime (:research-execution-environment/root execution-environment)
+                        :accounting/sources (:accounting-request/root request)}
+                       (select-keys dependency-roots
+                                    [:accounting/runtime :accounting/sources]))
+                    (= (:implementation/artifact-root implementation)
+                       (get dependency-roots selected-code-dependency))
+                    (= (implementation-artifact-root) (get dependency-roots :accounting/code))
+                    (if (contains? declared-dependency-ids :accounting/independent-code)
+                      (= (get dependency-roots :accounting/independent-code)
+                         (independent-implementation-artifact-root))
+                      (nil? (get dependency-roots :accounting/independent-code)))
+                    (= (:research-native-accounting-work/root work) (work-root work))))
+             (catch Exception _ false))))
 
 (defn build-work [body]
   (let [body (assoc body :artifact/schema schema)
@@ -243,11 +243,11 @@
 
 (defn- validate-execution-after-work-validation [work result]
   (when-not (and (= result (derive-evidence work (computed-partial-values (:accounting/request work)
-                                                                           (:accounting/work-unit work)
-                                                                           (:work/implementation work))
-                                             (select-keys (:work/execution-environment work)
-                                                          [:runtime/clojure-version :runtime/jvm-version
-                                                           :environment/arithmetic])))
+                                                                          (:accounting/work-unit work)
+                                                                          (:work/implementation work))
+                                            (select-keys (:work/execution-environment work)
+                                                         [:runtime/clojure-version :runtime/jvm-version
+                                                          :environment/arithmetic])))
                  (assurance/valid-run-assurance-evidence? (:run-assurance-evidence result)))
     (throw (ex-info "Native accounting execution lineage or arithmetic mismatch" {})))
   result)
@@ -315,12 +315,12 @@
                           :role :validated :visibility :restricted :parent-nodes [(:node-hash run-node)]
                           :causal-parent-roots [(execution-root result)] :consequence? true})]
     (let [assured-node (forensic/build-forensic-evidence-node
-                       {:subject {:subject/kind :accounting/run-assurance
-                                  :subject/root (get-in result [:run-assurance-evidence :research-run-assurance-evidence/root])}
-                        :role :derived :visibility :restricted :parent-nodes [(:node-hash validation-node)]
-                        :causal-parent-roots [(execution-root result)
-                                              (get-in result [:fixed-validation :research-native-accounting-validation/root])]
-                        :consequence? true})
+                        {:subject {:subject/kind :accounting/run-assurance
+                                   :subject/root (get-in result [:run-assurance-evidence :research-run-assurance-evidence/root])}
+                         :role :derived :visibility :restricted :parent-nodes [(:node-hash validation-node)]
+                         :causal-parent-roots [(execution-root result)
+                                               (get-in result [:fixed-validation :research-native-accounting-validation/root])]
+                         :consequence? true})
           partial-node (forensic/build-forensic-evidence-node
                         {:subject {:subject/kind :accounting/partial
                                    :subject/root (get-in result [:accounting-partial :accounting-partial-result/root])}

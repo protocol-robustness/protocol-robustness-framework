@@ -69,16 +69,16 @@
                    :accounts (native/account-requests request contract)})
                 (fixture/basis account-count source-count cutpoint))]
     (vec
-   (for [account-index (range account-count)
-         partition-index (range partitions)
-         :let [slot (+ (* account-index partitions) partition-index)
-               runner-id (case mode
-                           :serial 301
-                           :local (+ 301 (mod slot workers))
-                           :cross-host (+ 301 (mod slot 2)))]]
-     (fixture/work-fixture (+ 100 account-index) runner-id
-                           {:account-basis basis :partition-count partitions
-                            :partition-index partition-index})))))
+     (for [account-index (range account-count)
+           partition-index (range partitions)
+           :let [slot (+ (* account-index partitions) partition-index)
+                 runner-id (case mode
+                             :serial 301
+                             :local (+ 301 (mod slot workers))
+                             :cross-host (+ 301 (mod slot 2)))]]
+       (fixture/work-fixture (+ 100 account-index) runner-id
+                             {:account-basis basis :partition-count partitions
+                              :partition-index partition-index})))))
 
 (defn- reconcile-fixtures [fixtures partials]
   (let [groups (group-by #(get-in % [:plan :accounting-partition-plan/root]) fixtures)
@@ -119,12 +119,12 @@
                              vals)]
     (mapv (fn [f]
             (registered! registry (transport/start-runner!
-             {:runner-participation (:participant f)
-              :auth-secret fixture/secret
-              :coordinator-root fixture/coordinator-root
-              :coordinator-endpoint (transport/coordinator-endpoint coordinator fixture/secret 60000)
-              :state-path (journal-path directory (str "runner-" (get-in f [:participant :runner/reference]) ".edn"))
-              :bind-address "127.0.0.1" :port 0})))
+                                   {:runner-participation (:participant f)
+                                    :auth-secret fixture/secret
+                                    :coordinator-root fixture/coordinator-root
+                                    :coordinator-endpoint (transport/coordinator-endpoint coordinator fixture/secret 60000)
+                                    :state-path (journal-path directory (str "runner-" (get-in f [:participant :runner/reference]) ".edn"))
+                                    :bind-address "127.0.0.1" :port 0})))
           worker-fixtures)))
 
 (defn- dispatch-accounts [coordinator fixtures endpoint-for workers]
@@ -157,7 +157,7 @@
 
 (defn- batch-roots [result]
   (vec (sort (map #(get-in % [:accounting/reconciliation :canonical-accounting-result/root])
-                 (vals (:accounting/account-results result))))))
+                  (vals (:accounting/account-results result))))))
 
 (defn- coordinator-for [fixtures directory]
   (transport/start-coordinator!
@@ -170,102 +170,102 @@
   ([account-count source-count partitions cutpoint workers]
    (local-sample account-count source-count partitions cutpoint workers :fixed))
   ([account-count source-count partitions cutpoint workers assignment-mode]
-  (with-runtimes
-   (fn [directory coordinator-registry runner-registry]
-    (let [construction (elapsed #(fixture-matrix account-count source-count partitions cutpoint :local workers))
-        fixtures (:value construction)
-        coordinator-start (elapsed #(registered! coordinator-registry (coordinator-for fixtures directory)))
-        coordinator (:value coordinator-start)
-        runner-start (elapsed #(start-local-runners coordinator fixtures directory runner-registry))
-        runners (:value runner-start)]
-      (let [dispatch (elapsed
-                      #(dispatch-accounts
-                        coordinator fixtures
-                        (fn [runner-root]
-                          (let [endpoint-for (fn [runner]
-                                               (transport/coordinator-endpoint runner fixture/secret 60000))]
-                            (if (= :pull assignment-mode)
-                              {:eligible-runners
-                               (mapv (fn [runner]
-                                       {:participation (:runner-participation runner)
-                                        :endpoint (endpoint-for runner)}) runners)}
-                              (let [runner (some (fn [r]
-                                                   (when (= runner-root
-                                                            (get-in r [:runner-participation :runner/reference])) r))
-                                                 runners)]
-                                (endpoint-for runner))))) workers))
-            roots (batch-roots (:value dispatch))]
-        {:mode (if (= :pull assignment-mode) :partitioned-local-pull :partitioned-local)
-         :assignment-mode assignment-mode :accounts account-count
-         :sources-per-account (if (sequential? source-count) (apply max source-count) source-count)
-         :partitions-per-account partitions
-         :actual-worker-count (count runners)
-         :transport-batch-size (transport-batch-size)
-         :durable-journals-enabled? (some? directory)
-         :max-concurrent-dispatches workers
-         :work-construction-ns (:elapsed-ns construction)
-         :coordinator-startup-ns (:elapsed-ns coordinator-start)
-         :runner-startup-ns (:elapsed-ns runner-start)
-         :dispatch-admission-reconciliation-ns (:elapsed-ns dispatch)
-         :dispatch-profile (get-in dispatch [:value :runtime/dispatch-profile])
-         :end-to-end-ns (+ (:elapsed-ns construction) (:elapsed-ns coordinator-start)
-                           (:elapsed-ns runner-start) (:elapsed-ns dispatch))
-         :canonical-result-roots roots}))))))
+   (with-runtimes
+     (fn [directory coordinator-registry runner-registry]
+       (let [construction (elapsed #(fixture-matrix account-count source-count partitions cutpoint :local workers))
+             fixtures (:value construction)
+             coordinator-start (elapsed #(registered! coordinator-registry (coordinator-for fixtures directory)))
+             coordinator (:value coordinator-start)
+             runner-start (elapsed #(start-local-runners coordinator fixtures directory runner-registry))
+             runners (:value runner-start)]
+         (let [dispatch (elapsed
+                         #(dispatch-accounts
+                           coordinator fixtures
+                           (fn [runner-root]
+                             (let [endpoint-for (fn [runner]
+                                                  (transport/coordinator-endpoint runner fixture/secret 60000))]
+                               (if (= :pull assignment-mode)
+                                 {:eligible-runners
+                                  (mapv (fn [runner]
+                                          {:participation (:runner-participation runner)
+                                           :endpoint (endpoint-for runner)}) runners)}
+                                 (let [runner (some (fn [r]
+                                                      (when (= runner-root
+                                                               (get-in r [:runner-participation :runner/reference])) r))
+                                                    runners)]
+                                   (endpoint-for runner))))) workers))
+               roots (batch-roots (:value dispatch))]
+           {:mode (if (= :pull assignment-mode) :partitioned-local-pull :partitioned-local)
+            :assignment-mode assignment-mode :accounts account-count
+            :sources-per-account (if (sequential? source-count) (apply max source-count) source-count)
+            :partitions-per-account partitions
+            :actual-worker-count (count runners)
+            :transport-batch-size (transport-batch-size)
+            :durable-journals-enabled? (some? directory)
+            :max-concurrent-dispatches workers
+            :work-construction-ns (:elapsed-ns construction)
+            :coordinator-startup-ns (:elapsed-ns coordinator-start)
+            :runner-startup-ns (:elapsed-ns runner-start)
+            :dispatch-admission-reconciliation-ns (:elapsed-ns dispatch)
+            :dispatch-profile (get-in dispatch [:value :runtime/dispatch-profile])
+            :end-to-end-ns (+ (:elapsed-ns construction) (:elapsed-ns coordinator-start)
+                              (:elapsed-ns runner-start) (:elapsed-ns dispatch))
+            :canonical-result-roots roots}))))))
 
 (defn- cross-host-sample [account-count source-count partitions cutpoint]
   (when (< (* account-count partitions) 2)
     (throw (ex-info "Cross-host comparison needs at least two independent work units" {})))
   (with-runtimes
-   (fn [directory coordinator-registry runner-registry]
-    (let [runner-url (System/getenv "PRF_REMOTE_ACCOUNTING_RUNNER_URL")
-        coordinator-port (some-> (System/getenv "PRF_REMOTE_ACCOUNTING_COORDINATOR_PORT") Integer/parseInt)
-        _ (when-not (and (seq runner-url) coordinator-port)
-            (throw (ex-info "Cross-host measurement requires the SSH-tunnel runner URL and coordinator port" {})))
-        construction (elapsed #(fixture-matrix account-count source-count partitions cutpoint :cross-host 2))
-        fixtures (:value construction)
-        coordinator-start (elapsed
-                           #(registered! coordinator-registry (transport/start-coordinator!
-                             {:coordinator-root fixture/coordinator-root
-                              :assignments (mapv :assignment fixtures)
-                              :state-path (journal-path directory "coordinator.edn")
-                              :auth-secret fixture/secret :bind-address "127.0.0.1"
-                              :port coordinator-port})))
-        coordinator (:value coordinator-start)
-        local-fixtures (filterv #(= (fixture/root 301)
-                                    (get-in % [:participant :runner/reference])) fixtures)
+    (fn [directory coordinator-registry runner-registry]
+      (let [runner-url (System/getenv "PRF_REMOTE_ACCOUNTING_RUNNER_URL")
+            coordinator-port (some-> (System/getenv "PRF_REMOTE_ACCOUNTING_COORDINATOR_PORT") Integer/parseInt)
+            _ (when-not (and (seq runner-url) coordinator-port)
+                (throw (ex-info "Cross-host measurement requires the SSH-tunnel runner URL and coordinator port" {})))
+            construction (elapsed #(fixture-matrix account-count source-count partitions cutpoint :cross-host 2))
+            fixtures (:value construction)
+            coordinator-start (elapsed
+                               #(registered! coordinator-registry (transport/start-coordinator!
+                                                                   {:coordinator-root fixture/coordinator-root
+                                                                    :assignments (mapv :assignment fixtures)
+                                                                    :state-path (journal-path directory "coordinator.edn")
+                                                                    :auth-secret fixture/secret :bind-address "127.0.0.1"
+                                                                    :port coordinator-port})))
+            coordinator (:value coordinator-start)
+            local-fixtures (filterv #(= (fixture/root 301)
+                                        (get-in % [:participant :runner/reference])) fixtures)
         ;; Independent account/partition units alternate across two runners.
-        local-runner-start (elapsed
-                            #(registered! runner-registry (transport/start-runner!
-                              {:runner-participation (:participant (first local-fixtures))
-                               :auth-secret fixture/secret :coordinator-root fixture/coordinator-root
-                               :coordinator-endpoint (transport/coordinator-endpoint coordinator fixture/secret 60000)
-                               :state-path (journal-path directory "local-runner.edn")
-                               :bind-address "127.0.0.1" :port 0})))
-        local-runner (:value local-runner-start)
-        remote-endpoint {:transport/base-url runner-url :transport/auth-secret fixture/secret
-                         :transport/request-timeout-ms 60000}]
-      (let [dispatch (elapsed
-                      #(dispatch-accounts
-                        coordinator fixtures
-                        (fn [runner-root]
-                          (if (= runner-root (get-in local-runner [:runner-participation :runner/reference]))
-                            (transport/coordinator-endpoint local-runner fixture/secret 60000)
-                            remote-endpoint)) 2))]
-        {:mode :cross-host-ssh-tunnel :accounts account-count :sources-per-account source-count
-         :partitions-per-account partitions
-         :actual-worker-count 2 :max-concurrent-dispatches 2
-         :transport-batch-size (transport-batch-size)
-         :local-durable-journals-enabled? (some? directory)
-         :remote-journal-profile :not-observed
-         :work-construction-ns (:elapsed-ns construction)
-         :coordinator-startup-ns (:elapsed-ns coordinator-start)
-         :local-runner-startup-ns (:elapsed-ns local-runner-start)
-         :remote-runner-startup-included? false
-         :dispatch-admission-reconciliation-ns (:elapsed-ns dispatch)
-         :dispatch-profile (get-in dispatch [:value :runtime/dispatch-profile])
-         :end-to-end-ns (+ (:elapsed-ns construction) (:elapsed-ns coordinator-start)
-                           (:elapsed-ns local-runner-start) (:elapsed-ns dispatch))
-         :canonical-result-roots (batch-roots (:value dispatch))})))))
+            local-runner-start (elapsed
+                                #(registered! runner-registry (transport/start-runner!
+                                                               {:runner-participation (:participant (first local-fixtures))
+                                                                :auth-secret fixture/secret :coordinator-root fixture/coordinator-root
+                                                                :coordinator-endpoint (transport/coordinator-endpoint coordinator fixture/secret 60000)
+                                                                :state-path (journal-path directory "local-runner.edn")
+                                                                :bind-address "127.0.0.1" :port 0})))
+            local-runner (:value local-runner-start)
+            remote-endpoint {:transport/base-url runner-url :transport/auth-secret fixture/secret
+                             :transport/request-timeout-ms 60000}]
+        (let [dispatch (elapsed
+                        #(dispatch-accounts
+                          coordinator fixtures
+                          (fn [runner-root]
+                            (if (= runner-root (get-in local-runner [:runner-participation :runner/reference]))
+                              (transport/coordinator-endpoint local-runner fixture/secret 60000)
+                              remote-endpoint)) 2))]
+          {:mode :cross-host-ssh-tunnel :accounts account-count :sources-per-account source-count
+           :partitions-per-account partitions
+           :actual-worker-count 2 :max-concurrent-dispatches 2
+           :transport-batch-size (transport-batch-size)
+           :local-durable-journals-enabled? (some? directory)
+           :remote-journal-profile :not-observed
+           :work-construction-ns (:elapsed-ns construction)
+           :coordinator-startup-ns (:elapsed-ns coordinator-start)
+           :local-runner-startup-ns (:elapsed-ns local-runner-start)
+           :remote-runner-startup-included? false
+           :dispatch-admission-reconciliation-ns (:elapsed-ns dispatch)
+           :dispatch-profile (get-in dispatch [:value :runtime/dispatch-profile])
+           :end-to-end-ns (+ (:elapsed-ns construction) (:elapsed-ns coordinator-start)
+                             (:elapsed-ns local-runner-start) (:elapsed-ns dispatch))
+           :canonical-result-roots (batch-roots (:value dispatch))})))))
 
 (defn- ints [s default]
   (if (str/blank? s) default (mapv parse-long (str/split s #","))))
@@ -306,8 +306,8 @@
         worker-counts (ints worker-counts [1 2 4])
         repetitions (or (some-> repetitions parse-long) 3)
         _ (when-not (and (pos-int? repetitions)
-                          (every? #(and (seq %) (every? pos-int? %))
-                                  [account-counts sources-per-account partition-counts worker-counts]))
+                         (every? #(and (seq %) (every? pos-int? %))
+                                 [account-counts sources-per-account partition-counts worker-counts]))
             (throw (ex-info "Measurement axes and repetitions must be positive integers" {})))
         cross-host? (boolean (and (seq (System/getenv "PRF_REMOTE_ACCOUNTING_RUNNER_URL"))
                                   (seq (System/getenv "PRF_REMOTE_ACCOUNTING_COORDINATOR_PORT"))))
@@ -385,10 +385,10 @@
         repetitions (parse-long repetitions)
         heavy-indices (set (take heavy-account-count (range 0 account-count worker-count)))
         source-counts (mapv #(if (contains? heavy-indices %) heavy-source-count light-source-count)
-                           (range account-count))
+                            (range account-count))
         cutpoint (+ 970000000 account-count (* worker-count 1000))]
     (when-not (and (every? pos-int? [worker-count account-count heavy-account-count
-                                    heavy-source-count light-source-count repetitions])
+                                     heavy-source-count light-source-count repetitions])
                    (<= heavy-account-count (count (range 0 account-count worker-count)))
                    (< heavy-account-count account-count))
       (throw (ex-info "Skew benchmark requires heavy accounts clustered on one runner and at least one light account" {})))
@@ -396,21 +396,21 @@
           warmup-local (local-sample account-count source-counts 1 cutpoint worker-count)
           warmup-pull (local-sample account-count source-counts 1 cutpoint worker-count :pull)
           samples (mapv (fn [rep]
-                         (let [serial (serial-sample account-count source-counts (+ cutpoint rep 1))
-                               local (local-sample account-count source-counts 1 (+ cutpoint rep 1) worker-count)
-                               pull (local-sample account-count source-counts 1 (+ cutpoint rep 1)
-                                                  worker-count :pull)]
-                           (when-not (and (= (:canonical-result-roots serial)
-                                             (:canonical-result-roots local))
-                                          (= (:canonical-result-roots serial)
-                                             (:canonical-result-roots pull)))
-                             (throw (ex-info "Skew benchmark changed canonical accounting roots"
-                                             {:serial (:canonical-result-roots serial)
-                                              :local (:canonical-result-roots local)
-                                              :pull (:canonical-result-roots pull)})))
-                           {:repetition rep :serial serial :partitioned-local local
-                            :partitioned-pull pull}))
-                       (range repetitions))]
+                          (let [serial (serial-sample account-count source-counts (+ cutpoint rep 1))
+                                local (local-sample account-count source-counts 1 (+ cutpoint rep 1) worker-count)
+                                pull (local-sample account-count source-counts 1 (+ cutpoint rep 1)
+                                                   worker-count :pull)]
+                            (when-not (and (= (:canonical-result-roots serial)
+                                              (:canonical-result-roots local))
+                                           (= (:canonical-result-roots serial)
+                                              (:canonical-result-roots pull)))
+                              (throw (ex-info "Skew benchmark changed canonical accounting roots"
+                                              {:serial (:canonical-result-roots serial)
+                                               :local (:canonical-result-roots local)
+                                               :pull (:canonical-result-roots pull)})))
+                            {:repetition rep :serial serial :partitioned-local local
+                             :partitioned-pull pull}))
+                        (range repetitions))]
       (prn {:research/measurement :native-accounting-skew-diagnostic.v1
             :measurement/canonical? false
             :measurement/pull-selection :least-active-eligible-then-runner-reference
@@ -447,41 +447,41 @@
       (throw (ex-info "Scheduling repetitions must be positive" {})))
     (try
       (prn
-        {:research/measurement :native-accounting-scheduling-diagnostic.v1
-         :measurement/canonical? false
-         :measurement/workload :synthetic-source-rows-real-native-accounting
-         :measurement/instrumented? false
-         :measurement/worker-capacity workers
-         :measurement/durable? (= "1" (System/getenv "PRF_ACCOUNTING_PERFORMANCE_DURABLE"))
-         :measurement/distributions
-         (mapv
-           (fn [distribution]
-             (let [counts (scheduling-layout distribution workers accounts rows)
+       {:research/measurement :native-accounting-scheduling-diagnostic.v1
+        :measurement/canonical? false
+        :measurement/workload :synthetic-source-rows-real-native-accounting
+        :measurement/instrumented? false
+        :measurement/worker-capacity workers
+        :measurement/durable? (= "1" (System/getenv "PRF_ACCOUNTING_PERFORMANCE_DURABLE"))
+        :measurement/distributions
+        (mapv
+         (fn [distribution]
+           (let [counts (scheduling-layout distribution workers accounts rows)
                    ;; Identical frozen input across warmup, repetitions and policies.
-                   cutpoint 980000000
-                   run (fn [mode]
-                         (if (= :serial mode)
-                           (serial-sample accounts counts cutpoint)
-                           (local-sample accounts counts 1 cutpoint workers mode)))
-                   warmup (into {} (map (fn [mode] [mode (run mode)])) [:serial :fixed :pull])
-                   expected (:canonical-result-roots (:serial warmup))
-                   checked (fn [sample]
-                             (when (and (not= :serial (:mode sample))
-                                        (not= workers (:actual-worker-count sample)))
-                               (throw (ex-info "Scheduling diagnostic did not start matched capacity" {})))
-                             (when-not (= expected (:canonical-result-roots sample))
-                               (throw (ex-info "Scheduling changed canonical accounting roots"
-                                               {:distribution distribution :mode (:mode sample)})))
-                             sample)]
-               (doseq [sample (vals warmup)] (checked sample))
-               {:distribution distribution :account-source-counts counts
-                :samples
-                (mapv (fn [rep]
-                        (let [order (scheduling-order rep)]
-                          {:repetition rep :execution-order order
-                           :policies (into {} (map (fn [mode] [mode (checked (run mode))])) order)}))
-                      (range repetitions))}))
-           [:homogeneous :skewed :long-tail])})
+                 cutpoint 980000000
+                 run (fn [mode]
+                       (if (= :serial mode)
+                         (serial-sample accounts counts cutpoint)
+                         (local-sample accounts counts 1 cutpoint workers mode)))
+                 warmup (into {} (map (fn [mode] [mode (run mode)])) [:serial :fixed :pull])
+                 expected (:canonical-result-roots (:serial warmup))
+                 checked (fn [sample]
+                           (when (and (not= :serial (:mode sample))
+                                      (not= workers (:actual-worker-count sample)))
+                             (throw (ex-info "Scheduling diagnostic did not start matched capacity" {})))
+                           (when-not (= expected (:canonical-result-roots sample))
+                             (throw (ex-info "Scheduling changed canonical accounting roots"
+                                             {:distribution distribution :mode (:mode sample)})))
+                           sample)]
+             (doseq [sample (vals warmup)] (checked sample))
+             {:distribution distribution :account-source-counts counts
+              :samples
+              (mapv (fn [rep]
+                      (let [order (scheduling-order rep)]
+                        {:repetition rep :execution-order order
+                         :policies (into {} (map (fn [mode] [mode (checked (run mode))])) order)}))
+                    (range repetitions))}))
+         [:homogeneous :skewed :long-tail])})
       (finally (shutdown-agents)))))
 
 (defn -main [& args]

@@ -13,7 +13,7 @@
                (assert (contains? (loaded-libs) 'resolver-sim.research.anvil-executor))
                (println :observed-work-loads-anvil-on-demand)"
         process (-> (ProcessBuilder. ^java.util.List
-                                     ["clojure" "-M:test" "-e" probe])
+                     ["clojure" "-M:test" "-e" probe])
                     (.directory (java.io.File. (System/getProperty "user.dir")))
                     (.redirectErrorStream true)
                     .start)
