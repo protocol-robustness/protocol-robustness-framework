@@ -17,6 +17,7 @@ pub use prf_pro_rata_allocation::allocation_context::{
 };
 use prf_pro_rata_allocation::allocation_evaluation::evaluate_allocation;
 use prf_pro_rata_allocation::canonical_order::{sort_claimants, sort_outcomes};
+use prf_pro_rata_allocation::context_validation::{validate_claimants, validate_outcomes};
 
 /// Kernel version, must equal the PRF `allocation-kernel.v1`.
 pub const KERNEL_VERSION: &str = "allocation-kernel.v1";
@@ -291,32 +292,8 @@ pub fn parse_context(input: &serde_json::Value) -> Result<Context, KernelError> 
     for raw in raw_claimants {
         claimants.push(parse_claimant(raw)?);
     }
-    // duplicate claim ids rejected
-    let mut ids: Vec<&str> = claimants.iter().map(|c| c.claim_id.as_str()).collect();
-    ids.sort_unstable();
-    for w in ids.windows(2) {
-        if w[0] == w[1] {
-            return Err(KernelError::new("duplicate-claim-id", "duplicate claim id"));
-        }
-    }
-    if policy.forbid_duplicate_owners {
-        let mut owners: Vec<&str> = claimants
-            .iter()
-            .map(|c| c.economic_owner_id.as_str())
-            .collect();
-        owners.sort_unstable();
-        for w in owners.windows(2) {
-            if w[0] == w[1] {
-                return Err(KernelError::new(
-                    "duplicate-economic-owner",
-                    "duplicate economic owner",
-                ));
-            }
-        }
-    }
-    if claimants.is_empty() {
-        return Err(KernelError::new("empty-claimant-set", "empty claimant set"));
-    }
+    validate_claimants(&claimants, &policy)
+        .map_err(|error| KernelError::new(error.classification, error.reason))?;
     sort_claimants(&mut claimants);
 
     let raw_outcomes = input
@@ -327,19 +304,8 @@ pub fn parse_context(input: &serde_json::Value) -> Result<Context, KernelError> 
     for raw in raw_outcomes {
         outcomes.push(parse_outcome(raw)?);
     }
-    if outcomes.is_empty() {
-        return Err(KernelError::new("empty-outcome-set", "empty outcome set"));
-    }
-    let mut outcome_ids: Vec<&str> = outcomes.iter().map(|o| o.outcome_id.as_str()).collect();
-    outcome_ids.sort_unstable();
-    for w in outcome_ids.windows(2) {
-        if w[0] == w[1] {
-            return Err(KernelError::new(
-                "duplicate-outcome-id",
-                "duplicate outcome id",
-            ));
-        }
-    }
+    validate_outcomes(&outcomes)
+        .map_err(|error| KernelError::new(error.classification, error.reason))?;
     sort_outcomes(&mut outcomes);
 
     let raw_rates = input
