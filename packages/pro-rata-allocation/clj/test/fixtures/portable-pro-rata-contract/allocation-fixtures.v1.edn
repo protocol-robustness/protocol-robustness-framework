@@ -9,6 +9,8 @@
    :sha256 "aab12ca1e22692c82f4fd1232bafff5c82c0b81052604d2528b28ef5ea4538b0"}
   {:path "vectors/negative-allocation-001.edn"
    :sha256 "c340eb444ea42cabbffde3eba756ede37c4d8e56d2631bacfd7c6c601ad604d3"}
+  {:path "vectors/policy-outcome-conformance-v1.edn"
+   :sha256 "ff618c6d661e2217f6203a0f758b62c739a6fad5b332c2f36c4019630aafbc46"}
   {:path "vectors/redistribute-cap-excess-001.edn"
    :sha256 "a8a3fb649ad1867ce6968ec6156fb5b5a1ed7ba05065fe3cc7c9b89bcdc08d45"}
   {:path "vectors/zero-weight-001.edn"

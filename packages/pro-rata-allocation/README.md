@@ -188,7 +188,8 @@ source needed by its local dependency declaration.
 | Allocation functions in `pro_rata_contract_src/resolver_sim/pro_rata_contract/contract.clj` | Frozen aggregate reference remains in place; allocation-only oracle copy and independent codec now live under package test sources, separate from generic effects/transition functions |
 | `packages/pro-rata-allocation/clj/test/prf/pro_rata/` and the package `test/fixtures/` bundle | Package-owned allocation roots, canonical bytes, independent-reference equivalence, pinned fixture integrity, and request-rejection cases; PRF wrapper parity remains integration coverage |
 | Allocation/pro-rata characterization tests | Semantic arithmetic cases travel with pro-rata; executor, progress and realization cases stay with host adapters |
-| `resources/test-vectors/pro-rata/policy-outcome-conformance-v1.edn` | Pro-rata policy/outcome contract; implementation is still host-located beyond the extracted policy basis |
+| `packages/pro-rata-allocation/clj/src/prf/pro_rata/outcome.clj` and the pinned `vectors/policy-outcome-conformance-v1.edn` fixture | Pro-rata policy-outcome builder/validator and frozen outcome roots; the PRF fixture/test remain compatibility integration coverage |
+| `src/resolver_sim/pro_rata/evaluation.clj` and its commitment-stack tests | Evaluation artifact construction is still host-bound: it consumes passive registries and combines projection, claim, execution, and context/provenance inputs. Keep it in PRF unless a smaller pure contract can be separated without importing those dependencies |
 | `coprocessor/core/tests/realized_statement_conformance.rs`, statement fixtures and corresponding Clojure tests | Pro-rata realized-statement profile; preserve explicit context/lifecycle adapters |
 | Source-bound entitlement vectors and Rust/SP1 materializer | Capital-lifecycle owns entitlement projection conformance; preserve mixed source-bound cases as explicit Shortfall/allocation/lifecycle integration coverage. Fixture location does not confer semantic ownership on SP1/deployment |
 | Solidity execution/admission/custody tests | Companion integration coverage for the relevant projection and lifecycle profile; not primitive allocation SHA-256 equivalence by itself |
@@ -229,7 +230,8 @@ baseline, not release guarantees.
 | Next slice | Estimated passes |
 |---|---:|
 | Qualify and publish a versioned allocation package artifact | 2–3 |
-| Policy/outcome and evaluation artifact extraction | 2–3 |
+| Package the four policy-outcome vectors and pin their roots | Complete |
+| Reassess evaluation artifacts for an independently portable sub-contract | 1–2 |
 | Realized allocation statement Clojure/Rust extraction with context/lifecycle adapters | 3–5 |
 | Capital-lifecycle extraction with allocation-neutral inputs | 4–7 |
 

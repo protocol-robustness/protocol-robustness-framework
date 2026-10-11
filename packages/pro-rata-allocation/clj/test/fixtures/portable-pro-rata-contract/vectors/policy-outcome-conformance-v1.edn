@@ -1,0 +1,41 @@
+{:schema/version "pro-rata-policy-outcome-conformance.v1"
+ :cases
+ [{:id :equal-weights
+   :request {:allocation/id :policy-outcome/equal-weights
+             :available 100
+             :rows [{:row/id :alice :obligation/id :alice :requested 100 :weight 1}
+                    {:row/id :bob :obligation/id :bob :requested 100 :weight 1}]}
+   :expected {:allocated-total 100
+              :unallocated-residual 0
+              :rounding-result :exercised
+              :outcome-root "47d9f4ab1234666810b08f980b16a7c82b2c3df6a6811224926b605b519fea31"}}
+  {:id :unequal-weights
+   :request {:allocation/id :policy-outcome/unequal-weights
+             :available 100
+             :rows [{:row/id :alice :obligation/id :alice :requested 100 :weight 3}
+                    {:row/id :bob :obligation/id :bob :requested 100 :weight 1}]}
+   :expected {:allocated-total 100
+              :unallocated-residual 0
+              :rounding-result :exercised
+              :outcome-root "5250c9578bc3336c201c3883a1c8b7ebc44d4d044b958db15b85473f0ed6a0b7"}}
+  {:id :capped-redistribution
+   :request {:allocation/id :policy-outcome/capped-redistribution
+             :available 10
+             :redistribution-policy :redistribute-cap-excess
+             :rows [{:row/id :alice :obligation/id :alice :requested 10 :weight 8 :cap 1}
+                    {:row/id :bob :obligation/id :bob :requested 10 :weight 1}
+                    {:row/id :cara :obligation/id :cara :requested 10 :weight 1}]}
+   :expected {:allocated-total 10
+              :unallocated-residual 0
+              :rounding-result :exercised
+              :outcome-root "f1a53837515b4cd6351b9992e1ac676f8489a719d3e9a035f1f67c168f14b598"}}
+  {:id :floor-residual
+   :request {:allocation/id :policy-outcome/floor-residual
+             :available 5
+             :rounding-policy :floor
+             :rows [{:row/id :alice :obligation/id :alice :requested 5 :weight 1}
+                    {:row/id :bob :obligation/id :bob :requested 5 :weight 1}]}
+   :expected {:allocated-total 4
+              :unallocated-residual 1
+              :rounding-result :not-exercised
+              :outcome-root "8dc0d3810919b8192f056d7f112765de8c2b2a7b53fdb4e671b212c5dd91e562"}}]}

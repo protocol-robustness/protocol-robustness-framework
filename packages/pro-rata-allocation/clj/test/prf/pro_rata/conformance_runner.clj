@@ -17,7 +17,7 @@
   "b863e04a61d0dded845dc3351626ebf57c4d5abea7e18ea19a89cacf4b1ad12a")
 
 (def ^:private allocation-fixture-manifest-sha256
-  "7d47f0f7e7692bf29646ca073450b2e38dd110c38e8282e618cb4083e5ce695a")
+  "21b541bcc7958f96821927ebe10c16030e0461247afe0dcb82d622e2c4142157")
 
 (defn- sha256-hex [^bytes bytes]
   (let [digest (.digest (java.security.MessageDigest/getInstance "SHA-256") bytes)]
@@ -153,6 +153,25 @@
                   (outcome/validate-policy-outcome! (assoc policy-outcome :policy/root "changed"))
                   nil
                   (catch clojure.lang.ExceptionInfo error (:reason (ex-data error))))))))
+
+(deftest policy-outcome-vectors-match-pinned-roots
+  (let [{:keys [schema/version cases]}
+        (fixture-edn *fixture-root* "vectors/policy-outcome-conformance-v1.edn")]
+    (test/is (= "pro-rata-policy-outcome-conformance.v1" version))
+    (doseq [{:keys [id request expected]} cases
+            :let [allocation-result (api/allocate request)
+                  policy-outcome (outcome/build-policy-outcome allocation-result)]]
+      (test/is (= (:allocated-total expected) (:allocated-total allocation-result))
+               (str id " allocated total"))
+      (test/is (= (:unallocated-residual expected) (:unallocated-residual allocation-result))
+               (str id " residual"))
+      (test/is (= (:rounding-result expected)
+                  (get-in policy-outcome [:rounding/outcome :result]))
+               (str id " rounding outcome"))
+      (test/is (= (:outcome-root expected) (:outcome/root policy-outcome))
+               (str id " frozen outcome root"))
+      (test/is (= policy-outcome (outcome/validate-policy-outcome! policy-outcome))
+               (str id " outcome validates")))))
 
 (defn -main
   [& [fixture-root]]

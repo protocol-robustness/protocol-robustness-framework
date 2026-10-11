@@ -63,7 +63,7 @@
    {:clojure {:status :implemented :sources [[:prf "packages/pro-rata-allocation/clj/src/prf/pro_rata/outcome.clj" "build-policy-outcome"] [:prf "packages/pro-rata-allocation/clj/src/prf/pro_rata/outcome.clj" "validate-policy-outcome!"] [:prf "src/resolver_sim/pro_rata/policy_outcome.clj" "build-pro-rata-policy-outcome-v1"]]}
     :rust {:status :missing :sources []}
     :solidity {:status :not-required :sources []}}
-   :artifact/conformance {:status :partial :sources [[:prf "resources/test-vectors/pro-rata/policy-outcome-conformance-v1.edn"] [:prf "test/resolver_sim/pro_rata/policy_outcome_test.clj"] [:prf "packages/pro-rata-allocation/clj/test/prf/pro_rata/conformance_runner.clj" "policy-outcome-is-standalone-and-domain-separated"]]}
+   :artifact/conformance {:status :partial :sources [[:prf "packages/pro-rata-allocation/clj/test/fixtures/portable-pro-rata-contract/vectors/policy-outcome-conformance-v1.edn"] [:prf "packages/pro-rata-allocation/clj/test/prf/pro_rata/conformance_runner.clj" "policy-outcome-vectors-match-pinned-roots"] [:prf "resources/test-vectors/pro-rata/policy-outcome-conformance-v1.edn"] [:prf "test/resolver_sim/pro_rata/policy_outcome_test.clj"]]}
    :artifact/normative [[:prf "docs/architecture/PROTECTED_CAPITAL_PRO_RATA_V2_SEMANTICS.md"]]}
 
   {:artifact/id :evaluation-package
