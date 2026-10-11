@@ -18,7 +18,8 @@ pub use prf_pro_rata_allocation::allocation_context::{
 use prf_pro_rata_allocation::allocation_evaluation::evaluate_allocation;
 use prf_pro_rata_allocation::canonical_order::{sort_claimants, sort_outcomes};
 use prf_pro_rata_allocation::context_validation::{
-    rates_for_outcomes, validate_claimants, validate_outcomes, validate_weight_totals,
+    rates_for_outcomes, validate_claimants, validate_outcomes, validate_rate,
+    validate_weight_totals,
 };
 
 /// Kernel version, must equal the PRF `allocation-kernel.v1`.
@@ -321,18 +322,8 @@ pub fn parse_context(input: &serde_json::Value) -> Result<Context, KernelError> 
         let outcome_id = string_field(raw, "outcome-id")?;
         let numerator = bigint_field(raw, "numerator")?;
         let denominator = bigint_field(raw, "denominator")?;
-        if numerator.is_negative() {
-            return Err(KernelError::new(
-                "negative-rate-numerator",
-                "negative rate numerator",
-            ));
-        }
-        if denominator.is_zero() {
-            return Err(KernelError::new(
-                "non-positive-rate-denominator",
-                "non-positive rate denominator",
-            ));
-        }
+        validate_rate(&numerator, &denominator)
+            .map_err(|error| KernelError::new(error.classification, error.reason))?;
         rate_map.insert(outcome_id, (numerator, denominator));
     }
     let rates = rates_for_outcomes(&outcomes, &rate_map)

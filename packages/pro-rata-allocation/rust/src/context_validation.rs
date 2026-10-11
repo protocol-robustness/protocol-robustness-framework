@@ -126,6 +126,26 @@ pub fn validate_weight_totals(
     Ok(())
 }
 
+/// Validate the domain constraints on an exact allocation rate.
+pub fn validate_rate(
+    numerator: &BigInt,
+    denominator: &BigInt,
+) -> Result<(), ContextValidationError> {
+    if numerator < &BigInt::from(0) {
+        return Err(ContextValidationError {
+            classification: "negative-rate-numerator",
+            reason: "negative rate numerator",
+        });
+    }
+    if denominator.is_zero() {
+        return Err(ContextValidationError {
+            classification: "non-positive-rate-denominator",
+            reason: "non-positive rate denominator",
+        });
+    }
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -167,6 +187,23 @@ mod tests {
             rates_for_outcomes(&outcomes, &missing).unwrap_err(),
             "missing rate for outcome b"
         );
+    }
+
+    #[test]
+    fn rate_validation_preserves_legacy_classifications() {
+        assert_eq!(
+            validate_rate(&BigInt::from(-1), &BigInt::from(1))
+                .unwrap_err()
+                .classification,
+            "negative-rate-numerator"
+        );
+        assert_eq!(
+            validate_rate(&BigInt::from(1), &BigInt::from(0))
+                .unwrap_err()
+                .classification,
+            "non-positive-rate-denominator"
+        );
+        assert!(validate_rate(&BigInt::from(0), &BigInt::from(1)).is_ok());
     }
 
     #[test]
