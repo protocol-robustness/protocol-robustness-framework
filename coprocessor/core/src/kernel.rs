@@ -46,21 +46,11 @@ impl std::fmt::Display for KernelError {
     }
 }
 
+pub use crate::assertions::Committed;
 pub use prf_pro_rata_allocation::exact_ratio::RateEntry;
 pub use prf_pro_rata_allocation::kernel_types::{
     AllocationEntry, Claimant, Context, Outcome, Policy,
 };
-
-/// Optional committed projection used to evaluate root/selection assertions.
-#[derive(Clone, Debug, Default)]
-pub struct Committed {
-    pub claimant_set_root: Option<String>,
-    pub outcome_set_root: Option<String>,
-    pub proposed_rates_root: Option<String>,
-    pub result_root: Option<String>,
-    pub selected_outcome_id: Option<String>,
-    pub selected_outcome_index: Option<BigInt>,
-}
 
 /// The public-value projection emitted by the kernel.
 #[derive(Clone, Debug)]

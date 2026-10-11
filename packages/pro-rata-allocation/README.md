@@ -206,10 +206,10 @@ The Rust crate at `packages/pro-rata-allocation/rust` uses
 `packages/canonical/rust` for the generic codec/hash and declares its required
 numeric and digest libraries directly. The package now owns exact rate math,
 legacy allocation context/result projections and shared allocation types,
-allocation root projections, deterministic outcome selection, realized-fill
-calculation, and realized-statement identities/projections. `allocation-kernel`
-retains JSON parsing, raw-input construction, proof assertions, and lifecycle
-orchestration. It keeps
+allocation root projections, deterministic outcome selection, the ordered
+allocation assertion contract, realized-fill calculation, and realized-statement
+identities/projections. `allocation-kernel` retains JSON parsing, raw-input
+construction, proof/admission orchestration, and lifecycle orchestration. It keeps
 the previous module paths as compatibility re-exports; roots, public values, and
 the SP1 input contract remain unchanged.
 
