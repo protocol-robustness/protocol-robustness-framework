@@ -279,7 +279,11 @@ Rebuild the checked-in candidate archive from the PRF root with
 gzip tarball and a SHA-256 sidecar in `packages/pro-rata-allocation/releases/`.
 After extraction, run `clojure -M:conformance` from
 `packages/pro-rata-allocation/clj`; the bundle contains the sibling canonical
-source needed by its local dependency declaration.
+source needed by its local dependency declaration. The extraction qualification
+also runs `cargo test --offline --manifest-path
+packages/pro-rata-allocation/rust/Cargo.toml` from the extracted bundle root;
+both commands pass without referring to the PRF workspace. Verify the archive
+with `sha256sum -c` against its checked-in sidecar before consuming it.
 
 | Current material | Proposed destination and constraint |
 |---|---|
