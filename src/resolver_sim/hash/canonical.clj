@@ -3118,7 +3118,8 @@ name (an alias)."
                                    sorted(entry_hashes))"
     :intent/includes #{:verifier/id :verifier/adapter :verifier/program-vkey
                        :verifier/program-elf-sha256 :verifier/program-id
-                       :verifier/statement-schema-version-hash :verifier/active}
+                       :verifier/statement-schema-version-hash
+                       :verifier/public-values-schema-hash :verifier/active}
     :intent/excludes #{}
     :intent/projection-fn (fn [v _] v)
     :intent/version 1}

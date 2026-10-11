@@ -37,6 +37,33 @@
   (testing "protocol-genesis-fixture root is a stable golden vector"
     (is (= pg-root g/protocol-genesis-fixture-root))))
 
+(deftest test-verifier-registry-root-binds-public-values-schema
+  (testing "the canonical verifier registry root matches the Solidity entry surface"
+    (let [entry {:verifier/id (str "0x" (apply str (repeat 32 "01")))
+                 :verifier/adapter (format "0x%040x" 161)
+                 :verifier/program-vkey (str "0x" (apply str (repeat 32 "02")))
+                 :verifier/program-elf-sha256 (str "sha256:" (apply str (repeat 32 "03")))
+                 :verifier/program-id "source-bound-entitlement-sp1-program.v1"
+                 :verifier/statement-schema-version-hash (str "0x" (apply str (repeat 32 "04")))
+                 :verifier/public-values-schema-hash (str "0x" (apply str (repeat 32 "05")))
+                 :verifier/active true}
+          alternate-schema (assoc entry :verifier/public-values-schema-hash
+                                  (str "0x" (apply str (repeat 32 "06"))))
+          second-entry (assoc entry
+                              :verifier/id (str "0x" (apply str (repeat 32 "07")))
+                              :verifier/adapter (format "0x%040x" 162))]
+      (is (contains? (get-in canonical/hash-intents
+                             [:prf-verifier-registry-v1 :intent/includes])
+                     :verifier/public-values-schema-hash))
+      (is (= "sha256:916467e6c603c8e842113e925d85f319277f7d423387db641c3d93dcccd50511"
+             (g/canonical-verifier-registry-root [entry])))
+      (is (not= (g/canonical-verifier-entry-hash entry)
+                (g/canonical-verifier-entry-hash alternate-schema)))
+      (is (not= (g/canonical-verifier-registry-root [entry])
+                (g/canonical-verifier-registry-root [alternate-schema])))
+      (is (= (g/canonical-verifier-registry-root [entry second-entry])
+             (g/canonical-verifier-registry-root [second-entry entry]))))))
+
 ;; ── chain-instance genesis (unchanged) ───────────────────────────────────
 
 (deftest test-chain-instance-genesis-fixture-is-valid
