@@ -1,6 +1,8 @@
 //! Structural semantic checks for parsed allocation context members.
 
 use crate::kernel_types::{Claimant, Outcome, Policy};
+use num_bigint::BigInt;
+use num_traits::Zero;
 
 /// Stable validation error; classifications match the allocation-kernel contract.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -72,6 +74,34 @@ pub fn validate_outcomes(outcomes: &[Outcome]) -> Result<(), ContextValidationEr
     Ok(())
 }
 
+/// Check claimant weights against the committed allocation-context totals.
+pub fn validate_weight_totals(
+    claimants: &[Claimant],
+    total_eligible_weight: &BigInt,
+    exact_pro_rata_denominator: &BigInt,
+) -> Result<(), ContextValidationError> {
+    let sum_weights: BigInt = claimants.iter().map(|claim| claim.weight.clone()).sum();
+    if sum_weights.is_zero() {
+        return Err(ContextValidationError {
+            classification: "zero-total-weight",
+            reason: "zero total weight",
+        });
+    }
+    if &sum_weights != total_eligible_weight {
+        return Err(ContextValidationError {
+            classification: "inconsistent-total-weight",
+            reason: "inconsistent total weight",
+        });
+    }
+    if &sum_weights != exact_pro_rata_denominator {
+        return Err(ContextValidationError {
+            classification: "inconsistent-pro-rata-denominator",
+            reason: "inconsistent pro-rata denominator",
+        });
+    }
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -132,5 +162,31 @@ mod tests {
                 .classification,
             "duplicate-outcome-id"
         );
+    }
+
+    #[test]
+    fn weight_total_errors_keep_legacy_order_and_classifications() {
+        let claimants = [claimant("c", "owner")];
+        let zero = BigInt::from(0);
+        let one = BigInt::from(1);
+        assert_eq!(
+            validate_weight_totals(&[], &zero, &zero)
+                .unwrap_err()
+                .classification,
+            "zero-total-weight"
+        );
+        assert_eq!(
+            validate_weight_totals(&claimants, &BigInt::from(2), &BigInt::from(3))
+                .unwrap_err()
+                .classification,
+            "inconsistent-total-weight"
+        );
+        assert_eq!(
+            validate_weight_totals(&claimants, &one, &BigInt::from(2))
+                .unwrap_err()
+                .classification,
+            "inconsistent-pro-rata-denominator"
+        );
+        assert!(validate_weight_totals(&claimants, &one, &one).is_ok());
     }
 }

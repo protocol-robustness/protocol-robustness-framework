@@ -17,7 +17,9 @@ pub use prf_pro_rata_allocation::allocation_context::{
 };
 use prf_pro_rata_allocation::allocation_evaluation::evaluate_allocation;
 use prf_pro_rata_allocation::canonical_order::{sort_claimants, sort_outcomes};
-use prf_pro_rata_allocation::context_validation::{validate_claimants, validate_outcomes};
+use prf_pro_rata_allocation::context_validation::{
+    validate_claimants, validate_outcomes, validate_weight_totals,
+};
 
 /// Kernel version, must equal the PRF `allocation-kernel.v1`.
 pub const KERNEL_VERSION: &str = "allocation-kernel.v1";
@@ -375,22 +377,12 @@ pub fn parse_context(input: &serde_json::Value) -> Result<Context, KernelError> 
             )
         })?;
 
-    let sum_weights: BigInt = claimants.iter().map(|c| c.weight.clone()).sum();
-    if sum_weights.is_zero() {
-        return Err(KernelError::new("zero-total-weight", "zero total weight"));
-    }
-    if sum_weights != total_eligible_weight {
-        return Err(KernelError::new(
-            "inconsistent-total-weight",
-            "inconsistent total weight",
-        ));
-    }
-    if sum_weights != exact_pro_rata_denominator {
-        return Err(KernelError::new(
-            "inconsistent-pro-rata-denominator",
-            "inconsistent pro-rata denominator",
-        ));
-    }
+    validate_weight_totals(
+        &claimants,
+        &total_eligible_weight,
+        &exact_pro_rata_denominator,
+    )
+    .map_err(|error| KernelError::new(error.classification, error.reason))?;
 
     Ok(Context {
         allocation_id,
