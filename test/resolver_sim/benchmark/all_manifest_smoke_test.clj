@@ -112,7 +112,7 @@
     (is (= 1 (:benchmark/version v1)))
     (is (= 9 (count ids)))
     (is (= (set ids) (set (map #(subs % (count "scenarios/edn/") (- (count %) 4))
-                              (suites/suite-paths :suite/yield-partial-fill-v1))))
+                               (suites/suite-paths :suite/yield-partial-fill-v1))))
         "Pack declarations and rooted suite identify the same existing scenarios")
     (is (re-find #"not a throughput workload" (:benchmark/scenario-suite-description v1)))))
 
