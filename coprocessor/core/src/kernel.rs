@@ -18,7 +18,7 @@ pub use prf_pro_rata_allocation::allocation_context::{
 use prf_pro_rata_allocation::allocation_evaluation::evaluate_allocation;
 use prf_pro_rata_allocation::canonical_order::{sort_claimants, sort_outcomes};
 use prf_pro_rata_allocation::context_validation::{
-    validate_claimants, validate_outcomes, validate_weight_totals,
+    rates_for_outcomes, validate_claimants, validate_outcomes, validate_weight_totals,
 };
 
 /// Kernel version, must equal the PRF `allocation-kernel.v1`.
@@ -335,23 +335,8 @@ pub fn parse_context(input: &serde_json::Value) -> Result<Context, KernelError> 
         }
         rate_map.insert(outcome_id, (numerator, denominator));
     }
-    let rates: Vec<RateEntry> = outcomes
-        .iter()
-        .map(|o| {
-            let (numerator, denominator) =
-                rate_map.get(&o.outcome_id).cloned().ok_or_else(|| {
-                    KernelError::new(
-                        "rates-outcome-mismatch",
-                        format!("missing rate for outcome {}", o.outcome_id),
-                    )
-                })?;
-            Ok(RateEntry {
-                outcome_id: o.outcome_id.clone(),
-                numerator,
-                denominator,
-            })
-        })
-        .collect::<Result<Vec<_>, KernelError>>()?;
+    let rates = rates_for_outcomes(&outcomes, &rate_map)
+        .map_err(|reason| KernelError::new("rates-outcome-mismatch", reason))?;
 
     let capacity = bigint_field(input, "capacity")?;
     if capacity.is_zero() || capacity.is_negative() {

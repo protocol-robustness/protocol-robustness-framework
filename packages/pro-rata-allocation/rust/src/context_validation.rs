@@ -1,14 +1,38 @@
 //! Structural semantic checks for parsed allocation context members.
 
+use crate::exact_ratio::RateEntry;
 use crate::kernel_types::{Claimant, Outcome, Policy};
 use num_bigint::BigInt;
 use num_traits::Zero;
+use std::collections::HashMap;
 
 /// Stable validation error; classifications match the allocation-kernel contract.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct ContextValidationError {
     pub classification: &'static str,
     pub reason: &'static str,
+}
+
+/// Align parsed rates to the canonical outcome order, rejecting outcomes without rates.
+/// Extra rate entries remain ignored to preserve the allocation-kernel contract.
+pub fn rates_for_outcomes(
+    outcomes: &[Outcome],
+    rates_by_outcome: &HashMap<String, (BigInt, BigInt)>,
+) -> Result<Vec<RateEntry>, String> {
+    outcomes
+        .iter()
+        .map(|outcome| {
+            let (numerator, denominator) = rates_by_outcome
+                .get(&outcome.outcome_id)
+                .cloned()
+                .ok_or_else(|| format!("missing rate for outcome {}", outcome.outcome_id))?;
+            Ok(RateEntry {
+                outcome_id: outcome.outcome_id.clone(),
+                numerator,
+                denominator,
+            })
+        })
+        .collect()
 }
 
 /// Check claimant-set semantics in the legacy validation order.
@@ -114,6 +138,35 @@ mod tests {
             amount: BigInt::from(1),
             weight: BigInt::from(1),
         }
+    }
+
+    #[test]
+    fn rates_follow_outcome_order_and_report_missing_outcomes() {
+        let outcomes = [
+            Outcome {
+                outcome_id: "b".into(),
+                allocations: vec![],
+            },
+            Outcome {
+                outcome_id: "a".into(),
+                allocations: vec![],
+            },
+        ];
+        let rates = HashMap::from([
+            ("a".into(), (BigInt::from(1), BigInt::from(2))),
+            ("b".into(), (BigInt::from(3), BigInt::from(4))),
+            ("extra".into(), (BigInt::from(5), BigInt::from(6))),
+        ]);
+        let aligned = rates_for_outcomes(&outcomes, &rates).unwrap();
+        assert_eq!(aligned[0].outcome_id, "b");
+        assert_eq!(aligned[1].outcome_id, "a");
+        assert!(aligned[0].numerator == BigInt::from(3));
+
+        let missing = HashMap::from([("a".into(), (BigInt::from(1), BigInt::from(2)))]);
+        assert_eq!(
+            rates_for_outcomes(&outcomes, &missing).unwrap_err(),
+            "missing rate for outcome b"
+        );
     }
 
     #[test]

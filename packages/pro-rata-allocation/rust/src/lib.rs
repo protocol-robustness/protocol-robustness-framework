@@ -2,9 +2,9 @@
 
 pub mod allocation_context;
 pub mod allocation_evaluation;
+pub mod allocation_roots;
 pub mod canonical_order;
 pub mod context_validation;
-pub mod allocation_roots;
 pub mod exact_ratio;
 pub mod kernel_types;
 pub mod proportionality;
