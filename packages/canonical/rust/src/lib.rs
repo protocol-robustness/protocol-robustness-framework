@@ -158,3 +158,56 @@ pub fn digest_to_bigint(digest: &[u8]) -> BigInt {
 pub fn bytes_to_hex(bytes: &[u8]) -> String {
     hex::encode(bytes)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn conformance_vectors() -> std::collections::HashMap<&'static str, Vec<&'static str>> {
+        include_str!("../../clj/test/resources/canonical-v1-vectors.tsv")
+            .lines()
+            .filter(|line| !line.starts_with('#') && !line.is_empty())
+            .map(|line| {
+                let fields: Vec<_> = line.split('\t').collect();
+                (fields[0], fields[1..].to_vec())
+            })
+            .collect()
+    }
+
+    #[test]
+    fn canonical_v1_shared_clojure_vectors() {
+        let vectors = [
+            ("null", CanonValue::Null),
+            ("false", CanonValue::Bool(false)),
+            ("true", CanonValue::Bool(true)),
+            ("negative-one", CanonValue::int(-1)),
+            ("utf8-e-acute", CanonValue::str("é")),
+            ("keyword-x", CanonValue::keyword("x")),
+            (
+                "array-int-one-string-x",
+                CanonValue::array(vec![CanonValue::int(1), CanonValue::str("x")]),
+            ),
+            (
+                "sorted-keyword-map",
+                CanonValue::map(vec![
+                    (CanonValue::keyword("b"), CanonValue::Bool(false)),
+                    (CanonValue::keyword("a"), CanonValue::int(1)),
+                ]),
+            ),
+        ];
+        let fixtures = conformance_vectors();
+        for (id, value) in vectors {
+            assert_eq!(bytes_to_hex(&value.encode()), fixtures[id][0]);
+        }
+    }
+
+    #[test]
+    fn canonical_v1_domain_hash_matches_clojure_vector() {
+        let value = CanonValue::map(vec![
+            (CanonValue::keyword("a"), CanonValue::int(1)),
+            (CanonValue::keyword("b"), CanonValue::Bool(false)),
+        ]);
+        let fixture = &conformance_vectors()["sorted-keyword-map"];
+        assert_eq!(domain_hash(fixture[1], &value), fixture[2]);
+    }
+}
