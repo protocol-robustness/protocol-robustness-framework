@@ -31,12 +31,13 @@ PRF/
 │       │   ├── single_pass.clj      allocation with explicit runtime callbacks
 │       │   ├── redistribution.clj   active-set cap redistribution
 │       │   ├── identity.clj, runtime.clj package roots and serial adapter
-│       │   └── witness.clj, result.clj, policy.clj, outcome.clj
+│       │   ├── witness.clj, result.clj, policy.clj, outcome.clj
+│       │   └── realized_statement.clj frozen statement projection from supplied roots
 │       └── test/
 │           ├── fixtures/             pinned allocation vector and byte subset
 │           └── prf/pro_rata/         independent allocation oracle + runner
 ├── src/resolver_sim/pro_rata/       PRF runtime/hash adapters; further domain code
-├── src/resolver_sim/allocation/     realized statement and lifecycle coupling
+├── src/resolver_sim/allocation/     context/lifecycle adapters and evidence binding
 ├── pro_rata_contract_src/           independent frozen reference; shared effects
 ├── portable-pro-rata-contract/     allocation + effect/transition specs and vectors
 ├── test/resolver_sim/pro_rata/      parity, progress, arithmetic, host integration
@@ -108,6 +109,13 @@ the outcome. Context-bound evaluation packages and their provenance envelopes
 remain in PRF because they combine execution, claims, and application inputs.
 The independent reference and pinned bytes/roots remain the conformance
 authority.
+
+The frozen `realized-allocation-statement.v1` projection and its six-root
+assembly also live here. The package accepts pre-derived allocation-context
+and round-lifecycle roots; PRF retains those two source-schema adapters,
+persisted reconstruction/admission, and scenario-evidence binding. Package
+conformance pins the existing all-active statement root; PRF integration tests
+continue to cover the full context-to-statement path.
 
 `single-pass/allocate` and `redistribution/allocate` take an execution request
 and runtime callbacks:
@@ -189,8 +197,8 @@ source needed by its local dependency declaration.
 | `packages/pro-rata-allocation/clj/test/prf/pro_rata/` and the package `test/fixtures/` bundle | Package-owned allocation roots, canonical bytes, independent-reference equivalence, pinned fixture integrity, and request-rejection cases; PRF wrapper parity remains integration coverage |
 | Allocation/pro-rata characterization tests | Semantic arithmetic cases travel with pro-rata; executor, progress and realization cases stay with host adapters |
 | `packages/pro-rata-allocation/clj/src/prf/pro_rata/outcome.clj` and the pinned `vectors/policy-outcome-conformance-v1.edn` fixture | Pro-rata policy-outcome builder/validator and frozen outcome roots; the PRF fixture/test remain compatibility integration coverage |
-| `src/resolver_sim/pro_rata/evaluation.clj` and its commitment-stack tests | Evaluation artifact construction is still host-bound: it consumes passive registries and combines projection, claim, execution, and context/provenance inputs. Keep it in PRF unless a smaller pure contract can be separated without importing those dependencies |
-| `coprocessor/core/tests/realized_statement_conformance.rs`, statement fixtures and corresponding Clojure tests | Pro-rata realized-statement profile; preserve explicit context/lifecycle adapters |
+| `src/resolver_sim/pro_rata/evaluation.clj` and its commitment-stack tests | Keep in PRF. Evaluation resolves passive intent/projection/claim registries, executes and replays allocation, and assembles validation receipts. Its ex-post result envelope additionally binds world state, actions, Shortfall outcome, claim/invariant links, and evidence references. No independently portable sub-contract was identified in this pass |
+| `packages/pro-rata-allocation/clj/src/prf/pro_rata/realized_statement.clj`; Rust `coprocessor/core/src/realized_statement.rs`; corresponding conformance tests | Pro-rata realized-statement projection; package owns six-root assembly while PRF retains context/lifecycle adapters and application evidence binding |
 | Source-bound entitlement vectors and Rust/SP1 materializer | Capital-lifecycle owns entitlement projection conformance; preserve mixed source-bound cases as explicit Shortfall/allocation/lifecycle integration coverage. Fixture location does not confer semantic ownership on SP1/deployment |
 | Solidity execution/admission/custody tests | Companion integration coverage for the relevant projection and lifecycle profile; not primitive allocation SHA-256 equivalence by itself |
 
@@ -231,12 +239,13 @@ baseline, not release guarantees.
 |---|---:|
 | Qualify and publish a versioned allocation package artifact | 2–3 |
 | Package the four policy-outcome vectors and pin their roots | Complete |
-| Reassess evaluation artifacts for an independently portable sub-contract | 1–2 |
+| Evaluation artifact boundary reassessment | Complete: keep current evaluation package/envelope in PRF |
 | Realized allocation statement Clojure/Rust extraction with context/lifecycle adapters | 3–5 |
 | Capital-lifecycle extraction with allocation-neutral inputs | 4–7 |
 
-The public adapter, explicit PRF local dependency, pinned allocation fixture
-bundle, and positive plus request-negative runner are now in place. Rust
+The public adapter, explicit PRF local dependency, pinned allocation and
+policy-outcome fixtures, and positive plus request-negative runners are now in
+place. Rust
 implementation of the missing primitive profile and completion of unimplemented
 production lifecycle semantics are additional work. Each slice can leave PRF
 usable through compatibility adapters; physical repository splits and release

@@ -8,6 +8,7 @@
             [prf.pro-rata.api :as api]
             [prf.pro-rata.identity :as identity]
             [prf.pro-rata.outcome :as outcome]
+            [prf.pro-rata.realized-statement :as realized-statement]
             [prf.pro-rata.result :as result]
             [prf.pro-rata.reference :as reference]))
 
@@ -172,6 +173,34 @@
                (str id " frozen outcome root"))
       (test/is (= policy-outcome (outcome/validate-policy-outcome! policy-outcome))
                (str id " outcome validates")))))
+
+(deftest realized-statement-matches-frozen-v1-roots
+  (let [decision {:requested {"A" 50 "B" 30 "C" 20}
+                  :filled {"A" 50 "B" 30 "C" 20}
+                  :deferred {} :haircut {}
+                  :policy {:mode :pro-rata
+                           :rounding-policy :largest-remainder
+                           :fail-action-policy {:mode :pro-rata-treatment
+                                                :deferred-policy :same-ratio
+                                                :haircut-policy :same-ratio}}}
+        statement (realized-statement/build-statement-from-roots
+                   {:allocation-context-root
+                    "5155de4de58f55c1437d52d831cd3c747eea30e8455c3a7945dc715a6907a0b5"
+                    :round-lifecycle-root
+                    "1e7d41793ce424f39e2b2afc83dbb5c528cdd96a746d0a48949f1db5845b4a4a"
+                    :decision decision})]
+    (test/is (= "realized-allocation-statement.v1" (:schema-version statement)))
+    (test/is (= "9c495e37e9844035bd5273dac30682bfb99293c1f380034a69107e8765076114"
+                (:request-set-root statement)))
+    (test/is (= "798399d750475539bb518657121104c3c4ddea934cb0d61c044699f6671b64cb"
+                (:allocation-policy-root statement)))
+    (test/is (= "f0ba9de83a691600c73de0ddde4f8d1ab673ba4942a72340c782a5a350278b83"
+                (:realized-results-root statement)))
+    (test/is (= "10ff923ee0517c2e1dfbbb208946fe0834a8992273ebd983c2c2cd59658c08e7"
+                (:fail-action-policy-root statement)))
+    (test/is (= "c22333a16df1c1efa352e9daab42ccbd78f4a1d7530ee3ed3cf7527ba62cbd81"
+                (:statement/root statement)))
+    (test/is (true? (:statement/all-active? statement)))))
 
 (defn -main
   [& [fixture-root]]
