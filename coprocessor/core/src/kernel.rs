@@ -16,6 +16,7 @@ pub use prf_pro_rata_allocation::allocation_context::{
     context_preimage, result_leaf, SELECTION_ALGORITHM,
 };
 use prf_pro_rata_allocation::allocation_evaluation::evaluate_allocation;
+use prf_pro_rata_allocation::canonical_order::{sort_claimants, sort_outcomes};
 
 /// Kernel version, must equal the PRF `allocation-kernel.v1`.
 pub const KERNEL_VERSION: &str = "allocation-kernel.v1";
@@ -637,22 +638,4 @@ fn parse_bigint(s: &str) -> Result<BigInt, KernelError> {
     }
     BigInt::parse_bytes(s.as_bytes(), 10)
         .ok_or_else(|| KernelError::new("malformed-integer", format!("invalid integer: {}", s)))
-}
-
-/// Canonical ordering by the canonical binary encoding of an id string.
-fn canonical_id_key(id: &str) -> Vec<u8> {
-    CanonValue::str(id).encode()
-}
-
-fn sort_claimants(claimants: &mut [Claimant]) {
-    claimants.sort_by_key(|c| canonical_id_key(&c.claim_id));
-}
-
-fn sort_outcomes(outcomes: &mut [Outcome]) {
-    outcomes.sort_by_key(|o| canonical_id_key(&o.outcome_id));
-    for outcome in outcomes.iter_mut() {
-        outcome
-            .allocations
-            .sort_by_key(|a| canonical_id_key(&a.claim_id));
-    }
 }
