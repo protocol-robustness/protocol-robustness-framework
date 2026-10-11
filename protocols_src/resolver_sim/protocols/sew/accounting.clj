@@ -734,7 +734,6 @@
           (update legacy-world :claimable-v2 dissoc wf-id)))
       legacy-world)))
 
-
 (defn- mark-appeal-bond-claims-withdrawn
   "Move the recipient settled appeal-bond entitlement from claimable to
    claimed. Allocation and terminal disposition remain immutable."
@@ -829,7 +828,7 @@
 ;; ---------------------------------------------------------------------------
 
 (defn- appeal-bond-id
-  "Stable identity for an ordinary DRM bond.  The ordinal is per workflow/appellant." 
+  "Stable identity for an ordinary DRM bond.  The ordinal is per workflow/appellant."
   [workflow-id appellant ordinal]
   (str "appeal-bond:" workflow-id ":" appellant ":" ordinal))
 
@@ -862,7 +861,6 @@
          :bond/status :open
          :bond/remaining-custody net
          :bond/snapshot snap}]))
-
 
 (defn record-bond-disposition-by-id
   "Apply one terminal disposition to the explicitly identified bond.
@@ -902,7 +900,6 @@
            (assoc-in [:appeal-bond/records bond-id :bond/remaining-custody] 0)
            (assoc-in [:appeal-bond/dispositions disposition-id] disposition))
        allocations))))
-
 
 (defn settle-appeal-bond-on-resolution
   "Settle the exact ordinary escalation bond caused by the current resolution.
@@ -945,8 +942,8 @@
                                  :held/actor (:bond/funder record)}})
               (update-in [:bond-balances workflow-id challenger] (fnil - 0) amount)
               (record-bond-disposition-by-id bond-id kind {recipient amount} token
-                                              (str "resolve-appeal-bond:" workflow-id ":" level)
-                                              cause-type cause-root)
+                                             (str "resolve-appeal-bond:" workflow-id ":" level)
+                                             cause-type cause-root)
               (record-claimable-v2 workflow-id :bond/refund recipient amount)))))))
 
 (defn- record-bond-disposition
@@ -1311,30 +1308,34 @@
    Prevents bonds from leaking/accumulating indefinitely.
    Bonds are returned as claimable to the appellant."
   [world workflow-id]
-  (let [wf-bonds (get-in world [:bond-balances workflow-id])]
-    (if (seq wf-bonds)
-      (let [et (t/get-transfer world workflow-id)
-            token (:token et)]
-        (reduce-kv (fn [w appellant amount]
-                     (if (pos? amount)
-                       (-> w
-                           (sub-held token
-                                     amount
-                                     {:action "return-all-bonds-for-workflow"
-                                      :reason :appeal-bond-returned
-                                      :extra {:held/action "return-all-bonds-for-workflow"
-                                              :held/workflow-id workflow-id
-                                              :held/bond-id (str workflow-id "-" appellant)
-                                              :held/actor appellant}})
-                           (assoc-in [:bond-balances workflow-id appellant] 0)
-                           (record-bond-disposition workflow-id appellant :refund amount token
-                                                    (str "return-all-bonds-for-workflow:" workflow-id ":" appellant)
-                                                    :dispute-finalized
-                                                    (str "sew:bond-refunded-on-finalization:" workflow-id ":" appellant)))
-                       w))
-                   world
-                   wf-bonds))
-      world)))
+  (let [open-bonds (->> (vals (get world :appeal-bond/records {}))
+                        (filter #(and (= workflow-id (:workflow/id %))
+                                      (= :open (:bond/status %))))
+                        (sort-by (juxt :bond/funder :appeal/ordinal :bond/id)))]
+    (reduce (fn [w record]
+              (let [bond-id (:bond/id record)
+                    appellant (:bond/funder record)
+                    amount (:bond/custodied-amount record)
+                    token (:asset record)]
+                (if (pos? amount)
+                  (-> w
+                      (sub-held token
+                                amount
+                                {:action "return-all-bonds-for-workflow"
+                                 :reason :appeal-bond-returned
+                                 :extra {:held/action "return-all-bonds-for-workflow"
+                                         :held/workflow-id workflow-id
+                                         :held/bond-id bond-id
+                                         :held/actor appellant}})
+                      (update-in [:bond-balances workflow-id appellant] (fnil - 0) amount)
+                      (record-bond-disposition-by-id
+                       bond-id :refund {appellant amount} token
+                       (str "return-all-bonds-for-workflow:" workflow-id ":" bond-id)
+                       :dispute-finalized
+                       (str "sew:bond-refunded-on-finalization:" workflow-id ":" bond-id)))
+                  w)))
+            world
+            open-bonds)))
 
 (defn final-held-summary
   "Derived reporting summary of the held-adjustment ledger from the live world state.
