@@ -192,6 +192,20 @@
                     :audience-level :intro
                     :question "When does a different research result represent disagreement rather than a different study?"}}
 
+  {:id             :research-network-work-binding
+   :path           "notebooks/research_network_work_binding.clj"
+   :title          "Research Network: Work Binding, Stealing & Comparability"
+   :summary        "Executable tour of rooted research work assignment, local work stealing, pseudonymous attribution, and comparable versus not-comparable analysis results."
+   :categories     [:replay-determinism :evidence-artifacts]
+   :audience       [:researcher :auditor]
+   :status         :experimental
+   :risk           :informational
+   :protocol-areas [:benchmark]
+   :tags           ["work-stealing" "work-binding" "research-analysis" "comparability" "pseudonymous"]
+   :presentation   {:theme :evidence-reproducibility :kind :analysis
+                    :audience-level :intermediate
+                    :question "How can research work move between runners without changing its meaning or overstating what agreement proves?"}}
+
   {:id             :notebook-comparison
    :path           "notebooks/notebook_comparison.clj"
    :title          "Notebook Comparison"
