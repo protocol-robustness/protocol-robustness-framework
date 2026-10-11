@@ -11,7 +11,7 @@ use crate::lifecycle;
 use crate::roots;
 use crate::selection;
 use num_bigint::BigInt;
-use num_traits::Zero;
+use num_traits::{Signed, Zero};
 pub use prf_pro_rata_allocation::allocation_context::{
     context_preimage, result_leaf, SELECTION_ALGORITHM,
 };
@@ -257,7 +257,14 @@ pub fn run_kernel(
 
 /// Parse a raw JSON input document into a context, applying canonical ordering.
 pub fn parse_context(input: &serde_json::Value) -> Result<Context, KernelError> {
-    let allocation_id = string_field(input, "allocation-id")?;
+    let allocation_id = input
+        .get("allocation-id")
+        .and_then(|value| value.as_str())
+        .filter(|value| !value.trim().is_empty())
+        .map(str::to_string)
+        .ok_or_else(|| {
+            KernelError::new("malformed-allocation-id", "allocation id must be non-empty")
+        })?;
     let kernel_version = input
         .get("kernel-version")
         .and_then(|v| v.as_str())
@@ -320,7 +327,7 @@ pub fn parse_context(input: &serde_json::Value) -> Result<Context, KernelError> 
     let mut rate_map = std::collections::HashMap::new();
     for raw in raw_rates {
         let outcome_id = string_field(raw, "outcome-id")?;
-        let numerator = bigint_field(raw, "numerator")?;
+        let numerator = non_negative_bigint_field(raw, "numerator")?;
         let denominator = bigint_field(raw, "denominator")?;
         validate_rate(&numerator, &denominator)
             .map_err(|error| KernelError::new(error.classification, error.reason))?;
@@ -329,7 +336,7 @@ pub fn parse_context(input: &serde_json::Value) -> Result<Context, KernelError> 
     let rates = rates_for_outcomes(&outcomes, &rate_map)
         .map_err(|reason| KernelError::new("rates-outcome-mismatch", reason))?;
 
-    let capacity = bigint_field(input, "capacity")?;
+    let capacity = non_negative_bigint_field(input, "capacity")?;
     validate_capacity(&capacity)
         .map_err(|error| KernelError::new(error.classification, error.reason))?;
     let total_eligible_weight = bigint_field(input, "total-eligible-weight")?;
@@ -487,15 +494,19 @@ fn opt_hex(
 
 fn parse_claimant(raw: &serde_json::Value) -> Result<Claimant, KernelError> {
     Ok(Claimant {
-        claim_id: string_field(raw, "claim-id")?,
-        economic_owner_id: string_field(raw, "economic-owner-id")?,
-        amount: bigint_field(raw, "amount")?,
-        weight: bigint_field(raw, "weight")?,
+        claim_id: nonblank_string_field(raw, "claim-id", "malformed-claim-id")?,
+        economic_owner_id: nonblank_string_field(
+            raw,
+            "economic-owner-id",
+            "malformed-economic-owner-id",
+        )?,
+        amount: non_negative_bigint_field(raw, "amount")?,
+        weight: non_negative_bigint_field(raw, "weight")?,
     })
 }
 
 fn parse_outcome(raw: &serde_json::Value) -> Result<Outcome, KernelError> {
-    let outcome_id = string_field(raw, "outcome-id")?;
+    let outcome_id = nonblank_string_field(raw, "outcome-id", "malformed-outcome-id")?;
     let allocations_raw = raw
         .get("allocations")
         .and_then(|v| v.as_array())
@@ -509,7 +520,7 @@ fn parse_outcome(raw: &serde_json::Value) -> Result<Outcome, KernelError> {
     for raw in allocations_raw {
         allocations.push(AllocationEntry {
             claim_id: string_field(raw, "claim-id")?,
-            allocated: bigint_field(raw, "allocated")?,
+            allocated: non_negative_bigint_field(raw, "allocated")?,
         });
     }
     Ok(Outcome {
@@ -519,12 +530,36 @@ fn parse_outcome(raw: &serde_json::Value) -> Result<Outcome, KernelError> {
 }
 
 fn parse_policy(raw: &serde_json::Value) -> Result<Policy, KernelError> {
-    let policy_id = string_field(raw, "policy-id")?;
-    let policy_hash = string_field(raw, "policy-hash")?;
-    let forbid = raw
+    let map = raw
+        .as_object()
+        .ok_or_else(|| KernelError::new("malformed-policy", "policy must be an object"))?;
+    let policy_id = map
+        .get("policy-id")
+        .and_then(|value| value.as_str())
+        .filter(|value| !value.trim().is_empty())
+        .map(str::to_string)
+        .ok_or_else(|| KernelError::new("malformed-policy", "policy id required"))?;
+    let policy_hash = map
+        .get("policy-hash")
+        .and_then(|value| value.as_str())
+        .filter(|value| {
+            value.len() == 66
+                && value.starts_with("0x")
+                && value[2..]
+                    .bytes()
+                    .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
+        })
+        .map(str::to_string)
+        .ok_or_else(|| {
+            KernelError::new(
+                "malformed-policy-hash",
+                "policy hash must be 0x-prefixed lowercase 32-byte hex",
+            )
+        })?;
+    // Clojure's boolean coercion treats only false and nil as false.
+    let forbid = map
         .get("forbid-duplicate-owners")
-        .and_then(|v| v.as_bool())
-        .unwrap_or(false);
+        .is_some_and(|value| !value.is_null() && value != &serde_json::Value::Bool(false));
     Ok(Policy {
         policy_id,
         policy_hash,
@@ -541,13 +576,26 @@ fn string_field(v: &serde_json::Value, key: &str) -> Result<String, KernelError>
         })
 }
 
+fn nonblank_string_field(
+    value: &serde_json::Value,
+    key: &str,
+    classification: &'static str,
+) -> Result<String, KernelError> {
+    value
+        .get(key)
+        .and_then(|field| field.as_str())
+        .filter(|field| !field.trim().is_empty())
+        .map(str::to_string)
+        .ok_or_else(|| KernelError::new(classification, format!("{} must be non-empty", key)))
+}
+
 fn bigint_field(v: &serde_json::Value, key: &str) -> Result<BigInt, KernelError> {
     match v.get(key) {
         None => Err(KernelError::new(
             "malformed-input",
             format!("missing integer field: {}", key),
         )),
-        Some(serde_json::Value::String(s)) => parse_bigint(s),
+        Some(serde_json::Value::String(s)) => parse_signed_bigint(s),
         Some(serde_json::Value::Number(n)) => n
             .as_i64()
             .map(BigInt::from)
@@ -559,13 +607,40 @@ fn bigint_field(v: &serde_json::Value, key: &str) -> Result<BigInt, KernelError>
     }
 }
 
+fn non_negative_bigint_field(v: &serde_json::Value, key: &str) -> Result<BigInt, KernelError> {
+    let value = bigint_field(v, key)?;
+    if value.is_negative() {
+        return Err(KernelError::new(
+            "negative-amount",
+            format!("{} must be non-negative, got: {}", key, value),
+        ));
+    }
+    Ok(value)
+}
+
 fn parse_bigint(s: &str) -> Result<BigInt, KernelError> {
-    if !s.bytes().all(|b| b.is_ascii_digit()) {
+    if s.is_empty() || !s.bytes().all(|b| b.is_ascii_digit()) {
         return Err(KernelError::new(
             "malformed-integer",
             format!("not a decimal string: {}", s),
         ));
     }
     BigInt::parse_bytes(s.as_bytes(), 10)
+        .ok_or_else(|| KernelError::new("malformed-integer", format!("invalid integer: {}", s)))
+}
+
+fn parse_signed_bigint(s: &str) -> Result<BigInt, KernelError> {
+    let (negative, digits) = match s.strip_prefix('-') {
+        Some(digits) => (true, digits),
+        None => (false, s),
+    };
+    if digits.is_empty() || !digits.bytes().all(|b| b.is_ascii_digit()) {
+        return Err(KernelError::new(
+            "malformed-integer",
+            format!("not a decimal string: {}", s),
+        ));
+    }
+    BigInt::parse_bytes(digits.as_bytes(), 10)
+        .map(|value| if negative { -value } else { value })
         .ok_or_else(|| KernelError::new("malformed-integer", format!("invalid integer: {}", s)))
 }

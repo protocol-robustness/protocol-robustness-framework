@@ -143,11 +143,11 @@ pub fn validate_rate(
 ) -> Result<(), ContextValidationError> {
     if numerator < &BigInt::from(0) {
         return Err(ContextValidationError {
-            classification: "negative-rate-numerator",
-            reason: "negative rate numerator",
+            classification: "negative-amount",
+            reason: "numerator must be non-negative",
         });
     }
-    if denominator.is_zero() {
+    if denominator <= &BigInt::from(0) {
         return Err(ContextValidationError {
             classification: "non-positive-rate-denominator",
             reason: "non-positive rate denominator",
@@ -225,7 +225,7 @@ mod tests {
             validate_rate(&BigInt::from(-1), &BigInt::from(1))
                 .unwrap_err()
                 .classification,
-            "negative-rate-numerator"
+            "negative-amount"
         );
         assert_eq!(
             validate_rate(&BigInt::from(1), &BigInt::from(0))

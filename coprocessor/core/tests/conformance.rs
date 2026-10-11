@@ -60,6 +60,18 @@ fn proving_input_requires_all_committed_bindings() {
     input["committed"] = json!({
         "claimant-set-root": "0xc45b857d28c2d643dd9331fe396c44862df632125a6299e523073a197ce7a978",
         "outcome-set-root": "0xc8180b14b358826dad95c2dad6b3783d2a380af2790a66b27a9580a01d99b866",
+        "proposed-rates-root": "0x4d32943ddcbf3ced6f774bb2841ec526ddefa5105777e981d3883ce9225c6314",
+        "result-root": "0xf82ca61e0b3bb6949606bef5489663b73db9359dfb6eed478c3c2701440fdc06",
+        "selected-outcome-id": "O2",
+        "selected-outcome-index": "-1"
+    });
+    let err = kernel::parse_committed_for_proving(&input).unwrap_err();
+    assert_eq!(err.classification, "malformed-committed");
+
+    let mut input = happy_input();
+    input["committed"] = json!({
+        "claimant-set-root": "0xc45b857d28c2d643dd9331fe396c44862df632125a6299e523073a197ce7a978",
+        "outcome-set-root": "0xc8180b14b358826dad95c2dad6b3783d2a380af2790a66b27a9580a01d99b866",
         "result-root": "0xf82ca61e0b3bb6949606bef5489663b73db9359dfb6eed478c3c2701440fdc06",
         "selected-outcome-id": "O2",
         "selected-outcome-index": "1"
@@ -373,4 +385,123 @@ fn extra_proposed_rate_rejected_with_classification() {
         .push(json!({"outcome-id": "unexpected", "numerator": "1", "denominator": "1"}));
     let err = kernel::parse_context(&input).unwrap_err();
     assert_eq!(err.classification, "rates-outcome-mismatch");
+}
+
+#[test]
+fn context_parser_matches_prf_identifier_and_policy_rejections() {
+    let mut input = happy_input();
+    input["allocation-id"] = json!("  ");
+    assert_eq!(
+        kernel::parse_context(&input).unwrap_err().classification,
+        "malformed-allocation-id"
+    );
+
+    let mut input = happy_input();
+    input["claimants"][0]["claim-id"] = json!("");
+    assert_eq!(
+        kernel::parse_context(&input).unwrap_err().classification,
+        "malformed-claim-id"
+    );
+
+    let mut input = happy_input();
+    input["claimants"][0]["economic-owner-id"] = json!(" ");
+    assert_eq!(
+        kernel::parse_context(&input).unwrap_err().classification,
+        "malformed-economic-owner-id"
+    );
+
+    let mut input = happy_input();
+    input["outcomes"][0]["outcome-id"] = json!("");
+    assert_eq!(
+        kernel::parse_context(&input).unwrap_err().classification,
+        "malformed-outcome-id"
+    );
+
+    let mut input = happy_input();
+    input["policy"] = json!(null);
+    assert_eq!(
+        kernel::parse_context(&input).unwrap_err().classification,
+        "malformed-policy"
+    );
+
+    let mut input = happy_input();
+    input["policy"]["policy-id"] = json!("");
+    assert_eq!(
+        kernel::parse_context(&input).unwrap_err().classification,
+        "malformed-policy"
+    );
+
+    let mut input = happy_input();
+    input["policy"]["policy-hash"] = json!(format!("0x{}", "A".repeat(64)));
+    assert_eq!(
+        kernel::parse_context(&input).unwrap_err().classification,
+        "malformed-policy-hash"
+    );
+
+    let mut input = happy_input();
+    input["claimants"][1]["economic-owner-id"] = json!("owner-A");
+    input["policy"]["forbid-duplicate-owners"] = json!("false");
+    assert_eq!(
+        kernel::parse_context(&input).unwrap_err().classification,
+        "duplicate-economic-owner"
+    );
+}
+
+#[test]
+fn context_parser_matches_prf_negative_number_rejections() {
+    let mut input = happy_input();
+    input["claimants"][0]["amount"] = json!("-5");
+    assert_eq!(
+        kernel::parse_context(&input).unwrap_err().classification,
+        "negative-amount"
+    );
+
+    let mut input = happy_input();
+    input["claimants"][0]["weight"] = json!(-5);
+    assert_eq!(
+        kernel::parse_context(&input).unwrap_err().classification,
+        "negative-amount"
+    );
+
+    let mut input = happy_input();
+    input["outcomes"][0]["allocations"][0]["allocated"] = json!("-1");
+    assert_eq!(
+        kernel::parse_context(&input).unwrap_err().classification,
+        "negative-amount"
+    );
+
+    let mut input = happy_input();
+    input["capacity"] = json!("-10");
+    assert_eq!(
+        kernel::parse_context(&input).unwrap_err().classification,
+        "negative-amount"
+    );
+
+    let mut input = happy_input();
+    input["proposed-rates"][0]["numerator"] = json!("-1");
+    assert_eq!(
+        kernel::parse_context(&input).unwrap_err().classification,
+        "negative-amount"
+    );
+
+    let mut input = happy_input();
+    input["proposed-rates"][0]["denominator"] = json!("-1");
+    assert_eq!(
+        kernel::parse_context(&input).unwrap_err().classification,
+        "non-positive-rate-denominator"
+    );
+
+    let mut input = happy_input();
+    input["total-eligible-weight"] = json!("-1");
+    assert_eq!(
+        kernel::parse_context(&input).unwrap_err().classification,
+        "inconsistent-total-weight"
+    );
+
+    let mut input = happy_input();
+    input["exact-pro-rata-denominator"] = json!("-1");
+    assert_eq!(
+        kernel::parse_context(&input).unwrap_err().classification,
+        "inconsistent-pro-rata-denominator"
+    );
 }
