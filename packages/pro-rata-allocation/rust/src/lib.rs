@@ -4,5 +4,7 @@ pub mod allocation_context;
 pub mod allocation_roots;
 pub mod exact_ratio;
 pub mod kernel_types;
+pub mod proportionality;
 pub mod realized_fill;
 pub mod realized_statement;
+pub mod selection;

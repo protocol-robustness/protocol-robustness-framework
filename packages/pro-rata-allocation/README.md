@@ -38,7 +38,7 @@ PRF/
 │       └── test/
 │           ├── fixtures/             pinned allocation vector and byte subset
 │           └── prf/pro_rata/         independent allocation oracle + runner
-│   └── rust/                         allocation types/context projections, realized fill, statement identities
+│   └── rust/                         allocation types/projections, rate math, realized fill and statement identities
 ├── src/resolver_sim/pro_rata/       PRF runtime/hash adapters; further domain code
 ├── src/resolver_sim/allocation/     context/lifecycle adapters and evidence binding
 ├── pro_rata_contract_src/           independent frozen reference; shared effects
@@ -47,57 +47,149 @@ PRF/
 └── coprocessor/core/               realized allocation + lifecycle + source binding
 ```
 
-Target semantic package boundaries and eventual repository homes, after
-qualification and incremental extraction:
+Target semantic package boundaries and repository homes, after qualification
+and incremental extraction:
 
 ```text
 Separate repositories:
-prf-canonical/                       canonical codec, hashing, artifact type registration,
-│                                    generic schema and conformance machinery
-prf-pro-rata-allocation/             allocation semantics and artifact definitions
-├── clj/                             primitive API + semantic algorithms
-├── rust/                            supported matching implementation profiles
-└── conformance/                     specs, independent references and frozen vectors
-prf-capital-lifecycle/                Protected Capital lifecycle
-prf-shortfall/                        Shortfall scarcity application
-prf-examples/                         end-to-end examples and demo workflows
-prf-evm/                              Solidity implementations, EVM projections and tests
+prf-canonical/                         canonical artifact machinery
+prf-pro-rata-allocation/               allocation semantics and artifact definitions
+├── clj/                               Clojure implementation
+├── rust/                              Rust implementation
+└── conformance/                       specs, independent references and frozen vectors
+prf-capital-lifecycle/                 Protected Capital lifecycle
+prf-shortfall/                         Shortfall scarcity application
+prf-researcher-network/                researcher-network application (C1)
+prf-examples/                          examples and application-specific demo assembly
+prf-evm/                               Solidity implementations and EVM-local projections
+protocol-deployments/                 authoritative deployment ledger and release semantics
 
-First-class package boundary; repository split deferred:
-protected-operations/                assurance, operation binding, freshness,
-                                     replay and protected execution routing
-
-Still in the PRF integration repository pending C1 crosswalk:
-research / network / accounting       destination and ownership not yet reconciled
+Semantic package boundaries initially retained in PRF:
+protected-operations/                  reusable AO assurance and execution semantics;
+                                       future standalone repo is optional
+accounting-reductions/                 independently owned accounting semantics;
+                                       package boundary may remain in-tree
+PRF integration repository:
+research analysis and verification; authoritative accounting and incentive/reward
+semantics until C1/C2 jointly justify packaging; integration tests and adapters
 ```
 
-The protected-operations boundary is informed by
-[`ASSURED_OPERATIONS_V1`](../../docs/architecture/ASSURED_OPERATIONS_V1.md):
-it owns generic protected-operation assurance and dispatch semantics, while
-application adapters supply propositions, authority, and state projections.
-It can begin as an independently versioned package in PRF; a separate repository
-is not a prerequisite. Capital lifecycle uses these controls for economic
-operations but does not own the generic assurance mechanism.
+### Dependency direction
 
-Entitlement meaning is determined by the allocation or application domain. For
-example, pro-rata determines its allocation and resulting beneficiaries;
-Shortfall determines eligible demand under its scarcity rules. Capital lifecycle
-admits an authoritative entitlement set, then owns activation, liabilities,
-withdrawal, cancellation consequences, and closure. Its input binding must stay
-allocation-neutral so another mechanism can supply entitlements.
+```text
+prf-canonical ──► prf-pro-rata-allocation ─────►┐
+       ├────────► protected-operations          │
+       ├────────► prf-capital-lifecycle ◄────────┘ allocation-neutral result adapter
+       ├────────► prf-shortfall ─ ─ optional use of pro-rata
+       ├────────► accounting-reductions
+       └────────► prf-researcher-network (C1)
 
-`prf-canonical` defines how artifact types are canonically encoded, hashed,
-registered, and checked for conformance. Domain packages define which semantic
-artifact types exist. Canonical infrastructure does not decide proof acceptance,
-capital authorization, research rewards, or execution admission.
+protected-operations ──► prf-capital-lifecycle (generic assurance interface)
+prf-examples ──────────► assembles domain packages and consumes deployment workflows
+prf-evm ───────────────► implements EVM profiles; consumes authoritative records from
+                         protocol-deployments, not a competing deployment registry
+```
 
-The C1 crosswalk remains an explicit prerequisite to fixing destinations for
-research, network, and accounting code. Those areas remain in the integration
-repository until C1 ownership and existing boundaries are mapped against this
-C2 semantic topology; neither a language directory nor current file location
-establishes ownership. The portable contract also contains generic effects and
-transition semantics whose destination must be settled in that crosswalk. Frozen
-identities must remain distinct throughout extraction.
+## Semantic ownership matrix
+
+| Boundary | Owns | Does not own |
+|---|---|---|
+| `prf-canonical` | Canonicalization, hashing, typed root references, artifact-definition registration, generic schema and conformance machinery | Domain artifact meanings, proof acceptance policy, capital authorization, research rewards, execution admission |
+| PRF research analysis/verification | Authoritative research models, analysis, result interpretation and verification until separately packaged | Researcher-network workflows or a duplicate canonical foundation |
+| Researcher network (C1) | Researcher challenges, network application, and interaction/delivery for incentive programs | Authoritative research conclusions/accounting or parallel artifact hashing/registration |
+| Accounting reductions | Accounting-reduction semantics as an independently owned package boundary; may initially remain in-tree | Canonical codec/hash or unrelated protocol-specific state machines |
+| `protected-operations` | Generic AO assurance, operation binding, state-projection interface, freshness, replay/nonces, route authorization, proof/configuration binding, safe consumption | Domain transitions, entitlement economics, capital conservation rules |
+| `prf-capital-lifecycle` | Authoritative entitlement admission/binding, liabilities, activation, withdrawal realization, closure, lifecycle conservation | Determining why/what a beneficiary is owed; generic AO assurance implementation |
+| `prf-pro-rata-allocation` | Allocation arithmetic/policy, results, residuals, allocation-owned artifact definitions and vectors | Protected-capital custody/withdrawal or Shortfall source eligibility |
+| `prf-shortfall` | Eligible demand, source observation, reserve/source binding, scarcity-specific unmet-demand meaning | Allocation arithmetic or generic protected-operation assurance |
+| `prf-examples` | Demo assembly, examples, application-specific deployment workflows | Normative semantics or authoritative deployment ledger |
+| `prf-evm` | Solidity implementation, EVM-local commitments/projections, contract tests, EVM-specific conformance | Competing canonical SHA-256 identities or deployment registry authority |
+| `protocol-deployments` | Authoritative deployment ledger, admission/observation registry, manifests, release semantics | Domain package semantics or EVM-local implementation details |
+
+Researcher incentive/reward calculations remain authoritative PRF semantics
+until C1 and C2 agree on packaging; the network application may move separately.
+
+`protected-operations` is the reusable AO boundary described by
+[`ASSURED_OPERATIONS_V1`](../../docs/architecture/ASSURED_OPERATIONS_V1.md).
+It owns generic assurance and operation binding, state-projection interfaces,
+freshness, nonce/replay protection, route authorization, proof/configuration
+binding, and safe consumption semantics. It does not own application state
+transitions or economic invariants. Capital lifecycle consumes AO admission,
+freshness, and replay interfaces through an adapter; it supplies the operation
+proposition, lifecycle preconditions, postconditions, and conservation rules.
+This avoids a second lifecycle-specific assurance implementation. The package
+can be versioned in-tree first; no AO rewrite or repository split is required.
+EVM dispatch and EVM-specific conformance remain in `prf-evm`.
+
+Entitlement economics belong to the mechanism/application that establishes who
+is owed what and why. Capital lifecycle owns admission and binding of an
+authoritative entitlement set, liabilities, activation, withdrawal realization,
+closure, and lifecycle conservation. It accepts allocation-neutral inputs from
+different mechanisms and does not define a new universal entitlement format.
+Shortfall owns eligible demand, source/reserve binding, and scarcity-specific
+semantics. Protected operations gates execution; it does not determine
+entitlement economics.
+
+`prf-canonical` owns canonicalization, hashing, typed root references, generic
+artifact-definition registration, schema support, and cross-language
+conformance machinery. Domain packages define semantic artifact types and
+substantive admission policy. Generic verification interfaces may be shared;
+proof acceptance, capital authorization, research rewards, and execution
+admission remain with the domain that has authority to make those decisions.
+Keep the artifact-definition registry, verifier registry, deployment ledger,
+and evidence/instance store separate. Package manifests and dependency metadata
+belong to build/release tooling, not a canonical semantic registry.
+
+### C1 coordination and overlap
+
+The C1 direction is accommodated without moving or redefining its semantics:
+
+- Research analysis and verification remain in PRF until separately justified.
+- `prf-researcher-network` owns the network application and researcher challenge
+  coordination. It consumes PRF's authoritative research results and reward
+  rules; it does not fork them.
+- Researcher incentive/reward calculations remain authoritative PRF semantics
+  until C1/C2 agree on an extraction boundary. Network interaction and delivery
+  may move independently.
+- `accounting-reductions` has a first-class semantic package boundary and may
+  remain in-tree; authoritative accounting behavior remains in PRF until
+  packaging is justified.
+- All these domains consume the same canonical codec/hash and artifact-definition
+  registration machinery. Semantic schema and domain-tag ownership follows the
+  domain that defines the artifact; there must be no parallel C1 registry,
+  encoder, hash scheme, or shared dependency manifest.
+
+The concrete coordination surface is canonical schemas and domain tags,
+artifact-definition registry format, package/release metadata, and dependency
+version metadata. No conflicting owner is established by the agreed C1
+direction. Resolve any C1 proposal to duplicate those shared mechanisms before
+editing them; keep domain-specific artifact definitions with their semantic
+owners. The portable contract's generic effect/transition material also needs
+an explicit owner in the C1 crosswalk.
+
+### Deployment authority
+
+`prf-examples` owns demo assembly and application-specific deployment workflows.
+`protocol-deployments` remains authoritative for the deployment ledger,
+admission/observation registry, manifests, and release semantics. `prf-evm` may
+own Solidity test/development scripts and EVM projections, but those do not
+create a competing authoritative registry. Examples and EVM tooling consume the
+deployment authority's interfaces and records.
+
+### Migration invariants
+
+- Complete and qualify in-tree package boundaries before external repository
+  moves; preserve compatibility re-exports while consumers migrate.
+- Preserve every existing root, schema, domain separator, canonical projection,
+  proof public-value layout, and verifier identity during extraction.
+- Keep independent Clojure/Rust fixtures and verify exact semantic equivalence.
+- Keep runtime evidence separate from canonical economic identities.
+- Do not change Solidity economic behavior as part of repository extraction.
+- Do not duplicate authoritative artifact builders to remove a dependency.
+- Replace developer-local paths with pinned dependency versions only after
+  external package releases are qualified.
+
+Frozen identities must remain distinct throughout extraction.
 
 ## Dependency closure and public adapters
 
@@ -110,13 +202,16 @@ local dependency, which brings the canonical package transitively. This proves
 an explicit build dependency boundary; it is not a pinned version or release
 artifact.
 
-The Rust crate at `packages/pro-rata-allocation/rust` depends only on
-`packages/canonical/rust`. `allocation-kernel` retains its raw-input
-context/lifecycle builder and delegates statement domains and root assembly
-to that crate. The realized-fill model, deterministic fill calculation, and
-canonical result projection also live in the package; `allocation-kernel`
-re-exports them under its existing module path, preserving callers and the SP1
-input contract.
+The Rust crate at `packages/pro-rata-allocation/rust` uses
+`packages/canonical/rust` for the generic codec/hash and declares its required
+numeric and digest libraries directly. The package now owns exact rate math,
+legacy allocation context/result projections and shared allocation types,
+allocation root projections, deterministic outcome selection, realized-fill
+calculation, and realized-statement identities/projections. `allocation-kernel`
+retains JSON parsing, raw-input construction, proof assertions, and lifecycle
+orchestration. It keeps
+the previous module paths as compatibility re-exports; roots, public values, and
+the SP1 input contract remain unchanged.
 
 `prf.pro-rata.api/allocate` has a default one-argument entry point and an
 adapter-taking arity:
@@ -248,7 +343,7 @@ source needed by its local dependency declaration.
 | `packages/pro-rata-allocation/clj/src/prf/pro_rata/outcome.clj` and the pinned `vectors/policy-outcome-conformance-v1.edn` fixture | Pro-rata policy-outcome builder/validator and frozen outcome roots; the PRF fixture/test remain compatibility integration coverage |
 | `src/resolver_sim/pro_rata/evaluation.clj` and its commitment-stack tests | Keep in PRF. Evaluation resolves passive intent/projection/claim registries, executes and replays allocation, and assembles validation receipts. Its ex-post result envelope additionally binds world state, actions, Shortfall outcome, claim/invariant links, and evidence references. No independently portable sub-contract was identified in this pass |
 | `packages/pro-rata-allocation/clj/src/prf/pro_rata/realized_statement.clj`, `packages/pro-rata-allocation/rust/src/realized_statement.rs`, and corresponding conformance tests | Pro-rata realized-statement projection; package owns six-root assembly while PRF/Rust host adapters retain context/lifecycle derivation and application evidence binding |
-| Source-bound entitlement vectors and Rust/SP1 materializer | Capital-lifecycle owns entitlement projection conformance; preserve mixed source-bound cases as explicit Shortfall/allocation/lifecycle integration coverage. Fixture location does not confer semantic ownership on SP1/deployment |
+| Source-bound entitlement vectors and Rust/SP1 materializer | The originating allocation/application domain owns entitlement economics; capital lifecycle owns authoritative set admission/binding and subsequent lifecycle semantics. Keep mixed source-bound cases as explicit Shortfall/allocation/lifecycle integration coverage; fixture location does not confer semantic ownership on SP1/deployment |
 | Solidity execution/admission/custody tests | Companion integration coverage for the relevant projection and lifecycle profile; not primitive allocation SHA-256 equivalence by itself |
 
 The negative allocation vector contains two request mutations and four result
@@ -271,12 +366,12 @@ Minimum gates before an independently consumable release:
    matching supported Rust coverage and companion conformance where required.
    Keep missing implementations and profile restrictions explicit.
 
-Known repository review limits from the preceding extraction remain separate:
-24 unrelated formatting failures; notebook failure at
-`appealed_escrow_walkthrough.clj:270` and all-notebook timeout; three benchmark
-lifecycle integration errors reproduced with the parent implementation. The
-`bb validate` subprocess-status wrapper also incorrectly prints success after
-nonzero exits. These are not package conformance evidence.
+Previously reported repository review limits remain separate from package
+conformance: notebook failure at `appealed_escrow_walkthrough.clj:270` and
+all-notebook timeout; three benchmark lifecycle integration errors reproduced
+with the parent implementation. The `bb validate` subprocess-status wrapper
+also incorrectly prints success after nonzero exits. Recheck those at the
+relevant release gate; they do not redefine package ownership.
 
 ## Remaining effort in modern LLM coding passes
 
@@ -289,7 +384,9 @@ baseline, not release guarantees.
 | Qualify and publish a versioned allocation package artifact | 2–3 |
 | Package the four policy-outcome vectors and pin their roots | Complete |
 | Evaluation artifact boundary reassessment | Complete: keep current evaluation package/envelope in PRF |
-| Realized allocation statement Clojure/Rust extraction with context/lifecycle adapters | 3–5 |
+| Rust legacy allocation types, roots, context/result projections and statement identity slices | Complete; preserve as-is |
+| Complete primitive portable request/result/witness implementation in Rust with Clojure parity | Remaining; separate profile work, not implied by the extracted legacy kernel modules |
+| Realized allocation statement Clojure/Rust extraction with context/lifecycle adapters | Mostly complete; remaining cross-language and lifecycle-adapter qualification |
 | Capital-lifecycle extraction with allocation-neutral inputs | 4–7 |
 
 The public adapter, explicit PRF local dependency, pinned allocation and
