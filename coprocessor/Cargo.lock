@@ -82,6 +82,7 @@ dependencies = [
  "num-integer",
  "num-traits",
  "prf-canonical-codec",
+ "prf-pro-rata-allocation",
  "serde_json",
  "sha2",
  "sha3",
@@ -2774,6 +2775,14 @@ dependencies = [
  "num-bigint 0.4.8",
  "num-traits",
  "sha2",
+]
+
+[[package]]
+name = "prf-pro-rata-allocation"
+version = "0.1.0"
+dependencies = [
+ "num-bigint 0.4.8",
+ "prf-canonical-codec",
 ]
 
 [[package]]

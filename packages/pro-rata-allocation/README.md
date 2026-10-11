@@ -1,12 +1,14 @@
 # Pro-rata allocation package boundary
 
-Status: independently loadable **Clojure source package**, consumed locally by
-PRF. A reproducible `0.1.0-rc.1` source bundle is available under `releases/`;
-it includes the canonical Clojure source dependency and its conformance
-fixtures. This is a qualified local candidate, not a remote registry release.
-The Rust primitive profile remains missing and the registry remains proposed
-and non-runtime. This review covers the extracted primitive; the wider
-pro-rata artifact family still needs extraction.
+Status: independently loadable **Clojure and Rust source package**, consumed
+locally by PRF. A reproducible `0.1.0-rc.1` source bundle is available under
+`releases/`; it includes the canonical Clojure and Rust source dependencies
+and its conformance fixtures. This is a qualified local candidate, not a
+remote registry release.
+Its Rust realized-statement identity layer is also extracted and
+conformance-tested; the broader Rust primitive request/result profile remains
+incomplete. The registry remains proposed and non-runtime. The wider pro-rata
+artifact family still needs extraction.
 
 Definitions and authority: [proposed registry](../../docs/architecture/canonical-artifacts/canonical-artifacts.v1.edn),
 [package-local V1 allocation profile](ALLOCATION_V1.md),
@@ -36,6 +38,7 @@ PRF/
 │       └── test/
 │           ├── fixtures/             pinned allocation vector and byte subset
 │           └── prf/pro_rata/         independent allocation oracle + runner
+│   └── rust/                         standalone statement identity crate
 ├── src/resolver_sim/pro_rata/       PRF runtime/hash adapters; further domain code
 ├── src/resolver_sim/allocation/     context/lifecycle adapters and evidence binding
 ├── pro_rata_contract_src/           independent frozen reference; shared effects
@@ -73,6 +76,11 @@ through `:local/root "../../canonical/clj"`. PRF declares this package through a
 local dependency, which brings the canonical package transitively. This proves
 an explicit build dependency boundary; it is not a pinned version or release
 artifact.
+
+The Rust crate at `packages/pro-rata-allocation/rust` depends only on
+`packages/canonical/rust`. `allocation-kernel` retains its raw-input
+context/lifecycle builder and delegates statement domains and root assembly
+to that crate, preserving its public Rust API and SP1 input contract.
 
 `prf.pro-rata.api/allocate` has a default one-argument entry point and an
 adapter-taking arity:
@@ -174,6 +182,11 @@ unchanged. Run from `packages/pro-rata-allocation/clj` with
 The aggregate portable contract keeps its generic transition fixtures at their
 existing location and ownership.
 
+Run the standalone Rust identity tests from the repository root with
+`cargo test --manifest-path packages/pro-rata-allocation/rust/Cargo.toml`.
+The `allocation-kernel` integration suite additionally checks the raw-input
+builder against the same frozen roots.
+
 The frozen Clojure reference remains in
 `pro_rata_contract_src/resolver_sim/pro_rata_contract/contract.clj`, where
 allocation and canonical effect transitions share a namespace. The package test
@@ -198,7 +211,7 @@ source needed by its local dependency declaration.
 | Allocation/pro-rata characterization tests | Semantic arithmetic cases travel with pro-rata; executor, progress and realization cases stay with host adapters |
 | `packages/pro-rata-allocation/clj/src/prf/pro_rata/outcome.clj` and the pinned `vectors/policy-outcome-conformance-v1.edn` fixture | Pro-rata policy-outcome builder/validator and frozen outcome roots; the PRF fixture/test remain compatibility integration coverage |
 | `src/resolver_sim/pro_rata/evaluation.clj` and its commitment-stack tests | Keep in PRF. Evaluation resolves passive intent/projection/claim registries, executes and replays allocation, and assembles validation receipts. Its ex-post result envelope additionally binds world state, actions, Shortfall outcome, claim/invariant links, and evidence references. No independently portable sub-contract was identified in this pass |
-| `packages/pro-rata-allocation/clj/src/prf/pro_rata/realized_statement.clj`; Rust `coprocessor/core/src/realized_statement.rs`; corresponding conformance tests | Pro-rata realized-statement projection; package owns six-root assembly while PRF retains context/lifecycle adapters and application evidence binding |
+| `packages/pro-rata-allocation/clj/src/prf/pro_rata/realized_statement.clj`, `packages/pro-rata-allocation/rust/src/realized_statement.rs`, and corresponding conformance tests | Pro-rata realized-statement projection; package owns six-root assembly while PRF/Rust host adapters retain context/lifecycle derivation and application evidence binding |
 | Source-bound entitlement vectors and Rust/SP1 materializer | Capital-lifecycle owns entitlement projection conformance; preserve mixed source-bound cases as explicit Shortfall/allocation/lifecycle integration coverage. Fixture location does not confer semantic ownership on SP1/deployment |
 | Solidity execution/admission/custody tests | Companion integration coverage for the relevant projection and lifecycle profile; not primitive allocation SHA-256 equivalence by itself |
 

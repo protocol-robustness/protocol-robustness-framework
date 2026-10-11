@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build a deterministic, self-contained Clojure allocation source bundle."""
+"""Build a deterministic source bundle for the pro-rata allocation package."""
 
 from __future__ import annotations
 
@@ -17,10 +17,12 @@ RELEASES = PACKAGE / "releases"
 INCLUDED_ROOTS = (
     "LICENSE",
     "packages/canonical/clj",
+    "packages/canonical/rust",
     "packages/pro-rata-allocation/ALLOCATION_V1.md",
     "packages/pro-rata-allocation/README.md",
     "packages/pro-rata-allocation/RELEASE.edn",
     "packages/pro-rata-allocation/clj",
+    "packages/pro-rata-allocation/rust",
     "portable-pro-rata-contract/SPEC.md",
     "portable-pro-rata-contract/contract.edn",
     "docs/architecture/PROTECTED_CAPITAL_PRO_RATA_V2_SEMANTICS.md",

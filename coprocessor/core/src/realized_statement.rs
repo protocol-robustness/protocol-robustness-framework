@@ -17,9 +17,10 @@
 use crate::canonical::{domain_hash, tags, CanonValue};
 use crate::kernel::{context_preimage, Context};
 use crate::lifecycle::RoundLifecycle;
-use crate::realized_fill::{canon_request_set, RealizedAllocation};
+use crate::realized_fill::RealizedAllocation;
+use prf_pro_rata_allocation::realized_statement as package_statement;
 
-pub const SCHEMA_VERSION: &str = "realized-allocation-statement.v1";
+pub const SCHEMA_VERSION: &str = package_statement::SCHEMA_VERSION;
 
 /// The allocation-context root: domain hash of the context preimage, derived
 /// from the raw `Context` (condition A: Rust reconstructs, does not bind a
@@ -32,7 +33,7 @@ pub fn allocation_context_root(ctx: &Context) -> String {
 /// Request-set root: domain hash of the claim-keyed requested set under
 /// REALIZED_REQUEST_SET_V1.
 pub fn request_set_root(requested: &[(String, i64)]) -> String {
-    domain_hash("REALIZED_REQUEST_SET_V1", &canon_request_set(requested))
+    package_statement::request_set_root(requested)
 }
 
 /// Allocation-policy root: domain hash of the effective fill policy under
@@ -40,51 +41,20 @@ pub fn request_set_root(requested: &[(String, i64)]) -> String {
 /// committed separately, so a policy change cannot silently change the
 /// verifier's meaning without changing evidence identity.
 pub fn allocation_policy_root(policy: &[(String, CanonValue)]) -> String {
-    let policy_canon = keyword_map(policy);
-    domain_hash("ALLOCATION_POLICY_V1", &policy_canon)
+    package_statement::allocation_policy_root(policy)
 }
 
 /// Fail-action-policy root: domain hash of the declared fail-action policy
 /// under FAIL_ACTION_POLICY_V1. When no policy is declared, the canonical
 /// conservative default is committed so the root is always defined.
 pub fn fail_action_policy_root(fail_action_policy: Option<&[(String, CanonValue)]>) -> String {
-    let canonical = match fail_action_policy {
-        Some(pairs) => keyword_map(pairs),
-        None => CanonValue::map(vec![
-            (
-                CanonValue::keyword("mode"),
-                CanonValue::keyword("pro-rata-treatment"),
-            ),
-            (
-                CanonValue::keyword("deferred-policy"),
-                CanonValue::keyword("same-ratio"),
-            ),
-            (
-                CanonValue::keyword("haircut-policy"),
-                CanonValue::keyword("same-ratio"),
-            ),
-        ]),
-    };
-    domain_hash("FAIL_ACTION_POLICY_V1", &canonical)
-}
-
-/// Convert (string-key, value) policy pairs to a canonical map with keyword
-/// keys.
-fn keyword_map(pairs: &[(String, CanonValue)]) -> CanonValue {
-    let mut converted: Vec<(CanonValue, CanonValue)> = pairs
-        .iter()
-        .map(|(k, v)| (CanonValue::keyword(k.clone()), v.clone()))
-        .collect();
-    // CanonValue::map sorts pairs by encoded key bytes internally, but sorting
-    // here keeps the preimage deterministic regardless.
-    converted.sort_by_key(|a| a.0.encode());
-    CanonValue::map(converted)
+    package_statement::fail_action_policy_root(fail_action_policy)
 }
 
 /// Round-lifecycle root: domain hash of the round-lifecycle projection under
 /// ROUND_LIFECYCLE_V1.
 pub fn round_lifecycle_root(lifecycle: &CanonValue) -> String {
-    domain_hash("ROUND_LIFECYCLE_V1", lifecycle)
+    package_statement::round_lifecycle_root(lifecycle)
 }
 
 /// Canonical ROUND_LIFECYCLE_V1 preimage for a `RoundLifecycle`, mirroring the
@@ -154,7 +124,7 @@ pub fn lifecycle_canon_value(lc: &RoundLifecycle) -> CanonValue {
 /// Realized-results root: domain hash of the realized-results disposition
 /// vector under REALIZED_RESULTS_V1.
 pub fn realized_results_root(realized: &RealizedAllocation) -> String {
-    domain_hash("REALIZED_RESULTS_V1", &realized.canon_results())
+    package_statement::realized_results_root(&realized.canon_results())
 }
 
 /// The canonical statement preimage (the value committed by the statement root).
@@ -166,36 +136,14 @@ pub fn statement_preimage(
     fail_action_policy_root: &str,
     round_lifecycle_root: &str,
 ) -> CanonValue {
-    CanonValue::map(vec![
-        (
-            CanonValue::keyword("schema-version"),
-            CanonValue::str(SCHEMA_VERSION),
-        ),
-        (
-            CanonValue::keyword("allocation-context-root"),
-            CanonValue::str(allocation_context_root),
-        ),
-        (
-            CanonValue::keyword("request-set-root"),
-            CanonValue::str(request_set_root),
-        ),
-        (
-            CanonValue::keyword("allocation-policy-root"),
-            CanonValue::str(allocation_policy_root),
-        ),
-        (
-            CanonValue::keyword("realized-results-root"),
-            CanonValue::str(realized_results_root),
-        ),
-        (
-            CanonValue::keyword("fail-action-policy-root"),
-            CanonValue::str(fail_action_policy_root),
-        ),
-        (
-            CanonValue::keyword("round-lifecycle-root"),
-            CanonValue::str(round_lifecycle_root),
-        ),
-    ])
+    package_statement::statement_preimage(
+        allocation_context_root,
+        request_set_root,
+        allocation_policy_root,
+        realized_results_root,
+        fail_action_policy_root,
+        round_lifecycle_root,
+    )
 }
 
 /// The canonical statement root: domain hash of the statement preimage under
@@ -208,16 +156,13 @@ pub fn statement_root(
     fail_action_policy_root: &str,
     round_lifecycle_root: &str,
 ) -> String {
-    domain_hash(
-        "REALIZED_ALLOCATION_STATEMENT_V1",
-        &statement_preimage(
-            allocation_context_root,
-            request_set_root,
-            allocation_policy_root,
-            realized_results_root,
-            fail_action_policy_root,
-            round_lifecycle_root,
-        ),
+    package_statement::statement_root(
+        allocation_context_root,
+        request_set_root,
+        allocation_policy_root,
+        realized_results_root,
+        fail_action_policy_root,
+        round_lifecycle_root,
     )
 }
 
