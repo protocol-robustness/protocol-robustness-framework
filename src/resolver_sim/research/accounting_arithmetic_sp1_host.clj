@@ -65,8 +65,8 @@
                   executable (if (str/blank? override) (io/file host-binary-path) (io/file override))]
               (when (str/blank? override)
                 (let [builder (doto (ProcessBuilder. ^java.util.List
-                                                    ["cargo" "build" "--release" "--locked"
-                                                     "--manifest-path" host-manifest "--bin" host-bin])
+                                     ["cargo" "build" "--release" "--locked"
+                                      "--manifest-path" host-manifest "--bin" host-bin])
                                 (.directory (io/file "."))
                                 (.redirectErrorStream true))
                       env (.environment builder)
@@ -206,7 +206,7 @@
         (proof/build-receipt
          {:assured-job-root (get-in work [:work/assured-job :research-execution-job-assurance/root])
           :resolved-dependency-set-root (get-in work [:work/resolved-dependencies
-                                                       :resolved-research-dependency-set/root])
+                                                      :resolved-research-dependency-set/root])
           :run-assurance-evidence-root (:research-run-assurance-evidence/root assurance)
           :semantic-result-root (:semantic-result/root assurance)
           :proof-system-identity-root (:system-root identities)
@@ -215,13 +215,13 @@
           :proof-artifact-root (:proof-root identities)
           :prover-participation prover-participation
           :execution-environment-root (get-in work [:work/execution-environment
-                                                      :research-execution-environment/root])
+                                                    :research-execution-environment/root])
           :verifier-registry-root registry-root})
         _ (when-not (proof/verifier-registry-matches?
                      generation-receipt verifier-registry-extension-map)
             (throw (ex-info "Verifier registry does not match proof receipt" {})))
         _ (write-edn! (.resolve out "research-proof-generation-receipt.edn")
-                       generation-receipt)
+                      generation-receipt)
         _ (invoke-host! :verify input-path proof-path metadata-path verification-path)
         verified (read-json verification-path)
         _ (when-not (and (= "research-accounting-arithmetic-sp1-verification.v1"
@@ -346,8 +346,8 @@
                          (= (:elf-root identities) (get verified "proof_program_elf_sha256"))
                          (= (:vkey-root identities)
                             (str "sha256:" (str/lower-case
-                                             (str/replace (get verified "proof_program_vkey")
-                                                          #"^0x" "")))))
+                                            (str/replace (get verified "proof_program_vkey")
+                                                         #"^0x" "")))))
             (throw (ex-info "SP1 verifier did not verify the exact accounting proof"
                             {:cause :accounting-proof-verification-failed})))
         verification-root

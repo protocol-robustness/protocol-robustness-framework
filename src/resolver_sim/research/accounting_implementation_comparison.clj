@@ -76,7 +76,7 @@
                                    :research-run-assurance-evidence/root])
               :comparison/right-assurance-root
               (get-in right-result [:run-assurance-evidence
-                                   :research-run-assurance-evidence/root])
+                                    :research-run-assurance-evidence/root])
               :comparison/left-semantic-partial-root
               (accounting/partial-semantic-root left-partial)
               :comparison/right-semantic-partial-root
@@ -94,13 +94,13 @@
                                  :resolved-research-dependency-set/root])
               :comparison/right-dependency-set-root
               (get-in right-work [:work/resolved-dependencies
-                                 :resolved-research-dependency-set/root])
+                                  :resolved-research-dependency-set/root])
               :comparison/left-environment-root
               (get-in left-work [:work/execution-environment
                                  :research-execution-environment/root])
               :comparison/right-environment-root
               (get-in right-work [:work/execution-environment
-                                 :research-execution-environment/root])
+                                  :research-execution-environment/root])
               :comparison/status status
               :comparison/not-comparable-reasons reasons
               :comparison/values (when comparable?

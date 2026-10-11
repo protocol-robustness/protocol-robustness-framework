@@ -16,7 +16,7 @@
    The SP1 guest proves that final obligation."
   [request contract plan partial]
   (let [unit (some #(when (= (:accounting-work-unit/root partial)
-                            (:accounting-work-unit/root %)) %)
+                             (:accounting-work-unit/root %)) %)
                    (:partition/work-units plan))]
     (when-not (every? #(instance? Long (:accounting/value %))
                       (:accounting/sources request))
@@ -64,7 +64,7 @@
 (defn derive-statement [request contract plan partial]
   (let [projection (derive-commitment-projection request contract plan partial)
         unit (some #(when (= (:accounting-work-unit/root partial)
-                            (:accounting-work-unit/root %)) %)
+                             (:accounting-work-unit/root %)) %)
                    (:partition/work-units plan))]
     ;; Preserve a truthful comparability boundary rather than narrowing V1.
     (try
@@ -72,7 +72,7 @@
       (when-not (accounting/valid-partial-result? request unit partial)
         (throw (ex-info "Invalid accounting arithmetic partial" {})))
       (catch ArithmeticException e
-      (throw (ex-info "Accounting arithmetic exceeds checked-long domain"
+        (throw (ex-info "Accounting arithmetic exceeds checked-long domain"
                         {:status :not-comparable :reason :checked-long-overflow} e))))
     projection))
 
@@ -94,12 +94,12 @@
   {"schema" schema
    "request" (wire request) "contract" (wire contract) "plan" (wire plan)
    "partial" (wire {:artifact/schema "canonical-accounting-partial.v1"
-                     :accounting-request/root (:accounting-request/root partial)
-                     :accounting-work-unit/root (:accounting-work-unit/root partial)
-                     :partition/source-roots (:partition/source-roots partial)
-                     :accounting/values (:accounting/values partial)
-                     :canonical-accounting-partial/root
-                     (accounting/partial-semantic-root partial)})})
+                    :accounting-request/root (:accounting-request/root partial)
+                    :accounting-work-unit/root (:accounting-work-unit/root partial)
+                    :partition/source-roots (:partition/source-roots partial)
+                    :accounting/values (:accounting/values partial)
+                    :canonical-accounting-partial/root
+                    (accounting/partial-semantic-root partial)})})
 
 (defn proof-input-for-verification
   "Build the guest witness from the coordinator's authoritative rooted work and
@@ -110,9 +110,9 @@
   {"schema" schema
    "request" (wire request) "contract" (wire contract) "plan" (wire plan)
    "partial" (wire {:artifact/schema "canonical-accounting-partial.v1"
-                     :accounting-request/root (:accounting-request/root partial)
-                     :accounting-work-unit/root (:accounting-work-unit/root partial)
-                     :partition/source-roots (:partition/source-roots partial)
-                     :accounting/values (:accounting/values partial)
-                     :canonical-accounting-partial/root
-                     (accounting/partial-semantic-root partial)})})
+                    :accounting-request/root (:accounting-request/root partial)
+                    :accounting-work-unit/root (:accounting-work-unit/root partial)
+                    :partition/source-roots (:partition/source-roots partial)
+                    :accounting/values (:accounting/values partial)
+                    :canonical-accounting-partial/root
+                    (accounting/partial-semantic-root partial)})})

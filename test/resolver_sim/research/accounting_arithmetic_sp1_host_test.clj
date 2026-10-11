@@ -76,7 +76,7 @@
         previous @compiled-host-var]
     (try
       (java.nio.file.Files/write executable bytes
-                                (make-array java.nio.file.OpenOption 0))
+                                 (make-array java.nio.file.OpenOption 0))
       (.setExecutable (.toFile executable) true)
       (reset! compiled-host-var (str executable))
       (binding [host/*host-command-timeout-ms* 50]

@@ -3,8 +3,7 @@
 
    This module independently groups selected source rows by category before
    reducing each group. It implements only the declared integer sum operation;
-   it does not validate source claims or determine economic correctness."
-  )
+   it does not validate source claims or determine economic correctness.")
 
 (def algorithm-id :accounting.implementation/group-then-fold.v1)
 

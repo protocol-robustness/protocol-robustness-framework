@@ -22,10 +22,10 @@
 (defn guest
   ([input] (guest input []))
   ([input args]
-  (when-not (zero? (:exit @rust-build))
-    (throw (ex-info "Arithmetic validator build failed" @rust-build)))
-  (apply shell/sh "coprocessor/target/debug/accounting_arithmetic_statement"
-         (concat args [:in (json/write-str input)]))))
+   (when-not (zero? (:exit @rust-build))
+     (throw (ex-info "Arithmetic validator build failed" @rust-build)))
+   (apply shell/sh "coprocessor/target/debug/accounting_arithmetic_statement"
+          (concat args [:in (json/write-str input)]))))
 
 (deftest cross-language-arithmetic-and-identity-conformance
   (let [{:keys [request contract plan partial]} (proof-fixture)
@@ -50,9 +50,9 @@
     (doseq [[label changed] [[:request (assoc input "request" (#'statement/wire changed-request))]
                              [:plan (assoc input "plan" (#'statement/wire changed-plan))]
                              [:unit (assoc input "plan" (#'statement/wire
-                                                        (assoc plan :partition/work-units [changed-unit])))]
+                                                         (assoc plan :partition/work-units [changed-unit])))]
                              [:contract (assoc input "contract" (#'statement/wire
-                                                                (assoc contract :reduction/rule :untrusted)))]
+                                                                 (assoc contract :reduction/rule :untrusted)))]
                              [:projection-only {"schema" statement/schema
                                                 "public_values" (statement/public-values-hex
                                                                  (statement/derive-statement request contract plan partial))}]]]
@@ -95,7 +95,7 @@
                  (statement/derive-statement request contract rooted partial)))
     (is (re-find #"incomplete source coverage"
                  (:err (guest (assoc (statement/proof-input request contract plan partial)
-                                    "plan" (#'statement/wire rooted))))))))
+                                     "plan" (#'statement/wire rooted))))))))
 
 (deftest execution-provenance-is-not-arithmetic-result-identity
   (let [{:keys [request contract plan partial]} (proof-fixture)
@@ -118,8 +118,8 @@
                       :allowed-implementation-roots [(:implementation-a fixture/roots)]
                       :required-capabilities [:capability/accounting] :privacy-requirement :public}
         new-plan (accounting/build-partition-plan changed
-                                                (mapv :partition/source-roots (:partition/work-units plan))
-                                                requirements)
+                                                  (mapv :partition/source-roots (:partition/work-units plan))
+                                                  requirements)
         unit (first (:partition/work-units new-plan))
         partial (assoc partial :accounting-request/root (:accounting-request/root changed)
                        :accounting-work-unit/root (:accounting-work-unit/root unit))]
