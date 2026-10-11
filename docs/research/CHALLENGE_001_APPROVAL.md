@@ -5,7 +5,7 @@ configuration, a publication, a reward promise, an obligation, or payment
 authorization. The payload is
 [`challenge-001-approval-payload.v1.edn`](../../examples/researcher-challenges/shortfall-stress/challenge-001-approval-payload.v1.edn)
 and its root is
-`sha256:08fc1250b242234c010ac46447b4d3d5987da28c3907de267de1cdd199fbd7a1`.
+`sha256:6895b7bc2d413c92aa02c3e54188e9d85954d012edf2d2937bb026e5fcb6171b`.
 
 The payload binds the approved scope/method/source/policy roots, the bounded
 domain, calibration exclusion, novelty and acceptance rules, Base USDC asset,
@@ -57,7 +57,7 @@ the owner can prompt for the passphrase and print only the signature:
 (let [console (System/console)
       password (String. (.readPassword console "Private-key passphrase: " (object-array 0)))]
   (println (signing/sign-hash
-            "sha256:08fc1250b242234c010ac46447b4d3d5987da28c3907de267de1cdd199fbd7a1"
+            "sha256:6895b7bc2d413c92aa02c3e54188e9d85954d012edf2d2937bb026e5fcb6171b"
             "/secure/local/path/challenge-001-operator.pem"
             password)))
 ```
@@ -73,9 +73,11 @@ any change requires a new root and both signatures again.
 
 ## Validation and activation boundary
 
-The source manifest was independently rechecked: 219 entries, zero digest
-mismatches; manifest file root
-`sha256:f6adf493dbc581fc85d1e47c961dd40f0434f6c5e20ad17785d8d1732c5c52b8`.
+The source manifest was refreshed for the current local checkout and
+independently rechecked: 219 entries, zero digest mismatches; manifest file root
+`sha256:790402f2ecd202dcdf2d7b509f34c31d3a09b2ee06d7df4ee2e0b1201ab3bffb`.
+This is a new unsigned local approval candidate. Approval of the prior source
+content-set root does not transfer to it.
 It is a content-set identity, not a captured `jj` revision or hermetic build
 environment. The V2 reward-policy root for the payload's chain-qualified
 currency string is

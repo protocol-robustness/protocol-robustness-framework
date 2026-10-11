@@ -14,7 +14,7 @@
             [resolver-sim.evidence.forensic-graph :as forensic]
             [resolver-sim.hash.canonical :as canonical]
             [resolver-sim.hash.reference :as reference]
-            [resolver-sim.research.researcher-challenges :as challenges]))
+            [resolver-sim.network.researcher-challenges :as challenges]))
 
 (def proposition :claim/allocation-policy-invariance)
 (def metric :metric/maximum-row-allocation-difference)
@@ -27,8 +27,8 @@
 
 (def challenge-001-candidate-schema "researcher-challenge-scope-candidate.v1")
 (def ^:private challenge-001-policy-roots
-  #{"sha256:c9b75428ebefc36181eafc248091e38003f7e9a7445720ab8063e19039c26505"
-    "sha256:9dbae4b0a79c855b422e8c156b717899840687548c70f60ae8f7b95234568890"})
+  #{"sha256:14c1ae6efdb928b134d91bb6aa61ff2e4c7f7b71ad5dddb3e8b7bf84de588143"
+    "sha256:2e4c81dc89c3a0b5b15f8a110ceeb66fe1a802fb1f0322ae3e58fed4cef9aeb9"})
 
 (defn- ensure! [condition reason]
   (when-not condition (throw (ex-info (name reason) {:reason reason}))))
@@ -153,11 +153,11 @@
     (ensure! (= [{:rounding :largest-remainder
                   :tie-break :canonical-row-id
                   :redistribution :unallocated
-                  :observed-policy-root "sha256:c9b75428ebefc36181eafc248091e38003f7e9a7445720ab8063e19039c26505"}
+                  :observed-policy-root "sha256:14c1ae6efdb928b134d91bb6aa61ff2e4c7f7b71ad5dddb3e8b7bf84de588143"}
                  {:rounding :largest-remainder
                   :tie-break :canonical-row-id
                   :redistribution :redistribute-cap-excess
-                  :observed-policy-root "sha256:9dbae4b0a79c855b422e8c156b717899840687548c70f60ae8f7b95234568890"}]
+                  :observed-policy-root "sha256:2e4c81dc89c3a0b5b15f8a110ceeb66fe1a802fb1f0322ae3e58fed4cef9aeb9"}]
                 (:policy-pair candidate))
              :challenge-001-declared-policy-pair-substitution)
     (ensure! (re-matches #"sha256:[0-9a-f]{64}"

@@ -1,13 +1,13 @@
 {:artifact/schema "researcher-challenge-scope-candidate.v1"
  :candidate/status :proposed-not-authorized
- :candidate/root "sha256:6fe791765a30e0b99c8fef59fc59afdc96dd99ca2becf26040b36f6d0bdb6d32"
+ :candidate/root "sha256:51a39238bde9539b7687374575955f40e985e7fc9e4cc216dca254e8cebda310"
  :challenge/id :challenge/shortfall-under-stress-001
  :challenge/title "Shortfall under stress"
  :source/revision-observation
  {:read-only-working-copy-revision "7e9e371fca7ceedca94e1b61a1c5e7d687d60459"
   :read-only-parent-revision "7f861667655d6315ed58518cd040f4f2db261110"
   :source-content-manifest/path "docs/research/challenge-001-source-content-manifest.v1.tsv"
-  :source-content-manifest/root "sha256:f6adf493dbc581fc85d1e47c961dd40f0434f6c5e20ad17785d8d1732c5c52b8"
+  :source-content-manifest/root "sha256:790402f2ecd202dcdf2d7b509f34c31d3a09b2ee06d7df4ee2e0b1201ab3bffb"
   :revision-status :working-copy-not-captured}
  :subject
  {:question "Under what bounded shortfall conditions do the two declared cap-excess redistribution policies produce different per-row allocations, and which primitive invariants remain satisfied?"
@@ -28,11 +28,11 @@
  [{:rounding :largest-remainder
    :tie-break :canonical-row-id
    :redistribution :unallocated
-   :observed-policy-root "sha256:c9b75428ebefc36181eafc248091e38003f7e9a7445720ab8063e19039c26505"}
+   :observed-policy-root "sha256:14c1ae6efdb928b134d91bb6aa61ff2e4c7f7b71ad5dddb3e8b7bf84de588143"}
   {:rounding :largest-remainder
    :tie-break :canonical-row-id
    :redistribution :redistribute-cap-excess
-   :observed-policy-root "sha256:9dbae4b0a79c855b422e8c156b717899840687548c70f60ae8f7b95234568890"}]
+   :observed-policy-root "sha256:2e4c81dc89c3a0b5b15f8a110ceeb66fe1a802fb1f0322ae3e58fed4cef9aeb9"}]
  :verification
  {:fresh-recompute? true
   :same-canonical-input-except-redistribution-policy? true

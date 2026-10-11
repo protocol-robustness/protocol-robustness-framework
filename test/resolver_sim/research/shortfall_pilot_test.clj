@@ -2,7 +2,7 @@
   (:require [clojure.edn :as edn]
             [clojure.test :refer [deftest is]]
             [resolver-sim.research.shortfall-pilot :as pilot]
-            [resolver-sim.research.researcher-challenges :as challenges]
+            [resolver-sim.network.researcher-challenges :as challenges]
             [resolver-sim.research.researcher-challenges-cli :as cli]
             [resolver-sim.research.researcher-challenges-test :as helpers]
             [resolver-sim.benchmark.research-analysis :as analysis]

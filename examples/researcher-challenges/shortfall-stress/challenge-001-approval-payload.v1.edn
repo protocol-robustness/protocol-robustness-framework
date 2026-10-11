@@ -1,7 +1,7 @@
 {:artifact/schema "research-challenge-approval-payload.v1"
  :approval/purpose :challenge-definition-only
  :challenge/id :challenge/shortfall-under-stress-001
- :scope/candidate-root "sha256:6fe791765a30e0b99c8fef59fc59afdc96dd99ca2becf26040b36f6d0bdb6d32"
+ :scope/candidate-root "sha256:51a39238bde9539b7687374575955f40e985e7fc9e4cc216dca254e8cebda310"
  :subject/derivation-domain "challenge-001-subject.v1"
  :subject/definition
  {:question "Under what bounded shortfall conditions do the two declared cap-excess redistribution policies produce different per-row allocations, and which primitive invariants remain satisfied?"
@@ -9,10 +9,10 @@
   :measure :metric/maximum-row-allocation-difference
   :method-root "sha256:840e8eb65ea36fce98edcf2d43feb8082be4e0fad7ee36e85daee770187b0c45"}
  :subject/root "sha256:141e31f8f7cd393132cee1cf1340c1ef6c4446bc9705b4ad75d69437a4337648"
- :subject/revision-root "sha256:f6adf493dbc581fc85d1e47c961dd40f0434f6c5e20ad17785d8d1732c5c52b8"
+ :subject/revision-root "sha256:790402f2ecd202dcdf2d7b509f34c31d3a09b2ee06d7df4ee2e0b1201ab3bffb"
  :method/root "sha256:840e8eb65ea36fce98edcf2d43feb8082be4e0fad7ee36e85daee770187b0c45"
  :source/content-set
- {:root "sha256:f6adf493dbc581fc85d1e47c961dd40f0434f6c5e20ad17785d8d1732c5c52b8"
+ {:root "sha256:790402f2ecd202dcdf2d7b509f34c31d3a09b2ee06d7df4ee2e0b1201ab3bffb"
   :entry-count 219
   :identity-kind :content-set-not-hermetic-build-or-jj-revision}
  :acceptance/novelty-policy-root "sha256:8e98621ea338ba2691c9cd4c358ae4ec0a9be17756146f883d5f9ff914bcb0d8"
@@ -34,8 +34,8 @@
   :excluded-calibration-case-roots
   ["sha256:8fe15fe2dc2ff1ad552c08e65808333eb314db2890c2a835ec031fa5137fbced"]}
  :allocation/policy-roots
- ["sha256:c9b75428ebefc36181eafc248091e38003f7e9a7445720ab8063e19039c26505"
-  "sha256:9dbae4b0a79c855b422e8c156b717899840687548c70f60ae8f7b95234568890"]
+ ["sha256:14c1ae6efdb928b134d91bb6aa61ff2e4c7f7b71ad5dddb3e8b7bf84de588143"
+  "sha256:2e4c81dc89c3a0b5b15f8a110ceeb66fe1a802fb1f0322ae3e58fed4cef9aeb9"]
  :input-domain
  {:allocation-row-count {:minimum 2 :maximum 12}
   :requested-per-row {:minimum 1 :maximum 1000000}
@@ -86,4 +86,4 @@
   :reward-obligations
   :fund-transfer
   :payment-execution]
- :approval/root "sha256:08fc1250b242234c010ac46447b4d3d5987da28c3907de267de1cdd199fbd7a1"}
+ :approval/root "sha256:6895b7bc2d413c92aa02c3e54188e9d85954d012edf2d2937bb026e5fcb6171b"}
