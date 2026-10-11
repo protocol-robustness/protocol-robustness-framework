@@ -5,21 +5,17 @@
 //! the PRF `allocation verify-proposal` command and emits the same public-value
 //! projection.
 
-use crate::assertions::{run_assertions, AssertionResult, RecomputedRoots};
-use crate::canonical::{domain_hash, hex32_to_bytes, tags, CanonValue};
+use crate::assertions::AssertionResult;
+use crate::canonical::{hex32_to_bytes, CanonValue};
 use crate::lifecycle;
-use crate::proportionality::build_rate_derived_summary;
 use crate::roots;
 use crate::selection;
 use num_bigint::BigInt;
-use num_traits::{Signed, ToPrimitive, Zero};
-use prf_pro_rata_allocation::allocation_context::{
-    claimants_value as claimants_canonical, outcomes_value as outcomes_canonical,
-    rates_value as rates_canonical, selected_outcome_value as selected_outcome_canonical,
-};
+use num_traits::{Signed, Zero};
 pub use prf_pro_rata_allocation::allocation_context::{
     context_preimage, result_leaf, SELECTION_ALGORITHM,
 };
+use prf_pro_rata_allocation::allocation_evaluation::evaluate_allocation;
 
 /// Kernel version, must equal the PRF `allocation-kernel.v1`.
 pub const KERNEL_VERSION: &str = "allocation-kernel.v1";
@@ -95,88 +91,22 @@ pub fn run_kernel(
     round_state: Option<&serde_json::Value>,
 ) -> PublicResult {
     let lifecycle = lifecycle::round_lifecycle(round_state);
-    let ctx_hash = domain_hash(tags::ALLOCATION_CONTEXT, &context_preimage(ctx));
-    let claim_root = roots::claimant_set_root(&claimants_canonical(ctx));
-    let outcome_root = roots::outcome_set_root(&outcomes_canonical(ctx));
-    let rates_root = roots::proposed_rates_root(&rates_canonical(ctx));
-    let summary = build_rate_derived_summary(ctx);
-    let summary_hash = roots::rate_derived_summary_hash(&summary);
-
-    let outcome_count = ctx.outcomes.len();
-    // Selection failure (empty outcome set) cannot occur here because
-    // parse_context rejects empty outcome sets; a defensive default is used.
-    let sel_index = selection::select_index(&ctx.randomness, outcome_count).unwrap_or_else(|_| {
-        selection::SelectionIndex {
-            accepted_counter: BigInt::zero(),
-            candidate_digest: String::new(),
-            candidate_value: BigInt::zero(),
-            selected_index: BigInt::zero(),
-        }
+    let allocation = evaluate_allocation(ctx, committed).unwrap_or_else(|e| {
+        eprintln!("allocation-kernel: allocation evaluation error: {}", e);
+        std::process::exit(1);
     });
-    let sel = selection::SelectionReceipt {
-        algorithm: SELECTION_ALGORITHM.to_string(),
-        outcome_count: BigInt::from(outcome_count),
-        accepted_counter: sel_index.accepted_counter.clone(),
-        candidate_digest: sel_index.candidate_digest.clone(),
-        selected_index: sel_index.selected_index.clone(),
-        selected_outcome_id: ctx.outcomes[sel_index.selected_index.to_usize().unwrap_or(0)]
-            .outcome_id
-            .clone(),
-        selected_outcome_hash: String::new(), // filled below
-    };
-    let selected = &ctx.outcomes[sel.selected_index.to_usize().unwrap_or(0)];
-    let selected_hash = roots::selected_outcome_hash(&selected_outcome_canonical(selected));
-    let mut sel = sel;
-    sel.selected_outcome_hash = selected_hash.clone();
-
-    let leaves: Vec<CanonValue> = ctx
-        .claimants
-        .iter()
-        .map(|claim| {
-            let alloc = selected
-                .allocations
-                .iter()
-                .find(|a| a.claim_id == claim.claim_id)
-                .map(|a| a.allocated.clone())
-                .unwrap_or_else(BigInt::zero);
-            result_leaf(claim, alloc, &selected.outcome_id, &ctx_hash)
-        })
-        .collect();
-    let result_root = match roots::result_merkle_root(&leaves) {
-        Ok(r) => r,
-        Err(e) => {
-            eprintln!("allocation-kernel: result_merkle_root error: {}", e);
-            std::process::exit(1);
-        }
-    };
-    let total_allocated: BigInt = ctx
-        .claimants
-        .iter()
-        .map(|claim| {
-            selected
-                .allocations
-                .iter()
-                .find(|a| a.claim_id == claim.claim_id)
-                .map(|a| a.allocated.clone())
-                .unwrap_or_else(BigInt::zero)
-        })
-        .sum();
-    let residual = &ctx.capacity - &total_allocated;
-
-    let recomputed = RecomputedRoots {
-        claim_root: claim_root.clone(),
-        outcome_root: outcome_root.clone(),
-        rates_root: rates_root.clone(),
-        result_root: result_root.clone(),
-    };
-    let assertions = run_assertions(
-        ctx,
-        committed,
-        &recomputed,
-        &sel,
-        &total_allocated,
-        &residual,
-    );
+    let ctx_hash = &allocation.context_hash;
+    let claim_root = &allocation.claimant_set_root;
+    let outcome_root = &allocation.outcome_set_root;
+    let rates_root = &allocation.proposed_rates_root;
+    let summary_hash = &allocation.rate_derived_summary_hash;
+    let assertions = &allocation.assertions;
+    let sel = &allocation.selection_receipt;
+    let selected = &allocation.selected_outcome;
+    let selected_hash = &allocation.selected_outcome_hash;
+    let result_root = &allocation.result_root;
+    let total_allocated = &allocation.total_allocated;
+    let residual = &allocation.residual_capacity;
 
     let all_pass = assertions.iter().all(|a| a.result);
     let status = if all_pass { "passing" } else { "rejected" };
@@ -184,7 +114,7 @@ pub fn run_kernel(
     let digest_preimage = CanonValue::map(vec![
         (
             CanonValue::keyword("allocation-context-hash"),
-            CanonValue::str(&ctx_hash),
+            CanonValue::str(ctx_hash),
         ),
         (
             CanonValue::keyword("assertions"),
@@ -216,7 +146,7 @@ pub fn run_kernel(
         ),
         (
             CanonValue::keyword("result-root"),
-            CanonValue::str(&result_root),
+            CanonValue::str(result_root),
         ),
         (
             CanonValue::keyword("total-allocated"),
@@ -298,19 +228,19 @@ pub fn run_kernel(
 
     PublicResult {
         status: status.to_string(),
-        allocation_context_hash: ctx_hash,
-        claimant_set_root: claim_root,
-        outcome_set_root: outcome_root,
-        proposed_rates_root: rates_root,
-        rate_derived_summary_hash: summary_hash,
-        assertions,
-        selection_receipt: sel,
+        allocation_context_hash: ctx_hash.clone(),
+        claimant_set_root: claim_root.clone(),
+        outcome_set_root: outcome_root.clone(),
+        proposed_rates_root: rates_root.clone(),
+        rate_derived_summary_hash: summary_hash.clone(),
+        assertions: assertions.clone(),
+        selection_receipt: sel.clone(),
         selected_outcome_id: selected.outcome_id.clone(),
-        selected_outcome_index: selected_index_of(ctx, selected),
-        selected_outcome_hash: selected_hash,
-        result_root,
-        total_allocated,
-        residual_capacity: residual,
+        selected_outcome_index: allocation.selected_outcome_index,
+        selected_outcome_hash: selected_hash.clone(),
+        result_root: result_root.clone(),
+        total_allocated: total_allocated.clone(),
+        residual_capacity: residual.clone(),
         round_lifecycle: lifecycle,
         certificate_assertions_digest: digest,
         kernel_version: KERNEL_VERSION.to_string(),
@@ -318,16 +248,6 @@ pub fn run_kernel(
         rejection_classification,
         rejection_reason,
     }
-}
-
-fn selected_index_of(ctx: &Context, selected: &Outcome) -> BigInt {
-    let idx = ctx
-        .outcomes
-        .iter()
-        .position(|o| o.outcome_id == selected.outcome_id)
-        .map(BigInt::from)
-        .unwrap_or_else(BigInt::zero);
-    idx
 }
 
 /// Parse a raw JSON input document into a context, applying canonical ordering.

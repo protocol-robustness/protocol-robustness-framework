@@ -10,7 +10,7 @@ pub use prf_canonical_codec::{
 
 pub mod tags {
     //! Domain tag strings (must match PRF `domain-tags` map).
-    pub const ALLOCATION_CONTEXT: &str = "ALLOCATION_CONTEXT_V1";
+    pub use prf_pro_rata_allocation::allocation_evaluation::ALLOCATION_CONTEXT_DOMAIN as ALLOCATION_CONTEXT;
     pub const CLAIMANT_SET: &str = "CLAIMANT_SET_V1";
     pub const OUTCOME_SET: &str = "OUTCOME_SET_V1";
     pub const PROPOSED_RATES: &str = "PROPOSED_RATES_V1";
