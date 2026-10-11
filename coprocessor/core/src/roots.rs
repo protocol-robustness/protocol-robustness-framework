@@ -1,7 +1,9 @@
 //! Root construction matching the PRF allocation kernel byte-for-byte.
 
-use crate::canonical::{
-    bytes_to_hex, domain_hash, domain_hash_raw, hex32_to_bytes, tags, CanonValue,
+use crate::canonical::{bytes_to_hex, domain_hash, hex32_to_bytes, tags, CanonValue};
+pub use prf_pro_rata_allocation::allocation_roots::{
+    claimant_set_root, outcome_set_root, proposed_rates_root, rate_derived_summary_hash,
+    result_merkle_root, selected_outcome_hash,
 };
 use sha2::{Digest, Sha256};
 
@@ -33,48 +35,6 @@ pub fn merkle_root(raw_digests: &[Vec<u8>]) -> Result<String, String> {
         level = next;
     }
     Ok(bytes_to_hex(&level[0]))
-}
-
-/// The Merkle root of a set of result leaves in canonical claimant order.
-pub fn result_merkle_root(leaves: &[CanonValue]) -> Result<String, String> {
-    let digests: Vec<Vec<u8>> = leaves
-        .iter()
-        .map(|leaf| domain_hash_raw(tags::RESULT_ROOT, leaf))
-        .collect();
-    merkle_root(&digests)
-}
-
-/// Claimant-set root: domain hash of the canonically ordered claimant set.
-pub fn claimant_set_root(claimants: &CanonValue) -> String {
-    domain_hash(tags::CLAIMANT_SET, claimants)
-}
-
-/// Outcome-set root: domain hash of the canonically ordered outcome set.
-pub fn outcome_set_root(outcomes: &CanonValue) -> String {
-    domain_hash(tags::OUTCOME_SET, outcomes)
-}
-
-/// Proposed-rates root.
-pub fn proposed_rates_root(rates: &CanonValue) -> String {
-    domain_hash(tags::PROPOSED_RATES, rates)
-}
-
-/// Rate-derived summary hash (wraps the summary in a schema envelope, matching
-/// the PRF projection).
-pub fn rate_derived_summary_hash(summary: &CanonValue) -> String {
-    let envelope = CanonValue::map(vec![
-        (
-            CanonValue::keyword("schema-version"),
-            CanonValue::str("rate-derived-summary.v1"),
-        ),
-        (CanonValue::keyword("summary"), summary.clone()),
-    ]);
-    domain_hash(tags::RATE_DERIVED_SUMMARY, &envelope)
-}
-
-/// Selected-outcome hash.
-pub fn selected_outcome_hash(outcome: &CanonValue) -> String {
-    domain_hash(tags::SELECTED_OUTCOME, outcome)
 }
 
 /// Certificate assertions digest.
