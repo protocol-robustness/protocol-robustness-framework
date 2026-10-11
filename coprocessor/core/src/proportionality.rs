@@ -3,61 +3,13 @@
 //! floating point is permitted.
 
 use crate::canonical::CanonValue;
-use crate::kernel::{Context, RateEntry};
+use crate::kernel::Context;
 use num_bigint::BigInt;
-use num_integer::Integer;
-use num_traits::{One, Signed, Zero};
-
-/// Greatest common divisor (positive result).
-pub fn bigint_gcd(a: &BigInt, b: &BigInt) -> BigInt {
-    let g = a.gcd(b);
-    if g.is_negative() {
-        -g
-    } else {
-        g
-    }
-}
-
-/// Least common multiple.
-pub fn lcm(a: &BigInt, b: &BigInt) -> BigInt {
-    if a.is_zero() || b.is_zero() {
-        BigInt::zero()
-    } else {
-        (a / &bigint_gcd(a, b)) * b
-    }
-}
-
-/// Derive the common denominator, scaled numerators, and sum for rates in
-/// outcome canonical order.
-pub fn ratio_sum_common(rates: &[RateEntry]) -> (BigInt, Vec<BigInt>, BigInt) {
-    let mut common = BigInt::one();
-    for r in rates {
-        common = lcm(&common, &r.denominator);
-    }
-    let scaled: Vec<BigInt> = rates
-        .iter()
-        .map(|r| (&r.numerator * &common) / &r.denominator)
-        .collect();
-    let sum: BigInt = scaled.iter().sum();
-    (common, scaled, sum)
-}
-
-/// True when every rate is a reduced exact ratio.
-pub fn rates_canonical_exact(rates: &[RateEntry]) -> bool {
-    rates.iter().all(|r| {
-        (!r.numerator.is_negative())
-            && !r.denominator.is_zero()
-            && r.denominator.is_positive()
-            && (r.numerator.is_zero()
-                || (bigint_gcd(&r.numerator, &r.denominator) == BigInt::one()))
-    })
-}
-
-/// True when the proposed rates sum exactly to one under the common denominator.
-pub fn rates_sum_to_one(rates: &[RateEntry]) -> bool {
-    let (common, _scaled, sum) = ratio_sum_common(rates);
-    sum == common
-}
+use num_traits::Zero;
+use prf_pro_rata_allocation::exact_ratio::ratio_sum_common;
+pub use prf_pro_rata_allocation::exact_ratio::{
+    bigint_gcd, lcm, rates_canonical_exact, rates_sum_to_one,
+};
 
 /// Expected-allocation numerators for each claimant in canonical order.
 ///   E-num_i = sum_j (scaled numerator of outcome j) * allocation_i_j
@@ -169,19 +121,4 @@ pub fn proportional_proposed(ctx: &Context) -> bool {
         .iter()
         .zip(expected_numerators.iter())
         .all(|(claim, e_num)| (e_num * w) == (c * &claim.weight * &d))
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn gcd_and_lcm() {
-        assert_eq!(
-            bigint_gcd(&BigInt::from(4), &BigInt::from(6)),
-            BigInt::from(2)
-        );
-        assert_eq!(lcm(&BigInt::from(2), &BigInt::from(3)), BigInt::from(6));
-        assert_eq!(lcm(&BigInt::from(4), &BigInt::from(6)), BigInt::from(12));
-    }
 }

@@ -6,5 +6,6 @@ description = "Pro-rata realized-allocation statement identities and projections
 
 [dependencies]
 num-bigint = "0.4"
+num-integer = "0.1"
 num-traits = "0.2"
 prf-canonical-codec = { path = "../../canonical/rust" }

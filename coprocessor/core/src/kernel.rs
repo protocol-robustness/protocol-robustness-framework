@@ -60,12 +60,7 @@ pub struct Outcome {
     pub allocations: Vec<AllocationEntry>,
 }
 
-#[derive(Clone, Debug)]
-pub struct RateEntry {
-    pub outcome_id: String,
-    pub numerator: BigInt,
-    pub denominator: BigInt,
-}
+pub use prf_pro_rata_allocation::exact_ratio::RateEntry;
 
 #[derive(Clone, Debug)]
 pub struct Policy {
