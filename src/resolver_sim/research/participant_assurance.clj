@@ -59,7 +59,7 @@
                  (or (contains? #{:unknown :undisclosed} (:value d)) (seq (:evidence-roots d))))
     (throw (ex-info "Invalid participant assurance declaration" {})))
   (assoc d :evidence-roots (vec (sort (distinct (:evidence-roots d))))
-           :epistemic-role :declared))
+         :epistemic-role :declared))
 
 (defn build-assurance
   "Two exact attributed reproduction contexts, optional evidence-backed
@@ -69,8 +69,8 @@
   (when-not (and (vector? contexts) (= 2 (count contexts)) (vector? declarations))
     (throw (ex-info "Expected pair of reproduction contexts" {})))
   (let [contributions (vec (sort-by (juxt :contribution/attribution-root :contribution/execution-root
-                                        :contribution/implementation-root)
-                                   (distinct (map #(contribution researcher-axis %) contexts))))
+                                          :contribution/implementation-root)
+                                    (distinct (map #(contribution researcher-axis %) contexts))))
         members (map #(axis/researcher-member researcher-axis (:contribution/coordinate %)) contributions)
         distinct-reference? (= 2 (count (set (map :researcher/id members))))
         distinct-implementation? (= 2 (count (set (map :contribution/implementation-artifact-root contributions))))

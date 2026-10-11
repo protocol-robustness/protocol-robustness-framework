@@ -65,8 +65,8 @@
               :subject/root (:coordinate-derived-result/root artifact)}
     :role :derived :visibility :public :consequence? true
     :causal-parent-roots (vec (distinct (concat (:derived/axis-roots artifact)
-                                               (:derived/constituent-roots artifact)
-                                               [(:derived/result-root artifact)])))}))
+                                                (:derived/constituent-roots artifact)
+                                                [(:derived/result-root artifact)])))}))
 
 (defn link-reproduction
   "Compose existing evidence with a numeric derivation, without claim promotion.
@@ -84,6 +84,6 @@
               :subject/root (:reproduction-evidence/root evidence)}
     :role :derived :visibility :public
     :causal-parent-roots (vec (distinct [(:coordinate-derived-result/root derived)
-                                        (:reproduction-input/root input)
-                                        (:reproduction-execution/root execution)
-                                        (:derived/result-root derived)]))}))
+                                         (:reproduction-input/root input)
+                                         (:reproduction-execution/root execution)
+                                         (:derived/result-root derived)]))}))

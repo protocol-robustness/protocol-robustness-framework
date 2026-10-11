@@ -45,5 +45,5 @@
               :subject/root (:researcher-evidence-attribution/root artifact)}
     :role :declared :visibility :restricted
     :causal-parent-roots (vec (distinct [(:axis/root researcher-axis)
-                                        (get-in artifact [:attribution/subject :subject/root])
-                                        (:attribution/evidence-root artifact)]))}))
+                                         (get-in artifact [:attribution/subject :subject/root])
+                                         (:attribution/evidence-root artifact)]))}))

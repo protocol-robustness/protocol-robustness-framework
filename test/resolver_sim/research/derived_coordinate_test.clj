@@ -26,7 +26,7 @@
     (is (= 8 (:derived/value result)))
     (is (= result (derive args)))
     (is (map? (derived/evidence-node result (:x-axis args) (:y-axis args)
-                                   (:levels args) (:observations args))))
+                                     (:levels args) (:observations args))))
     (is (map? (derived/link-reproduction result input execution original evidence)))
     (is (thrown? clojure.lang.ExceptionInfo
                  (derived/link-reproduction (assoc result :derived/value 0)
