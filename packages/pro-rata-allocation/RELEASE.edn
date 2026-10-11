@@ -20,7 +20,7 @@
                        :canonical-registry-identity-baseline
                        "0d0af1b9e7e487f334c11f6a7029a6026caa75af9383e899db03747eb4a6c71a"
                        :rust {:command "cargo test --manifest-path packages/pro-rata-allocation/rust/Cargo.toml"
-                              :tests 1
+                              :tests 9
                               :result :passed}}
  :release/limitations [:rust-primitive-profile-missing
                        :solidity-primitive-profile-not-qualified

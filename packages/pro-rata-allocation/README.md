@@ -38,7 +38,7 @@ PRF/
 │       └── test/
 │           ├── fixtures/             pinned allocation vector and byte subset
 │           └── prf/pro_rata/         independent allocation oracle + runner
-│   └── rust/                         standalone statement identity crate
+│   └── rust/                         realized-fill model + statement identity crate
 ├── src/resolver_sim/pro_rata/       PRF runtime/hash adapters; further domain code
 ├── src/resolver_sim/allocation/     context/lifecycle adapters and evidence binding
 ├── pro_rata_contract_src/           independent frozen reference; shared effects
@@ -80,7 +80,10 @@ artifact.
 The Rust crate at `packages/pro-rata-allocation/rust` depends only on
 `packages/canonical/rust`. `allocation-kernel` retains its raw-input
 context/lifecycle builder and delegates statement domains and root assembly
-to that crate, preserving its public Rust API and SP1 input contract.
+to that crate. The realized-fill model, deterministic fill calculation, and
+canonical result projection also live in the package; `allocation-kernel`
+re-exports them under its existing module path, preserving callers and the SP1
+input contract.
 
 `prf.pro-rata.api/allocate` has a default one-argument entry point and an
 adapter-taking arity:
