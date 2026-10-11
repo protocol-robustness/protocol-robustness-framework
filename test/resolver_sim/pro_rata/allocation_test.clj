@@ -158,6 +158,13 @@
     (is (empty? (mechanism-evidence/evidence-violations envelope)))
     (is (= (:allocation/hash result) (:allocation/hash reference)))
     (is (= (:mechanism result) (:mechanism reference)))
+    (let [forged (assoc envelope :mechanism/validation-results
+                        [{:claim/id :pro-rata/result-hash-valid :holds? true}])
+          forged (assoc forged :evidence/hash
+                        (hc/hash-with-intent {:hash/intent :projection-artifact}
+                                             (dissoc forged :evidence/hash)))]
+      (is (some #(= :pro-rata/mechanism-evidence-validation-results-mismatch (:reason %))
+                (mechanism-evidence/evidence-violations forged))))
     (is (some #(= :pro-rata/mechanism-evidence-hash-mismatch (:reason %))
               (mechanism-evidence/evidence-violations
                (assoc-in envelope [:mechanism/result :rows 0 :allocated] 99))))

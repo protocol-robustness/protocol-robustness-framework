@@ -85,6 +85,7 @@
    and compares the full semantic witness."
   [artifact]
   (let [result (:mechanism/result artifact)
+        expected-validation-results (validation-results result)
         expected-hash (hc/hash-with-intent {:hash/intent :projection-artifact}
                                            (dissoc artifact :evidence/hash))]
     (vec
@@ -102,6 +103,10 @@
       (when-not (= (:mechanism artifact) (:mechanism result))
         [{:reason :pro-rata/mechanism-evidence-mechanism-mismatch
           :expected (:mechanism result) :observed (:mechanism artifact)}])
+      (when-not (= expected-validation-results (:mechanism/validation-results artifact))
+        [{:reason :pro-rata/mechanism-evidence-validation-results-mismatch
+          :expected expected-validation-results
+          :observed (:mechanism/validation-results artifact)}])
       (invariants/result-violations result)
       (reconstruction-violations result)))))
 
