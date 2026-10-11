@@ -38,7 +38,7 @@ PRF/
 │       └── test/
 │           ├── fixtures/             pinned allocation vector and byte subset
 │           └── prf/pro_rata/         independent allocation oracle + runner
-│   └── rust/                         realized-fill model + statement identity crate
+│   └── rust/                         allocation types/context projections, realized fill, statement identities
 ├── src/resolver_sim/pro_rata/       PRF runtime/hash adapters; further domain code
 ├── src/resolver_sim/allocation/     context/lifecycle adapters and evidence binding
 ├── pro_rata_contract_src/           independent frozen reference; shared effects

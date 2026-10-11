@@ -13,10 +13,16 @@ use crate::roots;
 use crate::selection;
 use num_bigint::BigInt;
 use num_traits::{Signed, ToPrimitive, Zero};
+use prf_pro_rata_allocation::allocation_context::{
+    claimants_value as claimants_canonical, outcomes_value as outcomes_canonical,
+    rates_value as rates_canonical, selected_outcome_value as selected_outcome_canonical,
+};
+pub use prf_pro_rata_allocation::allocation_context::{
+    context_preimage, result_leaf, SELECTION_ALGORITHM,
+};
 
 /// Kernel version, must equal the PRF `allocation-kernel.v1`.
 pub const KERNEL_VERSION: &str = "allocation-kernel.v1";
-pub const SELECTION_ALGORITHM: &str = "domain-hash-rejection-v1";
 
 /// A structured kernel error carrying a stable rejection classification.
 #[derive(Clone, Debug)]
@@ -82,248 +88,6 @@ pub struct PublicResult {
 }
 
 // ──────────────────────────────────────────────────────────────────────────────
-// Canonical value builders
-// ──────────────────────────────────────────────────────────────────────────────
-
-fn claimant_canonical(c: &Claimant) -> CanonValue {
-    CanonValue::map(vec![
-        (
-            CanonValue::keyword("claim/id"),
-            CanonValue::str(&c.claim_id),
-        ),
-        (
-            CanonValue::keyword("economic-owner-id"),
-            CanonValue::str(&c.economic_owner_id),
-        ),
-        (
-            CanonValue::keyword("amount"),
-            CanonValue::int(c.amount.clone()),
-        ),
-        (
-            CanonValue::keyword("weight"),
-            CanonValue::int(c.weight.clone()),
-        ),
-    ])
-}
-
-fn allocation_entry_canonical(a: &AllocationEntry) -> CanonValue {
-    CanonValue::map(vec![
-        (
-            CanonValue::keyword("claim/id"),
-            CanonValue::str(&a.claim_id),
-        ),
-        (
-            CanonValue::keyword("allocated"),
-            CanonValue::int(a.allocated.clone()),
-        ),
-    ])
-}
-
-fn outcome_canonical(o: &Outcome) -> CanonValue {
-    CanonValue::map(vec![
-        (
-            CanonValue::keyword("outcome/id"),
-            CanonValue::str(&o.outcome_id),
-        ),
-        (
-            CanonValue::keyword("allocations"),
-            CanonValue::array(
-                o.allocations
-                    .iter()
-                    .map(allocation_entry_canonical)
-                    .collect(),
-            ),
-        ),
-    ])
-}
-
-fn rate_entry_canonical(r: &RateEntry) -> CanonValue {
-    // rate maps commit {numerator, denominator} flattened next to outcome/id
-    CanonValue::map(vec![
-        (
-            CanonValue::keyword("outcome/id"),
-            CanonValue::str(&r.outcome_id),
-        ),
-        (
-            CanonValue::keyword("numerator"),
-            CanonValue::int(r.numerator.clone()),
-        ),
-        (
-            CanonValue::keyword("denominator"),
-            CanonValue::int(r.denominator.clone()),
-        ),
-    ])
-}
-
-/// The proposed-rates value committed inside the allocation context hash: each
-/// rate entry is wrapped in a :rate map ({outcome/id, rate {numerator,
-/// denominator}}). This differs from the proposed-rates ROOT projection which
-/// flattens the ratio.
-fn rate_entry_context_canonical(r: &RateEntry) -> CanonValue {
-    CanonValue::map(vec![
-        (
-            CanonValue::keyword("outcome/id"),
-            CanonValue::str(&r.outcome_id),
-        ),
-        (
-            CanonValue::keyword("rate"),
-            CanonValue::map(vec![
-                (
-                    CanonValue::keyword("numerator"),
-                    CanonValue::int(r.numerator.clone()),
-                ),
-                (
-                    CanonValue::keyword("denominator"),
-                    CanonValue::int(r.denominator.clone()),
-                ),
-            ]),
-        ),
-    ])
-}
-
-fn policy_canonical(p: &Policy) -> CanonValue {
-    CanonValue::map(vec![
-        (
-            CanonValue::keyword("policy/id"),
-            CanonValue::str(&p.policy_id),
-        ),
-        (
-            CanonValue::keyword("policy/hash"),
-            CanonValue::str(&p.policy_hash),
-        ),
-        (
-            CanonValue::keyword("forbid-duplicate-owners"),
-            CanonValue::bool(p.forbid_duplicate_owners),
-        ),
-    ])
-}
-
-/// The canonical value tree committed by the allocation context hash.
-pub fn context_preimage(ctx: &Context) -> CanonValue {
-    CanonValue::map(vec![
-        (
-            CanonValue::keyword("schema-version"),
-            CanonValue::str("allocation-context.v1"),
-        ),
-        (
-            CanonValue::keyword("artifact-kind"),
-            CanonValue::keyword("allocation-context"),
-        ),
-        (
-            CanonValue::keyword("allocation/id"),
-            CanonValue::str(&ctx.allocation_id),
-        ),
-        (
-            CanonValue::keyword("allocation-kernel-version"),
-            CanonValue::str(&ctx.kernel_version),
-        ),
-        (
-            CanonValue::keyword("selection-algorithm"),
-            CanonValue::keyword(SELECTION_ALGORITHM),
-        ),
-        (CanonValue::keyword("policy"), policy_canonical(&ctx.policy)),
-        (
-            CanonValue::keyword("claimants"),
-            CanonValue::array(ctx.claimants.iter().map(claimant_canonical).collect()),
-        ),
-        (
-            CanonValue::keyword("outcomes"),
-            CanonValue::array(ctx.outcomes.iter().map(outcome_canonical).collect()),
-        ),
-        (
-            CanonValue::keyword("proposed-rates"),
-            CanonValue::array(ctx.rates.iter().map(rate_entry_context_canonical).collect()),
-        ),
-        (
-            CanonValue::keyword("capacity"),
-            CanonValue::int(ctx.capacity.clone()),
-        ),
-        (
-            CanonValue::keyword("total-eligible-weight"),
-            CanonValue::int(ctx.total_eligible_weight.clone()),
-        ),
-        (
-            CanonValue::keyword("exact-pro-rata-denominator"),
-            CanonValue::int(ctx.exact_pro_rata_denominator.clone()),
-        ),
-        (
-            CanonValue::keyword("authoritative-randomness"),
-            CanonValue::array(
-                ctx.randomness
-                    .iter()
-                    .map(|b| CanonValue::int(BigInt::from(*b)))
-                    .collect(),
-            ),
-        ),
-    ])
-}
-
-fn claimants_canonical(ctx: &Context) -> CanonValue {
-    CanonValue::array(ctx.claimants.iter().map(claimant_canonical).collect())
-}
-
-fn outcomes_canonical(ctx: &Context) -> CanonValue {
-    CanonValue::array(ctx.outcomes.iter().map(outcome_canonical).collect())
-}
-
-fn rates_canonical(ctx: &Context) -> CanonValue {
-    CanonValue::array(ctx.rates.iter().map(rate_entry_canonical).collect())
-}
-
-fn selected_outcome_canonical(_ctx: &Context, outcome: &Outcome) -> CanonValue {
-    outcome_canonical(outcome)
-}
-
-/// One result Merkle leaf value tree. Matches the PRF kernel's `result-leaves`
-/// (note: key is :context-hash, not :round/context-hash).
-pub fn result_leaf(
-    _ctx: &Context,
-    claim: &Claimant,
-    allocated: BigInt,
-    selected_outcome_id: &str,
-    context_hash: &str,
-) -> CanonValue {
-    CanonValue::map(vec![
-        (
-            CanonValue::keyword("claim/id"),
-            CanonValue::str(&claim.claim_id),
-        ),
-        (
-            CanonValue::keyword("beneficiary"),
-            CanonValue::str(&claim.economic_owner_id),
-        ),
-        (
-            CanonValue::keyword("context-hash"),
-            CanonValue::str(context_hash),
-        ),
-        (
-            CanonValue::keyword("input-amount"),
-            CanonValue::int(claim.amount.clone()),
-        ),
-        (
-            CanonValue::keyword("input-weight"),
-            CanonValue::int(claim.weight.clone()),
-        ),
-        (
-            CanonValue::keyword("result-status"),
-            CanonValue::str(if allocated.is_zero() {
-                "not-allocated"
-            } else {
-                "allocated"
-            }),
-        ),
-        (
-            CanonValue::keyword("final-allocation"),
-            CanonValue::int(allocated.clone()),
-        ),
-        (
-            CanonValue::keyword("selected-outcome-id"),
-            CanonValue::str(selected_outcome_id),
-        ),
-    ])
-}
-
-// ──────────────────────────────────────────────────────────────────────────────
 // Kernel execution
 // ──────────────────────────────────────────────────────────────────────────────
 
@@ -371,7 +135,7 @@ pub fn run_kernel(
         selected_outcome_hash: String::new(), // filled below
     };
     let selected = &ctx.outcomes[sel.selected_index.to_usize().unwrap_or(0)];
-    let selected_hash = roots::selected_outcome_hash(&selected_outcome_canonical(ctx, selected));
+    let selected_hash = roots::selected_outcome_hash(&selected_outcome_canonical(selected));
     let mut sel = sel;
     sel.selected_outcome_hash = selected_hash.clone();
 
@@ -385,7 +149,7 @@ pub fn run_kernel(
                 .find(|a| a.claim_id == claim.claim_id)
                 .map(|a| a.allocated.clone())
                 .unwrap_or_else(BigInt::zero);
-            result_leaf(ctx, claim, alloc, &selected.outcome_id, &ctx_hash)
+            result_leaf(claim, alloc, &selected.outcome_id, &ctx_hash)
         })
         .collect();
     let result_root = match roots::result_merkle_root(&leaves) {
