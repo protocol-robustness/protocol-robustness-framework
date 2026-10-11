@@ -47,23 +47,56 @@ PRF/
 └── coprocessor/core/               realized allocation + lifecycle + source binding
 ```
 
-Target, after separate qualification and incremental extraction:
+Target semantic package boundaries and eventual repository homes, after
+qualification and incremental extraction:
 
 ```text
-canonical/                          codec, generic hashing/registration machinery
-pro-rata-allocation/                owns allocation artifact definitions
-├── clj/                            primitive API + semantic algorithms
-├── rust/                           corresponding supported artifact profiles
-├── conformance/                    allocation specs, reference and frozen vectors
-└── allocation definitions/         policy/outcome/realized-statement profiles
-capital-lifecycle/                  entitlement, consequence, withdrawal, closure
-Shortfall/                          authoritative demand/source/reserve bindings
-PRF or example/deployment/          explicit pinned dependencies and host adapters
+Separate repositories:
+prf-canonical/                       canonical codec, hashing, artifact type registration,
+│                                    generic schema and conformance machinery
+prf-pro-rata-allocation/             allocation semantics and artifact definitions
+├── clj/                             primitive API + semantic algorithms
+├── rust/                            supported matching implementation profiles
+└── conformance/                     specs, independent references and frozen vectors
+prf-capital-lifecycle/                Protected Capital lifecycle
+prf-shortfall/                        Shortfall scarcity application
+prf-examples/                         end-to-end examples and demo workflows
+prf-evm/                              Solidity implementations, EVM projections and tests
+
+First-class package boundary; repository split deferred:
+protected-operations/                assurance, operation binding, freshness,
+                                     replay and protected execution routing
+
+Still in the PRF integration repository pending C1 crosswalk:
+research / network / accounting       destination and ownership not yet reconciled
 ```
 
-These are ownership destinations, not instructions to move entire existing
-folders. In particular, the portable contract also contains generic effects and
-transition semantics; that material requires its own ownership decision. Frozen
+The protected-operations boundary is informed by
+[`ASSURED_OPERATIONS_V1`](../../docs/architecture/ASSURED_OPERATIONS_V1.md):
+it owns generic protected-operation assurance and dispatch semantics, while
+application adapters supply propositions, authority, and state projections.
+It can begin as an independently versioned package in PRF; a separate repository
+is not a prerequisite. Capital lifecycle uses these controls for economic
+operations but does not own the generic assurance mechanism.
+
+Entitlement meaning is determined by the allocation or application domain. For
+example, pro-rata determines its allocation and resulting beneficiaries;
+Shortfall determines eligible demand under its scarcity rules. Capital lifecycle
+admits an authoritative entitlement set, then owns activation, liabilities,
+withdrawal, cancellation consequences, and closure. Its input binding must stay
+allocation-neutral so another mechanism can supply entitlements.
+
+`prf-canonical` defines how artifact types are canonically encoded, hashed,
+registered, and checked for conformance. Domain packages define which semantic
+artifact types exist. Canonical infrastructure does not decide proof acceptance,
+capital authorization, research rewards, or execution admission.
+
+The C1 crosswalk remains an explicit prerequisite to fixing destinations for
+research, network, and accounting code. Those areas remain in the integration
+repository until C1 ownership and existing boundaries are mapped against this
+C2 semantic topology; neither a language directory nor current file location
+establishes ownership. The portable contract also contains generic effects and
+transition semantics whose destination must be settled in that crosswalk. Frozen
 identities must remain distinct throughout extraction.
 
 ## Dependency closure and public adapters
