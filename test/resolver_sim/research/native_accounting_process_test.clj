@@ -3,7 +3,7 @@
   (:require [clojure.string :as str]
             [clojure.test :refer [deftest is]]
             [resolver-sim.research.native-accounting-work :as native]
-            [resolver-sim.research.accelerated-accounting :as accounting]
+            [resolver-sim.accounting.reductions :as accounting]
             [resolver-sim.research.native-accounting-work-test :as fixture]
             [resolver-sim.research.reproduction-runner-test :as process-harness]
             [resolver-sim.research.runner-transport :as transport]

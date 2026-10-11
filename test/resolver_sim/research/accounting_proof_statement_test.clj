@@ -2,7 +2,7 @@
   (:require [clojure.test :refer [deftest is testing]]
             [clojure.java.shell :as shell]
             [clojure.data.json :as json]
-            [resolver-sim.research.accelerated-accounting :as accounting]
+            [resolver-sim.accounting.reductions :as accounting]
             [resolver-sim.research.accounting-proof-statement :as statement]
             [resolver-sim.research.semantic-accounting-test :as fixture]))
 

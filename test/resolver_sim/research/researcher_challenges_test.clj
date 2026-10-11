@@ -2,7 +2,7 @@
   (:require [clojure.test :refer [deftest is]]
             [buddy.core.codecs :as codecs]
             [resolver-sim.io.edn :as pretty]
-            [resolver-sim.research.researcher-challenges :as challenges]
+            [resolver-sim.network.researcher-challenges :as challenges]
             [resolver-sim.research.researcher-challenges-cli :as cli]
             [resolver-sim.benchmark.research-analysis-test :as analysis-fixture]
             [resolver-sim.benchmark.research-analysis :as analysis]

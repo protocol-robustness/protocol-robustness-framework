@@ -6,7 +6,7 @@
   (:refer-clojure :exclude [ints])
   (:require [clojure.string :as str]
             [clojure.java.io :as io]
-            [resolver-sim.research.accelerated-accounting :as accounting]
+            [resolver-sim.accounting.reductions :as accounting]
             [resolver-sim.research.native-accounting-batch :as batch]
             [resolver-sim.research.native-accounting-profile :as profile]
             [resolver-sim.research.native-accounting-work :as native]

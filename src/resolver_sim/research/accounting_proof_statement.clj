@@ -2,7 +2,7 @@
   "Arithmetic statement foundation, NOT proof generation or admission.
    V1's checked-long subdomain is explicit; existing accounting remains wider.
    Witnesses derive only from existing validated accounting constituents."
-  (:require [resolver-sim.research.accelerated-accounting :as accounting]))
+  (:require [resolver-sim.accounting.reductions :as accounting]))
 
 (def schema "research-accounting-arithmetic-statement.v1")
 (def public-value-order

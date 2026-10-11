@@ -3,7 +3,7 @@
             [resolver-sim.research.native-accounting-work :as native]
             [resolver-sim.research.accounting-implementation-comparison :as impl-comparison]
             [resolver-sim.research.native-accounting-batch :as batch]
-            [resolver-sim.research.accelerated-accounting :as accounting]
+            [resolver-sim.accounting.reductions :as accounting]
             [resolver-sim.research.execution-assurance :as assurance]
             [resolver-sim.research.execution-environment :as environment]
             [resolver-sim.research.dependency-assurance :as dependency]

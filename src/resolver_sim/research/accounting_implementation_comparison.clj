@@ -4,7 +4,7 @@
    namespace; this artifact is assurance/provenance, not an accounting result."
   (:require [resolver-sim.hash.canonical :as canonical]
             [resolver-sim.hash.reference :as reference]
-            [resolver-sim.research.accelerated-accounting :as accounting]
+            [resolver-sim.accounting.reductions :as accounting]
             [resolver-sim.research.native-accounting-work :as native]
             [resolver-sim.evidence.forensic-graph :as forensic]))
 

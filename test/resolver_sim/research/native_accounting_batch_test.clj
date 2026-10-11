@@ -1,7 +1,7 @@
 (ns resolver-sim.research.native-accounting-batch-test
   (:require [clojure.test :refer [deftest is]]
             [clojure.edn :as edn]
-            [resolver-sim.research.accelerated-accounting :as accounting]
+            [resolver-sim.accounting.reductions :as accounting]
             [resolver-sim.research.native-accounting-batch :as batch]
             [resolver-sim.research.native-accounting-work :as native]
             [resolver-sim.research.native-accounting-work-test :as fixture]

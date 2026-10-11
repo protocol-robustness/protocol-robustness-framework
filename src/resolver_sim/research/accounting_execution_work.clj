@@ -6,7 +6,7 @@
    assurance provenance for the distributed attempt."
   (:require [resolver-sim.hash.canonical :as hc]
             [resolver-sim.hash.reference :as hash-ref]
-            [resolver-sim.research.accelerated-accounting :as accounting]
+            [resolver-sim.accounting.reductions :as accounting]
             [resolver-sim.research.observed-execution-work :as observed-work]))
 
 (def ^:const schema "research-accounting-execution-work.v1")

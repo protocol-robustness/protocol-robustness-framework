@@ -9,7 +9,7 @@
             [clojure.string :as str]
             [resolver-sim.hash.canonical :as hc]
             [resolver-sim.hash.reference :as hash-ref]
-            [resolver-sim.research.accelerated-accounting :as accounting]
+            [resolver-sim.accounting.reductions :as accounting]
             [resolver-sim.research.accounting-proof-statement :as statement]
             [resolver-sim.research.execution-control :as control]
             [resolver-sim.research.native-accounting-work :as native]

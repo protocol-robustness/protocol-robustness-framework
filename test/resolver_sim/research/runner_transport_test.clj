@@ -1,7 +1,7 @@
 (ns resolver-sim.research.runner-transport-test
   (:require [clojure.edn]
             [clojure.test :refer [deftest is]]
-            [resolver-sim.research.accelerated-accounting :as accounting]
+            [resolver-sim.accounting.reductions :as accounting]
             [resolver-sim.research.accounting-execution-work :as accounting-work]
             [resolver-sim.research.native-accounting-work :as native-accounting]
             [resolver-sim.research.native-accounting-work-test :as native-accounting-fixture]

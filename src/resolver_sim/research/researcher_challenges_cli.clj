@@ -3,7 +3,7 @@
   (:require [clojure.edn :as edn]
             [clojure.java.io :as io]
             [resolver-sim.io.edn :as pretty]
-            [resolver-sim.research.researcher-challenges :as challenges])
+            [resolver-sim.network.researcher-challenges :as challenges])
   (:import [java.nio.channels FileChannel]
            [java.nio.file Files StandardCopyOption StandardOpenOption]))
 

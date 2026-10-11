@@ -3,7 +3,7 @@
 
    This is a runtime composition over existing work-unit, assignment,
    execution and reconciliation artifacts; it defines no new semantic schema."
-  (:require [resolver-sim.research.accelerated-accounting :as accounting]
+  (:require [resolver-sim.accounting.reductions :as accounting]
             [resolver-sim.research.native-accounting-work :as native]
             [resolver-sim.research.remote-execution :as remote]
             [resolver-sim.research.runner-transport :as transport])

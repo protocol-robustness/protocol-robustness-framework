@@ -4,7 +4,7 @@
             [clojure.java.io :as io]
             [resolver-sim.research.accounting-arithmetic-sp1-host :as host]
             [resolver-sim.research.accounting-proof-statement :as statement]
-            [resolver-sim.research.accelerated-accounting :as accounting]
+            [resolver-sim.accounting.reductions :as accounting]
             [resolver-sim.research.native-accounting-work :as native]
             [resolver-sim.research.runner-participation :as participation]
             [resolver-sim.research.runner-transport :as transport]

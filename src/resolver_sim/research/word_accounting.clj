@@ -5,7 +5,7 @@
   (:require [clojure.string :as str]
             [resolver-sim.hash.canonical :as hc]
             [resolver-sim.hash.reference :as hash-ref]
-            [resolver-sim.research.accelerated-accounting :as accounting]
+            [resolver-sim.accounting.reductions :as accounting]
             [resolver-sim.research.runner-participation :as participation]))
 
 (def ^:const document-schema "research-accounting-word-document.v1")

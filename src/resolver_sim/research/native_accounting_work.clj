@@ -4,7 +4,7 @@
   (:require [clojure.set :as set]
             [resolver-sim.hash.canonical :as canonical]
             [resolver-sim.hash.reference :as reference]
-            [resolver-sim.research.accelerated-accounting :as accounting]
+            [resolver-sim.accounting.reductions :as accounting]
             [resolver-sim.research.dependency-assurance :as dependency]
             [resolver-sim.research.execution-assurance :as assurance]
             [resolver-sim.research.execution-environment :as environment]

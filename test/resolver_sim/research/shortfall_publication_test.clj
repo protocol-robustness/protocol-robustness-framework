@@ -4,7 +4,7 @@
             [resolver-sim.research.shortfall-publication :as publication]
             [resolver-sim.research.shortfall-pilot :as pilot]
             [resolver-sim.research.shortfall-pilot-test :as fixture]
-            [resolver-sim.research.researcher-challenges :as challenges]
+            [resolver-sim.network.researcher-challenges :as challenges]
             [resolver-sim.research.researcher-challenges-test :as keys]
             [resolver-sim.hash.reference :as reference])
   (:import [java.nio.file Files]

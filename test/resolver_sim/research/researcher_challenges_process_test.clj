@@ -6,7 +6,7 @@
             [clojure.string :as str]
             [clojure.test :refer [deftest is]]
             [resolver-sim.evidence.node :as node]
-            [resolver-sim.research.researcher-challenges :as challenges]
+            [resolver-sim.network.researcher-challenges :as challenges]
             [resolver-sim.research.researcher-challenges-test :as fixture]
             [resolver-sim.research.shortfall-pilot :as shortfall]
             [resolver-sim.research.shortfall-pilot-test :as shortfall-fixture]

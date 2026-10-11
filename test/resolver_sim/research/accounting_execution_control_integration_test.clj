@@ -1,6 +1,6 @@
 (ns resolver-sim.research.accounting-execution-control-integration-test
   (:require [clojure.test :refer [deftest is]]
-            [resolver-sim.research.accelerated-accounting :as accounting]
+            [resolver-sim.accounting.reductions :as accounting]
             [resolver-sim.research.execution-assurance :as assurance]
             [resolver-sim.research.execution-control :as control]
             [resolver-sim.research.proof-generation :as proof]

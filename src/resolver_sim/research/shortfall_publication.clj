@@ -9,7 +9,7 @@
             [resolver-sim.hash.canonical :as canonical]
             [resolver-sim.hash.reference :as reference]
             [resolver-sim.io.edn :as pretty]
-            [resolver-sim.research.researcher-challenges :as challenges]
+            [resolver-sim.network.researcher-challenges :as challenges]
             [resolver-sim.research.researcher-challenges-cli :as cli]
             [resolver-sim.research.shortfall-pilot :as pilot])
   (:import [java.nio.channels FileChannel]

@@ -1,6 +1,6 @@
 (ns resolver-sim.research.semantic-accounting-test
   (:require [clojure.test :refer [deftest is]]
-            [resolver-sim.research.accelerated-accounting :as accounting]
+            [resolver-sim.accounting.reductions :as accounting]
             [resolver-sim.research.accounting-semantics :as semantics]
             [resolver-sim.research.coordinate-interaction :as interaction]))
 

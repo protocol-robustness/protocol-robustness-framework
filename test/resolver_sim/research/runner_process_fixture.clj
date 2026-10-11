@@ -1,7 +1,7 @@
 (ns resolver-sim.research.runner-process-fixture
   "Child-JVM fixture for real process-boundary runner recovery tests."
   (:require [clojure.edn :as edn]
-            [resolver-sim.research.accelerated-accounting :as accounting]
+            [resolver-sim.accounting.reductions :as accounting]
             [resolver-sim.research.runner-transport :as transport]))
 
 (defn- block-at! [configuration stage]

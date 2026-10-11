@@ -11,7 +11,7 @@
             [clojure.java.io :as io]
             [clojure.string :as str]
             [resolver-sim.hash.reference :as hash-ref]
-            [resolver-sim.research.accelerated-accounting :as accounting]
+            [resolver-sim.accounting.reductions :as accounting]
             [resolver-sim.research.accounting-proof-admission :as accounting-proof-admission]
             [resolver-sim.research.accounting-execution-work :as accounting-work]
             [resolver-sim.research.native-accounting-work :as native-accounting]

@@ -3,7 +3,7 @@
    no observer or timing enters canonical work/results. Inclusive stage totals
    overlap and are not additive or elapsed critical-path time."
   (:require [resolver-sim.hash.canonical :as canonical]
-            [resolver-sim.research.accelerated-accounting :as accounting]
+            [resolver-sim.accounting.reductions :as accounting]
             [resolver-sim.research.dependency-assurance :as dependency]
             [resolver-sim.research.native-accounting-work :as native]
             [resolver-sim.research.runner-transport :as transport]))

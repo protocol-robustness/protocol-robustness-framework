@@ -3,7 +3,7 @@
    does not compare or combine pro-rata allocations."
   (:require [resolver-sim.hash.canonical :as hc]
             [resolver-sim.hash.reference :as hash-ref]
-            [resolver-sim.research.accelerated-accounting :as accounting]))
+            [resolver-sim.accounting.reductions :as accounting]))
 
 (def ^:const schema "research-accounting-basis-comparison.v1")
 

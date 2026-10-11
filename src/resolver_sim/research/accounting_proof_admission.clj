@@ -6,7 +6,7 @@
   (:require [resolver-sim.hash.canonical :as hc]
             [resolver-sim.hash.reference :as hash-ref]
             [resolver-sim.research.accounting-arithmetic-sp1-host :as sp1]
-            [resolver-sim.research.accelerated-accounting :as accounting]
+            [resolver-sim.accounting.reductions :as accounting]
             [resolver-sim.research.native-accounting-work :as native]
             [resolver-sim.research.proof-generation :as proof]
             [resolver-sim.research.execution-control :as control]))

@@ -6,7 +6,7 @@
    readiness is not research-claim acceptance or application authority."
   (:require [resolver-sim.hash.canonical :as hc]
             [resolver-sim.hash.reference :as hash-ref]
-            [resolver-sim.research.accelerated-accounting :as accounting]
+            [resolver-sim.accounting.reductions :as accounting]
             [resolver-sim.research.execution-assurance :as assurance]
             [resolver-sim.research.proof-generation :as proof]
             [resolver-sim.research.remote-execution :as remote]))

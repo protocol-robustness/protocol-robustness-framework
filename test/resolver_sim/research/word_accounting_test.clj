@@ -1,7 +1,7 @@
 (ns resolver-sim.research.word-accounting-test
   (:require [clojure.string :as str]
             [clojure.test :refer [deftest is]]
-            [resolver-sim.research.accelerated-accounting :as accounting]
+            [resolver-sim.accounting.reductions :as accounting]
             [resolver-sim.research.accounting-basis-comparison :as comparison]
             [resolver-sim.research.runner-participation :as participation]
             [resolver-sim.research.word-accounting :as words]))
