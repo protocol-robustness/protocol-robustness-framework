@@ -4,7 +4,7 @@ use crate::exact_ratio::RateEntry;
 use crate::kernel_types::{Claimant, Outcome, Policy};
 use num_bigint::BigInt;
 use num_traits::Zero;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 /// Stable validation error; classifications match the allocation-kernel contract.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -13,12 +13,22 @@ pub struct ContextValidationError {
     pub reason: &'static str,
 }
 
-/// Align parsed rates to the canonical outcome order, rejecting outcomes without rates.
-/// Extra rate entries remain ignored to preserve the allocation-kernel contract.
+/// Align parsed rates to the canonical outcome order and require exact outcome coverage.
 pub fn rates_for_outcomes(
     outcomes: &[Outcome],
     rates_by_outcome: &HashMap<String, (BigInt, BigInt)>,
 ) -> Result<Vec<RateEntry>, String> {
+    let outcome_ids: HashSet<&str> = outcomes
+        .iter()
+        .map(|outcome| outcome.outcome_id.as_str())
+        .collect();
+    if let Some(extra_id) = rates_by_outcome
+        .keys()
+        .find(|outcome_id| !outcome_ids.contains(outcome_id.as_str()))
+    {
+        return Err(format!("unexpected rate for outcome {}", extra_id));
+    }
+
     outcomes
         .iter()
         .map(|outcome| {
@@ -186,12 +196,21 @@ mod tests {
         let rates = HashMap::from([
             ("a".into(), (BigInt::from(1), BigInt::from(2))),
             ("b".into(), (BigInt::from(3), BigInt::from(4))),
-            ("extra".into(), (BigInt::from(5), BigInt::from(6))),
         ]);
         let aligned = rates_for_outcomes(&outcomes, &rates).unwrap();
         assert_eq!(aligned[0].outcome_id, "b");
         assert_eq!(aligned[1].outcome_id, "a");
         assert!(aligned[0].numerator == BigInt::from(3));
+
+        let with_extra = HashMap::from([
+            ("a".into(), (BigInt::from(1), BigInt::from(2))),
+            ("b".into(), (BigInt::from(3), BigInt::from(4))),
+            ("extra".into(), (BigInt::from(5), BigInt::from(6))),
+        ]);
+        assert_eq!(
+            rates_for_outcomes(&outcomes, &with_extra).unwrap_err(),
+            "unexpected rate for outcome extra"
+        );
 
         let missing = HashMap::from([("a".into(), (BigInt::from(1), BigInt::from(2)))]);
         assert_eq!(

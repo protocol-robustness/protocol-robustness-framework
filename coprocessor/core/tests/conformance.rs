@@ -363,3 +363,14 @@ fn empty_outcome_set_rejected_with_classification() {
     let err = ctx.unwrap_err();
     assert_eq!(err.classification, "empty-outcome-set");
 }
+
+#[test]
+fn extra_proposed_rate_rejected_with_classification() {
+    let mut input = happy_input();
+    input["proposed-rates"]
+        .as_array_mut()
+        .unwrap()
+        .push(json!({"outcome-id": "unexpected", "numerator": "1", "denominator": "1"}));
+    let err = kernel::parse_context(&input).unwrap_err();
+    assert_eq!(err.classification, "rates-outcome-mismatch");
+}
