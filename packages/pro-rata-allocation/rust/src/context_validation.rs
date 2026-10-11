@@ -146,6 +146,17 @@ pub fn validate_rate(
     Ok(())
 }
 
+/// Require a positive allocation capacity.
+pub fn validate_capacity(capacity: &BigInt) -> Result<(), ContextValidationError> {
+    if capacity <= &BigInt::from(0) {
+        return Err(ContextValidationError {
+            classification: "non-positive-capacity",
+            reason: "non-positive capacity",
+        });
+    }
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -204,6 +215,16 @@ mod tests {
             "non-positive-rate-denominator"
         );
         assert!(validate_rate(&BigInt::from(0), &BigInt::from(1)).is_ok());
+    }
+
+    #[test]
+    fn capacity_validation_requires_positive_value() {
+        for capacity in [BigInt::from(0), BigInt::from(-1)] {
+            let error = validate_capacity(&capacity).unwrap_err();
+            assert_eq!(error.classification, "non-positive-capacity");
+            assert_eq!(error.reason, "non-positive capacity");
+        }
+        assert!(validate_capacity(&BigInt::from(1)).is_ok());
     }
 
     #[test]

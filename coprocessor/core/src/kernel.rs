@@ -11,14 +11,14 @@ use crate::lifecycle;
 use crate::roots;
 use crate::selection;
 use num_bigint::BigInt;
-use num_traits::{Signed, Zero};
+use num_traits::Zero;
 pub use prf_pro_rata_allocation::allocation_context::{
     context_preimage, result_leaf, SELECTION_ALGORITHM,
 };
 use prf_pro_rata_allocation::allocation_evaluation::evaluate_allocation;
 use prf_pro_rata_allocation::canonical_order::{sort_claimants, sort_outcomes};
 use prf_pro_rata_allocation::context_validation::{
-    rates_for_outcomes, validate_claimants, validate_outcomes, validate_rate,
+    rates_for_outcomes, validate_capacity, validate_claimants, validate_outcomes, validate_rate,
     validate_weight_totals,
 };
 
@@ -330,12 +330,8 @@ pub fn parse_context(input: &serde_json::Value) -> Result<Context, KernelError> 
         .map_err(|reason| KernelError::new("rates-outcome-mismatch", reason))?;
 
     let capacity = bigint_field(input, "capacity")?;
-    if capacity.is_zero() || capacity.is_negative() {
-        return Err(KernelError::new(
-            "non-positive-capacity",
-            "non-positive capacity",
-        ));
-    }
+    validate_capacity(&capacity)
+        .map_err(|error| KernelError::new(error.classification, error.reason))?;
     let total_eligible_weight = bigint_field(input, "total-eligible-weight")?;
     let exact_pro_rata_denominator = bigint_field(input, "exact-pro-rata-denominator")?;
 
