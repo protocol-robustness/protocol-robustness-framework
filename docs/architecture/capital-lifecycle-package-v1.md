@@ -82,8 +82,10 @@ AllocationBasis {
 `basisRef` identifies the source domain's canonical basis artifact. The adapter
 owns the underlying rows, beneficiary assignment, eligibility, ordering,
 amounts, and proof that those rows derive from `basisRef`. The lifecycle package
-binds that reference to the operation and asset, requires `total` to equal the
-funded amount, and accounts for the admitted member count and total liability.
+compares the opaque reference values against reservation/funding scope, requires
+`total` to equal the funded amount, and accounts for the admitted member count
+and total liability. The transition kernel does not parse or hash typed root
+references; adapters provide references validated under the canonical contract.
 It does not define a universal entitlement row or encoding. An application may
 supply its own representation contract through `representationRef`.
 
@@ -92,7 +94,9 @@ For the current NOW path, the source basis is the pro-rata-owned
 separate capital-lifecycle artifact. A different application can supply a
 module-owned basis artifact through the same port. `AllocationBasis` is an
 in-process value, not a canonical wire schema or newly registered artifact.
-`TypedRootRef` is supplied by `canonical`.
+`TypedRootRef` is supplied by `canonical`. Shared lifecycle vectors cover
+reference equality and scope checks using fixture-only opaque reference values;
+they do not claim canonical-root conformance.
 
 ### `SourceBindingPort`
 

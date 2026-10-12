@@ -15,6 +15,9 @@ pub struct State {
     pub reserved_amount: BigInt,
     pub expires_at: Option<u64>,
     pub funded_amount: BigInt,
+    pub asset_ref: Option<Value>,
+    pub basis_ref: Option<Value>,
+    pub representation_ref: Option<Value>,
     pub entitlement_count: u64,
     pub claimed_count: u64,
     pub liability_total: BigInt,
@@ -30,6 +33,9 @@ impl Default for State {
             reserved_amount: BigInt::zero(),
             expires_at: None,
             funded_amount: BigInt::zero(),
+            asset_ref: None,
+            basis_ref: None,
+            representation_ref: None,
             entitlement_count: 0,
             claimed_count: 0,
             liability_total: BigInt::zero(),
@@ -95,17 +101,12 @@ impl TryFrom<Value> for Command {
                 "expires-at",
                 "now",
                 "authorized?",
+                "asset-ref",
             ],
             "release" => &["type", "operation-id", "authorized?"],
             "expire" => &["type", "operation-id", "now"],
             "fund" => &["type", "operation-id", "amount", "now", "custody-received"],
-            "activate" => &[
-                "type",
-                "operation-id",
-                "admitted?",
-                "basis-total",
-                "entitlement-count",
-            ],
+            "activate" => &["type", "operation-id", "admitted?", "basis"],
             "cancel" => &["type", "operation-id", "authorized?", "custody-refunded"],
             "withdraw" => &[
                 "type",
@@ -152,7 +153,13 @@ pub fn transition(state: &State, command: &Command) -> Result<State, &'static st
             if expires <= uint(command, "now").unwrap_or(0) {
                 return rejected("invalid-expiry");
             }
+            let asset_ref = field(command, "asset-ref")
+                .filter(|v| v.as_object().is_some_and(|m| !m.is_empty()));
+            if asset_ref.is_none() {
+                return rejected("invalid-asset-reference");
+            }
             next.status = "reserved".into();
+            next.asset_ref = asset_ref.cloned();
             next.operation_id = op;
             next.reserved_amount = requested_amount;
             next.expires_at = Some(expires);
@@ -215,10 +222,47 @@ pub fn transition(state: &State, command: &Command) -> Result<State, &'static st
             if !boolean(command, "admitted?") {
                 return rejected("basis-not-admitted");
             }
-            if parse_amount(command, "basis-total", None).as_ref() != Some(&state.funded_amount) {
+            let basis = field(command, "basis").and_then(Value::as_object);
+            let Some(basis) = basis else {
+                return rejected("invalid-basis");
+            };
+            let allowed = [
+                "basis-ref",
+                "operation-ref",
+                "asset-ref",
+                "total",
+                "member-count",
+                "representation-ref",
+            ];
+            if basis.keys().any(|key| !allowed.contains(&key.as_str())) {
+                return rejected("invalid-basis");
+            }
+            let basis_ref = basis
+                .get("basis-ref")
+                .filter(|v| v.as_object().is_some_and(|m| !m.is_empty()));
+            if basis_ref.is_none() {
+                return rejected("invalid-basis-reference");
+            }
+            if basis.get("operation-ref").and_then(Value::as_str) != op.as_deref() {
+                return rejected("basis-operation-mismatch");
+            }
+            if basis.get("asset-ref") != state.asset_ref.as_ref() {
+                return rejected("basis-asset-mismatch");
+            }
+            if parse_amount(&Value::Object(basis.clone()), "total", None).as_ref()
+                != Some(&state.funded_amount)
+            {
                 return rejected("basis-total-mismatch");
             }
-            let count = uint(command, "entitlement-count").unwrap_or(0);
+            if let Some(representation) = basis.get("representation-ref") {
+                if !representation.as_object().is_some_and(|m| !m.is_empty()) {
+                    return rejected("invalid-representation-reference");
+                }
+                next.representation_ref = Some(representation.clone());
+            }
+            next.basis_ref = basis_ref.cloned();
+            let basis_value = Value::Object(basis.clone());
+            let count = uint(&basis_value, "member-count").unwrap_or(0);
             if count == 0 {
                 return rejected("invalid-entitlement-count");
             }
@@ -317,6 +361,9 @@ mod tests {
                     "reserved-amount" => state.reserved_amount = value.as_u64().unwrap().into(),
                     "expires-at" => state.expires_at = value.as_u64(),
                     "funded-amount" => state.funded_amount = value.as_u64().unwrap().into(),
+                    "asset-ref" => state.asset_ref = Some(value.clone()),
+                    "basis-ref" => state.basis_ref = Some(value.clone()),
+                    "representation-ref" => state.representation_ref = Some(value.clone()),
                     "entitlement-count" => state.entitlement_count = value.as_u64().unwrap(),
                     "claimed-count" => state.claimed_count = value.as_u64().unwrap(),
                     "liability-total" => state.liability_total = value.as_u64().unwrap().into(),
@@ -360,6 +407,15 @@ mod tests {
                             BigInt::from(expected.as_u64().unwrap()),
                             "{id}"
                         ),
+                        "asset-ref" => {
+                            assert_eq!(actual.asset_ref.as_ref(), Some(expected), "{id}")
+                        }
+                        "basis-ref" => {
+                            assert_eq!(actual.basis_ref.as_ref(), Some(expected), "{id}")
+                        }
+                        "representation-ref" => {
+                            assert_eq!(actual.representation_ref.as_ref(), Some(expected), "{id}")
+                        }
                         "entitlement-count" => {
                             assert_eq!(actual.entitlement_count, expected.as_u64().unwrap(), "{id}")
                         }

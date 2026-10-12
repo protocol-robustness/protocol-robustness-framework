@@ -11,6 +11,9 @@
    :reserved-amount 0N
    :expires-at nil
    :funded-amount 0N
+   :asset-ref nil
+   :basis-ref nil
+   :representation-ref nil
    :entitlement-count 0
    :claimed-count 0
    :liability-total 0N
@@ -32,11 +35,11 @@
     :else nil))
 
 (def ^:private command-fields
-  {"reserve" #{:type :operation-id :amount :expires-at :now :authorized?}
+  {"reserve" #{:type :operation-id :amount :expires-at :now :authorized? :asset-ref}
    "release" #{:type :operation-id :authorized?}
    "expire" #{:type :operation-id :now}
    "fund" #{:type :operation-id :amount :now :custody-received}
-   "activate" #{:type :operation-id :admitted? :basis-total :entitlement-count}
+   "activate" #{:type :operation-id :admitted? :basis}
    "cancel" #{:type :operation-id :authorized? :custody-refunded}
    "withdraw" #{:type :operation-id :entitlement-id :amount :admitted? :custody-sent}
    "close" #{:type :operation-id}})
@@ -66,7 +69,10 @@
         (not (:authorized? command)) (reject "not-authorized")
         (not (pos? amount)) (reject "invalid-amount")
         (<= (:expires-at command 0) (:now command 0)) (reject "invalid-expiry")
+        (not (and (map? (:asset-ref command)) (seq (:asset-ref command))))
+        (reject "invalid-asset-reference")
         :else (accepted (assoc s :status "reserved" :operation-id op
+                               :asset-ref (:asset-ref command)
                                :reserved-amount amount
                                :expires-at (:expires-at command))))
 
@@ -100,11 +106,26 @@
         (not same-op?) (reject "operation-mismatch")
         (not= "funded" (:status s)) (reject "operation-not-funded")
         (not (:admitted? command)) (reject "basis-not-admitted")
-        (not= (:funded-amount s) (amount-value (:basis-total command)))
+        (not (map? (:basis command))) (reject "invalid-basis")
+        (not (every? #{:basis-ref :operation-ref :asset-ref :total :member-count :representation-ref}
+                     (keys (:basis command)))) (reject "invalid-basis")
+        (not (and (map? (get-in command [:basis :basis-ref]))
+                  (seq (get-in command [:basis :basis-ref]))))
+        (reject "invalid-basis-reference")
+        (not= op (get-in command [:basis :operation-ref])) (reject "basis-operation-mismatch")
+        (not= (:asset-ref s) (get-in command [:basis :asset-ref])) (reject "basis-asset-mismatch")
+        (not= (:funded-amount s) (amount-value (get-in command [:basis :total])))
         (reject "basis-total-mismatch")
-        (not (pos-int? (:entitlement-count command))) (reject "invalid-entitlement-count")
+        (not (pos-int? (get-in command [:basis :member-count])))
+        (reject "invalid-entitlement-count")
+        (and (contains? (:basis command) :representation-ref)
+             (not (and (map? (get-in command [:basis :representation-ref]))
+                       (seq (get-in command [:basis :representation-ref])))))
+        (reject "invalid-representation-reference")
         :else (accepted (assoc s :status "activated"
-                               :entitlement-count (:entitlement-count command)
+                               :basis-ref (get-in command [:basis :basis-ref])
+                               :representation-ref (get-in command [:basis :representation-ref])
+                               :entitlement-count (get-in command [:basis :member-count])
                                :liability-total (:funded-amount s)
                                :liability-remaining (:funded-amount s))))
 
