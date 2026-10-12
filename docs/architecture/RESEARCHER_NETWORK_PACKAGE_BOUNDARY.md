@@ -144,6 +144,10 @@ repository and no package is represented as independently released.
 The research API closure qualification passed from an isolated snapshot
 (`bash scripts/qualify_research_api_closure.sh`; 2 tests, 23 assertions;
 content set `sha256:83473263e2ecd25b8d5b7cd4a0203859c69ab4862c6f2ac1d3925eefbf27802a`).
+The narrower research-contract manifest closure also passed its API,
+acceptance and lifecycle suite (`bash scripts/qualify_research_contracts_closure.sh`;
+30 tests, 74 assertions; content set
+`sha256:44982170c364ffc2f93f0a0681c1944fb9909c99d6dfa4b44f5c6efe0558b2b8`).
 The incentives API/reward closure also passed independently staged
 (`bash scripts/qualify_incentives_api_closure.sh`; 8 tests, 64 assertions;
 content set `sha256:ce4d4c531005b2b05f24c8c47b390356fe658d5edc39a84f9b9ece2f7e9e55ce`).

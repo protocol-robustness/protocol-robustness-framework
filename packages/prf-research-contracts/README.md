@@ -16,3 +16,8 @@ consumer still requires the authoritative research implementation closure and
 an immutable prf-canonical dependency. The isolated API-closure test proves
 the current staged closure loads with explicitly listed Maven dependencies; it
 does not constitute an independently pinned package release.
+
+The research-specific isolated conformance command is
+`bash scripts/qualify_research_contracts_closure.sh`. It stages the manifest's
+21-namespace closure without the monorepo source classpath and checks public
+API delegation plus claim acceptance and lifecycle behavior.

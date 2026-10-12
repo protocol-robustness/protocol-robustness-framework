@@ -98,11 +98,18 @@
   :root-vectors-required true
   :schema-change-requires-successor? true}
  :qualification
- {:api-delegation-tests "test/resolver_sim/research/research_api_boundary_test.clj"
+ {:api-delegation-tests "test/resolver_sim/research/research_contract_api_test.clj"
+  :semantic-tests ["test/resolver_sim/benchmark/research_claim_acceptance_test.clj"
+                   "test/resolver_sim/benchmark/research_claim_lifecycle_test.clj"]
   :source-closure-qualification "scripts/qualify_research_api_closure.sh"
+  :contract-source-closure-qualification "scripts/qualify_research_contracts_closure.sh"
   :isolated-source-snapshot
   {:status :passed
    :source-content-set "sha256:83473263e2ecd25b8d5b7cd4a0203859c69ab4862c6f2ac1d3925eefbf27802a"
    :tests 2 :assertions 23}
+  :contract-source-snapshot
+  {:status :passed
+   :source-content-set "sha256:44982170c364ffc2f93f0a0681c1944fb9909c99d6dfa4b44f5c6efe0558b2b8"
+   :tests 30 :assertions 74}
   :independently-released? false
   :immutable-dependency-pin? false}}
