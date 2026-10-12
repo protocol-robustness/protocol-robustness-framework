@@ -16,7 +16,7 @@
    :artifact/inputs {:artifacts [] :related [[:G "normalized rows, policy fields and fixed available quantity"]]}
    :artifact/implementations
    {:clojure {:status :implemented :sources [[:prf "packages/pro-rata-allocation/clj/src/prf/pro_rata/request.clj" "normalize"] [:prf "packages/pro-rata-allocation/clj/src/prf/pro_rata/rows.clj" "canonical-rows"] [:prf "packages/pro-rata-allocation/clj/src/prf/pro_rata/api.clj" "allocate"] [:prf "packages/pro-rata-allocation/clj/src/prf/pro_rata/identity.clj" "request-root"] [:prf "src/resolver_sim/pro_rata/allocation.clj" "allocate"] [:prf "pro_rata_contract_src/resolver_sim/pro_rata_contract/contract.clj" "allocate"]]}
-    :rust {:status :missing :sources []}
+    :rust {:status :implemented :sources [[:prf "packages/pro-rata-allocation/rust/src/policy_identity.rs" "identity_basis"] [:prf "packages/pro-rata-allocation/rust/src/policy_identity.rs" "allocation_policy_root"]]}
     :solidity {:status :not-required :sources []}}
    :artifact/conformance {:status :partial :sources [[:prf "portable-pro-rata-contract/vectors"] [:prf "portable-pro-rata-contract/canonical-bytes"] [:prf "test/resolver_sim/pro_rata/portable_contract_vectors_test.clj"] [:prf "test/resolver_sim/pro_rata/allocation_test.clj"] [:prf "packages/pro-rata-allocation/clj/test/prf/pro_rata/conformance_runner.clj"] [:prf "packages/pro-rata-allocation/clj/test/fixtures/portable-pro-rata-contract/allocation-fixtures.v1.edn"] [:prf "packages/pro-rata-allocation/clj/test/fixtures/portable-pro-rata-contract/vectors/negative-allocation-001.edn"]]}
    :artifact/normative [[:prf "packages/pro-rata-allocation/ALLOCATION_V1.md"] [:prf "portable-pro-rata-contract/SPEC.md"] [:prf "docs/architecture/PRO_RATA_ALLOCATION_BINDING_V2.md"]]}
@@ -48,7 +48,7 @@
    {:clojure {:status :implemented :sources [[:prf "packages/pro-rata-allocation/clj/src/prf/pro_rata/policy.clj" "identity-basis"] [:prf "packages/pro-rata-allocation/clj/src/prf/pro_rata/identity.clj" "allocation-policy-root"] [:prf "src/resolver_sim/pro_rata/allocation.clj" "allocation-policy-root"]]}
     :rust {:status :missing :sources []}
     :solidity {:status :not-required :sources []}}
-   :artifact/conformance {:status :partial :sources [[:prf "resources/test-vectors/pro-rata/policy-outcome-conformance-v1.edn"] [:prf "test/resolver_sim/pro_rata/policy_outcome_test.clj"]]}
+   :artifact/conformance {:status :partial :sources [[:prf "resources/test-vectors/pro-rata/policy-outcome-conformance-v1.edn"] [:prf "test/resolver_sim/pro_rata/policy_outcome_test.clj"] [:prf "packages/pro-rata-allocation/rust/src/policy_identity.rs"]]}
    :artifact/normative [[:prf "packages/pro-rata-allocation/ALLOCATION_V1.md"] [:prf "docs/architecture/PROTECTED_CAPITAL_PRO_RATA_V2_SEMANTICS.md"]]}
 
   {:artifact/id :primitive-policy-outcome

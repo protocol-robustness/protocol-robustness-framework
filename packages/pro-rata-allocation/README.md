@@ -299,9 +299,9 @@ with `sha256sum -c` against its checked-in sidecar before consuming it.
 
 The negative allocation vector contains two request mutations and four result
 projection mutations. The package runner exercises both request rejections and
-all four result rejections through `verify-result`. The registry correctly
-marks the primitive request/result/policy Rust implementations missing. Rust
-realized-fill/statement code implements a different profile; it does not
+all four result rejections through `verify-result`. Rust implements the frozen
+allocation-policy identity, but the primitive request/result Rust
+implementations remain missing. Rust realized-fill/statement code implements a different profile; it does not
 establish support for the complete public primitive request/result/witness
 format. Solidity support is profile-specific too. The
 package runner provides positive frozen-vector, independent-reference, and

@@ -7,6 +7,7 @@ pub mod canonical_order;
 pub mod context_validation;
 pub mod exact_ratio;
 pub mod kernel_types;
+pub mod policy_identity;
 pub mod proportionality;
 pub mod realized_fill;
 pub mod realized_statement;
