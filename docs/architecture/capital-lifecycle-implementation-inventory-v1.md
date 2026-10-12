@@ -20,8 +20,8 @@ in-tree package boundary is implemented and checked for parity.
 | Activation, cancellation/refund, and withdrawal realization | Solidity `OnchainShortfallReserveV2.activateEntitlement`, `cancelAndRefundEntitlement`, `cancelAndRefund`; allocator methods in `IShortfallAllocatorV2` | EVM state and custody implementation currently define these observable transitions. Activation consumes an entitlement representation; cancellation/refund remains pre-activation. The reusable lifecycle contract needs transition vectors derived from current tests before implementation. |
 | Entitlement representation / commitment table | PRF derivation plus Solidity `CommittedImmutableEntitlementRepresentationV1` in `prf-evm/src/applications/pro-rata/` | Representation is an EVM commitment adapter for the current representation profile. Its path under `pro-rata` does not establish ownership of lifecycle admission, liabilities, or withdrawal rules. Preserve existing identity and commitment calculations. |
 | Reusable assurance admission and safe consumption | Solidity `SourceBoundProRataAssuranceV2`, `SourceBoundProRataRatificationControllerV2`, and related verifier/admission interfaces in `prf-evm` | AO/protected-operations capability is partly composed with the current Shortfall execution route. Lifecycle should call a protected-operations port; it must not duplicate freshness, verifier, proof, nonce, or route checks. |
-| Clojure lifecycle transition kernel | No dedicated implementation found in PRF source/package tree | Missing. This is the first pure implementation candidate after transition semantics and vectors are reviewed. Do not represent the existing derivation code as this kernel. |
-| Rust lifecycle transition kernel | No dedicated implementation found in `packages/` or `coprocessor/core/` | Missing. Add only alongside an equivalent Clojure contract and shared transition fixtures, not as a Rust-only extraction. |
+| Clojure lifecycle transition kernel | `packages/capital-lifecycle/clj/src/prf/capital_lifecycle/transition.clj` | New, non-runtime initial transition slice. Consumes explicit admission/custody outcomes; does not derive source or allocation bindings. |
+| Rust lifecycle transition kernel | `packages/capital-lifecycle/rust/src/lib.rs` | New, non-runtime implementation with matching shared vectors. Clojure/Rust parity is tested only for the current 18 transition cases; this is not yet complete conformance for the full normative lifecycle. |
 | Capital lifecycle canonical artifacts for cancellation/consequence, withdrawal realization, and realized settlement | No adopted definitions found in the canonical artifact inventory | Missing by design in the current proposal. Preserve normative NOW requirements, but do not mint identities until a concrete canonical preimage/schema is reviewed and independently vectorized. |
 
 ## Boundary consequence
@@ -32,11 +32,11 @@ pro-rata/NOW derivation path with it. The current implementation is an
 integration path spanning semantic owners; source location must not turn that
 path into shared ownership.
 
-The next code increment should create only the pure lifecycle transition
-package boundary in-tree, initially with the closed state/command types from
-the package contract and conformance fixtures. EVM custody, Shortfall source
-binding, allocation-basis construction, and protected-operations authorization
-remain injected ports. Derive expected transition outcomes from current
+The next code increment should extend and type the pure lifecycle transition
+package boundary in-tree, initially with the state/command slice and shared
+conformance fixtures already added. EVM custody, Shortfall source binding,
+allocation-basis construction, and protected-operations authorization remain
+injected ports. Derive expected transition outcomes from current
 `prf-evm` tests and freeze those as language-neutral fixtures before porting
 logic. Keep the existing Clojure and Rust entitlement derivation untouched
 until a separate adapter split demonstrates that the present roots and proof
