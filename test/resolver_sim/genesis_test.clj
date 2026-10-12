@@ -6,7 +6,8 @@
             [resolver-sim.benchmark.authority-semantics-policy :as semantics-policy]
             [resolver-sim.benchmark.governed-authority-semantics :as semantics]
             [resolver-sim.hash.canonical :as canonical]
-            [resolver-sim.hash.reference :as hash-ref])
+            [resolver-sim.hash.reference :as hash-ref]
+            [scripts.deployment.genesis-roots :as deployment-genesis])
   (:import [clojure.lang ExceptionInfo]))
 
 ;; ── Golden roots (computed at load) ──────────────────────────────────────
@@ -810,3 +811,33 @@
           ci (g/chain-configuration-change-identity-hash transition)
           tr (g/chain-configuration-transition-root transition)]
       (is (not= ci tr)))))
+
+(deftest test-deployment-genesis-root-interface-reuses-canonical-functions
+  (testing "deployment root results come from the existing PRF canonical derivations"
+    (is (= g/protocol-genesis-fixture-root
+           (get (deployment-genesis/derive-root :protocol-genesis
+                                                g/protocol-genesis-fixture)
+                "root")))
+    (is (= g/chain-configuration-v1-fixture-root
+           (get (deployment-genesis/derive-root :chain-configuration
+                                                g/chain-configuration-v1-fixture)
+                "root")))
+    (is (= g/chain-instance-genesis-ethereum-fixture-root
+           (get (deployment-genesis/derive-root :chain-instance-genesis
+                                                g/chain-instance-genesis-ethereum-fixture)
+                "root")))
+    (is (= (g/canonical-verifier-registry-root [])
+           (get (deployment-genesis/derive-root :empty-verifier-registry nil)
+                "root")))))
+
+(deftest test-deployment-genesis-root-interface-is-not-an-approval-authority
+  (testing "derived outputs stay explicitly unapproved and declared roots are checked"
+    (let [result (deployment-genesis/derive-root :protocol-genesis
+                                                 g/protocol-genesis-fixture)
+          package {:protocol-genesis g/protocol-genesis-fixture
+                   :protocol-genesis/root "sha256:0000000000000000000000000000000000000000000000000000000000000000"}]
+      (is (= "derived-only-not-approved" (get result "qualification")))
+      (is (thrown? clojure.lang.ExceptionInfo
+                   (deployment-genesis/derive-root :protocol-genesis package)))
+      (is (thrown? clojure.lang.ExceptionInfo
+                   (deployment-genesis/derive-root :authority-state {}))))))
