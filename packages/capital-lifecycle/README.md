@@ -1,8 +1,9 @@
 # PRF Capital Lifecycle (in-tree package boundary)
 
-This is the first pure transition-kernel slice for the proposed future
-`prf-capital-lifecycle` repository. It is not yet a released package, and no
-PRF, Shortfall, SP1, or Solidity runtime consumes it.
+This is the PRF integration copy of the pure transition-kernel slice now also
+checked into the standalone `prf-capital-lifecycle` repository.
+It is not yet a released or pinned dependency, and no PRF, Shortfall, SP1, or
+Solidity runtime consumes it as a package.
 
 - `clj/`: Clojure transition implementation.
 - `rust/`: Rust transition implementation.

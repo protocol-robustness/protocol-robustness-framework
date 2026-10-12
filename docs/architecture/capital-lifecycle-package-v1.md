@@ -1,6 +1,6 @@
 # Capital lifecycle package boundary and interface
 
-Status: **PROPOSED INTERFACE; documentation only; no runtime consumer**
+Status: **PROPOSED INTERFACE; Clojure/Rust package implementations exist; no runtime consumer**
 
 Interface version: `capital-lifecycle-interface.v1` (document version only; not
 a canonical artifact identity)  
@@ -9,7 +9,7 @@ Domain label: **Protected Capital**
 
 This document defines the intended semantic boundary and first package
 interface for capital lifecycle. The normative NOW-tranche economic rules remain
-in [Protected Capital Pro-Rata V2 semantics](PROTECTED_CAPITAL_PRO_RATA_V2_SEMANTICS.md).
+in the [PRF Protected Capital Pro-Rata V2 semantics](https://github.com/protocol-robustness/protocol-robustness-framework/blob/main/docs/architecture/PROTECTED_CAPITAL_PRO_RATA_V2_SEMANTICS.md) reference.
 This interface does not modify that freeze, existing artifacts, Solidity
 behavior, SP1 public values, or verifier identities.
 
@@ -32,9 +32,9 @@ and admits that basis against operation, asset, source, funding, and beneficiary
 bindings; it does not recompute allocation arithmetic or reinterpret
 application scarcity.
 
-The package boundary is semantic, not a new implementation repository today.
-The first code boundary should be completed in-tree before code moves to
-`prf-capital-lifecycle`.
+The semantic package boundary is defined. The standalone repository
+contains the initial pure Clojure/Rust transition kernel, while the broader
+capital-lifecycle domain remains partially specified and has no runtime consumer.
 
 ## Dependency direction
 
@@ -326,13 +326,14 @@ Keep these registries and records distinct:
 
 ## Implementation and conformance layout
 
-The future repository should contain the language-neutral contract, pure
-Clojure and Rust transition implementations, and cross-language fixtures for
-the same scenarios. The package currently passes its standalone Clojure shared
+The standalone repository contains this language-neutral contract, pure
+Clojure and Rust transition implementations, and shared fixtures for the same
+scenarios. The package currently passes its standalone Clojure shared
 vector suite (54 assertions) and Rust locked test/clippy checks (2 tests,
 zero path dependencies). Solidity remains in `prf-evm`; a direct Foundry harness
-should consume the immutable package revision after extraction rather than a
-workspace-local file path or duplicate copy of the semantic vectors.
+must consume an immutable package revision rather than a workspace-local
+file path or duplicate copy of the semantic vectors. That consumer harness is
+still pending.
 
 Each language fixture must cover accepted and rejected transitions, exact
 accounting deltas, terminal/non-reuse behavior, race orderings, rollback on
@@ -357,13 +358,14 @@ separate evidence.
    Clojure package loads from its own directory with only Maven dependencies;
    the Rust crate passes locked offline dependency resolution and has no path
    dependencies. The shared 26 vectors pass in both languages.
-6. Extract this bounded package into `prf-capital-lifecycle` while retaining
-   the in-tree PRF integration surface. Use a pinned immutable package revision
-   for downstream consumers; do not add developer-local paths or copy the
-   authoritative semantic vectors.
-7. Once `prf-evm` can consume that pinned revision, add a vector-consuming
-   harness for the matching atomic EVM profile transitions. Keep staged
-   reservation transitions outside that profile, and keep receipts separate
-   from semantic inputs/outputs.
+6. **Initial extraction published:** the bounded package, interface spec, and
+   authoritative shared vectors are published in `prf-capital-lifecycle`; the
+   in-tree PRF copy remains transitional. The repository currently has no
+   version tag. Consumers must pin the immutable commit, not a branch, local path,
+   or copied vector file.
+7. Next, pin that commit in the `prf-evm` conformance setup and add a
+   vector-consuming harness for matching activation transitions. Keep staged
+   reservation, release, and expiry transitions outside the current atomic EVM
+   profile, and keep receipts separate from semantic inputs/outputs.
 
 No source files are moved by this specification.
