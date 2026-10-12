@@ -17,6 +17,7 @@
            [java.io ByteArrayOutputStream]
            [java.math BigInteger BigDecimal])
   (:require [prf.canonical.codec :as canonical-codec]
+            [prf.canonical.hash :as canonical-hash]
             [clojure.string :as str]
             [clojure.edn :as edn]
             [resolver-sim.hash.algorithm :as hash-algorithm]
@@ -3553,12 +3554,18 @@ name (an alias)."
                           (= projection-fn project-for-content-hash))
                     (projection-fn value intent flattened-fields)
                     (projection-fn value intent))]
+    (when-not (= canonical-hash-scheme-v1 hash-scheme)
+      (throw (ex-info "Canonical package supports only canonical-hash-scheme.v1"
+                      {:type :unsupported-canonical-hash-scheme
+                       :intent intent :scheme hash-scheme})))
     (when *validate-intent-constraints*
       (validate-intent-constraints! intent value))
-    ;; The resolved scheme drives the digest actually executed — the declared
-    ;; algorithm is the algorithm used, not metadata beside a hard-coded one.
-    (domain-hash-with-scheme hash-scheme
-                             domain-tag
-                             (if (= projection-fn project-world-to-structure-view)
-                               (dissoc projected :projection/flattened-fields)
-                               projected))))
+    (canonical-hash/hash-with-intent
+     {:hash/intent intent
+      :intent/domain-tag domain-tag
+      :intent/projection-fn
+      (fn [_ _]
+        (if (= projection-fn project-world-to-structure-view)
+          (dissoc projected :projection/flattened-fields)
+          projected))}
+     value)))

@@ -32,7 +32,8 @@
 
      canonical-bytes [a b] ≠ encode-sequence [a b]"
   (:require [resolver-sim.hash.canonical :as hc]
-            [resolver-sim.hash.round-trip :as rt]))
+            [resolver-sim.hash.framing-view :as framing]
+            [prf.canonical.sequence :as canonical-sequence]))
 
 (def ^:const sequence-contract
   "Encoding-contract identifier for the named sequence framing."
@@ -139,89 +140,10 @@
   (hc/domain-hash sequence-domain (bound-sequence options components)))
 
 (defn verify-sequence-commitment
-  "Decode and verify a canonical-value-sequence commitment.
+  "Decode and verify a sequence using the canonical package decoder.
 
-   Composes the purpose-neutral canonical round-trip primitive
-   (resolver-sim.hash.round-trip/verify-canonical-single-bytes) for the generic
-   decode/framing/resource verdict, then applies the sequence-contract shape
-   checks on top.  The framing layer only guarantees the byte stream is
-   well-framed canonical bytes; this re-validates the contract so a loaded
-   commitment is a genuine fixed point of `bound-sequence` — i.e. the decoded
-   value's contract fields agree:
-
-     :encoding-contract equals the canonical version
-     :purpose          is a keyword
-     :component-count  is a non-negative integer equal to (count :components)
-     :components       is a vector
-     the map has exactly the four contract keys (bound-sequence emits no other
-     fields, so any extra key means the commitment is not a fixed point)
-
-   Returns {:valid? bool :value (decoded map | nil) :issues [<structured>]}.
-
-   :issues entries are structured maps with a :code and, where relevant,
-   offending values — never human-parsed strings.  The generic framing issues
-   (non-canonical encodings, resource limits) come from the round-trip
-   primitive; the sequence-contract shape violations use
-   :sequence/not-a-map, :sequence/wrong-contract, :sequence/purpose-not-keyword,
-   :sequence/component-count-invalid, :sequence/components-not-vector,
-   :sequence/component-count-mismatch, :sequence/unexpected-keys, and
-   :sequence/trailing-bytes.  Resource-limit rejection is surfaced as
-   :resource-limit? true (with :resource-reason), never misreported as a decode
-   failure."
+   The legacy PRF adapter supplies its established host limits explicitly;
+   the standalone canonical package has no PRF configuration dependency."
   [^bytes ba]
-  (let [{:keys [valid? value issues resource-limit? resource-reason
-                single? fully-consumed?]}
-        (rt/verify-canonical-single-bytes ba)
-        contract-issues (atom [])]
-    (when-not valid?
-      (when (and (not resource-limit?) fully-consumed? (not single?))
-        (swap! contract-issues conj
-               {:code :sequence/trailing-bytes
-                :detail "the commitment does not decode to exactly one value (trailing bytes or extra components)"}))
-      (when (and (not resource-limit?) single? (not fully-consumed?))
-        (swap! contract-issues conj
-               {:code :sequence/trailing-bytes
-                :detail "the commitment does not decode to the entire byte array"})))
-    (when valid?
-      (let [value value]
-        (when-not (map? value)
-          (swap! contract-issues conj
-                 {:code :sequence/not-a-map :value-type (type value)}))
-        (when (map? value)
-          (when-not (= sequence-contract (:encoding-contract value))
-            (swap! contract-issues conj
-                   {:code :sequence/wrong-contract
-                    :actual (:encoding-contract value)
-                    :expected sequence-contract}))
-          (when-not (keyword? (:purpose value))
-            (swap! contract-issues conj
-                   {:code :sequence/purpose-not-keyword
-                    :purpose (:purpose value)}))
-          (let [n (:component-count value)
-                cs (:components value)]
-            (when-not (and (integer? n) (not (neg? n)))
-              (swap! contract-issues conj
-                     {:code :sequence/component-count-invalid
-                      :component-count n}))
-            (when-not (vector? cs)
-              (swap! contract-issues conj
-                     {:code :sequence/components-not-vector
-                      :components-type (type cs)}))
-            (when (and (integer? n) (vector? cs) (not= n (count cs)))
-              (swap! contract-issues conj
-                     {:code :sequence/component-count-mismatch
-                      :expected n :actual (count cs)})))
-          (let [extra (remove #{:encoding-contract :purpose :component-count :components}
-                              (keys value))]
-            (when (seq extra)
-              (swap! contract-issues conj
-                     {:code :sequence/unexpected-keys
-                      :keys (vec (sort-by pr-str extra))}))))))
-    (let [all-issues (vec (concat issues @contract-issues))
-          contract-ok? (empty? @contract-issues)
-          ok? (and valid? contract-ok?)]
-      {:valid? ok?
-       :value (when ok? value)
-       :issues all-issues
-       :resource-limit? resource-limit?
-       :resource-reason resource-reason})))
+  (canonical-sequence/verify-sequence-commitment
+   ba {:limits framing/default-limits}))
