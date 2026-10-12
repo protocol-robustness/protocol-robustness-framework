@@ -62,6 +62,19 @@ legacy call compatibility and the existing V1 vectors. In particular,
 `domain-hash` must preserve the current string/keyword domain mapping and
 `project-canonical-safe` behavior used by researcher-challenge roots.
 
+The current canonical source candidate exports the codec, string-tag
+`hash-with-domain`, and SHA-256 reference operations. A research-side
+compatibility test now checks codec bytes, representative research V1 domain
+hashes, and reference formatting against those candidate APIs. It does not
+switch any authoritative callers. The standalone canonical candidate's own
+test runner also passes (3 tests, 25 assertions) from its package directory.
+The remaining C2 coordination items are
+keyword domain-tag compatibility, safe/content projections, intent-based
+hash/equality used by evidence records/chains, and the canonical sequence
+commitment API used by research-command. The exact function set and the
+required V1 compatibility constraints are machine-recorded in
+`packages/module-boundaries.edn`.
+
 ## `config.defaults` coupling
 
 No research artifact builder reads `config.defaults` directly. It enters the
