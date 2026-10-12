@@ -170,6 +170,36 @@ legacy and successor prepared-operation V2 paths must retain their current
 identities and layouts while their cross-language equivalence issue is handled
 as a separate identity task. Do not combine those preimages during extraction.
 
+### Foundry conformance evidence
+
+The Foundry suites below were run on 2026-10-12: 45 tests passed, 0 failed.
+They test the existing EVM implementation; they do not consume the package's
+JSONL vectors directly.
+
+| Kernel vector behavior | Existing Foundry evidence | Conformance scope |
+| --- | --- | --- |
+| `reserve-*`, `expire-*`, terminal reservation | `OnchainShortfallReserveV2.t.sol`: `test_ReservationExpiryIsPermissionlessAndPreservesCustody`, `test_RevisionChangesWhenReservationIsReleased`, `test_PreparedStateDoesNotReserveCapital` | Partial. EVM verifies an expiring exclusion hold and proves prepared work does not reserve capital. It has no operation-bound reserve → release/expire → fund sequence matching the kernel. |
+| `fund-*`, exact funding, rollback | `OnchainShortfallReserveV2.t.sol`: `test_RatifyAndFundComparesCommitmentAndClearsEphemeralReservation`, `test_FundFailuresLeaveNoObservableRatificationState`, `test_TokenFundingFailuresLeaveNoObservableRatificationState`; controller `test_ReserveFailureRestoresPreparedStateAndAssurance` | Partial. EVM ratifies and funds atomically, checks exact token deltas and rollback; it does not expose the kernel's staged `fund` transition. |
+| `activate-*`, activation/cancellation race | `SourceBoundProRataEntitlementRatificationControllerV1.t.sol`: `test_RatifiesAndFundsTheExactAdmittedEntitlementTuple`, `test_ActivationRequiresTheAdmittedLogicalRootCountAndTotal`, `test_ActivationRejectsCountAndTotalMismatches`, `test_ActivationWinsAgainstCancelAndRefund` | EVM checks the application tuple and deployed representation. Kernel's generic opaque basis references are not EVM canonical-root vectors. |
+| `cancel-*`, refund terminality | `SourceBoundProRataEntitlementRatificationControllerV1.t.sol`: `test_CancelAndRefundReturnsExactCapitalAndIsTerminal`; `SourceBoundProRataRatificationControllerV2.t.sol`: `test_LegacyFundCancelRefundRestoresReserveAccountingEndToEnd` | Covered for the existing pre-activation cancellation/refund paths, including physical balance restoration and terminal state. |
+| `withdraw-*`, `close-*` | `ProductionProRataAllocatorV2Withdrawal.t.sol`: `test_RequestedNoProofAndInvalidOptionalProofExecuteAndCloseExactly`, `test_RequiredRejectsMissingAndInvalidButAcceptsValidProof`, `test_TableOpeningSubstitutionAndDuplicateClaimReplayReject`, `test_FeeOnTransferRollsBackConsumptionAndAccounting` | Covered for EVM opening/proof policy, replay protection, token deltas, and automatic closure. Kernel vectors cover only abstract liability/count transitions. |
+| `activate-alternative-adapter` | No current EVM application adapter | Intentionally untested in Solidity; the vector checks that the generic lifecycle kernel does not require a pro-rata basis type. |
+
+Executed commands from `prf-evm`:
+
+```text
+forge test --match-path test/OnchainShortfallReserveV2.t.sol
+forge test --match-path test/SourceBoundProRataRatificationControllerV2.t.sol
+forge test --match-path test/SourceBoundProRataEntitlementRatificationControllerV1.t.sol
+forge test --match-path test/ProductionProRataAllocatorV2Withdrawal.t.sol
+```
+
+This establishes coverage for the current EVM path, not full adapter
+conformance. A future adapter layer must either map the kernel's staged
+operation reservation onto an explicit EVM contract or keep that transition
+outside the current EVM profile. Do not change Solidity economic behavior just
+to make the test matrix appear symmetrical.
+
 ## Transition API
 
 The package's pure semantic API is a closed transition function. Runtime
