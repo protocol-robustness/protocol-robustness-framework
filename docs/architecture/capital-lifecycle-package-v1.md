@@ -194,11 +194,20 @@ forge test --match-path test/SourceBoundProRataEntitlementRatificationController
 forge test --match-path test/ProductionProRataAllocatorV2Withdrawal.t.sol
 ```
 
-This establishes coverage for the current EVM path, not full adapter
-conformance. A future adapter layer must either map the kernel's staged
-operation reservation onto an explicit EVM contract or keep that transition
-outside the current EVM profile. Do not change Solidity economic behavior just
-to make the test matrix appear symmetrical.
+### Current EVM profile boundary
+
+The current EVM profile is atomic: prepared operation → atomic ratify-and-fund
+→ activation → withdrawals and automatic closure, or pre-activation
+cancel-and-refund. Preparing an operation does not reserve capital. The generic
+lifecycle kernel retains staged operation reservation, release, and expiry for
+other implementations, but those transitions are outside the current EVM
+profile and must not be reported as EVM-conformant. This records the existing
+implementation boundary; it does not add or change Solidity behavior.
+
+The Foundry evidence therefore covers the EVM profile's existing transition
+subset, not direct consumption of every package JSONL vector. Future adapter
+work can add an explicit vector-to-EVM harness when it can preserve this
+boundary and keep receipts separate from semantic inputs/outputs.
 
 ## Transition API
 
@@ -339,11 +348,13 @@ separate evidence.
    shared positive/negative vectors, including an alternative adapter fixture.
    The EDN examples remain explanatory placeholders. Do not pass row formats
    into the core.
-4. Next, add explicit EVM adapter conformance for the lifecycle transitions
-   using existing Solidity tests and receipts as evidence. Keep Solidity economic
-   behavior unchanged and keep EVM receipts separate from semantic vectors.
-5. The pure transition kernel and shared vectors already form an in-tree
-   package. Validate independent loading, dependency direction, and adapter
-   conformance there before creating `prf-capital-lifecycle`.
+4. The current EVM profile is the atomic ratify/fund lifecycle subset above;
+   staged reservation, release, and expiry remain generic kernel transitions
+   outside that profile. The existing Foundry suite is its current evidence.
+5. Validate independent Clojure/Rust loading and dependency direction, then add
+   a vector-consuming EVM harness only where the EVM profile has a matching
+   transition. Keep Solidity behavior unchanged and receipts separate.
+6. Pin package dependencies and validate extraction before creating
+   `prf-capital-lifecycle`.
 
 No source files are moved by this specification.
