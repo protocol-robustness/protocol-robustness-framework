@@ -360,12 +360,16 @@ separate evidence.
    dependencies. The shared 26 vectors pass in both languages.
 6. **Initial extraction published:** the bounded package, interface spec, and
    authoritative shared vectors are published in `prf-capital-lifecycle`; the
-   in-tree PRF copy remains transitional. The repository currently has no
-   version tag. Consumers must pin the immutable commit, not a branch, local path,
-   or copied vector file.
-7. Next, pin that commit in the `prf-evm` conformance setup and add a
-   vector-consuming harness for matching activation transitions. Keep staged
-   reservation, release, and expiry transitions outside the current atomic EVM
-   profile, and keep receipts separate from semantic inputs/outputs.
+   in-tree PRF copy remains transitional. The published package revision is
+   `c948cffee6cce640081242057c145b75f2f2dfcd`; it has no version tag. Consumers
+   must pin the immutable commit, not a branch, local path, or copied vector.
+7. The `prf-evm` pin and three activation-vector conformance cases are published
+   on branch `capital-lifecycle-vector-conformance` at commit
+   `d50746ca15c635c42543f5ffe073fdc002afc4f5` (based on EVM commit
+   `353062b667e900b6735fea6fd7ef7a61fd5282e3`). All 16 Foundry tests pass in
+   the durable isolated worktree. The active demo checkout still has local work
+   and was left untouched; merge the branch into that line after its changes
+   are captured. Staged reservation, release, and expiry remain outside the
+   atomic EVM profile; receipts remain separate from semantic inputs/outputs.
 
 No source files are moved by this specification.
