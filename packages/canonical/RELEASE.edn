@@ -1,6 +1,6 @@
 {:release/id "prf-canonical"
  :release/version "0.1.0-rc.1"
- :release/status :compatibility-qualified-unpinned
+ :release/status :compatibility-qualified
  :release/surface #{:clojure :rust}
  :release/contracts ["canonical-hash-scheme.v1"
                      "root-reference.v1"
