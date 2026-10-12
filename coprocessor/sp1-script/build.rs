@@ -1,6 +1,11 @@
 use sp1_build::build_program_with_args;
 
 fn main() {
+    // The guests share these local crates. Rebuild their ELF when shared
+    // semantics change, even when the guest entrypoint itself is unchanged.
+    println!("cargo:rerun-if-changed=../core/src");
+    println!("cargo:rerun-if-changed=../../packages/canonical/rust/src");
+    println!("cargo:rerun-if-changed=../../packages/pro-rata-allocation/rust/src");
     build_program_with_args("../sp1-program", Default::default());
     build_program_with_args("../realized-statement-sp1-program", Default::default());
     build_program_with_args("../realized-execution-sp1-program", Default::default());

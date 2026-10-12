@@ -70,9 +70,17 @@
                              :total-requested total-requested})))
         policy (keyword-values (get input "policy"))
         fail-policy (some-> (get input "fail-action-policy") keyword-values)
-        decision (partial-fill/calculate-fulfillment-pro-rata
+        calculated (partial-fill/calculate-fulfillment-pro-rata
                   available requested (cond-> policy fail-policy
                                               (assoc :fail-action-policy fail-policy)))
+        ;; An explicitly selected request-only profile preserves the unmet
+        ;; quantity, without creating the legacy profile's deferred obligation.
+        decision (if (= {:mode :unmet-request} fail-policy)
+                   (assoc calculated :deferred {} :haircut {}
+                          :unrealized (into {} (map (fn [[claim amount]]
+                                                     [claim (- amount (get-in calculated [:filled claim] 0))])
+                                                   requested)))
+                   calculated)
         lifecycle (round-state/round-lifecycle {} (get input "round-state"))
         statement (admission/recompute-statement
                    {:allocation-context ctx :decision decision :round-lifecycle lifecycle})]

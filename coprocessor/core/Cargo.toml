@@ -18,3 +18,7 @@ prf-pro-rata-allocation = { path = "../../packages/pro-rata-allocation/rust" }
 [[bin]]
 name = "realized-statement-kernel"
 path = "src/bin/realized_statement_kernel.rs"
+
+[[bin]]
+name = "controlled-entitlement-source-replay"
+path = "src/bin/controlled_entitlement_source_replay.rs"

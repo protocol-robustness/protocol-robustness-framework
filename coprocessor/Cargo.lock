@@ -105,12 +105,23 @@ dependencies = [
  "bincode",
  "clap",
  "hex",
+ "num-bigint 0.4.8",
  "observed-run-sp1-program",
  "serde",
  "serde_json",
  "sha2",
+ "slop-algebra",
+ "slop-bn254",
  "sp1-build",
+ "sp1-hypercube",
+ "sp1-primitives",
+ "sp1-prover",
+ "sp1-prover-types",
+ "sp1-recursion-circuit",
+ "sp1-recursion-executor",
+ "sp1-recursion-gnark-ffi",
  "sp1-sdk",
+ "tokio",
 ]
 
 [[package]]

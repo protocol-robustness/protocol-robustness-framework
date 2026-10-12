@@ -9,6 +9,20 @@
 (defn fixture []
   (json/read-str (slurp fixture-path) :key-fn keyword))
 
+(deftest unmet-request-profile-keeps-remainder-unfunded
+  (let [input (assoc-in (:base-input (fixture))
+                       [:realized-statement-input :fail-action-policy] {:mode "unmet-request"})
+        root (:realized-statement-root (sut/derive input))
+        bound (assoc-in input [:prepared-operation :policy-root] (str "0x" root))
+        derived (sut/derive-controlled-source bound)]
+    (is (= 70N (:entitlement-total derived)))
+    (is (= [35N 21N 14N] (mapv :amount (get-in derived [:entitlement-set :entitlements]))))
+    (is (thrown? clojure.lang.ExceptionInfo
+                 (sut/derive-controlled-source
+                  (assoc-in bound [:realized-statement-input :fail-action-policy]
+                            {:mode "pro-rata-treatment" :deferred-policy "same-ratio"
+                             :haircut-policy "same-ratio"}))))))
+
 (defn materialize [base transform]
   (case transform
     "identity" base

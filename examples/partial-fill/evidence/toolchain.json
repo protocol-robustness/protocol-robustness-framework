@@ -1,0 +1,24 @@
+{
+  "scope": "local Foundry EVM execution; official SP1 Groth16 verifier; no public-chain transaction",
+  "proof_runtime": {
+    "SP1_PROVER": "cpu",
+    "RAYON_NUM_THREADS": "8",
+    "GOMAXPROCS": "8",
+    "GOMEMLIMIT": "20GiB",
+    "SP1_WORKER_NUM_CORE_WORKERS": "1",
+    "SP1_WORKER_NUM_RECURSION_PROVER_WORKERS": "1",
+    "pipeline": "checkpointed SDK compressed/shrink/wrap; fresh native Groth16 FFI process; SDK cryptographic verification"
+  },
+  "rust": "rustc 1.98.1 (48a229cea 2026-09-01)",
+  "cargo": "cargo 1.98.1 (797e8a9bc 2026-08-05)",
+  "sp1_sdk": "6.3.1",
+  "solc": "solc, the solidity compiler commandline interface\nVersion: 0.8.33+commit.64118f21.Linux.g++",
+  "forge": "forge Version: 1.7.1\nCommit SHA: 4072e48705af9d93e3c0f6e29e93b5e9a40caed8\nBuild Timestamp: 2026-05-08T07:50:55.527285345Z (1778226655)\nBuild Profile: dist",
+  "evm_base_revision": "353062b667e900b6735fea6fd7ef7a61fd5282e3",
+  "prf_revision_status": "workspace snapshot; SHA-256 source archives, no usable git revision",
+  "dependencies": {
+    "forge-std": "e3386f2f9cc5ebf16ec5370869d5a49cdb85a0cb",
+    "openzeppelin-contracts": "353062b667e900b6735fea6fd7ef7a61fd5282e3",
+    "sp1-contracts": "d3629729c3216eb51bd4859d027a8eb729399fa4"
+  }
+}

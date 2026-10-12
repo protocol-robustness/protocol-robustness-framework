@@ -1,0 +1,335 @@
+{
+  "schema": "partial-fill-qualification.v1",
+  "qualified": true,
+  "scope": "local Foundry EVM; real SP1 Groth16; no public-chain execution",
+  "participants": [
+    {
+      "name": "Alice",
+      "requested": 50,
+      "allocated": 35,
+      "unfilled": 15,
+      "withdrawn": 35,
+      "beneficiary": "0x1111111111111111111111111111111111111111"
+    },
+    {
+      "name": "Bob",
+      "requested": 30,
+      "allocated": 21,
+      "unfilled": 9,
+      "withdrawn": 21,
+      "beneficiary": "0x2222222222222222222222222222222222222222"
+    },
+    {
+      "name": "Carol",
+      "requested": 20,
+      "allocated": 14,
+      "unfilled": 6,
+      "withdrawn": 14,
+      "beneficiary": "0x3333333333333333333333333333333333333333"
+    }
+  ],
+  "tokenTransfers": [
+    {
+      "token": "0x5615dEB798BB3E4dFa0139dFa1b3D433Cc23b72f",
+      "from": "0xD6BbDE9174b1CdAa358d2Cf4D57D1a9F7178FBfF",
+      "to": "0x03A6a84cD762D9707A21605b548aaaB891562aAb",
+      "amount": 70
+    },
+    {
+      "token": "0x5615dEB798BB3E4dFa0139dFa1b3D433Cc23b72f",
+      "from": "0x03A6a84cD762D9707A21605b548aaaB891562aAb",
+      "to": "0x1111111111111111111111111111111111111111",
+      "amount": 35
+    },
+    {
+      "token": "0x5615dEB798BB3E4dFa0139dFa1b3D433Cc23b72f",
+      "from": "0x03A6a84cD762D9707A21605b548aaaB891562aAb",
+      "to": "0x2222222222222222222222222222222222222222",
+      "amount": 21
+    },
+    {
+      "token": "0x5615dEB798BB3E4dFa0139dFa1b3D433Cc23b72f",
+      "from": "0x03A6a84cD762D9707A21605b548aaaB891562aAb",
+      "to": "0x3333333333333333333333333333333333333333",
+      "amount": 14
+    }
+  ],
+  "requested": 100,
+  "available": 70,
+  "unmet": 30,
+  "final": {
+    "requested": 100,
+    "allocated": 70,
+    "funded": 70,
+    "withdrawn": [
+      35,
+      21,
+      14
+    ],
+    "unmetRequests": [
+      15,
+      9,
+      6
+    ],
+    "deferred": 0,
+    "haircut": 0,
+    "remainingFundedLiability": 0,
+    "allocatorBalance": 0,
+    "protectedReserveBalance": 10,
+    "operation": "Closed",
+    "scope": "local Foundry EVM execution; no public-chain transaction"
+  },
+  "identity": {
+    "program_id": "source-bound-entitlement-controlled-sp1-program.v1",
+    "vkey": "0x00aaa7dfb3c67d634a4fad32523814fc016b47a041009dd103dd1c59737959e8",
+    "elf_sha256": "0x3dae0e8f267f09cb11001838ece89262fe3d98dbc6cc36e7601707c9d1b630ac"
+  },
+  "sourceRoot": "b0738f50aa2a33b26d7d1dd6d99d027185be805b547f6473c30b563bd1ee34be",
+  "policy": {
+    "id": "controlled-partial-fill.v1",
+    "allocation": "pro-rata",
+    "rounding": "largest-remainder",
+    "tie-break": "canonical claim order",
+    "caps": "requested amounts",
+    "unfilled": "unmet request only; no deferred claim, haircut or future obligation",
+    "available": 70,
+    "requested": {
+      "claim-a": 50,
+      "claim-b": 30,
+      "claim-c": 20
+    }
+  },
+  "configuration": {
+    "protocolRoot": "0x8bd4f3e6230bfdd1f6c171ca14446fb90841f05256a468a9fbf863bbce82619b",
+    "authorityRoot": "0xa7daf7af94eb99d8cf4a04ab17dc0dceafdee321e486e4b44b42348ec508b8ea",
+    "configurationRoot": "0xb79fb4bff162b96eb343bf19096241ffa6cc2c9838f6552a456d015d4e354f48",
+    "sourceRoot": "0xb0738f50aa2a33b26d7d1dd6d99d027185be805b547f6473c30b563bd1ee34be"
+  },
+  "genesis": {
+    "chainRoot": "0x797ee6a49fc91e366074506b02f00437fe883455d76dc009caf9de3e3d4ec04e"
+  },
+  "roots": {
+    "allocation-binding-root": "d62f9246f6972715a16a8c6842f8b1a24c0c4776d3e04ab4026a38f947ed2f74",
+    "allocation-claim-leaves": [
+      "d19d1f3ae39547f82a6766044ffc7be4f421b36e63a5524cf89fd580821e40df",
+      "5e53557f71b07373c0bb8aac55bbc1a360187650b4ce663fe6bfd22bcfc1c91e",
+      "2cc82429dcb7b42fdb5bfdd3215a6bf67b7325a64e874146558a832e9a5cd506"
+    ],
+    "allocation-claim-root": "fdea15127abffafd9c1a367305bc0669887249403c831114b910f5932784a830",
+    "canonical-entitlement-set-root": "429aa0ea2428121a1ee94b59548eb92d7974a8cb0cd783a9f1454faaf45fc710",
+    "entitlement-count": "3",
+    "entitlement-representation-descriptor-root": "0e8b6d0eb8a46279fee6697366b2bdfa0b4aa514dacf17e9e264744d90d91c1f",
+    "entitlement-total": "70",
+    "evm-entitlement-commitments": [
+      "860fbaded02800d0384fb5365f582ad404fb25b629d3c7349b43397122ec898e",
+      "ef7ea1fcf2910d5335e0fa0922f1d3e434f1cd28fc59257be3a8182073d7b76d",
+      "2413e232a9a5c131f5ec9b567124fd43fe38f17b27265345fb87d5c08c407853"
+    ],
+    "evm-entitlement-table-root": "49c2b4a633ee450705e1970271a257063b98e38cf014231dec8cdf2eb37e2108",
+    "operation-id": "0x68bbd2f2aafa838f0de914dbf8fe89307522c979fe3b99a1ba4ec2b8e34cd37e",
+    "ordered-entitlements": [
+      {
+        "allocation-binding-root": "sha256:d62f9246f6972715a16a8c6842f8b1a24c0c4776d3e04ab4026a38f947ed2f74",
+        "amount": "35",
+        "beneficiary": "0x1111111111111111111111111111111111111111",
+        "beneficiary-profile": "immutable-address-v1",
+        "claim-id": "claim-a",
+        "entitlement-root": "ab3e339c00ef025a9a7c8debce10819f2907f843d966d6f10c5dbe505b16ed54",
+        "operation-id": "0x68bbd2f2aafa838f0de914dbf8fe89307522c979fe3b99a1ba4ec2b8e34cd37e",
+        "ordinal": "0",
+        "realized-statement-root": "b0738f50aa2a33b26d7d1dd6d99d027185be805b547f6473c30b563bd1ee34be"
+      },
+      {
+        "allocation-binding-root": "sha256:d62f9246f6972715a16a8c6842f8b1a24c0c4776d3e04ab4026a38f947ed2f74",
+        "amount": "21",
+        "beneficiary": "0x2222222222222222222222222222222222222222",
+        "beneficiary-profile": "immutable-address-v1",
+        "claim-id": "claim-b",
+        "entitlement-root": "701850aadc22c24380cf90fec0bd78ffffe7de424c7babc1f920a861d5a7e1b9",
+        "operation-id": "0x68bbd2f2aafa838f0de914dbf8fe89307522c979fe3b99a1ba4ec2b8e34cd37e",
+        "ordinal": "1",
+        "realized-statement-root": "b0738f50aa2a33b26d7d1dd6d99d027185be805b547f6473c30b563bd1ee34be"
+      },
+      {
+        "allocation-binding-root": "sha256:d62f9246f6972715a16a8c6842f8b1a24c0c4776d3e04ab4026a38f947ed2f74",
+        "amount": "14",
+        "beneficiary": "0x3333333333333333333333333333333333333333",
+        "beneficiary-profile": "immutable-address-v1",
+        "claim-id": "claim-c",
+        "entitlement-root": "28a0bf8576e1a722d28e0ab40d13b1b29f82504f113949a49ec4d70de096363e",
+        "operation-id": "0x68bbd2f2aafa838f0de914dbf8fe89307522c979fe3b99a1ba4ec2b8e34cd37e",
+        "ordinal": "2",
+        "realized-statement-root": "b0738f50aa2a33b26d7d1dd6d99d027185be805b547f6473c30b563bd1ee34be"
+      }
+    ],
+    "prepared-operation-root": "431deda4d66b9d78ba095a3c32e99e142673d7ee25c05b1a962adbeae0a18ba5",
+    "public-values": "876f2aea9124d79f41dbdd389d498430987fa33bbb34408989849c478a7c2bde431deda4d66b9d78ba095a3c32e99e142673d7ee25c05b1a962adbeae0a18ba533da34a68338d463408b251a574eca87ae9019ee5f97902ec0461354058ebc08d62f9246f6972715a16a8c6842f8b1a24c0c4776d3e04ab4026a38f947ed2f740e8b6d0eb8a46279fee6697366b2bdfa0b4aa514dacf17e9e264744d90d91c1f49c2b4a633ee450705e1970271a257063b98e38cf014231dec8cdf2eb37e210800000000000000000000000000000000000000000000000000000000000000030000000000000000000000000000000000000000000000000000000000000046fdea15127abffafd9c1a367305bc0669887249403c831114b910f5932784a830",
+    "public-words": [
+      "876f2aea9124d79f41dbdd389d498430987fa33bbb34408989849c478a7c2bde",
+      "431deda4d66b9d78ba095a3c32e99e142673d7ee25c05b1a962adbeae0a18ba5",
+      "33da34a68338d463408b251a574eca87ae9019ee5f97902ec0461354058ebc08",
+      "d62f9246f6972715a16a8c6842f8b1a24c0c4776d3e04ab4026a38f947ed2f74",
+      "0e8b6d0eb8a46279fee6697366b2bdfa0b4aa514dacf17e9e264744d90d91c1f",
+      "49c2b4a633ee450705e1970271a257063b98e38cf014231dec8cdf2eb37e2108",
+      "0000000000000000000000000000000000000000000000000000000000000003",
+      "0000000000000000000000000000000000000000000000000000000000000046",
+      "fdea15127abffafd9c1a367305bc0669887249403c831114b910f5932784a830"
+    ],
+    "realized-statement-root": "b0738f50aa2a33b26d7d1dd6d99d027185be805b547f6473c30b563bd1ee34be",
+    "reserve-state-commitment": "33da34a68338d463408b251a574eca87ae9019ee5f97902ec0461354058ebc08",
+    "schema-word": "876f2aea9124d79f41dbdd389d498430987fa33bbb34408989849c478a7c2bde"
+  },
+  "tests": {
+    "test_QualificationWithdrawsAndClosesExactly()": {
+      "status": "Success",
+      "gas": 2366194
+    },
+    "test_RejectChangedAllocationRepresentation()": {
+      "status": "Success",
+      "gas": 2584827
+    },
+    "test_RejectFundingMoreThanCommittedCapital()": {
+      "status": "Success",
+      "gas": 1290180
+    },
+    "test_RejectOverWithdrawalAndDuplicateConsumption()": {
+      "status": "Success",
+      "gas": 2351122
+    },
+    "test_RejectProofForAnotherOperationAndPolicyMutation()": {
+      "status": "Success",
+      "gas": 1312760
+    },
+    "test_RejectProofPublicValueSubstitution()": {
+      "status": "Success",
+      "gas": 2605463
+    },
+    "test_RejectRatificationAndFundingReplay()": {
+      "status": "Success",
+      "gas": 1784687
+    },
+    "test_RejectStaleReserveThenRecoverWithFreshRealProof()": {
+      "status": "Success",
+      "gas": 3216964
+    },
+    "test_RejectUnauthorizedAndRouteBypass()": {
+      "status": "Success",
+      "gas": 1315469
+    }
+  },
+  "sourceRejections": [
+    {
+      "case": "changed-request",
+      "input": "changed-request.json",
+      "result": "rejected",
+      "exitCode": 1,
+      "diagnostic": "controlled source rejected: prepared-operation policy-root must equal realized statement root",
+      "boundary": "native controlled-source derivation; no EVM transaction attempted"
+    },
+    {
+      "case": "changed-disposition-policy",
+      "input": "changed-disposition-policy.json",
+      "result": "rejected",
+      "exitCode": 1,
+      "diagnostic": "controlled source rejected: prepared-operation policy-root must equal realized statement root",
+      "boundary": "native controlled-source derivation; no EVM transaction attempted"
+    },
+    {
+      "case": "changed-source-commitment",
+      "input": "changed-source-commitment.json",
+      "result": "rejected",
+      "exitCode": 1,
+      "diagnostic": "controlled source rejected: prepared-operation policy-root must equal realized statement root",
+      "boundary": "native controlled-source derivation; no EVM transaction attempted"
+    },
+    {
+      "case": "caller-supplied-allocation",
+      "input": "caller-supplied-allocation.json",
+      "result": "rejected",
+      "exitCode": 1,
+      "diagnostic": "controlled source rejected: unknown successor witness field",
+      "boundary": "native controlled-source derivation; no EVM transaction attempted"
+    }
+  ],
+  "independentReplay": "Exact Clojure/Rust equality, including canonical roots and 288 public bytes",
+  "limitations": [
+    "Controlled initiator-specified requests, not independent evidence of external liabilities.",
+    "Single local test governor; production governance and Base Sepolia unqualified.",
+    "No public-chain transaction receipts.",
+    "Unmet requests create no deferred entitlement, recognized loss or future obligation.",
+    "Stale recovery preserves the operation\u2019s committed 70-unit allocation; changed available capital would require source-consistent requalification/new operation."
+  ],
+  "availableFiles": [
+    "PartialFillControlled.t.sol",
+    "README.md",
+    "bootstrap.json",
+    "bootstrap.log",
+    "browser-validation.json",
+    "build.log",
+    "canonical-configuration.edn",
+    "canonical-genesis.edn",
+    "clojure-replay.json",
+    "clojure-tests.log",
+    "configuration.json",
+    "context.json",
+    "context.log",
+    "continuation-rejections.json",
+    "controlled-program.elf",
+    "evm-original-tests.json",
+    "evm-source.tar.gz",
+    "evm-tests.json",
+    "genesis-context.json",
+    "genesis-context.log",
+    "genesis.json",
+    "guest-execute.log",
+    "identity-input.json",
+    "identity-replay.json",
+    "identity.json",
+    "identity.log",
+    "isolated-reproduction.json",
+    "materialize.clj",
+    "negative-source/caller-supplied-allocation.json",
+    "negative-source/changed-disposition-policy.json",
+    "negative-source/changed-request.json",
+    "negative-source/changed-source-commitment.json",
+    "negative-source/results.json",
+    "package-evidence.py",
+    "policy.edn",
+    "policy.json",
+    "prf-source.tar.gz",
+    "proof.json",
+    "prove.log",
+    "qualification.json",
+    "qualify-source.py",
+    "recovery-clojure-replay.json",
+    "recovery-compressed.bin",
+    "recovery-context.json",
+    "recovery-context.log",
+    "recovery-proof.json",
+    "recovery-prove.log",
+    "recovery-replay.json",
+    "recovery-reserve-binding.json",
+    "recovery-resume-prove.log",
+    "recovery-witness.json",
+    "recovery-wrap.log",
+    "recovery-wrapper-witness.json",
+    "regression-tests.json",
+    "replay.json",
+    "report.py",
+    "reserve-binding.json",
+    "resume-build.log",
+    "resume-prove.log",
+    "run-local.sh",
+    "rust-core-tests.log",
+    "rust-pro-rata-tests.log",
+    "source-roots.json",
+    "source.json",
+    "token-transfers.json",
+    "toolchain.json",
+    "validation.json",
+    "witness.json",
+    "wrap-build.log",
+    "wrapper-witness.json",
+    "manifest.json"
+  ]
+}

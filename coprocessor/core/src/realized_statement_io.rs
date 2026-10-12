@@ -190,10 +190,22 @@ pub fn run_realized_statement_with_details(input: &Value, detailed: bool) -> Val
     let lc = realized_statement::lifecycle_canon_value(&rl);
 
     // Realize the partial fill (semantics layer), fail-closed on malformed.
-    let realized: RealizedAllocation = match realized_fill::partial_fill(available, &requested) {
+    let unmet_request = fail_action_policy.as_deref().is_some_and(|pairs| {
+        pairs.len() == 1 && pairs[0] == ("mode".to_owned(), CanonValue::keyword("unmet-request"))
+    });
+    let mut realized: RealizedAllocation = match realized_fill::partial_fill(available, &requested) {
         Ok(r) => r,
         Err(e) => return reject("realization-failed", e),
     };
+    // This explicitly selected profile describes requests, not continuing
+    // obligations. Preserve the unmet amount in the existing unrealized field;
+    // never promote it into a deferred claim or funded entitlement.
+    if unmet_request {
+        for participant in &mut realized.participants {
+            participant.unrealized = participant.requested - participant.filled;
+            participant.deferred = 0;
+        }
+    }
 
     let stmt = realized_statement::build_statement(
         &ctx,
@@ -240,6 +252,7 @@ pub fn run_realized_statement_with_details(input: &Value, detailed: bool) -> Val
     let filled_total: i64 = realized.participants.iter().map(|p| p.filled).sum();
     let deferred_total: i64 = realized.participants.iter().map(|p| p.deferred).sum();
     let haircut_total: i64 = realized.participants.iter().map(|p| p.haircut).sum();
+    let unrealized_total: i64 = realized.participants.iter().map(|p| p.unrealized).sum();
     Some(compact).map(|mut result| {
         result["details"] = json!({
             "projection/schema": "realized-partial-fill-details.v1",
@@ -251,8 +264,8 @@ pub fn run_realized_statement_with_details(input: &Value, detailed: bool) -> Val
                 "filled-total": filled_total,
                 "deferred-total": deferred_total,
                 "haircut-total": haircut_total,
-                "conservation": filled_total + deferred_total + haircut_total == requested_total,
-                "supported-profile": "largest-remainder-deferred-pro-rata.v1",
+                "conservation": filled_total + deferred_total + haircut_total + unrealized_total == requested_total,
+                "supported-profile": if unmet_request { "largest-remainder-unmet-request-pro-rata.v1" } else { "largest-remainder-deferred-pro-rata.v1" },
             },
             "committed-roots": {
                 "allocation-context-root": stmt.allocation_context_root,
@@ -264,6 +277,9 @@ pub fn run_realized_statement_with_details(input: &Value, detailed: bool) -> Val
                 "statement-root": stmt.statement_root,
             },
         });
+        if unmet_request {
+            result["details"]["audit"]["unmet-request-total"] = json!(unrealized_total);
+        }
         result
     }).unwrap()
 }
@@ -287,10 +303,10 @@ fn validate_supported_profile(
     let supported_fail_action = match fail_action_policy {
         None => true,
         Some(pairs) => {
-            pairs.len() == 3
+            (pairs.len() == 1 && keyword_is(pairs, "mode", "unmet-request")) || (pairs.len() == 3
                 && keyword_is(pairs, "mode", "pro-rata-treatment")
                 && keyword_is(pairs, "deferred-policy", "same-ratio")
-                && keyword_is(pairs, "haircut-policy", "same-ratio")
+                && keyword_is(pairs, "haircut-policy", "same-ratio"))
         }
     };
     if supported_policy && supported_fail_action {
