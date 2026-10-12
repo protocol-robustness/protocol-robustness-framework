@@ -15,6 +15,9 @@
   :prf-research-contracts
   {:owner :prf-research
    :status :in-tree-only
+   :qualification {:isolated-source-closure-load? true
+                  :released-artifact? false
+                  :immutable-coordinate? false}
    :public-namespace resolver-sim.research.api
    :api ["research-analysis-output.v1" "research-analysis-verification.v1"
          "research-analytical-claim.v2" "research-claim-acceptance.v1"
@@ -23,6 +26,9 @@
   :prf-incentives
   {:owner :prf-incentives
    :status :in-tree-only
+   :qualification {:isolated-source-closure-load? true
+                  :released-artifact? false
+                  :immutable-coordinate? false}
    :public-namespace resolver-sim.incentives.api
    :api ["researcher-reward-policy.v1" "researcher-reward-eligibility.v1"
          "researcher-reward-proposal.v1" "researcher-reward-obligation.v1"]

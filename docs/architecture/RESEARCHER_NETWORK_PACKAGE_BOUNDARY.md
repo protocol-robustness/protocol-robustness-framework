@@ -112,6 +112,8 @@ researcher-network entrypoint. It used only an explicit source classpath, the
 existing `config/defaults.edn` resource, and explicitly declared Maven
 dependencies; the repository source tree was not on its classpath. The
 research and incentives API alias suite passed there (2 tests, 23 assertions).
+This check is reproducible with
+[`scripts/qualify_research_api_closure.sh`](../../scripts/qualify_research_api_closure.sh).
 This qualifies the current source closure for isolated loading, not a
 reproducible package release: the temporary snapshot is not a package artifact
 or immutable published coordinate. The staged `src/`, `resources/` and `test/`
