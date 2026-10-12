@@ -328,9 +328,11 @@ Keep these registries and records distinct:
 
 The future repository should contain the language-neutral contract, pure
 Clojure and Rust transition implementations, and cross-language fixtures for
-the same scenarios. Solidity remains in `prf-evm`; tests there assert that the
-EVM state machine implements these transitions without changing economic
-behavior during extraction.
+the same scenarios. The package currently passes its standalone Clojure shared
+vector suite (54 assertions) and Rust locked test/clippy checks (2 tests,
+zero path dependencies). Solidity remains in `prf-evm`; a direct Foundry harness
+should consume the immutable package revision after extraction rather than a
+workspace-local file path or duplicate copy of the semantic vectors.
 
 Each language fixture must cover accepted and rejected transitions, exact
 accounting deltas, terminal/non-reuse behavior, race orderings, rollback on
@@ -351,10 +353,17 @@ separate evidence.
 4. The current EVM profile is the atomic ratify/fund lifecycle subset above;
    staged reservation, release, and expiry remain generic kernel transitions
    outside that profile. The existing Foundry suite is its current evidence.
-5. Validate independent Clojure/Rust loading and dependency direction, then add
-   a vector-consuming EVM harness only where the EVM profile has a matching
-   transition. Keep Solidity behavior unchanged and receipts separate.
-6. Pin package dependencies and validate extraction before creating
-   `prf-capital-lifecycle`.
+5. Independent package loading and dependency direction are verified: the
+   Clojure package loads from its own directory with only Maven dependencies;
+   the Rust crate passes locked offline dependency resolution and has no path
+   dependencies. The shared 26 vectors pass in both languages.
+6. Extract this bounded package into `prf-capital-lifecycle` while retaining
+   the in-tree PRF integration surface. Use a pinned immutable package revision
+   for downstream consumers; do not add developer-local paths or copy the
+   authoritative semantic vectors.
+7. Once `prf-evm` can consume that pinned revision, add a vector-consuming
+   harness for the matching atomic EVM profile transitions. Keep staged
+   reservation transitions outside that profile, and keep receipts separate
+   from semantic inputs/outputs.
 
 No source files are moved by this specification.
