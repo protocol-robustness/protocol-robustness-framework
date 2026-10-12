@@ -24,8 +24,8 @@
                                  :version :in-tree-source-candidate
                                  :path "../canonical/clj"}]
  :release/conformance
- {:package-local {:command "clojure -M:test"
-                  :tests 2 :assertions 6 :result :passed}
+ {:package-local {:command "cd packages/accounting-reductions/clj && clojure -M:test"
+                  :tests 3 :assertions 15 :result :passed}
   :cross-boundary-golden
   {:command "clojure -M:test -e <repository-boundary-golden-suite>"
    :status :passed

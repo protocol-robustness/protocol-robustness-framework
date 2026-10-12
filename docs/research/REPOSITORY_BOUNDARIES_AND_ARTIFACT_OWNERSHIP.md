@@ -216,7 +216,7 @@ closure to that reviewed classification, checks the declared module dependency
 rules, and rejects source dependency cycles. This avoids maintaining a second,
 stale handwritten consumer graph.
 
-The current closure is **36 namespaces**, not 34. It includes the canonical
+The current closure is **38 namespaces**, not 34. It includes the canonical
 candidate namespaces `prf.canonical.codec` and `prf.canonical.reference`
 under `packages/canonical/clj/src`; the latter is now the implementation
 behind the legacy root-reference facade. The closure also includes shared support
@@ -250,9 +250,9 @@ Package readiness is presently:
 | Package boundary | In-tree status | Independent status | Remaining concrete gate |
 | --- | --- | --- | --- |
 | `prf-canonical` | qualified source candidate and local package build | unpublished; no immutable dependency coordinate | publish or pin immutable Git/source coordinate; include the required generic evidence/signing surface in the package closure |
-| `prf-research-contracts` | ownership and API surface classified; implementation remains in PRF source | not independently buildable | extract research/acceptance implementation with canonical dependencies and its full support closure, then run golden/conformance tests outside workspace |
-| `prf-incentives` | ownership and V1 policy→eligibility→proposal→obligation chain classified | not independently buildable | isolate reward API from research implementation while preserving exact accepted-root binding; qualify its canonical/research dependencies |
-| `accounting-reductions` | implementation is now in an in-tree source package with explicit canonical dependency and package-local tests | locally buildable from its declared source dependencies; not independently released or pinned | clean-room conformance from an immutable canonical dependency coordinate; release provenance and immutable package/Git pin |
+| `prf-research-contracts` | public facade plus explicit dependency/API manifest; implementation remains in PRF source | isolated API closure loads, but package is not independently buildable/released | extract authoritative research/acceptance implementation with canonical dependencies and full support closure; immutable canonical coordinate and external consumer conformance |
+| `prf-incentives` | public facade plus explicit dependency/API manifest; V1 authority order is fixed | not independently buildable/released | package the authoritative reward implementation with immutable canonical and research-contract dependencies; external consumer conformance |
+| `accounting-reductions` | implementation and complete V1 golden vector are package-local, with explicit canonical source dependency | independently of monorepo classpath buildable from declared source dependencies; not independently released or immutably pinned | immutable canonical dependency coordinate and release provenance |
 | `researcher-network` | in-tree-only, source ownership/dependency rules enforced | not independently reproducible | all required canonical, research, incentive, evidence, signing, and support contracts must be separately packageable and immutably pinned |
 
 No source implementation was copied to make these boundaries appear
@@ -295,6 +295,16 @@ candidate, not an independently pinned release. The network package is not yet
 independently buildable because its PRF dependencies are source namespaces in
 this checkout, not published/pinned package coordinates. Do not solve that by
 vendoring PRF builders or by publishing a broad all-domain facade.
+
+The accounting package-local conformance suite now pins the complete golden
+root chain: reduction contract, request, partition plan, work units, forensic
+partials, semantic partials, reconciliation, and canonical result. It runs
+using the package's declared canonical source dependency only; it does not
+need research fixture namespaces. The research-contract and incentive
+package candidates each have an explicit `DEPENDENCIES.edn` with their public
+API, V1 contracts, package-level runtime dependencies, direct source
+dependencies, immutable-pin status, and release gates. These are dependency
+declarations and readiness records, not fabricated published coordinates.
 
 For contract review, the current narrow callable surface is:
 

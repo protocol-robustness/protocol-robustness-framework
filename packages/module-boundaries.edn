@@ -15,6 +15,7 @@
   :prf-research-contracts
   {:owner :prf-research
    :status :in-tree-only
+   :dependency-manifest "packages/prf-research-contracts/DEPENDENCIES.edn"
    :qualification {:isolated-source-closure-load? true
                   :released-artifact? false
                   :immutable-coordinate? false}
@@ -26,6 +27,7 @@
   :prf-incentives
   {:owner :prf-incentives
    :status :in-tree-only
+   :dependency-manifest "packages/prf-incentives/DEPENDENCIES.edn"
    :qualification {:isolated-source-closure-load? true
                   :released-artifact? false
                   :immutable-coordinate? false}
@@ -36,6 +38,7 @@
   :accounting-reductions
   {:owner :accounting
    :status :in-tree-package-source-candidate-unpublished
+   :dependency-manifest "packages/accounting-reductions/RELEASE.edn"
    :api [:accounting-reduction-contract.v1 :accounting-request.v1
          :accounting-partition-plan.v1 :accounting-partial-result.v1
          :accounting-reconciliation.v1 :canonical-accounting-result.v1]

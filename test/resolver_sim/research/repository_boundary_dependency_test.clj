@@ -95,6 +95,10 @@
                       (io/reader "packages/module-boundaries.edn"))]
     (binding [*read-eval* false] (read reader))))
 
+(defn- read-edn-file [path]
+  (with-open [reader (java.io.PushbackReader. (io/reader path))]
+    (binding [*read-eval* false] (read reader))))
+
 (defn- module-owners [contract]
   (into {'resolver-sim.accounting.reductions :accounting
          'resolver-sim.network.researcher-challenges :researcher-network
@@ -284,3 +288,42 @@
         "accounting reduces authoritative inputs; it does not accept claims or issue obligations")
     (is (contains? incentives 'resolver-sim.benchmark.research-analysis)
         "incentive eligibility consumes authoritative research results")))
+
+(deftest package-candidates-have-explicit-public-api-and-dependency-manifests
+  (let [contract (module-contract)
+        graph @cached-repository-source-graph
+        closure (fn [root] (conj (transitive-dependencies graph root) root))
+        research (read-edn-file "packages/prf-research-contracts/DEPENDENCIES.edn")
+        incentives (read-edn-file "packages/prf-incentives/DEPENDENCIES.edn")
+        accounting (read-edn-file "packages/accounting-reductions/RELEASE.edn")]
+    (is (= 'resolver-sim.research.api
+           (get-in research [:public-api :namespace])))
+    (is (= 'resolver-sim.incentives.api
+           (get-in incentives [:public-api :namespace])))
+    (is (= :in-tree-source-candidate (:package/status research)))
+    (is (= :in-tree-source-candidate (:package/status incentives)))
+    (is (= (set (:current-transitive-source-closure research))
+           (closure 'resolver-sim.research.api))
+        "research dependency manifest tracks the actual in-tree source closure")
+    (is (= (set (:current-transitive-source-closure incentives))
+           (closure 'resolver-sim.incentives.api))
+        "incentive dependency manifest tracks the actual in-tree source closure")
+    (is (= 21 (count (:current-transitive-source-closure research))))
+    (is (= 24 (count (:current-transitive-source-closure incentives))))
+    (is (false? (get-in research [:qualification :independently-released?])))
+    (is (false? (get-in incentives [:qualification :independently-released?])))
+    (is (= #{:prf-canonical}
+           (set (map :id (get-in research [:runtime-dependencies :packages])))))
+    (is (= #{:prf-canonical :prf-research-contracts}
+           (set (map :id (get-in incentives [:runtime-dependencies :packages])))))
+    (is (every? nil? (map :immutable-coordinate
+                          (get-in research [:runtime-dependencies :packages]))))
+    (is (every? nil? (map :immutable-coordinate
+                          (get-in incentives [:runtime-dependencies :packages]))))
+    (is (= "packages/prf-research-contracts/DEPENDENCIES.edn"
+           (get-in contract [:package-contracts :prf-research-contracts
+                             :dependency-manifest])))
+    (is (= "packages/prf-incentives/DEPENDENCIES.edn"
+           (get-in contract [:package-contracts :prf-incentives
+                             :dependency-manifest])))
+    (is (= :in-tree-source-candidate (:release/status accounting)))))
