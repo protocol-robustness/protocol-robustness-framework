@@ -2,6 +2,7 @@
   (:require [clojure.edn :as edn]
             [clojure.test :refer [deftest is]]
             [resolver-sim.research.shortfall-pilot :as pilot]
+            [resolver-sim.network.shortfall-pilot-adapter :as pilot-adapter]
             [resolver-sim.network.researcher-challenges :as challenges]
             [resolver-sim.research.researcher-challenges-cli :as cli]
             [resolver-sim.research.researcher-challenges-test :as helpers]
@@ -44,7 +45,7 @@
                                                    :research-assignment/plan-root])}]
     (assoc f :config config :definition definition :comparison comparison :metadata metadata
            :context (pilot/build-context metadata comparison)
-           :profile (pilot/build-profile config comparison)
+           :profile (pilot-adapter/build-profile config comparison)
            :evidence {(:artifact/root comparison) comparison})))
 
 (defn- submission [f history context]
@@ -81,6 +82,24 @@
                  (reroot (assoc comparison :value 99))
                  (reroot (assoc-in comparison [:results 0 :rows 0 :allocated] 99))]]
       (is (thrown? clojure.lang.ExceptionInfo (pilot/validate-comparison! bad))))))
+
+(deftest network-adapter-preserves-pilot-profile-identities
+  (let [f (fixture)
+        method-profile (pilot/build-profile (:config f) (:comparison f))
+        adapted-profile (pilot-adapter/build-profile (:config f) (:comparison f))
+        policy (challenges/build-control-policy (:config f) [])
+        controlled (pilot-adapter/build-controlled-profile (:config f) method-profile policy [])
+        expected-body {:artifact/schema "researcher-shortfall-controlled-pilot.v1"
+                       :configuration/root (:artifact/root (:config f))
+                       :pilot/profile method-profile
+                       :control-policy/root (:artifact/root policy)
+                       :activation/history-root (:activation/history-root policy)}
+        expected-root (reference/sha256-ref
+                       (canonical/domain-hash "researcher-shortfall-controlled-pilot.v1"
+                                              expected-body))]
+    (is (= method-profile adapted-profile))
+    (is (= expected-root (:artifact/root controlled)))
+    (is (= expected-body (dissoc controlled :artifact/root)))))
 
 (deftest challenge-001-scope-candidate-is-bounded-and-non-admitting
   (let [candidate (scope-candidate)
@@ -129,10 +148,10 @@
 
 (deftest signed-economic-evidence-remains-separate-from-review-and-reward
   (let [f (fixture) history (submission f (before-submission f) (:context f))
-        checked (pilot/replay (:config f) (:profile f) history (:evidence f))
+        checked (pilot-adapter/replay (:config f) (:profile f) history (:evidence f))
         submitted (#'helpers/latest f history)
         reviewed (#'helpers/approve f history (:definition f) submitted :accepted :eligible)
-        final (pilot/replay (:config f) (:profile f) reviewed (:evidence f))]
+        final (pilot-adapter/replay (:config f) (:profile f) reviewed (:evidence f))]
     (is (= (:state checked) (challenges/replay (:config f) history)))
     (is (empty? (get-in checked [:state :reviews])))
     (is (= 1 (count (:replay/nodes checked))))
@@ -140,8 +159,8 @@
     (is (= :counterexample-found (get-in submitted [:claim :research-claim/result :result/classification])))
     (is (some? (get-in (#'helpers/latest f reviewed) [:obligation :researcher-reward-obligation/root])))
     (is (= (:state final) (challenges/replay (:config f) reviewed)))
-    (let [recovered (pilot/replay (:config f) (:profile f) (edn/read-string (pr-str reviewed))
-                                  (edn/read-string (pr-str (:evidence f))))]
+    (let [recovered (pilot-adapter/replay (:config f) (:profile f) (edn/read-string (pr-str reviewed))
+                                          (edn/read-string (pr-str (:evidence f))))]
       (is (= (:state final) (:state recovered)))
       (is (= (mapv :node-hash (:replay/nodes final))
              (mapv :node-hash (:replay/nodes recovered)))))))
@@ -191,14 +210,14 @@
         good (submission f history (:context f))
         directory (.toFile (Files/createTempDirectory "shortfall-admission-" (make-array java.nio.file.attribute.FileAttribute 0)))
         path #(str directory "/" %)
-        check #(pilot/replay %1 (:profile f) %2 (:evidence f))]
+        check #(pilot-adapter/replay %1 (:profile f) %2 (:evidence f))]
     (spit (path "config.edn") (pr-str (:config f)))
     (spit (path "history.edn") (pr-str history))
     (spit (path "action.edn") (pr-str (last good)))
     (let [bytes (slurp (path "history.edn"))]
       (is (thrown? clojure.lang.ExceptionInfo
                    (cli/apply-checked-file! (path "config.edn") (path "history.edn") (path "action.edn") nil
-                                            #(pilot/replay %1 (:profile f) %2 {}))))
+                                            #(pilot-adapter/replay %1 (:profile f) %2 {}))))
       (is (= bytes (slurp (path "history.edn")))))
     (is (map? (cli/apply-checked-file! (path "config.edn") (path "history.edn") (path "action.edn") nil check)))
     (is (= good (edn/read-string (slurp (path "history.edn")))))
@@ -213,7 +232,7 @@
                                             submission-body :accepted :eligible)
         activation-history reviewed-history
         control-policy (challenges/build-control-policy (:config f) activation-history)
-        profile (pilot/build-controlled-profile (:config f) (:profile f) control-policy activation-history)
+        profile (pilot-adapter/build-controlled-profile (:config f) (:profile f) control-policy activation-history)
         state (challenges/replay (:config f) reviewed-history)
         review (get-in state [:reviews (:submission/root submission-body)])
         withdrawal-payload (#'helpers/withdraw-payload submission-body review)
@@ -222,7 +241,7 @@
                                             :withdraw-review "withdraw-shortfall-review" withdrawal-payload)
         signed (#'helpers/signed unsigned (:reviewer f))
         history (:history (challenges/append-controlled-action (:config f) control-policy activation-history signed))
-        result (pilot/replay-controlled (:config f) profile control-policy history (:evidence f))]
+        result (pilot-adapter/replay-controlled (:config f) profile control-policy history (:evidence f))]
     (is (= 1 (count (filter #(= :submit (:action/kind %)) history))))
     (is (= 2 (count (filter #(= :validated (get-in % [:extensions :forensic/role]))
                             (:replay/nodes result)))))
@@ -230,9 +249,9 @@
     (is (= (challenges/replay-controlled (:config f) control-policy history) (:state result)))
     (is (:valid? (node/validate-node-dag (:replay/nodes result))))
     (is (thrown? clojure.lang.ExceptionInfo
-                 (pilot/replay-controlled (:config f) profile
-                                          (assoc control-policy :artifact/root (reference/sha256-ref "wrong"))
-                                          history (:evidence f))))
+                 (pilot-adapter/replay-controlled (:config f) profile
+                                                  (assoc control-policy :artifact/root (reference/sha256-ref "wrong"))
+                                                  history (:evidence f))))
     (let [directory (.toFile (Files/createTempDirectory "controlled-shortfall-" (make-array java.nio.file.attribute.FileAttribute 0)))
           path #(str directory "/" %)
           action (last history)]
@@ -246,9 +265,9 @@
         (is (thrown? clojure.lang.ExceptionInfo
                      (cli/apply-controlled-checked-file!
                       (path "config.edn") (path "policy.edn") (path "history.edn") (path "action.edn") nil
-                      #(pilot/replay-controlled %1 profile control-policy %2 {}))))
+                      #(pilot-adapter/replay-controlled %1 profile control-policy %2 {}))))
         (is (= before (slurp (path "history.edn")))))
       (is (map? (cli/apply-controlled-checked-file!
                  (path "config.edn") (path "policy.edn") (path "history.edn") (path "action.edn") nil
-                 #(pilot/replay-controlled %1 profile control-policy %2 (:evidence f)))))
+                 #(pilot-adapter/replay-controlled %1 profile control-policy %2 (:evidence f)))))
       (is (= history (edn/read-string (slurp (path "history.edn"))))))))

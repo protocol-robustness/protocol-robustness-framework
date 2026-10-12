@@ -8,6 +8,7 @@
             [resolver-sim.evidence.node :as node]
             [resolver-sim.network.researcher-challenges :as challenges]
             [resolver-sim.research.researcher-challenges-test :as fixture]
+            [resolver-sim.network.shortfall-pilot-adapter :as shortfall-adapter]
             [resolver-sim.research.shortfall-pilot :as shortfall]
             [resolver-sim.research.shortfall-pilot-test :as shortfall-fixture]
             [resolver-sim.research.shortfall-publication :as publication])
@@ -424,7 +425,7 @@
           initial-history (#'shortfall-fixture/before-submission f)
           action (last (#'shortfall-fixture/submission f initial-history (:context f)))
           policy (challenges/build-control-policy config initial-history)
-          profile (shortfall/build-controlled-profile config (:profile f) policy initial-history)
+          profile (shortfall-adapter/build-controlled-profile config (:profile f) policy initial-history)
           expected-history (:history (challenges/append-controlled-action
                                       config policy initial-history action))
           config-path (write-edn! directory "configuration.edn" config)

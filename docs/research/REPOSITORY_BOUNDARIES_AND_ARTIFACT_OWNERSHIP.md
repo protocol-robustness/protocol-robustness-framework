@@ -147,13 +147,16 @@ researcher-network application ──→ PRF research / acceptance / reward APIs
 execution adapters ──→ rooted research/accounting work contracts
 ```
 
-### Current direct namespace dependency audit
+### Current direct and transitive namespace dependency audit
 
 The focused source-level dependency guard is
 `test/resolver_sim/research/repository_boundary_dependency_test.clj`. It
-parses the `ns` forms for the candidate boundary namespaces and checks the
-selected dependency graph is acyclic plus the important forbidden/required
-edges. It is intentionally not a whole-repository module checker.
+parses candidate `ns` forms and also walks the transitive internal Clojure
+source closure for the accounting, researcher-network, pilot-method, and pilot
+adapter roots. This is still not a whole build-system/hermetic dependency
+checker: it does not resolve external Maven artifacts, Java class references,
+runtime `requiring-resolve`, data files, or build plugins. Those remain part of
+the separately computed package/source closure.
 
 The audited direction is:
 
@@ -168,8 +171,8 @@ researcher-network ──────→ research-analysis
                         ├→ signing / incentive model
                         └→ forensic graph / canonical roots
 
-shortfall-pilot ─────────→ PRF allocator / analysis contracts
-                        └→ researcher-network         [pilot adapter coupling]
+shortfall-pilot method ─→ PRF allocator / analysis contracts
+network pilot adapter ──→ shortfall-pilot method + researcher-network
 
 native-accounting-work ──→ accounting reductions + execution/dependency
                            assurance + generic forensic graph
@@ -202,14 +205,68 @@ the application requires several PRF modules directly, so a separate release
 must first define and pin those dependency contracts rather than relying on a
 workspace source path.
 
-One extraction caveat is concrete: `shortfall-pilot.clj` currently imports and
-calls `researcher-challenges` for pilot replay/control. If challenge workflows
-move out, that challenge-specific orchestration must move with them (while
-depending on PRF's allocator/verifier APIs), or be separated so PRF semantic
-verification no longer imports the network application. Do not preserve this
-edge by making PRF depend on the new network repository. The dependency guard
-records the present edge and will flag accidental reverse imports/cycles among
-the selected nodes.
+The Shortfall coupling is now localized in
+`resolver-sim.network.shortfall-pilot-adapter`. The method namespace
+`resolver-sim.research.shortfall-pilot` owns arithmetic, method validation,
+analysis-context construction and rooted pilot-profile semantics; it no longer
+imports researcher-network. The adapter owns configuration replay, challenge
+history/control replay, and composes the method gate with network submissions.
+Publication and CLI orchestration use that adapter. This changes module
+placement only: the existing pilot, controlled-pilot and network artifact
+schemas/root calculations are unchanged. If the network is extracted, this
+adapter moves with it; PRF analysis and allocator semantics do not gain a
+reverse dependency.
+
+### Provisional package contracts and version rules
+
+These are in-repository extraction contracts, not published coordinates or
+stable external APIs. The existing canonical and pro-rata packages are still
+qualified source candidates (`0.1.0-rc.1`), not registry releases. The two
+candidate capabilities should use provisional `0.1.x` package lines only once
+they are independently packaged; no version is currently released:
+
+| Candidate contract | Semantic public surface | Required dependency direction | Release gate |
+| --- | --- | --- | --- |
+| `accounting-reductions` (provisional `0.1.x`) | `resolver-sim.accounting.reductions`: reduction contract, request, deterministic partition plan/work units, partial validation/admission, completeness and reconciliation | canonical hash/root-reference contract only; no research-analysis, network, runner or execution dependency | integer sum-by-qualified-category V1 vectors and exact-root conformance; package must declare its full runtime/test/resource closure |
+| `researcher-network` (provisional `0.1.x`) | `resolver-sim.network.researcher-challenges`: challenge/configuration/action/task-claim/control roots, signature checks, history replay, checkpoint and summary APIs | PRF canonical, signing, analysis/verification, claim lifecycle/acceptance, reward and generic evidence contracts; no pilot or runner dependency | versioned, pinned PRF contract coordinates and replay/signature conformance; shortfall application adapter moves with network |
+
+`accounting-reductions` currently imports only
+`resolver-sim.hash.canonical` and `resolver-sim.hash.reference` internally;
+these are workspace compatibility entry points over the canonical foundation.
+The eventual package dependency must point to the shared canonical contract,
+not copy those implementations. The network package is not yet independently
+buildable because its PRF dependencies are source namespaces in this checkout,
+not published/pinned package coordinates. Do not solve that by vendoring PRF
+builders or by publishing a broad all-domain facade.
+
+For contract review, the current narrow callable surface is:
+
+```text
+accounting-reductions:
+  build-reduction-contract / valid-reduction-contract?
+  build-request / valid-request? / serial-values
+  build-partition-plan / valid-partition-plan?
+  build-partial-result / valid-partial-result? / ingest-partial
+  accounting-completeness / reconcile
+
+researcher-network:
+  configuration / prepare-configuration / build-challenge
+  action / sign-action / replay / append-action
+  build-control-policy / control-action / replay-controlled
+  checkpoints / summaries / review dossier
+```
+
+These names document the extraction seam, not an external stability promise;
+conformance vectors and pinned dependency coordinates are prerequisites to
+publishing them.
+
+Versioning rules for extraction: preserve all existing artifact V1 identities
+and golden vectors byte-for-byte; a bug fix that preserves V1 meaning may be a
+package patch release; additive callable APIs that do not alter roots may be a
+minor package release; any changed canonical field set, root encoding or
+artifact meaning requires a successor artifact schema (normally V2) and an
+explicit migration/conformance decision. Package semver never silently revises
+an artifact's canonical semantics.
 
 ### 1. Narrow PRF shared foundation
 

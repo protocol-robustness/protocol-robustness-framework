@@ -3,6 +3,7 @@
             [clojure.test :refer [deftest is]]
             [resolver-sim.research.shortfall-publication :as publication]
             [resolver-sim.research.shortfall-pilot :as pilot]
+            [resolver-sim.network.shortfall-pilot-adapter :as pilot-adapter]
             [resolver-sim.research.shortfall-pilot-test :as fixture]
             [resolver-sim.network.researcher-challenges :as challenges]
             [resolver-sim.research.researcher-challenges-test :as keys]
@@ -24,7 +25,7 @@
         dir (str (Files/createTempDirectory "shortfall-controlled-publication-"
                                             (make-array java.nio.file.attribute.FileAttribute 0)))
         key (#'keys/keys!) policy (challenges/build-control-policy (:config f) [])
-        controlled-profile (pilot/build-controlled-profile (:config f) (:profile f) policy [])]
+        controlled-profile (pilot-adapter/build-controlled-profile (:config f) (:profile f) policy [])]
     (doseq [[name value] [["configuration.edn" (:config f)] ["pilot.edn" (:profile f)]
                           ["control-policy.edn" policy] ["history.edn" []]
                           ["evidence.edn" (:evidence f)]]]

@@ -1,7 +1,8 @@
 (ns resolver-sim.research.repository-boundary-dependency-test
   "A small extraction guard over the current direct namespace requires."
   (:require [clojure.test :refer [deftest is]]
-            [clojure.java.io :as io]))
+            [clojure.java.io :as io]
+            [clojure.string :as str]))
 
 (def boundary-sources
   {'resolver-sim.accounting.reductions
@@ -16,6 +17,8 @@
    "src/resolver_sim/research/researcher_challenges.clj"
    'resolver-sim.research.shortfall-pilot
    "src/resolver_sim/research/shortfall_pilot.clj"
+   'resolver-sim.network.shortfall-pilot-adapter
+   "src/resolver_sim/network/shortfall_pilot_adapter.clj"
    'resolver-sim.research.native-accounting-work
    "src/resolver_sim/research/native_accounting_work.clj"
    'resolver-sim.research.runner-transport
@@ -49,6 +52,44 @@
         (map (fn [[namespace path]]
                [namespace (direct-prf-requires path)]))
         boundary-sources))
+
+(defn- ns-dependencies [path]
+  (with-open [reader (java.io.PushbackReader. (io/reader path))]
+    (let [form (binding [*read-eval* false] (read reader))
+          clauses (filter #(and (seq? %) (contains? #{:require :require-macros :use} (first %)))
+                          (drop 2 form))]
+      (into #{}
+            (mapcat (fn [clause]
+                      (keep (fn [spec]
+                              (let [required-ns (if (vector? spec) (first spec) spec)]
+                                (when (and (symbol? required-ns)
+                                           (or (str/starts-with? (str required-ns) "resolver-sim.")
+                                               (str/starts-with? (str required-ns) "prf.")))
+                                  required-ns)))
+                            (rest clause)))
+                    clauses)))))
+
+(defn- repository-source-graph []
+  (let [files (filter #(and (.isFile ^java.io.File %)
+                            (str/ends-with? (.getName ^java.io.File %) ".clj"))
+                      (file-seq (io/file "src")))]
+    (into {}
+          (keep (fn [file]
+                  (try
+                    (with-open [reader (java.io.PushbackReader. (io/reader file))]
+                      (let [form (binding [*read-eval* false] (read reader))]
+                        (when (and (seq? form) (= 'ns (first form)) (symbol? (second form)))
+                          [(second form) (ns-dependencies file)])))
+                    (catch Exception _ nil)))
+                files))))
+
+(defn- transitive-dependencies [graph root]
+  (loop [pending (seq (get graph root)) seen #{}]
+    (if-let [node (first pending)]
+      (if (contains? seen node)
+        (recur (next pending) seen)
+        (recur (concat (get graph node) (next pending)) (conj seen node)))
+      seen)))
 
 (defn- has-cycle? [graph]
   (letfn [(visit [node visiting visited]
@@ -96,6 +137,13 @@
                  'resolver-sim.benchmark.research-claim-lifecycle
                  'resolver-sim.benchmark.researcher-reward
                  'resolver-sim.evidence.forensic-graph]))
+    (is (contains? (graph 'resolver-sim.network.shortfall-pilot-adapter)
+                   'resolver-sim.research.shortfall-pilot))
+    (is (contains? (graph 'resolver-sim.network.shortfall-pilot-adapter)
+                   'resolver-sim.network.researcher-challenges))
+    (is (not-any? (graph 'resolver-sim.research.shortfall-pilot)
+                  ['resolver-sim.network.researcher-challenges
+                   'resolver-sim.network.shortfall-pilot-adapter]))
     (is (not (has-cycle? graph)))))
 
 (deftest adapter-dependencies-are-visible-for-extraction-planning
@@ -104,10 +152,26 @@
                    'resolver-sim.accounting.reductions))
     (is (contains? (graph 'resolver-sim.research.runner-transport)
                    'resolver-sim.research.native-accounting-work))
-    ;; The Challenge 001 adapter currently depends on the network application.
-    ;; If the network moves, move this adapter with it or invert this edge;
-    ;; PRF analysis itself must not acquire a reverse dependency.
-    (is (contains? (graph 'resolver-sim.research.shortfall-pilot)
-                   'resolver-sim.network.researcher-challenges))
     (is (not (contains? (graph 'resolver-sim.network.researcher-challenges)
                         'resolver-sim.research.shortfall-pilot)))))
+
+(deftest transitive-package-closures-preserve-dependency-direction
+  (let [graph (repository-source-graph)
+        accounting (transitive-dependencies graph 'resolver-sim.accounting.reductions)
+        network (transitive-dependencies graph 'resolver-sim.network.researcher-challenges)
+        pilot (transitive-dependencies graph 'resolver-sim.research.shortfall-pilot)
+        adapter (transitive-dependencies graph 'resolver-sim.network.shortfall-pilot-adapter)]
+    (is (contains? graph 'resolver-sim.accounting.reductions))
+    (is (contains? graph 'resolver-sim.network.researcher-challenges))
+    (is (not-any? accounting ['resolver-sim.network.researcher-challenges
+                              'resolver-sim.benchmark.research-analysis
+                              'resolver-sim.research.runner-transport]))
+    (is (contains? accounting 'resolver-sim.hash.canonical))
+    (is (contains? accounting 'resolver-sim.hash.reference))
+    (is (not-any? network ['resolver-sim.research.shortfall-pilot
+                           'resolver-sim.network.shortfall-pilot-adapter
+                           'resolver-sim.research.runner-transport]))
+    (is (not-any? pilot ['resolver-sim.network.researcher-challenges
+                         'resolver-sim.network.shortfall-pilot-adapter]))
+    (is (contains? adapter 'resolver-sim.research.shortfall-pilot))
+    (is (contains? adapter 'resolver-sim.network.researcher-challenges))))

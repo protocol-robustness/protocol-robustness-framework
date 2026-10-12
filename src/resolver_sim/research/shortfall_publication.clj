@@ -10,8 +10,8 @@
             [resolver-sim.hash.reference :as reference]
             [resolver-sim.io.edn :as pretty]
             [resolver-sim.network.researcher-challenges :as challenges]
-            [resolver-sim.research.researcher-challenges-cli :as cli]
-            [resolver-sim.research.shortfall-pilot :as pilot])
+            [resolver-sim.network.shortfall-pilot-adapter :as pilot-adapter]
+            [resolver-sim.research.researcher-challenges-cli :as cli])
   (:import [java.nio.channels FileChannel]
            [java.nio.file Files StandardOpenOption]
            [java.security MessageDigest]))
@@ -79,7 +79,7 @@
         history (get bodies "history.edn") evidence (get bodies "evidence.edn")]
     (ensure! (vector? history) :invalid-publication-history)
     (ensure! (map? evidence) :invalid-publication-evidence)
-    (pilot/replay config profile history evidence)
+    (pilot-adapter/replay config profile history evidence)
     {:config config :profile profile :history history
      :checkpoint (challenges/history-checkpoint config history)
      :files (into {} (for [[name bytes] captured]
@@ -236,8 +236,8 @@
           _ (ensure! (and (integer? activation-count) (<= 0 activation-count (count history)))
                      :invalid-control-activation)
           activation-history (subvec history 0 activation-count)
-          controlled-profile (pilot/build-controlled-profile config base-profile policy activation-history)
-          replay (pilot/replay-controlled config controlled-profile policy history evidence)]
+          controlled-profile (pilot-adapter/build-controlled-profile config base-profile policy activation-history)
+          replay (pilot-adapter/replay-controlled config controlled-profile policy history evidence)]
       {:config config :base-profile base-profile :policy policy :profile controlled-profile
        :history history
        :checkpoint (challenges/controlled-history-checkpoint config policy history)

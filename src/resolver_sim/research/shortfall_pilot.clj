@@ -13,8 +13,7 @@
             [resolver-sim.benchmark.research-analysis-closure :as closure]
             [resolver-sim.evidence.forensic-graph :as forensic]
             [resolver-sim.hash.canonical :as canonical]
-            [resolver-sim.hash.reference :as reference]
-            [resolver-sim.network.researcher-challenges :as challenges]))
+            [resolver-sim.hash.reference :as reference]))
 
 (def proposition :claim/allocation-policy-invariance)
 (def metric :metric/maximum-row-allocation-difference)
@@ -268,7 +267,6 @@
   "Rooted opt-in method requirement around, not a revision of, V1 configuration.
    Policy roots are fixed; scenario inputs may vary between findings."
   [config comparison]
-  (challenges/replay config [])
   (validate-comparison! comparison)
   (doseq [challenge (:challenges config)]
     (ensure! (= {:proposition-id proposition :metric-id metric
@@ -279,7 +277,7 @@
            :allocation-policy/roots (policy-roots comparison)
            :excluded-calibration-case/roots calibration-case-roots}))
 
-(defn- validate-profile! [config profile]
+(defn validate-profile! [config profile]
   (ensure! (and (= "researcher-shortfall-pilot.v1" (:artifact/schema profile))
                 (= (:artifact/root config) (:configuration/root profile))
                 (= method-root (:method/root profile))
@@ -293,20 +291,6 @@
   (ensure! (= calibration-case-roots (:excluded-calibration-case/roots profile))
            :invalid-calibration-exclusions)
   profile)
-
-(defn build-controlled-profile
-  "Compose the arithmetic pilot with a frozen reviewer-control activation.
-   This successor artifact pins the existing V1 pilot and control-policy roots;
-   neither underlying identity or replay contract is revised."
-  [config profile control-policy activation-history]
-  (validate-profile! config profile)
-  (ensure! (= control-policy (challenges/build-control-policy config activation-history))
-           :invalid-control-policy)
-  (rooted "researcher-shortfall-controlled-pilot.v1"
-          {:configuration/root (:artifact/root config)
-           :pilot/profile profile
-           :control-policy/root (:artifact/root control-policy)
-           :activation/history-root (:activation/history-root control-policy)}))
 
 (defn validate-context!
   "Independent method validation. Rebuild all semantic context from fresh replay;
@@ -335,41 +319,3 @@
       :role :validated :visibility :public
       :causal-parent-roots (vec (sort (distinct [(:artifact/root comparison) (:artifact/root profile)
                                                  (:artifact/root config) (:case/root comparison) method-root])))})))
-
-(defn replay
-  "Replay signed V1 history plus every method-specific submission gate.
-   The resulting state/obligations have their unchanged existing identities."
-  [config profile history evidence]
-  (let [state (challenges/replay config history)
-        nodes (mapv #(validate-context! config profile (:challenge/root %)
-                                        (get-in % [:action/payload :evidence/context]) evidence)
-                    (filter #(= :submit (:action/kind %)) history))]
-    ;; Also validate the profile when no submissions have arrived yet.
-    (validate-profile! config profile)
-    {:state state :replay/nodes nodes}))
-
-(defn replay-controlled
-  "Replay reviewer controls and enforce the same arithmetic gate on every
-   historical submission. Control policy and pilot profile are both explicit
-   rooted inputs; controls do not change V1 claim/reward semantics."
-  [config controlled-profile control-policy history evidence]
-  (let [pilot-profile (:pilot/profile controlled-profile)
-        expected (build-controlled-profile config pilot-profile control-policy
-                                           (subvec history 0 (min (count history)
-                                                                  (or (:activation/action-count control-policy) 0))))
-        state (challenges/replay-controlled config control-policy history)
-        nodes (mapv #(validate-context! config pilot-profile (:challenge/root %)
-                                        (get-in % [:action/payload :evidence/context]) evidence)
-                    (filter #(= :submit (:action/kind %)) history))]
-    (ensure! (= expected controlled-profile) :controlled-pilot-policy-substitution)
-    (let [composition-node
-          (forensic/build-forensic-evidence-node
-           {:subject {:subject/kind :research/controlled-shortfall-pilot
-                      :subject/root (:history/root state)}
-            :role :validated :visibility :public
-            :causal-parent-roots (vec (sort (distinct [(:artifact/root controlled-profile)
-                                                       (:artifact/root control-policy)
-                                                       (:artifact/root config)])))
-            :parent-nodes (mapv :node-hash nodes)})]
-      {:state state :replay/nodes (conj nodes composition-node)
-       :replay/composition-node composition-node})))
