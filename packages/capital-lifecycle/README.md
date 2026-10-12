@@ -18,4 +18,16 @@ substitute for the normative Protected Capital V2 rules. Continue deriving
 fixtures from the existing EVM tests before wiring any adapter or extracting an
 external repository.
 
-The terminal transition vectors are grounded in `prf-evm/test/SourceBoundProRataEntitlementRatificationControllerV1.t.sol` (`test_CancelAndRefundReturnsExactCapitalAndIsTerminal` and `test_ActivationWinsAgainstCancelAndRefund`) and `prf-evm/test/ProductionProRataAllocatorV2Withdrawal.t.sol` (`test_RequestedNoProofAndInvalidOptionalProofExecuteAndCloseExactly`). They assert lifecycle outcomes only; Solidity error selectors and custody effects remain adapter conformance responsibilities.
+The terminal transition vectors are grounded in:
+
+- `prf-evm/test/SourceBoundProRataEntitlementRatificationControllerV1.t.sol`:
+  `test_CancelAndRefundReturnsExactCapitalAndIsTerminal` and
+  `test_ActivationWinsAgainstCancelAndRefund`.
+- `prf-evm/test/ProductionProRataAllocatorV2Withdrawal.t.sol`:
+  `test_RequestedNoProofAndInvalidOptionalProofExecuteAndCloseExactly`.
+
+They assert lifecycle outcomes only; Solidity error selectors and custody
+effects remain adapter conformance responsibilities.
+
+The `AllocationBasisPort` and its illustrative adapters are specified in
+[`allocation-basis-port-examples-v1.edn`](../../docs/architecture/allocation-basis-port-examples-v1.edn). Those examples are design fixtures only: the current transition kernel still accepts activation total/count inputs and does not yet bind typed basis, operation, asset, or representation references.

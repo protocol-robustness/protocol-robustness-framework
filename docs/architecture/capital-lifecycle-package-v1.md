@@ -65,8 +65,8 @@ schemas or newly registered artifacts.
 
 ### `AllocationBasisPort`
 
-An allocation/application adapter supplies an authoritative, already-derived
-basis for lifecycle admission:
+An allocation or application adapter supplies a typed reference to its already
+computed basis and a small admission summary:
 
 ```text
 AllocationBasis {
@@ -74,29 +74,25 @@ AllocationBasis {
   operationRef: OperationRef
   assetRef: TypedRootRef
   total: non-negative base-unit integer
-  entries: ordered sequence of {
-    sourceEntryRef: stable semantic identifier
-    beneficiaryRef: stable economic beneficiary/profile reference
-    amount: positive base-unit integer
-  }
+  memberCount: positive integer
   representationRef: optional TypedRootRef
 }
 ```
 
-The adapter proves or validates the relationship between its `basisRef` and
-the supplied entries. Capital lifecycle checks the operation and asset binding,
-entry uniqueness, canonical order requirements for the selected representation,
-positive amounts, and that entry totals equal the basis total. It also checks
-that the total equals the amount actually funded for activation.
+`basisRef` identifies the source domain's canonical basis artifact. The adapter
+owns the underlying rows, beneficiary assignment, eligibility, ordering,
+amounts, and proof that those rows derive from `basisRef`. The lifecycle package
+binds that reference to the operation and asset, requires `total` to equal the
+funded amount, and accounts for the admitted member count and total liability.
+It does not define a universal entitlement row or encoding. An application may
+supply its own representation contract through `representationRef`.
 
-The adapter owns eligibility, row amounts, residual/unmet-demand meaning,
-beneficiary assignment, and the derivation of its source artifact. The lifecycle
-package owns whether that basis can become an authoritative liability set and
-the state/accounting consequences thereafter.
-
-`TypedRootRef` is supplied by `canonical`; this proposal does not add a second
-root format. `AllocationBasis` is an in-process/API value only. Its fields do
-not themselves define canonical encoding or a universal entitlement artifact.
+For the current NOW path, the source basis is the pro-rata-owned
+`realized-allocation-statement.v1`; the downstream beneficiary set remains a
+separate capital-lifecycle artifact. A different application can supply a
+module-owned basis artifact through the same port. `AllocationBasis` is an
+in-process value, not a canonical wire schema or newly registered artifact.
+`TypedRootRef` is supplied by `canonical`.
 
 ### `SourceBindingPort`
 
@@ -284,9 +280,10 @@ separate evidence.
 1. Keep this contract in PRF as the reviewed package boundary.
 2. Inventory existing Solidity and source-bound implementations against each
    port; mark missing methods instead of filling them speculatively.
-3. Define one language-neutral `AllocationBasisPort` fixture for the current
-   NOW adapter and one mechanism-neutral fixture proving that the transition
-   core consumes a second basis adapter without depending on pro-rata types.
+3. The illustrative NOW and application-defined port cases now live in
+   `allocation-basis-port-examples-v1.edn`. Remaining: make them executable
+   cross-language adapter fixtures when the kernel binds typed basis, operation,
+   asset, and representation references. Do not pass row formats into the core.
 4. Extract pure lifecycle transition logic and conformance fixtures into an
    in-tree package; leave Shortfall and EVM adapters at their current locations.
 5. Once that package is independently loadable and pinned, move the package into
