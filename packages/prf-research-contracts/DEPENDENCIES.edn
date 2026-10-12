@@ -94,5 +94,9 @@
  :qualification
  {:api-delegation-tests "test/resolver_sim/research/research_api_boundary_test.clj"
   :source-closure-qualification "scripts/qualify_research_api_closure.sh"
+  :isolated-source-snapshot
+  {:status :passed
+   :source-content-set "sha256:83473263e2ecd25b8d5b7cd4a0203859c69ab4862c6f2ac1d3925eefbf27802a"
+   :tests 2 :assertions 23}
   :independently-released? false
   :immutable-dependency-pin? false}}

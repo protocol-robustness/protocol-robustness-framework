@@ -102,5 +102,10 @@
  :qualification
  {:api-delegation-tests "test/resolver_sim/research/research_api_boundary_test.clj"
   :dependency-direction-tests "test/resolver_sim/research/repository_boundary_dependency_test.clj"
+  :source-closure-qualification "scripts/qualify_incentives_api_closure.sh"
+  :isolated-source-snapshot
+  {:status :passed
+   :source-content-set "sha256:ce4d4c531005b2b05f24c8c47b390356fe658d5edc39a84f9b9ece2f7e9e55ce"
+   :tests 8 :assertions 64}
   :independently-released? false
   :immutable-dependency-pins? false}}

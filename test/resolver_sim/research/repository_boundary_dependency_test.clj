@@ -310,6 +310,14 @@
         "incentive dependency manifest tracks the actual in-tree source closure")
     (is (= 21 (count (:current-transitive-source-closure research))))
     (is (= 24 (count (:current-transitive-source-closure incentives))))
+    (doseq [[manifest actual] [[research (closure 'resolver-sim.research.api)]
+                               [incentives (closure 'resolver-sim.incentives.api)]]
+            :let [owned (mapcat identity (vals (:closure-ownership manifest)))]]
+      (is (= actual (set owned)) "closure ownership covers every dependency")
+      (is (= (count owned) (count (set owned)))
+          "each dependency has exactly one semantic owner")
+      (is (set/subset? (set (:direct-authoritative-source-namespaces manifest))
+                       actual)))
     (is (false? (get-in research [:qualification :independently-released?])))
     (is (false? (get-in incentives [:qualification :independently-released?])))
     (is (= #{:prf-canonical}

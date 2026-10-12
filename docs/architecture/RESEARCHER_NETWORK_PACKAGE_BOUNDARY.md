@@ -34,6 +34,14 @@ imports now cross the two façade APIs. Other direct requirements—signing,
 canonical hashing/reference handling, and forensic evidence composition—are
 shared foundation APIs and are intentionally not copied into research.
 
+The research-contract and incentive package candidates now each have an
+explicit dependency manifest under `packages/prf-research-contracts/` and
+`packages/prf-incentives/`. Each records its public namespace and callable
+surface, existing schema versions, direct and computed transitive source
+closure, ownership, package-level dependencies, compatibility rules, and
+unresolved immutable pins. Their facades remain delegations to existing
+authoritative implementations.
+
 ## Supported API surface
 
 `resolver-sim.research.api` exposes output verification and validation, claim
@@ -127,8 +135,19 @@ therefore cannot resolve the required authoritative dependencies without an
 unpublished/local source path. No implementation was copied into the
 repository and no package is represented as independently released.
 
-The smallest release blocker is availability of immutable, independently
-consumable canonical, research-contract, and incentives packages (including
-their declared dependency closure). The source namespace count itself is not
-the blocker. Researcher-network remains **in-tree only**, with an explicit
-API seam prepared for later packaging.
+The research API closure qualification passed from an isolated snapshot
+(`bash scripts/qualify_research_api_closure.sh`; 2 tests, 23 assertions;
+content set `sha256:83473263e2ecd25b8d5b7cd4a0203859c69ab4862c6f2ac1d3925eefbf27802a`).
+The incentives API/reward closure also passed independently staged
+(`bash scripts/qualify_incentives_api_closure.sh`; 8 tests, 64 assertions;
+content set `sha256:ce4d4c531005b2b05f24c8c47b390356fe658d5edc39a84f9b9ece2f7e9e55ce`).
+Both snapshots exclude the monorepo source classpath and use declared Maven
+dependencies, but they are qualification fixtures rather than released
+package artifacts or immutable dependency coordinates.
+
+The remaining release blocker is the availability of immutable,
+independently consumable canonical, research-contract, and incentives
+coordinates (including their declared dependency closure). The source
+namespace count itself is not the blocker. Researcher-network remains
+**in-tree only**, with explicit API and dependency seams prepared for later
+packaging.
