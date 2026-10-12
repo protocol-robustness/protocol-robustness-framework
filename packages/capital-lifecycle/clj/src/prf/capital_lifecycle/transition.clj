@@ -31,6 +31,16 @@
     (integer? value) (bigint value)
     :else nil))
 
+(def ^:private command-fields
+  {"reserve" #{:type :operation-id :amount :expires-at :now :authorized?}
+   "release" #{:type :operation-id :authorized?}
+   "expire" #{:type :operation-id :now}
+   "fund" #{:type :operation-id :amount :now :custody-received}
+   "activate" #{:type :operation-id :admitted? :basis-total :entitlement-count}
+   "cancel" #{:type :operation-id :authorized? :custody-refunded}
+   "withdraw" #{:type :operation-id :entitlement-id :amount :admitted? :custody-sent}
+   "close" #{:type :operation-id}})
+
 (defn transition
   "Apply one closed lifecycle command to state.
 
@@ -38,11 +48,17 @@
    a rejection returns no changed state. Amounts are arbitrary precision
    non-negative integers."
   [state command]
-  (let [s (merge initial-state state)
+  (let [kind (:type command)
+        allowed-fields (get command-fields kind)]
+    (if-not allowed-fields
+      (reject "unknown-command")
+      (if (not (every? allowed-fields (keys command)))
+        (reject "invalid-command-shape")
+        (let [s (merge initial-state state)
         op (:operation-id command)
         same-op? (and (string? op) (not-empty op) (= op (:operation-id s)))
         amount (or (amount-value (:amount command)) 0N)]
-    (case (:type command)
+    (case kind
       "reserve"
       (cond
         (not= "none" (:status s)) (reject "operation-not-new")
@@ -126,4 +142,4 @@
             (not (zero? (:liability-remaining s)))) (reject "liability-outstanding")
         :else (accepted (assoc s :status "closed")))
 
-      (reject "unknown-command"))))
+      (reject "unknown-command")))))))

@@ -16,3 +16,10 @@
         (if (:accepted? expected)
           (is (= (:state expected) (select-keys (:state result) (keys (:state expected)))))
           (is (= (:reason expected) (:reason result))))))))
+
+(deftest command-shapes-are-closed
+  (is (= "invalid-command-shape"
+         (:reason (sut/transition sut/initial-state
+                                  {:type "close" :operation-id "op-a" :extra true}))))
+  (is (= "unknown-command"
+         (:reason (sut/transition sut/initial-state {:type "future-command"})))))

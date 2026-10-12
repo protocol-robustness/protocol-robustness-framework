@@ -73,8 +73,61 @@ fn rejected(reason: &'static str) -> Result<State, &'static str> {
     Err(reason)
 }
 
+/// A lifecycle command with a closed, operation-specific field set.
+/// Construction is validated by `TryFrom<Value>`; callers cannot mutate it.
+#[derive(Clone, Debug, PartialEq)]
+pub struct Command(Value);
+
+impl TryFrom<Value> for Command {
+    type Error = &'static str;
+
+    fn try_from(value: Value) -> Result<Self, Self::Error> {
+        let object = value.as_object().ok_or("invalid-command-shape")?;
+        let kind = object
+            .get("type")
+            .and_then(Value::as_str)
+            .ok_or("unknown-command")?;
+        let fields: &[&str] = match kind {
+            "reserve" => &[
+                "type",
+                "operation-id",
+                "amount",
+                "expires-at",
+                "now",
+                "authorized?",
+            ],
+            "release" => &["type", "operation-id", "authorized?"],
+            "expire" => &["type", "operation-id", "now"],
+            "fund" => &["type", "operation-id", "amount", "now", "custody-received"],
+            "activate" => &[
+                "type",
+                "operation-id",
+                "admitted?",
+                "basis-total",
+                "entitlement-count",
+            ],
+            "cancel" => &["type", "operation-id", "authorized?", "custody-refunded"],
+            "withdraw" => &[
+                "type",
+                "operation-id",
+                "entitlement-id",
+                "amount",
+                "admitted?",
+                "custody-sent",
+            ],
+            "close" => &["type", "operation-id"],
+            _ => return Err("unknown-command"),
+        };
+        if object.keys().any(|key| !fields.contains(&key.as_str())) {
+            return Err("invalid-command-shape");
+        }
+        Ok(Self(value))
+    }
+}
+
 /// Apply a closed lifecycle command. Errors leave the input state untouched.
-pub fn transition(state: &State, command: &Value) -> Result<State, &'static str> {
+pub fn transition(state: &State, command: &Command) -> Result<State, &'static str> {
+    let command = &command.0;
     let mut next = state.clone();
     let kind = string(command, "type").unwrap_or_default();
     let requested_amount =
@@ -282,7 +335,9 @@ mod tests {
                 }
             }
             let expected_ok = vector["expected"]["accepted?"].as_bool().unwrap();
-            let result = transition(&state, &vector["command"]);
+            let command = Command::try_from(vector["command"].clone())
+                .unwrap_or_else(|reason| panic!("{id}: invalid command: {reason}"));
+            let result = transition(&state, &command);
             assert_eq!(result.is_ok(), expected_ok, "{id}");
             if let Some(reason) = vector["expected"]["reason"].as_str() {
                 assert_eq!(result.unwrap_err(), reason, "{id}");
@@ -336,5 +391,17 @@ mod tests {
                 }
             }
         }
+    }
+
+    #[test]
+    fn command_shapes_are_closed() {
+        let extra: Value =
+            serde_json::from_str(r#"{"type":"close","operation-id":"op-a","extra":true}"#).unwrap();
+        assert_eq!(
+            Command::try_from(extra).unwrap_err(),
+            "invalid-command-shape"
+        );
+        let unknown: Value = serde_json::from_str(r#"{"type":"future-command"}"#).unwrap();
+        assert_eq!(Command::try_from(unknown).unwrap_err(), "unknown-command");
     }
 }
