@@ -93,14 +93,24 @@ artifact closure reported here.
 
 ## Independent package status
 
-In-tree conformance passes use the repository's declared dependency set and
-the tested aliases; they do not establish that the researcher-network
-package can build outside the monorepo. No immutable published coordinate
-currently exists for `prf-canonical`, `prf-research-contracts`, or
-`prf-incentives`. A clean external consumer therefore cannot resolve the
-required authoritative dependencies without an unpublished/local source
-path. No source was copied and no package is represented as independently
-released.
+In addition to in-tree conformance, an isolated temporary project was built
+from a copied snapshot of the 38 transitive source namespaces plus the
+researcher-network entrypoint. It used only an explicit source classpath, the
+existing `config/defaults.edn` resource, and explicitly declared Maven
+dependencies; the repository source tree was not on its classpath. The
+research and incentives API alias suite passed there (2 tests, 23 assertions).
+This qualifies the current source closure for isolated loading, not a
+reproducible package release: the temporary snapshot is not a package artifact
+or immutable published coordinate. The staged `src/`, `resources/` and `test/`
+content-set hash (sorted relative paths plus per-file SHA-256 digests, then
+SHA-256 of that manifest stream) was
+`sha256:83473263e2ecd25b8d5b7cd4a0203859c69ab4862c6f2ac1d3925eefbf27802a`.
+
+No immutable published coordinate currently exists for `prf-canonical`,
+`prf-research-contracts`, or `prf-incentives`. A clean external consumer
+therefore cannot resolve the required authoritative dependencies without an
+unpublished/local source path. No implementation was copied into the
+repository and no package is represented as independently released.
 
 The smallest release blocker is availability of immutable, independently
 consumable canonical, research-contract, and incentives packages (including
