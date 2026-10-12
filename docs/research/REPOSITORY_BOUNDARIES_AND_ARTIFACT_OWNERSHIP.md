@@ -23,14 +23,14 @@ reward semantics.
 
 | Concern / artifacts | Current authority | Root and validation owner | Intended boundary |
 | --- | --- | --- | --- |
-| Canonical hashing and root references | PRF shared foundation | `resolver-sim.hash.canonical`, `resolver-sim.hash.reference`; domain-separated roots and canonical projection | Shared PRF protocol dependency; never forked into network/accounting repositories |
+| Canonical hashing and root references | PRF shared foundation | `prf.canonical.hash` and `prf.canonical.reference`; `resolver-sim.hash.*` remains compatibility facade for broader in-tree consumers | Shared PRF protocol dependency; never forked into network/accounting repositories |
 | Generic forensic evidence nodes/graphs | PRF shared foundation | `resolver-sim.evidence.forensic-graph`; typed subjects, causal links, graph validation | Shared PRF protocol dependency |
 | Research computation and analytical results | PRF research-analysis | `resolver-sim.benchmark.research-definition`, `research-analysis`; frozen definition/axes, output verification, claim derivation | PRF authority; network can point to roots and invoke verification |
 | Claim acceptance and lifecycle | PRF claim authority | `research-claim-acceptance.v1`, `research-claim-lifecycle-transition.v1` | Remains PRF-owned; network review actions supply authenticated decisions but do not replace these artifacts |
 | Generic reward semantics: policy, eligibility, proposal and obligation | PRF incentive/reward contracts | `resolver-sim.benchmark.researcher-reward`; V1 builders and validators | Shared PRF capability; network derives views and references. Eligibility is not a funding authority's commitment decision |
 | Challenge, network configuration, signed actions, task claims, review replay and researcher summaries | In-repository researcher-network module (`resolver-sim.network.researcher-challenges`) | `researcher-challenges.v0` network root; schema-specific roots for challenge/config/action/task-claim/control artifacts; replay and signature checks in the same namespace | First candidate for a separate researcher-network repository, depending on PRF contracts |
 | Challenge-specific Shortfall method and candidate policy | Challenge 001 adapter (`resolver-sim.research.shortfall-pilot`, publication/CLI/docs/examples) | Method/scope/policy roots and source-content manifest; uses canonical allocator and PRF analysis verifier | Network/pilot application layer; not generic PRF accounting or allocation semantics |
-| Deterministic accounting reductions: reduction contract, request, partition plan/work units, partials and reconciliation | In-repository semantic module (`resolver-sim.accounting.reductions`) | `accounting-*` versioned roots; exact source coverage, deterministic sum-by-category and reconciliation validation | Semantically independent `accounting-reductions` capability, not owned by research-analysis; separate repository remains a later packaging decision |
+| Deterministic accounting reductions: reduction contract, request, partition plan/work units, partials and reconciliation | In-tree source package (`packages/accounting-reductions/clj`, namespace `resolver-sim.accounting.reductions`) | `accounting-*` versioned roots; exact source coverage, deterministic sum-by-category and reconciliation validation | Semantically independent of research-analysis; package consumes only canonical hashing/root references; publication and immutable pin remain later gates |
 | Economic relationships and positions: claim-to, possession position, accounting position | Currently implemented in PRF research (`resolver-sim.research.accounting-semantics`) | `claim-to/root`, `possession-position/root`, `accounting-position/root` | Shared economic semantics with domain extensions; separate from reduction mechanics and researcher identity/rewards |
 | Researcher incentive accounting: accepted contributions, experience snapshot, quoted amount, obligation reference, payout status | Network history derives accepted/eligible facts; generic obligation contract remains PRF-owned; actual commitment authority belongs to the designated funding authority | Challenge history/task-claim roots plus PRF acceptance, eligibility and obligation roots; payout status is externally recorded | Network summary/projection only; do not create a competing score, eligibility ledger, obligation calculator, or implied funding authorization |
 | Native accounting execution, dependencies, implementation assurance, run evidence | PRF distributed research execution | `native-accounting-work`, dependency/execution assurance and forensic graph validators | Remains an execution adapter over accounting semantics; should not migrate into the researcher-network repository |
@@ -205,6 +205,61 @@ the application requires several PRF modules directly, so a separate release
 must first define and pin those dependency contracts rather than relying on a
 workspace source path.
 
+#### Enforced in-tree module ownership
+
+`packages/module-boundaries.edn` is the machine-readable ownership and
+package-contract map. It classifies the current researcher-network source
+closure by namespace, owner, contract/implementation role, necessity, and
+package/release blocker. The dependency test computes direct consumers and
+transitive closure from the checked-in namespace forms, compares the computed
+closure to that reviewed classification, checks the declared module dependency
+rules, and rejects source dependency cycles. This avoids maintaining a second,
+stale handwritten consumer graph.
+
+The current closure is **36 namespaces**, not 34. It includes the canonical
+candidate namespaces `prf.canonical.codec` and `prf.canonical.reference`
+under `packages/canonical/clj/src`; the latter is now the implementation
+behind the legacy root-reference facade. The closure also includes shared support
+(`config.*`, `io.edn`, logging, VCS) and generic evidence-bundle integrity.
+Those are real current source dependencies; they are not researcher-network
+semantics. The bundle integrity implementation remains classified with the
+shared evidence foundation despite its historical `benchmark.integrity`
+namespace.
+
+The enforceable package DAG is:
+
+```text
+prf-canonical ──┬──→ prf-research-contracts ──→ prf-incentives ──┐
+                ├──→ accounting-reductions                       ├──→ researcher-network
+                ├────────────────────────────────────────────────┤
+                └────────────────────────────────────────────────┘
+prf-research-contracts ──────────────────────────────────────────┘
+prf-incentives ──────────────────────────────────────────────────┘
+```
+
+Accounting reductions depend only on the canonical foundation, never on
+research, incentives, network, or runner transport. Research/claim acceptance
+does not depend on incentives or accounting. Incentives consume research
+identities and do not implement claim acceptance. Network coordination
+consumes these authorities and does not implement them. The manifest currently
+records logical package contracts and in-tree enforcement; it does not pretend
+that the in-tree-only candidates are independently buildable releases.
+
+Package readiness is presently:
+
+| Package boundary | In-tree status | Independent status | Remaining concrete gate |
+| --- | --- | --- | --- |
+| `prf-canonical` | qualified source candidate and local package build | unpublished; no immutable dependency coordinate | publish or pin immutable Git/source coordinate; include the required generic evidence/signing surface in the package closure |
+| `prf-research-contracts` | ownership and API surface classified; implementation remains in PRF source | not independently buildable | extract research/acceptance implementation with canonical dependencies and its full support closure, then run golden/conformance tests outside workspace |
+| `prf-incentives` | ownership and V1 policy→eligibility→proposal→obligation chain classified | not independently buildable | isolate reward API from research implementation while preserving exact accepted-root binding; qualify its canonical/research dependencies |
+| `accounting-reductions` | implementation is now in an in-tree source package with explicit canonical dependency and package-local tests | locally buildable from its declared source dependencies; not independently released or pinned | clean-room conformance from an immutable canonical dependency coordinate; release provenance and immutable package/Git pin |
+| `researcher-network` | in-tree-only, source ownership/dependency rules enforced | not independently reproducible | all required canonical, research, incentive, evidence, signing, and support contracts must be separately packageable and immutably pinned |
+
+No source implementation was copied to make these boundaries appear
+independent. Existing compatibility namespaces and artifact builders remain
+authoritative. Package semver/releases are tracked separately from artifact
+schema versions.
+
 The Shortfall coupling is now localized in
 `resolver-sim.network.shortfall-pilot-adapter`. The method namespace
 `resolver-sim.research.shortfall-pilot` owns arithmetic, method validation,
@@ -230,14 +285,16 @@ they are independently packaged; no version is currently released:
 | `accounting-reductions` (provisional `0.1.x`) | `resolver-sim.accounting.reductions`: reduction contract, request, deterministic partition plan/work units, partial validation/admission, completeness and reconciliation | canonical hash/root-reference contract only; no research-analysis, network, runner or execution dependency | integer sum-by-qualified-category V1 vectors and exact-root conformance; package must declare its full runtime/test/resource closure |
 | `researcher-network` (provisional `0.1.x`) | `resolver-sim.network.researcher-challenges`: challenge/configuration/action/task-claim/control roots, signature checks, history replay, checkpoint and summary APIs | PRF canonical, signing, analysis/verification, claim lifecycle/acceptance, reward and generic evidence contracts; no pilot or runner dependency | versioned, pinned PRF contract coordinates and replay/signature conformance; shortfall application adapter moves with network |
 
-`accounting-reductions` currently imports only
-`resolver-sim.hash.canonical` and `resolver-sim.hash.reference` internally;
-these are workspace compatibility entry points over the canonical foundation.
-The eventual package dependency must point to the shared canonical contract,
-not copy those implementations. The network package is not yet independently
-buildable because its PRF dependencies are source namespaces in this checkout,
-not published/pinned package coordinates. Do not solve that by vendoring PRF
-builders or by publishing a broad all-domain facade.
+`accounting-reductions` now lives under
+`packages/accounting-reductions/clj` and imports the canonical package's
+`prf.canonical.hash` and `prf.canonical.reference` APIs directly. Its package
+domain-tag table is an explicit projection of the existing frozen V1 tags;
+the cross-boundary golden tests require all existing accounting roots to remain
+unchanged. The package has a declared local dependency on the in-tree canonical
+candidate, not an independently pinned release. The network package is not yet
+independently buildable because its PRF dependencies are source namespaces in
+this checkout, not published/pinned package coordinates. Do not solve that by
+vendoring PRF builders or by publishing a broad all-domain facade.
 
 For contract review, the current narrow callable surface is:
 

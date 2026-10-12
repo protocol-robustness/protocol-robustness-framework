@@ -4,7 +4,8 @@ Status: local standalone source candidate. It is not a published package and
 does not yet have a pinned remote dependency coordinate.
 
 This package contains the generic canonical value codec and domain-separated
-SHA-256 functions in Clojure and Rust. Artifact domain tags, canonical artifact
+SHA-256 implementations in Clojure and Rust, plus the canonical SHA-256
+reference-format API in Clojure. Artifact domain tags, canonical artifact
 schemas, and semantic admission rules remain owned by their domain packages.
 
 The binary contract is specified in

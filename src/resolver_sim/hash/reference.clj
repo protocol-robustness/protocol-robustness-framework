@@ -23,9 +23,10 @@
    See also resolver-sim.hash.canonical for domain-separated canonical hashing.
 
    ════════════════════════════════════════════════════════════════"
+  (:require [prf.canonical.reference :as canonical-reference])
   (:import [java.security MessageDigest]))
 
-(def ^:const sha256-ref-prefix "sha256:")
+(def sha256-ref-prefix canonical-reference/sha256-ref-prefix)
 
 (def ^:const sha256-algorithm
   "Algorithm name for SHA-256 MessageDigest."
@@ -163,9 +164,7 @@
   "Sew escrow dispute benchmark pack path (bare — add resource-prefix for classpath)."
   "benchmarks/packs/sew/escrow-dispute-v1.edn")
 
-(def ^:const sha256-ref-pattern
-  "Regex matching a canonical sha256 reference: sha256:<64 hex chars>."
-  #"^sha256:[0-9a-f]{64}$")
+(def sha256-ref-pattern canonical-reference/sha256-ref-pattern)
 
 (defn sha256-ref
   "Construct a canonical sha256 reference from a hex digest string.
@@ -190,17 +189,11 @@
    This deliberately does NOT coerce or pad — \"one canonical reference
    representation\" means construction is strict, not permissive."
   [hex-or-ref]
-  (cond
-    (and (string? hex-or-ref) (re-find sha256-ref-pattern hex-or-ref))
-    hex-or-ref
-
-    (and (string? hex-or-ref)
-         (re-matches #"[0-9a-f]{64}" hex-or-ref))
-    (str sha256-ref-prefix hex-or-ref)
-
-    :else
-    (throw (ex-info "invalid sha256-ref construction: expected a 64-character lowercase hex digest or a canonical \"sha256:<64hex>\" reference"
-                    {:input hex-or-ref :input-type (some-> hex-or-ref class .getName)}))))
+  (try
+    (canonical-reference/sha256-ref hex-or-ref)
+    (catch clojure.lang.ExceptionInfo _
+      (throw (ex-info "invalid sha256-ref construction: expected a 64-character lowercase hex digest or a canonical \"sha256:<64hex>\" reference"
+                      {:input hex-or-ref :input-type (some-> hex-or-ref class .getName)})))))
 
 (defn parse-sha256-ref
   "Parse a canonical sha256 reference to its raw hex digest.
@@ -219,14 +212,13 @@
 
      (parse-sha256-ref \"sha256:short\") => nil"
   [ref]
-  (when (and (string? ref) (re-find sha256-ref-pattern ref))
-    (subs ref (count sha256-ref-prefix))))
+  (canonical-reference/parse-sha256-ref ref))
 
 (defn valid-sha256-ref?
   "Return true if ref is a valid canonical sha256 reference string.
    Accepts strings of the form sha256:<64 lowercase hex chars>."
   [ref]
-  (boolean (and (string? ref) (re-find sha256-ref-pattern ref))))
+  (canonical-reference/valid-sha256-ref? ref))
 
 (defn sha256-ref-file
   "Compute the canonical sha256 reference for a file's content.
@@ -236,5 +228,5 @@
     (when (.isFile f)
       (let [digest (MessageDigest/getInstance sha256-algorithm)]
         (.update digest (java.nio.file.Files/readAllBytes (.toPath f)))
-        (str sha256-ref-prefix
-             (apply str (map #(format "%02x" (bit-and % 0xff)) (.digest digest))))))))
+        (canonical-reference/sha256-ref
+         (apply str (map #(format "%02x" (bit-and % 0xff)) (.digest digest))))))))

@@ -1,0 +1,38 @@
+{:release/id "accounting-reductions"
+ :release/version "0.1.0-dev"
+ :release/status :in-tree-source-candidate
+ :release/contracts ["accounting-reduction-contract.v1"
+                     "accounting-request.v1"
+                     "accounting-work-unit.v1"
+                     "accounting-partition-plan.v1"
+                     "accounting-partial-result.v1"
+                     "accounting-reconciliation.v1"
+                     "canonical-accounting-result.v1"]
+ :release/compatibility {:existing-v1-roots :immutable
+                         :schema-change :versioned-successor-required
+                         :canonical-result :independent-of-runner-and-completion-order}
+ :release/maintenance {:owner :accounting
+                       :update-policy :reviewed-backward-compatible-fix-or-versioned-successor}
+ :release/dependency-identities
+ {:clojure [{:lib org.clojure/clojure :version "1.12.0"}]
+  :canonical {:package prf/canonical
+              :source :in-tree-candidate
+              :path "../canonical/clj"
+              :immutable-pin nil}}
+ :release/runtime-dependencies [{:lib org.clojure/clojure :version "1.12.0"}
+                                {:lib prf/canonical
+                                 :version :in-tree-source-candidate
+                                 :path "../canonical/clj"}]
+ :release/conformance
+ {:package-local {:command "clojure -M:test"
+                  :tests 2 :assertions 6 :result :passed}
+  :cross-boundary-golden
+  {:command "clojure -M:test -e <repository-boundary-golden-suite>"
+   :status :passed
+   :accounting-root-compatibility :passed}}
+ :release/provenance {:immutable-source-revision nil
+                      :source-content-identity nil
+                      :clean-room-source-dependencies :passed
+                      :note "Clean-room test copied this package and its declared in-tree canonical dependency; this is not an immutable release pin."}
+ :release/publication {:status :unpublished
+                       :dependency-coordinate nil}}

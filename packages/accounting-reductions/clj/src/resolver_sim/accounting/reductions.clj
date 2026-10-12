@@ -7,8 +7,8 @@
    properties are part of the closed contract. Unsupported decompositions fail
    closed rather than acquiring algebraic properties from their data types."
   (:require [clojure.set :as set]
-            [resolver-sim.hash.canonical :as hc]
-            [resolver-sim.hash.reference :as hash-ref]))
+            [prf.canonical.hash :as canonical-hash]
+            [prf.canonical.reference :as canonical-reference]))
 
 (def ^:const reduction-contract-schema "accounting-reduction-contract.v1")
 (def ^:const request-schema "accounting-request.v1")
@@ -23,9 +23,21 @@
    :order-sensitive false :partition-independent true
    :requires-global-constraint false})
 
+(def ^:private domain-tags
+  {:accounting-reduction-contract-v1 "ACCOUNTING_REDUCTION_CONTRACT_V1"
+   :accounting-request-v1 "ACCOUNTING_REQUEST_V1"
+   :accounting-work-unit-v1 "ACCOUNTING_WORK_UNIT_V1"
+   :accounting-partition-plan-v1 "ACCOUNTING_PARTITION_PLAN_V1"
+   :accounting-partial-result-v1 "ACCOUNTING_PARTIAL_RESULT_V1"
+   :canonical-accounting-partial-v1 "CANONICAL_ACCOUNTING_PARTIAL_V1"
+   :accounting-reconciliation-v1 "ACCOUNTING_RECONCILIATION_V1"
+   :canonical-accounting-result-v1 "CANONICAL_ACCOUNTING_RESULT_V1"})
+
 (defn- root [domain value]
-  (hash-ref/sha256-ref (hc/domain-hash domain value)))
-(defn- root? [value] (hash-ref/valid-sha256-ref? value))
+  (let [tag (or (domain-tags domain)
+                (throw (ex-info "Unknown accounting hash domain" {:domain domain})))]
+    (canonical-reference/sha256-ref (canonical-hash/hash-with-domain tag value))))
+(defn- root? [value] (canonical-reference/valid-sha256-ref? value))
 (defn- integer-map? [m]
   (and (map? m) (every? qualified-keyword? (keys m))
        (every? integer? (vals m))))

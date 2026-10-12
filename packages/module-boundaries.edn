@@ -1,0 +1,121 @@
+{:schema "prf-module-boundaries.v1"
+ :status :in-tree-enforced
+ :source-location-convention {:resolver-sim "src/resolver_sim/<namespace path>.clj"
+                              :prf-canonical "packages/canonical/clj/src/prf/canonical/<namespace path>.clj"
+                              :accounting-reductions "packages/accounting-reductions/clj/src/resolver_sim/accounting/<namespace path>.clj"}
+ :consumer-index {:direct :computed-from-namespace-requires
+                  :transitive :computed-by-graph-closure
+                  :persisted-copy? false}
+ :package-contracts
+ {:prf-canonical
+  {:owner :prf-foundation
+   :status :qualified-source-candidate-unpublished
+   :api [:canonical-hash-scheme.v1 :root-reference.v1]
+   :depends-on #{}}
+  :prf-research-contracts
+  {:owner :prf-research
+   :status :in-tree-only
+   :api ["research-analysis-output.v1" "research-analysis-verification.v1"
+         "research-analytical-claim.v2" "research-claim-acceptance.v1"
+         "research-claim-lifecycle-transition.v1"]
+   :depends-on #{:prf-canonical}}
+  :prf-incentives
+  {:owner :prf-incentives
+   :status :in-tree-only
+   :api ["researcher-reward-policy.v1" "researcher-reward-eligibility.v1"
+         "researcher-reward-proposal.v1" "researcher-reward-obligation.v1"]
+   :depends-on #{:prf-canonical :prf-research-contracts}}
+  :accounting-reductions
+  {:owner :accounting
+   :status :in-tree-package-source-candidate-unpublished
+   :api [:accounting-reduction-contract.v1 :accounting-request.v1
+         :accounting-partition-plan.v1 :accounting-partial-result.v1
+         :accounting-reconciliation.v1 :canonical-accounting-result.v1]
+   :depends-on #{:prf-canonical}}
+  :researcher-network
+  {:owner :researcher-network
+   :status :in-tree-only
+   :api [:researcher-challenges.v0 :researcher-challenge.v1
+         :researcher-challenge-action.v1 :researcher-challenge-task-claim.v1]
+   :depends-on #{:prf-canonical :prf-research-contracts :prf-incentives}}}
+ :dependency-rules
+ {:prf-canonical #{:prf-canonical :support}
+  :support #{:prf-canonical :support}
+  :prf-research #{:prf-canonical :prf-research :support}
+  :prf-incentives #{:prf-canonical :prf-research :prf-incentives :support}
+  :accounting #{:prf-canonical :accounting :support}
+  :researcher-network #{:prf-canonical :prf-research :prf-incentives
+                        :researcher-network :support}}
+ :researcher-network-source-closure
+ [{:namespace prf.canonical.codec :owner :prf-canonical :kind :public-contract
+   :required? true :blocker :canonical-package-unpublished}
+  {:namespace prf.canonical.reference :owner :prf-canonical :kind :public-contract
+   :required? true :blocker :canonical-package-unpublished}
+  {:namespace resolver-sim.benchmark.incentive-deviation-domain :owner :prf-research :kind :internal-implementation
+   :required? true :blocker :research-package-not-extracted}
+  {:namespace resolver-sim.benchmark.incentive-model :owner :prf-research :kind :public-input-contract
+   :required? true :blocker :research-package-not-extracted}
+  {:namespace resolver-sim.benchmark.integrity :owner :prf-canonical :kind :generic-integrity-contract
+   :required? true :blocker :research-package-not-extracted}
+  {:namespace resolver-sim.benchmark.outcome-manifest :owner :prf-research :kind :public-contract
+   :required? true :blocker :research-package-not-extracted}
+  {:namespace resolver-sim.benchmark.research-analysis :owner :prf-research :kind :public-contract
+   :required? true :blocker :research-package-not-extracted}
+  {:namespace resolver-sim.benchmark.research-analysis-closure :owner :prf-research :kind :internal-implementation
+   :required? true :blocker :research-package-not-extracted}
+  {:namespace resolver-sim.benchmark.research-assignment :owner :prf-research :kind :public-contract
+   :required? true :blocker :research-package-not-extracted}
+  {:namespace resolver-sim.benchmark.research-assignment-target-binding :owner :prf-research :kind :internal-implementation
+   :required? true :blocker :research-package-not-extracted}
+  {:namespace resolver-sim.benchmark.research-claim-acceptance :owner :prf-research :kind :authoritative-contract
+   :required? true :blocker :research-package-not-extracted}
+  {:namespace resolver-sim.benchmark.research-claim-lifecycle :owner :prf-research :kind :authoritative-contract
+   :required? true :blocker :research-package-not-extracted}
+  {:namespace resolver-sim.benchmark.research-command :owner :prf-research :kind :public-contract
+   :required? true :blocker :research-package-not-extracted}
+  {:namespace resolver-sim.benchmark.research-conclusion :owner :prf-research :kind :public-contract
+   :required? true :blocker :research-package-not-extracted}
+  {:namespace resolver-sim.benchmark.research-theorem-outcome :owner :prf-research :kind :public-contract
+   :required? true :blocker :research-package-not-extracted}
+  {:namespace resolver-sim.benchmark.researcher-reward :owner :prf-incentives :kind :authoritative-contract
+   :required? true :blocker :incentive-package-not-extracted}
+  {:namespace resolver-sim.benchmark.signing :owner :prf-canonical :kind :public-contract
+   :required? true :blocker :canonical-signing-contract-unpublished}
+  {:namespace resolver-sim.config.defaults :owner :support :kind :operational-support
+   :required? true :blocker :shared-support-source-not-packaged}
+  {:namespace resolver-sim.config.hardening :owner :support :kind :operational-support
+   :required? true :blocker :shared-support-source-not-packaged}
+  {:namespace resolver-sim.config.paths :owner :support :kind :operational-support
+   :required? true :blocker :shared-support-source-not-packaged}
+  {:namespace resolver-sim.evidence.chain :owner :prf-canonical :kind :public-contract
+   :required? true :blocker :canonical-evidence-contract-unpublished}
+  {:namespace resolver-sim.evidence.config :owner :prf-canonical :kind :internal-implementation
+   :required? true :blocker :canonical-evidence-contract-unpublished}
+  {:namespace resolver-sim.evidence.forensic-graph :owner :prf-canonical :kind :public-contract
+   :required? true :blocker :canonical-evidence-contract-unpublished}
+  {:namespace resolver-sim.evidence.node :owner :prf-canonical :kind :public-contract
+   :required? true :blocker :canonical-evidence-contract-unpublished}
+  {:namespace resolver-sim.evidence.reachability :owner :prf-canonical :kind :public-contract
+   :required? true :blocker :canonical-evidence-contract-unpublished}
+  {:namespace resolver-sim.evidence.timestamping :owner :prf-canonical :kind :public-contract
+   :required? true :blocker :canonical-evidence-contract-unpublished}
+  {:namespace resolver-sim.forensic.source-hash :owner :prf-canonical :kind :internal-implementation
+   :required? true :blocker :canonical-evidence-contract-unpublished}
+  {:namespace resolver-sim.hash.algorithm :owner :prf-canonical :kind :public-contract
+   :required? true :blocker :canonical-package-unpublished}
+  {:namespace resolver-sim.hash.canonical :owner :prf-canonical :kind :compatibility-facade
+   :required? true :blocker :canonical-package-unpublished}
+  {:namespace resolver-sim.hash.framing-view :owner :prf-canonical :kind :internal-implementation
+   :required? true :blocker :canonical-package-unpublished}
+  {:namespace resolver-sim.hash.reference :owner :prf-canonical :kind :public-contract
+   :required? true :blocker :canonical-package-unpublished}
+  {:namespace resolver-sim.hash.round-trip :owner :prf-canonical :kind :internal-implementation
+   :required? true :blocker :canonical-package-unpublished}
+  {:namespace resolver-sim.hash.sequence :owner :prf-canonical :kind :internal-implementation
+   :required? true :blocker :canonical-package-unpublished}
+  {:namespace resolver-sim.io.edn :owner :support :kind :operational-support
+   :required? true :blocker :shared-support-source-not-packaged}
+  {:namespace resolver-sim.logging :owner :support :kind :operational-support
+   :required? true :blocker :shared-support-source-not-packaged}
+  {:namespace resolver-sim.vcs :owner :support :kind :operational-support
+   :required? true :blocker :shared-support-source-not-packaged}]}
