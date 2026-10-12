@@ -15,6 +15,7 @@
   :prf-research-contracts
   {:owner :prf-research
    :status :in-tree-only
+   :public-namespace resolver-sim.research.api
    :api ["research-analysis-output.v1" "research-analysis-verification.v1"
          "research-analytical-claim.v2" "research-claim-acceptance.v1"
          "research-claim-lifecycle-transition.v1"]
@@ -22,6 +23,7 @@
   :prf-incentives
   {:owner :prf-incentives
    :status :in-tree-only
+   :public-namespace resolver-sim.incentives.api
    :api ["researcher-reward-policy.v1" "researcher-reward-eligibility.v1"
          "researcher-reward-proposal.v1" "researcher-reward-obligation.v1"]
    :depends-on #{:prf-canonical :prf-research-contracts}}
@@ -118,4 +120,66 @@
   {:namespace resolver-sim.logging :owner :support :kind :operational-support
    :required? true :blocker :shared-support-source-not-packaged}
   {:namespace resolver-sim.vcs :owner :support :kind :operational-support
-   :required? true :blocker :shared-support-source-not-packaged}]}
+   :required? true :blocker :shared-support-source-not-packaged}
+  {:namespace resolver-sim.research.api :owner :prf-research :kind :public-contract
+   :required? true :blocker :research-package-not-extracted}
+  {:namespace resolver-sim.incentives.api :owner :prf-incentives :kind :public-contract
+   :required? true :blocker :incentive-package-not-extracted}
+  ]
+ :dependency-classes
+ {:public-prf-protocol-semantic-contract
+  #{prf.canonical.codec prf.canonical.reference
+    resolver-sim.benchmark.incentive-deviation-domain
+    resolver-sim.benchmark.incentive-model
+    resolver-sim.benchmark.outcome-manifest
+    resolver-sim.benchmark.research-analysis
+    resolver-sim.benchmark.research-assignment
+    resolver-sim.benchmark.research-claim-acceptance
+    resolver-sim.benchmark.research-claim-lifecycle
+    resolver-sim.benchmark.research-command
+    resolver-sim.benchmark.research-conclusion
+    resolver-sim.benchmark.research-theorem-outcome
+    resolver-sim.research.api
+    resolver-sim.incentives.api
+    resolver-sim.benchmark.researcher-reward}
+  :private-research-implementation
+  #{resolver-sim.benchmark.research-analysis-closure
+    resolver-sim.benchmark.research-assignment-target-binding}
+  :canonical-shared-foundation
+  #{resolver-sim.benchmark.integrity
+    resolver-sim.benchmark.signing
+    resolver-sim.evidence.chain
+    resolver-sim.evidence.config
+    resolver-sim.evidence.forensic-graph
+    resolver-sim.evidence.node
+    resolver-sim.evidence.reachability
+    resolver-sim.evidence.timestamping
+    resolver-sim.forensic.source-hash
+    resolver-sim.hash.algorithm
+    resolver-sim.hash.canonical
+    resolver-sim.hash.framing-view
+    resolver-sim.hash.reference
+    resolver-sim.hash.round-trip
+    resolver-sim.hash.sequence}
+  :configuration-defaults
+  #{resolver-sim.config.defaults}
+  :execution-infrastructure-operational
+  #{resolver-sim.config.hardening
+    resolver-sim.config.paths
+    resolver-sim.io.edn
+    resolver-sim.logging
+    resolver-sim.vcs}
+  :test-only-utility #{}}
+ :canonical-api-requests
+ {:owner :c2
+  :status :requested-not-implemented-by-c1
+  :legacy-consumers
+  #{resolver-sim.hash.canonical resolver-sim.hash.reference}
+  :required-functions
+  #{:canonical-bytes :canonical-bytes-hex :domain-hash
+    :project-canonical-safe :project-committable-content
+    :validate-canonical-value! :hash-with-intent :intent-hash
+    :validate-intent-constraints! :sha256-ref :valid-sha256-ref?
+    :parse-sha256-ref}
+  :compatibility-requirement
+  "Preserve all legacy encodings, domain separators, string/keyword handling, and V1 root vectors."}}

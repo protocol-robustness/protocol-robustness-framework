@@ -169,10 +169,8 @@
     (is (not-any? runner-deps
                   ['resolver-sim.network.researcher-challenges]))
     (is (every? challenge-deps
-                ['resolver-sim.benchmark.research-analysis
-                 'resolver-sim.benchmark.research-claim-acceptance
-                 'resolver-sim.benchmark.research-claim-lifecycle
-                 'resolver-sim.benchmark.researcher-reward
+                ['resolver-sim.research.api
+                 'resolver-sim.incentives.api
                  'resolver-sim.evidence.forensic-graph]))
     (is (contains? (graph 'resolver-sim.network.shortfall-pilot-adapter)
                    'resolver-sim.research.shortfall-pilot))
@@ -222,10 +220,10 @@
         owners (module-owners contract)
         allowed (:dependency-rules contract)
         package-graph (into {} (map (fn [[package descriptor]]
-                                     [package (:depends-on descriptor)]))
+                                      [package (:depends-on descriptor)]))
                             (:package-contracts contract))]
     (is (= "prf-module-boundaries.v1" (:schema contract)))
-    (is (= 36 (count source-closure)) "the audited transitive source closure is explicit")
+    (is (= 38 (count source-closure)) "the audited transitive source closure is explicit")
     (is (= actual-closure source-closure)
         "closure changes require ownership/classification review")
     (is (every? #(contains? graph %) source-closure)
@@ -234,6 +232,17 @@
         "the reviewed namespace-to-source mapping resolves in-tree")
     (is (every? #(and (:owner %) (:kind %) (contains? % :required?) (:blocker %))
                 (:researcher-network-source-closure contract)))
+    (let [classes (vals (:dependency-classes contract))
+          classified (apply set/union #{} classes)]
+      (is (= source-closure classified)
+          "every transitive namespace has exactly one explicit dependency class")
+      (is (= (count source-closure)
+             (count (mapcat identity classes)))
+          "dependency classes are disjoint"))
+    (is (every? (graph 'resolver-sim.network.researcher-challenges)
+                ['resolver-sim.research.api 'resolver-sim.incentives.api]))
+    (is (= :prf-research (get owners 'resolver-sim.research.api)))
+    (is (= :prf-incentives (get owners 'resolver-sim.incentives.api)))
     (is (= :researcher-network (get owners 'resolver-sim.network.researcher-challenges)))
     (is (= :prf-research (get owners 'resolver-sim.benchmark.research-claim-acceptance)))
     (is (= :prf-research (get owners 'resolver-sim.benchmark.research-claim-lifecycle)))

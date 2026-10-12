@@ -3,11 +3,8 @@
    experience and existing reward artifacts from the complete authoritative history."
   (:require [buddy.core.codecs :as codecs]
             [resolver-sim.benchmark.signing :as signing]
-            [resolver-sim.benchmark.incentive-model :as model]
-            [resolver-sim.benchmark.research-analysis :as analysis]
-            [resolver-sim.benchmark.research-claim-acceptance :as acceptance]
-            [resolver-sim.benchmark.research-claim-lifecycle :as lifecycle]
-            [resolver-sim.benchmark.researcher-reward :as reward]
+            [resolver-sim.research.api :as research]
+            [resolver-sim.incentives.api :as incentives]
             [resolver-sim.evidence.forensic-graph :as forensic]
             [resolver-sim.hash.canonical :as canonical]
             [resolver-sim.hash.reference :as reference])
@@ -128,7 +125,7 @@
           :invalid-preparation-input)
   (let [incentive-model (:incentive-model spec)
         _ (ensure! (and (reference/valid-sha256-ref? (:incentive-model/root incentive-model))
-                        (:valid? (model/validate-model incentive-model)))
+                        (:valid? (research/validate-incentive-model incentive-model)))
                    :invalid-preparation-model)
         policy (build-reward-policy (:currency spec))
         challenge (build-challenge
@@ -219,9 +216,9 @@
 
 (defn- checked-evidence [challenge context]
   (exact! context context-keys :invalid-evidence-context)
-  (let [verification (analysis/verify-output context)]
-    (ensure! (analysis/verification-valid? verification (:analysis-output context)) :unverified-evidence)
-    (let [claim (analysis/derive-claim (:analysis-output context) verification (:incentive-model context))
+  (let [verification (research/verify-analysis-output context)]
+    (ensure! (research/analysis-verification-valid? verification (:analysis-output context)) :unverified-evidence)
+    (let [claim (research/derive-analytical-claim (:analysis-output context) verification (:incentive-model context))
           criteria (:acceptance/criteria challenge)]
       (ensure! (and (= (:subject/root challenge) (:research-claim/subject-root claim))
                     (= (:proposition-id criteria) (:research-claim/proposition-id claim))
@@ -258,18 +255,18 @@
           _ (ensure! (not (contains? (:contributions state) key)) :duplicate-contribution)
           authority (researcher-reference (get-in state [:configuration :network/root])
                                           (get-in state [:configuration :reviewer/public-key]))
-          acceptance-policy (acceptance/build-policy
+          acceptance-policy (research/build-claim-acceptance-policy
                              {:acceptance-policy/id (keyword "researcher-challenge" (str "definition-" (subs (:artifact/root challenge) 7)))
                               :acceptance-policy/authority-root authority})
-          accepted (acceptance/build-acceptance
+          accepted (research/build-claim-acceptance
                     {:claim (:claim submission) :verification (:verification submission)
                      :policy acceptance-policy :decision (:decision p)
                      :decision-evidence-root (:action/root a)
                      :accepted-at (:accepted-at p) :acceptance-sequence 0})
-          transition (lifecycle/build-transition {:acceptance accepted :from :unseen
-                                                  :to (:decision p) :sequence 0})
+          transition (research/build-claim-lifecycle-transition {:acceptance accepted :from :unseen
+                                                                 :to (:decision p) :sequence 0})
           qualified? (and (= :accepted (:decision p)) (= :eligible (:incentive/decision p)))
-          v1-policy (reward/build-policy
+          v1-policy (incentives/build-reward-policy
                      {:accepted-contribution-types #{(:contribution/type challenge)}
                       :required-verification #{:verified :claimable}
                       :required-claim-statuses #{(:research-claim/status (:claim submission))}
@@ -279,7 +276,7 @@
                       :challenge/root (:artifact/root challenge)
                       :reward/policy-v2-root (:reward/policy-root q)
                       :task-claim/root (:artifact/root q)})
-          eligibility (reward/evaluate
+          eligibility (incentives/evaluate-reward-eligibility
                        {:policy v1-policy :researcher (:researcher/root submission)
                         :assignment-root (get-in submission [:context :research-assignment :research-assignment/hash])
                         :contribution-root (get-in submission [:claim :research-claim/root])
@@ -293,11 +290,11 @@
                                        :experience/snapshot-root (:experience/snapshot-root q)}
                         :claim (assoc (:claim submission) :claimable? qualified?)
                         :duplicate? false :conflict-of-interest? false})
-          proposal (when qualified? (reward/build-proposal {:eligibility eligibility :policy v1-policy}))
+          proposal (when qualified? (incentives/build-reward-proposal {:eligibility eligibility :policy v1-policy}))
           obligation (when qualified?
-                       (reward/build-obligation {:proposal proposal :eligibility eligibility
-                                                 :approval-authority {:authority/id "researcher-challenges-v0-reviewer"
-                                                                      :authority/root authority :authority/authorized? true}}))]
+                       (incentives/build-reward-obligation {:proposal proposal :eligibility eligibility
+                                                            :approval-authority {:authority/id "researcher-challenges-v0-reviewer"
+                                                                                 :authority/root authority :authority/authorized? true}}))]
       {:review/action-root (:action/root a) :researcher/root (:researcher/root submission)
        :contribution/root (get-in submission [:claim :research-claim/root])
        :contribution/key (finding-key (:claim submission))
@@ -471,10 +468,10 @@
                                     (not (contains? (:withdrawals state) (:submission/root p))))
                                :invalid-withdrawal-target)
                     acceptance (:acceptance review)
-                    transition (lifecycle/build-transition
+                    transition (research/build-claim-lifecycle-transition
                                 {:acceptance acceptance :from (:decision review) :to :superseded
                                  :sequence 1 :supersession? true})
-                    current (lifecycle/reconstruct-research-claim-lifecycle
+                    current (research/reconstruct-claim-lifecycle
                              {:claim-root (:research-claim-acceptance/claim-root acceptance)
                               :policy-root (:research-claim-acceptance/policy-root acceptance)
                               :transitions [(:lifecycle-transition review) transition]

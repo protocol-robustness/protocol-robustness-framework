@@ -1,6 +1,6 @@
 (ns resolver-sim.benchmark.researcher-reward
   "Frozen researcher reward policy and deterministic eligibility evaluation."
-  (:require [resolver-sim.benchmark.research-analysis :as analysis]
+  (:require [resolver-sim.research.api :as research]
             [resolver-sim.benchmark.research-assignment :as assignment]
             [resolver-sim.benchmark.research-assignment-target-binding :as target-binding]
             [resolver-sim.hash.canonical :as hc]
@@ -206,17 +206,17 @@
            research-command incentive-model deviation-domain research-assignment
            outcome-manifest target-binding]}]
   (let [expected-verification
-        (analysis/verify-output
+        (research/verify-analysis-output
          {:research-command research-command
           :incentive-model incentive-model
           :deviation-domain deviation-domain
           :research-assignment research-assignment
           :outcome-manifest outcome-manifest
           :analysis-output analysis-output})
-        expected-claim (when (analysis/verification-valid?
+        expected-claim (when (research/analysis-verification-valid?
                               expected-verification analysis-output)
-                         (analysis/derive-claim analysis-output expected-verification
-                                                incentive-model))
+                         (research/derive-analytical-claim analysis-output expected-verification
+                                                           incentive-model))
         errors (cond-> []
                  (not (valid-obligation? obligation)) (conj :invalid-obligation)
                  (not (valid-proposal? proposal)) (conj :invalid-proposal)
@@ -246,7 +246,7 @@
                  (conj :invalid-target-binding)
                  (not (:valid? (assignment/validate-assignment research-assignment)))
                  (conj :invalid-research-assignment)
-                 (not (:valid? (analysis/validate-claim claim))) (conj :invalid-claim)
+                 (not (:valid? (research/validate-analytical-claim claim))) (conj :invalid-claim)
                  (not= (:research-analysis-verification/root verification)
                        (:research-analysis-verification/root expected-verification))
                  (conj :verification-reconstruction-mismatch)
