@@ -1,0 +1,17 @@
+{:release/id "prf-canonical"
+ :release/version "0.1.0-rc.1"
+ :release/status :qualified-source-candidate
+ :release/surface #{:clojure :rust}
+ :release/contracts ["canonical-hash-scheme.v1"
+                     "CANONICAL_HASH_SPEC_V1_BINARY_ENCODING_ABI"]
+ :release/conformance {:status :passed
+                       :vectors "clj/test/resources/canonical-v1-vectors.tsv"
+                       :clojure {:command "clojure -M:test -m prf.canonical.test-runner"
+                                 :tests 2
+                                 :assertions 9
+                                 :result :passed}
+                       :rust {:command "cargo test --offline --manifest-path rust/Cargo.toml"
+                              :tests 2
+                              :result :passed}}
+ :release/publication {:status :unpublished
+                       :dependency-coordinate nil}}
