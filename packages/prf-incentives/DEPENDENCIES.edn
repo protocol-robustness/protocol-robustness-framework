@@ -29,6 +29,12 @@
                              :analysis-verification-reference]
               :immutable-coordinate nil
               :availability :in-tree-source-candidate}]}
+ :canonical-api-contract
+ {:request-owner :c2
+  :request-path "packages/module-boundaries.edn#:canonical-api-requests"
+  :required-functions #{:domain-hash :sha256-ref :valid-sha256-ref?
+                        :project-committable-content :sequence-hash}
+  :compatibility "Reward, research and V1 evidence roots depend on legacy domain-tag compatibility."}
  :direct-authoritative-source-namespaces
  [resolver-sim.benchmark.researcher-reward
   resolver-sim.research.api

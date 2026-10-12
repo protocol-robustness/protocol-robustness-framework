@@ -291,6 +291,7 @@
 
 (deftest package-candidates-have-explicit-public-api-and-dependency-manifests
   (let [contract (module-contract)
+        canonical-request (:canonical-api-requests (module-contract))
         graph @cached-repository-source-graph
         closure (fn [root] (conj (transitive-dependencies graph root) root))
         research (read-edn-file "packages/prf-research-contracts/DEPENDENCIES.edn")
@@ -328,6 +329,12 @@
                           (get-in research [:runtime-dependencies :packages]))))
     (is (every? nil? (map :immutable-coordinate
                           (get-in incentives [:runtime-dependencies :packages]))))
+    (doseq [manifest [research incentives]]
+      (is (= :c2 (get-in manifest [:canonical-api-contract :request-owner])))
+      (is (set/subset? (get-in manifest [:canonical-api-contract
+                                         :required-functions])
+                       (:required-functions canonical-request)))
+      (is (string? (get-in manifest [:canonical-api-contract :compatibility]))))
     (is (= "packages/prf-research-contracts/DEPENDENCIES.edn"
            (get-in contract [:package-contracts :prf-research-contracts
                              :dependency-manifest])))

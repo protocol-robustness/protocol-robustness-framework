@@ -29,6 +29,12 @@
                              :valid-sha256-root-reference?]
               :immutable-coordinate nil
               :availability :unpublished-c2-candidate}]}
+ :canonical-api-contract
+ {:request-owner :c2
+  :request-path "packages/module-boundaries.edn#:canonical-api-requests"
+  :required-functions #{:domain-hash :sha256-ref :valid-sha256-ref?
+                        :project-committable-content :sequence-hash}
+  :compatibility "Keyword domain identifiers and legacy V1 tags must retain their byte-exact mapping."}
  :direct-authoritative-source-namespaces
  [resolver-sim.benchmark.incentive-model
   resolver-sim.benchmark.research-analysis

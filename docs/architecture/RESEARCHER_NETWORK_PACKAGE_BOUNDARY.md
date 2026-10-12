@@ -42,6 +42,12 @@ closure, ownership, package-level dependencies, compatibility rules, and
 unresolved immutable pins. Their facades remain delegations to existing
 authoritative implementations.
 
+Both manifests explicitly defer canonical API additions to C2 and name the
+subset required by these consumers: V1-compatible `domain-hash`, SHA-256
+reference construction/validation, committable-content projection, and
+sequence hashing. In particular, the legacy keyword-domain mapping must remain
+byte-exact; C1 has not changed canonical implementation code.
+
 ## Supported API surface
 
 `resolver-sim.research.api` exposes output verification and validation, claim
