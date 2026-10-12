@@ -150,6 +150,26 @@ that the lifecycle transition validates before committing accounting. Token
 admission and EVM transfer behavior are implementation concerns; supported
 assets must satisfy the asset profile declared by the application deployment.
 
+### Existing adapter inventory
+
+Read-only inventory of the current PRF and companion `prf-evm` implementations.
+These are ownership and parity findings, not a proposal to move or rewrite the
+current implementations.
+
+| Port / transition | Existing implementation and owner | Coverage and extraction gap |
+| --- | --- | --- |
+| Allocation basis | PRF Clojure `src/resolver_sim/shortfall/allocation_binding.clj`; Rust `coprocessor/core/src/source_bound_entitlement.rs`; EVM `ProductionProRataAllocatorV2.sol` | Shortfall validates the application binding and reconstructed realized statement. The entitlement EVM path admits binding, descriptor, table, claim roots, beneficiary profile, count, total, and token. EVM activation checks the deployed representation root/count/total. The lifecycle kernel now checks opaque basis, operation, asset, and optional representation references plus total/count; no canonical reference decoder or universal entitlement rows are introduced. EVM representation/table/proof rules remain adapter-owned. |
+| Source binding | Shortfall Clojure `reserve_observation.clj`, `reserve_binding.clj`, and `allocation_binding.clj`; Rust `coprocessor/core/src/source_bound_v2.rs` and `source_bound_entitlement.rs`; EVM `OnchainShortfallReserveV2.sol` and source-bound controllers | These bind Shortfall source, reserve observation, operation, configuration, and assurance. They are application-specific and should remain outside the lifecycle kernel. The observation/funding path is not yet a generic `SourceBindingPort` implementation. Existing V1 and V2 observation/proof identities remain separate. |
+| Protected operations | EVM `SourceBoundProRataRatificationControllerV2.sol`, `SourceBoundProRataControllerV2.sol`, and assurance contracts | Ratification consumes admitted assurance and checks prepared operation, route, chain, reserve, token, allocator, configuration, and residual recipient before funding. This is a concrete Shortfall/EVM composition, not a reusable port consumed by the Clojure/Rust kernel. Keep AO policy and replay/configuration semantics in protected-operations adapters. |
+| Reserve, funding, and refund | EVM `OnchainShortfallReserveV2.sol` and `ProductionProRataAllocatorV2.sol` | Exact token deltas and allowance cleanup are checked on funding/refund; funded pre-activation operations can be cancelled and refunded to the funding reserve. This supports the custody port. Solidity `reserveForOtherObligation` has release and permissionless expiry, but is a non-fundable exclusion hold, not the operation-bound prepare/fund reservation represented by the kernel. Do not claim those paths are equivalent. |
+| Activation, withdrawal, closure | EVM `ProductionProRataAllocatorV2.sol`; Clojure/Rust lifecycle transition kernels | EVM activates only after its representation matches the admitted EVM table commitment. Withdrawals validate table openings, apply live proof policy and caller minimum, prevent replay, transfer exact amounts, and auto-close when count and amount are discharged. The kernel models liabilities and terminal state only; beneficiary, opening, proof-policy, and token checks belong to its adapter. The EVM path has no separate caller-invoked close transition. |
+| Lifecycle kernel | `packages/capital-lifecycle/clj` and `packages/capital-lifecycle/rust` | Both implementations consume the same 26 transition vectors and remain unconnected to production runtimes. Vectors establish semantic transition parity, not Solidity adapter conformance or canonical-root equivalence. |
+
+A known source-bound constraint remains outside this inventory's scope: the
+legacy and successor prepared-operation V2 paths must retain their current
+identities and layouts while their cross-language equivalence issue is handled
+as a separate identity task. Do not combine those preimages during extraction.
+
 ## Transition API
 
 The package's pure semantic API is a closed transition function. Runtime
@@ -282,16 +302,18 @@ separate evidence.
 ## Extraction order
 
 1. Keep this contract in PRF as the reviewed package boundary.
-2. Inventory existing Solidity and source-bound implementations against each
-   port; mark missing methods instead of filling them speculatively.
-3. The illustrative NOW and application-defined port cases now live in
-   `allocation-basis-port-examples-v1.edn`. Remaining: make them executable
-   cross-language adapter fixtures when the kernel binds typed basis, operation,
-   asset, and representation references. Do not pass row formats into the core.
-4. Extract pure lifecycle transition logic and conformance fixtures into an
-   in-tree package; leave Shortfall and EVM adapters at their current locations.
-5. Once that package is independently loadable and pinned, move the package into
-   `prf-capital-lifecycle`. Do not create the external repository before the
-   in-tree boundary and dependency directions validate.
+2. The read-only adapter inventory above is complete. Preserve the identified
+   boundaries and record the reservation-path difference rather than treating
+   the non-fundable EVM exclusion hold as the lifecycle operation reservation.
+3. The AllocationBasis kernel binding is implemented in Clojure and Rust with
+   shared positive/negative vectors, including an alternative adapter fixture.
+   The EDN examples remain explanatory placeholders. Do not pass row formats
+   into the core.
+4. Next, add explicit EVM adapter conformance for the lifecycle transitions
+   using existing Solidity tests and receipts as evidence. Keep Solidity economic
+   behavior unchanged and keep EVM receipts separate from semantic vectors.
+5. The pure transition kernel and shared vectors already form an in-tree
+   package. Validate independent loading, dependency direction, and adapter
+   conformance there before creating `prf-capital-lifecycle`.
 
 No source files are moved by this specification.
