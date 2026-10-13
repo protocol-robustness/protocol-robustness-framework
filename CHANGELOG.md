@@ -10,6 +10,10 @@
 
 ## Unreleased
 
+### PRO-28 receipt-level local execution evidence
+
+- Added `eae.pro-28-authentic-local-execution.v1` reconstruction output and retained receipt/runtime evidence for the source-bound successor-entitlement local flow. Funding and each entitlement payout bind to transaction, receipt, log, contract, and block identities; local Anvil evidence remains explicitly non-public and non-canonical.
+
 - Clarified that the 2026-09-28 V2 audit is a historical baseline and documented the separately implemented 288-byte successor-entitlement lifecycle with pinned local evidence; the legacy 192-byte profile remains unchanged.
 
 - Fixed the real V2/SP1 runner source inventory to cover crate-local Rust sources; added an ARTIFACT_DIR override so retries preserve failed-run evidence.
