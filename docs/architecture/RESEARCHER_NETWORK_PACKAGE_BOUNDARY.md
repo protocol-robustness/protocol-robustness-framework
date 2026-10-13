@@ -11,7 +11,7 @@ they contain no copied rules, schemas, or hashing implementations.
 The checked source closure is recorded in
 [`packages/module-boundaries.edn`](../../packages/module-boundaries.edn) and
 validated against source `ns` declarations by
-`repository-boundary-dependency-test`. Its 38 namespaces classify as:
+`repository-boundary-dependency-test`. Its 40 namespaces classify as:
 
 | Class | Namespaces | Ownership / meaning |
 |---|---|---|
@@ -119,7 +119,7 @@ artifact closure reported here.
 ## Independent package status
 
 In addition to in-tree conformance, an isolated temporary project was built
-from a copied snapshot of the 38 transitive source namespaces plus the
+from a copied snapshot of the 40 transitive source namespaces plus the
 researcher-network entrypoint. It used only an explicit source classpath, the
 existing `config/defaults.edn` resource, and explicitly declared Maven
 dependencies; the repository source tree was not on its classpath. The
@@ -131,7 +131,7 @@ reproducible package release: the temporary snapshot is not a package artifact
 or immutable published coordinate. The staged `src/`, `resources/` and `test/`
 content-set hash (sorted relative paths plus per-file SHA-256 digests, then
 SHA-256 of that manifest stream) was
-`sha256:83473263e2ecd25b8d5b7cd4a0203859c69ab4862c6f2ac1d3925eefbf27802a`.
+`sha256:506d3e021494a3ff78113062dc4d753918e88393aba780bb282f5f73d7f27fd7`.
 
 No immutable published coordinate currently exists for `prf-canonical`,
 `prf-research-contracts`, or `prf-incentives`. A clean external consumer
@@ -141,7 +141,8 @@ repository and no package is represented as independently released.
 
 The research API closure qualification passed from an isolated snapshot
 (`bash scripts/qualify_research_api_closure.sh`; 2 tests, 23 assertions;
-content set `sha256:83473263e2ecd25b8d5b7cd4a0203859c69ab4862c6f2ac1d3925eefbf27802a`).
+40-namespace closure; content set
+`sha256:506d3e021494a3ff78113062dc4d753918e88393aba780bb282f5f73d7f27fd7`).
 The narrower research-contract manifest closure also passed its API,
 acceptance and lifecycle suite (`bash scripts/qualify_research_contracts_closure.sh`;
 23-namespace closure, 30 tests, 74 assertions; content set
