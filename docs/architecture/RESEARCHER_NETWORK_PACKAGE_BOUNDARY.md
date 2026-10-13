@@ -162,3 +162,13 @@ resolution is still blocked on publication of immutable canonical,
 research-contract and incentives coordinates with their declared dependencies.
 Researcher-network remains **in-tree only**, with explicit API and dependency
 seams prepared for later packaging.
+
+Reproducible source handoff snapshots can be generated outside the checkout
+with `bash scripts/export_research_package_candidates.sh /path/to/new/output`.
+The export contains separate tarballs for accounting reductions, research
+contracts, and incentives, alongside file-level content manifests, content
+roots, and archive checksums. The accounting snapshot carries the canonical
+package as its declared sibling dependency; the research/incentive snapshots
+carry their manifest-listed source closures. These are extraction/qualification
+inputs only, not published package artifacts or immutable external dependency
+coordinates.
