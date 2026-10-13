@@ -48,6 +48,30 @@ The reserve's ten protected units are a separate quantity. They are not the
 80 deposited base units = 70 beneficiary balances + 10 protected reserve + 0 allocator
 ```
 
+Under the controlled fixture's stated assumption that the 80-unit deposit is
+the complete source capital for these requests, the unmet 30 decomposes as
+20 units not deposited against requests (`100 - 80`) plus 10 deposited units
+held behind the configured protected-capital floor (`80 - 70 available`).
+The 10 units remain reserve assets; this qualification does not establish
+their beneficial owner, economic purpose, or permitted release/refund
+authority. The decomposition is not a claim that 30 units were lost.
+
+## Intermediate accounting states
+
+`accounting-states.json` and `qualification.json` retain actual contract getter
+observations after each local Foundry call boundary: source prepared, proof
+admitted, allocator funded, entitlements activated, Alice and Bob withdrawn,
+and operation closed. Each snapshot checks custody conservation across reserve,
+allocator and beneficiary token balances. After activation, each also checks
+that the 70-unit liability equals amounts paid plus liability remaining.
+Funding and activation are separate states: the funded entitlement table holds
+70 before activation, while the liability is zero until activation records it.
+
+These snapshots are taken inside a local EVM test. They are not separate mined
+transactions, public-chain state observations, or evidence that the protected
+10 can be released to a particular party. The transaction log and terminal
+balances remain the evidence for actual local token movements.
+
 ## Reproduction
 
 The descriptive `policy.json` is a readable projection. `policy.edn` preserves
@@ -127,3 +151,40 @@ capital. Available reserve capital is separately 70.
 All three withdrawals request a `Required` caller minimum and supply valid
 claim proofs and table openings. Requested/Required are proof-enforcement modes;
 they are distinct from requested token quantities.
+
+## Protected sponsor capital policy and boundary
+
+The controlled fixture now declares a versioned policy for the protected 10:
+Carol (the recorded Carol beneficiary address) is the beneficial owner and
+refund beneficiary of restricted sponsor capital. The local test governor is the
+sponsor: its mock test tokens are minted locally, and the ERC-20 `Transfer` plus
+reserve `Deposited` events verify that it transferred 80 units to the reserve.
+The fixture policy assigns 10 of that deposit to Carol; that assignment is a
+policy declaration, not something inferred from the token transfer or a prior
+historical fact. The record is tied to chain 31337, the reserve, token and
+operation, and carries a keccak256 ABI-encoded policy root. Evidence hashes bind
+the policy and funding attribution records into the retained demo manifest.
+
+This policy excludes the 10 from claimant entitlements, fees, protocol income
+and available allocation capital. The ratification controller is designated to
+authorize terminal finalization but is not the beneficial owner. This remains a
+declared fixture policy only: the frozen `OnchainShortfallReserveV2` stores an
+immutable amount, not this policy, and has no terminal refund function. The
+seven retained states therefore end at **allocator closure**, with 10 still in
+reserve custody. They do not demonstrate **final reserve settlement** or a
+refund to Carol. The reserve rejects additional allocation below the configured
+floor, but policy-specific beneficiary enforcement, early-release rejection,
+substitution rejection and double-release rejection cannot be qualified without
+a release route.
+
+A bounded successor should bind the versioned policy at reserve construction or
+one-time pre-funding configuration; scope the reserve to the named operation;
+track sponsor transfer attribution; prevent new operations after finalization;
+and allow only the ratification controller to release the exact protected
+amount to the recorded Carol address after the allocator is closed, claimant
+liability is zero, and all reserve holds are terminal. It should reject early
+release, beneficiary substitution, repeated release and release while any
+reservation or scoped operation remains unresolved. The accounting journal
+should wait until that path has retained successful local-EVM evidence. A code
+level assessment of why V2 or a simple subclass cannot safely provide this
+release is in [the protected-capital gap assessment](protected-capital-release.md).
