@@ -20,5 +20,5 @@ does not constitute an independently pinned package release.
 
 The research-specific isolated conformance command is
 `bash scripts/qualify_research_contracts_closure.sh`. It stages the manifest's
-24-namespace closure without the monorepo source classpath and checks public
+23-namespace closure without the monorepo source classpath and checks public
 API delegation plus claim acceptance and lifecycle behavior.

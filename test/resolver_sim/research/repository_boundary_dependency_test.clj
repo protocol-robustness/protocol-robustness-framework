@@ -227,7 +227,7 @@
                                       [package (:depends-on descriptor)]))
                             (:package-contracts contract))]
     (is (= "prf-module-boundaries.v1" (:schema contract)))
-    (is (= 38 (count source-closure)) "the audited transitive source closure is explicit")
+    (is (= 40 (count source-closure)) "the audited transitive source closure is explicit")
     (is (= actual-closure source-closure)
         "closure changes require ownership/classification review")
     (is (every? #(contains? graph %) source-closure)
@@ -309,8 +309,8 @@
     (is (= (set (:current-transitive-source-closure incentives))
            (closure 'resolver-sim.incentives.api))
         "incentive dependency manifest tracks the actual in-tree source closure")
-    (is (= 21 (count (:current-transitive-source-closure research))))
-    (is (= 24 (count (:current-transitive-source-closure incentives))))
+    (is (= 23 (count (:current-transitive-source-closure research))))
+    (is (= 26 (count (:current-transitive-source-closure incentives))))
     (doseq [[manifest actual] [[research (closure 'resolver-sim.research.api)]
                                [incentives (closure 'resolver-sim.incentives.api)]]
             :let [owned (mapcat identity (vals (:closure-ownership manifest)))]]

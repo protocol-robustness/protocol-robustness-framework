@@ -63,7 +63,6 @@
   resolver-sim.hash.canonical
   resolver-sim.hash.framing-view
   resolver-sim.hash.reference
-  resolver-sim.hash.round-trip
   resolver-sim.hash.sequence
   resolver-sim.research.api]
  :closure-ownership
@@ -72,7 +71,7 @@
                   prf.canonical.sequence
                   resolver-sim.hash.algorithm resolver-sim.hash.canonical
                   resolver-sim.hash.framing-view resolver-sim.hash.reference
-                  resolver-sim.hash.round-trip resolver-sim.hash.sequence]
+                  resolver-sim.hash.sequence]
   :prf-research [resolver-sim.benchmark.incentive-deviation-domain
                  resolver-sim.benchmark.incentive-model
                  resolver-sim.benchmark.outcome-manifest
@@ -97,7 +96,7 @@
   :public-facade "src/resolver_sim/research/api.clj"
   :independent-source-closure? false
   :reason :authoritative-implementation-and-shared-canonical-api-not-yet-packaged
-  :closure-count 24}
+  :closure-count 23}
  :compatibility
  {:artifact-schema-versions-immutable? true
   :domain-separators-immutable? true
@@ -115,7 +114,7 @@
    :tests 2 :assertions 23}
   :contract-source-snapshot
   {:status :passed
-   :source-content-set "sha256:bca2a460db195bafa56948927a8765cbf04a78ac5accbf88a18bd1b04aa16a91"
+   :source-content-set "sha256:a7f19dd1587d6c92a59ebb5f08ef17030c7fffdf0cb3b37a8f7571c4fb53dd0f"
    :tests 30 :assertions 74}
   :independently-released? false
   :immutable-dependency-pin? false}}

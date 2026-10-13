@@ -60,7 +60,13 @@
  :researcher-network-source-closure
  [{:namespace prf.canonical.codec :owner :prf-canonical :kind :public-contract
    :required? true :blocker :canonical-package-unpublished}
+  {:namespace prf.canonical.decode :owner :prf-canonical :kind :internal-implementation
+   :required? true :blocker :canonical-package-unpublished}
+  {:namespace prf.canonical.hash :owner :prf-canonical :kind :public-contract
+   :required? true :blocker :canonical-package-unpublished}
   {:namespace prf.canonical.reference :owner :prf-canonical :kind :public-contract
+   :required? true :blocker :canonical-package-unpublished}
+  {:namespace prf.canonical.sequence :owner :prf-canonical :kind :public-contract
    :required? true :blocker :canonical-package-unpublished}
   {:namespace resolver-sim.benchmark.incentive-deviation-domain :owner :prf-research :kind :internal-implementation
    :required? true :blocker :research-package-not-extracted}
@@ -120,8 +126,6 @@
    :required? true :blocker :canonical-package-unpublished}
   {:namespace resolver-sim.hash.reference :owner :prf-canonical :kind :public-contract
    :required? true :blocker :canonical-package-unpublished}
-  {:namespace resolver-sim.hash.round-trip :owner :prf-canonical :kind :internal-implementation
-   :required? true :blocker :canonical-package-unpublished}
   {:namespace resolver-sim.hash.sequence :owner :prf-canonical :kind :internal-implementation
    :required? true :blocker :canonical-package-unpublished}
   {:namespace resolver-sim.io.edn :owner :support :kind :operational-support
@@ -137,7 +141,8 @@
   ]
  :dependency-classes
  {:public-prf-protocol-semantic-contract
-  #{prf.canonical.codec prf.canonical.reference
+  #{prf.canonical.codec prf.canonical.decode prf.canonical.hash
+    prf.canonical.reference prf.canonical.sequence
     resolver-sim.benchmark.incentive-deviation-domain
     resolver-sim.benchmark.incentive-model
     resolver-sim.benchmark.outcome-manifest
@@ -168,7 +173,6 @@
     resolver-sim.hash.canonical
     resolver-sim.hash.framing-view
     resolver-sim.hash.reference
-    resolver-sim.hash.round-trip
     resolver-sim.hash.sequence}
   :configuration-defaults
   #{resolver-sim.config.defaults}

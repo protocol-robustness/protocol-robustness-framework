@@ -17,7 +17,7 @@ validated against source `ns` declarations by
 |---|---|---|
 | Public PRF protocol/semantic contract | `prf.canonical.codec`, `prf.canonical.reference`; `resolver-sim.benchmark.incentive-deviation-domain`, `incentive-model`, `outcome-manifest`, `research-analysis`, `research-assignment`, `research-claim-acceptance`, `research-claim-lifecycle`, `research-command`, `research-conclusion`, `research-theorem-outcome`; `research.api`; `incentives.api`; `researcher-reward` | Versioned artifacts and authoritative operations. Reward contracts are owned by incentives, not research acceptance. |
 | Private research implementation | `research-analysis-closure`, `research-assignment-target-binding` | Supporting algorithms/adapters, not independent public authority. |
-| Canonical shared foundation | `benchmark.integrity`, `benchmark.signing`; `evidence.chain`, `evidence.config`, `evidence.forensic-graph`, `evidence.node`, `evidence.reachability`, `evidence.timestamping`; `forensic.source-hash`; `hash.algorithm`, `hash.canonical`, `hash.framing-view`, `hash.reference`, `hash.round-trip`, `hash.sequence` | Shared identity, evidence, integrity and signature primitives. Canonical implementation ownership remains with C2. |
+| Canonical shared foundation | `benchmark.integrity`, `benchmark.signing`; `evidence.chain`, `evidence.config`, `evidence.forensic-graph`, `evidence.node`, `evidence.reachability`, `evidence.timestamping`; `forensic.source-hash`; `hash.algorithm`, `hash.canonical`, `hash.framing-view`, `hash.reference`, `hash.sequence` | Shared identity, evidence, integrity and signature primitives. Canonical implementation ownership remains with C2. |
 | Configuration/defaults | `config.defaults` | Runtime-selected framing admission limits; not an artifact root or V1 semantic constant. |
 | Execution/infrastructure/operational dependency | `config.hardening`, `config.paths`, `io.edn`, `logging`, `vcs` | Used by evidence/operational support, not by claim semantics. |
 | Test-only utility | none in the production namespace closure | Test helpers are not part of the runtime package closure. |
@@ -91,7 +91,6 @@ transitive closure through:
 ```text
 research-command
   → hash.sequence
-  → hash.round-trip
   → hash.framing-view
   → config.defaults
 ```
@@ -103,6 +102,11 @@ can override them, so they can change whether an externally supplied sequence
 commitment is admitted. They are therefore operational configuration with a
 potential verification-policy effect, not protocol constants. The current V1
 fallbacks/defaults must be preserved.
+
+The merged canonical package's sequence implementation no longer requires
+`resolver-sim.hash.round-trip`; the current researcher-network closure is 40
+namespaces (three canonical package namespaces added, one legacy transitive
+namespace removed). The boundary test derives and checks this closure.
 
 Before an independently released canonical package, C2 should either pin the
 same packaged default resource and document the override as verifier-local
@@ -140,12 +144,12 @@ The research API closure qualification passed from an isolated snapshot
 content set `sha256:83473263e2ecd25b8d5b7cd4a0203859c69ab4862c6f2ac1d3925eefbf27802a`).
 The narrower research-contract manifest closure also passed its API,
 acceptance and lifecycle suite (`bash scripts/qualify_research_contracts_closure.sh`;
-24-namespace closure, 30 tests, 74 assertions; content set
-`sha256:bca2a460db195bafa56948927a8765cbf04a78ac5accbf88a18bd1b04aa16a91`).
+23-namespace closure, 30 tests, 74 assertions; content set
+`sha256:a7f19dd1587d6c92a59ebb5f08ef17030c7fffdf0cb3b37a8f7571c4fb53dd0f`).
 The incentives API/reward closure also passed independently staged
 (`bash scripts/qualify_incentives_api_closure.sh`; 8 tests, 64 assertions;
-27-namespace closure; content set
-`sha256:9d9406e5ab25b8a0e23d92a6015178058430595bfaa5b58adb3de1ae9a55b6f1`).
+26-namespace closure; content set
+`sha256:54ef384df106712e8ca93cb8de43cb1fbfe6896a2a5633fb212c4f637f657d18`).
 Both snapshots exclude the monorepo source classpath and use declared Maven
 dependencies, but they are qualification fixtures rather than released
 package artifacts or immutable dependency coordinates.

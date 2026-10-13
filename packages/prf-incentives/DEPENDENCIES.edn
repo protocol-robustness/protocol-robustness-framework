@@ -66,7 +66,6 @@
   resolver-sim.hash.canonical
   resolver-sim.hash.framing-view
   resolver-sim.hash.reference
-  resolver-sim.hash.round-trip
   resolver-sim.hash.sequence
   resolver-sim.incentives.api
   resolver-sim.research.api]
@@ -76,7 +75,7 @@
                   prf.canonical.sequence
                   resolver-sim.hash.algorithm resolver-sim.hash.canonical
                   resolver-sim.hash.framing-view resolver-sim.hash.reference
-                  resolver-sim.hash.round-trip resolver-sim.hash.sequence]
+                  resolver-sim.hash.sequence]
   :prf-research [resolver-sim.benchmark.incentive-deviation-domain
                  resolver-sim.benchmark.incentive-model
                  resolver-sim.benchmark.outcome-manifest
@@ -104,7 +103,7 @@
   :public-facade "src/resolver_sim/incentives/api.clj"
   :independent-source-closure? false
   :reason :canonical-and-research-contract-packages-not-immutably-available
-  :closure-count 27}
+  :closure-count 26}
  :compatibility
  {:policy-eligibility-proposal-obligation-order-preserved? true
   :artifact-schema-versions-immutable? true
@@ -117,7 +116,7 @@
   :source-closure-qualification "scripts/qualify_incentives_api_closure.sh"
   :isolated-source-snapshot
   {:status :passed
-   :source-content-set "sha256:9d9406e5ab25b8a0e23d92a6015178058430595bfaa5b58adb3de1ae9a55b6f1"
+   :source-content-set "sha256:54ef384df106712e8ca93cb8de43cb1fbfe6896a2a5633fb212c4f637f657d18"
    :tests 8 :assertions 64}
   :independently-released? false
   :immutable-dependency-pins? false}}
