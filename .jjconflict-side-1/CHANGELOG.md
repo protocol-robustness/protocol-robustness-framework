@@ -8,6 +8,8 @@
 
 ## Unreleased
 
+- Added a planning-only investigation dispatcher for retained local successor-entitlement evidence. Plans bind reconstructed inputs and graph identities, classify evidence requests and review blockers, enforce a task budget, and support fresh-process plan verification without authorizing execution, acceptance, or rewards.
+
 - Added a local-only deployment-bound forensic reconstruction command for retained protected-withdrawal evidence. It independently hashes and cross-checks the supplied artifacts, emits existing PRF evidence-node/forensic-graph records, and reports typed evidence gaps and conflicts; it does not assert proof validity, public-chain qualification, acceptance, or reward authority.
 
 - Added Rust V1 pro-rata quota and redistribution witnesses, canonical result
