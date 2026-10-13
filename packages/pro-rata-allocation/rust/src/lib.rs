@@ -1,5 +1,6 @@
 //! Standalone Rust surface for pro-rata allocation artifact identities.
 
+pub mod allocation;
 pub mod allocation_context;
 pub mod allocation_evaluation;
 pub mod allocation_roots;

@@ -7,9 +7,11 @@ and its conformance fixtures. This is a qualified local candidate, not a
 remote registry release.
 Its Rust realized-statement identity layer is also extracted and
 conformance-tested. Rust exposes typed row normalization and full V1 request
-normalization/request-root derivation through `request`; result and witness
-derivation remain incomplete. The registry remains proposed and non-runtime.
-The wider pro-rata artifact family still needs extraction.
+normalization/request-root derivation through `request`, plus an
+arbitrary-precision allocation kernel through `allocation`. Canonical result
+assembly and full mathematical witness derivation remain incomplete. The
+registry remains proposed and non-runtime. The wider pro-rata artifact family
+still needs extraction.
 
 Definitions and authority: [proposed registry](../../docs/architecture/canonical-artifacts/canonical-artifacts.v1.edn),
 [package-local V1 allocation profile](ALLOCATION_V1.md),
@@ -272,6 +274,12 @@ the V1 defaults and accepted policy values, and derives the existing
 checked against the frozen Clojure golden vector. Primitive result and witness
 derivation remain unimplemented, so the complete Rust primitive profile is not
 yet qualified.
+
+The Rust `allocation::allocate_normalized` function implements V1 floor and
+largest-remainder arithmetic for unallocated and cap-excess redistribution
+policies with arbitrary-precision amounts. It is checked against frozen
+rounding, cap-clamping, and redistribution expectations. Canonical result
+projection and per-row quota/round witnesses remain planned.
 
 The frozen Clojure reference remains in
 `pro_rata_contract_src/resolver_sim/pro_rata_contract/contract.clj`, where
