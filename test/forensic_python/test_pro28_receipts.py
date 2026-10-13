@@ -141,3 +141,118 @@ def test_tampered_runtime_observation_rejects(bundle: Path) -> None:
     save(path, payload)
     with pytest.raises(pro28_receipts.EvidenceError, match="runtime-code address differs"):
         pro28_receipts.reconstruct(bundle)
+
+
+def _mock_rpc(bundle: Path, *, replace_anchor: bool = False, wrong_parent: bool = False,
+              wrong_code: bool = False, wrong_latest_code: bool = False, wrong_chain: bool = False):
+    runtime = load(bundle / "runtime-code-observations.json")
+    manifest = load(bundle / "deployment-manifest.json")
+    transactions, _ = pro28_receipts._load_receipts(bundle)
+    by_number: dict[int, list[tuple[str, dict]]] = {}
+    for tx_hash, row in transactions.items():
+        number = pro28_receipts._int(row["receipt"]["blockNumber"])
+        by_number.setdefault(number, []).append((tx_hash, row))
+    max_block = runtime["blockNumber"]
+    headers = {}
+    for number in range(max_block + 1):
+        hashes = {pro28_receipts._norm(row["receipt"]["blockHash"])
+                  for _, row in by_number.get(number, [])}
+        if number == runtime["blockNumber"]:
+            hashes.add(pro28_receipts._norm(runtime["blockHash"]))
+        block_hash = next(iter(hashes)) if hashes else "0x" + f"{number + 1:064x}"
+        if len(hashes) > 1:
+            raise AssertionError(f"fixture has conflicting hashes in block {number}")
+        parent_hash = headers[number - 1]["hash"] if number else "0x" + "00" * 32
+        headers[number] = {"number": hex(number), "hash": block_hash, "parentHash": parent_hash}
+    tx_lookup = {}
+    tx_by_block = {}
+    receipts = {}
+    for tx_hash, row in transactions.items():
+        receipt = row["receipt"]
+        number = pro28_receipts._int(receipt["blockNumber"])
+        index = pro28_receipts._int(receipt["transactionIndex"])
+        tx = {"hash": tx_hash, "chainId": hex(manifest["chainId"]), "blockHash": headers[number]["hash"],
+              "blockNumber": hex(number), "transactionIndex": hex(index)}
+        tx_lookup[tx_hash] = tx
+        rows = tx_by_block.setdefault(number, [])
+        while len(rows) <= index:
+            rows.append({"hash": "0x" + "00" * 32})
+        rows[index] = tx
+        receipts[tx_hash] = receipt
+    runtime_by_address = {row["address"].lower(): row["runtimeCode"] for row in runtime["contracts"].values()}
+
+    def rpc(_url, method, params):
+        if method == "eth_chainId":
+            return "0x1" if wrong_chain else hex(manifest["chainId"])
+        if method == "eth_blockNumber":
+            return hex(max_block)
+        if method == "eth_getBlockByHash":
+            return next((h for h in headers.values() if h["hash"].lower() == params[0].lower()), None)
+        if method == "eth_getBlockByNumber":
+            number = int(params[0], 16)
+            block = dict(headers[number])
+            if replace_anchor and number == runtime["blockNumber"]:
+                block["hash"] = "0x" + "ee" * 32
+            if wrong_parent and number == runtime["blockNumber"]:
+                block["parentHash"] = "0x" + "dd" * 32
+            if params[1]:
+                block["transactions"] = tx_by_block.get(number, [])
+            else:
+                block["transactions"] = []
+            return block
+        if method == "eth_getTransactionReceipt":
+            return receipts.get(params[0].lower())
+        if method == "eth_getTransactionByHash":
+            return tx_lookup.get(params[0].lower())
+        if method == "eth_getCode":
+            code = runtime_by_address.get(params[0].lower(), "0x")
+            if wrong_code or (wrong_latest_code and params[1] == "latest"):
+                return "0x00"
+            return code
+        raise AssertionError(f"unexpected RPC method {method}")
+
+    return rpc
+
+
+def test_live_check_revalidates_block_receipts_and_runtime_against_rpc(bundle: Path, monkeypatch) -> None:
+    monkeypatch.setattr(pro28_receipts, "_rpc", _mock_rpc(bundle))
+    report = pro28_receipts.verify_live_chain_context(bundle, "http://unused.local")
+    assert report["transactionsChecked"] == 41
+    assert report["contractsChecked"] == 12
+    assert report["runtimeCodeCurrentAtLatest"] is True
+    assert report["finalityClaimed"] is False
+    assert report["environmentId"] == "pro-28-fresh-local-replay-20261013"
+
+
+def test_live_check_rejects_replaced_canonical_block(bundle: Path, monkeypatch) -> None:
+    monkeypatch.setattr(pro28_receipts, "_rpc", _mock_rpc(bundle, replace_anchor=True))
+    with pytest.raises(pro28_receipts.EvidenceError, match="orphaned or replaced"):
+        pro28_receipts.verify_live_chain_context(bundle, "http://unused.local")
+
+
+def test_live_check_rejects_replaced_parent_context(bundle: Path, monkeypatch) -> None:
+    monkeypatch.setattr(pro28_receipts, "_rpc", _mock_rpc(bundle, wrong_parent=True))
+    with pytest.raises(pro28_receipts.EvidenceError, match="parent link"):
+        pro28_receipts.verify_live_chain_context(bundle, "http://unused.local")
+
+
+def test_live_check_rejects_chain_and_runtime_substitution(bundle: Path, monkeypatch) -> None:
+    monkeypatch.setattr(pro28_receipts, "_rpc", _mock_rpc(bundle, wrong_chain=True))
+    with pytest.raises(pro28_receipts.EvidenceError, match="chain ID"):
+        pro28_receipts.verify_live_chain_context(bundle, "http://unused.local")
+    monkeypatch.setattr(pro28_receipts, "_rpc", _mock_rpc(bundle, wrong_code=True))
+    with pytest.raises(pro28_receipts.EvidenceError, match="runtime code"):
+        pro28_receipts.verify_live_chain_context(bundle, "http://unused.local")
+    monkeypatch.setattr(pro28_receipts, "_rpc", _mock_rpc(bundle, wrong_latest_code=True))
+    with pytest.raises(pro28_receipts.EvidenceError, match="changed after"):
+        pro28_receipts.verify_live_chain_context(bundle, "http://unused.local")
+
+
+def test_live_check_rejects_nonlocal_evidence_profile(bundle: Path, monkeypatch) -> None:
+    capture_path = bundle / "capture-metadata.json"
+    capture = load(capture_path)
+    capture["classification"] = "public chain observation; finality not asserted"
+    save(capture_path, capture)
+    monkeypatch.setattr(pro28_receipts, "_rpc", _mock_rpc(bundle))
+    with pytest.raises(pro28_receipts.EvidenceError, match="explicitly local-only evidence"):
+        pro28_receipts.verify_live_chain_context(bundle, "http://unused.local")
