@@ -306,7 +306,7 @@ contract ProRataRealProofConformanceTest {
         (O.Envelope memory envelope, bytes memory data, AssuredExecutor.Admission memory staleWitness) = _dispatch();
 
         vm.prank(reserve.applicationAuthority());
-        reserve.reserveForOtherObligation(keccak256("projection-change"), 1);
+        reserve.reserveForOtherObligation(keccak256("projection-change"), 1, block.timestamp + 1 days);
 
         (bool ok,) = address(gate)
             .call(abi.encodeCall(AssuredExecutor.execute, (envelope, staleWitness, data, abi.encode(receiptId))));

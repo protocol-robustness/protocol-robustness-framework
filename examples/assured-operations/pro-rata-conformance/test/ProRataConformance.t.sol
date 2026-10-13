@@ -6,6 +6,7 @@ import {OperationCodec as O} from "ao-prototype/src/OperationCodec.sol";
 import {AssuredExecutor, IAssurancePolicy} from "ao-prototype/src/AssuredExecutor.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {IPrfStatementAdmission} from "prf-evm/src/interfaces/IPrfStatementAdmission.sol";
+import {IEntitlementProofModeSource} from "prf-evm/src/interfaces/IEntitlementProofModeSource.sol";
 import {ISP1Verifier} from "prf-evm/src/verification/interfaces/ISP1Verifier.sol";
 import {
     PrfSourceBoundStatementVerifierAdapterV2
@@ -22,6 +23,13 @@ import {ProductionProRataAllocatorV2} from "prf-evm/src/applications/pro-rata/Pr
 
 interface Vm {
     function prank(address caller) external;
+}
+
+/// @dev Withdrawal proof mode is not exercised by this ratification fixture.
+contract TestEntitlementProofModeSource is IEntitlementProofModeSource {
+    function currentEntitlementProofMode() external pure returns (uint8) {
+        return 0; // Requested
+    }
 }
 
 contract TestToken is IERC20 {
@@ -361,7 +369,7 @@ contract TestStatementAdmission is IPrfStatementAdmission {
         function setUp() public {
             gate = new AssuredExecutor(keccak256("chain-instance-genesis"), address(this), 0);
             token = new TestToken();
-            allocator = new ProductionProRataAllocatorV2(address(this));
+            allocator = new ProductionProRataAllocatorV2(address(this), new TestEntitlementProofModeSource());
             reserve = new OnchainShortfallReserveV2(IERC20(address(token)), address(this), 10, allocator);
             preparedController = new SourceBoundProRataControllerV2();
             AcceptingTestVerifier testVerifier = new AcceptingTestVerifier();
