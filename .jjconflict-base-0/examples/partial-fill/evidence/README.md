@@ -127,3 +127,29 @@ capital. Available reserve capital is separately 70.
 All three withdrawals request a `Required` caller minimum and supply valid
 claim proofs and table openings. Requested/Required are proof-enforcement modes;
 they are distinct from requested token quantities.
+
+## Additive V3 terminal reserve and recovery qualification
+
+The frozen V2 qualification above still ends at allocator closure with 10 units
+in reserve custody. A separate, additive V3 local run binds a versioned
+restricted-capital policy and supports exact terminal refund after the scoped
+operation closes and all holds are resolved. It also qualifies stale-reserve
+recovery using a fresh source-bound proof; when a separate one-unit hold remains,
+terminal finalization is explicitly rejected without state mutation.
+
+Run the stage-2 qualification in the owning `prf-evm` checkout, with its
+retained `test/fixtures/partial-fill-v3` files installed:
+
+```sh
+PARTIAL_FILL_STAGE=2 forge test --match-path test/PartialFillV3Controlled.t.sol \
+  --match-test 'test_(Qualification|Reject|Recovery)' --offline -vv
+forge test --match-path test/OnchainShortfallReserveV3.t.sol --offline -vv
+```
+
+The current local results are 11/11 stage-2 tests and 8/8 V3 reserve tests. The
+full call-boundary observations and the derived V3 journal are in
+[`v3-live-context/`](v3-live-context/README.md). The V2 seven-observation journal
+remains unchanged; V3 is a distinct Foundry run, not an eighth V2 state. Both
+are scoped to the controlled fixture and do not establish external obligation
+completeness, Carol's external legal ownership, or public-chain execution.
+Base Sepolia remains unqualified.
