@@ -286,24 +286,45 @@ contract PartialFillV3ControlledTest is Test {
             _path(_roots(".evm-entitlement-commitments"), index, keccak256("prf.source-bound-entitlement.table-node.v1")), true,
             _path(_roots(".allocation-claim-leaves"), index, keccak256("prf.source-bound-entitlement.claim-node.v1")), Allocator.ProofMode.Required);
     }
+    function _logAccountingState(string memory stageName) private view {
+        console2.log("PARTIAL_FILL_V3_ACCOUNTING_STATE_JSON", string.concat(
+            '{"stage":"', stageName,
+            '","reserveBalance":', vm.toString(token.balanceOf(address(reserve))),
+            ',"allocatorBalance":', vm.toString(token.balanceOf(address(allocator))),
+            ',"aliceBalance":', vm.toString(token.balanceOf(ALICE)),
+            ',"bobBalance":', vm.toString(token.balanceOf(BOB)),
+            ',"carolBalance":', vm.toString(token.balanceOf(CAROL)),
+            ',"totalReserved":', vm.toString(reserve.totalReserved()),
+            ',"claimedAmount":', vm.toString(allocator.claimedAmount(OP)),
+            ',"claimedCount":', vm.toString(allocator.claimedCount(OP)),
+            ',"outstandingLiability":', vm.toString(allocator.outstandingLiability(OP)),
+            ',"allocatorState":', vm.toString(uint256(allocator.entitlementOperation(OP).state)),
+            ',"ratificationState":', vm.toString(uint256(ratification.state(OP))),
+            ',"reserveFinalized":', reserve.finalized() ? "true" : "false",
+            ',"availabilityRevision":', vm.toString(reserve.availabilityRevision()),
+            '}'));
+    }
     function _digest() private view returns (bytes32) {
         return keccak256(abi.encode(token.balanceOf(address(reserve)), token.balanceOf(address(allocator)), token.balanceOf(ALICE), token.balanceOf(BOB), token.balanceOf(CAROL), prepared.state(OP), ratification.state(OP), allocator.entitlementOperation(OP).state, allocator.claimedAmount(OP), allocator.claimedCount(OP), allocator.outstandingLiability(OP), admission.admittedCount(), assurance.consumedAssurance(assurance.preparedAssurance(OP).receiptId), reserve.totalReserved(), reserve.availabilityRevision(), reserve.nextSnapshotId(), token.allowance(address(reserve),address(allocator))));
     }
     function test_QualificationWithdrawsAndClosesExactly() public {
+        _logAccountingState("opening");
         assertEq(token.balanceOf(address(reserve)),80); assertEq(token.balanceOf(address(allocator)),0);
         assertEq(token.balanceOf(ALICE),0); assertEq(token.balanceOf(BOB),0); assertEq(token.balanceOf(CAROL),0);
         vm.recordLogs();
-        _assure(); _fund(); assertEq(token.balanceOf(address(reserve)), 10); assertEq(token.balanceOf(address(allocator)), 70);
-        _activate(); assertEq(allocator.outstandingLiability(OP), 70);
-        _withdraw(0,35); assertEq(allocator.outstandingLiability(OP), 35);
-        _withdraw(1,21); assertEq(allocator.outstandingLiability(OP), 14);
-        _withdraw(2,14); assertEq(allocator.outstandingLiability(OP), 0);
+        _assure(); _logAccountingState("proof_admitted");
+        _fund(); _logAccountingState("funded"); assertEq(token.balanceOf(address(reserve)), 10); assertEq(token.balanceOf(address(allocator)), 70);
+        _activate(); _logAccountingState("activated"); assertEq(allocator.outstandingLiability(OP), 70);
+        _withdraw(0,35); _logAccountingState("after_alice_claim"); assertEq(allocator.outstandingLiability(OP), 35);
+        _withdraw(1,21); _logAccountingState("after_bob_claim"); assertEq(allocator.outstandingLiability(OP), 14);
+        _withdraw(2,14); _logAccountingState("allocator_closed"); assertEq(allocator.outstandingLiability(OP), 0);
         assertEq(token.balanceOf(ALICE),35); assertEq(token.balanceOf(BOB),21); assertEq(token.balanceOf(CAROL),14);
         assertEq(token.balanceOf(address(allocator)),0); assertEq(token.balanceOf(address(reserve)),10);
         assertEq(allocator.claimedAmount(OP),70); assertEq(allocator.claimedCount(OP),3);
         assertEq(uint8(allocator.entitlementOperation(OP).state),uint8(IShortfallAllocatorV2.State.Closed));
         assertEq(token.balanceOf(address(reserve)),10);
         operator.finalizeProtectedCapital();
+        _logAccountingState("reserve_finalized");
         assertTrue(reserve.finalized());
         assertEq(uint8(ratification.state(OP)), uint8(Ratification.State.Finalized));
         assertEq(token.balanceOf(CAROL),24);

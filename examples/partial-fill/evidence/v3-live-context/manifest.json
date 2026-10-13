@@ -21,14 +21,14 @@
   "terminalRefund": "passed locally: controller-forwarded finalization released exactly 10 units to immutable Carol beneficiary after operation Closed and liability zero",
   "implementationProvenance": {
     "prfEvmBaseHead": "9f702a10446f7e045bab6f281f20b53f80f8b32d",
-    "workingTree": "Additive V3 reserve, scoped controller finalization route, regenerated stale-recovery proof and local Foundry qualification; frozen V2 source and commitments unchanged",
+    "workingTree": "Additive V3 reserve, scoped controller finalization route, regenerated stale-recovery proof and local Foundry qualification; frozen V2 source and commitments unchanged; V3 call-boundary accounting observations and derived journal added",
     "network": "local Foundry chain 31337 only; no Base Sepolia or public-chain deployment/execution",
-    "remaining": "Local chain 31337 only; no Base Sepolia or public-chain deployment/execution. Carol attribution is fixture-policy-bound and locally enforced, not externally verified. V2 journal remains scoped to its original seven observations; no unified V2/V3 journal or complete external-obligation census is claimed."
+    "remaining": "Local chain 31337 only; no Base Sepolia or public-chain deployment/execution. Carol attribution is fixture-policy-bound and locally enforced, not externally verified. V2 and V3 journals remain separate runs; no complete external-obligation census is claimed."
   },
   "files": {
     "PartialFillV3Controlled.t.sol": {
-      "sha256": "0961688214253564ecf2f1d3831b06b751ecfe56fd4794cec65d097380ff4a80",
-      "bytes": 32580
+      "sha256": "a9501a1aac6e6ad27420c842594711a2d57b78b35a6138231e0d53ef9eee4c2a",
+      "bytes": 34139
     },
     "PartialFillV3LiveProofVerification.t.sol": {
       "sha256": "0a8dbeb7e9dbe9f5b939069333c690ef7402db0779d4a926aa1e8deef04c9df3",
@@ -167,8 +167,8 @@
       "bytes": 15395
     },
     "source/PartialFillV3Controlled.t.sol": {
-      "sha256": "0961688214253564ecf2f1d3831b06b751ecfe56fd4794cec65d097380ff4a80",
-      "bytes": 32580
+      "sha256": "a9501a1aac6e6ad27420c842594711a2d57b78b35a6138231e0d53ef9eee4c2a",
+      "bytes": 34139
     },
     "source/SourceBoundProRataEntitlementRatificationControllerV1.sol": {
       "sha256": "293bc55a65ac1d34fd970cab489c08bc6fb079a40034dc1822e38f4862abc0e1",
@@ -197,6 +197,22 @@
     "recovery/stage2-qualification-updated.log": {
       "sha256": "1d36c6824c3734429c2bffd3c42d489e3ee3e47e976d9a7db64b7bb9f2d311f0",
       "bytes": 13106
+    },
+    "accounting-states.json": {
+      "sha256": "cda399f57db2b9dfb92442bb991ab047f02da4dc240eba2a98e204440aebd768",
+      "bytes": 6296
+    },
+    "accounting-journal.json": {
+      "sha256": "53ceb696d1bcb8766d25fab8fd2efffd770895f32024285951911cac59d51900",
+      "bytes": 13856
+    },
+    "derive-accounting-journal.py": {
+      "sha256": "fee6e6924326d7e4cd3bd147e185f038ca7de8ac7bd203ed405d770f78ff1e9d",
+      "bytes": 10187
+    },
+    "v3-accounting-qualification.log": {
+      "sha256": "f2924d533e65f47325ebd0b10063d1287a29f00bb7e05acdf0a99d3a744159b4",
+      "bytes": 5736
     }
   },
   "terminalFinalizationRoute": "qualified locally through the bound ratification controller; early, unauthorized, unresolved-liability, replay and post-finalization paths reject",
@@ -257,5 +273,12 @@
     "outcome": "70 funded; 35/21/14 claimed; allocator Closed; claimant liability zero",
     "separateHold": "1 unit remains reserved; reserve custody is 11; terminal finalization attempt reverts and leaves state unchanged",
     "evidence": "recovery/"
+  },
+  "accountingJournal": {
+    "status": "passed; derived from eight local Foundry getter observations and five transfer logs",
+    "states": "accounting-states.json",
+    "projection": "accounting-journal.json",
+    "projectionDigest": "439d4f61410842f06639cf3902eaf686fcd83a7c957d6bc19a5271117603d94e",
+    "v2Boundary": "The original seven-state V2 journal remains unchanged; V2 and V3 are separate local runs, not a unified temporal ledger."
   }
 }
