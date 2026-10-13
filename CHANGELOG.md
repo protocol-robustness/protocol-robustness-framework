@@ -6,6 +6,10 @@
 
 - Added `eae.pro-28-authentic-local-execution.v1` reconstruction output and retained receipt/runtime evidence for the source-bound successor-entitlement local flow. Funding and each entitlement payout now bind to exact transaction, receipt, log, contract and block identities; local Anvil evidence remains explicitly non-public and non-canonical.
 
+### PRO-31 live chain-context revalidation
+
+- Added an optional `--rpc-url` verification path for retained local execution evidence. It rechecks transaction receipts, canonical block/parent context, runtime code at the captured block and current code, and declared proxy implementation bindings. The report is provider-relative and makes no public-chain finality claim.
+
 
 ### Authentication provenance
 
