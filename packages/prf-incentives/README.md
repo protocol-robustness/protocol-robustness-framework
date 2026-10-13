@@ -12,5 +12,7 @@ payment or custody authorization. See DEPENDENCIES.edn for direct dependencies,
 compatibility conditions, and current release gates.
 
 Status: in-tree source candidate, not independently buildable or released. It
-depends on immutable canonical and research-contract package coordinates that
-are not yet available. No implementation is vendored here.
+uses the merged, compatibility-qualified canonical source candidate through
+the in-tree package path; no external immutable coordinate is published yet.
+The research-contract dependency also remains an in-tree source candidate. No
+implementation is vendored here.

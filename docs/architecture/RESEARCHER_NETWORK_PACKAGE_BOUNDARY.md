@@ -42,11 +42,14 @@ closure, ownership, package-level dependencies, compatibility rules, and
 unresolved immutable pins. Their facades remain delegations to existing
 authoritative implementations.
 
-Both manifests explicitly defer canonical API additions to C2 and name the
-subset required by these consumers: V1-compatible `domain-hash`, SHA-256
-reference construction/validation, committable-content projection, and
-sequence hashing. In particular, the legacy keyword-domain mapping must remain
-byte-exact; C1 has not changed canonical implementation code.
+Both manifests name the shared canonical API required by these consumers:
+V1-compatible `domain-hash`, SHA-256 reference construction/validation,
+committable-content projection, and sequence hashing. In particular, the
+legacy keyword-domain mapping must remain byte-exact; C1 has not changed
+canonical implementation code. C2's canonical candidate is now merged into
+this checkout and passes its V1 compatibility suite. Consumer manifests record
+the qualified source revision and release archive digest; runtime resolution
+remains an in-tree path because no external immutable coordinate is published.
 
 ## Supported API surface
 
@@ -71,23 +74,14 @@ in `packages/module-boundaries.edn`: canonical bytes and hex, domain hashing,
 canonical projection, canonical value validation, intent hashing/validation,
 and SHA-256 reference creation/parsing/validation.
 
-C2 should provide those operations through the shared package while preserving
-legacy call compatibility and the existing V1 vectors. In particular,
-`domain-hash` must preserve the current string/keyword domain mapping and
-`project-canonical-safe` behavior used by researcher-challenge roots.
-
-The current canonical source candidate exports the codec, string-tag
-`hash-with-domain`, and SHA-256 reference operations. A research-side
-compatibility test now checks codec bytes, representative research V1 domain
-hashes, and reference formatting against those candidate APIs. It does not
-switch any authoritative callers. The standalone canonical candidate's own
-test runner also passes (3 tests, 25 assertions) from its package directory.
-The remaining C2 coordination items are
-keyword domain-tag compatibility, safe/content projections, intent-based
-hash/equality used by evidence records/chains, and the canonical sequence
-commitment API used by research-command. The exact function set and the
-required V1 compatibility constraints are machine-recorded in
-`packages/module-boundaries.edn`.
+The merged canonical source candidate exports the codec, domain hashing,
+canonical projections, intent hashing/equality, sequence commitments and
+SHA-256 reference operations. C1 ran the canonical package suite (8 tests,
+54 assertions) and the legacy/research compatibility suite (6 tests,
+45 assertions). The isolated research and incentives closures now include the
+canonical `hash`, `sequence` and `decode` namespaces required by legacy
+compatibility facades. The function set and V1 compatibility constraints
+remain machine-recorded in `packages/module-boundaries.edn`.
 
 ## `config.defaults` coupling
 
@@ -146,18 +140,21 @@ The research API closure qualification passed from an isolated snapshot
 content set `sha256:83473263e2ecd25b8d5b7cd4a0203859c69ab4862c6f2ac1d3925eefbf27802a`).
 The narrower research-contract manifest closure also passed its API,
 acceptance and lifecycle suite (`bash scripts/qualify_research_contracts_closure.sh`;
-30 tests, 74 assertions; content set
-`sha256:44982170c364ffc2f93f0a0681c1944fb9909c99d6dfa4b44f5c6efe0558b2b8`).
+24-namespace closure, 30 tests, 74 assertions; content set
+`sha256:bca2a460db195bafa56948927a8765cbf04a78ac5accbf88a18bd1b04aa16a91`).
 The incentives API/reward closure also passed independently staged
 (`bash scripts/qualify_incentives_api_closure.sh`; 8 tests, 64 assertions;
-content set `sha256:ce4d4c531005b2b05f24c8c47b390356fe658d5edc39a84f9b9ece2f7e9e55ce`).
+27-namespace closure; content set
+`sha256:9d9406e5ab25b8a0e23d92a6015178058430595bfaa5b58adb3de1ae9a55b6f1`).
 Both snapshots exclude the monorepo source classpath and use declared Maven
 dependencies, but they are qualification fixtures rather than released
 package artifacts or immutable dependency coordinates.
 
-The remaining release blocker is the availability of immutable,
-independently consumable canonical, research-contract, and incentives
-coordinates (including their declared dependency closure). The source
-namespace count itself is not the blocker. Researcher-network remains
-**in-tree only**, with explicit API and dependency seams prepared for later
-packaging.
+The canonical source is now pinned and verified within the shared JJ checkout,
+but remains unpublished and has no external dependency coordinate. Research
+contracts and incentives also remain in-tree candidates; their authoritative
+implementation closures are not independently released. Clean external
+resolution is still blocked on publication of immutable canonical,
+research-contract and incentives coordinates with their declared dependencies.
+Researcher-network remains **in-tree only**, with explicit API and dependency
+seams prepared for later packaging.
