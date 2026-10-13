@@ -186,8 +186,10 @@ snapshots and verification logs are in
 [the V3 live-context evidence](evidence/v3-live-context/README.md).
 
 This is local Foundry evidence only, not Base Sepolia or public-chain execution.
-Stale V3 reserve assurance is shown to reject without state mutation, but
-recovery using a fresh V3 proof has not yet been qualified. The accounting
-journal remains scoped to the original seven V2 observations and records the
-10 as unresolved restricted custody; it does not absorb the separate V3
-terminal observation or claim a complete financial ledger.
+Stale V3 reserve assurance is tested both ways: stale funding rejects without
+state mutation, while a freshly generated proof for the changed reserve snapshot
+is admitted and recovers the same 70-unit allocation. That recovery closes all
+claimant liabilities but leaves a separate one-unit reserve hold active, so
+terminal finalization is not attempted in that case. The accounting journal
+remains scoped to the original seven V2 observations; it does not absorb V3
+terminal or recovery observations or claim a complete financial ledger.

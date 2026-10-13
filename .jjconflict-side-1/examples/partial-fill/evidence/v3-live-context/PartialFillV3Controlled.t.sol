@@ -436,4 +436,47 @@ contract PartialFillV3ControlledTest is Test {
         assertEq(reserve.availabilityRevision(),1);
         assertEq(allocator.outstandingLiability(OP),0);
     }
+    function test_RecoveryWithFreshV3Proof() public {
+        _assure();
+        bytes32 oldCommitment = assurance.assuranceCommitment(OP);
+        uint64 generation = assurance.preparedAssurance(OP).generation;
+
+        _changeReserve();
+        bytes32 liveReserveCommitment = reserve.currentCommitment(preparedRoot);
+        (bytes32 replacementReceipt, bytes memory replacementValues) = _admit("recovery-proof.json");
+        Adapter.SourceBoundEntitlementPublicValuesV1 memory recoveredValues = adapter.decodePublicValues(replacementValues);
+        assertEq(recoveredValues.reserveStateCommitment, liveReserveCommitment);
+        assertEq(recoveredValues.entitlementTotal, 70);
+        assertEq(recoveredValues.allocationBindingRoot, assurance.preparedAssurance(OP).allocationBindingRoot);
+
+        bytes32 replacementCommitment = assurance.assuranceCommitmentFor(
+            OP, replacementReceipt, keccak256(replacementValues), generation + 1
+        );
+        operator.replace(
+            oldCommitment, replacementCommitment, generation, replacementReceipt, replacementValues
+        );
+        assertEq(assurance.preparedAssurance(OP).generation, generation + 1);
+        assertEq(assurance.preparedAssurance(OP).reserveStateCommitment, liveReserveCommitment);
+
+        operator.fund(liveReserveCommitment);
+        _activate();
+        assertEq(allocator.outstandingLiability(OP), 70);
+        _withdraw(0, 35);
+        _withdraw(1, 21);
+        _withdraw(2, 14);
+        assertEq(allocator.outstandingLiability(OP), 0);
+        assertEq(token.balanceOf(ALICE), 35);
+        assertEq(token.balanceOf(BOB), 21);
+        assertEq(token.balanceOf(CAROL), 14);
+        // The stale-state fixture deliberately retains one unit reserved for a
+        // separate obligation. Claimant settlement closes, while terminal
+        // reserve finalization correctly remains unavailable with that hold.
+        assertEq(token.balanceOf(address(reserve)), 11);
+        assertEq(token.balanceOf(address(allocator)), 0);
+        assertEq(reserve.totalReserved(), 1);
+        assertFalse(reserve.finalized());
+        assertEq(uint8(allocator.entitlementOperation(OP).state), uint8(IShortfallAllocatorV2.State.Closed));
+        assertEq(uint8(ratification.state(OP)), uint8(Ratification.State.Activated));
+    }
+
 }

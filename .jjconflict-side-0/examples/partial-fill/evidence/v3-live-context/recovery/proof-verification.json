@@ -1,0 +1,53 @@
+{
+  "schema": "eae.partial-fill.v3-stale-recovery-proof.v1",
+  "status": "real-groth16-proof-generated-sdk-verified-and-admitted-in-local-foundry-test",
+  "proof": "recovery-proof.json",
+  "proofSystem": "groth16",
+  "program": "source-bound-entitlement-controlled-sp1-program.v1",
+  "vkey": "0x00691e1cff8e4252731c8fe2bc326e8725ed5f9b92a298cc30a2c5fc40962dd1",
+  "elfSha256": "0x705efd1c5b997ae1f2c19eddcf6bb66a147e94b6b3b036393d6dab041c00542d",
+  "proofBytes": 356,
+  "publicValuesBytes": 288,
+  "witnessSha256": "0x0b88f274ea856fcb113b20dd81778c79c96bdc27dc20eea0ed2d2412baed58d0",
+  "wrapperWitnessSha256": "0x4412a8fecc711931b1495728763a1314bba344c407e805e50ca79fd71d81996b",
+  "sourceReplay": {
+    "rust": "recovery-replay.json",
+    "clojure": "recovery-clojure-replay.json",
+    "equal": false
+  },
+  "allocationBindingRoot": "0x973af411abbdd539f244f6233fca9c54b7df1467a61c62ad7ae5ad51dfe22f05",
+  "reserveStateCommitment": "0x83620f170337b66d9c290cacdfeb1eb373460cc696637cb28c73499ab1e7d2b6",
+  "preparedOperationRoot": "0xc5897bf4d7d707dd04143c307cab6a62c790273e4d1592297c94cdd32261f799",
+  "entitlementTotal": 70,
+  "entitlementCount": 3,
+  "reserveSnapshot": {
+    "availabilityRevision": "1",
+    "grossBalance": "81",
+    "reservedBefore": "1",
+    "protectedCapital": "10",
+    "availableAmount": "70"
+  },
+  "generationCommands": [
+    "PARTIAL_FILL_STAGE=2 forge test --match-path test/PartialFillV3Controlled.t.sol --match-test test_ExportRecoveryWitness --offline -vv",
+    "clojure -M examples/partial-fill/materialize.clj witness OUTPUT_DIR recovery-context.json recovery-",
+    "controlled-entitlement-source-replay < recovery-witness.json",
+    "controlled-entitlement-source-wrap --input recovery-witness.json --wrapper-witness recovery-wrapper-witness.json --compressed-proof recovery-compressed.bin",
+    "controlled-entitlement-source-resume --input recovery-witness.json --wrapper-witness recovery-wrapper-witness.json --groth16-artifacts $SP1_GROTH16_ARTIFACTS --fixture recovery-proof.json"
+  ],
+  "qualificationCommand": "PARTIAL_FILL_STAGE=2 forge test --match-path test/PartialFillV3Controlled.t.sol --match-test 'test_(Qualification|Reject|Recovery)' --offline -vv",
+  "qualificationResult": "11 passed, 0 failed",
+  "recoveryOutcome": {
+    "replacementGeneration": 1,
+    "funded": 70,
+    "withdrawn": [
+      35,
+      21,
+      14
+    ],
+    "remainingClaimLiability": 0,
+    "allocatorClosed": true,
+    "heldForSeparateObligation": 1,
+    "reserveBalanceAfterClaims": 11,
+    "terminalFinalization": "not attempted; the active one-unit reserve hold correctly blocks finalization"
+  }
+}

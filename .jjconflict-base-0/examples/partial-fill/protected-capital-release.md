@@ -130,10 +130,10 @@ Stage-specific source-bound qualification and adversarial checks:
 
 ```sh
 PARTIAL_FILL_STAGE=2 forge test --match-path test/PartialFillV3Controlled.t.sol \
-  --match-test 'test_(Qualification|Reject)' --offline -vv
+  --match-test 'test_(Qualification|Reject|Recovery)' --offline -vv
 ```
 
-Result: 10 passed. The V3 reserve guard and terminal-release tests:
+Result: 11 passed, including fresh-proof stale-assurance recovery. The V3 reserve guard and terminal-release tests:
 
 ```sh
 forge test --match-path test/OnchainShortfallReserveV3.t.sol --offline -vv
@@ -149,8 +149,12 @@ These are local Foundry results on chain ID 31337, not a Base Sepolia deployment
 or public-chain execution. Carol's designated beneficiary is enforced by the
 local V3 policy and code, but its legal/beneficial basis is the fixture policy
 and local funding attribution, not independent external evidence. Stale V3
-assurance is rejected without state mutation; recovery with a newly generated
-V3 proof has not yet been qualified. The accounting journal remains scoped to
-the original seven V2 states; the separate V3 terminal observation has not been
-folded into a unified journal. Neither artifact establishes the completeness of
-all external obligations or a universal financial ledger.
+assurance is rejected without state mutation. A newly generated source-bound V3
+proof for a changed reserve snapshot now also passes replacement, admission,
+funding and all three withdrawals while preserving the original 70-unit
+allocation. That recovery fixture intentionally retains a separate one-unit
+reserve hold, so its 11-unit custody balance is not terminally released. The
+accounting journal remains scoped to the original seven V2 states; V3 terminal
+and recovery observations are retained separately, not folded into a unified
+journal. Neither artifact establishes the completeness of all external
+obligations or a universal financial ledger.

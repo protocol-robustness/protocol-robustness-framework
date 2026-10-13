@@ -1,6 +1,6 @@
 {
   "schema": "eae.partial-fill.v3-live-context-evidence.v1",
-  "status": "local-v3-proof-admitted-funded-claimed-and-terminal-refunded; public-chain-unqualified",
+  "status": "local-v3-proof-admitted-funded-claimed-terminal-refunded-and-stale-recovery-qualified; public-chain-unqualified",
   "network": "local Foundry chain 31337; no public-chain execution",
   "program": "source-bound-entitlement-controlled-sp1-program.v1",
   "proofSystem": "SP1 Groth16",
@@ -21,14 +21,14 @@
   "terminalRefund": "passed locally: controller-forwarded finalization released exactly 10 units to immutable Carol beneficiary after operation Closed and liability zero",
   "implementationProvenance": {
     "prfEvmBaseHead": "9f702a10446f7e045bab6f281f20b53f80f8b32d",
-    "workingTree": "uncommitted additive V3 reserve, scoped controller finalization route and local Foundry tests; frozen V2 source and commitments unchanged",
+    "workingTree": "Additive V3 reserve, scoped controller finalization route, regenerated stale-recovery proof and local Foundry qualification; frozen V2 source and commitments unchanged",
     "network": "local Foundry chain 31337 only; no Base Sepolia or public-chain deployment/execution",
-    "remaining": "Fresh-proof recovery after stale V3 reserve assurance remains unqualified; stale rejection and unchanged state are tested. Carol beneficial attribution is fixture-policy-bound and locally enforced, not an externally verified legal fact."
+    "remaining": "Local chain 31337 only; no Base Sepolia or public-chain deployment/execution. Carol attribution is fixture-policy-bound and locally enforced, not externally verified. V2 journal remains scoped to its original seven observations; no unified V2/V3 journal or complete external-obligation census is claimed."
   },
   "files": {
     "PartialFillV3Controlled.t.sol": {
-      "sha256": "acb4442f77908b5fb957f395c828fbb70c882f20b23393c108e5cf426f3881e2",
-      "bytes": 30044
+      "sha256": "1c18112872fdd073abc29fe8f170d63d24c12108574d9f5baff43be0053a57ec",
+      "bytes": 32355
     },
     "PartialFillV3LiveProofVerification.t.sol": {
       "sha256": "0a8dbeb7e9dbe9f5b939069333c690ef7402db0779d4a926aa1e8deef04c9df3",
@@ -37,6 +37,10 @@
     "PartialFillV3RegistryAdmission.t.sol": {
       "sha256": "37d64c4dd8c179125fb4ccc6b8ca2ea9b044c505cc7975e2e6c63dfcb56cef97",
       "bytes": 6241
+    },
+    "README.md": {
+      "sha256": "6ea58061a28ac061700af8368aae6e5f71192896c89028b6cc2c2be59e57c467",
+      "bytes": 3524
     },
     "bootstrap.json": {
       "sha256": "f275d89e8fbec03e8d4cfddc9ddd8ba90019c3eb5cbea53d13ddd620ff56f04b",
@@ -90,6 +94,54 @@
       "sha256": "d588c78c27775575858a182ad6ecfe1397bf9fb713aec9477e3d6c59782cc79b",
       "bytes": 1994
     },
+    "recovery/README.md": {
+      "sha256": "f07e3f048f94310fbde6b5dabe40daf3dcdb11a76e65c69efd0c343986df076d",
+      "bytes": 2254
+    },
+    "recovery/proof-verification.json": {
+      "sha256": "067967e62741a19390ef938e1a6f309bbb0e5fdbcc6051627731f98042ac8ef5",
+      "bytes": 2628
+    },
+    "recovery/recovery-clojure-replay.json": {
+      "sha256": "c8617ccb8022d7c2d357ba48ff59f909681904ad06abe8ff3f087a834dbca6fe",
+      "bytes": 4244
+    },
+    "recovery/recovery-compressed.bin": {
+      "sha256": "931bed4ebd2d8b1a00fd81009e696fc6f135ba2a7a947a5aa27891624c10e10f",
+      "bytes": 1272857
+    },
+    "recovery/recovery-context-export.log": {
+      "sha256": "ebc34230e16866db41164a431ca0557ad63f58d5a4f7a2ab6963eccbd2159353",
+      "bytes": 2986
+    },
+    "recovery/recovery-context.json": {
+      "sha256": "b734ea06b433824aa45844967d6a387753d2d4c3a4baa73ac692ddb059484d5a",
+      "bytes": 1852
+    },
+    "recovery/recovery-proof.json": {
+      "sha256": "7659d1b32a533d6209c6bc8e870506390c0f71a0d7d13308acdafa723d513bcd",
+      "bytes": 2031
+    },
+    "recovery/recovery-replay.json": {
+      "sha256": "8755534964ef2dedd16abcb2797b5692912b87bba9da49cbbd2fbc6acaa63c06",
+      "bytes": 4244
+    },
+    "recovery/recovery-reserve-binding.json": {
+      "sha256": "003a358b8264c2f7e64de8b913250d9bea42f2edbcc511c75d04548cd2d4cf41",
+      "bytes": 326
+    },
+    "recovery/recovery-witness.json": {
+      "sha256": "0b88f274ea856fcb113b20dd81778c79c96bdc27dc20eea0ed2d2412baed58d0",
+      "bytes": 3719
+    },
+    "recovery/recovery-wrapper-witness.json": {
+      "sha256": "4412a8fecc711931b1495728763a1314bba344c407e805e50ca79fd71d81996b",
+      "bytes": 2803056
+    },
+    "recovery/stage2-qualification.log": {
+      "sha256": "983a81c8907d0efb195a2b5846751b0cef84097ec0e718353a840fa9732aeb3d",
+      "bytes": 13103
+    },
     "registry-admission-test.log": {
       "sha256": "997d1a95339385e1c5e363300d4fdeec0f040f153c0fd8f62eabe7717554f73a",
       "bytes": 865
@@ -113,6 +165,10 @@
     "source/OnchainShortfallReserveV3.t.sol": {
       "sha256": "9b8261155816c48f787a5a3d45e63b50016c8451dae882bd32d337c95494eda5",
       "bytes": 15395
+    },
+    "source/PartialFillV3Controlled.t.sol": {
+      "sha256": "1c18112872fdd073abc29fe8f170d63d24c12108574d9f5baff43be0053a57ec",
+      "bytes": 32355
     },
     "source/SourceBoundProRataEntitlementRatificationControllerV1.sol": {
       "sha256": "293bc55a65ac1d34fd970cab489c08bc6fb079a40034dc1822e38f4862abc0e1",
@@ -138,7 +194,7 @@
   "terminalFinalizationRoute": "qualified locally through the bound ratification controller; early, unauthorized, unresolved-liability, replay and post-finalization paths reject",
   "verifierRegistryRoot": "0x197bc48fcd58320a9e8735294d80e349e1540c9eff80219dd907b590628cbaca",
   "admissionReceipt": "0x049039d01bd16725d5826e9d46f1bbccdaf85d5fdc29f4fff77f0611962f763a",
-  "stage2QualificationTests": "10 passed, 0 failed; PARTIAL_FILL_STAGE=2",
+  "stage2QualificationTests": "11 passed, 0 failed; PARTIAL_FILL_STAGE=2, including stale-proof rejection and fresh-proof recovery",
   "reserveV3Tests": "8 passed, 0 failed",
   "finalTransferSequence": [
     {
@@ -174,5 +230,24 @@
   ],
   "accountingBoundary": "100 requested = 70 allocated/funded/withdrawn + 30 unmet request; separate 10 restricted sponsor units are not claimant entitlement or allocation-pool capital.",
   "terminalObservation": "terminal-observation.json; emitted by the Foundry integration test after reserve finalization",
-  "fundingObservation": "funding-observation.json; setup captured and asserted the exact sponsor-to-reserve ERC-20 Transfer of 80 units"
+  "fundingObservation": "funding-observation.json; setup captured and asserted the exact sponsor-to-reserve ERC-20 Transfer of 80 units",
+  "staleAssuranceRecovery": {
+    "status": "passed with regenerated source-bound SP1 Groth16 proof",
+    "oldReserveStateCommitment": "a40e4db35601330b194a1e4b03965f0804f613eab979f1b850b313e09f1dfd0c",
+    "newReserveStateCommitment": "0x83620f170337b66d9c290cacdfeb1eb373460cc696637cb28c73499ab1e7d2b6",
+    "newAvailabilityRevision": 1,
+    "newSnapshot": {
+      "availabilityRevision": "1",
+      "grossBalance": "81",
+      "reservedBefore": "1",
+      "protectedCapital": "10",
+      "availableAmount": "70"
+    },
+    "sameAllocationBindingRoot": true,
+    "replacementAssuranceGeneration": 1,
+    "tests": "11 passed, 0 failed",
+    "outcome": "70 funded; 35/21/14 claimed; allocator Closed; claimant liability zero",
+    "separateHold": "1 unit remains reserved; reserve custody is 11; finalization is intentionally not attempted in this recovery case",
+    "evidence": "recovery/"
+  }
 }
