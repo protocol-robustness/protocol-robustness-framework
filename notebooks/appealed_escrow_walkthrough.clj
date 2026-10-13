@@ -12,7 +12,6 @@
             [resolver-sim.protocols.sew.types :as types]
             [resolver-sim.protocols.sew.lifecycle :as lifecycle]
             [resolver-sim.protocols.sew.resolution :as resolution]
-            [resolver-sim.protocols.sew.accounting :as accounting]
             [resolver-sim.time.context :as time-ctx]))
 
 ^{:nextjournal.clerk/visibility {:code :hide :result :hide}}
@@ -79,7 +78,10 @@
      :bond/owner (when (pos? (get-in world [:bond-balances wf (addr :actor/carol)] 0)) (addr :actor/carol))
      :final/claimable-alice (get-in world [:claimable wf (addr :actor/alice)] 0)
      :final/claimable-bob (get-in world [:claimable wf (addr :actor/bob)] 0)
-     :final/claimable-carol (get-in world [:claimable wf (addr :actor/carol)] 0)
+     :final/claimable-carol (->> (vals (get world :appeal-bond/claims {}))
+                                 (keep #(get % (addr :actor/carol)))
+                                 (map :claimable)
+                                 (reduce + 0))
      :evidence/refs [:escrow-created :dispute-raised :resolution-challenged
                      :bond-posted :resolution-executed :settlement-executed]}))
 
@@ -111,9 +113,7 @@
         w5 (:world l1)
         before-settlement (project-world w5)
         settlement (resolution/execute-pending-settlement (at-time w5 (:settlement times)) workflow-id)
-        w6 (:world settlement)
-        bond-return (accounting/return-bond w6 workflow-id carol)
-        w7 (:world bond-return)]
+        w6 (:world settlement)]
     {:steps [{:step/id :fund
               :title "Alice funds the escrow"
               :actor :actor/alice :action :create-escrow
@@ -147,19 +147,13 @@
              {:step/id :settle
               :title "The L1 window closes and settlement executes"
               :actor :system/keeper :action :execute-pending-settlement
-              :reader-explanation "Principal moves only after the L1 provisional result reaches finality."
-              :expected-effects ["Escrow refunded" "Principal no longer held"]
-              :result settlement :before before-settlement :after (project-world w6)}
-             {:step/id :return-challenge-bond
-              :title "Carol’s successful challenge bond is returned"
-              :actor :system/protocol :action :return-bond
-              :reader-explanation "The generic net bond is returned to Carol as claimable after the successful correction path."
-              :expected-effects ["Generic bond custody cleared" "Carol credited with net bond"]
-              :result bond-return :before (project-world w6) :after (project-world w7)}]
+              :reader-explanation "Principal settlement and the open challenge-bond disposition are finalized together after the L1 provisional result reaches finality."
+              :expected-effects ["Escrow refunded" "Principal no longer held" "Challenge-bond claim recorded"]
+              :result settlement :before before-settlement :after (project-world w6)}]
      :before-challenge before-challenge
      :after-challenge after-challenge
      :before-settlement before-settlement
-     :final (project-world w7)}))
+     :final (project-world w6)}))
 
 ^{:nextjournal.clerk/visibility {:code :hide :result :hide}}
 (def walkthrough (delay (build-appealed-escrow-world)))
@@ -235,7 +229,7 @@ timeline
     [:table [:tbody
              [:tr [:th "Actor"] [:td "Carol — unrelated third party"]]
              [:tr [:th "Action"] [:td "challenge-resolution"]]
-             [:tr [:th "Time relative to deadline"] [:td (str (:challenge appealed-escrow-example) " < " (:challenge/deadline after-challenge))]]
+             [:tr [:th "Time relative to deadline"] [:td (str (get-in appealed-escrow-example [:times :challenge]) " < " (:challenge/deadline after-challenge))]]
              [:tr [:th "Gross challenge bond"] [:td (str (:bond/gross-posted after-challenge))]]
              [:tr [:th "Protocol fee"] [:td (str (:bond/fee after-challenge))]]
              [:tr [:th "Net challenge-bond custody"] [:td (str (:bond/net-held after-challenge) " owned by Carol")]]

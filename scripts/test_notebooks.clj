@@ -58,8 +58,11 @@
     {:string-builder sb :thread t}))
 
 (defn- destroy-process-tree! [^Process proc]
-  (doseq [^java.lang.ProcessHandle child (reverse (vec (.descendants (.toHandle proc))))]
-    (.destroyForcibly child))
+  (let [descendants (.descendants (.toHandle proc))
+        children (with-open [stream descendants]
+                   (doall (iterator-seq (.iterator stream))))]
+    (doseq [^java.lang.ProcessHandle child (reverse children)]
+      (.destroyForcibly child)))
   (.destroyForcibly proc)
   (.waitFor proc 5 java.util.concurrent.TimeUnit/SECONDS)
   nil)

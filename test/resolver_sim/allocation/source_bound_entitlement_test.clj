@@ -11,7 +11,7 @@
 
 (deftest unmet-request-profile-keeps-remainder-unfunded
   (let [input (assoc-in (:base-input (fixture))
-                       [:realized-statement-input :fail-action-policy] {:mode "unmet-request"})
+                        [:realized-statement-input :fail-action-policy] {:mode "unmet-request"})
         root (:realized-statement-root (sut/derive input))
         bound (assoc-in input [:prepared-operation :policy-root] (str "0x" root))
         derived (sut/derive-controlled-source bound)]

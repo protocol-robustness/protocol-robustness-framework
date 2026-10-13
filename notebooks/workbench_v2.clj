@@ -295,16 +295,20 @@
                                        :when trace] (assoc trace :trace-path trace-path)))
              wf-map (extract-workflow-events traces)
              sorted-wfs (sort-by (comp str key) (seq wf-map))
+             ;; Replaying every trace on namespace load makes this notebook exceed
+             ;; the isolated loader budget. Keep event-derived workflow summaries
+             ;; complete, and replay a small deterministic sample for state detail.
+             replay-traces (take 8 traces)
              scenario-worlds (into {}
                                    (keep (fn [trace]
                                            (when-let [w (world-for-trace (:trace-path trace)
                                                                          !world-cache)]
                                              [(:scenario-id trace) w])))
-                                   traces)]
+                                   replay-traces)]
          (if (seq sorted-wfs)
            [:div
             [:div {:style {:fontSize "11px" :opacity 0.85 :marginBottom "10px" :color "#cbd5e1"}}
-             "Expand any row to inspect integer-keyed protocol state for that workflow."]
+             "Workflow summaries use all loaded traces. Integer-keyed replay state is shown for a deterministic sample of eight scenarios."]
             (for [[wf-id {:keys [scenarios events]}] sorted-wfs
                   :let [state (workflow-terminal-state events)
                         action-summary (->> events
@@ -458,11 +462,11 @@
        [:div.card-title "Funds Custody Ledger"]
        (let [traces (take 5 (remove nil? (for [{:keys [trace-path]} options
                                                :let [trace (try (common/read-json trace-path) (catch Exception _ nil))]
-                                               :when trace] trace)))
+                                               :when trace] (assoc trace :trace-path trace-path))))
              custody-rows (keep (fn [trace]
                                   (try
-                                    (let [result (sew/replay-with-sew-protocol trace)
-                                          world (sew-proj/terminal-world-from-result result)
+                                    (let [world (world-for-trace (:trace-path trace)
+                                                                 !world-cache)
                                           fv (sew-proj/funds-ledger-view world)]
                                       (assoc fv :scenario-id (:scenario-id trace)
                                              :world-hash (some-> world hash str)))

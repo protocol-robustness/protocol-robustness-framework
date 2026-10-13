@@ -32,7 +32,7 @@
 ;; XTDB does not confer authority or replace artifact verification.
 ;; ```
 
-(ns xtdb-temporal-explorer
+(ns notebooks.xtdb-temporal-explorer
   {:nextjournal.clerk/visibility {:code :fold :result :show}}
   (:require [nextjournal.clerk :as clerk]
             [clojure.string :as str]
