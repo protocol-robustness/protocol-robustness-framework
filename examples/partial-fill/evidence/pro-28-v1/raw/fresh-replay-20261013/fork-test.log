@@ -1,0 +1,10 @@
+No files changed, compilation skipped
+
+Ran 4 tests for test/GateEEntitlementDeploymentDerivedRealProof.t.sol:GateEEntitlementDeploymentDerivedRealProofTest
+[PASS] test_DeploymentWitnessReconstructsProvedLogicalTable() (gas: 271784)
+[PASS] test_RealSuccessorProofAdmitsRatifiesFundsAndActivates() (gas: 2214022)
+[PASS] test_RealSuccessorProofAdmitsRatifiesFundsAndRefunds() (gas: 1791854)
+[PASS] test_RealSuccessorProofWithdrawsAcrossLiveRequestedRequiredModes() (gas: 2971882)
+Suite result: ok. 4 passed; 0 failed; 0 skipped; finished in 113.96ms (258.98ms CPU time)
+
+Ran 1 test suite in 131.20ms (113.96ms CPU time): 4 tests passed, 0 failed, 0 skipped (4 total tests)

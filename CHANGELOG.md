@@ -2,6 +2,11 @@
 
 ## [Unreleased]
 
+### PRO-28 receipt-level local execution evidence
+
+- Added `eae.pro-28-authentic-local-execution.v1` reconstruction output and retained receipt/runtime evidence for the source-bound successor-entitlement local flow. Funding and each entitlement payout now bind to exact transaction, receipt, log, contract and block identities; local Anvil evidence remains explicitly non-public and non-canonical.
+
+
 ### Authentication provenance
 
 - Research verification now reports anonymous, pseudonymous, and authenticated-principal provenance separately from evidence validity. Unsigned attestations report missing proof of possession rather than a verified signer, while valid anonymous evidence remains eligible for research verification where admission policy permits.
