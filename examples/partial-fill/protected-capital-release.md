@@ -154,7 +154,11 @@ proof for a changed reserve snapshot now also passes replacement, admission,
 funding and all three withdrawals while preserving the original 70-unit
 allocation. That recovery fixture intentionally retains a separate one-unit
 reserve hold, so its 11-unit custody balance is not terminally released. The
-accounting journal remains scoped to the original seven V2 states; V3 terminal
-and recovery observations are retained separately, not folded into a unified
-journal. Neither artifact establishes the completeness of all external
-obligations or a universal financial ledger.
+V2 journal remains scoped to its original seven states. A separate
+[V3 transition journal](evidence/v3-live-context/accounting-journal.json) is
+derived from eight passing-test getter observations and five retained ERC-20
+transfers; its [state observations](evidence/v3-live-context/accounting-states.json)
+and [derivation script](evidence/v3-live-context/derive-accounting-journal.py)
+are available for reproduction. The two execution runs are deliberately not
+joined into one continuous ledger. Neither journal establishes the completeness
+of all external obligations or a universal financial ledger.

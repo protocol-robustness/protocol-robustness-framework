@@ -190,6 +190,9 @@ Stale V3 reserve assurance is tested both ways: stale funding rejects without
 state mutation, while a freshly generated proof for the changed reserve snapshot
 is admitted and recovers the same 70-unit allocation. That recovery closes all
 claimant liabilities but leaves a separate one-unit reserve hold active, so
-terminal finalization is not attempted in that case. The accounting journal
-remains scoped to the original seven V2 observations; it does not absorb V3
-terminal or recovery observations or claim a complete financial ledger.
+terminal finalization is explicitly attempted and rejected while the hold is
+active, leaving the recovery state unchanged. The V2 journal remains scoped to
+its original seven observations. A separate V3 projection now retains eight
+call-boundary observations and five transfers, including terminal refund and
+recovery hold. The V2 and V3 runs are not merged into a continuous ledger, and
+neither claims a complete financial ledger or external obligation census.
