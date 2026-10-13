@@ -137,6 +137,45 @@ fn prepared_operation_profile_is_authenticated_and_changes_its_root() {
 }
 
 #[test]
+fn v3_reserve_commitment_binds_policy_root_without_changing_v2_vectors() {
+    let fixture = fixture();
+    let mut input = fixture["base-input"].clone();
+    let v2 = derive(&input).unwrap();
+
+    input["economic-reserve-state"]["commitment-version"] = json!("v3");
+    input["economic-reserve-state"]["policy-root"] =
+        json!("sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
+    let v3 = derive(&input).unwrap();
+    assert_ne!(v2.reserve_state_commitment, v3.reserve_state_commitment);
+
+    input["economic-reserve-state"]["policy-root"] =
+        json!("sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb");
+    let changed_policy = derive(&input).unwrap();
+    assert_ne!(
+        v3.reserve_state_commitment,
+        changed_policy.reserve_state_commitment
+    );
+
+    input["economic-reserve-state"]
+        .as_object_mut()
+        .unwrap()
+        .remove("policy-root");
+    assert_eq!(derive(&input).unwrap_err(), "v3 policy-root required");
+}
+
+#[test]
+fn policy_root_is_not_accepted_under_v2_commitment_domain() {
+    let fixture = fixture();
+    let mut input = fixture["base-input"].clone();
+    input["economic-reserve-state"]["policy-root"] =
+        json!("sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
+    assert_eq!(
+        derive(&input).unwrap_err(),
+        "policy-root requires reserve commitment version v3"
+    );
+}
+
+#[test]
 fn rejects_top_level_derived_roots_and_beneficiary_profile() {
     let fixture = fixture();
     let base = fixture["base-input"].clone();

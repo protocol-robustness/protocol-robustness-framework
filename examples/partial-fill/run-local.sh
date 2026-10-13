@@ -69,7 +69,7 @@ PY
 done
 cp "$OUT/replay.json" "$EVM/test/fixtures/partial-fill/"
 python3 examples/partial-fill/qualify-source.py --replay "$REPLAY" --witness "$OUT/witness.json" --output "$OUT/negative-source"
-(cd "$EVM"; forge test --match-path test/PartialFillControlled.t.sol --match-test 'test_(Qualification|Reject)' --offline --json -vv) > "$OUT/evm-tests.json"
+(cd "$EVM"; forge test --match-path test/PartialFillControlled.t.sol --match-test 'test_(Qualification|Reject|FrozenV2)' --offline --json -vv) > "$OUT/evm-tests.json"
 (cd "$EVM"; forge test --match-path 'test/{SourceBoundProRataEntitlementAssuranceV1,SourceBoundProRataEntitlementRatificationControllerV1,OnchainShortfallReserveV2,ProductionProRataAllocatorV2,ProductionProRataAllocatorV2Withdrawal,PublicPackedEntitlementRepresentationV1,PrfSourceBoundEntitlementVerifierAdapterV1,SourceBoundEntitlementV1Commitments}.t.sol' --offline --json) > "$OUT/regression-tests.json"
 python3 examples/partial-fill/report.py "$OUT"
 python3 examples/partial-fill/package-evidence.py "$OUT" "$EVM"

@@ -23,6 +23,22 @@
                             {:mode "pro-rata-treatment" :deferred-policy "same-ratio"
                              :haircut-policy "same-ratio"}))))))
 
+(deftest v3-reserve-commitment-binds-policy-root
+  (let [base (-> (:base-input (fixture))
+                 (assoc-in [:economic-reserve-state :commitment-version] "v3")
+                 (assoc-in [:economic-reserve-state :policy-root]
+                           "1212121212121212121212121212121212121212121212121212121212121212"))
+        derived (sut/derive base)
+        changed-policy (sut/derive (assoc-in base [:economic-reserve-state :policy-root]
+                                             "3434343434343434343434343434343434343434343434343434343434343434"))]
+    (is (= 70N (:entitlement-total derived)))
+    (is (not= (:reserve-state-commitment derived)
+              (:reserve-state-commitment changed-policy)))
+    (is (thrown? clojure.lang.ExceptionInfo
+                 (sut/derive (update base :economic-reserve-state dissoc :policy-root))))
+    (is (thrown? clojure.lang.ExceptionInfo
+                 (sut/derive (assoc-in base [:economic-reserve-state :commitment-version] "v4"))))))
+
 (defn materialize [base transform]
   (case transform
     "identity" base

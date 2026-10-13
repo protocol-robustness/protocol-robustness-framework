@@ -116,8 +116,12 @@
                    :token (get-in context [:prepared-operation :token])
                    :operation (get-in context [:prepared-operation :operation-id])
                    :availability "live token balance minus protected capital and existing reservations"}
+          economic-state (:economic-reserve-state context)
+          economic-state (if (= "v3" (:commitment-version economic-state))
+                           (update economic-state :policy-root #(subs % 2))
+                           economic-state)
           witness (assoc input :prepared-operation (:prepared-operation context)
-                               :economic-reserve-state (:economic-reserve-state context)
+                               :economic-reserve-state economic-state
                                :reserve-binding-root (content-root binding))
           derived (entitlement/derive-controlled-source witness)]
       (write-json directory (str (or prefix "") "reserve-binding.json") binding)

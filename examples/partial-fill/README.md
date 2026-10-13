@@ -124,7 +124,7 @@ EVM qualification without regenerating proofs:
 ```sh
 # In prf-evm, with the retained files installed under test/fixtures/partial-fill:
 PARTIAL_FILL_STAGE=2 forge test --match-path test/PartialFillControlled.t.sol \
-  --match-test 'test_(Qualification|Reject)' --offline -vv
+  --match-test 'test_(Qualification|Reject|FrozenV2)' --offline -vv
 
 # In PRF:
 cargo run --manifest-path coprocessor/Cargo.toml -p allocation-kernel \
@@ -168,23 +168,26 @@ the policy and funding attribution records into the retained demo manifest.
 This policy excludes the 10 from claimant entitlements, fees, protocol income
 and available allocation capital. The ratification controller is designated to
 authorize terminal finalization but is not the beneficial owner. This remains a
-declared fixture policy only: the frozen `OnchainShortfallReserveV2` stores an
-immutable amount, not this policy, and has no terminal refund function. The
-seven retained states therefore end at **allocator closure**, with 10 still in
-reserve custody. They do not demonstrate **final reserve settlement** or a
-refund to Carol. The reserve rejects additional allocation below the configured
-floor, but policy-specific beneficiary enforcement, early-release rejection,
-substitution rejection and double-release rejection cannot be qualified without
-a release route.
+fixture policy: it specifies Carol's beneficiary address, but does not establish
+external legal ownership. The frozen `OnchainShortfallReserveV2` still has no
+terminal refund function. Its original seven observations and derived journal
+remain unchanged and end at **allocator closure**, with 10 in reserve custody.
 
-A bounded successor should bind the versioned policy at reserve construction or
-one-time pre-funding configuration; scope the reserve to the named operation;
-track sponsor transfer attribution; prevent new operations after finalization;
-and allow only the ratification controller to release the exact protected
-amount to the recorded Carol address after the allocator is closed, claimant
-liability is zero, and all reserve holds are terminal. It should reject early
-release, beneficiary substitution, repeated release and release while any
-reservation or scoped operation remains unresolved. The accounting journal
-should wait until that path has retained successful local-EVM evidence. A code
-level assessment of why V2 or a simple subclass cannot safely provide this
-release is in [the protected-capital gap assessment](protected-capital-release.md).
+A separate additive `OnchainShortfallReserveV3` local qualification now binds
+the versioned policy and single operation, enforces sponsor funding and the
+immutable beneficiary, and exposes terminal release only through the bound
+ratification controller. Using the V3-context proof, the Foundry stage-2 test
+observed 70 units funded to the allocator, claims of 35/21/14, zero outstanding
+claim liability, and a subsequent exact 10-unit refund to Carol. Early,
+unauthorized, unresolved-liability and replay attempts are rejected. The
+post-release observation is retained separately because this is a distinct V3
+run, not an eighth state appended to the frozen V2 sequence. Details, source
+snapshots and verification logs are in
+[the V3 live-context evidence](evidence/v3-live-context/README.md).
+
+This is local Foundry evidence only, not Base Sepolia or public-chain execution.
+Stale V3 reserve assurance is shown to reject without state mutation, but
+recovery using a fresh V3 proof has not yet been qualified. The accounting
+journal remains scoped to the original seven V2 observations and records the
+10 as unresolved restricted custody; it does not absorb the separate V3
+terminal observation or claim a complete financial ledger.

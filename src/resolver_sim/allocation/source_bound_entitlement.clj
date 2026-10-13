@@ -26,6 +26,7 @@
 (def ^:const allocation-binding-domain "prf.onchain-shortfall-allocation-binding.v1")
 (def ^:const prepared-operation-domain "prf.prepared-operation.v2")
 (def ^:const reserve-state-domain "prf.economic-reserve-state.v2")
+(def ^:const reserve-state-v3-domain "prf.economic-reserve-state.v3")
 (def ^:const claim-leaf-domain "prf.source-bound-entitlement.claim-leaf.v1")
 (def ^:const claim-node-domain "prf.source-bound-entitlement.claim-node.v1")
 (def ^:const claim-empty-domain "prf.source-bound-entitlement.claim-empty.v1")
@@ -279,17 +280,28 @@
   (let [gross (bigint (:gross-balance state))
         reserved (bigint (:reserved-before state))
         protected (bigint (:protected-capital state))
-        available (bigint (:available-amount state))]
+        available (bigint (:available-amount state))
+        version (or (:commitment-version state) "v2")
+        domain (case version
+                 "v2" reserve-state-domain
+                 "v3" reserve-state-v3-domain
+                 (throw (ex-info "unsupported reserve commitment version" {:version version})))
+        policy-root (:policy-root state)]
     (when (or (> (+ reserved protected) gross)
               (not= available (- gross reserved protected)))
       (throw (ex-info "invalid reserve accounting" {})))
-    (keccak-bytes
-     (domain-word reserve-state-domain)
-     prepared-root
-     (padded-address-or-word :reserve (:reserve prepared))
-     (padded-address-or-word :token (:token prepared))
-     (word-uint gross) (word-uint reserved) (word-uint protected)
-     (word-uint available) (word-uint (bigint (:availability-revision state))))))
+    (when (and (= version "v3") (nil? policy-root))
+      (throw (ex-info "v3 policy-root required" {})))
+    (when (and (= version "v2") policy-root)
+      (throw (ex-info "policy-root requires reserve commitment version v3" {})))
+    (apply keccak-bytes
+           (concat [(domain-word domain)
+                    prepared-root
+                    (padded-address-or-word :reserve (:reserve prepared))
+                    (padded-address-or-word :token (:token prepared))
+                    (word-uint gross) (word-uint reserved) (word-uint protected)
+                    (word-uint available) (word-uint (bigint (:availability-revision state)))]
+                   (when (= version "v3") [(root-bytes :policy-root policy-root)])))))
 
 (defn- public-values [words]
   (let [bytes (hc/concat-byte-arrays words)]

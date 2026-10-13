@@ -24,6 +24,7 @@ const DESCRIPTOR_DOMAIN: &str = "PRF_ENTITLEMENT_REPRESENTATION_DESCRIPTOR_V1";
 const ALLOCATION_BINDING_DOMAIN: &str = "prf.onchain-shortfall-allocation-binding.v1";
 const PREPARED_OPERATION_DOMAIN: &str = "prf.prepared-operation.v2";
 const RESERVE_STATE_DOMAIN: &str = "prf.economic-reserve-state.v2";
+const RESERVE_STATE_V3_DOMAIN: &str = "prf.economic-reserve-state.v3";
 const CLAIM_LEAF_DOMAIN: &str = "prf.source-bound-entitlement.claim-leaf.v1";
 const CLAIM_NODE_DOMAIN: &str = "prf.source-bound-entitlement.claim-node.v1";
 const CLAIM_EMPTY_DOMAIN: &str = "prf.source-bound-entitlement.claim-empty.v1";
@@ -578,23 +579,45 @@ fn reserve_state_commitment(
     {
         return Err("invalid reserve accounting".into());
     }
-    Ok(keccak(&[
-        &domain_word(RESERVE_STATE_DOMAIN),
-        &prepared_root,
-        &flexible_word(
+    let domain = match state.get("commitment-version").and_then(Value::as_str) {
+        None | Some("v2") => RESERVE_STATE_DOMAIN,
+        Some("v3") => RESERVE_STATE_V3_DOMAIN,
+        Some(_) => return Err("unsupported reserve commitment version".into()),
+    };
+    let mut fields = vec![
+        domain_word(domain),
+        prepared_root,
+        flexible_word(
             prepared["reserve"].as_str().ok_or("reserve required")?,
             "reserve",
         )?,
-        &flexible_word(prepared["token"].as_str().ok_or("token required")?, "token")?,
-        &uint_word(gross),
-        &uint_word(reserved),
-        &uint_word(protected),
-        &uint_word(available),
-        &uint_word(parse_u128(
+        flexible_word(prepared["token"].as_str().ok_or("token required")?, "token")?,
+        uint_word(gross),
+        uint_word(reserved),
+        uint_word(protected),
+        uint_word(available),
+        uint_word(parse_u128(
             &state["availability-revision"],
             "availability-revision",
         )?),
-    ]))
+    ];
+    if domain == RESERVE_STATE_V3_DOMAIN {
+        let policy_root = parse_root(
+            state["policy-root"]
+                .as_str()
+                .ok_or("v3 policy-root required")?,
+            "policy-root",
+        )?;
+        fields.push(policy_root);
+    } else if state.get("policy-root").is_some() {
+        return Err("policy-root requires reserve commitment version v3".into());
+    }
+    Ok(keccak(
+        &fields
+            .iter()
+            .map(|word| word.as_slice())
+            .collect::<Vec<_>>(),
+    ))
 }
 
 pub fn derive(input: &Value) -> Result<Derivation, String> {
