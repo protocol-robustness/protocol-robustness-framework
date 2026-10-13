@@ -27,8 +27,8 @@
   },
   "files": {
     "PartialFillV3Controlled.t.sol": {
-      "sha256": "1c18112872fdd073abc29fe8f170d63d24c12108574d9f5baff43be0053a57ec",
-      "bytes": 32355
+      "sha256": "0961688214253564ecf2f1d3831b06b751ecfe56fd4794cec65d097380ff4a80",
+      "bytes": 32580
     },
     "PartialFillV3LiveProofVerification.t.sol": {
       "sha256": "0a8dbeb7e9dbe9f5b939069333c690ef7402db0779d4a926aa1e8deef04c9df3",
@@ -95,8 +95,8 @@
       "bytes": 1994
     },
     "recovery/README.md": {
-      "sha256": "f07e3f048f94310fbde6b5dabe40daf3dcdb11a76e65c69efd0c343986df076d",
-      "bytes": 2254
+      "sha256": "a302f882157a138ceb7e813c3d687673d028120bf2b034d6dfc8338c2ce1d3e6",
+      "bytes": 2501
     },
     "recovery/proof-verification.json": {
       "sha256": "067967e62741a19390ef938e1a6f309bbb0e5fdbcc6051627731f98042ac8ef5",
@@ -167,8 +167,8 @@
       "bytes": 15395
     },
     "source/PartialFillV3Controlled.t.sol": {
-      "sha256": "1c18112872fdd073abc29fe8f170d63d24c12108574d9f5baff43be0053a57ec",
-      "bytes": 32355
+      "sha256": "0961688214253564ecf2f1d3831b06b751ecfe56fd4794cec65d097380ff4a80",
+      "bytes": 32580
     },
     "source/SourceBoundProRataEntitlementRatificationControllerV1.sol": {
       "sha256": "293bc55a65ac1d34fd970cab489c08bc6fb079a40034dc1822e38f4862abc0e1",
@@ -189,6 +189,10 @@
     "witness.json": {
       "sha256": "b0d10ccd549ad86435f8e13381c83c91500dd0f5a9eaa07a017ca601cb31f87b",
       "bytes": 3719
+    },
+    "recovery/blocked-finalization-test.log": {
+      "sha256": "4fab91a8a9a71753403c36a7143c7ddcbc9d5377ebc44249691fe1f00ecc2f35",
+      "bytes": 1291
     }
   },
   "terminalFinalizationRoute": "qualified locally through the bound ratification controller; early, unauthorized, unresolved-liability, replay and post-finalization paths reject",
@@ -247,7 +251,7 @@
     "replacementAssuranceGeneration": 1,
     "tests": "11 passed, 0 failed",
     "outcome": "70 funded; 35/21/14 claimed; allocator Closed; claimant liability zero",
-    "separateHold": "1 unit remains reserved; reserve custody is 11; finalization is intentionally not attempted in this recovery case",
+    "separateHold": "1 unit remains reserved; reserve custody is 11; terminal finalization attempt reverts and leaves state unchanged",
     "evidence": "recovery/"
   }
 }

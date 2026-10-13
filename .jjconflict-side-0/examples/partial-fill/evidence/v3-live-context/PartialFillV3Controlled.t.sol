@@ -475,6 +475,11 @@ contract PartialFillV3ControlledTest is Test {
         assertEq(token.balanceOf(address(allocator)), 0);
         assertEq(reserve.totalReserved(), 1);
         assertFalse(reserve.finalized());
+        bytes32 beforeBlockedFinalization = _digest();
+        vm.expectRevert();
+        operator.finalizeProtectedCapital();
+        assertEq(_digest(), beforeBlockedFinalization);
+        assertFalse(reserve.finalized());
         assertEq(uint8(allocator.entitlementOperation(OP).state), uint8(IShortfallAllocatorV2.State.Closed));
         assertEq(uint8(ratification.state(OP)), uint8(Ratification.State.Activated));
     }
