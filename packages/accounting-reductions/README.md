@@ -15,21 +15,21 @@ domain-tag table preserves the existing frozen V1 hash domains. Root-level
 golden tests enforce byte-for-byte root compatibility with the former source
 location.
 
-Run the package-local suite (including the complete V1 root chain) from the
-repository root:
+Run the isolated package qualification (including the complete V1 root chain)
+from the repository root:
 
 ```sh
-cd packages/accounting-reductions/clj
-clojure -Srepro -M:test
+bash scripts/qualify_accounting_reductions_package.sh
 ```
 
-The local `deps.edn` references the adjacent in-tree canonical package. The
-suite does not load PRF research or the monorepo classpath and pins the same
-contract, request, plan, work-unit, partial, reconciliation, and semantic
-result roots as the repository-wide golden vector. This proves a narrow
-declared source closure, not independent package publication or immutable
-remote dependency pinning. A release still requires a pinned canonical
-dependency and immutable release provenance.
+The script copies only this package and its declared canonical dependency to a
+temporary directory, computes a deterministic source-content-set hash, then
+runs `clojure -Srepro -M:test` without the monorepo source classpath. The suite
+pins the same contract, request, plan, work-unit, partial, reconciliation, and
+semantic result roots as the repository-wide golden vector. This establishes
+the package's clean source boundary, not independent publication or external
+dependency resolution. The canonical dependency remains an unpublished
+in-tree candidate.
 
 The package public callable surface is documented in
 [`REPOSITORY_BOUNDARIES_AND_ARTIFACT_OWNERSHIP.md`](../../docs/research/REPOSITORY_BOUNDARIES_AND_ARTIFACT_OWNERSHIP.md).

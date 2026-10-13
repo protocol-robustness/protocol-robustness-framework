@@ -29,15 +29,15 @@
                                  :qualified-source-revision "92b2198442d2840c85be9074582cabbedde5cba1"
                                  :qualified-bundle-sha256 "692d68d5e0f99450ae8da1bc857eb477f0d64e25550eeadff9646bf988d92aa6"}]
  :release/conformance
- {:package-local {:command "cd packages/accounting-reductions/clj && clojure -M:test"
+ {:package-local {:command "bash scripts/qualify_accounting_reductions_package.sh"
                   :tests 3 :assertions 15 :result :passed}
   :cross-boundary-golden
   {:command "clojure -M:test -e <repository-boundary-golden-suite>"
    :status :passed
    :accounting-root-compatibility :passed}}
  :release/provenance {:immutable-source-revision nil
-                      :source-content-identity nil
+                      :source-content-identity "sha256:6a04fe97e7d7e0662c81e0658559dce5b856a9fbda09f1c870d5a2f8cbedd9cf"
                       :clean-room-source-dependencies :passed
-                      :note "Clean-room test copied this package and its declared in-tree canonical dependency; this is not an immutable release pin."}
+                      :note "Isolated package and canonical source closure were staged and tested without monorepo source paths; canonical remains an unpublished in-tree dependency, not an externally fetchable immutable pin."}
  :release/publication {:status :unpublished
                        :dependency-coordinate nil}}
