@@ -297,7 +297,7 @@ consumer test. It keeps the V2 deployment manifest, prover input, proof fixture,
 AO route-manifest overlay, source-state record and source inventories, plus the
 complete deploy/prove/test log under
 `examples/assured-operations/pro-rata-conformance/artifacts/real-v2-sp1/` and
-refuses to overwrite existing artifacts. The source record includes JJ/Git
+refuses to overwrite existing artifacts. Set ARTIFACT_DIR to retain a failed attempt and write a subsequent run to a separate directory. The source record includes JJ/Git
 revision context, dirty-state metadata, tool versions and hashes of the relevant
 source inventories and prover binary. Failed runs retain their log and any
 artifacts already produced. After success, the runner compares pre/post source

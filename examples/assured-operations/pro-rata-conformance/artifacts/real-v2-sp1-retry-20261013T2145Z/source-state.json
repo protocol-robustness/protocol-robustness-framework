@@ -1,0 +1,23 @@
+{
+  "schema": "ao-real-v2-source-state.v1",
+  "capturedAt": "2026-10-13T20:45:57Z",
+  "assuredOperations": {
+    "jjWorkingCopyChangeId": "zntloxrvtykvnuwylrpvywlmplrkuzwq",
+    "jjParentChangeId": "xyzotskxvwuyuyrumompkurrtxnoqokx",
+    "relevantSourceInventorySha256": "45b43347277399e421faa56b31d8feda45c018ee96bdb855f183b2f4694b8d07",
+    "proverSha256": "ae017f6805d7149964981922794c856152c6279399afae22cc11a62a3cc846d9",
+    "rustcVersion": "rustc 1.98.1 (48a229cea 2026-09-01)",
+    "cargoVersion": "cargo 1.98.1 (797e8a9bc 2026-08-05)"
+  },
+  "runnerConfiguration": {
+    "chainInstanceGenesisRoot": "0x5555555555555555555555555555555555555555555555555555555555555555"
+  },
+  "prfEvm": {
+    "gitHead": "3c602ce2f7fecb54108cd4df3040231720bcce2b",
+    "gitStatusPorcelain": "",
+    "gitSubmoduleStatus": " d3629729c3216eb51bd4859d027a8eb729399fa4 lib/sp1-contracts (v6.1.1)\n 978ac6fadb62f5f0b723c996f64be52eddba6801 lib/sp1-contracts/contracts/lib/forge-std (978ac6f)\n dbb6104ce834628e473d2173bbc9d47f81a9eec3 lib/sp1-contracts/contracts/lib/openzeppelin-contracts (dbb6104c)\n 8b1d7c2ac248c33c3506b1bff8321758943c5e11 lib/sp1-contracts/contracts/lib/openzeppelin-contracts/lib/erc4626-tests (v0.1.0)\n eb980e1d4f0e8173ec27da77297ae411840c8ccb lib/sp1-contracts/contracts/lib/openzeppelin-contracts/lib/forge-std (v1.2.0)\n cd98eff28324bfac652e63a239a60632a761790b lib/sp1-contracts/contracts/lib/openzeppelin-contracts/lib/forge-std/lib/ds-test (remotes/origin/windows-compat-17-gcd98eff)",
+    "trackedDiffSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "relevantSourceInventorySha256": "5b55028a8033c4ff18dc71ed9c6f92928f3fd10615a9267a69480300c7729792",
+    "forgeVersion": "forge Version: 1.7.1"
+  }
+}

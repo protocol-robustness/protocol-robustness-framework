@@ -6,7 +6,7 @@ set -Eeuo pipefail
 
 AO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 PRF_EVM_ROOT="${PRF_EVM_ROOT:-$(cd "$AO_ROOT/../../prf-evm" && pwd)}"
-ARTIFACT_DIR="$AO_ROOT/examples/assured-operations/pro-rata-conformance/artifacts/real-v2-sp1"
+ARTIFACT_DIR="${ARTIFACT_DIR:-$AO_ROOT/examples/assured-operations/pro-rata-conformance/artifacts/real-v2-sp1}"
 IDENTITY="$PRF_EVM_ROOT/fixtures/source-bound-v2-identity.json"
 PROVER="$AO_ROOT/coprocessor/target/release/source-bound-v2-prove"
 
@@ -82,7 +82,7 @@ find "$PRF_EVM_ROOT/src" "$PRF_EVM_ROOT/script" "$PRF_EVM_ROOT/scripts" \
      "$PRF_EVM_ROOT/fixtures/source-bound-v2-identity.json" \
      "$PRF_EVM_ROOT/foundry.toml" "$PRF_EVM_ROOT/foundry.lock" \
      -type f -print0 2>/dev/null | sort -z | xargs -0 sha256sum > "$PRF_FILES"
-find "$AO_ROOT/coprocessor/src" -type f -print0 | sort -z | xargs -0 sha256sum >> "$AO_FILES"
+find "$AO_ROOT/coprocessor" -type f -name '*.rs' ! -path '*/target/*' -print0 | sort -z | xargs -0 sha256sum >> "$AO_FILES"
 sha256sum "$AO_ROOT/coprocessor/Cargo.toml" "$AO_ROOT/coprocessor/Cargo.lock" >> "$AO_FILES"
 AO_SOURCE_SHA256="$(sha256sum "$AO_FILES" | awk '{print $1}')"
 PRF_SOURCE_SHA256="$(sha256sum "$PRF_FILES" | awk '{print $1}')"
