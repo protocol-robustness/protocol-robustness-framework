@@ -188,3 +188,163 @@ pub fn normalize_rows(
     normalized.sort_by(|left, right| left.0.cmp(&right.0));
     Ok(normalized.into_iter().map(|(_, row)| row).collect())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn row(
+        row_id: Option<CanonValue>,
+        requested: Option<CanonValue>,
+        weight: Option<CanonValue>,
+        cap: Option<CanonValue>,
+    ) -> AllocationRowInput {
+        AllocationRowInput {
+            row_id,
+            obligation_id: None,
+            requested,
+            weight,
+            cap,
+        }
+    }
+
+    fn amount(value: i64) -> Option<CanonValue> {
+        Some(CanonValue::int(value))
+    }
+
+    #[test]
+    fn rows_use_clojure_typed_identity_order_and_normalize_caps() {
+        let rows = vec![
+            row(Some(CanonValue::str("a")), amount(5), amount(2), None),
+            row(
+                Some(CanonValue::keyword("z/id")),
+                amount(7),
+                amount(1),
+                amount(9),
+            ),
+            row(
+                Some(CanonValue::keyword("a/id")),
+                amount(3),
+                amount(4),
+                amount(2),
+            ),
+        ];
+
+        let actual = normalize_rows(&rows).unwrap();
+        assert_eq!(actual[0].row_id, CanonValue::keyword("a/id"));
+        assert_eq!(actual[1].row_id, CanonValue::keyword("z/id"));
+        assert_eq!(actual[2].row_id, CanonValue::str("a"));
+        assert_eq!(actual[0].effective_cap, BigInt::from(2));
+        assert_eq!(actual[1].effective_cap, BigInt::from(7));
+        assert_eq!(actual[2].declared_cap, None);
+        assert_eq!(actual[2].effective_cap, BigInt::from(5));
+        assert_eq!(actual[2].obligation_id, CanonValue::Null);
+    }
+
+    #[test]
+    fn missing_and_duplicate_row_ids_match_legacy_error_classes() {
+        let missing = row(None, amount(1), amount(1), None);
+        assert_eq!(
+            normalize_rows(&[missing]),
+            Err(RequestNormalizationError::MissingRowId)
+        );
+
+        let null_id = row(Some(CanonValue::Null), amount(1), amount(1), None);
+        assert_eq!(
+            normalize_rows(&[null_id]),
+            Err(RequestNormalizationError::MissingRowId)
+        );
+
+        let duplicate = vec![
+            row(
+                Some(CanonValue::keyword("row/a")),
+                amount(1),
+                amount(1),
+                None,
+            ),
+            row(
+                Some(CanonValue::keyword("row/a")),
+                amount(2),
+                amount(1),
+                None,
+            ),
+        ];
+        assert_eq!(
+            normalize_rows(&duplicate),
+            Err(RequestNormalizationError::DuplicateRowId)
+        );
+    }
+
+    #[test]
+    fn unsupported_id_and_obligation_values_are_rejected() {
+        let invalid_id = row(
+            Some(CanonValue::map(vec![(
+                CanonValue::int(1),
+                CanonValue::int(2),
+            )])),
+            amount(1),
+            amount(1),
+            None,
+        );
+        assert_eq!(
+            normalize_rows(&[invalid_id]),
+            Err(RequestNormalizationError::UnsupportedRowId)
+        );
+
+        let mut invalid_obligation = row(Some(CanonValue::str("a")), amount(1), amount(1), None);
+        invalid_obligation.obligation_id = Some(CanonValue::map(vec![(
+            CanonValue::int(1),
+            CanonValue::int(2),
+        )]));
+        assert_eq!(
+            normalize_rows(&[invalid_obligation]),
+            Err(RequestNormalizationError::UnsupportedObligationId)
+        );
+    }
+
+    #[test]
+    fn missing_and_invalid_amounts_are_rejected() {
+        let missing_weight = row(Some(CanonValue::str("a")), amount(1), None, None);
+        assert_eq!(
+            normalize_rows(&[missing_weight]),
+            Err(RequestNormalizationError::MissingRowField)
+        );
+
+        let negative = row(Some(CanonValue::str("a")), amount(-1), amount(1), None);
+        assert_eq!(
+            normalize_rows(&[negative]),
+            Err(RequestNormalizationError::InvalidRowAmount)
+        );
+
+        let non_integer_cap = row(
+            Some(CanonValue::str("a")),
+            amount(1),
+            amount(1),
+            Some(CanonValue::bool(true)),
+        );
+        assert_eq!(
+            normalize_rows(&[non_integer_cap]),
+            Err(RequestNormalizationError::InvalidRowAmount)
+        );
+    }
+
+    #[test]
+    fn map_identity_compares_canonical_bytes_not_insertion_order() {
+        let first = CanonValue::map(vec![
+            (CanonValue::keyword("a"), CanonValue::int(1)),
+            (CanonValue::keyword("b"), CanonValue::int(2)),
+        ]);
+        let reordered = CanonValue::map(vec![
+            (CanonValue::keyword("b"), CanonValue::int(2)),
+            (CanonValue::keyword("a"), CanonValue::int(1)),
+        ]);
+        let rows = vec![
+            row(Some(first), amount(1), amount(1), None),
+            row(Some(reordered), amount(1), amount(1), None),
+        ];
+        assert_eq!(
+            normalize_rows(&rows),
+            Err(RequestNormalizationError::DuplicateRowId)
+        );
+    }
+}
