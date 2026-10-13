@@ -276,10 +276,12 @@ The Rust `allocation::allocate_normalized` function implements V1 floor and
 largest-remainder arithmetic for unallocated and cap-excess redistribution
 policies with arbitrary-precision amounts. `witness::build_witness` derives
 per-row quotas, fractional remainders, and redistribution rounds;
-`result::assemble_result` assembles the frozen result projection and root. Four
-frozen result roots (rounding, cap clamping, cap redistribution, and floor
-residual) match the package's portable Clojure vectors. This qualifies those
-vectors and APIs, not every primitive profile edge case or Solidity parity.
+`result::assemble_result` assembles the frozen result projection and root, and
+`result::verify_result` re-derives and checks supplied semantic fields and root
+while excluding only the diagnostic fractional-remainder total. Four frozen
+result roots (rounding, cap clamping, cap redistribution, and floor residual)
+match the package's portable Clojure vectors. This qualifies those vectors and
+APIs, not every primitive profile edge case or Solidity parity.
 
 The frozen Clojure reference remains in
 `pro_rata_contract_src/resolver_sim/pro_rata_contract/contract.clj`, where
@@ -317,7 +319,7 @@ The negative allocation vector contains two request mutations and four result
 projection mutations. The package runner exercises both request rejections and
 all four result rejections through `verify-result`. Rust implements the frozen
 allocation-policy identity, request normalization/root, allocation kernel,
-witness, and result-root derivation. Rust realized-fill/statement code
+witness, result-root derivation, and semantic result verification. Rust realized-fill/statement code
 implements a different profile; it does not establish support for those
 separate source-bound and lifecycle profiles. Solidity support is profile-specific too. The
 package runner provides positive frozen-vector, independent-reference, and

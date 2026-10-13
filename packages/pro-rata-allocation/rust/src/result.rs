@@ -6,7 +6,7 @@ use num_traits::{One, Zero};
 use prf_canonical_codec::{domain_hash, CanonValue};
 
 use crate::allocation::AllocationOutput;
-use crate::request::NormalizedAllocationRequest;
+use crate::request::{allocation_request_root, NormalizedAllocationRequest};
 use crate::witness::AllocationWitness;
 
 pub const RESULT_SCHEMA: &str = "pro-rata-allocation-result.v1";
@@ -19,6 +19,10 @@ pub struct CanonicalAllocationResult {
     /// Frozen root over `root_input`, which excludes the diagnostic sum.
     pub root: String,
 }
+
+/// A supplied result differs from the deterministically derived V1 result.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct ResultVerificationError;
 
 fn keyword(key: &str) -> CanonValue {
     CanonValue::keyword(key)
@@ -158,6 +162,21 @@ fn distribution_summary(witness: &AllocationWitness) -> CanonValue {
     ])
 }
 
+fn without_diagnostic(value: &CanonValue) -> CanonValue {
+    let CanonValue::Map(fields) = value else {
+        return value.clone();
+    };
+    CanonValue::map(
+        fields
+            .iter()
+            .filter(|(key, _)| {
+                !matches!(key, CanonValue::Keyword(name) if name == "allocation/fractional-remainder-total")
+            })
+            .cloned()
+            .collect(),
+    )
+}
+
 fn root_input(result: &CanonValue) -> CanonValue {
     let CanonValue::Map(fields) = result else {
         return result.clone();
@@ -240,6 +259,29 @@ pub fn assemble_result(
     ]);
     let root = domain_hash(RESULT_DOMAIN, &root_input(&value));
     CanonicalAllocationResult { value, root }
+}
+
+/// Re-derive a complete V1 result and compare every semantic field and its
+/// allocation root. The diagnostic fractional remainder total is ignored, as
+/// in the Clojure `verify-result` contract.
+pub fn verify_result(
+    request: &NormalizedAllocationRequest,
+    supplied_result: &CanonValue,
+) -> Result<(), ResultVerificationError> {
+    let request_root = allocation_request_root(&request.canonical_request);
+    let allocation = crate::allocation::allocate_normalized(request);
+    let witness = crate::witness::build_witness(request);
+    let expected = assemble_result(request, &request_root, &allocation, &witness);
+    let CanonValue::Map(mut expected_fields) = expected.value else {
+        unreachable!("assembled result is a canonical map")
+    };
+    expected_fields.push((keyword("allocation/hash"), CanonValue::str(expected.root)));
+    let expected = without_diagnostic(&CanonValue::map(expected_fields));
+    if without_diagnostic(supplied_result).encode() == expected.encode() {
+        Ok(())
+    } else {
+        Err(ResultVerificationError)
+    }
 }
 
 #[cfg(test)]
@@ -326,6 +368,83 @@ mod tests {
             "unallocated",
             vec![row("row/b", "ob/b", 5, None), row("row/a", "ob/a", 5, None)],
             "cddb502c6577a1742c029de2f1bfe1e6ef8dedc8491f870c5935c228edab12b8",
+        );
+    }
+
+    #[test]
+    fn result_verification_checks_semantics_and_root_but_ignores_diagnostic() {
+        let request = normalize_request(&AllocationRequestInput {
+            allocation_id: Some(CanonValue::keyword("portable/rounding")),
+            schema_version: None,
+            mechanism_version: None,
+            available: Some(CanonValue::int(5)),
+            rows: vec![row("row/a", "ob/a", 5, None), row("row/b", "ob/b", 5, None)],
+            rounding_policy: Some(keyword("largest-remainder")),
+            tie_break_policy: None,
+            redistribution_policy: Some(keyword("unallocated")),
+        })
+        .unwrap();
+        let allocation = allocate_normalized(&request);
+        let witness = build_witness(&request);
+        let result = assemble_result(
+            &request,
+            &allocation_request_root(&request.canonical_request),
+            &allocation,
+            &witness,
+        );
+        let CanonValue::Map(mut supplied_fields) = result.value.clone() else {
+            unreachable!()
+        };
+        supplied_fields.push((
+            keyword("allocation/hash"),
+            CanonValue::str(result.root.clone()),
+        ));
+        let mut supplied_fields = supplied_fields;
+        supplied_fields.push((
+            keyword("allocation/fractional-remainder-total"),
+            map(vec![
+                ("rational/numerator", CanonValue::int(999)),
+                ("rational/denominator", CanonValue::int(1)),
+            ]),
+        ));
+        assert_eq!(
+            verify_result(&request, &CanonValue::map(supplied_fields.clone())),
+            Ok(())
+        );
+
+        let allocation_hash = keyword("allocation/hash");
+        let root_mutation = CanonValue::map(
+            supplied_fields
+                .iter()
+                .map(|(key, value)| {
+                    if key == &allocation_hash {
+                        (key.clone(), CanonValue::str("00"))
+                    } else {
+                        (key.clone(), value.clone())
+                    }
+                })
+                .collect(),
+        );
+        assert_eq!(
+            verify_result(&request, &root_mutation),
+            Err(ResultVerificationError)
+        );
+
+        let semantic_mutation = CanonValue::map(
+            supplied_fields
+                .iter()
+                .map(|(key, value)| {
+                    if key == &keyword("available") {
+                        (key.clone(), CanonValue::int(6))
+                    } else {
+                        (key.clone(), value.clone())
+                    }
+                })
+                .collect(),
+        );
+        assert_eq!(
+            verify_result(&request, &semantic_mutation),
+            Err(ResultVerificationError)
         );
     }
 }
