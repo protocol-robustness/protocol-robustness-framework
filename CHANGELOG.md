@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- `bb validate` now propagates failed, timed-out, and unstartable validation phases as a nonzero result. Each run retains per-phase commands, durations, terminal status, and separate stdout/stderr logs in a machine-readable EDN report.
+
 ### Authentication provenance
 
 - Research verification now reports anonymous, pseudonymous, and authenticated-principal provenance separately from evidence validity. Unsigned attestations report missing proof of possession rather than a verified signer, while valid anonymous evidence remains eligible for research verification where admission policy permits.
