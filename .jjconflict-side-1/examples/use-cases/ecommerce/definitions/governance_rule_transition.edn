@@ -1,0 +1,186 @@
+{:concept/id :governance/rule-transition
+ :concept/type :use-case
+ :concept/layer :stakeholder
+ :concept/name "Governance rule transition during active escrow"
+ :concept/summary
+ "Protocol governance can change operational parameters — such as fee rates,
+  resolver assignments, module versions, or escalation rules — while escrows
+  are active. The protocol enforces escrow isolation: each escrow is snapshotted
+  at creation with the governance parameters in effect at that time, so that
+  post-creation rule changes do not retroactively affect in-flight escrows.
+  New escrows use the current parameters. Governance intervention may also
+  override in-flight escrows in exceptional circumstances (e.g. resolver
+  removal due to compromise), but such overrides are explicitly scoped."
+
+ :concept/stakeholder-question
+ "Can the rules change while my escrow is active, and if so, what protections
+  exist to prevent retroactive changes that would harm my position?"
+
+ :concept/protocols #{:protocol/sew-v1}
+
+ :concept/maturity :illustrative
+ :concept/support-status :not-asserted
+
+ :concept/related
+ [:consensus/authority
+  :consensus/finality
+  :consensus/legitimacy
+  :consensus/liveness
+  :dispute/appeal-escalation
+  :resolver/participation-bonding]
+
+ :concept/roles
+ {:governance-actor
+  {:description "Entity or mechanism authorised to change protocol parameters."
+   :maps-to [:protocol.actor/governance]}
+  :escrow-participant
+  {:description "Party with an active escrow that may be affected by governance decisions."
+   :maps-to [:protocol.actor/sender :protocol.actor/recipient]}
+  :resolver
+  {:description "Resolver whose assignment may be rotated or updated by governance."
+   :maps-to [:protocol.actor/resolver]}
+  :observer
+  {:description "Party monitoring governance actions to detect unexpected or harmful rule changes."
+   :maps-to [:protocol.role/verifier]
+   :mapping/confidence :approximate
+   :mapping/note "Observers are not a protocol actor; this role captures the stakeholder need for transparency."}}
+
+ :concept/entities
+ {:governance-action
+  {:description "A record of a governance decision changing protocol parameters."
+   :maps-to [:protocol.entity/governance-action]
+   :mapping/confidence :approximate
+   :mapping/note "Governance actions may be logged as events rather than persisted as entities."}
+  :parameter-snapshot
+  {:description "The set of protocol parameters frozen at escrow creation, governing that escrow throughout its lifetime."
+   :maps-to [:protocol.entity/parameter-snapshot]
+   :mapping/confidence :approximate
+   :mapping/note "Snapshot isolation is enforced by the protocol; there may not be a distinct snapshot entity."}
+  :resolver-assignment
+  {:description "The resolver or resolver module assigned to an escrow, which may be changed by governance."
+   :maps-to [:protocol.entity/resolver-binding]}
+  :fee-schedule
+  {:description "The fee structure for escrow creation, dispute resolution, and settlement."
+   :maps-to [:protocol.entity/fee-config]
+   :mapping/confidence :approximate
+   :mapping/note "Fee schedule is part of the parameter snapshot; there may not be a distinct entity."}}
+
+ :concept/actions
+ {:update-parameter
+  {:description "Governance changes a protocol parameter (fee rate, resolver, module version)."
+   :maps-to [:protocol.action/governance-parameter-update]}
+  :rotate-resolver
+  {:description "Governance replaces the resolver assigned to an active escrow."
+   :maps-to [:protocol.action/governance-rotate-resolver]}
+  :snapshot-escrow
+  {:description "Capture the current governance parameters for a new escrow at creation."
+   :maps-to [:protocol.action/create-escrow]
+   :mapping/confidence :approximate
+   :mapping/note "Snapshotting is implicit in escrow creation, not a separate action."}
+  :override-resolution
+  {:description "Governance directly overrides a dispute outcome in exceptional circumstances."
+   :maps-to [:protocol.action/governance-intervention]}
+  :freeze-escrow
+  {:description "Governance suspends an escrow to prevent any action while a dispute is investigated."
+   :maps-to [:protocol.action/governance-intervention]
+   :mapping/confidence :approximate
+   :mapping/note "Freeze is a type of governance intervention; the protocol may not distinguish freeze from other interventions."}}
+
+ :concept/outcomes
+ {:parameter-changed
+  {:description "A governance parameter was updated, affecting future escrows."
+   :maps-to [:protocol.outcome/resolved]
+   :mapping/confidence :approximate
+   :mapping/note "Parameter change is not a dispute outcome; this maps to resolved as a generic terminal state for the governance action."}
+  :escrow-isolated
+  {:description "An active escrow was not affected by a governance parameter change because it was snapshotted at creation."
+   :maps-to [:protocol.outcome/released]
+   :mapping/confidence :approximate
+   :mapping/note "Escrow isolation is a property of the protocol design, not a distinct outcome event."}
+  :resolver-rotated
+  {:description "The resolver assigned to an active escrow was replaced by governance."
+   :maps-to [:protocol.outcome/resolved]
+   :mapping/confidence :approximate
+   :mapping/note "Resolver rotation changes the active resolver but does not produce a dispute outcome."}
+  :governance-override-applied
+  {:description "Governance intervened in an active dispute, overriding the normal resolution path."
+   :maps-to [:protocol.outcome/governance-override]}
+  :governance-abuse
+  {:description "Governance changed rules or intervened in a way that unfairly harmed a participant."
+   :maps-to [:protocol.outcome/adversarial-resolution]
+   :mapping/confidence :approximate
+   :mapping/note "Governance abuse maps to adversarial resolution because the authorized path produced an unfair outcome."}}
+
+ :concept/failure-modes
+ [{:failure/id :retroactive-param-change
+   :failure/name "Retroactive parameter change"
+   :failure/summary
+   "Governance changes a parameter that retroactively applies to active escrows, altering the terms under which participants committed funds."
+   :protocol-mechanisms [:escrow-snapshot :parameter-isolation]
+   :stakeholder-impact "Participant faces unexpected costs or rule changes for their in-flight escrow."}
+
+  {:failure/id :governance-capture
+   :failure/name "Governance capture"
+   :failure/summary
+   "Governance is controlled by an entity that changes rules or overrides outcomes to benefit themselves."
+   :protocol-mechanisms [:governance-checks :multi-sig :timelock]
+   :stakeholder-impact "Participants cannot rely on stable rules; funds may be extracted through governance action."}
+
+  {:failure/id :resolver-rotation-abuse
+   :failure/name "Resolver rotation used for malicious ends"
+   :failure/summary
+   "Governance replaces a resolver mid-dispute with one aligned to a particular party, biasing the outcome."
+   :protocol-mechanisms [:governance-rotation :resolver-scope :appeal]
+   :stakeholder-impact "In-flight dispute outcome is determined by a resolver the participants did not choose."}
+
+  {:failure/id :freeze-without-recourse
+   :failure/name "Escrow freeze without recourse"
+   :failure/summary
+   "Governance freezes an escrow indefinitely, locking funds with no resolution path."
+   :protocol-mechanisms [:governance-intervention :appeal]
+   :stakeholder-impact "Participant funds are permanently inaccessible."}
+
+  {:failure/id :unannounced-change
+   :failure/name "Unannounced governance change"
+   :failure/summary
+   "Governance changes parameters without prior notice, preventing participants from reacting before the change affects their position."
+   :protocol-mechanisms [:timelock :announcement-period]
+   :stakeholder-impact "Participants cannot exit or adjust their positions before rule changes take effect."}]
+
+ :concept/metrics
+ {:governance-action-count
+  {:description "Number of governance actions during the interaction."
+   :source :derived-from-trace}
+  :parameter-changes
+  {:description "Number of distinct parameter updates."
+   :source :derived-from-trace}
+  :resolver-rotations
+  {:description "Number of resolver rotations during active escrows."
+   :source :derived-from-trace}
+  :governance-override-count
+  {:description "Number of governance overrides applied to in-flight disputes."
+   :source :derived-from-trace}}
+
+ :concept/assumptions
+ ["Governance is a distinct role with the authority to change protocol parameters."
+  "Escrow isolation is enforced at creation time; post-creation changes do not affect in-flight escrows."
+  "Governance override is an exceptional action, not a routine path."
+  "Participants can observe governance actions through protocol events."
+  "Concept labels do not change protocol validity."]
+
+ :concept/out-of-scope
+ ["Real-world governance structures (DAO, multisig, legal entity)."
+  "Token-based voting or proposal mechanisms."
+  "Social or political dynamics of governance."
+  "Timelock durations or announcement period adequacy."]
+
+ :concept/known-gaps
+ ["Escrow isolation is a protocol property, not a distinct entity or outcome with its own keyword."
+  "Governance actions map to approximate protocol primitives (governance-intervention, governance-parameter-update) that may not exist as distinct keywords in all protocol versions."
+  "Governance abuse maps approximately to adversarial-resolution, which is designed for resolver misconduct not governance misconduct."
+  "The observer role has no protocol actor mapping; it represents a stakeholder need for transparency, not a protocol role."]
+
+ :concept/evidence
+ {:scenarios #{}
+  :benchmarks #{}
+  :claims #{}}}

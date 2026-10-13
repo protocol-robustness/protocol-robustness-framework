@@ -1,0 +1,44 @@
+{:demo/id :yield-shortfall-partial-fill
+ :demo/title "Yield Shortfall: Partial Withdrawal during Liquidity Shortfall"
+
+ :playback
+ {:mode :auto
+  :terminal {:cols 120 :rows 36}
+  :default-pause-ms 3000
+  :title-pause-ms 4000
+  :result-pause-ms 8000
+  :header-pause-ms 2000
+  :command-pause-ms 2000
+  :final-pause-ms 6000}
+
+ :sections
+ [{:id :intro
+   :title "Yield Shortfall: Partial Withdrawal during Liquidity Shortfall"
+   :display :title-card
+   :explain "A reproducible protocol simulation demonstrating shortfall behavior."
+   :pause-ms 4000}
+
+  {:id :setup
+   :title "Scenario fixture"
+   :display :section-header
+   :explain "Two depositors (OwnerA, OwnerB) deposit into a shared yield module.
+Governance sets a 50% liquidity shortfall. OwnerA withdraws during shortfall."
+   :command "bb demo:scenario-summary scenarios/Y02_vault-shortfall-partial-withdraw.json"
+   :pause-ms 7000}
+
+  {:id :run
+   :title "Run the simulation"
+   :display :section-header
+   :explain "The simulator executes the deterministic scenario and emits evidence artifacts."
+   :command "clojure -M:run -- --invariants --protocol yield-v1 --scenario scenarios/Y02_vault-shortfall-partial-withdraw.json --output-file demos/yield-shortfall-partial-fill/generated/replay-output.json"
+   :expected-artifacts ["results/test-artifacts/test-summary.json"
+                        "results/test-artifacts/test-artifacts.json"]
+   :pause-ms 5000}
+
+  {:id :inspect
+   :title "Inspect outcomes"
+   :display :section-header
+   :explain "Check the summary and claimable classification for invariant results and evidence."
+   :command "bb demo:scenario-summary scenarios/Y02_vault-shortfall-partial-withdraw.json"
+   :pause-ms 8000}
+]}

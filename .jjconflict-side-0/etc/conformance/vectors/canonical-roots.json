@@ -1,0 +1,9 @@
+{
+  "claim-preimage": "{\"claim\/class\":\"attested\",\"claim\/status\":\"pass\",\"environment\/root\":\"7774073f7671b4d44d813c1c09915238f59af2038e734da2c374b91dfb621b6c\",\"evaluation\/mode\":\"attested\",\"reconciliation\/root\":\"7f8cfabb3775d17180180daaf0767b6dd8bd0dc9145a02e80712ae3c77c86b41\"}",
+  "claim-root": "879662ebc48df4f623e74f2adb0d6d420b3b655610fdd7f1b1e3beead4fa10f8",
+  "environment-preimage": "{\"canonicalisation\/id\":\"prf-canonical-edn.v1\",\"canonicalisation\/implementation-root\":null,\"claim-policy-catalog\/root\":null,\"implementation-registry\/root\":null,\"profile\/root\":null,\"schema-catalog\/root\":null}",
+  "environment-root": "098cee001f9d93b532cfb2e90748fdfe71b7dfe9a756a4249376112931d21ad3",
+  "registry-root": "569918738a7a48439d17c73ffdb505d437ea8e4769438c560d7408694f2d09ac",
+  "algorithm": "canonical-json-sha256",
+  "encoding": "utf-8"
+}

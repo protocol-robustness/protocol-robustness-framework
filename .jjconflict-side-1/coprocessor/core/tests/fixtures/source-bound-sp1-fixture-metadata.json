@@ -1,0 +1,17 @@
+{
+  "schema-version": "prf/source-bound-shortfall-allocation.v1",
+  "program-id": "source-bound-sp1-program.v1",
+  "input": {
+    "reserve-provenance": "onchain-shortfall-reserve-provenance.json",
+    "realized-statement-input": "realized-statement-all-active.json"
+  },
+  "public-values": {
+    "length-bytes": 160,
+    "words": ["schema-word", "allocation-binding", "reserve-binding", "operation-id", "shortfall-context-root"]
+  },
+  "proof-generation": {
+    "binary": "source-bound-prove",
+    "proof-system": "groth16",
+    "identity-only-supported": true
+  }
+}

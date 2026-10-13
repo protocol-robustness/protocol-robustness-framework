@@ -1,0 +1,146 @@
+{
+  "protocol-params": {
+    "governance-mode": "legacy",
+    "resolver-fee-bps": 150,
+    "appeal-window-duration": 120,
+    "max-dispute-duration": 2592000
+  },
+  "threat-tags": [
+    "dispute-resolution",
+    "slash",
+    "appeal",
+    "lifecycle"
+  ],
+  "purpose": "theory-falsification",
+  "events": [
+    {
+      "seq": 0,
+      "time": 1000,
+      "agent": "resolver",
+      "action": "register_stake",
+      "params": {
+        "amount": 10000,
+        "token": "USDC"
+      }
+    },
+    {
+      "seq": 1,
+      "time": 1010,
+      "agent": "buyer",
+      "action": "create_escrow",
+      "params": {
+        "token": "USDC",
+        "to": "0xseller",
+        "amount": 5000,
+        "custom-resolver": "0xresolver"
+      }
+    },
+    {
+      "seq": 2,
+      "time": 1070,
+      "agent": "buyer",
+      "action": "raise_dispute",
+      "params": {
+        "workflow-id": 0
+      }
+    },
+    {
+      "seq": 3,
+      "time": 1130,
+      "agent": "resolver",
+      "action": "execute_resolution",
+      "params": {
+        "workflow-id": 0,
+        "is-release": true,
+        "resolution-hash": "0xhash"
+      }
+    },
+    {
+      "seq": 4,
+      "time": 1300,
+      "agent": "keeper",
+      "action": "execute_pending_settlement",
+      "params": {
+        "workflow-id": 0
+      }
+    },
+    {
+      "seq": 5,
+      "time": 1360,
+      "agent": "governance",
+      "action": "propose_fraud_slash",
+      "params": {
+        "workflow-id": 0,
+        "resolver-addr": "0xresolver",
+        "amount": 500
+      },
+      "bind": {
+        "slash-id": "slash-id"
+      }
+    },
+    {
+      "seq": 6,
+      "time": 1380,
+      "agent": "resolver",
+      "action": "appeal_slash",
+      "params": {
+        "workflow-id": 0,
+        "slash-id": {
+          "from-binding": "slash-id"
+        }
+      }
+    },
+    {
+      "seq": 7,
+      "time": 1420,
+      "agent": "governance",
+      "action": "resolve_appeal",
+      "params": {
+        "workflow-id": 0,
+        "upheld?": true,
+        "slash-id": {
+          "from-binding": "slash-id"
+        }
+      }
+    }
+  ],
+  "schema-version": "1.1",
+  "scenario-title": "Slash appeal upheld \u2014 propose \u2192 appeal \u2192 resolve-appeal :upheld? true reverses the slash",
+  "scenario-author": "@kilo-research",
+  "scenario-id": "s-dr-063-slash-appeal-upheld",
+  "title": "s-dr-063-slash-appeal-upheld",
+  "scenario-purpose": "Verify full slash appeal lifecycle: proposed slash is appealed by the resolver, governance upholds the appeal, slash status transitions to :reversed. Slash is proposed after settlement (terminal escrow, previous decision exists).",
+  "id": "scenarios\/s-dr-063-slash-appeal-upheld",
+  "provenance": {
+    "author-id": "@kilo-research",
+    "author": "Kilo Research"
+  },
+  "agents": [
+    {
+      "id": "governance",
+      "address": "0xgov",
+      "type": "governance"
+    },
+    {
+      "id": "buyer",
+      "address": "0xbuyer",
+      "type": "honest"
+    },
+    {
+      "id": "seller",
+      "address": "0xseller",
+      "type": "honest"
+    },
+    {
+      "id": "resolver",
+      "address": "0xresolver",
+      "type": "resolver"
+    },
+    {
+      "id": "keeper",
+      "address": "0xkeeper",
+      "type": "keeper"
+    }
+  ],
+  "initial-block-time": 1000
+}

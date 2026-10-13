@@ -1,0 +1,23 @@
+{:vector/id :portable-pro-rata/negative-allocation-001
+ :contract/version "portable-pro-rata-contract.v1"
+ :basis/vector "cap-clamping-001.edn"
+ :mutations
+ [{:mutation/id :duplicate-row-identity
+   :request {:rows [{:row/id :row/a :obligation/id :ob/a :requested 1N :weight 1N :cap nil}
+                    {:row/id :row/a :obligation/id :ob/b :requested 1N :weight 1N :cap nil}]}
+   :expected/reason :portable-contract/malformed-input}
+  {:mutation/id :policy-substitution
+   :request {:tie-break-policy :input-order}
+   :expected/reason :portable-contract/unknown-policy}
+  {:mutation/id :canonical-row-order-disagreement
+   :result {:rows/order [:row/b :row/a]}
+   :expected/reason :portable-contract/projection-mismatch}
+  {:mutation/id :cap-mutation
+   :result {:row/id :row/a :effective-cap 3N}
+   :expected/reason :portable-contract/projection-mismatch}
+  {:mutation/id :redistribution-witness-mutation
+   :result {:allocation/rounds [{:round/index 0 :committed-by-cap 3N}]}
+   :expected/reason :portable-contract/projection-mismatch}
+  {:mutation/id :malformed-allocation-witness
+   :result {:allocation/rounds [{:round/index 0 :active-row-ids [:row/a :row/b]}]}
+   :expected/reason :portable-contract/projection-mismatch}]}

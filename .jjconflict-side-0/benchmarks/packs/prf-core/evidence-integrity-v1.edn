@@ -1,0 +1,44 @@
+{:benchmark/id              :benchmark/prf-evidence-integrity-v1
+ :benchmark/solidity-binding :none
+   :benchmark/version         1
+   :benchmark/domain          :domain/evidence-integrity
+   :benchmark/protocol        :protocol/prf
+   :benchmark/status          :deprecated
+   :benchmark/deprecated-on   "2026-06-30"
+   :benchmark/replaced-by     :benchmark/prf-deterministic-replay-v1
+   :benchmark/superseded-by   :benchmark/prf-deterministic-replay-v1
+   :benchmark/description
+   "DEPRECATED — superseded by deterministic-replay-v1. This benchmark
+    was structurally identical to deterministic-replay-v1 (same suite,
+    same claims, same scoring). It is preserved for backward compatibility
+    but new evaluations should use deterministic-replay-v1."
+   :benchmark/scenario-suite  :suite/prf-replay-v1
+   :benchmark/scenario-suite-description
+   "PRF replay suite (currently backed by Sew dispute-resolution
+    scenarios as a placeholder). Evaluates deterministic replay and
+    evidence hash consistency."
+  :benchmark/runner-policy   :runner-policy/deterministic-local-v1
+  :benchmark/evidence-policy :evidence-policy/forensic-standard-v1
+   :benchmark/scoring-rule    :scoring/binary-claims-v1
+   :benchmark/property-types  #{:integrity}
+   :benchmark/purpose
+  "Verify evidence integrity across protocol replay: deterministic
+   hash consistency, replay-identical results, and absence of
+   nondeterminism. Each scenario is replayed and the evidence
+   bundle hash is verified to be reproducible."
+   :benchmark/concepts        [:robustness/evidence-integrity
+                               :forensic/evidence-chain
+                               :concept/confidence
+                               :concept/configuration]
+   :benchmark/claims          [{:claim/id :claim/replay-identical-results
+                               :claim/role :primary
+                               :claim/rationale "Replay must produce identical results for evidence integrity."
+                               :claim/failure-meaning "Results differ between replay runs."}
+                              {:claim/id :claim/hash-consistency-across-runs
+                               :claim/role :primary
+                               :claim/rationale "Evidence hashes must be reproducible for auditability."
+                               :claim/failure-meaning "Evidence hash changed across runs."}
+                              {:claim/id :claim/no-nondeterminism
+                               :claim/role :supporting
+                               :claim/rationale "No nondeterminism ensures evidence is reproducible."
+                               :claim/failure-meaning "Nondeterministic behavior detected."}]}

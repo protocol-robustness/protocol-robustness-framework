@@ -1,0 +1,9 @@
+{
+  "schema": "eae.sp1-program-identity.v1",
+  "program_id": "source-bound-entitlement-controlled-sp1-program.v1",
+  "vkey": "0x00691e1cff8e4252731c8fe2bc326e8725ed5f9b92a298cc30a2c5fc40962dd1",
+  "elf_sha256": "0x705efd1c5b997ae1f2c19eddcf6bb66a147e94b6b3b036393d6dab041c00542d",
+  "public_values_schema": "prf/source-bound-entitlement-public-values.v1",
+  "public_values_length": 288,
+  "provenance": "Candidate identity from local offline SP1 release build; not admitted to a verifier registry."
+}

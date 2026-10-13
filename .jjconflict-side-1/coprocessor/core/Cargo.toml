@@ -1,0 +1,24 @@
+[package]
+name = "allocation-kernel"
+version = "0.1.0"
+edition = "2021"
+description = "Independent Rust allocation kernel. Reproduces the PRF reference allocation computation byte-for-byte at the declared public-output boundary."
+
+[dependencies]
+sha2 = "0.10"
+sha3 = "0.10"
+num-bigint = "0.4"
+num-traits = "0.2"
+num-integer = "0.1"
+serde_json = "1"
+hex = "0.4"
+prf-canonical-codec = { path = "../../packages/canonical/rust" }
+prf-pro-rata-allocation = { path = "../../packages/pro-rata-allocation/rust" }
+
+[[bin]]
+name = "realized-statement-kernel"
+path = "src/bin/realized_statement_kernel.rs"
+
+[[bin]]
+name = "controlled-entitlement-source-replay"
+path = "src/bin/controlled_entitlement_source_replay.rs"

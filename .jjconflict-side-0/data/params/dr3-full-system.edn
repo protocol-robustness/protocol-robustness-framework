@@ -1,0 +1,55 @@
+{:description "DR3: Full system — resolver bond + multi-mechanism detection + L2 backstop"
+ :scenario-id "dr3-full-system"
+ :rng-seed 42
+
+ ;; Escrow sizes (wei, log scale)
+ :escrow-distribution
+ {:type :lognormal
+  :mean 10000
+  :stddev 5000}
+
+ ;; Resolver strategy mix
+ :strategy-mix
+ {:honest 0.75
+  :lazy 0.15
+  :malicious 0.08
+  :collusive 0.02}
+
+ ;; DR3: Bond + fee model
+ :resolver-fee-bps 150          ; 1.5% fee
+ :appeal-bond-bps 700           ; 7% appeal bond (user pays)
+ :resolver-bond-bps 1000        ; 10% resolver bond (resolver stakes)
+ :slash-multiplier 2.5          ; 2.5× slash on generic L1 catch
+ :allow-slashing? true
+
+ ;; DR3: Multi-mechanism detection
+ :fraud-detection-probability 0.10      ; intentional wrong verdict caught
+ :fraud-slash-bps 5000                  ; 50% penalty for fraud
+ :reversal-detection-probability 0.10   ; L1 verdict overturned by L2 ruling
+ :reversal-slash-bps 2500               ; 25% penalty for reversal
+ :timeout-detection-probability 0.05    ; missed deadline
+ :timeout-slash-bps 200                 ; 2% penalty for timeout
+
+ ;; DR3: L2 Kleros backstop
+ :l2-detection-prob 0.15                ; Kleros catches wrong verdict on appeal
+                                        ; (also applies fraud-slash-bps penalty)
+
+ ;; Appeal mechanics
+ :appeal-probability-if-correct 0.05
+ :appeal-probability-if-wrong 0.40
+ :slashing-detection-probability 0.10  ; generic L1 fallback
+
+ ;; DR3: Freeze + unstaking mechanics
+ :freeze-on-detection? true
+ :freeze-duration-days 3
+ :appeal-window-days 7
+ :unstaking-delay-days 14
+
+ ;; Simulation config
+ :n-trials 10000
+ :n-seeds 50
+ :parallelism :auto
+
+ ;; Output
+ :save-samples? true
+ :save-sweep? false}

@@ -1,0 +1,5 @@
+{:assumptions/id "economic-assumptions-v1"
+ :resolver-corruption {:slashable-bond-multiple 1.25
+                       :appeal-intervention-probability 0.65
+                       :reputation-decay-on-malice true}
+ :classification :baseline}

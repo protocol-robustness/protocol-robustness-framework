@@ -1,0 +1,36 @@
+{
+  "description": "Allocation result where one party's paid exceeds its owed amount",
+  "domain": "pro-rata-allocation-result",
+  "expected-rejection-reasons": [
+    "pro-rata/allocation-above-request",
+    "pro-rata/partial-fill-without-unmet"
+  ],
+  "result-hash": "0000000000000000000000000000000000000000000000000000000000000000",
+  "result": {
+    "allocations": [
+      {
+        "basis-amount": "100",
+        "cap": "100",
+        "id": "alice",
+        "owed": "50",
+        "paid": "75",
+        "unmet": "0"
+      },
+      {
+        "basis-amount": "100",
+        "cap": "100",
+        "id": "bob",
+        "owed": "50",
+        "paid": "25",
+        "unmet": "0"
+      }
+    ],
+    "recovered-total": "100",
+    "slash-obligation": "100",
+    "total-basis": "200",
+    "unmet-total": "0"
+  },
+  "schema-version": "pro-rata-allocation-result.v1",
+  "fixture-type": "over-cap",
+  "vector-id": "over-cap-allocation-above-request"
+}

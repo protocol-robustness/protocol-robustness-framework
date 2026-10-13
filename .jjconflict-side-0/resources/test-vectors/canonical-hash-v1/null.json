@@ -1,0 +1,9 @@
+{
+  "id": "null",
+  "description": "Null value",
+  "input": "nil",
+  "canonical_bytes_hex": "00",
+  "domain_tag": "EVIDENCE_RECORD_V1",
+  "domain_tag_hex": "45564944454e43455f5245434f52445f5631",
+  "hash_hex": "7602020bdcb9768e62bb3b5a9459a5e9a15b614483d5de77dde0c61618f7fa47"
+}

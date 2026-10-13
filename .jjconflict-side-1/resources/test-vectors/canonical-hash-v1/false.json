@@ -1,0 +1,9 @@
+{
+  "id": "false",
+  "description": "Boolean false",
+  "input": "false",
+  "canonical_bytes_hex": "01",
+  "domain_tag": "EVIDENCE_RECORD_V1",
+  "domain_tag_hex": "45564944454e43455f5245434f52445f5631",
+  "hash_hex": "e18af7a5b5b03b3247b3bb9a91a2938e27baa81a31650f174ab6788bae531fcd"
+}

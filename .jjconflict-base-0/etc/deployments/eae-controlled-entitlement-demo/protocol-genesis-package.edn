@@ -1,0 +1,55 @@
+{:package/schema "eae-controlled-entitlement-demo.protocol-genesis-package.v1"
+ :package/status :demo-only
+ :package/root-derivation
+ {:component-hash/domain "EVIDENCE_CONTENT_V1"
+  :component-hash/encoding "PRF canonical binary encoding v1"
+  :component-hash/algorithm "SHA-256"
+  :protocol-hash/domain "PRF_PROTOCOL_GENESIS_V1"
+  :protocol-hash/algorithm "SHA-256"}
+ :component-material
+ {:canonicalisation
+  {:artifact/schema "eae-controlled-entitlement-demo.canonicalisation.v1"
+   :canonical/hash "canonical-hash-scheme.v1"
+   :canonical/encoding "PRF canonical binary encoding v1"
+   :hash/algorithm "SHA-256"}
+  :semantics
+  {:artifact/schema "eae-controlled-entitlement-demo.semantics.v1"
+   :demo/scope "controlled-entitlement-execution"
+   :allocation/source "source-bound-entitlement-v1 Vector A"
+   :claims-authority "controlled demonstration source only; no production claims authority"
+   :economic/profile "pro-rata allocation is computed off-chain and proven; Solidity verifies and executes admitted entitlements"}
+  :constitution
+  {:artifact/schema "eae-controlled-entitlement-demo.governance-constitution.v1"
+   :authority "single explicitly configured deployer authority for demonstration only"
+   :production/status "not production governance"}
+  :evolution
+  {:artifact/schema "eae-controlled-entitlement-demo.governance-evolution.v1"
+   :policy "configuration and verifier changes require the deployed governed configuration path"
+   :production/status "not a production governance commitment"}
+  :configuration
+  {:artifact/schema "eae-controlled-entitlement-demo.configuration-contract.v1"
+   :profile "source-bound-entitlement-public-values.v1"
+   :configuration "successor verifier registry and admission configuration"}
+  :evidence
+  {:artifact/schema "eae-controlled-entitlement-demo.evidence-contract.v1"
+   :receipt "generic PrfStatementAdmission receipt and assurance consumption"}
+  :verification
+  {:artifact/schema "eae-controlled-entitlement-demo.verification-contract.v1"
+   :program "source-bound-entitlement-sp1-program.v1"
+   :proof-system "SP1 Groth16"
+   :public-values "9 static ABI words; 288 bytes"}
+  :cross-domain
+  {:artifact/schema "eae-controlled-entitlement-demo.cross-domain-policy.v1"
+   :policy "no cross-domain source authority or bridge is used by this controlled demonstration"}}
+ :protocol-genesis
+ {:genesis/schema "protocol-genesis.v1"
+  :protocol/id :protocol/eae-controlled-entitlement-demo
+  :canonicalisation/root "sha256:653cd945a775205722816b07da2e39a07351f4bfb3ada6c60a63392d0f61a21b"
+  :semantics/root "sha256:fd48b3f2d274c114289c24da6be9f3bf7dcd5ac658193298405c7cde21869f43"
+  :governance/constitution-root "sha256:0997f5d4898496e82b543b5ea5ac57339ab086f9d3ca9e7749e65fcfc92c886b"
+  :governance/evolution-policy-root "sha256:c8e8d756de7280c3173fc985ada6c1798a316f1dca453f204d6e3aaad7a4235c"
+  :configuration/contract-root "sha256:d5dfc8e62c85b56094a6772cb608efd586dc43b8803c7a18c0abf029fd568a21"
+  :evidence/contract-root "sha256:1d1b2addd2267268dcd8372f0c8de1dfb0418e398b3bd7b61c291333ce95ced7"
+  :verification/contract-root "sha256:d209da9a1df28f527a0c5d405642c2d88aad9215adaac2bbceda4e54ca20a4d2"
+  :cross-domain/authority-policy-root "sha256:fda99823293aed928539f0d48bdf912f517fb4fe04b69120fc7a626c5949cd84"}
+ :protocol-genesis/root "sha256:33f77dc224712d537453e2246fc79cbeaeb3a54f9f4574f910153cd209b8da32"}

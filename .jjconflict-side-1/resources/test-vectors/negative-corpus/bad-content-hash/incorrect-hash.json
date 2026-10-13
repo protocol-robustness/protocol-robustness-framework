@@ -1,0 +1,36 @@
+{
+  "description": "Allocation result with tampered content (hash mismatch)",
+  "domain": "pro-rata-allocation-result",
+  "expected-rejection-reasons": [
+    "pro-rata/bad-content-hash",
+    "pro-rata/unmet-aggregate-mismatch"
+  ],
+  "result": {
+    "allocations": [
+      {
+        "basis-amount": "100",
+        "cap": "100",
+        "id": "alice",
+        "owed": "50",
+        "paid": "50",
+        "unmet": "0"
+      },
+      {
+        "basis-amount": "100",
+        "cap": "100",
+        "id": "bob",
+        "owed": "50",
+        "paid": "50",
+        "unmet": "0"
+      }
+    ],
+    "recovered-total": "99",
+    "slash-obligation": "100",
+    "total-basis": "200",
+    "unmet-total": "1"
+  },
+  "result-hash": "deadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef",
+  "schema-version": "pro-rata-allocation-result.v1",
+  "fixture-type": "bad-content-hash",
+  "vector-id": "bad-content-hash-mismatch"
+}

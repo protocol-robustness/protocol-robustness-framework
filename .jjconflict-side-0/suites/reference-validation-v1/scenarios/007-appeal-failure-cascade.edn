@@ -1,0 +1,7 @@
+{:scenario/id "appeal-failure-cascade-v1"
+ :scenario/title "007-appeal-failure-cascade"
+ :scenario/version "1.0.0"
+ :scenario/status :public-candidate
+ :scenario/purpose "Verifies corrupt verdict capture requires escalation failure cascade."
+ :protocol/phase :dr3
+ :expected-result {:status :pass :classification :regression-protected}}

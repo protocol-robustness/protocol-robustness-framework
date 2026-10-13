@@ -1,0 +1,81 @@
+{:overlay/id :sew-v1x-appeal-bond-claim-overlay
+ :overlay/root "b1751e6d473a7f438023f1678e1412bc47c356a8b23e89d7d31d1e3108c7e267"
+ :checkpoint/id :sew-v1x-appeal-bond-correction-2026-07-31
+ :entries
+ [{:scenario/id "dr-c-001-appeal-bond-sybil-scaling"
+   :scenario/path "scenarios/edn/DR-C-001-appeal-bond-sybil-scaling.edn"
+   :scenario/sha256 "aecd24770b86fda67ad6ec44eeefc9b6483d99a8e7c9b7b1ebdf1bf8e87f3e8b"
+   :claim-to {:claim/id :appeal-bond-sybil-scaling
+              :behavior :appeal-bond-sybil-scaling
+              :classification :correction
+              :evidence-kind :correction-specification
+              :target {:protocol :sew
+                       :implementation :bond-ledger-review
+                       :checkpoint/id :sew-v1x-appeal-bond-correction-2026-07-31}
+              :asserts [:bond-identity :round-isolation :custody-conservation]}}
+  {:scenario/id "dr-c-002-slash-appeal-bond-lifecycle"
+   :scenario/path "scenarios/edn/DR-C-002-slash-appeal-bond-lifecycle.edn"
+   :scenario/sha256 "2dc2c0899d41a179015df652b7b0e0b860f8365d4586560f02b8fc084b8636b5"
+   :claim-to {:claim/id :slash-appeal-bond-lifecycle
+              :behavior :slash-appeal-bond-lifecycle
+              :classification :correction
+              :evidence-kind :correction-specification
+              :target {:protocol :sew
+                       :implementation :bond-ledger-review
+                       :checkpoint/id :sew-v1x-appeal-bond-correction-2026-07-31}
+              :asserts [:appeal-authority :bond-disposition :lineage]}}
+  {:scenario/id "dr-c-003-appeal-bond-refund-on-reversal"
+   :scenario/path "scenarios/edn/DR-C-003-appeal-bond-refund-on-reversal.edn"
+   :scenario/sha256 "7f970795a957345037075556fe68588deee371756a81f68b44b33db497791cfd"
+   :claim-to {:claim/id :appeal-bond-refund-on-reversal
+              :behavior :appeal-bond-refund-on-reversal
+              :classification :correction
+              :evidence-kind :correction-specification
+              :target {:protocol :sew
+                       :implementation :bond-ledger-review
+                       :checkpoint/id :sew-v1x-appeal-bond-correction-2026-07-31}
+              :asserts [:bond-obligation :terminal-refund :recipient-entitlement :revert-atomicity]}}
+  {:scenario/id "dr-c-004-appeal-bond-resolver-payout"
+   :scenario/path "scenarios/edn/DR-C-004-appeal-bond-resolver-payout.edn"
+   :scenario/sha256 "b8a86dbfdb6c82d3d84480239ca13efc917708be2e57d5143548b184f8791f06"
+   :claim-to {:claim/id :appeal-bond-resolver-payout
+              :behavior :appeal-bond-resolver-payout
+              :classification :correction
+              :evidence-kind :correction-specification
+              :target {:protocol :sew
+                       :implementation :bond-ledger-review
+                       :checkpoint/id :sew-v1x-appeal-bond-correction-2026-07-31}
+              :asserts [:resolver-entitlement :allocation-remainder :claim-accounting]}}
+  {:scenario/id "dr-c-005-appeal-bond-forfeit-reserve"
+   :scenario/path "scenarios/edn/DR-C-005-appeal-bond-forfeit-reserve.edn"
+   :scenario/sha256 "52fb62bb373579e6fdf562bf0217341bf488b12860cc50945fd85d7960099439"
+   :claim-to {:claim/id :appeal-bond-forfeit-reserve
+              :behavior :appeal-bond-forfeit-reserve
+              :classification :correction
+              :evidence-kind :correction-specification
+              :target {:protocol :sew
+                       :implementation :bond-ledger-review
+                       :checkpoint/id :sew-v1x-appeal-bond-correction-2026-07-31}
+              :asserts [:forfeited-reserve :custody-preservation :no-stranding]}}
+  {:scenario/id "dr-c-006-appeal-bond-distribution-failure-atomic"
+   :scenario/path "scenarios/edn/DR-C-006-appeal-bond-distribution-failure-atomic.edn"
+   :scenario/sha256 "0f3aaa16686fbfd7f2d17fcc24c9ea73a96c1b51c5b1635a7b6c67c4771a25e7"
+   :claim-to {:claim/id :appeal-bond-distribution-atomic
+              :behavior :appeal-bond-distribution-failure
+              :classification :correction
+              :evidence-kind :correction-specification
+              :target {:protocol :sew
+                       :implementation :bond-ledger-review
+                       :checkpoint/id :sew-v1x-appeal-bond-correction-2026-07-31}
+              :asserts [:atomic-revert :no-partial-distribution :state-preservation]}}
+  {:scenario/id "dr-n-002-reversal-slash-appeal-rejected"
+   :scenario/path "scenarios/edn/DR-N-002-reversal-slash-appeal-rejected.edn"
+   :scenario/sha256 "d2fe6e2a5be08eb1e9d78a12a26188eaeab836130b8e9c740084c26c9cebf6e2"
+   :claim-to {:claim/id :reversal-slash-appeal-rejected
+              :behavior :reversal-slash-appeal-rejected
+              :classification :correction
+              :evidence-kind :correction-specification
+              :target {:protocol :sew
+                       :implementation :bond-ledger-review
+                       :checkpoint/id :sew-v1x-appeal-bond-correction-2026-07-31}
+              :asserts [:reversal-slash :stake-disposition :bond-forfeiture :no-fraud-substitution]}}]}

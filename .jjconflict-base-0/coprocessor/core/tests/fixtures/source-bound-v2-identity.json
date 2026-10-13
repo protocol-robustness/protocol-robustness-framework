@@ -1,0 +1,21 @@
+{
+  "schema_version": "source-bound-v2-identity.v1",
+  "status": "proof-fixture-verified", 
+  "sp1_version": "6.3.1",
+  "proof_system": "groth16",
+  "program_id": "source-bound-v2-sp1-program.v2",
+  "vkey": "0x0089abceac18acb8d0686b81ea542b933339353807924bc021a9fe3820888127",
+  "elf_sha256": "0x1994d8b67004de3d5dfffc176434ae63f3d7ac32ae875d72093943ff8e82247b",
+  "statement_schema": "prf/onchain-shortfall-allocation-binding.v2",
+  "public_values_schema": "prf/onchain-shortfall-allocation-binding-public-values.v2",
+  "public_values_length_bytes": 192,
+  "canonical_public_values_sha256": "0x6cf0f75a8b242a393168c8f37d909d6a0d4f86abac0a480928e2c7c9c4fa8ffa",
+  "proof_fixture": {
+    "path": "source-bound-v2-proof-fixture.json",
+    "status": "verified",
+    "vkey": "0x0089abceac18acb8d0686b81ea542b933339353807924bc021a9fe3820888127",
+    "elf_sha256": "0x1994d8b67004de3d5dfffc176434ae63f3d7ac32ae875d72093943ff8e82247b",
+    "proof_sha256": "0x25f63c77b7ba7d3f3fbef865da8c1d8e0fa2dadc2b9290e2604fc4bdfb2678aa",
+    "public_values_sha256": "0x6cf0f75a8b242a393168c8f37d909d6a0d4f86abac0a480928e2c7c9c4fa8ffa"
+  }
+}

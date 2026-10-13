@@ -1,0 +1,41 @@
+{:release/id "prf-canonical"
+ :release/version "0.1.0-rc.1"
+ :release/status :compatibility-qualified
+ :release/surface #{:clojure :rust}
+ :release/contracts ["canonical-hash-scheme.v1"
+                     "root-reference.v1"
+                     "canonical-value-sequence.v1"
+                     "CANONICAL_HASH_SPEC_V1_BINARY_ENCODING_ABI"]
+ :release/compatibility {:canonical-v1-vectors :immutable
+                         :artifact-domain-tags :domain-owned
+                         :schema-change :versioned-successor-required}
+ :release/dependency-identities
+ {:clojure [{:lib org.clojure/clojure :version "1.12.0"}]
+  :rust {:lockfile "rust/Cargo.lock"}}
+ :release/maintenance {:owner :prf-foundation
+                       :update-policy :reviewed-addition-or-versioned-successor}
+ :release/provenance {:candidate-bundle-script "scripts/package_canonical.py"
+                      :checksum-sidecar "releases/prf-canonical-<version>.tar.gz.sha256"
+                      :publication :unpublished}
+ :release/conformance {:status :passed
+                       :vectors "clj/test/resources/canonical-v1-vectors.tsv"
+                       :clojure {:command "clojure -M:test -m prf.canonical.test-runner"
+                                 :tests 8
+                                 :assertions 54
+                                 :result :passed}
+                       :legacy-cross-check {:command "clojure -M:test -e <canonical-package-compatibility-test>"
+                                            :tests 6
+                                            :assertions 45
+                                            :result :passed}
+                       :research-v1-vectors {:source "C1 change a225b2f3"
+                                             :vectors 9
+                                             :root-domains 3
+                                             :reference-checks 3
+                                             :assertions 15
+                                             :result :passed}
+                       :known-gaps []
+                       :rust {:command "cargo test --offline --manifest-path rust/Cargo.toml"
+                              :tests 2
+                              :result :passed}}
+ :release/publication {:status :unpublished
+                       :dependency-coordinate nil}}

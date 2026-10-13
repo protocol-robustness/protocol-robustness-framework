@@ -1,0 +1,100 @@
+{
+  "validation-receipts": [],
+  "reconciliation": {
+    "planned-step-ids": [
+      "replay"
+    ],
+    "dependency-mismatches": [],
+    "schema-version": "conformance.reconciliation\/v1",
+    "unexpected-steps": [],
+    "implementation-registry\/root": "569918738a7a48439d17c73ffdb505d437ea8e4769438c560d7408694f2d09ac",
+    "duplicate-steps": [],
+    "environment\/root": "sha256:wrong-env",
+    "missing-steps": [],
+    "observed-step-ids": [
+      "replay"
+    ],
+    "reconciliation\/status": "pass",
+    "terminal-receipts": [
+      {
+        "step\/id": "replay",
+        "subject\/id": "a",
+        "subject\/root": "sha256:a"
+      }
+    ],
+    "subject-mismatches": [],
+    "plan\/root": "sha256:plan",
+    "reconciliation\/root": "89f0445ff6a4bf80b88cf9b51dbca0fad3fa1b92c169e3c3f81ccb131f54d860"
+  },
+  "bundle\/index": [
+    "profile",
+    "environment",
+    "plan",
+    "reconciliation",
+    "coverage",
+    "claim"
+  ],
+  "coverage": {
+    "coverage\/universe-root": "sha256:u",
+    "coverage\/required-subjects": [
+      "a"
+    ],
+    "coverage\/validated-subjects": [
+      "a"
+    ],
+    "coverage\/executed-subjects": [
+      "a"
+    ],
+    "coverage\/compared-subjects": [
+      "a"
+    ],
+    "coverage\/excluded-subjects": [],
+    "environment\/root": "6efa3732997eca4fe38ab45849c74cd1b5d355c1cc0c83aa4031765dc1927ef6",
+    "coverage\/complete?": true
+  },
+  "capability-receipts": [],
+  "exclusions": [],
+  "execution-receipts": [],
+  "bundle\/id": "default",
+  "subject-identities": [],
+  "environment": {
+    "environment\/schema-version": "conformance.environment\/v1",
+    "environment\/committed": {
+      "profile\/root": null,
+      "implementation-registry\/root": null,
+      "schema-catalog\/root": null,
+      "claim-policy-catalog\/root": null,
+      "canonicalisation\/id": "prf-canonical-edn.v1",
+      "canonicalisation\/implementation-root": "sha256:prf-canonical-edn-v1"
+    },
+    "environment\/informational": {
+      "runtime": {},
+      "source-revisions": {}
+    },
+    "environment\/root": "6efa3732997eca4fe38ab45849c74cd1b5d355c1cc0c83aa4031765dc1927ef6"
+  },
+  "bundle\/schema-version": "conformance.bundle\/v1",
+  "plan": {
+    "plan\/root": "sha256:plan",
+    "environment\/root": "6efa3732997eca4fe38ab45849c74cd1b5d355c1cc0c83aa4031765dc1927ef6"
+  },
+  "bundle\/root": "cd49a418ea3ef0d076699c11c1c1e73958644baad869179b4e058253f7b5a92a",
+  "profile": {
+    "profile\/id": "sew-trace-equivalence.v1"
+  },
+  "claim": {
+    "evaluation\/mode": "attested",
+    "claim\/class": "attested",
+    "claim\/status": "pass",
+    "reconciliation\/root": "89f0445ff6a4bf80b88cf9b51dbca0fad3fa1b92c169e3c3f81ccb131f54d860",
+    "environment\/root": "6efa3732997eca4fe38ab45849c74cd1b5d355c1cc0c83aa4031765dc1927ef6",
+    "claim\/scope": "procedural-conformance",
+    "claim\/does-not-establish": [
+      "truth-of-all-research-interpretations",
+      "model-correctness",
+      "economic-safety",
+      "absence-of-undiscovered-bugs"
+    ],
+    "claim\/json-root": "3bcd79abf2f8fd52c77541c41115322b61f9f242b2846436e44e3854383036d7"
+  }
+}

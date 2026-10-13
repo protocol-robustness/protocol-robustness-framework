@@ -1,0 +1,12 @@
+Compiling 57 files with Solc 0.8.33
+Solc 0.8.33 finished in 38.99s
+Compiler run successful!
+
+Ran 1 test for test/PartialFillControlled.t.sol:PartialFillControlledTest
+[PASS] test_ExportBootstrap() (gas: 42336)
+Logs:
+  PARTIAL_FILL_JSON {"adapterCodeHash":"0xcc5a26198020c5e3945602ce58c66f4804b7a9d41e7ea95465dfad82539b2b43","elf":"0x3dae0e8f267f09cb11001838ece89262fe3d98dbc6cc36e7601707c9d1b630ac","governor":"0x7FA9385bE102ac3EAc297483Dd6233D62b3e1496","registryCodeHash":"0xe3995f81b1707a05603c246030447eb05cc56c57466417eca2d4c72bf91fab44","registryRoot":"0xe0f81dc0264a9a4ee06afbbb388fbbb29201e74f540119d64e32a5bf75936b0b","sourceAdapter":"0xF62849F9A0B5Bf2913b396098F7c7019b51A820a","token":"0x5615dEB798BB3E4dFa0139dFa1b3D433Cc23b72f","verifierCodeHash":"0x728b036f7dbc79d6186237350e02c61bcc1cbe4ff0681ba75b8df14546d0fd71","vkey":"0x00aaa7dfb3c67d634a4fad32523814fc016b47a041009dd103dd1c59737959e8"}
+
+Suite result: ok. 1 passed; 0 failed; 0 skipped; finished in 16.43ms (3.94ms CPU time)
+
+Ran 1 test suite in 23.09ms (16.43ms CPU time): 1 tests passed, 0 failed, 0 skipped (1 total tests)

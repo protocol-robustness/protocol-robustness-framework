@@ -1,0 +1,51 @@
+;; registry-snapshot.edn — Sample registry snapshot
+;;
+;; Records the state of all registries at the time of the forensic run.
+;; Hash values are computed from the actual registry contents at snapshot
+;; time. Replace these with real hashes during preparation.
+
+{:registry/schema-version "registry-snapshot.v1"
+ :registry/timestamp  #inst "2026-06-26T17:30:00Z"
+
+ ;; Hash of each registered intent definition
+ :hash-intent-registry
+ {:snapshot-hash "abc123def456..."
+  :intent-count  42
+  :intents       [:intent/claim-result
+                  :intent/evidence-node
+                  :intent/attestation
+                  :intent/run-overview
+                  :intent/bundle-root
+                  ;; ... full list from resolver-sim.hash.canonical/hash-intents
+                  ]}
+
+ ;; Hash of each registered claim definition
+ :claim-definition-registry
+ {:snapshot-hash "789abc012def..."
+  :claim-count   18
+  :claim-ids     [:claim/conservation-of-value
+                  :claim/accounting-consistency
+                  ;; ... full list from claim definition registry
+                  ]}
+
+ ;; Hash of each registered attestor
+ :attestor-registry
+ {:snapshot-hash "345def678abc..."
+  :attestor-count 3
+  :attestors     [:attestor/ci-runner
+                  :attestor/resolver-sim
+                  :attestor/external-auditor]}
+
+ ;; Evidence policy in effect
+ :evidence-policy
+ {:policy-id   :forensic-default-v1
+  :policy-hash "f9e8d7c6b5a4..."}
+
+ ;; Execution policy in effect
+ :execution-policy
+ {:policy-id   :forensic-execution-v1
+  :policy-hash "a1b2c3d4e5f6..."}
+
+ ;; Protocol symbol registry entry
+ :protocol/default-id "sew-v1"
+ :protocol/version    "1.0.0"}

@@ -1,0 +1,27 @@
+{:speds-purpose-kind
+ {:theory-falsification "expected_negative"
+  :adversarial-robustness "liveness_risk"
+  :regression "regression"
+  :default "inconclusive_result"}
+
+ :speds-purpose-classification
+ {:theory-falsification
+  {:label "research_finding"
+   :status "assumption_falsified"
+   :confidence "high"
+   :rationale "Scenario is explicitly tagged theory-falsification; negative outcomes are expected evidence, not regressions."}
+   :adversarial-robustness
+   {:label "liveness_risk"
+    :status "attack_detected"
+    :confidence "high"
+    :rationale "Scenario is explicitly tagged adversarial-robustness; liveness failures are expected outcomes, not regressions."}
+   :regression
+   {:label "regression"
+    :status "unexpected_behavior"
+    :confidence "high"
+    :rationale "Scenario is explicitly tagged regression and should be treated as engineering defect signal."}
+   :default
+  {:label "operational_signal"
+   :status "requires_triage"
+   :confidence "medium"
+   :rationale "Scenario does not explicitly declare falsification/regression semantics; manual triage recommended."}}}

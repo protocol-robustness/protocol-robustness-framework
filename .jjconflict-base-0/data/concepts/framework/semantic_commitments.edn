@@ -1,0 +1,92 @@
+{:concept/id :framework/semantic-commitments
+ :concept/type :framework
+ :concept/layer :framework-explanation
+ :concept/name "Semantic commitments"
+ :concept/summary
+ "Semantic commitments bind meaning-bearing references — scope, authorisation lifecycle, economic application, assurance/limitations, configuration, and research-execution context — to an outcome so that two outcomes with valid roots but different interpretations are not conflated. A commitment asserts which relationship between artifacts is being claimed, not merely that the referenced roots exist."
+
+ :concept/stakeholder-question
+ "Which semantic interpretation (scope, authorisation, economic application, assurance, configuration) does this outcome assert, and is that interpretation visible rather than implied?"
+
+ :concept/protocols #{:protocol/sew-v1 :protocol/prf}
+
+ :concept/related
+ [:framework/research-command
+  :framework/content-root
+  :framework/held-custody
+  :framework/review-certificate
+  :framework/research-assignment
+  :security/force-authorisation]
+
+ :concept/note
+  "Semantic commitments are committed alongside the command-root (:execution/command-root) in the outcome manifest. A commitment is added when two executions/artifacts with otherwise valid roots could legitimately have different interpretations because of external policy, scope, lifecycle, or application context. This is narrower than committing every important field.\n\nAllowed categories (not all need be present; applicability depends on the command/profile):\n   - :semantic/scope             — which relationship between artifacts is asserted (e.g. exact-replication vs sampling comparison vs related model).\n   - :semantic/authorisation     — that this outcome resulted from a specific authorised execution lifecycle, not merely content that could have been authorised.\n   - :semantic/economic-application — the economic decision→effect→application→resulting-state pipeline (pro-rata, partial fill, held custody, yield, slash, bounty, reserves).\n   - :semantic/assurance         — binds the outcome to the limitation set/evidence profile under which it was produced.\n   - :semantic/configuration     — binds the outcome to the declared/configured execution environment (module, oracle, policy).\n   - :semantic/research-execution — binds the outcome to an execution specification (sampling/case-generation context).\n\n   Reserved categories (:semantic/assurance, :semantic/configuration, :semantic/research-execution) should only be populated where the relevant root is not already transitively committed by the outcome package."
+
+ :concept/roles
+ {:commitment-author {:description "Entity that declares which semantic interpretation an outcome asserts."
+                      :maps-to [:protocol.actor/verifier]}
+  :commitment-verifier {:description "Entity that checks a commitment's references resolve and are consistent with the command."
+                        :maps-to [:protocol.role/verifier]}}
+
+ :concept/entities
+ {:semantic-commitments-artifact {:description "The outcome manifest's :evidence/semantic-commitments section binding category-specific roots to the outcome."
+                                  :maps-to [:protocol.entity/evidence]}
+  :scope-commitment {:description "Binds the asserted relationship between artifacts (baseline/proposed/executed content roots, comparison class, scope policy)."
+                     :maps-to [:protocol.entity/evidence]}
+  :authorisation-commitment {:description "Binds the outcome to a specific authorised execution lifecycle by referencing the force-authorised-execution-evidence profile root. The profile already commits authorisation-hash, reservation-hash, consumption-receipt-hash, policy-hash, review-round-hash, and executed-content-root; the commitment references the profile root rather than reproducing those fields."
+                             :maps-to [:protocol.entity/evidence]}
+  :economic-application-commitment {:description "Binds the economic decision→effect→application→resulting-state pipeline (policy, decision, effect, application, state roots)."
+                                    :maps-to [:protocol.entity/evidence]}
+  :assurance-commitment {:description "Binds the outcome to the limitation set, known gaps, and evidence profile under which it was produced."
+                         :maps-to [:protocol.entity/evidence]}
+  :configuration-commitment {:description "Binds the outcome to the declared/configured execution environment (module, oracle, policy), not to observed external behaviour."
+                             :maps-to [:protocol.entity/evidence]}
+  :research-execution-commitment {:description "Binds the outcome to an execution specification (sampling/case-generation context)."
+                                  :maps-to [:protocol.entity/evidence]}}
+
+ :concept/actions
+ {:bind-commitment {:description "Declare a semantic category and reference its authoritative artifact roots."
+                    :maps-to [:protocol.action/commit-root]}
+  :verify-commitment {:description "Check that a commitment's referenced roots resolve and are consistent with the command-root and outcome."
+                      :maps-to [:protocol.action/verify-allocation]}
+  :resolve-commitment {:description "Resolve a commitment category's referenced artifact for inspection."
+                       :maps-to [:protocol.action/reconcile-evidence]}}
+
+ :concept/outcomes
+ {:commitment-bound {:description "The semantic category is declared and references resolve."
+                     :maps-to [:protocol.outcome/released]}
+  :commitment-inconsistent {:description "A commitment's references are inconsistent with the command or outcome."
+                            :maps-to [:protocol.outcome/adversarial-resolution]}
+  :commitment-unresolved {:description "A referenced root cannot be resolved."
+                          :maps-to [:protocol.outcome/deferred]}}
+
+ :concept/failure-modes
+ [{:failure/id :commitment-reference-unresolved
+   :failure/name "Commitment reference unresolved"
+   :failure/summary "A commitment category references a root that cannot be resolved."
+   :protocol-mechanisms [:content-root :evidence-registry]
+   :stakeholder-impact "The asserted interpretation cannot be independently verified."}
+  {:failure/id :commitment-misinterpreted
+   :failure/name "Commitment misinterpreted"
+   :failure/summary "Two outcomes with valid roots are interpreted under different semantic predicates without that distinction being visible."
+   :protocol-mechanisms [:semantic-commitments :comparison-class]
+   :stakeholder-impact "Results are compared under incompatible interpretations."}]
+
+ :concept/assumptions
+ ["A semantic commitment asserts which relationship between artifacts is being claimed, not merely that the referenced roots exist."
+  "A commitment is added when two executions with otherwise valid roots could legitimately have different interpretations."
+  "Domain-specific artifacts behind each category are referenced by root; the semantic-commitments concept does not interpret their internal meaning."
+  "For add-held economic-application, the commitment binds the policy/economic reason, the abstract held adjustment, and application/state evidence — it does not claim add-held performed protocol-ledger mutation."
+  "An authorisation commitment asserts the outcome resulted from a specific authorised lifecycle; it references the force-authorised-execution-evidence profile root and does not copy decision status, expiry, consumption key, or other fields the profile already commits."
+  "Concept labels do not change protocol validity."]
+
+ :concept/out-of-scope
+ ["Becoming a second outcome manifest or duplicating fields already committed by referenced artifacts."
+  "Canonical review-member indices, calculated allocation amounts, aggregate-shortfall values, or invariant results that are already committed by referenced artifacts."
+  "Human-readable reasons or notes, duplicated proposed-content metadata, or derived compatibility classifications unless the classification itself is the asserted meaning."
+  "Claiming that an external provider, module, or oracle actually behaved correctly — a configuration commitment records the declared environment, not observed external behaviour."]
+
+ :concept/metrics
+ {:commitment-category-count {:description "Number of semantic categories committed for an outcome."
+                              :source :derived-from-trace}
+  :commitment-verify-count {:description "Number of commitment verifications performed."
+                            :source :derived-from-invariant-results}}}

@@ -1,0 +1,178 @@
+{
+  "schema": "eae.partial-fill.v3-live-context-evidence.v1",
+  "status": "local-v3-proof-admitted-funded-claimed-and-terminal-refunded; public-chain-unqualified",
+  "network": "local Foundry chain 31337; no public-chain execution",
+  "program": "source-bound-entitlement-controlled-sp1-program.v1",
+  "proofSystem": "SP1 Groth16",
+  "vkey": "0x00691e1cff8e4252731c8fe2bc326e8725ed5f9b92a298cc30a2c5fc40962dd1",
+  "elfSha256": "0x705efd1c5b997ae1f2c19eddcf6bb66a147e94b6b3b036393d6dab041c00542d",
+  "reservePolicyRoot": "0x88cad6aed4bc4e33b364275dc9a0b7d1b21b67faf11833ce1a0a63b6bfe122c4",
+  "reserveStateCommitment": "a40e4db35601330b194a1e4b03965f0804f613eab979f1b850b313e09f1dfd0c",
+  "preparedOperationRoot": "c5897bf4d7d707dd04143c307cab6a62c790273e4d1592297c94cdd32261f799",
+  "requested": 100,
+  "fundedAvailable": 70,
+  "protectedCapital": 10,
+  "entitlementTotal": 70,
+  "independentReplayEqual": true,
+  "sp1SdkProofVerification": "passed; proof public values match Rust source-bound derivation",
+  "evmGroth16VerifierTest": "passed: EVM verifier accepts proof and rejects mutated proof",
+  "registryAdmission": "passed through PrfStatementAdmission under retained registry, configuration, and genesis roots",
+  "ratificationFundingWithdrawals": "passed with this V3-context proof through the source-bound ratification controller; stage-2 local Foundry qualification",
+  "terminalRefund": "passed locally: controller-forwarded finalization released exactly 10 units to immutable Carol beneficiary after operation Closed and liability zero",
+  "implementationProvenance": {
+    "prfEvmBaseHead": "9f702a10446f7e045bab6f281f20b53f80f8b32d",
+    "workingTree": "uncommitted additive V3 reserve, scoped controller finalization route and local Foundry tests; frozen V2 source and commitments unchanged",
+    "network": "local Foundry chain 31337 only; no Base Sepolia or public-chain deployment/execution",
+    "remaining": "Fresh-proof recovery after stale V3 reserve assurance remains unqualified; stale rejection and unchanged state are tested. Carol beneficial attribution is fixture-policy-bound and locally enforced, not an externally verified legal fact."
+  },
+  "files": {
+    "PartialFillV3Controlled.t.sol": {
+      "sha256": "acb4442f77908b5fb957f395c828fbb70c882f20b23393c108e5cf426f3881e2",
+      "bytes": 30044
+    },
+    "PartialFillV3LiveProofVerification.t.sol": {
+      "sha256": "0a8dbeb7e9dbe9f5b939069333c690ef7402db0779d4a926aa1e8deef04c9df3",
+      "bytes": 2739
+    },
+    "PartialFillV3RegistryAdmission.t.sol": {
+      "sha256": "37d64c4dd8c179125fb4ccc6b8ca2ea9b044c505cc7975e2e6c63dfcb56cef97",
+      "bytes": 6241
+    },
+    "bootstrap.json": {
+      "sha256": "f275d89e8fbec03e8d4cfddc9ddd8ba90019c3eb5cbea53d13ddd620ff56f04b",
+      "bytes": 707
+    },
+    "clojure-replay.json": {
+      "sha256": "048e86a26e49e5ec56756d6ca77755df8d2ee1f8555dc2548ba7170d0e6e75d9",
+      "bytes": 4244
+    },
+    "configuration.json": {
+      "sha256": "85b8b659abd8353d67787f67d0c9a85489ccf26b0accc8850f7ed385deecd7b1",
+      "bytes": 342
+    },
+    "evm-verifier-test.log": {
+      "sha256": "21c36ea03bdbd7345d74173671826296f18506b331b0e4d8369bfeb27374e209",
+      "bytes": 416
+    },
+    "foundry-context.json": {
+      "sha256": "bb27b8ba0d20032423fbe04b786971b3100ebb7e07003473af348302e65cc9d2",
+      "bytes": 1852
+    },
+    "funding-observation.json": {
+      "sha256": "96a24ca783b9f7e6114851d0cae34be9b850c593125d4795336594d7613fe824",
+      "bytes": 957
+    },
+    "genesis-context.json": {
+      "sha256": "3095a42b791ce41dcae3f067abe6bfba496068b4fde509071bc963146379fef0",
+      "bytes": 307
+    },
+    "genesis.json": {
+      "sha256": "5471e0d0f213730dfef2ddf450269c24802cf7117cb5e747597bf2097e8aef89",
+      "bytes": 83
+    },
+    "identity.json": {
+      "sha256": "e42180fe4621681f3e958cc1133d22b37474e3a30eb71ff04c41d3b6bc87f70e",
+      "bytes": 501
+    },
+    "proof.json": {
+      "sha256": "f9116bad735e090f2d893ce2b79aac642ce18a991b842497dce3b07774dffc9d",
+      "bytes": 1840
+    },
+    "protected-capital-policy.json": {
+      "sha256": "a50ea9ec58ff94a1098f877bb68da869f4ba55d2d2fcc56cd425ac6f4d849b12",
+      "bytes": 1850
+    },
+    "prove.log": {
+      "sha256": "22ae4b9188ca30dd20487ac83d436129e480780dc500df25aaf9740aed1089d0",
+      "bytes": 1244
+    },
+    "reconciliation.json": {
+      "sha256": "d588c78c27775575858a182ad6ecfe1397bf9fb713aec9477e3d6c59782cc79b",
+      "bytes": 1994
+    },
+    "registry-admission-test.log": {
+      "sha256": "997d1a95339385e1c5e363300d4fdeec0f040f153c0fd8f62eabe7717554f73a",
+      "bytes": 865
+    },
+    "reserve-v3-tests.log": {
+      "sha256": "08e24b1e9e92c3eb8609931a833fa4e5162a40087d6e2d86d79e74fbf76199b8",
+      "bytes": 1102
+    },
+    "rust-replay.json": {
+      "sha256": "da3b6ab9922ad05c1eafbe2cf49ac31dddaa03cca26c0d5ddf2c97cec0c36aa3",
+      "bytes": 4244
+    },
+    "source/IProtectedCapitalFinalizerV3.sol": {
+      "sha256": "10c8f002ec38bea13667100d7f7b3bcc68e0e14f09921abf42b627780af4c3f8",
+      "bytes": 301
+    },
+    "source/OnchainShortfallReserveV3.sol": {
+      "sha256": "91bee42d54fc4d843cbb90cd3dd0e4b71c9d8dcaaa65a9eb541d07e42c2c8921",
+      "bytes": 23179
+    },
+    "source/OnchainShortfallReserveV3.t.sol": {
+      "sha256": "9b8261155816c48f787a5a3d45e63b50016c8451dae882bd32d337c95494eda5",
+      "bytes": 15395
+    },
+    "source/SourceBoundProRataEntitlementRatificationControllerV1.sol": {
+      "sha256": "293bc55a65ac1d34fd970cab489c08bc6fb079a40034dc1822e38f4862abc0e1",
+      "bytes": 11113
+    },
+    "stage2-qualification.log": {
+      "sha256": "9355c478862a75bd82602fb1ab77c3c4a7ebb17b45db2ddff8a78c12b3293226",
+      "bytes": 12174
+    },
+    "terminal-observation.json": {
+      "sha256": "c4938e602b69c564df35e534baabf22fbc7f1e8dda62e86148c84f3c8cb53b70",
+      "bytes": 614
+    },
+    "transfers.json": {
+      "sha256": "16a7bfa86045fdb08076b81cbe262eb089a92bf031776f59c090f99257622d55",
+      "bytes": 998
+    },
+    "witness.json": {
+      "sha256": "b0d10ccd549ad86435f8e13381c83c91500dd0f5a9eaa07a017ca601cb31f87b",
+      "bytes": 3719
+    }
+  },
+  "terminalFinalizationRoute": "qualified locally through the bound ratification controller; early, unauthorized, unresolved-liability, replay and post-finalization paths reject",
+  "verifierRegistryRoot": "0x197bc48fcd58320a9e8735294d80e349e1540c9eff80219dd907b590628cbaca",
+  "admissionReceipt": "0x049039d01bd16725d5826e9d46f1bbccdaf85d5fdc29f4fff77f0611962f763a",
+  "stage2QualificationTests": "10 passed, 0 failed; PARTIAL_FILL_STAGE=2",
+  "reserveV3Tests": "8 passed, 0 failed",
+  "finalTransferSequence": [
+    {
+      "from": "reserve",
+      "to": "allocator",
+      "amount": 70,
+      "meaning": "funded entitlement pool"
+    },
+    {
+      "from": "allocator",
+      "to": "Alice",
+      "amount": 35,
+      "meaning": "observed withdrawal"
+    },
+    {
+      "from": "allocator",
+      "to": "Bob",
+      "amount": 21,
+      "meaning": "observed withdrawal"
+    },
+    {
+      "from": "allocator",
+      "to": "Carol",
+      "amount": 14,
+      "meaning": "observed withdrawal"
+    },
+    {
+      "from": "reserve",
+      "to": "Carol",
+      "amount": 10,
+      "meaning": "separate restricted-capital refund after terminal finalization"
+    }
+  ],
+  "accountingBoundary": "100 requested = 70 allocated/funded/withdrawn + 30 unmet request; separate 10 restricted sponsor units are not claimant entitlement or allocation-pool capital.",
+  "terminalObservation": "terminal-observation.json; emitted by the Foundry integration test after reserve finalization",
+  "fundingObservation": "funding-observation.json; setup captured and asserted the exact sponsor-to-reserve ERC-20 Transfer of 80 units"
+}

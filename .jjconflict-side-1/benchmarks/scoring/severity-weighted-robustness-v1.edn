@@ -1,0 +1,21 @@
+{:scoring/id :scoring/severity-weighted-robustness-v1
+ :scoring/version 1
+ :scoring/description
+ "Severity-weighted scoring. Critical claims must all pass;
+  non-critical failures reduce the score but do not necessarily
+  fail the benchmark."
+
+ :scoring/rules
+ {:classifier              :pass-fail-critical
+  :pass                    "All claims pass — no failures of any severity"
+  :fail                    "At least one critical-severity claim fails"
+  :mixed                   "Non-critical failures exist but no critical failures"
+  :score-fn                "Ratio of passing claims to total claims (0-1)"
+  :critical-severity       #{:critical}}
+
+ :severity/claims
+ [{:claim/no-unauthorized-release     {:severity :critical}}
+  {:claim/funds-conserved             {:severity :critical}}
+  {:claim/dispute-liveness            {:severity :high}}
+  {:claim/slashing-conservation       {:severity :high}}
+  {:claim/governance-non-interference {:severity :medium}}]}

@@ -1,0 +1,20 @@
+{:schema/id :prf/use-case-registry.v1
+ :registry/id "prf-example-ecommerce"
+ :registry/version "2026-08-11"
+ :use-cases
+ [{:use-case/id :ecommerce/purchase
+   :definition/ref "definitions/ecommerce.edn"}
+  {:use-case/id :event/deposit
+   :definition/ref "definitions/event_deposits.edn"}
+  {:use-case/id :spending-account/controlled-balance
+   :definition/ref "definitions/controlled_escrow_balance.edn"}
+  {:use-case/id :dispute/appeal-escalation
+   :definition/ref "definitions/dispute_appeal_escalation.edn"}
+  {:use-case/id :resolver/participation-bonding
+   :definition/ref "definitions/resolver_participation_bonding.edn"}
+  {:use-case/id :yield/escrow
+   :definition/ref "definitions/yield_bearing_escrow.edn"}
+  {:use-case/id :governance/rule-transition
+   :definition/ref "definitions/governance_rule_transition.edn"}
+  {:use-case/id :funding/goal-contingent-pool
+   :definition/ref "definitions/goal_contingent_pooled_escrow.edn"}]}

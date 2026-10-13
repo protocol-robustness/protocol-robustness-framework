@@ -1,0 +1,39 @@
+{:suite/id :ef-review-v1
+ :suite/version "1.0"
+ :suite/description
+ "EF review trace equivalence suite — selected CDRS v0.2 traces that support
+  the principal EF review claims. Each trace is cryptographically bound to its
+  Solidity fixture via etc/trace-solidity-manifest.edn.
+
+  Review coverage:
+  - S-DR-001: Successful lifecycle (create → release)
+  - S-DR-084: Safe rejected-interaction (late evidence after settlement)
+  - S-NC-001: Semantic-failure negative control (freeze on active dispute)
+  - Y06:      Multi-party pro-rata shortfall allocation
+  - DR-N-002: Reversal slash appeal rejected adversarial path"
+
+ :traces
+ [{:trace :traces/review-s-dr-001-basic-release-ruling
+   :scenario "scenarios/edn/S-DR-001-basic-release-ruling.edn"
+   :purpose "Straightforward successful lifecycle"
+   :review-scenario "S-DR-001-basic-release-ruling"}
+
+  {:trace :traces/review-s-dr-084-evidence-after-settlement-rejected
+   :scenario "scenarios/edn/S-DR-084-evidence-after-settlement-rejected.edn"
+   :purpose "Safe control: late evidence after settlement rejected"
+   :review-scenario "S-DR-084-evidence-after-settlement-rejected"}
+
+  {:trace :traces/review-nc-001-freeze-active-dispute
+   :scenario "scenarios/edn/S-NC-001-freeze-active-dispute-negative-control.edn"
+   :purpose "Semantic-failure control: frozen resolver on active dispute"
+   :review-scenario "S-NC-001-freeze-active-dispute-negative-control"}
+
+  {:trace :traces/review-y06-pro-rata-shortfall
+   :scenario "scenarios/edn/Y06_multi-party-pro-rata-shortfall.edn"
+   :purpose "Multi-party pro-rata shortfall allocation"
+   :review-scenario "Y06_multi-party-pro-rata-shortfall"}
+
+  {:trace :traces/review-dr-n-002-appeal-rejected
+   :scenario "scenarios/edn/DR-N-002-reversal-slash-appeal-rejected.edn"
+   :purpose "Reversal slash appeal rejected adversarial path"
+   :review-scenario "DR-N-002-reversal-slash-appeal-rejected"}]}

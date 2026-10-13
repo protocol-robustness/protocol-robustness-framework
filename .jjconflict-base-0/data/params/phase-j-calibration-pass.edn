@@ -1,0 +1,45 @@
+{:scenario-id "phase-j-calibration-pass"
+ :description "Step 6a known-pass fixture: high detection + strong slashing. Audit must return :pass."
+
+ :strategy-mix {:honest 0.50 :lazy 0.10 :malicious 0.30 :collusive 0.10}
+ :n-resolvers 20
+
+ :escrow-size 10000
+ :resolver-fee-bps 150
+ :appeal-bond-bps 700
+ :slash-multiplier 2.5
+
+ :appeal-probability-if-correct 0.05
+ :appeal-probability-if-wrong 0.40
+
+ ;; Strong detection — malice gets caught frequently
+ :slashing-detection-probability 0.30
+ :fraud-detection-probability    0.40
+ :fraud-slash-bps                5000
+ :reversal-detection-probability 0.30
+ :reversal-slash-bps             2500
+ :timeout-slash-bps              200
+ :allow-slashing?                true
+;; Migrated oracle fixture: explicit stochastic mode with seeded RNG.
+:oracle-fixture {:mode :stochastic}
+
+ :unstaking-delay-days 14
+ :freeze-on-detection? true
+ :freeze-duration-days 3
+ :appeal-window-days   7
+
+ :resolver-bond-bps 1000
+
+ ;; Small run for calibration speed
+ :n-epochs           10
+ :n-trials-per-epoch 200
+ :kernel-validation-sample-size 10
+ :kernel-validation-min-pass-rate 0.80
+ :rng-seed           42
+  ; Audit thresholds — override defaults in audit.clj
+  :audit-thresholds
+  {:dominance-threshold 1.2
+   :max-malice-equity-share 0.3
+   :tail-fraction 0.2
+   :malice-survival-threshold 0.5}
+}

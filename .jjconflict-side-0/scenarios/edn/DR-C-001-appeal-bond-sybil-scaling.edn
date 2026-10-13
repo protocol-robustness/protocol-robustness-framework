@@ -1,0 +1,50 @@
+{:scenario-id "dr-c-001-appeal-bond-sybil-scaling"
+ :schema-version "1.0"
+ :allow-open-disputes? true
+ :purpose "adversarial-robustness"
+ :title "Appeal bond sybil scaling: same escalator pays increasing bonds"
+ :description "A participant escalates on two different workflows using the same address. The first escalation pays base bond (1.0x). The second escalation, because the address has escalation-count = 1, triggers Sybil Mitigation Layer B: 1.1x bond multiplier. Verifies that the escalating bond cost increases linearly with escalation count per address."
+ :provenance {:author "@dispute-researcher" :created-at "2026-06-29" :license "CC-BY-4.0"}
+ :claim {:id "appeal-bond-sybil-scaling-linear"
+         :statement "Escalation bond amount scales linearly (1.1x per prior escalation) from a single address, making sybil attacks on appeals progressively more expensive."
+         :falsifies-if ["Second escalation from same address pays same bond as first"
+                        "Third escalation from same address pays same as first"
+                        "Escalation count resets without governance action"]}
+ :expectations {:terminal-state "released"
+                :must-hold ["dispute_level_bounded"]
+                :metrics {:escalation_bond_ratio_second_to_first {:gt 1.0}
+                          :escalation_count_per_addr {:gte 1 :addr "0xchallenger"}}}
+ :threat {:family "sybil-escalation" :attack "appeal-bond-sybil-scaling" :severity "medium"
+          :actors ["challenger"]
+          :assumptions ["appeal-bond-bps = 500" "Linear scaling = 1.1x per escalation count"]}
+ :accounting {:unit "USDC" :decimals 6 :tracked-balances ["buyer" "seller" "l0resolver" "l1resolver" "challenger" "protocol"]}
+ :initial-block-time 1000
+ :protocol-params {:resolver-fee-bps 150 :appeal-window-duration 60 :max-dispute-duration 2592000 :appeal-bond-bps 500 :dispute-resolver "0xl0" :escalation-resolvers {:0 "0xl0" :1 "0xl1"}}
+ :agents [{:id "buyer1" :address "0xbuyer1" :strategy "honest"}
+          {:id "seller1" :address "0xseller1" :strategy "honest"}
+          {:id "buyer2" :address "0xbuyer2" :strategy "honest"}
+          {:id "seller2" :address "0xseller2" :strategy "honest"}
+          {:id "l0resolver" :address "0xl0" :role "resolver"}
+          {:id "l1resolver" :address "0xl1" :role "resolver"}
+          {:id "challenger" :address "0xchallenger" :strategy "honest"}
+          {:id "keeper" :address "0xkeeper" :role "keeper"}]
+ :events [{:seq 0 :time 1000 :agent "buyer1" :action "create_escrow"
+           :params {:token "USDC" :to "0xseller1" :amount 5000}}
+          ;; Workflow 0: dispute → resolution → challenge (first escalation from challenger)
+          {:seq 1 :time 1060 :agent "seller1" :action "raise_dispute" :params {:workflow-id 0}}
+          {:seq 2 :time 1100 :agent "l0resolver" :action "execute_resolution"
+           :params {:workflow-id 0 :is-release true :resolution-hash "0xhash0"}}
+          ;; First escalation from challenger — base bond (esc-count = 0, multiplier = 1.0x)
+          {:seq 3 :time 1120 :agent "challenger" :action "challenge_resolution" :params {:workflow-id 0}}
+          {:seq 4 :time 1150 :agent "l1resolver" :action "execute_resolution"
+           :params {:workflow-id 0 :is-release true :resolution-hash "0xhash1"}}
+          {:seq 5 :time 1300 :agent "keeper" :action "execute_pending_settlement" :params {:workflow-id 0}}
+          ;; Workflow 1: different escrow, same challenger
+          {:seq 6 :time 2000 :agent "buyer2" :action "create_escrow"
+           :params {:token "USDC" :to "0xseller2" :amount 5000}}
+          {:seq 7 :time 2060 :agent "seller2" :action "raise_dispute" :params {:workflow-id 1}}
+          {:seq 8 :time 2100 :agent "l0resolver" :action "execute_resolution"
+           :params {:workflow-id 1 :is-release false :resolution-hash "0xhash2"}}
+          ;; Second escalation from challenger — esc-count = 1, multiplier = 1.1x
+          ;; Bond should be 1.1x the first escalation's bond
+          {:seq 9 :time 2120 :agent "challenger" :action "challenge_resolution" :params {:workflow-id 1}}]}

@@ -1,0 +1,80 @@
+{:concept/id :framework/review-member-canonical-indices
+ :concept/type :framework
+ :concept/layer :framework-explanation
+ :concept/name "Review-member canonical indices"
+ :concept/summary
+ "Review-member canonical indices are a content-addressed, deterministically derived, zero-based member-index artifact for a review round. Indices are derived from durable researcher identity (:researcher/id) using canonical string ordering, providing a stable, reproducible integer reference for every member regardless of whether the round is keyed."
+
+ :concept/stakeholder-question
+ "Is there a deterministic, stable integer reference for each review member that any verifier can rederive and cross-check?"
+
+ :concept/protocols #{:protocol/sew-v1 :protocol/prf}
+
+ :concept/related
+ [:framework/review-certificate
+  :framework/research-assignment
+  :framework/content-root]
+
+ :concept/roles
+ {:review-round-admin {:description "Entity that defines a review round whose members receive indices."
+                       :maps-to [:protocol.actor/governance]}
+  :index-verifier {:description "Entity that rederives expected indices and compares against the artifact."
+                   :maps-to [:protocol.role/verifier]}
+  :member {:description "A reviewed researcher assigned a canonical index."
+           :maps-to [:protocol.actor/verifier]}}
+
+ :concept/entities
+ {:canonical-indices-artifact {:description "Content-addressed review-member-canonical-indices.v1 artifact mapping researcher ids to zero-based integer indices."
+                               :maps-to [:protocol.entity/evidence]}
+  :indices-hash {:description "Indented content hash committing to the entries vector independently of the full artifact."
+                 :maps-to [:protocol.entity/canonical-hash]}
+  :member-index {:description "Zero-based integer index derived for a single member by canonical string ordering."
+                 :maps-to [:protocol.entity/index]}}
+
+ :concept/actions
+ {:build-canonical-indices {:description "Derive canonical-ordered member indices from a review round and hash the artifact."
+                            :maps-to [:protocol.action/build-registry]}
+  :verify-canonical-indices {:description "Rederive expected indices from the round and compare against the artifact (source-round binding, derived mapping, self-hash)."
+                             :maps-to [:protocol.action/check-invariant]}
+  :lookup-member-index {:description "Resolve the canonical index for a given researcher id."
+                        :maps-to [:protocol.action/verify-allocation]}}
+
+ :concept/outcomes
+ {:indices-valid {:description "Source-round binding, derived mapping, and self-hash all hold."
+                  :maps-to [:protocol.outcome/released]}
+  :indices-mismatch {:description "Derived indices disagree with the artifact or the round binding."
+                     :maps-to [:protocol.outcome/adversarial-resolution]}}
+
+ :concept/failure-modes
+ [{:failure/id :canonical-indices-derived-mapping-mismatch
+   :failure/name "Canonical indices derived mapping mismatch"
+   :failure/summary "Rederiving expected indices from the review round disagrees with the artifact."
+   :protocol-mechanisms [:canonical-ordering :review-round]
+   :stakeholder-impact "Member references in downstream certificates are unreliable."}
+  {:failure/id :review-member-key-derived-index-mismatch
+   :failure/name "Review-member key/index mismatch"
+   :failure/summary "A caller-supplied :review-member/key does not equal the derived index."
+   :protocol-mechanisms [:canonical-ordering]
+   :stakeholder-impact "A keyed round asserts an ordering that contradicts canonical derivation."}]
+
+ :concept/assumptions
+ ["Member indices are derived deterministically from durable researcher identity, not from caller-supplied integers."
+  "The canonical ordering is case-sensitive lexicographic on :researcher/id (Unicode code-point order)."
+  "Indices are zero-based, unique, dense, and in canonical order."
+  "Caller-supplied review-member keys are compatibility assertions and must equal the derived index."
+  "Concept labels do not change protocol validity."]
+
+ :concept/out-of-scope
+ ["Researcher identity verification or authentication."
+  "Membership eligibility for a review round."
+  "Voting weight or authority implied by an index."
+  "Reputation or trust ranking of members."
+  "Signature validity of member positions."
+  "Review quality or correctness of the assessed dimensions."
+  "Canonical indices provide deterministic ordering, not rank or authority."]
+
+ :concept/metrics
+ {:review-member-count {:description "Number of members in the canonical-indices artifact."
+                        :source :derived-from-world-state}
+  :indices-hash-present? {:description "Whether the indented indices-hash is present."
+                          :source :derived-from-trace}}}

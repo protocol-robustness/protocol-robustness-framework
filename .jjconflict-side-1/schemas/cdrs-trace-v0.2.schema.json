@@ -1,0 +1,226 @@
+{
+  "$schema" : "http://json-schema.org/draft-07/schema#",
+  "title" : "CDRS Trace v0.2",
+  "description" : "Full execution history of a dispute resolution scenario (CDRS v0.2). Backward-compatible with v0.1 traces; expected_semantics is optional.",
+  "type" : "object",
+  "required" : [ "cdrs_version", "schema_version", "scenario_id", "trace_kind", "steps" ],
+  "additionalProperties" : true,
+  "properties" : {
+    "expected_semantics" : {
+      "type" : "object",
+      "description" : "Semantic expectations for the trace. All sub-blocks are optional; omitting a sub-block suppresses that class of check.",
+      "additionalProperties" : false,
+      "properties" : {
+        "resolution" : {
+          "$ref" : "#/definitions/resolution_expected"
+        },
+        "escalation" : {
+          "$ref" : "#/definitions/escalation_expected"
+        },
+        "participation" : {
+          "$ref" : "#/definitions/participation_expected"
+        },
+        "timing" : {
+          "$ref" : "#/definitions/timing_expected"
+        }
+      }
+    },
+    "steps" : {
+      "type" : "array",
+      "items" : {
+        "$ref" : "cdrs-event-v0.2.schema.json"
+      }
+    },
+    "fee_bps" : {
+      "type" : "integer",
+      "description" : "Protocol fee in basis points"
+    },
+    "step_count" : {
+      "type" : "integer"
+    },
+    "resolutions" : {
+      "type" : "object",
+      "description" : "CDRS v0.1 resolution summary keyed by wf alias (retained for backward compat)",
+      "additionalProperties" : {
+        "type" : "object",
+        "properties" : {
+          "outcome" : {
+            "type" : "string"
+          },
+          "finality" : {
+            "type" : "string"
+          },
+          "integrity" : {
+            "type" : "string"
+          }
+        }
+      }
+    },
+    "trace_kind" : {
+      "type" : "array",
+      "description" : "Content tags used to select semantic check sets in TraceEquivalence.t.sol",
+      "items" : {
+        "type" : "string",
+        "enum" : [ "lifecycle", "dispute-resolution", "escalation", "pending-settlement", "timing", "authorization", "adversarial" ]
+      },
+      "minItems" : 1,
+      "uniqueItems" : true
+    },
+    "metadata" : {
+      "type" : "object",
+      "additionalProperties" : true,
+      "properties" : {
+        "scenario_class" : {
+          "type" : "string",
+          "enum" : [ "baseline", "edge-case", "adversarial", "stress", "parameter-sweep", "multi-epoch", "governance-change" ]
+        },
+        "outcome_type" : {
+          "type" : "string",
+          "enum" : [ "normal-completion", "profit-extraction", "loss", "liveness-failure", "invariant-failure", "cascade-failure", "partial-recovery", "expected-violation" ]
+        }
+      }
+    },
+    "schema_version" : {
+      "type" : "integer",
+      "const" : 2
+    },
+    "scenario_id" : {
+      "type" : "string",
+      "description" : "Scenario identifier (matches the scenario input file id)"
+    },
+    "cdrs_version" : {
+      "type" : "string",
+      "const" : "0.2"
+    },
+    "description" : {
+      "type" : "string"
+    }
+  },
+  "definitions" : {
+    "resolution_expected" : {
+      "type" : "object",
+      "description" : "Expected resolution semantics. Required when trace_kind contains 'dispute-resolution'.",
+      "additionalProperties" : false,
+      "properties" : {
+        "outcome" : {
+          "type" : "string",
+          "description" : "Final fund-movement outcome",
+          "enum" : [ "release", "refund", "settled", "unresolved" ]
+        },
+        "finality" : {
+          "type" : "string",
+          "description" : "Finality state of the resolution",
+          "enum" : [ "final", "appealable", "stalled" ]
+        },
+        "integrity" : {
+          "type" : "string",
+          "description" : "Accounting integrity of the resolution",
+          "enum" : [ "fully-reconciled", "accounting-mismatch", "missing-effects", "leakage" ]
+        },
+        "beneficiary" : {
+          "type" : "string",
+          "description" : "Who received the funds: 'seller' | 'buyer' | 'settled'. Absent when unresolved.",
+          "enum" : [ "seller", "buyer", "settled" ]
+        },
+        "resolver" : {
+          "type" : "string",
+          "description" : "Agent id of the party who executed resolution. Absent when unresolved."
+        },
+        "authorized_resolver" : {
+          "type" : "boolean",
+          "description" : "Whether execute_resolution succeeded (:ok result)"
+        },
+        "pending_settlement_created" : {
+          "type" : "boolean",
+          "description" : "Whether a pending-settlement object was created (exists in world or was later executed)"
+        },
+        "settlement_executed" : {
+          "type" : "boolean",
+          "description" : "Whether execute_pending_settlement succeeded"
+        }
+      }
+    },
+    "escalation_expected" : {
+      "type" : "object",
+      "description" : "Expected escalation semantics. Present only when escalate_dispute appears in the trace.",
+      "additionalProperties" : false,
+      "properties" : {
+        "level" : {
+          "type" : "integer",
+          "minimum" : 0,
+          "description" : "Dispute escalation level at trace end"
+        },
+        "max_level_reached" : {
+          "type" : "integer",
+          "minimum" : 0,
+          "description" : "Maximum escalation level observed across the trace"
+        },
+        "tier" : {
+          "type" : "string",
+          "description" : "Resolver tier corresponding to the final level",
+          "enum" : [ "l0", "l1", "l2", "arbitration" ]
+        },
+        "attempted" : {
+          "type" : "boolean",
+          "description" : "Whether escalation was attempted (always true when this block is present)"
+        },
+        "accepted" : {
+          "type" : "boolean",
+          "description" : "Whether at least one escalation action succeeded (:ok)"
+        },
+        "rejected" : {
+          "type" : "boolean",
+          "description" : "Whether at least one escalation action was rejected"
+        }
+      }
+    },
+    "participation_expected" : {
+      "type" : "object",
+      "description" : "Expected participation semantics. Present for any trace with a dispute raised.",
+      "additionalProperties" : false,
+      "properties" : {
+        "dispute_initiator" : {
+          "type" : "string",
+          "description" : "Agent id who called raise_dispute"
+        },
+        "resolution_actor" : {
+          "type" : "string",
+          "description" : "Agent id who last called execute_resolution successfully"
+        },
+        "settlement_actor" : {
+          "type" : "string",
+          "description" : "Agent id who called execute_pending_settlement. Absent if none."
+        },
+        "authorized_participant" : {
+          "type" : "boolean",
+          "description" : "Whether the resolution actor's call succeeded (:ok)"
+        }
+      }
+    },
+    "timing_expected" : {
+      "type" : "object",
+      "description" : "Expected timing semantics. Present for any trace with a dispute raised.",
+      "additionalProperties" : false,
+      "properties" : {
+        "auto_cancel_triggered" : {
+          "type" : "boolean",
+          "description" : "Whether auto_cancel_disputed succeeded in the trace"
+        },
+        "within_resolution_window" : {
+          "type" : "boolean",
+          "description" : "Whether (resolution_time - dispute_open_time) <= max-dispute-duration. Present only when max-dispute-duration > 0 and resolution timestamp exists."
+        },
+        "within_settlement_window" : {
+          "type" : "boolean",
+          "description" : "Whether (settlement_time - resolution_time) <= appeal-window-duration. Present only when appeal-window-duration > 0 and settlement timestamp exists."
+        },
+        "pending_delay_seconds" : {
+          "type" : "integer",
+          "minimum" : 0,
+          "description" : "settlement_time - resolution_time in seconds. Present only when both timestamps exist."
+        }
+      },
+      "required" : [ "auto_cancel_triggered" ]
+    }
+  }
+}

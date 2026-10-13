@@ -1,0 +1,45 @@
+;; run-request.example.edn — illustrative input only
+;;
+;; Copy and replace all placeholders for a specific forensic run. See RUN_REQUEST_SPEC_V1 for the
+;; complete field specification.
+
+{:run-request/schema-version "run-request.v1"
+ :registry-key     :default
+ :workspace        :forensic
+
+ ;; Runner selection — must be :pinned for canonical forensic runs
+ :runner-selection
+ {:mode      :pinned
+  :runner-id "resolver-sim-v0.1.0"}
+
+ ;; Suite to execute
+ ;; Leave :suite/key unset to run the in-process invariant registry (S01–S107+),
+ ;; which is internally labeled :sew-invariants.  Set to a named suite key
+ ;; for a specific subset:
+ ;;   :dispute-resolution-scenarios  — Sew dispute-resolution coverage (44 scenarios)
+ ;;   :sew-yield-scenarios           — Sew escrow + yield integration (15 scenarios)
+ ;;   :yield-provider-scenarios      — Standalone yield provider (Y01–Y05, 5 scenarios)
+;  :suite/key        :dispute-resolution-scenarios
+
+ ;; Protocol selection
+ :protocol/default-id "sew-v1"
+
+  ;; Evidence policy reference (example — runtime policy is code-defined)
+  :evidence-policy  {:policy-id :forensic-default-v1
+                     :policy-path "examples/config/forensic/evidence-policy.edn"}
+
+  ;; Execution policy reference (example — runtime policy is code-defined)
+  :execution-policy {:policy-id :forensic-execution-v1
+                     :policy-path "examples/config/forensic/execution-policy.edn"}
+
+ ;; Network policy
+ :network-policy   :deny
+
+ ;; Output target (outside repo tree)
+ :output/target    {:root "~/prf-runs"
+                    :label "sew-invariants-forensic-run-1"}
+
+ ;; Runner version (recorded in bundle)
+ :runner/version   "0.1.0"
+ :runner/name      "protocol-robustness-framework-test-runner"
+}

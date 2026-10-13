@@ -1,0 +1,57 @@
+{:vector/id :portable-pro-rata/canonical-transition-001
+ :contract/version "portable-pro-rata-contract.v1"
+ :state-before
+ {"sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" 10N
+  "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb" 2N}
+ :raw-effects
+ [{:schema-version "canonical-delta-effect.v1"
+   :quantity/root "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+   :delta 5N}
+  {:schema-version "canonical-delta-effect.v1"
+   :quantity/root "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+   :delta -2N}
+  {:schema-version "canonical-delta-effect.v1"
+   :quantity/root "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+   :delta -2N}
+  {:schema-version "canonical-delta-effect.v1"
+   :quantity/root "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+   :delta 0N}]
+ :expected
+ {:normalized-effects
+  [{:schema-version "canonical-delta-effect.v1"
+    :quantity/root "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    :delta 3N}
+   {:schema-version "canonical-delta-effect.v1"
+    :quantity/root "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+    :delta -2N}]
+  :state-after
+  {"sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" 13N
+   "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb" 0N}
+  :roots
+  {:state-before/root "08293a36ff057a01de22c8bb69d2ab2ec2a104cbf9c2007f337526e2f0e12640"
+   :effects/root "70a5130f16f1c812e83bbb3e7ec6fc0dc9e447ade75e84abc14f9c8f18b28358"
+   :state-after/root "4a9be347a478788e7beab4bc9e1c50ddd41b00a55e239c3a415c3f32f766d9f8"
+   :transition/root "852a8a2a93dbf8339d35b04a00217bc0d2cc0f5ead1dae781f5197988aec6bf6"}
+  :canonical-values
+  {:state-before {:schema-version "canonical-effect-state.v1"
+                  :quantities
+                  {"sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" 10N
+                   "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb" 2N}}
+   :effects {:schema-version "canonical-delta-effect.v1"
+             :effect-semantics/root "9c347e06eded36cd022e12a92546ada972b36ed608535240df2458a754e471a5"
+             :effects
+             [{:schema-version "canonical-delta-effect.v1"
+               :quantity/root "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+               :delta 3N}
+              {:schema-version "canonical-delta-effect.v1"
+               :quantity/root "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+               :delta -2N}]}
+   :state-after {:schema-version "canonical-effect-state.v1"
+                 :quantities
+                 {"sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" 13N
+                  "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb" 0N}}
+   :transition {:schema-version "canonical-effect-transition.v1"
+                :effect-semantics/root "9c347e06eded36cd022e12a92546ada972b36ed608535240df2458a754e471a5"
+                :state-before/root "08293a36ff057a01de22c8bb69d2ab2ec2a104cbf9c2007f337526e2f0e12640"
+                :effects/root "70a5130f16f1c812e83bbb3e7ec6fc0dc9e447ade75e84abc14f9c8f18b28358"
+                :state-after/root "4a9be347a478788e7beab4bc9e1c50ddd41b00a55e239c3a415c3f32f766d9f8"}}}}

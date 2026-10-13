@@ -1,0 +1,35 @@
+;; execution-policy.edn — Sample execution policy
+;;
+;; Defines constraints on how execution occurs during a forensic run.
+;; Edit for your specific run requirements.
+
+{:execution-policy/schema-version "execution-policy.v1"
+ :execution-policy/id            :forensic-execution-v1
+ :execution-policy/description   "Default forensic execution policy — deterministic, pinned, isolated"
+
+ ;; Runner selection mode
+ :runner-selection
+ {:mode :pinned                   ;; :pinned | :capability-match | :quorum
+  :runner-id "resolver-sim-v0.1.0"}
+
+ ;; Determinism requirements
+ :determinism
+ {:require-deterministic true     ;; Fail on non-deterministic execution
+  :random-seed 42                 ;; Fixed seed for any randomized steps
+  :time-source :simulation}       ;; :simulation | :wall-clock | :epoch
+
+ ;; Scenario selection
+ :scenario-selection
+ {:mode :explicit                  ;; :explicit | :suite | :registry-default
+  ;; When :mode :explicit, list scenario paths here
+  :scenario-paths []}
+
+ ;; External network policy
+ :network-policy :deny             ;; :allow | :deny
+
+ ;; Output constraints
+ :output
+ {:target-root "~/prf-runs"       ;; External output directory
+  :overwrite false                ;; Never overwrite existing runs
+  :bundle-format :bundle-root-v1} ;; Bundle format version
+}

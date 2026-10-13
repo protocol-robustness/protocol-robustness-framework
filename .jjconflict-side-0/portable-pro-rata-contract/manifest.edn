@@ -1,0 +1,28 @@
+{:artifact/schema "portable-contract-release-manifest.v1"
+ :portable-contract/id :pro-rata
+ :portable-contract/version "portable-pro-rata-contract.v1"
+ :release/source {:repository "resolver-sim"
+                  :revision "workspace-uncommitted"
+                  :export-procedure "verify listed SHA-256 file digests, then canonical-hash this manifest without :portable-contract/release-root"}
+ :files
+ [{:path "SPEC.md" :sha256 "62144bfa332d308c3bf0e5f3206f86a3ec39106af3f6070981a176954eee4888" :normative? true}
+  {:path "contract.edn" :sha256 "ac602efa648aa19b601cf2a42f499c922325d833ed446f45294e2014b789dd72" :normative? true}
+  {:path "EXTRACTION_PLAN.md" :sha256 "e178b14e397d6d89c706d8aec7b08ce22743f98affe8026a93b7fd3e26d77f95" :normative? false}
+  {:path "vectors/allocation-rounding-001.edn" :sha256 "f2552365434868de77589ef81392bd267a74f2b0739db7230e7d5d072e64ccab" :normative? true}
+   {:path "vectors/cap-clamping-001.edn" :sha256 "77b285e2ef70d80ef26f331c74feae4fb61987ae59461e7e9284cd3b74034c1b" :normative? true}
+  {:path "vectors/canonical-transition-001.edn" :sha256 "6d5baa7f6c60a400f0895ddabcca96b4dea70e62aacd7d17981b15a3f21b1d3c" :normative? true}
+   {:path "vectors/floor-residual-001.edn" :sha256 "aab12ca1e22692c82f4fd1232bafff5c82c0b81052604d2528b28ef5ea4538b0" :normative? true}
+  {:path "vectors/negative-allocation-001.edn" :sha256 "c340eb444ea42cabbffde3eba756ede37c4d8e56d2631bacfd7c6c601ad604d3" :normative? true}
+  {:path "vectors/negative-transition-001.edn" :sha256 "2e677a9bf3f9fbbcac7b273926b3937abe6cfa657962ba7ab573cd3fbdaa385d" :normative? true}
+   {:path "vectors/redistribute-cap-excess-001.edn" :sha256 "a8a3fb649ad1867ce6968ec6156fb5b5a1ed7ba05065fe3cc7c9b89bcdc08d45" :normative? true}
+   {:path "vectors/zero-weight-001.edn" :sha256 "74a0ff9ebdffb185ceb912ba997176e98c8c037146255d3a1ca0f852a9894227" :normative? true}
+   {:path "canonical-bytes/allocation-result-001.hex" :sha256 "e9d7c2a8e3adc1ad5eb6378a9175bca0ae4049f5b87a474a8d89be923061251b" :normative? true}
+   {:path "canonical-bytes/cap-clamping-001.allocation-result.hex" :sha256 "4ba01ea2b4edbca55225fffd4cbaa0282a0eb6b9f8373ae10d84ecf592d552fe" :normative? true}
+   {:path "canonical-bytes/redistribute-cap-excess-001.allocation-result.hex" :sha256 "0303118ccfaa61ec9e7bec3516496d5f2f895f22bca3b335f88358232ca5872f" :normative? true}
+   {:path "canonical-bytes/zero-weight-001.allocation-result.hex" :sha256 "cbd5179596042b6d5c2e225ce812ce5af2ce994b3f3bafe002e120110f90fcbf" :normative? true}
+   {:path "canonical-bytes/floor-residual-001.allocation-result.hex" :sha256 "72072f8e84383e3d7bcfee5d08aab58bae1a93958ffb859656277988273ad238" :normative? true}
+  {:path "canonical-bytes/state-before.hex" :sha256 "933dfdf000cc2d084ef81ecd3dbea0729dcc3e714b23835419427f7a30a5179b" :normative? true}
+  {:path "canonical-bytes/effects.hex" :sha256 "cd16c72c3fefade5cd19573c570c3af06af00f7b296125ae20d6e65d147eb5f4" :normative? true}
+  {:path "canonical-bytes/state-after.hex" :sha256 "7a387b900fa204fb862b1281f231329ac803dfa958cb65157da87a45faae7e41" :normative? true}
+  {:path "canonical-bytes/transition.hex" :sha256 "9cf251e23dc443035f64abd9db9c5ee0c839f551e3a81ca87f5a06f4c7f7cbdc" :normative? true}]
+ :portable-contract/release-root "b863e04a61d0dded845dc3351626ebf57c4d5abea7e18ea19a89cacf4b1ad12a"}

@@ -1,0 +1,100 @@
+{
+  "protocol-params" : {
+    "appeal-window-duration" : 120,
+    "fee-bps" : 150
+  },
+  "schema-version" : "1.1",
+  "threat-tags" : [ ],
+  "initial-block-time" : 1000,
+  "scenario-author" : "@grifma",
+  "expectations" : {
+    "terminal" : [ {
+      "path" : [ "live-states", 0 ],
+      "equals" : "released"
+    } ],
+    "metrics" : [ {
+      "name" : "total-escrows",
+      "op" : ":=",
+      "value" : 1
+    } ]
+  },
+  "id" : "scenarios/eq-v11-spe-pass-honest-resolver",
+  "agents" : [ {
+    "id" : "buyer",
+    "address" : "0xbuyer",
+    "role" : "buyer",
+    "strategy" : "honest"
+  }, {
+    "id" : "seller",
+    "address" : "0xseller",
+    "role" : "seller",
+    "strategy" : "honest"
+  }, {
+    "id" : "resolver",
+    "address" : "0xresolver",
+    "role" : "resolver",
+    "strategy" : "honest"
+  }, {
+    "id" : "keeper",
+    "address" : "0xkeeper",
+    "role" : "keeper",
+    "strategy" : "honest"
+  } ],
+  "scenario-id" : "eq-v11-spe-pass-honest-resolver",
+  "events" : [ {
+    "seq" : 0,
+    "time" : 1000,
+    "agent" : "resolver",
+    "action" : "register_stake",
+    "params" : {
+      "amount" : 3000
+    }
+  }, {
+    "seq" : 1,
+    "time" : 1010,
+    "agent" : "buyer",
+    "action" : "create_escrow",
+    "params" : {
+      "token" : "USDC",
+      "to" : "0xseller",
+      "amount" : 2000,
+      "custom-resolver" : "0xresolver"
+    }
+  }, {
+    "seq" : 2,
+    "time" : 1060,
+    "agent" : "buyer",
+    "action" : "raise_dispute",
+    "params" : {
+      "workflow-id" : 0
+    }
+  }, {
+    "seq" : 3,
+    "time" : 1120,
+    "agent" : "resolver",
+    "action" : "execute_resolution",
+    "params" : {
+      "workflow-id" : 0,
+      "is-release" : true,
+      "resolution-hash" : "0xhash"
+    }
+  }, {
+    "seq" : 4,
+    "time" : 1241,
+    "agent" : "keeper",
+    "action" : "execute_pending_settlement",
+    "params" : {
+      "workflow-id" : 0
+    }
+  } ],
+  "theory" : {
+    "claim-id" : "claims/eq-spe-pass",
+    "claim" : "An honest resolver whose terminal stake equals their stake at the decision node satisfies the SPE heuristic (no ex-post regret).",
+    "equilibrium-concept" : [ "subgame-perfect-equilibrium" ],
+    "falsifies-if" : [ ],
+    "assumptions" : [ "resolver-stake-not-slashed", "single-trace-proxy" ]
+  },
+  "title" : "Subgame-Perfect Equilibrium — PASS (honest resolver, no ex-post regret)",
+  "description" : "Resolver registers stake (3000), raises dispute → execute_resolution is a strategic action. Resolver is never slashed; terminal stake equals stake at decision point. SPE heuristic finds no ex-post regret → :pass. Validates the address-resolution path: resolver ID 'resolver' maps to address '0xresolver' for world-state lookup.",
+  "purpose" : "regression"
+}

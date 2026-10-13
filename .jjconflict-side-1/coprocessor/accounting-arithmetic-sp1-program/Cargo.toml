@@ -1,0 +1,10 @@
+[package]
+name = "accounting-arithmetic-sp1-program"
+version = "0.1.0"
+edition = "2021"
+description = "Closed checked-i64 PRF accounting partition arithmetic statement."
+
+[dependencies]
+sp1-zkvm = "=6.3.1"
+serde_json = "1"
+allocation-kernel = { path = "../core" }

@@ -1,0 +1,31 @@
+
+Scenario summary
+════════════════
+  ID:       Y02_vault-shortfall-partial-withdraw
+  Title:    Vault Shortfall and Partial Withdrawal
+  Protocol: yield-v1
+  Purpose:  functional-test
+  Agents:   3  Events: 4
+
+Agents
+  0xOwnerA            provider
+  0xOwnerB            provider
+  governance          governance
+
+
+Events
+  SEQ   TIME      AGENT                 ACTION
+  0     1000000   0xOwnerA              yield_deposit
+  1     1000000   0xOwnerB              yield_deposit
+  2     1100000   governance            set-yield-risk
+  3     1200000   0xOwnerA              yield_withdraw
+
+
+Expected metrics
+  yield/positions-count             2
+  yield/total-principal             3000
+  yield/focus-principal             1000
+  yield/focus-status                unwinding
+  yield/focus-deferred              1000
+  yield/available-ratio             0.5
+

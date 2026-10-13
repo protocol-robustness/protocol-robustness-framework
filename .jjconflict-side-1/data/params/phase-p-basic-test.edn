@@ -1,0 +1,16 @@
+{:scenario-id "phase-p-basic"
+ :n-trials 100
+ :rng-seed 42
+ :escrow-size 10000
+ :resolver-fee-bps 100
+ :appeal-bond-bps 500
+ :slash-multiplier 2.5
+ :strategy :malicious
+ :appeal-probability-if-correct 0.2
+ :appeal-probability-if-wrong 0.4
+ :slashing-detection-probability 0.1
+ :fraud-detection-probability 0.25
+ :fraud-slash-bps 5000
+ :reversal-detection-probability 0.0
+ :reversal-slash-bps 0
+ :timeout-slash-bps 200}

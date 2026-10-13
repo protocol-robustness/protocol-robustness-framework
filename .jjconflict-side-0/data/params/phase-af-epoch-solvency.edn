@@ -1,0 +1,7 @@
+{:scenario-id "phase-af-epoch-solvency"
+ :description "BM-04: Slashing epoch solvency sweep — insurance pool solvency under worst-case slashing"
+ :rng-seed 42
+ :n-trials 100
+ :resolver-fee-bps 150
+ :envelope-max-resolvers 20
+ :envelope-min-bond 500}

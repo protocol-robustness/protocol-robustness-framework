@@ -1,0 +1,106 @@
+{:benchmark/id              :benchmark/sew-reversal-slashing-v1
+ :benchmark/version         1
+ :benchmark/solidity-revision "solidity-stable-2026-10"
+ :benchmark/status          :active
+ :benchmark/domain          :domain/protocol-value-conservation
+ :benchmark/protocol        :protocol/sew
+ :benchmark/scenario-suite  :suite/sew-reversal-slashing-v1
+  :benchmark/scenario-suite-description
+  "12 reversal-reviewer slashing scenarios covering appeal due process,
+   multi-level vindication, governance force slashing, challenger bounty
+   payment, insufficient-stake accounting, and appeal window boundaries,
+   plus 3 appeal expected-value scenarios (S-DR-097/098/099) exercising the
+   :appeal-decision-rationality equilibrium check."
+  :benchmark/runner-policy   :runner-policy/deterministic-local-v1
+  :benchmark/evidence-policy :evidence-policy/forensic-standard-v1
+  :benchmark/scoring-rule    :scoring/severity-weighted-robustness-v1
+  :benchmark/property-types  #{:safety :liveness :fairness}
+  :benchmark/property-claims {:safety [:claim/reversal-slash-conservation
+                                       :claim/governance-force-reversal-authorized]
+                              :liveness [:claim/reversal-reviewer-due-process]
+                              :fairness [:claim/vindication-stability
+                                         :claim/challenge-bounty-correctness
+                                         :claim/appeal-decision-rationality]}
+  :benchmark/description
+  "A dedicated benchmark for reversal-reviewer slashing correctness:
+   reversal-slash appeal due process for reversing resolvers (Track 2
+   appeals upheld/rejected/window-expired/wrong-party), multi-level
+   vindication stability across 4-level ladders, governance force slashing
+   with idempotency, challenger bounty payment correctness, and
+   insufficient-stake accounting. Provides mechanical verification of
+   reversal-slash lifecycle transitions and accounting invariants, plus
+   economic verification of appeal decisions: the :appeal-decision-rationality
+   equilibrium check (S-DR-097/098/099) scores whether correct resolvers can
+   profitably appeal and whether wrong resolvers are deterred at the declared
+   slash/bond parameters."
+  :benchmark/purpose
+  "Evaluate reversal-reviewer slashing: appeal due process for reversing
+   resolvers, multi-level vindication, governance force slashing,
+   challenger bounty payment, insufficient-stake accounting, and economic
+   rationality of slash-appeal decisions."
+  :benchmark/concepts        [:robustness/protocol-value-conservation
+                              :decision-quality/solvency-status
+                              :allocation/slash-obligation
+                              :consensus/authority
+                              :consensus/evidence
+                              :consensus/finality
+                              :consensus/escalation
+                              :consensus/liveness
+                              :consensus/legitimacy
+                              :concept/confidence
+                              :allocation/pro-rata-fairness]
+ :benchmark/review-guide    "benchmarks/packs/sew/REVERSAL_SLASHING_REVIEW.md"
+ :benchmark/review-coverage
+ {:claim/reversal-reviewer-due-process
+  {:headline "A reversal reviewer can appeal their own slash."
+   :scenarios ["DR-N-001-reversal-slash-appeal-lifecycle"
+               "DR-N-002-reversal-slash-appeal-rejected"
+               "DR-N-003-reversal-slash-appeal-window-expired"
+               "DR-N-004-reversal-slash-appeal-wrong-party"]}
+  :claim/reversal-slash-conservation
+  {:headline "Requested reversal-slash value is fully accounted for."
+   :scenarios ["DR-N-001-reversal-slash-appeal-lifecycle"
+               "DR-R-001-reversal-slash-insufficient-stake"]}
+  :claim/vindication-stability
+  {:headline "Vindication credits occur once, without slash-accounting drift."
+   :scenarios ["DR-N-001-reversal-slash-appeal-lifecycle"
+               "DR-O-001-vindication-4-level"
+               "DR-O-002-vindication-minimum-stake"
+               "DR-O-003-vindication-zero-stake"]}
+  :claim/challenge-bounty-correctness
+  {:headline "A bounded bounty is paid only to the recorded challenger."
+   :scenarios ["DR-Q-001-challenge-bounty-reversal"
+               "DR-Q-002-challenge-bounty-no-challenger"]}
+   :claim/governance-force-reversal-authorized
+   {:headline "Only authorized governance can force a reversal slash, and retries are idempotent."
+    :scenarios ["DR-P-001-force-reversal-slash"
+                "DR-P-002-force-reversal-slash-idempotent"]}
+   :claim/appeal-decision-rationality
+   {:headline "Slash-appeal decisions are economically rational: correct resolvers can profitably appeal, wrong resolvers are deterred."
+    :scenarios ["S-DR-097-appeal-ev-safe-calibrated"
+                "S-DR-098-appeal-ev-under-deterred"
+                "S-DR-099-appeal-ev-correct-blocked"]}}
+ :benchmark/claims          [{:claim/id :claim/reversal-reviewer-due-process
+                              :claim/role :primary
+                              :claim/rationale "A reversing resolver (L1) who is themselves reversed must have due-process access to appeal their own slash."
+                              :claim/failure-meaning "Reversal reviewer could not appeal their own slash, or appeal was mishandled."}
+                             {:claim/id :claim/reversal-slash-conservation
+                              :claim/role :primary
+                              :claim/rationale "Reversal slash accounting must satisfy requested = debited + unmet + reversed."
+                              :claim/failure-meaning "Reversal slash accounting equation violated."}
+                             {:claim/id :claim/vindication-stability
+                              :claim/role :primary
+                              :claim/rationale "Multi-level vindication must credit each vindicated resolver exactly once with no duplicate credit or slash drift."
+                              :claim/failure-meaning "Vindication credit duplicated, missed, or caused drift at higher levels."}
+                             {:claim/id :claim/challenge-bounty-correctness
+                              :claim/role :supporting
+                              :claim/rationale "Challenge bounty must be paid to the challenger (not keeper/caller) and bounded by max rate. Absent challenger → no bounty."
+                              :claim/failure-meaning "Bounty mispaid, unbounded, or caused nil deref when challenger absent."}
+                              {:claim/id :claim/governance-force-reversal-authorized
+                               :claim/role :supporting
+                               :claim/rationale "Governance force-reversal-slash must be accepted from governance and idempotent (duplicate rejected)."
+                               :claim/failure-meaning "Force slash rejected, duplicated, or not idempotent."}
+                             {:claim/id :claim/appeal-decision-rationality
+                              :claim/role :primary
+                              :claim/rationale "A slash-appeal decision is economically rational iff the expected value of appealing exceeds accepting the slash: a correct resolver (P(uphold) = governance accuracy) must have positive margin, and a wrong resolver (P(uphold) = governance error rate) must have negative margin. Evaluated by the :appeal-decision-rationality equilibrium check across the well-calibrated, under-deterred, and correct-blocked regimes."
+                              :claim/failure-meaning "A correct resolver cannot profitably appeal (bond too high relative to slash), or a wrong resolver can profitably appeal (bond too low relative to slash), at the declared governance calibration."}]}

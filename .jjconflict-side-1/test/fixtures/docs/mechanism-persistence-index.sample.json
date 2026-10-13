@@ -1,0 +1,75 @@
+{
+  "schema-version": "mechanism-persistence-index.v1",
+  "mechanism-map/id": "mechanism-map/shortfall-v1",
+  "mechanism-map/version": "mechanism-map.shortfall.v1",
+  "mechanism-map/hash": "3d4a0f8e5d7a2b9c1e6d4f0a6b7c8d9e0f112233445566778899aabbccddeeff",
+  "episodes": [
+    {
+      "episode/id": "S104_resolver-stake-shortfall:mechanism/pro-rata-fairness",
+      "scenario/id": "S104_resolver-stake-shortfall",
+      "mechanism/id": "mechanism/pro-rata-fairness",
+      "benchmark/id": "benchmark/prf-shortfall-allocation-v0",
+      "status": "passed",
+      "applicability": "required",
+      "episode/window": {
+        "from-step": 4,
+        "to-step": 7
+      },
+      "episode/path": [
+        "node-root",
+        "node-shortfall",
+        "node-allocation"
+      ],
+      "evidence": {
+        "node-hashes": [
+          "node-root",
+          "node-shortfall"
+        ],
+        "event-hashes": [
+          "event-shortfall-1"
+        ],
+        "claim-result-hashes": [
+          "claim-allocation-complete-1"
+        ],
+        "attestation-hashes": [
+          "attestation-allocation-1"
+        ],
+        "invariant-result-hashes": []
+      },
+      "derivation": [
+        {
+          "source": "execution/id",
+          "id": "execution/pro-rata-allocation",
+          "matched-by": "mechanism-map/shortfall-v1",
+          "matched-node": "node-allocation"
+        },
+        {
+          "source": "claim/id",
+          "id": "claim/allocation-complete",
+          "matched-by": "mechanism-map/shortfall-v1",
+          "matched-result": "claim-allocation-complete-1"
+        }
+      ],
+      "failure": null
+    },
+    {
+      "episode/id": "S103_negative-yield-shortfall-cascade:mechanism/shortfall-detection",
+      "scenario/id": "S103_negative-yield-shortfall-cascade",
+      "mechanism/id": "mechanism/shortfall-detection",
+      "benchmark/id": "benchmark/prf-shortfall-allocation-v0",
+      "status": "not-applicable",
+      "applicability": "not-applicable",
+      "episode/window": null,
+      "episode/path": [],
+      "evidence": {
+        "node-hashes": [],
+        "event-hashes": [],
+        "claim-result-hashes": [],
+        "attestation-hashes": [],
+        "invariant-result-hashes": []
+      },
+      "derivation": [],
+      "failure": null
+    }
+  ]
+}

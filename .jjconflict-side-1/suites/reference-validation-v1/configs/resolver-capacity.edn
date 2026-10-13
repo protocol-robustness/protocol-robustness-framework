@@ -1,0 +1,4 @@
+{:assumptions/id "resolver-capacity-v1"
+ :capacity {:max-open-disputes-per-epoch 1000
+            :overflow-routing true
+            :bounded-progress-guarantee true}}

@@ -1,0 +1,13 @@
+[package]
+name = "prf-pro-rata-allocation"
+version = "0.1.0"
+edition = "2021"
+description = "Pro-rata realized-allocation statement identities and projections"
+
+[dependencies]
+num-bigint = "0.4"
+num-integer = "0.1"
+num-traits = "0.2"
+sha2 = "0.10"
+hex = "0.4"
+prf-canonical-codec = { path = "../../canonical/rust" }

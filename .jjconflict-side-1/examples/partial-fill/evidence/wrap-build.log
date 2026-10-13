@@ -1,0 +1,20 @@
+   Compiling allocation-sp1-script v0.1.0 (/home/user/Code/.workspaces/agent-c-3/coprocessor/sp1-script)
+warning: allocation-sp1-script@0.1.0: rustc +succinct --version: "rustc 1.94.0-dev\n"
+warning: allocation-sp1-script@0.1.0: allocation-sp1-program built at 2026-10-12 15:06:20
+warning: allocation-sp1-script@0.1.0: rustc +succinct --version: "rustc 1.94.0-dev\n"
+warning: allocation-sp1-script@0.1.0: realized-statement-sp1-program built at 2026-10-12 15:06:21
+warning: allocation-sp1-script@0.1.0: rustc +succinct --version: "rustc 1.94.0-dev\n"
+warning: allocation-sp1-script@0.1.0: realized-execution-sp1-program built at 2026-10-12 15:06:22
+warning: allocation-sp1-script@0.1.0: rustc +succinct --version: "rustc 1.94.0-dev\n"
+warning: allocation-sp1-script@0.1.0: source-bound-sp1-program built at 2026-10-12 15:06:23
+warning: allocation-sp1-script@0.1.0: rustc +succinct --version: "rustc 1.94.0-dev\n"
+warning: allocation-sp1-script@0.1.0: source-bound-v2-sp1-program built at 2026-10-12 15:06:24
+warning: allocation-sp1-script@0.1.0: rustc +succinct --version: "rustc 1.94.0-dev\n"
+warning: allocation-sp1-script@0.1.0: source-bound-entitlement-sp1-program built at 2026-10-12 15:06:26
+warning: allocation-sp1-script@0.1.0: rustc +succinct --version: "rustc 1.94.0-dev\n"
+warning: allocation-sp1-script@0.1.0: controlled-entitlement-source-sp1-program built at 2026-10-12 15:06:27
+warning: allocation-sp1-script@0.1.0: rustc +succinct --version: "rustc 1.94.0-dev\n"
+warning: allocation-sp1-script@0.1.0: observed-run-sp1-program built at 2026-10-12 15:06:28
+    Finished `release` profile [optimized] target(s) in 1m 10s
+warning: the following packages contain code that will be rejected by a future version of Rust: proc-macro-error2 v2.0.1
+note: to see what the problems were, use the option `--future-incompat-report`, or run `cargo report future-incompatibilities --id 1`

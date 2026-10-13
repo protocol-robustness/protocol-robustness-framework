@@ -1,0 +1,43 @@
+{:scenario-id "dr-e-002-rotate-mid-chain-resolution"
+ :schema-version "1.0"
+ :allow-open-disputes? true
+ :purpose "adversarial-robustness"
+ :title "Governance rotation enables new resolver to execute resolution on a disputed escrow"
+ :description "A dispute is raised on an escrow without custom-resolver (default dispute-resolver from protocol-params is used). L0 resolves. Governance rotates to a new resolver. The new resolver executes a different resolution. Tests that rotate correctly changes the authorized resolver for pending dispute resolution."
+ :provenance {:author "@dispute-researcher" :created-at "2026-06-29" :license "CC-BY-4.0"}
+ :claim {:id "governance-rotation-enables-new-resolver"
+         :statement "Governance rotate-dispute-resolver updates the dispute-resolver on the escrow. Without a custom-resolver, the new resolver is authorized via Priority 3 (dispute-resolver match) and can execute resolution."
+         :falsifies-if ["Rotate fails when no pending settlement exists" "New resolver cannot execute resolution after rotation"]}
+ :expectations {:terminal-state "released"
+                :must-hold ["dispute_level_bounded" "resolver_decision_attributable"]
+                :metrics {:rotation_count {:gte 1}
+                          :final_resolver {:eq "0xnew"}}}
+ :threat {:family "governance-attack" :attack "resolver-rotation-timing" :severity "medium"
+          :actors ["governance"]
+          :assumptions ["Escrow has no custom-resolver (falls back to Priority 3 authorization)"
+                        "Default dispute-resolver set via protocol-params"]}
+ :accounting {:unit "USDC" :decimals 6 :tracked-balances ["buyer" "seller" "l0resolver" "newResolver" "protocol"]}
+ :initial-block-time 1000
+ :protocol-params {:governance-mode :legacy, :resolver-fee-bps 150 :appeal-window-duration 60 :max-dispute-duration 2592000
+                   :dispute-resolver "0xl0"}
+ :agents [{:id "buyer" :address "0xbuyer" :strategy "honest"}
+          {:id "seller" :address "0xseller" :strategy "honest"}
+          {:id "l0resolver" :address "0xl0" :role "resolver"}
+          {:id "newResolver" :address "0xnew" :role "resolver"}
+          {:id "governance" :address "0xgov" :role "governance"}
+          {:id "keeper" :address "0xkeeper" :role "keeper"}]
+ :events [{:seq 0 :time 1000 :agent "buyer" :action "create_escrow"
+           :params {:token "USDC" :to "0xseller" :amount 5000}}
+          {:seq 1 :time 1060 :agent "buyer" :action "raise_dispute" :params {:workflow-id 0}}
+          ;; L0 resolver resolves (authorized via Priority 3: dispute-resolver = 0xl0)
+          {:seq 2 :time 1100 :agent "l0resolver" :action "execute_resolution"
+           :params {:workflow-id 0 :is-release false :resolution-hash "0xl0hash"}}
+          ;; Governance rotates to new resolver
+          {:seq 3 :time 1120 :agent "governance" :action "rotate_dispute_resolver"
+           :params {:workflow-id 0 :new-resolver "0xnew"}}
+          ;; New resolver resolves differently (authorized via Priority 3: dispute-resolver = 0xnew after rotation)
+          {:seq 4 :time 1150 :agent "newResolver" :action "execute_resolution"
+           :params {:workflow-id 0 :is-release true :resolution-hash "0xnewhash"}}
+          ;; New resolution created new pending settlement; execute after appeal window
+          {:seq 5 :time 1300 :agent "keeper" :action "execute_pending_settlement"
+           :params {:workflow-id 0}}]}

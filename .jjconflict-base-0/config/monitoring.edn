@@ -1,0 +1,25 @@
+{:enabled true
+ :jmx-port 1099
+ :dashboard-port 8090
+ :metrics-enabled true
+ :thread-pool-monitoring true
+ :custom-mbeans [
+   "org.prf.monitoring:type=ScenarioRunner"
+   "org.prf.monitoring:type=InvariantChecker"
+   "org.prf.monitoring:type=ThreadPoolMonitor"
+   "org.prf.monitoring:type=Metrics"
+ ]
+ :sampling-interval-ms 1000
+ :retention-period-minutes 60
+ :max-histogram-samples 10000
+ :alert-thresholds {
+   :high-utilization 0.9
+   :high-queue-utilization 0.8
+   :high-error-rate 0.05
+   :low-processing-rate 0.1
+ }
+ :security {
+   :jmx-authentication false
+   :dashboard-authentication false
+   :allowed-origins ["localhost" "127.0.0.1"]
+ }}

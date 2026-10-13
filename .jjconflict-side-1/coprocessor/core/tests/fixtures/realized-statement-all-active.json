@@ -1,0 +1,30 @@
+{
+  "allocation-context": {
+    "allocation-id": "a-vs-b-plus-c",
+    "kernel-version": "allocation-kernel.v1",
+    "selection-algorithm": "domain-hash-rejection-v1",
+    "policy": {"policy-id": "p", "policy-hash": "0xabababababababababababababababababababababababababababababababab", "forbid-duplicate-owners": false},
+    "claimants": [
+      {"claim-id": "A", "economic-owner-id": "oA", "amount": "50", "weight": "50"},
+      {"claim-id": "B", "economic-owner-id": "oB", "amount": "30", "weight": "30"},
+      {"claim-id": "C", "economic-owner-id": "oC", "amount": "20", "weight": "20"}
+    ],
+    "outcomes": [
+      {"outcome-id": "O1", "allocations": [{"claim-id": "A", "allocated": "50"}, {"claim-id": "B", "allocated": "0"}, {"claim-id": "C", "allocated": "0"}]},
+      {"outcome-id": "O2", "allocations": [{"claim-id": "A", "allocated": "0"}, {"claim-id": "B", "allocated": "30"}, {"claim-id": "C", "allocated": "20"}]}
+    ],
+    "proposed-rates": [
+      {"outcome-id": "O1", "numerator": "1", "denominator": "2"},
+      {"outcome-id": "O2", "numerator": "1", "denominator": "2"}
+    ],
+    "capacity": "50",
+    "total-eligible-weight": "100",
+    "exact-pro-rata-denominator": "100",
+    "authoritative-randomness": "0x0102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20"
+  },
+  "available": "100",
+  "requested": {"A": "50", "B": "30", "C": "20"},
+  "policy": {"mode": "pro-rata", "rounding-policy": "largest-remainder"},
+  "fail-action-policy": {"mode": "pro-rata-treatment", "deferred-policy": "same-ratio", "haircut-policy": "same-ratio"},
+  "round-state": "result-accepted"
+}

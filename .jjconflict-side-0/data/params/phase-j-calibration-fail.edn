@@ -1,0 +1,45 @@
+{:scenario-id "phase-j-calibration-fail"
+ :description "Step 6a known-fail fixture: zero detection, no slashing. Malice earns as much as honest.
+               Audit must return :fail — dominance ratio ~1.0, malice profit positive.
+               This fixture proves the audit detects the failure mode, not just rubber-stamps any run."
+
+ :strategy-mix {:honest 0.50 :lazy 0.10 :malicious 0.30 :collusive 0.10}
+ :n-resolvers 20
+
+ :escrow-size 10000
+ :resolver-fee-bps 150
+ :appeal-bond-bps 700
+ :slash-multiplier 2.5
+
+ :appeal-probability-if-correct 0.05
+ :appeal-probability-if-wrong 0.40
+
+ ;; Zero detection — malice is never caught or penalised
+ :slashing-detection-probability 0.0
+ :fraud-detection-probability    0.0
+ :fraud-slash-bps                0
+ :reversal-detection-probability 0.0
+ :reversal-slash-bps             0
+ :timeout-slash-bps              0
+ :allow-slashing?                false
+;; Migrated oracle fixture: explicit no-detection mode for calibration fail.
+:oracle-fixture {:mode :static-no-slash}
+
+ :unstaking-delay-days 0
+ :freeze-on-detection? false
+ :freeze-duration-days 0
+ :appeal-window-days   0
+
+ :resolver-bond-bps 0
+
+ ;; Small run for calibration speed
+ :n-epochs           10
+ :n-trials-per-epoch 200
+ :rng-seed           42
+  ; Audit thresholds — override defaults in audit.clj
+  :audit-thresholds
+  {:dominance-threshold 1.2
+   :max-malice-equity-share 0.3
+   :tail-fraction 0.2
+   :malice-survival-threshold 0.5}
+}

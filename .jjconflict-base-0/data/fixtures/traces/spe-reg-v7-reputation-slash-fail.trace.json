@@ -1,0 +1,144 @@
+{
+  "protocol-params" : {
+    "appeal-window-duration" : 120,
+    "fee-bps" : 150
+  },
+  "schema-version" : "1.1",
+  "threat-tags" : [ "resolver-slash", "reputation-gap", "bounded-spe-insufficient" ],
+  "initial-block-time" : 1000,
+  "scenario-author" : "@grifma",
+  "expectations" : {
+    "terminal" : [ {
+      "path" : [ "live-states", 0 ],
+      "equals" : "released"
+    } ],
+    "metrics" : [ {
+      "name" : "total-escrows",
+      "op" : ":=",
+      "value" : 1
+    } ]
+  },
+  "id" : "scenarios/spe-reg-v7-reputation-slash-fail",
+  "agents" : [ {
+    "id" : "buyer",
+    "address" : "0xbuyer",
+    "role" : "buyer",
+    "strategy" : "honest"
+  }, {
+    "id" : "seller",
+    "address" : "0xseller",
+    "role" : "seller",
+    "strategy" : "honest"
+  }, {
+    "id" : "resolver",
+    "address" : "0xresolver",
+    "role" : "resolver",
+    "strategy" : "malicious"
+  }, {
+    "id" : "keeper",
+    "address" : "0xkeeper",
+    "role" : "keeper",
+    "strategy" : "honest"
+  }, {
+    "id" : "governance",
+    "address" : "0xgovernance",
+    "role" : "governance",
+    "strategy" : "honest"
+  } ],
+  "scenario-id" : "spe-reg-v7-reputation-slash-fail",
+  "events" : [ {
+    "seq" : 0,
+    "time" : 1000,
+    "agent" : "resolver",
+    "action" : "register_stake",
+    "params" : {
+      "amount" : 3000
+    }
+  }, {
+    "seq" : 1,
+    "time" : 1010,
+    "agent" : "buyer",
+    "action" : "create_escrow",
+    "params" : {
+      "token" : "USDC",
+      "to" : "0xseller",
+      "amount" : 2000,
+      "custom-resolver" : "0xresolver"
+    }
+  }, {
+    "seq" : 2,
+    "time" : 1060,
+    "agent" : "buyer",
+    "action" : "raise_dispute",
+    "params" : {
+      "workflow-id" : 0
+    }
+  }, {
+    "seq" : 3,
+    "time" : 1120,
+    "agent" : "resolver",
+    "action" : "execute_resolution",
+    "params" : {
+      "workflow-id" : 0,
+      "is-release" : true,
+      "resolution-hash" : "0xhash"
+    }
+  }, {
+    "seq" : 4,
+    "time" : 1125,
+    "agent" : "resolver",
+    "action" : "register_stake",
+    "params" : {
+      "amount" : 1000
+    }
+  }, {
+    "seq" : 5,
+    "time" : 1130,
+    "agent" : "governance",
+    "action" : "propose_fraud_slash",
+    "params" : {
+      "workflow-id" : 0,
+      "resolver-addr" : "0xresolver",
+      "amount" : 500
+    }
+  }, {
+    "seq" : 6,
+    "time" : 1241,
+    "agent" : "keeper",
+    "action" : "execute_pending_settlement",
+    "params" : {
+      "workflow-id" : 0
+    }
+  }, {
+    "seq" : 7,
+    "time" : 1260,
+    "agent" : "governance",
+    "action" : "execute_fraud_slash",
+    "params" : {
+      "workflow-id" : 0
+    }
+  } ],
+  "theory" : {
+    "claim-id" : "claims/spe-reg-reputation-fail",
+    "claim" : "A resolver who tops up stake after a malicious verdict (terminal-realized=3500 > pre=3000) satisfies bounded-public-state-epsilon-spe but fails resolver-reputation-spe: the reputation-slash-penalty=600 on the confirmed slash event reduces total-utility to 2900 < 3000, revealing a profitable deviation invisible to terminal-wealth-only checks.",
+    "equilibrium-concept" : [ "bounded-public-state-epsilon-spe", "resolver-reputation-spe" ],
+    "spe-config" : {
+      "regret-threshold" : 0,
+      "epsilon-abs" : 0.0,
+      "epsilon-rel" : 0.0,
+      "utility-spec" : {
+        "type" : "terminal-realized-v1",
+        "reputation-slash-penalty" : 600,
+        "reputation-discount-rate" : 1.0,
+        "slash-detection-mode" : "explicit-slash-total",
+        "slash-threshold" : 1
+      }
+    },
+    "falsifies-if" : [ ],
+    "mechanism-only-negative-test?" : true,
+    "assumptions" : [ "resolver-stake-topped-up-post-decision", "reputation-slash-penalty-600", "explicit-slash-detection-via-resolver-slash-total", "single-trace-proxy" ]
+  },
+  "title" : "SPE Regression — reputation-spe FAIL while bounded-spe PASS (resolver stake top-up masks slash; reputation penalty reveals violation)",
+  "description" : "Resolver registers stake (3000), creates escrow, buyer raises dispute, resolver gives a malicious verdict (execute_resolution — proper-subgame decision node; pre-wealth=3000). Resolver then tops up stake (+1000, resolver-stakes=4000). Governance proposes and executes a fraud slash (500), leaving terminal resolver-stakes=3500. bounded-public-state-epsilon-spe sees terminal-realized=3500 > pre=3000 and returns :pass (no ex-post regret on escrow wealth alone). resolver-reputation-spe applies reputation-slash-penalty=600 to the explicit slash event (resolver-slash-total confirms 500 slashed), yielding total-utility=2900 < pre-wealth=3000, regret=100 > threshold, and returns :fail. Demonstrates that reputation-aware utility detects violations invisible to terminal-wealth-only checks.",
+  "purpose" : "theory-falsification"
+}

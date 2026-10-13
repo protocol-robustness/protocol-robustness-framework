@@ -1,0 +1,11 @@
+[package]
+name = "observed-run-sp1-program"
+version = "0.1.0"
+edition = "2021"
+description = "SP1 guest for one canonical observed assured PRF execution."
+
+[dependencies]
+sp1-zkvm = "=6.3.1"
+serde_json = "1"
+hex = "0.4"
+allocation-kernel = { path = "../core" }

@@ -1,0 +1,27 @@
+{
+  "chain-id": "31337",
+  "reserve": "0x1111111111111111111111111111111111111111",
+  "token-address": "0x2222222222222222222222222222222222222222",
+  "snapshot-id": "7",
+  "operation-id": "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "allocator": "0x3333333333333333333333333333333333333333",
+  "created-at-block": "99",
+  "gross-amount": "100",
+  "reserved-amount-before": "20",
+  "protected-amount": "10",
+  "available-amount": "70",
+  "allocation-context-root": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+  "candidates": [
+    {"claim-id":"claim-a", "requested":"600", "eligibility":"eligible"},
+    {"claim-id":"claim-b", "requested":"400", "eligibility":"eligible"},
+    {"claim-id":"claim-c", "requested":"200", "eligibility":"ineligible", "ineligibility-reason":"claim/rejected"}
+  ],
+  "expected": {
+    "snapshot-hash": "0x362753dbd77d930b7569e98415e048259d37e303aa4ca950d1e38df98a4e8680",
+    "asset-root": "sha256:57eb04b505cd2bcedc577ee72a65bfc7ce94f259a4d239bd0b9a8f2c2e57e108",
+    "observation-root": "sha256:09da71997779da0d72cd9d32af2d784e3304dde625e2208aaade5ac78af26281",
+    "context-root": "sha256:112d5a10a2d385e149b230ca0b7409e8441007e8018f015f681224c86c92e610",
+    "binding-root": "sha256:6af32e35814d69ce68ce264b9e136ff7e947565f6472e7a9f18c4d5054ce7004",
+    "available-amount": "70"
+  }
+}

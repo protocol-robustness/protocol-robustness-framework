@@ -1,0 +1,82 @@
+{
+  "schema": "eae.partial-fill-v3-source-conformance.v1",
+  "status": "guest-and-sp1-proof-conformance-only",
+  "scope": "The retained controlled-shortfall source witness was replayed with the V3 reserve commitment branch. The reserve policy root is a test vector value and is not derived from or matched to a deployed V3 reserve.",
+  "scenario": {
+    "requests": {
+      "Alice": 50,
+      "Bob": 30,
+      "Carol": 20
+    },
+    "available": 70,
+    "allocations": {
+      "Alice": 35,
+      "Bob": 21,
+      "Carol": 14
+    },
+    "unfilled": 30
+  },
+  "reserve_state": {
+    "commitment_version": "v3",
+    "gross_balance": 80,
+    "reserved_before": 0,
+    "protected_capital": 10,
+    "available_amount": 70,
+    "availability_revision": 0,
+    "policy_root": "1212121212121212121212121212121212121212121212121212121212121212",
+    "policy_root_status": "test vector only; not a deployed reserve policy root"
+  },
+  "identity": {
+    "schema": "eae.sp1-program-identity.v1",
+    "program_id": "source-bound-entitlement-controlled-sp1-program.v1",
+    "vkey": "0x00691e1cff8e4252731c8fe2bc326e8725ed5f9b92a298cc30a2c5fc40962dd1",
+    "elf_sha256": "0x705efd1c5b997ae1f2c19eddcf6bb66a147e94b6b3b036393d6dab041c00542d",
+    "public_values_schema": "prf/source-bound-entitlement-public-values.v1",
+    "public_values_length": 288,
+    "provenance": "Candidate identity from local offline SP1 release build; not admitted to a verifier registry."
+  },
+  "evidence": {
+    "witness": "witness.json",
+    "witness_sha256": "0xc2bcc657d845c91dd7951fc22fa312e352a31bce7689c876481e3b4d3b614cfc",
+    "proof": "proof.json",
+    "proof_artifact_sha256": "0x3fdb833276486ac87b33697c72a007a9585d9aa35e5e71194063b81aa9542efc",
+    "proof_sha256": "0x780bffeb843b060d9b5ef87ea5a2135d8978b37b1059ad1d2879e8ec6612b7f2",
+    "public_values": "0x876f2aea9124d79f41dbdd389d498430987fa33bbb34408989849c478a7c2bde431deda4d66b9d78ba095a3c32e99e142673d7ee25c05b1a962adbeae0a18ba5e6a339659e08a341ad146196116014908de8f93ec14869cfd21e40bcc5ed3aa4d62f9246f6972715a16a8c6842f8b1a24c0c4776d3e04ab4026a38f947ed2f740e8b6d0eb8a46279fee6697366b2bdfa0b4aa514dacf17e9e264744d90d91c1f49c2b4a633ee450705e1970271a257063b98e38cf014231dec8cdf2eb37e210800000000000000000000000000000000000000000000000000000000000000030000000000000000000000000000000000000000000000000000000000000046fdea15127abffafd9c1a367305bc0669887249403c831114b910f5932784a830",
+    "public_values_match_rust_core": true,
+    "sp1_sdk_groth16_verification": "passed locally during proof generation",
+    "evm_verifier_test": {
+      "repository_test": "prf-evm/test/PartialFillV3Groth16Conformance.t.sol",
+      "result": "passed",
+      "scope": "SP1 Groth16 proof verifies with the EVM SP1Verifier contract; proof material mutation with the verifier prefix preserved is rejected.",
+      "admission": "not performed; no registry or chain configuration was used."
+    }
+  },
+  "not_established": [
+    "Proof verification by the EVM SP1 verifier contract",
+    "Admission under a verifier registry or chain configuration",
+    "A source-bound proof for the actual V3 contract policy root and prepared operation",
+    "V3 production ratification, protected funding, withdrawal lifecycle, or terminal release qualification",
+    "Public-chain deployment or execution"
+  ],
+  "reproduction": {
+    "guest_execution": "controlled-entitlement-source-prove --execute --input witness.json",
+    "proof_generation": "controlled-entitlement-source-prove --prove --input witness.json --fixture proof.json",
+    "toolchain": "SP1 SDK 6.3.1; local CPU Groth16; release build compiled offline; Go toolchain 1.27.1",
+    "evm_verifier": "cd prf-evm && forge test --match-path test/PartialFillV3Groth16Conformance.t.sol --offline"
+  },
+  "build_provenance": {
+    "command": "CARGO_TARGET_DIR=/tmp/prf-v3-cargo-target cargo build --offline --release --manifest-path coprocessor/sp1-script/Cargo.toml --bin controlled-entitlement-source-prove",
+    "rust_toolchain": "rustc +succinct 1.94.0-dev (logged by SP1 build script)",
+    "sp1_sdk": "6.3.1",
+    "cargo_lock_sha256": "0xd3b2e8707cd8682c8c8e12f8762ae003314ac17229de31e097c60214a9e9571c",
+    "source_sha256": {
+      "coprocessor/core/src/source_bound_entitlement.rs": "0xad6768b72b84ccf6bd292a1fd24a08cf235fa2eaee4d1140e78258c49d9c0e36",
+      "coprocessor/core/src/controlled_entitlement_source.rs": "0x32b45f04228dffbd71228df48c29e1f9ec3a5b008715962b4950cd94c6107339",
+      "coprocessor/source-bound-entitlement-sp1-program/src/main.rs": "0x8ebc30001748f9a71082ed7392b1f84d2934da258df421e53b5c23d6c2212649",
+      "coprocessor/sp1-script/src/bin/controlled_entitlement_source_prove.rs": "0x88bb99f2cfb8682f621ea043f1184bc36802d0716fdb1e99a48fc5209da87613",
+      "coprocessor/sp1-script/build.rs": "0x55cd1bd99e8b7f7fbc9c8999902e68a6e1803cfd323d6486394528255c69dec8",
+      "coprocessor/Cargo.lock": "0xd3b2e8707cd8682c8c8e12f8762ae003314ac17229de31e097c60214a9e9571c"
+    },
+    "build_output": "temporary /tmp target; not part of retained evidence"
+  }
+}

@@ -1,0 +1,42 @@
+{:description "Phase H: Realistic bond mechanics (immediate freeze, unstaking delays, appeal windows)"
+ :scenario-id "phase-h-realistic-mechanics"
+ :rng-seed 50
+
+ :escrow-distribution
+ {:type :lognormal
+  :mean 10000
+  :stddev 5000}
+
+ :force-strategy :malicious
+ :strategy-mix
+ {:honest 0.0
+  :lazy 0.0
+  :malicious 1.0
+  :collusive 0.0}
+
+ :allow-slashing? true
+
+ :resolver-fee-bps 150
+ :appeal-bond-bps 700
+
+ ;; Slashing parameters
+ :slash-multiplier 2.5
+ :slashing-detection-probability 0.10
+
+ ;; Phase H: Realistic timing (matches DR3 contracts)
+ :unstaking-delay-days 14            ; RESOLVER_UNBOND_DELAY
+ :freeze-on-detection? true          ; Account frozen immediately at detection
+ :freeze-duration-days 3             ; 72 hours
+ :appeal-window-days 7               ; Days before slash executes
+ :detection-type :fraud              ; Fraud detection (requires governance)
+
+ ;; Baseline appeal dynamics
+ :appeal-probability-if-correct 0.05
+ :appeal-probability-if-wrong 0.40
+
+ ;; Simulation config
+ :n-trials 500
+ :n-seeds 1
+ :parallelism :auto
+ :save-samples? false
+ :save-sweep? true}

@@ -1,0 +1,371 @@
+{:paths ["." "src" "pro_rata_contract_src" "resources"]
+
+ :mvn/repos {"central" {:url "https://repo1.maven.org/maven2/"}
+             "clojars" {:url "https://repo.clojars.org/"}
+             "clojars-https" {:url "https://clojars.org/repo/"}}
+
+ :deps {org.clojure/clojure              {:mvn/version "1.12.0"}
+        prf/pro-rata-allocation          {:local/root "packages/pro-rata-allocation/clj"}
+        prf/accounting-reductions        {:local/root "packages/accounting-reductions/clj"}
+        org.clojure/tools.logging         {:mvn/version "1.2.4"}
+        org.slf4j/slf4j-api               {:mvn/version "1.7.36"}
+        org.slf4j/slf4j-simple            {:mvn/version "1.7.36"}
+        io.github.nextjournal/clerk       {:mvn/version "0.18.1158"}
+        org.clojure/tools.cli             {:mvn/version "1.0.219"}
+        org.clojure/data.json             {:mvn/version "2.4.0"}
+        buddy/buddy-core                  {:mvn/version "1.12.0-430"}
+        org.clojure/core.async            {:mvn/version "1.9.865"}
+        ;; gRPC transport + stub helpers (no protoc — JSON Marshaller only)
+        io.grpc/grpc-netty-shaded         {:mvn/version "1.64.0"}
+        io.grpc/grpc-stub                 {:mvn/version "1.64.0"}
+        com.github.seancorfield/next.jdbc {:mvn/version "1.3.939"}
+        org.postgresql/postgresql         {:mvn/version "42.7.2"}
+        com.zaxxer/HikariCP                {:mvn/version "5.1.0"}
+
+        ;; data tooling (recommended)
+        scicloj/tablecloth                {:mvn/version "7.029.2"}
+
+        ;; schema validation
+        metosin/malli                     {:mvn/version "0.17.0"}}
+
+ :aliases
+   {;; ── Path data ──────────────────────────────────────────────
+    ;; Data aliases referenced by name from :extra-paths.
+    ;; They are not intended to be selected directly with -M.
+    ;; tools.deps resolves keyword entries recursively, preserving order.
+
+    :paths/test          ["test"]
+    :paths/scripts       ["scripts"]
+    :paths/protocols-src ["protocols_src"]
+    :paths/protocols     ["protocols_src" "protocols_src/test"]
+    :paths/dev           ["dev" "test"]              ;; = dev + test
+    :paths/notebooks     ["notebooks"]
+     :paths/src           ["src"]
+     :paths/pro-rata-contract ["pro_rata_contract_src"]
+:paths/held-custody          ["extensions/held-custody/src" "extensions/held-custody/test"]
+    :paths/held-custody-rt       ["extensions/held-custody/src"]
+    :paths/force-authorisation   ["extensions/force-authorisation/src" "extensions/force-authorisation/test"]
+    :paths/force-authorisation-rt ["extensions/force-authorisation/src"]
+    :paths/all           ["src" "test" "protocols_src" "protocols_src/test" "notebooks" "dev" "scripts"
+                          :paths/held-custody :paths/force-authorisation]
+    ;; Researchers: opt-in local paths (defined in ~/.clojure/deps.edn as
+    ;; :researcher/paths, e.g. {:aliases {:researcher/paths [".researcher/src"]}}).
+    ;; Compose with: clojure -M:test:researcher/env  (see .researcher/ note)
+    ;; Canonical tasks and CI never select :researcher/env, so user config
+    ;; cannot leak into them; CI additionally runs with -Srepro for reproducibility.
+
+    ;; Researcher-local paths intentionally participate in normal local deps
+    ;; resolution. Use -Srepro when a user-independent classpath is required.
+    ;; Canonical CI tasks do not compose :researcher/env and GitHub Actions has
+    ;; no user deps.edn, so -Srepro is not currently required for CI isolation.
+    :researcher/env      {:extra-paths [:researcher/paths]}
+
+    ;; ── Execution aliases ─────────────────────────────────────
+
+    :test
+    {:extra-paths [:paths/test :paths/scripts :paths/protocols]
+     :extra-deps {org.clojure/test.check {:mvn/version "1.1.1"}}}
+
+    :pro-rata-contract/test
+    {:replace-paths ["pro_rata_contract_src" "pro_rata_contract_test"
+                     "portable-pro-rata-contract"]
+     :replace-deps {org.clojure/clojure {:mvn/version "1.12.0"}}
+     :main-opts ["-m" "resolver-sim.pro-rata-contract.test-runner"]}
+
+   :with-sew
+   {:extra-paths [:paths/protocols]}
+
+   ;; Corruption guard: load-all / def-inventory integrity checks.
+   :check
+   {:extra-paths [:paths/scripts]
+    :extra-deps {org.clojure/tools.namespace {:mvn/version "1.5.0"}}}
+
+
+   ;; ── Optional evidence extension: held-custody mutation ─────────────────
+   ;; Package-shaped extension under extensions/held-custody/. The default
+   ;; classpath excludes both extension source and test roots; enable
+   ;; explicitly with these aliases. The production/runtime alias omits the
+   ;; test path.
+   :extension/held-custody
+   {:extra-paths [:paths/held-custody]}
+
+   :extension/held-custody-rt
+   {:extra-paths [:paths/held-custody-rt]}
+
+   ;; Optional force-authorisation capability package. This package is opt-in:
+   ;; its pure scope verifier can satisfy held-custody's declared dependency,
+   ;; while Sew keeps the transactional adapter during the staged extraction.
+   :extension/force-authorisation
+   {:extra-paths [:paths/force-authorisation]}
+
+   :extension/force-authorisation-rt
+   {:extra-paths [:paths/force-authorisation-rt]}
+
+   ;; flow-storm
+;;   {:1.12-storm {:classpath-overrides {org.clojure/clojure nil}
+;;                :extra-deps {com.github.flow-storm/clojure {:mvn/version "1.13.0-alpha6"}
+;;                             com.github.flow-storm/flow-storm-dbg {:mvn/version "4.7.0"}}}
+
+   ;; Optional plugins for flow-storm
+;;   :fs-web-plugin {:extra-deps {com.github.flow-storm/flow-storm-web-plugin {:mvn/version "1.0.0-beta"}}
+;;                   :jvm-opts ["-Dclojure.storm.instrumentOnlyPrefixes.webPlugin=org.httpkit.server,ring.adapter.jetty,next.jdbc.result-set"
+;;                              "-Dflowstorm.plugins.namespaces.webPlugin=flow-storm.plugins.web.all"]}
+
+
+   ;; Terminal-first REPL.
+   ;; Best for up-arrow history, ctrl-r, multiline input, colours, completion.
+   :dev/rebel
+   {:extra-deps
+    {com.bhauman/rebel-readline {:mvn/version "0.1.4"}}
+    :main-opts
+    ["-m" "rebel-readline.main"]}
+
+   :dev/full
+   {:extra-paths [:paths/dev :paths/notebooks]
+    :extra-deps {nrepl/nrepl             {:mvn/version "1.3.1"}
+                 cider/cider-nrepl       {:mvn/version "0.57.0"}
+                 djblue/portal            {:mvn/version "0.59.1"}
+                 clj-kondo/clj-kondo      {:mvn/version "2026.04.15"}
+                 org.clojure/tools.namespace {:mvn/version "1.5.0"}
+                 mvxcvi/puget                {:mvn/version "1.3.4"}
+                 fipp/fipp                   {:mvn/version "0.6.27"}
+                 org.clojure/tools.trace     {:mvn/version "0.7.11"}
+                 org.clojure/data.json       {:mvn/version "2.4.0"}}
+    :main-opts ["-m" "nrepl.cmdline" "--bind" "localhost" "--port" "7888" "--middleware" "[cider.nrepl/cider-middleware]"]}
+
+   ;; Classpath-only dev environment for smoke checks and one-off evals.
+   ;; Usage: clojure -M:dev/env -e "(require 'user)"
+   :dev/env
+   {:extra-paths [:paths/dev]
+    :extra-deps {nrepl/nrepl                 {:mvn/version "1.3.1"}
+                 cider/cider-nrepl           {:mvn/version "0.57.0"}
+                 djblue/portal               {:mvn/version "0.59.1"}
+                 org.clojure/tools.namespace {:mvn/version "1.5.0"}
+                 mvxcvi/puget                {:mvn/version "1.3.4"}
+                 fipp/fipp                   {:mvn/version "0.6.27"}
+                 org.clojure/data.json       {:mvn/version "2.4.0"}}}
+
+   ;; Project nREPL starting point for editor/agent use.
+   ;; Uses port 0 to avoid stale-port collisions; inspect .nrepl-port or use
+   ;; clj-nrepl-eval --discover-ports after startup.
+   ;; Usage: clojure -M:repl/nrepl
+   :repl/nrepl
+   {:extra-paths [:paths/dev]
+    :extra-deps {nrepl/nrepl                 {:mvn/version "1.3.1"}
+                 cider/cider-nrepl           {:mvn/version "0.57.0"}
+                 djblue/portal               {:mvn/version "0.59.1"}
+                 org.clojure/tools.namespace {:mvn/version "1.5.0"}
+                 mvxcvi/puget                {:mvn/version "1.3.4"}
+                 fipp/fipp                   {:mvn/version "0.6.27"}
+                 org.clojure/data.json       {:mvn/version "2.4.0"}}
+    :main-opts ["-m" "nrepl.cmdline"
+                "--bind" "localhost"
+                "--port" "0"
+                "--middleware" "[cider.nrepl/cider-middleware]"]}
+
+   ;; Fully loaded terminal REPL.
+   :repl/terminal
+   {:extra-paths [:paths/dev :paths/notebooks]
+    :extra-deps
+    {org.clojure/tools.namespace {:mvn/version "1.5.0"}
+     djblue/portal               {:mvn/version "0.59.1"}
+     mvxcvi/puget                {:mvn/version "1.3.4"}
+     fipp/fipp                   {:mvn/version "0.6.27"}
+     org.clojure/tools.trace     {:mvn/version "0.7.11"}
+     org.clojure/data.json       {:mvn/version "2.4.0"}
+     com.bhauman/rebel-readline  {:mvn/version "0.1.4"}}
+    :main-opts
+    ["-m" "rebel-readline.main"]}
+
+   :monitoring
+   {:extra-deps {ring/ring-core {:mvn/version "1.12.2"}}}
+
+   :build
+   {:extra-paths [:paths/scripts]
+    :extra-deps {io.github.clojure/tools.build {:git/tag "v0.10.7"
+                                                  :git/sha "573711e"}}
+    :ns-default build}
+
+   :lint
+   {:extra-deps {clj-kondo/clj-kondo {:mvn/version "2026.04.15"}
+                 org.clojure/test.check {:mvn/version "1.1.1"}}
+    :main-opts ["-m" "clj-kondo.main"
+                "--lint" "src:notebooks:test:dev"
+                "--fail-level" "error"]}
+
+   :lint/core
+   {:extra-deps {clj-kondo/clj-kondo {:mvn/version "2026.04.15"}
+                 org.clojure/test.check {:mvn/version "1.1.1"}}
+    :main-opts ["-m" "clj-kondo.main"
+                "--lint" "src:test"
+                "--fail-level" "error"]}
+
+   :regenerate-goldens
+   {:extra-paths [:paths/scripts]
+    :main-opts ["-m" "scripts.scenarios.regenerate-goldens"]}
+
+   :sync-trace-fixtures
+   {:extra-paths [:paths/scripts]
+    :main-opts ["-m" "scripts.scenarios.sync-invariant-trace-fixtures"]}
+
+   :generate-missing-traces
+   {:extra-paths [:paths/scripts]
+    :main-opts ["-m" "scripts.scenarios.generate-missing-traces"]}
+
+   :generate-scenario-docs
+   {:extra-paths [:paths/scripts]
+    :main-opts ["-m" "scripts.generate-scenario-index-docs"]}
+
+   :export-s62-traces
+   {:extra-paths [:paths/scripts]
+    :main-opts ["-m" "scripts.export-s62-traces"]}
+
+   :eastwood
+   {:extra-deps {jonase/eastwood {:mvn/version "1.4.3"}}
+    :main-opts ["-m" "eastwood.lint"
+                "{:source-paths [\"src\" \"notebooks\" \"test\"]}"]}
+
+   :ci
+   {:extra-paths [:paths/test]
+    :extra-deps {lambdaisland/kaocha {:mvn/version "1.91.1392"}}}
+   ;; NOTE — kaocha's native `--parallel` (process-per-worker) is deliberately
+   ;; NOT used for the framework/unit gates. The project uses a custom parallel
+   ;; runner (scripts/parallel-test-runner.clj) that runs namespaces in-process
+   ;; and isolates per-namespace evidence/attestation registries and artifact
+   ;; dirs (see scripts/parallel-test-runner.clj and parallel-suite-runner.clj).
+   ;; Tradeoff: kaocha gives true subprocess isolation, retry, sharding and
+   ;; richer failure reports, but would lose the in-JVM evidence isolation and
+   ;; shared-classpath speed the custom runner relies on. Revisit only if
+   ;; subprocess-level fault isolation becomes a hard requirement.
+
+   :fmt
+   {:mvn/repos {"clojars" {:url "https://repo.clojars.org/"}}
+    :extra-deps {dev.weavejester/cljfmt {:mvn/version "0.16.4"}}
+    :main-opts ["-m" "cljfmt.main" "fix" "src" "test"]}
+
+   :fmt/check
+   {:mvn/repos {"clojars" {:url "https://repo.clojars.org/"}}
+    :extra-deps {dev.weavejester/cljfmt {:mvn/version "0.16.4"}}
+    :main-opts ["-m" "cljfmt.main" "check" "src" "test"]}
+
+   :run
+   {:main-opts ["-m" "resolver-sim.core"]}
+
+   :cli
+   {:main-opts ["-m" "resolver-sim.cli.main"]}
+
+   :cli/sew
+   {:main-opts ["-m" "resolver-sim.cli.main"]
+    :extra-paths [:paths/protocols]}
+
+   :diff-traces
+   {:main-opts ["-m" "resolver-sim.io.diff-runner"]}
+
+   :trace-export
+   {:extra-paths [:paths/protocols-src]
+    :main-opts ["-m" "resolver-sim.protocols.sew.io.trace-export"]}
+
+   :conformance-validate
+   {:main-opts ["-m" "resolver-sim.trace.conformance.runner"]}
+
+   :conformance-reconcile
+   {:main-opts ["-m" "resolver-sim.trace.conformance.reconcile-runner"]}
+
+   :conformance-cli
+   {:main-opts ["-m" "resolver-sim.conformance.cli"]}
+
+   :reference-validation
+   {:extra-paths [:paths/protocols]
+    :main-opts ["-m" "resolver-sim.sim.reference-validation"]}
+
+   :sign-manifest
+   {:main-opts ["-m" "resolver-sim.scripts.sign-manifest"]}
+
+   ;; Promote all stored adversarial traces into Forge regression suite:
+   ;;   clojure -M:trace-regress [store-dir] [regression-dir]
+   :trace-regress
+   {:extra-paths [:paths/protocols-src]
+    :main-opts ["-m" "resolver-sim.io.trace-store"]}
+
+   ;; Run Phase Z adversarial scenarios, score them, persist top 1%:
+   ;;   clojure -M:phase-z-persist [store-dir]
+   :phase-z-persist
+   {:extra-paths [:paths/protocols-src]
+    :main-opts ["-m" "resolver-sim.io.phase-z-persist"]}
+
+   :clerk
+   {:exec-fn nextjournal.clerk/serve!
+    :exec-args {:browse true
+                :watch-paths ["src" "notebooks"]}}
+
+   :build-clerk
+   {:exec-fn nextjournal.clerk/build!
+    :exec-args {:paths ["notebooks/report.clj"]}}
+
+   :observability
+   {:override-deps
+    {io.github.nextjournal/clerk
+     {:git/url "https://github.com/nextjournal/clerk"
+      :git/sha "8772a0889218274384a30e79165b4c194b59560f"}}
+    :main-opts ["-m" "notebooks.serve"]}
+
+   :telemetry-seed
+   {:main-opts ["-m" "resolver-sim.db.telemetry-seed"]}
+
+   :explorer-seed
+   {:extra-paths [:paths/dev :paths/protocols]
+    :extra-deps {nrepl/nrepl                 {:mvn/version "1.3.1"}
+                 cider/cider-nrepl           {:mvn/version "0.57.0"}
+                 djblue/portal               {:mvn/version "0.59.1"}
+                 org.clojure/tools.namespace {:mvn/version "1.5.0"}
+                 mvxcvi/puget                {:mvn/version "1.3.4"}
+                 fipp/fipp                   {:mvn/version "0.6.27"}
+                 org.clojure/data.json       {:mvn/version "2.4.0"}}
+    :main-opts ["-m" "resolver-sim.db.explorer-seed"]}
+
+   :explorer-metabase
+   {:extra-paths [:paths/dev :paths/protocols]
+    :extra-deps {nrepl/nrepl                 {:mvn/version "1.3.1"}
+                 cider/cider-nrepl           {:mvn/version "0.57.0"}
+                 djblue/portal               {:mvn/version "0.59.1"}
+                 org.clojure/tools.namespace {:mvn/version "1.5.0"}
+                 mvxcvi/puget                {:mvn/version "1.3.4"}
+                 fipp/fipp                   {:mvn/version "0.6.27"}
+                 org.clojure/data.json       {:mvn/version "2.4.0"}}
+    :main-opts ["-m" "resolver-sim.db.metabase-provision"]}
+
+   ;; Intentionally not path-grouped: base-replacing runner classpath.
+   ;; See #NNN for normalization constraints.
+   :runner/replay-core
+   {:deps {org.clojure/clojure              {:mvn/version "1.12.0"}
+           org.clojure/tools.logging         {:mvn/version "1.2.4"}
+           org.slf4j/slf4j-api               {:mvn/version "1.7.36"}
+           org.slf4j/slf4j-simple            {:mvn/version "1.7.36"}
+           org.clojure/tools.cli             {:mvn/version "1.0.219"}
+           org.clojure/data.json             {:mvn/version "2.4.0"}}
+    :paths ["src" "resources" "scenarios"]}
+
+   ;; Intentionally not path-grouped: base-replacing runner classpath.
+   ;; See #NNN for normalization constraints.
+   :runner/sew
+   {:deps {org.clojure/clojure              {:mvn/version "1.12.0"}
+           org.clojure/tools.logging         {:mvn/version "1.2.4"}
+           org.slf4j/slf4j-api               {:mvn/version "1.7.36"}
+           org.slf4j/slf4j-simple            {:mvn/version "1.7.36"}
+           org.clojure/tools.cli             {:mvn/version "1.0.219"}
+           org.clojure/data.json             {:mvn/version "2.4.0"}
+           buddy/buddy-core                  {:mvn/version "1.12.0-430"}
+           com.github.seancorfield/next.jdbc {:mvn/version "1.3.939"}
+           org.postgresql/postgresql         {:mvn/version "42.7.2"}
+           metosin/malli                     {:mvn/version "0.17.0"}}
+    :paths ["src" "protocols_src" "resources" "scenarios"]}
+
+   :speds-comparator-shadow
+   {:extra-paths [:paths/scripts]
+    :main-opts ["-m" "scripts.scenarios.speds-generate-comparator-shadow"]}
+
+   :search-docs
+   {:extra-paths [:paths/scripts]
+    :main-opts ["-m" "scripts.search_docs_sentinel.run"]}
+
+}}

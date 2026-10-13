@@ -1,0 +1,21 @@
+Setting environment variables took 726.127µs
+Reading R1CS took 1m0.627081153s
+Reading proving key took 38.861942477s
+Reading witness file took 7.790259ms
+Deserializing JSON data took 47.0732ms
+Generating witness took 1.469330013s
+17:44:32 DBG constraint system solver done nbConstraints=15972262 took=10862.482738
+17:47:19 DBG prover done acceleration=none backend=groth16 curve=bn254 nbConstraints=15972262 took=166456.977456
+Generating proof took 2m57.472898774s
+17:47:21 WRN ignoring uninitialized slice slice name=Vars slice type=[]frontend.Variable
+17:47:21 WRN ignoring uninitialized slice slice name=Vars slice type=[]frontend.Variable
+17:47:21 WRN ignoring uninitialized slice slice name=Vars slice type=[]frontend.Variable
+17:47:21 DBG verifier done backend=groth16 curve=bn254 took=13.943279
+proof system: groth16
+public values: 288 bytes; match controlled Rust derivation
+program_id: source-bound-entitlement-controlled-sp1-program.v1
+vkey: 0x00691e1cff8e4252731c8fe2bc326e8725ed5f9b92a298cc30a2c5fc40962dd1
+elf_sha256: 0x705efd1c5b997ae1f2c19eddcf6bb66a147e94b6b3b036393d6dab041c00542d
+proof_bytes: 356
+proof_sha256: 0xfdf767339510f7f6ee8cac4c80b19dea7a3bf553beb4f7c6edb1cfad72e1272f
+fixture: /tmp/prf-v3-test/output/v3-proof.json

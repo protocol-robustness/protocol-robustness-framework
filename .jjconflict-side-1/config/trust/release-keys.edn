@@ -1,0 +1,20 @@
+{:schema-version "prf-release-trust-policy.v1"
+ :policy-id :prf/public-release-policy
+ :policy-version 1
+
+ ;; Production trust is intentionally empty until externally managed release
+ ;; fingerprints are approved. Verifiers must fail closed; they must never use
+ ;; a caller's local GPG keyring as an implicit trust authority.
+ :trusted-keys []
+ :revocations []
+
+ :requirements
+ {:distribution/prf
+  {:minimum-valid-signatures 1
+   :allowed-algorithms #{:openpgp}
+   :required-scopes #{:distribution/prf :channel/stable}
+   :require-signature-time-within-key-validity true
+   :require-unrevoked-at-signing-time true}}
+
+ :canonicalization
+ {:payload-profile "prf-release-attestation-payload.v1"}}

@@ -1,0 +1,49 @@
+{
+  "description": "Resolver stake accrues fixed-rate yield over one year and settles on full withdraw.",
+  "protocol-params": {
+    "yield-generation-module": "fixed-rate",
+    "resolver-fee-bps": 150
+  },
+  "threat-tags": [],
+  "purpose": "regression",
+  "events": [
+    {
+      "seq": 0,
+      "time": 1000,
+      "agent": "resolver",
+      "action": "register-stake",
+      "params": {
+        "token": "USDC",
+        "amount": 10000,
+        "yield-profile-id": "fixed-rate"
+      }
+    },
+    {
+      "seq": 1,
+      "time": 31537000,
+      "agent": "resolver",
+      "action": "withdraw-stake",
+      "params": {
+        "token": "USDC",
+        "amount": 10000
+      }
+    }
+  ],
+  "schema-version": "1.1",
+  "scenario-author": "@grifma",
+  "scenario-id": "s110-resolver-yield-accrual",
+  "title": "s110-resolver-yield-accrual",
+  "id": "scenarios\/s110-resolver-yield-accrual",
+  "provenance": {
+    "author-id": "@grifma",
+    "author": "Marc Griffiths"
+  },
+  "agents": [
+    {
+      "id": "resolver",
+      "address": "0xresolver",
+      "type": "resolver"
+    }
+  ],
+  "initial-block-time": 1000
+}

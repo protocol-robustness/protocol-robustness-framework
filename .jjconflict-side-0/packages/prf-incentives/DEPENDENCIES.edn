@@ -1,0 +1,122 @@
+{:manifest/schema "prf-package-dependency-manifest.v1"
+ :package/id :prf-incentives
+ :package/status :in-tree-source-candidate
+ :package/owner :prf-incentives
+ :public-api
+ {:namespace resolver-sim.incentives.api
+  :source "src/resolver_sim/incentives/api.clj"
+  :authority :delegating-facade-no-owned-research-validity-semantics
+  :entrypoints
+  {:policy [build-reward-policy]
+   :eligibility [evaluate-reward-eligibility valid-reward-eligibility?]
+   :proposal [build-reward-proposal valid-reward-proposal?]
+   :obligation [build-reward-obligation valid-reward-obligation?]
+   :lineage [verify-adversarial-finding-lineage]}}
+ :contracts ["researcher-reward-policy.v1"
+             "researcher-reward-eligibility.v1"
+             "researcher-reward-proposal.v1"
+             "researcher-reward-obligation.v1"]
+ :authority-order [:policy :eligibility :proposal :obligation]
+ :runtime-dependencies
+ {:clojure {:lib org.clojure/clojure :version "1.12.0"}
+  :packages [{:id :prf-canonical
+              :required-api [:domain-hash-v1 :sha256-root-reference-v1
+                             :valid-sha256-root-reference?]
+              :immutable-coordinate nil
+              :availability :qualified-unpublished-candidate
+              :qualified-source-revision "92b2198442d2840c85be9074582cabbedde5cba1"
+              :qualified-bundle-sha256 "692d68d5e0f99450ae8da1bc857eb477f0d64e25550eeadff9646bf988d92aa6"
+              :resolution :in-tree-package-source-content-verified}
+             {:id :prf-research-contracts
+              :required-api [:accepted-research-identity
+                             :analysis-verification-reference]
+              :immutable-coordinate nil
+              :availability :in-tree-source-candidate}]}
+ :canonical-api-contract
+ {:request-owner :c2
+  :request-path "packages/module-boundaries.edn#:canonical-api-requests"
+  :required-functions #{:domain-hash :sha256-ref :valid-sha256-ref?
+                        :project-committable-content :sequence-hash}
+  :compatibility "Reward, research and V1 evidence roots depend on legacy domain-tag compatibility."}
+ :direct-authoritative-source-namespaces
+ [resolver-sim.benchmark.researcher-reward
+  resolver-sim.research.api
+  resolver-sim.benchmark.research-assignment
+  resolver-sim.benchmark.research-assignment-target-binding
+  resolver-sim.hash.canonical
+  resolver-sim.hash.reference]
+ :current-transitive-source-closure
+ [prf.canonical.codec prf.canonical.decode prf.canonical.hash
+  prf.canonical.reference prf.canonical.sequence
+  resolver-sim.benchmark.incentive-deviation-domain
+  resolver-sim.benchmark.incentive-model
+  resolver-sim.benchmark.outcome-manifest
+  resolver-sim.benchmark.research-analysis
+  resolver-sim.benchmark.research-analysis-closure
+  resolver-sim.benchmark.research-assignment
+  resolver-sim.benchmark.research-assignment-target-binding
+  resolver-sim.benchmark.research-claim-acceptance
+  resolver-sim.benchmark.research-claim-lifecycle
+  resolver-sim.benchmark.research-command
+  resolver-sim.benchmark.research-conclusion
+  resolver-sim.benchmark.research-theorem-outcome
+  resolver-sim.benchmark.researcher-reward
+  resolver-sim.config.defaults
+  resolver-sim.hash.algorithm
+  resolver-sim.hash.canonical
+  resolver-sim.hash.framing-view
+  resolver-sim.hash.reference
+  resolver-sim.hash.sequence
+  resolver-sim.incentives.api
+  resolver-sim.research.api]
+ :closure-ownership
+ {:prf-canonical [prf.canonical.codec prf.canonical.decode
+                  prf.canonical.hash prf.canonical.reference
+                  prf.canonical.sequence
+                  resolver-sim.hash.algorithm resolver-sim.hash.canonical
+                  resolver-sim.hash.framing-view resolver-sim.hash.reference
+                  resolver-sim.hash.sequence]
+  :prf-research [resolver-sim.benchmark.incentive-deviation-domain
+                 resolver-sim.benchmark.incentive-model
+                 resolver-sim.benchmark.outcome-manifest
+                 resolver-sim.benchmark.research-analysis
+                 resolver-sim.benchmark.research-analysis-closure
+                 resolver-sim.benchmark.research-assignment
+                 resolver-sim.benchmark.research-claim-acceptance
+                 resolver-sim.benchmark.research-claim-lifecycle
+                 resolver-sim.benchmark.research-command
+                 resolver-sim.benchmark.research-conclusion
+                 resolver-sim.benchmark.research-theorem-outcome
+                 resolver-sim.research.api]
+  :prf-incentives [resolver-sim.benchmark.research-assignment-target-binding
+                   resolver-sim.benchmark.researcher-reward
+                   resolver-sim.incentives.api]
+  :support [resolver-sim.config.defaults]}
+ :configuration-coupling
+ {:namespace resolver-sim.config.defaults
+  :path resolver-sim.hash.framing-view
+  :meaning :canonical-framing-configuration
+  :change-now? false
+  :rule "V1 constants/defaults must resolve identically before artifact construction; runtime paths and host configuration are not artifact inputs."}
+ :source-layout
+ {:authoritative-implementation "src/resolver_sim/benchmark/researcher_reward.clj"
+  :public-facade "src/resolver_sim/incentives/api.clj"
+  :independent-source-closure? false
+  :reason :canonical-and-research-contract-packages-not-immutably-available
+  :closure-count 26}
+ :compatibility
+ {:policy-eligibility-proposal-obligation-order-preserved? true
+  :artifact-schema-versions-immutable? true
+  :domain-separators-immutable? true
+  :accepted-research-root-binding-required? true
+  :schema-change-requires-successor? true}
+ :qualification
+ {:api-delegation-tests "test/resolver_sim/research/research_api_boundary_test.clj"
+  :dependency-direction-tests "test/resolver_sim/research/repository_boundary_dependency_test.clj"
+  :source-closure-qualification "scripts/qualify_incentives_api_closure.sh"
+  :isolated-source-snapshot
+  {:status :passed
+   :source-content-set "sha256:54ef384df106712e8ca93cb8de43cb1fbfe6896a2a5633fb212c4f637f657d18"
+   :tests 8 :assertions 64}
+  :independently-released? false
+  :immutable-dependency-pins? false}}

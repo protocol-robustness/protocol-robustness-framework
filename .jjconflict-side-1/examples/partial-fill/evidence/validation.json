@@ -1,0 +1,67 @@
+{
+  "scope": "local controlled shortfall; no Base Sepolia deployment or public-chain transaction",
+  "checks": {
+    "rust_core": {
+      "tests": 33,
+      "passed": true
+    },
+    "rust_allocation": {
+      "tests": 19,
+      "passed": true
+    },
+    "clojure": {
+      "tests": 11,
+      "assertions": 50,
+      "passed": true
+    },
+    "existing_evm_regressions": {
+      "tests": 57,
+      "passed": true
+    },
+    "real_proof_evm_qualification": {
+      "tests": 9,
+      "passed": true
+    },
+    "source_mutations": {
+      "tests": 4,
+      "passed": true
+    },
+    "continuation_mutations": {
+      "tests": 4,
+      "passed": true
+    },
+    "typecheck": {
+      "command": "npm run typecheck",
+      "passed": true
+    },
+    "production_build": {
+      "command": "npm run build",
+      "passed": true
+    },
+    "demo_verification": {
+      "command": "npm run verify:demos",
+      "passed": true
+    },
+    "browser": {
+      "status": "pass",
+      "contractQualification": "qualified",
+      "viewports": [
+        390,
+        1280
+      ],
+      "checks": [
+        "no page overflow",
+        "three execution stages and recipient withdrawals",
+        "all recorded rejection selectors",
+        "closed disclosures",
+        "keyboard disclosure activation",
+        "all page links/downloads"
+      ],
+      "screenshots": [
+        "/tmp/partial-fill-390.png",
+        "/tmp/partial-fill-1280.png"
+      ]
+    }
+  },
+  "lint": "No separate lint script is configured; production build completes its configured checks."
+}

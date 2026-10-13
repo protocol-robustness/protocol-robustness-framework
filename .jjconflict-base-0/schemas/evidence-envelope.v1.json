@@ -1,0 +1,11 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Evidence Envelope v1",
+  "type": "object",
+  "required": ["registry_sha256", "run_id", "timestamp"],
+  "properties": {
+    "registry_sha256": { "type": "string", "description": "SHA256 hash of test-artifacts.json" },
+    "run_id": { "type": "string" },
+    "timestamp": { "type": "string", "format": "date-time" }
+  }
+}

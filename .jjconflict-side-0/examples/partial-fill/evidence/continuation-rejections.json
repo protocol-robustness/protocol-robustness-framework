@@ -1,0 +1,22 @@
+[
+  {
+    "field": "vkey_hash",
+    "result": "rejected before native Groth16 proving",
+    "exitCode": 101
+  },
+  {
+    "field": "committed_values_digest",
+    "result": "rejected before native Groth16 proving",
+    "exitCode": 101
+  },
+  {
+    "field": "exit_code",
+    "result": "rejected before native Groth16 proving",
+    "exitCode": 101
+  },
+  {
+    "field": "proof_nonce",
+    "result": "rejected before native Groth16 proving",
+    "exitCode": 101
+  }
+]

@@ -1,0 +1,60 @@
+{
+  "chain-id": "31337",
+  "reserve": "0xe7f1725e7734ce288f8367e1bb143e90bb3f0512",
+  "token-address": "0x5fbdb2315678afecb367f032d93f642f64180aa3",
+  "snapshot-id": "1",
+  "operation-id": "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "allocator": "0x9fe46736679d2d9a65f0992f2272de9f3c7fa6e0",
+  "created-at-block": "3",
+  "gross-amount": "100",
+  "reserved-amount-before": "20",
+  "protected-amount": "10",
+  "available-amount": "70",
+  "shortfall": {
+    "candidates": [
+      {"claim-id": "A", "requested": "60", "eligibility": "eligible"},
+      {"claim-id": "B", "requested": "40", "eligibility": "eligible"},
+      {"claim-id": "C", "requested": "20", "eligibility": "ineligible", "ineligibility-reason": "claim/rejected"}
+    ],
+    "requested": {"A": "60", "B": "40"},
+    "eligibility": {"A": "eligible", "B": "eligible", "C": "ineligible"},
+    "allocation-context-root": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    "allocation-context": {
+      "allocation-id": "shortfall-e2e-v1",
+      "kernel-version": "allocation-kernel.v1",
+      "selection-algorithm": "domain-hash-rejection-v1",
+      "policy": {"policy-id": "shortfall-policy", "policy-hash": "0xabababababababababababababababababababababababababababababababab", "forbid-duplicate-owners": false},
+      "claimants": [
+        {"claim-id": "A", "economic-owner-id": "owner-A", "amount": "60", "weight": "60"},
+        {"claim-id": "B", "economic-owner-id": "owner-B", "amount": "40", "weight": "40"},
+        {"claim-id": "C", "economic-owner-id": "owner-C", "amount": "20", "weight": "20"}
+      ],
+      "outcomes": [
+        {"outcome-id": "all", "allocations": [{"claim-id": "A", "allocated": "60"}, {"claim-id": "B", "allocated": "40"}, {"claim-id": "C", "allocated": "20"}]}
+      ],
+      "proposed-rates": [{"outcome-id": "all", "numerator": "1", "denominator": "1"}],
+      "capacity": "70",
+      "total-eligible-weight": "120",
+      "exact-pro-rata-denominator": "120",
+      "authoritative-randomness": "0x0102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20"
+    },
+    "policy": {"mode": "pro-rata", "rounding-policy": "largest-remainder"},
+    "fail-action-policy": {"mode": "pro-rata-treatment", "deferred-policy": "same-ratio", "haircut-policy": "same-ratio"},
+    "round-state": "result-accepted"
+  },
+  "execution": {
+    "claim-recipient-mapping": [
+      {"claim/id": "A", "recipient": "0x4444444444444444444444444444444444444444"},
+      {"claim/id": "B", "recipient": "0x5555555555555555555555555555555555555555"}
+    ]
+  },
+  "expected": {
+    "assertions": [
+      {"name": "snapshot-reconstructed", "path": "snapshot-hash", "equals": "0x08b0ee9c5d2f41817d1098a02fe3e119381b2d74d18152d885f588ce6706fdb3"},
+      {"name": "available-derived", "path": "available-amount", "equals": "70"},
+      {"name": "reserve-equation", "path": "gross-amount-reserved-amount-before-protected-amount", "equals": "70"},
+      {"name": "shortfall-request-set", "path": "shortfall.requested", "equals": {"A": "60", "B": "40"}},
+      {"name": "execution-recipient-map", "path": "execution.claim-recipient-mapping", "assertion": "complete-for-filled-claims"}
+    ]
+  }
+}

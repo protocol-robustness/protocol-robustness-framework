@@ -1,0 +1,9 @@
+{
+  "id": "int-one",
+  "description": "Integer 1",
+  "input": "1",
+  "canonical_bytes_hex": "1002",
+  "domain_tag": "EVIDENCE_RECORD_V1",
+  "domain_tag_hex": "45564944454e43455f5245434f52445f5631",
+  "hash_hex": "c87cee0f33529594d2f5360ea5d91299396c2fc7ab99e1bbd7e839185d326ef1"
+}

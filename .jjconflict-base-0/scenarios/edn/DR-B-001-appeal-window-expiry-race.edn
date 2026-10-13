@@ -1,0 +1,37 @@
+{:scenario-id "dr-b-001-appeal-window-expiry-race"
+ :schema-version "1.0"
+ :allow-open-disputes? true
+ :purpose "adversarial-robustness"
+ :title "Appeal window expiry race: settlement executed exactly at appeal deadline boundary"
+ :description "A resolution creates a pending settlement with appeal-deadline = now + window. A keeper attempts execute_pending_settlement at the exact block time equal to the appeal deadline. The guard requires block-time >= appeal-deadline, so execution at deadline should succeed. An escalation attempt at the same timestamp should fail with :appeal-window-expired."
+ :provenance {:author "@dispute-researcher" :created-at "2026-06-29" :license "CC-BY-4.0"}
+ :claim {:id "appeal-window-boundary-enforced"
+         :statement "At the exact appeal-deadline timestamp, execute_pending_settlement succeeds and escalate_dispute fails."
+         :falsifies-if ["execute_pending_settlement fails at block-time == appeal-deadline"
+                        "escalate_dispute succeeds at block-time == appeal-deadline"]}
+ :expectations {:terminal-state "released"
+                :must-hold ["finality_blocked_during_appeal" "no_stale_pending_settlements"]
+                :error-on-seq [4]
+                :expected-errors {:seq 4 :error :appeal-window-expired}}
+ :threat {:family "settlement-timing" :attack "appeal-window-boundary-race" :severity "high"
+          :actors ["keeper" "challenger"]
+          :assumptions ["block-time == appeal-deadline is the exact boundary"]}
+ :accounting {:unit "USDC" :decimals 6 :tracked-balances ["buyer" "seller" "resolver" "protocol"]}
+ :initial-block-time 1000
+ :protocol-params {:resolver-fee-bps 150 :appeal-window-duration 60 :max-dispute-duration 2592000 :dispute-resolver "0xresolver" :escalation-resolvers {:0 "0xresolver" :1 "0xl1"}}
+ :agents [{:id "buyer" :address "0xbuyer" :strategy "honest"}
+          {:id "seller" :address "0xseller" :strategy "honest"}
+          {:id "resolver" :address "0xresolver" :role "resolver"}
+          {:id "keeper" :address "0xkeeper" :role "keeper"}
+          {:id "challenger" :address "0xchallenger" :strategy "opportunistic"}]
+ :events [{:seq 0 :time 1000 :agent "buyer" :action "create_escrow"
+           :params {:token "USDC" :to "0xseller" :amount 5000}}
+          {:seq 1 :time 1060 :agent "seller" :action "raise_dispute" :params {:workflow-id 0}}
+          {:seq 2 :time 1100 :agent "resolver" :action "execute_resolution"
+           :params {:workflow-id 0 :is-release true :resolution-hash "0xhash"}}
+          ;; appeal-deadline = 1100 + 60 = 1160
+          ;; At block-time 1160: escalation should fail (window expired), settlement should succeed
+          {:seq 3 :time 1160 :agent "challenger" :action "challenge_resolution"
+           :params {:workflow-id 0} :expected-error :appeal-window-expired}
+          {:seq 4 :time 1160 :agent "keeper" :action "execute_pending_settlement"
+           :params {:workflow-id 0}}]}

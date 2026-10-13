@@ -1,0 +1,89 @@
+{:artifact/schema "research-challenge-approval-payload.v1"
+ :approval/purpose :challenge-definition-only
+ :challenge/id :challenge/shortfall-under-stress-001
+ :scope/candidate-root "sha256:51a39238bde9539b7687374575955f40e985e7fc9e4cc216dca254e8cebda310"
+ :subject/derivation-domain "challenge-001-subject.v1"
+ :subject/definition
+ {:question "Under what bounded shortfall conditions do the two declared cap-excess redistribution policies produce different per-row allocations, and which primitive invariants remain satisfied?"
+  :proposition :claim/allocation-policy-invariance
+  :measure :metric/maximum-row-allocation-difference
+  :method-root "sha256:840e8eb65ea36fce98edcf2d43feb8082be4e0fad7ee36e85daee770187b0c45"}
+ :subject/root "sha256:141e31f8f7cd393132cee1cf1340c1ef6c4446bc9705b4ad75d69437a4337648"
+ :subject/revision-root "sha256:790402f2ecd202dcdf2d7b509f34c31d3a09b2ee06d7df4ee2e0b1201ab3bffb"
+ :method/root "sha256:840e8eb65ea36fce98edcf2d43feb8082be4e0fad7ee36e85daee770187b0c45"
+ :source/content-set
+ {:root "sha256:790402f2ecd202dcdf2d7b509f34c31d3a09b2ee06d7df4ee2e0b1201ab3bffb"
+  :entry-count 219
+  :identity-kind :content-set-not-hermetic-build-or-jj-revision}
+ :acceptance/novelty-policy-root "sha256:8e98621ea338ba2691c9cd4c358ae4ec0a9be17756146f883d5f9ff914bcb0d8"
+ :acceptance
+ {:contribution-type :adversarial-finding
+  :required-domain :scope-candidate-input-domain
+  :required-classification :counterexample-found
+  :required-property-violation :claim/allocation-policy-invariance
+  :reproduction :fresh-verifier-recomputation
+  :independent-implementation :not-asserted
+  :reviewer-acceptance-required? true
+  :incentive-eligibility-separate? true
+  :obligation-creation-separate? true}
+ :novelty
+ {:rule :one-reward-per-materially-distinct-finding
+  :equivalent-witnesses :same-finding-no-additional-reward
+  :priority :first-complete-verifiable-submission
+  :automatic-novelty-scoring? false
+  :excluded-calibration-case-roots
+  ["sha256:8fe15fe2dc2ff1ad552c08e65808333eb314db2890c2a835ec031fa5137fbced"]}
+ :allocation/policy-roots
+ ["sha256:14c1ae6efdb928b134d91bb6aa61ff2e4c7f7b71ad5dddb3e8b7bf84de588143"
+  "sha256:2e4c81dc89c3a0b5b15f8a110ceeb66fe1a802fb1f0322ae3e58fed4cef9aeb9"]
+ :input-domain
+ {:allocation-row-count {:minimum 2 :maximum 12}
+  :requested-per-row {:minimum 1 :maximum 1000000}
+  :total-requested {:maximum 10000000}
+  :available {:minimum 0 :maximum :total-requested}
+  :weight-rule :weight-equals-requested
+  :cap-rule :optional-integer-from-zero-through-requested
+  :row-identities :unique-canonical-allocation-row-ids
+  :domain-boundary-is-inclusive? true
+  :shortfall-required-for-falsification? true}
+ :researcher-network
+ {:id :researcher-challenges/challenge-001-shortfall-under-stress
+  :root "sha256:f41b86ebcc732de56cebc9da702596770a951e10b792b1d2a6e1cbf188654ae5"
+  :challenge-catalog [:challenge/shortfall-under-stress-001]
+  :fresh-empty-history-required? true
+  :scope-purpose :challenge-specific-pseudonymous-participants}
+ :reward
+ {:currency "USDC@eip155:8453/erc20:0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913"
+  :asset {:network :base-mainnet
+          :chain-id 8453
+          :standard :erc20
+          :contract "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913"
+          :decimals 6}
+  :base-amount-minor-units 100000000
+  :capacity 6
+  :total-budget-ceiling-minor-units 750000000
+  :maximum-accepted-contributions-per-researcher 4
+  :pilot-researcher-count 2
+  :experience-threshold 3
+  :subsequent-multiplier {:numerator 5 :denominator 4}
+  :quotation-cutoff :task-claim
+  :eight-contribution-tier :not-part-of-this-pilot
+  :policy-root "sha256:b1e0a7d2c608ccffbc768612a9b21347dfd9e49b52ef4d23a0fb46a823dde119"
+  :maximum-liability-under-declared-caps-minor-units 625000000
+  :maximum-liability-assumptions
+  [:fresh-empty-network-history
+   :six-total-accepted-contributions
+   :maximum-four-accepted-contributions-per-researcher
+   :experience-count-read-at-task-claim]}
+ :authority
+ {:required-signers [:operator :reviewer]
+  :distinct-public-keys-required? true
+  :public-keys-provided-out-of-band? true
+  :signature-scheme :ed25519-over-approval-root}
+ :not-authorized-by-this-payload
+ [:publication
+  :external-submissions
+  :reward-obligations
+  :fund-transfer
+  :payment-execution]
+ :approval/root "sha256:6895b7bc2d413c92aa02c3e54188e9d85954d012edf2d2937bb026e5fcb6171b"}

@@ -1,0 +1,10 @@
+[package]
+name = "prf-capital-lifecycle"
+version = "0.1.0"
+edition = "2021"
+description = "Pure PRF protected-capital lifecycle transition kernel"
+
+[dependencies]
+num-bigint = "0.4"
+num-traits = "0.2"
+serde_json = "1.0"

@@ -1,0 +1,5 @@
+{:protocol/id :protocol/sew
+ :resolver-fee-bps 150
+ :appeal-window-duration 120
+ :max-dispute-duration 2592000
+ :dispute-resolver "0xprimary"}

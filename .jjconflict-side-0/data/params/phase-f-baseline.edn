@@ -1,0 +1,47 @@
+{:scenario-id "phase-f-ring-deterrence"
+ :description "Phase F: Multi-Resolver Collusion Ring Deterrence baseline test"
+ :rng-seed 42
+
+ ;; --- Core economic params (same as baseline.edn) ---
+ :escrow-distribution
+ {:type :lognormal
+  :mean 10000
+  :std 5000}
+
+ :strategy-mix
+ {:honest 0.50
+  :lazy 0.15
+  :malicious 0.25
+  :collusive 0.10}
+
+ :escrow-size 10000
+ :resolver-fee-bps 150
+ :appeal-bond-bps 700
+ :slash-multiplier 2.5
+ :appeal-probability-if-correct 0.05
+ :appeal-probability-if-wrong 0.40
+
+ ;; --- Phase F sweep axes ---
+ ;; Number of junior delegators in the ring (swept independently)
+ :junior-counts [1 2 3]
+
+ ;; Slashing detection probabilities to sweep
+ :detection-probs [0.05 0.10 0.15 0.20]
+
+ ;; Senior bond sizes (same units as escrow-size=10000)
+ :senior-bond-sizes [5000 10000 20000]
+
+ ;; Junior bond (each junior posts this amount)
+ :junior-bond 1000
+
+ ;; --- Hypothesis thresholds ---
+ ;; At detection >= deterrence-threshold, ring must be deterred in >= pass-fraction of configs
+ :deterrence-threshold 0.10
+ :pass-fraction 0.80
+
+ ;; --- Simulation volume ---
+ ;; Disputes per scenario (1000 gives stable catch-rate estimates)
+ :n-trials 1000
+
+ ;; --- L2 detection (disabled in baseline) ---
+ :l2-detection-prob 0}

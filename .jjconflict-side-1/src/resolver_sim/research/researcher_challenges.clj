@@ -1,0 +1,37 @@
+(ns resolver-sim.research.researcher-challenges
+  "Compatibility aliases for the researcher-network application API.
+
+   New consumers should require `resolver-sim.network.researcher-challenges`.
+   The network API consumes PRF contracts and does not own their semantics."
+  (:require [resolver-sim.network.researcher-challenges :as network]))
+
+(def tiers network/tiers)
+(def canonical-public-key network/canonical-public-key)
+(def network-root network/network-root)
+(def researcher-reference network/researcher-reference)
+(def build-reward-policy network/build-reward-policy)
+(def experience-tier network/experience-tier)
+(def build-challenge network/build-challenge)
+(def configuration network/configuration)
+(def prepare-configuration network/prepare-configuration)
+(def action-root network/action-root)
+(def action network/action)
+(def sign-action network/sign-action)
+(def context-keys network/context-keys)
+(def replay network/replay)
+(def append-action network/append-action)
+(def build-control-policy network/build-control-policy)
+(def control-action-root network/control-action-root)
+(def control-action network/control-action)
+(def replay-controlled network/replay-controlled)
+(def append-controlled-action network/append-controlled-action)
+(def history-checkpoint network/history-checkpoint)
+(def verify-history-checkpoint network/verify-history-checkpoint)
+(def controlled-history-checkpoint network/controlled-history-checkpoint)
+(def verify-controlled-history-checkpoint network/verify-controlled-history-checkpoint)
+(def researcher-summary network/researcher-summary)
+(def controlled-researcher-summary network/controlled-researcher-summary)
+(def review-dossier network/review-dossier)
+(def controlled-review-dossier network/controlled-review-dossier)
+(def forensic-nodes network/forensic-nodes)
+(def controlled-forensic-nodes network/controlled-forensic-nodes)

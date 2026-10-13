@@ -1,0 +1,55 @@
+{:scenario-id "dr-n-004-reversal-slash-appeal-wrong-party"
+ :schema-version "1.0"
+ :allow-open-disputes? true
+ :purpose "adversarial-robustness"
+ :title "Reversal reviewer due process: unrelated resolver cannot appeal L1's reversal slash"
+ :description "L1 reversal reviewer is auto-slashed. An unrelated resolver (who was not involved in the dispute) attempts a Track 2 appeal of L1's slash. The appeal is rejected because the caller is not the slashed resolver. L1's slash state remains unchanged. Verifies that reversal reviewer due process is not open to unauthorized parties."
+ :provenance {:author "@dispute-researcher" :created-at "2026-07-01" :license "CC-BY-4.0"}
+ :claim {:id "reversal-reviewer-appeal-wrong-party"
+         :statement "An unrelated resolver cannot appeal a reversal reviewer's slash. Only the slashed resolver may open a Track 2 appeal. An attempt by an unauthorized party is rejected and leaves slash state unchanged."
+         :falsifies-if ["Unrelated resolver can appeal L1's slash"
+                        "L1 slash state changes after unauthorized appeal attempt"
+                        "No error or rejection recorded for unauthorized attempt"]}
+ :expected/events
+ [:reversal-slash/proposed
+  :reversal-slash/executed]
+ :expected/not-events
+ [:appeal/opened
+  :reversal-slash/reversed]
+ :expectations {:terminal-state "released"
+                :must-hold ["resolver_decision_attributable"]
+                :metrics {:l1_slash_status {:eq :executed}
+                          :l1_stake_deducted {:gt 0}
+                          :unauthorized_appeal_rejected? {:eq true}}}
+ :expected/invariants
+ [:stake/non-negative
+  :resolver/balances-conserved]
+ :threat {:family "governance-integrity" :attack "unauthorized-slash-appeal" :severity "high"
+          :actors ["unrelated-resolver"] :victims ["protocol"]
+          :assumptions ["Only slashed resolver can appeal their own reversal slash"]}
+ :accounting {:unit "USDC" :decimals 6 :tracked-balances ["buyer" "seller" "l0resolver" "l1resolver" "l2resolver" "unrelated-resolver" "protocol"]}
+ :initial-block-time 1000
+ :protocol-params {:governance-mode :legacy, :resolver-fee-bps 150 :appeal-window-duration 120 :max-dispute-duration 2592000
+                   :reversal-slash-bps 2500
+                   :dispute-resolver "0xl0"
+                   :escalation-resolvers {:0 "0xl0" :1 "0xl1" :2 "0xl2"}}
+ :agents [{:id "buyer" :address "0xbuyer" :strategy "honest"}
+          {:id "seller" :address "0xseller" :strategy "honest"}
+          {:id "l0resolver" :address "0xl0" :role "resolver" :stake 10000}
+          {:id "l1resolver" :address "0xl1" :role "resolver" :stake 10000}
+          {:id "l2resolver" :address "0xl2" :role "resolver" :stake 10000}
+          {:id "unrelated-resolver" :address "0xunrelated" :role "resolver" :stake 10000}
+          {:id "keeper" :address "0xkeeper" :role "keeper"}]
+ :events [{:seq 0 :time 1000 :agent "l0resolver" :action "register_stake" :params {:amount 10000}}
+          {:seq 1 :time 1000 :agent "l1resolver" :action "register_stake" :params {:amount 10000}}
+          {:seq 2 :time 1000 :agent "l2resolver" :action "register_stake" :params {:amount 10000}}
+          {:seq 3 :time 1000 :agent "unrelated-resolver" :action "register_stake" :params {:amount 10000}}
+          {:seq 4 :time 1000 :agent "buyer" :action "create_escrow" :params {:token "USDC" :to "0xseller" :amount 5000}}
+          {:seq 5 :time 1060 :agent "buyer" :action "raise_dispute" :params {:workflow-id 0}}
+          {:seq 6 :time 1100 :agent "l0resolver" :action "execute_resolution" :params {:workflow-id 0 :is-release true :resolution-hash "0xl0release"}}
+          {:seq 7 :time 1150 :agent "l1resolver" :action "execute_resolution" :params {:workflow-id 0 :is-release false :resolution-hash "0xl1refund"}}
+          {:seq 8 :time 1200 :agent "l2resolver" :action "execute_resolution" :params {:workflow-id 0 :is-release true :resolution-hash "0xl2release"}}
+          ;; Unrelated resolver attempts to appeal L1's slash
+          {:seq 9 :time 1250 :agent "unrelated-resolver" :action "appeal_slash" :params {:workflow-id 0 :slash-id {:slash-ref {:workflow-id 0 :kind :reversal :level 1}}}}
+          ;; L1's slash should be unchanged — no appeal opened
+          {:seq 10 :time 2000 :agent "keeper" :action "automate_timed_actions" :params {:workflow-id 0}}]}

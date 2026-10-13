@@ -1,0 +1,79 @@
+{:concept/id :framework/outside-option
+ :concept/type :framework
+ :concept/layer :framework-explanation
+ :concept/name "Outside-option"
+ :concept/summary
+ "The outside-option is the per-participant reservation utility each resolver can fall back to by not participating (default 0). It is the baseline against which individual rationality and coalition surplus are measured, and it is committed to a content root so that results can be proven against the exact outside-option value used."
+
+ :concept/stakeholder-question
+ "What reservation utility can a resolver fall back to outside participation, how is individual rationality measured against it, and how is the value used bound to a verifiable definition root?"
+
+ :concept/protocols #{:protocol/sew-v1 :protocol/prf}
+
+ :concept/related
+ [:framework/incentive
+  :framework/incentive-compatibility
+  :framework/content-root
+  :framework/held-custody
+  :framework/protocol-extension-boundary]
+
+ :concept/roles
+ {:ir-evaluator {:description "Entity that evaluates individual rationality against the outside-option baseline."
+                 :maps-to [:protocol.role/verifier]}
+  :incentive-designer {:description "Entity that sets the outside-option value for a benchmark."
+                       :maps-to [:protocol.actor/resolution-module]}}
+
+ :concept/entities
+ {:outside-option-value {:description "The numeric reservation utility per participant, defaulting to 0, used as the individual-rationality baseline."
+                         :maps-to [:protocol.entity/parameter]}
+  :outside-option-definition-root {:description "Content root binding the exact outside-option definition used by an individual-rationality or coalition evaluation. Mirrors the content-root integrity pattern: the evaluation result commits to this root so the baseline value can be re-verified, not just the outcome."
+                                   :maps-to [:protocol.entity/canonical-hash]}}
+
+ :concept/actions
+ {:measure-individual-rationality {:description "Check that a participant's net payoff meets or exceeds the outside-option utility (net-payoff >= outside-option)."
+                                   :maps-to [:protocol.action/check-invariant]}
+  :bind-outside-option-root {:description "Commit the outside-option definition root so the baseline value used is bound to a verifiable root."
+                             :maps-to [:protocol.action/commit-root]}}
+
+ :concept/outcomes
+ {:individual-rational {:description "Every required participant's net payoff meets or exceeds the outside-option baseline."
+                        :maps-to [:protocol.outcome/released]}
+  :individual-irrational {:description "At least one participant's net payoff falls below the outside-option baseline."
+                          :maps-to [:protocol.outcome/adversarial-resolution]}
+  :outside-option-root-committed {:description "The outside-option definition root is committed with the evaluation result."
+                                  :maps-to [:protocol.outcome/released]}}
+
+ :concept/failure-modes
+ [{:failure/id :outside-option-baseline-unbound
+   :failure/name "Outside-option baseline unbound"
+   :failure/summary "The outside-option value used by an individual-rationality or coalition evaluation is not bound to a definition root, so results cannot be re-verified against the exact baseline."
+   :protocol-mechanisms [:outside-option-definition-root :content-root]
+   :stakeholder-impact "Individual-rationality claims cannot be attributed to a specific, re-verifiable baseline."}
+  {:failure/id :outside-option-default-assumed
+   :failure/name "Outside-option default silently assumed"
+   :failure/summary "The outside-option defaults to 0 without being declared; results silently change meaning if the default assumption is wrong."
+   :protocol-mechanisms [:outside-option-value]
+   :stakeholder-impact "Reviewers cannot distinguish an explicit zero baseline from an unstated assumption."}]
+
+ :concept/assumptions
+ ["The outside-option is the per-participant reservation utility (default 0); individual rationality holds when net payoff >= outside-option."
+  "The outside-option is distinct from the incentive margin: it measures participation reservation, not deviation advantage."
+  "Coalition surplus is measured against the aggregate outside-option total (member-count * outside-option)."
+  "The outside-option-definition-root follows the content-root integrity pattern; binding it does not by itself prove incentive compatibility."
+  "The outside-option baseline is protocol policy when set; the generic framework measures rationality against the declared value."
+  "Concept labels do not change protocol validity."]
+
+ :concept/out-of-scope
+ ["Incentive-margin computation and deviation-advantage evaluation — owned by the incentive and incentive-compatibility concepts."
+  "Equilibrium solution concepts (dominant strategy, Nash, subgame-perfect) — solution concepts used to analyse incentives, not the outside-option baseline itself."
+  "Payoff simulation engine or terminal-payoff computation internals."
+  "Protocol-specific determination of the correct outside-option value for a given market or role — owned by protocol policy."
+  "Concrete ledger or accounting mutation driven by rationality outcomes — owned by the protocol accounting layer under the framework-protocol extension boundary."]
+
+ :concept/metrics
+ {:ir-evaluations {:description "Number of individual-rationality evaluations performed."
+                   :source :derived-from-trace}
+  :ir-failures {:description "Number of participants falling below the outside-option baseline."
+                :source :derived-from-invariant-results}
+  :outside-option-root-bound {:description "Whether an outside-option definition root is committed with the evaluation result."
+                              :source :derived-from-trace}}}

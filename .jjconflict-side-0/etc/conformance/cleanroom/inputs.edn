@@ -1,0 +1,15 @@
+{
+  "cleanroom\/id": "conformance-core-v1-cleanroom",
+  "cleanroom\/inputs-root": "5cc48112b817ad776cd7524aaa0820d132ba8b693d49edd4265a3c2c1bdcbed0",
+  "cleanroom\/inputs": [
+    "docs\/conformance\/SPECIFICATION.md",
+    "docs\/conformance\/VERSIONING.md",
+    "docs\/conformance\/THREAT_MODEL.md",
+    "docs\/conformance\/RESOURCE_SAFETY.md",
+    "src\/resolver_sim\/conformance\/envelope.clj",
+    "etc\/conformance\/vectors\/canonical-roots.json",
+    "etc\/conformance\/vectors\/crypto.json",
+    "etc\/conformance\/corpus\/manifest.json",
+    "etc\/conformance\/release.v1.edn"
+  ]
+}

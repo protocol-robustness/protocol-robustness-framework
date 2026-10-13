@@ -1,0 +1,10 @@
+{:runner-policy/id :runner-policy/deterministic-local-v1
+ :runner-policy/version 1
+ :runner-policy/description
+ "Deterministic local runner. Single-process, no network, no parallelization."
+
+ :runner-policy/adapter :adapter/sew
+ :runner-policy/concurrency 1
+ :runner-policy/output "results/benchmarks/"
+ :runner-policy/attestation-enabled false
+ :runner-policy/consensus-mode :single-run}

@@ -1,0 +1,4 @@
+{:assumptions/id "chain-assumptions-v1"
+ :ordering {:same-block-nondeterminism-mode :enumerated
+            :deterministic-replay true}
+ :timing {:block-time-seconds 12}}

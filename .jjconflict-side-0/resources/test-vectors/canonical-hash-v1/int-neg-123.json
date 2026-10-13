@@ -1,0 +1,9 @@
+{
+  "id": "int-neg-123",
+  "description": "Integer -123",
+  "input": "-123",
+  "canonical_bytes_hex": "10f501",
+  "domain_tag": "EVIDENCE_RECORD_V1",
+  "domain_tag_hex": "45564944454e43455f5245434f52445f5631",
+  "hash_hex": "6c3c69d004b582da797f1428afdaf4c3a6fcf282cf780101775195f2ac550786"
+}

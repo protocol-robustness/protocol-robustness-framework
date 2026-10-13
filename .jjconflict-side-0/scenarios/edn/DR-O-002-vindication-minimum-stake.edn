@@ -1,0 +1,46 @@
+{:scenario-id "dr-o-002-vindication-minimum-stake"
+ :schema-version "1.0"
+ :allow-open-disputes? true
+ :purpose "adversarial-robustness"
+ :title "Vindication with minimum stake: 1 wei credit recovery at boundary"
+ :description "L0 resolver registers only 1 USDC (1_000_000 small units) as stake. L0 rules release. L1 reverses to refund (Track 1 auto-slash on L0: 25 USDC = 25_000_000 small units, which cannot be fully debited from 1_000_000 stake). L2 reverses to release (vindicates L0). With vindication fix, L0's slash is reversed-with-credit. Tests that the credit mechanism works even when the original slash exceeded actual stake. Asserts no underflow, no impossible credit, and correct status transition."
+ :provenance {:author "@dispute-researcher" :created-at "2026-07-01" :license "CC-BY-4.0"}
+ :claim {:id "vindication-minimum-stake-credit"
+         :statement "When a resolver with minimum stake (1 unit) is vindicated by a higher level, the reversal slash credit applies correctly: no underflow, no impossible credit, the slash status transitions to :reversed-with-credit, and the resolver balance is correctly updated."
+         :falsifies-if ["Underflow when crediting minimum stake"
+                        "Impossible credit (credit > original slash debited)"
+                        "Slash status unchanged after vindication"
+                        "Resolver balance goes negative"]}
+ :expectations {:terminal-state "released"
+                :must-hold ["slashable_liability_preserved" "resolver_decision_attributable"]
+                :metrics {:l0_slash_status {:eq :reversed-with-credit}
+                          :l0_stake_non_negative {:eq true}
+                          :no_underflow {:eq true}}}
+ :expected/invariants
+ [:stake/non-negative
+  :slash/requested-equals-debited-plus-unmet-plus-reversed
+  :resolver/balances-conserved]
+ :threat {:family "economic-fairness" :attack "minimum-stake-vindication" :severity "medium"
+          :actors ["l0resolver"]
+          :assumptions ["Vindication fix handles partial debits and minimum stake correctly"]}
+ :accounting {:unit "USDC" :decimals 6 :tracked-balances ["buyer" "seller" "l0resolver" "l1resolver" "l2resolver" "protocol" "slashPool"]}
+ :initial-block-time 1000
+ :protocol-params {:resolver-fee-bps 150 :appeal-window-duration 120 :max-dispute-duration 2592000
+                   :reversal-slash-bps 2500
+                   :dispute-resolver "0xl0"
+                   :escalation-resolvers {:0 "0xl0" :1 "0xl1" :2 "0xl2"}}
+ :agents [{:id "buyer" :address "0xbuyer" :strategy "honest"}
+          {:id "seller" :address "0xseller" :strategy "honest"}
+          {:id "l0resolver" :address "0xl0" :role "resolver" :stake 1}     ;; minimum 1 unit
+          {:id "l1resolver" :address "0xl1" :role "resolver" :stake 10000}
+          {:id "l2resolver" :address "0xl2" :role "resolver" :stake 10000}
+          {:id "keeper" :address "0xkeeper" :role "keeper"}]
+ :events [{:seq 0 :time 1000 :agent "l0resolver" :action "register_stake" :params {:amount 1}}
+          {:seq 1 :time 1000 :agent "l1resolver" :action "register_stake" :params {:amount 10000}}
+          {:seq 2 :time 1000 :agent "l2resolver" :action "register_stake" :params {:amount 10000}}
+          {:seq 3 :time 1000 :agent "buyer" :action "create_escrow" :params {:token "USDC" :to "0xseller" :amount 5000}}
+          {:seq 4 :time 1060 :agent "buyer" :action "raise_dispute" :params {:workflow-id 0}}
+          {:seq 5 :time 1100 :agent "l0resolver" :action "execute_resolution" :params {:workflow-id 0 :is-release true :resolution-hash "0xl0release"}}
+          {:seq 6 :time 1150 :agent "l1resolver" :action "execute_resolution" :params {:workflow-id 0 :is-release false :resolution-hash "0xl1refund"}}
+          ;; L2 agrees with L0 — L0 vindicated, L1 slashed
+          {:seq 7 :time 1200 :agent "l2resolver" :action "execute_resolution" :params {:workflow-id 0 :is-release true :resolution-hash "0xl2release"}}]}

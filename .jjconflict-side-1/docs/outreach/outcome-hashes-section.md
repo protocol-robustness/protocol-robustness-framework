@@ -1,0 +1,11 @@
+## Verifiable outcome hashes: what you can reproduce, you can compare
+
+Every PRF benchmark run produces a signed **outcome manifest** — a structured record of what was executed, what results were produced, and what theorems or conclusions were established. The manifest carries two layers of cryptographic integrity:
+
+**Singular outcome-hash.** A single `sha256:` digest that commits to the full execution scope: benchmark identity, model version, parameter domain, sampling policy, generated case set, evaluation policy, and all hierarchical outcome roots (operational, incentive, theorem, conclusion). Two researchers only share the same outcome-hash when they independently reached the *same canonical results over the same execution scope*. The hash is computed *after* execution, can be compared across researchers, and excludes researcher identity, signature, and timestamp — so the comparison is about the outcome, not the author.
+
+**Plural outcome-hashes.** The manifest also independently addresses each theorem and conclusion root. This means a researcher can reproduce *one* theorem while challenging *another*, without disputing the entire outcome. It makes disagreement granular: you don't have to throw out the whole result because you disagree with one finding.
+
+**Why this matters for independent verification.** Outcome-hashes turn "did you get the same result?" from a conversation into a checkable assertion. Given two manifests, the comparison predicates (`exact-replication-scope?`, `sampling-comparison-scope?`, `classify-outcome-compatibility`) classify the relationship between them automatically — exact replication, independent sampling, model corroboration, or incompatible scope. No subjective judgment, no back-and-forth about what was run. The hash either matches or it doesn't, and if it doesn't, the predicates tell you why.
+
+The outcome-hash is the foundation of PRF's reproducibility model. It is the link between a researcher's run report (what they claim they did), their position (what they stake against), and the review certificate (what was independently verified). The three-member certificate groups researchers by outcome-hash before comparing claims — ensuring that only independent verification of the same canonical outcome is counted as corroboration.

@@ -1,0 +1,33 @@
+{:milestone/id :conformance-core-v1-author-assurance-complete
+ :milestone/recorded-at "2026-08-05"
+
+ :protocol/status :feature-complete
+ :internal-assurance/status :complete
+ :cross-language/status :three-implementations-pass
+ :clean-room-independence/status :awaiting-external-contributor
+ :real-world-adoption/status :awaiting-external-bundle
+ :core-changes/status :frozen
+
+ ;; frozen protocol surface (see release.v1.edn and assurance.v1.edn)
+ :release/root "a93d1e1200c04934136caa0d358c50a4c749a4590806f1527a773eb279fb24cf"
+ :assurance/root "f83ddab77f4fc36e6c9a11ac8d614384cada16ab58e8d4a6c635f8c866c4fbd4"
+ :verdict :assurance-partial-awaiting-clean-room
+
+ ;; frozen clean-room boundary (input set the external contributor receives)
+ :cleanroom/inputs-root "5cc48112b817ad776cd7524aaa0820d132ba8b693d49edd4265a3c2c1bdcbed0"
+ ;; private holdout root — the cases themselves are NOT published to the
+ ;; contributor; only this root attests that the set is frozen.
+ :holdout/root "06b4ca43fa91c45be6d6325f569c6d1f58990820f3fa4e376661df53a1be54db"
+
+ :adoption-sequence
+ [:sew-trace-equivalence-attestation
+  :published-benchmark-reproduction
+  :ef-review-packet]
+
+ :governance
+ {:core-changes/reopen-justification
+  #{:spec-ambiguity-or-divergent-interpretation
+    :adoption-bundle-cannot-express-necessary-assurance-fact
+    :security-defect-permitting-incorrect-or-stronger-claim
+    :actual-v2-envelope-or-profile-migration
+    :deferred-feature-crosses-committed-promotion-trigger}}}

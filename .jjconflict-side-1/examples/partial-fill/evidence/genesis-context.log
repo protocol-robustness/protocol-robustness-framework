@@ -1,0 +1,10 @@
+No files changed, compilation skipped
+
+Ran 1 test for test/PartialFillControlled.t.sol:PartialFillControlledTest
+[PASS] test_ExportGenesis() (gas: 22600)
+Logs:
+  PARTIAL_FILL_JSON {"authority":"0xc7183455a4C133Ae270771860664b6B7ec320bB1","authorityCodeHash":"0xbb5710daf89fac168bbef384c6cd9bd7574fa1230db0504ac393a3e5b0291acb","genesis":"0xa0Cb889707d426A7A386870A03bc70d1b0697598","genesisCodeHash":"0xea304076ea6bc7b1f4569a60d85563a16a8d02f9cdc071a176b0f747d63a5b61"}
+
+Suite result: ok. 1 passed; 0 failed; 0 skipped; finished in 4.29ms (699.67µs CPU time)
+
+Ran 1 test suite in 12.58ms (4.29ms CPU time): 1 tests passed, 0 failed, 0 skipped (1 total tests)

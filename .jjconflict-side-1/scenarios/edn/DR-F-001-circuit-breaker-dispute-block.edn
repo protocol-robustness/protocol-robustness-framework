@@ -1,0 +1,52 @@
+{:scenario-id "dr-f-001-circuit-breaker-dispute-block"
+ :schema-version "1.0"
+ :allow-open-disputes? true
+ :purpose "adversarial-robustness"
+ :title "Circuit breaker blocks new disputes: resolver unavailability threshold triggers dispute freeze"
+ :description "Multiple resolvers become unavailable, pushing the unavailability percentage above the 30% circuit breaker threshold (3000 bps). When the circuit breaker activates, new raise_dispute calls fail with :circuit-breaker-active. Existing in-flight disputes continue unaffected. After cooldown (3600s), the breaker deactivates if availability recovers."
+ :provenance {:author "@dispute-researcher" :created-at "2026-06-29" :license "CC-BY-4.0"}
+ :claim {:id "circuit-breaker-dispute-liveness"
+         :statement "When >= 30% of resolvers are unavailable, the circuit breaker activates, blocking new disputes. Existing disputed escrows continue normally. The breaker deactivates after 3600s cooldown if availability drops below threshold."
+         :falsifies-if ["New dispute succeeds while circuit breaker active"
+                        "Existing dispute resolution fails during circuit breaker"
+                        "Breaker does not deactivate after cooldown with recovery"]}
+ :expectations {:terminal-state "released"
+                :must-hold ["dispute_timestamp_consistency" "dispute_level_bounded"]
+                :error-on-seq [3]
+                :expected-errors {:seq 3 :error :circuit-breaker-active}}
+ :threat {:family "liveness" :attack "resolver-unavailability-circuit-breaker" :severity "high"
+          :actors ["resolver1" "resolver2"]
+          :assumptions ["4 resolvers total" "2 become unavailable = 50% > 30% threshold"
+                        "Circuit breaker cooldown = 3600s"]}
+ :accounting {:unit "USDC" :decimals 6 :tracked-balances ["buyer" "seller" "resolver1" "resolver2" "resolver3" "resolver4" "protocol"]}
+ :initial-block-time 1000
+ :protocol-params {:resolver-fee-bps 150 :appeal-window-duration 60 :max-dispute-duration 2592000 :circuit-breaker-threshold-bps 3000}
+ :agents [{:id "buyer1" :address "0xbuyer1" :strategy "honest"}
+          {:id "buyer2" :address "0xbuyer2" :strategy "honest"}
+          {:id "seller1" :address "0xseller1" :strategy "honest"}
+          {:id "seller2" :address "0xseller2" :strategy "honest"}
+          {:id "resolver1" :address "0xr1" :role "resolver"}
+          {:id "resolver2" :address "0xr2" :role "resolver"}
+          {:id "resolver3" :address "0xr3" :role "resolver"}
+          {:id "resolver4" :address "0xr4" :role "resolver"}
+          {:id "keeper" :address "0xkeeper" :role "keeper"}]
+ :events [
+  ;; Create two escrows
+  {:seq 0 :time 1000 :agent "buyer1" :action "create_escrow"
+   :params {:token "USDC" :to "0xseller1" :amount 5000 :custom-resolver "0xr1"}}
+  {:seq 1 :time 1005 :agent "buyer2" :action "create_escrow"
+   :params {:token "USDC" :to "0xseller2" :amount 3000 :custom-resolver "0xr3"}}
+  ;; Raise dispute on first escrow (succeeds)
+  {:seq 2 :time 1060 :agent "seller1" :action "raise_dispute" :params {:workflow-id 0}}
+  ;; Mark 2 of 4 resolvers unavailable → 50% > 30% → circuit breaker activates
+  {:seq 3 :time 1065 :agent "keeper" :action "set_resolver_unavailable"
+   :params {:resolver "0xr1" :unavailable? true}}
+  {:seq 4 :time 1066 :agent "keeper" :action "set_resolver_unavailable"
+   :params {:resolver "0xr2" :unavailable? true}}
+  ;; New dispute on second escrow should be blocked
+  {:seq 5 :time 1070 :agent "seller2" :action "raise_dispute" :params {:workflow-id 1}}
+  ;; Existing dispute 0 can still be resolved
+  {:seq 6 :time 1100 :agent "resolver1" :action "execute_resolution"
+   :params {:workflow-id 0 :is-release true :resolution-hash "0xhash"}}
+  {:seq 7 :time 1200 :agent "keeper" :action "execute_pending_settlement"
+   :params {:workflow-id 0}}]}

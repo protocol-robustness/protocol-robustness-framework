@@ -1,0 +1,59 @@
+{:suite/id "appeal-primitive-assurance"
+ :suite/version "v1"
+ :projection/version "appeal-bond-projection.v1"
+ :families
+ [{:id "AP-ID" :focus :identity-round-isolation}
+  {:id "AP-DISP" :focus :terminal-disposition-uniqueness}
+  {:id "AP-CONS" :focus :per-bond-conservation}
+  {:id "AP-CLAIM" :focus :entitlement-and-claim-accounting}
+  {:id "AP-CAUSE" :focus :mandatory-disposition-lineage}
+  {:id "AP-ATOM" :focus :revert-atomicity}
+  {:id "AP-REPLAY" :focus :duplicate-operation-rejection}
+  {:id "AP-POLICY" :focus :posting-time-policy-snapshot}]
+ :admission {:requires :authoritative-appeal-bond-lifecycle-records
+             :forbids [:aggregate-identity-reconstruction
+                       :scenario-metric-as-evidence
+                       :protocol-world-mutation-for-revert-receipts]}
+ :target {:protocol :sew
+          :implementation :appeal-primitive
+          :checkpoint/id :sew-sep-2026-appeal-candidate}
+ :status :candidate
+ :root "716e4cb8490a51042e5490c0634e70462d393a8fee024ed4d8efcda5d70d2901"
+ :root/fields [:scenario/id :path :sha256 :classification]
+ :scenarios
+ [{:scenario/id "ap-id-001-round-isolated-bonds"
+   :path "scenarios/edn/appeal-primitive/AP-ID-001-round-isolated-bonds.edn"
+   :sha256 "7e9c918ce7eed1ea4748655e569a72e59eaefda21b3e71050f291ea6901a72d7"
+   :classification :primitive-native
+   :claim-to/id :appeal-primitive-identity-round-isolation
+   :status :candidate}
+  {:scenario/id "ap-disp-001-single-terminal-disposition"
+   :path "scenarios/edn/appeal-primitive/AP-DISP-001-single-terminal-disposition.edn"
+   :sha256 "38ef39f4450cac27b41312e0dd03823d69958fa1322015c5bf8f3a157fdee77d"
+   :classification :primitive-native
+   :claim-to/id :appeal-primitive-terminal-disposition-uniqueness
+   :status :candidate}
+  {:scenario/id "ap-cons-001-per-bond-conservation"
+   :path "scenarios/edn/appeal-primitive/AP-CONS-001-per-bond-conservation.edn"
+   :sha256 "22de0f01c2041b9481fc9e75bda0e4768426478c2a4997498f634f05e1d1c746"
+   :classification :primitive-native
+   :claim-to/id :appeal-primitive-per-bond-conservation
+   :status :candidate}
+  {:scenario/id "ap-claim-001-allocation-survives-claim"
+   :path "scenarios/edn/appeal-primitive/AP-CLAIM-001-allocation-survives-claim.edn"
+   :sha256 "520a1dbddc29ac1e5f4a8062115332d7b39e67830a4798c1bc15b433e8ecd2ba"
+   :classification :primitive-native
+   :claim-to/id :appeal-primitive-allocation-survives-claim
+   :status :candidate}
+  {:scenario/id "ap-atom-001-terminal-failure-atomic"
+   :path "scenarios/edn/appeal-primitive/AP-ATOM-001-terminal-failure-atomic.edn"
+   :sha256 "dc60230995f447053d88c0be0473cb7c2a1e08c5e9038ba304d98a6f197088b8"
+   :classification :primitive-native
+   :claim-to/id :appeal-primitive-terminal-failure-atomic
+   :status :candidate}
+  {:scenario/id "ap-replay-001-terminal-replay-rejected"
+   :path "scenarios/edn/appeal-primitive/AP-REPLAY-001-terminal-replay-rejected.edn"
+   :sha256 "7d5eb0e9eb21f91e02bf1cb002816ae52eb7d68bc1cf923a16e8b31ce35cc880"
+   :classification :primitive-native
+   :claim-to/id :appeal-primitive-terminal-replay-rejection
+   :status :candidate}]}

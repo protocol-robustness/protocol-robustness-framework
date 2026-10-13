@@ -1,0 +1,41 @@
+{:description "Control fixture: static oracle always passes detection thresholds"
+ :scenario-id "control-oracle-always-detect"
+ :rng-seed 42
+
+ :escrow-distribution
+ {:type :lognormal
+  :mean 10000
+  :stddev 5000}
+
+ :strategy-mix
+ {:honest 0.50
+  :lazy 0.15
+  :malicious 0.25
+  :collusive 0.10}
+
+ :force-strategy :malicious
+
+ :resolver-fee-bps 150
+ :appeal-bond-bps 700
+ :slash-multiplier 2.5
+ :appeal-probability-if-correct 0.05
+ :appeal-probability-if-wrong 0.40
+
+ :slashing-detection-probability 0.10
+ :fraud-detection-probability 0.25
+ :reversal-detection-probability 1.0
+ :timeout-detection-probability 0.10
+ :l2-detection-prob 0.15
+ :fraud-slash-bps 5000
+ :reversal-slash-bps 2500
+ :timeout-slash-bps 200
+ :allow-slashing? true
+
+ :oracle-fixture
+ {:mode :static-always-detect}
+
+ :n-trials 1000
+ :n-seeds 1
+ :parallelism :auto
+ :save-samples? false
+ :save-sweep? false}

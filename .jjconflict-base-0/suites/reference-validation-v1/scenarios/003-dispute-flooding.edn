@@ -1,0 +1,7 @@
+{:scenario/id "dispute-flooding-v1"
+ :scenario/title "003-dispute-flooding"
+ :scenario/version "1.0.0"
+ :scenario/status :public-candidate
+ :scenario/purpose "Verifies liveness remains bounded under adversarial dispute load."
+ :protocol/phase :dr3
+ :expected-result {:status :pass :classification :regression-protected}}

@@ -1,0 +1,19 @@
+Compiling 1 files with Solc 0.8.33
+Solc 0.8.33 finished in 7.17s
+Compiler run successful!
+
+Ran 7 tests for test/OnchainShortfallReserveV3.t.sol:OnchainShortfallReserveV3Test
+[PASS] test_ActiveReserveHoldBlocksRelease() (gas: 202732)
+[PASS] test_ExactRefundToImmutableBeneficiaryAndReplayBlocked() (gas: 149270)
+[PASS] test_OnlyBoundControllerCanFinalize() (gas: 48548)
+[PASS] test_OnlyRecordedSponsorCanFundReserve() (gas: 49750)
+[PASS] test_PolicyBoundCommitmentIncludesBeneficiaryAndOperation() (gas: 25681)
+[PASS] test_ReleaseRequiresClosedOperationAndZeroLiability() (gas: 190356)
+[PASS] test_UnrelatedOperationCannotBeAdmitted() (gas: 54661)
+Suite result: ok. 7 passed; 0 failed; 0 skipped; finished in 2.15ms (977.08µs CPU time)
+
+Ran 1 test for test/OnchainShortfallReserveV3.t.sol:OnchainShortfallReserveV3ProductionAllocatorTest
+[PASS] test_ProductionAllocatorWithdrawalAndV3TerminalRefund() (gas: 743531)
+Suite result: ok. 1 passed; 0 failed; 0 skipped; finished in 2.47ms (1.08ms CPU time)
+
+Ran 2 test suites in 10.65ms (4.62ms CPU time): 8 tests passed, 0 failed, 0 skipped (8 total tests)

@@ -1,0 +1,77 @@
+{
+  "protocol-params": {
+    "resolver-fee-bps": 150,
+    "appeal-window-duration": 0,
+    "max-dispute-duration": 2592000
+  },
+  "threat-tags": [],
+  "purpose": "regression",
+  "events": [
+    {
+      "seq": 0,
+      "time": 1000,
+      "agent": "buyer",
+      "action": "create_escrow",
+      "params": {
+        "token": "USDC",
+        "to": "0xseller",
+        "amount": 8000,
+        "auto-release-time": 1300
+      }
+    },
+    {
+      "seq": 1,
+      "time": 1299,
+      "agent": "buyer",
+      "action": "raise_dispute",
+      "params": {
+        "workflow-id": 0
+      }
+    },
+    {
+      "seq": 2,
+      "time": 1300,
+      "agent": "keeper",
+      "action": "automate_timed_actions",
+      "params": {
+        "workflow-id": 0
+      }
+    },
+    {
+      "seq": 3,
+      "time": 1300,
+      "agent": "buyer",
+      "action": "release",
+      "params": {
+        "workflow-id": 0
+      }
+    }
+  ],
+  "schema-version": "1.1",
+  "scenario-author": "@grifma",
+  "scenario-id": "s75-auto-release-vs-dispute-race",
+  "title": "s75-auto-release-vs-dispute-race",
+  "id": "scenarios\/s75-auto-release-vs-dispute-race",
+  "provenance": {
+    "author-id": "@grifma",
+    "author": "Marc Griffiths"
+  },
+  "agents": [
+    {
+      "id": "buyer",
+      "address": "0xbuyer",
+      "type": "honest"
+    },
+    {
+      "id": "seller",
+      "address": "0xseller",
+      "type": "honest"
+    },
+    {
+      "id": "keeper",
+      "address": "0xkeeper",
+      "type": "honest"
+    }
+  ],
+  "initial-block-time": 1000
+}

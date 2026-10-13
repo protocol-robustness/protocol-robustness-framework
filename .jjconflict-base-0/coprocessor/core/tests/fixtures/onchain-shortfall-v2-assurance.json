@@ -1,0 +1,33 @@
+{
+  "schema": "prf/onchain-shortfall-v2-assurance-fixture.v1",
+  "prepared-operation": {
+    "operation-id": "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "initiator": "0x1111111111111111111111111111111111111111",
+    "chain-id": "31337",
+    "reserve": "0xe7f1725e7734ce288f8367e1bb143e90bb3f0512",
+    "token": "0x5fbdb2315678afecb367f032d93f642f64180aa3",
+    "allocator": "0x9fe46736679d2d9a65f0992f2272de9f3c7fa6e0",
+    "configuration-root": "0x0101010101010101010101010101010101010101010101010101010101010101",
+    "configuration-epoch": "7",
+    "source-verifier-id": "0x0202020202020202020202020202020202020202020202020202020202020202",
+    "execution-verifier-id": "0x0303030303030303030303030303030303030303030303030303030303030303",
+    "source-program-vkey": "0x0404040404040404040404040404040404040404040404040404040404040404",
+    "source-program-elf-sha256": "0x0505050505050505050505050505050505050505050505050505050505050505",
+    "source-statement-schema": "0x0606060606060606060606060606060606060606060606060606060606060606",
+    "source-public-values-schema": "0xa069c379e311996c73ea1f69edb070bfddbb573b770b3c5aec52bad4b255aa87",
+    "execution-statement-schema": "0x0707070707070707070707070707070707070707070707070707070707070707",
+    "execution-public-values-schema": "0x0808080808080808080808080808080808080808080808080808080808080808",
+    "policy-root": "0x0909090909090909090909090909090909090909090909090909090909090909",
+    "residual-recipient": "0x2222222222222222222222222222222222222222"
+  },
+  "economic-reserve-state": {
+    "gross-balance": "100",
+    "reserved-before": "20",
+    "protected-capital": "10",
+    "available-amount": "70",
+    "availability-revision": "17"
+  },
+  "allocation-binding-root": "0x0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a",
+  "realized-statement-root": "0x0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b",
+  "expected": {}
+}

@@ -1,0 +1,83 @@
+{:portable-contract/id :pro-rata
+ :portable-contract/version "portable-pro-rata-contract.v1"
+ :canonical-encoding/version "canonical-hash-scheme.v1"
+ :canonical-encoding/types [:null :boolean :integer :string :keyword :vector :map]
+ :integer-domains {:allocation :unsigned-arbitrary-precision
+                   :effect-delta :signed-arbitrary-precision
+                   :state-quantity :unsigned-arbitrary-precision
+                   :intermediate :arbitrary-precision}
+ :policies {:rounding [:floor :largest-remainder]
+            :redistribution [:unallocated :redistribute-cap-excess]
+            :tie-break [:canonical-row-id]}
+ :schemas
+ {:allocation-request
+  {:id "pro-rata-allocation-request.v1"
+   :required-fields [:schema-version :mechanism/version :allocation/id :available :rows
+                     :rounding-policy :tie-break-policy :redistribution-policy]
+   :row-required-fields [:row/id :obligation/id :requested :weight :cap]}
+  :allocation-result
+  {:id "pro-rata-allocation-result.v1"
+   :required-fields [:schema-version :mechanism :allocation/id :canonical-request
+                     :request/hash :available :rows :rounding-policy
+                     :tie-break-policy :redistribution-policy :redistribution
+                     :allocation/rounds :allocated-total :unallocated-residual
+                     :residual-reason :allocation/hash]
+   :optional-fields [:allocation/fractional-remainder-total]
+   :root-field :allocation/hash
+   :root-excluded-fields [:allocation/hash :allocation/fractional-remainder-total]
+   :closed? true}
+  :allocation-result-row
+  {:required-fields [:row/id :obligation/id :requested :weight :declared-cap
+                     :effective-cap :initial-quota :effective-quota
+                     :floor-allocation :fractional-remainder :allocated :unmet
+                     :remainder-rank :remainder-unit-awarded?]
+   :closed? true}
+  :allocation-round
+  {:required-fields [:round/index :available-at-start :active-row-ids
+                     :active-weight-total :quotas :newly-cap-constrained-row-ids
+                     :committed-by-cap :available-after-caps]
+   :closed? true}
+  :allocation-round-quota
+  {:required-fields [:row/id :quota/numerator :quota/denominator]
+   :closed? true}
+  :canonical-effect
+  {:id "canonical-delta-effect.v1"
+   :fields [:schema-version :quantity/root :delta]}
+  :canonical-state
+  {:id "canonical-effect-state.v1"
+   :projection-fields [:schema-version :quantities]}
+  :canonical-transition
+  {:id "canonical-effect-transition.v1"
+   :root-field :canonical-effect-transition/root
+   :projection-fields [:schema-version :effect-semantics/root :state-before/root
+                       :effects/root :state-after/root]}}
+ :domain-tags
+ {:portable-contract-release "PORTABLE_PRO_RATA_CONTRACT_RELEASE_V1"
+  :projection-artifact "PROJECTION_ARTIFACT_V1"
+  :canonical-effect-semantics "CANONICAL_EFFECTS_V1"
+  :canonical-effect-state "CANONICAL_EFFECT_STATE_V1"
+  :canonical-effect-set "CANONICAL_EFFECT_SET_V1"
+  :canonical-effect-transition "CANONICAL_EFFECT_TRANSITION_V1"}
+ :effect-semantics
+ {:schema-version "canonical-effects-v1"
+  :integer-domain :signed-arbitrary-precision
+  :quantity-domain :non-negative-integer
+  :underflow :forbidden
+  :overflow :impossible
+  :ordering :canonical-target-order
+  :emission-order :irrelevant
+  :duplicate-targets :compose
+  :composition :atomic-net-delta
+  :failure :reject-entire-transition}
+ :failure-taxonomy
+ [:portable-contract/malformed-input
+  :portable-contract/noncanonical-input
+  :portable-contract/unknown-version
+  :portable-contract/unknown-policy
+  :portable-contract/arithmetic-domain-violation
+  :portable-contract/ordering-mismatch
+  :portable-contract/projection-mismatch
+  :portable-contract/root-mismatch
+  :portable-contract/underflow
+  :portable-contract/effect-mismatch
+  :portable-contract/state-after-mismatch]}

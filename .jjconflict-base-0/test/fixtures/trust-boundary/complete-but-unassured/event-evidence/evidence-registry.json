@@ -1,0 +1,28 @@
+{
+  "schema-version": "evidence-registry.v1",
+  "run-id": "fixture",
+  "generated-at": "2025-06-01T00:00:00Z",
+  "evidence-count": 3,
+  "evidence-hashes": [
+    "b0e5ecc73e7ebe37abe68641e79489095b518ec58715c879be2f800698a01780",
+    "f538208bd9a4874c6f0bab82eef1f7d05e9cf937e2762af0dde9ef3051d559d2",
+    "551048cfd774b06fd7d7d60887ebb11d5db179c90c723f33744eb23fe03e0696"
+  ],
+  "artifacts": [
+    {
+      "id": "ev-b0e5ecc73e7e",
+      "kind": "transition-evidence",
+      "evidence-hash": "b0e5ecc73e7ebe37abe68641e79489095b518ec58715c879be2f800698a01780"
+    },
+    {
+      "id": "ev-f538208bd9a4",
+      "kind": "transition-evidence",
+      "evidence-hash": "f538208bd9a4874c6f0bab82eef1f7d05e9cf937e2762af0dde9ef3051d559d2"
+    },
+    {
+      "id": "ev-551048cfd774",
+      "kind": "transition-evidence",
+      "evidence-hash": "551048cfd774b06fd7d7d60887ebb11d5db179c90c723f33744eb23fe03e0696"
+    }
+  ]
+}

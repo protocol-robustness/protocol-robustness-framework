@@ -1,0 +1,29 @@
+{
+  :phase "phase-p-lite"
+  :description "Extreme: 200 disputes, strong correlation (rho=0.8), attacker budget"
+  
+  ; Basic parameters
+  :seed 44
+  :num-epochs 5
+  :num-trials-per-epoch 100
+  :fee-bps 100
+  :escrow-wei 1e18
+  :slash-multiplier 3.0
+  :appeal-prob-correct 0.05
+  :appeal-prob-wrong 0.90
+  :detection-prob 0.10
+  
+  ; Resolver ring
+  :num-resolvers 100
+  :initial-stake-wei 1e19
+  :allowed-strategies [:honest :lazy :malicious :collusive]
+  :strategy-distribution {:honest 0.70 :lazy 0.15 :malicious 0.10 :collusive 0.05}
+  
+  ; Phase P Lite specific
+  :difficulty-distribution {:easy 0.70 :medium 0.25 :hard 0.05}
+  :panel-size 3
+  :correlation-parameter 0.8  ; Strong herding - expect brittleness here
+  :effort-budget-per-epoch 100
+  :load-level :extreme  ; 200 disputes per epoch - brutal load
+  :attacker-budget-fraction 0.25  ; Attacker can target ~50 disputes
+}

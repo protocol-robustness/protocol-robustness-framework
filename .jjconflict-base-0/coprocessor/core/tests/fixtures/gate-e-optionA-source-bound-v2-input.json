@@ -1,0 +1,33 @@
+{
+  "schema": "prf/onchain-shortfall-v2-assurance-fixture.v1",
+  "_comment": "Gate E deployment-derived proof input (Option A). Filled from DeployGateEOptionA manifest 0xc110490c... on Anvil 31337. LOCAL-ONLY fields are documented operator choices, not deployment-committed.",
+  "prepared-operation": {
+    "operation-id": "0x0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a",
+    "initiator": "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266",
+    "chain-id": "31337",
+    "reserve": "0x0dcd1bf9a1b36ce34237eeafef220932846bcd82",
+    "token": "0xb7f8bc63bbcad18155201308c8f3540b07f84f5e",
+    "allocator": "0xa51c1fc2f0d1a1b8494ed1fe312d7c3a78ed91c0",
+    "configuration-root": "0x3333333333333333333333333333333333333333333333333333333333333333",
+    "configuration-epoch": "0",
+    "source-verifier-id": "0x0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b",
+    "execution-verifier-id": "0x0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c",
+    "source-program-vkey": "0x0089abceac18acb8d0686b81ea542b933339353807924bc021a9fe3820888127",
+    "source-program-elf-sha256": "0x1994d8b67004de3d5dfffc176434ae63f3d7ac32ae875d72093943ff8e82247b",
+    "source-statement-schema": "0x1a6a1f7b90e40b7c254aba8cadbb8f4a7d4fec232b783c39cd648f10896b097a",
+    "source-public-values-schema": "0xa069c379e311996c73ea1f69edb070bfddbb573b770b3c5aec52bad4b255aa87",
+    "execution-statement-schema": "0x0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d",
+    "execution-public-values-schema": "0x0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e0e",
+    "policy-root": "0x0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f",
+    "residual-recipient": "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266"
+  },
+  "economic-reserve-state": {
+    "gross-balance": "100",
+    "reserved-before": "0",
+    "protected-capital": "10",
+    "available-amount": "90",
+    "availability-revision": "0"
+  },
+  "allocation-binding-root": "0x1010101010101010101010101010101010101010101010101010101010101010",
+  "realized-statement-root": "0x1111111111111111111111111111111111111111111111111111111111111111"
+}

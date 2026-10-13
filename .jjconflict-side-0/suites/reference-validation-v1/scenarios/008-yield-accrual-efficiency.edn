@@ -1,0 +1,7 @@
+{:scenario/id "yield-accrual-efficiency-v1"
+ :scenario/title "008-yield-accrual-efficiency"
+ :scenario/version "1.0.0"
+ :scenario/status :public-candidate
+ :scenario/purpose "Verifies long-duration yield accrual exceeds baseline escrow protocol fees."
+ :protocol/phase :dr3
+ :expected-result {:status :pass :classification :economic-baseline}}

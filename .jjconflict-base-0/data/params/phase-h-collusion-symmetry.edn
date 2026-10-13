@@ -1,0 +1,42 @@
+{:description "Phase H: Test buyer-resolver collusion symmetry (same as seller case)"
+ :scenario-id "phase-h-collusion-symmetry"
+ :rng-seed 52
+
+ :escrow-distribution
+ {:type :lognormal
+  :mean 10000
+  :stddev 5000}
+
+ :force-strategy :collusive
+ :strategy-mix
+ {:honest 0.0
+  :lazy 0.0
+  :malicious 0.0
+  :collusive 1.0}
+
+ :allow-slashing? true
+
+ :resolver-fee-bps 150
+ :appeal-bond-bps 700
+
+ ;; Slashing parameters
+ :slash-multiplier 2.5
+ :slashing-detection-probability 0.10
+
+ ;; Phase H: Realistic timing
+ :unstaking-delay-days 14
+ :freeze-on-detection? true
+ :freeze-duration-days 3
+ :appeal-window-days 7
+ :detection-type :fraud
+
+ ;; Appeal dynamics
+ :appeal-probability-if-correct 0.05
+ :appeal-probability-if-wrong 0.40
+
+ ;; Simulation config
+ :n-trials 500
+ :n-seeds 1
+ :parallelism :auto
+ :save-samples? false
+ :save-sweep? true}

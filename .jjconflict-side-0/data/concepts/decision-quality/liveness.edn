@@ -1,0 +1,121 @@
+{:concept/id :consensus/liveness
+ :concept/type :decision-quality
+ :concept/layer :stakeholder
+ :concept/name "Consensus liveness"
+ :concept/summary
+ "Did the decision process make progress within expected time bounds?
+  Liveness failures — timeouts, stalls, capacity exhaustion — prevent
+  the system from reaching a terminal outcome and leave participants
+  in limbo."
+
+ :concept/stakeholder-question
+ "Did the protocol make timely progress toward a decision, or was the
+  process stalled, timed out, or permanently locked?"
+
+ :concept/protocols #{:protocol/sew-v1 :protocol/prf}
+
+ :concept/roles
+ {:progress-monitor
+  {:description "Entity that observes whether the process advances."
+   :maps-to [:protocol.actor/verifier]}
+  :progress-blocker
+  {:description "Entity or condition that prevents advancement."
+   :maps-to [:protocol.actor/sender :protocol.actor/recipient]}
+  :progress-unblocker
+  {:description "Entity that can resolve a stall or timeout."
+   :maps-to [:protocol.actor/resolver :protocol.actor/governance]}}
+
+ :concept/entities
+ {:timer
+  {:description "Protocol clock measuring elapsed time against deadlines."
+   :maps-to [:protocol.entity/deadline]}
+  :capacity-budget
+  {:description "Limited pool of concurrent disputes a resolver can handle."
+   :maps-to [:protocol.entity/capacity]}
+  :stall-condition
+  {:description "Protocol state from which no action can advance."
+   :maps-to [:protocol.entity/stuck]}}
+
+ :concept/actions
+ {:advance-process
+  {:description "Take an action that moves the interaction forward."
+   :maps-to [:protocol.action/submit-evidence :protocol.action/resolve :protocol.action/settle]}
+  :detect-stall
+  {:description "Recognise that no progress has occurred within expected bounds."
+   :maps-to [:protocol.action/check-timeout :protocol.action/verify-liveness]}
+  :trigger-timeout
+  {:description "Automatically advance state because a deadline expired."
+   :maps-to [:protocol.action/auto-cancel :protocol.action/timeout-resolution]}
+  :recover-from-stall
+  {:description "Governance or resolver intervention to restart a stalled process."
+   :maps-to [:protocol.action/governance-intervention :protocol.action/capacity-bypass]}}
+
+ :concept/outcomes
+ {:progressed-normally
+  {:description "Process advanced within expected time bounds."
+   :maps-to [:protocol.outcome/resolved]}
+  :timed-out
+  {:description "A deadline expired before required action was taken."
+   :maps-to [:protocol.outcome/timeout]}
+  :stalled
+  {:description "Process halted with no available action to advance."
+   :maps-to [:protocol.outcome/stuck]}
+  :capacity-exhausted
+  {:description "Resolver reached maximum concurrent disputes and could not accept more."
+   :maps-to [:protocol.outcome/stuck]}
+  :recovered
+  {:description "A stalled or timed-out process was restarted by intervention."
+   :maps-to [:protocol.outcome/resolved]}}
+
+ :concept/failure-modes
+ [{:failure/id :resolver-timeout
+   :failure/name "Resolver timeout"
+   :failure/summary
+   "The resolver did not act within the required window, triggering a default outcome."
+   :protocol-mechanisms [:resolution-deadline :timeout :default-resolution]
+   :stakeholder-impact "Decision may be made without resolver deliberation."}
+
+  {:failure/id :capacity-exhaustion
+   :failure/name "Resolver capacity exhaustion"
+   :failure/summary
+   "The resolver is at maximum concurrent disputes and cannot take on additional work."
+   :protocol-mechanisms [:capacity-limits :dispute-routing :governance]
+   :stakeholder-impact "New disputes cannot be processed until capacity frees up."}
+
+  {:failure/id :permanent-lock
+   :failure/name "Permanent lock (no recovery path)"
+   :failure/summary
+   "The process reached a state with no available action and no automatic or governance recovery."
+   :protocol-mechanisms [:timeout :governance-override :capacity-bypass]
+   :stakeholder-impact "Funds are permanently inaccessible."}
+
+  {:failure/id :auto-timeout-manipulation
+   :failure/name "Auto-timeout manipulation"
+   :failure/summary
+   "A party triggers or prevents a timeout strategically to influence the outcome."
+   :protocol-mechanisms [:auto-cancel :timeout-config :deadline-games]
+   :stakeholder-impact "Timeout is used as a strategic tool rather than a liveness safeguard."}]
+
+ :concept/metrics
+ {:total-elapsed
+  {:description "Total time from creation to terminal outcome."
+   :source :derived-from-trace}
+  :timeout-events
+  {:description "Number of timeout-triggered state transitions."
+   :source :derived-from-trace}
+  :stall-duration
+  {:description "Time spent in states where no progress was possible."
+   :source :derived-from-trace}
+  :resolver-utilisation
+  {:description "Fraction of resolver capacity used during the interaction."
+   :source :derived-from-protocol-metrics}}
+
+ :concept/assumptions
+ ["Liveness is measured against protocol-defined deadlines and capacity limits."
+  "A timeout is a liveness failure even if it produces a terminal outcome."
+  "Concept labels do not change protocol validity."]
+
+ :concept/out-of-scope
+ ["Real-world service-level agreements or uptime guarantees."
+  "Network-level liveness (block production, peer connectivity)."
+  "Economic liveness (willingness of resolvers to participate)."]}

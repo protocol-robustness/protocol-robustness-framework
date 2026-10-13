@@ -1,0 +1,95 @@
+name: VALIDATION · PRF · Reference Suite v1
+
+on:
+  workflow_dispatch:
+
+  pull_request:
+  
+  push:
+    branches:
+      - main
+      - master
+
+jobs:
+  reference-validation-v1:
+    name: Verify PRF reference pinned outcomes
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Install Clojure CLI
+        run: |
+          curl -fsSL https://download.clojure.org/install/linux-install-1.11.1.1413.sh -o /tmp/install-clojure.sh
+          chmod +x /tmp/install-clojure.sh
+          sudo /tmp/install-clojure.sh
+
+      - name: Cache Maven dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/.m2/repository
+          key: ${{ runner.os }}-maven-${{ hashFiles('deps.edn') }}
+          restore-keys: ${{ runner.os }}-maven-
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: "test/forensic_python/requirements.txt"
+
+      - name: Install Python dependencies
+        run: |
+          pip install -r test/forensic_python/requirements.txt
+          pip install jsonschema
+
+      - name: Checkout sew-protocol (for trace provenance gate)
+        # GH_PAT must be a read-only credential scoped to the sew-protocol repo
+        # (fine-grained PAT / GitHub App token / deploy key preferred over a broad PAT).
+        # The gate is skipped if no such credential is provisioned, so it cannot
+        # break the pipeline until it is configured.
+        if: ${{ secrets.GH_PAT != '' }}
+        uses: actions/checkout@v4
+        with:
+          repository: Sew-Protocol/sew-protocol
+          path: ../sew-protocol
+          token: ${{ secrets.GH_PAT }}
+
+      - name: Gate — trace fixtures carry Solidity-version provenance
+        if: ${{ secrets.GH_PAT != '' }}
+        run: |
+          make trace-provenance SEW_SOLIDITY_PATH=../sew-protocol
+
+      - name: Clean previous artifacts
+        run: rm -rf suites/reference-validation-v1/actual
+
+      - name: Run reference suite
+        run: |
+          make reference-validation-v1
+      - name: Verify reference outputs match pinned outcomes
+        run: |
+          echo "Checking actual/ exists..."
+          ls -la suites/reference-validation-v1/actual/ || true
+          echo "Checking expected/ exists..."
+          ls -la suites/reference-validation-v1/expected/ | head -20 || true
+          echo "Running verify..."
+          ./suites/reference-validation-v1/scripts/verify.sh
+      - name: Publish validation summary to step summary
+        if: always()
+        run: |
+          python3 scripts/ci/emit-step-summary.py \
+            --label "Reference Suite v1" \
+            --summary suites/reference-validation-v1/actual/summary.json \
+            --file suites/reference-validation-v1/actual/ \
+            --gating || true
+      - name: Upload reference artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: reference-suite-artifacts
+          path: suites/reference-validation-v1/actual/

@@ -1,0 +1,16 @@
+{:benchmark/id :benchmark/community-dispute-liveness-v1
+ :description "DEPRECATED — migrated to benchmarks/packs/sew/dispute-liveness-v1.edn"
+ :canonical-location "benchmarks/packs/sew/dispute-liveness-v1.edn"
+ :deprecated true
+ :deprecated-on "2026-06-27"
+ :replaced-by :benchmark/sew-dispute-liveness-v1
+
+ :benchmark/domain          :domain/escrow-dispute-resolution
+ :benchmark/protocol        :protocol/sew
+ :benchmark/scenario-suite  :suite/sew-dispute-safety-v1
+ :benchmark/runner-policy   :runner-policy/deterministic-local-v1
+ :benchmark/evidence-policy :evidence-policy/forensic-standard-v1
+ :benchmark/scoring-rule    :scoring/binary-claims-v1
+ :benchmark/claims          [:claim/dispute-liveness
+                             :claim/bounded-resolution-time
+                             :claim/slashing-conservation]}

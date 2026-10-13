@@ -1,0 +1,9 @@
+{
+  "id": "keyword-resolver-id",
+  "description": "Keyword :resolver\/id",
+  "input": ":resolver\/id",
+  "canonical_bytes_hex": "220b7265736f6c7665722f6964",
+  "domain_tag": "EVIDENCE_RECORD_V1",
+  "domain_tag_hex": "45564944454e43455f5245434f52445f5631",
+  "hash_hex": "43d2408a055195b2b44401b7be0850ea9c56e5b9c658a85d891a8b8597cdfced"
+}

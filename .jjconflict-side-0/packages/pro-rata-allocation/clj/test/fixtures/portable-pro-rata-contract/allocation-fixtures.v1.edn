@@ -1,0 +1,27 @@
+{:schema-version "pro-rata-allocation-fixtures.v1"
+ :source-release-root "b863e04a61d0dded845dc3351626ebf57c4d5abea7e18ea19a89cacf4b1ad12a"
+ :files
+ [{:path "vectors/allocation-rounding-001.edn"
+   :sha256 "f2552365434868de77589ef81392bd267a74f2b0739db7230e7d5d072e64ccab"}
+  {:path "vectors/cap-clamping-001.edn"
+   :sha256 "77b285e2ef70d80ef26f331c74feae4fb61987ae59461e7e9284cd3b74034c1b"}
+  {:path "vectors/floor-residual-001.edn"
+   :sha256 "aab12ca1e22692c82f4fd1232bafff5c82c0b81052604d2528b28ef5ea4538b0"}
+  {:path "vectors/negative-allocation-001.edn"
+   :sha256 "c340eb444ea42cabbffde3eba756ede37c4d8e56d2631bacfd7c6c601ad604d3"}
+  {:path "vectors/policy-outcome-conformance-v1.edn"
+   :sha256 "ff618c6d661e2217f6203a0f758b62c739a6fad5b332c2f36c4019630aafbc46"}
+  {:path "vectors/redistribute-cap-excess-001.edn"
+   :sha256 "a8a3fb649ad1867ce6968ec6156fb5b5a1ed7ba05065fe3cc7c9b89bcdc08d45"}
+  {:path "vectors/zero-weight-001.edn"
+   :sha256 "74a0ff9ebdffb185ceb912ba997176e98c8c037146255d3a1ca0f852a9894227"}
+  {:path "canonical-bytes/allocation-result-001.hex"
+   :sha256 "e9d7c2a8e3adc1ad5eb6378a9175bca0ae4049f5b87a474a8d89be923061251b"}
+  {:path "canonical-bytes/cap-clamping-001.allocation-result.hex"
+   :sha256 "4ba01ea2b4edbca55225fffd4cbaa0282a0eb6b9f8373ae10d84ecf592d552fe"}
+  {:path "canonical-bytes/floor-residual-001.allocation-result.hex"
+   :sha256 "72072f8e84383e3d7bcfee5d08aab58bae1a93958ffb859656277988273ad238"}
+  {:path "canonical-bytes/redistribute-cap-excess-001.allocation-result.hex"
+   :sha256 "0303118ccfaa61ec9e7bec3516496d5f2f895f22bca3b335f88358232ca5872f"}
+  {:path "canonical-bytes/zero-weight-001.allocation-result.hex"
+   :sha256 "cbd5179596042b6d5c2e225ce812ce5af2ce994b3f3bafe002e120110f90fcbf"}]}

@@ -1,0 +1,199 @@
+{:concept/id :yield/escrow
+ :concept/type :use-case
+ :concept/layer :stakeholder
+ :concept/name "Yield-bearing escrow"
+ :concept/summary
+ "Escrowed funds accrue yield according to a yield module while the escrow
+  is active. The protocol tracks principal and accrued yield separately,
+  checks that held balances cover the total custody need (principal plus
+  realized yield), and detects shortfalls when coverage is insufficient.
+  Yield may be expected (modelled rate) but not guaranteed; actual yield
+  depends on the module's performance. Shortfall recovery may involve
+  partial fills, deferred claims, or pro-rata allocation among claimants.
+  The stakeholder bears the risk that yield may be less than modelled or
+  that principal may be at risk if the yield module underperforms."
+
+ :concept/stakeholder-question
+ "Does the escrowed value grow over time, and what happens if the protocol
+  cannot cover my principal plus accrued yield?"
+
+ :concept/protocols #{:protocol/sew-v1}
+
+ :concept/maturity :illustrative
+ :concept/support-status :not-asserted
+
+ :concept/related
+ [:yield/yield-bearing
+  :allocation/shortfall
+  :allocation/partial-fill
+  :allocation/pro-rata-fairness
+  :allocation/deferred-claim
+  :consensus/finality
+  :decision-quality/solvency-status]
+
+ :concept/roles
+ {:position-holder
+  {:description "Party whose escrowed funds are in a yield-bearing position."
+   :maps-to [:protocol.actor/sender :protocol.actor/recipient]}
+  :yield-module
+  {:description "Protocol module that computes yield accrual and determines shortfall models."
+   :maps-to [:protocol.actor/yield-module]}
+  :shortfall-detector
+  {:description "Protocol logic that detects when held balance is insufficient for active positions."
+   :maps-to [:protocol.actor/resolution-module]}
+  :claimant
+  {:description "Party entitled to a portion of available funds during shortfall resolution."
+   :maps-to [:protocol.actor/sender :protocol.actor/recipient]
+   :mapping/confidence :approximate
+   :mapping/note "In a shortfall, both escrow participants may be claimants; the mapping depends on the specific allocation."}
+  :governance
+  {:description "Protocol governance that selects yield modules, adjusts rate parameters, or intervenes during shortfall."
+   :maps-to [:protocol.actor/governance]}}
+
+ :concept/entities
+ {:yield-position
+  {:description "A yield-bearing escrow with tracked principal and accrued yield."
+   :maps-to [:protocol.entity/yield-position]}
+  :principal
+  {:description "The base escrowed amount that generates yield."
+   :maps-to [:protocol.entity/principal]}
+  :accrued-yield
+  {:description "Yield that has been earned and recorded since the position was opened or last settled."
+   :maps-to [:protocol.entity/realized-yield]}
+  :expected-yield
+  {:description "Projected yield based on the module's rate and elapsed time; not guaranteed."
+   :maps-to [:protocol.entity/unrealized-yield]}
+  :custody-need
+  {:description "Total value (principal plus accrued yield) that must be covered by held balances."
+   :maps-to [:protocol.entity/custody-need]
+   :mapping/confidence :approximate
+   :mapping/note "Custody need is a computed value, not a distinct entity."}
+  :shortfall
+  {:description "A deficit when held balances are less than the total custody need."
+   :maps-to [:protocol.entity/shortfall]}
+  :partial-fill
+  {:description "A settlement that covers less than the full claim amount due to insufficient available funds."
+   :maps-to [:protocol.entity/partial-fill]}}
+
+ :concept/actions
+ {:accrue-yield
+  {:description "Compute and record realized yield based on the module's rate and time elapsed."
+   :maps-to [:protocol.action/accrue-yield]}
+  :check-coverage
+  {:description "Verify that held balances cover the total custody need for all active positions."
+   :maps-to [:protocol.action/check-invariant]}
+  :detect-shortfall
+  {:description "Identify when the custody need exceeds held balances."
+   :maps-to [:protocol.action/calculate-shortfall]}
+  :allocate-shortfall
+  {:description "Distribute available funds among claimants, possibly at a pro-rata fraction."
+   :maps-to [:protocol.action/settle]
+   :mapping/confidence :approximate
+   :mapping/note "Shortfall allocation is implemented through settlement and partial-fill actions; there is no dedicated allocate action."}
+  :claim-deferred
+  {:description "Claim previously deferred value when funds become available."
+   :maps-to [:protocol.action/partial-fill]
+   :mapping/confidence :approximate
+   :mapping/note "Deferred claim uses the partial-fill primitive; the deferral period is tracked within the claim state."}}
+
+ :concept/outcomes
+ {:yield-realized
+  {:description "Yield was accrued and recorded as expected."
+   :maps-to [:protocol.outcome/released]}
+  :yield-shortfall-detected
+  {:description "Held balances are insufficient to cover custody need; shortfall is recorded."
+   :maps-to [:protocol.outcome/deferred]}
+  :partial-fill-applied
+  {:description "Claimants received less than their full entitlement, with the remainder deferred."
+   :maps-to [:protocol.outcome/deferred]}
+  :full-coverage-restored
+  {:description "After recovery actions, held balances again cover the full custody need."
+   :maps-to [:protocol.outcome/released]}
+  :principal-loss
+  {:description "Yield module underperformance caused the position value to fall below the original principal."
+   :maps-to [:protocol.outcome/adversarial-resolution]
+   :mapping/confidence :approximate
+   :mapping/note "Principal loss is modelled as adversarial resolution because it represents an outcome worse than the expected minimum."}
+  :shortfall-unresolved
+  {:description "Shortfall persists at the end of the observation window; claimants have not been made whole."
+   :maps-to [:protocol.outcome/stuck]}}
+
+ :concept/failure-modes
+ [{:failure/id :uncovered-shortfall
+   :failure/name "Uncovered yield shortfall"
+   :failure/summary
+   "Held balances are less than total custody need and no recovery path exists."
+   :protocol-mechanisms [:yield-exposure-check :shortfall-detection]
+   :stakeholder-impact "Claimants may not recover their full principal, let alone accrued yield."}
+
+  {:failure/id :yield-underperformance
+   :failure/name "Yield underperformance"
+   :failure/summary
+   "Actual yield is materially lower than the expected rate, reducing the value of the position."
+   :protocol-mechanisms [:rate-application :yield-accrual]
+   :stakeholder-impact "Position holders receive less economic return than anticipated."}
+
+  {:failure/id :unfair-shortfall-allocation
+   :failure/name "Unfair shortfall allocation"
+   :failure/summary
+   "Available funds are not distributed fairly among claimants during shortfall resolution."
+   :protocol-mechanisms [:pro-rata-allocation :partial-fill]
+   :stakeholder-impact "Some claimants receive proportionally less than others at the same priority."}
+
+  {:failure/id :deferred-claim-never-honored
+   :failure/name "Deferred claim never honored"
+   :failure/summary
+   "A deferred claim remains unpaid because the shortfall is never resolved."
+   :protocol-mechanisms [:deferred-claim-tracking :settlement]
+   :stakeholder-impact "Claimant permanently loses access to part of their entitlement."}
+
+  {:failure/id :yield-leakage
+   :failure/name "Yield value leakage"
+   :failure/summary
+   "Value exits the yield position beyond the bounds of the declared shortfall, reducing recoverable funds."
+   :protocol-mechanisms [:conservation-check :shortfall-fidelity]
+   :stakeholder-impact "Less value is available for claimants than the shortfall model predicts."}]
+
+ :concept/metrics
+ {:yield-rate
+  {:description "Annualized yield rate for the position's token, as determined by the yield module."
+   :source :derived-from-world-state}
+  :total-custody-need
+  {:description "Sum of principal plus accrued yield across all active yield positions."
+   :source :derived-from-trace}
+  :coverage-ratio
+  {:description "Ratio of held balance to total custody need."
+   :source :derived-from-invariant-results}
+  :shortfall-episode-count
+  {:description "Number of times yield shortfall was detected."
+   :source :derived-from-trace}
+  :shortfall-recovery-time
+  {:description "Time from shortfall detection to full coverage restoration."
+   :source :derived-from-trace}}
+
+ :concept/assumptions
+ ["Yield accrual is deterministic and reproducible from world state."
+  "Yield module has a known, bounded risk profile."
+  "Held balances are observable from protocol state before allocation."
+  "Expected yield is a modelled projection, not a guarantee."
+  "Principal loss is possible if the yield module underperforms or fails."
+  "Concept labels do not change protocol validity."]
+
+ :concept/out-of-scope
+ ["Real-world APY, APR, or investment returns."
+  "Market risk, impermanent loss, or oracle price deviations."
+  "Tax treatment of yield as income or capital gain."
+  "Yield module selection criteria or due diligence."
+  "Economic analysis of whether yield is sustainable under adversarial conditions."]
+
+ :concept/known-gaps
+ ["Principal-loss maps approximately to adversarial-resolution, which may not perfectly capture mechanical underperformance vs. malicious action."
+  "Yield-bearing escrow is modelled but economic sustainability under adversarial conditions is not evaluated."
+  "The protocol does not explicitly distinguish expected vs. guaranteed yield at the outcome level."
+  "Shortfall allocation fairness depends on the pro-rata implementation, which is defined in a separate concept (:allocation/pro-rata-fairness)."
+  "Yield accrual and shortfall detection are modelled mechanically; the economic assumptions behind yield rates are not validated here."]
+
+ :concept/evidence
+ {:scenarios #{}
+  :benchmarks #{}
+  :claims #{}}}

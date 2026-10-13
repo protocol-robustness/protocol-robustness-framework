@@ -1,0 +1,10 @@
+[package]
+name = "controlled-entitlement-source-sp1-program"
+version = "0.1.0"
+edition = "2021"
+description = "SP1 guest requiring the prepared operation to commit to the controlled realized source."
+
+[dependencies]
+allocation-kernel = { path = "../core" }
+sp1-zkvm = "=6.3.1"
+serde_json = "1"
