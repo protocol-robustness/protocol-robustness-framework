@@ -28,6 +28,26 @@ expected_stages = [
 assert [s["stage"] for s in observations] == expected_stages, "unexpected or incomplete state sequence"
 assert transfer_observation is not None and len(transfer_observation) == 5
 assert [t["amount"] for t in transfer_observation] == [70, 35, 21, 14, 10]
+policy = json.loads((root / "protected-capital-policy.json").read_text())
+funding = json.loads((root / "funding-observation.json").read_text())
+source_text = (root / "PartialFillV3Controlled.t.sol").read_text()
+def solidity_address(name):
+    match = re.search(rf"address constant {name} = (0x[0-9A-Fa-f]{{40}});", source_text)
+    assert match, f"{name} address missing from retained test source"
+    return match.group(1)
+alice, bob, carol = (solidity_address(name) for name in ("ALICE", "BOB", "CAROL"))
+assert policy["beneficialOwnerAndRefundBeneficiary"].lower() == carol.lower()
+assert funding["sponsorTransferObserved"] and funding["observedTransferAmount"] == 80
+assert funding["reserve"].lower() == policy["reserve"].lower()
+assert funding["token"].lower() == policy["token"].lower()
+assert all(t["token"].lower() == policy["token"].lower() for t in transfer_observation)
+assert transfer_observation[0]["from"].lower() == policy["reserve"].lower()
+assert transfer_observation[0]["to"].lower() == policy["allocator"].lower()
+assert transfer_observation[1]["to"].lower() == alice.lower()
+assert transfer_observation[2]["to"].lower() == bob.lower()
+assert transfer_observation[3]["to"].lower() == carol.lower()
+assert transfer_observation[4]["from"].lower() == policy["reserve"].lower()
+assert transfer_observation[4]["to"].lower() == carol.lower()
 assert observations[0]["reserveBalance"] == 80
 assert observations[-1]["reserveBalance"] == 0 and observations[-1]["reserveFinalized"]
 assert observations[-1]["carolBalance"] == 24
@@ -91,7 +111,7 @@ for i, state in enumerate(states):
         "sequence": i,
         "event": state["event"],
         "stage": state["stage"],
-        "operation_id": "0x6fbe4a9888b84c0245dcc21e15835a7e7c5ede9b9fc42a77baf0600b8f46a414",
+        "operation_id": policy["operationId"],
         "observed_balances": {
             "reserve_custody": o["reserveBalance"],
             "allocator_custody": o["allocatorBalance"],
@@ -146,7 +166,8 @@ checks = {
     "restricted_capital_release": {
         "equation": "10 restricted in custody before finalization = 10 transferred to Carol at finalization",
         "holds": observations[-2]["reserveBalance"] == 10 and observations[-1]["reserveBalance"] == 0
-                and transfer_observation[4]["amount"] == 10,
+                and transfer_observation[4]["amount"] == 10
+                and observations[-1]["carolBalance"] - observations[-2]["carolBalance"] == 10,
     },
 }
 assert checks["initial_sponsor_deposit"]["holds"] and checks["request_disposition"]["holds"]
