@@ -1,0 +1,50 @@
+{
+  "classification": "legacy V3 summary; not accepted as receipt-level payout evidence",
+  "discrepancies": [
+    {
+      "correctInterpretation": "80 units are deposited into reserve; 70 units are later transferred reserve-to-allocator for the protected operation. These are separate movements and must have separate receipt identities.",
+      "legacyRecord": "funding-observation.json reports an 80-unit sponsor transfer and reserve balance after deposit, with protectedCapital=10 and availableCapital=70; it contains no transaction hash, tx index, block hash/number, receipt status, log index, or event emitter.",
+      "topic": "funding attribution"
+    },
+    {
+      "correctInterpretation": "The 24-unit terminal balance is the sum of two distinct events. The entitlement claim is 14; the protected refund is 10. Do not classify all 24 as an entitlement payout.",
+      "legacyRecords": "transfers.json lists a 14-unit allocator-to-Carol entitlement transfer and a distinct 10-unit reserve-to-Carol protected-capital refund; terminal-observation.json reports Carol balance 24. The transfer rows do not include receipt/log identities.",
+      "topic": "Carol balance attribution"
+    },
+    {
+      "correctInterpretation": "Retain as historical arithmetic/context only. PRO-28 fresh evidence binds event emitter, transaction hash/index, block hash/number, receipt status, and log index to raw local RPC receipts.",
+      "legacyRecords": "The V3 Foundry test and summary describe observed transfers but omit transaction/receipt/log indexes for those transfers.",
+      "topic": "receipt authenticity"
+    }
+  ],
+  "policyLimitations": [
+    "The legacy V3 fixture is local chain 31337 evidence only.",
+    "The historical fixture does not establish a legal/economic fact about Carol outside its fixture-bound beneficiary policy.",
+    "This discrepancy report does not upgrade the old records; use the raw fresh-replay package for receipt-level claims."
+  ],
+  "schema": "eae.pro-28-legacy-metadata-discrepancy.v1",
+  "sourceArtifacts": {
+    "funding-observation.json": {
+      "path": "examples/partial-fill/evidence/v3-live-context/funding-observation.json",
+      "sha256": "sha256:96a24ca783b9f7e6114851d0cae34be9b850c593125d4795336594d7613fe824"
+    },
+    "manifest.json": {
+      "path": "examples/partial-fill/evidence/v3-live-context/manifest.json",
+      "sha256": "sha256:d19c3be1ffabba96b102c9b83f1fdeaaa9121132eaa90ab2015a6f72215abfa5"
+    },
+    "terminal-observation.json": {
+      "path": "examples/partial-fill/evidence/v3-live-context/terminal-observation.json",
+      "sha256": "sha256:c4938e602b69c564df35e534baabf22fbc7f1e8dda62e86148c84f3c8cb53b70"
+    },
+    "transfers.json": {
+      "path": "examples/partial-fill/evidence/v3-live-context/transfers.json",
+      "sha256": "sha256:16a7bfa86045fdb08076b81cbe262eb089a92bf031776f59c090f99257622d55"
+    }
+  },
+  "sourceIdentity": {
+    "elfSha256": "0x705efd1c5b997ae1f2c19eddcf6bb66a147e94b6b3b036393d6dab041c00542d",
+    "note": "This is the older V3 profile identity and differs from the successor-entitlement V1 Groth16 profile used by the fresh PRO-28 replay.",
+    "program": "source-bound-entitlement-controlled-sp1-program.v1",
+    "vkey": "0x00691e1cff8e4252731c8fe2bc326e8725ed5f9b92a298cc30a2c5fc40962dd1"
+  }
+}
