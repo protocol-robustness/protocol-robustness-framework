@@ -129,6 +129,13 @@ fn identity_key(value: &CanonValue) -> Result<IdentityKey, RequestNormalizationE
     }
 }
 
+pub(crate) fn compare_row_ids(left: &CanonValue, right: &CanonValue) -> std::cmp::Ordering {
+    match (identity_key(left), identity_key(right)) {
+        (Ok(left), Ok(right)) => left.cmp(&right),
+        _ => left.encode().cmp(&right.encode()),
+    }
+}
+
 fn non_negative_integer(value: Option<&CanonValue>) -> Option<BigInt> {
     match value {
         Some(CanonValue::Int(value)) if value >= &BigInt::from(0) => Some(value.clone()),

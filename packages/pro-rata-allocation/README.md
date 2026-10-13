@@ -6,12 +6,11 @@ locally by PRF. A reproducible `0.1.0-rc.1` source bundle is available under
 and its conformance fixtures. This is a qualified local candidate, not a
 remote registry release.
 Its Rust realized-statement identity layer is also extracted and
-conformance-tested. Rust exposes typed row normalization and full V1 request
-normalization/request-root derivation through `request`, plus an
-arbitrary-precision allocation kernel through `allocation`. Canonical result
-assembly and full mathematical witness derivation remain incomplete. The
-registry remains proposed and non-runtime. The wider pro-rata artifact family
-still needs extraction.
+conformance-tested. Rust exposes typed row normalization, full V1 request
+normalization/request-root derivation, an arbitrary-precision allocation
+kernel, V1 quota/redistribution witnesses, and canonical result assembly with
+frozen allocation-root conformance. The registry remains proposed and
+non-runtime. The wider pro-rata artifact family still needs extraction.
 
 Definitions and authority: [proposed registry](../../docs/architecture/canonical-artifacts/canonical-artifacts.v1.edn),
 [package-local V1 allocation profile](ALLOCATION_V1.md),
@@ -270,16 +269,17 @@ builder against the same frozen roots.
 
 The Rust `request` API normalizes typed rows and complete V1 requests, applies
 the V1 defaults and accepted policy values, and derives the existing
-`PROJECTION_ARTIFACT_V1` request root. Its allocation-rounding request root is
-checked against the frozen Clojure golden vector. Primitive result and witness
-derivation remain unimplemented, so the complete Rust primitive profile is not
-yet qualified.
+`PROJECTION_ARTIFACT_V1` request root. The allocation-rounding request root is
+checked against the frozen Clojure golden vector.
 
 The Rust `allocation::allocate_normalized` function implements V1 floor and
 largest-remainder arithmetic for unallocated and cap-excess redistribution
-policies with arbitrary-precision amounts. It is checked against frozen
-rounding, cap-clamping, and redistribution expectations. Canonical result
-projection and per-row quota/round witnesses remain planned.
+policies with arbitrary-precision amounts. `witness::build_witness` derives
+per-row quotas, fractional remainders, and redistribution rounds;
+`result::assemble_result` assembles the frozen result projection and root. Four
+frozen result roots (rounding, cap clamping, cap redistribution, and floor
+residual) match the package's portable Clojure vectors. This qualifies those
+vectors and APIs, not every primitive profile edge case or Solidity parity.
 
 The frozen Clojure reference remains in
 `pro_rata_contract_src/resolver_sim/pro_rata_contract/contract.clj`, where
@@ -316,11 +316,10 @@ with `sha256sum -c` against its checked-in sidecar before consuming it.
 The negative allocation vector contains two request mutations and four result
 projection mutations. The package runner exercises both request rejections and
 all four result rejections through `verify-result`. Rust implements the frozen
-allocation-policy identity. Rust now has a row-normalization counterpart, but
-the full primitive request/result/witness implementation remains missing. Rust
-realized-fill/statement code implements a different profile; it does not
-establish support for the complete public primitive request/result/witness
-format. Solidity support is profile-specific too. The
+allocation-policy identity, request normalization/root, allocation kernel,
+witness, and result-root derivation. Rust realized-fill/statement code
+implements a different profile; it does not establish support for those
+separate source-bound and lifecycle profiles. Solidity support is profile-specific too. The
 package runner provides positive frozen-vector, independent-reference, and
 negative Clojure evidence, but Rust and Solidity profile conformance remain
 incomplete, so the registry conformance status remains `:partial`.
