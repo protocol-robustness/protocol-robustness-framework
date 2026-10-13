@@ -8,12 +8,14 @@ a caller's verification report or asserted verified graph.
 ```bash
 clojure -M:with-sew -m resolver-sim.evidence.investigation-dispatcher plan \
   /path/to/prf-withdrawal-independent-replay \
-  /path/to/new-investigation-output
+  /path/to/new-investigation-output \
+  --source-bundle etc/conformance/vectors/source-bound-entitlement-v1.json
 
 # Run in a fresh process against the same retained evidence.
 clojure -M:with-sew -m resolver-sim.evidence.investigation-dispatcher verify \
   /path/to/prf-withdrawal-independent-replay \
-  /path/to/new-investigation-output/investigation-plan.edn
+  /path/to/new-investigation-output/investigation-plan.edn \
+  --source-bundle etc/conformance/vectors/source-bound-entitlement-v1.json
 ```
 
 The output directory must have an existing parent and must not exist itself.
@@ -22,12 +24,15 @@ evidence schema or admission record. Its `plan-root`, input inventory,
 graph-input identity, gap identities and task identities use PRF's existing
 `evidence-record` hash intent. They do not replace any source, deployment,
 operation or proof identity. The source-bundle reference is labelled declared
-because its payload is missing from this retained bundle.
+until its payload is supplied and its hash and selected economic inputs are
+independently checked. Source availability does not imply production eligibility.
 
 Every task binds the reconstructed input inventory, graph node hashes,
 operation/configuration context, originating issue and action definition.
 Issue order is deterministic; reconstruction follows its prerequisite tasks.
-The API accepts only `:max-tasks` (default 32, range 1–100). Excess tasks remain
+The API accepts `:max-tasks` (default 32, range 1–100) and an optional
+`:source-bundle` path. `verify` must receive that same content when a plan
+includes it. Paths are not committed; file bytes are. Excess tasks remain
 explicitly deferred. Execution attempts and retries are both zero.
 
 | Issue | Planned action | Limitation |
@@ -57,8 +62,10 @@ requires a new plan; V0 does not mutate or migrate an existing case.
 The retained 35/21/14 bundle produces evidence requests and blocked conflict/
 validation tasks. In particular, Carol's recorded transfer has a non-withdraw
 outer-call context, so investigation remains incomplete. Cryptographic proof
-verification, authenticated runtime/block observations and source payload
-acquisition remain evidence requirements.
+verification, authenticated runtime/block observations, historical balance
+snapshots and allocator storage remain evidence requirements. The existing
+adapter now recomputes witness roots and reconciles event-based funding and
+claim progression; those checks do not close missing state observations.
 
 Mutable case/event history, execution, retries, evidence ingestion, distributed
 delegation, researcher acceptance, reward obligations and payments are deferred
@@ -69,11 +76,13 @@ Run the focused tests from the checkout:
 ```bash
 clojure -M:test:with-sew -e '
   (require (quote resolver-sim.evidence.investigation-dispatcher-test)
+           (quote resolver-sim.evidence.accounting-reconciliation-test)
            (quote resolver-sim.evidence.deployment-bound-test)
            (quote resolver-sim.evidence.forensic-graph-test)
            (quote resolver-sim.evidence.node-test))
   (let [r (clojure.test/run-tests
             (quote resolver-sim.evidence.investigation-dispatcher-test)
+            (quote resolver-sim.evidence.accounting-reconciliation-test)
             (quote resolver-sim.evidence.deployment-bound-test)
             (quote resolver-sim.evidence.forensic-graph-test)
             (quote resolver-sim.evidence.node-test))]

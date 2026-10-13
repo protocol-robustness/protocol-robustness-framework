@@ -7,8 +7,11 @@
   (:require [clojure.data.json :as json]
             [clojure.java.io :as io]
             [clojure.string :as str]
+            [resolver-sim.allocation.source-bound-entitlement :as entitlement]
             [resolver-sim.conformance.canonical :as canonical-json]
-            [resolver-sim.evidence.forensic-graph :as forensic]))
+            [resolver-sim.evidence.accounting-reconciliation :as accounting]
+            [resolver-sim.evidence.forensic-graph :as forensic]
+            [resolver-sim.hash.canonical :as hc]))
 
 (def ^:private public-values-schema
   "0x876f2aea9124d79f41dbdd389d498430987fa33bbb34408989849c478a7c2bde")
@@ -110,11 +113,39 @@
   (into {} (map (fn [[_ k v]] [k v])
                 (re-seq #"(?m)^([a-zA-Z0-9_]+)=([^\n]+)$" text))))
 
+(defn- reconstruct-entitlements [witness fixture]
+  (if-not (contains? witness "realized-statement-input")
+    {:status :not-available :validator "resolver-sim.allocation.source-bound-entitlement/derive"}
+    (try
+      (let [raw (json/read-str (json/write-str witness) :key-fn keyword)
+            derived (entitlement/derive raw)
+            equal? (= (str "0x" (:public-values derived))
+                      (some-> (get fixture "public_values") str/lower-case))]
+        {:status (if equal? :pass :fail)
+         :validator "resolver-sim.allocation.source-bound-entitlement/derive"
+         :derived (entitlement/fixture-projection derived)
+         :members (mapv #(select-keys % [:ordinal :beneficiary :amount])
+                        (get-in derived [:entitlement-set :entitlements]))})
+      (catch Exception e
+        {:status :fail :validator "resolver-sim.allocation.source-bound-entitlement/derive"
+         :message (.getMessage e)}))))
+
+(defn- source-bundle-bound? [source-bundle source-hash witness fixture]
+  (and (= "source-bound-entitlement-conformance.v1" (get source-bundle "schema"))
+       (= source-hash (normalized-digest (get-in fixture ["gate_e" "source_bundle_sha256"])))
+       (= "A-minimum-realistic" (get-in fixture ["gate_e" "vector_id"]))
+       (some #(and (= "A-minimum-realistic" (get % "id")) (= "identity" (get % "transform")))
+             (get source-bundle "vectors"))
+       (= (select-keys (get source-bundle "base-input")
+                       ["realized-statement-input" "beneficiary-mapping" "openings"])
+          (select-keys witness ["realized-statement-input" "beneficiary-mapping" "openings"]))))
+
 (defn validate-records
   "Validate parsed retained records. Hashes are lowercase SHA-256 hex without
    prefixes, keyed by artifact name. Caller-supplied verification labels are
    ignored; all statuses here come from recomputed checks."
-  [{:keys [report manifest witness fixture provenance broadcasts final-state fork-test-log artifact-hashes]}]
+  [{:keys [report manifest witness fixture provenance broadcasts final-state fork-test-log artifact-hashes
+           source-bundle]}]
   (let [manifest-hash (get artifact-hashes :manifest)
         witness-hash (get artifact-hashes :witness)
         fixture-hash (get artifact-hashes :fixture)
@@ -147,6 +178,22 @@
         payout-map (into {} (map (juxt :recipient :amount) payouts))
         expected-count (when words (bigint (java.math.BigInteger. (subs (nth words 6) 2) 16)))
         expected-total (when words (bigint (java.math.BigInteger. (subs (nth words 7) 2) 16)))
+        reconstructed (reconstruct-entitlements witness fixture)
+        account (when (and expected-total expected-count)
+                  (accounting/reconcile-records {:manifest manifest :broadcasts broadcasts
+                                                 :expected-total expected-total :expected-count expected-count
+                                                 :expected-members (when (= :pass (:status reconstructed))
+                                                                     (:members reconstructed))}))
+        funding-events (filter #(= :funded (:kind %)) (:events account))
+        funding-metadata-consistent?
+        (every? (fn [event]
+                  (let [tx (some #(when (= (:tx event) (str/lower-case (get % "hash" ""))) %)
+                                 (mapcat #(get % "transactions") tx-groups))
+                        input (some-> (get-in tx ["transaction" "input"]) str/lower-case)
+                        selector (when (and input (<= 10 (count input))) (subs input 0 10))]
+                    (and selector (= selector (get {"fund(bytes32,address)" "0x9a5a276f"
+                                                    "ratifyAndFund(bytes32,bytes32,address)" "0x54a6ac41"}
+                                                   (get tx "function")))))) funding-events)
         checks
         {:source-files-match-report
          (and (= manifest-hash (get-in report-hashes ["manifest" "sha256"]))
@@ -239,25 +286,46 @@
               (= "35" (get state "beneficiary_1111_balance"))
               (= "21" (get state "beneficiary_2222_balance"))
               (= "14" (get state "beneficiary_3333_balance")))}
+        checks (cond-> checks
+                 (seq funding-events)
+                 (assoc :funding-outer-call-metadata-consistent funding-metadata-consistent?)
+                 (not= :not-available (:status reconstructed))
+                 (assoc :witness-derived-public-values (= :pass (:status reconstructed)))
+                 source-bundle
+                 (assoc :source-bundle-content-bound
+                        (boolean (source-bundle-bound? source-bundle (:source-bundle artifact-hashes)
+                                                       witness fixture))))
         errors (vec (concat
                      (for [[check ok?] checks :when (not (true? ok?))
                            :let [kind (if (#{:all-retained-receipt-records-consistent
                                              :payout-transfer-logs-reconcile
                                              :payouts-emitted-by-withdraw-calls
+                                             :funding-outer-call-metadata-consistent
                                              :final-state-log-reconciles} check)
                                         :conflicting-evidence :unverified-claim)]]
                        {:kind kind :check check :message (str "verification failed: " (name check))})
-                     receipts-errors))
+                     receipts-errors
+                     (:errors account)))
         gaps (vec (concat
-                   [{:kind :missing-source :status :not-available
-                     :artifact "source bundle payload"
-                     :reason "the bundle SHA is linked, but the source vector bundle is not retained here"}
-                    {:kind :missing-observation :status :not-available
+                   (when-not source-bundle
+                     [{:kind :missing-source :status :not-available
+                       :artifact "source bundle payload"
+                       :reason "the bundle SHA is linked, but the source vector bundle has not been supplied"}])
+                   [{:kind :missing-observation :status :not-available
                      :artifact "deployed runtime code identities and authenticated block headers"
                      :reason "manifest and local broadcast receipts do not retain independently authenticated runtime-code observations"}
                     {:kind :unverified-claim :status :not-verifiable
-                     :artifact "Groth16 proof and witness-derived root recomputation"
-                     :reason "this PRF adapter does not run the SP1 verifier or successor Rust derivation"}]
+                     :artifact "Groth16 proof"
+                     :reason "this PRF adapter does not independently run a cryptographic SP1 verifier"}]
+                   (when (not= :pass (:status reconstructed))
+                     [{:kind :unverified-claim :status :not-verifiable
+                       :artifact "witness-derived root recomputation"
+                       :reason "raw witness derivation is unavailable or does not match all public values"}])
+                   (:gaps account)
+                   (when (and (seq funding-events) (not funding-metadata-consistent?))
+                     [{:kind :conflicting-evidence :status :conflicting
+                       :artifact "funding transaction call context"
+                       :reason "a reserve funding event is associated with non-funding outer-call metadata; historical transaction bodies/traces are required"}])
                    (when-not (:payouts-emitted-by-withdraw-calls checks)
                      [{:kind :conflicting-evidence :status :conflicting
                        :artifact "payout transaction call context"
@@ -270,6 +338,8 @@
      :checks checks
      :errors errors
      :gaps gaps
+     :entitlement-reconstruction reconstructed
+     :accounting-reconciliation account
      :summary {:transaction-count (reduce + 0 (map #(count (get % "transactions")) tx-groups))
                :successful-payout-count (count payouts)
                :entitlement-count expected-count
@@ -291,6 +361,7 @@
   (let [checks (:checks validation)
         node-valid? {:manifest (and (:source-files-match-report checks)
                                     (:manifest-digest-recomputed checks))
+                     :source-bundle (:source-bundle-content-bound checks)
                      :witness (and (:source-files-match-report checks)
                                    (:witness-provenance-bound checks)
                                    (:prepared-context-bound checks)
@@ -311,15 +382,17 @@
                             (:manifest-digest-recomputed checks)
                             (:fixture-identities-bound checks)
                             (:proof-witness-manifest-crosslinks checks))
-        entries [[:manifest :deployment/manifest :validated nil]
-                 [:witness :proof/raw-witness :validated :manifest]
-                 [:fixture :proof/fixture :validated :witness]
-                 [:deploy :deployment/receipt-set :observed :manifest]
-                 [:run :operation/execution-receipts :observed :fixture]
-                 [:activate :operation/activation-receipts :observed :run]
-                 [:withdrawal :operation/withdrawal-receipts :observed :activate]
-                 [:report :execution/outcome-report :validated :withdrawal]
-                 [:final-state :execution/state-observation :observed :withdrawal]]
+        entries (cond-> [[:manifest :deployment/manifest :validated nil]
+                         [:witness :proof/raw-witness :validated :manifest]
+                         [:fixture :proof/fixture :validated :witness]
+                         [:deploy :deployment/receipt-set :observed :manifest]
+                         [:run :operation/execution-receipts :observed :fixture]
+                         [:activate :operation/activation-receipts :observed :run]
+                         [:withdrawal :operation/withdrawal-receipts :observed :activate]
+                         [:report :execution/outcome-report :validated :withdrawal]
+                         [:final-state :execution/state-observation :observed :withdrawal]]
+                  (:source-bundle artifact-hashes)
+                  (conj [:source-bundle :source/controlled-vector-bundle :validated :witness]))
         built (reduce (fn [{:keys [nodes by-name]} [name kind role parent]]
                         (let [root (artifact-ref (get artifact-hashes name))
                               parent-node (get by-name parent)
@@ -380,21 +453,48 @@
                                       :actor/role :verifier}
                               :status (if (get-in validation [:checks :proof-witness-manifest-crosslinks])
                                         :pass :fail)})
+        derived-node
+        (fn [kind payload parent-keys valid?]
+          (let [parents (mapv (:by-name built) parent-keys)
+                roots (->> parents (map #(get-in % [:extensions :forensic/subject :subject/root])) distinct sort vec)
+                root (artifact-ref (hc/hash-with-intent {:hash/intent :evidence-record} payload))]
+            (forensic/build-forensic-evidence-node
+             {:subject {:subject/root root :subject/kind kind}
+              :role :derived :visibility :commitment-only
+              :parent-nodes (mapv :node-hash parents) :causal-parent-roots roots
+              :custody-roots (when (= kind :economic-reconciliation/retained-events) roots)
+              :actor {:actor/root (artifact-ref (get artifact-hashes :report)) :actor/role :verifier}
+              :status (if valid? :pass :fail)})))
+        derived-nodes (cond-> []
+                        (get-in validation [:entitlement-reconstruction :derived])
+                        (conj (derived-node :allocation/entitlement-reconstruction
+                                            (get-in validation [:entitlement-reconstruction :derived])
+                                            [:manifest :witness :fixture]
+                                            (= :pass (get-in validation [:entitlement-reconstruction :status]))))
+                        (:accounting-reconciliation validation)
+                        (conj (derived-node :economic-reconciliation/retained-events
+                                            (:accounting-reconciliation validation)
+                                            [:manifest :deploy :run :activate :withdrawal]
+                                            (and (empty? (get-in validation [:accounting-reconciliation :errors]))
+                                                 (every? #{:pass} (vals (get-in validation [:accounting-reconciliation :checks])))))))
         relationship-nodes [declared-binding validated-binding]
         gap-nodes (mapv (fn [gap]
-                          (let [gap-root (artifact-ref
-                                          (get artifact-hashes
-                                               (case (:kind gap)
-                                                 :missing-source :witness
-                                                 :missing-observation :manifest
-                                                 :unverified-claim :fixture
-                                                 :conflicting-evidence :withdrawal
-                                                 :report)))]
+                          (let [source-root (artifact-ref
+                                             (get artifact-hashes
+                                                  (case (:kind gap)
+                                                    :missing-source :witness
+                                                    :missing-observation :manifest
+                                                    :unverified-claim :fixture
+                                                    :conflicting-evidence :withdrawal
+                                                    :report)))
+                                gap-root (artifact-ref (hc/hash-with-intent
+                                                        {:hash/intent :evidence-record}
+                                                        {:source/root source-root :gap gap}))]
                             (forensic/build-forensic-evidence-node
                              {:subject {:subject/root gap-root
                                         :subject/kind (keyword "forensic-gap" (name (:kind gap)))}
                               :role :declared :visibility :commitment-only
-                              :causal-parent-roots [gap-root]
+                              :causal-parent-roots [source-root]
                               :actor {:actor/root (artifact-ref (get artifact-hashes :report)) :actor/role :verifier}
                               :gap {:gap/status (case (:status gap)
                                                   :not-available :not-available
@@ -404,11 +504,12 @@
                                                   :not-applicable)
                                     :gap/reason :evidence-requirement-unresolved}
                               :status :pass}))) (:gaps validation))
-        nodes (into (into (into (:nodes built) relationship-nodes)
+        nodes (into (into (into (into (:nodes built) derived-nodes) relationship-nodes)
                           [declared-operation validated-operation]) gap-nodes)
         graph (forensic/validate-forensic-evidence-graph
                {:nodes nodes
-                :artifact-roots (mapv (comp artifact-ref val) artifact-hashes)
+                :artifact-roots (into (mapv (comp artifact-ref val) artifact-hashes)
+                                      (map #(get-in % [:extensions :forensic/subject :subject/root]) derived-nodes))
                 :profile {:forensic-profile/requirements []}})]
     {:nodes nodes :graph graph
      :relationships [{:kind :declared-reference :from :proof/declared-manifest-reference
@@ -430,82 +531,90 @@
 (defn reconstruct-bundle
   "Read the retained independent local replay bundle and reconstruct a PRF
    verification report and canonical forensic node view."
-  [bundle-dir]
-  (let [root (io/file bundle-dir)
-        art (io/file root "artifacts")
-        files {:report (io/file root "replay-report.json")
-               :manifest (io/file art "manifest.json")
-               :witness (io/file art "witness.json")
-               :fixture (io/file art "fixture.json")
-               :provenance (io/file art "witness.provenance.json")
-               :final-state (io/file art "final-state.log")
-               :fork-test-log (io/file art "fork-test.log")
-               :deploy (io/file root "broadcast/DeployGateEEntitlementOptionA.s.sol/31337/run-latest.json")
-               :run (io/file root "broadcast/RunGateEEntitlementLocal.s.sol/31337/run-latest.json")
-               :activate (io/file root "broadcast/ActivateGateEEntitlementLocal.s.sol/31337/run-latest.json")
-               :withdrawal (io/file root "broadcast/WithdrawGateEEntitlementLocal.s.sol/31337/run-latest.json")}
-        missing (->> files (keep (fn [[k f]] (when-not (.isFile ^java.io.File f) k))) vec)]
-    (when (seq missing)
-      (throw (ex-info "Retained replay bundle is incomplete" {:missing missing})))
-    (let [parsed (into {} (map (fn [[k f]]
-                                 [k (if (#{:final-state :fork-test-log} k) (slurp f) (read-json f))]) files))
-          hashes (into {} (map (fn [[k f]] [k (file-sha256 f)]) files))
-          parsed (assoc parsed :broadcasts (select-keys parsed [:deploy :run :activate :withdrawal]))
-          validation (validate-records (assoc parsed :artifact-hashes hashes))
-          view (build-forensic-view {:validation validation :artifact-hashes hashes
-                                     :replayed-at (get-in parsed [:report "operator" "replayed_utc"])
-                                     :parsed parsed})]
-      {:validation validation :view view :artifact-hashes hashes :parsed parsed})))
+  ([bundle-dir] (reconstruct-bundle bundle-dir {}))
+  ([bundle-dir opts]
+   (when-not (and (map? opts) (every? #{:source-bundle} (keys opts)))
+     (throw (ex-info "Unknown reconstruction option" {:options opts})))
+   (let [root (io/file bundle-dir)
+         art (io/file root "artifacts")
+         files (cond-> {:report (io/file root "replay-report.json")
+                        :manifest (io/file art "manifest.json")
+                        :witness (io/file art "witness.json")
+                        :fixture (io/file art "fixture.json")
+                        :provenance (io/file art "witness.provenance.json")
+                        :final-state (io/file art "final-state.log")
+                        :fork-test-log (io/file art "fork-test.log")
+                        :deploy (io/file root "broadcast/DeployGateEEntitlementOptionA.s.sol/31337/run-latest.json")
+                        :run (io/file root "broadcast/RunGateEEntitlementLocal.s.sol/31337/run-latest.json")
+                        :activate (io/file root "broadcast/ActivateGateEEntitlementLocal.s.sol/31337/run-latest.json")
+                        :withdrawal (io/file root "broadcast/WithdrawGateEEntitlementLocal.s.sol/31337/run-latest.json")}
+                 (:source-bundle opts) (assoc :source-bundle (io/file (:source-bundle opts))))
+         missing (->> files (keep (fn [[k f]] (when-not (.isFile ^java.io.File f) k))) vec)]
+     (when (seq missing)
+       (throw (ex-info "Retained replay bundle is incomplete" {:missing missing})))
+     (let [parsed (into {} (map (fn [[k f]]
+                                  [k (if (#{:final-state :fork-test-log} k) (slurp f) (read-json f))]) files))
+           hashes (into {} (map (fn [[k f]] [k (file-sha256 f)]) files))
+           parsed (assoc parsed :broadcasts (select-keys parsed [:deploy :run :activate :withdrawal]))
+           validation (validate-records (assoc parsed :artifact-hashes hashes))
+           view (build-forensic-view {:validation validation :artifact-hashes hashes
+                                      :replayed-at (get-in parsed [:report "operator" "replayed_utc"])
+                                      :parsed parsed})]
+       {:validation validation :view view :artifact-hashes hashes :parsed parsed}))))
 
 (defn write-reconstruction!
   "Persist a deterministic report and canonical EDN nodes without replacing
    existing evidence. Output is diagnostic and never an acceptance/reward record."
-  [bundle-dir output-dir]
-  (let [{:keys [validation view artifact-hashes parsed] :as result} (reconstruct-bundle bundle-dir)
-        out (io/file output-dir)
-        nodes-dir (io/file out "nodes")]
-    (when (.exists out)
-      (throw (ex-info "Refusing to overwrite forensic reconstruction output" {:output output-dir})))
-    (.mkdirs nodes-dir)
-    (doseq [n (:nodes view)]
-      (spit (io/file nodes-dir (str (:node-hash n) ".edn")) (pr-str n)))
-    (let [report {:schema "prf.deployment-bound-forensic-verification.v0"
-                  :classification "diagnostic reconstruction; local-only; not canonical economic authority"
-                  :validator {:id "resolver-sim.evidence.deployment-bound/v0"
-                              :profile "protected-withdrawal-local-replay.v0"}
-                  :input_artifacts (into (sorted-map)
-                                         (map (fn [[k h]] [(name k) {:sha256 (str "sha256:" h)}]) artifact-hashes))
-                  :operation_id (get-in parsed [:manifest "operationId"])
-                  :identity_context {:chain_id (get-in parsed [:manifest "chainId"])
-                                     :local_only (boolean (get-in parsed [:manifest "localOnly"]))
-                                     :operation_id (get-in parsed [:manifest "operationId"])
-                                     :prepared_operation_root (get-in parsed [:manifest "preparedOperationRoot"])
-                                     :configuration_root (get-in parsed [:manifest "configurationRoot"])
-                                     :configuration_epoch (get-in parsed [:manifest "configurationEpoch"])
-                                     :program_id (get-in parsed [:fixture "program_id"])
-                                     :proof_system (get-in parsed [:fixture "proof_system"])
-                                     :vkey (get-in parsed [:fixture "vkey"])
-                                     :elf_sha256 (get-in parsed [:fixture "elf_sha256"])
-                                     :public_values_schema (get-in parsed [:fixture "public_values_schema"])
-                                     :manifest_digest (get-in parsed [:manifest "manifestDigest"])}
-                  :validation validation
-                  :forensic_graph (-> view (dissoc :nodes) (assoc :node_hashes (mapv :node-hash (:nodes view))))
-                  :canonical_node_files (mapv #(str "nodes/" (:node-hash %) ".edn") (:nodes view))
-                  :source_claims {:proof_cryptographic_validation :not_independently_verified
-                                  :deployment_runtime_identity :not_independently_observed
-                                  :economic_outcome :reconciled_against_retained_receipt_logs_and_state_log
-                                  :research_acceptance :not_inferred
-                                  :reward_obligation :not_inferred}
-                  :independent_reconstruction {:input_root "the retained bundle directory"
-                                               :replayed_at (get-in parsed [:report "operator" "replayed_utc"])}}
-          report-file (io/file out "verification-report.json")]
-      (spit report-file (json/write-str report {:escape-slash false :indent true}))
-      (assoc result :report report :report-path (.getPath report-file)))))
+  ([bundle-dir output-dir] (write-reconstruction! bundle-dir output-dir {}))
+  ([bundle-dir output-dir opts]
+   (let [{:keys [validation view artifact-hashes parsed] :as result} (reconstruct-bundle bundle-dir opts)
+         out (io/file output-dir)
+         nodes-dir (io/file out "nodes")]
+     (when (.exists out)
+       (throw (ex-info "Refusing to overwrite forensic reconstruction output" {:output output-dir})))
+     (.mkdirs nodes-dir)
+     (doseq [n (:nodes view)]
+       (spit (io/file nodes-dir (str (:node-hash n) ".edn")) (pr-str n)))
+     (let [report {:schema "prf.deployment-bound-forensic-verification.v0"
+                   :classification "diagnostic reconstruction; local-only; not canonical economic authority"
+                   :validator {:id "resolver-sim.evidence.deployment-bound/v0"
+                               :profile "protected-withdrawal-local-replay.v0"}
+                   :input_artifacts (into (sorted-map)
+                                          (map (fn [[k h]] [(name k) {:sha256 (str "sha256:" h)}]) artifact-hashes))
+                   :operation_id (get-in parsed [:manifest "operationId"])
+                   :identity_context {:chain_id (get-in parsed [:manifest "chainId"])
+                                      :local_only (boolean (get-in parsed [:manifest "localOnly"]))
+                                      :operation_id (get-in parsed [:manifest "operationId"])
+                                      :prepared_operation_root (get-in parsed [:manifest "preparedOperationRoot"])
+                                      :configuration_root (get-in parsed [:manifest "configurationRoot"])
+                                      :configuration_epoch (get-in parsed [:manifest "configurationEpoch"])
+                                      :program_id (get-in parsed [:fixture "program_id"])
+                                      :proof_system (get-in parsed [:fixture "proof_system"])
+                                      :vkey (get-in parsed [:fixture "vkey"])
+                                      :elf_sha256 (get-in parsed [:fixture "elf_sha256"])
+                                      :public_values_schema (get-in parsed [:fixture "public_values_schema"])
+                                      :manifest_digest (get-in parsed [:manifest "manifestDigest"])}
+                   :validation validation
+                   :forensic_graph (-> view (dissoc :nodes) (assoc :node_hashes (mapv :node-hash (:nodes view))))
+                   :canonical_node_files (mapv #(str "nodes/" (:node-hash %) ".edn") (:nodes view))
+                   :source_claims {:proof_cryptographic_validation :not_independently_verified
+                                   :witness_root_recomputation (get-in validation [:entitlement-reconstruction :status])
+                                   :source_bundle_content_bound (get-in validation [:checks :source-bundle-content-bound])
+                                   :deployment_runtime_identity :not_independently_observed
+                                   :economic_outcome :reconciled_against_retained_receipt_logs_and_state_log
+                                   :research_acceptance :not_inferred
+                                   :reward_obligation :not_inferred}
+                   :independent_reconstruction {:input_root "the retained bundle directory"
+                                                :replayed_at (get-in parsed [:report "operator" "replayed_utc"])}}
+           report-file (io/file out "verification-report.json")]
+       (spit report-file (json/write-str report {:escape-slash false :indent true}))
+       (assoc result :report report :report-path (.getPath report-file))))))
 
 (defn -main [& args]
-  (when-not (= 2 (count args))
-    (throw (ex-info "Usage: <bundle-dir> <new-output-dir>" {:arguments args})))
-  (let [{:keys [validation report-path view]} (write-reconstruction! (first args) (second args))]
+  (when-not (or (= 2 (count args)) (and (= 4 (count args)) (= "--source-bundle" (nth args 2))))
+    (throw (ex-info "Usage: <bundle-dir> <new-output-dir> [--source-bundle <vectors.json>]" {:arguments args})))
+  (let [opts (if (= 4 (count args)) {:source-bundle (nth args 3)} {})
+        {:keys [validation report-path view]} (write-reconstruction! (first args) (second args) opts)]
     (println (str "report: " report-path))
     (println (str "forensic_nodes: " (count (:nodes view))))
     (println (str "validation: " (if (:valid? validation) "PASS" "FAIL")))

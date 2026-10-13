@@ -91,7 +91,11 @@
            :proof-witness-manifest-crosslinks :prepared-context-bound :reserve-input-bound
            :public-values-structure-and-binding :proof-bytes-hash-bound
            :witness-provenance-bound :all-retained-receipt-records-consistent])
-    (conj :source-or-context-validation-failed)))
+    (conj :source-or-context-validation-failed)
+    (some #(and (contains? (:checks validation) %)
+                (not (true? (get-in validation [:checks %]))))
+          [:source-bundle-content-bound :witness-derived-public-values])
+    (conj :source-or-derived-output-validation-failed)))
 
 (defn- issues [{:keys [validation view]}]
   (->> (concat (map #(assoc % :origin :adapter-gap) (:gaps validation))
@@ -170,12 +174,12 @@
    unreadable/incomplete evidence fails before a plan can be created."
   ([bundle-dir] (plan-bundle bundle-dir {}))
   ([bundle-dir opts]
-   (when-not (and (map? opts) (every? #{:max-tasks} (keys opts)))
+   (when-not (and (map? opts) (every? #{:max-tasks :source-bundle} (keys opts)))
      (throw (ex-info "Unsupported investigation planning option" {:options opts})))
    (let [max-tasks (get opts :max-tasks 32)]
      (when-not (and (integer? max-tasks) (<= 1 max-tasks 100))
        (throw (ex-info "max-tasks must be an integer between 1 and 100" {})))
-     (plan-reconstruction (deployment/reconstruct-bundle bundle-dir) max-tasks))))
+     (plan-reconstruction (deployment/reconstruct-bundle bundle-dir (select-keys opts [:source-bundle])) max-tasks))))
 
 (defn write-plan!
   "Write a reviewable EDN work plan into a new directory. The content root uses
@@ -193,29 +197,30 @@
 (defn verify-plan
   "Reconstruct from retained inputs and compare the entire proposed work plan.
    A matching plan means reproducible planning, never verified conclusions."
-  [bundle-dir plan-file]
-  (let [retained (edn/read-string (slurp plan-file))
-        fresh (plan-bundle bundle-dir {:max-tasks (get-in retained [:budget :max-tasks])})]
-    {:plan-matches-reconstruction? (= fresh retained)
-     :recomputed-plan-root (:plan-root fresh)
-     :investigation-status (:status fresh)
-     :evidence-valid? (get-in fresh [:reconstructed-validation :valid?])
-     :execution-authorized false}))
+  ([bundle-dir plan-file] (verify-plan bundle-dir plan-file {}))
+  ([bundle-dir plan-file opts]
+   (when-not (and (map? opts) (every? #{:source-bundle} (keys opts)))
+     (throw (ex-info "Unknown plan verification option" {:options opts})))
+   (let [retained (edn/read-string (slurp plan-file))
+         fresh (plan-bundle bundle-dir (assoc opts :max-tasks (get-in retained [:budget :max-tasks])))]
+     {:plan-matches-reconstruction? (= fresh retained)
+      :recomputed-plan-root (:plan-root fresh)
+      :investigation-status (:status fresh)
+      :evidence-valid? (get-in fresh [:reconstructed-validation :valid?])
+      :execution-authorized false})))
 
 (defn -main [& args]
-  (case (first args)
-    "plan" (do
-             (when-not (= 3 (count args))
-               (throw (ex-info "Usage: plan <retained-bundle-dir> <new-output-dir>" {})))
-             (let [plan (write-plan! (second args) (nth args 2) {})]
+  (when-not (or (= 3 (count args))
+                (and (= 5 (count args)) (= "--source-bundle" (nth args 3))))
+    (throw (ex-info "Usage: plan|verify <bundle-dir> <output-dir|plan.edn> [--source-bundle <vectors.json>]" {})))
+  (let [opts (if (= 5 (count args)) {:source-bundle (nth args 4)} {})]
+    (case (first args)
+      "plan" (let [plan (write-plan! (second args) (nth args 2) opts)]
                (println "plan-root:" (:plan-root plan))
                (println "investigation-status:" (name (:status plan)))
                (println "tasks:" (count (:tasks plan)))
-               (println "execution-authorized: false")))
-    "verify" (do
-               (when-not (= 3 (count args))
-                 (throw (ex-info "Usage: verify <retained-bundle-dir> <investigation-plan.edn>" {})))
-               (let [result (verify-plan (second args) (nth args 2))]
+               (println "execution-authorized: false"))
+      "verify" (let [result (verify-plan (second args) (nth args 2) opts)]
                  (pprint/pprint result)
-                 (when-not (:plan-matches-reconstruction? result) (System/exit 1))))
-    (throw (ex-info "Usage: plan|verify <retained-bundle-dir> <output-dir|plan.edn>" {}))))
+                 (when-not (:plan-matches-reconstruction? result) (System/exit 1)))
+      (throw (ex-info "Usage: plan|verify <retained-bundle-dir> <output-dir|plan.edn>" {})))))

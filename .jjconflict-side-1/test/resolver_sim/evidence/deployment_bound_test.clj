@@ -1,5 +1,8 @@
 (ns resolver-sim.evidence.deployment-bound-test
   (:require [clojure.test :refer [deftest is]]
+            [clojure.data.json :as json]
+            [resolver-sim.allocation.source-bound-entitlement :as entitlement]
+            [resolver-sim.evidence.accounting-reconciliation-test :as account-fixture]
             [resolver-sim.evidence.deployment-bound :as sut]))
 
 (def schema "0x876f2aea9124d79f41dbdd389d498430987fa33bbb34408989849c478a7c2bde")
@@ -30,7 +33,13 @@
                                  function) "0x7c365406" "0xf4f5d5c9")
                   "to" "0x1111111111111111111111111111111111111111"}})
 (defn receipt [hash logs]
-  {"transactionHash" hash "status" "0x1" "blockHash" block-hash "blockNumber" "0xc" "logs" logs})
+  (let [index (Integer/parseInt (subs hash (- (count hash) 2)) 16)
+        index-hex (str "0x" (format "%x" index))]
+    {"transactionHash" hash "status" "0x1" "blockHash" block-hash "blockNumber" "0xc"
+     "transactionIndex" index-hex
+     "logs" (mapv (fn [i log]
+                    (assoc log "transactionIndex" index-hex "logIndex" (str "0x" (format "%x" (+ index i)))))
+                  (range) logs)}))
 (defn payout-log [to amount]
   {"address" token "topics" ["0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef"
                              (str "0x" (apply str (repeat 24 "0")) "4c2f7092c2ae51d986befee378e50bd4db99c901")
@@ -148,3 +157,71 @@
     (is (false? (:valid? (sut/validate-records forged-only))))
     (is (false? (:valid? (sut/validate-records mislabelled)))
         "a function label cannot turn a configuration call into a withdrawal")))
+
+(deftest witness-public-values-are-recomputed-with-existing-semantic-authority
+  (let [bundle (json/read-str (slurp "etc/conformance/vectors/source-bound-entitlement-v1.json"))
+        witness (get bundle "base-input")
+        derived (entitlement/derive (json/read-str (json/write-str witness) :key-fn keyword))
+        input (-> (fixture-input)
+                  (assoc :witness witness)
+                  (assoc-in [:fixture "public_values"] (str "0x" (:public-values derived))))
+        result (sut/validate-records input)
+        tampered (assoc-in input [:fixture "public_values"]
+                           (str (subs (str "0x" (:public-values derived)) 0 194)
+                                (subs (w 0) 2)
+                                (subs (str "0x" (:public-values derived)) 258)))]
+    (is (true? (get-in result [:checks :witness-derived-public-values])))
+    (is (= (:realized-statement-root derived)
+           (get-in result [:entitlement-reconstruction :derived :realized-statement-root])))
+    (is (= (:canonical-entitlement-set-root derived)
+           (get-in result [:entitlement-reconstruction :derived :canonical-entitlement-set-root])))
+    (is (false? (get-in (sut/validate-records tampered) [:checks :witness-derived-public-values])))
+    (is (= :fail (get-in (sut/validate-records
+                          (update-in input [:witness "openings"] #(conj % (first %))))
+                         [:entitlement-reconstruction :status])))))
+
+(deftest optional-source-bundle-must-match-pinned-bytes-and-economic-inputs
+  (let [path "etc/conformance/vectors/source-bound-entitlement-v1.json"
+        bundle (json/read-str (slurp path))
+        digest (sut/file-sha256 path)
+        input (-> (fixture-input)
+                  (assoc :witness (get bundle "base-input") :source-bundle bundle)
+                  (assoc-in [:artifact-hashes :source-bundle] digest)
+                  (assoc-in [:fixture "gate_e" "vector_id"] "A-minimum-realistic")
+                  (assoc-in [:fixture "gate_e" "source_bundle_sha256"] (str "0x" digest)))]
+    (is (true? (get-in (sut/validate-records input) [:checks :source-bundle-content-bound])))
+    (doseq [changed [(assoc-in input [:artifact-hashes :source-bundle] (sha "different"))
+                     (assoc-in input [:source-bundle "schema"] "unknown")
+                     (assoc-in input [:fixture "gate_e" "vector_id"] "unknown")
+                     (assoc-in input [:witness "beneficiary-mapping" 0 "beneficiary"]
+                               "0x5555555555555555555555555555555555555555")]]
+      (is (false? (get-in (sut/validate-records changed) [:checks :source-bundle-content-bound]))))))
+
+(deftest distinct-missing-observations-remain-distinct-canonical-nodes
+  (let [input (update (fixture-input) :artifact-hashes merge
+                      (into {} (map (fn [k] [k (sha (name k))])
+                                    [:deploy :run :activate :withdrawal :report :final-state])))
+        validation (sut/validate-records input)
+        view (sut/build-forensic-view {:validation validation :artifact-hashes (:artifact-hashes input)
+                                       :parsed input})
+        missing (filter #(= :forensic-gap/missing-observation
+                            (get-in % [:extensions :forensic/subject :subject/kind])) (:nodes view))]
+    (is (> (count missing) 1))
+    (is (= (count missing) (count (distinct (map :node-hash missing)))))
+    (is (true? (get-in view [:graph :integrity-valid?])))))
+
+(deftest funding-metadata-consistency-does-not-infer-a-call-from-event-amounts
+  (let [account (account-fixture/fixture)
+        hash (get-in account [:broadcasts :run "receipts" 0 "transactionHash"])
+        input (-> (fixture-input)
+                  (update :manifest merge (:manifest account))
+                  (assoc :broadcasts (:broadcasts account))
+                  (assoc-in [:broadcasts :run "transactions"]
+                            [{"hash" hash "function" "fund(bytes32,address)"
+                              "transaction" {"chainId" "0x7a69" "input" "0x9a5a276f"}}]))]
+    (is (true? (get-in (sut/validate-records input) [:checks :funding-outer-call-metadata-consistent])))
+    (doseq [changed [(assoc-in input [:broadcasts :run "transactions" 0 "function"] "bindExecutionCaller(address)")
+                     (update-in input [:broadcasts :run "transactions" 0] dissoc "function" "transaction")]]
+      (let [r (sut/validate-records changed)]
+        (is (false? (get-in r [:checks :funding-outer-call-metadata-consistent])))
+        (is (some #(= "funding transaction call context" (:artifact %)) (:gaps r)))))))

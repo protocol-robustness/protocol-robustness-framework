@@ -61,7 +61,7 @@
         (is (= :incomplete (:status plan)))
         (is (true? (get-in plan [:reconstructed-validation :valid?])))
         (is (empty? (:routing-blockers plan)))
-        (is (= 4 (count tasks)))
+        (is (some #(= "historical allocator storage and consumed-claim state" (get-in % [:issue :artifact])) tasks))
         (is (= #{:request-evidence :request-independent-validation :reconstruct-forensic-view}
                (set (map :action tasks))))
         (is (= (mapv :task-id (butlast tasks)) (:depends-on final-task)))
@@ -169,7 +169,7 @@
     (fn [root]
       (let [plan (sut/plan-bundle root {:max-tasks 1})]
         (is (= 1 (count (:tasks plan))))
-        (is (= 3 (count (:deferred-tasks plan))))
+        (is (= (dec (count (:tasks (sut/plan-bundle root)))) (count (:deferred-tasks plan))))
         (is (= :reconstruct-forensic-view (:action (last (:deferred-tasks plan)))))
         (is (every? #(= :task-budget-exhausted (:deferred-reason %)) (:deferred-tasks plan)))
         (is (empty? (:depends-on (first (:tasks plan)))))
@@ -179,3 +179,23 @@
         (is (thrown? clojure.lang.ExceptionInfo (sut/plan-bundle root opts))))
       (io/delete-file (io/file root "artifacts/witness.json"))
       (is (thrown-with-msg? clojure.lang.ExceptionInfo #"incomplete" (sut/plan-bundle root))))))
+
+(deftest source-body-is-consumed-and-revalidated-not-trusted-by-path
+  (let [source-path "etc/conformance/vectors/source-bound-entitlement-v1.json"
+        source (json/read-str (slurp source-path))
+        input (-> (fixture/fixture-input)
+                  (assoc :witness (get source "base-input"))
+                  (assoc-in [:fixture "gate_e" "vector_id"] "A-minimum-realistic")
+                  (assoc-in [:fixture "gate_e" "source_bundle_sha256"]
+                            (str "0x" (deployment/file-sha256 source-path))))]
+    (with-bundle input
+      (fn [root]
+        (let [opts {:source-bundle source-path}
+              plan (sut/write-plan! root (io/file root "source-plan") opts)
+              file (io/file root "source-plan/investigation-plan.edn")]
+          (is (true? (get-in plan [:reconstructed-validation :checks :source-bundle-content-bound])))
+          (is (false? (get-in plan [:reconstructed-validation :checks :witness-derived-public-values]))
+              "matching source bytes cannot authorize mismatched proof outputs")
+          (is (some #{:source-or-derived-output-validation-failed} (:routing-blockers plan)))
+          (is (:plan-matches-reconstruction? (sut/verify-plan root file opts)))
+          (is (false? (:plan-matches-reconstruction? (sut/verify-plan root file)))))))))

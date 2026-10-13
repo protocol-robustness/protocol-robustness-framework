@@ -8,6 +8,8 @@
 
 ## Unreleased
 
+- Deployment-bound forensic reconstruction now independently recomputes successor witness outputs and reconciles retained funding, withdrawal, and closure events. An optional `--source-bundle` input checks the referenced controlled vector bytes and economic inputs. Distinct evidence gaps have distinct content-bound subjects; event arithmetic remains separate from authenticated balances, storage, and transaction provenance.
+
 - Added a planning-only investigation dispatcher for retained local successor-entitlement evidence. Plans bind reconstructed inputs and graph identities, classify evidence requests and review blockers, enforce a task budget, and support fresh-process plan verification without authorizing execution, acceptance, or rewards.
 
 - Added a local-only deployment-bound forensic reconstruction command for retained protected-withdrawal evidence. It independently hashes and cross-checks the supplied artifacts, emits existing PRF evidence-node/forensic-graph records, and reports typed evidence gaps and conflicts; it does not assert proof validity, public-chain qualification, acceptance, or reward authority.
