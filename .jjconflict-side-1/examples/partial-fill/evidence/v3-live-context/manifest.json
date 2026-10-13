@@ -39,8 +39,8 @@
       "bytes": 6241
     },
     "README.md": {
-      "sha256": "6ea58061a28ac061700af8368aae6e5f71192896c89028b6cc2c2be59e57c467",
-      "bytes": 3524
+      "sha256": "3a00ed11e407269ccbf4c7d210bebf969982fa20f16c2355356bceef8f1830e1",
+      "bytes": 4326
     },
     "bootstrap.json": {
       "sha256": "f275d89e8fbec03e8d4cfddc9ddd8ba90019c3eb5cbea53d13ddd620ff56f04b",
@@ -175,8 +175,8 @@
       "bytes": 11113
     },
     "stage2-qualification.log": {
-      "sha256": "9355c478862a75bd82602fb1ab77c3c4a7ebb17b45db2ddff8a78c12b3293226",
-      "bytes": 12174
+      "sha256": "ee1969dc28ca6796708a7a8b8f5359d70e46f42a722b24f0f729ade71dae6598",
+      "bytes": 15718
     },
     "terminal-observation.json": {
       "sha256": "c4938e602b69c564df35e534baabf22fbc7f1e8dda62e86148c84f3c8cb53b70",
@@ -219,7 +219,7 @@
   "verifierRegistryRoot": "0x197bc48fcd58320a9e8735294d80e349e1540c9eff80219dd907b590628cbaca",
   "admissionReceipt": "0x049039d01bd16725d5826e9d46f1bbccdaf85d5fdc29f4fff77f0611962f763a",
   "stage2QualificationTests": "11 passed, 0 failed; PARTIAL_FILL_STAGE=2, including stale-proof rejection and fresh-proof recovery",
-  "reserveV3Tests": "8 passed, 0 failed",
+  "reserveV3Tests": "8 passed, 0 failed; local Foundry reserve and finalization guards",
   "finalTransferSequence": [
     {
       "from": "reserve",
@@ -280,5 +280,6 @@
     "projection": "accounting-journal.json",
     "projectionDigest": "439d4f61410842f06639cf3902eaf686fcd83a7c957d6bc19a5271117603d94e",
     "v2Boundary": "The original seven-state V2 journal remains unchanged; V2 and V3 are separate local runs, not a unified temporal ledger."
-  }
+  },
+  "stage2Qualification": "11 passed, 0 failed; source-bound local Foundry stage 2"
 }
