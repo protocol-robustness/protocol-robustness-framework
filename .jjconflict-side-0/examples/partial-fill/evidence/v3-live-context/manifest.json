@@ -95,8 +95,8 @@
       "bytes": 1994
     },
     "recovery/README.md": {
-      "sha256": "a302f882157a138ceb7e813c3d687673d028120bf2b034d6dfc8338c2ce1d3e6",
-      "bytes": 2501
+      "sha256": "6dcbbc9e738d6649d0df5e8f0592c585fb35fa8972cc0bcefa09be2d4d3f1c86",
+      "bytes": 2619
     },
     "recovery/proof-verification.json": {
       "sha256": "067967e62741a19390ef938e1a6f309bbb0e5fdbcc6051627731f98042ac8ef5",
@@ -193,6 +193,10 @@
     "recovery/blocked-finalization-test.log": {
       "sha256": "4fab91a8a9a71753403c36a7143c7ddcbc9d5377ebc44249691fe1f00ecc2f35",
       "bytes": 1291
+    },
+    "recovery/stage2-qualification-updated.log": {
+      "sha256": "1d36c6824c3734429c2bffd3c42d489e3ee3e47e976d9a7db64b7bb9f2d311f0",
+      "bytes": 13106
     }
   },
   "terminalFinalizationRoute": "qualified locally through the bound ratification controller; early, unauthorized, unresolved-liability, replay and post-finalization paths reject",
@@ -249,7 +253,7 @@
     },
     "sameAllocationBindingRoot": true,
     "replacementAssuranceGeneration": 1,
-    "tests": "11 passed, 0 failed",
+    "tests": "11 passed, 0 failed; recovery finalization rejection asserted with unchanged state",
     "outcome": "70 funded; 35/21/14 claimed; allocator Closed; claimant liability zero",
     "separateHold": "1 unit remains reserved; reserve custody is 11; terminal finalization attempt reverts and leaves state unchanged",
     "evidence": "recovery/"

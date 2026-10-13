@@ -15,6 +15,7 @@ The recovery case deliberately leaves the separate one-unit reserve hold active.
 - `recovery-compressed.bin` and `recovery-wrapper-witness.json`: SP1 SDK continuation artifacts.
 - `stage2-qualification.log`: full successful stage-2 Foundry run, including stale-state rejection.
 - `blocked-finalization-test.log`: focused passing test showing terminal release is rejected with the separate hold active and state unchanged.
+- `stage2-qualification-updated.log`: full 11-test stage-2 qualification rerun after adding that rejection assertion.
 - `proof-verification.json`: roots, reserve snapshot, commands and observed outcome.
 
 Reproduction requires the owning `prf-evm` checkout, Rust/Clojure tools, SP1 SDK 6.3.1 toolchain and installed Groth16 circuit artifacts. Commands are listed in `proof-verification.json`; successful admission and state transition are checked by Foundry rather than inferred from a website or hash alone.
