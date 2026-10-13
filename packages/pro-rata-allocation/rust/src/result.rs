@@ -447,4 +447,162 @@ mod tests {
             Err(ResultVerificationError)
         );
     }
+
+    fn field<'a>(value: &'a CanonValue, name: &str) -> &'a CanonValue {
+        let CanonValue::Map(fields) = value else {
+            panic!("expected map")
+        };
+        fields
+            .iter()
+            .find_map(|(key, value)| {
+                matches!(key, CanonValue::Keyword(key_name) if key_name == name).then_some(value)
+            })
+            .unwrap_or_else(|| panic!("missing field {name}"))
+    }
+
+    fn replace_field(value: &CanonValue, name: &str, replacement: CanonValue) -> CanonValue {
+        let CanonValue::Map(fields) = value else {
+            panic!("expected map")
+        };
+        CanonValue::map(
+            fields
+                .iter()
+                .map(|(key, value)| {
+                    if matches!(key, CanonValue::Keyword(key_name) if key_name == name) {
+                        (key.clone(), replacement.clone())
+                    } else {
+                        (key.clone(), value.clone())
+                    }
+                })
+                .collect(),
+        )
+    }
+
+    fn rooted_result(request: &NormalizedAllocationRequest) -> CanonValue {
+        let allocation = allocate_normalized(request);
+        let witness = build_witness(request);
+        let result = assemble_result(
+            request,
+            &allocation_request_root(&request.canonical_request),
+            &allocation,
+            &witness,
+        );
+        let CanonValue::Map(mut fields) = result.value else {
+            unreachable!()
+        };
+        fields.push((keyword("allocation/hash"), CanonValue::str(result.root)));
+        CanonValue::map(fields)
+    }
+
+    fn cap_clamping_request() -> NormalizedAllocationRequest {
+        normalize_request(&AllocationRequestInput {
+            allocation_id: Some(CanonValue::keyword("cap-clamping-001")),
+            schema_version: None,
+            mechanism_version: None,
+            available: Some(CanonValue::int(10)),
+            rows: vec![
+                row("row/b", "ob/b", 10, Some(10)),
+                row("row/a", "ob/a", 10, Some(2)),
+            ],
+            rounding_policy: Some(keyword("largest-remainder")),
+            tie_break_policy: Some(keyword("canonical-row-id")),
+            redistribution_policy: Some(keyword("unallocated")),
+        })
+        .unwrap()
+    }
+
+    #[test]
+    fn frozen_negative_result_mutations_are_rejected() {
+        let request = cap_clamping_request();
+        let result = rooted_result(&request);
+        let CanonValue::Array(rows) = field(&result, "rows") else {
+            panic!("expected rows")
+        };
+
+        // :canonical-row-order-disagreement
+        let reordered = replace_field(
+            &result,
+            "rows",
+            CanonValue::array(rows.iter().rev().cloned().collect()),
+        );
+        assert_eq!(
+            verify_result(&request, &reordered),
+            Err(ResultVerificationError)
+        );
+
+        // :cap-mutation (:row/id :row/a, :effective-cap 3)
+        let mutated_rows = rows
+            .iter()
+            .map(|row| {
+                if field(row, "row/id") == &keyword("row/a") {
+                    replace_field(row, "effective-cap", CanonValue::int(3))
+                } else {
+                    row.clone()
+                }
+            })
+            .collect();
+        let cap_mutation = replace_field(&result, "rows", CanonValue::array(mutated_rows));
+        assert_eq!(
+            verify_result(&request, &cap_mutation),
+            Err(ResultVerificationError)
+        );
+
+        // :redistribution-witness-mutation
+        let changed_round = CanonValue::map(vec![
+            (keyword("round/index"), CanonValue::int(0)),
+            (keyword("committed-by-cap"), CanonValue::int(3)),
+        ]);
+        let witness_mutation = replace_field(
+            &result,
+            "allocation/rounds",
+            CanonValue::array(vec![changed_round]),
+        );
+        assert_eq!(
+            verify_result(&request, &witness_mutation),
+            Err(ResultVerificationError)
+        );
+
+        // :malformed-allocation-witness
+        let malformed_round = CanonValue::map(vec![
+            (keyword("round/index"), CanonValue::int(0)),
+            (
+                keyword("active-row-ids"),
+                CanonValue::array(vec![keyword("row/a"), keyword("row/b")]),
+            ),
+        ]);
+        let malformed_witness = replace_field(
+            &result,
+            "allocation/rounds",
+            CanonValue::array(vec![malformed_round]),
+        );
+        assert_eq!(
+            verify_result(&request, &malformed_witness),
+            Err(ResultVerificationError)
+        );
+    }
+
+    #[test]
+    fn frozen_negative_request_mutations_are_rejected() {
+        let mut duplicate = AllocationRequestInput {
+            allocation_id: Some(CanonValue::keyword("cap-clamping-001")),
+            schema_version: None,
+            mechanism_version: None,
+            available: Some(CanonValue::int(10)),
+            rows: vec![row("row/a", "ob/a", 1, None), row("row/a", "ob/b", 1, None)],
+            rounding_policy: None,
+            tie_break_policy: None,
+            redistribution_policy: None,
+        };
+        assert_eq!(
+            normalize_request(&duplicate),
+            Err(crate::request::RequestNormalizationError::DuplicateRowId)
+        );
+
+        duplicate.rows = vec![row("row/a", "ob/a", 10, Some(2))];
+        duplicate.tie_break_policy = Some(keyword("input-order"));
+        assert_eq!(
+            normalize_request(&duplicate),
+            Err(crate::request::RequestNormalizationError::UnsupportedTieBreakPolicy)
+        );
+    }
 }
