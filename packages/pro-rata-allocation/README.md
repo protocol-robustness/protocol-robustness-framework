@@ -6,10 +6,10 @@ locally by PRF. A reproducible `0.1.0-rc.1` source bundle is available under
 and its conformance fixtures. This is a qualified local candidate, not a
 remote registry release.
 Its Rust realized-statement identity layer is also extracted and
-conformance-tested. Rust now also exposes typed row normalization through
-`request::normalize_rows`; the full primitive request/result/witness profile
-remains incomplete. The registry remains proposed and non-runtime. The wider
-pro-rata artifact family still needs extraction.
+conformance-tested. Rust exposes typed row normalization and full V1 request
+normalization/request-root derivation through `request`; result and witness
+derivation remain incomplete. The registry remains proposed and non-runtime.
+The wider pro-rata artifact family still needs extraction.
 
 Definitions and authority: [proposed registry](../../docs/architecture/canonical-artifacts/canonical-artifacts.v1.edn),
 [package-local V1 allocation profile](ALLOCATION_V1.md),
@@ -266,12 +266,12 @@ Run the standalone Rust identity tests from the repository root with
 The `allocation-kernel` integration suite additionally checks the raw-input
 builder against the same frozen roots.
 
-The Rust `request::normalize_rows` API is the first portion of the primitive
-request profile. It accepts typed canonical row IDs and canonical values for
-the numeric fields, rejects missing/duplicate IDs and invalid amounts, orders
-rows with the Clojure typed-ID rule, and derives each effective cap. It does
-not yet parse complete requests or derive primitive result/witness artifacts;
-the package's Rust primitive profile remains unqualified.
+The Rust `request` API normalizes typed rows and complete V1 requests, applies
+the V1 defaults and accepted policy values, and derives the existing
+`PROJECTION_ARTIFACT_V1` request root. Its allocation-rounding request root is
+checked against the frozen Clojure golden vector. Primitive result and witness
+derivation remain unimplemented, so the complete Rust primitive profile is not
+yet qualified.
 
 The frozen Clojure reference remains in
 `pro_rata_contract_src/resolver_sim/pro_rata_contract/contract.clj`, where

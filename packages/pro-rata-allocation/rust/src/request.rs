@@ -6,7 +6,10 @@
 //! remain separate.
 
 use num_bigint::BigInt;
-use prf_canonical_codec::CanonValue;
+use prf_canonical_codec::{domain_hash, CanonValue};
+
+pub const REQUEST_SCHEMA: &str = "pro-rata-allocation-request.v1";
+pub const PROJECTION_ARTIFACT_DOMAIN: &str = "PROJECTION_ARTIFACT_V1";
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct AllocationRowInput {
@@ -35,6 +38,37 @@ pub enum RequestNormalizationError {
     MissingRowField,
     InvalidRowAmount,
     UnsupportedObligationId,
+    UnsupportedRequestSchema,
+    UnsupportedMechanismVersion,
+    MissingAllocationId,
+    UnsupportedAllocationId,
+    InvalidAvailable,
+    UnsupportedRoundingPolicy,
+    UnsupportedTieBreakPolicy,
+    UnsupportedRedistributionPolicy,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct AllocationRequestInput {
+    pub allocation_id: Option<CanonValue>,
+    pub schema_version: Option<CanonValue>,
+    pub mechanism_version: Option<CanonValue>,
+    pub available: Option<CanonValue>,
+    pub rows: Vec<AllocationRowInput>,
+    pub rounding_policy: Option<CanonValue>,
+    pub tie_break_policy: Option<CanonValue>,
+    pub redistribution_policy: Option<CanonValue>,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct NormalizedAllocationRequest {
+    pub allocation_id: CanonValue,
+    pub available: BigInt,
+    pub rows: Vec<NormalizedAllocationRow>,
+    pub rounding_policy: CanonValue,
+    pub tie_break_policy: CanonValue,
+    pub redistribution_policy: CanonValue,
+    pub canonical_request: CanonValue,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
@@ -100,6 +134,148 @@ fn non_negative_integer(value: Option<&CanonValue>) -> Option<BigInt> {
         Some(CanonValue::Int(value)) if value >= &BigInt::from(0) => Some(value.clone()),
         _ => None,
     }
+}
+
+fn null_or_missing(value: Option<CanonValue>, default: CanonValue) -> CanonValue {
+    match value {
+        None | Some(CanonValue::Null) => default,
+        Some(value) => value,
+    }
+}
+
+fn canonical_row_value(row: &NormalizedAllocationRow) -> CanonValue {
+    CanonValue::map(vec![
+        (CanonValue::keyword("row/id"), row.row_id.clone()),
+        (
+            CanonValue::keyword("obligation/id"),
+            row.obligation_id.clone(),
+        ),
+        (
+            CanonValue::keyword("requested"),
+            CanonValue::int(row.requested.clone()),
+        ),
+        (
+            CanonValue::keyword("weight"),
+            CanonValue::int(row.weight.clone()),
+        ),
+        (
+            CanonValue::keyword("cap"),
+            row.declared_cap
+                .as_ref()
+                .map(|cap| CanonValue::int(cap.clone()))
+                .unwrap_or(CanonValue::Null),
+        ),
+    ])
+}
+
+/// Validate and normalize the complete frozen V1 public request profile.
+/// Operational execution options are intentionally not represented here.
+pub fn normalize_request(
+    input: &AllocationRequestInput,
+) -> Result<NormalizedAllocationRequest, RequestNormalizationError> {
+    let schema_version = input
+        .schema_version
+        .clone()
+        .unwrap_or_else(|| CanonValue::str(REQUEST_SCHEMA));
+    if !matches!(&schema_version, CanonValue::Str(value) if value == REQUEST_SCHEMA) {
+        return Err(RequestNormalizationError::UnsupportedRequestSchema);
+    }
+
+    let mechanism_version = input
+        .mechanism_version
+        .clone()
+        .unwrap_or_else(|| CanonValue::int(1));
+    if mechanism_version != CanonValue::int(1) {
+        return Err(RequestNormalizationError::UnsupportedMechanismVersion);
+    }
+
+    let allocation_id = input
+        .allocation_id
+        .clone()
+        .ok_or(RequestNormalizationError::MissingAllocationId)?;
+    if matches!(allocation_id, CanonValue::Null | CanonValue::Bool(false)) {
+        return Err(RequestNormalizationError::MissingAllocationId);
+    }
+    if !canonical_value_is_valid(&allocation_id) {
+        return Err(RequestNormalizationError::UnsupportedAllocationId);
+    }
+
+    let available = non_negative_integer(input.available.as_ref())
+        .ok_or(RequestNormalizationError::InvalidAvailable)?;
+    let rounding_policy = null_or_missing(
+        input.rounding_policy.clone(),
+        CanonValue::keyword("largest-remainder"),
+    );
+    if !matches!(
+        rounding_policy,
+        CanonValue::Keyword(ref policy) if policy == "largest-remainder" || policy == "floor"
+    ) {
+        return Err(RequestNormalizationError::UnsupportedRoundingPolicy);
+    }
+    let tie_break_policy = null_or_missing(
+        input.tie_break_policy.clone(),
+        CanonValue::keyword("canonical-row-id"),
+    );
+    if tie_break_policy != CanonValue::keyword("canonical-row-id") {
+        return Err(RequestNormalizationError::UnsupportedTieBreakPolicy);
+    }
+    let redistribution_policy = null_or_missing(
+        input.redistribution_policy.clone(),
+        CanonValue::keyword("unallocated"),
+    );
+    if redistribution_policy != CanonValue::keyword("unallocated")
+        && redistribution_policy != CanonValue::keyword("redistribute-cap-excess")
+    {
+        return Err(RequestNormalizationError::UnsupportedRedistributionPolicy);
+    }
+
+    let rows = normalize_rows(&input.rows)?;
+    let canonical_request = CanonValue::map(vec![
+        (CanonValue::keyword("schema-version"), schema_version),
+        (CanonValue::keyword("mechanism/version"), mechanism_version),
+        (CanonValue::keyword("allocation/id"), allocation_id.clone()),
+        (
+            CanonValue::keyword("available"),
+            CanonValue::int(available.clone()),
+        ),
+        (
+            CanonValue::keyword("rows"),
+            CanonValue::array(rows.iter().map(canonical_row_value).collect()),
+        ),
+        (
+            CanonValue::keyword("rounding-policy"),
+            rounding_policy.clone(),
+        ),
+        (
+            CanonValue::keyword("tie-break-policy"),
+            tie_break_policy.clone(),
+        ),
+        (
+            CanonValue::keyword("redistribution-policy"),
+            redistribution_policy.clone(),
+        ),
+    ]);
+    Ok(NormalizedAllocationRequest {
+        allocation_id,
+        available,
+        rows,
+        rounding_policy,
+        tie_break_policy,
+        redistribution_policy,
+        canonical_request,
+    })
+}
+
+/// Derive the unchanged V1 projection-artifact request root.
+pub fn allocation_request_root(canonical_request: &CanonValue) -> String {
+    let preimage = CanonValue::map(vec![
+        (
+            CanonValue::keyword("intent"),
+            CanonValue::keyword("projection-artifact"),
+        ),
+        (CanonValue::keyword("artifact"), canonical_request.clone()),
+    ]);
+    domain_hash(PROJECTION_ARTIFACT_DOMAIN, &preimage)
 }
 
 /// Validate and normalize rows using the public Clojure request profile's
@@ -210,6 +386,112 @@ mod tests {
 
     fn amount(value: i64) -> Option<CanonValue> {
         Some(CanonValue::int(value))
+    }
+
+    fn request_fixture_input() -> AllocationRequestInput {
+        AllocationRequestInput {
+            allocation_id: Some(CanonValue::keyword("portable/rounding")),
+            schema_version: None,
+            mechanism_version: None,
+            available: amount(5),
+            rows: vec![
+                AllocationRowInput {
+                    row_id: Some(CanonValue::keyword("row/a")),
+                    obligation_id: Some(CanonValue::keyword("ob/a")),
+                    requested: amount(5),
+                    weight: amount(1),
+                    cap: None,
+                },
+                AllocationRowInput {
+                    row_id: Some(CanonValue::keyword("row/b")),
+                    obligation_id: Some(CanonValue::keyword("ob/b")),
+                    requested: amount(5),
+                    weight: amount(1),
+                    cap: None,
+                },
+            ],
+            rounding_policy: None,
+            tie_break_policy: None,
+            redistribution_policy: None,
+        }
+    }
+
+    #[test]
+    fn full_request_defaults_and_request_root_match_frozen_v1_vector() {
+        let normalized = normalize_request(&request_fixture_input()).unwrap();
+        assert_eq!(normalized.rows.len(), 2);
+        assert_eq!(normalized.available, BigInt::from(5));
+        assert_eq!(
+            normalized.rounding_policy,
+            CanonValue::keyword("largest-remainder")
+        );
+        assert_eq!(
+            normalized.tie_break_policy,
+            CanonValue::keyword("canonical-row-id")
+        );
+        assert_eq!(
+            normalized.redistribution_policy,
+            CanonValue::keyword("unallocated")
+        );
+        assert_eq!(
+            allocation_request_root(&normalized.canonical_request),
+            "6c60df09a5ec1efffaae94da7c0ab8bdf177df9311db525650765fee33e26d85"
+        );
+    }
+
+    #[test]
+    fn full_request_rejects_unsupported_schema_version_and_policies() {
+        let mut input = request_fixture_input();
+        input.schema_version = Some(CanonValue::str("pro-rata-allocation-request.v2"));
+        assert_eq!(
+            normalize_request(&input),
+            Err(RequestNormalizationError::UnsupportedRequestSchema)
+        );
+
+        let mut input = request_fixture_input();
+        input.mechanism_version = Some(CanonValue::int(2));
+        assert_eq!(
+            normalize_request(&input),
+            Err(RequestNormalizationError::UnsupportedMechanismVersion)
+        );
+
+        let mut input = request_fixture_input();
+        input.tie_break_policy = Some(CanonValue::keyword("input-order"));
+        assert_eq!(
+            normalize_request(&input),
+            Err(RequestNormalizationError::UnsupportedTieBreakPolicy)
+        );
+
+        let mut input = request_fixture_input();
+        input.redistribution_policy = Some(CanonValue::keyword("unknown"));
+        assert_eq!(
+            normalize_request(&input),
+            Err(RequestNormalizationError::UnsupportedRedistributionPolicy)
+        );
+    }
+
+    #[test]
+    fn full_request_rejects_missing_ids_and_invalid_available_amounts() {
+        let mut input = request_fixture_input();
+        input.allocation_id = Some(CanonValue::Bool(false));
+        assert_eq!(
+            normalize_request(&input),
+            Err(RequestNormalizationError::MissingAllocationId)
+        );
+
+        let mut input = request_fixture_input();
+        input.available = amount(-1);
+        assert_eq!(
+            normalize_request(&input),
+            Err(RequestNormalizationError::InvalidAvailable)
+        );
+
+        let mut input = request_fixture_input();
+        input.rounding_policy = Some(CanonValue::keyword("unknown"));
+        assert_eq!(
+            normalize_request(&input),
+            Err(RequestNormalizationError::UnsupportedRoundingPolicy)
+        );
     }
 
     #[test]
