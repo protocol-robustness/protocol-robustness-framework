@@ -28,7 +28,10 @@
               :required-api [:domain-hash-v1 :sha256-root-reference-v1
                              :valid-sha256-root-reference?]
               :immutable-coordinate nil
-              :availability :unpublished-c2-candidate}]}
+              :availability :qualified-unpublished-candidate
+              :qualified-source-revision "92b2198442d2840c85be9074582cabbedde5cba1"
+              :qualified-bundle-sha256 "692d68d5e0f99450ae8da1bc857eb477f0d64e25550eeadff9646bf988d92aa6"
+              :resolution :in-tree-package-source-content-verified}]}
  :canonical-api-contract
  {:request-owner :c2
   :request-path "packages/module-boundaries.edn#:canonical-api-requests"
@@ -42,7 +45,8 @@
   resolver-sim.benchmark.research-claim-lifecycle
   resolver-sim.hash.reference]
  :current-transitive-source-closure
- [prf.canonical.codec prf.canonical.reference
+ [prf.canonical.codec prf.canonical.decode prf.canonical.hash
+  prf.canonical.reference prf.canonical.sequence
   resolver-sim.benchmark.incentive-deviation-domain
   resolver-sim.benchmark.incentive-model
   resolver-sim.benchmark.outcome-manifest
@@ -63,7 +67,9 @@
   resolver-sim.hash.sequence
   resolver-sim.research.api]
  :closure-ownership
- {:prf-canonical [prf.canonical.codec prf.canonical.reference
+ {:prf-canonical [prf.canonical.codec prf.canonical.decode
+                  prf.canonical.hash prf.canonical.reference
+                  prf.canonical.sequence
                   resolver-sim.hash.algorithm resolver-sim.hash.canonical
                   resolver-sim.hash.framing-view resolver-sim.hash.reference
                   resolver-sim.hash.round-trip resolver-sim.hash.sequence]
@@ -91,7 +97,7 @@
   :public-facade "src/resolver_sim/research/api.clj"
   :independent-source-closure? false
   :reason :authoritative-implementation-and-shared-canonical-api-not-yet-packaged
-  :closure-count 21}
+  :closure-count 24}
  :compatibility
  {:artifact-schema-versions-immutable? true
   :domain-separators-immutable? true
@@ -109,7 +115,7 @@
    :tests 2 :assertions 23}
   :contract-source-snapshot
   {:status :passed
-   :source-content-set "sha256:44982170c364ffc2f93f0a0681c1944fb9909c99d6dfa4b44f5c6efe0558b2b8"
+   :source-content-set "sha256:bca2a460db195bafa56948927a8765cbf04a78ac5accbf88a18bd1b04aa16a91"
    :tests 30 :assertions 74}
   :independently-released? false
   :immutable-dependency-pin? false}}

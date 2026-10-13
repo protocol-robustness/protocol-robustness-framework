@@ -18,11 +18,16 @@
   :canonical {:package prf/canonical
               :source :in-tree-candidate
               :path "../canonical/clj"
-              :immutable-pin nil}}
+              :immutable-pin nil
+              :qualified-source-revision "92b2198442d2840c85be9074582cabbedde5cba1"
+              :qualified-bundle-sha256 "692d68d5e0f99450ae8da1bc857eb477f0d64e25550eeadff9646bf988d92aa6"
+              :resolution :in-tree-package-source-content-verified}}
  :release/runtime-dependencies [{:lib org.clojure/clojure :version "1.12.0"}
                                 {:lib prf/canonical
                                  :version :in-tree-source-candidate
-                                 :path "../canonical/clj"}]
+                                 :path "../canonical/clj"
+                                 :qualified-source-revision "92b2198442d2840c85be9074582cabbedde5cba1"
+                                 :qualified-bundle-sha256 "692d68d5e0f99450ae8da1bc857eb477f0d64e25550eeadff9646bf988d92aa6"}]
  :release/conformance
  {:package-local {:command "cd packages/accounting-reductions/clj && clojure -M:test"
                   :tests 3 :assertions 15 :result :passed}

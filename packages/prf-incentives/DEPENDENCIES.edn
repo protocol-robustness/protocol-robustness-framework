@@ -23,7 +23,10 @@
               :required-api [:domain-hash-v1 :sha256-root-reference-v1
                              :valid-sha256-root-reference?]
               :immutable-coordinate nil
-              :availability :unpublished-c2-candidate}
+              :availability :qualified-unpublished-candidate
+              :qualified-source-revision "92b2198442d2840c85be9074582cabbedde5cba1"
+              :qualified-bundle-sha256 "692d68d5e0f99450ae8da1bc857eb477f0d64e25550eeadff9646bf988d92aa6"
+              :resolution :in-tree-package-source-content-verified}
              {:id :prf-research-contracts
               :required-api [:accepted-research-identity
                              :analysis-verification-reference]
@@ -43,7 +46,8 @@
   resolver-sim.hash.canonical
   resolver-sim.hash.reference]
  :current-transitive-source-closure
- [prf.canonical.codec prf.canonical.reference
+ [prf.canonical.codec prf.canonical.decode prf.canonical.hash
+  prf.canonical.reference prf.canonical.sequence
   resolver-sim.benchmark.incentive-deviation-domain
   resolver-sim.benchmark.incentive-model
   resolver-sim.benchmark.outcome-manifest
@@ -67,7 +71,9 @@
   resolver-sim.incentives.api
   resolver-sim.research.api]
  :closure-ownership
- {:prf-canonical [prf.canonical.codec prf.canonical.reference
+ {:prf-canonical [prf.canonical.codec prf.canonical.decode
+                  prf.canonical.hash prf.canonical.reference
+                  prf.canonical.sequence
                   resolver-sim.hash.algorithm resolver-sim.hash.canonical
                   resolver-sim.hash.framing-view resolver-sim.hash.reference
                   resolver-sim.hash.round-trip resolver-sim.hash.sequence]
@@ -98,7 +104,7 @@
   :public-facade "src/resolver_sim/incentives/api.clj"
   :independent-source-closure? false
   :reason :canonical-and-research-contract-packages-not-immutably-available
-  :closure-count 24}
+  :closure-count 27}
  :compatibility
  {:policy-eligibility-proposal-obligation-order-preserved? true
   :artifact-schema-versions-immutable? true
@@ -111,7 +117,7 @@
   :source-closure-qualification "scripts/qualify_incentives_api_closure.sh"
   :isolated-source-snapshot
   {:status :passed
-   :source-content-set "sha256:ce4d4c531005b2b05f24c8c47b390356fe658d5edc39a84f9b9ece2f7e9e55ce"
+   :source-content-set "sha256:9d9406e5ab25b8a0e23d92a6015178058430595bfaa5b58adb3de1ae9a55b6f1"
    :tests 8 :assertions 64}
   :independently-released? false
   :immutable-dependency-pins? false}}
