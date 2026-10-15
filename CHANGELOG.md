@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- Documented the proposed protocol-agnostic forensic graph producer/domain-adapter boundary and shared verification-result handoff. This is an implementation contract proposal; canonical evidence schemas, hashes, and validator behavior are unchanged.
+
 ### Authentication provenance
 
 - Research verification now reports anonymous, pseudonymous, and authenticated-principal provenance separately from evidence validity. Unsigned attestations report missing proof of possession rather than a verified signer, while valid anonymous evidence remains eligible for research verification where admission policy permits.
