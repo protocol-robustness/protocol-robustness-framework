@@ -165,3 +165,98 @@
     (is (= (:artifact/root left) (get-in before [:authoritative :subject/root])))
     (is (thrown? Exception (d/append p verifier subjects h (request f-right h :ratify))))
     (is (= before (d/reconstruct p verifier subjects h)))))
+
+;; ── V2 subject-identity and verification binding (P0) ────────────────────────
+;;
+;; Under V1, `advance` resolved a subject by map key and never checked that the
+;; resolved subject's recomputed canonical identity equaled the event's declared
+;; `:subject/root`. The reviewer demonstrated an exploit in which a signed
+;; decision named decoy statement Z while the `subjects` map resolved that root
+;; to a different statement Y. These tests reproduce that exploit against the
+;; fixed V2 kernel and assert it now fails closed, plus the surrounding binding
+;; invariants.
+
+(defn- exploit-decoy-accept
+  "Build a *validly signed* accept whose declared `:subject/root` is the canonical
+   root of decoy statement Z, while `subjects` maps that root to the real,
+   verifiable statement Y. Returns [spoofed-subjects signed-accept decoy]."
+  [{:keys [p verifier subject reviewer]} decoy]
+  (let [req (d/decision p (d/initial-state p) verifier subject :accept)
+        req (assoc req :subject/root (:artifact/root decoy))
+        req (assoc req :artifact/root (d/artifact-root req))
+        accept (d/sign-decision req (.getPrivate reviewer))]
+    [{(:artifact/root decoy) subject} accept decoy]))
+
+(deftest v2-rejects-decoy-z-while-verifying-statement-y
+  (let [{:keys [p verifier subject] :as f} (setup)
+        ;; Z is a self-consistent decoy with different content (amount 999).
+        z (d/rooted "example-statement.v1" (assoc (dissoc subject :artifact/root) :amount 999))
+        [spoofed accept _] (exploit-decoy-accept f z)]
+    (is (not= (:artifact/root z) (:artifact/root subject)))
+    (is (= (:artifact/root z) (:subject/root accept)))          ; declared root names Z
+    (is (= true (:verified? (verifier subject))))               ; verification actually ran on Y
+    (let [e (try (d/reconstruct p verifier spoofed [accept]) nil
+                 (catch clojure.lang.ExceptionInfo ex ex))]
+      (is (some? e) "decoy substitution must be rejected")
+      (is (= :subject-identity-mismatch (:reason (ex-data e)))))))
+
+(deftest v2-rejects-declared-root-that-does-not-name-resolved-subject
+  (let [{:keys [p verifier subjects subject reviewer]} (setup)
+        req (d/decision p (d/initial-state p) verifier subject :accept)
+        ;; Valid signature over a forged declared root, but no map entry with the
+        ;; canonical identity behind it. Even a perfectly self-consistent signed
+        ;; record is not admissible.
+        forged (assoc req :subject/root (d/root "other" {}))
+        forged (assoc forged :artifact/root (d/artifact-root forged))
+        signed (d/sign-decision forged (.getPrivate reviewer))]
+    (is (thrown? Exception (d/reconstruct p verifier subjects [signed])))))
+
+(deftest v2-rejects-subject-object-with-forged-canonical-root
+  (let [{:keys [p verifier subject]} (setup)
+        forged (assoc subject :artifact/root (d/root "forged" {}))
+        ;; The verifier must recompute the subject's canonical identity, not trust
+        ;; the declared field inside the subject object.
+        ]
+    (is (thrown? Exception (d/verify-subject p verifier forged)))))
+
+(deftest v2-verification-root-binds-subject-identity-and-policy
+  (let [{:keys [p verifier subject]} (setup)
+        ;; twin has different content but an identical adapter report.
+        twin (d/rooted "example-statement.v1" (assoc (dissoc subject :artifact/root) :note :extra))
+        report (verifier subject)
+        p2 (d/policy {:domain (:domain p) :purpose (:purpose p) :scope (:scope p)
+                      :subject-schema (:subject-schema p) :validation-root (:validation-root p)
+                      :reviewer {:id "alternate-reviewer" :public-key (get-in p [:reviewer :public-key])}
+                      :ratifier (:ratifier p)})]
+    (is (= report (verifier twin)))
+    (is (not= (:artifact/root subject) (:artifact/root twin)))
+    (is (not= (d/verification-root p subject report)
+              (d/verification-root p twin report))
+        "same report, different subject identity => different verification root")
+    (is (not= (d/verification-root p subject report)
+              (d/verification-root p2 subject report))
+        "same subject, different policy => different verification root")))
+
+(deftest v2-verification-root-changes-when-report-is-mutated
+  (let [{:keys [p verifier subject reviewer]} (setup)
+        report (verifier subject)
+        tampered (assoc report :eligible? false)
+        good (d/sign-decision (d/decision p (d/initial-state p) verifier subject :accept)
+                              (.getPrivate reviewer))]
+    (is (not= (d/verification-root p subject report)
+              (d/verification-root p subject tampered)))
+    ;; A decision signed against a report the current verifier no longer produces
+    ;; must be rejected as a verification-binding mismatch.
+    (is (thrown? Exception
+                 (d/reconstruct p (with-meta (fn [_] tampered)
+                                    {:validation/root (:validation-root p)})
+                                {(:artifact/root subject) subject} [good])))))
+
+(deftest v2-resolved-map-key-does-not-confer-identity
+  ;; The `subjects` map is an index, not an authority: changing which key points
+  ;; at a subject cannot change what a signed root names.
+  (let [{:keys [p verifier subject reviewer]} (setup)
+        accept (d/sign-decision (d/decision p (d/initial-state p) verifier subject :accept)
+                                (.getPrivate reviewer))
+        bogus {(:subject/root accept) (assoc subject :amount 999 :artifact/root (:artifact/root subject))}]
+    (is (thrown? Exception (d/reconstruct p verifier bogus [accept])))))

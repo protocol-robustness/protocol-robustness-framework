@@ -8,7 +8,25 @@
             [resolver-sim.evidence.finalization-signature :as signatures])
   (:import [java.util Base64]))
 
-(def decision-schema "subject-decision.v1")
+(def decision-schema "subject-decision.v2")
+(def history-schema "subject-decision-history.v2")
+(def verification-schema "subject-verification.v2")
+
+;; V2 substrate note. V1 (`subject-decision.v1`, `subject-verification.v1`,
+;; `subject-decision-history.v1`) committed a verification root over the raw
+;; adapter report only, and `advance` never required the event's declared
+;; `:subject/root` to equal the resolved subject's recomputed canonical
+;; `:artifact/root`. That permitted replay-time subject-content substitution:
+;; the signed root named one statement while the verifier was re-run over a
+;; different (self-consistent) statement supplied in the `subjects` map.
+;;
+;; V2 closes both: the verification preimage is a bound record that commits the
+;; subject identity, the subject schema, the policy root and the domain/purpose,
+;; and `advance` fails closed unless the event's declared subject root equals the
+;; resolved subject's recomputed canonical identity. New identities are produced
+;; under v2. Immutable v1 histories are left untouched and are not silently
+;; reinterpreted as v2. The policy schema is unchanged (it binds domain, purpose,
+;; scope, subject schema, validation root and role keys; none of those changed).
 (def signature-profile
   {:envelope-schema-version "subject-decision-authorization.v1"
    :payload-type "application/vnd.prf.subject-decision.v1"
@@ -64,12 +82,41 @@
 
 (defn initial-state [p]
   (validate-policy! p)
-  {:history/root (root "subject-decision-history.v1" {:policy/root (:artifact/root p)})
+  {:history/root (root history-schema {:policy/root (:artifact/root p)})
    :sequence 0 :decisions {} :authoritative nil})
+
+(defn verification-record
+  "The exact preimage hashed into a subject's verification root. It binds the
+   resolved subject's canonical identity and schema, the applicable policy/domain
+   and purpose, the pinned validation method and the adapter report. Two subjects
+   with identical reports but different identities therefore have different
+   verification roots, and a report can never be transplanted between policies."
+  [p subject report]
+  (ensure! (map? report) :invalid-domain-report)
+  {:schema verification-schema
+   :subject/root (:artifact/root subject)
+   :subject/schema (:artifact/schema subject)
+   :policy/root (:artifact/root p)
+   :policy/schema (:artifact/schema p)
+   :domain (:domain p)
+   :purpose (:purpose p)
+   :scope (:scope p)
+   :validation-root (:validation-root p)
+   :report report})
+
+(defn verification-root
+  "Canonical verification root for a resolved subject under a pinned policy.
+   Public so consumers/UI recompute the identical value without duplicating the
+   preimage shape."
+  [p subject report]
+  (root verification-schema (verification-record p subject report)))
 
 (defn verify-subject
   "The adapter must recompute checks from resolved evidence. A caller-supplied
-   verification flag/report in an event is never trusted."
+   verification flag/report in an event is never trusted. The subject's own
+   declared canonical root and the bound verification record are both recomputed
+   here; the caller's map key is irrelevant and is separately checked by
+   `advance`."
   [p verifier subject]
   (ensure! (= (:validation-root p) (:validation/root (meta verifier))) :subject-verifier-mismatch)
   (ensure! (and (= (:subject-schema p) (:artifact/schema subject))
@@ -80,7 +127,7 @@
                   (boolean? (:eligible? report))
                   (= (:scope p) (:scope report))
                   (reference/valid-sha256-ref? (:evidence/root report))) :invalid-domain-report)
-    {:report report :verification/root (root "subject-verification.v1" report)}))
+    {:report report :verification/root (verification-root p subject report)}))
 
 (def decision-fields
   #{:artifact/schema :artifact/root :domain :purpose :policy/root :subject/root
@@ -140,6 +187,12 @@
         {report :report verification-root :verification/root} (verify-subject p verifier subject)
         prior (get-in state [:decisions (:subject/root event)])
         ratify? (= :ratify (:decision event))]
+    ;; The event's declared subject root must equal the resolved subject's
+    ;; independently recomputed canonical identity. This is what stops replay-time
+    ;; content substitution: a signed root can only ever name the exact content
+    ;; whose canonical hash it equals, regardless of how the `subjects` map is
+    ;; keyed or what report a caller precomputes.
+    (ensure! (= (:subject/root event) (:artifact/root subject)) :subject-identity-mismatch)
     (ensure! (= verification-root (:verification/root event)) :verification-binding-mismatch)
     (if ratify?
       (do
@@ -156,7 +209,7 @@
           (ensure! (and (:verified? report) (:eligible? report)) :subject-ineligible))))
     (cond-> (assoc state
                    :sequence (inc (:sequence state))
-                   :history/root (root "subject-decision-history.v1"
+                   :history/root (root history-schema
                                        {:previous (:history/root state) :decision (:artifact/root event)}))
       ratify? (assoc :authoritative {:subject/root (:subject/root event)
                                     :acceptance/root (:acceptance/root event)
