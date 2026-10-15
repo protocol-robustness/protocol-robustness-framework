@@ -3,6 +3,8 @@
 ## [Unreleased]
 
 - `bb validate` now propagates failed, timed-out, and unstartable validation phases as a nonzero result. Each run retains per-phase commands, durations, terminal status, and separate stdout/stderr logs in a machine-readable EDN report.
+- `bb test:notebooks` and the notebook phase of `bb validate` now load isolated notebook JVMs with bounded parallelism, per-namespace timeouts, progress timings, and a machine-readable report with retained namespace logs. A partial run cannot report success.
+- The `bb validate` notebook phase now allows 25 minutes, based on the measured 19m11s run across all 51 namespaces; per-notebook timeouts and fail-closed results remain in force.
 
 ### Authentication provenance
 

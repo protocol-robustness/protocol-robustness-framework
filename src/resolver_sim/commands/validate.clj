@@ -29,7 +29,9 @@
     :timeout-ms 120000}
    {:id :all-notebooks
     :argv ["clojure" "-M:with-sew" "-m" "scripts.test-notebooks"]
-    :timeout-ms 900000}
+    ;; The measured 51-namespace run takes 19m11s with isolated JVMs. Leave
+    ;; headroom for host contention while keeping the per-notebook 600s limit.
+    :timeout-ms 1500000}
    {:id :speds
     :argv ["bb" "test:speds"]
     :timeout-ms 900000}])
