@@ -1,6 +1,7 @@
 (ns resolver-sim.benchmark.distributed.executable-distribution-test
   (:require [clojure.test :refer [deftest is testing]]
             [resolver-sim.benchmark.distributed.executable-distribution :as sut]
+            [resolver-sim.execution.executable-distribution :as shared]
             [resolver-sim.benchmark.distributed.execution-binding :as binding]))
 
 (defn- root [digit] (str "sha256:" (apply str (repeat 64 digit))))
@@ -17,6 +18,13 @@
 
 (deftest distribution-is-independent-of-plan-and-operational-placement
   (is (sut/verify-distribution distribution))
+  (is (= distribution
+         (shared/build-distribution {:execution-plan/root (root "different")
+                                     :executable-artifact/root (root "b")
+                                     :semantic-claimant-options base-options}))
+      "shared execution owner preserves the established v2 distribution body and root")
+  (is (= "sha256:d31028005c40786b117c2c03f12b61e5fbbcbda230e1058e4c86d7bff56f7bbd"
+         (:executable-distribution/root distribution)))
   (is (= (:executable-distribution/root distribution)
          (:executable-distribution/root
           (sut/build-distribution {:execution-plan/root (root "different")
@@ -77,4 +85,11 @@
          (:distribution-preflight/status
           (sut/distribution-preflight
            {:expected (sut/expected-shape distribution)
-            :observed (assoc distribution :executable-artifact/root (root "c"))})))))
+            :observed (assoc distribution :executable-artifact/root (root "c"))}))))
+  (testing "the shared contract rejects malformed, substituted, or wrong-schema evidence"
+    (is (not (shared/verify-distribution
+              (assoc distribution :executable-distribution/root (root "c")))))
+    (is (not (shared/verify-distribution
+              (assoc distribution :executable-distribution/schema "benchmark-executable-distribution.v1"))))
+    (is (thrown? clojure.lang.ExceptionInfo
+                 (shared/build-distribution {:semantic-claimant-options base-options})))))

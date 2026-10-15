@@ -1,6 +1,6 @@
 (ns resolver-sim.pro-rata.invocation-publication-binding
   "Rooted correspondence for one pro-rata capability invocation."
-  (:require [resolver-sim.benchmark.distributed.executable-distribution :as distribution]
+  (:require [resolver-sim.execution.executable-distribution :as distribution]
             [resolver-sim.extensions.manifest :as manifest]
             [resolver-sim.hash.canonical :as hc]
             [resolver-sim.hash.reference :as ref]

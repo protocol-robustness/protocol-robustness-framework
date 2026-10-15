@@ -1,5 +1,5 @@
 (ns resolver-sim.benchmark.adapters.pro-rata-observability-test
-  (:require [clojure.test :refer [deftest is testing]]
+  (:require [clojure.test :refer [deftest is]]
             [resolver-sim.pro-rata.allocation :as allocation]
             [resolver-sim.benchmark.adapters.pro-rata-observability :as observability]))
 
