@@ -10,6 +10,8 @@ import argparse
 import hashlib
 import json
 import subprocess
+import urllib.error
+import urllib.request
 from pathlib import Path
 from typing import Any
 
@@ -21,6 +23,7 @@ RECIPIENTS = {
     "0x2222222222222222222222222222222222222222": ("claim-b", 21),
     "0x3333333333333333333333333333333333333333": ("claim-c", 14),
 }
+EIP1967_IMPLEMENTATION_SLOT = "0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc"
 
 
 class EvidenceError(ValueError):
@@ -143,6 +146,218 @@ def _verify_runtime_observations(raw: Path, manifest: dict[str, Any]) -> dict[st
         if keccak.returncode != 0 or keccak.stdout.strip().lower() != row.get("keccak256", "").lower():
             raise EvidenceError(f"runtime-code Keccak identity differs for {name}")
     return observed
+
+
+def _rpc(rpc_url: str, method: str, params: list[Any]) -> Any:
+    request_body = json.dumps({"jsonrpc": "2.0", "id": 1, "method": method, "params": params}).encode()
+    request = urllib.request.Request(
+        rpc_url, data=request_body, headers={"Content-Type": "application/json"}
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=10) as response:
+            payload = json.loads(response.read())
+    except (OSError, urllib.error.URLError, json.JSONDecodeError) as exc:
+        raise EvidenceError(f"live RPC failed for {method}") from exc
+    if payload.get("error") or "result" not in payload:
+        raise EvidenceError(f"live RPC returned an error for {method}: {payload.get('error')}")
+    return payload["result"]
+
+
+def _quantity(value: int) -> str:
+    return hex(value)
+
+
+def _block_by_number(rpc_url: str, number: int) -> dict[str, Any]:
+    block = _rpc(rpc_url, "eth_getBlockByNumber", [_quantity(number), False])
+    if not isinstance(block, dict) or _int(block.get("number", "-1")) != number:
+        raise EvidenceError(f"canonical block {number} is unavailable")
+    return block
+
+
+def _block_reference(rpc_url: str, block_hash: str) -> dict[str, str]:
+    """Use EIP-1898 so historical reads fail if the block is no longer canonical."""
+    block = _rpc(rpc_url, "eth_getBlockByHash", [block_hash, False])
+    if not isinstance(block, dict) or _norm(block.get("hash", "")) != _norm(block_hash):
+        raise EvidenceError(f"block {block_hash} is unavailable by hash")
+    return {"blockHash": block_hash, "requireCanonical": True}
+
+
+def _normalize_log(log: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "address": _norm(log.get("address", "")),
+        "topics": [_norm(topic) for topic in log.get("topics", [])],
+        "data": _norm(log.get("data", "")),
+        "logIndex": _int(log.get("logIndex", "-1")),
+        "transactionHash": _norm(log.get("transactionHash", "")),
+        "transactionIndex": _int(log.get("transactionIndex", "-1")),
+        "blockNumber": _int(log.get("blockNumber", "-1")),
+        "blockHash": _norm(log.get("blockHash", "")),
+        "removed": bool(log.get("removed", False)),
+    }
+
+
+def verify_live_chain_context(raw: Path, rpc_url: str, min_confirmations: int | None = None) -> dict[str, Any]:
+    """Recheck retained transaction and code observations against one live RPC.
+
+    The result establishes provider-relative canonicality at verification time.
+    It does not authenticate the RPC provider or claim consensus finality.
+    """
+    raw = Path(raw)
+    reconstruct(raw)
+    manifest = _json(raw / "deployment-manifest.json")
+    capture = _json(raw / "capture-metadata.json")
+    runtime = _json(raw / "runtime-code-observations.json")
+    if (capture.get("schema") != "eae.pro-28-capture-metadata.v1"
+            or not isinstance(capture.get("captureId"), str)
+            or not capture["captureId"]
+            or not manifest.get("localOnly")
+            or not capture.get("classification", "").startswith("localOnly")
+            or capture.get("publicNetworkTransactionsSubmitted") is not False):
+        raise EvidenceError("live check requires explicitly local-only evidence")
+    if capture.get("chainId") != manifest.get("chainId") or runtime.get("chainId") != manifest.get("chainId"):
+        raise EvidenceError("deployment, capture and runtime observation chain IDs differ")
+    if (capture.get("runtimeObservation", {}).get("codeFetchedAtBlock") != runtime.get("blockNumber")
+            or capture.get("runtimeObservation", {}).get("contractsObserved") != len(runtime.get("contracts", {}))):
+        raise EvidenceError("capture metadata does not bind the runtime observation block and contract count")
+    chain_id = _int(_rpc(rpc_url, "eth_chainId", []))
+    if chain_id != manifest["chainId"]:
+        raise EvidenceError(f"live RPC chain ID {chain_id} differs from evidence chain ID {manifest['chainId']}")
+
+    threshold = max(0, min_confirmations or 0)
+    latest_number = _int(_rpc(rpc_url, "eth_blockNumber", []))
+
+    transactions, _ = _load_receipts(raw)
+    anchor_number = runtime["blockNumber"]
+    anchor_hash = _norm(runtime["blockHash"])
+    if anchor_number > latest_number:
+        raise EvidenceError("runtime observation block is above the live chain head")
+
+    observed_blocks = {anchor_number}
+    for entry in transactions.values():
+        receipt = entry["receipt"]
+        number = _int(receipt["blockNumber"])
+        if number > latest_number:
+            raise EvidenceError("retained transaction block is above the live chain head")
+        observed_blocks.add(number)
+
+    headers: dict[int, dict[str, Any]] = {}
+    for number in sorted(observed_blocks):
+        expected_hashes: set[str] = set()
+        if number == anchor_number:
+            expected_hashes.add(_norm(runtime["blockHash"]))
+        expected_hashes.update(
+            _norm(entry["receipt"]["blockHash"])
+            for entry in transactions.values()
+            if _int(entry["receipt"]["blockNumber"]) == number
+        )
+        if len(expected_hashes) != 1:
+            raise EvidenceError(f"retained observations conflict on block {number}")
+        expected_hash = next(iter(expected_hashes))
+        header = _block_by_number(rpc_url, number)
+        if _norm(header.get("hash", "")) != expected_hash:
+            raise EvidenceError(f"block {number} is orphaned or replaced on the live RPC")
+        if number > 0:
+            parent = _block_by_number(rpc_url, number - 1)
+            if _norm(header.get("parentHash", "")) != _norm(parent.get("hash", "")):
+                raise EvidenceError(f"block {number} parent link differs from the live canonical chain")
+        headers[number] = header
+
+    confirmations_by_block = {number: latest_number - number + 1 for number in observed_blocks}
+    if any(value < threshold for value in confirmations_by_block.values()):
+        raise EvidenceError("one or more source blocks do not meet the requested confirmation threshold")
+
+    checked_transactions = 0
+    for tx_hash, entry in transactions.items():
+        expected_receipt = entry["receipt"]
+        live_receipt = _rpc(rpc_url, "eth_getTransactionReceipt", [tx_hash])
+        if not isinstance(live_receipt, dict):
+            raise EvidenceError(f"transaction receipt {tx_hash} is unavailable")
+        for key in ("transactionHash", "blockHash", "blockNumber", "transactionIndex", "status"):
+            if key not in expected_receipt or key not in live_receipt:
+                raise EvidenceError(f"transaction {tx_hash} is missing {key} in a receipt")
+            if key in ("blockNumber", "transactionIndex", "status"):
+                matches = _int(expected_receipt[key]) == _int(live_receipt[key])
+            else:
+                matches = _norm(expected_receipt[key]) == _norm(live_receipt[key])
+            if not matches:
+                raise EvidenceError(f"live receipt {tx_hash} differs at {key}")
+        expected_logs = [_normalize_log(log) for log in expected_receipt.get("logs", [])]
+        live_logs = [_normalize_log(log) for log in live_receipt.get("logs", [])]
+        if expected_logs != live_logs:
+            raise EvidenceError(f"live receipt {tx_hash} logs differ from retained evidence")
+        block_number = _int(expected_receipt["blockNumber"])
+        block = headers[block_number]
+        tx_index = _int(expected_receipt["transactionIndex"])
+        block_txs = _rpc(rpc_url, "eth_getBlockByNumber", [_quantity(block_number), True]).get("transactions", [])
+        if tx_index >= len(block_txs) or _norm(block_txs[tx_index].get("hash", "")) != tx_hash:
+            raise EvidenceError(f"transaction {tx_hash} is not at its retained index in the live block")
+        live_tx = _rpc(rpc_url, "eth_getTransactionByHash", [tx_hash])
+        if not isinstance(live_tx, dict) or _int(live_tx.get("chainId", "-1")) != chain_id:
+            raise EvidenceError(f"transaction {tx_hash} is missing or has a different live chain identity")
+        if _int(live_tx.get("transactionIndex", "-1")) != tx_index or _norm(live_tx.get("blockHash", "")) != _norm(block["hash"]):
+            raise EvidenceError(f"transaction {tx_hash} live block/index differs from its receipt")
+        checked_transactions += 1
+
+    anchor_ref = _block_reference(rpc_url, anchor_hash)
+    checked_contracts = 0
+    for name, row in runtime["contracts"].items():
+        address = row["address"]
+        anchored_code = _rpc(rpc_url, "eth_getCode", [address, anchor_ref])
+        current_code = _rpc(rpc_url, "eth_getCode", [address, "latest"])
+        if _norm(anchored_code) != _norm(row["runtimeCode"]):
+            raise EvidenceError(f"runtime code for {name} differs at the captured block")
+        if _norm(current_code) != _norm(anchored_code):
+            raise EvidenceError(f"runtime code for {name} changed after the captured block")
+        if row.get("implementationAddress"):
+            implementation = row["implementationAddress"]
+            slot_at_anchor = _rpc(rpc_url, "eth_getStorageAt", [address, EIP1967_IMPLEMENTATION_SLOT, anchor_ref])
+            slot_latest = _rpc(rpc_url, "eth_getStorageAt", [address, EIP1967_IMPLEMENTATION_SLOT, "latest"])
+            if _norm("0x" + slot_at_anchor[-40:]) != _norm(implementation) or _norm(slot_at_anchor) != _norm(slot_latest):
+                raise EvidenceError(f"proxy implementation for {name} changed or differs from the captured identity")
+            implementation_code = _rpc(rpc_url, "eth_getCode", [implementation, anchor_ref])
+            if _norm(implementation_code) != _norm(row.get("implementationRuntimeCode", "")):
+                raise EvidenceError(f"implementation code for {name} differs at the captured block")
+            latest_implementation_code = _rpc(rpc_url, "eth_getCode", [implementation, "latest"])
+            if _norm(latest_implementation_code) != _norm(implementation_code):
+                raise EvidenceError(f"implementation code for {name} changed after the captured block")
+        checked_contracts += 1
+
+    return {
+        "schema": "prf.forensic-live-chain-check.v1",
+        "status": "passed",
+        "classification": "localOnly provider-relative canonicality check; not public-chain finality or independent consensus proof",
+        "environmentId": capture["captureId"],
+        "chainId": chain_id,
+        "deploymentManifestDigest": manifest["manifestDigest"],
+        "operationId": manifest["operationId"],
+        "preparedOperationRoot": manifest["preparedOperationRoot"],
+        "configurationRoot": manifest["configurationRoot"],
+        "sourceRevision": capture.get("source", {}).get("revision"),
+        "runtimeAnchor": {"blockNumber": anchor_number, "blockHash": anchor_hash,
+                           "parentHash": _norm(headers[anchor_number]["parentHash"])},
+        "latestBlockNumber": latest_number,
+        "minimumConfirmationsRequested": threshold,
+        "minimumConfirmationsObserved": min(confirmations_by_block.values()),
+        "canonicality": "all transaction and runtime anchors matched this RPC's current canonical chain",
+        "transactionsChecked": checked_transactions,
+        "transactionAnchors": [
+            {"transactionHash": tx_hash,
+             "blockNumber": _int(row["receipt"]["blockNumber"]),
+             "blockHash": _norm(row["receipt"]["blockHash"]),
+             "transactionIndex": _int(row["receipt"]["transactionIndex"]),
+             "status": _int(row["receipt"]["status"])}
+            for tx_hash, row in sorted(transactions.items())
+        ],
+        "contractsChecked": checked_contracts,
+        "contractRuntimeIdentities": {
+            name: {key: row[key] for key in ("address", "sha256", "keccak256")}
+            | ({"implementationAddress": row["implementationAddress"]} if row.get("implementationAddress") else {})
+            for name, row in sorted(runtime["contracts"].items())
+        },
+        "runtimeCodeCurrentAtLatest": True,
+        "validAtCheckOnly": True,
+        "finalityClaimed": False,
+    }
 
 
 def _transfer_events(
@@ -452,9 +667,13 @@ def main() -> int:
     parser.add_argument("bundle", type=Path, help="directory containing retained raw artifacts")
     parser.add_argument("--expected-report", type=Path, help="compare with a previously retained reconstruction")
     parser.add_argument("--write-report", type=Path, help="write the independently reconstructed report")
+    parser.add_argument("--rpc-url", help="optionally recheck captured blocks, receipts and code against a live JSON-RPC endpoint")
+    parser.add_argument("--min-confirmations", type=int, help="optional observed block-depth threshold for local-only evidence; does not establish finality")
+    parser.add_argument("--write-chain-report", type=Path, help="write the provider-relative live chain check separately from canonical receipt reconstruction")
     args = parser.parse_args()
     try:
         report = verify(args.bundle, args.expected_report)
+        chain_report = verify_live_chain_context(args.bundle, args.rpc_url, args.min_confirmations) if args.rpc_url else None
     except EvidenceError as exc:
         parser.exit(1, f"FAIL: {exc}\n")
     rendered = json.dumps(report, sort_keys=True, indent=2) + "\n"
@@ -465,6 +684,14 @@ def main() -> int:
     print(f"classification: {report['classification']}")
     if args.write_report:
         print(f"report: {args.write_report}")
+    if chain_report is not None:
+        chain_rendered = json.dumps(chain_report, sort_keys=True, indent=2) + "\n"
+        if args.write_chain_report:
+            args.write_chain_report.write_text(chain_rendered)
+        print(f"PASS: live RPC rechecked {chain_report['transactionsChecked']} receipts and {chain_report['contractsChecked']} runtime identities")
+        print(f"chain-context: {chain_report['classification']}")
+        if args.write_chain_report:
+            print(f"chain report: {args.write_chain_report}")
     return 0
 
 
