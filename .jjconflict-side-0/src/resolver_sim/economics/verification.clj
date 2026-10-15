@@ -45,8 +45,8 @@
   (mapv (fn [idx item]
           {:idx idx
            :id (:id item)
-           :weight (long (or (:weight item) 0))
-           :cap (some-> (:cap item) long)})
+           :weight (bigint (or (:weight item) 0))
+           :cap (some-> (:cap item) bigint)})
         (range) (vec items)))
 
 (defn- tie-key-for
@@ -66,7 +66,8 @@
                       :remainder (mod (* amount weight) denominator)})
                    items)
         floor-sum (reduce + 0 (map :floor rows))
-        shortage (if (= rounding :floor-with-largest-remainder)
+        shortage (if (and (pos? total-weight)
+                          (= rounding :floor-with-largest-remainder))
                    (- amount floor-sum)
                    0)
         awarded (->> rows
@@ -102,7 +103,9 @@
             (let [weight-total (reduce + 0 (map :weight active))]
               (cond
                 (empty? active)
-                (let [committed-rows (vec (vals committed))
+                (let [committed-rows (->> (vals committed)
+                                          (sort-by :idx)
+                                          vec)
                       share-rows (mapv (fn [i r] (assoc r :idx i)) (range) committed-rows)
                       share-idx (single-pass-requested
                                  {:amount remaining :items share-rows
@@ -139,8 +142,8 @@
                              (- remaining committed-amount)
                              (vec (remove #(contains? constrained-ids (:id %)) active))
                              (into committed
-                                   (map (fn [{:keys [id weight cap]}]
-                                          [id {:id id :weight weight :cap cap
+                                   (map (fn [{:keys [idx id weight cap]}]
+                                          [id {:idx idx :id id :weight weight :cap cap
                                                :allocated cap :unmet 0}]))
                                    constrained)
                              (conj passes {:pass round
@@ -177,7 +180,7 @@
     (throw (ex-info "Unsupported exact pro-rata policy (no silent narrowing)"
                     {:unsupported-dims unsupported
                      :supported-domain supported-policies})))
-  (let [amount (long amount)
+  (let [amount (bigint amount)
         items (normalize-items items)
         request (assoc request :amount amount :items items)
         cap-treatment (or cap-treatment :unallocated)]

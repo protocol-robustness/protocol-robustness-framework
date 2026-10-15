@@ -8,6 +8,21 @@
 
 ## Unreleased
 
+- Exact pro-rata reconstruction now preserves arbitrary-precision amounts and
+  does not award residual units when all participant weights are zero. Added
+  independent hand-derived cases for zero weights, canonical remainder ties,
+  zero/all caps, multiple redistribution rounds, and BigInt amounts.
+
+- The pro-rata Rust package now exposes an independent exact-verifier API and
+  checks canonical fairness-spec and supplemental-corpus roots against the
+  Clojure reference. This does not qualify an SP1 exact-verifier profile.
+
+- Added an isolated candidate SP1 exact-verifier guest. Its 96-byte public
+  values bind the fairness-spec root, conformance-corpus root, and canonical
+  request/claim commitment; the positive fixture now executes with all three
+  expected roots. The existing allocation guest profile is unchanged; proof
+  qualification remains open.
+
 - Recorded the passing standalone Rust allocation V1 suite and local Solidity
   execution-consumer suite for the pro-rata candidate. Solidity results remain
   unpinned because the companion worktree is modified; exact-verifier/SP1 and

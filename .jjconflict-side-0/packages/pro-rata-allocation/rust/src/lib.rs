@@ -7,6 +7,7 @@ pub mod allocation_roots;
 pub mod canonical_order;
 pub mod context_validation;
 pub mod exact_ratio;
+pub mod exact_verifier;
 pub mod kernel_types;
 pub mod policy_identity;
 pub mod proportionality;

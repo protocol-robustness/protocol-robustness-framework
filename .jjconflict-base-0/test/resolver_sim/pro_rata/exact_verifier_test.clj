@@ -8,6 +8,7 @@
   (:require [clojure.test :refer [deftest is testing]]
             [clojure.java.io :as io]
             [resolver-sim.pro-rata.allocation :as allocation]
+            [resolver-sim.pro-rata.exact-verifier-conformance :as conf]
             [resolver-sim.pro-rata.exact-verifier :as v]
             [resolver-sim.pro-rata.redistribution :as redistribution]))
 
@@ -21,9 +22,9 @@
 ;; ---------------------------------------------------------------------------
 
 (deftest verifier-is-independent-of-the-allocator
-  (testing "exact-verifier requires no allocator namespace (payoffs/allocation)"
+  (testing "exact-verifier depends only on the generic verification layer"
     (let [aliases (set (keys (ns-aliases (the-ns 'resolver-sim.pro-rata.exact-verifier))))]
-      (is (empty? aliases))
+      (is (= #{'verification} aliases))
       (is (not (contains? aliases 'payoffs)))
       (is (not (contains? aliases 'allocation)))
       (is (not (contains? aliases 'partial-fill)))))
@@ -217,3 +218,94 @@
       (is (seq chain) "redistribution actually occurred")
       (is (= :passed (:status (v/verify-weighted-proportionality request claim)))
           "independent chain agrees with the allocator"))))
+
+(deftest independent-adversarial-edge-cases
+  (let [huge (reduce *' 1N (repeat 100 2))
+        cases [{:id :zero-weights
+                :request {:amount 11 :items [{:id :a :weight 0} {:id :b :weight 0}]
+                          :rounding :floor-with-largest-remainder
+                          :ordering-policy :input-order :cap-treatment :unallocated}
+                :allocated {:a 0 :b 0} :unmet {:a 0 :b 0} :remainder 11}
+               {:id :canonical-equal-remainder-one-unit
+                :request {:amount 1 :items [{:id :z :weight 1} {:id :a :weight 1}]
+                          :rounding :floor-with-largest-remainder
+                          :ordering-policy :canonical-id :cap-treatment :unallocated}
+                :allocated {:a 1 :z 0} :unmet {:a 0 :z 0} :remainder 0}
+               {:id :zero-cap-redistributed
+                :request {:amount 10 :items [{:id :a :weight 1 :cap 0} {:id :b :weight 1}]
+                          :rounding :floor-with-largest-remainder
+                          :ordering-policy :input-order :cap-treatment :redistribute}
+                :allocated {:a 0 :b 10} :unmet {:a 0 :b 0} :remainder 0
+                :chain [[:a]]}
+               {:id :all-capped-residual
+                :request {:amount 10 :items [{:id :a :weight 1 :cap 2} {:id :b :weight 1 :cap 3}]
+                          :rounding :floor-with-largest-remainder
+                          :ordering-policy :input-order :cap-treatment :redistribute}
+                :allocated {:a 2 :b 3} :unmet {:a 3 :b 2} :remainder 0
+                :chain [[:a :b]]}
+               {:id :three-cap-commitment-rounds
+                :request {:amount 100 :items [{:id :a :weight 80 :cap 70}
+                                              {:id :b :weight 15 :cap 20}
+                                              {:id :c :weight 4 :cap 7}
+                                              {:id :d :weight 1}]
+                          :rounding :floor-with-largest-remainder
+                          :ordering-policy :input-order :cap-treatment :redistribute}
+                :allocated {:a 70 :b 20 :c 7 :d 3}
+                :unmet {:a 0 :b 0 :c 0 :d 0} :remainder 0
+                :chain [[:a] [:b] [:c]]}
+               {:id :arbitrary-precision-amount
+                :request {:amount huge :items [{:id :a :weight 1} {:id :b :weight 1}]
+                          :rounding :floor-with-largest-remainder
+                          :ordering-policy :input-order :cap-treatment :unallocated}
+                :allocated {:a (quot huge 2) :b (quot huge 2)}
+                :unmet {:a 0 :b 0} :remainder 0}]]
+    (doseq [{:keys [id request allocated unmet remainder chain]} cases]
+      (testing (name id)
+        (let [actual (v/reconstruct request)
+              actual-chain (->> (get-in actual [:redistribution :passes])
+                                (map :newly-capped-ids)
+                                (remove empty?)
+                                vec)
+              claim (claimed-from-reconstruction request)]
+          (is (= allocated (into {} (map (fn [[id _]] [id (:allocated (get-in actual [:rows id]))]) allocated))))
+          (is (= unmet (into {} (map (fn [[id _]] [id (:unmet (get-in actual [:rows id]))]) unmet))))
+          (is (= remainder (:remainder actual)))
+          (when chain (is (= chain actual-chain)))
+          (is (= :passed (:status (v/verify-weighted-proportionality request claim)))))))))
+
+(deftest normative-spec-and-edge-corpus-roots-are-stable
+  (is (= "e0650cf27f9ba13f2c1799ad0ee09ba79214edd1b80a625b5e63f75a7bc5c7f4"
+         (conf/fairness-spec-root)))
+  (is (= "a6d723b27f154d6981cc41a7837ef7a9278ed3265eb98e4a480871845c5b97c1"
+         (conf/conformance-corpus-root)))
+  (doseq [{:keys [case/id request expected]} conf/adversarial-corpus]
+    (testing (name id)
+      (let [result (v/reconstruct request)
+            rows (:rows result)]
+        (is (= (:allocated expected)
+               (into {} (map (fn [[k _]] [k (:allocated (get rows k))])
+                             (:allocated expected)))))
+        (is (= (:unmet expected)
+               (into {} (map (fn [[k _]] [k (:unmet (get rows k))])
+                             (:unmet expected)))))
+        (is (= (:remainder expected) (:remainder result)))))))
+
+(deftest exact-verification-input-root-matches-canonical-proof-profile-vector
+  (let [request {:amount 7
+                 :items [{:id :a :weight 4 :cap nil}
+                         {:id :b :weight 4 :cap nil}
+                         {:id :c :weight 2 :cap nil}]
+                 :rounding :floor-with-largest-remainder
+                 :ordering-policy :input-order
+                 :cap-treatment :unallocated}
+        result (v/reconstruct request)
+        claim {:allocations (mapv (fn [row] (select-keys row [:id :allocated]))
+                                  (vals (:rows result)))
+               :total-allocated (:total-allocated result)
+               :total-unmet (:total-unmet result)
+               :remainder (:remainder result)}]
+    (is (= "ee2401b91c694d66990b96114555485b5d8efc9944351c8a9339b64806b4339f"
+           (conf/exact-verification-input-root request claim)))
+    (is (= (conf/exact-verification-input-root request claim)
+           (conf/exact-verification-input-root request
+                                               (update claim :allocations reverse))))))

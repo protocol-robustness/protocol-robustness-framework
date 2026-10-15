@@ -13,6 +13,8 @@ members = [
     "observed-run-sp1-program",
     "accounting-arithmetic-sp1-program",
     "accounting-arithmetic-sp1-host",
+    "exact-verifier-sp1-program",
+    "exact-verifier-sp1-host",
 ]
 
 # Profiles intended to affect the whole workspace build belong on the

@@ -17,12 +17,12 @@ status.
 | Allocator dependency boundary                   | CLOSED (aliases **and** FQ refs covered) |
 | Coverage `:complete` support-domain proof       | CLOSED                                   |
 | Minimal frozen corpus identity                  | CLOSED (locked)                          |
-| Extended independent adversarial corpus         | OPEN P1                                  |
+| Extended independent adversarial corpus         | PARTIAL (Clojure/Rust covered; SP1 profile open) |
 | Spec version naming                             | CLOSED (`pro-rata-exact-verification.v1`) |
-| Cryptographic normative spec root               | OPEN P1                                  |
+| Cryptographic normative spec and corpus roots   | CLOSED (Clojure/Rust/SP1 execution parity) |
 | Programme                                       | READY FOR SP-C                           |
 | Realized-statement integration                  | DEFERRED (correctly)                     |
-| Rust/SP1 exact-verifier conformance             | NOT YET CLAIMED                          |
+| Rust/SP1 exact-verifier conformance             | PARTIAL (positive execution passed; proof open) |
 
 ## Contract: verifier independence
 
@@ -75,14 +75,22 @@ unsupported policies instead of defaulting.
 
 ## Verified behavior
 
-- Verifier namespace has no aliases to, and no fully-qualified source reference
-  to, the allocator stack (independent).
+- Verifier namespace depends only on generic verification and has no
+  fully-qualified source reference to the allocator stack (independent).
 - Reconstruction is unaffected by a missing/empty claimed result (comparison-only).
 - All 7 frozen hand-derived cases reconstruct to their hand-derived targets,
   including the `:chain` redistribution passes.
 - The SHA-256 corpus identity is locked and must not drift without a reviewed
   math change: `94200977d363128af4cb7d5cc86c54c8936cbbba71914a79a5ee5e6bb3505324`
   over `(frozen-spec-version "pro-rata-exact-verification.v1", frozen-corpus)`.
+- Supplemental hand-derived Clojure and Rust cases cover all-zero weights, a canonical
+  equal-remainder unit award, zero cap, all rows capped with residual,
+  three redistribution rounds, and arbitrary-precision amounts. These cases
+  do not change the locked minimal corpus identity.
+- Clojure and Rust independently construct and hash the fairness-spec and
+  supplemental-corpus preimages. Their roots match:
+  - fairness spec: `e0650cf27f9ba13f2c1799ad0ee09ba79214edd1b80a625b5e63f75a7bc5c7f4`
+  - supplemental corpus: `a6d723b27f154d6981cc41a7837ef7a9278ed3265eb98e4a480871845c5b97c1`
 - A consistent allocation verifies `:passed`; tamper of `:allocated` or totals
   causes `:failed`; disagreement with the allocator on a large corpus is
   rejected (agreement is accepted, disagreement is rejected — never vice versa).
@@ -107,34 +115,39 @@ over the allocation result, replacing the former not-evaluated stub.
 
 ## Open P1 (not blocking SP-C, but required before claiming Rust/SP1 conformance)
 
-1. **Extended independent adversarial/edge corpus.** The frozen corpus is a
-   minimal conformance set. Independent hand-derived vectors are still needed
-   for: all-zero weights over an unallocated request, equal-remainder
-   canonical tie with a unit residual, `cap = 0`, all rows capped with residual,
-   multiple (3+) redistribution rounds, one-unit residual, huge-integer
-   (BigInt) arithmetic, and adversarial witnesses that corrupt the intermediate
-   state — a wrong active set, wrong remaining amount, wrong award winner,
-   `cap + 1`, duplicate award, or a skipped round. The large differential corpus
-   against the allocator is useful but cannot replace these: an allocator bug
-   mirrored by the verifier would pass a differential corpus, whereas
-   hand-derived vectors provide an oracle independent of either implementation.
-2. **Cryptographic normative spec root.** The current locked identity is
-   `SHA-256(pr-str [spec-version-string, corpus])`. That commits the version
-   string and the corpus but does not independently commit the *definition* of
-   the normative spec semantics. For clean-room/SP1 assurance, prefer the
-   existing `resolver-sim.hash.canonical/domain-hash` machinery and a two-root
-   model — `fairness-spec-root S` and `conformance-corpus-root C` — so that
-   Clojure verifier, Rust verifier, and SP1 program each commit/identify the
-   same `S` and `C`. Using the existing hc/domain-hash / corpus-root convention
-   is preferred over the bespoke plain SHA-256 tuple.
+1. **SP1 exact-verifier profile.** An isolated guest and execution harness now
+   exist, separate from the allocation-kernel guest. The guest compiles for the
+   SP1 target, and the local positive fixture completed execution. Its 96-byte
+   output matched the expected fairness-spec, supplemental-corpus, and
+   verification-input roots. Before claiming Rust/SP1 conformance, run
+   malformed, unsupported, and tampered-claim fixtures through the guest, bind
+   a stable program/VKey identity, and qualify real proof generation and
+   verification. Do not mutate the existing allocation-kernel guest's public
+   values or VKey identity.
+2. **Witness attacks are out of the current verifier contract.** The current
+   verifier accepts a request and claimed allocation result; it does not accept
+   intermediate redistribution witnesses. Wrong active sets, remaining
+   amounts, duplicate witness awards, and skipped witness rounds therefore are
+   not verifier inputs. They become conformance cases only if a future proof
+   profile introduces a witness-bearing interface.
 
 ## Verification note
 
-- `test/resolver_sim/pro_rata/exact_verifier_test.clj` — 9 tests / 74 assertions:
-  independence (no alias + no FQ source reference), reconstruction-without-
+- `test/resolver_sim/pro_rata/exact_verifier_test.clj` — 13 tests / 127 assertions:
+  independence (generic verifier alias only + no FQ allocator reference), reconstruction-without-
   claimed-result, frozen corpus reconstruction, locked corpus identity,
   supported-domain-covers-evaluator-path, unsupported-never-narrower,
-  accept/tamper, agreement-with-allocator, redistribution-chain reconstruction.
+  accept/tamper, agreement-with-allocator, redistribution-chain reconstruction,
+  supplemental independent edge cases, and fixed spec/corpus roots.
+- `packages/pro-rata-allocation/rust` — 52 tests pass, including independent
+  exact reconstruction and independently constructed canonical spec/corpus
+  root parity.
+- `coprocessor/exact-verifier-sp1-program` — guest ELF compilation and positive
+  fixture execution succeeded. Output roots matched:
+  fairness spec `e0650cf27f9ba13f2c1799ad0ee09ba79214edd1b80a625b5e63f75a7bc5c7f4`,
+  supplemental corpus `a6d723b27f154d6981cc41a7837ef7a9278ed3265eb98e4a480871845c5b97c1`,
+  and verification input `ee2401b91c694d66990b96114555485b5d8efc9944351c8a9339b64806b4339f`.
+  Malformed/tampered fixture coverage and proof qualification remain open.
 - `test/resolver_sim/economics/payoffs_test.clj` — updated coverage assertions.
 - Full battery across the seven touched suites:
   211 tests / 732 assertions / 0 failures / 0 errors.

@@ -1,0 +1,23 @@
+{
+  "request": {
+    "amount": "7",
+    "items": [
+      {"id": {"kind": "keyword", "value": "a"}, "weight": "4", "cap": null},
+      {"id": {"kind": "keyword", "value": "b"}, "weight": "4", "cap": null},
+      {"id": {"kind": "keyword", "value": "c"}, "weight": "2", "cap": null}
+    ],
+    "rounding": "floor-with-largest-remainder",
+    "ordering-policy": "input-order",
+    "cap-treatment": "unallocated"
+  },
+  "claim": {
+    "allocations": [
+      {"id": {"kind": "keyword", "value": "c"}, "allocated": "1"},
+      {"id": {"kind": "keyword", "value": "a"}, "allocated": "3"},
+      {"id": {"kind": "keyword", "value": "b"}, "allocated": "3"}
+    ],
+    "total-allocated": "7",
+    "total-unmet": "0",
+    "remainder": "0"
+  }
+}

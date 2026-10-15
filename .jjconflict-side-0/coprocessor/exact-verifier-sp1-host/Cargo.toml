@@ -1,0 +1,15 @@
+[package]
+name = "pro-rata-exact-verifier-sp1-host"
+version = "0.1.0"
+edition = "2021"
+description = "Local SP1 guest execution harness for exact pro-rata verification."
+
+[build-dependencies]
+sp1-build = "=6.3.1"
+
+[dependencies]
+sp1-sdk = { version = "=6.3.1", features = ["blocking"] }
+prf-pro-rata-allocation = { path = "../../packages/pro-rata-allocation/rust" }
+clap = { version = "4.0", features = ["derive"] }
+hex = "0.4"
+
