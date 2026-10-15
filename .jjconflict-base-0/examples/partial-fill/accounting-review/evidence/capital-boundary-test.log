@@ -1,0 +1,15 @@
+No files changed, compilation skipped
+
+Ran 1 test for test/AccountingReviewBoundary.t.sol:AccountingReviewBoundaryTest
+[PASS] test_AccountingRatificationCannotAuthorizeCapital() (gas: 318143)
+Logs:
+  PARTIAL_FILL_V3_FUNDING_JSON {"chainId":31337,"token":"0x5615dEB798BB3E4dFa0139dFa1b3D433Cc23b72f","reserve":"0xD6BbDE9174b1CdAa358d2Cf4D57D1a9F7178FBfF","sponsor":"0x7FA9385bE102ac3EAc297483Dd6233D62b3e1496","refundBeneficiary":"0x3333333333333333333333333333333333333333","ratificationAuthority":"0x2a07706473244BC757E10F2a9E86fB532828afe3","purposeRoot":"0x34398f81a45b6d10536bdde7c59a31f0692df2c6c3eb4fd94af0e67bb59651aa","terminalConditionsRoot":"0xced29586cbb39df493e585de4ace2fe864972a8a60583e4d1a5d1628357164cd","scopedOperationId":"0x6fbe4a9888b84c0245dcc21e15835a7e7c5ede9b9fc42a77baf0600b8f46a414","fundingAttributionRoot":"0x942dba76a4263ce7e1a9b0f37db5f94f28af1e50c68e82fc9af65edc16e351b0","policyRoot":"0x88cad6aed4bc4e33b364275dc9a0b7d1b21b67faf11833ce1a0a63b6bfe122c4","observedTransferAmount":80,"protectedCapital":10,"availableCapital":70,"sponsorTransferObserved":true,"reserveBalanceAfterDeposit":80}
+  ACCOUNTING_RATIFICATION_ROOT
+  0xcd3abff033cd9d0079f97b97733f01d47042c66fea42ebe809ef698ab539e82d
+  ACCOUNTING_RECORD_FILE_SHA256
+  0x409c4eef3b073be5ccba59ec30fb9e501f4a18fc688bfddceddf9e892e28a673
+  Three capital-boundary attempts rejected; checked capital and operation state unchanged; local EVM only
+
+Suite result: ok. 1 passed; 0 failed; 0 skipped; finished in 25.90ms (3.49ms CPU time)
+
+Ran 1 test suite in 29.66ms (25.90ms CPU time): 1 tests passed, 0 failed, 0 skipped (1 total tests)
