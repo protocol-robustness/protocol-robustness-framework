@@ -254,3 +254,6 @@ request-bar
 ;; checkout. It validates the evidence manifest and emits the machine-readable
 ;; result consumed above. See `evidence/composed-pro-rata-v2-settlement/README.md`
 ;; for the exact Foundry commands, dependency identities and adversarial matrix.
+;;
+;; The site publishes a linked evidence-lineage view for this exact projection:
+;; [Open the evidence path, supporting records and open qualifications](../../demos/composed-pro-rata-settlement/#evidence-lineage).
