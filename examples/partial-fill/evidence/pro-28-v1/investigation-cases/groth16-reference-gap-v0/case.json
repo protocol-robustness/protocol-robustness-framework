@@ -1,0 +1,12 @@
+{
+  "schema": "prf.investigation-case.v0",
+  "caseId": "pro-28-groth16-reference-gap-v0",
+  "bundle": "examples/partial-fill/evidence/pro-28-v1/raw/fresh-replay-20261013",
+  "expectedReport": "examples/partial-fill/evidence/pro-28-v1/fresh-replay-reconstruction.json",
+  "expectedReportSha256": "sha256:e066d8fffdbe3d4f710d43a60fab29b4c780f48250a123a8bee7d2c1d523df6b",
+  "task": {
+    "id": "verify-groth16-reference",
+    "type": "sp1-groth16-reference-check.v1",
+    "gapId": "groth16-cryptographic-verification-unverified"
+  }
+}
