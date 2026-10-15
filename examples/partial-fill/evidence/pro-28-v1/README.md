@@ -34,3 +34,16 @@ The live check requires the retained `localOnly` classification and matching cha
 To independently repeat EVM proof verification and settlement, use the retained proof fixture and the matching `prf-evm` source revision recorded in `capture-metadata.json`, on a disposable local Anvil only. Start Anvil with chain ID 31337, set the test deployer's nonce to `0x4e`, deploy using the recorded deployment inputs, and regenerate the witness from the retained source vector. The manifest digest and witness hash must match before the proof fixture is used. Run `GateEEntitlementDeploymentDerivedRealProofTest` before ratification/funding; it expects the pre-funding reserve commitment. Then execute the funding, activation and withdrawal scripts in that order. Do not treat these local results as public-chain qualification.
 
 The runtime-code observation is unsigned local RPC evidence. Offline reconstruction verifies that the retained bytecode matches its recorded hashes and the addresses in the manifest; it does not establish canonical network state. The separate-workspace replay report is operator separation, not organizational independence.
+
+Offline receipt reconstruction deliberately reports Groth16 cryptographic verification as `not verified`; it does not infer proof validity from the retained Foundry log. To execute the pinned reference check against the exact retained proof and public values, run:
+
+```bash
+python3 scripts/forensic/pro28_receipts.py \
+  examples/partial-fill/evidence/pro-28-v1/raw/fresh-replay-20261013 \
+  --verify-groth16 \
+  --write-proof-check examples/partial-fill/evidence/pro-28-v1/groth16-reference-verification.json
+```
+
+The command installs the captured, pinned SP1 Groth16 v6.1.0 runtime into a disposable local Anvil instance and calls `verifyProof` with the captured VKey, proof and 288-byte public values. It verifies the exact fixture's proof hash, public-values hash, program identity, operation and prepared/reserve roots before reporting `verified`. A missing executable, unsupported local reference verifier or any changed byte fails closed. This establishes proof validity for those public values; it does not establish the live chain's historical state or finality. It broadcasts no network transaction.
+
+The retained `groth16-reference-verification.json` is an unsigned result record, not authority by itself. An independent process should rerun the command and compare the complete deterministic report; offline receipt reconstruction continues to show `not verified` until a reference verifier is actually executed.

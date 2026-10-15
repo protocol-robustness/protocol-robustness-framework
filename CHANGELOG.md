@@ -1,5 +1,9 @@
 # Changelog
 
+### PRO-32 Groth16 reference verification
+
+- Offline forensic reconstruction now reports retained proof-verification claims as unverified. An explicit `--verify-groth16` command directly executes the pinned SP1 verifier against the fixture's exact proof and public values on disposable local Anvil, with a separate machine-readable result.
+
 ## [Unreleased]
 
 ### PRO-28 receipt-level local execution evidence
