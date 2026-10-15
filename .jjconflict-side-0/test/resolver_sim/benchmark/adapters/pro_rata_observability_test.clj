@@ -1,7 +1,7 @@
-(ns resolver-sim.pro-rata.research-observability-test
-  (:require [clojure.test :refer [deftest is]]
+(ns resolver-sim.benchmark.adapters.pro-rata-observability-test
+  (:require [clojure.test :refer [deftest is testing]]
             [resolver-sim.pro-rata.allocation :as allocation]
-            [resolver-sim.pro-rata.research-observability :as observability]))
+            [resolver-sim.benchmark.adapters.pro-rata-observability :as observability]))
 
 (def request
   {:schema-version "pro-rata-allocation-request.v1"
@@ -18,6 +18,13 @@
   (let [result (allocation/allocate request)
         projection (observability/derive-observations result)
         binding (observability/bind-observations result projection)]
+    (is (= "pro-rata-allocation-result.v1" (:schema-version result)))
+    (is (= "515bd3a91ddeed6d4c29cb4a11f956d2c996a0143d6677d9ede3175e3e86220b"
+           (:allocation/hash result)))
+    (is (= "sha256:8b2ee99ca25dba912c7cd1189556ae9b4998412efdb8fd9cf24d9f2a29acb17c"
+           (:research-observation-projection/root projection)))
+    (is (= "sha256:9995e76568308a169be087753871fa409762b9c7a0c46f1210281a2e29c363f4"
+           (:binding/root binding)))
     (is (= 10N (get-in projection [:observations :pro-rata/allocated-total :observation/value])))
     (is (= 0N (get-in projection [:observations :pro-rata/unallocated-residual :observation/value])))
     (is (= (:allocation/hash result) (:allocation/hash binding)))
@@ -30,3 +37,12 @@
                                          :pro-rata/unmet-total
                                          {:observation/value 999N
                                           :observation/domain {:kind :integer :unit :pro-rata-units}})))))))
+
+(deftest adapter-rejects-invalid-or-unsupported-allocation-results
+  (let [result (allocation/allocate request)]
+    (is (thrown? clojure.lang.ExceptionInfo
+                 (observability/derive-observations
+                  (assoc result :schema-version "pro-rata-allocation-result.v2"))))
+    (is (thrown? clojure.lang.ExceptionInfo
+                 (observability/derive-observations
+                  (assoc result :allocated-total -1N))))))

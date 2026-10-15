@@ -1,5 +1,9 @@
-(ns resolver-sim.pro-rata.research-observability
-  "Project-owned exact-integer observations derived from verified allocations."
+(ns resolver-sim.benchmark.adapters.pro-rata-observability
+  "Research projection adapter from canonical pro-rata results to observations.
+
+   This adapter owns no allocation arithmetic. It validates the allocation
+   result through the supported pro-rata API, then derives research-facing
+   observations and binds their root to the allocation result."
   (:require [resolver-sim.benchmark.research-observation-projection :as observation-projection]
             [resolver-sim.hash.canonical :as hc]
             [resolver-sim.hash.reference :as hash-ref]
@@ -9,9 +13,10 @@
   (and (integer? value) (not (neg? value))))
 
 (defn derive-observations [result]
-  (when-not (allocation/allocation-hash-valid? result)
-    (throw (ex-info "Cannot observe an allocation with an invalid hash"
-                    {:reason :pro-rata/allocation-hash-invalid})))
+  (when-not (and (= "pro-rata-allocation-result.v1" (:schema-version result))
+                 (allocation/allocation-hash-valid? result))
+    (throw (ex-info "Cannot observe an invalid allocation result"
+                    {:reason :pro-rata/allocation-result-invalid})))
   (let [rows (:rows result)
         observations {:pro-rata/allocated-total
                       {:observation/value (bigint (:allocated-total result))
