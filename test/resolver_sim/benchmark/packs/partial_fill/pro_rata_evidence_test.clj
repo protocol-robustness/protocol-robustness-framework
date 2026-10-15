@@ -35,8 +35,8 @@
      :mechanism {:mechanism/id :pro-rata/largest-remainder :mechanism/version 1 :mechanism/hash (test-ref :mechanism)}
      :policy {:policy/id :default :policy/hash (test-ref :policy)
               :policy/parameters (select-keys request
-                                               [:rounding-policy :tie-break-policy
-                                                :redistribution-policy])}
+                                              [:rounding-policy :tie-break-policy
+                                               :redistribution-policy])}
      :allocation-witness (or (:committed-rows w) (:rows result) [])}))
 
 (defn- base-manifest []
@@ -231,7 +231,7 @@
 
 (deftest app-accounting-passes-state-write-back-fails
   (let [profile (app-ev/build-pro-rata-application-evidence
-          {:allocation-evidence-hash (test-ref :alloc-ev)
+                 {:allocation-evidence-hash (test-ref :alloc-ev)
                   :propagation shared-propag
                   :application app-with-accounting
                   :world-before world-before
@@ -288,7 +288,7 @@
     :withdrawn {:before 100 :delta 60 :after 40 :final-world-value 40 :verified? true}
     :position {:before-hash (test-ref :before)
                :after-hash (hash-ref/sha256-ref (hc/domain-hash :state-projection
-                                                                 positive-position))
+                                                                positive-position))
                :final-world-position-hash (hash-ref/sha256-ref
                                            (hc/domain-hash :state-projection
                                                            positive-position))
@@ -341,9 +341,9 @@
     (is (nil? (:current-amount-continuous? v))
         "successor-state continuity remains unverified without a successor source")
     (is (= :not-applicable (get-in profile [:evidence-profile/verification-checks
-                                     :successor-continuity])))
+                                            :successor-continuity])))
     (is (= :not-applicable (get-in profile [:evidence-profile/verification-checks
-                                     :current-amount-continuity])))
+                                            :current-amount-continuity])))
     (is (= :fail (get-in profile [:evidence-profile/verification-checks
                                   :propagation-integrity]))
         "validator result maps must be inspected via their :valid? member")

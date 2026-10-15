@@ -104,8 +104,8 @@
 (defn- policy-ref [result]
   {:policy/id :default :policy/hash (test-ref :policy)
    :policy/parameters (select-keys (:canonical-request result)
-                                  [:rounding-policy :tie-break-policy
-                                   :redistribution-policy])})
+                                   [:rounding-policy :tie-break-policy
+                                    :redistribution-policy])})
 
 ;; Shared data for pro-rata app-ev (reuses fixtures from pro-rata-evidence-test)
 (def ^:private app-propag
@@ -350,7 +350,7 @@
         wb (:result/witness alloc-b)
         base-args {:benchmark-content-root content-root :model-root model-root
                    :mechanism {:mechanism/id :pro-rata/largest-remainder
-                   :mechanism/version 1 :mechanism/hash (test-ref :mechanism)}
+                               :mechanism/version 1 :mechanism/hash (test-ref :mechanism)}
                    :policy (policy-ref alloc-a)}
         prof-a (alloc-ev/build-pro-rata-allocation-evidence
                 (assoc base-args
@@ -388,7 +388,7 @@
                  {:benchmark-content-root content-root
                   :model-root model-root
                   :outcome-manifest manifest
-                   :allocation-evidence-hash (test-ref :alloc)
+                  :allocation-evidence-hash (test-ref :alloc)
                   :application-evidence-hash "sha256:app"
                   :theorem-outcomes []
                   :conclusions [overreach]})]

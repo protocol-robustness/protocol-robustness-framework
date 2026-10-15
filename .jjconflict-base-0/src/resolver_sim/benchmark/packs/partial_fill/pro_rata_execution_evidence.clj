@@ -527,62 +527,62 @@
    (verify-package-pro-rata-evidence package-resolver profile outcome-manifest {}))
   ([package-resolver profile outcome-manifest
     {:keys [claim-requires-pro-rata-evidence?]}]
-  (let [errors (atom [])
-        checks (atom {})]
-    (if-not (package-requires-pro-rata-evidence? outcome-manifest
+   (let [errors (atom [])
+         checks (atom {})]
+     (if-not (package-requires-pro-rata-evidence? outcome-manifest
                                                   claim-requires-pro-rata-evidence?)
-      {:valid? true :required? false :status :not-required
-       :verification-level :not-applicable
-       :semantic-status :not-run
-       :errors [] :checks {}}
-      (let [alloc-hash (:evidence-profile/allocation-evidence-hash profile)
-            app-hash (:evidence-profile/application-evidence-hash profile)
-            alloc-profile (when alloc-hash (package-resolver alloc-hash))
-            app-profile (when app-hash (package-resolver app-hash))]
+       {:valid? true :required? false :status :not-required
+        :verification-level :not-applicable
+        :semantic-status :not-run
+        :errors [] :checks {}}
+       (let [alloc-hash (:evidence-profile/allocation-evidence-hash profile)
+             app-hash (:evidence-profile/application-evidence-hash profile)
+             alloc-profile (when alloc-hash (package-resolver alloc-hash))
+             app-profile (when app-hash (package-resolver app-hash))]
          ;; Resolve checks
-        (when-not alloc-profile
-          (swap! errors conj (str "allocation evidence profile not found: "
-                                  alloc-hash)))
-        (when-not app-profile
-          (swap! errors conj (str "application evidence profile not found: "
-                                  app-hash)))
+         (when-not alloc-profile
+           (swap! errors conj (str "allocation evidence profile not found: "
+                                   alloc-hash)))
+         (when-not app-profile
+           (swap! errors conj (str "application evidence profile not found: "
+                                   app-hash)))
          ;; Validate allocation profile (structural + hash recomputation)
-        (when alloc-profile
-          (let [alloc-validation (alloc-ev/validate-pro-rata-allocation-evidence alloc-profile)]
-            (swap! checks assoc :allocation-profile-valid? (:valid? alloc-validation))
-            (when-not (:valid? alloc-validation)
-              (swap! errors conj (str "allocation profile validation failed: "
-                                      (pr-str (:errors alloc-validation)))))))
+         (when alloc-profile
+           (let [alloc-validation (alloc-ev/validate-pro-rata-allocation-evidence alloc-profile)]
+             (swap! checks assoc :allocation-profile-valid? (:valid? alloc-validation))
+             (when-not (:valid? alloc-validation)
+               (swap! errors conj (str "allocation profile validation failed: "
+                                       (pr-str (:errors alloc-validation)))))))
          ;; Validate application profile (structural + hash recomputation)
-        (when app-profile
-          (let [app-validation (app-ev/validate-pro-rata-application-evidence app-profile)]
-            (swap! checks assoc :application-profile-valid? (:valid? app-validation))
-            (when-not (:valid? app-validation)
-              (swap! errors conj (str "application profile validation failed: "
-                                      (pr-str (:errors app-validation)))))))
+         (when app-profile
+           (let [app-validation (app-ev/validate-pro-rata-application-evidence app-profile)]
+             (swap! checks assoc :application-profile-valid? (:valid? app-validation))
+             (when-not (:valid? app-validation)
+               (swap! errors conj (str "application profile validation failed: "
+                                       (pr-str (:errors app-validation)))))))
          ;; Verify execution profile binds to resolved profiles
-        (swap! checks assoc
-               :allocation-profile-bound? (= alloc-hash (:evidence-profile/hash alloc-profile))
-               :application-profile-bound? (= app-hash (:evidence-profile/hash app-profile)))
-        (when (and alloc-profile (not= alloc-hash (:evidence-profile/hash alloc-profile)))
-          (swap! errors conj (str "allocation profile hash mismatch: expected "
-                                  alloc-hash " got "
-                                  (:evidence-profile/hash alloc-profile))))
-        (when (and app-profile (not= app-hash (:evidence-profile/hash app-profile)))
-          (swap! errors conj (str "application profile hash mismatch: expected "
-                                  app-hash " got "
-                                  (:evidence-profile/hash app-profile))))
-        (when-not (:valid? (validate-pro-rata-execution-evidence-any profile))
-          (swap! errors conj "execution evidence profile integrity validation failed"))
+         (swap! checks assoc
+                :allocation-profile-bound? (= alloc-hash (:evidence-profile/hash alloc-profile))
+                :application-profile-bound? (= app-hash (:evidence-profile/hash app-profile)))
+         (when (and alloc-profile (not= alloc-hash (:evidence-profile/hash alloc-profile)))
+           (swap! errors conj (str "allocation profile hash mismatch: expected "
+                                   alloc-hash " got "
+                                   (:evidence-profile/hash alloc-profile))))
+         (when (and app-profile (not= app-hash (:evidence-profile/hash app-profile)))
+           (swap! errors conj (str "application profile hash mismatch: expected "
+                                   app-hash " got "
+                                   (:evidence-profile/hash app-profile))))
+         (when-not (:valid? (validate-pro-rata-execution-evidence-any profile))
+           (swap! errors conj "execution evidence profile integrity validation failed"))
         ;; A package index plus self-hashed profiles establishes integrity and
         ;; references only. It cannot rederive the semantic findings because
         ;; the authoritative request/world source bodies are not inputs here.
-        (when (some #{:invalid} (map :evidence-profile/verification-status
-                                     [alloc-profile app-profile]))
-          (swap! errors conj "a constituent profile records invalid semantic findings"))
-        {:valid? (empty? @errors) :required? true
-         :verification-level :integrity
-         :status (if (empty? @errors) :integrity-verified :invalid)
-         :semantic-status :not-run
-         :errors @errors
-         :checks @checks})))))
+         (when (some #{:invalid} (map :evidence-profile/verification-status
+                                      [alloc-profile app-profile]))
+           (swap! errors conj "a constituent profile records invalid semantic findings"))
+         {:valid? (empty? @errors) :required? true
+          :verification-level :integrity
+          :status (if (empty? @errors) :integrity-verified :invalid)
+          :semantic-status :not-run
+          :errors @errors
+          :checks @checks})))))

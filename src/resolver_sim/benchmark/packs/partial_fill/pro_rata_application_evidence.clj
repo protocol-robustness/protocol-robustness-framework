@@ -56,7 +56,7 @@
                                                     :successor-current-amount])))]
             (assoc entry
                    :withdrawn (assoc withdrawn :final-world-value final-withdrawn
-                                               :verified? withdrawn-ok?)
+                                     :verified? withdrawn-ok?)
                    :position (assoc (:position entry)
                                     :final-world-position-hash final-position-hash
                                     :verified? position-ok?)
@@ -349,29 +349,29 @@
      :errors [:legacy-profile-has-no-source-bound-semantic-verification]}
     (let [integrity (validate-pro-rata-application-evidence profile)
           recomputed (apply build-pro-rata-application-evidence args)
-        mismatches (atom [])]
-    (when-not (:valid? integrity)
-      (swap! mismatches conj {:field :profile-integrity :errors (:errors integrity)}))
-    (when-not (= (:evidence-profile/hash profile)
-                 (:evidence-profile/hash recomputed))
-      (swap! mismatches conj {:field :evidence-profile/hash
-                              :stored (:evidence-profile/hash profile)
-                              :recomputed (:evidence-profile/hash recomputed)}))
-    (let [v-s (:evidence-profile/verification profile)
-          v-r (:evidence-profile/verification recomputed)]
-      (doseq [k (keys v-s)]
-        (when-not (= (get v-s k) (get v-r k))
-          (swap! mismatches conj {:field k
-                                  :stored (get v-s k)
-                                  :recomputed (get v-r k)}))))
-    {:valid? (and (empty? @mismatches)
-                  (= :verified (:evidence-profile/verification-status recomputed)))
-     :verification-level :semantic
-     :status (cond
-               (seq @mismatches) :invalid
-               (= :verified (:evidence-profile/verification-status recomputed)) :verified
-               (= :blocked (:evidence-profile/verification-status recomputed)) :blocked
-               :else :invalid)
-     :semantic-status (:evidence-profile/verification-status recomputed)
-     :profile-recomputed recomputed
-     :mismatches @mismatches})))
+          mismatches (atom [])]
+      (when-not (:valid? integrity)
+        (swap! mismatches conj {:field :profile-integrity :errors (:errors integrity)}))
+      (when-not (= (:evidence-profile/hash profile)
+                   (:evidence-profile/hash recomputed))
+        (swap! mismatches conj {:field :evidence-profile/hash
+                                :stored (:evidence-profile/hash profile)
+                                :recomputed (:evidence-profile/hash recomputed)}))
+      (let [v-s (:evidence-profile/verification profile)
+            v-r (:evidence-profile/verification recomputed)]
+        (doseq [k (keys v-s)]
+          (when-not (= (get v-s k) (get v-r k))
+            (swap! mismatches conj {:field k
+                                    :stored (get v-s k)
+                                    :recomputed (get v-r k)}))))
+      {:valid? (and (empty? @mismatches)
+                    (= :verified (:evidence-profile/verification-status recomputed)))
+       :verification-level :semantic
+       :status (cond
+                 (seq @mismatches) :invalid
+                 (= :verified (:evidence-profile/verification-status recomputed)) :verified
+                 (= :blocked (:evidence-profile/verification-status recomputed)) :blocked
+                 :else :invalid)
+       :semantic-status (:evidence-profile/verification-status recomputed)
+       :profile-recomputed recomputed
+       :mismatches @mismatches})))

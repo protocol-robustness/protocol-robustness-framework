@@ -89,8 +89,8 @@
           reason-set (fn [reasons]
                        (filterv #(contains? reasons (:reason %)) all-violations))
           cap-violations (reason-set #{:pro-rata/invalid-allocation
-                                      :pro-rata/cap-exceeded
-                                      :pro-rata/request-exceeded})
+                                       :pro-rata/cap-exceeded
+                                       :pro-rata/request-exceeded})
           quota-violations (reason-set #{:pro-rata/quota-bounded-failed})
           residual-violations (reason-set #{:pro-rata/invalid-unallocated-residual
                                             :pro-rata/unexpected-residual-reason
@@ -121,8 +121,8 @@
                                   (every? #(= (get allocation-request %)
                                               (get policy-parameters %)) policy-fields))
           commitments-valid? (every? hash-ref/valid-sha256-ref?
-                                    [benchmark-content-root model-root
-                                     (:mechanism/hash mechanism) (:policy/hash policy)])
+                                     [benchmark-content-root model-root
+                                      (:mechanism/hash mechanism) (:policy/hash policy)])
           check-statuses {:source-commitments (if commitments-valid? :pass :fail)
                           :request-binding (if request-hash-ok :pass :fail)
                           :result-integrity (if result-hash-ok :pass :fail)
@@ -242,7 +242,7 @@
             :when (not (hash-ref/valid-sha256-ref? (get profile f)))]
       (swap! errors conj (str "invalid canonical SHA-256 reference in " (name f))))
     (when-not (hash-ref/valid-sha256-ref? (get-in profile
-                                                 [:evidence-profile/mechanism :mechanism/hash]))
+                                                  [:evidence-profile/mechanism :mechanism/hash]))
       (swap! errors conj "invalid canonical SHA-256 reference in mechanism/hash"))
     (when-not (string? (:evidence-profile/hash profile))
       (swap! errors conj "missing evidence-profile/hash"))
@@ -284,29 +284,29 @@
      :errors [:legacy-profile-has-no-source-bound-semantic-verification]}
     (let [integrity (validate-pro-rata-allocation-evidence profile)
           recomputed (apply build-pro-rata-allocation-evidence args)
-        mismatches (atom [])]
-    (when-not (:valid? integrity)
-      (swap! mismatches conj {:field :profile-integrity :errors (:errors integrity)}))
-    (when-not (= (:evidence-profile/hash profile)
-                 (:evidence-profile/hash recomputed))
-      (swap! mismatches conj {:field :evidence-profile/hash
-                              :stored (:evidence-profile/hash profile)
-                              :recomputed (:evidence-profile/hash recomputed)}))
-    (let [v-s (:evidence-profile/verification profile)
-          v-r (:evidence-profile/verification recomputed)]
-      (doseq [k (keys v-s)]
-        (when-not (= (get v-s k) (get v-r k))
-          (swap! mismatches conj {:field k
-                                  :stored (get v-s k)
-                                  :recomputed (get v-r k)}))))
-    {:valid? (and (empty? @mismatches)
-                  (= :verified (:evidence-profile/verification-status recomputed)))
-     :verification-level :semantic
-     :status (cond
-               (seq @mismatches) :invalid
-               (= :verified (:evidence-profile/verification-status recomputed)) :verified
-               :else :invalid)
-     :semantic-status (if (= :verified (:evidence-profile/verification-status recomputed))
-                        :verified :invalid)
-     :profile-recomputed recomputed
-     :mismatches @mismatches})))
+          mismatches (atom [])]
+      (when-not (:valid? integrity)
+        (swap! mismatches conj {:field :profile-integrity :errors (:errors integrity)}))
+      (when-not (= (:evidence-profile/hash profile)
+                   (:evidence-profile/hash recomputed))
+        (swap! mismatches conj {:field :evidence-profile/hash
+                                :stored (:evidence-profile/hash profile)
+                                :recomputed (:evidence-profile/hash recomputed)}))
+      (let [v-s (:evidence-profile/verification profile)
+            v-r (:evidence-profile/verification recomputed)]
+        (doseq [k (keys v-s)]
+          (when-not (= (get v-s k) (get v-r k))
+            (swap! mismatches conj {:field k
+                                    :stored (get v-s k)
+                                    :recomputed (get v-r k)}))))
+      {:valid? (and (empty? @mismatches)
+                    (= :verified (:evidence-profile/verification-status recomputed)))
+       :verification-level :semantic
+       :status (cond
+                 (seq @mismatches) :invalid
+                 (= :verified (:evidence-profile/verification-status recomputed)) :verified
+                 :else :invalid)
+       :semantic-status (if (= :verified (:evidence-profile/verification-status recomputed))
+                          :verified :invalid)
+       :profile-recomputed recomputed
+       :mismatches @mismatches})))

@@ -78,13 +78,13 @@
                      (assoc-in original [:settlement :remaining-liability] 1)
                      (assoc-in original [:rows 0 :allocated] 40)]]
       (is (false? (:verified? (a/verify-statement @evidence
-                                                (assoc altered :artifact/root (d/artifact-root altered)))))))))
+                                                  (assoc altered :artifact/root (d/artifact-root altered)))))))))
 
 (deftest altered-primary-evidence-is-rejected
   (let [bad (assoc-in @evidence [:files "transfers.json"] (.getBytes "[]" "UTF-8"))]
     (is (thrown? Exception (a/evidence-material bad))))
   (is (thrown? Exception (a/load-evidence! "examples/partial-fill/evidence/v3-live-context"
-                                          (d/root "wrong-manifest" {})))))
+                                           (d/root "wrong-manifest" {})))))
 
 (deftest realized-statement-cannot-enter-allocation-review
   (let [{:keys [p verifier]} (setup :allocation)]

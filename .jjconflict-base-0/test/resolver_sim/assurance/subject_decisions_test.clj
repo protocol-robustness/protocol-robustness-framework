@@ -22,8 +22,8 @@
                           {:domain (:domain p) :purpose (:purpose p) :amount 70
                            :predecessor/root nil})
         verifier (with-meta (fn [s] {:verified? (= 70 (:amount s)) :eligible? (= 70 (:amount s))
-                                    :scope "local test only"
-                                    :evidence/root (d/root "example-evidence.v1" {:amount 70})})
+                                     :scope "local test only"
+                                     :evidence/root (d/root "example-evidence.v1" {:amount 70})})
                    {:validation/root (:validation-root p)})]
     {:p p :subject subject :subjects {(:artifact/root subject) subject}
      :verifier verifier :reviewer reviewer :ratifier ratifier}))
@@ -61,7 +61,7 @@
 (deftest policy-binds-the-domain-verification-method
   (let [{:keys [p verifier subject]} (setup)]
     (is (thrown? Exception (d/verify-subject p
-                                          (with-meta verifier {:validation/root (d/root "different-method" {})}) subject)))))
+                                             (with-meta verifier {:validation/root (d/root "different-method" {})}) subject)))))
 
 (deftest actual-authorization-required-for-each-role
   (let [{:keys [p verifier subjects reviewer ratifier] :as f} (setup)
@@ -97,12 +97,12 @@
     (is (thrown? Exception (d/reconstruct p verifier subjects [accept (request f [accept] :accept)])))
     (is (thrown? Exception (d/reconstruct p verifier subjects (vec (reverse history)))))
     (is (thrown? Exception (d/reconstruct p verifier
-                                        {(:artifact/root subject) (assoc subject :amount 80)} [accept])))
+                                          {(:artifact/root subject) (assoc subject :amount 80)} [accept])))
     (is (thrown? Exception (d/reconstruct p (with-meta (fn [_] {:verified? true :eligible? true
-                                                               :scope (:scope p)
-                                                               :evidence/root (d/root "altered-evidence" {})})
-                                            {:validation/root (:validation-root p)})
-                                        subjects [accept])))))
+                                                                :scope (:scope p)
+                                                                :evidence/root (d/root "altered-evidence" {})})
+                                              {:validation/root (:validation-root p)})
+                                          subjects [accept])))))
 
 (deftest ineligible-statement-can-be-rejected-but-never-accepted
   (let [{:keys [p subject] :as f} (setup)
@@ -111,7 +111,7 @@
         {:keys [verifier subjects]} f]
     (is (thrown? Exception (d/reconstruct p verifier subjects [(request f [] :accept)])))
     (is (= :reject (get-in (d/reconstruct p verifier subjects [(request f [] :reject)])
-                          [:decisions (:artifact/root invalid) :decision])))))
+                           [:decisions (:artifact/root invalid) :decision])))))
 
 (deftest successor-adoption-and-conflicts
   (let [{:keys [p subject verifier reviewer ratifier] :as f} (setup)
@@ -126,13 +126,13 @@
         state (d/reconstruct p verifier subjects (conj accepted event))]
     (is (= (:artifact/root successor) (get-in state [:authoritative :subject/root])))
     (is (thrown? Exception (d/reconstruct p verifier subjects
-                                        (conj accepted (resign (assoc event :supersedes/root nil) ratifier)))))
+                                          (conj accepted (resign (assoc event :supersedes/root nil) ratifier)))))
     (is (thrown? Exception (d/reconstruct p verifier subjects
-                                        (conj accepted (resign (assoc event :acceptance/root (:artifact/root a)) ratifier)))))
+                                          (conj accepted (resign (assoc event :acceptance/root (:artifact/root a)) ratifier)))))
     (is (thrown? Exception (d/reconstruct p verifier subjects
-                                        [(request f2 [] :accept) (request f2 [(request f2 [] :accept)] :ratify)])))
+                                          [(request f2 [] :accept) (request f2 [(request f2 [] :accept)] :ratify)])))
     (is (thrown? Exception (d/reconstruct p verifier subjects
-                                        (conj accepted (resign (assoc event :decision :execute) reviewer)))))))
+                                          (conj accepted (resign (assoc event :decision :execute) reviewer)))))))
 
 (deftest accounting-record-is-not-an-execution-authorization
   (let [f (setup) a (request f [] :accept) ratify (request f [a] :ratify)]

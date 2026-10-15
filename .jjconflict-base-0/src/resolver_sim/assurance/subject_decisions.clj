@@ -212,8 +212,8 @@
                    :history/root (root history-schema
                                        {:previous (:history/root state) :decision (:artifact/root event)}))
       ratify? (assoc :authoritative {:subject/root (:subject/root event)
-                                    :acceptance/root (:acceptance/root event)
-                                    :ratification/root (:artifact/root event)})
+                                     :acceptance/root (:acceptance/root event)
+                                     :ratification/root (:artifact/root event)})
       (not ratify?) (assoc-in [:decisions (:subject/root event)] (dissoc event :authorization)))))
 
 (defn reconstruct
