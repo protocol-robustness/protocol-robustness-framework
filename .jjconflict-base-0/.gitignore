@@ -5,6 +5,7 @@ coprocessor/.go-cache
 /out
 .cpcache
 .clj-kondo/.cache
+**/.go-cache/
 .prc
 .prf/
 
