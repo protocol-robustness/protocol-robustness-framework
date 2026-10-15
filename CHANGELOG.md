@@ -4,6 +4,10 @@
 
 - Offline forensic reconstruction now reports retained proof-verification claims as unverified. An explicit `--verify-groth16` command directly executes the pinned SP1 verifier against the fixture's exact proof and public values on disposable local Anvil, with a separate machine-readable result.
 
+### PRO-34 bounded investigation execution
+
+- Added a versioned local investigation case and allowlisted task runner for the recorded PRO-28 Groth16 verification gap. Task results are immutable candidate evidence and remain outside canonical graph admission pending independent validation.
+
 ## [Unreleased]
 
 ### PRO-28 receipt-level local execution evidence
