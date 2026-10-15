@@ -194,7 +194,10 @@
   "preparedOperationRoot": "0xe0c2dc5821ca3b6ec330d8af7bcb407400b19bff4d8ee08f727970494dd85eb2",
   "proof": {
     "allocationSpecificOutput": "deployment-bound roots are checked against the manifest and witness; portable source-vector roots are not substituted for deployment-specific roots",
-    "cryptographicVerification": "passed by the pinned SP1 Groth16 verifier in the retained fresh-fork test run",
+    "cryptographicVerification": {
+      "reason": "retained Foundry output is not treated as a verifier result; run the direct reference check",
+      "status": "not verified"
+    },
     "elfSha256": "0x636330de8e7af3485aba50bd3ca4b5e024cc4f977a2bf0f2c005f711e5ffacf8",
     "programId": "source-bound-entitlement-sp1-program.v1",
     "proofSha256": "0xe05b68dbeeae20194c0664946c304ed006c42a818e371b1d6466c7a1d57d725b",
@@ -315,8 +318,10 @@
     "cryptographicVerification": {
       "programId": "source-bound-entitlement-sp1-program.v1",
       "proofSystem": "groth16",
-      "status": "passed by local Foundry execution",
-      "testOutputSha256": "0x406b743452b391598a79aca0242c29f7a145c487919e760ec2f9bbba38803fdc",
+      "reason": "offline reconstruction checks proof identity and retained test output but does not execute a reference verifier",
+      "referenceCheckAvailable": true,
+      "referenceCheckCommand": "python3 scripts/forensic/pro28_receipts.py <bundle> --verify-groth16",
+      "status": "not verified",
       "vkey": "0x00d90efa52d17e54670a4248f001e4da443a938f12c55d0d414c125ba68087b9"
     },
     "economicReconciliation": {

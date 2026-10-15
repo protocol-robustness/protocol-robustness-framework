@@ -119,7 +119,75 @@ def test_forged_verification_labels_do_not_replace_validators(bundle: Path) -> N
     (bundle / "caller-verification.json").write_text('{"verified":true,"claim":"all evidence authentic"}\n')
     report = pro28_receipts.reconstruct(bundle)
     assert report["successfulReceiptCount"] == 41
-    assert report["proof"]["cryptographicVerification"].startswith("passed by the pinned SP1")
+    assert report["proof"]["cryptographicVerification"]["status"] == "not verified"
+    assert report["verificationResults"]["cryptographicVerification"]["status"] == "not verified"
+
+
+def test_capture_binds_exact_proof_fixture_identity(bundle: Path) -> None:
+    path = bundle / "capture-metadata.json"
+    capture = load(path)
+    capture["proof"]["fixtureSha256"] = "0x" + "00" * 32
+    save(path, capture)
+    with pytest.raises(pro28_receipts.EvidenceError, match="captured proof identity"):
+        pro28_receipts.reconstruct(bundle)
+
+
+def test_groth16_fixture_proof_byte_mutation_rejects(bundle: Path) -> None:
+    path = bundle / "proof-fixture.json"
+    fixture = load(path)
+    proof = bytearray.fromhex(fixture["proof"].removeprefix("0x"))
+    proof[-1] ^= 1
+    fixture["proof"] = "0x" + proof.hex()
+    save(path, fixture)
+    with pytest.raises(pro28_receipts.EvidenceError, match="proof byte digest"):
+        pro28_receipts.reconstruct(bundle)
+
+
+def test_groth16_fixture_vkey_substitution_rejects(bundle: Path) -> None:
+    path = bundle / "proof-fixture.json"
+    fixture = load(path)
+    fixture["vkey"] = "0x" + "ff" * 32
+    save(path, fixture)
+    with pytest.raises(pro28_receipts.EvidenceError, match="proof/program identity"):
+        pro28_receipts.reconstruct(bundle)
+
+
+def test_reference_calldata_uses_static_offsets_and_exact_bytes() -> None:
+    vkey = "0x" + "11" * 32
+    public_values = bytes(range(256)) + bytes(range(32))
+    proof = b"proof-bytes"
+    encoded = bytes.fromhex(pro28_receipts._sp1_verify_calldata(vkey, public_values, proof)[2:])
+    assert encoded[:4].hex() == "41493c60"
+    assert int.from_bytes(encoded[4 + 32 : 4 + 64], "big") == 96
+    assert int.from_bytes(encoded[4 + 64 : 4 + 96], "big") == 416
+    assert int.from_bytes(encoded[4 + 96 : 4 + 128], "big") == len(public_values)
+
+
+@pytest.mark.skipif(shutil.which("anvil") is None, reason="Anvil required for direct SP1 verifier test")
+def test_pinned_groth16_reference_verifies_exact_execution_fixture(bundle: Path) -> None:
+    report = pro28_receipts.verify_groth16_reference(bundle)
+    assert report["status"] == "verified"
+    assert report["proofSystem"] == "groth16"
+    assert report["proofSha256"] == load(bundle / "proof-fixture.json")["gate_e"]["proof_sha256"]
+    assert report["operationId"] == load(bundle / "deployment-manifest.json")["operationId"]
+    assert report["source"]["revision"] == load(bundle / "capture-metadata.json")["source"]["revision"]
+    assert report["referenceCheckExecuted"] is True
+
+
+@pytest.mark.skipif(shutil.which("anvil") is None, reason="Anvil required for direct SP1 verifier test")
+def test_reference_verifier_rejects_changed_statement_public_value(bundle: Path) -> None:
+    fixture_path = bundle / "proof-fixture.json"
+    fixture = load(fixture_path)
+    values = bytearray.fromhex(fixture["public_values"].removeprefix("0x"))
+    values[3 * 32 + 31] ^= 1
+    fixture["public_values"] = "0x" + values.hex()
+    save(fixture_path, fixture)
+    capture_path = bundle / "capture-metadata.json"
+    capture = load(capture_path)
+    capture["proof"]["fixtureSha256"] = "0x" + hashlib.sha256(fixture_path.read_bytes()).hexdigest()
+    save(capture_path, capture)
+    with pytest.raises(pro28_receipts.EvidenceError, match="eth_call"):
+        pro28_receipts.verify_groth16_reference(bundle)
 
 
 def test_incomplete_and_conflicting_observations_reject(bundle: Path) -> None:
