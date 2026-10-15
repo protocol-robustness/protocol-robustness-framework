@@ -321,10 +321,15 @@ all four result rejections through `verify-result`. Rust implements the frozen
 allocation-policy identity, request normalization/root, allocation kernel,
 witness, result-root derivation, and semantic result verification. Rust realized-fill/statement code
 implements a different profile; it does not establish support for those
-separate source-bound and lifecycle profiles. Solidity support is profile-specific too. The
-package runner provides positive frozen-vector, independent-reference, and
-negative Clojure evidence, but Rust and Solidity profile conformance remain
-incomplete, so the registry conformance status remains `:partial`.
+separate source-bound and lifecycle profiles. The standalone Rust V1 package
+suite passes 42 tests, including frozen roots, request/result rejection,
+rounding, residual, cap, zero-weight, and BigInt cases. The companion Solidity
+execution/admission/custody suites pass 38 tests locally against a modified
+worktree based at `4b6b6ed159762c88099c96d4dafd635ab99470ea`; admission is
+mocked and production provenance is not qualified, so this is not a pinned
+release qualification. The Rust/SP1 exact-verifier profile and production
+proof admission remain open. The overall registry conformance status remains
+`:partial`.
 
 Minimum gates before an independently consumable release:
 

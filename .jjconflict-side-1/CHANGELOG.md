@@ -8,6 +8,11 @@
 
 ## Unreleased
 
+- Recorded the passing standalone Rust allocation V1 suite and local Solidity
+  execution-consumer suite for the pro-rata candidate. Solidity results remain
+  unpinned because the companion worktree is modified; exact-verifier/SP1 and
+  production proof-admission qualification remain open.
+
 - Deployment-bound forensic reconstruction now independently recomputes successor witness outputs and reconciles retained funding, withdrawal, and closure events. An optional `--source-bundle` input checks the referenced controlled vector bytes and economic inputs. Distinct evidence gaps have distinct content-bound subjects; event arithmetic remains separate from authenticated balances, storage, and transaction provenance.
 
 - Added a planning-only investigation dispatcher for retained local successor-entitlement evidence. Plans bind reconstructed inputs and graph identities, classify evidence requests and review blockers, enforce a task budget, and support fresh-process plan verification without authorizing execution, acceptance, or rewards.
