@@ -1018,7 +1018,7 @@ test:integration:postgres {:doc "Run PostgreSQL resubmission admission and durab
 
   notebook:lint
   {:doc "Lint notebook and notebook support code with clj-kondo"
-   :task (clojure {:dir "."} "-M:lint" "--lint" "src/resolver_sim/notebook")}
+   :task (clojure {:dir "."} "-M:lint/notebooks")}
 
   notebook:visibility
   {:doc "Enforce collapsed-by-default visibility policy across notebooks/*.clj"

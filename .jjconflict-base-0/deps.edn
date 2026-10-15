@@ -193,6 +193,12 @@
                 "--lint" "src:notebooks:test:dev"
                 "--fail-level" "error"]}
 
+   :lint/notebooks
+   {:extra-deps {clj-kondo/clj-kondo {:mvn/version "2026.04.15"}}
+    :main-opts ["-m" "clj-kondo.main"
+                "--lint" "notebooks:src/resolver_sim/notebook_support"
+                "--fail-level" "error"]}
+
    :lint/core
    {:extra-deps {clj-kondo/clj-kondo {:mvn/version "2026.04.15"}
                  org.clojure/test.check {:mvn/version "1.1.1"}}

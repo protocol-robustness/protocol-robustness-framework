@@ -63,7 +63,7 @@
            [:div {:style {:display "flex" :gap "6px" :fontSize "12px" :marginBottom "4px"}}
             [:span {:style {:color "#03DAC6" :fontWeight 700 :minWidth "60px"}} "to"]
             [:span {:style {:color "#e2e8f0"}} (pr-str to)]])
-         (for [[k v] (apply dissoc escrow :from :to)]
+         (for [[k v] (dissoc escrow :from :to)]
            [:div {:style {:display "flex" :gap "6px" :fontSize "10px"}}
             [:span {:style {:color "#64748b" :minWidth "60px"}} (name k)]
             [:span (pr-str v)]])])
