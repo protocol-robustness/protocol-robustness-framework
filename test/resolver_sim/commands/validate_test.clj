@@ -19,6 +19,11 @@
 (defn- with-process-runner [runner f]
   (with-redefs-fn {(ns-resolve 'resolver-sim.commands.validate 'run-process) runner} f))
 
+(deftest all-notebooks-validation-budget-covers-measured-51-namespace-run
+  (let [phases (var-get (ns-resolve 'resolver-sim.commands.validate 'validation-phases))
+        notebook-phase (some #(when (= :all-notebooks (:id %)) %) phases)]
+    (is (= 1500000 (:timeout-ms notebook-phase)))))
+
 (deftest process-runner-preserves-success-and-failure-status
   (let [dir (temp-run-dir)
         stdout (log-path dir "out.log")
