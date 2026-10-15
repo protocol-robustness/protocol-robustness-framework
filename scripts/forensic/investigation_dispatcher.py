@@ -23,6 +23,9 @@ from pathlib import Path
 from typing import Any
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(PROJECT_ROOT / "scripts"))
+from forensic import investigation_journal as journal
+
 SCRIPT = PROJECT_ROOT / "scripts/forensic/pro28_receipts.py"
 CASE_SCHEMA = "prf.investigation-case.v0"
 TASK_TYPE = "sp1-groth16-reference-check.v1"
@@ -36,6 +39,10 @@ TASK_DEFINITION = {
     "timeoutSeconds": 120,
     "maxAddressSpaceBytes": 2_147_483_648,
     "maxOutputBytes": 1_048_576,
+    "idempotent": True,
+    "effectClass": "local-read-only-reference-verification",
+    "maxAttempts": 3,
+    "maxElapsedSeconds": 600,
 }
 MAX_TASK_SECONDS = 120
 MAX_OUTPUT_BYTES = 1_048_576
@@ -261,7 +268,37 @@ def _reference_result_matches(reference: dict[str, Any], report: dict[str, Any])
     )
 
 
-def run_case(case_path: Path, output_root: Path) -> dict[str, Any]:
+def _existing_candidate(output: dict[str, Any] | None, output_root: Path, case_id: str,
+                        case_root: str, task_root: str,
+                        expected_status: str) -> dict[str, Any]:
+    if not isinstance(output, dict) or set(output) != {"path", "sha256"}:
+        raise DispatchError("journal terminal state has no valid candidate output reference")
+    path_value = output["path"]
+    path = Path(path_value)
+    if not path.is_absolute():
+        path = PROJECT_ROOT / path
+    try:
+        resolved = path.resolve(strict=True)
+        resolved.relative_to((output_root / case_id / "candidate-evidence").resolve())
+        path = resolved
+        payload = path.read_bytes()
+    except (OSError, ValueError) as exc:
+        raise DispatchError("journal candidate output is unavailable or outside its case store") from exc
+    if _sha256(payload) != output["sha256"]:
+        raise DispatchError("journal candidate output digest mismatch")
+    candidate = _load_json(path)
+    if (candidate.get("case", {}).get("root") != case_root
+            or candidate.get("task", {}).get("root") != task_root):
+        raise DispatchError("journal candidate output belongs to another task")
+    if candidate.get("execution", {}).get("status") != expected_status:
+        raise DispatchError("journal candidate output disagrees with replayed task state")
+    return output
+
+
+def run_case(case_path: Path, output_root: Path, *, retry: bool = False,
+             cancel_reason: str | None = None,
+             metadata_event: dict[str, str] | None = None,
+             verify_journal: bool = False) -> dict[str, Any]:
     case_path = case_path.resolve(strict=True)
     case = _load_json(case_path)
     case_id, bundle, expected_report_path, case_root = _validate_case(case)
@@ -307,59 +344,130 @@ def run_case(case_path: Path, output_root: Path) -> dict[str, Any]:
         cursor = cursor / part
         if cursor.exists() and cursor.is_symlink():
             raise DispatchError("output directory may not traverse symlinks")
-    raw_output.mkdir(parents=True, exist_ok=True)
-    output_root = raw_output.resolve()
-    if not output_root.exists():
-        output_root.mkdir(parents=True, exist_ok=True)
-    if not output_root.is_dir():
-        raise DispatchError("output root is not a directory")
-    tool_identities, toolchain_block = _pinned_toolchain(bundle)
-    with tempfile.TemporaryDirectory(prefix="prf-investigation-", dir=output_root) as temp:
-        proof_report_path = Path(temp) / "proof-check.json"
-        if toolchain_block:
-            exit_code, timed_out, task_output = None, False, toolchain_block
-        else:
-            exit_code, timed_out, task_output = _run_fixed_groth16_check(
-                bundle, proof_report_path, tool_identities or {})
-        if timed_out:
-            state = "failed"
-            proof_result = None
-            failure = "task timed out; local process group terminated"
-        elif "task output exceeded" in task_output:
-            state = "failed"
-            proof_result = None
-            failure = task_output
-        elif exit_code != 0:
-            state = "blocked" if "unsupported:" in task_output else "failed"
-            proof_result = None
-            failure = (task_output.strip() if state == "blocked"
-                       else f"reference verifier process exited with status {exit_code}")
-        else:
-            try:
-                proof_result = _load_json(proof_report_path)
-            except DispatchError:
-                raise DispatchError("reference verifier exited successfully without a valid report")
-            if not _reference_result_matches(proof_result, report):
-                raise DispatchError("reference result does not bind the declared case subject")
-            state = "succeeded"
-            failure = None
+    if verify_journal:
+        if not raw_output.is_dir():
+            raise DispatchError("journal output root does not exist")
+        output_root = raw_output.resolve()
+    else:
+        raw_output.mkdir(parents=True, exist_ok=True)
+        output_root = raw_output.resolve()
+        if not output_root.exists():
+            output_root.mkdir(parents=True, exist_ok=True)
+        if not output_root.is_dir():
+            raise DispatchError("output root is not a directory")
+    policy = TASK_DEFINITION
+    if verify_journal:
+        try:
+            return journal.verify_history(
+                output_root, case_id=case_id, case_root=case_root, task_root=task_root,
+                task_id=case["task"]["id"], definition_root=definition_hash,
+                idempotent=bool(policy["idempotent"]), max_attempts=int(policy["maxAttempts"]),
+                max_elapsed_seconds=int(policy["maxElapsedSeconds"]))
+        except journal.JournalError as exc:
+            raise DispatchError(f"investigation journal rejected: {exc}") from exc
+    try:
+        session_context = journal.open_session(
+            output_root, case_id=case_id, case_root=case_root, task_root=task_root,
+            task_id=case["task"]["id"], definition_root=definition_hash,
+            idempotent=bool(policy["idempotent"]), max_attempts=int(policy["maxAttempts"]),
+            max_elapsed_seconds=int(policy["maxElapsedSeconds"]))
+        with session_context as session:
+            if metadata_event is not None:
+                if set(metadata_event) != {"kind", "id", "status", "artifactRoot"}:
+                    raise DispatchError("metadata event has missing or unknown fields")
+                event = session.append("case-metadata-updated", {
+                    "kind": metadata_event["kind"], "id": metadata_event["id"],
+                    "status": metadata_event["status"],
+                    "artifactRoot": metadata_event["artifactRoot"]})
+                return {"caseId": case_id, "caseRoot": case_root,
+                        "status": "metadata-recorded", "eventRoot": event["eventRoot"]}
+            if cancel_reason is not None:
+                session.append("task-cancelled", {"reason": cancel_reason})
+                return {"caseId": case_id, "caseRoot": case_root, "status": "cancelled",
+                        "eventRoot": session.state["eventRoot"]}
+            if session.state["status"] == "succeeded":
+                return _existing_candidate(session.state.get("lastOutput"), output_root, case_id,
+                                           case_root, task_root, "succeeded")
+            if session.state["status"] in {"cancelled", "budget-exceeded"}:
+                raise DispatchError(f"investigation task is terminal: {session.state['status']}")
+            if session.state["attempt"] >= policy["maxAttempts"]:
+                if session.state["status"] in {"failed", "blocked", "interrupted", "ready"}:
+                    session.append("task-budget-exceeded", {
+                        "budget": "attempts", "limit": policy["maxAttempts"]})
+                raise DispatchError("investigation task retry budget is exhausted")
+            if (session.elapsed_seconds() >= policy["maxElapsedSeconds"]
+                    and session.state["attempt"] > 0):
+                session.append("task-budget-exceeded", {
+                    "budget": "elapsed-seconds", "limit": policy["maxElapsedSeconds"]})
+                raise DispatchError("investigation task elapsed-time budget is exhausted")
+            if session.state["status"] in {"failed", "blocked"}:
+                if not session.state.get("retryAllowed") or not retry:
+                    return _existing_candidate(session.state.get("lastOutput"), output_root, case_id,
+                                               case_root, task_root, session.state["status"])
+            session.append("task-started", {"attempt": session.state["attempt"] + 1,
+                                             "idempotent": bool(policy["idempotent"])})
+            tool_identities, toolchain_block = _pinned_toolchain(bundle)
+            with tempfile.TemporaryDirectory(prefix="prf-investigation-", dir=output_root) as temp:
+                proof_report_path = Path(temp) / "proof-check.json"
+                if toolchain_block:
+                    exit_code, timed_out, task_output = None, False, toolchain_block
+                else:
+                    exit_code, timed_out, task_output = _run_fixed_groth16_check(
+                        bundle, proof_report_path, tool_identities or {})
+                if timed_out:
+                    state, proof_result = "failed", None
+                    failure, retryable = "task timed out; local process group terminated", True
+                elif "task output exceeded" in task_output:
+                    state, proof_result = "failed", None
+                    failure, retryable = task_output, False
+                elif exit_code != 0:
+                    state = "blocked" if "blocked:" in task_output or "unsupported:" in task_output else "failed"
+                    proof_result = None
+                    failure = (task_output.strip() if state == "blocked"
+                               else f"reference verifier process exited with status {exit_code}")
+                    retryable = state == "blocked"
+                else:
+                    try:
+                        proof_result = _load_json(proof_report_path)
+                    except DispatchError as exc:
+                        raise DispatchError("reference verifier exited successfully without a valid report") from exc
+                    if not _reference_result_matches(proof_result, report):
+                        raise DispatchError("reference result does not bind the declared case subject")
+                    state, failure, retryable = "succeeded", None, False
 
-    candidate = {
-        "schema": "prf.investigation-task-result.v0",
-        "case": {"id": case_id, "root": case_root, "deploymentManifestDigest": manifest_digest,
-                 "operationId": operation_id},
-        "task": {"id": case["task"]["id"], "type": TASK_TYPE, "root": task_root,
-                 "definitionSha256": definition_hash, "gapId": case["task"]["gapId"],
-                 "inputs": task_inputs},
-        "execution": {"status": state, "exitCode": exit_code, "runner": "fixed-local-groth16-reference-check",
-                      "timeoutSeconds": MAX_TASK_SECONDS, "networkScope": "local-only",
-                      "hostTools": tool_identities},
-        "disposition": ("candidate-evidence; graph admission requires independent validation"
-                        if state == "succeeded" else "execution record only; no evidence accepted"),
-        "failure": failure,
-        "proofReference": proof_result,
-    }
-    return _write_immutable(output_root / case_id / "candidate-evidence", candidate)
+            elapsed_budget_exceeded = session.elapsed_seconds() >= policy["maxElapsedSeconds"]
+            if elapsed_budget_exceeded:
+                state, proof_result = "failed", None
+                failure, retryable = "case elapsed-time budget exceeded before task completion", False
+
+            candidate = {
+                "schema": "prf.investigation-task-result.v0",
+                "case": {"id": case_id, "root": case_root, "deploymentManifestDigest": manifest_digest,
+                         "operationId": operation_id},
+                "task": {"id": case["task"]["id"], "type": TASK_TYPE, "root": task_root,
+                         "definitionSha256": definition_hash, "gapId": case["task"]["gapId"],
+                         "inputs": task_inputs},
+                "execution": {"status": state, "exitCode": exit_code,
+                              "runner": "fixed-local-groth16-reference-check",
+                              "timeoutSeconds": MAX_TASK_SECONDS, "networkScope": "local-only",
+                              "hostTools": tool_identities},
+                "disposition": ("candidate-evidence; graph admission requires independent validation"
+                                if state == "succeeded" else "execution record only; no evidence accepted"),
+                "failure": failure, "proofReference": proof_result,
+            }
+            output = _write_immutable(output_root / case_id / "candidate-evidence", candidate)
+            session.append("task-finished", {
+                "outcome": state, "retryable": retryable,
+                "output": output, "reason": failure})
+            if elapsed_budget_exceeded:
+                session.append("task-budget-exceeded", {
+                    "budget": "elapsed-seconds", "limit": policy["maxElapsedSeconds"]})
+            elif retryable and session.state["attempt"] >= policy["maxAttempts"]:
+                session.append("task-budget-exceeded", {
+                    "budget": "attempts", "limit": policy["maxAttempts"]})
+            return output
+    except journal.JournalError as exc:
+        raise DispatchError(f"investigation journal rejected: {exc}") from exc
 
 
 def main() -> int:
@@ -367,9 +475,23 @@ def main() -> int:
     parser.add_argument("case", type=Path, help="versioned investigation case JSON")
     parser.add_argument("--output-dir", type=Path, required=True,
                         help="directory for immutable candidate evidence")
+    parser.add_argument("--retry", action="store_true",
+                        help="retry a prior retryable failure within the persisted task budget")
+    parser.add_argument("--cancel-reason", help="record an explicit cancellation without running the task")
+    parser.add_argument("--metadata-event", type=Path,
+                        help="append a hypothesis/evidence-request event from a closed JSON object")
+    parser.add_argument("--verify-journal", action="store_true",
+                        help="replay retained history without executing or mutating it")
     args = parser.parse_args()
     try:
-        result = run_case(args.case, args.output_dir)
+        if sum((bool(args.cancel_reason), bool(args.metadata_event), bool(args.verify_journal))) > 1:
+            raise DispatchError("journal verification, cancellation, and metadata update are exclusive")
+        if args.verify_journal and args.retry:
+            raise DispatchError("read-only journal verification cannot request a retry")
+        metadata = _load_json(args.metadata_event) if args.metadata_event else None
+        result = run_case(args.case, args.output_dir, retry=args.retry,
+                          cancel_reason=args.cancel_reason, metadata_event=metadata,
+                          verify_journal=args.verify_journal)
     except DispatchError as exc:
         print(f"BLOCKED: {exc}", file=sys.stderr)
         return 2
