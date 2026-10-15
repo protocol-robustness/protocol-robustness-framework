@@ -82,6 +82,20 @@
     :presentation   {:theme :evidence-reproducibility :kind :report
                      :audience-level :intermediate}}
 
+  {:id             :evm-dependency-provenance
+   :path           "notebooks/evm_dependency_provenance.clj"
+   :title          "Pinned EVM Dependency Provenance"
+   :summary        "Shows pinned prf-evm library revisions and checks retained evidence hashes, surfacing stale artifacts instead of treating pins as proof."
+   :categories     [:provenance :evidence-artifacts]
+   :audience       [:researcher :reviewer :auditor]
+   :status         :partial
+   :risk           :low
+   :protocol-areas [:evidence :provenance :allocation]
+   :tags           ["EVM" "dependencies" "submodules" "partial-fill" "manifest"]
+   :presentation   {:theme :evidence-reproducibility :kind :demo
+                    :audience-level :intermediate
+                    :question "Can we trace the exact EVM library revisions behind this PRF evidence bundle?"}}
+
   {:id             :invariant-failures
    :path           "notebooks/invariant_failures.clj"
    :title          "Invariant Failures"
