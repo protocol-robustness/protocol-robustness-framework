@@ -6,6 +6,8 @@
 
 - Added a separately rooted, demo-only `protocol-genesis.v1` package for the controlled entitlement demonstration. It is explicitly not the production PRF/SEW genesis and does not reuse the test fixture identity.
 
+- Recomputed the controlled-entitlement protocol candidate's component roots from their canonical materials, added local-only candidate authority and initial-configuration packages, and exposed PRF-owned derivation checks. Candidate derivations remain unapproved and cannot qualify a deployment; initial configuration binds the canonical empty verifier-registry root.
+
 ## Unreleased
 
 - Exact pro-rata reconstruction now preserves arbitrary-precision amounts and

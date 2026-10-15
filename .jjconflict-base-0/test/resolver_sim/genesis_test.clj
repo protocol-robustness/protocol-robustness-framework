@@ -2,6 +2,8 @@
   (:require [clojure.test :refer [deftest is testing]]
             [clojure.string :as str]
             [clojure.data.json :as json]
+            [clojure.edn :as edn]
+            [clojure.java.io :as io]
             [resolver-sim.genesis :as g]
             [resolver-sim.benchmark.authority-semantics-policy :as semantics-policy]
             [resolver-sim.benchmark.governed-authority-semantics :as semantics]
@@ -75,6 +77,93 @@
 (deftest test-chain-instance-genesis-fixture-root-golden
   (testing "ethereum chain-instance fixture root is a stable golden vector"
     (is (= ci-eth-root g/chain-instance-genesis-ethereum-fixture-root))))
+
+(deftest test-eae-demo-authority-state-root-is-separate-and-closed
+  (let [state {:authority-state/schema g/eae-demo-authority-state-schema
+               :protocol/genesis-root g/protocol-genesis-fixture-root
+               :execution/chain-id 31337
+               :authority/profile "eae-demo.single-principal-local-only.v1"
+               :authority/principal "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266"
+               :authority/initial-epoch 0
+               :authority/initial-decisions []}
+        root (g/eae-demo-authority-state-root state)]
+    (is (hash-ref/valid-sha256-ref? root))
+    (is (not= root g/protocol-genesis-fixture-root))
+    (is (thrown? ExceptionInfo
+                 (g/eae-demo-authority-state-root
+                  (assoc state :authority/initial-decisions ["unauthorized"]))))
+    (is (thrown? ExceptionInfo
+                 (g/eae-demo-authority-state-root
+                  (assoc state :authority/profile "unbounded-admin"))))))
+
+(deftest test-deployment-root-cli-derives-authority-state-but-not-approval
+  (let [package (edn/read-string
+                 (slurp (io/file "etc/deployments/eae-controlled-entitlement-demo/authority-state-package.edn")))
+        result (deployment-genesis/derive-root :authority-state package)]
+    (is (= "eae-controlled-entitlement-demo.authority-state.v1" (get result "artifact")))
+    (is (= (:authority-state/root package) (get result "root")))
+    (is (= "derived-only-not-approved" (get result "qualification")))
+    (is (thrown? ExceptionInfo
+                 (deployment-genesis/derive-root :authority-state
+                                                 (assoc package :package/status :approved))))
+    (is (thrown? ExceptionInfo
+                 (deployment-genesis/derive-root :authority-state
+                                                 (assoc-in package [:authority-state :execution/chain-id] 84532))))))
+
+(deftest test-eae-protocol-package-recomputes-components-and-root
+  (let [package (edn/read-string
+                 (slurp (io/file "etc/deployments/eae-controlled-entitlement-demo/protocol-genesis-package.edn")))
+        result (deployment-genesis/derive-root :protocol-genesis package)
+        tampered (assoc-in package [:component-material :semantics :economic/profile]
+                           "different-semantic-policy")]
+    (is (= (:protocol-genesis/root package) (get result "root")))
+    (is (= "derived-only-not-approved" (get result "qualification")))
+    (is (thrown? ExceptionInfo
+                 (deployment-genesis/derive-root :protocol-genesis tampered)))
+    (is (thrown? ExceptionInfo
+                 (deployment-genesis/derive-root :protocol-genesis
+                                                 (assoc package :package/status :approved))))))
+
+(deftest test-eae-initial-configuration-binds-empty-registry-and-candidate-inputs
+  (let [package (edn/read-string
+                 (slurp (io/file "etc/deployments/eae-controlled-entitlement-demo/initial-configuration-package.edn")))
+        result (deployment-genesis/derive-root :initial-configuration package)
+        materials (:component-material package)
+        component-roots (into {}
+                              (map (fn [[component field]]
+                                     [field (hash-ref/sha256-ref
+                                             (canonical/hash-with-intent
+                                              {:hash/intent :evidence-content}
+                                              (get materials component)))]))
+                              {:module-registry :module-registry/root
+                               :evidence-policy :evidence-policy/root
+                               :escrow-template-registry :escrow-template-registry/root
+                               :parameter-policy :parameter-policy/root
+                               :governance-policy :governance-policy/root
+                               :interoperability-policy :interoperability-policy/root})
+        expected (merge {:configuration/schema "chain-configuration.v1"
+                         :verifier-registry/root (g/canonical-verifier-registry-root [])}
+                        component-roots)
+        nonempty-registry [{:verifier/id (str "0x" (apply str (repeat 32 "01")))
+                            :verifier/adapter "0x0000000000000000000000000000000000000001"
+                            :verifier/program-vkey (str "0x" (apply str (repeat 32 "02")))
+                            :verifier/program-elf-sha256 (str "sha256:" (apply str (repeat 32 "03")))
+                            :verifier/program-id "candidate"
+                            :verifier/statement-schema-version-hash (str "0x" (apply str (repeat 32 "04")))
+                            :verifier/public-values-schema-hash (str "0x" (apply str (repeat 32 "05")))
+                            :verifier/active true}]]
+    (is (= (:initial-configuration/root package) (get result "root")))
+    (is (= (:initial-configuration/root package) (g/chain-configuration-root expected)))
+    (is (= "derived-only-not-approved" (get result "qualification")))
+    (is (not= (:verifier-registry/root expected)
+              (g/canonical-verifier-registry-root nonempty-registry)))
+    (is (thrown? ExceptionInfo
+                 (deployment-genesis/derive-root
+                  :initial-configuration
+                  (update-in package [:component-material] dissoc :evidence-policy))))
+    (is (thrown? ExceptionInfo
+                 (deployment-genesis/derive-root :initial-configuration
+                                                 (assoc package :package/status :approved))))))
 
 ;; ── chain-configuration.v1 tests ─────────────────────────────────────────
 

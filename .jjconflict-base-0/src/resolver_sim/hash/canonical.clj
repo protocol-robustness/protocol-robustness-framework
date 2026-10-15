@@ -585,6 +585,7 @@
    :related-claims-member "related-claims-member"
    :withdrawal-ledger-v1 "withdrawal-ledger.v1"
    :prf-protocol-genesis-v1 "PRF_PROTOCOL_GENESIS_V1"
+   :eae-controlled-entitlement-demo-authority-state-v1 "EAE_CONTROLLED_ENTITLEMENT_DEMO_AUTHORITY_STATE_V1"
    :prf-chain-instance-genesis-v1 "PRF_CHAIN_INSTANCE_GENESIS_V1"
    :prf-chain-configuration-v1 "PRF_CHAIN_CONFIGURATION_V1"
    :prf-chain-configuration-v2 "PRF_CHAIN_CONFIGURATION_V2"
@@ -1854,6 +1855,20 @@
        (map? gov) (assoc :governance
                          (select-keys gov chain-instance-genesis-governance-fields))))))
 
+(def eae-controlled-entitlement-demo-authority-state-v1-fields
+  "Identity fields of the local-only EAE controlled-entitlement initial
+  authority state candidate. This is deliberately separate from the benchmark
+  authority-state-snapshot.v1 store snapshot schema."
+  [:authority-state/schema :protocol/genesis-root :execution/chain-id
+   :authority/profile :authority/principal :authority/initial-epoch
+   :authority/initial-decisions])
+
+(defn project-eae-controlled-entitlement-demo-authority-state-v1
+  "Canonical projection for the bounded local demo's initial authority state."
+  [value _intent]
+  (project-canonical-safe
+   (select-keys value eae-controlled-entitlement-demo-authority-state-v1-fields)))
+
 (def chain-configuration-fields
   "Ordered identity fields of chain-configuration.v1. All values are opaque
    sha256 reference roots to semantic sub-artefacts. The projection selects exactly
@@ -3042,6 +3057,18 @@ name (an alias)."
                        :cross-domain/authority-policy-root}
     :intent/excludes #{:runtime-values :functions :deployment-metadata :timestamps}
     :intent/projection-fn project-protocol-genesis
+    :intent/version 1}
+
+   :eae-controlled-entitlement-demo-authority-state-v1
+   {:intent/name :eae-controlled-entitlement-demo-authority-state-v1
+    :intent/domain-tag "EAE_CONTROLLED_ENTITLEMENT_DEMO_AUTHORITY_STATE_V1"
+    :intent/description "Candidate canonical initial authority-state identity for the local-only controlled-entitlement demonstration"
+    :intent/includes #{:authority-state/schema :protocol/genesis-root
+                       :execution/chain-id :authority/profile
+                       :authority/principal :authority/initial-epoch
+                       :authority/initial-decisions}
+    :intent/excludes #{:runtime-values :functions :deployment-metadata :timestamps}
+    :intent/projection-fn project-eae-controlled-entitlement-demo-authority-state-v1
     :intent/version 1}
 
    :prf-chain-instance-genesis-v1

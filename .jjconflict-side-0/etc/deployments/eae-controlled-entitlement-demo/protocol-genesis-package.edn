@@ -1,5 +1,5 @@
 {:package/schema "eae-controlled-entitlement-demo.protocol-genesis-package.v1"
- :package/status :demo-only
+ :package/status :candidate-owner-approval-required
  :package/root-derivation
  {:component-hash/domain "EVIDENCE_CONTENT_V1"
   :component-hash/encoding "PRF canonical binary encoding v1"
@@ -44,12 +44,12 @@
  :protocol-genesis
  {:genesis/schema "protocol-genesis.v1"
   :protocol/id :protocol/eae-controlled-entitlement-demo
-  :canonicalisation/root "sha256:653cd945a775205722816b07da2e39a07351f4bfb3ada6c60a63392d0f61a21b"
-  :semantics/root "sha256:fd48b3f2d274c114289c24da6be9f3bf7dcd5ac658193298405c7cde21869f43"
-  :governance/constitution-root "sha256:0997f5d4898496e82b543b5ea5ac57339ab086f9d3ca9e7749e65fcfc92c886b"
-  :governance/evolution-policy-root "sha256:c8e8d756de7280c3173fc985ada6c1798a316f1dca453f204d6e3aaad7a4235c"
-  :configuration/contract-root "sha256:d5dfc8e62c85b56094a6772cb608efd586dc43b8803c7a18c0abf029fd568a21"
-  :evidence/contract-root "sha256:1d1b2addd2267268dcd8372f0c8de1dfb0418e398b3bd7b61c291333ce95ced7"
-  :verification/contract-root "sha256:d209da9a1df28f527a0c5d405642c2d88aad9215adaac2bbceda4e54ca20a4d2"
-  :cross-domain/authority-policy-root "sha256:fda99823293aed928539f0d48bdf912f517fb4fe04b69120fc7a626c5949cd84"}
- :protocol-genesis/root "sha256:33f77dc224712d537453e2246fc79cbeaeb3a54f9f4574f910153cd209b8da32"}
+  :canonicalisation/root "sha256:12be1820b1aeb9c76f0719490b2f0221a35d5c7b7eba597322fee52ac5c79b6a"
+  :semantics/root "sha256:4cd9c65c74fe3c75c075ed58e0b0c593cfc01e441b516f6e92ef38f09245d152"
+  :governance/constitution-root "sha256:1fd29aa6677d5f9b3b90ecde32e246159368b14380663a30da2f7e43d86039b4"
+  :governance/evolution-policy-root "sha256:25393552c22e68793741cf5bc50d13a303eda6f95b5d9ae2e062a6564d72b437"
+  :configuration/contract-root "sha256:c4e6ee9d40909f103ba77eb406c52555ebb83ac4521060aed2dfbeea0ce53858"
+  :evidence/contract-root "sha256:9c0143e3e279f5dc410dc443ba7dde32a24ee7ae9b72c0c437132c7b9a980b9a"
+  :verification/contract-root "sha256:df72b8daf52a4174bcd9b0524a6c5e3695e506c929791d5f81984c59339bfcac"
+  :cross-domain/authority-policy-root "sha256:61a55d19dc3c074410f8e02d57535765cc487c6feaba939ec6bb52bc8dc486d8"}
+ :protocol-genesis/root "sha256:668bc1d132b8745a3f6db7fa0b2dad2b85a11246e00c39e7b24d266af4724775"}

@@ -44,6 +44,10 @@
   "Schema identifier for chain-instance-genesis.v1."
   "chain-instance-genesis.v1")
 
+(def ^:const eae-demo-authority-state-schema
+  "Candidate schema for the bounded local-only EAE demonstration's initial authority state."
+  "eae-controlled-entitlement-demo.authority-state.v1")
+
 (def protocol-genesis-fields
   "Top-level identity fields of protocol-genesis.v1 (re-exported from the
    canonical projections so the validator and projection share one source of
@@ -330,6 +334,52 @@
                         :declared expected
                         :computed computed})))
      computed)))
+
+(def eae-demo-authority-state-fields
+  hc/eae-controlled-entitlement-demo-authority-state-v1-fields)
+
+(defn validate-eae-demo-authority-state
+  "Validate the candidate local-only EAE initial authority state. This schema
+  does not confer approval; it only fixes a closed, reproducible preimage."
+  [state]
+  (let [errors (atom [])
+        report! (fn [message] (swap! errors conj message))]
+    (when-not (map? state) (report! "authority state must be a map"))
+    (when (map? state)
+      (let [have (set (keys state))
+            expected (set eae-demo-authority-state-fields)
+            extra (set/difference have expected)
+            missing (set/difference expected have)]
+        (when (seq extra) (report! (str "unknown authority-state keys: " (sort extra))))
+        (when (seq missing) (report! (str "missing authority-state keys: " (sort missing)))))
+      (when-not (= eae-demo-authority-state-schema (:authority-state/schema state))
+        (report! (str "authority-state/schema must be " eae-demo-authority-state-schema)))
+      (when-not (hash-ref/valid-sha256-ref? (:protocol/genesis-root state))
+        (report! "protocol/genesis-root must be a valid sha256 reference"))
+      (when-not (valid-chain-id? (:execution/chain-id state))
+        (report! "execution/chain-id must be an integer in [1, 2^256)"))
+      (when-not (= "eae-demo.single-principal-local-only.v1" (:authority/profile state))
+        (report! "authority/profile is not the bounded local-only profile"))
+      (when-not (valid-evm-address? (:authority/principal state))
+        (report! "authority/principal must be a canonical non-zero EVM address"))
+      (when-not (= 0 (:authority/initial-epoch state))
+        (report! "authority/initial-epoch must be zero"))
+      (when-not (= [] (:authority/initial-decisions state))
+        (report! "authority/initial-decisions must be an empty vector")))
+    {:valid? (empty? @errors) :errors (vec @errors)}))
+
+(defn eae-demo-authority-state-root
+  "Compute the candidate authority-state.v1 root using its dedicated domain.
+  The result is a derivation only and is never evidence of owner approval."
+  [state]
+  (let [validation (validate-eae-demo-authority-state state)]
+    (when-not (:valid? validation)
+      (throw (ex-info "EAE demo authority-state.v1 is invalid"
+                      {:type :genesis/invalid-authority-state
+                       :errors (:errors validation)})))
+    (hash-ref/sha256-ref
+     (hc/domain-hash :eae-controlled-entitlement-demo-authority-state-v1
+                     (hc/project-eae-controlled-entitlement-demo-authority-state-v1 state nil)))))
 
 ;; ──────────────────────────────────────────────────────────────────────────────
 ;; Deterministic canonical fixtures
