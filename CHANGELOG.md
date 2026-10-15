@@ -8,6 +8,10 @@
 
 - Added a versioned local investigation case and allowlisted task runner for the recorded PRO-28 Groth16 verification gap. Task results are immutable candidate evidence and remain outside canonical graph admission pending independent validation.
 
+### PRO-35 resumable investigation cases
+
+- Added an append-only, hash-chained local case journal and replayed state projection for investigation task attempts, safe interrupted-task recovery, explicit bounded retry/cancellation, and hypothesis/evidence-request status history. Journal completion remains coordination state; it does not admit candidate evidence or establish findings.
+
 ## [Unreleased]
 
 ### PRO-28 receipt-level local execution evidence

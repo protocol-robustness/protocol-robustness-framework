@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import shutil
 import sys
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import pytest
@@ -87,8 +88,10 @@ def test_report_digest_substitution_rejects() -> None:
 def test_succeeded_task_produces_immutable_candidate_bound_to_case(tmp_path: Path,
                                                                   monkeypatch: pytest.MonkeyPatch) -> None:
     reference = load(REFERENCE)
+    calls = []
 
     def fake_run(bundle: Path, proof_report_path: Path, tools: dict[str, str]):
+        calls.append(1)
         assert bundle == PROJECT / "examples/partial-fill/evidence/pro-28-v1/raw/fresh-replay-20261013"
         assert set(tools) == {"anvil", "cast"}
         shutil.copyfile(REFERENCE, proof_report_path)
@@ -114,6 +117,71 @@ def test_succeeded_task_produces_immutable_candidate_bound_to_case(tmp_path: Pat
         dispatcher._canonical_json(dispatcher.TASK_DEFINITION)
     )
     assert first["sha256"] == dispatcher._sha256(candidate_path.read_bytes())
+    assert len(calls) == 1, "replaying a succeeded task must not execute it again"
+    replay = dispatcher.run_case(CASE, tmp_path, verify_journal=True)
+    assert replay["status"] == "succeeded"
+    assert replay["historyEventCount"] == 3
+    assert replay["storedProjectionCurrent"] is True
+    assert len(calls) == 1, "read-only journal verification must not execute the task"
+
+
+def test_retryable_failure_requires_explicit_retry_and_reuses_case_journal(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    reference = load(REFERENCE)
+    outcomes = [(1, False, "unsupported: temporary verifier provider unavailable")]
+
+    monkeypatch.setattr(dispatcher, "_pinned_toolchain", lambda _bundle: ({"anvil": "sha256:a", "cast": "sha256:c"}, None))
+
+    def fake_run(_bundle: Path, proof_report_path: Path, _tools: dict[str, str]):
+        if outcomes:
+            return outcomes.pop(0)
+        shutil.copyfile(REFERENCE, proof_report_path)
+        return 0, False, "PASS"
+
+    monkeypatch.setattr(dispatcher, "_run_fixed_groth16_check", fake_run)
+    first = dispatcher.run_case(CASE, tmp_path)
+    first_candidate = load(Path(first["path"]))
+    assert first_candidate["execution"]["status"] == "blocked"
+    assert first_candidate["disposition"] == "execution record only; no evidence accepted"
+
+    # A retryable result is retained and not retried unless the operator opts in.
+    assert dispatcher.run_case(CASE, tmp_path) == first
+    second = dispatcher.run_case(CASE, tmp_path, retry=True)
+    second_candidate = load(Path(second["path"]))
+    assert second_candidate["execution"]["status"] == "succeeded"
+    journal_path = tmp_path / "pro-28-groth16-reference-gap-v0/journal/events.jsonl"
+    events = [json.loads(line) for line in journal_path.read_text().splitlines()]
+    assert [event["type"] for event in events] == [
+        "case-opened", "task-started", "task-finished", "task-started", "task-finished"
+    ]
+    assert len([event for event in events if event["type"] == "task-started"]) == 2
+    assert events[-2]["data"]["attempt"] == 2
+
+
+def test_retry_after_elapsed_case_deadline_is_recorded_as_budget_exceeded(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    old_time = (datetime.now(timezone.utc) - timedelta(seconds=700)).isoformat().replace("+00:00", "Z")
+    monkeypatch.setattr(dispatcher.journal, "_now", lambda: old_time)
+    monkeypatch.setattr(dispatcher, "_pinned_toolchain", lambda _bundle: (None, "blocked: temporary tools unavailable"))
+    first = dispatcher.run_case(CASE, tmp_path)
+    assert load(Path(first["path"]))["execution"]["status"] == "failed"
+    with pytest.raises(dispatcher.DispatchError, match="terminal: budget-exceeded"):
+        dispatcher.run_case(CASE, tmp_path, retry=True)
+    journal_path = tmp_path / "pro-28-groth16-reference-gap-v0/journal/events.jsonl"
+    events = [json.loads(line) for line in journal_path.read_text().splitlines()]
+    assert events[-1]["type"] == "task-budget-exceeded"
+    assert events[-1]["data"]["budget"] == "elapsed-seconds"
+
+
+def test_cli_schema_exposes_explicit_retry_cancel_and_metadata_controls() -> None:
+    import inspect
+    source = inspect.getsource(dispatcher.main)
+    assert 'parser.add_argument("--retry"' in source
+    assert 'parser.add_argument("--cancel-reason"' in source
+    assert 'parser.add_argument("--metadata-event"' in source
+    assert 'parser.add_argument("--verify-journal"' in source
 
 
 @pytest.mark.parametrize(
