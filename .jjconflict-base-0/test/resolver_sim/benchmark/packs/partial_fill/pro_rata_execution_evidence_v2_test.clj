@@ -261,6 +261,21 @@
     (is (not (exec-ev/package-requires-pro-rata-evidence? manifest-without-marker))
         "absence of marker fails closed — no inference from optional fields")))
 
+(deftest v2-package-requirement-can-be-claim-scoped-and-omission-fails
+  (let [manifest (base-manifest {:conservation :pass})
+        resolver (constantly nil)
+        omitted (exec-ev/verify-package-pro-rata-evidence
+                 resolver {} manifest
+                 {:claim-requires-pro-rata-evidence? true})]
+    (is (exec-ev/package-requires-pro-rata-evidence?
+         manifest true)
+        "the claim evaluator may declare the pro-rata profile obligation")
+    (is (:required? omitted))
+    (is (not (:valid? omitted)))
+    (is (= :integrity (:verification-level omitted)))
+    (is (= :not-run (:semantic-status omitted)))
+    (is (seq (:errors omitted)))))
+
 (deftest v2-theorem-binding-fails-with-empty-supplied
   (let [manifest (om/build-manifest
                   {:benchmark/content-root "sha256:cr"

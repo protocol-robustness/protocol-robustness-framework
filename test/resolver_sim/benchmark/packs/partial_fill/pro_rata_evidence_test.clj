@@ -5,8 +5,13 @@
             [resolver-sim.benchmark.packs.partial-fill.evidence :as pf-ev]
             [resolver-sim.benchmark.packs.partial-fill.pro-rata-execution-evidence :as exec-ev]
             [resolver-sim.pro-rata.allocation :as alloc]
+            [resolver-sim.yield.partial-fill :as pf]
             [resolver-sim.hash.canonical :as hc]
+            [resolver-sim.hash.reference :as hash-ref]
             [resolver-sim.benchmark.outcome-manifest :as om]))
+
+(defn- test-ref [x]
+  (hash-ref/sha256-ref (hc/domain-hash :evidence-content x)))
 
 (defn- real-alloc []
   (alloc/allocate {:schema-version "pro-rata-allocation-request.v1"
@@ -21,29 +26,33 @@
                    :redistribution-policy :unallocated}))
 
 (defn- alloc-args [result]
-  (let [w (:result/witness result)]
-    {:benchmark-content-root "sha256:cr"
-     :model-root "sha256:mr"
-     :allocation-request (:canonical-request result)
+  (let [w (:result/witness result)
+        request (:canonical-request result)]
+    {:benchmark-content-root (test-ref :benchmark)
+     :model-root (test-ref :model)
+     :allocation-request request
      :allocation-result result
-     :mechanism {:mechanism/id :pro-rata/largest-remainder :mechanism/version 1 :mechanism/hash "sha256:mh"}
-     :policy {:policy/id :default :policy/hash "sha256:ph"}
-     :allocation-witness (:committed-rows w [])}))
+     :mechanism {:mechanism/id :pro-rata/largest-remainder :mechanism/version 1 :mechanism/hash (test-ref :mechanism)}
+     :policy {:policy/id :default :policy/hash (test-ref :policy)
+              :policy/parameters (select-keys request
+                                               [:rounding-policy :tie-break-policy
+                                                :redistribution-policy])}
+     :allocation-witness (or (:committed-rows w) (:rows result) [])}))
 
 (defn- base-manifest []
   (om/build-manifest
-   {:benchmark/content-root "sha256:cr"
-    :benchmark/model-root "sha256:mr"
-    :benchmark/evaluation-policy-root "sha256:eval"
+   {:benchmark/content-root (test-ref :benchmark)
+    :benchmark/model-root (test-ref :model)
+    :benchmark/evaluation-policy-root (test-ref :eval)
     :execution/status :completed
     :results/operational {:conservation :pass :quota-bounded :pass}}))
 
 (defn- exec-args [& {:keys [manifest alloc-hash app-hash theorems conclusions]
                      :or {manifest (base-manifest)
                           alloc-hash "sha256:alloc-ev"
-                          app-hash "sha256:app-ev"
+                          app-hash (test-ref :app-ev)
                           theorems [] conclusions []}}]
-  {:benchmark-content-root "sha256:cr" :model-root "sha256:mr"
+  {:benchmark-content-root (test-ref :benchmark) :model-root (test-ref :model)
    :outcome-manifest manifest
    :allocation-evidence-hash alloc-hash :application-evidence-hash app-hash
    :theorem-outcomes theorems :conclusions conclusions})
@@ -57,6 +66,51 @@
     (is (some? (:evidence-profile/hash profile)))
     (is (:valid? (alloc-ev/validate-pro-rata-allocation-evidence profile)))))
 
+(deftest allocation-profile-requires-complete-roots
+  (let [profile (alloc-ev/build-pro-rata-allocation-evidence (alloc-args (real-alloc)))
+        no-hash (dissoc profile :evidence-profile/hash)
+        incomplete-root (assoc profile :evidence-profile/model-root "sha256:short")]
+    (is (not (:valid? (alloc-ev/validate-pro-rata-allocation-evidence no-hash))))
+    (is (not (:valid? (alloc-ev/validate-pro-rata-allocation-evidence incomplete-root)))
+        "present-but-truncated roots are not complete commitments")
+    (is (= :integrity (:verification-level
+                       (alloc-ev/validate-pro-rata-allocation-evidence profile))))
+    (is (= :not-run (:semantic-status
+                     (alloc-ev/validate-pro-rata-allocation-evidence profile))))))
+
+(deftest allocation-standalone-validator-rejects-internally-forged-success
+  (let [profile (alloc-ev/build-pro-rata-allocation-evidence (alloc-args (real-alloc)))
+        forged (-> profile
+                   (assoc-in [:evidence-profile/verification-checks :capacity] :fail)
+                   (assoc :evidence-profile/verification-status :verified))
+        forged (assoc forged :evidence-profile/hash
+                      (hash-ref/sha256-ref
+                       (hc/domain-hash :pro-rata-allocation-evidence-v2
+                                       (dissoc forged :evidence-profile/hash))))]
+    (is (not (:valid? (alloc-ev/validate-pro-rata-allocation-evidence forged)))
+        "a verified status cannot coexist with a failed check even if self-hashed")))
+
+(deftest allocation-builder-rejects-witness-and-arithmetic-mismatch
+  (let [result (real-alloc)
+        args (alloc-args result)
+        bad-witness (alloc-ev/build-pro-rata-allocation-evidence
+                     (assoc args :allocation-witness []))
+        negative-result (update result :rows
+                                (fn [rows] (assoc rows 0 (assoc (first rows) :allocated -1))))
+        bad-arithmetic (alloc-ev/build-pro-rata-allocation-evidence
+                        (assoc args :allocation-result negative-result
+                               :allocation-witness (:rows negative-result)))]
+    (is (= :fail (get-in bad-witness
+                         [:evidence-profile/verification-checks :witness-binding])))
+    (is (= :invalid (:evidence-profile/verification-status bad-witness)))
+    (is (= :fail (get-in bad-arithmetic
+                         [:evidence-profile/verification-checks :non-negative])))
+    (is (= :invalid (:evidence-profile/verification-status bad-arithmetic)))
+    (is (= :invalid (:status (alloc-ev/verify-pro-rata-allocation-evidence
+                              bad-arithmetic
+                              (assoc args :allocation-result negative-result
+                                     :allocation-witness (:rows negative-result))))))))
+
 (deftest allocation-independent-verifier-matches
   (let [args (alloc-args (real-alloc))
         profile (alloc-ev/build-pro-rata-allocation-evidence args)
@@ -64,7 +118,7 @@
     (is (:valid? v)) (is (empty? (:mismatches v)))))
 
 (deftest allocation-wrong-hash-is-noted
-  (let [r (real-alloc) t (assoc r :allocation/hash "sha256:bad")
+  (let [r (real-alloc) t (assoc r :allocation/hash (test-ref :bad-allocation))
         a (assoc (alloc-args r) :allocation-result t)
         p (alloc-ev/build-pro-rata-allocation-evidence a)]
     ;; Builder does NOT throw — it records the hash mismatch in the
@@ -77,7 +131,7 @@
         p (alloc-ev/build-pro-rata-allocation-evidence args)
         fv (assoc (:evidence-profile/verification p) :capacity-bounded? false)
         fp (assoc p :evidence-profile/verification fv)
-        h (hc/domain-hash :pro-rata-allocation-evidence (dissoc fp :evidence-profile/hash))
+        h (hc/domain-hash :pro-rata-allocation-evidence-v2 (dissoc fp :evidence-profile/hash))
         fo (assoc fp :evidence-profile/hash (str "sha256:" h))
         v (alloc-ev/verify-pro-rata-allocation-evidence fo args)]
     (is (:valid? (alloc-ev/validate-pro-rata-allocation-evidence fo)))
@@ -86,7 +140,7 @@
 
 (deftest allocation-hash-changes-with-input
   (let [a (alloc-args (real-alloc))
-        a2 (assoc a :benchmark-content-root "sha256:other")
+        a2 (assoc a :benchmark-content-root (test-ref :other))
         pa (alloc-ev/build-pro-rata-allocation-evidence a)
         pb (alloc-ev/build-pro-rata-allocation-evidence a2)]
     (is (not= (:evidence-profile/hash pa) (:evidence-profile/hash pb)))))
@@ -115,20 +169,22 @@
 
 (def ^:private shared-propag
   {:propagation/id :prop/test
-   :propagation/hash "sha256:prophash"
-   :propagation/policy-hash "sha256:policyhash"
-   :propagation/allocation-hash "sha256:allochash"
+   :propagation/hash (test-ref :propagation)
+   :propagation/policy-hash (test-ref :policy)
+   :propagation/allocation-hash (test-ref :allocation)
    :participants [{:participant/id :p1 :fulfilled 60 :deferred 40}]
    :accounting-entries [{:participant/id :p1 :token :usdc :delta 60}]
    :apparent-application {:accounting-delta 60 :participant/id :p1 :token :usdc}
    :source-account-balance-after 400})
 
 (def ^:private app-with-accounting
-  {:application/hash "sha256:apphash"
-   :apparent-application {:accounting-delta 60 :participant/id :p1 :token :usdc}
-   :accounting-entries [{:participant/id :p1 :token :usdc :delta 60}]
-   :application-order 1
-   :outcome-hash "sha256:outcome"})
+  (let [base {:propagation-id :prop/test
+              :propagation/hash (test-ref :propagation)
+              :apparent-application {:accounting-delta 60 :participant/id :p1 :token :usdc}
+              :accounting-entries [{:participant/id :p1 :token :usdc :delta 60}]
+              :application-order 1
+              :outcome-hash "sha256:outcome"}]
+    (assoc base :application/hash (pf/application-hash base))))
 
 (def ^:private world-before
   {:yield/positions {:p1 {:position/id :pos-p1
@@ -175,7 +231,7 @@
 
 (deftest app-accounting-passes-state-write-back-fails
   (let [profile (app-ev/build-pro-rata-application-evidence
-                 {:allocation-evidence-hash "sha256:alloc-ev"
+          {:allocation-evidence-hash (test-ref :alloc-ev)
                   :propagation shared-propag
                   :application app-with-accounting
                   :world-before world-before
@@ -196,16 +252,47 @@
     (is (:valid? (app-ev/validate-pro-rata-application-evidence profile))
         "profile remains structurally valid even with write-back failure")))
 
+(deftest application-binding-and-root-integrity-are-required
+  (let [args {:allocation-evidence-hash (test-ref :alloc-ev)
+              :propagation shared-propag
+              :application (assoc app-with-accounting :propagation/hash (test-ref :other))
+              :world-before world-before :world-after world-after-accounting-only
+              :state-write-back-evidence state-wb-evidence-accounting-only
+              :continuity-evidence continuity-evidence-accounting-only
+              :evidence-ladder evidence-ladder-accounting-only
+              :operational-outcome operational-outcome-accounting-only}
+        profile (app-ev/build-pro-rata-application-evidence args)]
+    (is (= :fail (get-in profile [:evidence-profile/verification-checks
+                                  :application-propagation-binding])))
+    (is (= :invalid (:evidence-profile/verification-status profile)))
+    (is (not (:valid? (app-ev/validate-pro-rata-application-evidence
+                       (dissoc profile :evidence-profile/hash)))))))
+
 ;; ═══════════════════════════════════════════════════════════════════════════
 ;; 2b. Residual/continuity cases
 ;; ═══════════════════════════════════════════════════════════════════════════
+
+(def ^:private positive-world-after
+  (-> world-after-accounting-only
+      (assoc-in [:yield/withdrawn :usdc :p1] 40)
+      (assoc-in [:yield/positions :p1 :position/deferred-position]
+                {:position/id :pos-p1-deferred
+                 :position/current-amount 40
+                 :position/status :active})))
+
+(def ^:private positive-position (get-in positive-world-after [:yield/positions :p1]))
 
 (def ^:private wb-verified-deferred
   [{:participant/id :p1
     :token :usdc
     :withdrawn {:before 100 :delta 60 :after 40 :final-world-value 40 :verified? true}
-    :position {:before-hash "sha256:before" :after-hash "sha256:after"
-               :final-world-position-hash "sha256:after" :verified? true}
+    :position {:before-hash (test-ref :before)
+               :after-hash (hash-ref/sha256-ref (hc/domain-hash :state-projection
+                                                                 positive-position))
+               :final-world-position-hash (hash-ref/sha256-ref
+                                           (hc/domain-hash :state-projection
+                                                           positive-position))
+               :verified? true}
     :deferred-position {:prior-closed? true
                         :prior-current-amount 0
                         :successor-current-amount 40
@@ -239,14 +326,11 @@
 
 (deftest app-positive-partial-application
   (let [profile (app-ev/build-pro-rata-application-evidence
-                 {:allocation-evidence-hash "sha256:alloc-ev"
+                 {:allocation-evidence-hash (test-ref :alloc-ev)
                   :propagation shared-propag
                   :application app-with-accounting
                   :world-before world-before
-                  :world-after (assoc-in world-after-accounting-only
-                                         [:yield/positions :p1 :position/deferred-position]
-                                         {:position/id :pos-p1-deferred
-                                          :position/current-amount 40})
+                  :world-after positive-world-after
                   :state-write-back-evidence wb-verified-deferred
                   :continuity-evidence cont-evidence-terminal
                   :evidence-ladder evidence-ladder-full
@@ -254,7 +338,28 @@
         v (:evidence-profile/verification profile)
         cont (:next-precondition-continuity v)]
     (is (:deferred-current-amount-verified? v))
-    (is (:current-amount-continuous? v))
+    (is (nil? (:current-amount-continuous? v))
+        "successor-state continuity remains unverified without a successor source")
+    (is (= :not-applicable (get-in profile [:evidence-profile/verification-checks
+                                     :successor-continuity])))
+    (is (= :not-applicable (get-in profile [:evidence-profile/verification-checks
+                                     :current-amount-continuity])))
+    (is (= :fail (get-in profile [:evidence-profile/verification-checks
+                                  :propagation-integrity]))
+        "validator result maps must be inspected via their :valid? member")
+    (is (= :invalid (:evidence-profile/verification-status profile)))
+    (is (= :invalid (:semantic-status
+                     (app-ev/verify-pro-rata-application-evidence
+                      profile
+                      {:allocation-evidence-hash (test-ref :alloc-ev)
+                       :propagation shared-propag
+                       :application app-with-accounting
+                       :world-before world-before
+                       :world-after positive-world-after
+                       :state-write-back-evidence wb-verified-deferred
+                       :continuity-evidence cont-evidence-terminal
+                       :evidence-ladder evidence-ladder-full
+                       :operational-outcome op-pos-partial}))))
     (is (= :not-observed (:status cont))
         "terminal scenario: continuity status must be :not-observed, not failure")))
 
@@ -278,7 +383,7 @@
            :withdrawn {:token :usdc :before 100 :delta 60 :after 40}}]}
         write-back (pf-ev/derive-state-write-back application-artifact world-after)
         profile (app-ev/build-pro-rata-application-evidence
-                 {:allocation-evidence-hash "sha256:alloc-ev"
+                 {:allocation-evidence-hash (test-ref :alloc-ev)
                   :propagation shared-propag
                   :application app-with-accounting
                   :world-before world-before
@@ -292,7 +397,7 @@
     (is (true? (:authoritative-state-write-back-verified? verification)))))
 
 (deftest application-profile-requires-all-write-back-projections
-  (let [base-args {:allocation-evidence-hash "sha256:alloc-ev"
+  (let [base-args {:allocation-evidence-hash (test-ref :alloc-ev)
                    :propagation shared-propag
                    :application app-with-accounting
                    :world-before world-before
@@ -313,7 +418,7 @@
 
 (deftest app-stale-next-precondition
   (let [profile (app-ev/build-pro-rata-application-evidence
-                 {:allocation-evidence-hash "sha256:alloc-ev"
+                 {:allocation-evidence-hash (test-ref :alloc-ev)
                   :propagation shared-propag
                   :application app-with-accounting
                   :world-before world-before
@@ -324,9 +429,9 @@
                   :operational-outcome op-pos-partial})
         v (:evidence-profile/verification profile)
         cont (:next-precondition-continuity v)]
-    (is (= :failed (:status cont))
-        "stale precondition: continuity status must be :failed")
-    ;; Profile remains structurally valid — it records the failure
+    (is (= :not-verifiable (:status cont))
+        "submitted continuity flags are not treated as independently verified")
+    ;; Profile remains structurally valid — it records the verification gap
     (is (:valid? (app-ev/validate-pro-rata-application-evidence profile)))))
 
 ;; ═══════════════════════════════════════════════════════════════════════════

@@ -8,13 +8,19 @@
    verification catches every intended failure mode."
   (:require [clojure.test :refer [deftest is]]
             [resolver-sim.hash.canonical :as hc]
+            [resolver-sim.hash.reference :as hash-ref]
             [resolver-sim.pro-rata.allocation :as alloc]
             [resolver-sim.benchmark.outcome-manifest :as om]
             [resolver-sim.benchmark.researcher-force-authorisation :as rfa]
             [resolver-sim.benchmark.force-authorised-execution-evidence :as fa-ev]
             [resolver-sim.benchmark.packs.partial-fill.pro-rata-allocation-evidence :as alloc-ev]
             [resolver-sim.benchmark.packs.partial-fill.pro-rata-application-evidence :as app-ev]
-            [resolver-sim.benchmark.packs.partial-fill.pro-rata-execution-evidence :as exec-ev]))
+            [resolver-sim.benchmark.packs.partial-fill.pro-rata-execution-evidence :as exec-ev]
+            [resolver-sim.benchmark.runner :as benchmark-runner]
+            [resolver-sim.yield.partial-fill :as pf]))
+
+(defn- test-ref [x]
+  (hash-ref/sha256-ref (hc/domain-hash :evidence-content x)))
 
 ;; ═══════════════════════════════════════════════════════════════════════════
 ;; Simulated package helpers
@@ -52,8 +58,8 @@
 ;; Test data
 ;; ═══════════════════════════════════════════════════════════════════════════
 
-(def ^:private content-root "sha256:benchmark-content")
-(def ^:private model-root "sha256:benchmark-model")
+(def ^:private content-root (test-ref :benchmark-content))
+(def ^:private model-root (test-ref :benchmark-model))
 
 (defn- build-pro-rata-manifest []
   (om/build-manifest
@@ -70,6 +76,19 @@
                           :current-amount-write-back :pass
                           :authoritative-application :pass}}))
 
+(deftest pro-rata-claim-coverage-is-explicit-and-fails-closed
+  (let [not-claimed (benchmark-runner/pro-rata-validation-coverage {})
+        manifest-marker (benchmark-runner/pro-rata-validation-coverage
+                         {:outcomes/pro-rata-evidence-required true})
+        claimed (benchmark-runner/pro-rata-validation-coverage
+                 {:benchmark/claims [{:claim/id :claim/allocation
+                                      :claim/requires-pro-rata-evidence? true}]})]
+    (is (= :not-applicable (:status not-claimed)))
+    (is (:omitted? manifest-marker))
+    (is (true? (:required? claimed)))
+    (is (= :not-run (:status claimed)))
+    (is (:omitted? claimed))))
+
 (defn- real-alloc []
   (alloc/allocate {:schema-version "pro-rata-allocation-request.v1"
                    :mechanism/version 1
@@ -82,23 +101,31 @@
                    :tie-break-policy :canonical-row-id
                    :redistribution-policy :unallocated}))
 
+(defn- policy-ref [result]
+  {:policy/id :default :policy/hash (test-ref :policy)
+   :policy/parameters (select-keys (:canonical-request result)
+                                  [:rounding-policy :tie-break-policy
+                                   :redistribution-policy])})
+
 ;; Shared data for pro-rata app-ev (reuses fixtures from pro-rata-evidence-test)
 (def ^:private app-propag
   {:propagation/id :prop/test
-   :propagation/hash "sha256:prophash"
-   :propagation/policy-hash "sha256:policyhash"
-   :propagation/allocation-hash "sha256:allochash"
+   :propagation/hash (test-ref :propagation)
+   :propagation/policy-hash (test-ref :policy)
+   :propagation/allocation-hash (test-ref :allocation)
    :participants [{:participant/id :p1 :fulfilled 60 :deferred 40}]
    :accounting-entries [{:participant/id :p1 :token :usdc :delta 60}]
    :apparent-application {:accounting-delta 60 :participant/id :p1 :token :usdc}
    :source-account-balance-after 400})
 
 (def ^:private app-application
-  {:application/hash "sha256:apphash"
-   :apparent-application {:accounting-delta 60 :participant/id :p1 :token :usdc}
-   :accounting-entries [{:participant/id :p1 :token :usdc :delta 60}]
-   :application-order 1
-   :outcome-hash "sha256:outcome"})
+  (let [base {:propagation-id :prop/test
+              :propagation/hash (test-ref :propagation)
+              :apparent-application {:accounting-delta 60 :participant/id :p1 :token :usdc}
+              :accounting-entries [{:participant/id :p1 :token :usdc :delta 60}]
+              :application-order 1
+              :outcome-hash (test-ref :outcome)}]
+    (assoc base :application/hash (pf/application-hash base))))
 
 (def ^:private app-wb
   [{:participant/id :p1 :token :usdc
@@ -134,9 +161,10 @@
                      :allocation-request (:canonical-request alloc-result)
                      :allocation-result alloc-result
                      :mechanism {:mechanism/id :pro-rata/largest-remainder
-                                 :mechanism/version 1 :mechanism/hash "sha256:mh"}
-                     :policy {:policy/id :default :policy/hash "sha256:ph"}
-                     :allocation-witness (:committed-rows aw [])})
+                                 :mechanism/version 1 :mechanism/hash (test-ref :mechanism)}
+                     :policy (policy-ref alloc-result)
+                     :allocation-witness (or (:committed-rows aw)
+                                             (:rows alloc-result) [])})
         alloc-hash (:evidence-profile/hash alloc-prof)
         ;; Build application evidence profile
         app-prof (app-ev/build-pro-rata-application-evidence
@@ -180,9 +208,10 @@
                    :allocation-request (:canonical-request alloc-result)
                    :allocation-result alloc-result
                    :mechanism {:mechanism/id :pro-rata/largest-remainder
-                               :mechanism/version 1 :mechanism/hash "sha256:mh"}
-                   :policy {:policy/id :default :policy/hash "sha256:ph"}
-                   :allocation-witness (:committed-rows aw [])}))
+                               :mechanism/version 1 :mechanism/hash (test-ref :mechanism)}
+                   :policy (policy-ref alloc-result)
+                   :allocation-witness (or (:committed-rows aw)
+                                           (:rows alloc-result) [])}))
         "independent allocation verifier matches")))
 
 (deftest pkg-force-authorised-execution
@@ -291,7 +320,7 @@
 (deftest pkg-write-back-failure
   (let [wb-fail (assoc-in app-wb [0 :withdrawn :verified?] false)
         app-prof (app-ev/build-pro-rata-application-evidence
-                  {:allocation-evidence-hash "sha256:alloc"
+                  {:allocation-evidence-hash (test-ref :alloc)
                    :propagation app-propag :application app-application
                    :world-before {} :world-after {}
                    :state-write-back-evidence wb-fail
@@ -321,18 +350,18 @@
         wb (:result/witness alloc-b)
         base-args {:benchmark-content-root content-root :model-root model-root
                    :mechanism {:mechanism/id :pro-rata/largest-remainder
-                               :mechanism/version 1 :mechanism/hash "sha256:mh"}
-                   :policy {:policy/id :default :policy/hash "sha256:ph"}}
+                   :mechanism/version 1 :mechanism/hash (test-ref :mechanism)}
+                   :policy (policy-ref alloc-a)}
         prof-a (alloc-ev/build-pro-rata-allocation-evidence
                 (assoc base-args
                        :allocation-request (:canonical-request alloc-a)
                        :allocation-result alloc-a
-                       :allocation-witness (:committed-rows wa [])))
+                       :allocation-witness (or (:committed-rows wa) (:rows alloc-a) [])))
         prof-b (alloc-ev/build-pro-rata-allocation-evidence
                 (assoc base-args
                        :allocation-request (:canonical-request alloc-b)
                        :allocation-result alloc-b
-                       :allocation-witness (:committed-rows wb [])))]
+                       :allocation-witness (or (:committed-rows wb) (:rows alloc-b) [])))]
     ;; Each profile individually valid
     (is (:valid? (alloc-ev/validate-pro-rata-allocation-evidence prof-a)))
     (is (:valid? (alloc-ev/validate-pro-rata-allocation-evidence prof-b)))
@@ -342,7 +371,7 @@
                        (assoc base-args
                               :allocation-request (:canonical-request alloc-b)
                               :allocation-result alloc-b
-                              :allocation-witness (:committed-rows wb [])))))
+                              :allocation-witness (or (:committed-rows wb) (:rows alloc-b) [])))))
         "substituting different allocation must fail verification")))
 
 (deftest pkg-overreaching-conclusion
@@ -359,7 +388,7 @@
                  {:benchmark-content-root content-root
                   :model-root model-root
                   :outcome-manifest manifest
-                  :allocation-evidence-hash "sha256:alloc"
+                   :allocation-evidence-hash (test-ref :alloc)
                   :application-evidence-hash "sha256:app"
                   :theorem-outcomes []
                   :conclusions [overreach]})]
@@ -382,9 +411,10 @@
                      :allocation-request (:canonical-request alloc-result)
                      :allocation-result alloc-result
                      :mechanism {:mechanism/id :pro-rata/largest-remainder
-                                 :mechanism/version 1 :mechanism/hash "sha256:mh"}
-                     :policy {:policy/id :default :policy/hash "sha256:ph"}
-                     :allocation-witness (:committed-rows aw [])})
+                                 :mechanism/version 1 :mechanism/hash (test-ref :mechanism)}
+                     :policy (policy-ref alloc-result)
+                     :allocation-witness (or (:committed-rows aw)
+                                             (:rows alloc-result) [])})
         alloc-hash (:evidence-profile/hash alloc-prof)
         app-prof (app-ev/build-pro-rata-application-evidence
                   {:allocation-evidence-hash alloc-hash

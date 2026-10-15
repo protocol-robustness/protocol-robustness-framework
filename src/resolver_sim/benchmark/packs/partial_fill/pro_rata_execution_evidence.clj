@@ -502,13 +502,16 @@
 ;; ═══════════════════════════════════════════════════════════════════════════
 
 (defn package-requires-pro-rata-evidence?
-  "Declarative check: true only when the outcome manifest explicitly marks
-    pro-rata evidence as required via :outcomes/pro-rata-evidence-required.
+  "Declarative check: true when the outcome manifest explicitly marks
+    pro-rata evidence required or the claim evaluator passes that requirement.
 
     Fails closed — does not infer requirement from optional fields like
-    :results/operational. If the marker is absent, returns false."
-  [manifest]
-  (= true (:outcomes/pro-rata-evidence-required manifest)))
+    :results/operational."
+  ([manifest]
+   (= true (:outcomes/pro-rata-evidence-required manifest)))
+  ([manifest claim-requires?]
+   (or (= true (:outcomes/pro-rata-evidence-required manifest))
+       (true? claim-requires?))))
 
 (defn verify-package-pro-rata-evidence
   "Package-level verification for pro-rata execution packages.
@@ -520,11 +523,17 @@
     correctly to its referenced allocation/application profiles.
 
     Returns {:valid? bool :errors [string] :checks map}"
-  [package-resolver profile outcome-manifest]
+  ([package-resolver profile outcome-manifest]
+   (verify-package-pro-rata-evidence package-resolver profile outcome-manifest {}))
+  ([package-resolver profile outcome-manifest
+    {:keys [claim-requires-pro-rata-evidence?]}]
   (let [errors (atom [])
         checks (atom {})]
-    (if-not (package-requires-pro-rata-evidence? outcome-manifest)
+    (if-not (package-requires-pro-rata-evidence? outcome-manifest
+                                                  claim-requires-pro-rata-evidence?)
       {:valid? true :required? false :status :not-required
+       :verification-level :not-applicable
+       :semantic-status :not-run
        :errors [] :checks {}}
       (let [alloc-hash (:evidence-profile/allocation-evidence-hash profile)
             app-hash (:evidence-profile/application-evidence-hash profile)
@@ -563,6 +572,17 @@
           (swap! errors conj (str "application profile hash mismatch: expected "
                                   app-hash " got "
                                   (:evidence-profile/hash app-profile))))
+        (when-not (:valid? (validate-pro-rata-execution-evidence-any profile))
+          (swap! errors conj "execution evidence profile integrity validation failed"))
+        ;; A package index plus self-hashed profiles establishes integrity and
+        ;; references only. It cannot rederive the semantic findings because
+        ;; the authoritative request/world source bodies are not inputs here.
+        (when (some #{:invalid} (map :evidence-profile/verification-status
+                                     [alloc-profile app-profile]))
+          (swap! errors conj "a constituent profile records invalid semantic findings"))
         {:valid? (empty? @errors) :required? true
+         :verification-level :integrity
+         :status (if (empty? @errors) :integrity-verified :invalid)
+         :semantic-status :not-run
          :errors @errors
-         :checks @checks}))))
+         :checks @checks})))))

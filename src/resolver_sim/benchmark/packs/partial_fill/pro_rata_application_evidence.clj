@@ -18,26 +18,66 @@
 
             [resolver-sim.hash.reference :as hash-ref]))
 
-(def ^:const schema-version "pro-rata-application-evidence.v1")
+(def ^:const schema-version-v1 "pro-rata-application-evidence.v1")
+(def ^:const schema-version "pro-rata-application-evidence.v2")
 (def ^:const profile-id :evidence-profile/pro-rata-application)
+
+(defn- recompute-write-back
+  "Recompute the write-back facts from the supplied projection and final world.
+   The supplied `:verified?` flags are deliberately ignored."
+  [write-back world-after]
+  (mapv (fn [entry]
+          (let [participant-id (:participant/id entry)
+                token (:token entry)
+                withdrawn (:withdrawn entry)
+                final-withdrawn (get-in world-after [:yield/withdrawn token participant-id] 0)
+                final-position (get-in world-after [:yield/positions participant-id])
+                final-position-hash (when final-position
+                                      (hash-ref/sha256-ref
+                                       (hc/domain-hash :state-projection final-position)))
+                final-deferred (get-in final-position
+                                       (if (contains? final-position :position/deferred-position)
+                                         [:position/deferred-position :position/current-amount]
+                                         [:deferred-position :position/current-amount]))
+                before-amount (:before withdrawn)
+                delta-amount (:delta withdrawn)
+                after-amount (:after withdrawn)
+                withdrawn-ok? (and (integer? before-amount)
+                                   (integer? delta-amount)
+                                   (integer? after-amount)
+                                   (= (- before-amount delta-amount) after-amount)
+                                   (= final-withdrawn (:after withdrawn)))
+                position-ok? (and (some? final-position-hash)
+                                  (= final-position-hash
+                                     (get-in entry [:position :after-hash])))
+                deferred-ok? (and (some? final-position)
+                                  (= final-deferred
+                                     (get-in entry [:deferred-position
+                                                    :successor-current-amount])))]
+            (assoc entry
+                   :withdrawn (assoc withdrawn :final-world-value final-withdrawn
+                                               :verified? withdrawn-ok?)
+                   :position (assoc (:position entry)
+                                    :final-world-position-hash final-position-hash
+                                    :verified? position-ok?)
+                   :deferred-position (assoc (:deferred-position entry)
+                                             :final-world-current-amount final-deferred
+                                             :verified? deferred-ok?)
+                   :verified? (and withdrawn-ok? position-ok? deferred-ok?))))
+        (or write-back [])))
 
 (defn- continuity-status
   "Classify continuity check results.
-   Returns {:status :verified | :not-observed | :failed
+   Returns {:status :not-verifiable | :not-observed
             :reason-code kw :detail str}"
   [continuity-evidence]
   (if (empty? continuity-evidence)
     {:status :not-observed
      :reason-code :no-next-transition
      :detail "terminal scenario — no later transition consumes this state"}
-    (let [failures (remove :matches? (mapcat identity continuity-evidence))]
-      (if (seq failures)
-        {:status :failed
-         :reason-code :stale-next-precondition
-         :detail (str (count failures) " participant(s) have stale preconditions")}
-        {:status :verified
-         :reason-code :state-continuous
-         :detail "all successor preconditions match their committed state"}))))
+    {:status :not-verifiable
+     :reason-code :successor-state-source-not-supplied
+     :detail "submitted continuity flags are not independently recomputed here"}))
 
 ;; ═══════════════════════════════════════════════════════════════════════════
 ;; Builder
@@ -57,8 +97,9 @@
      :evidence-ladder              — from application-evidence-ladder
      :operational-outcome          — from evaluate-operational
 
-   Returns the evidence profile with :evidence-profile/hash."
-  [{:keys [allocation-evidence-hash propagation application
+   Returns a v2 profile. Inputs whose underlying source facts are not supplied
+   are reported as not-run/blocked rather than inherited from caller flags."
+  [{:keys [allocation-evidence-hash allocation-decision propagation application
            world-before world-after
            state-write-back-evidence continuity-evidence
            evidence-ladder operational-outcome]}]
@@ -78,9 +119,17 @@
       (throw (ex-info "Pro-rata application evidence build failed"
                       {:errors @errors})))
     (let [;; ── Propagation validation ────────────────────────────────────
-          prop-valid (pf/validate-pro-rata-propagation propagation)
-          prop-binding (pf/propagation-allocation-binding-violations
-                        nil propagation)
+          prop-validation (pf/validate-pro-rata-propagation propagation)
+          prop-valid? (true? (:valid? prop-validation))
+          ;; A propagation's self-hash does not establish that it translates
+          ;; the exact source decision. Check that relationship when supplied.
+          prop-binding (when allocation-decision
+                         (pf/propagation-allocation-binding-violations
+                          allocation-decision propagation))
+          prop-binding-status (cond
+                                (nil? prop-binding) :not-run
+                                (seq prop-binding) :fail
+                                :else :pass)
           ;; ── Accounting reconciliation ─────────────────────────────────
           acct-result (yield-inv/check-pro-rata-accounting-reconciles
                        world-after)
@@ -90,26 +139,23 @@
           prop-complete-ok (every? (fn [[_k v]] (or (true? v) (nil? v)))
                                    prop-complete)
           ;; ── State write-back ──────────────────────────────────────────
-          wb-ok (and (seq state-write-back-evidence)
+          recomputed-write-back (recompute-write-back state-write-back-evidence world-after)
+          wb-ok (and (seq recomputed-write-back)
                      (every? (fn [wb]
                                (and (true? (:verified? wb))
                                     (true? (get-in wb [:withdrawn :verified?]))
                                     (true? (get-in wb [:position :verified?]))
                                     (true? (get-in wb [:deferred-position :verified?]))))
-                             state-write-back-evidence))
-          ;; ── Deferred current-amount (from evidence ladder) ────────────
-          ladder-levels (mapcat :levels evidence-ladder)
-          state-wb-status (some #(when (= "state-written-back" (:level %)) %)
-                                ladder-levels)
-          _cont-status (some #(when (= "continuity-consumed" (:level %)) %)
-                             ladder-levels)
-          deferred-ca-ok (= "verified" (or (:status state-wb-status) ""))
+                             recomputed-write-back))
+          ;; ── Deferred current-amount ───────────────────────────────────
+          deferred-ca-ok (and (seq recomputed-write-back)
+                              (every? #(true? (get-in % [:deferred-position :verified?]))
+                                      recomputed-write-back))
           ;; ── Current-amount continuity ─────────────────────────────────
-          amt-ok (or (empty? continuity-evidence)
-                     (and (seq continuity-evidence)
-                          (every? (fn [ce]
-                                    (every? :amount-continuous? ce))
-                                  continuity-evidence)))
+          ;; Successor continuity requires a successor-state source, which this
+          ;; builder does not receive. Preserve the submitted observation, but
+          ;; do not upgrade it to a verified fact here.
+          amt-ok nil
           ;; ── Next precondition continuity ──────────────────────────────
           cont-classification (continuity-status continuity-evidence)
           ;; ── Apparent application vs accounting reconciliation ─────────
@@ -118,10 +164,47 @@
                                   ;; state write-back may fail while accounting passes
                                    (some? app-accounting))
           ;; ── Build verification map ────────────────────────────────────
-          verification {:propagation-valid? (true? prop-valid)
-                        :propagation-binding-valid?
-                        (empty? prop-binding)
-                        :application-valid? (true? prop-valid)
+          application-hash-valid? (and (string? (:application/hash application))
+                                       (= (:application/hash application)
+                                          (pf/application-hash application)))
+          app-propagation-id (or (:propagation-id application)
+                                 (get-in application [:propagation/reference :propagation/id]))
+          app-propagation-hash (or (:propagation/hash application)
+                                   (get-in application [:propagation/reference :propagation/hash]))
+          application-binding-valid? (and (= (:propagation/id propagation) app-propagation-id)
+                                          (= (:propagation/hash propagation) app-propagation-hash))
+          accounting-entries-match? (= (pf/canonical-accounting-entries
+                                        (:accounting-entries propagation []))
+                                       (pf/canonical-accounting-entries
+                                        (:accounting-entries application [])))
+          allocation-binding-valid? (hash-ref/valid-sha256-ref? allocation-evidence-hash)
+          check-statuses {:allocation-evidence-binding (if allocation-binding-valid? :pass :fail)
+                          :propagation-integrity (if prop-valid? :pass :fail)
+                          :propagation-allocation-binding prop-binding-status
+                          :application-integrity (if application-hash-valid? :pass :fail)
+                          :application-propagation-binding (if application-binding-valid? :pass :fail)
+                          :application-accounting-binding (if accounting-entries-match? :pass :fail)
+                          :accounting-reconciliation (if acct-ok :pass :fail)
+                          :state-write-back (if wb-ok :pass :fail)
+                          :deferred-position-write-back (if deferred-ca-ok :pass :fail)
+                          :current-amount-continuity (if (empty? continuity-evidence)
+                                                       :not-applicable :not-run)
+                          :successor-continuity (if (empty? continuity-evidence)
+                                                  :not-applicable :not-run)}
+          verification-status (cond
+                                (some #{:fail} (vals check-statuses)) :invalid
+                                (some #{:not-run} (vals check-statuses)) :blocked
+                                :else :verified)
+          verification {:allocation-evidence-binding-valid? allocation-binding-valid?
+                        :propagation-valid? prop-valid?
+                        :propagation-allocation-binding-status prop-binding-status
+                        :propagation-allocation-binding-violations prop-binding
+                        :application-binding-valid? (and application-hash-valid?
+                                                         application-binding-valid?
+                                                         accounting-entries-match?)
+                        :application-hash-valid? application-hash-valid?
+                        :application-propagation-binding-valid? application-binding-valid?
+                        :application-accounting-binding-valid? accounting-entries-match?
                         :apparent-application-recorded?
                         (some? (:apparent-application application))
                         :accounting-reconciled? acct-ok
@@ -136,8 +219,11 @@
                 allocation-evidence-hash
                 :evidence-profile/propagation-hash
                 (:propagation/hash propagation)
+                :evidence-profile/partial-fill-decision-root
+                (when allocation-decision
+                  (hash-ref/sha256-ref (:decision/hash allocation-decision)))
                 :evidence-profile/application-hash
-                (when application (:application/hash application))
+                (when application (hash-ref/sha256-ref (:application/hash application)))
                 :evidence-profile/apparent-application-hash
                 (when-let [aa (:apparent-application application)]
                   (hc/domain-hash :evidence-collection aa))
@@ -153,15 +239,25 @@
                    (hc/domain-hash :evidence-collection
                                    (vec state-write-back-evidence))))
                 :evidence-profile/current-amount-evidence-hash
-                "sha256:deferred" ;; placeholder — resolved from ladder
+                (hash-ref/sha256-ref
+                 (hc/domain-hash :evidence-collection
+                                 (mapv :deferred-position recomputed-write-back)))
                 :evidence-profile/continuity-evidence-hash
                 (when (seq continuity-evidence)
                   (hash-ref/sha256-ref
                    (hc/domain-hash :evidence-collection
                                    (vec continuity-evidence))))
+                :evidence-profile/verification-level :semantic
+                :evidence-profile/verification-status verification-status
+                :evidence-profile/verification-checks check-statuses
+                :evidence-profile/unverified-evidence
+                (cond-> []
+                  (nil? allocation-decision) (conj :propagation-allocation-binding)
+                  (seq continuity-evidence) (conj :current-amount-continuity
+                                                  :successor-continuity))
                 :evidence-profile/verification verification}
           computed-hash (hash-ref/sha256-ref
-                         (hc/domain-hash :pro-rata-application-evidence
+                         (hc/domain-hash :pro-rata-application-evidence-v2
                                          base))]
       (assoc base :evidence-profile/hash computed-hash))))
 
@@ -170,27 +266,72 @@
 ;; ═══════════════════════════════════════════════════════════════════════════
 
 (defn validate-pro-rata-application-evidence
-  "Standalone structural validator for a loaded application evidence profile.
+  "Integrity-only validator for a loaded application evidence profile.
 
-   Returns {:valid? bool :errors [string]}."
+   A passing result verifies the profile schema and self-hash only. It does not
+   rederive application or write-back semantics without source artifacts."
   [profile]
   (let [errors (atom [])]
-    (when-not (= schema-version (:schema-version profile))
-      (swap! errors conj (str "expected schema-version " schema-version
-                              " got " (:schema-version profile))))
+    (when-not (contains? #{schema-version-v1 schema-version} (:schema-version profile))
+      (swap! errors conj (str "unsupported schema-version " (:schema-version profile))))
     (when-not (= profile-id (:evidence-profile/id profile))
       (swap! errors conj (str "expected profile/id " (pr-str profile-id)
                               " got " (pr-str (:evidence-profile/id profile)))))
-    (when (some? (:evidence-profile/hash profile))
+    (when (= schema-version (:schema-version profile))
+      (let [checks (:evidence-profile/verification-checks profile)
+            status (:evidence-profile/verification-status profile)
+            values (when (map? checks) (vals checks))]
+        (when-not (= :semantic (:evidence-profile/verification-level profile))
+          (swap! errors conj "v2 profile must declare semantic verification level"))
+        (when-not (map? checks)
+          (swap! errors conj "missing verification-checks map"))
+        (when (some #(not (contains? #{:pass :fail :not-run :not-applicable} %)) values)
+          (swap! errors conj "verification-checks contains an unsupported status"))
+        (when (and (= :verified status) (some #{:fail :not-run} values))
+          (swap! errors conj "verified status conflicts with failed/unrun checks"))
+        (when (and (= :invalid status) (not (some #{:fail} values)))
+          (swap! errors conj "invalid status has no failed check"))
+        (when (and (= :blocked status) (not (some #{:not-run} values)))
+          (swap! errors conj "blocked status has no unrun check"))))
+    (doseq [f [:evidence-profile/allocation-evidence-hash
+               :evidence-profile/propagation-hash
+               :evidence-profile/application-hash
+               :evidence-profile/verification]]
+      (when-not (contains? profile f)
+        (swap! errors conj (str "missing " (name f)))))
+    (doseq [f [:evidence-profile/allocation-evidence-hash
+               :evidence-profile/propagation-hash
+               :evidence-profile/application-hash
+               :evidence-profile/hash]
+            :when (not (hash-ref/valid-sha256-ref? (get profile f)))]
+      (swap! errors conj (str "invalid canonical SHA-256 reference in " (name f))))
+    (when (and (some? (:evidence-profile/partial-fill-decision-root profile))
+               (not (hash-ref/valid-sha256-ref?
+                     (:evidence-profile/partial-fill-decision-root profile))))
+      (swap! errors conj "invalid canonical SHA-256 reference in partial-fill-decision-root"))
+    (when (and (= :verified (:evidence-profile/verification-status profile))
+               (not (hash-ref/valid-sha256-ref?
+                     (:evidence-profile/partial-fill-decision-root profile))))
+      (swap! errors conj "verified application profile must bind a source decision root"))
+    (when-not (string? (:evidence-profile/hash profile))
+      (swap! errors conj "missing evidence-profile/hash"))
+    (when (string? (:evidence-profile/hash profile))
       (let [without-hash (dissoc profile :evidence-profile/hash)
+            domain (if (= schema-version-v1 (:schema-version profile))
+                     :pro-rata-application-evidence
+                     :pro-rata-application-evidence-v2)
             computed (hash-ref/sha256-ref
-                      (hc/domain-hash :pro-rata-application-evidence
+                      (hc/domain-hash domain
                                       without-hash))]
         (when-not (= computed (:evidence-profile/hash profile))
           (swap! errors conj (str "profile/hash mismatch: declared "
                                   (:evidence-profile/hash profile)
                                   " computed " computed)))))
-    {:valid? (empty? @errors) :errors @errors}))
+    {:valid? (empty? @errors)
+     :verification-level :integrity
+     :status (if (empty? @errors) :integrity-verified :invalid)
+     :semantic-status :not-run
+     :errors @errors}))
 
 ;; ═══════════════════════════════════════════════════════════════════════════
 ;; Independent verifier
@@ -202,8 +343,15 @@
 
    Returns {:valid? bool :mismatches [...]}"
   [profile & args]
-  (let [recomputed (apply build-pro-rata-application-evidence args)
+  (if-not (= schema-version (:schema-version profile))
+    {:valid? false :verification-level :semantic :status :blocked
+     :semantic-status :not-run
+     :errors [:legacy-profile-has-no-source-bound-semantic-verification]}
+    (let [integrity (validate-pro-rata-application-evidence profile)
+          recomputed (apply build-pro-rata-application-evidence args)
         mismatches (atom [])]
+    (when-not (:valid? integrity)
+      (swap! mismatches conj {:field :profile-integrity :errors (:errors integrity)}))
     (when-not (= (:evidence-profile/hash profile)
                  (:evidence-profile/hash recomputed))
       (swap! mismatches conj {:field :evidence-profile/hash
@@ -216,6 +364,14 @@
           (swap! mismatches conj {:field k
                                   :stored (get v-s k)
                                   :recomputed (get v-r k)}))))
-    {:valid? (empty? @mismatches)
+    {:valid? (and (empty? @mismatches)
+                  (= :verified (:evidence-profile/verification-status recomputed)))
+     :verification-level :semantic
+     :status (cond
+               (seq @mismatches) :invalid
+               (= :verified (:evidence-profile/verification-status recomputed)) :verified
+               (= :blocked (:evidence-profile/verification-status recomputed)) :blocked
+               :else :invalid)
+     :semantic-status (:evidence-profile/verification-status recomputed)
      :profile-recomputed recomputed
-     :mismatches @mismatches}))
+     :mismatches @mismatches})))

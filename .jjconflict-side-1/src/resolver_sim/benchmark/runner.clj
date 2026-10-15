@@ -1271,6 +1271,23 @@
        sort
        vec))
 
+(defn pro-rata-validation-coverage
+  "Report whether a benchmark claim explicitly requires the pro-rata evidence
+   profile. This runner does not itself admit allocation/application profiles,
+   so a declared requirement is :not-run and must not produce a passing run."
+  [manifest]
+  (let [claim-required? (some #(true? (:claim/requires-pro-rata-evidence? %))
+                              (benchmark-claims/normalize-claim-refs
+                               (:benchmark/claims manifest)))
+        required? (or (true? (:outcomes/pro-rata-evidence-required manifest))
+                      claim-required?)]
+    {:required? (boolean required?)
+     :verification-level (if required? :semantic :not-applicable)
+     :status (if required? :not-run :not-applicable)
+     :semantic-status :not-run
+     :omitted? (boolean required?)
+     :reason (when required? :required-profile-not-admitted-by-benchmark-runner)}))
+
 (defn claim-outcome-projection
   "Deterministic, sorting-stable projection of evaluated claim outcomes into a
    portable vector. Any change to an evaluated claim (id, scope, scenario, or
@@ -1549,10 +1566,21 @@
                                (observation-projection/observation-values raw-observation-projection))
                               [])
                             [])
-         outcome (if (:benchmark/outcome-policy manifest)
-                   (evaluate-manifest-outcome manifest reconciled-results claim-results research-results)
-                   {:benchmark-outcome/status (if legacy-passed? :passed :failed)})
-         passed? (= :passed (:benchmark-outcome/status outcome))
+         pro-rata-coverage (pro-rata-validation-coverage manifest)
+         evaluated-outcome (if (:benchmark/outcome-policy manifest)
+                             (evaluate-manifest-outcome manifest reconciled-results claim-results research-results)
+                             {:benchmark-outcome/status (if legacy-passed? :passed :failed)})
+         ;; A claim that explicitly requires allocation/application profiles
+         ;; cannot be certified by this execution path: it does not admit those
+         ;; source-bound profiles. Surface the omission as a failed outcome.
+         outcome (if (:required? pro-rata-coverage)
+                   (assoc evaluated-outcome
+                          :benchmark-outcome/status :failed
+                          :benchmark-outcome/reason
+                          :required-pro-rata-validation-not-run)
+                   evaluated-outcome)
+         passed? (and (= :passed (:benchmark-outcome/status outcome))
+                      (not (:omitted? pro-rata-coverage)))
          additional-work (derive-additional-canonical-work manifest reconciled-results)
          _ (when (seq additional-work)
              (throw (ex-info "Frozen benchmark execution graph is not closed after reduction"
@@ -1614,6 +1642,8 @@
                    :research-observation-projection raw-observation-projection
                    :research-requirement-results research-results
                    :benchmark-outcome outcome
+                   :verification/coverage {:pro-rata-allocation-application
+                                           pro-rata-coverage}
                    :reproduce {:command (str "bb benchmark:reproduce " (or manifest-path hash-ref/escrow-dispute-pack-path))}
                    :invariant-summary {:per-invariant inv-summary
                                        :total-checks total-inv-checks
