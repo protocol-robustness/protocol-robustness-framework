@@ -10,9 +10,13 @@
 
    Targeted at technically curious readers who want to understand
    how a yield module behaves when liquidity drops."
-  (:require [nextjournal.clerk :as clerk]
+  (:require [clojure.java.io :as io]
+             [clojure.java.shell :as shell]
+             [clojure.string :as str]
+             [nextjournal.clerk :as clerk]
              [notebooks.util.yield-demo :as demo]
-             [resolver-sim.notebook-support.common :as common]))
+             [resolver-sim.notebook-support.common :as common])
+  (:import [java.security MessageDigest]))
 
 (defn- kv-table
   "Convert a flat map (string keys) into a Clerk-compatible key-value table."
@@ -333,5 +337,74 @@
    [:div {:style {:marginTop "12px"}}
     (clerk/code
       (dissoc (:final-state result) :positions :events :snapshots))]])
+
+;; ## Forensic record and independent reproduction
+;;
+;; This disclosure records the exact notebook inputs, derived model outcomes,
+;; source-file fingerprints, and a way to rerun the notebook. It is deliberately
+;; separate from the raw event/snapshot appendix above.
+
+(defn- file-sha256 [path]
+  (let [digest (MessageDigest/getInstance "SHA-256")]
+    (with-open [in (io/input-stream path)]
+      (let [buffer (byte-array 8192)]
+        (loop []
+          (let [n (.read in buffer)]
+            (when (pos? n)
+              (.update digest buffer 0 n)
+              (recur))))))
+    (apply str (map #(format "%02x" (bit-and 0xff %)) (.digest digest)))))
+
+(defn- git-output [& args]
+  (let [{:keys [exit out err]} (apply shell/sh "git" args)]
+    (if (zero? exit) (str/trim out) (str "unavailable: " (str/trim err)))))
+
+(def forensic-source-files
+  ["notebooks/yield_shortfall_partial_withdrawal_fills.clj"
+   "notebooks/util/yield_demo.clj"
+   "src/resolver_sim/yield/partial_fill.clj"
+   "src/resolver_sim/yield/position.clj"
+   "deps.edn"])
+
+(def forensic-record
+  (let [withdrawals (filter #(= :withdraw-request (:event %)) scenario-events)
+        outcomes (:outcomes result)
+        requested (reduce + 0 (map :requested outcomes))
+        filled (reduce + 0 (map :filled outcomes))
+        deferred (reduce + 0 (map :deferred outcomes))]
+    {:classification "Illustrative sequential model; not an observed protocol settlement"
+     :git-head (git-output "rev-parse" "HEAD")
+     :git-working-tree (apply git-output "status" "--short" "--" forensic-source-files)
+     :source-sha256 (into (sorted-map)
+                          (map (fn [path] [path (file-sha256 path)]) forensic-source-files))
+     :implementation-boundary
+     {:settlement-math "resolver-sim.yield.partial-fill/calculate-fulfillment"
+      :pool-ordering "Custom sequential proportional model in notebooks/util/yield_demo.clj"
+      :not-modeled ["on-chain transactions" "proof admission" "external request authenticity" "yield accrual"]}
+     :inputs {:scenario-events scenario-events
+              :withdrawal-event-count (count withdrawals)
+              :deposits-total (reduce + 0 (map :amount (filter #(= :deposit (:event %)) scenario-events)))
+              :available-ratio (some :available-ratio (filter #(= :set-liquidity-shortfall (:event %)) scenario-events))}
+     :derived-outcomes outcomes
+     :reconciliation {:requested requested :fulfilled filled :deferred deferred
+                      :requests-equal-fulfilled-plus-deferred (= requested (+ filled deferred))}
+     :final-model-state (select-keys (:final-state result)
+                                     [:total-principal :available-liquidity :fulfilled-total
+                                      :deferred-total :shortfall?])
+     :reproduction {:render "bb demo:public-lab --nb notebooks/yield_shortfall_partial_withdrawal_fills.clj --out site/out/lab"
+                    :interactive "clojure -M:with-sew -m notebooks.serve"
+                    :url "http://localhost:7777/notebooks/yield_shortfall_partial_withdrawal_fills"}}))
+
+(clerk/html
+  [:details {:style {:background "#0f172a" :padding "12px" :borderRadius "6px"
+                     :marginTop "10px" :border "1px solid #004D59"}}
+   [:summary {:style {:cursor "pointer" :fontWeight "bold" :color "#7ADDDC"}}
+    "Forensics: source, inputs, model output, and reproduction"]
+   [:div {:style {:marginTop "12px"}}
+    [:p {:style {:color "#cbd5e1" :fontSize "13px"}}
+     "The SHA-256 values identify the displayed source-file bytes; they are not signatures or an external trust anchor. This notebook uses a real partial-fill calculation function inside a custom sequential pool model. It does not report actual EVM transfers or a verified public-chain outcome."]
+    (clerk/code forensic-record)
+    [:p {:style {:color "#cbd5e1" :fontSize "13px"}}
+     "To reproduce, run the render or interactive command recorded above from the repository root. Check the reported Git working-tree state and source fingerprints against the files used for the run."]]])
 
 
