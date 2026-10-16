@@ -604,8 +604,9 @@
    "deps.edn"])
 
 (def forensic-record
-  {:classification "Local deterministic allocation and evidence-DAG walkthrough; not an on-chain slash or payment"
-   :jj-change-id (jj-output "log" "--no-graph" "-r" "@" "-T" "change_id.short()")
+  {:forensic-schema "forensic-record.v1"
+   :classification "Local deterministic allocation and evidence-DAG walkthrough; not an on-chain slash or payment"
+   :jj-change-id (jj-output "log" "--no-graph" "-r" "@-" "-T" "change_id.short()")
    :jj-working-copy-status (jj-output "status")
    :source-sha256 (into (sorted-map)
                         (map (fn [path] [path (file-sha256 path)]) forensic-source-files))
