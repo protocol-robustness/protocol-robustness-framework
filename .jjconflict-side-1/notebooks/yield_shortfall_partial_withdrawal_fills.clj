@@ -372,8 +372,9 @@
         requested (reduce + 0 (map :requested outcomes))
         filled (reduce + 0 (map :filled outcomes))
         deferred (reduce + 0 (map :deferred outcomes))]
-    {:classification "Illustrative sequential model; not an observed protocol settlement"
-     :jj-change-id (jj-output "log" "--no-graph" "-r" "@" "-T" "change_id.short()")
+    {:forensic-schema "forensic-record.v1"
+     :classification "Illustrative sequential model; not an observed protocol settlement"
+     :jj-change-id (jj-output "log" "--no-graph" "-r" "@-" "-T" "change_id.short()")
      :jj-working-copy-status (jj-output "status")
      :source-sha256 (into (sorted-map)
                           (map (fn [path] [path (file-sha256 path)]) forensic-source-files))
