@@ -2,13 +2,17 @@
   {:nextjournal.clerk/toc true
    :nextjournal.clerk/visibility {:code :fold :result :show}
    :nextjournal.clerk/dark-mode true}
-  (:require [nextjournal.clerk :as clerk]
+  (:require [clojure.java.io :as io]
+            [clojure.java.shell :as shell]
+            [clojure.string :as str]
+            [nextjournal.clerk :as clerk]
             [resolver-sim.hash.canonical :as hc]
             [resolver-sim.protocols.sew.economics :as sew-econ]
             [resolver-sim.protocols.sew.types :as types]
             [resolver-sim.pro-rata.evaluation :as pro-rata-evaluation]
             [resolver-sim.protocols.sew.evidence.slashing :as slashing]
-            [resolver-sim.pro-rata.evidence :as pro-rata-evidence]))
+            [resolver-sim.pro-rata.evidence :as pro-rata-evidence])
+  (:import [java.security MessageDigest]))
 
 ;; # Pro-Rata Allocation Result Artifact
 ;; ## Demo: live artifact trail from slashing through verification
@@ -384,3 +388,68 @@
 ;; 4. Read the projection frame hash from the artifact → locate the projection
 ;; 5. Verify all world hashes link to known world states
 ;; 6. Check that claim results satisfy the allocation invariants
+
+;; ## Forensic record and independent reproduction
+;;
+;; The hash-chain summary identifies the derived artifacts. This closed
+;; appendix adds exact inputs, source fingerprints, verification outputs,
+;; reproduction instructions and the boundary of the modelled result.
+
+(defn- file-sha256 [path]
+  (let [digest (MessageDigest/getInstance "SHA-256")]
+    (with-open [in (io/input-stream path)]
+      (let [buffer (byte-array 8192)]
+        (loop []
+          (let [n (.read in buffer)]
+            (when (pos? n)
+              (.update digest buffer 0 n)
+              (recur))))))
+    (apply str (map #(format "%02x" (bit-and 0xff %)) (.digest digest)))))
+
+(defn- git-output [& args]
+  (let [{:keys [exit out err]} (apply shell/sh "git" args)]
+    (if (zero? exit) (str/trim out) (str "unavailable: " (str/trim err)))))
+
+(def forensic-source-files
+  ["notebooks/pro_rata_allocation_result.clj"
+   "protocols_src/resolver_sim/protocols/sew/economics.clj"
+   "protocols_src/resolver_sim/protocols/sew/types.clj"
+   "protocols_src/resolver_sim/protocols/sew/evidence/slashing.clj"
+   "src/resolver_sim/pro_rata/evaluation.clj"
+   "src/resolver_sim/pro_rata/evidence.clj"
+   "src/resolver_sim/hash/canonical.clj"
+   "deps.edn"])
+
+(def forensic-record
+  {:classification "Deterministic PRF model calculation and evidence-chain reconstruction; not an on-chain slash or payment"
+   :git-head (git-output "rev-parse" "HEAD")
+   :git-working-tree (apply git-output "status" "--short" "--" forensic-source-files)
+   :source-sha256 (into (sorted-map)
+                        (map (fn [path] [path (file-sha256 path)]) forensic-source-files))
+   :input allocation-input
+   :artifacts {:projection-hash (:projection-hash projection-artifact)
+               :allocation-result-hash (:allocation-result-hash result-artifact)
+               :evidence-hash (:evidence/hash evidence)}
+   :mechanism-evidence-violations
+   (pro-rata-evidence/evidence-violations (:mechanism/evidence direct-allocation))
+   :claim-results (get-in evidence [:result :pro-rata :summary])
+   :verification-procedure
+   ["Recompute the canonical projection and allocation artifacts from the input."
+    "Recompute each artifact identity hash."
+    "Follow the evidence record references through the hash chain."
+    "Check mechanism evidence violations and allocation claim results."]
+   :reproduction {:render "bb demo:public-lab --nb notebooks/pro_rata_allocation_result.clj --out site/out/lab"
+                  :interactive "clojure -M:with-sew -m notebooks.serve"
+                  :url "http://localhost:7777/notebooks/pro_rata_allocation_result"}})
+
+(clerk/html
+ [:details {:style {:background "#0f172a" :color "#e2e8f0" :padding "14px"
+                    :border "1px solid #334155" :borderRadius "8px" :marginTop "18px"}}
+  [:summary {:style {:cursor "pointer" :fontWeight 700 :color "#7ADDDC"}}
+   "Forensics: inputs, artifact identities, source fingerprints, and reproduction"]
+  [:div {:style {:marginTop "12px"}}
+   [:p {:style {:color "#cbd5e1" :fontSize "13px"}}
+    "The listed hashes identify local file or artifact bytes. They are not signatures or an independently authenticated release. This notebook computes a modelled slashing allocation; it does not observe a live slash, token transfer, or EVM settlement."]
+   (clerk/code forensic-record)
+   [:p {:style {:color "#cbd5e1" :fontSize "13px"}}
+    "Run the recorded command from the repository root. Compare the Git revision, working-tree state, and source fingerprints before relying on a reproduction."]]])
