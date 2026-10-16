@@ -450,6 +450,8 @@
   [:div {:style {:marginTop "12px"}}
    [:p {:style {:color "#cbd5e1" :fontSize "13px"}}
     "The listed hashes identify local file or artifact bytes. They are not signatures or an independently authenticated release. This notebook computes a modelled slashing allocation; it does not observe a live slash, token transfer, or EVM settlement."]
-   (clerk/code forensic-record)
+   [:pre {:style {:whiteSpace "pre-wrap" :overflowWrap "anywhere"
+                  :fontFamily "monospace" :fontSize "12px"}}
+    (pr-str forensic-record)]
    [:p {:style {:color "#cbd5e1" :fontSize "13px"}}
     "Run the recorded command from the repository root. Compare the Git revision, working-tree state, and source fingerprints before relying on a reproduction."]]])
