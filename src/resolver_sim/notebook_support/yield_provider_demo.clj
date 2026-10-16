@@ -8,7 +8,7 @@
             [resolver-sim.notebook-support.nav :as nav]))
 
 ^{:nextjournal.clerk/visibility {:code :hide :result :show}}
-(clerk/html (nav/top-nav-bar "notebooks/yield_provider_demo.clj"))
+(clerk/html (nav/top-nav-bar "src/resolver_sim/notebook_support/yield_provider_demo.clj"))
 
 ^{:nextjournal.clerk/visibility {:code :hide :result :show}}
 (clerk/html

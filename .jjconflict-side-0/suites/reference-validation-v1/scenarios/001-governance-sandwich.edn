@@ -1,7 +1,0 @@
-{:scenario/id "governance-sandwich-v1"
- :scenario/title "001-governance-sandwich"
- :scenario/version "1.0.0"
- :scenario/status :public-candidate
- :scenario/purpose "Verifies governance cannot alter active escrow rules during active disputes."
- :protocol/phase :dr3
- :expected-result {:status :pass :classification :regression-protected}}

@@ -45,7 +45,7 @@ Require and start Clerk as part of your system start, e.g. in user.clj:
 (clerk/serve! {:browse? true})
 
 ;; either call `clerk/show!` explicitly to show a given notebook, or use the File Watcher described below.
-(clerk/show! "notebooks/rule_30.clj")
+(clerk/show! "notebooks/report.clj")
 
 You can then access Clerk at http://localhost:7777.
 ⏱ File Watcher
@@ -1205,11 +1205,11 @@ For a full list of options see the docstring in nextjournal.clerk/build!.
 
 Here are some examples:
 ;; Building a single notebook
-(clerk/build! {:paths ["notebooks/rule_30.clj"]})
+(clerk/build! {:paths ["notebooks/report.clj"]})
 
 ;; Building all notebooks in `notebook/` with a custom index page.
 (clerk/build! {:paths ["notebooks/*"]
-               :index "notebooks/welcome.clj"})
+               :index "notebooks/index.clj"})
 ⚡️ Render nREPL
 
 For interactive development of :render-fns, Clerk comes with a Render nREPL server. To enable it, pass the :render-nrepl option to serve!. You can change the default port 1339 by passing a different :port number.

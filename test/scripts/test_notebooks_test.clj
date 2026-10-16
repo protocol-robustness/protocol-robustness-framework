@@ -7,7 +7,7 @@
     (is (= {:missing [] :unexpected []}
            (sut/notebook-inventory-differences (sut/notebook-files)))))
   (testing "missing files cannot be mistaken for complete coverage"
-    (is (= 52 (count (:missing (sut/notebook-inventory-differences []))))))
+    (is (= 53 (count (:missing (sut/notebook-inventory-differences []))))))
   (testing "a timeout remains a failing result"
     (is (= "timed-out" (sut/result-status {:ok? false :exit :timeout})))
     (is (not (:ok? {:ok? false :exit :timeout})))))

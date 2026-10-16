@@ -23,6 +23,7 @@
   "notebooks/equilibrium_artifact.clj"
   "notebooks/evaluate_pro_rata_allocation.clj"
   "notebooks/evidence_graph_viewer.clj"
+  "notebooks/evm_dependency_provenance.clj"
   "notebooks/game_theory_artifact.clj"
   "notebooks/hardening_artifact.clj"
   "notebooks/index.clj"

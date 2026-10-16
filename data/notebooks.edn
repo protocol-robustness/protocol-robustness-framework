@@ -359,11 +359,9 @@
    :protocol-areas [:evidence :resubmission :assurance]
    :threats        [:replay-divergence :same-block-ordering]
    :tags           ["public" "verification" "admission" "current-head" "cancellation" "clean-room"]
-   :presentation   {:theme :evidence-reproducibility :kind :report
-                    :audience-level :intro
-                    :featured? true
-                    :start-here-rank 1
-                    :question "How do we know an approval or resubmission still applies to the exact state it was verified for?"}}
+    :presentation   {:theme :evidence-reproducibility :kind :report
+                     :audience-level :intro
+                     :question "How do we know an approval or resubmission still applies to the exact state it was verified for?"}}
 
   {:id             :demo-short-circuit
    :path           "notebooks/demo_short_circuit.clj"
@@ -428,8 +426,6 @@
     :tags           ["clean-room" "conformance" "corpus" "admission" "verification"]
     :presentation   {:theme :evidence-reproducibility :kind :analysis
                      :audience-level :intro
-                     :featured? true
-                     :start-here-rank 4
                      :question "7 adversarial cases. 7 expected rejections. 7 independently recomputed rejections. 0 verdict drift."
                      :deeper-id :not-admitted}}
 
@@ -731,6 +727,76 @@
     :tags           ["authorization" "chain" "allocation" "activation" "review" "three-classifications" "with-bounty" "visibility"]
     :presentation   {:theme :evidence-reproducibility :kind :analysis
                      :audience-level :deep-dive}}
+
+  {:id             :composed-pro-rata-v2-settlement
+   :path           "notebooks/composed_pro_rata_v2_settlement.clj"
+   :title          "From Shortfall to Settlement — Composed Pro-Rata v2"
+   :summary        "Reads the retained prf-evm composed-pro-rata-v2-settlement fixture and runs its read-only validator. Shows how a pro-rata shortfall becomes a bounded settlement with an independent verifier, and does not compute authoritative status itself."
+   :categories     [:economic-analysis :evidence-artifacts :replay-determinism]
+   :audience       [:reviewer :auditor :researcher]
+   :status         :partial
+   :risk           :medium
+   :protocol-areas [:allocation :escrow :evidence]
+    :tags           ["pro-rata" "settlement" "shortfall" "prf-evm" "composed" "verifier"]
+    :presentation   {:theme :allocation-liquidity :kind :analysis
+                     :audience-level :deep-dive
+                     :question "How does a pro-rata shortfall become a bounded, independently verified settlement?"}}
+
+  {:id             :consecutive-concurrency-workbench
+   :path           "notebooks/consecutive_concurrency_workbench.clj"
+   :title          "Consecutive Commitments & Concurrency Workbench"
+   :summary        "Explores the boundary between a parseable consecutive byte stream and a bound protocol commitment, then demonstrates that concurrent admission attempts do not let completion order confer authority."
+   :categories     [:security-validation :replay-determinism :tooling]
+   :audience       [:researcher :auditor :developer]
+   :status         :experimental
+   :risk           :medium
+   :protocol-areas [:admission :evidence :invariants]
+    :tags           ["consecutive" "commitment" "concurrency" "admission" "bound-sequence" "workbench"]
+    :presentation   {:theme :evidence-reproducibility :kind :tool
+                     :audience-level :deep-dive
+                     :question "When do consecutive bytes become a bound commitment, and can concurrency confer authority?"}}
+
+  {:id             :state-after-assurance-workbench
+   :path           "notebooks/state_after_assurance_workbench.clj"
+   :title          "State-after Assurance Workbench"
+   :summary        "Runnable assurance surface for the three-level state-after model: integrity ≠ derivation ≠ authority. Each level is a status map (:failed ≠ :unimplemented ≠ :not-established), never a boolean."
+   :categories     [:security-validation :evidence-artifacts :tooling]
+   :audience       [:researcher :auditor :developer]
+   :status         :experimental
+   :risk           :medium
+   :protocol-areas [:invariants :state-machine :allocation]
+    :tags           ["assurance" "state-after" "integrity" "derivation" "authority" "workbench"]
+    :presentation   {:theme :evidence-reproducibility :kind :tool
+                     :audience-level :deep-dive
+                     :question "How is post-state integrity, derivation, and authority checked without collapsing them into a boolean?"}}
+
+  {:id             :world-structure-workbench
+   :path           "notebooks/world_structure_workbench.clj"
+   :title          "World Structure Workbench"
+   :summary        "Follows one real escrow from creation to automatic refund, showing protocol state before and after the transition and progressively revealing how that state is represented, derived, and checked for agreement."
+   :categories     [:replay-determinism :evidence-artifacts :tooling]
+   :audience       [:researcher :auditor :developer]
+   :status         :experimental
+   :risk           :low
+   :protocol-areas [:escrow :state-machine :invariants]
+    :tags           ["world-structure" "escrow" "projection" "state" "workbench"]
+    :presentation   {:theme :evidence-reproducibility :kind :tool
+                     :audience-level :intermediate
+                     :question "How does protocol state change, and how do we check that its representations still agree?"}}
+
+  {:id             :xtdb-temporal-explorer
+   :path           "notebooks/xtdb_temporal_explorer.clj"
+   :title          "XTDB Temporal Explorer"
+   :summary        "Explores what an immutable bitemporal database makes easy for the PRF execution index: what is effective now (valid time), what the index knew at a point in time (system time), and how indexed knowledge changed without mutating authoritative artifacts."
+   :categories     [:evidence-artifacts :replay-determinism :tooling]
+   :audience       [:researcher :auditor :developer]
+   :status         :experimental
+   :risk           :low
+   :protocol-areas [:evidence :provenance]
+    :tags           ["xtdb" "bitemporal" "valid-time" "system-time" "index" "explorer"]
+    :presentation   {:theme :evidence-reproducibility :kind :tool
+                     :audience-level :intermediate
+                     :question "What did the execution index know, when, without mutating authoritative artifacts?"}}
 
   ;; ── archived / migrated notebooks ──────────────────────────────────────────────
   {:id             :workbench-production

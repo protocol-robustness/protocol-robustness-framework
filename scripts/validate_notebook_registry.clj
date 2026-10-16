@@ -80,7 +80,9 @@
         (swap! errors conj (str "Active notebooks not in registry: " (vec (sort missing))))))
 
     ;; 6. All source-level references to notebook files resolve
-    (let [notebook-ref-pat #"notebooks/[\w_-]+\.clj"
+    ;; The leading boundary prevents matching a longer path such as
+    ;; "src/notebooks/serve.clj" (a real source file, not a repo-root notebook).
+    (let [notebook-ref-pat #"(?<![\w/-])notebooks/[\w_-]+\.clj"
           refs (atom {})]
       (doseq [dir scan-dirs
               :when (.exists (io/file dir))

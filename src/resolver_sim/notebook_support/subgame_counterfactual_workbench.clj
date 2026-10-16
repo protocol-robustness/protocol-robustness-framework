@@ -13,7 +13,7 @@
             [resolver-sim.scenario.subgame-counterfactual :as spe]
             [resolver-sim.notebook-support.nav :as nav]))
 
-(nav/top-nav-bar "notebooks/subgame_counterfactual_workbench.clj")
+(nav/top-nav-bar "src/resolver_sim/notebook_support/subgame_counterfactual_workbench.clj")
 
 ^{:nextjournal.clerk/visibility {:code :hide :result :show}}
 [:div {:class "workbench-container"}
