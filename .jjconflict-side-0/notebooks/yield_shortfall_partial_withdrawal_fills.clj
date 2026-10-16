@@ -403,7 +403,9 @@
    [:div {:style {:marginTop "12px"}}
     [:p {:style {:color "#cbd5e1" :fontSize "13px"}}
      "The SHA-256 values identify the displayed source-file bytes; they are not signatures or an external trust anchor. This notebook uses a real partial-fill calculation function inside a custom sequential pool model. It does not report actual EVM transfers or a verified public-chain outcome."]
-    (clerk/code forensic-record)
+    [:pre {:style {:whiteSpace "pre-wrap" :overflowWrap "anywhere"
+                   :fontFamily "monospace" :fontSize "12px"}}
+     (pr-str forensic-record)]
     [:p {:style {:color "#cbd5e1" :fontSize "13px"}}
      "To reproduce, run the render or interactive command recorded above from the repository root. Check the reported Git working-tree state and source fingerprints against the files used for the run."]]])
 
