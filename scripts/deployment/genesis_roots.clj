@@ -23,17 +23,39 @@
    :governance-policy :governance-policy/root
    :interoperability-policy :interoperability-policy/root})
 
+(def ^:private approved-package-statuses
+  "Package statuses accepted for canonical root derivation. The local demo uses
+   the explicit candidate status; production packages carry owner approval."
+  #{:candidate-owner-approval-required :owner-approved})
+
+(def ^:private allowed-deploy-chain-ids
+  "Chain ids eligible for canonical root derivation. Defaults to the local demo
+   chain (31337). Set PRF_DEPLOY_CHAIN_ID to authorize another chain (e.g. 84532
+   for Base Sepolia)."
+  (if-let [env (System/getenv "PRF_DEPLOY_CHAIN_ID")]
+    #{(Long/parseLong env)}
+    #{31337}))
+
+(def ^:private initial-configuration-package-schemas
+  "Accepted initial-configuration package schemas (demo + production)."
+  #{"eae-controlled-entitlement-demo.initial-configuration-package.v1"
+    "prf.initial-configuration-package.v1"})
+
+(def ^:private authority-state-package-schemas
+  "Accepted authority-state package schemas (demo + production)."
+  #{"eae-controlled-entitlement-demo.authority-state-package.v1"
+    "prf.authority-state-package.v1"})
+
 (defn- derive-initial-configuration-package-root [package]
   (let [materials (:component-material package)
         expected-components (set (keys initial-configuration-components))
         protocol-root (:protocol/genesis-root package)
         chain-id (:execution/chain-id package)]
-    (when-not (= "eae-controlled-entitlement-demo.initial-configuration-package.v1"
-                 (:package/schema package))
+    (when-not (contains? initial-configuration-package-schemas (:package/schema package))
       (throw (ex-info "initial-configuration package schema is invalid"
                       {:kind :initial-configuration :schema (:package/schema package)})))
-    (when-not (= :candidate-owner-approval-required (:package/status package))
-      (throw (ex-info "initial-configuration package must remain an explicit candidate"
+    (when-not (contains? approved-package-statuses (:package/status package))
+      (throw (ex-info "initial-configuration package must be an explicit candidate or owner-approved"
                       {:kind :initial-configuration :status (:package/status package)})))
     (when-not (and (map? materials) (= expected-components (set (keys materials))))
       (throw (ex-info "initial-configuration component set is incomplete or unknown"
@@ -55,27 +77,28 @@
       (when-not (and (string? protocol-root) (re-matches #"^sha256:[0-9a-f]{64}$" protocol-root))
         (throw (ex-info "initial-configuration package protocol root is invalid"
                         {:kind :initial-configuration :protocol-root protocol-root})))
-      (when-not (= 31337 chain-id)
-        (throw (ex-info "candidate initial configuration is restricted to local chain 31337"
-                        {:kind :initial-configuration :chain-id chain-id})))
+      (when-not (contains? allowed-deploy-chain-ids chain-id)
+        (throw (ex-info "initial configuration chain-id is not an allowed deployment chain"
+                        {:kind :initial-configuration :chain-id chain-id
+                         :allowed allowed-deploy-chain-ids})))
       (when (and declared (not= declared computed))
         (throw (ex-info "initial-configuration declared root mismatch"
                         {:kind :initial-configuration :declared declared :computed computed})))
       computed)))
 
 (defn- derive-authority-state-package-root [package]
-  (when-not (= "eae-controlled-entitlement-demo.authority-state-package.v1"
-               (:package/schema package))
+  (when-not (contains? authority-state-package-schemas (:package/schema package))
     (throw (ex-info "authority-state package schema is invalid"
                     {:kind :authority-state :schema (:package/schema package)})))
-  (when-not (= :candidate-owner-approval-required (:package/status package))
-    (throw (ex-info "authority-state package must remain an explicit candidate"
+  (when-not (contains? approved-package-statuses (:package/status package))
+    (throw (ex-info "authority-state package must be an explicit candidate or owner-approved"
                     {:kind :authority-state :status (:package/status package)})))
   (let [state (:authority-state package)
-        _ (when-not (= 31337 (:execution/chain-id state))
-            (throw (ex-info "candidate authority state is restricted to local chain 31337"
+        _ (when-not (contains? allowed-deploy-chain-ids (:execution/chain-id state))
+            (throw (ex-info "authority-state chain-id is not an allowed deployment chain"
                             {:kind :authority-state
-                             :chain-id (:execution/chain-id state)})))
+                             :chain-id (:execution/chain-id state)
+                             :allowed allowed-deploy-chain-ids})))
         computed (genesis/eae-demo-authority-state-root state)
         declared (:authority-state/root package)]
     (when (and declared (not= declared computed))
@@ -142,7 +165,7 @@
 
           :authority-state
           (let [computed (derive-authority-state-package-root artifact)]
-            ["eae-controlled-entitlement-demo.authority-state.v1" computed])
+            [(or (:package/schema artifact) "authority-state.v1") computed])
 
           (throw (ex-info "unsupported deployment root kind" {:kind kind})))]
     {"schema" "prf-deployment-canonical-root-result.v1"
