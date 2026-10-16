@@ -355,8 +355,8 @@
               (recur))))))
     (apply str (map #(format "%02x" (bit-and 0xff %)) (.digest digest)))))
 
-(defn- git-output [& args]
-  (let [{:keys [exit out err]} (apply shell/sh "git" args)]
+(defn- jj-output [& args]
+  (let [{:keys [exit out err]} (apply shell/sh "jj" args)]
     (if (zero? exit) (str/trim out) (str "unavailable: " (str/trim err)))))
 
 (def forensic-source-files
@@ -373,8 +373,8 @@
         filled (reduce + 0 (map :filled outcomes))
         deferred (reduce + 0 (map :deferred outcomes))]
     {:classification "Illustrative sequential model; not an observed protocol settlement"
-     :git-head (git-output "rev-parse" "HEAD")
-     :git-working-tree (apply git-output "status" "--short" "--" forensic-source-files)
+     :jj-change-id (jj-output "log" "--no-graph" "-r" "@" "-T" "change_id.short()")
+     :jj-working-copy-status (jj-output "status")
      :source-sha256 (into (sorted-map)
                           (map (fn [path] [path (file-sha256 path)]) forensic-source-files))
      :implementation-boundary
