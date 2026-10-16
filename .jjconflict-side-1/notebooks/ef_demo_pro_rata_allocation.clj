@@ -16,7 +16,10 @@
   :nextjournal.clerk/visibility {:code :fold :result :show}
   :nextjournal.clerk/dark-mode true}
 (ns notebooks.ef-demo-pro-rata-allocation
-  (:require [nextjournal.clerk :as clerk]
+  (:require [clojure.java.io :as io]
+            [clojure.java.shell :as shell]
+            [clojure.string :as str]
+            [nextjournal.clerk :as clerk]
             [resolver-sim.hash.canonical :as hc]
             [resolver-sim.protocols.sew.types :as types]
             [resolver-sim.protocols.sew.economics :as sew-econ]
@@ -25,7 +28,8 @@
             [resolver-sim.evidence.attestation-registry :as ar]
             [resolver-sim.evidence.attestation-resolver :as ars]
             [resolver-sim.pro-rata.evaluation :as pro-rata-evaluation]
-            [resolver-sim.pro-rata.evidence :as pro-rata-evidence]))
+            [resolver-sim.pro-rata.evidence :as pro-rata-evidence])
+  (:import [java.security MessageDigest]))
 
 ;; ===========================================================================
 ;; 1. Slashing Event — Allocation Problem
@@ -568,3 +572,71 @@
 ;;
 ;;   • Optional signature verification adds cryptographic security without
 ;;     requiring it for structural integrity checks.
+
+;; ## Forensic record and independent reproduction
+
+(defn- file-sha256 [path]
+  (let [digest (MessageDigest/getInstance "SHA-256")]
+    (with-open [in (io/input-stream path)]
+      (let [buffer (byte-array 8192)]
+        (loop []
+          (let [n (.read in buffer)]
+            (when (pos? n)
+              (.update digest buffer 0 n)
+              (recur))))))
+    (apply str (map #(format "%02x" (bit-and 0xff %)) (.digest digest)))))
+
+(defn- git-output [& args]
+  (let [{:keys [exit out err]} (apply shell/sh "git" args)]
+    (if (zero? exit) (str/trim out) (str "unavailable: " (str/trim err)))))
+
+(def forensic-source-files
+  ["notebooks/ef_demo_pro_rata_allocation.clj"
+   "protocols_src/resolver_sim/protocols/sew/economics.clj"
+   "protocols_src/resolver_sim/protocols/sew/types.clj"
+   "src/resolver_sim/pro_rata/evaluation.clj"
+   "src/resolver_sim/pro_rata/evidence.clj"
+   "src/resolver_sim/hash/canonical.clj"
+   "src/resolver_sim/evidence/attestation.clj"
+   "src/resolver_sim/evidence/attestation_dag.clj"
+   "src/resolver_sim/evidence/attestation_registry.clj"
+   "src/resolver_sim/evidence/attestation_resolver.clj"
+   "deps.edn"])
+
+(def forensic-record
+  {:classification "Local deterministic allocation and evidence-DAG walkthrough; not an on-chain slash or payment"
+   :git-head (git-output "rev-parse" "HEAD")
+   :git-working-tree (apply git-output "status" "--short" "--" forensic-source-files)
+   :source-sha256 (into (sorted-map)
+                        (map (fn [path] [path (file-sha256 path)]) forensic-source-files))
+   :input allocation-input
+   :calculated-allocation (:allocations allocation-result)
+   :artifacts {:projection-hash (:projection-hash projection-artifact)
+               :allocation-result-hash (:allocation-result-hash allocation-result-artifact)
+               :alice-attestation-id (:attestation/id attestation-alice)
+               :bob-attestation-id (:attestation/id attestation-bob)
+               :alice-dag-node-hash (:node-hash dag-node-alice)
+               :bob-dag-node-hash (:node-hash dag-node-bob)}
+   :checks {:dag-link-verified dag-link-verified
+            :alice-resolution resolved-alice
+            :bob-resolution resolved-bob
+            :bogus-reference-resolution resolved-bogus
+            :bare-reference-resolution resolved-bare}
+   :qualification-boundary
+   {:signature "demo-signing-fn returns deterministic placeholder bytes; no cryptographic signature is produced"
+    :not-established ["external authority" "live slash" "on-chain execution" "recipient payment"]}
+   :reproduction {:render "bb demo:public-lab --nb notebooks/ef_demo_pro_rata_allocation.clj --out site/out/lab"
+                  :interactive "clojure -M:with-sew -m notebooks.serve"
+                  :url "http://localhost:7777/notebooks/ef_demo_pro_rata_allocation"}})
+
+(clerk/html
+ [:details {:style {:background "#0f172a" :color "#e2e8f0" :padding "14px"
+                    :border "1px solid #334155" :borderRadius "8px" :marginTop "18px"}}
+  [:summary {:style {:cursor "pointer" :fontWeight 700 :color "#7ADDDC"}}
+   "Forensics: inputs, artifacts, source fingerprints, and reproduction"]
+  [:div {:style {:marginTop "12px"}}
+   [:p {:style {:color "#cbd5e1" :fontSize "13px"}}
+    "The listed hashes identify local source or derived artifact bytes. The validator signature is synthetic placeholder data, not cryptographic authorization. This walkthrough computes and links an allocation evidence DAG; it does not observe a live slash, transfer, or EVM settlement."]
+   (clerk/code forensic-record)
+   [:p {:style {:color "#cbd5e1" :fontSize "13px"}}
+    "Reproduce from the repository root and compare the source revision, working-tree state, and fingerprints before relying on the result."]]])
