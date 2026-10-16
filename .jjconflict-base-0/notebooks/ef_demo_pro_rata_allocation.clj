@@ -637,6 +637,8 @@
   [:div {:style {:marginTop "12px"}}
    [:p {:style {:color "#cbd5e1" :fontSize "13px"}}
     "The listed hashes identify local source or derived artifact bytes. The validator signature is synthetic placeholder data, not cryptographic authorization. This walkthrough computes and links an allocation evidence DAG; it does not observe a live slash, transfer, or EVM settlement."]
-   (clerk/code forensic-record)
+   [:pre {:style {:whiteSpace "pre-wrap" :overflowWrap "anywhere"
+                  :fontFamily "monospace" :fontSize "12px"}}
+    (pr-str forensic-record)]
    [:p {:style {:color "#cbd5e1" :fontSize "13px"}}
     "Reproduce from the repository root and compare the source revision, working-tree state, and fingerprints before relying on the result."]]])
