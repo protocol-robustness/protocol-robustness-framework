@@ -1,0 +1,106 @@
+diff --git a/docs/protected-capital-local-qualification.md b/docs/protected-capital-local-qualification.md
+index 81bb122..155db19 100644
+--- a/docs/protected-capital-local-qualification.md
++++ b/docs/protected-capital-local-qualification.md
+@@ -73,11 +73,15 @@ These suites overlap; their counts must not be added as a distinct-test total.
+ ## Remaining NOW acceptance gaps
+ 
+ 1. **Deployment identity alignment.**
+-   `protocol-deployments/config/pro-rata-v2-entitlement/architecture.edn:56–57`
+-   still selects VKey `003cb0…` / ELF `7e9cf1…`. The qualified successor uses
+-   `00d90…` / `636330…`. Align the deployment profile and pinned artifact bundle,
+-   then validate provenance and deployment outputs. The successful direct
+-   prf-evm script does not qualify this different deployment configuration.
++   The former VKey/ELF mismatch is resolved in the current protocol-deployments
++   successor profile: `config/pro-rata-v2-entitlement/architecture.edn`, its
++   deployment plan and local assertions now pin VKey
++   `00d90efa52d17e54670a4248f001e4da443a938f12c55d0d414c125ba68087b9` and ELF
++   SHA-256 `636330de8e7af3485aba50bd3ca4b5e024cc4f977a2bf0f2c005f711e5ffacf8`,
++   matching the qualified Gate E successor. Structural plan validation passes.
++   This closes the static profile mismatch only; the Gate E evidence still
++   predates the approved C1 deployment, so W6 requires a fresh deployment-derived
++   proof and capital run with the current pinned bundle.
+ 
+ 2. **General application witness materialization.**
+    The activation/settlement scripts deliberately use vector-A claims and
+diff --git a/test/ProductionProRataAllocatorV2Withdrawal.t.sol b/test/ProductionProRataAllocatorV2Withdrawal.t.sol
+index 3d3e9e7..a705b3f 100644
+--- a/test/ProductionProRataAllocatorV2Withdrawal.t.sol
++++ b/test/ProductionProRataAllocatorV2Withdrawal.t.sol
+@@ -201,6 +201,11 @@ contract ProductionProRataAllocatorV2WithdrawalTest is Test {
+             new bytes32[](0),
+             ProductionProRataAllocatorV2.ProofMode.Requested
+         );
++        assertEq(token.balanceOf(BENEFICIARY_A), 4, "first claim paid once");
++        assertEq(token.balanceOf(address(allocator)), 6, "remaining claim custody before replay");
++        assertEq(allocator.claimedAmount(OP), 4, "claimed amount before replay");
++        assertEq(allocator.claimedCount(OP), 1, "claimed count before replay");
++        assertEq(allocator.outstandingLiability(OP), 6, "liability before replay");
+         vm.expectRevert(
+             abi.encodeWithSelector(ProductionProRataAllocatorV2.EntitlementAlreadyConsumed.selector, uint256(0))
+         );
+@@ -212,6 +217,11 @@ contract ProductionProRataAllocatorV2WithdrawalTest is Test {
+             new bytes32[](0),
+             ProductionProRataAllocatorV2.ProofMode.Requested
+         );
++        assertEq(token.balanceOf(BENEFICIARY_A), 4, "replay has no second capital effect");
++        assertEq(token.balanceOf(address(allocator)), 6, "replay leaves custody unchanged");
++        assertEq(allocator.claimedAmount(OP), 4, "replay leaves claimed amount unchanged");
++        assertEq(allocator.claimedCount(OP), 1, "replay leaves claimed count unchanged");
++        assertEq(allocator.outstandingLiability(OP), 6, "replay leaves liability unchanged");
+     }
+ 
+     function test_ClaimAmountOrdinalAndSaltSubstitutionReject() public {
+diff --git a/test/SourceBoundProRataEntitlementAssuranceV1.t.sol b/test/SourceBoundProRataEntitlementAssuranceV1.t.sol
+index 174e28d..89fa645 100644
+--- a/test/SourceBoundProRataEntitlementAssuranceV1.t.sol
++++ b/test/SourceBoundProRataEntitlementAssuranceV1.t.sol
+@@ -153,6 +153,25 @@ contract SourceBoundProRataEntitlementAssuranceV1Test is Test {
+         assertTrue(assurance.consumedAssurance(RECEIPT));
+     }
+ 
++    function test_AdmissionReceiptCannotBePreparedForTwoCapitalOperations() public {
++        assurance.prepareSourceAssurance(OPERATION, RECEIPT, publicValues);
++
++        SourceBoundEntitlementV1Commitments.PreparedOperation memory second = _operation();
++        second.operationId = keccak256("second-capital-operation");
++        bytes32 secondPreparedRoot = prepared.prepareEntitlementOperation(second);
++
++        vm.expectRevert(
++            abi.encodeWithSelector(SourceBoundProRataEntitlementAssuranceV1.ReceiptAlreadyPrepared.selector, RECEIPT)
++        );
++        assurance.prepareSourceAssurance(second.operationId, RECEIPT, publicValues);
++
++        assertEq(assurance.operationForReceipt(RECEIPT), OPERATION, "receipt remains bound to first operation");
++        assertEq(assurance.assuranceForOperation(second.operationId), bytes32(0), "second operation has no assurance");
++        assertFalse(assurance.consumedAssurance(RECEIPT), "failed reuse does not consume the receipt");
++        assertEq(assurance.assuranceCommitment(second.operationId), bytes32(0), "no second assurance commitment");
++        assertTrue(secondPreparedRoot != bytes32(0), "second operation was independently prepared");
++    }
++
+     function test_RejectsAdmissionStatementRootDifferentFromAllocationBindingRoot() public {
+         IPrfStatementAdmission.AdmissionReceipt memory receipt = _receipt(publicValues);
+         receipt.statementRoot = keccak256("other-allocation-binding");
+diff --git a/test/SourceBoundProRataEntitlementRatificationControllerV1.t.sol b/test/SourceBoundProRataEntitlementRatificationControllerV1.t.sol
+index b4d97ba..067a736 100644
+--- a/test/SourceBoundProRataEntitlementRatificationControllerV1.t.sol
++++ b/test/SourceBoundProRataEntitlementRatificationControllerV1.t.sol
+@@ -160,6 +160,18 @@ contract SourceBoundProRataEntitlementRatificationControllerV1Test is Test {
+         assertEq(token.balanceOf(address(reserve)), 10);
+         assertEq(token.balanceOf(address(allocator)), 90);
+         assertEq(reserve.totalReserved(), 0);
++
++        vm.expectRevert(
++            abi.encodeWithSelector(
++                SourceBoundProRataEntitlementRatificationControllerV1.InvalidState.selector,
++                SourceBoundProRataEntitlementRatificationControllerV1.State.Funded
++            )
++        );
++        ratification.ratifyAndFund(OPERATION, reserveCommitment, RESIDUAL);
++        assertEq(token.balanceOf(address(reserve)), 10, "repeated ratification cannot debit reserve again");
++        assertEq(token.balanceOf(address(allocator)), 90, "repeated ratification cannot add capital again");
++        assertEq(reserve.totalReserved(), 0, "repeated ratification leaves no reservation");
++        assertTrue(assurance.consumedAssurance(RECEIPT), "receipt remains consumed once");
+     }
+ 
+     function test_StaleLiveReserveRollsBackAssuranceAndRatification() public {

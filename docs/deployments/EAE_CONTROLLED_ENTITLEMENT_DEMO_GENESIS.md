@@ -56,9 +56,29 @@ for another application or represent it as a production deployment.
 
 Before any future deployment, obtain semantic approval for these candidates.
 Then derive `chain-instance-genesis.v1` from the actual predicted
-Base Sepolia deployment addresses and runtime code hashes, current chain ID,
+local Anvil deployment addresses and runtime code hashes, chain ID 31337,
 initial authority-state root, and initial configuration root. Simulate first,
 derive the canonical root with the existing Clojure implementation, confirm the
 deployer nonce has not changed, then broadcast and verify the deployed values.
 The Solidity script's root environment variable is an input; it is not a
 canonical-root validator.
+
+Review the three packages together with
+`scripts.deployment.genesis-roots/derive-candidate-package-set`. It checks
+cross-package protocol and execution scope and emits the exact seven-root C0
+artifact plus package content digests. The `candidate-package-set` CLI command
+accepts an EDN map containing the three complete packages under
+`:protocol-genesis`, `:authority-state` and `:initial-configuration`.
+
+`scripts.deployment.configuration-review/review-manifest` binds that record to
+an explicit derivation source revision, derivation version, proposed approval
+principal and local-only scope. `validate-review-bindings` recomputes the whole
+manifest against the reviewer's expected revision and principal; unknown or
+changed content fails. `manifest-root` provides the exact commitment an
+external authenticated approval record must bind. These functions validate
+review content; they do not authenticate approval or change candidate status.
+
+The additive generic authority schema and local governor policy are specified
+in [Authority state v1](../architecture/canonical-artifacts/AUTHORITY_STATE_V1.md).
+They do not replace the demo candidate automatically. Migrating this package
+requires review of the new inputs and roots.

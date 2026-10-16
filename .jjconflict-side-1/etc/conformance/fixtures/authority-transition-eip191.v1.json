@@ -1,0 +1,10 @@
+{
+  "schema": "prf-authority-transition-eip191-fixture.v1",
+  "qualification": "test-vector-not-an-approved-authority-key",
+  "policySchema": "local-authority-policy.v3",
+  "policyRoot": "sha256:0ed7744a299c20e55cbc55bd30020bc44f6e521932c829df9fed647bb38258f1",
+  "validatorKeyId": "local-evm-validator-v1",
+  "validatorAddress": "0xe05fcc23807536bee418f142d19fa0d21bb0cff7",
+  "commitment": "0x0d31ec18d0dfe6638c889024bab69d5dfa4412cbc3e489352d7d35601530ec2e",
+  "signature": "0x9aca4cdffbbf9a41e73080a605a05b40457121c91193955b0ded23863592684e20ea1ce247c3bea3d90abdd279dcfa0bdd1d5bf7d59f28b610d13763aafb5ef41b"
+}

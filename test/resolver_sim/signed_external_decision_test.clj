@@ -62,6 +62,20 @@
     (is (false? (:valid? v)))
     (is (= :untrusted-key (:reason v)))))
 
+(deftest duplicate-trusted-key-ids-are-rejected
+  (let [domain "PRF_TEST_DOMAIN"
+        kp (fx/keypair)
+        conflicting-kp (fx/keypair (:key/id kp))
+        envelope (sed/sign-envelope {:decision "approve"} domain (:private-key kp) (:key/id kp))
+        valid-entry (first (:trusted-keys (fx/trust-policy kp)))
+        conflicting-entry (first (:trusted-keys (fx/trust-policy conflicting-kp)))
+        policies [{:trusted-keys [valid-entry conflicting-entry]}
+                  {:trusted-keys [conflicting-entry valid-entry]}]]
+    (doseq [policy policies]
+      (let [result (sed/verify-envelope envelope domain policy :sensitivity-sentinel)]
+        (is (false? (:valid? result)))
+        (is (= :ambiguous-trust-policy (:reason result)))))))
+
 (deftest signed-by-attacker-key-naming-committed-key-id-fails
   (testing "a signature made by a different private key but naming the committed
             key-id fails — signing identity cannot be substituted for a

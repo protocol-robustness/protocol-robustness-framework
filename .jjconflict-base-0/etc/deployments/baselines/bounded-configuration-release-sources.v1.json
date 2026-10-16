@@ -1,0 +1,83 @@
+{
+  "schema": "prf-bounded-configuration-source-identities.v1",
+  "scope": "local-anvil-bounded-configuration-only",
+  "prf": {
+    "sourceParent": "be8a5f04d7366cd81a3cf048e9f40b434bd0ed84"
+  },
+  "prfEvm": {
+    "baselineRevision": "4b6b6ed159762c88099c96d4dafd635ab99470ea",
+    "integratedRevision": "02dcc7a869b492e8444f25fb9169e9c8061e102a",
+    "authorityTransitionBaseRevision": "02dcc7a869b492e8444f25fb9169e9c8061e102a",
+    "patches": {
+      "prf-evm-configuration-hardening": {
+        "path": "etc/deployments/patches/prf-evm-configuration-hardening.patch",
+        "sha256": "ac5148509906950ac00d5a2623adbb8895a16e6c90793c7d152dcbf5e23ba2b3"
+      },
+      "prf-evm-authority-transition": {
+        "path": "etc/deployments/baselines/prf-evm-authority-transition-followup.patch",
+        "sha256": "4d2fdf155f19751492782d59231ceb41bb1cf24810b6bda45a2428547a7a9cca"
+      },
+      "prf-evm-w6-capital-replay": {
+        "path": "etc/deployments/baselines/prf-evm-w6-capital-replay-followup.patch",
+        "sha256": "0c0800d8ddfef153766a8afcce42ed41bf561f59caa591275dce75a9b4921ae3"
+      }
+    },
+    "cleanRelease": {
+      "revision": "02b7ea507e84054fecb422c5a5b56b02b40d0dcb",
+      "parentRevision": "7804f42d8e6a4fde1e3a92f7087e4361b3266554",
+      "commitSignature": "unsigned-local-commit",
+      "cleanWorkingTree": true,
+      "artifactBundleVersion": "0.4.1",
+      "artifactBundleRoot": "0042d0fee369cd0687ef520ac5a8deb7018a88291655de52bfd24e22d02733c6",
+      "artifactCount": 31,
+      "build": {
+        "forge": "1.7.1+4072e48705af9d93e3c0f6e29e93b5e9a40caed8",
+        "solc": "0.8.33+commit.64118f21",
+        "profile": "default",
+        "optimizerRuns": 200,
+        "viaIR": true,
+        "command": "forge clean && npm run compile"
+      },
+      "artifactComparison": "31-artifact ABI, creation-bytecode and runtime-bytecode identities match the retained v0.4.1 fixture; artifact-file digests and bundle root regenerated from this clean build",
+      "pinnedNestedSubmodules": {
+        "lib/sp1-contracts/contracts/lib/forge-std": "978ac6fadb62f5f0b723c996f64be52eddba6801",
+        "lib/sp1-contracts/contracts/lib/openzeppelin-contracts": "dbb6104ce834628e473d2173bbc9d47f81a9eec3",
+        "lib/sp1-contracts/contracts/lib/openzeppelin-contracts/lib/forge-std": "eb980e1d4f0e8173ec27da77297ae411840c8ccb",
+        "lib/sp1-contracts/contracts/lib/openzeppelin-contracts/lib/erc4626-tests": "8b1d7c2ac248c33c3506b1bff8321758943c5e11",
+        "lib/sp1-contracts/contracts/lib/openzeppelin-contracts/lib/forge-std/lib/ds-test": "cd98eff28324bfac652e63a239a60632a761790b"
+      },
+      "independentRebuild": {
+        "revision": "02b7ea507e84054fecb422c5a5b56b02b40d0dcb",
+        "result": "second detached worktree, cleared Foundry outputs, repository npm run compile, deployables export",
+        "artifactBundleRoot": "0042d0fee369cd0687ef520ac5a8deb7018a88291655de52bfd24e22d02733c6",
+        "artifactCount": 31,
+        "allArtifactAbiCreationRuntimeAndFileDigestsMatch": true,
+        "cleanProvenance": true
+      }
+    }
+  },
+  "protocolDeployments": {
+    "baselineRevision": "98659ce01e7e1d1bf1a3c6c84dc7ebb665ac5036",
+    "integratedRevision": "92608dce563f6f44dc9ab302c301abb1cf12b996",
+    "verifierClosureBaseRevision": "92608dce563f6f44dc9ab302c301abb1cf12b996",
+    "patches": {
+      "protocol-deployments-worktree": {
+        "path": "etc/deployments/baselines/protocol-deployments-worktree.patch",
+        "sha256": "65be012a1e1c2f66c737ed409a5558700e683c5e2bdf234f276f9acc3794042b"
+      },
+      "protocol-deployments-verifier-closure": {
+        "path": "etc/deployments/baselines/protocol-deployments-verifier-closure-followup.patch",
+        "sha256": "dd52d32a227854b8a1df8071492192d84c00fc8870e435d00a7e4f4bf2023d06"
+      },
+      "protocol-deployments-capital-flow-qualification": {
+        "path": "etc/deployments/baselines/protocol-deployments-capital-flow-qualification-followup.patch",
+        "sha256": "a3083bf65d3e0ae16488e7524dc93d04f503386310676d1b353175a9a3e429db"
+      }
+    }
+  },
+  "toolchain": {
+    "forge": "1.7.1+4072e48705af9d93e3c0f6e29e93b5e9a40caed8",
+    "solc": "0.8.33+commit.64118f21.Linux.g++",
+    "clojureCli": "1.12.5.1654"
+  }
+}

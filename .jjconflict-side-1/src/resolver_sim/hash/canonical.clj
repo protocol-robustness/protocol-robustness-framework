@@ -585,6 +585,10 @@
    :related-claims-member "related-claims-member"
    :withdrawal-ledger-v1 "withdrawal-ledger.v1"
    :prf-protocol-genesis-v1 "PRF_PROTOCOL_GENESIS_V1"
+   :prf-authority-state-v1 "PRF_AUTHORITY_STATE_V1"
+   :prf-local-authority-policy-v1 "PRF_LOCAL_AUTHORITY_POLICY_V1"
+   :prf-local-authority-policy-v2 "PRF_LOCAL_AUTHORITY_POLICY_V2"
+   :prf-local-authority-policy-v3 "PRF_LOCAL_AUTHORITY_POLICY_V3"
    :eae-controlled-entitlement-demo-authority-state-v1 "EAE_CONTROLLED_ENTITLEMENT_DEMO_AUTHORITY_STATE_V1"
    :prf-chain-instance-genesis-v1 "PRF_CHAIN_INSTANCE_GENESIS_V1"
    :prf-chain-configuration-v1 "PRF_CHAIN_CONFIGURATION_V1"
@@ -1855,6 +1859,37 @@
        (map? gov) (assoc :governance
                          (select-keys gov chain-instance-genesis-governance-fields))))))
 
+(def authority-state-v1-fields
+  [:authority-state/schema :protocol/genesis-root :execution/chain-id
+   :authority/policy-root :authority/revision :authority/previous-root
+   :authority/decisions])
+
+(def local-authority-policy-v1-fields
+  [:authority-policy/schema :protocol/genesis-root :execution/chain-id
+   :authority/governor :authority/capabilities])
+
+(def local-authority-policy-v2-fields
+  [:authority-policy/schema :protocol/genesis-root :execution/chain-id
+   :authority/governor :authority/capabilities
+   :authority/transition-validator-key-id :authority/transition-validator-public-key])
+
+(def local-authority-policy-v3-fields
+  [:authority-policy/schema :protocol/genesis-root :execution/chain-id
+   :authority/governor :authority/capabilities
+   :authority/transition-validator-key-id :authority/transition-validator-address])
+
+(defn project-authority-state-v1 [value _intent]
+  (project-canonical-safe (select-keys value authority-state-v1-fields)))
+
+(defn project-local-authority-policy-v1 [value _intent]
+  (project-canonical-safe (select-keys value local-authority-policy-v1-fields)))
+
+(defn project-local-authority-policy-v2 [value _intent]
+  (project-canonical-safe (select-keys value local-authority-policy-v2-fields)))
+
+(defn project-local-authority-policy-v3 [value _intent]
+  (project-canonical-safe (select-keys value local-authority-policy-v3-fields)))
+
 (def eae-controlled-entitlement-demo-authority-state-v1-fields
   "Identity fields of the local-only EAE controlled-entitlement initial
   authority state candidate. This is deliberately separate from the benchmark
@@ -3058,6 +3093,42 @@ name (an alias)."
     :intent/excludes #{:runtime-values :functions :deployment-metadata :timestamps}
     :intent/projection-fn project-protocol-genesis
     :intent/version 1}
+
+   :prf-authority-state-v1
+   {:intent/name :prf-authority-state-v1
+    :intent/domain-tag "PRF_AUTHORITY_STATE_V1"
+    :intent/description "Canonical authority policy binding and decision state with immutable predecessor lineage"
+    :intent/includes (set authority-state-v1-fields)
+    :intent/excludes #{:runtime-values :functions :deployment-metadata :timestamps}
+    :intent/projection-fn project-authority-state-v1
+    :intent/version 1}
+
+   :prf-local-authority-policy-v1
+   {:intent/name :prf-local-authority-policy-v1
+    :intent/domain-tag "PRF_LOCAL_AUTHORITY_POLICY_V1"
+    :intent/description "Local governor and explicit administrative capabilities, separate from generic authority state"
+    :intent/includes (set local-authority-policy-v1-fields)
+    :intent/excludes #{:runtime-values :functions :deployment-metadata :timestamps}
+    :intent/projection-fn project-local-authority-policy-v1
+    :intent/version 1}
+
+   :prf-local-authority-policy-v2
+   {:intent/name :prf-local-authority-policy-v2
+    :intent/domain-tag "PRF_LOCAL_AUTHORITY_POLICY_V2"
+    :intent/description "Local authority capabilities and the Ed25519 key authorized to attest validated authority-state transitions"
+    :intent/includes (set local-authority-policy-v2-fields)
+    :intent/excludes #{:runtime-values :functions :deployment-metadata :timestamps}
+    :intent/projection-fn project-local-authority-policy-v2
+    :intent/version 2}
+
+   :prf-local-authority-policy-v3
+   {:intent/name :prf-local-authority-policy-v3
+    :intent/domain-tag "PRF_LOCAL_AUTHORITY_POLICY_V3"
+    :intent/description "Local authority policy binding capabilities and an EVM-recoverable secp256k1 transition-validator address"
+    :intent/includes (set local-authority-policy-v3-fields)
+    :intent/excludes #{:runtime-values :functions :deployment-metadata :timestamps}
+    :intent/projection-fn project-local-authority-policy-v3
+    :intent/version 3}
 
    :eae-controlled-entitlement-demo-authority-state-v1
    {:intent/name :eae-controlled-entitlement-demo-authority-state-v1

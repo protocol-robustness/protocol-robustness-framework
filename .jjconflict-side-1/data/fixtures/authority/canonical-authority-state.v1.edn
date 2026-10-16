@@ -1,0 +1,27 @@
+{:fixture/schema "canonical-authority-state.v1",
+ :qualification :test-only-not-approved,
+ :policy
+ {:authority-policy/schema "local-authority-policy.v1",
+  :protocol/genesis-root
+  "sha256:d77429dd50bd7fe18d5f41d55e53ccbd4c67d18c4f00b266f86dbaede01f9343",
+  :execution/chain-id 31337,
+  :authority/governor "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266",
+  :authority/capabilities
+  ["authorise-decision"
+   "revoke-decision"
+   "set-proof-mode"
+   "update-authority-state"]},
+ :policy/root
+ "sha256:272bfdefcb526baa79161adb1c731d5f671fc6f5fae754eb2c30c4619fabaec2",
+ :state
+ {:authority-state/schema "authority-state.v1",
+  :protocol/genesis-root
+  "sha256:d77429dd50bd7fe18d5f41d55e53ccbd4c67d18c4f00b266f86dbaede01f9343",
+  :execution/chain-id 31337,
+  :authority/policy-root
+  "sha256:272bfdefcb526baa79161adb1c731d5f671fc6f5fae754eb2c30c4619fabaec2",
+  :authority/revision 0,
+  :authority/previous-root nil,
+  :authority/decisions []},
+ :state/root
+ "sha256:7791bc49db1a6ac8655bb7876c2c11532d78e0ce03040bc4efa27f93a0b05d9f"}

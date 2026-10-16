@@ -1,0 +1,222 @@
+--- a/src/core/PrfChainInstanceGenesis.sol
++++ b/src/core/PrfChainInstanceGenesis.sol
+@@ -116,6 +116,11 @@
+         if (isSealedState) revert AlreadySealed();
+         if (canonicalChainInstanceGenesisRoot == bytes32(0)) revert ZeroRoot();
+ 
++        bytes32 actualAuthorityStateRoot = IPrfAuthority(authorityAdapter).authorityStateRoot();
++        if (actualAuthorityStateRoot != initialAuthorityStateRoot) {
++            revert AuthorityStateMismatch(initialAuthorityStateRoot, actualAuthorityStateRoot);
++        }
++
+         bytes32 actualGenesisCodeHash = address(this).codehash;
+         bytes32 actualAuthorityCodeHash = authorityAdapter.codehash;
+ 
+--- a/src/core/PrfStatementAdmission.sol
++++ b/src/core/PrfStatementAdmission.sol
+@@ -60,6 +60,7 @@
+     error ZeroRoot();
+     error InvalidEpoch(uint64 epoch);
+     error AdapterIdentityMismatch(address adapter);
++    error ChainInstanceMismatch(bytes32 expected, bytes32 actual);
+ 
+     constructor(
+         IPrfChainInstanceGenesis genesis_,
+@@ -76,6 +77,7 @@
+ 
+         protocolGenesisRoot = genesis_.protocolGenesisRoot();
+         chainInstanceGenesisRoot = genesis_.chainInstanceGenesisRoot();
++        _checkChainInstance(configurationExecutor_, chainInstanceGenesisRoot);
+         genesis = genesis_;
+         configurationExecutor = configurationExecutor_;
+         verifierRegistry = verifierRegistry_;
+@@ -154,7 +156,13 @@
+         return _admissionReceipts[receiptId];
+     }
+ 
++    function _checkChainInstance(SewConfigurationExecutor executor, bytes32 expected) private view {
++        bytes32 actual = executor.chainInstanceGenesisRoot();
++        if (actual != expected) revert ChainInstanceMismatch(expected, actual);
++    }
++
+     function _checkConfigurationBinding() private view {
++        _checkChainInstance(configurationExecutor, chainInstanceGenesisRoot);
+         if (configurationExecutor.currentConfigurationRoot() != expectedConfigurationRoot)
+             revert ConfigurationMismatch(
+                 expectedConfigurationRoot,
+--- a/src/core/PrfVerifierRegistry.sol
++++ b/src/core/PrfVerifierRegistry.sol
+@@ -197,11 +197,12 @@
+     ///     || elfSha256    (32 bytes)
+     ///     || programIdHash (32 bytes, SHA256 of UTF-8 programId)
+     ///     || schemaHash   (32 bytes)
++    ///     || publicValuesSchema (32 bytes)
+     ///     || active       (32 bytes, 0x00..01 or 0x00..00)
+     ///   )
+     ///
+     ///   registryRoot = SHA256(
+-    ///     "PRF_VERIFIER_REGISTRY_V1" (25 bytes UTF-8)
++    ///     "PRF_VERIFIER_REGISTRY_V1" (24 bytes UTF-8)
+     ///     || uint256(entry_count) (32 bytes, big-endian)
+     ///     || sorted_by_verifierId(entry_hash_0, ..., entry_hash_{n-1})
+     ///   )
+@@ -216,7 +217,7 @@
+     ///         Encoding (must match Clojure canonical-verifier-registry.root):
+     ///   entry_hash_i = SHA256(
+     ///     verifierId          (32 bytes)
+-    ///     || adapter          (20 bytes, address)
++    ///     || adapter          (32 bytes, address as uint256 big-endian)
+     ///     || programVKey      (32 bytes)
+     ///     || elfSha256        (32 bytes)
+     ///     || programIdHash     (32 bytes, SHA256 of UTF-8 programId)
+@@ -226,7 +227,7 @@
+     ///   )
+     ///
+     ///   registryRoot = SHA256(
+-    ///     "PRF_VERIFIER_REGISTRY_V1" (25 bytes UTF-8)
++    ///     "PRF_VERIFIER_REGISTRY_V1" (24 bytes UTF-8)
+     ///     || uint256(entry_count) (32 bytes, big-endian)
+     ///     || sorted_by_verifierId(entry_hash_0, ..., entry_hash_{n-1})
+     ///   )
+--- a/test/PrfGenesis.t.sol
++++ b/test/PrfGenesis.t.sol
+@@ -97,6 +97,29 @@
+         evidence = new PrfEvidenceAnchor(genesis);
+     }
+ 
++    function testSealRejectsAuthorityStateDrift() public {
++        PrfChainInstanceGenesis pending = new PrfChainInstanceGenesis(
++            PROTOCOL_ROOT, block.chainid, 1, address(authority), AUTHORITY_STATE_ROOT,
++            CONFIG_ROOT_0, address(this)
++        );
++        bytes32 changed = keccak256("changed-authority");
++        authority.updateAuthorityStateRoot(changed);
++        vm.expectRevert(abi.encodeWithSelector(
++            PrfChainInstanceGenesis.AuthorityStateMismatch.selector, AUTHORITY_STATE_ROOT, changed
++        ));
++        pending.sealGenesis(CHAIN_ROOT, address(pending).codehash, address(authority).codehash);
++        assertFalse(pending.isSealedState());
++        assertEq(pending.chainInstanceGenesisRoot(), bytes32(0));
++        assertEq(pending.sealer(), address(this));
++    }
++
++    function testLaterAuthorityChangePreservesGenesisIdentity() public {
++        authority.updateAuthorityStateRoot(keccak256("legitimate-later-state"));
++        assertEq(genesis.initialAuthorityStateRoot(), AUTHORITY_STATE_ROOT);
++        assertEq(genesis.chainInstanceGenesisRoot(), CHAIN_ROOT);
++        assertTrue(genesis.isSealedState());
++    }
++
+     function testGenesisSealedAndBound() public {
+         assertTrue(genesis.isSealedState());
+         assertEq(genesis.protocolGenesisRoot(), PROTOCOL_ROOT);
+--- a/test/PrfStatementAdmission.t.sol
++++ b/test/PrfStatementAdmission.t.sol
+@@ -157,6 +157,44 @@
+         );
+     }
+ 
++    function test_ConstructorRejectsWrongExecutorInstanceWithMatchingConfiguration() public {
++        bytes32 wrongInstance = keccak256("other-instance");
++        PrfChainInstanceGenesis otherGenesis = new PrfChainInstanceGenesis(
++            PROTOCOL_ROOT, block.chainid, 1, address(authority), AUTHORITY_STATE_ROOT,
++            CONFIG_ROOT_0, address(this)
++        );
++        otherGenesis.sealGenesis(wrongInstance, address(otherGenesis).codehash, address(authority).codehash);
++        SewConfigurationExecutor otherExecutor = new SewConfigurationExecutor(
++            otherGenesis, authority, registry, VERIFIER_REGISTRY_ROOT_0
++        );
++        vm.expectRevert(abi.encodeWithSelector(
++            PrfStatementAdmission.ChainInstanceMismatch.selector, CHAIN_INSTANCE_ROOT, wrongInstance
++        ));
++        new PrfStatementAdmission(genesis, otherExecutor, registry, CONFIG_ROOT_0, 0);
++    }
++
++    function test_AdmissionRechecksExecutorInstance() public {
++        bytes32 wrongInstance = keccak256("changed-instance");
++        vm.mockCall(address(executor), abi.encodeWithSignature("chainInstanceGenesisRoot()"), abi.encode(wrongInstance));
++        vm.expectRevert(abi.encodeWithSelector(
++            PrfStatementAdmission.ChainInstanceMismatch.selector, CHAIN_INSTANCE_ROOT, wrongInstance
++        ));
++        admission.admitStatement(REALIZED_ALLOC_VERIFIER_ID, FIXTURE_STATEMENT_ROOT, "", FIXTURE_PUBLIC_VALUES);
++        assertEq(admission.admittedCount(), 0);
++    }
++
++    function test_RepeatedAdmissionPreservesReceiptIdentity() public {
++        bytes32 first = admission.admitStatement(
++            REALIZED_ALLOC_VERIFIER_ID, FIXTURE_STATEMENT_ROOT, "", FIXTURE_PUBLIC_VALUES
++        );
++        bytes32 second = admission.admitStatement(
++            REALIZED_ALLOC_VERIFIER_ID, FIXTURE_STATEMENT_ROOT, "", FIXTURE_PUBLIC_VALUES
++        );
++        assertEq(first, second);
++        assertEq(admission.admittedCount(), 2);
++        assertTrue(admission.admissionReceipt(first).exists);
++    }
++
+     function test_AdmitStatement_Success() public {
+         bytes32 receiptId = admission.admitStatement(
+             REALIZED_ALLOC_VERIFIER_ID,
+--- a/test/SourceBoundProRataAssuranceV2.t.sol
++++ b/test/SourceBoundProRataAssuranceV2.t.sol
+@@ -161,6 +161,25 @@
+         assertEq(prepared.realizedStatementRoot, REALIZED);
+         assertFalse(assurance.consumedAssurance(RECEIPT));
+         assertEq(assurance.operationForReceipt(RECEIPT), OPERATION);
++    }
++
++    function test_ReceiptCannotAuthorizeAnotherCapitalOperation() public {
++        bytes32 otherOperation = keccak256("other-capital-operation");
++        ShortfallV2Commitments.PreparedOperation memory operation = _operation(address(this));
++        operation.operationId = otherOperation;
++        preparedController.prepareOperation(operation);
++
++        vm.expectRevert(SourceBoundProRataAssuranceV2.OperationMismatch.selector);
++        assurance.prepareSourceAssurance(otherOperation, RECEIPT, publicValuesBytes);
++        assertEq(assurance.operationForReceipt(RECEIPT), bytes32(0));
++
++        assurance.prepareSourceAssurance(OPERATION, RECEIPT, publicValuesBytes);
++        vm.expectRevert(abi.encodeWithSelector(SourceBoundProRataAssuranceV2.ReceiptAlreadyPrepared.selector, RECEIPT));
++        assurance.prepareSourceAssurance(otherOperation, RECEIPT, publicValuesBytes);
++        controller.consume(assurance, OPERATION, preparedRoot, commitment);
++        assertTrue(assurance.consumedAssurance(RECEIPT));
++        vm.expectRevert();
++        controller.consume(assurance, OPERATION, preparedRoot, commitment);
+     }
+ 
+     function test_ConsumptionIsControllerOnlyAndOneShot() public {
+--- /dev/null
++++ b/test/PrfRegistryEquivalence.t.sol
+@@ -0,0 +1,28 @@
++// SPDX-License-Identifier: Apache-2.0
++pragma solidity ^0.8.33;
++
++import {Test} from "forge-std/Test.sol";
++import {PrfVerifierRegistry} from "../src/core/PrfVerifierRegistry.sol";
++
++/// Runs the exact JSON fixture corpus also recomputed by PRF's Clojure tests.
++contract PrfRegistryEquivalenceTest is Test {
++    function test_PrfCanonicalFixtureCorpus() public {
++        string memory data = vm.readFile("test/fixtures/verifier-registry-equivalence.v1.json");
++        PrfVerifierRegistry registry = new PrfVerifierRegistry(address(this));
++        string[5] memory names = [string("empty"), "single", "multi", "reordered", "inactive"];
++        for (uint256 i; i < names.length; ++i) {
++            string memory prefix = string.concat(".cases.", names[i]);
++            bytes32 root = registry.computeCanonicalRoot(
++                vm.parseJsonBytes32Array(data, string.concat(prefix, ".ids")),
++                vm.parseJsonAddressArray(data, string.concat(prefix, ".adapters")),
++                vm.parseJsonBytes32Array(data, string.concat(prefix, ".vkeys")),
++                vm.parseJsonBytes32Array(data, string.concat(prefix, ".elfHashes")),
++                vm.parseJsonStringArray(data, string.concat(prefix, ".programIds")),
++                vm.parseJsonBytes32Array(data, string.concat(prefix, ".schemaHashes")),
++                vm.parseJsonBytes32Array(data, string.concat(prefix, ".publicValuesSchemas")),
++                vm.parseJsonBoolArray(data, string.concat(prefix, ".actives"))
++            );
++            assertEq(root, vm.parseJsonBytes32(data, string.concat(prefix, ".root")), names[i]);
++        }
++    }
++}
+--- /dev/null
++++ b/test/fixtures/verifier-registry-equivalence.v1.json
+@@ -0,0 +1 @@
++{"schema":"verifier-registry-equivalence.v1","cases":{"empty":{"adapters":[],"programIds":[],"root":"0x2099fabf2cca563f8d183749d1a842946286e8704a96c51ec801eff4e834a240","actives":[],"ids":[],"vkeys":[],"elfHashes":[],"publicValuesSchemas":[],"schemaHashes":[]},"inactive":{"adapters":["0x00000000000000000000000000000000000000a1","0x00000000000000000000000000000000000000a7"],"programIds":["source-bound-entitlement-sp1-program.v1","source-bound-entitlement-sp1-program.v1"],"root":"0xd237169ae07e16246ab68fe5750b779f2c5526c37f4c89bea367550c56ba2d57","actives":[true,false],"ids":["0x0000000000000000000000000000000000000000000000000000000000000001","0x0000000000000000000000000000000000000000000000000000000000000007"],"vkeys":["0x0000000000000000000000000000000000000000000000000000000000000002","0x0000000000000000000000000000000000000000000000000000000000000002"],"elfHashes":["0x0000000000000000000000000000000000000000000000000000000000000003","0x0000000000000000000000000000000000000000000000000000000000000003"],"publicValuesSchemas":["0x0000000000000000000000000000000000000000000000000000000000000005","0x0000000000000000000000000000000000000000000000000000000000000005"],"schemaHashes":["0x0000000000000000000000000000000000000000000000000000000000000004","0x0000000000000000000000000000000000000000000000000000000000000004"]},"multi":{"adapters":["0x00000000000000000000000000000000000000a1","0x00000000000000000000000000000000000000a7"],"programIds":["source-bound-entitlement-sp1-program.v1","source-bound-entitlement-sp1-program.v1"],"root":"0xb7a686ffd33dd0a34b0db25c3d73b144113f94646b32448ede9bc92c7d720fcd","actives":[true,true],"ids":["0x0000000000000000000000000000000000000000000000000000000000000001","0x0000000000000000000000000000000000000000000000000000000000000007"],"vkeys":["0x0000000000000000000000000000000000000000000000000000000000000002","0x0000000000000000000000000000000000000000000000000000000000000002"],"elfHashes":["0x0000000000000000000000000000000000000000000000000000000000000003","0x0000000000000000000000000000000000000000000000000000000000000003"],"publicValuesSchemas":["0x0000000000000000000000000000000000000000000000000000000000000005","0x0000000000000000000000000000000000000000000000000000000000000005"],"schemaHashes":["0x0000000000000000000000000000000000000000000000000000000000000004","0x0000000000000000000000000000000000000000000000000000000000000004"]},"reordered":{"adapters":["0x00000000000000000000000000000000000000a7","0x00000000000000000000000000000000000000a1"],"programIds":["source-bound-entitlement-sp1-program.v1","source-bound-entitlement-sp1-program.v1"],"root":"0xb7a686ffd33dd0a34b0db25c3d73b144113f94646b32448ede9bc92c7d720fcd","actives":[true,true],"ids":["0x0000000000000000000000000000000000000000000000000000000000000007","0x0000000000000000000000000000000000000000000000000000000000000001"],"vkeys":["0x0000000000000000000000000000000000000000000000000000000000000002","0x0000000000000000000000000000000000000000000000000000000000000002"],"elfHashes":["0x0000000000000000000000000000000000000000000000000000000000000003","0x0000000000000000000000000000000000000000000000000000000000000003"],"publicValuesSchemas":["0x0000000000000000000000000000000000000000000000000000000000000005","0x0000000000000000000000000000000000000000000000000000000000000005"],"schemaHashes":["0x0000000000000000000000000000000000000000000000000000000000000004","0x0000000000000000000000000000000000000000000000000000000000000004"]},"single":{"adapters":["0x00000000000000000000000000000000000000a1"],"programIds":["source-bound-entitlement-sp1-program.v1"],"root":"0xd54c9e5d18fa33ec45ca13f6eca6113a9ee5b07b6e1f37c440ab3343450fe949","actives":[true],"ids":["0x0000000000000000000000000000000000000000000000000000000000000001"],"vkeys":["0x0000000000000000000000000000000000000000000000000000000000000002"],"elfHashes":["0x0000000000000000000000000000000000000000000000000000000000000003"],"publicValuesSchemas":["0x0000000000000000000000000000000000000000000000000000000000000005"],"schemaHashes":["0x0000000000000000000000000000000000000000000000000000000000000004"]}}}
