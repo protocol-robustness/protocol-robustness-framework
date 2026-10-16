@@ -25,6 +25,8 @@
   expected roots. The existing allocation guest profile is unchanged; proof
   qualification remains open.
 
+- Notebook validation now checks an explicit 52-file load-set, records source and per-file progress for interrupted runs, and the `bb validate` wrapper requires the machine-readable report to confirm complete success rather than trusting subprocess status alone.
+
 - Recorded the passing standalone Rust allocation V1 suite and local Solidity
   execution-consumer suite for the pro-rata candidate. Solidity results remain
   unpinned because the companion worktree is modified; exact-verifier/SP1 and
