@@ -1,1 +1,0 @@
-{"id":"controlled-partial-fill.v1","allocation":"pro-rata","rounding":"largest-remainder","tie-break":"canonical claim order","caps":"requested amounts","unfilled":"unmet request only; no deferred claim, haircut or future obligation","available":70,"requested":{"claim-a":50,"claim-b":30,"claim-c":20}}

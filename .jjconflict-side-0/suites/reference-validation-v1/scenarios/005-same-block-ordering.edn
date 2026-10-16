@@ -1,7 +1,0 @@
-{:scenario/id "same-block-ordering-v1"
- :scenario/title "005-same-block-ordering"
- :scenario/version "1.0.0"
- :scenario/status :public-candidate
- :scenario/purpose "Verifies settlement paths remain mutually exclusive under concurrent ordering."
- :protocol/phase :dr3
- :expected-result {:status :pass :classification :regression-protected}}

@@ -1,7 +1,0 @@
-{:scenario/id "bond-withdrawal-race-v1"
- :scenario/title "004-bond-withdrawal-race"
- :scenario/version "1.0.0"
- :scenario/status :public-candidate
- :scenario/purpose "Verifies unresolved liabilities block premature withdrawal."
- :protocol/phase :dr3
- :expected-result {:status :pass :classification :regression-protected}}

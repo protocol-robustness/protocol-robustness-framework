@@ -4,6 +4,42 @@ Status: **NORMATIVE STAGE A FREEZE; IMPLEMENTATION INCOMPLETE**
 
 Date audited: 2026-09-28
 
+## Current implementation status (2026-10-16)
+
+This document records the 2026-09-28 Stage A baseline. Its statements below
+about `SourceBoundProRataRatificationControllerV2` and the 192-byte source-bound
+V2 profile remain specific to that legacy path: it still terminates at
+`Funded`, and its ABI is not the successor entitlement withdrawal lifecycle.
+
+The bounded successor entitlement profile has since been implemented additively
+in `prf-evm`. It uses the 288-byte
+`source-bound-entitlement-public-values.v1` profile with
+`SourceBoundProRataEntitlementAssuranceV1`,
+`SourceBoundProRataEntitlementRatificationControllerV1`, and
+`ProductionProRataAllocatorV2`. The successor controller atomically ratifies
+and funds, then supports either `Funded -> Activated -> Claims -> Closed` or
+`Funded -> CancelledRefunded`. Activation checks the admitted table root, count,
+and total; withdrawals consume each committed entitlement once, enforce the
+live Requested/Required policy, update outstanding liability, and check exact
+token balance deltas. Stale assurance replacement is restricted to the bound
+execution caller and checks the full live reserve commitment and generation.
+
+The implementation evidence is pinned to `prf-evm` commit
+`d8aee74e9652f44f68e345aff30090325df2ae54`. Focused suites include
+`SourceBoundProRataEntitlementRatificationControllerV1.t.sol` (13 tests) and
+`ProductionProRataAllocatorV2Withdrawal.t.sol` (6 tests); the broader focused
+reserve/assurance/controller set also passes. Deployment-derived proof and
+economic observations are retained under
+`prf-evm/evidence/gate-e-20261010-current-00d90/` and described in
+`prf-evm/docs/gate-e.md`. They establish a local-only demonstration, not public
+chain qualification. The current local Anvil has advanced beyond that run's
+historical pre-funding block, so the historical fork test cannot be repeated
+against the current node without a fresh deployment or archived chain state.
+
+The successor implementation does not upgrade or silently extend the legacy
+192-byte path. Keep those profiles and their evidence distinct when interpreting
+the Stage A tables below.
+
 This record freezes the production semantics for the protected-capital pro-rata
 V2 NOW tranche. It covers:
 

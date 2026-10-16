@@ -1,6 +1,0 @@
-{:profile/id :prf/pro-rata-bounty-v1
- :profile/version 1
- :profile/status :supported
- :profile/extends :prf/pro-rata-v1
- :profile/semantic-features [:prf/bounty-v1]
- :profile/components [:prf/bounty-v1]}

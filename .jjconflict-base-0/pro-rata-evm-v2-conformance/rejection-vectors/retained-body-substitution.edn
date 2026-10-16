@@ -1,8 +1,0 @@
-{:schema "pro-rata-evm-v2-rejection-vector.v1"
- :case/id :retained-body-substitution
- :basis/vector :aggregate-held-credit-two-claim-60-40
- :mutation {:path [:retained-material :aggregate-quantity]
-            :replacement {:asset/root "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"}}
- :rehash {:retained-validation true :compilation true :binding true :statement true}
- :expected {:valid? false
-            :failure-class :retained-material-mismatch}}
