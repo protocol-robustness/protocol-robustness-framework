@@ -98,29 +98,29 @@
 ;; ── Race: concurrent completions ────────────────────────────────────────────
 
 (deftest concurrent-complete-with-lane-one-succeeds
-  (testing "Concurrent complete! calls elect one finalizer and emit once"
+  (testing "Multiple threads calling complete! with same lane — only one wins (FG-3)"
     (let [n 20
           {:keys [realization lane]} (open-pair)
           winner-count (AtomicInteger. 0)
           loser-count (AtomicInteger. 0)
           emission-count (AtomicInteger. 0)
-          barrier (CyclicBarrier. n)
-          futures (binding [realization/*claimant-execution-realization* realization
-                            realization/*claimant-execution-lane* lane
-                            realization/*claimant-execution-runtime-profile-root* "test-runtime-root"
-                            realization/*claimant-execution-observation-sink*
-                            (fn [_] (.incrementAndGet emission-count))]
-                    (realization/record! {:setup true})
-                    (mapv (fn [_]
-                            (future
-                              (.await barrier)
-                              (try
-                                (realization/complete! realization)
-                                (.incrementAndGet winner-count)
-                                (catch clojure.lang.ExceptionInfo _
-                                  (.incrementAndGet loser-count)))))
-                          (range n)))]
-      (doseq [f futures] (deref f 10000 nil))
+          barrier (CyclicBarrier. n)]
+      (binding [realization/*claimant-execution-realization* realization
+                realization/*claimant-execution-lane* lane
+                realization/*claimant-execution-runtime-profile-root* "test-runtime-root"
+                realization/*claimant-execution-observation-sink*
+                (fn [_] (.incrementAndGet emission-count))]
+        (realization/record! {:setup true})
+        (let [futures (mapv (fn [_]
+                              (future
+                                (.await barrier)
+                                (try
+                                  (realization/complete! realization)
+                                  (.incrementAndGet winner-count)
+                                  (catch Exception _
+                                    (.incrementAndGet loser-count)))))
+                            (range n))]
+          (doseq [f futures] (deref f 10000 nil))))
       (is (= 1 (.get winner-count))
           "One caller completes the realization")
       (is (= (dec n) (.get loser-count))

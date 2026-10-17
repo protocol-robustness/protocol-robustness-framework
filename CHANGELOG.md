@@ -1,6 +1,731 @@
 # Changelog
 
+## 2026-10-11
+
+- Corrected canonical verifier-registry entry hashing to bind `public-values-schema-hash`, matching the existing Solidity registry commitment.
+
+- Added a separately rooted, demo-only `protocol-genesis.v1` package for the controlled entitlement demonstration. It is explicitly not the production PRF/SEW genesis and does not reuse the test fixture identity.
+
+- Recomputed the controlled-entitlement protocol candidate's component roots from their canonical materials, added local-only candidate authority and initial-configuration packages, and exposed PRF-owned derivation checks. Candidate derivations remain unapproved and cannot qualify a deployment; initial configuration binds the canonical empty verifier-registry root.
+
+## Unreleased
+
+- Clarified that the 2026-09-28 V2 audit is a historical baseline and documented the separately implemented 288-byte successor-entitlement lifecycle with pinned local evidence; the legacy 192-byte profile remains unchanged.
+
+- Fixed the real V2/SP1 runner source inventory to cover crate-local Rust sources; added an ARTIFACT_DIR override so retries preserve failed-run evidence.
+
+- Exact pro-rata reconstruction now preserves arbitrary-precision amounts and
+  does not award residual units when all participant weights are zero. Added
+  independent hand-derived cases for zero weights, canonical remainder ties,
+  zero/all caps, multiple redistribution rounds, and BigInt amounts.
+
+- The pro-rata Rust package now exposes an independent exact-verifier API and
+  checks canonical fairness-spec and supplemental-corpus roots against the
+  Clojure reference. This does not qualify an SP1 exact-verifier profile.
+
+- Added an isolated candidate SP1 exact-verifier guest. Its 96-byte public
+  values bind the fairness-spec root, conformance-corpus root, and canonical
+  request/claim commitment; the positive fixture now executes with all three
+  expected roots. The existing allocation guest profile is unchanged; proof
+  qualification remains open.
+
+- Notebook validation now checks an explicit 52-file load-set, records source
+  and per-file progress for interrupted runs, and the `bb validate` wrapper
+  requires the machine-readable report to confirm complete success rather than
+  trusting subprocess status alone.
+
+- `bb validate` now retains a per-phase command, duration, exit cause, and
+  separate output logs; incomplete, failed, timed-out, or unstartable phases
+  produce a failed machine-readable report and nonzero exit.
+- Recorded the passing standalone Rust allocation V1 suite and local Solidity
+  execution-consumer suite for the pro-rata candidate. Solidity results remain
+  unpinned because the companion worktree is modified; exact-verifier/SP1 and
+  production proof-admission qualification remain open.
+
+- Deployment-bound forensic reconstruction now independently recomputes successor witness outputs and reconciles retained funding, withdrawal, and closure events. An optional `--source-bundle` input checks the referenced controlled vector bytes and economic inputs. Distinct evidence gaps have distinct content-bound subjects; event arithmetic remains separate from authenticated balances, storage, and transaction provenance.
+
+- Added a planning-only investigation dispatcher for retained local successor-entitlement evidence. Plans bind reconstructed inputs and graph identities, classify evidence requests and review blockers, enforce a task budget, and support fresh-process plan verification without authorizing execution, acceptance, or rewards.
+
+- Added a local-only deployment-bound forensic reconstruction command for retained protected-withdrawal evidence. It independently hashes and cross-checks the supplied artifacts, emits existing PRF evidence-node/forensic-graph records, and reports typed evidence gaps and conflicts; it does not assert proof validity, public-chain qualification, acceptance, or reward authority.
+
+- Added Rust V1 pro-rata quota and redistribution witnesses, canonical result
+  assembly, and result verification. Four frozen Clojure allocation-result
+  roots match across rounding, cap clamping, cap redistribution, and floor
+  residual; verification checks semantic fields/root and ignores only the
+  diagnostic fractional-remainder total. V1 identities and projections are
+  unchanged.
+
+- Added standalone canonical compatibility APIs for owner-supplied keyword
+  domain mappings and intent contracts, generic legacy projections, intent
+  aware hash equality, and V1 sequence encoding, commitment, and verification.
+  The PRF adapter preserves keyword-based intent lookup outside the canonical
+  package. Existing V1 encodings and roots are unchanged.
+
+- Added Rust derivation and Clojure/Rust root conformance for the existing
+  `pro-rata-allocation-policy.v1` identity under its frozen domain and preimage.
+  No artifact identity or canonical projection changed.
+
+- Added a Rust `request::normalize_rows` counterpart for the existing Clojure
+  pro-rata row normalizer, covering canonical typed-ID ordering, duplicate IDs,
+  integer amounts, and effective caps. This is a partial Rust API; it does not
+  claim full request/result/witness profile conformance.
+
+- Added Rust normalization for complete V1 pro-rata requests and derivation of
+  their existing projection-artifact request root. The allocation-rounding
+  golden request root matches the frozen Clojure vector; no V1 identity changed.
+
+- Added a standalone Rust arbitrary-precision pro-rata allocation kernel for
+  floor/largest-remainder rounding and the existing unallocated/cap-excess
+  redistribution policies. Frozen allocation arithmetic is unchanged.
+
+- Added a PRF-owned deployment root derivation CLI for existing canonical genesis and configuration schemas. Results are explicitly marked derived-only and do not imply artifact approval.
+- Deployment root derivation now accepts versioned production package schemas and an explicitly selected non-local chain ID; candidate templates and derived roots remain unapproved until separately authorized.
+- Bound capital-lifecycle activation to the reservation asset and operation through an admitted AllocationBasis reference, with shared Clojure/Rust vectors for opaque basis and representation references. No canonical encoding or runtime consumer changed.
+
+- Refined the proposed AllocationBasisPort to pass typed basis references and
+  scalar admission summaries without defining universal entitlement rows.
+- Added the proposed `capital-lifecycle-interface.v1` package boundary and
+  provider-neutral transition contract for the future `prf-capital-lifecycle`
+  repository. This documents intended ownership and adapters; it changes no
+  runtime behavior or canonical identity.
+- Added an initial non-runtime capital-lifecycle transition kernel in Clojure
+  and Rust with shared accepted/rejected vectors for reservation, funding,
+  activation, cancellation/refund, withdrawal, and closure. This first slice
+  does not alter existing NOW artifacts or EVM behavior.
+- Closed the lifecycle command field sets in both package implementations;
+  extra fields now reject with `invalid-command-shape`.
+- Added EVM-derived shared vectors for terminal activation, cancellation, and
+  withdrawal outcomes after refund, activation, and closure.
+- Moved allocation claimant-weight total consistency checks into the Rust
+  pro-rata package; validation order and rejection classifications are unchanged.
+- Pro-rata mechanism-evidence verification now recomputes and checks its
+  embedded validation summaries, rejecting stale or fabricated summaries even
+  when the evidence envelope hash is internally consistent.
+- Exposed package-owned Rust proportionality and exact-rate helpers through the compatibility API; existing allocation summary values remain unchanged.
+
+- Moved claimant and outcome set structural validation into the Rust pro-rata
+  package; rejection order, classifications, and messages remain unchanged.
+- Moved Rust allocation-context member ordering into the pro-rata package.
+  The host parser delegates ordering; canonical encoded ID order is unchanged.
+- Added a package-owned Rust allocation evaluation API for context roots,
+  deterministic selection, realized result roots, and allocation assertions.
+  The host kernel keeps lifecycle projection and certificate/public-value
+  assembly; existing canonical identities and outputs are unchanged.
+- Moved the legacy Rust rate-derived summary and proportionality checks into the pro-rata package. The allocation kernel retains its existing facade; result summaries and roots remain unchanged.
+- Moved deterministic Rust outcome selection into the pro-rata package; the existing kernel module path and `SELECTED_OUTCOME_V1` commitment remain unchanged.
+- Moved the ordered Rust allocation assertions and committed-root comparison into the pro-rata package; assertion IDs, order, and rejection classifications remain unchanged.
+- Moved Rust allocation-context and result-leaf canonical projections into the pro-rata package. Existing kernel module paths remain re-exports, and the legacy context preimage is unchanged.
+- Exposed the allocation kernel's shared claimant, outcome, policy, and context types from the pro-rata Rust package while retaining the existing host-kernel paths.
+- Extracted the frozen `realized-allocation-statement.v1` projection and
+  six-root assembly into the pro-rata package. PRF continues to derive its
+  context/lifecycle inputs and scenario evidence binding; pinned statement
+  roots are unchanged.
+- Added a standalone Rust pro-rata package for realized-statement root domains
+  and six-root assembly. The existing `allocation-kernel` builder retains raw
+  context/lifecycle derivation and delegates to the package; SP1 inputs and
+  frozen roots are unchanged.
+- Moved Rust realized-fill calculation, disposition types, and canonical result
+  projection into the pro-rata package. `allocation-kernel` keeps the existing
+  module path as a re-export; fill behavior and statement roots are unchanged.
+- Added the pro-rata package's `pro-rata-policy-outcome.v1` builder and
+  validator. They preserve the existing `PRO_RATA_POLICY_OUTCOME_V1` domain
+  and preimage; PRF's existing functions remain compatibility entry points.
+- Added a reproducible `0.1.0-rc.1` source bundle for the Clojure
+  pro-rata-allocation package, including its canonical source dependency and
+  qualification metadata.
+- Added `prf.pro-rata.api/verify-result` to validate a supplied allocation
+  result against its request, including the complete V1 witness and root while
+  excluding the diagnostic fractional-remainder total.
+- Added `prf.canonical.hash/hash-with-domain` for SHA-256 over the registered
+  canonical encoding and an explicit UTF-8 domain tag. Added package-owned
+  request, allocation-result, and policy identities using their existing tags.
+- Added one-argument `prf.pro-rata.api/allocate` using package-owned frozen
+  hash identities and a deterministic serial runtime. Progress atoms continue
+  to require an explicit host adapter.
+- Added the standalone `clojure -M:conformance <portable-contract-root>` runner.
+  It verifies the portable release manifest, frozen allocation roots, and
+  canonical result bytes.
+
+- Added `prf.pro-rata.redistribution/allocate` to the standalone allocation
+  package with explicit runtime callbacks. The PRF redistribution API delegates
+  to it, preserving allocation results, progress, and realization handling.
+
+- Added `prf.pro-rata.single-pass/allocate` to the standalone allocation
+  package with explicit execution and progress callbacks. The existing PRF
+  engine delegates to it, preserving allocation results and runtime behavior.
+
+- Moved pro-rata allocation orchestration into the standalone package behind
+  explicit execution and hash callbacks. The PRF adapter retains existing
+  runtime routes and canonical hash domains.
+
+- Added a separate controlled-source SP1 program and host command. It requires
+  the prepared operation's policy root to commit to the independently reconstructed
+  realized statement root while retaining the existing nine-word public-values
+  schema. This profile supports controlled conformance sources, not production
+  claims-source authentication; existing successor and frozen V2 identities are unchanged.
+
+- Extracted canonical pro-rata result assembly into the allocation package.
+  The PRF adapter still derives the existing allocation root; result fields,
+  fractional-remainder diagnostics, and roots remain unchanged.
+
+- Extracted pro-rata request validation and canonical request normalization
+  into the standalone allocation package. The PRF adapter retains hash
+  production and runtime execution; canonical request fields remain unchanged.
+
+- Extracted quota and cap-redistribution witness derivation into the standalone
+  pro-rata package. The PRF result adapter delegates to it; witness fields and
+  allocation roots remain unchanged.
+
+- Extracted canonical pro-rata row validation and typed allocation-ID ordering
+  into the standalone allocation package. The PRF API delegates through
+  compatibility functions; row normalization and allocation roots are unchanged.
+
+- Extracted exact quota and largest-remainder integer arithmetic into the
+  standalone `packages/pro-rata-allocation/clj` kernel. The existing PRF allocator
+  delegates through a compatibility seam; allocation inputs and results are
+  unchanged.
+
+- Extracted the generic canonical value encoder and strict value validator
+  into standalone Clojure and Rust packages under `packages/canonical`. Existing
+  PRF and allocation-kernel namespaces remain compatibility facades; artifact
+  domains and hash semantics are unchanged.
+
+- Added `bb canonical-artifacts:validate` for checking the proposed
+  `canonical-artifacts.v1` definition baseline and source references without
+  loading it at runtime.
+
+- Updated the local reservation demo's temporary build fixture for the
+  companion allocator's proof-mode dependency; the demo still uses a local
+  Requested-mode stub and synthetic identities.
+
+- The local reservation demo now supplies the immutable deadline required by
+  the companion's V2 reservation creation API.
+
+- Added a standalone local EVM reservation demo that checks the protected-capital
+  floor, reservation/release, terminal reservation IDs, and stale-commitment
+  rejection, with optional JSON execution evidence and synthetic test identities.
+  The report records the unreserved baseline and final reserve states.
+  It compiles copied production sources in a temporary root and does not require
+  initialized Foundry dependency submodules in the companion checkout.
+
+- Froze the Assured Operations conformance components pending a demonstrated
+  contradiction from independent real V2/SP1-admission and canonical-provenance
+  substitutions. Recorded that route binding proves connectivity only, added the
+  production deployment-provenance invariant, and marked real V2/SP1 admission as
+  the next experiment; canonical deployment provenance remains a prerequisite gap.
+
+- Added an AO-specific real V2/SP1 pro-rata conformance harness and Gate E runner.
+  It feeds the deployment-matched proof through existing V2 admission and then
+  exercises the same operation through the frozen AO dispatcher. The runner
+  checks pre/post source inventories and proof-to-operation correspondence, then
+  writes a separate final evidence index over the retained run log and artifacts.
+  The Gate E consumer outcome is recorded as auxiliary, separate from AO
+  acceptance. Runtime acceptance remains pending fresh deployment/proof execution.
+
+- Added an isolated Solidity treasury enforcement prototype for assured operations:
+  submissions bind the exact active registration root/revision and consumed
+  projection, permanent protection permits governed policy changes and disabling,
+  and successful execution atomically consumes a one-shot nonce. Per-call evidence
+  composes authorization with native-asset deltas; production artifact adoption and
+  canonical deployment admission remain prerequisites.
+
+- Added a pro-rata conformance fixture that composes the unchanged Assured
+  Operations executor with the existing source-bound V2 assurance, ratification,
+  reserve and production allocator contracts. Its verifier remains a test double.
+- Protected V2 ratification instances now require a one-time governance-authorized
+  binding to a code-bearing execution route; direct `ratifyAndFund` calls reject
+  after binding, while the bound dispatcher route retains the existing V2 effects.
+
+- Added a governance-upgrade conformance case using the same Assured Operations
+  envelope, registration and executor. Its application policy binds the timelock,
+  approved implementation/source/release/configuration, security-policy identity
+  and pre-upgrade projection; executor and target events reconstruct the change.
+
+- Froze the cross-consumer execution-domain decision: keep the dispatcher baseline
+  and defer engine/L2 work until conformance evidence shows a recurring requirement
+  that application-level enforcement cannot adequately meet. Close the V2 route
+  and replace its proof-verifier and deployment-sealer seams independently.
+
+- Specified proposed, unregistered `AssuredOperationEnvelope.v1` and
+  `ProtectedOperationRegistration.v1` contracts with execution-time policy
+  selection, permanent-protection controls, atomic one-shot consumption, and
+  forensic composition including financial-event reconstruction (AO-11).
+
+- Restored governance-mediated `appeal-slash` authorization. The agent that
+  submits `appeal_slash` must again pass the governance gate; the appealing
+  resolver is resolved from the pending slash entry rather than taken from the
+  submitting agent, and `appeal-slash` is again classified as a
+  governance-sensitive action. Direct subject-only appeals are rejected by the
+  resolver-attribution guard.
+- Restored deferred fraud-slash execution on a rejected appeal. Rejecting an
+  appeal now leaves the underlying slash in `:pending` for keeper execution
+  instead of executing `execute-fraud-slash` inline during `resolve_appeal`.
+- Restored `:guard-context` on guard-rejection transition results and on the
+  replay projection, so rejected transitions once again carry the failing
+  guard's inputs.
+- Non-final resolutions now settle the escalation appeal bond for the prior
+  dispute level before the settlement is deferred, so accumulated escalation
+  bonds are released as each resolution lands and outstanding bond balances
+  can no longer push the escrow past the `fee-cap` invariant.
+
+- Added the additive `source-bound-entitlement-sp1-program.v1` successor guest
+  and host execution/proof harness. The guest delegates all semantics to the
+  reviewed Rust derivation and commits the exact 288-byte public projection;
+  its SP1 6.3.1 Groth16 proof was generated and SDK-verified against the frozen
+  successor VKey, with the final ELF SHA-256 and VKey recorded in the
+  protected-capital architecture document. Local guest execution matches B2
+  vectors A–E and rejects F. Historical source-bound V2 identities remain
+  unchanged.
+
+- Added vector-aware source-bound entitlement host execution/proving: the CLI
+  can materialize a named conformance vector, checks output bytes against its
+  golden public values, and records bundle/vector/witness content identities
+  in proof fixtures. Raw `--input` remains a single-witness JSON interface.
+
+- Added `notebooks/reproduction_comparability.clj`, an executable research-facing demonstration that distinguishes same-scope result disagreement from `NOT COMPARABLE` scope changes using rooted research-definition, case-axis, and measure-axis commitments. Added `notebooks/notebook_comparison.clj` to load explicitly marked rooted outputs and compose comparisons across executable notebooks without comparing source or rendered HTML.
+
+- Froze the protected-capital pro-rata V2 production semantics before implementation: atomic ratify/fund/activate with activation as the irreversible cutpoint, explicit cancel-and-release/refund effects, beneficiary-bound single-use entitlements, one-step Requested/Required withdrawals under live governed configuration, and a caller minimum-assurance rule. The freeze classifies portable canonical identities, EVM-local commitments, and forensic observations separately. B1 now defines a nine-word/288-byte minimum direct-EVM successor projection, while retaining the canonical entitlement-set root as a transitively bound semantic artifact; it also freezes the successor derivation graph, logical-table/deployment distinction, and distinct schema/program/VKey/ELF/decoder identities. The frozen 192-byte source-bound V2 proof remains unchanged.
+
+- Added the pure Clojure and Rust derivations for `beneficiary-entitlement.v1`,
+  `beneficiary-entitlement-set.v1`,
+  `entitlement-representation-descriptor.v1`, and the nine-word
+  `prf/source-bound-entitlement-public-values.v1` projection. Canonical
+  entitlement identities exclude 32-byte EVM opening salts; the salts affect
+  only the EVM commitment table. Cross-language fixtures freeze all field-level
+  roots and the exact 288-byte encoding. No SP1 program, ELF, VKey, Solidity
+  decoder, or historical 192-byte identity changed.
+
+- Tightened the successor B2 authority boundary: beneficiary profile is now
+  committed inside the prepared-operation root rather than accepted as an
+  independent witness field, and the representation descriptor now commits
+  explicit ABI types, word encodings, claim/table Merkle rules, and table
+  summary construction.
+
+- **Ran the Profile-B closure end-to-end on a local anvil node** and recorded the full on-chain
+  runtime read-back (`docs/architecture/appeal-bond-assurance/SEW_NEXT_QUALIFICATION.md` §5d).
+  Added an `anvil` hardhat network (`hardhat.config.ts`, chainId 31337) and permitted anvil to
+  drive the real local TimelockController activation path (`deploy/87`):
+  `ledger.authorizedCaller(facade) == true`, `drm.registeredEscrow(vault) == true`. Captured
+  `keccak256(eth_getCode)` runtime codehashes for all deployed closure contracts via
+  `sew-protocol/scripts/readback-anvil-codehash.cjs` (read-only). This resolves the five
+  previously address/immutable/link-dependent contracts (Facade, EscrowVault,
+  InsurancePoolVault, SewToken; GovGovernor is a separate governance-tag deployment) against
+  the deployment-pipeline (hardhat) build — distinct from the A-2 forge (`osaka`/runs 200)
+  deterministic binding, which remains separately recorded. **No Solidity changed.**
+
+- **Audited EIP-170 code-size risk in the Profile-B closure** (`contracts` + forge `out/` +
+  hardhat artifacts): `EscrowVault` (≈38,069 B), `DecentralizedResolutionModule` (≈32,130 B),
+  and `ResolverIncentiveModuleV2BondLedger` (≈25,369 B) exceed the 24 KiB EIP-170 limit and can
+  only deploy where the node allows larger contracts (hardhat `allowUnlimitedContractSize`;
+  anvil needs `--code-size-limit` ≥ 0x6000). The anvil run used `--code-size-limit 49152`
+  (48 KiB). Only `EscrowVault` carries an external linked library in the closure
+  (`EscrowVaultAccountingLibrary`); the other over-limit contracts are monolithic. This is a
+  recorded real-network deployment blocker, not fixed here (no Solidity changed).
+  **Deployment decision:** no real-network (baseSepolia/mainnet) Profile-B deploy until Ethereum
+  raises the 24 KiB EIP-170 contract-size limit in an upcoming release; the over-limit contracts
+  will not be split, and the local anvil deployment at `--code-size-limit 49152` is the standing
+  qualification vehicle until then.
+
+- Extended the Sew accounting projection scenario contract: complete
+  `:accounting-metadata` now requires explicit covered sources matching the
+  declared source roots, in addition to the committed range.
+
+- **Resolved the A-4 local Profile-B deployment blocker** and captured the on-chain
+  read-back (`hardhat deploy --network hardhat --tags sew-dr-v2-bondledger`) in
+  `docs/architecture/appeal-bond-assurance/SEW_NEXT_QUALIFICATION.md` (section 5d,
+  updated from BLOCKED to VALIDATED). Root cause of the earlier `Maximum call stack
+  size exceeded` was a **pre-existing hardhat-deploy dependency cycle through umbrella
+  tags** (`85_dr3_modules` <-> `95_finalize_governance`, and `95` self-cycle via
+  `governance`). Fixed surgically (no Solidity changed): `deploy/85` deps to
+  `['timelock','token']`, `deploy/87` to `['decentralized-resolution-module']`,
+  `deploy/95` to precise phase tags only; added read-only `scripts/validate-deploy-graph.ts`
+  (DFS + `visiting`/`visited`) → **`RESULT: OK — acyclic`**. Also repaired fresh-local
+  constructor/access-control defects to let the Profile-B path complete: `DRMAdminFacet`
+  `args []` (zero-arg constructor), `deploy/86` step 7 made non-fatal when the facet has
+  no `DEFAULT_ADMIN` (governance flows via DRM delegation), and `deploy/87` now
+  bootstraps `setAdminFacet` + temporary deployer `ROLE_TIMELOCK` on the fresh Profile-B
+  DRM before delegated setters. Read-back confirms `facade.bondLedger() == BondLedger` and
+  `drm.incentiveModule() == facade`; `ledger.authorizedCaller(facade)` and
+  `drm.registeredEscrow(...)` remain governance/closure-gated, not a live activation.
+  **Recorded long-term convention:** precise phase tags may be dependencies; umbrella/
+  grouping tags (`dr3`, `governance`, `core`, `all`) are CLI selection only.
+
+- Ran the **reference vs candidate Solidity equivalence evidence** (step 4) on the
+  A-2-bound working copy: `BondLedgerDifferential 11/11`, `TraceEquivalence 38/38`,
+  `BondBehaviourCorrection 15/15`. Recorded the differential equivalence matrix and
+  the frozen PRF claim (AP-CONS/DISP/REPLAY/ATOM/CLAIM/ID) to profile-A/profile-B
+  mechanism mapping in
+  `docs/architecture/appeal-bond-assurance/SEW_NEXT_QUALIFICATION.md` (section 5c).
+  Equivalence is established for economic and state/effect across the differential
+  corpus; claim attribution measures remain deliberately divergent (Profile A
+  aggregate-only vs Profile B bond-addressed). On-chain A-4 read-back of a real
+  Profile-B deployment and historical February runtime binding remain
+  deployment-gated.
+
+- Advanced the A-4 local Profile-B read-back (`docs/architecture/appeal-bond-assurance/
+  SEW_NEXT_QUALIFICATION.md` §5d): the two prior open bindings are now **satisfied and read
+  back from chain** on the deterministic local `hardhat` network. `BondLedger
+  addAuthorizedCaller(facade)` is now driven through the **real local TimelockController path**
+  (grant admin `PROPOSER_ROLE` → `schedule` → advance clock → `execute`; no deployer bypass),
+  yielding `ledger.authorizedCaller(facade) == true`. `deploy/87_bondledger_profile.ts` now
+  deploys a **fresh Profile-B `EscrowVault`** when none is supplied via
+  `PROFILE_B_ESCROW_VAULT` / `PROFILE_B_REUSE_VAULT=true`, including a fresh
+  `ModuleSnapshotRegistry` prerequisite (the current `EscrowVault` constructor requires
+  non-empty module-management code) and links a freshly deployed `EscrowVaultAccountingLibrary`
+  to satisfy EscrowVault's external library reference (the prior unlinked placeholder caused
+  an `invalid bytecode` reject). This yields `drm.registeredEscrow(vault) == true`.
+  `deploy/87` also records local runtime codehashes (hardhat build cancun/runs 10; NOT the A-2
+  forge binding). No Solidity changed.
+
+- Added `sew-protocol/scripts/bind-runtime-codehash.ts` (read-only) and partially closed
+  A-4 Task 3: for the 9 Profile-B closure contracts whose deployed runtime has no link refs and
+  no immutables, the on-chain runtime codehash is a pure function of the compiled bytecode
+  (`keccak256(bytes(deployedBytecode.object))`), so it is now deterministically bound from the
+  A-2 forge `out/` build (osaka / runs 200 / viaIR) with no live deployment and no gas. The tool
+  verifies `out/` matches the manifest `runtimeBytecodeSha256` for all 14 closure artifacts and
+  records the 9 static codehashes (BondLedger, DRM, staking/slashing, BondTokenRegistry,
+  DRMAdminFacet, PaymentCalculationLibrary, TimelockController, EscrowGovernanceTimelock) in
+  `SEW_NEXT_QUALIFICATION.md` §5d. The 5 address-dependent contracts (Facade, EscrowVault,
+  InsurancePoolVault, SewToken, GovGovernor) still require a persistent-network read-back (or
+  constructor-arg immutable/link patching). Note the manifest `runtimeBytecodeSha256` is SHA-256
+  of the normalized bytecode string, distinct from the on-chain keccak codehash.
+
+- Recorded the A-4 on-chain read-back attempt (`hardhat deploy --network hardhat` with
+  `DEPLOY_PROFILE=sew-dr-v2-bondledger`) in
+  `docs/architecture/appeal-bond-assurance/SEW_NEXT_QUALIFICATION.md` (section 5d): the
+  contracts compile (50 files) but hardhat-deploy hits `Maximum call stack size exceeded`
+  in `recurseDependencies` on a fresh local network due to a **pre-existing deploy-script
+  dependency cycle** (unrelated to Profile B; only resolvable when prior deployments exist
+  on a persistent chain or a live RPC is provided). The Profile-B graph deploy + read-back
+  wiring itself is validated in-process by the Foundry differential suite
+  (`BondLedgerDifferential._deploy(true)`). A Profile-B deployment manifest with on-chain
+  addresses + runtime codehashes therefore remains deployment-gated, not produced here.
+
+- Bound the **Profile-B (BondLedger) deployable bundle** as A-2 build identity in
+  `sew-protocol`: added `config/deployable-allowlist-bondledger.json`
+  (`buildProfile: sew-dr-v2-bondledger`, package `@sew/deployables-bondledger`, 14
+  closure identities: 4 profile-specific, 6 shared protocol, 4 shared governance)
+  and made `scripts/export-deployables.ts` explicitly profile-selectable (positional
+  allowlist + required export-dir for non-default profiles; the loaded allowlist is
+  passed into validation instead of falling back to the Profile-A default).
+  Generated `deployables-bondledger/manifest.json` binds creation/runtime/ABI hashes
+  for all 14 artifacts with deterministic `bundleRoot f92f6f56d9cc2f293d49b002ae7918dc5e846cded293fec92c3f5970a1f5ea07`,
+  build `solc 0.8.37 / evmVersion osaka / optimizerRuns 200 / viaIR true` (forge
+  bundle), and source anchor `tmznvrqn` (jj change id). Deployment address and
+  runtime codehash remain deferred to A-4 (no Profile-B deployment exists). The
+  Profile-A allowlist/manifest are untouched. Documented in
+  `docs/architecture/appeal-bond-assurance/SEW_NEXT_QUALIFICATION.md` (section 5b).
+
+- Corrected the A-2 build-settings claim in
+  `docs/architecture/appeal-bond-assurance/DECISION-appeal-bond-profiles.md` section 9:
+  the bindable deployable bundle is **forge-based** (solc 0.8.37, `evmVersion osaka`,
+  `optimizerRuns 200`, `viaIR true`), not the hardhat config (`cancun` / runs 10).
+
+- Froze the Sew DR v2 deployment-profile architecture. Profile A
+  (`sew-dr-v2-inline-custody`, `DecentralizedResolutionModule ->
+  ResolverIncentiveModule` with inline appeal-bond custody) remains the supported
+  reference baseline (not deprecated); Profile B (`sew-dr-v2-bondledger`,
+  `DecentralizedResolutionModule -> ResolverIncentiveModuleV2BondLedger ->
+  BondLedger`) is the intended next-release candidate (not experimental).
+  Recorded in `docs/architecture/appeal-bond-assurance/DECISION-appeal-bond-profiles.md`
+  as an independent Profile-B deployment graph (fresh DRM + EscrowVault binding)
+  that does not mutate Profile A in place, with deployment vs governance-activation
+  phases and final authority remaining with the shared governance stack.
+  **This is a release-architecture decision only; no Solidity, Git refs, or JJ
+  history were changed in the PRF repository.**
+
+- Added `sew-protocol deploy/87_bondledger_profile.ts`: explicit-profile deployment
+  orchestration (`DEPLOY_PROFILE=sew-dr-v2-bondledger`, fail closed) that deploys a
+  fresh Profile-B graph, separates deployment from governance activation, and
+  read-backs bindings. Forfeiture economics are EQUIVALENT across profiles (both
+  retain value in `forfeitedBondReserve`; no burn). Claim attribution diverges:
+  Profile A is aggregate-only, Profile B is bond-addressed (`claimFor`).
+
+- Fixed `src/resolver_sim/evidence/attestation_resolver.clj` so its `ar/find-attestation`
+  call resolves: the `ar` alias now requires `resolver-sim.evidence.attestation-registry`
+  (where the function actually lives), and the unused `att` require was removed.
+  `attestation-resolver-test` passes (19 tests / 37 assertions / 0 failures).
+
+- Added a Sew Next qualification matrix in
+  `docs/architecture/appeal-bond-assurance/SEW_NEXT_QUALIFICATION.md`: a read-only
+  divergence classification of the Sew Next candidate vs the V1 corrected semantic
+  reference `5f84818d`, using the completed appeal tranche as the first
+  successor-assurance component. Documents BondLedger/V2BondLedger/Kleros-handoff/
+  DefaultResolutionModule as un-wired or not-canonical-deployed alternatives, and
+  lists the remaining gates before Sew Next is default/public.
+
+- Froze the first primitive-native appeal-bond assurance tranche as `COMPLETE` in
+  `docs/architecture/appeal-bond-assurance/README.md`. All six scenarios
+  (`AP-CONS-001`, `AP-ATOM-001`, `AP-DISP-001`, `AP-REPLAY-001`, `AP-CLAIM-001`,
+  `AP-ID-001`) pass with genuinely evaluated primitive-native metrics/evidence.
+  The candidate suite root is `716e4cb8490a51042e5490c0634e70462d393a8fee024ed4d8efcda5d70d2901`;
+  historical July roots (corpus/overlay/checkpoint) remain unchanged. AP-ATOM
+  closes via external transition receipts with appeal-bond pre/post semantic
+  roots; AP-DISP/AP-REPLAY are documented as system/workflow-level (resolution
+  idempotence), not primitive-level duplicate-write rejection. This freeze does
+  not assert Solidity deployment readiness or global assurance.
+
+- Decoupled the primitive-native AP-ID evaluator from fixture-coupled identity
+  selection in `src/resolver_sim/contract_model/replay/analysis.clj`. The identity
+  proof no longer depends on world-checkpoint index `6` or the funder address
+  `0xchallenger`; it now uses a fail-closed selector that returns the earliest
+  unambiguous coexistence of a repeated `(workflow/id, bond/funder)` bond group
+  (zero or multiple repeated-bond groups fail closed). Added focused selector
+  tests (3 tests / 6 assertions / 0 failures) in
+  `test/resolver_sim/contract_model/replay/analysis_test.clj`. Candidate scenario
+  bytes are unchanged; the candidate suite root remains
+  `716e4cb8490a51042e5490c0634e70462d393a8fee024ed4d8efcda5d70d2901`.
+
+- Resolved the multi-bond claim-attribution boundary from Solidity inspection:
+  canonical Sew claim consumption is aggregate-only per
+  `(escrowContract, workflowId, recipient)` (`ResolverIncentiveModule`
+  `claimableBondRefunds`/`claimablePayments` pool and delete whole on claim; the
+  round-keyed `appealBonds` record is posting/disposition state, not an
+  independently-consumed per-round claimable). Encoded a fail-closed read-only
+  query `query-bond-claim-attribution` in
+  `protocols_src/resolver_sim/protocols/sew/appeal_bond_projection.clj` returning
+  `:single-bond` | `:aggregate-multi-bond` | `:none` per `(workflow/id, recipient)`.
+  Added projection tests (13 tests / 34 assertions / 0 failures). No per-bond
+  FIFO/LIFO/latest/map-order rule exists or is inferred; AP-CLAIM-002 is
+  deliberately not added.
+
+- Defined Sew Accounting Semantics V1: a per-asset conservation boundary that
+  separates allocation, claimability, and external withdrawal; explicit current
+  custody and external-outflow bucket taxonomies; and distinct conservation,
+  custody-reconciliation, and solvency assertions. Existing `:funds-ledger-view`
+  remains a legacy reporting calculation until a canonical accounting projection
+  maps its counters to these semantics.
+
+- Defined the Sew Canonical Asset Identity V1 boundary for future accounting
+  projections: domain-qualified assets, explicit base units, content-addressed
+  identity, and fail-closed migration from legacy token keys. Runtime token maps
+  and accounting projections are not migrated yet.
+
+- Defined the Sew Accounting Projection V1 boundary: explicit cutpoint, source
+  roots, committed completeness, canonical per-asset buckets, deterministic
+  conservation results, and separation from future liability and asset/custody
+  solvency projections. Runtime projection derivation is not implemented yet.
+
+- Recovered and froze the `AllocationBindingV1` architecture record as a semantic reconstruction, not a byte-for-byte restoration of the missing original. It defines a domain-neutral, derivational binding from a validated pro-rata result to a canonical application context; separates generic binding validity from application-specific compatibility; preserves an acyclic commitment graph; and defers proof, deployment, and present-tense authority semantics. The record includes the authoritative five-field primitive-lineage provenance audit.
+
+- Added the domain-neutral `pro-rata-allocation-policy.v1` identity as a derived view of an authoritative primitive result. The registered policy root commits the mechanism and its rounding, tie-break, and redistribution choices without changing existing allocation-result roots.
+- Added `pro-rata-policy-outcome.v1`, a derived consequence root recording that an exact validated primitive result satisfies its derived policy; it neither consumes constituents nor grants present-tense application authority. Added the standalone policy-outcome conformance fixture set for equal, unequal, capped-redistribution, and floor-residual allocations, plus primitive/result-witness and outcome-lineage substitution coverage.
+
+- Added a 15-minute outer timeout to the `bb validate` all-notebooks phase, with a kill grace period, so a stuck nested launcher cannot block validation indefinitely even when the per-notebook guard is bypassed.
+
+- Added the first candidate primitive-native appeal-bond assurance tranche under `scenarios/edn/appeal-primitive/`: identity/round isolation, terminal disposition uniqueness, per-bond conservation, claim consumption, atomic failure, and replay protection. Ordinary terminal-disposition and replay scenarios now exercise higher-round `execute_resolution`; the observed second operation is scoped as an idempotent no-op with equal appeal-bond semantic pre/post roots, not as primitive-level rejection. Candidate manifest hashes/root were updated; historical C001–C006/N002 artifacts remain untouched. AP-ID now binds the second-challenge checkpoint, and AP-CLAIM now exercises pending settlement before withdrawal.
+
+- Added hash-bound Sew/PRF assurance checkpoints and a fail-closed `bb assurance:verify-checkpoint` / `bb assurance:verify-corpus` verifier. The July 31 corrected reference/BondLedger review checkpoint is tracked separately from the September candidate; historical scenario bytes are not modified, and current working-copy divergence is reported as a mismatch.
+
+- Added centralized runtime parallelism default resolution through
+  `config/defaults.edn` (`:hardening :default-parallelism`) and
+  `PRF_DEFAULT_PARALLELISM`, defaulting to `1`. Pro-rata runtime layers now
+  share this setting; canonical outputs remain independent of runtime worker
+  count.
+
+- **PRIVATE CLAIM RELATION PREPARATION — COMPLETE.**
+  - Claim identity audited.
+  - Claim resolution/existence semantics separated.
+  - Corpus membership kept distinct.
+  - Directional future supersession seam documented.
+  - Public statement/private witness boundary defined.
+  - Canonical SHA-256 identity preserved.
+  - Verifier/admission reuse identified.
+  - Researcher anonymity kept orthogonal.
+  - No runtime/code changes required.
+  - Deferred intentionally: `research-claim-relation.v1`, private commitments,
+    claim graph, corpus registry, ZK adapters, anonymous researcher proofs,
+    lifecycle consequences, and incentive consequences.
+
+- Added an appeal-bond semantic version-lineage record at `docs/architecture/appeal-bond-assurance/version-lineage.md`. It separates the pre-appeal baseline, appeal-bond model delta, reversal-slash closure, and future Solidity/canonicalization alignment; unresolved jj and reference IDs remain explicit `TBD` values until immutable changes are created and validated.
+
+- Documented the privacy-compatible future seam for directed research claim
+  relations. Canonical SHA-256 claim roots remain authoritative; no private
+  claim, relation, commitment, proof, verifier, lifecycle, or reward contract
+  was added.
+
+- Bounded repository-wide notebook loading: each isolated notebook subprocess now has a 120-second limit, and timed-out launcher/JVM process trees are forcibly terminated so `bb validate` cannot remain blocked indefinitely on a notebook load.
+
+- Corrected research reproduction claimability to use
+  `research-analytical-claim.v2` statuses. Reproduced counterexamples and
+  method-specific verified claims are claimable; `:not-established` claims
+  remain non-claimable.
+
+- Added `research-assignment-target-binding.v1`, binding a generic research
+  assignment to a derived exact Solidity subject over existing deployment,
+  registry-release, and configuration roots. Added a composed adversarial
+  reward-lineage verifier that reconstructs the analytical claim and rejects
+  target, assignment, claim, and obligation substitutions without changing
+  researcher-reward V1 artifacts or adding payment semantics.
+
+- **RESEARCHER INCENTIVES V1 — CLOSED.** Frozen at policy, eligibility,
+  proposal, obligation, exact-Solidity assignment binding, and composed lineage
+  verification. The production deployment/release resolver remains an external
+  Solidity assurance prerequisite, not an incentives workstream.
+
+- Recorded research-analysis assurance closure: production correctness is closed
+  and focused validation passes. Method-specific proof verification remains
+  intentionally deferred; notebook-wide validation and the broad backstop are
+  operationally incomplete due to timeouts. Researcher rewards consume exact
+  established-artifact roots and add no interpretation layer.
+
+- Froze Registry Admission V1 semantics before implementation. Registry admission evaluates whether deployment candidate `C` may occupy binding `B` for canonical scope `S` under immutable policy `P`; it is distinct from evidence-package admission. Defined canonical candidate, policy, derived evaluation, and immutable release responsibilities; excluded mutable lifecycle state, current chain-state claims, and query infrastructure from v1.
+
+- **FROZEN: Registry Admission V1.** Added the first PRF-native registry admission slice: canonical scope roots, sealed-manifest-bound candidates, closed admission policies with required logical deployment identity allowlists, derived admission evaluations, and immutable release validation. Decisions, checks, and reasons are reconstructed from committed inputs rather than accepted from callers. Releases bind registry identity and optional canonical parent lineage. Later chain-state semantics must use a separate block-pinned observation boundary; `admission.clj` is not extended for projections, claims, or attestations.
+
+- Added the separate `registry-chain-observation.v1` foundation. Observations resolve candidates through release bindings, require exact chain/block identity and a projection-definition root, enforce candidate-chain agreement, and derive canonical result and observation roots without introducing claims or mutable lifecycle state. Integration priority is explicitly pro-rata contracts first, generic observation closure second, pro-rata observation fixtures third, and Sew-specific observation work thereafter.
+
+- Added an explicit experimental-only distribution-dependency fault
+- Final-round resolutions with enabled reversal slashing now remain pending through the configured appeal window, allowing the reversal-slash appeal lifecycle to complete before terminal escrow settlement. Ordinary final-round resolution behavior is unchanged when reversal slashing is disabled.
+
+- Added an explicit experimental-only distribution-dependency fault for DR-C-006. The fault targets a declared `execute_resolution` event, rejects the normal action atomically, and does not expand the production protocol action space.
+
+- Hardened benchmark bundle-root finalization by applying the shared canonical-safe projection at the integrity boundary and normalizing path/UUID runtime values before commitment.
+
+- Clarified appeal-bond forfeiture provenance: ordinary escalation bonds are resolved through refund or distribution, while forfeiture belongs to an explicitly authorized slash-appeal rejection path. `DR-C-005` is recorded as a fixture divergence until that production authority is specified.
+
+- **Shortest Shortfall Reservation V2 — ASSURANCE MODEL IMPLEMENTED; ASSURANCE CLOSURE PENDING.** Added `PreparedOperationV2`, `EconomicReserveStateV2`, monotonic `availabilityRevision` ABA resistance, the exact 192-byte `SourceBoundPublicValuesV2`, a separate Solidity decoder, a separate V2 SP1 guest, and distinct V2 fixture/program namespaces. The V2 guest now builds and the host prover has generated a pinned Groth16 fixture with a concrete V2 program/ELF identity; the host assertion confirms SP1 committed values equal Rust-derived values. A deployed verifier identity, Solidity consumption of the generated fixture, and complete substitution vectors remain open. The capital path is intentionally not started; V1 remains separate.
+
+- **Shortest Shortfall reservation — v1 bounded lock-first lifecycle: COMPLETE.** Preserved lock-first authoritative snapshot semantics, existing `reserveSnapshotHash` semantics, and exact snapshot → proof → allocator → funding binding. Added an immutable seconds-based reservation lease, authorized pre-deadline cancellation, permissionless post-deadline expiry, atomic reserve plus Created-allocator cleanup, replay/post-funding/race adversarial coverage, and deadline non-extension regression coverage. Deferred Prepared state, optimistic pre-proofing, `reserveStateCommitment`/observation-metadata separation, and atomic optimistic ratification to a distinct design iteration.
+
+- Added an optional bounded work-stealing execution mode for the pure
+  researcher/pro-rata projection binding workload. Work completion order is
+  excluded from canonical reconstruction; sequential and dynamically scheduled
+  execution produce the same rooted projection.
+
+- Added rooted `researcher-pro-rata-projection.v1`: a projection-only relation
+  from scoped researcher coordinates and validated researcher reward obligation
+  roots to existing pro-rata allocation rows. It uses the existing reward
+  obligation root as pro-rata `:obligation/id`, preserves independent `:row/id`
+  identity, allows zero/one/many rows per obligation, and leaves allocation
+  arithmetic and allocation roots unchanged.
+
+- Added the projection-only `researcher-axis` derived from the existing frozen
+  review-round membership and signer-key governance eligibility path. The dense
+  researcher coordinates are scoped by `:review-round/root` and
+  `:signer-key-set/root`; semantic researcher IDs and signed interaction
+  envelopes are unchanged. Exposed the existing `resolve-position-status`
+  predicate for exact reuse by the axis projection.
+
+- FROZEN V1: the research claim acceptance/lifecycle artifacts
+  `research-claim-acceptance-policy.v1`, `research-claim-acceptance.v1`,
+  `research-claim-lifecycle-transition.v1`, and
+  `research-claim-lifecycle-state.v1` are now stable. Subsequent changes are
+  limited to genuine defects or explicitly versioned successors; reservation
+  and consumption remain intentionally deferred as separate downstream
+  milestones.
+
+- Added the append-only research claim lifecycle: frozen
+  `research-claim-lifecycle-transition.v1` and
+  `research-claim-lifecycle-state.v1` artifacts plus deterministic
+  `reconstruct-research-claim-lifecycle`, `validate-persisted-state`, and the
+  normative `validate-persisted-state-authoritative`. Each
+  transition binds the exact claim, policy, authority and acceptance root of its
+  governing `research-claim-acceptance.v1` artifact; supersession is append-only
+  (an earlier acceptance remains valid historical evidence while a supersession
+  transition marks it no longer current). Reconstruction enforces contiguous,
+  non-repeating, ordered sequences, prior-state chaining, single claim/policy
+  lineage, and optional per-transition acceptance binding, so genesis plus a
+  canonical ordered log yields exactly one current state that must match the
+  persisted authoritative state/root. States are minimal: `:unseen`,
+  `:accepted`, `:rejected`, `:superseded`. Two assurance levels exist:
+  structural reconstruction (log to state) for lower-level tests and tooling,
+  and fully-bound reconstruction (log plus resolved acceptance artifacts, with
+  acceptance/claim/policy/authority verification) which is the normative path
+  for authoritative persisted-state validation; the structural form cannot
+  silently become the production assurance path.
+
+- Research claim derivation now requires the verification artifact to bind the
+  exact output, command, model, domain, assignment, outcome, and verifier-
+  derived claim status; self-rooted verification substitutions are rejected.
+
+- Added the semantic Shortfall end-to-end fixture `onchain-shortfall-end-to-end-v1.json`; source-bound derivation now reconstructs realized-statement and execution inputs from that single raw fixture and gates on matching statement roots before proof generation. Clojure provenance conformance consumes the same fixture.
+
+- Added the source-bound Shortfall SP1 witness `prf/source-bound-shortfall-allocation.v1`. The sibling guest derives and validates raw reserve provenance plus realized-statement inputs, binds the existing allocation-binding canonical hash, and commits exactly 160 bytes (`schema-word + allocation-binding + reserve-binding + operation-id + shortfall-context-root`). Added fixture metadata and the `source-bound-prove` host binary; the existing execution guest is unchanged.
+
+- Added frozen `researcher-reward-policy.v1` and deterministic
+  `researcher-reward-eligibility.v1` artifacts plus `research reward-check`.
+  Eligibility binds researcher, assignment, contribution, verification and
+  claim evidence, and policy root; it reports ineligibility for unestablished
+  or unclaimable claims, failed verification, duplicates, and conflicts of
+  interest. It creates no reward obligation and moves no funds.
+
+- Added immutable `researcher-reward-proposal.v1` and
+  `researcher-reward-obligation.v1`, with `research reward-propose` and
+  `research reward-approve`. An obligation binds one eligible,
+  policy-consistent proposal and authorized approval authority; it carries no
+  payment status, treasury authority, or proof of payment.
+
+- Hardened researcher reward artifacts with the deterministic narrow reward key
+  over researcher, assignment, contribution, type, and policy. Proposal and
+  obligation validation now reject eligibility, term, identity, policy, and
+  approval replay/substitution; V1 freezes the four contribution classes
+  `:approval`, `:dissent`, `:reproduction`, and `:adversarial-finding`.
+
+- Froze the first application-owned Shortfall availability provenance path: `OnchainShortfallReserveV1`, `prf/evm-erc20-asset.v1`, `prf/onchain-shortfall-reserve-observation.v1`, `prf/shortfall-context.v2`, and `prf/onchain-shortfall-reserve-binding.v1`. The path derives allocable ERC-20 base-unit capital from retained reserve custody/accounting, independently reconstructs the Solidity snapshot identity and PRF roots in Clojure and Rust, and pins the shared 100/20/10/70 conformance vector. `shortfall-context.v1` remains unchanged.
+
+- Added `prf/shortfall-context.v1` for the narrow `shortfall-pro-rata.v1` profile. It commits a complete candidate universe with explicit eligibility dispositions, an authority-bound available-capital reference, allocation-context reference, asset/base-unit identity, and the existing admitted deferred pro rata policy. Eligible requests, total demand, and shortfall are derived; the handoff reuses the unchanged realized-allocation statement path and rejects excess capital rather than representing it as allocator residual.
+
+- Hardened persisted realized-statement reconstruction: every request-map claim ID must belong to the claimant universe committed by its allocation context. The existing subset contract remains unchanged, so a context claimant may be absent from the request map.
+
+- Added a locked SP1 6.3.1 Groth16 fixture exporter for `realized-allocation-execution.v1`. It derives the frozen 384-byte execution projection from the canonical input, requires byte-for-byte equality with guest public values and the pinned vector, and exposes the execution guest ELF/VK identity for independent reconstruction.
+
+- Corrected the Clojure `realized-allocation-execution.v1` companion/projection to the frozen Rust/SP1 wire contract: canonical JSON companion fields, bytes32 operation IDs, Keccak ABI-word operation/leaf derivations (including `availableAmount` in operation binding), duplicate-last ordered Merkle roots, and the exact 384-byte public-value tuple. It rejects unsupported/noncanonical inputs without authorizing an EVM transfer.
+
+- Added the separate `realized-allocation-execution.v1` Rust/SP1 projection. It
+  independently derives the supported-profile statement, operation binding,
+  recipient-mapped execution claim Merkle root, and fixed 384-byte EVM ABI
+  public values. The existing `realized-statement-sp1-program` and its
+  `evm-bytes32-v1` public-value contract remain unchanged.
+
+- Clarified the framework/adopter boundary for successor rules, admission
+  criteria, closed-form validation, game-theoretic analysis, and high-assurance
+  claims. Added adopter responsibility, successor, admission integration,
+  closed-form validation, and assurance claim guidance, including successor
+  and admission integration and adversarial coverage checklists. The closed-form
+  guide now defines adoption, claimability, and status-semantics requirements.
+  The game-theory guide now requires model, calibration, search-bound, coverage,
+  and claim-language declarations for bounded analysis. The assurance claim
+  template now defines implementation, bounded-research, and claimable-assurance
+  publication classifications. Added a contributor-facing documentation drift
+   checklist for public assurance claims.
+
+- Hardened `evidence make`: JSON is detected when reading stdin via `--input -`,
+  malformed or non-map input returns a usage error, and required evidence fields
+  are rejected before canonical record construction.
+
 ## [Unreleased]
+
+### Commitment composition
+
+- Added `prf/commitment-composition.v1`, a canonical typed parent-commitment primitive for binding non-empty, role-named `sha256:` artifact commitments under a semantic composition domain. The primitive canonicalizes member order, rejects duplicate roles and malformed references, and keeps optional sealing/blinding outside the base root. The current realized partial-fill clean-room seal remains on its existing immutable construction; its four commitments are documented and tested as a prospective V1 composition vector only.
+
+### External realized partial-fill assurance protocol
+
+- Added the scoped clean-room engagement protocol, submission template, and draft profile manifest for `largest-remainder-deferred-pro-rata.v1` realized partial-fill replication. The first external exercise compares semantic bodies, witnesses, canonical bytes, committed sub-roots, and `realized-allocation-statement.v1` across public and sealed-holdout inputs; SP1, Solidity, and unsupported policy regimes are explicitly outside this milestone. The manifest remains explicitly unfrozen until holdout commitments and the public corpus shape are finalized. The public runner now executes two cases and compares separate expected-output files, rather than embedding one golden output in the shell script. The committed realized partial-fill body projections, root preimages, order rules, and standalone-witness limitation are now documented explicitly. The native kernel also exposes an additive `--detailed` projection with realized rows, deterministic audit totals, and committed-root inventory; the compact output remains unchanged. The public gate now also exercises four explicit rejection vectors with checked-in expected envelopes: missing allocation context, available exceeding total requested, unknown request claim ID, and unsupported policy. Poisoned-result vectors remain deferred because the input contract has no claimed-result channel. The native kernel now rejects any allocation/fail-action policy outside the exact supported profile instead of silently accepting unsupported policy values. Three valid in-scope holdout inputs and a deterministic input-set commitment are staged for the external exercise. Their authoritative expected outputs are now privately generated and sealed from the Clojure production reconstruction path, with canonical bodies, bytes, roots, generator/projection provenance, and a deterministic aggregate expected-output commitment. The staged protocol now explicitly requires the authority holder to retain both private inputs and sealed outputs, release only inputs after a fixed Phase B declaration, and open expectations only after an irrevocably fixed Phase D submission. Generator/projection digests and holdout roots are immutable engagement evidence; any change requires a new sealing event. The raw expected-output root and sealing nonce are withheld until after the external holdout submission; handoff material exposes only a fresh nonce-blinded sealing commitment. No external implementation, holdout release, independent comparison, or assurance claim has occurred.
+
+### SEW dispute-resolution authority
+
+- Added `terminal-evidence-publication.v2`. Authenticated terminal publication now requires a V2 canonical publication that commits the exact immutable terminal-envelope hash. The envelope remains the sole binding to `:dispute-resolution/closure-root`; the existing terminal-reservation-to-publication storage mapping and V1 publication contract are unchanged. `resolve-published-terminal` follows that discovery mapping through caller-provided immutable artifact lookup.
+
+- Ordinary SEW escalation now freezes a canonical `sew-resolver-ladder.v1` artifact and root in each escrow's module snapshot. When configured, the artifact binds exact next-level successor resolvers; escalation rejects a missing, invalid, or callback-mismatched successor, so later live `:escalation-resolvers` changes cannot affect an existing escrow.
+
+- Added derived `prf/dispute-resolution-closure.v1` for authenticated final-round release/refund settlement. It reconstructs and commits the workflow/round, pre-state, frozen adjudication snapshot, case, instance, resolution basis, ruling, authentication verification, finality, semantic settlement and terminal effects, and post-settlement state. A separate immutable terminal-envelope binding commits the closure root after settlement; authenticated terminal publication rejects absent or mismatched bindings. Existing V1 terminal reservation and terminal-evidence publication schemas are unchanged. Refusal, expiry, failover, and appeals-exhausted remain unsupported.
+
+- **Phases 1–3 frozen.** The high-assurance downgrade protections, ruling/instance/case lineage, and authenticated-ruling verification boundary are stable V1 contracts. Future changes require a concrete defect or an explicitly scoped new phase; no provider infrastructure, finality, closure, refusal, authority-transition redesign, or broader SEW refactoring is implied.
+
+- Post-response-window dispute resolution now requires fallback authorization rather than granting authority to arbitrary callers. The fallback accepts configured module authorization or eligible direct/staked resolvers while excluding escrow parties.
+- Added the closed, outcome-free `sew-resolution-basis.v1` artifact. Its canonical root binds the specific workflow, escrow, pre-resolution state, dispute/evidence context, governed authority context, resolver authorization, immutable module snapshot, configuration, and primary/fallback authority mode.
+- Added `sew-resolution-decision.v1`, a canonical decision artifact that binds an outcome, inputs, evidence, resolver, module snapshot, and the SEW resolution basis. Repeated workflow, pre-state, resolver, and module bindings are verified against the referenced basis. Decision-aware execution now derives its recorded resolution identity from the verified decision root; legacy hash-taking execution remains temporarily available for migration.
+- Added immutable, append-only `sew/adjudication-snapshot.v1`, which atomically roots the frozen dispute question/evidence, governed authority, configuration, canonical protocol time, predecessor state fence, and explicit parent snapshot lineage for each adjudication round.
+- Added canonical `sew/dispute-evidence-set.v1` derivation from closed, round-scoped SEW evidence-admission state. Only registered, provenance-verified workflow evidence may be admitted by the applicable participant/resolver role; set roots commit canonical effective membership and immutable parent-set lineage.
+- Added pure Case V1 artifacts: `sew/dispute-question.v1`, fixed SEW ruling-schema and adjudication-policy artifacts, `sew/adjudication-case-definition.v1`, and `sew/adjudication-case.v1`. They commit machine release/refund/refuse semantics, closed evidence-set identity, and predecessor decision lineage without granting adjudication authority or encoding arbitrator presentation data.
+- Added protocol-neutral `prf/adjudication-decision.v1`, transition eligibility, selection-basis and selection-result artifacts, and `prf/adjudication-authority-transition.v1`. The transition contract binds exact predecessor decision/adjudicator identity to the selected successor adjudication under committed eligibility, module, state, and protocol-instance roots.
+- Added a required authoritative-state fence for dispatched authenticated SEW rulings. The fence must atomically acquire the submitted pre-resolution state root and returns a snapshot which is reconstructed and verified again before enforcement; stale or substituted snapshots are rejected.
+- Added `prf/adjudication-basis.v1` and a deterministic projection from `sew-resolution-basis.v1`. Final authenticated `prf/dispute-ruling.v1` enforcement now binds that generic basis, records both generic and SEW basis roots, and derives release, refund, or refusal solely from the ruling; the transaction caller remains only a submitter. Rulings now use the distinct `PRF_DISPUTE_RULING_V1` canonical domain rather than the SEW decision domain. Legacy decision/hash paths remain compatibility-only during migration.
+- Final `prf/dispute-ruling.v1` artifacts now commit the authoritative adjudication-instance and published case roots. High-assurance enforcement rejects rulings whose committed lineage does not exactly match the current instance and case.
+- Added `prf/adjudication-authentication-verification.v1`. Configured provider adapters now produce a domain-separated, canonical authentication-verification artifact binding the exact ruling, its authentication commitment, adjudication instance, authenticated subject, method, credential material, provider evidence, observation basis, and result; high-assurance enforcement rejects missing, invalid, non-affirmative, or mismatched artifacts. Generic PRF validates artifact integrity and authoritative bindings; the configured provider adapter establishes provider-evidence, credential, subject, and method semantics.
+- Added `prf/dispute-ruling-finality.v1` under the `PRF_DISPUTE_RULING_FINALITY_V1` domain. V1 derives only `:authoritative-final-round` from authoritative replayable SEW context, binds the exact ruling, Phase 3 authentication verification, case, instance, workflow, and round, and requires it for high-assurance terminal settlement. Ruling-declared `:final` is no longer sufficient; appeals-exhausted, expiry-based, refusal, and failover finality remain deferred. This is not yet a context-free portable proof.
 
 ### Authentication provenance
 
@@ -2718,3 +3443,39 @@ runtime mechanism selection or a mechanism registry.
 - Research claims now require exact output-verification binding, validate the
   canonical benchmark outcome manifest before verification, and distinguish the
   studied subject root from the incentive-model root.
+# Unreleased
+
+- Liquidity-shortfall public artifacts now expose a claimant-specific verifier
+  verdict for each allocation, bound to the canonical request and allocation
+  hashes.
+# Research analysis comparison, composition, and possession requirements
+
+- Added canonical `research-analysis-comparison.v1` and
+  `research-analysis-composition.v1` artifacts. Comparison preserves independent
+  analysis roots and explicit equal, different, missing, and not-comparable
+  outcomes; composition supports closed exact-integer policies without implying
+  claim acceptance, consensus, theorem status, or general proof.
+- Added exact Manhattan/L1 distance for explicitly distance-capable integer
+  coordinate spaces. Nominal researcher-axis coordinates are rejected.
+- Added independent proof-of-possession requirement semantics for
+  `:unspecified`, `:requested`, and `:required`; a required but unestablished
+  proof remains a valid, explicit unsatisfied requirement.
+- Added generic `incentive-target-qualification.v1` semantics with explicit
+  target-wide and contributor-scoped possession checks. Qualification does not
+  alter analysis validity or authorize payment.
+# Unreleased
+
+- Rust allocation context parsing now matches PRF rejection semantics for blank
+  identifiers, policy validation, and negative numeric inputs.
+- Rust allocation context parsing now rejects proposed rates for unknown outcomes,
+  matching the Clojure requirement that rates cover exactly the outcome set.
+- Move positive-capacity validation into the `prf-pro-rata-allocation` Rust
+  package while preserving the kernel's existing rejection classification.
+- Move exact-rate domain validation into the `prf-pro-rata-allocation` Rust
+  package while preserving the kernel's existing error classifications.
+- Move parsed outcome-rate alignment into the `prf-pro-rata-allocation` Rust
+  package while preserving the allocation kernel's existing rejection behavior.
+- Expose exact allocation rate arithmetic from the `prf-pro-rata-allocation` Rust package; the allocation kernel retains its existing compatibility API.
+- Move legacy allocation artifact root projections into the `prf-pro-rata-allocation` Rust package while preserving their existing domain identities and kernel compatibility paths.
+- Expose the allocation kernel's shared request/context types from the pro-rata Rust package; preserve the existing kernel module paths as re-exports.
+
