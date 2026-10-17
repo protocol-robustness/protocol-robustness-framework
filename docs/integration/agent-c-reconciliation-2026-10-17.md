@@ -17,6 +17,8 @@ Integration revisions:
 
 The former agent-c-1/c-3 work is already in the integration ancestry and was not replayed. No changes were taken from agent-c-2's dirty working copy or from agent-c-proXX workspaces. Original source workspaces and histories were left intact.
 
+JJ retains an earlier same-change-ID revision of the root-merge checkpoint from before its empty parent was described. Its tree is identical to the selected merge (`jj diff` reports zero file changes); the integration line uses the revision with the described checkpoint. The earlier revision and all source histories were preserved rather than abandoned.
+
 ## Validation
 
 - Focused genesis suite: 84 tests, 190 assertions; 0 failures, 0 errors.
