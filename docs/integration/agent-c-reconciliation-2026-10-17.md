@@ -57,10 +57,10 @@ The `scripts/deployment/genesis_roots.clj` conflict was resolved in integration 
 
 Uncommitted source work was not discarded or folded into the candidate merge:
 
-- `agent-c-2` WIP is retained at its original workspace. A recovery archive is `/home/user/agent-c-recovery/2026-10-17/agent-c-2-wip.tar.gz`, SHA-256 `93395f7d196277f3a26a216c373e425a63769a6900bd299f61ed3cf2b73fc255`. The original too-large patch remains in that workspace; its pinned copy is in the integration tree as noted above.
-- `agent-c-1`'s untracked `q` status capture remains in its workspace and is also preserved at `/home/user/agent-c-recovery/2026-10-17/agent-c-1-q`, SHA-256 `c367bc63bf45664592ff71d6f9fb7374f4abecc0d572285d11a3aefc740eb40c`.
+- `agent-c-2` WIP is preserved in a recovery change and in `/home/user/agent-c-recovery/2026-10-17/agent-c-2-wip.tar.gz`, SHA-256 `93395f7d196277f3a26a216c373e425a63769a6900bd299f61ed3cf2b73fc255`. Its source tree includes the too-large overlay patch; the exact pinned patch is also in the integration tree as noted above.
+- `agent-c-1`'s untracked `q` status capture is preserved in a recovery change and at `/home/user/agent-c-recovery/2026-10-17/agent-c-1-q`, SHA-256 `c367bc63bf45664592ff71d6f9fb7374f4abecc0d572285d11a3aefc740eb40c`.
 
-The `agent-c-2` WIP is not rebased because it contains a substantial alternate candidate tree with unresolved changelog ancestry; it remains explicitly pending comparison. `agent-c-1` remains pending workspace realignment because its source history has a changelog conflict and the untracked capture has not been resolved as user work. Neither workspace was overwritten. `agent-c` and `agent-c-3` had no uncommitted file changes and are eligible for a fresh development change on the consolidated baseline after this receipt is committed. No `agent-c-proXX` workspace or bookmark was changed.
+The `agent-c-2` WIP is not rebased because it contains a substantial alternate candidate tree with unresolved changelog ancestry; it remains explicitly pending comparison. The c1 status capture is preserved separately and was not treated as source work. All four development workspaces were subsequently given clean changes based directly on the consolidated integration code baseline. No `agent-c-proXX` workspace or bookmark was changed.
 
 ### Consolidated validation
 
@@ -69,8 +69,21 @@ The `agent-c-2` WIP is not rebased because it contains a substantial alternate c
 - `bb lint`: passed, 0 errors and 81 existing warnings.
 - `bb validate`: passed; notebook support passed, 53/53 notebooks passed, and SPEDS passed 66 tests / 265 assertions. Report: `target/validation/20261017T104722.760Z-7a423eed-9a71-4791-8169-e4bce67a9c4f/validation-report.edn`.
 - `bb backstop`: passed; yield unit tests passed (179 tests / 969 assertions), yield provider scenarios 14/14, SEW yield scenarios 15/15, formatting and lint passed, and the default gate printed `BACKSTOP DEFAULT PASSED`.
-- The merge tree contains no unresolved conflicts. The current integration worktree has only the described merge-resolution and receipt changes until they are snapshotted into the integration history.
+- The merge tree contains no unresolved conflicts. The receipt update below is documentation-only; the consolidated code baseline itself is the validated merge revision identified in the workspace table below.
 
 ### Remaining qualification and integration status
 
-The consolidated candidate does not qualify a live or staged deployment. Candidate semantic inputs still need owner approval; no live genesis sealing, successor configuration activation or public-network transaction was performed. PRO-6 remains open on those acceptance criteria. The c1/c2 workspaces remain preserved with pending work as described above. The final integration commit and any clean workspace development commits are identified by their immutable JJ IDs in the reconciliation completion report; the containing receipt commit cannot include its own commit ID.
+The consolidated candidate does not qualify a live or staged deployment. Candidate semantic inputs still need owner approval; no live genesis sealing, successor configuration activation or public-network transaction was performed. PRO-6 remains open on those acceptance criteria. The c2 WIP remains preserved but unintegrated as described above. The receipt commit is a child of the consolidated code baseline; its own enclosing JJ commit ID is supplied in the completion report because a commit cannot include its own identity.
+
+### Workspace synchronization
+
+The validated integration code baseline is `f2b3537693aeb84db042018560a359066dfa3fee`; the local `integration` bookmark points to it. Each agent development workspace now has a clean, described change directly based on that baseline:
+
+| Workspace | Development change | Commit | Status |
+| --- | --- | --- | --- |
+| `agent-c` | `uzovsvzrovrkrytvoltlnzqzqlqlxyts` | `1a799bfc6d65a9076105a1b973d0ff6d6dffad79` | clean, directly based on integration |
+| `agent-c-1` | `kuylulnvlskzxxuulwxnvvnqzlrnwyux` | `b5a7ef82a8ade1c177564f1800f95dbfe12b7aa2` | clean, directly based on integration |
+| `agent-c-2` | `ltozotsszvpnpwtmtnuwwzurqpkwvwoz` | `0b4c56b76f84d2563af9f0c990cf0827f27e7783` | clean, directly based on integration |
+| `agent-c-3` | `vtnvnmxmvpynurmtyxuxvxzytuvqoqyz` | `74a734993ebbda64312e9a9349533af6caaac136` | clean, directly based on integration |
+
+The previous `agent-c`, `agent-c-1`, `agent-c-2`, `agent-c-3`, and `integration` bookmark targets have recovery references. The c1 capture is preserved at `recovery/agent-c-1-wip-capture-2026-10-17` (`564d0dd63790abf42e20a2ca0ae166018e892f79`). The c2 alternate WIP snapshot is preserved at `recovery/agent-c-2-wip-2026-10-17` (`8594db1702d5798db6e18c600c511b76493967a5`) and in the recovery archive above. It remains unintegrated pending semantic comparison; it was not replayed over the selected c2 candidate. The development bookmarks now point to the new clean changes shown above. No source history was abandoned or deleted.
