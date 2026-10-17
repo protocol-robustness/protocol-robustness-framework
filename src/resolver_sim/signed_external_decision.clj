@@ -125,6 +125,13 @@
   [trust-policy key-id]
   (some #(when (= key-id (:key/id %)) %) (:trusted-keys trust-policy)))
 
+(defn- trust-policy-unambiguous? [trust-policy]
+  (let [keys (:trusted-keys trust-policy)
+        ids (mapv :key/id keys)]
+    (and (vector? keys)
+         (every? some? ids)
+         (= (count ids) (count (distinct ids))))))
+
 (defn verify-envelope
   "Verify a signed decision envelope against a public trust policy.
 
@@ -154,6 +161,9 @@
 
       (nil? key-id)
       {:valid? false :reason :missing-key-id}
+
+      (not (trust-policy-unambiguous? trust-policy))
+      {:valid? false :reason :ambiguous-trust-policy}
 
       (not= (:signed-hash sig) recomputed)
       {:valid? false :reason :signed-hash-mismatch

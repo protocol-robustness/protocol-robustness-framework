@@ -2,6 +2,7 @@
   (:require [clojure.data.json :as json]
             [clojure.edn :as edn]
             [clojure.java.io :as io]
+            [resolver-sim.authority-state :as authority-state]
             [resolver-sim.hash.canonical :as canonical]
             [resolver-sim.genesis :as genesis]))
 
@@ -46,6 +47,23 @@
   #{"eae-controlled-entitlement-demo.authority-state-package.v1"
     "prf.authority-state-package.v1"})
 
+(defn- json-key [key]
+  (if (keyword? key)
+    (if-let [namespace (namespace key)]
+      (str namespace "/" (name key))
+      (name key))
+    key))
+
+(defn- initial-configuration-artifact [materials]
+  (merge {:configuration/schema "chain-configuration.v1"
+          :verifier-registry/root (genesis/canonical-verifier-registry-root [])}
+         (into {}
+               (map (fn [[component field]]
+                      [field (str "sha256:" (canonical/hash-with-intent
+                                             {:hash/intent :evidence-content}
+                                             (get materials component)))]))
+               initial-configuration-components)))
+
 (defn- derive-initial-configuration-package-root [package]
   (let [materials (:component-material package)
         expected-components (set (keys initial-configuration-components))
@@ -61,17 +79,7 @@
       (throw (ex-info "initial-configuration component set is incomplete or unknown"
                       {:kind :initial-configuration :expected expected-components
                        :actual (set (keys materials))})))
-    (let [component-roots (into {}
-                                (map (fn [[component config-field]]
-                                       [config-field
-                                        (str "sha256:" (canonical/hash-with-intent
-                                                        {:hash/intent :evidence-content}
-                                                        (get materials component)))]))
-                                initial-configuration-components)
-          configuration (merge {:configuration/schema "chain-configuration.v1"
-                                :verifier-registry/root
-                                (genesis/canonical-verifier-registry-root [])}
-                               component-roots)
+    (let [configuration (initial-configuration-artifact materials)
           computed (genesis/chain-configuration-root configuration)
           declared (:initial-configuration/root package)]
       (when-not (and (string? protocol-root) (re-matches #"^sha256:[0-9a-f]{64}$" protocol-root))
@@ -116,8 +124,8 @@
                        :actual (set (keys materials))})))
     (doseq [[component protocol-field] protocol-component-roots]
       (let [computed (str "sha256:" (canonical/hash-with-intent
-                                      {:hash/intent :evidence-content}
-                                      (get materials component)))
+                                     {:hash/intent :evidence-content}
+                                     (get materials component)))
             declared (get protocol protocol-field)]
         (when-not (= computed declared)
           (throw (ex-info "protocol-genesis component root does not match its material"
@@ -165,7 +173,13 @@
 
           :authority-state
           (let [computed (derive-authority-state-package-root artifact)]
-            [(or (:package/schema artifact) "authority-state.v1") computed])
+            ["eae-controlled-entitlement-demo.authority-state.v1" computed])
+
+          :generic-authority-state
+          ["authority-state.v1" (authority-state/authority-state-root artifact)]
+
+          :local-authority-policy
+          [(:authority-policy/schema artifact) (authority-state/local-authority-policy-root artifact)]
 
           (throw (ex-info "unsupported deployment root kind" {:kind kind})))]
     {"schema" "prf-deployment-canonical-root-result.v1"
@@ -173,14 +187,129 @@
      "root" root
      "qualification" "derived-only-not-approved"}))
 
+(defn derive-candidate-package-set
+  "Recompute all candidate roots and cross-package scope bindings together.
+  Exposes the exact seven-root C0 artifact, not an arbitrary environment root.
+  This record is review material and does not authenticate owner approval."
+  [packages]
+  (when-not (and (map? packages)
+                 (= #{:protocol-genesis :authority-state :initial-configuration}
+                    (set (keys packages))))
+    (throw (ex-info "candidate package set must contain exactly three packages" {})))
+  (let [roots (into {} (for [[kind artifact] packages]
+                         [kind (get (derive-root kind artifact) "root")]))
+        protocol-root (:protocol-genesis roots)
+        authority (get-in packages [:authority-state :authority-state])
+        initial (:initial-configuration packages)]
+    (when-not (= protocol-root (:protocol/genesis-root authority)
+                 (:protocol/genesis-root initial))
+      (throw (ex-info "candidate packages disagree on protocol genesis" {})))
+    (when-not (= 31337 (:execution/chain-id authority) (:execution/chain-id initial))
+      (throw (ex-info "candidate packages disagree on local execution scope" {})))
+    {"schema" "prf-deployment-candidate-package-set.v1"
+     "qualification" "derived-only-not-approved"
+     "roots" (into {} (map (fn [[k v]] [(name k) v])) roots)
+     "initialConfiguration" (initial-configuration-artifact (:component-material initial))
+     "artifactDigests" (into {} (for [[kind artifact] packages]
+                                  [(name kind)
+                                   (str "sha256:" (canonical/hash-with-intent
+                                                   {:hash/intent :evidence-content}
+                                                   artifact))]))}))
+
+(defn derive-generic-candidate-package-set
+  "Derive a candidate package set using generic authority-state.v1 and
+  explicitly versioned local-authority-policy.v2 or v3. This is intentionally
+  distinct from the legacy EAE demo path above; it never reinterprets the old
+  package schema."
+  [packages]
+  (when-not (and (map? packages)
+                 (= #{:protocol-genesis :authority-state :local-authority-policy :initial-configuration}
+                    (set (keys packages))))
+    (throw (ex-info "generic candidate package set must contain exactly four packages" {})))
+  (let [protocol-package (:protocol-genesis packages)
+        authority-package (:authority-state packages)
+        policy-package (:local-authority-policy packages)
+        initial-package (:initial-configuration packages)
+        state (:authority-state authority-package)
+        policy (:local-authority-policy policy-package)
+        candidate-status :candidate-owner-approval-required]
+    (when-not (= "eae-controlled-entitlement-demo.protocol-genesis-package.v1"
+                 (:package/schema protocol-package))
+      (throw (ex-info "protocol-genesis candidate package schema is invalid" {})))
+    (when-not (= candidate-status (:package/status protocol-package))
+      (throw (ex-info "protocol-genesis package must remain an explicit candidate" {})))
+    (when-not (and (= "prf-authority-state-package.v1" (:package/schema authority-package))
+                   (= candidate-status (:package/status authority-package))
+                   (= #{:package/schema :package/status :authority-state :authority-state/root}
+                      (set (keys authority-package))))
+      (throw (ex-info "generic authority-state package schema/status is invalid" {})))
+    (when-not (and (contains? #{"prf-local-authority-policy-package.v2"
+                               "prf-local-authority-policy-package.v3"}
+                             (:package/schema policy-package))
+                   (= (if (= "local-authority-policy.v2" (:authority-policy/schema policy))
+                        "prf-local-authority-policy-package.v2"
+                        "prf-local-authority-policy-package.v3")
+                      (:package/schema policy-package))
+                   (= candidate-status (:package/status policy-package))
+                   (= #{:package/schema :package/status :local-authority-policy :local-authority-policy/root}
+                      (set (keys policy-package))))
+      (throw (ex-info "generic local-authority-policy package schema/status is invalid" {})))
+    (when-not (= "eae-controlled-entitlement-demo.initial-configuration-package.v1"
+                 (:package/schema initial-package))
+      (throw (ex-info "initial configuration candidate package schema is invalid" {})))
+    (let [protocol-result (derive-root :protocol-genesis protocol-package)
+          protocol-root (get protocol-result "root")
+          state-root (authority-state/authority-state-root state)
+          policy-root (authority-state/local-authority-policy-root policy)
+          initial-root (derive-root :initial-configuration initial-package)
+          initial-root (get initial-root "root")]
+      (when-not (= "authority-state.v1" (:authority-state/schema state))
+        (throw (ex-info "generic authority-state package must use authority-state.v1" {})))
+      (when-not (contains? #{"local-authority-policy.v2" "local-authority-policy.v3"}
+                           (:authority-policy/schema policy))
+        (throw (ex-info "generic candidate package set requires local-authority-policy.v2 or v3" {})))
+      (when-not (= state-root (:authority-state/root authority-package))
+        (throw (ex-info "generic authority-state declared root mismatch"
+                        {:declared (:authority-state/root authority-package) :computed state-root})))
+      (when-not (= policy-root (:local-authority-policy/root policy-package))
+        (throw (ex-info "generic local-authority-policy declared root mismatch"
+                        {:declared (:local-authority-policy/root policy-package) :computed policy-root})))
+      (when-not (:valid? (authority-state/validate-policy-binding state policy))
+        (throw (ex-info "generic authority state does not bind its local authority policy"
+                        {:errors (:errors (authority-state/validate-policy-binding state policy))})))
+      (when-not (= protocol-root (:protocol/genesis-root state) (:protocol/genesis-root policy)
+                   (:protocol/genesis-root initial-package))
+        (throw (ex-info "generic candidate packages disagree on protocol genesis" {})))
+      (when-not (= 31337 (:execution/chain-id state) (:execution/chain-id policy)
+                   (:execution/chain-id initial-package))
+        (throw (ex-info "generic candidate packages disagree on local execution scope" {})))
+      (cond-> {"schema" "prf-deployment-generic-candidate-package-set.v1"
+       "qualification" "derived-only-not-approved"
+       "roots" {"protocol-genesis" protocol-root
+                "authority-state" state-root
+                "local-authority-policy" policy-root
+                "initial-configuration" initial-root}
+       "initialConfiguration" (initial-configuration-artifact (:component-material initial-package))
+       "artifactDigests" (into {}
+                               (for [[kind artifact] packages]
+                                 [(name kind)
+                                  (str "sha256:" (canonical/hash-with-intent
+                                                  {:hash/intent :evidence-content}
+                                                  artifact))]))}
+        (= "local-authority-policy.v3" (:authority-policy/schema policy))
+        (assoc "authorityTransitionValidatorAddress" (:authority/transition-validator-address policy))))))
+
 (defn -main [& args]
   (let [[kind input-path & extra] args]
     (when (or (nil? kind) (seq extra)
               (and (not= kind "empty-verifier-registry") (nil? input-path))
               (and (= kind "empty-verifier-registry") input-path))
       (binding [*out* *err*]
-        (println "Usage: clojure -M -m scripts.deployment.genesis-roots <protocol-genesis|authority-state|chain-configuration|chain-instance-genesis|chain-configuration-transition> <artifact.edn>"))
+        (println "Usage: clojure -M:test -m scripts.deployment.genesis-roots <protocol-genesis|authority-state|generic-authority-state|local-authority-policy|initial-configuration|candidate-package-set|generic-candidate-package-set|chain-configuration|chain-instance-genesis|chain-configuration-transition> <artifact.edn>; empty-verifier-registry takes no file"))
       (System/exit 2))
     (let [artifact (when input-path (edn/read-string (slurp (io/file input-path))))
-          result (derive-root (keyword kind) artifact)]
-      (println (json/write-str result)))))
+          result (case kind
+                   "candidate-package-set" (derive-candidate-package-set artifact)
+                   "generic-candidate-package-set" (derive-generic-candidate-package-set artifact)
+                   (derive-root (keyword kind) artifact))]
+      (println (json/write-str result {:key-fn json-key})))))

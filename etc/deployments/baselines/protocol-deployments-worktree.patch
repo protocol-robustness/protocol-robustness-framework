@@ -1,0 +1,631 @@
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+index d9e38ee..559c27b 100644
+--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -14,7 +14,7 @@
+ 
+ - Stage-output consumers now require predecessor receipts to have passed independent verification in the current resolution chain; receipt shape and a matching root alone are insufficient.
+ 
+-- Plan-selected deployments can consume cross-plan contract outputs pinned by producer plan, execution, manifest, live-verification, output, and contract identities using `--cross-plan-stage-output-evidence <dir>`. Producer evidence is independently checked before resolution and the consumer rechecks the producer transaction, block, historical runtime, and current runtime. Cross-plan evidence is recorded separately from the existing same-plan v1 receipt commitment.
++- Plan-selected deployments can consume cross-plan contract outputs pinned by producer plan, execution, manifest, live-verification, output, and contract identities using `--cross-plan-stage-output-evidence <dir>`. Producer evidence is independently checked before resolution and the consumer rechecks the producer transaction, block, historical runtime, and current runtime. A producer that itself pins upstream cross-plan outputs carries that evidence recursively; every upstream producer must satisfy the same checks and share the consumer's chain. Cross-plan evidence is recorded separately from the existing same-plan v1 receipt commitment.
+ 
+ - Plan-selected deployment can consume a `stage-output` contract from `--stage-output-receipts <dir>`. Before any deployment transaction, the CLI verifies the receipt chain against the selected plan, environment, chain, source revision and bundle roots, then checks the producing transaction, block hash, historical runtime and current runtime against the selected pinned artifact. `--source-revision <id>` is required for this path. Stage-output addresses are recorded as consumed external observations and their receipt/output roots are bound into plan-execution evidence. This does not implement canonical-root/configuration stages or admitted-release resolution.
+ 
+diff --git a/config/architecture.edn b/config/architecture.edn
+index cf2d82d..021e52f 100644
+--- a/config/architecture.edn
++++ b/config/architecture.edn
+@@ -116,7 +116,13 @@
+     { :genesis_ {:deployer true}
+       :configurationExecutor_ {:deployer true}
+       :verifierRegistry_ {:contractAddress :prf/verifier-registry}
+-      :expectedConfigurationRoot_ {:literal "0x0000000000000000000000000000000000000000000000000000000000000000"}
++      ;; Derived from the Base Sepolia (84532) initial-configuration candidate:
++      ;;   agent-c: PRF_DEPLOY_CHAIN_ID=84532 clojure -M -m scripts.deployment.genesis-roots \
++      ;;             initial-configuration etc/deployments/prf-base-sepolia/initial-configuration-package.edn
++      ;; "derived-only-not-approved" — re-derive after the owner-approved canonical inputs (P, A0, C0)
++      ;; are supplied. Note this local topology binds :genesis_/:configurationExecutor_ to the deployer EOA;
++      ;; a qualified successor deploy must deploy the chain-instance genesis + configuration executor.
++      :expectedConfigurationRoot_ {:literal "0xecf384cbb32b68256f5de949e7e3bacc1f0e485f5e590cc8adcc5890388aa353"}
+       :expectedConfigurationEpoch_ {:literal 0}}}
+ 
+    :sew/escrow-vault
+diff --git a/config/pro-rata-v2-entitlement/successor-fork.plan.v1.json b/config/pro-rata-v2-entitlement/successor-fork.plan.v1.json
+index adf9c9c..04a91ec 100644
+--- a/config/pro-rata-v2-entitlement/successor-fork.plan.v1.json
++++ b/config/pro-rata-v2-entitlement/successor-fork.plan.v1.json
+@@ -78,6 +78,18 @@
+       "stage": "deploy-successor-entitlements"
+     }
+   },
++  "verifierClosures": [
++    {
++      "adapterLogicalId": "prf/source-bound-entitlement-verifier-adapter-v1",
++      "verifierLogicalId": "prf/sp1-verifier-groth16",
++      "adapterStage": "deploy-authority-and-verifier",
++      "verifierStage": "deploy-authority-and-verifier",
++      "expectedProgramVKey": "0x00d90efa52d17e54670a4248f001e4da443a938f12c55d0d414c125ba68087b9",
++      "expectedProgramElfSha256": "0x636330de8e7af3485aba50bd3ca4b5e024cc4f977a2bf0f2c005f711e5ffacf8",
++      "expectedStatementSchemaVersion": "0x71fc0589dce6888fb7c2da5ddd88275753cf9f9de0aca477f307bd96de8660de",
++      "expectedPublicValuesSchema": "0x876f2aea9124d79f41dbdd389d498430987fa33bbb34408989849c478a7c2bde"
++    }
++  ],
+   "authorizedConfigurationActions": [
+     {
+       "id": "seal-empty-verifier-registry",
+diff --git a/src/cli/deploy.ts b/src/cli/deploy.ts
+index 7e16cc3..30478fb 100644
+--- a/src/cli/deploy.ts
++++ b/src/cli/deploy.ts
+@@ -37,6 +37,8 @@ import { verifyStageOutputReceiptGraph } from '../deployment/stage-output';
+ import { mayRetainCommittedAuxiliaryOutput, verifyStageOutputContractFact } from '../deployment/stage-output-live';
+ import { assertSourceRevisionMatchesCheckout } from '../deployment/source-revision';
+ import { verifyCrossPlanStageOutput } from '../deployment/cross-plan-stage-output';
++import { stageOutputDeploymentFactV1Schema } from '../deployment/stage-output-live';
++import { verifyEffectiveVerifierClosure } from '../deployment/verifier-runtime-closure';
+ 
+ interface DeployOptions {
+   bundle: BundleConsumer;
+@@ -85,6 +87,7 @@ async function verifyPlanStageOutputDependencies(input: {
+     }
+   }
+   const observed: Array<{ logicalId: string; stage: string; output: string; address: string }> = [];
++  const verifiedClosures = new Set<string>();
+   const verified = await verifyStageOutputReceiptGraph({
+     receipts: input.receipts,
+     plan: input.plan,
+@@ -106,6 +109,20 @@ async function verifyPlanStageOutputDependencies(input: {
+       if (authenticated?.selectedStageOutput) {
+         observed.push({ logicalId: authenticated.logicalId, stage: stageId, output: outputName, address: authenticated.address });
+       }
++      for (const closure of input.plan.verifierClosures) {
++        if (closure.adapterStage !== stageId || !authenticated || authenticated.logicalId !== closure.adapterLogicalId) continue;
++        const verifierStage = input.receipts[closure.verifierStage];
++        const verifierOutputName = Object.entries(input.plan.stages.find((stage) => stage.id === closure.verifierStage)?.contractOutputs ?? {})
++          .find(([, logicalId]) => logicalId === closure.verifierLogicalId)?.[0];
++        const adapterFact = stageOutputDeploymentFactV1Schema.safeParse(value);
++        const verifierFact = verifierOutputName ? stageOutputDeploymentFactV1Schema.safeParse(verifierStage?.outputs[verifierOutputName]?.value) : undefined;
++        if (!adapterFact.success || !verifierFact?.success || !await verifyEffectiveVerifierClosure({
++          closure, adapterFact: adapterFact.data, verifierFact: verifierFact.data,
++          contracts: input.resolved.spec.contracts, bundle: input.bundle,
++          transport: input.transport, expectedChainId: input.chainId,
++        })) return false;
++        verifiedClosures.add(closure.adapterLogicalId);
++      }
+       if (authenticated) return true;
+       // The receipt verifier independently checks the output and receipt
+       // commitments. Unrecognized non-contract outputs are retained only if
+@@ -113,6 +130,10 @@ async function verifyPlanStageOutputDependencies(input: {
+       return mayRetainCommittedAuxiliaryOutput({ plan: input.plan, stageId, outputName, value });
+     },
+   });
++  const selectedClosures = input.plan.verifierClosures.filter((closure) => input.plan.contracts[closure.adapterLogicalId]?.kind === 'stage-output');
++  if (selectedClosures.some((closure) => !verifiedClosures.has(closure.adapterLogicalId))) {
++    throw new ConfigError('VERIFIER_RUNTIME_CLOSURE_FAILED', 'A plan-required verifier implementation closure was not authenticated from its deployment-stage outputs');
++  }
+   return observed.map((binding) => {
+     const receipt = verified[binding.stage]!;
+     const output = receipt.outputs[binding.output]!;
+@@ -253,7 +274,7 @@ async function run(
+       if (source.kind !== 'stage-output' || !source.producer) continue;
+       const evidence = resolved.crossPlanStageOutputEvidence?.[logicalId];
+       if (!evidence) throw new ConfigError('CROSS_PLAN_STAGE_OUTPUT_EVIDENCE_REQUIRED', `Cross-plan producer evidence is missing for '${logicalId}'`);
+-      const authenticated = verifyCrossPlanStageOutput({ consumerPlan: plan, logicalId, evidence });
++      const authenticated = verifyCrossPlanStageOutput({ consumerPlan: plan, logicalId, evidence, expectedChainId: chainId });
+       const contractOutput = await verifyStageOutputContractFact({
+         plan, stageId: source.stage, outputName: source.output, value: authenticated.value,
+         contracts: resolved.spec.contracts, bundle, transport: bound.transport, expectedChainId: chainId,
+diff --git a/src/deployment/cross-plan-stage-output.ts b/src/deployment/cross-plan-stage-output.ts
+index a5bfa01..e196daf 100644
+--- a/src/deployment/cross-plan-stage-output.ts
++++ b/src/deployment/cross-plan-stage-output.ts
+@@ -143,7 +143,7 @@ export function verifyCrossPlanStageOutput(input: {
+     throw new ConfigError('CROSS_PLAN_STAGE_OUTPUT_DEPENDENCIES_MISSING', 'Producer evidence omits or adds nested cross-plan dependencies');
+   }
+   for (const [dependencyId] of nestedSources) {
+-    verifyCrossPlanStageOutput({ consumerPlan: producerPlan, logicalId: dependencyId, evidence: evidence.producerDependencies[dependencyId], ancestorPlanHashes: ancestors });
++    verifyCrossPlanStageOutput({ consumerPlan: producerPlan, logicalId: dependencyId, evidence: evidence.producerDependencies[dependencyId], ancestorPlanHashes: ancestors, expectedChainId: input.expectedChainId });
+   }
+ 
+   const manifest = evidence.producerManifest as unknown as DeploymentManifest;
+diff --git a/src/deployment/successor-plan.ts b/src/deployment/successor-plan.ts
+index 650a48e..0523b21 100644
+--- a/src/deployment/successor-plan.ts
++++ b/src/deployment/successor-plan.ts
+@@ -24,6 +24,16 @@ const stageSchema = z.object({
+   produces: z.array(z.string()),
+   contractOutputs: z.record(z.string(), z.string().min(1)).optional(),
+ }).strict();
++const verifierClosureSchema = z.object({
++  adapterLogicalId: z.string().min(1),
++  verifierLogicalId: z.string().min(1),
++  adapterStage: z.string().min(1),
++  verifierStage: z.string().min(1),
++  expectedProgramVKey: z.string().regex(/^0x[0-9a-f]{64}$/),
++  expectedProgramElfSha256: z.string().regex(/^0x[0-9a-f]{64}$/),
++  expectedStatementSchemaVersion: z.string().regex(/^0x[0-9a-f]{64}$/),
++  expectedPublicValuesSchema: z.string().regex(/^0x[0-9a-f]{64}$/),
++}).strict();
+ 
+ const contractSourceSchema = z.discriminatedUnion('kind', [
+   z.object({ kind: z.literal('deploy'), unit: z.string().min(1), stage: z.string().min(1) }).strict(),
+@@ -56,6 +66,7 @@ export const successorDeploymentPlanSchema = z.object({
+   selectedUnits: z.array(z.enum(['sew-protocol', 'prf-assurance', 'protected-operations', 'pro-rata-successor-entitlements'])),
+   excludedUnits: z.array(z.enum(['sew-protocol', 'prf-assurance', 'protected-operations', 'pro-rata-successor-entitlements'])),
+   contracts: z.record(z.string(), contractSourceSchema),
++  verifierClosures: z.array(verifierClosureSchema).default([]),
+   authorizedConfigurationActions: z.array(z.object({
+     id: z.string().min(1), stage: z.string().min(1), target: z.string().min(1), function: z.string().min(1),
+   }).strict()),
+@@ -144,6 +155,22 @@ export function validateSuccessorDeploymentPlan(plan: SuccessorDeploymentPlanV1)
+   const contractIds = Object.keys(plan.contracts);
+   if (contractIds.length === 0) throw new ConfigError('DEPLOYMENT_PLAN_EMPTY', 'Successor plan selects no contracts or external dependencies');
+   assertAcyclicStageGraph(plan.stages);
++  const stagePositions = new Map(plan.stages.map((stage, index) => [stage.id, index]));
++  for (const closure of plan.verifierClosures) {
++    const adapter = plan.contracts[closure.adapterLogicalId];
++    const verifier = plan.contracts[closure.verifierLogicalId];
++    // Partial consumer projections may retain the policy while selecting only
++    // one side. The execution gate below still requires both authenticated facts.
++    if (!adapter || !verifier) continue;
++    if ((adapter.kind !== 'deploy' && adapter.kind !== 'stage-output') ||
++        (verifier.kind !== 'deploy' && verifier.kind !== 'stage-output')) continue;
++    if (
++        adapter.stage !== closure.adapterStage || verifier.stage !== closure.verifierStage ||
++        !stagePositions.has(closure.adapterStage) || !stagePositions.has(closure.verifierStage) ||
++        stagePositions.get(closure.verifierStage)! > stagePositions.get(closure.adapterStage)!) {
++      throw new ConfigError('DEPLOYMENT_PLAN_VERIFIER_CLOSURE', `Verifier closure '${closure.adapterLogicalId}' must bind selected deployed adapter and verifier contracts in deployment order`);
++    }
++  }
+   const seenStages = new Map<string, (typeof plan.stages)[number]>();
+   const stageOutputs = new Map<string, Set<string>>();
+   for (const stage of plan.stages) {
+diff --git a/src/deployment/verifier-runtime-closure.ts b/src/deployment/verifier-runtime-closure.ts
+new file mode 100644
+index 0000000..59a6a4b
+--- /dev/null
++++ b/src/deployment/verifier-runtime-closure.ts
+@@ -0,0 +1,69 @@
++import { decodeFunctionResult, encodeFunctionData, type Abi, type Address } from 'viem';
++import type { BundleConsumer } from '../artifacts/bundle';
++import type { ResolvedContract } from '../canonical';
++import { artifactIdentityOf } from './record';
++import { runtimeMatches } from './engine';
++import type { RpcTransport } from '../runtime/transport';
++import type { StageOutputDeploymentFactV1 } from './stage-output-live';
++import { verifyStageOutputDeploymentFact } from './stage-output-live';
++import type { SuccessorDeploymentPlanV1 } from './successor-plan';
++
++/** Prove that the adapter's effective verifier is the separately pinned verifier deployment. */
++export async function verifyEffectiveVerifierClosure(input: {
++  closure: SuccessorDeploymentPlanV1['verifierClosures'][number];
++  adapterFact: StageOutputDeploymentFactV1;
++  verifierFact: StageOutputDeploymentFactV1;
++  contracts: Readonly<Record<string, ResolvedContract>>;
++  bundle: BundleConsumer;
++  transport: RpcTransport;
++  expectedChainId: number;
++}): Promise<boolean> {
++  const adapter = input.contracts[input.closure.adapterLogicalId];
++  const verifier = input.contracts[input.closure.verifierLogicalId];
++  if (!adapter || !verifier || input.adapterFact.logicalId !== input.closure.adapterLogicalId ||
++      input.verifierFact.logicalId !== input.closure.verifierLogicalId) return false;
++  if (!await verifyStageOutputDeploymentFact({ logicalId: input.closure.adapterLogicalId, value: input.adapterFact,
++    contract: adapter, expectedArtifact: artifactIdentityOf(adapter), bundle: input.bundle,
++    transport: input.transport, expectedChainId: input.expectedChainId }) ||
++      !await verifyStageOutputDeploymentFact({ logicalId: input.closure.verifierLogicalId, value: input.verifierFact,
++        contract: verifier, expectedArtifact: artifactIdentityOf(verifier), bundle: input.bundle,
++        transport: input.transport, expectedChainId: input.expectedChainId })) return false;
++
++  const adapterArtifact = input.bundle.loadArtifact(adapter.artifactSource, adapter.artifact.package,
++    adapter.artifact.version, adapter.artifactName).artifact;
++  const abi = adapterArtifact.abi as Abi;
++  const read = async (functionName: string, blockNumber?: bigint): Promise<unknown> => {
++    const data = encodeFunctionData({ abi, functionName: functionName as never, args: [] } as never);
++    const raw = await input.transport.call({ to: input.adapterFact.address as Address, data }, blockNumber);
++    return decodeFunctionResult({ abi, functionName: functionName as never, data: raw } as never);
++  };
++  const checks: Array<[string, string]> = [
++    ['programVKey', input.closure.expectedProgramVKey],
++    ['programElfSha256', input.closure.expectedProgramElfSha256],
++    ['statementSchemaVersion', input.closure.expectedStatementSchemaVersion],
++    ['publicValuesSchema', input.closure.expectedPublicValuesSchema],
++  ];
++  const receipt = await input.transport.getTransactionReceipt(input.adapterFact.transactionHash as `0x${string}`);
++  if (!receipt) return false;
++  const effectiveAtDeployment = await read('sp1Verifier', receipt.blockNumber);
++  const effectiveNow = await read('sp1Verifier');
++  if (String(effectiveAtDeployment).toLowerCase() !== input.verifierFact.address.toLowerCase() ||
++      String(effectiveNow).toLowerCase() !== input.verifierFact.address.toLowerCase()) return false;
++  for (const [name, expected] of checks) {
++    const actualAtDeployment = await read(name, receipt.blockNumber);
++    const actualNow = await read(name);
++    if (String(actualAtDeployment).toLowerCase() !== expected.toLowerCase() ||
++        String(actualNow).toLowerCase() !== expected.toLowerCase()) return false;
++  }
++  const verifierArtifact = input.bundle.loadArtifact(verifier.artifactSource, verifier.artifact.package,
++    verifier.artifact.version, verifier.artifactName).artifact;
++  const ranges = [
++    ...Object.values(verifierArtifact.deployedLinkReferences ?? {}).flatMap((byName) => Object.values(byName).flat()),
++    ...Object.values(verifierArtifact.immutableReferences ?? {}).flat(),
++  ];
++  const historical = await input.transport.getCode(input.verifierFact.address as Address, receipt.blockNumber);
++  const current = await input.transport.getCode(input.verifierFact.address as Address);
++  return Boolean(historical && current &&
++    runtimeMatches(verifierArtifact.deployedBytecode, historical, ranges) &&
++    runtimeMatches(verifierArtifact.deployedBytecode, current, ranges));
++}
+diff --git a/test/cross-plan-stage-output.test.ts b/test/cross-plan-stage-output.test.ts
+index fcce730..e518fe8 100644
+--- a/test/cross-plan-stage-output.test.ts
++++ b/test/cross-plan-stage-output.test.ts
+@@ -1,11 +1,17 @@
+ import { describe, expect, it } from 'vitest';
++import * as fs from 'node:fs';
++import * as os from 'node:os';
++import * as path from 'node:path';
+ import { canonicalJson } from '../src/canonical-json';
+ import { keccak256Hex } from '../src/artifacts/hash';
+-import { readSuccessorDeploymentPlan, validateSuccessorDeploymentPlan } from '../src/deployment/successor-plan';
+-import { computeManifestRoot, type DeploymentManifestV1 } from '../src/deployment/manifest';
++import { readSuccessorDeploymentPlan, validateSuccessorDeploymentPlan, type SuccessorDeploymentPlanV1 } from '../src/deployment/successor-plan';
++import { computeManifestRoot, type DeploymentManifest, type DeploymentManifestV1 } from '../src/deployment/manifest';
+ import { deploymentPlanHash, planExecutionRoot } from '../src/deployment/plan-execution';
+-import { stageOutputValueRoot } from '../src/deployment/stage-output';
+-import { createCrossPlanStageOutputEvidence, crossPlanStageOutputEvidenceRoot, verifyCrossPlanStageOutput } from '../src/deployment/cross-plan-stage-output';
++import { stageOutputValueRoot, stageOutputValuesForPlan } from '../src/deployment/stage-output';
++import {
++  createCrossPlanStageOutputEvidence, crossPlanStageOutputEvidenceRoot, readCrossPlanStageOutputEvidenceDirectory,
++  verifyCrossPlanStageOutput, writeCrossPlanStageOutputEvidence, type CrossPlanStageOutputEvidenceV1,
++} from '../src/deployment/cross-plan-stage-output';
+ 
+ const planPath = 'config/pro-rata-v2-entitlement/successor-fork.plan.v1.json';
+ const basePlan = readSuccessorDeploymentPlan(planPath);
+@@ -23,6 +29,27 @@ const outputValue = {
+ 
+ function hash(domain: string, body: unknown): string { return `0x${keccak256Hex(`${domain}${canonicalJson(body)}`)}`; }
+ 
++type StageOutputSource = Extract<SuccessorDeploymentPlanV1['contracts'][string], { kind: 'stage-output' }>;
++type ProducerPin = NonNullable<StageOutputSource['producer']>;
++
++function pinOf(plan: SuccessorDeploymentPlanV1, logicalId: string): ProducerPin {
++  const source = plan.contracts[logicalId];
++  if (!source || source.kind !== 'stage-output' || !source.producer) throw new Error(`'${logicalId}' is not a pinned cross-plan source`);
++  return source.producer;
++}
++
++/** Re-seal an evidence package after a tamper so only the intended check can fail. */
++function reseal(evidence: CrossPlanStageOutputEvidenceV1, patch: Partial<CrossPlanStageOutputEvidenceV1> = {}): CrossPlanStageOutputEvidenceV1 {
++  const { evidenceRoot: _retained, ...body } = { ...evidence, ...patch };
++  return { ...body, evidenceRoot: crossPlanStageOutputEvidenceRoot(body) };
++}
++
++function consumerWithPin(plan: SuccessorDeploymentPlanV1, mutate: (pin: ProducerPin) => void): SuccessorDeploymentPlanV1 {
++  const consumer = structuredClone(plan);
++  mutate(pinOf(consumer, 'prf/local-token'));
++  return consumer;
++}
++
+ function evidenceFixture(overrides: { stageStatus?: string; chainId?: number } = {}) {
+   const producerPlan = structuredClone(basePlan);
+   producerPlan.contracts = { 'prf/local-token': { kind: 'local-fixture', unit: 'prf-assurance', fixtureId: 'local-token', stage: 'deploy-local-token' } };
+@@ -154,3 +181,260 @@ describe('cross-plan stage-output evidence', () => {
+     expect(() => verifyCrossPlanStageOutput({ consumerPlan: consumerWithNewPin, logicalId: 'prf/local-token', evidence: resealedMap })).toThrow(expect.objectContaining({ code: 'CROSS_PLAN_STAGE_OUTPUT_UNDECLARED' }));
+   });
+ });
++
++const nestedAddress = `0x${'44'.repeat(20)}` as `0x${string}`;
++const nestedTx = `0x${'55'.repeat(32)}` as `0x${string}`;
++
++interface DeploymentValue {
++  logicalId: string;
++  address: `0x${string}`;
++  transactionHash: `0x${string}`;
++  blockNumber: string;
++  blockHash: `0x${string}`;
++  runtimeBytecodeSha256: string;
++  artifact: typeof artifact;
++}
++
++interface NestedDependency {
++  logicalId: string;
++  stage: string;
++  output: string;
++  evidence: CrossPlanStageOutputEvidenceV1;
++  value: DeploymentValue;
++}
++
++interface ProducerBundle {
++  plan: SuccessorDeploymentPlanV1;
++  manifest: DeploymentManifest;
++  executionRoot: string;
++  verificationRoot: string;
++  evidence: CrossPlanStageOutputEvidenceV1;
++  value: DeploymentValue;
++  outputRoot: string;
++}
++
++/** Build one producer's retained plan/manifest/execution/verification/evidence chain. */
++function buildProducer(opts: {
++  contracts: SuccessorDeploymentPlanV1['contracts'];
++  contractOutputs: Record<string, string>;
++  deployValue: DeploymentValue;
++  nested?: NestedDependency[];
++  chainId?: number;
++  stageStatus?: string;
++}): ProducerBundle {
++  const plan = structuredClone(basePlan);
++  plan.authorizedConfigurationActions = [];
++  for (const stage of plan.stages) if (stage.id !== 'deploy-local-token') delete stage.contractOutputs;
++  plan.stages.find((stage) => stage.id === 'deploy-local-token')!.contractOutputs = { ...opts.contractOutputs };
++  plan.contracts = opts.contracts;
++  validateSuccessorDeploymentPlan(plan);
++
++  const chainId = opts.chainId ?? 31337;
++  const nested = opts.nested ?? [];
++  const manifest = {
++    type: nested.length > 0 ? 'protocol-deployment-manifest/v2' : 'protocol-deployment-manifest/v1',
++    architectureSpecHash: `0x${'77'.repeat(32)}`, executionSpecHash: `0x${'88'.repeat(32)}`,
++    deploymentId: 'producer-run', chain: { id: chainId, blockNumber: '9', blockHash },
++    deployer: `0x${'99'.repeat(20)}`,
++    contracts: [{ logicalId: opts.deployValue.logicalId, address: opts.deployValue.address, artifact, deploymentTx: opts.deployValue.transactionHash, blockNumber: opts.deployValue.blockNumber }],
++    bootstrapActions: [], finalAssertions: [],
++    ...(nested.length > 0 ? {
++      externalContracts: nested.map((dependency) => ({
++        logicalId: dependency.logicalId, address: dependency.value.address, artifact: dependency.value.artifact,
++        observedRuntimeCodeKeccak256: `0x${'ab'.repeat(32)}`,
++        observedAt: { blockNumber: dependency.value.blockNumber, blockHash: dependency.value.blockHash },
++      })),
++    } : {}),
++  } as unknown as DeploymentManifest;
++  const manifestRoot = computeManifestRoot(manifest);
++  const stages = plan.stages.map((stage) => ({
++    id: stage.id, kind: stage.kind,
++    status: stage.id === 'deploy-local-token' ? (opts.stageStatus ?? 'verified') : 'not-executed',
++    ...(stage.id === 'deploy-local-token' ? {
++      outputs: { [opts.deployValue.logicalId]: { address: opts.deployValue.address, transactionHash: opts.deployValue.transactionHash, blockNumber: opts.deployValue.blockNumber, runtimeBytecodeSha256: artifact.runtimeBytecodeSha256 } },
++    } : {}),
++  }));
++  const executionBody = {
++    type: 'protocol-deployment-plan-execution/v1', planId: plan.planId, planHash: deploymentPlanHash(plan),
++    environment: 'local', chainId, localOnly: plan.localOnly,
++    selectedUnits: plan.selectedUnits, excludedUnits: plan.excludedUnits,
++    selectedContracts: Object.entries(plan.contracts).map(([logicalId, source]) => ({ logicalId, ...source })),
++    manifestRoot,
++    stageOutputBindings: nested.map((dependency) => ({
++      logicalId: dependency.logicalId, stage: dependency.stage, output: dependency.output,
++      evidenceRoot: dependency.evidence.evidenceRoot, outputRoot: stageOutputValueRoot(dependency.value), address: dependency.value.address,
++    })),
++    stages,
++  };
++  const executionRoot = planExecutionRoot(executionBody);
++  const verificationBody = {
++    type: 'protocol-deployment-verification/v1', manifestRoot,
++    chain: { id: chainId, blockNumber: '9', blockHash },
++    contracts: [{ logicalId: opts.deployValue.logicalId, address: opts.deployValue.address, artifactName: artifact.artifactName, result: 'passed' as const }],
++    assertions: [], result: 'passed' as const,
++  };
++  const verificationRoot = hash('protocol-deployment-verification:v1:', verificationBody);
++  const evidence = createCrossPlanStageOutputEvidence({
++    producerPlan: plan, producerManifest: manifest, producerExecution: { ...executionBody, planExecutionRoot: executionRoot },
++    producerVerification: { ...verificationBody, verificationRoot },
++    producerDependencies: Object.fromEntries(nested.map((dependency) => [dependency.logicalId, dependency.evidence])),
++    stageId: 'deploy-local-token', outputName: 'localToken', logicalId: opts.deployValue.logicalId, deploymentBlockHash: blockHash,
++  });
++  return { plan, manifest, executionRoot, verificationRoot, evidence, value: opts.deployValue, outputRoot: stageOutputValueRoot(opts.deployValue) };
++}
++
++function producerPinOf(bundle: ProducerBundle): ProducerPin {
++  return {
++    planId: bundle.plan.planId, planHash: deploymentPlanHash(bundle.plan), executionRoot: bundle.executionRoot,
++    manifestRoot: computeManifestRoot(bundle.manifest), verificationRoot: bundle.verificationRoot,
++    evidenceRoot: bundle.evidence.evidenceRoot, outputRoot: bundle.outputRoot, address: bundle.value.address,
++  };
++}
++
++/** Consumer -> producer -> upstream producer, so the upstream proof must verify recursively. */
++function nestedFixture(opts: { nestedChainId?: number } = {}) {
++  const upstreamValue: DeploymentValue = {
++    logicalId: 'prf/nested-token', address: nestedAddress, transactionHash: nestedTx, blockNumber: '11', blockHash,
++    runtimeBytecodeSha256: artifact.runtimeBytecodeSha256, artifact,
++  };
++  const upstream = buildProducer({
++    contracts: { 'prf/nested-token': { kind: 'local-fixture', unit: 'prf-assurance', fixtureId: 'local-snapshot-token-v1', stage: 'deploy-local-token' } },
++    contractOutputs: { localToken: 'prf/nested-token' },
++    deployValue: upstreamValue,
++    chainId: opts.nestedChainId ?? 31337,
++  });
++  const producerContracts: SuccessorDeploymentPlanV1['contracts'] = {
++    'prf/local-token': { kind: 'local-fixture', unit: 'protected-operations', fixtureId: 'local-snapshot-token-v1', stage: 'deploy-local-token' },
++    'prf/nested-token': {
++      kind: 'stage-output', unit: 'prf-assurance', stage: 'deploy-local-token', output: 'localToken',
++      producer: producerPinOf(upstream),
++    },
++  };
++  const producer = buildProducer({
++    contracts: producerContracts,
++    contractOutputs: { localToken: 'prf/local-token' },
++    deployValue: { logicalId: 'prf/local-token', address, transactionHash: tx, blockNumber: '7', blockHash, runtimeBytecodeSha256: artifact.runtimeBytecodeSha256, artifact },
++    nested: [{ logicalId: 'prf/nested-token', stage: 'deploy-local-token', output: 'localToken', evidence: upstream.evidence, value: upstream.value }],
++  });
++  const consumerPlan = structuredClone(basePlan);
++  delete consumerPlan.stages.find((stage) => stage.id === 'deploy-local-token')!.contractOutputs;
++  consumerPlan.contracts['prf/local-token'] = {
++    kind: 'stage-output', unit: 'protected-operations', stage: 'deploy-local-token', output: 'localToken',
++    producer: producerPinOf(producer),
++  };
++  return { upstream, producer, consumerPlan };
++}
++
++describe('cross-plan evidence gaps', () => {
++  it('rejects an unpinned contract, a tampered evidence root and a local-only producer consumed publicly', () => {
++    const f = evidenceFixture();
++    expect(() => verifyCrossPlanStageOutput({ consumerPlan: f.consumerPlan, logicalId: 'prf/genesis', evidence: f.evidence, expectedChainId: 31337 }))
++      .toThrow(expect.objectContaining({ code: 'CROSS_PLAN_STAGE_OUTPUT_NOT_PINNED' }));
++    expect(() => verifyCrossPlanStageOutput({ consumerPlan: f.consumerPlan, logicalId: 'prf/local-token', evidence: { ...f.evidence, evidenceRoot: `0x${'ab'.repeat(32)}` }, expectedChainId: 31337 }))
++      .toThrow(expect.objectContaining({ code: 'CROSS_PLAN_STAGE_OUTPUT_ROOT_MISMATCH' }));
++    expect(() => verifyCrossPlanStageOutput({ consumerPlan: { ...f.consumerPlan, localOnly: false }, logicalId: 'prf/local-token', evidence: f.evidence, expectedChainId: 31337 }))
++      .toThrow(expect.objectContaining({ code: 'CROSS_PLAN_LOCAL_ONLY_DEPENDENCY' }));
++  });
++
++  it('rejects a substituted manifest, a malformed producer plan and verification report gaps', () => {
++    const f = evidenceFixture();
++    const substitutedManifest = reseal(f.evidence, { producerManifest: { ...f.manifest, deploymentId: 'substituted-run' } });
++    expect(() => verifyCrossPlanStageOutput({
++      consumerPlan: consumerWithPin(f.consumerPlan, (pin) => { pin.evidenceRoot = substitutedManifest.evidenceRoot; }),
++      logicalId: 'prf/local-token', evidence: substitutedManifest, expectedChainId: 31337,
++    })).toThrow(expect.objectContaining({ code: 'CROSS_PLAN_MANIFEST_MISMATCH' }));
++
++    const malformedPlan = reseal(f.evidence, { producerPlan: { ...f.producerPlan, stages: 'not-a-stage-list' } });
++    expect(() => verifyCrossPlanStageOutput({
++      consumerPlan: consumerWithPin(f.consumerPlan, (pin) => { pin.evidenceRoot = malformedPlan.evidenceRoot; }),
++      logicalId: 'prf/local-token', evidence: malformedPlan, expectedChainId: 31337,
++    })).toThrow(expect.objectContaining({ code: 'CROSS_PLAN_PRODUCER_PLAN_INVALID' }));
++
++    const failedVerification = reseal(f.evidence, { producerVerification: { ...f.producerVerification, result: 'failed' } });
++    expect(() => verifyCrossPlanStageOutput({
++      consumerPlan: consumerWithPin(f.consumerPlan, (pin) => { pin.evidenceRoot = failedVerification.evidenceRoot; }),
++      logicalId: 'prf/local-token', evidence: failedVerification, expectedChainId: 31337,
++    })).toThrow(expect.objectContaining({ code: 'CROSS_PLAN_VERIFICATION_INVALID' }));
++
++    const { verificationRoot: _dropped, ...verificationBody } = f.producerVerification;
++    const emptyVerification = { ...verificationBody, contracts: [] };
++    const resealedVerification = { ...emptyVerification, verificationRoot: hash('protocol-deployment-verification:v1:', emptyVerification) };
++    const withoutContract = reseal(f.evidence, { producerVerification: resealedVerification });
++    expect(() => verifyCrossPlanStageOutput({
++      consumerPlan: consumerWithPin(f.consumerPlan, (pin) => { pin.evidenceRoot = withoutContract.evidenceRoot; }),
++      logicalId: 'prf/local-token', evidence: withoutContract, expectedChainId: 31337,
++    })).toThrow(expect.objectContaining({ code: 'CROSS_PLAN_VERIFICATION_CONTRACT_MISSING' }));
++
++    expect(() => verifyCrossPlanStageOutput({
++      consumerPlan: consumerWithPin(f.consumerPlan, (pin) => { pin.verificationRoot = `0x${'cd'.repeat(32)}`; }),
++      logicalId: 'prf/local-token', evidence: f.evidence, expectedChainId: 31337,
++    })).toThrow(expect.objectContaining({ code: 'CROSS_PLAN_VERIFICATION_ROOT_MISMATCH' }));
++  });
++
++  it('refuses to project a pinned cross-plan output without producer evidence', () => {
++    const f = evidenceFixture();
++    expect(() => stageOutputValuesForPlan(f.consumerPlan, {}, {}))
++      .toThrow(expect.objectContaining({ code: 'CROSS_PLAN_STAGE_OUTPUT_EVIDENCE_REQUIRED' }));
++  });
++
++  it('rejects a missing evidence directory, duplicate packages and a conflicting immutable write', () => {
++    const missing = path.join(os.tmpdir(), `prf-cross-plan-missing-${process.pid}-${Math.random().toString(36).slice(2)}`);
++    expect(() => readCrossPlanStageOutputEvidenceDirectory(missing))
++      .toThrow(expect.objectContaining({ code: 'CROSS_PLAN_STAGE_OUTPUT_DIRECTORY_MISSING' }));
++
++    const f = evidenceFixture();
++    const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'prf-cross-plan-'));
++    try {
++      writeCrossPlanStageOutputEvidence(directory, f.evidence);
++      const duplicate = reseal(f.evidence, { deploymentBlockHash: `0x${'ef'.repeat(32)}` });
++      writeCrossPlanStageOutputEvidence(directory, duplicate);
++      expect(() => readCrossPlanStageOutputEvidenceDirectory(directory))
++        .toThrow(expect.objectContaining({ code: 'CROSS_PLAN_STAGE_OUTPUT_DUPLICATE' }));
++    } finally {
++      fs.rmSync(directory, { recursive: true, force: true });
++    }
++
++    const conflictDirectory = fs.mkdtempSync(path.join(os.tmpdir(), 'prf-cross-plan-conflict-'));
++    try {
++      const occupied = path.join(conflictDirectory, `${encodeURIComponent(f.evidence.logicalId)}.${f.evidence.evidenceRoot.slice(2, 14)}.cross-plan-stage-output.v1.json`);
++      fs.writeFileSync(occupied, 'occupied by an earlier writer\n');
++      expect(() => writeCrossPlanStageOutputEvidence(conflictDirectory, f.evidence))
++        .toThrow(expect.objectContaining({ code: 'CROSS_PLAN_STAGE_OUTPUT_EXISTS_CONFLICT' }));
++    } finally {
++      fs.rmSync(conflictDirectory, { recursive: true, force: true });
++    }
++  });
++});
++
++describe('nested cross-plan producer evidence', () => {
++  it('verifies a producer whose own pinned upstream dependency verifies recursively', () => {
++    const f = nestedFixture();
++    const verified = verifyCrossPlanStageOutput({ consumerPlan: f.consumerPlan, logicalId: 'prf/local-token', evidence: f.producer.evidence, expectedChainId: 31337 });
++    expect(verified.value).toEqual(f.producer.value);
++    expect(verified.outputRoot).toBe(f.producer.outputRoot);
++    expect(verified.producerPlanHash).toBe(deploymentPlanHash(f.producer.plan));
++    expect(verified.chainId).toBe(31337);
++  });
++
++  it('rejects an omitted upstream dependency, an upstream deployed on another chain and substituted upstream evidence', () => {
++    const f = nestedFixture();
++    const withoutUpstream = reseal(f.producer.evidence, { producerDependencies: {} });
++    expect(() => verifyCrossPlanStageOutput({
++      consumerPlan: consumerWithPin(f.consumerPlan, (pin) => { pin.evidenceRoot = withoutUpstream.evidenceRoot; }),
++      logicalId: 'prf/local-token', evidence: withoutUpstream, expectedChainId: 31337,
++    })).toThrow(expect.objectContaining({ code: 'CROSS_PLAN_STAGE_OUTPUT_DEPENDENCIES_MISSING' }));
++
++    const wrongUpstreamChain = nestedFixture({ nestedChainId: 8453 });
++    expect(() => verifyCrossPlanStageOutput({
++      consumerPlan: wrongUpstreamChain.consumerPlan, logicalId: 'prf/local-token',
++      evidence: wrongUpstreamChain.producer.evidence, expectedChainId: 31337,
++    })).toThrow(expect.objectContaining({ code: 'CROSS_PLAN_STAGE_OUTPUT_CHAIN_MISMATCH' }));
++
++    const substitutedUpstream = reseal(f.upstream.evidence, { deploymentBlockHash: `0x${'ee'.repeat(32)}` });
++    const producerWithSubstitutedUpstream = reseal(f.producer.evidence, { producerDependencies: { 'prf/nested-token': substitutedUpstream } });
++    expect(() => verifyCrossPlanStageOutput({
++      consumerPlan: consumerWithPin(f.consumerPlan, (pin) => { pin.evidenceRoot = producerWithSubstitutedUpstream.evidenceRoot; }),
++      logicalId: 'prf/local-token', evidence: producerWithSubstitutedUpstream, expectedChainId: 31337,
++    })).toThrow(expect.objectContaining({ code: 'CROSS_PLAN_STAGE_OUTPUT_ROOT_MISMATCH' }));
++  });
++});
+diff --git a/test/error-code-coverage.test.ts b/test/error-code-coverage.test.ts
+index 0f14155..1587f3c 100644
+--- a/test/error-code-coverage.test.ts
++++ b/test/error-code-coverage.test.ts
+@@ -22,22 +22,9 @@ function tsFiles(dir: string, out: string[] = []): string[] {
+  * must state why; anything else has to gain a test.
+  */
+ const UNTESTED: Record<string, string> = {
+-  CROSS_PLAN_CONTRACT_SUBSTITUTION: 'requires a producer execution output that disagrees with its retained deployment manifest; consumer tests cover output substitution before live execution',
+-  CROSS_PLAN_LOCAL_ONLY_DEPENDENCY: 'requires promoting a local-only producer into a non-local consumer profile; public chain execution is intentionally not run in unit tests',
+-  CROSS_PLAN_MANIFEST_MISMATCH: 'requires a fully re-rooted producer evidence package whose manifest differs from the consumer-pinned manifest root',
+-  CROSS_PLAN_PRODUCER_PLAN_INVALID: 'requires malformed nested producer-plan data; plan schema validation is covered independently',
+-  CROSS_PLAN_STAGE_OUTPUT_DEPENDENCIES_MISSING: 'requires recursively nested cross-plan evidence with one omitted producer dependency; current producer plan has no nested cross-plan dependency',
+-  CROSS_PLAN_STAGE_OUTPUT_DIRECTORY_MISSING: 'requires invoking the resolver with a nonexistent CLI evidence directory',
+-  CROSS_PLAN_STAGE_OUTPUT_DUPLICATE: 'requires filesystem directory loading with two evidence packages for the same logical contract',
+-  CROSS_PLAN_STAGE_OUTPUT_EVIDENCE_REQUIRED: 'resolver/deploy CLI preflight when a pinned cross-plan source omits its evidence directory',
+-  CROSS_PLAN_STAGE_OUTPUT_EVIDENCE_SET: 'requires a filesystem evidence directory with extra or missing package files versus the selected plan',
+-  CROSS_PLAN_STAGE_OUTPUT_EXISTS_CONFLICT: 'requires writing conflicting immutable evidence to an already occupied content-addressed filename',
++  CROSS_PLAN_CONTRACT_SUBSTITUTION: 'redundant post-condition of the plan-execution receipt check, which already binds every deploy-stage output to the manifest and runs first; only reachable if that earlier check is weakened',
++  CROSS_PLAN_STAGE_OUTPUT_EVIDENCE_SET: 'requires a resolver run over a selected plan whose cross-plan pins differ from the evidence directory contents; the selected plan files in config/ carry no cross-plan pins yet',
+   CROSS_PLAN_STAGE_OUTPUT_LIVE_VERIFICATION_FAILED: 'requires a full deploy CLI run with RPC receipt/runtime evidence disagreeing with the producer output',
+-  CROSS_PLAN_STAGE_OUTPUT_NOT_PINNED: 'requires invoking the verifier for a logical contract not selected as a pinned cross-plan source',
+-  CROSS_PLAN_STAGE_OUTPUT_ROOT_MISMATCH: 'requires tampering with an evidence package without changing its consumer-pinned root',
+-  CROSS_PLAN_VERIFICATION_CONTRACT_MISSING: 'requires a fully re-rooted producer verification report omitting its deployed contract observation',
+-  CROSS_PLAN_VERIFICATION_INVALID: 'requires malformed producer verification report schema; the wrong-root and wrong-chain verification cases are covered',
+-  CROSS_PLAN_VERIFICATION_ROOT_MISMATCH: 'requires a consumer plan whose verification-root pin alone differs from an otherwise valid evidence package',
+   DEPLOYMENT_PLAN_STAGE_OUTPUT_CYCLE: 'requires a self-referential consumer plan hash pin, which would require a cryptographic fixed point',
+   DEVNET_NOT_READY: 'requires a pid file naming a live but unresponsive anvil',
+   DEVNET_PORT_IN_USE: 'requires a foreign process to already own the devnet port',
+@@ -46,7 +33,7 @@ const UNTESTED: Record<string, string> = {
+   FORK_SOURCE_UNSET: 'requires a base-fork environment and runtime fixture',
+   PLAN_EXECUTION_CONTRACTS_MISSING: 'malformed plan execution receipt shape; receipt-format parser is exercised by the executable verifier',
+   PLAN_EXECUTION_DEPLOYMENT_SET_MISMATCH: 'requires a recomputed manifest and plan receipt with a deliberately different deployment set',
+-  PLAN_EXECUTION_EXTERNAL_SET_MISMATCH: 'requires a V2 external-contract receipt fixture; current successor local plan has no external dependencies',
++  PLAN_EXECUTION_EXTERNAL_SET_MISMATCH: 'cross-plan fixtures build a V2 external set that agrees with its plan by construction; mutating it to disagree exercises plan-execution reconciliation rather than cross-plan pinning',
+   PLAN_EXECUTION_HASH_MISMATCH: 'requires mutating a plan identity while retaining a structurally valid receipt',
+   PLAN_EXECUTION_IDENTITY_MISMATCH: 'requires supplying a receipt for a different plan family',
+   PLAN_EXECUTION_RECEIPT_CONFLICT: 'requires rerunning a deployment key with a content-conflicting immutable receipt file',
+diff --git a/test/successor-plan.test.ts b/test/successor-plan.test.ts
+index abe41fb..185b8d2 100644
+--- a/test/successor-plan.test.ts
++++ b/test/successor-plan.test.ts
+@@ -26,6 +26,16 @@ describe('bounded successor deployment plan', () => {
+     expect(() => validatePlanAgainstUnits(plan, units)).not.toThrow();
+   });
+ 
++  it('requires verifier runtime closure to bind the selected adapter and verifier stages in order', () => {
++    expect(plan.verifierClosures).toHaveLength(1);
++    const substitutedStage = structuredClone(plan);
++    substitutedStage.verifierClosures[0]!.verifierStage = 'deploy-successor-entitlements';
++    expectCode(() => validateSuccessorDeploymentPlan(substitutedStage), 'DEPLOYMENT_PLAN_VERIFIER_CLOSURE');
++    const substitutedContract = structuredClone(plan);
++    substitutedContract.verifierClosures[0]!.verifierLogicalId = 'shortfall/pro-rata-allocator-v2';
++    expectCode(() => validateSuccessorDeploymentPlan(substitutedContract), 'DEPLOYMENT_PLAN_VERIFIER_CLOSURE');
++  });
++
+   it('projects the real local profile to exactly the plan-selected deployment graph', () => {
+     const configDir = path.join(root, 'config');
+     const profileDir = path.join(root, 'config/pro-rata-v2-entitlement');

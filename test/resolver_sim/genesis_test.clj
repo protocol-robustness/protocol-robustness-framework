@@ -104,7 +104,7 @@
   (let [package (edn/read-string
                  (slurp (io/file "etc/deployments/eae-controlled-entitlement-demo/authority-state-package.edn")))
         result (deployment-genesis/derive-root :authority-state package)]
-    (is (= "eae-controlled-entitlement-demo.authority-state-package.v1" (get result "artifact")))
+    (is (= "eae-controlled-entitlement-demo.authority-state.v1" (get result "artifact")))
     (is (= (:authority-state/root package) (get result "root")))
     (is (= "derived-only-not-approved" (get result "qualification")))
     (is (thrown? ExceptionInfo

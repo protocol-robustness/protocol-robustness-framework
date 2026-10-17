@@ -1,0 +1,10 @@
+{:policy/schema "local-authority-policy.v2"
+ :policy/material
+ {:authority-policy/schema "local-authority-policy.v2"
+  :protocol/genesis-root "sha256:d77429dd50bd7fe18d5f41d55e53ccbd4c67d18c4f00b266f86dbaede01f9343"
+  :execution/chain-id 31337
+  :authority/governor "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266"
+  :authority/capabilities ["authorise-decision" "revoke-decision" "set-proof-mode" "update-authority-state"]
+  :authority/transition-validator-key-id "local-validator-v1"
+  :authority/transition-validator-public-key "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"}
+ :policy/root "sha256:a365c2f0c202bf42279c7b88c9889b5e651c3f862199fdd35ccb62b05a539b87"}
