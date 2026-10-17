@@ -12,7 +12,7 @@
 
 ### PRO-28 receipt-level local execution evidence
 
-- Added `eae.pro-28-authentic-local-execution.v1` reconstruction output and retained receipt/runtime evidence for the source-bound successor-entitlement local flow. Funding and each entitlement payout bind to transaction, receipt, log, contract, and block identities; local Anvil evidence remains explicitly non-public and non-canonical.
+- Strengthened `scripts/forensic/pro28_receipts.py` to bind the sponsor deposit, allocator funding, and each payout to the matching transaction call data as well as receipt, log, contract, and block identities. Added a corrected RPC-captured local replay; the earlier 2026-10-13 capture is retained but rejected because its transaction payload metadata did not match the receipt effects. Local Anvil evidence remains explicitly non-public and non-canonical.
 
 ### PRO-31 live chain-context revalidation
 

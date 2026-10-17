@@ -4,9 +4,10 @@ This bundle separates the earlier V3 summary from receipt-qualified evidence.
 
 - `legacy-v3-metadata-discrepancy.json` explains why the earlier observations do not establish receipt-level funding or payout identity. The sponsor's 80-unit reserve deposit and the 70-unit allocator funding are separate transfers. Carol's 14-unit entitlement and 10-unit protected-capital refund are distinct transfers; her 24-unit terminal balance is not a 24-unit entitlement claim.
 - `raw/` retains the prior separate-workspace local replay. It is useful corroboration, but is still local Anvil evidence.
-- `raw/fresh-replay-20261013/` retains a fresh local replay with exact transaction/receipt/log context and runtime code bytes for all 12 deployed contracts.
-- `receipt-reconstruction.json` is the deterministic reconstruction of the prior separate-workspace replay.
-- `fresh-replay-reconstruction.json` is the deterministic reconstruction of the fresh replay.
+- `raw/fresh-replay-20261013/` is retained as historical input. It is **superseded**: its Foundry transaction metadata was associated with receipts from different calls. The stricter verifier rejects it.
+- `raw/fresh-replay-20261017/` retains a fresh local replay, the original Foundry broadcast outputs, transaction payloads re-fetched by hash from the live local Anvil RPC, matching receipts, and runtime code bytes for all 12 deployed contracts.
+- `receipt-reconstruction.json` is the deterministic reconstruction of the earlier separate-workspace replay.
+- `fresh-replay-20261017-reconstruction.json` is the deterministic reconstruction of the corrected replay.
 
 ## Independent reconstruction
 
@@ -14,19 +15,19 @@ From a fresh PRF checkout with Python 3 and Foundry's `cast` available:
 
 ```bash
 python3 scripts/forensic/pro28_receipts.py \
-  examples/partial-fill/evidence/pro-28-v1/raw/fresh-replay-20261013 \
-  --expected-report examples/partial-fill/evidence/pro-28-v1/fresh-replay-reconstruction.json
+  examples/partial-fill/evidence/pro-28-v1/raw/fresh-replay-20261017 \
+  --expected-report examples/partial-fill/evidence/pro-28-v1/fresh-replay-20261017-reconstruction.json
 ```
 
-The verifier reloads the manifest, witness, source vector, proof fixture, broadcast records, terminal observation, and runtime bytecode. It recomputes artifact digests and runtime SHA-256/Keccak identities, checks transaction/receipt one-to-one correspondence, checks log-to-receipt block and transaction context, and reconstructs the 80 deposit, 70 allocator funding and 35/21/14 entitlement transfers.
+The verifier reloads the manifest, witness, source vector, proof fixture, original runner broadcasts, RPC-bound transaction/receipt records, terminal observation, and runtime bytecode. It recomputes artifact digests and runtime SHA-256/Keccak identities, checks transaction/receipt one-to-one correspondence, binds the 80-unit reserve deposit to `deposit(80)`, the 70-unit transfer to the fixed-operation funding call, and each 35/21/14 payout to its allocator withdrawal opening. The runner broadcast source hashes are retained and checked separately. The corrected replay was independently re-fetched against its live local Anvil RPC; that observation is preserved in `raw/fresh-replay-20261017/live-chain-check.json`.
 
 To also check the retained transaction and runtime anchors against the currently running local chain:
 
 ```bash
 python3 scripts/forensic/pro28_receipts.py \
-  examples/partial-fill/evidence/pro-28-v1/raw/fresh-replay-20261013 \
+  examples/partial-fill/evidence/pro-28-v1/raw/fresh-replay-20261017 \
   --rpc-url "$RPC_URL" \
-  --write-chain-report examples/partial-fill/evidence/pro-28-v1/raw/fresh-replay-20261013/live-chain-check.json
+  --write-chain-report /tmp/pro28-live-chain-check.json
 ```
 
 The live check requires the retained `localOnly` classification and matching chain ID. It re-fetches every transaction receipt and block, verifies transaction ordering and parent links, checks runtime code at the captured block with EIP-1898 `requireCanonical`, and compares current runtime code and proxy implementation bindings where declared. A changed canonical block, receipt, runtime bytecode or implementation fails closed. The result is relative to the queried RPC at check time; it does not prove provider honesty, public-chain consensus, or finality. For public-chain evidence, a future verifier must require an explicitly selected chain-specific confirmation policy and report observed depth separately; confirmations alone must not be called finality.

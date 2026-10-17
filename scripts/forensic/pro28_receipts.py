@@ -73,6 +73,14 @@ def _load_receipts(raw: Path) -> tuple[dict[str, dict[str, Any]], dict[str, str]
         receipt_rows = payload.get("receipts")
         if not isinstance(tx_rows, list) or not isinstance(receipt_rows, list):
             raise EvidenceError(f"{group} broadcast must contain transactions and receipts")
+        if payload.get("schema") == "eae.rpc-bound-broadcast.v1":
+            runner_path = raw / "runner-broadcast" / f"{group}.json"
+            if not runner_path.is_file():
+                raise EvidenceError(f"{group} RPC-bound broadcast lacks its retained runner source")
+            expected_source_digest = "sha256:" + _sha256(runner_path.read_bytes())
+            if payload.get("sourceBroadcastSha256") != expected_source_digest:
+                raise EvidenceError(f"{group} RPC-bound broadcast does not bind its runner source bytes")
+            source_files[f"runner-broadcast/{group}.json"] = _sha256(runner_path.read_bytes())
         tx_hashes = [_norm(row["hash"]) for row in tx_rows]
         receipt_hashes = [_norm(row["transactionHash"]) for row in receipt_rows]
         if len(tx_hashes) != len(set(tx_hashes)) or set(tx_hashes) != set(receipt_hashes):
@@ -296,6 +304,19 @@ def verify_live_chain_context(raw: Path, rpc_url: str, min_confirmations: int | 
             raise EvidenceError(f"transaction {tx_hash} is missing or has a different live chain identity")
         if _int(live_tx.get("transactionIndex", "-1")) != tx_index or _norm(live_tx.get("blockHash", "")) != _norm(block["hash"]):
             raise EvidenceError(f"transaction {tx_hash} live block/index differs from its receipt")
+        retained_tx = entry["transaction"].get("transaction", {})
+        for key in ("from", "to", "input", "value", "nonce", "gas", "chainId"):
+            if key not in retained_tx or key not in live_tx:
+                raise EvidenceError(f"transaction {tx_hash} is missing {key} from its retained or live call payload")
+            if key in ("from", "to", "input"):
+                if key == "to" and (retained_tx[key] is None or live_tx[key] is None):
+                    matches = retained_tx[key] is None and live_tx[key] is None
+                else:
+                    matches = _norm(retained_tx[key]) == _norm(live_tx[key])
+            else:
+                matches = _int(retained_tx[key]) == _int(live_tx[key])
+            if not matches:
+                raise EvidenceError(f"live transaction {tx_hash} differs from retained {key}")
         checked_transactions += 1
 
     anchor_ref = _block_reference(rpc_url, anchor_hash)
@@ -409,6 +430,140 @@ def _exact_event(events: list[dict[str, Any]], *, source: str, target: str, amou
     return matches[0]
 
 
+def _calldata_word(calldata: bytes, offset: int) -> int:
+    if offset < 0 or offset + 32 > len(calldata):
+        raise EvidenceError("transaction calldata is truncated")
+    return int.from_bytes(calldata[offset : offset + 32], "big")
+
+
+def _call_data(row: dict[str, Any]) -> tuple[dict[str, Any], bytes]:
+    tx = row["transaction"].get("transaction", {})
+    encoded = tx.get("input", "")
+    if not isinstance(encoded, str) or not encoded.startswith("0x"):
+        raise EvidenceError("transaction is missing its signed call payload")
+    try:
+        return tx, bytes.fromhex(encoded[2:])
+    except ValueError as exc:
+        raise EvidenceError("transaction call payload is not hexadecimal") from exc
+
+
+def _verify_economic_transaction_bindings(
+    transactions: dict[str, dict[str, Any]],
+    manifest: dict[str, Any],
+    source_deposit: dict[str, Any],
+    allocation_funding: dict[str, Any],
+    claimant_events: list[dict[str, Any]],
+) -> None:
+    """Bind observed transfer logs to the actual top-level calls that caused them."""
+    contracts = manifest["contracts"]
+    sponsor = _norm(manifest["deployer"])
+    reserve = _norm(contracts["reserve"])
+    allocator = _norm(contracts["allocator"])
+    operation_id = int(manifest["operationId"], 16)
+
+    def row_for(event: dict[str, Any]) -> dict[str, Any]:
+        try:
+            return transactions[event["transactionHash"]]
+        except KeyError as exc:
+            raise EvidenceError("economic event references an unknown transaction") from exc
+
+    deposit_row = row_for(source_deposit)
+    deposit_tx, deposit_data = _call_data(deposit_row)
+    if (
+        deposit_row["group"] != "deployment"
+        or _norm(deposit_tx.get("from", "")) != sponsor
+        or _norm(deposit_tx.get("to", "")) != reserve
+        or deposit_data[:4].hex() != "b6b55f25"  # OnchainShortfallReserveV2.deposit(uint256)
+        or len(deposit_data) != 36
+        or _calldata_word(deposit_data, 4) != source_deposit["amount"]
+    ):
+        raise EvidenceError("sponsor deposit log is not bound to the matching reserve.deposit(amount) call")
+    deposit_logs = [
+        log for log in deposit_row["receipt"].get("logs", [])
+        if _norm(log.get("address", "")) == reserve
+        and log.get("topics", [""])[0].lower()
+        == "0x2da466a7b24304f47e87fa2e1e5a81b9831ce54fec19055ce277ca2f39ba42c4"
+    ]
+    if (
+        len(deposit_logs) != 1
+        or len(deposit_logs[0].get("topics", [])) != 2
+        or not deposit_logs[0]["topics"][1].lower().endswith(sponsor[2:])
+        or _int(deposit_logs[0].get("data", "0x0")) != source_deposit["amount"]
+    ):
+        raise EvidenceError("reserve deposit call lacks its matching Deposited(from, amount) event")
+
+    funding_row = row_for(allocation_funding)
+    funding_tx, funding_data = _call_data(funding_row)
+    binding_calls = [
+        row for row in transactions.values()
+        if row["group"] == "funding"
+        and _call_data(row)[1][:4].hex() == "28bf4b07"  # bindExecutionCaller(address)
+    ]
+    if len(binding_calls) != 1:
+        raise EvidenceError("funding evidence lacks exactly one execution-caller binding call")
+    binding_tx, binding_data = _call_data(binding_calls[0])
+    operator = "0x" + _calldata_word(binding_data, 4).to_bytes(32, "big")[-20:].hex()
+    if (
+        _norm(binding_tx.get("to", "")) != _norm(contracts["ratificationController"])
+        or len(binding_data) != 36
+        or _norm(funding_tx.get("to", "")) != _norm(operator)
+        or funding_data[:4].hex() != "9a5a276f"  # GateEEntitlementLocalOperator.fund(bytes32,address)
+        or len(funding_data) != 68
+        or _calldata_word(funding_data, 4) != int(manifest["reserveStateCommitment"], 16)
+        or _norm("0x" + _calldata_word(funding_data, 36).to_bytes(32, "big")[-20:].hex())
+        != _norm(manifest["localOnly"]["residualRecipient"])
+    ):
+        raise EvidenceError("allocator funding log is not bound to the prepared operation's fund call")
+    funding_logs = [
+        log for log in funding_row["receipt"].get("logs", [])
+        if _norm(log.get("address", "")) == _norm(contracts["ratificationController"])
+        and log.get("topics", [""])[0].lower()
+        == "0xcf3311c8bdef5e68826cabf9475980bb15b15f4b9d1bfdfc3308b1be90de815c"
+    ]
+    if (
+        len(funding_logs) != 1
+        or len(funding_logs[0].get("topics", [])) != 3
+        or _norm(funding_logs[0]["topics"][1]) != _norm(manifest["operationId"])
+        or _int(funding_logs[0].get("data", "0x0")) != allocation_funding["amount"]
+    ):
+        raise EvidenceError("allocator funding receipt lacks the operation-bound ratification event")
+
+    for claim in claimant_events:
+        transfer = claim["transfer"]
+        claim_row = row_for(transfer)
+        claim_tx, claim_data = _call_data(claim_row)
+        if (
+            claim_row["group"] != "withdrawals"
+            or _norm(claim_tx.get("to", "")) != allocator
+            or claim_data[:4].hex() != "7c365406"  # ProductionProRataAllocatorV2.withdraw(...)
+            or _calldata_word(claim_data, 4) != operation_id
+        ):
+            raise EvidenceError("claim payout is not bound to the matching allocator.withdraw call")
+        tuple_offset = _calldata_word(claim_data, 36)
+        tuple_start = 4 + tuple_offset
+        claim_index = _calldata_word(claim_data, tuple_start)
+        claim_bytes_offset = _calldata_word(claim_data, tuple_start + 32)
+        beneficiary = "0x" + _calldata_word(claim_data, tuple_start + 64).to_bytes(32, "big")[-20:].hex()
+        amount = _calldata_word(claim_data, tuple_start + 96)
+        claim_bytes_start = tuple_start + claim_bytes_offset
+        claim_bytes_length = _calldata_word(claim_data, claim_bytes_start)
+        claim_bytes = claim_data[claim_bytes_start + 32 : claim_bytes_start + 32 + claim_bytes_length]
+        try:
+            claim_id = claim_bytes.decode("utf-8")
+        except UnicodeDecodeError as exc:
+            raise EvidenceError("claim transaction identity is not UTF-8") from exc
+        expected_index = {"claim-a": 0, "claim-b": 1, "claim-c": 2}.get(claim["claimId"])
+        if (
+            claim_id != claim["claimId"]
+            or claim_index != expected_index
+            or _norm(beneficiary) != claim["beneficiary"]
+            or amount != claim["amount"]
+            or _norm(transfer["from"]) != allocator
+            or _norm(transfer["to"]) != claim["beneficiary"]
+        ):
+            raise EvidenceError("claim transaction opening differs from the observed payout identity")
+
+
 def reconstruct(raw: Path) -> dict[str, Any]:
     """Validate raw cross-links and reconstruct the funding and claim journal."""
     raw = Path(raw)
@@ -512,6 +667,9 @@ def reconstruct(raw: Path) -> dict[str, Any]:
                 ),
             }
         )
+    _verify_economic_transaction_bindings(
+        transactions, manifest, source_deposit, allocation_funding, claimant_events
+    )
     entitlements = {row["claim-id"]: row for row in expected_vector["ordered-entitlements"]}
     for item in claimant_events:
         expected = entitlements.get(item["claimId"])
@@ -532,7 +690,17 @@ def reconstruct(raw: Path) -> dict[str, Any]:
 
     artifact_paths = [manifest_path, witness_path, provenance_path, fixture_path, vector_path]
     artifact_paths += [raw / "broadcast" / f"{group}.json" for group in GROUPS]
+    artifact_paths += [
+        raw / "runner-broadcast" / f"{group}.json"
+        for group in GROUPS
+        if (raw / "runner-broadcast" / f"{group}.json").is_file()
+    ]
     artifact_paths += [raw / "fork-test.log", raw / "final-state.log"]
+    artifact_paths += [
+        raw / name
+        for name in ("funding.log", "activation.log", "withdrawal.log")
+        if (raw / name).is_file()
+    ]
     if runtime_observations is not None:
         artifact_paths.append(raw / "runtime-code-observations.json")
     capture_path = raw / "capture-metadata.json"
@@ -652,6 +820,11 @@ def reconstruct(raw: Path) -> dict[str, Any]:
             "note": "Carol's 14-unit entitlement is recorded separately from the 10-unit protected-capital refund described by the superseded V3 Foundry summary.",
         },
         "artifactHashes": {str(path.relative_to(raw)): file_hash(path) for path in artifact_paths},
+        "runnerBroadcastSourceHashes": {
+            key: "sha256:" + value
+            for key, value in sorted(source_files.items())
+            if key.startswith("runner-broadcast/")
+        },
     }
 
 

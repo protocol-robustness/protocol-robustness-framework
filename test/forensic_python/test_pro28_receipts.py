@@ -15,7 +15,8 @@ sys.path.insert(0, str(PROJECT / "scripts"))
 from forensic import pro28_receipts
 
 
-SOURCE = PROJECT / "examples/partial-fill/evidence/pro-28-v1/raw/fresh-replay-20261013"
+SOURCE = PROJECT / "examples/partial-fill/evidence/pro-28-v1/raw/fresh-replay-20261017"
+LEGACY_SOURCE = PROJECT / "examples/partial-fill/evidence/pro-28-v1/raw/fresh-replay-20261013"
 
 
 @pytest.fixture
@@ -63,6 +64,72 @@ def test_receipt_transaction_substitution_rejects(bundle: Path) -> None:
     payload["receipts"][0]["transactionHash"] = payload["receipts"][1]["transactionHash"]
     save(path, payload)
     with pytest.raises(pro28_receipts.EvidenceError, match="transaction/receipt identities"):
+        pro28_receipts.reconstruct(bundle)
+
+
+def test_legacy_broadcast_payload_receipt_mismatch_is_rejected() -> None:
+    with pytest.raises(pro28_receipts.EvidenceError, match="not bound to the matching reserve.deposit"):
+        pro28_receipts.reconstruct(LEGACY_SOURCE)
+
+
+def test_rpc_bound_broadcast_requires_its_original_runner_bytes(bundle: Path) -> None:
+    source = bundle / "runner-broadcast/deployment.json"
+    source.write_bytes(source.read_bytes() + b" ")
+    with pytest.raises(pro28_receipts.EvidenceError, match="does not bind its runner source bytes"):
+        pro28_receipts.reconstruct(bundle)
+
+
+def test_deposit_event_must_match_reserve_deposit_call(bundle: Path) -> None:
+    path = bundle / "broadcast/deployment.json"
+    payload = load(path)
+    deposit = next(
+        row for row in payload["transactions"]
+        if (row["transaction"].get("to") or "").lower() == "0x7a9ec1d04904907de0ed7b6839ccdd59c3716ac9"
+        and row["transaction"].get("input", "").startswith("0xb6b55f25")
+    )
+    deposit["transaction"]["input"] = "0xb9d2238a" + "00" * 32
+    deposit["transaction"]["to"] = "0xd84379ceae14aa33c123af12424a37803f885889"
+    save(path, payload)
+    with pytest.raises(pro28_receipts.EvidenceError, match="not bound to the matching reserve.deposit"):
+        pro28_receipts.reconstruct(bundle)
+
+
+def test_funding_event_must_match_operation_fund_call(bundle: Path) -> None:
+    path = bundle / "broadcast/funding.json"
+    payload = load(path)
+    fund = next(row for row in payload["transactions"] if row["transaction"].get("input", "").startswith("0x9a5a276f"))
+    fund["transaction"]["input"] = "0xdd9205b6" + fund["transaction"]["input"][10:]
+    save(path, payload)
+    with pytest.raises(pro28_receipts.EvidenceError, match="allocator funding log is not bound"):
+        pro28_receipts.reconstruct(bundle)
+
+
+def test_funding_receipt_event_must_bind_operation_identity(bundle: Path) -> None:
+    path = bundle / "broadcast/funding.json"
+    payload = load(path)
+    log = next(
+        log for receipt in payload["receipts"] for log in receipt["logs"]
+        if log.get("topics", [""])[0].lower()
+        == "0xcf3311c8bdef5e68826cabf9475980bb15b15f4b9d1bfdfc3308b1be90de815c"
+    )
+    log["topics"][1] = "0x" + "ab" * 32
+    save(path, payload)
+    with pytest.raises(pro28_receipts.EvidenceError, match="operation-bound ratification event"):
+        pro28_receipts.reconstruct(bundle)
+
+
+def test_claim_payout_must_match_withdrawal_opening(bundle: Path) -> None:
+    path = bundle / "broadcast/withdrawals.json"
+    payload = load(path)
+    claim = next(row for row in payload["transactions"] if row["transaction"].get("input", "").startswith("0x7c365406"))
+    data = bytes.fromhex(claim["transaction"]["input"][2:])
+    tuple_offset = pro28_receipts._calldata_word(data, 36)
+    beneficiary_word = 4 + tuple_offset + 64
+    corrupted = bytearray(data)
+    corrupted[beneficiary_word : beneficiary_word + 32] = bytes.fromhex("00" * 12 + "44" * 20)
+    claim["transaction"]["input"] = "0x" + corrupted.hex()
+    save(path, payload)
+    with pytest.raises(pro28_receipts.EvidenceError, match="claim transaction opening differs"):
         pro28_receipts.reconstruct(bundle)
 
 
@@ -144,7 +211,8 @@ def test_tampered_runtime_observation_rejects(bundle: Path) -> None:
 
 
 def _mock_rpc(bundle: Path, *, replace_anchor: bool = False, wrong_parent: bool = False,
-              wrong_code: bool = False, wrong_latest_code: bool = False, wrong_chain: bool = False):
+              wrong_code: bool = False, wrong_latest_code: bool = False, wrong_chain: bool = False,
+              wrong_input: bool = False):
     runtime = load(bundle / "runtime-code-observations.json")
     manifest = load(bundle / "deployment-manifest.json")
     transactions, _ = pro28_receipts._load_receipts(bundle)
@@ -171,8 +239,12 @@ def _mock_rpc(bundle: Path, *, replace_anchor: bool = False, wrong_parent: bool 
         receipt = row["receipt"]
         number = pro28_receipts._int(receipt["blockNumber"])
         index = pro28_receipts._int(receipt["transactionIndex"])
-        tx = {"hash": tx_hash, "chainId": hex(manifest["chainId"]), "blockHash": headers[number]["hash"],
-              "blockNumber": hex(number), "transactionIndex": hex(index)}
+        retained = row["transaction"]["transaction"]
+        tx = {key: retained[key] for key in ("from", "to", "input", "value", "nonce", "gas", "chainId")}
+        tx.update({"hash": tx_hash, "blockHash": headers[number]["hash"],
+                   "blockNumber": hex(number), "transactionIndex": hex(index)})
+        if wrong_input and not tx_by_block:
+            tx["input"] = "0xdeadbeef"
         tx_lookup[tx_hash] = tx
         rows = tx_by_block.setdefault(number, [])
         while len(rows) <= index:
@@ -221,7 +293,7 @@ def test_live_check_revalidates_block_receipts_and_runtime_against_rpc(bundle: P
     assert report["contractsChecked"] == 12
     assert report["runtimeCodeCurrentAtLatest"] is True
     assert report["finalityClaimed"] is False
-    assert report["environmentId"] == "pro-28-fresh-local-replay-20261013"
+    assert report["environmentId"] == "pro-28-fresh-local-replay-20261017"
 
 
 def test_live_check_rejects_replaced_canonical_block(bundle: Path, monkeypatch) -> None:
@@ -245,6 +317,12 @@ def test_live_check_rejects_chain_and_runtime_substitution(bundle: Path, monkeyp
         pro28_receipts.verify_live_chain_context(bundle, "http://unused.local")
     monkeypatch.setattr(pro28_receipts, "_rpc", _mock_rpc(bundle, wrong_latest_code=True))
     with pytest.raises(pro28_receipts.EvidenceError, match="changed after"):
+        pro28_receipts.verify_live_chain_context(bundle, "http://unused.local")
+
+
+def test_live_check_rejects_transaction_call_payload_substitution(bundle: Path, monkeypatch) -> None:
+    monkeypatch.setattr(pro28_receipts, "_rpc", _mock_rpc(bundle, wrong_input=True))
+    with pytest.raises(pro28_receipts.EvidenceError, match="differs from retained input"):
         pro28_receipts.verify_live_chain_context(bundle, "http://unused.local")
 
 
