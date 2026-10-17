@@ -92,15 +92,19 @@
     (is (thrown? ExceptionInfo
                  (g/eae-demo-authority-state-root
                   (assoc state :authority/initial-decisions ["unauthorized"]))))
-    (is (thrown? ExceptionInfo
-                 (g/eae-demo-authority-state-root
-                  (assoc state :authority/profile "unbounded-admin"))))))
+    (testing "profile identity is committed but does not itself grant authority"
+      (is (not= root
+                (g/eae-demo-authority-state-root
+                 (assoc state :authority/profile "production.safe.v1"))))
+      (is (thrown? ExceptionInfo
+                   (g/eae-demo-authority-state-root
+                    (assoc state :authority/profile "")))))))
 
 (deftest test-deployment-root-cli-derives-authority-state-but-not-approval
   (let [package (edn/read-string
                  (slurp (io/file "etc/deployments/eae-controlled-entitlement-demo/authority-state-package.edn")))
         result (deployment-genesis/derive-root :authority-state package)]
-    (is (= "eae-controlled-entitlement-demo.authority-state.v1" (get result "artifact")))
+    (is (= "eae-controlled-entitlement-demo.authority-state-package.v1" (get result "artifact")))
     (is (= (:authority-state/root package) (get result "root")))
     (is (= "derived-only-not-approved" (get result "qualification")))
     (is (thrown? ExceptionInfo
