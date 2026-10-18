@@ -3,7 +3,7 @@
             [clojure.java.io :as io]
             [resolver-sim.run.comparison :as comparison]))
 
-(defn run [{:keys [package-a package-b output]}]
+(defn run [{:keys [package-a package-b output json?]}]
   (if-not (and package-a package-b)
     {:exit-code 2 :message "Usage: compare-runs --package-a DIR --package-b DIR [--output DIR]"}
     (let [left (comparison/submission package-a)
@@ -16,5 +16,7 @@
           (spit (io/file dir "submissions/left.json") (json/write-str (:submission left)))
           (spit (io/file dir "submissions/right.json") (json/write-str (:submission right)))
           (spit (io/file dir "run-comparison.json") (json/write-str result))))
-      (println (name (:classification result)))
+      (if json?
+        (println (json/write-str result :indent true))
+        (println (name (:classification result))))
       {:exit-code (if pass? 0 1) :result result})))

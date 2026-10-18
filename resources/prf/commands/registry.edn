@@ -1,7 +1,149 @@
 {:schema-version "prf.commands.registry.v1"
 
  :commands
- [  {:command/id :backstop
+ [
+  {:command/id :protocol-finality-inspect
+   :command/path ["protocol" "finality" "inspect"]
+   :command/title "protocol finality inspect"
+   :command/category :protocol
+   :command/surface :prf
+   :command/backstop-tier :manual
+   :command/jar-availability :native
+   :command/runtime :jvm
+   :command/options [{:name "--input" :type :string :required true :doc "Exactly one EDN request map from FILE or explicit stdin (-)"}
+                      {:name "--json" :type :flag :doc "JSON output; keywords and integers use strings"}]
+   :command/outputs []
+   :command/positional-args {:min 0 :max 0}
+   :command/description "Classify financial finality or derive ruling finality from an explicit SEW world; chain finality remains assumed by replay."}
+
+  {:command/id :protocol-finality-verify
+   :command/path ["protocol" "finality" "verify"]
+   :command/title "protocol finality verify"
+   :command/category :protocol
+   :command/surface :prf
+   :command/backstop-tier :manual
+   :command/jar-availability :native
+   :command/runtime :jvm
+   :command/options [{:name "--input" :type :string :required true :doc "Exactly one EDN request map from FILE or explicit stdin (-)"}
+                      {:name "--json" :type :flag :doc "JSON output; keywords and integers use strings"}]
+   :command/outputs []
+   :command/positional-args {:min 0 :max 0}
+   :command/description "Recompute finality against the supplied SEW world and reject mismatched artifacts; does not authenticate the supplied world."}
+
+  {:command/id :forensic-run
+   :command/path ["forensic" "run"]
+   :command/title "forensic run"
+   :command/category :evidence
+   :command/surface :prf
+   :command/backstop-tier :manual
+   :command/jar-availability :native
+   :command/runtime :jvm
+   :command/options [{:name "--input" :type :string :required true :doc "Exactly one EDN request map from FILE or explicit stdin (-)"}
+                      {:name "--json" :type :flag :doc "JSON output; keywords and integers use strings"}]
+   :command/outputs []
+   :command/positional-args {:min 0 :max 0}
+   :command/description "Run the existing forensic workflow using explicit PRF and output roots; requires Python and the source checkout."}
+
+  {:command/id :forensic-validate
+   :command/path ["forensic" "validate"]
+   :command/title "forensic validate"
+   :command/category :evidence
+   :command/surface :prf
+   :command/backstop-tier :manual
+   :command/jar-availability :native
+   :command/runtime :jvm
+   :command/options [{:name "--input" :type :string :required true :doc "Exactly one EDN request map from FILE or explicit stdin (-)"}
+                      {:name "--json" :type :flag :doc "JSON output; keywords and integers use strings"}]
+   :command/outputs []
+   :command/positional-args {:min 0 :max 0}
+   :command/description "Run existing protocol-semantic forensic validation over retained evidence."}
+
+  {:command/id :forensic-verify
+   :command/path ["forensic" "verify"]
+   :command/title "forensic verify"
+   :command/category :evidence
+   :command/surface :prf
+   :command/backstop-tier :manual
+   :command/jar-availability :native
+   :command/runtime :jvm
+   :command/options [{:name "--input" :type :string :required true :doc "Exactly one EDN request map from FILE or explicit stdin (-)"}
+                      {:name "--json" :type :flag :doc "JSON output; keywords and integers use strings"}]
+   :command/outputs []
+   :command/positional-args {:min 0 :max 0}
+   :command/description "Run existing forensic integrity and optional signature/semantic verification."}
+
+  {:command/id :forensic-reproduce
+   :command/path ["forensic" "reproduce"]
+   :command/title "forensic reproduce"
+   :command/category :evidence
+   :command/surface :prf
+   :command/backstop-tier :manual
+   :command/jar-availability :native
+   :command/runtime :jvm
+   :command/options [{:name "--input" :type :string :required true :doc "Exactly one EDN request map from FILE or explicit stdin (-)"}
+                      {:name "--json" :type :flag :doc "JSON output; keywords and integers use strings"}]
+   :command/outputs []
+   :command/positional-args {:min 0 :max 0}
+   :command/description "Execute the existing forensic reproduction workflow in an explicitly selected PRF source checkout."}
+
+  {:command/id :simulation-simplified
+   :command/path ["simulation" "simplified"]
+   :command/title "Run simplified simulation with selection evidence"
+   :command/category :simulation
+   :command/surface :prf
+   :command/backstop-tier :manual
+   :command/jar-availability :native
+   :command/runtime :jvm
+   :command/options [{:name "--params" :type :string :required true :doc "EDN Monte Carlo parameter file; copied into the evidence directory before execution"}
+                     {:name "--output" :type :string :required true :doc "New, nonexistent output directory for results and forensic selection evidence"}]
+   :command/outputs ["selection.edn" "inputs/params.edn" "simulation-results/**"]
+   :command/positional-args {:min 0 :max 0}
+   :command/description "Run the closed-form Monte Carlo simulation and record the selected simulation mode, frozen input and output digests. This is not deterministic replay or invariant evidence."}
+
+  {:command/id :protocol-pro-rata-derive-operation
+   :command/path ["protocol" "pro-rata" "derive-operation"]
+   :command/title "protocol pro-rata derive-operation"
+   :command/category :protocol
+   :command/surface :prf
+   :command/backstop-tier :manual
+   :command/jar-availability :native
+   :command/runtime :jvm
+   :command/options [{:name "--input" :type :string :required true :doc "Exactly one EDN request map from FILE or explicit stdin (-)"}
+                      {:name "--json" :type :flag :doc "JSON output; keywords and integers use strings"}]
+   :command/outputs []
+   :command/positional-args {:min 0 :max 0}
+   :command/description "Derive controlled-source operation commitments and entitlements; does not submit a transaction or grant authority."}
+
+  {:command/id :protocol-pro-rata-check-admission
+   :command/path ["protocol" "pro-rata" "check-admission"]
+   :command/title "protocol pro-rata check-admission"
+   :command/category :protocol
+   :command/surface :prf
+   :command/backstop-tier :manual
+   :command/jar-availability :native
+   :command/runtime :jvm
+   :command/options [{:name "--input" :type :string :required true :doc "Exactly one EDN request map from FILE or explicit stdin (-)"}
+                      {:name "--json" :type :flag :doc "JSON output; keywords and integers use strings"}
+                      {:name "--trust-context" :type :string :required true :doc "Independent EDN trust policy and approved program registry"}]
+   :command/outputs []
+   :command/positional-args {:min 0 :max 0}
+   :command/description "Check the existing realized-allocation V1 signed verifier receipt boundary using independent trust policy and proof file integrity."}
+
+  {:command/id :protocol-pro-rata-verify-execution
+   :command/path ["protocol" "pro-rata" "verify-execution"]
+   :command/title "protocol pro-rata verify-execution"
+   :command/category :protocol
+   :command/surface :prf
+   :command/backstop-tier :manual
+   :command/jar-availability :native
+   :command/runtime :jvm
+   :command/options [{:name "--input" :type :string :required true :doc "Exactly one EDN request map from FILE or explicit stdin (-)"}
+                      {:name "--json" :type :flag :doc "JSON output; keywords and integers use strings"}]
+   :command/outputs []
+   :command/positional-args {:min 0 :max 0}
+   :command/description "Reconstruct retained local source-bound entitlement execution evidence and report unresolved assurance gaps; no live observation."}
+
+  {:command/id :backstop
    :command/path ["backstop"]
    :command/title "Default backstop"
    :command/category :validation
@@ -281,8 +423,8 @@
                        :default "results/trace-compare"}
                       {:name "--json" :type :flag :doc "Output as JSON"}]
     :command/outputs []
-    :command/positional-args {:min 0 :max 0}
-    :command/description "Run two scenarios and compare their replay traces. Reports the first structural divergence."}
+    :command/positional-args {:min 2 :max 2}
+    :command/description "Execute both scenarios in separate output directories, then compare their replay traces and report the first structural divergence."}
 
    {:command/id :run-scenario
    :command/path ["run-scenario"]
@@ -292,7 +434,16 @@
    :command/backstop-tier :manual
    :command/jar-availability :native
    :command/runtime :jvm
-    :command/options [{:name "--run-root" :type :string :doc "Fresh authoritative root for the completed scenario bundle"}
+    :command/options [
+                      {:name "--scenario" :type :string :doc "Scenario ID or source reference"}
+                      {:name "--output-dir" :type :string :doc "Deprecated alias for --run-root"}
+                      {:name "--scenario-output-dir" :type :string :doc "Deprecated alias for --run-root"}
+                      {:name "--save-output" :type :string :doc "Legacy output copy option (rejected for canonical bundles)"}
+                      {:name "--verbose" :short "-v" :type :flag :doc "Verbose report format"}
+                      {:name "--failures" :short "-f" :type :flag :doc "Failures report format"}
+                      {:name "--summary" :short "-s" :type :flag :doc "Summary report format"}
+                      {:name "--audit" :short "-a" :type :flag :doc "Audit report format"}
+                      {:name "--run-root" :type :string :doc "Fresh authoritative root for the completed scenario bundle"}
                       {:name "--suite-root" :type :string :doc "Suite root directory (contains manifest.edn)"}
                       {:name "--sensitivity-profile" :type :string :doc "public or internal (default public)"}
                       {:name "--report-format" :type :string :doc "summary, failures, standard, verbose, or audit"}]
@@ -462,7 +613,7 @@
     :command/jar-availability :native
     :command/runtime :jvm
     :command/options [{:name "--all" :type :flag :doc "Include experimental benchmarks"}
-                      {:name "--seed" :type :string :doc "Random seed for deterministic scenario selection"}
+                      {:name "--seed" :type :integer :doc "Random seed for deterministic scenario selection"}
                       {:name "--json" :type :flag :doc "Output as JSON"}]
     :command/outputs []
     :command/positional-args {:min 0 :max 0}
@@ -489,13 +640,20 @@
    :command/backstop-tier :full
    :command/jar-availability :native
    :command/runtime :jvm
-   :command/options [{:name "--run-root" :type :string :doc "Fresh canonical benchmark package root"}
+   :command/options [
+                      {:name "--execution-budget" :type :integer :doc "Total concurrent execution bound"}
+                      {:name "--parallel-ceiling" :type :integer :doc "Automatic worker ceiling"}
+                      {:name "--output" :type :string :doc "Legacy standalone evidence output path"}
+                      {:name "--scenario-output-dir" :type :string :doc "Legacy execution output directory"}
+                      {:name "--quiescence-timeout-seconds" :type :integer :doc "Executor shutdown wait timeout"}
+                      {:name "--claimant-parallelism" :type :integer :doc "Runtime claimant worker count"}
+                      {:name "--claimant-parallel-threshold" :type :integer :doc "Runtime claimant parallelism threshold"}
+                      {:name "--run-root" :type :string :doc "Fresh canonical benchmark package root"}
                       {:name "--sensitivity-profile" :type :string :doc "Canonical bundle profile: public or internal"}
                       {:name "--claim-registry" :type :string :doc "External benchmark claim registry (auditor-supplied). Precedence: --claim-registry > PRF_BENCHMARKS_CLAIM_REGISTRY > repository default. Fails closed if the registry is invalid."}
                       {:name "--research-pack" :type :string :doc "Frozen research-benchmark-pack.v1 EDN plan; validated before canonical execution."}
                       {:name "--parallelism" :type :integer :doc "Bounded local worker count; positive integer, default 1"}
                       {:name "--chunk-size" :type :integer :doc "Deterministic work items per local chunk; positive integer, default 1"}
-                      {:name "--output" :type :string :doc "Legacy standalone evidence output path"}
                       {:name "--key" :type :string :doc "Path to private key for signing"}
                       {:name "--json" :type :flag :doc "Output as JSON"}]
    :command/outputs []
@@ -510,7 +668,14 @@
    :command/backstop-tier :full
    :command/jar-availability :native
    :command/runtime :jvm
-   :command/options [{:name "--run-root" :type :string :doc "Fresh canonical benchmark package root"}
+   :command/options [
+                      {:name "--parallel-ceiling" :type :integer :doc "Automatic worker ceiling"}
+                      {:name "--output" :type :string :doc "Legacy standalone evidence output path"}
+                      {:name "--scenario-output-dir" :type :string :doc "Legacy execution output directory"}
+                      {:name "--quiescence-timeout-seconds" :type :integer :doc "Executor shutdown wait timeout"}
+                      {:name "--claimant-parallelism" :type :integer :doc "Runtime claimant worker count"}
+                      {:name "--claimant-parallel-threshold" :type :integer :doc "Runtime claimant parallelism threshold"}
+                      {:name "--run-root" :type :string :doc "Fresh canonical benchmark package root"}
                      {:name "--sensitivity-profile" :type :string :doc "Canonical bundle profile: public or internal"}
                      {:name "--claim-registry" :type :string :doc "External benchmark claim registry (auditor-supplied). Precedence: --claim-registry > PRF_BENCHMARKS_CLAIM_REGISTRY > repository default. Fails closed if the registry is invalid."}
                      {:name "--research-pack" :type :string :doc "Frozen research-benchmark-pack.v1 EDN plan; validated before canonical execution."}
@@ -565,6 +730,7 @@
     :command/description "Validate that an outcome manifest is ready for benchmark execution."}
 
    {:command/id :run-simulation
+    :command/options-source :handler
    :command/path ["run-simulation"]
    :command/title "Run simulation"
    :command/category :simulation
@@ -582,6 +748,7 @@
    :command/description "Run a simulation, server, invariants, or diff-traces. Replaces the original flag-based CLI."}
 
   {:command/id :community-task-list
+    :command/options-source :handler
    :command/path ["community" "task" "list"]
    :command/title "List community tasks"
    :command/category :community
@@ -596,6 +763,7 @@
    :command/description "List available community tasks."}
 
   {:command/id :community-task-show
+    :command/options-source :handler
    :command/path ["community" "task" "show"]
    :command/title "Show community task"
    :command/category :community
@@ -609,6 +777,7 @@
    :command/description "Show community task details."}
 
   {:command/id :community-task-register
+    :command/options-source :handler
    :command/path ["community" "task" "register"]
    :command/title "Register community task"
    :command/category :community
@@ -625,6 +794,7 @@
    :command/description "Register a new community task."}
 
   {:command/id :community-task-run
+    :command/options-source :handler
    :command/path ["community" "task" "run"]
    :command/title "Run community task"
    :command/category :community
@@ -642,6 +812,7 @@
    :command/description "Execute a community task and publish result."}
 
   {:command/id :community-task-reproduce
+    :command/options-source :handler
    :command/path ["community" "task" "reproduce"]
    :command/title "Reproduce community task"
    :command/category :community
@@ -660,6 +831,7 @@
    :command/description "Reproduce a community task result."}
 
   {:command/id :community-task-verify
+    :command/options-source :handler
    :command/path ["community" "task" "verify"]
    :command/title "Verify community task"
    :command/category :community
@@ -675,6 +847,7 @@
    :command/description "Verify a community task evidence chain."}
 
   {:command/id :community-task-report
+    :command/options-source :handler
    :command/path ["community" "task" "report"]
    :command/title "Report on community task"
    :command/category :community
@@ -690,6 +863,7 @@
    :command/description "Generate a community task evidence report."}
 
   {:command/id :community-graph-export
+    :command/options-source :handler
    :command/path ["community" "graph" "export"]
    :command/title "Export community graph"
    :command/category :community
@@ -706,6 +880,7 @@
    :command/description "Export a community task evidence graph."}
 
   {:command/id :community-mailbox-clear
+    :command/options-source :handler
     :command/path ["community" "mailbox" "clear"]
     :command/title "Clear community mailbox"
     :command/category :community
@@ -726,12 +901,13 @@
    :command/backstop-tier :manual
    :command/jar-availability :native
    :command/runtime :jvm
-   :command/options [{:name "--package-a" :type :string :required true}
-                     {:name "--package-b" :type :string :required true}
-                     {:name "--output" :type :string}]
+   :command/options [{:name "--package-a" :type :string :required true :doc "First completion-sealed package directory"}
+                     {:name "--package-b" :type :string :required true :doc "Second completion-sealed package directory"}
+                     {:name "--output" :type :string :doc "Directory for the comparison report and normalized submissions"}
+                     {:name "--json" :type :flag :doc "Emit the comparison report as JSON"}]
    :command/outputs ["run-comparison.json"]
    :command/positional-args {:min 0 :max 0}
-   :command/description "Compare two completion-sealed run packages."}
+   :command/description "Compare two retained completion-sealed packages and report their protocol submission classification; does not execute either package."}
 
   {:command/id :compare
    :command/path ["compare"]
@@ -741,7 +917,8 @@
    :command/backstop-tier :manual
    :command/jar-availability :native
    :command/runtime :jvm
-   :command/options [{:name "--format" :type :string :doc "Artifact format: edn or json"}]
+   :command/options [{:name "--format" :type :string :doc "Artifact format: edn or json"}
+                     {:name "--json" :type :flag :doc "Emit the canonical comparison report as JSON"}]
    :command/outputs []
    :command/positional-args {:min 2 :max 2}
    :command/description "Compare two EDN/JSON artifacts by canonical hash equivalence; reports the first divergence."}
@@ -780,11 +957,12 @@
    :command/backstop-tier :manual
    :command/jar-availability :native
    :command/runtime :jvm
-   :command/options [{:name "--package-a" :type :string :required true}
-                     {:name "--package-b" :type :string :required true}]
+   :command/options [{:name "--package-a" :type :string :required true :doc "First completed package directory"}
+                     {:name "--package-b" :type :string :required true :doc "Second completed package directory"}
+                     {:name "--json" :type :flag :doc "Emit the semantic-equivalence report as JSON"}]
    :command/outputs []
    :command/positional-args {:min 0 :max 0}
-   :command/description "Compare two run packages for semantic equivalence via stable-result projection."}
+   :command/description "Compare two completed packages by stable-result projection and semantic outcome; does not compare all artifact bytes or execute either package."}
 
   {:command/id :declared-dependencies
    :command/path ["declared-dependencies"]
@@ -1132,7 +1310,10 @@
     :command/backstop-tier :manual
     :command/jar-availability :native
     :command/runtime :jvm
-    :command/options [{:name "--input" :type :string :doc "Input JSON file; use '-' for stdin"}]
+    :command/options [
+                      {:name "--key" :type :string :doc "Private key path for certificate signing"}
+                      {:name "--key-id" :type :string :doc "Issuer key ID for the signature"}
+                      {:name "--input" :type :string :doc "Input JSON file; use '-' for stdin"}]
     :command/outputs []
     :command/positional-args {:min 0 :max 1}
      :command/description "Compose allocation-assurance-certificate.v1 from a kernel run."}

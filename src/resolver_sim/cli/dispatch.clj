@@ -23,7 +23,17 @@
   ;; the gRPC simulation server) from breaking an unrelated CLI invocation.
   ;; Note: :commands-validate is intentionally excluded to avoid circular
   ;; dependency with registry-validate namespace.
-  {:run-scenario 'resolver-sim.commands.scenario/run
+  {:protocol-finality-inspect 'resolver-sim.commands.protocol-finality/inspect
+   :protocol-finality-verify 'resolver-sim.commands.protocol-finality/verify
+   :forensic-run 'resolver-sim.commands.forensic/run
+   :forensic-validate 'resolver-sim.commands.forensic/validate
+   :forensic-verify 'resolver-sim.commands.forensic/verify
+   :forensic-reproduce 'resolver-sim.commands.forensic/reproduce
+   :simulation-simplified 'resolver-sim.commands.simulation/simplified
+   :protocol-pro-rata-derive-operation 'resolver-sim.commands.protocol-pro-rata/derive-operation
+   :protocol-pro-rata-check-admission 'resolver-sim.commands.protocol-pro-rata/check-admission
+   :protocol-pro-rata-verify-execution 'resolver-sim.commands.protocol-pro-rata/verify-execution
+   :run-scenario 'resolver-sim.commands.scenario/run
    :run-invariants 'resolver-sim.commands.invariants/run
    :run-benchmark 'resolver-sim.commands.run-benchmark/run
    :parallel-benchmark-run 'resolver-sim.commands.run-benchmark/run
@@ -100,7 +110,8 @@
    :check-aggregate 'resolver-sim.commands.check-aggregate/run})
 
 (def ^:private sew-command-ids
-  #{:benchmark-validate :benchmark-validate-jar :benchmark-smoke
+  #{:protocol-finality-inspect :protocol-finality-verify
+    :benchmark-validate :benchmark-validate-jar :benchmark-smoke
     :run-scenario :run-invariants :run-benchmark :parallel-benchmark-run :run-simulation
     :scenario-list :scenario-compare :scenario-pick :scenario-run-search
     :benchmark-list :suite-list :invariants-run :verify-run :assure-package})
@@ -149,59 +160,29 @@
 ;; CLI option definitions
 ;; ---------------------------------------------------------------------------
 
-(def cli-options
-  [["-h" "--help" "Show help"]
+(def ^:private dispatcher-common-options
+  [["-h" "--help" "Show command help"]
    ["-j" "--json" "Output results as JSON"]
-   [nil "--artifact-dir DIR" "Legacy evidence artifact directory (must be explicit)"]
-   [nil "--scenario ID" "Scenario ID to run"]
-   [nil "--scenario-file PATH" "Scenario file path"]
-   [nil "--run-root DIR" "Authoritative root directory for a complete scenario bundle"]
-   [nil "--suite-root DIR" "Suite root directory (directory containing manifest.edn)"]
-   [nil "--output-dir DIR" "Deprecated scenario alias for --run-root"]
-   [nil "--scenario-output-dir DIR" "Deprecated scenario alias for --run-root"]
-   [nil "--save-output DIR" "Legacy scenario output-copy option"]
-   [nil "--sensitivity-profile PROFILE" "Bundle sensitivity profile: public or internal"
-    :parse-fn keyword]
-   [nil "--claim-registry FILE" "Path to an external benchmark claim registry (auditor-supplied). Precedence: --claim-registry > PRF_BENCHMARKS_CLAIM_REGISTRY > repository default. Fails closed if the registry is invalid."]
-   [nil "--parallelism N" "Bounded local benchmark worker count (default 1)" :parse-fn #(Long/parseLong %)]
-   [nil "--chunk-size N" "Deterministic work items per local benchmark chunk (default 1)" :parse-fn #(Long/parseLong %)]
-   [nil "--claimant-parallelism N" "Runtime-only partial-fill claimant worker count (default 1)" :parse-fn #(Long/parseLong %)]
-   [nil "--claimant-parallel-threshold N" "Runtime-only claimant-count threshold for partial-fill parallelism (default from config :hardening :claimant-parallel-threshold; env PRF_CLAIMANT_PARALLEL_THRESHOLD)" :parse-fn #(Long/parseLong %)]
-   [nil "--execution-budget N" "Shared Semaphore K bounding TOTAL concurrent execution (outer workers consume, inner claimants borrow spare). Positive integer; for parallel-benchmark-run defaults to effective outer parallelism; otherwise unbounded unless supplied." :parse-fn #(Long/parseLong %)]
-   [nil "--parallel-ceiling N" "Automatic-default worker ceiling for parallel-benchmark-run; does not clamp an explicit --parallelism (default from config :hardening :parallel-ceiling; env PRF_PARALLEL_CEILING)" :parse-fn #(Long/parseLong %)]
-   [nil "--quiescence-timeout-seconds N" "Post-run executor shutdown wait in seconds (default from config :hardening :quiescence-timeout-seconds; env PRF_QUIESCENCE_TIMEOUT_SECONDS)" :parse-fn #(Long/parseLong %)]
-   [nil "--report-format FORMAT" "Scenario report format"]
-   ["-v" "--verbose" "Scenario report format: verbose"]
-   ["-f" "--failures" "Scenario report format: failures"]
-   ["-s" "--summary" "Scenario report format: summary"]
-   ["-a" "--audit" "Scenario report format: audit"]
-   [nil "--suite NAME" "Suite name"]
-   [nil "--pack NAME" "Benchmark pack name"]
-   [nil "--research-pack FILE" "Frozen research-benchmark-pack.v1 EDN plan for canonical benchmark execution"]
-   [nil "--fast" "Run fast tier only"]
-   [nil "--full" "Run full tier"]
-   [nil "--strict" "Strict validation mode"]
-   [nil "--explain" "Explain results in detail"]
-   [nil "--out DIR" "Output directory"
-    :default "target/report"]
-   [nil "--output PATH" "Output path for evidence bundle"]
-   [nil "--package-a DIR" "First completed canonical package"]
-   [nil "--package-b DIR" "Second completed canonical package"]
-   [nil "--format FORMAT" "Artifact format for compare: edn or json"]
-   [nil "--protocol PROTOCOL" "Protocol ID (default sew-v1)"]
-   [nil "--search TEXT" "Filter results by search term"]
-   [nil "--key PATH" "Path to private key"]
-   [nil "--key-id ID" "Issuer key-id for the certificate signature"]
-   [nil "--check FILE" "ref-file: verify a canonical sha256 refs file against file contents"]
-   [nil "--input PATH" "Input EDN/JSON specification, or - for stdin"]
-   [nil "--member-key N" "Researcher: integer review-member/key for identity resolution"]
-   [nil "--dissent-reason STR" "Researcher disagree: reason for dissent"]
-   [nil "--outcome-root REF" "Researcher approve: outcome root sha256 ref (enables v2 signing)"]
-   [nil "--head-root REF" "Publication trace: publication head root (CAS-only)"]
-   [nil "--ordering-root REF" "Publication trace: ordering root (CAS-only)"]
-   [nil "--partition REF" "Publication trace: partition identifier (requires PostgreSQL)"]
-   [nil "--cas-dir DIR" "CAS directory for publication trace (default: PRF_CAS_DIR)"]
-   [nil "--database-url URL" "JDBC URL for PostgreSQL (default: DATABASE_URL)"]])
+   [nil "--explain" "Print a stack trace for unexpected command errors"]])
+
+(defn- registry-cli-option
+  [{:keys [name short type doc default] :as option}]
+  (let [takes-value? (not= :flag type)
+        value-name (case type :integer "N" :string "VALUE" "VALUE")
+        long-name (str name (when takes-value? (str " " value-name)))
+        base [(or short nil) long-name (or doc "")]
+        with-parser (if (= :integer type)
+                      (conj base :parse-fn #(Long/parseLong %))
+                      base)]
+    (if (contains? option :default)
+      (conj with-parser :default default)
+      with-parser)))
+
+(defn- command-cli-options
+  [cmd]
+  (let [common-names #{"--help" "--json" "--explain"}
+        command-options (remove #(common-names (:name %)) (:command/options cmd))]
+    (into dispatcher-common-options (map registry-cli-option command-options))))
 
 ;; ---------------------------------------------------------------------------
 ;; Command path resolution
@@ -261,6 +242,77 @@
   (println "Use: java -jar prf.jar <command> --help for command-specific help.")
   {:exit-code 0, :message "help"})
 
+(defn- print-command-help [cmd]
+  (let [{:keys [min max mode]} (:command/positional-args cmd)
+        positional (cond
+                     (= mode :arbitrary) " [ARGS...]"
+                     (pos? (or min 0)) (str " " (str/join " " (repeat min "ARG"))
+                                            (when (and max (> max min))
+                                              (str " [ARG" (when (> max (inc min)) "...") "]")))
+                     :else "")]
+    (println (str "Usage: bin/prf " (str/join " " (:command/path cmd)) positional " [OPTIONS]")))
+  (println (:command/description cmd))
+  (doseq [{:keys [name short doc required]} (:command/options cmd)]
+    (println (str "  " (when short (str short ", ")) name
+                  (when required " (required)") "  " doc)))
+  0)
+
+(def ^:private path-option-names
+  #{"--artifact-dir" "--run-root" "--suite-root"
+    "--output-dir" "--scenario-output-dir" "--save-output" "--claim-registry"
+    "--out" "--output" "--package-a" "--package-b" "--key" "--check"
+    "--trust-context" "--input" "--cas-dir" "--params" "--output-file"
+    "--baseline" "--candidate" "--dir" "--mailbox-dir"})
+
+(defn- caller-directory []
+  (or (System/getenv "PRF_CLI_CALLER_DIR") (System/getProperty "user.dir")))
+
+(defn- caller-path [path]
+  (when (and (string? path) (seq path) (not= "-" path))
+    (let [expanded (if (str/starts-with? path "~/")
+                     (str (System/getProperty "user.home") (subs path 1)) path)
+          file (io/file expanded)]
+      (.getCanonicalPath (if (.isAbsolute file) file (io/file (caller-directory) expanded))))))
+
+(defn- normalize-raw-path-args [args extra-path-options]
+  (loop [remaining (seq args) result []]
+    (if-let [arg (first remaining)]
+      (let [[option inline] (str/split arg #"=" 2)]
+        (if (or (contains? path-option-names option)
+                (contains? extra-path-options option))
+          (if inline
+            (recur (next remaining)
+                   (conj result (str option "=" (or (caller-path inline) inline))))
+            (if-let [value (second remaining)]
+              (recur (nnext remaining) (conj result option (or (caller-path value) value)))
+              (recur (next remaining) (conj result arg))))
+          (recur (next remaining) (conj result arg))))
+      result)))
+
+(defn- normalize-user-paths [opts args]
+  (let [specified (set (filter path-option-names
+                               (map #(first (str/split % #"=" 2)) args)))
+        option-keys (into {} (map (fn [name] [(keyword (subs name 2)) name]) specified))
+        opts (reduce-kv (fn [m k v]
+                          (if-let [name (get option-keys k)]
+                            (assoc m k (or (caller-path v) v)) m))
+                        opts opts)]
+    (if (= :compare (:command/id (registry/get-command
+                                  (get (registry/path->command-id-map)
+                                       (:cmd/path opts)))))
+      (update opts :cmd/args #(mapv (fn [p] (or (caller-path p) p)) %))
+      opts)))
+
+(defn- required-option-error [cmd args]
+  (let [supplied (set (keep (fn [arg]
+                              (when (str/starts-with? arg "--")
+                                (first (str/split arg #"=" 2)))) args))
+        missing (sort (keep (fn [{:keys [name required]}]
+                              (when (and required (not (contains? supplied name))) name))
+                            (:command/options cmd)))]
+    (when (seq missing)
+      (str "Missing required option(s): " (str/join ", " missing)))))
+
 ;; ---------------------------------------------------------------------------
 ;; Command execution (for backstop orchestration)
 ;; ---------------------------------------------------------------------------
@@ -290,10 +342,12 @@
    so handlers can do their own option parsing if needed."
   [handler-var opts cmd-path cmd-args raw-args]
   (try
-    (let [result (handler-var (assoc opts
-                                     :cmd/path cmd-path
-                                     :cmd/args cmd-args
-                                     :cmd/raw-args raw-args))]
+    (let [opts (normalize-user-paths (assoc opts
+                                            :cmd/path cmd-path
+                                            :cmd/args cmd-args
+                                            :cmd/raw-args raw-args)
+                                     raw-args)
+          result (handler-var opts)]
       (or (:exit-code result) 0))
     (catch Exception e
       (println "Error executing command:" (.getMessage e))
@@ -305,44 +359,70 @@
   "Parse args, resolve command, and execute handler.
    Returns an exit code for System/exit."
   [args]
-  (let [parsed (cli/parse-opts args cli-options)
-        {:keys [options arguments summary errors]} parsed
-        options (cond-> options
-                  (:json options) (assoc :json? true))]
+  (let [raw-command (when-let [[path cmd-args] (command-path args)]
+                      (when-let [cmd-id (get (registry/path->command-id-map) path)]
+                        [path cmd-args (registry/get-command cmd-id)]))
+        cmd (nth raw-command 2 nil)
+        raw-cmd-id (:command/id cmd)]
     (cond
-      errors
-      (do (doseq [e errors] (println e))
-          (println)
-          (println summary)
-          2)
-
-      (:help options)
-      0
-
-      (empty? arguments)
+      (empty? args)
       (do (println "Usage: java -jar prf.jar <command> [options]")
           (println "Run 'java -jar prf.jar help' for available commands.")
           2)
 
-      (= "help" (first arguments))
-      (let [h (print-help)]
-        (:exit-code h))
+      (= "help" (first args))
+      (:exit-code (print-help))
+
+      (#{"--help" "-h"} (first args))
+      (do (print-help) 0)
+
+      (nil? raw-command)
+      (do (println "Unknown command:" (str/join " " args))
+          (println "Run 'java -jar prf.jar help' for available commands.")
+          2)
+
+      (= :handler (:command/options-source cmd))
+      (if-let [handler-var (handler-for raw-cmd-id)]
+        (let [extra-path-options (case raw-cmd-id
+                                   :run-simulation #{"--scenario" "-p" "-o"}
+                                   (#{:community-task-list :community-task-show
+                                      :community-task-register :community-task-run
+                                      :community-task-reproduce :community-task-verify
+                                      :community-task-report :community-graph-export
+                                      :community-mailbox-clear} raw-cmd-id)
+                                   (cond-> #{"-d" "-m"}
+                                     (#{:community-task-run :community-task-reproduce}
+                                      raw-cmd-id) (conj "-k"))
+                                   #{})
+              cmd-args (normalize-raw-path-args (second raw-command) extra-path-options)]
+          (run-command handler-var {} (first raw-command) cmd-args cmd-args))
+        (do (println "Unknown command:" (first raw-command))
+            (println "Run 'java -jar prf.jar help' for available commands.")
+            2))
 
       :else
-      (if-let [[cmd-path cmd-args] (command-path arguments)]
-        (if-let [[cmd-id _] (resolve-command cmd-path)]
-          (let [cmd (registry/get-command cmd-id)]
-            (if-let [argument-error (registry/positional-args-error cmd cmd-args)]
-              (do (println argument-error)
-                  2)
-              (if-let [handler-var (handler-for cmd-id)]
-                (run-command handler-var options cmd-path cmd-args args)
+      (let [[cmd-path raw-args _] raw-command
+            {:keys [options arguments summary errors]}
+            (cli/parse-opts raw-args (command-cli-options cmd))
+            options (cond-> options (:json options) (assoc :json? true))]
+        (cond
+          errors
+          (do (doseq [e errors]
+                (binding [*out* *err*]
+                  (println (str/replace e "Unknown option: " "Unsupported option: "))))
+              (binding [*out* *err*] (println) (println summary))
+              2)
+
+          (:help options)
+          (print-command-help cmd)
+
+          :else
+          (if-let [argument-error (registry/positional-args-error cmd arguments)]
+            (do (println argument-error) 2)
+            (if-let [option-error (required-option-error cmd raw-args)]
+              (do (binding [*out* *err*] (println option-error)) 2)
+              (if-let [handler-var (handler-for raw-cmd-id)]
+                (run-command handler-var options cmd-path arguments raw-args)
                 (do (println "Unknown command:" cmd-path)
                     (println "Run 'java -jar prf.jar help' for available commands.")
-                    2))))
-          (do (println "Unknown command:" cmd-path)
-              (println "Run 'java -jar prf.jar help' for available commands.")
-              2))
-        (do (println "Unknown command:" (str/join " " arguments))
-            (println "Run 'java -jar prf.jar help' for available commands.")
-            2)))))
+                    2)))))))))

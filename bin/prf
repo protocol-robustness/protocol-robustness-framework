@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+# Source-checkout CLI launcher. Keep user paths anchored to the caller while
+# selecting the PRF checkout as the working directory for repository resources.
+set -euo pipefail
+PRF_CLI_ROOT="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
+PRF_CLI_CALLER_DIR="$PWD"
+export PRF_CLI_CALLER_DIR
+cd -- "$PRF_CLI_ROOT"
+exec clojure -Srepro -M:with-sew -m resolver-sim.cli.main "$@"

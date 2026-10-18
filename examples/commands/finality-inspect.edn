@@ -1,0 +1,7 @@
+;; Synthetic snapshot: classification example, not authenticated chain evidence.
+{:protocol :sew
+ :kind :financial
+ :workflow-id 0
+ :world {:block-time 1000
+         :escrow-transfers {0 {:escrow-state :released}}
+         :pending-fraud-slashes {}}}

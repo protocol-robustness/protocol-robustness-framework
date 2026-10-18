@@ -4,7 +4,10 @@ from __future__ import annotations
 
 # Ensure scripts/ is importable
 import sys
+import json
+import subprocess
 from pathlib import Path
+import pytest
 _project_root = Path(__file__).resolve().parent.parent.parent
 _scripts_root = _project_root / "scripts"
 if str(_scripts_root) not in sys.path:
@@ -15,6 +18,82 @@ from scripts.forensic.reproduce import (
     classify_field,
     compare_bundle_fields,
 )
+from scripts.forensic import reproduce
+from scripts.forensic import run as forensic_run
+
+
+@pytest.mark.parametrize("execution_exit", [0, 7])
+def test_reproduction_isolates_artifacts_and_requires_execution_success(tmp_path, monkeypatch, execution_exit):
+    checkout = tmp_path / "checkout"
+    checkout.mkdir()
+    original = tmp_path / "original"
+    original.mkdir()
+    output = tmp_path / "reproductions"
+    existing_artifacts = checkout / "results"
+    existing_artifacts.mkdir()
+    sentinel = existing_artifacts / "keep.txt"
+    sentinel.write_text("preserve")
+    bundle = _bundle()
+    (original / "clojure-bundle-root.json").write_text(json.dumps(bundle))
+    monkeypatch.chdir(checkout)
+    monkeypatch.setenv("PRF_ARTIFACT_DIR", str(existing_artifacts))
+    monkeypatch.setattr(reproduce, "current_code_hash", lambda root: ("source-hash", "algorithm", ["src"]))
+
+    def execute(cmd, **kwargs):
+        artifact_root = Path(kwargs["env"]["PRF_ARTIFACT_DIR"])
+        assert artifact_root.name == "workspace"
+        assert artifact_root.is_dir()
+        assert artifact_root.is_relative_to(output)
+        destination = Path(cmd[cmd.index("--output-file") + 1])
+        assert artifact_root.parent == destination.parent
+        for key in ["PRF_RESULTS_ROOT", "PRF_RUNS_ROOT"]:
+            assert Path(kwargs["env"][key]).parent == destination.parent
+        destination.write_text(json.dumps(bundle))
+        (artifact_root / "evidence.txt").write_text("new evidence")
+        return subprocess.CompletedProcess(cmd, execution_exit)
+
+    monkeypatch.setattr(reproduce.subprocess, "run", execute)
+    result = reproduce.reproduce_run(original, output)
+    assert result == (0 if execution_exit == 0 else 1)
+    report = json.loads(next(output.rglob("reproduce-report.json")).read_text())
+    assert report["reproduce/exit-code"] == execution_exit
+    if execution_exit:
+        assert report["reproduce/verdict"] == "reproduce-failed"
+    assert sentinel.read_text() == "preserve"
+    assert list(existing_artifacts.iterdir()) == [sentinel]
+
+
+def test_forensic_execution_redirects_all_runner_output_roots(tmp_path, monkeypatch):
+    run_dir = tmp_path / "run"
+    run_dir.mkdir()
+    workspace = run_dir / "workspace"
+    for key in ["PRF_RESULTS_ROOT", "PRF_RUNS_ROOT", "PRF_ARTIFACT_DIR"]:
+        monkeypatch.setenv(key, "/caller-owned-artifacts")
+
+    def execute(cmd, **kwargs):
+        env = kwargs["env"]
+        assert env["PRF_RESULTS_ROOT"] == str(run_dir / "results")
+        assert env["PRF_RUNS_ROOT"] == str(run_dir / "runs")
+        assert env["PRF_ARTIFACT_DIR"] == str(workspace)
+        assert Path(cmd[cmd.index("--output-file") + 1]).parent == run_dir
+        return subprocess.CompletedProcess(cmd, 0)
+
+    monkeypatch.setattr(forensic_run.subprocess, "run", execute)
+    assert forensic_run.run_invoke_scenario_pipeline(None, run_dir, workspace_dir=workspace) == 0
+
+
+def test_forensic_lock_uses_explicit_output_namespace(tmp_path, monkeypatch):
+    checkout = tmp_path / "checkout"
+    checkout.mkdir()
+    monkeypatch.chdir(checkout)
+    path = tmp_path / "output" / ".forensic-run.lock"
+    handle = forensic_run._acquire_lock(path)
+    try:
+        assert Path(handle.name) == path
+        assert path.is_file()
+        assert not (checkout / "results").exists()
+    finally:
+        forensic_run._release_lock(handle)
 
 
 def _bundle(proto: dict | None = None) -> dict:
