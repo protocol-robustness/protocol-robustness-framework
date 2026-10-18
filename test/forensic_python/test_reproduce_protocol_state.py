@@ -19,6 +19,7 @@ from scripts.forensic.reproduce import (
     compare_bundle_fields,
 )
 from scripts.forensic import reproduce
+from scripts.forensic import run as forensic_run
 
 
 @pytest.mark.parametrize("execution_exit", [0, 7])
@@ -45,6 +46,8 @@ def test_reproduction_isolates_artifacts_and_requires_execution_success(tmp_path
         assert artifact_root.is_relative_to(output)
         destination = Path(cmd[cmd.index("--output-file") + 1])
         assert artifact_root.parent == destination.parent
+        for key in ["PRF_RESULTS_ROOT", "PRF_RUNS_ROOT"]:
+            assert Path(kwargs["env"][key]).parent == destination.parent
         destination.write_text(json.dumps(bundle))
         (artifact_root / "evidence.txt").write_text("new evidence")
         return subprocess.CompletedProcess(cmd, execution_exit)
@@ -58,6 +61,25 @@ def test_reproduction_isolates_artifacts_and_requires_execution_success(tmp_path
         assert report["reproduce/verdict"] == "reproduce-failed"
     assert sentinel.read_text() == "preserve"
     assert list(existing_artifacts.iterdir()) == [sentinel]
+
+
+def test_forensic_execution_redirects_all_runner_output_roots(tmp_path, monkeypatch):
+    run_dir = tmp_path / "run"
+    run_dir.mkdir()
+    workspace = run_dir / "workspace"
+    for key in ["PRF_RESULTS_ROOT", "PRF_RUNS_ROOT", "PRF_ARTIFACT_DIR"]:
+        monkeypatch.setenv(key, "/caller-owned-artifacts")
+
+    def execute(cmd, **kwargs):
+        env = kwargs["env"]
+        assert env["PRF_RESULTS_ROOT"] == str(run_dir / "results")
+        assert env["PRF_RUNS_ROOT"] == str(run_dir / "runs")
+        assert env["PRF_ARTIFACT_DIR"] == str(workspace)
+        assert Path(cmd[cmd.index("--output-file") + 1]).parent == run_dir
+        return subprocess.CompletedProcess(cmd, 0)
+
+    monkeypatch.setattr(forensic_run.subprocess, "run", execute)
+    assert forensic_run.run_invoke_scenario_pipeline(None, run_dir, workspace_dir=workspace) == 0
 
 
 def _bundle(proto: dict | None = None) -> dict:

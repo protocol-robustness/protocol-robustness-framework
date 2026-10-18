@@ -311,6 +311,8 @@ def reproduce_run(run_dir: str | Path,
     artifact_dir = repro_dir / "workspace"
     artifact_dir.mkdir()
     env["PRF_ARTIFACT_DIR"] = str(artifact_dir)
+    env["PRF_RESULTS_ROOT"] = str(repro_dir / "results")
+    env["PRF_RUNS_ROOT"] = str(repro_dir / "runs")
 
     run_expr = ("(require '[resolver-sim.core]) "
                 "(->> *command-line-args* (map str) (apply resolver-sim.core/-main))")

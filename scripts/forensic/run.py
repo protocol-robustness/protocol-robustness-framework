@@ -261,6 +261,8 @@ def run_invoke_scenario_pipeline(run_request_path: str,
             bool(source_info.get("dirty", False))).lower()
     env["PRF_ORCHESTRATION_RUNNER_ID"] = "forensic-runner.py"
     env["PRF_BUNDLE_ID"] = run_id
+    env["PRF_RESULTS_ROOT"] = str(run_dir / "results")
+    env["PRF_RUNS_ROOT"] = str(run_dir / "runs")
     if tsa_url:
         env["PRF_TSA_URL"] = tsa_url
 
