@@ -102,7 +102,7 @@
     (let [args (v2-args (pass-operational))]
       (let [p-out (exec-ev/build-pro-rata-execution-evidence-v2
                    (assoc args :creation/provenance :out-of-band))
-            p-in  (exec-ev/build-pro-rata-execution-evidence-v2 args)]
+            p-in (exec-ev/build-pro-rata-execution-evidence-v2 args)]
         (is (= :out-of-band (get-in p-out [:evidence-profile/creation :provenance])))
         (is (= :in-band (get-in p-in [:evidence-profile/creation :provenance])))
         (is (:valid? (exec-ev/verify-pro-rata-execution-evidence-v2 p-out args))
@@ -364,3 +364,19 @@
               (str kind " must not claim the factual :positive-amount-applied? as false"))))
       (is (:valid? (exec-ev/validate-pro-rata-execution-evidence-any v1)))
       (is (:valid? (exec-ev/validate-pro-rata-execution-evidence-any v2))))))
+
+(deftest execution-validator-uses-shared-result-levels
+  (let [args (v2-args (pass-operational))
+        profile (exec-ev/build-pro-rata-execution-evidence-v2 args)
+        integrity (exec-ev/validate-pro-rata-execution-evidence-any profile)
+        binding (exec-ev/verify-pro-rata-execution-evidence-v2 profile args)
+        optional (exec-ev/verify-package-pro-rata-evidence
+                  (constantly nil) {}
+                  (base-manifest (pass-operational)))]
+    (is (= :verified (get-in integrity [:verification-result :status])))
+    (is (= :integrity (get-in integrity [:verification-result :achieved-level])))
+    (is (= :verified (get-in binding [:verification-result :status])))
+    (is (= :binding (get-in binding [:verification-result :achieved-level])))
+    (is (= :not-applicable
+           (get-in optional [:verification-result :status]))
+        "unrequired pro-rata checks remain explicitly not applicable")))

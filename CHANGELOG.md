@@ -10,6 +10,11 @@
 
 ## Unreleased
 
+- Added a versioned, derived verification-result response for partial-fill
+  allocation, application, and execution evidence checks. Results distinguish
+  producer assertions from recomputed findings and report requested versus
+  achieved check levels without changing canonical profile hashes.
+
 - Split receipt reconstruction inspection from pinned verification: inspection is explicitly unanchored, while verification requires an operator-supplied trusted report digest and reports its limited scope.
 
 - Added an optional trusted SHA-256 pin for reconstructed local receipt reports so internally consistent bundle substitutions can be detected when operators supply the pin independently.

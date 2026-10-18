@@ -4,6 +4,7 @@
             [resolver-sim.benchmark.packs.partial-fill.pro-rata-application-evidence :as app-ev]
             [resolver-sim.benchmark.packs.partial-fill.evidence :as pf-ev]
             [resolver-sim.benchmark.packs.partial-fill.pro-rata-execution-evidence :as exec-ev]
+            [resolver-sim.benchmark.verification-result :as verification-result]
             [resolver-sim.pro-rata.allocation :as alloc]
             [resolver-sim.yield.partial-fill :as pf]
             [resolver-sim.hash.canonical :as hc]
@@ -363,6 +364,26 @@
     (is (= :not-observed (:status cont))
         "terminal scenario: continuity status must be :not-observed, not failure")))
 
+(deftest application-verifier-emits-shared-result
+  (let [args {:allocation-evidence-hash (test-ref :alloc-ev)
+              :propagation shared-propag
+              :application app-with-accounting
+              :world-before world-before
+              :world-after positive-world-after
+              :state-write-back-evidence wb-verified-deferred
+              :continuity-evidence cont-evidence-terminal
+              :evidence-ladder evidence-ladder-full
+              :operational-outcome op-pos-partial}
+        profile (app-ev/build-pro-rata-application-evidence args)
+        result (:verification-result
+                (app-ev/verify-pro-rata-application-evidence profile args))]
+    (is (= :semantic (:requested-level result)))
+    (is (= :invalid (:status result))
+        "the recomputed profile reports its failed propagation check")
+    (is (contains? (:producer-assertions result) :verification-checks))
+    (is (contains? (:independent-findings result) :check-results))
+    (is (:valid? (verification-result/validate-result result)))))
+
 (deftest application-profile-accepts-matching-producer-write-back
   (let [position {:position/id :pos-p1
                   :position/current-amount 40
@@ -634,3 +655,42 @@
         v (:evidence-profile/verification p)]
     (is (= true (:theorem-binding-valid? v)))
     (is (= true (:conclusion-binding-valid? v)))))
+
+(deftest shared-verification-result-is-versioned-and-fail-closed
+  (let [blocked (verification-result/build-result
+                 {:subject {:claim/id :allocation}
+                  :requested-level :semantic
+                  :achieved-level :integrity
+                  :checks [{:check/id :profile-integrity
+                            :check/status :pass :required? true}
+                           {:check/id :source-rederivation
+                            :check/status :not-run :required? true
+                            :check/reason "authoritative source body unavailable"}]
+                  :source-roots {:request "sha256:request"}
+                  :verifier {:id :test/verifier :revision "v1"}
+                  :producer-assertions {:status :verified}
+                  :independent-findings {:profile-integrity :pass}
+                  :limitations [:semantic-source-not-rederived]})
+        forged (assoc blocked :status :verified)]
+    (is (= "prf-verification-result.v1" (:schema-version blocked)))
+    (is (= :blocked (:status blocked))
+        "producer assertions cannot promote an unrun required check")
+    (is (= :integrity (:achieved-level blocked)))
+    (is (false? (:authenticated? (verification-result/validate-result blocked))))
+    (is (false? (:valid? (verification-result/validate-result forged)))
+        "a modified status must disagree with its performed and skipped checks")))
+
+(deftest allocation-verifier-emits-shared-result-with-separated-assertions
+  (let [args (alloc-args (real-alloc))
+        profile (alloc-ev/build-pro-rata-allocation-evidence args)
+        integrity (alloc-ev/validate-pro-rata-allocation-evidence profile)
+        semantic (alloc-ev/verify-pro-rata-allocation-evidence profile args)
+        result (:verification-result semantic)]
+    (is (= :integrity (get-in integrity [:verification-result :requested-level])))
+    (is (= :not-run (:semantic-status integrity)))
+    (is (= :semantic (:requested-level result)))
+    (is (= :semantic (:achieved-level result)))
+    (is (= :verified (:status result)))
+    (is (contains? (:producer-assertions result) :verification-checks))
+    (is (contains? (:independent-findings result) :check-results))
+    (is (:valid? (verification-result/validate-result result)))))
