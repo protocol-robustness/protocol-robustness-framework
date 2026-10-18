@@ -24,8 +24,8 @@ identities.
 
 ```text
 PRF integration (`src/resolver_sim/pro_rata`, allocation/evidence adapters)
-  ├── prf-pro-rata-allocation (currently local path in deps.edn)
-  │     └── prf-canonical (currently local dependency in the package tree)
+  ├── prf-pro-rata-allocation (Git revision pinned in integration deps.edn)
+  │     └── prf-canonical (Git revision pinned in integration deps.edn)
   ├── independent reference (`pro_rata_contract_src`)
   │     └── independent canonical codec in that reference tree
   ├── PRF protocol/runtime/assurance code
@@ -40,12 +40,41 @@ implementations with different purposes. The old `portable-pro-rata-contract`
 name currently groups allocation and effect/transition contracts, so a global
 rename or wholesale move would obscure ownership rather than clarify it.
 
+## Qualification and migration status
+
+The integration workspace at PRF revision `9f03721b` declares these immutable
+dependencies in `deps.edn`:
+
+| Repository | Revision | Verification in a clean PRF checkout |
+| --- | --- | --- |
+| `protocol-robustness/prf-pro-rata-allocation` | `48e0b362748cd39d09994a8aa1496c668199aa74` | Clojure PRF compatibility: 29 tests / 197 assertions passed; allocator standalone conformance: 8 tests / 79 assertions passed; Rust: 52 tests passed |
+| `protocol-robustness/prf-canonical` | `5e2b520feca812b049ba397b7b3681963c66a48c` | Loaded as the allocator's canonical dependency |
+
+The clean PRF checkout loaded `prf.pro-rata.api` from the pinned allocator
+revision and `prf.canonical.hash` from the pinned canonical revision. Each
+namespace resource appeared once on the classpath. The package Git checkout was
+clean at the pinned revision. This establishes source dependency compatibility
+for those checks; it does not promote release qualification or SP1/Solidity
+proof claims.
+
+The tracked PRF copy under `packages/pro-rata-allocation/clj` and `rust/src` is
+byte-identical to the pinned repository's corresponding implementation source.
+The surrounding `README.md`, `ALLOCATION_V1.md`, `RELEASE.edn`, and normative
+contract documentation are not identical. The copy is still consumed by the
+PRF package-bundle script, source-bound evidence archives, a repository
+dependency-graph test, and path-based documentation/source inventories. It
+therefore cannot be deleted as a simple duplicate-directory cleanup. The next
+physical-extraction pass must change those consumers to use the immutable
+external source identity or preserve the relevant historical evidence, then
+remove the live source mirror and obsolete bundle script from PRF.
+
 ## Recommended sequence
 
-1. **Close the package ownership migration.** Change PRF from the local package
-   path to the pinned Git revision in the integration workspace, run package
-   conformance and PRF adapter tests, and remove the tracked package copy only
-   after the clean-checkout build succeeds. Keep the independent reference.
+1. **Close the package ownership migration.** The integration workspace already
+   pins the Git revisions above and clean-checkout conformance/compatibility
+   checks pass. Migrate the remaining source-path consumers and remove the
+   tracked package copy only after source-bound evidence and packaging retain
+   exact provenance. Keep the independent reference.
 2. **Split contract ownership on paper before moving files.** Identify which
    vectors/spec sections define allocation V1 and which define generic effects,
    state, and transitions. Preserve exact bytes and roots and assign one
