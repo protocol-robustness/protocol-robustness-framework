@@ -5,11 +5,14 @@
  :release/runtime-dependencies [{:lib org.clojure/clojure
                                   :version "1.12.0"}
                                  {:lib prf/canonical
-                                  :version :bundled-source-snapshot
-                                  :path "packages/canonical/clj"}]
+                                  :version "0.1.0-rc.1"
+                                  :git/url "https://github.com/protocol-robustness/prf-canonical.git"
+                                  :git/sha "5e2b520feca812b049ba397b7b3681963c66a48c"
+                                  :deps/root "clj"}]
  :release/rust-dependencies [{:lib prf-canonical-codec
-                              :version :bundled-source-snapshot
-                              :path "packages/canonical/rust"}]
+                              :version "0.1.0-rc.1"
+                              :git/url "https://github.com/protocol-robustness/prf-canonical.git"
+                              :git/sha "5e2b520feca812b049ba397b7b3681963c66a48c"}]
  :release/conformance {:status :partial
                        :command "clojure -M:conformance"
                        :tests 8
@@ -19,8 +22,8 @@
                        "b863e04a61d0dded845dc3351626ebf57c4d5abea7e18ea19a89cacf4b1ad12a"
                        :canonical-registry-identity-baseline
                        "0d0af1b9e7e487f334c11f6a7029a6026caa75af9383e899db03747eb4a6c71a"
-                       :rust {:command "cargo test --manifest-path packages/pro-rata-allocation/rust/Cargo.toml"
-                              :tests 42
+                       :rust {:command "cargo test --manifest-path packages/pro-rata-allocation/rust/Cargo.toml --locked"
+                              :tests 52
                               :result :passed}}
  :release/profile-qualification
  {:rust-allocation-v1 {:status :passed

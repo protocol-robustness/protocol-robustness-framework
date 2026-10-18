@@ -2789,7 +2789,8 @@ dependencies = [
 
 [[package]]
 name = "prf-canonical-codec"
-version = "0.1.0"
+version = "0.1.0-rc.1"
+source = "git+https://github.com/protocol-robustness/prf-canonical.git?rev=5e2b520feca812b049ba397b7b3681963c66a48c#5e2b520feca812b049ba397b7b3681963c66a48c"
 dependencies = [
  "hex",
  "num-bigint 0.4.8",
@@ -2799,7 +2800,8 @@ dependencies = [
 
 [[package]]
 name = "prf-pro-rata-allocation"
-version = "0.1.0"
+version = "0.1.0-rc.1"
+source = "git+https://github.com/protocol-robustness/prf-pro-rata-allocation.git?rev=48e0b362748cd39d09994a8aa1496c668199aa74#48e0b362748cd39d09994a8aa1496c668199aa74"
 dependencies = [
  "hex",
  "num-bigint 0.4.8",

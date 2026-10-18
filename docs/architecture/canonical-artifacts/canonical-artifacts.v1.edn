@@ -2,7 +2,7 @@
 ;; Registry entry IDs are administrative keys, not new canonical identities.
 {:registry/schema "canonical-artifacts.v1"
  :registry/status :proposed
- :registry/encoding {:scheme "canonical-hash-scheme.v1" :definition [:prf "packages/canonical/clj/src/prf/canonical/codec.clj" "canonical-bytes"] :normative [:prf "docs/specs/evidence/CANONICAL_HASH_SPEC_V1_BINARY_ENCODING_ABI.md"]}
+ :registry/encoding {:scheme "canonical-hash-scheme.v1" :definition [:prf-canonical "clj/src/prf/canonical/codec.clj" "canonical-bytes"] :normative [:prf-canonical "CANONICAL_HASH_SPEC_V1_BINARY_ENCODING_ABI.md"]}
  :registry/shared-domains [{:domain "PROJECTION_ARTIFACT_V1" :artifacts [:primitive-request :primitive-result]}]
  :registry/entries
  [
@@ -12,7 +12,7 @@
    :artifact/owner :pro-rata-allocation
    :artifact/class :A
    :artifact/status :frozen-current
-   :artifact/hash {:algorithm :sha256 :domain "PROJECTION_ARTIFACT_V1" :registration [:prf "packages/canonical/clj/src/prf/canonical/hash.clj" "hash-with-domain"] :derivation [:prf "packages/pro-rata-allocation/clj/src/prf/pro_rata/identity.clj" "request-root"]}
+   :artifact/hash {:algorithm :sha256 :domain "PROJECTION_ARTIFACT_V1" :registration [:prf-canonical "clj/src/prf/canonical/hash.clj" "hash-with-domain"] :derivation [:prf-pro-rata-allocation "clj/src/prf/pro_rata/identity.clj" "request-root"]}
    :artifact/inputs {:artifacts [] :related [[:G "normalized rows, policy fields and fixed available quantity"]]}
    :artifact/implementations
    {:clojure {:status :implemented :sources [[:prf "packages/pro-rata-allocation/clj/src/prf/pro_rata/request.clj" "normalize"] [:prf "packages/pro-rata-allocation/clj/src/prf/pro_rata/rows.clj" "canonical-rows"] [:prf "packages/pro-rata-allocation/clj/src/prf/pro_rata/api.clj" "allocate"] [:prf "packages/pro-rata-allocation/clj/src/prf/pro_rata/identity.clj" "request-root"] [:prf "src/resolver_sim/pro_rata/allocation.clj" "allocate"] [:prf "pro_rata_contract_src/resolver_sim/pro_rata_contract/contract.clj" "allocate"]]}
@@ -27,7 +27,7 @@
    :artifact/owner :pro-rata-allocation
    :artifact/class :A
    :artifact/status :frozen-current
-   :artifact/hash {:algorithm :sha256 :domain "PROJECTION_ARTIFACT_V1" :registration [:prf "packages/canonical/clj/src/prf/canonical/hash.clj" "hash-with-domain"] :derivation [:prf "packages/pro-rata-allocation/clj/src/prf/pro_rata/identity.clj" "allocation-result-root"]}
+   :artifact/hash {:algorithm :sha256 :domain "PROJECTION_ARTIFACT_V1" :registration [:prf-canonical "clj/src/prf/canonical/hash.clj" "hash-with-domain"] :derivation [:prf-pro-rata-allocation "clj/src/prf/pro_rata/identity.clj" "allocation-result-root"]}
    :artifact/inputs {:artifacts [:primitive-request] :related []}
    :artifact/implementations
    {:clojure {:status :implemented :sources [[:prf "packages/pro-rata-allocation/clj/src/prf/pro_rata/api.clj" "allocate"] [:prf "packages/pro-rata-allocation/clj/src/prf/pro_rata/api.clj" "verify-result"] [:prf "packages/pro-rata-allocation/clj/src/prf/pro_rata/identity.clj" "allocation-result-root"] [:prf "packages/pro-rata-allocation/clj/src/prf/pro_rata/result.clj" "assemble"] [:prf "packages/pro-rata-allocation/clj/src/prf/pro_rata/result.clj" "root-input"] [:prf "packages/pro-rata-allocation/clj/src/prf/pro_rata/witness.clj" "witness-rows"] [:prf "packages/pro-rata-allocation/clj/src/prf/pro_rata/kernel.clj" "pro-rata-requests"] [:prf "packages/pro-rata-allocation/clj/src/prf/pro_rata/single_pass.clj" "allocate"] [:prf "packages/pro-rata-allocation/clj/src/prf/pro_rata/redistribution.clj" "allocate"] [:prf "src/resolver_sim/pro_rata/allocation.clj" "allocate"] [:prf "src/resolver_sim/pro_rata/allocation.clj" "allocation-hash-valid?"] [:prf "pro_rata_contract_src/resolver_sim/pro_rata_contract/contract.clj" "allocate"] [:prf "pro_rata_contract_src/resolver_sim/pro_rata_contract/contract.clj" "verify-allocation-result"]]}
@@ -42,7 +42,7 @@
    :artifact/owner :pro-rata-allocation
    :artifact/class :A
    :artifact/status :implemented-current
-   :artifact/hash {:algorithm :sha256 :domain "PRO_RATA_ALLOCATION_POLICY_V1" :registration [:prf "packages/canonical/clj/src/prf/canonical/hash.clj" "hash-with-domain"] :derivation [:prf "packages/pro-rata-allocation/clj/src/prf/pro_rata/identity.clj" "allocation-policy-root"]}
+   :artifact/hash {:algorithm :sha256 :domain "PRO_RATA_ALLOCATION_POLICY_V1" :registration [:prf-canonical "clj/src/prf/canonical/hash.clj" "hash-with-domain"] :derivation [:prf-pro-rata-allocation "clj/src/prf/pro_rata/identity.clj" "allocation-policy-root"]}
    :artifact/inputs {:artifacts [:primitive-result] :related []}
    :artifact/implementations
    {:clojure {:status :implemented :sources [[:prf "packages/pro-rata-allocation/clj/src/prf/pro_rata/policy.clj" "identity-basis"] [:prf "packages/pro-rata-allocation/clj/src/prf/pro_rata/identity.clj" "allocation-policy-root"] [:prf "src/resolver_sim/pro_rata/allocation.clj" "allocation-policy-root"]]}

@@ -16,8 +16,6 @@ PACKAGE = ROOT / "packages/pro-rata-allocation"
 RELEASES = PACKAGE / "releases"
 INCLUDED_ROOTS = (
     "LICENSE",
-    "packages/canonical/clj",
-    "packages/canonical/rust",
     "packages/pro-rata-allocation/ALLOCATION_V1.md",
     "packages/pro-rata-allocation/README.md",
     "packages/pro-rata-allocation/RELEASE.edn",
