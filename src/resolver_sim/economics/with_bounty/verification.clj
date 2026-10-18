@@ -11,9 +11,13 @@
             [resolver-sim.economics.bounty-payable :as bp]
             [resolver-sim.economics.bounty-payable-backing :as bpb]
             [resolver-sim.economics.effects :as effects]
+            [resolver-sim.economics.with-bounty.funding-evidence :as funding-evidence]
+            [resolver-sim.economics.with-bounty.obligation-settlement :as obligation-settlement]
+            [resolver-sim.economics.with-bounty.payout-evidence :as payout-evidence]
             [resolver-sim.economics.with-bounty.application-plan :as wb-plan]
             [resolver-sim.economics.with-bounty.policy :as policy]
-            [resolver-sim.economics.with-bounty.transition-evidence :as wb-transition]))
+            [resolver-sim.economics.with-bounty.transition-evidence :as wb-transition]
+            [resolver-sim.hash.canonical :as hc]))
 
 (defn verify-policy-root
   "Structural: the committed policy root recomputes from the policy."
@@ -65,6 +69,25 @@
   "Structural: the committed transition evidence hash recomputes."
   [evidence]
   (wb-transition/verify-transition-evidence evidence))
+
+(defn verify-transition-binds-world
+  "Verify transition integrity and that its successor root commits to the
+   supplied post-state. This is structural evidence, not external execution."
+  [evidence world]
+  (let [evidence-result (wb-transition/verify-transition-evidence evidence)
+        world-root (hc/hash-with-intent {:hash/intent :world-structure} world)]
+    (if (and (:valid? evidence-result)
+             (= world-root (:world-after-root evidence)))
+      {:valid? true}
+      {:valid? false
+       :violations (cond-> []
+                     (not (:valid? evidence-result))
+                     (conj {:violation/id :violation/transition-evidence-invalid
+                            :details evidence-result})
+                     (not= world-root (:world-after-root evidence))
+                     (conj {:violation/id :violation/transition-world-root-mismatch
+                            :details {:committed (:world-after-root evidence)
+                                      :computed world-root}}))})))
 
 (defn verify-composition-receipt
   "Structural: a composition receipt has the committed shape for its status."
@@ -165,6 +188,60 @@
   (let [artifact (get-in world [:held-artifacts (:held-adjustment/id adjustment)])]
     (= artifact (when adjustment (custody/build-held-custody-artifact adjustment)))))
 
+(defn- payout-custody-valid?
+  [world payable backing]
+  (let [context (:backing/context backing)
+        id (:payout/custody-adjustment-id context)
+        adjustment (some #(when (= id (:held-adjustment/id %)) %)
+                         (:held-adjustments world []))
+        artifact (get-in world [:held-artifacts id])]
+    (and (string? id)
+         (= (:payout/custody-artifact-hash context) (:artifact/hash artifact))
+         (custody-artifact-valid? world adjustment)
+         (= :out (:held/direction adjustment))
+         (= :bounty-direct-payout (:held/reason adjustment))
+         (= (:payable/amount payable) (:amount adjustment))
+         (= (get-in context [:funding/token]) (:token adjustment))
+         (= (get-in context [:funding/account]) (:held/account adjustment))
+         (= (:payable/beneficiary payable) (:owner/address adjustment))
+         (= (:payout/evidence-root context) (:payout/evidence-root adjustment)))))
+
+(defn- payout-settlement-valid?
+  [world payable backing payout-trust-policy observation-trust-policy
+   expected-settlement-context required? rpc-client expected-rpc-context
+   require-rpc-observation?]
+  (let [entry (get-in world [:with-bounty/settlements (:payable/id payable)])]
+    (if-not entry
+      (not required?)
+      (let [context (:backing/context backing)
+            predecessor-payable (let [p (assoc payable :payable/lifecycle :backed)]
+                                  (assoc p :payable/hash (bp/payable-hash p)))
+            predecessor-context (dissoc context :payout/evidence-root
+                                        :payout/predecessor-root :payout/backing-root
+                                        :payout/custody-adjustment-id
+                                        :payout/custody-artifact-hash)
+            predecessor-backing-base (assoc backing
+                                             :backing/lifecycle :committed
+                                             :backing/payable-root
+                                             (:payout/predecessor-root context)
+                                             :backing/context predecessor-context)
+            predecessor-backing (assoc predecessor-backing-base :backing/hash
+                                        (bpb/backing-hash predecessor-backing-base))
+            replay (obligation-settlement/verify-settlement
+                    {:settlement (:settlement entry)
+                     :payable-before predecessor-payable
+                     :payable-after payable
+                     :backing predecessor-backing
+                     :payout-receipt (:payout-receipt entry)
+                     :payout-trust-policy payout-trust-policy
+                     :observation (:observation entry)
+                     :observation-trust-policy observation-trust-policy
+                     :expected-context expected-settlement-context
+                     :rpc-client rpc-client
+                     :expected-rpc-context expected-rpc-context
+                     :require-rpc-observation? require-rpc-observation?})]
+        (:valid? replay)))))
+
 (defn verify-application-world
   "Reconcile a with-bounty application world using the payable, backing, and
    held-custody artifact verifiers. Every payable must have exactly one valid,
@@ -173,6 +250,14 @@
    The claimable domain is protocol-specific and supplied by the caller."
   [world & [opts]]
   (let [domain (or (:claimable/domain opts) :liability/bounty-payable)
+        funding-trust-policy (:funding-trust-policy opts)
+        payout-trust-policy (:payout-trust-policy opts)
+        observation-trust-policy (:observation-trust-policy opts)
+        expected-settlement-context (:expected-settlement-context opts)
+        rpc-client (:rpc-client opts)
+        expected-rpc-context (:expected-rpc-context opts)
+        require-rpc-observation? (true? (:require-rpc-observation? opts))
+        require-settlement-evidence? (true? (:require-settlement-evidence? opts))
         payables (vals (:with-bounty/payables world {}))
         backings (vals (:with-bounty/backings world {}))
         payable-roots (set (map :payable/hash payables))
@@ -182,6 +267,8 @@
         invalid-custody (into [] (remove #(custody-artifact-valid? world %)
                                          (:held-adjustments world [])))
         unbacked (into [] (remove #(some #{%} backing-payable-roots)) payable-roots)
+        duplicate-backing-roots (into [] (keep (fn [[root n]] (when (> n 1) root)))
+                                      (frequencies backing-payable-roots))
         orphan-backings (into []
                               (remove #(contains? payable-roots (:backing/payable-root %)))
                               backings)
@@ -200,12 +287,136 @@
                                    (not= (:backing/amount backing)
                                          (bpb/backing-amount-reconciliation backing))))))
                       backings))
-        claimable-missing? (not (every? (fn [p]
-                                          (= (:payable/amount p)
-                                             (get-in world [:claimable-v2 (:payable/id p)
-                                                            domain
-                                                            (:payable/beneficiary p)])))
-                                        payables))
+        backing-reservation-evidence-errors
+        (into []
+              (filter (fn [backing]
+                        (let [context (:backing/context backing)
+                              funding-source (:funding/source context)
+                              funding-token (:funding/token context)
+                              funding-account (:funding/account context)
+                              funding-operation-root (:funding/operation-root context)
+                              funding-context-root (:funding/parameter-context-root context)
+                              funding-address (:funding/parameter-address context)
+                              available-before (:funding/available-before context)
+                              reserved-amount (:funding/reserved-amount context)
+                              available-after (:funding/available-after context)
+                              evidence-class (:funding/evidence-class context)
+                              source-evidence (:funding/source-evidence context)
+                              source-root (:funding/source-root context)
+                              payable (some #(when (= (:payable/hash %) (:backing/payable-root backing)) %)
+                                            payables)
+                              adjustment-id (:custody/adjustment-id context)
+                              artifact-hash (:custody/artifact-hash context)
+                              adjustment (some #(when (= adjustment-id
+                                                         (:held-adjustment/id %)) %)
+                                               (:held-adjustments world []))
+                              artifact (get-in world [:held-artifacts adjustment-id])
+                              account (first (keys (:backing/source-allocations backing)))
+                              adjustment-context-root
+                              (get-in adjustment [:parameter/context :parameter-context/root])
+                              raw-adjustment-address (:parameter/address adjustment)
+                              adjustment-address (if (map? raw-adjustment-address)
+                                                   (:parameter/path raw-adjustment-address)
+                                                   raw-adjustment-address)]
+                          (or (not= :declared-reserve funding-source)
+                              (not= :authority-attested evidence-class)
+                              (not= source-root (:funding/source-root source-evidence))
+                              (not (:valid? (funding-evidence/verify-source
+                                             source-evidence funding-trust-policy
+                                             {:funding/source-kind :declared-reserve
+                                              :funding/account funding-account
+                                              :funding/token funding-token
+                                              :funding/operation-root funding-operation-root
+                                              :funding/beneficiary (:payable/beneficiary payable)
+                                              :funding/parameter-context-root funding-context-root
+                                              :funding/parameter-address funding-address})))
+                              (not (and (integer? available-before)
+                                        (integer? reserved-amount)
+                                        (integer? available-after)
+                                        (not (neg? available-after))
+                                        (= (:backing/amount backing) reserved-amount)
+                                        (= available-after
+                                           (- available-before reserved-amount))))
+                              (not= (:backing/distribution-root backing)
+                                    funding-operation-root)
+                              (nil? adjustment-id)
+                              (not= artifact-hash (:artifact/hash artifact))
+                              (not (custody-artifact-valid? world adjustment))
+                              (not= funding-token (:token adjustment))
+                              (not= :in (:held/direction adjustment))
+                              (not= funding-account account)
+                              (not= {funding-account (:backing/amount backing)}
+                                    (:backing/source-allocations backing))
+                              (not= account (:held/account adjustment))
+                              (not= funding-context-root adjustment-context-root)
+                              (not= funding-address adjustment-address)
+                              (not= (:backing/amount backing) (:amount adjustment)))))
+                      backings))
+        reserve-usage-errors
+        (into []
+              (keep (fn [[source-key source-backings]]
+                      (let [contexts (map :backing/context source-backings)
+                            balances (set (map :funding/available-before contexts))
+                            available (first balances)
+                            reserved (reduce + 0 (map :backing/amount source-backings))]
+                        (when (or (not= 1 (count balances))
+                                  (not (integer? available))
+                                  (> reserved available))
+                          {:source source-key
+                           :available-balances balances
+                           :reserved reserved}))))
+              (group-by (fn [backing]
+                          (select-keys (:backing/context backing)
+                                       [:funding/source :funding/account :funding/token
+                                        :funding/parameter-context-root
+                                        :funding/parameter-address]))
+                        backings))
+        invalid-lifecycles
+        (into []
+              (filter (fn [p]
+                        (let [matching (filter #(= (:payable/hash p)
+                                                   (:backing/payable-root %)) backings)
+                              backing (first matching)
+                              claimable (get-in world [:claimable-v2 (:payable/id p)
+                                                       domain (:payable/beneficiary p)] 0)]
+                          (or (not= 1 (count matching))
+                              (case (:payable/lifecycle p)
+                                :pending-backing (or (pos? claimable) (some? backing))
+                              :backed (or (not= :committed (:backing/lifecycle backing))
+                                          (not (:valid? (funding-evidence/verify-source
+                                                         (:funding/source-evidence
+                                                          (:backing/context backing))
+                                                         funding-trust-policy
+                                                         {:funding/source-kind :declared-reserve
+                                                          :funding/account (get-in backing [:backing/context :funding/account])
+                                                          :funding/token (get-in backing [:backing/context :funding/token])
+                                                          :funding/operation-root (:payable/distribution-root p)
+                                                          :funding/beneficiary (:payable/beneficiary p)
+                                                          :funding/parameter-context-root
+                                                          (get-in backing [:backing/context :funding/parameter-context-root])
+                                                          :funding/parameter-address
+                                                          (get-in backing [:backing/context :funding/parameter-address])})))
+                                            (not= (:payable/amount p) claimable))
+                                :settled (or (not= :consumed (:backing/lifecycle backing))
+                                             (pos? claimable)
+                                             (not (payout-custody-valid? world p backing))
+                                             (not (:valid? (payout-evidence/verify-settled-payout
+                                                            p backing
+                                                            (get-in world [:with-bounty/payout-events
+                                                                           (:payable/id p)] [])
+                                                            payout-trust-policy)))
+                                             (not (payout-settlement-valid?
+                                                   world p backing payout-trust-policy
+                                                   observation-trust-policy
+                                                   expected-settlement-context
+                                                   require-settlement-evidence?
+                                                   rpc-client expected-rpc-context
+                                                   require-rpc-observation?)))
+                                ;; Cancellation/release also lacks a recorded
+                                ;; lifecycle transition artifact.
+                                :cancelled true
+                                true))))
+              payables))
         violations (cond-> []
                      (seq invalid-payables)
                      (conj {:violation/id :violation/invalid-payable-artifacts
@@ -231,9 +442,21 @@
                      (conj {:violation/id :violation/backing-payable-reconciliation-failed
                             :details {:backings inconsistent-backings}})
 
-                     claimable-missing?
-                     (conj {:violation/id :violation/claimable-not-derived
-                            :details {}}))]
+                     (seq duplicate-backing-roots)
+                     (conj {:violation/id :violation/duplicate-payable-backing
+                            :details {:payable-roots duplicate-backing-roots}})
+
+                     (seq backing-reservation-evidence-errors)
+                     (conj {:violation/id :violation/backing-without-reservation-evidence
+                            :details {:backings backing-reservation-evidence-errors}})
+
+                     (seq reserve-usage-errors)
+                     (conj {:violation/id :violation/bounty-reserve-overcommitted
+                            :details {:sources reserve-usage-errors}})
+
+                     (seq invalid-lifecycles)
+                     (conj {:violation/id :violation/payable-lifecycle-inconsistent
+                            :details {:payables invalid-lifecycles}}))]
     (if (seq violations)
       {:valid? false :violations violations}
       {:valid? true})))

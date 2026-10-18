@@ -1,6 +1,7 @@
 # ADR-0006: with-bounty — Framework-Contract Decisions
 
-Status: Proposed
+Status: Accepted framework contract; implementation remains bounded by the
+capability and evidence status recorded below and in PRO-80/81/82.
 Date: 2026-08-04
 Scope: framework-contract decisions for the generic `with-bounty` composition
 (ADR-0005 Phase 6), preceding implementation.
@@ -26,7 +27,7 @@ contract rather than the volume.
 
 ### D1. Effect-contract versioning: add `:prf.effect/obligation-create.v2`
 
-Status: **Decided (pre-review)**
+Status: **Accepted contract**
 
 Do **not** expand `:prf.effect/obligation-create.v1` in place.
 
@@ -55,7 +56,7 @@ Consequences:
 
 ### D2. The base operation is a committed result, not slash-distribution ownership
 
-Status: **Decided (pre-review)**
+Status: **Accepted contract**
 
 `with-bounty` consumes a committed base result:
 
@@ -85,7 +86,7 @@ Consequences:
 
 ### D3. Composition-plan identity: a dedicated plan composing over a base plan
 
-Status: **Decided (pre-review)**
+Status: **Accepted contract**
 
 Introduce `:with-bounty-application-plan-v1`, which composes **over** a base
 application-plan root rather than expanding `slash-distribution-application-plan.v2`:
@@ -154,12 +155,16 @@ A generic obligation / bounty-payable **lifecycle** owns:
 - release of backing;
 - terminal settlement conservation.
 
-The existing `bounty_payable` and `bounty_payable_backing` artifacts already
-provide this lifecycle (`:pending-backing :backed :settled :cancelled` /
-`:committed :consumed :released`). Sew enforces lifecycle through that
-machinery, and any reserve custody reservation uses the canonical held-adjustment
-path (`add-held` via `resolver-sim.accounting.held-adjustment`). Extensions and
-the generic compositor must never invoke a custody mutation directly.
+The payable and backing artifacts define lifecycle labels and permitted edges.
+The implementation requires a trusted signed reserve-source statement before
+backing and a trusted signed full-payout receipt before settlement. These
+receipts authenticate the named authority's statements; they do not by
+themselves prove live EVM custody or independently observed token movement.
+Sew records the verified local state transition and retains the payout receipt
+for reconstruction. Partial payout and cancellation remain unsupported.
+Reserve custody reservation uses the canonical held-adjustment path (`add-held`
+via `resolver-sim.accounting.held-adjustment`). Extensions and the generic
+compositor must never invoke a custody mutation directly.
 
 Rationale: one composition cannot own both creation and full lifecycle without
 duplicating existing payable/backing semantics and expanding the audit surface.
@@ -167,8 +172,8 @@ duplicating existing payable/backing semantics and expanding the audit surface.
 Consequences:
 
 - `with-bounty` owns creation invariants only.
-- Broader lifecycle work is a separate roadmap item, undertaken only if
-  `bounty_payable`/`bounty_payable_backing` do not already provide it.
+- Full payout lifecycle and independent external evidence remain explicit work;
+  lifecycle labels alone do not demonstrate settlement.
 
 ### D6. What "independent verification" means
 
@@ -600,16 +605,39 @@ Documentation is part of each stage's completion gate, not trailing cleanup.
 - every artifact has its structural verifier;
 - the vertical slice is idempotent and fail-before-mutation is tested end-to-end.
 
-**Stage B status: implemented.** The vertical slice is landed and exercised by
+**Stage B status: authenticated funding-source and direct-payout receipt paths
+are implemented.** The vertical slice is exercised by
 `resolver-sim.economics.with-bounty.{stage-a,application-plan,verification}-test`
 and `resolver-sim.protocols.sew.with-bounty-test` (registered in the canonical
 `./scripts/test.sh unit` target). It uses the fixture package, committed base
 result, v2 obligation effect, dedicated application plan, Sew canonical
-`add-held`/payable/backing paths, idempotent application, and per-artifact
-structural verification.
+`add-held`/payable/backing paths, idempotent application, signed reserve-source
+verification, signed full-payout receipt verification, lifecycle replay and
+per-artifact structural verification. Funding is fail-closed to the
+authority-attested declared-reserve source; external sponsor and base-gross
+backing are unsupported. Authority attestations do not establish on-chain
+custody or independent chain observation.
 
 The ecosystem acceptance items (independent verifier, compatibility attestation,
 benchmark pack, second adapter/use case) are explicitly **not** part of Stage B.
+
+### Direct settlement evidence boundary
+
+The controlled direct-payout adapter can retain `obligation-settlement.v1`, a
+canonical record binding the predecessor/successor payable roots, backing and
+funding-source roots, signed payout receipt, signed parsed chain observation,
+asset, recipient, chain and transaction/log location, fee, paid amount and
+residual liability. Replay validates both trust policies, exact reserve and
+beneficiary balance deltas, full-payment conservation, and the canonical root.
+The verifier is configured with the expected chain ID, contract, asset and
+on-chain reserve-source root; the signed observation binds that EVM source root
+to the PRF funding-source root because they may use different hash schemes.
+The chain-observer signature establishes only what its configured trust policy
+accepts. The verifier does not query an RPC endpoint, verify block inclusion
+against a consensus client, or independently establish finality. The local
+Foundry fixture demonstrates controlled execution; it is not a finalized-chain
+dossier. The receipt-only Sew path remains a local accounting realization and
+cannot be promoted to chain-observed settlement without this evidence.
 
 ## Open questions
 

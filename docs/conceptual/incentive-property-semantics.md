@@ -8,6 +8,24 @@ concept layer, and records the pass/inconclusive/fail/not-applicable semantics
 the trace-end validators actually produce. It is generated against the
 executable and catalog state, not an aspiration.
 
+## Capability boundary (PRO-82)
+
+| Area | Current framework status | Evidence boundary |
+|---|---|---|
+| Single-trace incentive compatibility | Implemented and dispatched as a trace proxy | A trace with no attack attempts is inconclusive; passing one trace is not a general strategy-proofness result. |
+| Bayesian Nash | Dispatched, but returns `:inconclusive :multi-epoch-required` | Requires population data and belief distributions; single-trace input cannot establish it. |
+| Coalition aggregate payoff | Helper implemented, not wired to the single-trace dispatcher | Analysis helper only; no dispatcher-level property result. |
+| Grim-trigger stability | Multi-epoch helper implemented, not wired to the single-trace dispatcher | Requires repeated-game payoff data and its assumptions. |
+| Grim-trigger deterrence theorem | Model-specific multi-epoch evaluator; not a generic cooperation claim | Its applicability contract and committed assumptions are documented below. |
+| Contributor bounty funding and payment | Separate `with-bounty` economic composition | This analysis does not establish reward eligibility, reserve custody, claimability or payout. See `WITH_BOUNTY.md` and PRO-80/81. |
+| Direct payout attestation | Implemented with a trusted signed full-payment receipt and replayed payable/backing transition | Authenticates the configured payout authority's receipt; it does not independently establish EVM execution or token movement. |
+
+Researcher identifiers are attribution handles and may be pseudonymous. The
+framework must not require legal identity to evaluate incentive properties or
+to contribute research. A signature can prove control of a key; it does not by
+itself prove a legal identity or an association between a researcher label and
+that key.
+
 ## Schema
 
 Each row records four orthogonal dimensions so that future audits are easier:

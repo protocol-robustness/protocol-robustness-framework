@@ -116,7 +116,9 @@
    :replay-migration
    {:rationale "history migration adjustment; not a live economic movement"}
    :bounty-reserve-reservation
-   {:rationale "with-bounty effect projection: account is carried by the effect, no policy position-id"}
+   {:rationale "with-bounty reserve ingress/egress: account is carried by the effect, no policy position-id"}
+   :bounty-direct-payout
+   {:rationale "trusted direct bounty payout debit: account and receipt root are carried by the effect"}
    :held/unspecified
    {:rationale "unspecified-reason fallback for effect-projected adjustments"}})
 

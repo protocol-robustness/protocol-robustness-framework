@@ -6,8 +6,10 @@
             [resolver-sim.economics.bounty-payable-backing :as bpb]
             [resolver-sim.economics.with-bounty.policy :as policy]
             [resolver-sim.economics.with-bounty.proof :as proof]
+            [resolver-sim.economics.with-bounty.fixtures :as fixtures]
             [resolver-sim.economics.with-bounty.transition-evidence :as wb-transition]
-            [resolver-sim.economics.with-bounty.verification :as verification]))
+            [resolver-sim.economics.with-bounty.verification :as verification]
+            [resolver-sim.protocols.sew.with-bounty :as sew-with-bounty]))
 
 ;; ── policy root ───────────────────────────────────────────────────────────
 
@@ -128,31 +130,78 @@
                        plan))))))
 
 (deftest application-world-rejects-mutated-payable-and-backing-artifacts
-  (let [payable (bp/build-bounty-payable
-                 {:payable/id "obligation-1"
-                  :distribution-root "sha256:distribution"
-                  :beneficiary "researcher/alice"
-                  :amount 100
-                  :kind :bounty-payable})
-        backing (bpb/build-bounty-payable-backing
-                 {:payable-root (:payable/hash payable)
-                  :payable-id (:payable/id payable)
-                  :distribution-root (:payable/distribution-root payable)
-                  :amount (:payable/amount payable)
-                  :source-allocations {:bounty-reserve 100}})
-        world {:with-bounty/payables {(:payable/id payable) payable}
-               :with-bounty/backings {(:backing/id backing) backing}
-               :claimable-v2 {(:payable/id payable)
-                              {:liability/bounty-payable
-                               {(:payable/beneficiary payable) (:payable/amount payable)}}}}]
-    (is (:valid? (verification/verify-application-world world)))
+  (let [plan (:plan (proof/evaluate-bounty
+                     {:event/context {:review/finalised? true
+                                      :event/actor :researcher/alice}
+                      :base/result {:resolved-amount 10000}
+                      :adapter-support sew-with-bounty/adapter-support}))
+        world (:world (sew-with-bounty/apply-with-bounty-plan plan {} fixtures/funding-trust-policy))
+        payable (first (vals (:with-bounty/payables world)))
+        backing (first (vals (:with-bounty/backings world)))]
+    (is (:valid? (verification/verify-application-world
+                  world {:funding-trust-policy fixtures/funding-trust-policy})))
     (is (not (:valid? (verification/verify-application-world
                        (assoc-in world [:with-bounty/payables (:payable/id payable)
                                         :payable/amount] 99)))))
     (is (not (:valid? (verification/verify-application-world
                        (assoc-in world [:with-bounty/backings (:backing/id backing)
                                         :backing/source-allocations]
-                                 {:bounty-reserve 99})))))))
+                                 {:bounty-reserve 99})))))
+    (is (not (:valid? (verification/verify-application-world
+                       (assoc-in world [:with-bounty/backings (:backing/id backing)
+                                        :backing/context :custody/artifact-hash]
+                                 "sha256:substituted-reservation")))))))
+
+(deftest application-world-rejects-pending-payable-marked-claimable
+  (let [pending (bp/build-bounty-payable
+                 {:payable/id "obligation-pending"
+                  :distribution-root "sha256:distribution"
+                  :beneficiary "researcher/pseudonym-7"
+                  :amount 100})
+        backing (bpb/build-bounty-payable-backing
+                 {:payable-root (:payable/hash pending)
+                  :payable-id (:payable/id pending)
+                  :distribution-root (:payable/distribution-root pending)
+                  :amount 100
+                  :source-allocations {:bounty-reserve 100}})
+        world {:with-bounty/payables {(:payable/id pending) pending}
+               :with-bounty/backings {(:backing/id backing) backing}
+               :claimable-v2 {(:payable/id pending)
+                              {:liability/bounty-payable
+                               {(:payable/beneficiary pending) 100}}}}]
+    (is (not (:valid? (verification/verify-application-world world))))))
+
+(deftest application-world-rejects-settlement-label-without-payout-evidence
+  (let [plan (:plan (proof/evaluate-bounty
+                     {:event/context {:review/finalised? true
+                                      :event/actor :researcher/pseudonym-7}
+                      :base/result {:resolved-amount 10000}
+                      :adapter-support sew-with-bounty/adapter-support}))
+        world (:world (sew-with-bounty/apply-with-bounty-plan plan {} fixtures/funding-trust-policy))
+        backed (first (vals (:with-bounty/payables world)))
+        backing (first (vals (:with-bounty/backings world)))
+        settled (bp/build-bounty-payable
+                 {:payable/id (:payable/id backed)
+                  :distribution-root (:payable/distribution-root backed)
+                  :beneficiary (:payable/beneficiary backed)
+                  :amount (:payable/amount backed)
+                  :kind (:payable/kind backed)
+                  :lifecycle :settled})
+        consumed (bpb/build-bounty-payable-backing
+                  {:payable-root (:payable/hash settled)
+                   :payable-id (:payable/id settled)
+                   :distribution-root (:backing/distribution-root backing)
+                   :amount (:backing/amount backing)
+                   :source-allocations (:backing/source-allocations backing)
+                   :backing-lifecycle :consumed
+                   :context (:backing/context backing)})
+        settled-world (-> world
+                          (assoc-in [:with-bounty/payables (:payable/id settled)] settled)
+                          (assoc-in [:with-bounty/backings (:backing/id consumed)] consumed)
+                          (update-in [:claimable-v2 (:payable/id settled)
+                                      :liability/bounty-payable]
+                                     dissoc (:payable/beneficiary settled)))]
+    (is (not (:valid? (verification/verify-application-world settled-world))))))
 
 (deftest transition-plan-reconciliation
   (let [applied (proof/evaluate-bounty

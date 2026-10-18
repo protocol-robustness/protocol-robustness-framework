@@ -8,8 +8,10 @@
    root commits the declared order and every reference; replacing or
    reordering any reference changes the identity.
 
-   Stage A scope: policy normalisation and policy-root hashing. Evaluation
-   (extension resolution + invocation) lands in Stage B."
+   The namespace owns policy normalisation, policy-root hashing and structural
+   policy validation. Evaluation and plan construction are implemented in
+   sibling namespaces; funding is currently limited to locally modelled
+   declared-reserve reservations."
   (:require [resolver-sim.hash.canonical :as hc]))
 
 (def ^:const composition-type

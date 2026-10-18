@@ -36,14 +36,14 @@
 
 (def custody-effect
   {:effect/type :custody/held-adjustment
-   :effect/contract :prf.effect/custody-held-adjustment.v1
-   :effect/direction :add
+   :effect/contract :prf.effect/custody-held-adjustment.v2
+   :effect/action "add-held"
    :effect/account :bounty-reserve
    :effect/amount 500
    :effect/token :token/usdc
    :held/kind :bounty-reserve-reservation
    :owner/address :researcher/alice
-   :parameter/context "sha256:params"
+   :parameter/context {:parameter-context/root "sha256:params"}
    :parameter/address [:bounties :review-reserve]})
 
 (def base-opts
@@ -54,11 +54,12 @@
    :adapter {:adapter/id :fixture/v1
              :adapter/supported-effects
              #{:prf.effect/obligation-create.v2
-               :prf.effect/custody-held-adjustment.v1}}
+               :prf.effect/custody-held-adjustment.v2}}
    :effects [obligation-effect custody-effect]
    :effect-schema-roots {:prf.effect/obligation-create.v2 "sha256:v2"
-                         :prf.effect/custody-held-adjustment.v1 "sha256:held"}
-   :funding-available 1000})
+                         :prf.effect/custody-held-adjustment.v2 "sha256:held"}
+   :funding-available 1000
+   :funding-evidence {:funding/source-root "sha256:source"}})
 
 (defn- build-plan
   ([] (build-plan {}))
@@ -120,6 +121,27 @@
     (is (= :invalid status))
     (is (some #(= :violation/insufficient-bounty-funding (:violation/id %)) violations))))
 
+(deftest unsupported-funding-sources-fail-closed
+  (doseq [source [:base/gross :external-sponsor]]
+    (is (false? (wb-plan/funding-available? source 500 1000))
+        (str source " cannot be treated as authenticated funding"))))
+
+(deftest reserve-without-exact-reservation-fails-plan
+  (doseq [effects [ [obligation-effect]
+                    [obligation-effect (assoc custody-effect :effect/amount 499)]
+                    [obligation-effect (assoc custody-effect :effect/token :token/other)]
+                    [obligation-effect (assoc custody-effect :effect/account :other-reserve)]
+                    [obligation-effect (assoc-in custody-effect
+                                                [:parameter/context :parameter-context/root]
+                                                "sha256:substituted")]
+                    [obligation-effect (assoc custody-effect :parameter/address [:other])]
+                    [obligation-effect custody-effect custody-effect]
+                    [custody-effect obligation-effect]]]
+    (let [{:keys [status violations]} (build-plan {:effects effects})]
+      (is (= :invalid status))
+      (is (some #(= :violation/bounty-funding-reservation-mismatch
+                    (:violation/id %)) violations)))))
+
 (deftest unknown-plan-key-rejected
   (let [{:keys [plan]} (build-plan)
         tampered (assoc plan :plan/unknown "extra")]
@@ -131,13 +153,11 @@
     (is (not (:valid? (wb-plan/validate-with-bounty-plan plan))))))
 
 (deftest reordered-effects-change-plan-root
-  (let [{:keys [plan]} (build-plan)
-        reordered (wb-plan/build-with-bounty-plan
+  (let [reordered (wb-plan/build-with-bounty-plan
                    (assoc base-opts :effects [custody-effect obligation-effect]))]
-    (is (= :valid (:status reordered)))
-    (is (not= (:plan/hash plan) (get-in reordered [:plan :plan/hash])))
-    (is (not= (:plan/combined-effect-root plan)
-              (get-in reordered [:plan :combined-effect-root])))))
+    (is (= :invalid (:status reordered)))
+    (is (some #(= :violation/bounty-funding-reservation-mismatch
+                  (:violation/id %)) (:violations reordered)))))
 
 (deftest v1-obligation-effect-rejected-by-plan
   (let [v1 {:effect/type :obligation/create
@@ -169,7 +189,7 @@
   (let [{:keys [plan]} (build-plan)
         support {:adapter/id :sew/v1
                  :adapter/supported-effects
-                 #{:prf.effect/obligation-create.v2 :prf.effect/custody-held-adjustment.v1}}]
+                 #{:prf.effect/obligation-create.v2 :prf.effect/custody-held-adjustment.v2}}]
     (is (:valid? (wb-plan/validate-with-bounty-plan-for-adapter support plan)))
     (is (not (:valid? (wb-plan/validate-with-bounty-plan-for-adapter
                        {:adapter/id :sew/v1
