@@ -1,0 +1,42 @@
+{:fixture/schema :prf/dispute-context-disagree-fixtures.v1
+ :fixture/status :model-only
+ :cases
+ [{:case/id "appeal-upheld-on-merits"
+   :workflow/id "workflow-a"
+   :round/id "round-a1"
+   :basis/root "basis-a1"
+   :appeal {:status :accepted :decision :upheld-on-merits}
+   :bond {:asset "USDC" :posted 100 :posting-fee 5 :custodied 95
+          :disposition :prior-resolver-per-policy :amount 95}
+   :settlement {:before-root "settlement-a1-before"
+                :after-root "settlement-a1-after"}}
+  {:case/id "appeal-overturned-on-merits"
+   :workflow/id "workflow-b"
+   :round/id "round-b1"
+   :basis/root "basis-b1"
+   :appeal {:status :accepted :decision :overturned-on-merits}
+   :bond {:asset "USDC" :posted 100 :posting-fee 5 :custodied 95
+          :disposition :appellant-refund-per-policy :amount 95}
+   :settlement {:before-root "settlement-b1-before"
+                :after-root "settlement-b1-after"}}
+  {:case/id "appeal-rejected-procedurally"
+   :workflow/id "workflow-c"
+   :round/id "round-c1"
+   :basis/root "basis-c1"
+   :appeal {:status :procedurally-rejected :reason :late
+            :decision nil}
+   :bond {:asset "USDC" :posted 100 :posting-fee 5 :custodied 95
+          :disposition :policy-required :amount nil}
+   :settlement {:before-root "settlement-c1-before"
+                :after-root "settlement-c1-after"}}
+  {:case/id "researcher-dissent-no-settlement-change"
+   :workflow/id "workflow-d"
+   :round/id "round-d1"
+   :basis/root "basis-d1"
+   :research {:position :dissent :target/root "basis-d1"
+              :signed-contribution-required true}
+   :appeal {:status :none :decision nil}
+   :bond {:asset "USDC" :posted 0 :posting-fee 0 :custodied 0
+          :disposition :none :amount 0}
+   :settlement {:before-root "settlement-d1-same"
+                :after-root "settlement-d1-same"}}]}

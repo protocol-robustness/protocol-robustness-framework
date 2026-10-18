@@ -3,12 +3,12 @@
  :concept/layer :stakeholder
  :concept/name "Dispute appeal and escalation"
  :concept/summary
- "A party who disagrees with a resolver decision can escalate the resolution
-  to a higher authority (L1) by posting an appeal bond. The appeal may uphold,
-  reverse, or modify the original decision. If the appeal is rejected the bond
-  is forfeited; if it succeeds the bond is returned. Escalation is subject to
-  time windows, tier eligibility, and bonding requirements that determine
-  whether the appeal is accepted and how the dispute reaches finality."
+ "A party may escalate a resolver decision by posting an appeal bond. A valid
+  appeal is reviewed on its merits and the applicable Sew rule determines the
+  bond disposition. A late, unauthorized, or invalid appeal is a procedural
+  rejection, distinct from a merits decision that upholds the original ruling.
+  Bond posting fees, custody, disposition, and later claims are separate
+  accounting facts; researcher disagreement does not itself change settlement."
 
  :concept/stakeholder-question
  "Can I challenge an unfair resolver decision, and what are the costs, risks,
@@ -168,10 +168,11 @@
    :source :derived-from-trace}}
 
  :concept/assumptions
- ["Appeal must be filed within a defined deadline counted from the original resolution."
-  "An appeal bond is required and its amount is known at escalation time."
+ ["Appeal timing and eligibility are checked against the applicable Sew snapshot."
+  "Appeal bond amounts, fees, custody, and disposition are read from authoritative records; this description does not prescribe them."
   "The appeal resolver is a different entity from the original resolver."
   "Only one escalation level (L0→L1) is modelled; multi-level escalation adds complexity not covered here."
+  "Researcher disagreement does not change Sew settlement or advance an adjudication round."
   "Concept labels do not change protocol validity."]
 
  :concept/out-of-scope
