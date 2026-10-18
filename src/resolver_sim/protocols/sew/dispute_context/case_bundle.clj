@@ -3,7 +3,8 @@
   (:require [resolver-sim.contract-model.replay.frames :as frames]
             [resolver-sim.hash.canonical :as canonical]
             [resolver-sim.hash.reference :as ref]
-            [resolver-sim.io.content-addressed-store :as cas]))
+            [resolver-sim.io.content-addressed-store :as cas]
+            [resolver-sim.protocols.sew.appeal-bond-projection :as appeal-bonds]))
 
 (def schema :prf/sew-dispute-case-bundle.v1)
 (defn- sha256-ref [value]
@@ -46,6 +47,19 @@
                               (not= (:case/current-pointer-root bundle)
                                     (current-pointer-root pointer))))
         frames (:case/frames bundle)
+        bond-world (:case/appeal-bond-world bundle)
+        bond-projection (when bond-world
+                          (try (appeal-bonds/project-appeal-bonds bond-world)
+                               (catch Exception error
+                                 {:valid? false :errors [{:code :bond-projection-error
+                                                          :message (.getMessage error)}]})))
+        bond-workflow-mismatch? (and bond-projection
+                                     (some #(not= (:workflow/id identity) (:workflow/id %))
+                                           (vals (:appeal-bond/records bond-projection))))
+        bond-dispositions-complete? (and bond-projection
+                                         (seq (:appeal-bond/records bond-projection))
+                                         (every? #(= :disposed (:bond/status %))
+                                                 (vals (:appeal-bond/records bond-projection))))
         frame-head (:case/frame-head-root bundle)
         frame-start (:case/frame-start-state-root bundle)
         frame-final (:case/frame-final-state-root bundle)
@@ -87,6 +101,9 @@
                        (research-history-root research-history))
                  (conj :research-history-anchor-mismatch)
                  bad-pointer? (conj :invalid-current-pointer)
+                 (and bond-world
+                      (or (not (:valid? bond-projection)) bond-workflow-mismatch?))
+                 (conj :invalid-appeal-bond-accounting)
                  (and (seq (:frames frames)) (not (:valid? frame-check)))
                  (conj :invalid-frame-lineage)
                  (not= (:bundle/root bundle) (bundle-root bundle))
@@ -121,6 +138,11 @@
                             :else :invalid)
      :verification/live-execution :unverified
      :verification/authority :unverified
+     :verification/bonds (if (and (:valid? bond-projection)
+                                  (not bond-workflow-mismatch?))
+                           :verified :unverified)
+     :verification/bond-disposition (if bond-dispositions-complete?
+                                      :verified :unverified)
      :verification/incentives (if (seq incentive-links) :linked-unverified :absent)}))
 
 (defn build-bundle [bundle]
@@ -170,5 +192,10 @@
      :bundle/root (:bundle/root bundle)
      :protocol/history (:case/protocol-history bundle)
      :research/history (:case/research-history bundle)
+     :case/appeal-bonds (when-let [world (:case/appeal-bond-world bundle)]
+                          (select-keys (appeal-bonds/project-appeal-bonds world)
+                                       [:appeal-bond/records :appeal-bond/dispositions
+                                        :appeal-bond/claims :appeal-bond/conservation]))
+     :incentive/links (:case/incentive-links bundle)
      :incentive/state (:case/incentive-state bundle)
      :verification (dissoc check :valid? :errors)}))

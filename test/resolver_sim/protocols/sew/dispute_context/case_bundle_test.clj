@@ -22,6 +22,14 @@
       [{:workflow/id workflow :round/id "round-a" :round/root round
         :predecessor/root nil :basis/root basis :ruling/status :model-only
         :economic-effects/status :unverified}]
+      :case/appeal-bond-world
+      {:appeal-bond/records
+       {"bond-a" {:bond/id "bond-a" :workflow/id workflow :dispute/id "dispute-0042"
+                  :appeal/ordinal 0 :asset :USDC :bond/posted-amount 100
+                  :bond/posting-fee 5 :bond/custodied-amount 95
+                  :bond/payer "appellant" :bond/funder "appellant"
+                  :posting-operation/id "post-bond-a" :bond/status :open
+                  :bond/remaining-custody 95}}}
       :case/research-history research-history
       :case/research-history-anchor (bundle/research-history-root research-history)
       :case/incentive-state {:eligibility :unverified :obligation :unverified
@@ -43,6 +51,10 @@
     (is (= "dispute-0042" (:case/alias view)))
     (is (= :unverified (get-in view [:verification :verification/live-execution])))
     (is (= :unverified (get-in view [:verification :verification/frames])))
+    (is (= :verified (get-in view [:verification :verification/bonds])))
+    (is (= :unverified (get-in view [:verification :verification/bond-disposition])))
+    (is (= 100 (get-in view [:case/appeal-bonds :appeal-bond/records "bond-a"
+                             :bond/posted-amount])))
     (is (= :partial (get-in view [:verification :verification/completeness])))
     (is (= :linked-unverified (get-in view [:verification :verification/incentives])))
     (is (= :unpaid (get-in view [:incentive/state :payment])))
@@ -57,6 +69,9 @@
         tampered (assoc-in artifact [:case/protocol-history 0 :basis/root] second-basis)
         omitted-dissent (assoc-in artifact [:case/research-history] [])
         swapped-alias (assoc artifact :case/alias "dispute-9999")
+        wrong-case-bond (assoc-in artifact
+                                  [:case/appeal-bond-world :appeal-bond/records "bond-a" :workflow/id]
+                                  "workflow-z")
         forged-payment (assoc-in artifact [:case/incentive-state :payment] :paid)
         forged-pointer (assoc artifact :case/current-pointer
                               {:round/id "round-x" :round/root (root :round-x)
@@ -66,5 +81,6 @@
     (is (false? (:valid? (bundle/verify-bundle tampered))))
     (is (false? (:valid? (bundle/verify-bundle omitted-dissent))))
     (is (false? (:valid? (bundle/verify-bundle swapped-alias))))
+    (is (false? (:valid? (bundle/verify-bundle wrong-case-bond))))
     (is (false? (:valid? (bundle/verify-bundle forged-payment))))
     (is (false? (:valid? (bundle/verify-bundle forged-pointer))))))
