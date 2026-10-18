@@ -16,7 +16,7 @@ while pending:
     if relative in source_paths or not file.exists():continue
     source_paths.add(relative)
     pending.extend(re.findall(r'\bresolver-sim\.[a-zA-Z0-9_.-]+',file.read_text()))
-archive('prf-source.tar.gz',root,sorted(source_paths)+['test/resolver_sim/allocation/source_bound_entitlement_test.clj','deps.edn','config/defaults.edn','config/evidence.json','resources','packages/pro-rata-allocation','coprocessor','etc/conformance','etc/deployments/eae-controlled-entitlement-demo/protocol-genesis-package.edn','examples/partial-fill/README.md','examples/partial-fill/run-local.sh','examples/partial-fill/materialize.clj','examples/partial-fill/report.py','examples/partial-fill/qualify-source.py','examples/partial-fill/package-evidence.py'])
+archive('prf-source.tar.gz',root,sorted(source_paths)+['test/resolver_sim/allocation/source_bound_entitlement_test.clj','deps.edn','config/defaults.edn','config/evidence.json','resources','packages/pro-rata-allocation','packages/canonical','coprocessor','etc/conformance','etc/deployments/eae-controlled-entitlement-demo/protocol-genesis-package.edn','examples/partial-fill/README.md','examples/partial-fill/run-local.sh','examples/partial-fill/materialize.clj','examples/partial-fill/report.py','examples/partial-fill/qualify-source.py','examples/partial-fill/package-evidence.py'])
 archive('evm-source.tar.gz',evm,['src','test/PartialFillControlled.t.sol','test/fixtures/partial-fill','foundry.toml','remappings.txt','.gitmodules'])
 def command(args,cwd=None):
     r=subprocess.run(args,cwd=cwd,capture_output=True,text=True);return r.stdout.strip() or r.stderr.strip()
