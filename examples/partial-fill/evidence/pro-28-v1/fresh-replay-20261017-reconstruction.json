@@ -338,7 +338,7 @@
     },
     "status": "captured and content-hash verified from local Anvil RPC"
   },
-  "schema": "eae.pro-28-authentic-local-execution.v1",
+  "schema": "eae.pro-28-authentic-local-execution.v2",
   "source": {
     "replay": "Fresh local Anvil execution in a disposable checkout; transaction call payloads and receipts were independently re-fetched from the live local RPC. This is not organizationally independent.",
     "repository": "protocol-robustness/prf-evm",

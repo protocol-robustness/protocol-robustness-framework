@@ -229,7 +229,7 @@ def verify_live_chain_context(raw: Path, rpc_url: str, min_confirmations: int | 
     manifest = _json(raw / "deployment-manifest.json")
     capture = _json(raw / "capture-metadata.json")
     runtime = _json(raw / "runtime-code-observations.json")
-    if (capture.get("schema") != "eae.pro-28-capture-metadata.v1"
+    if (capture.get("schema") not in {"eae.pro-28-capture-metadata.v1", "eae.pro-28-capture-metadata.v2"}
             or not isinstance(capture.get("captureId"), str)
             or not capture["captureId"]
             or not manifest.get("localOnly")
@@ -242,7 +242,8 @@ def verify_live_chain_context(raw: Path, rpc_url: str, min_confirmations: int | 
             or capture.get("runtimeObservation", {}).get("contractsObserved") != len(runtime.get("contracts", {}))):
         raise EvidenceError("capture metadata does not bind the runtime observation block and contract count")
     captured_identity = capture.get("localChainIdentity")
-    if (not isinstance(captured_identity, dict)
+    if (capture.get("schema") != "eae.pro-28-capture-metadata.v2"
+            or not isinstance(captured_identity, dict)
             or captured_identity.get("schema") != "prf.local-chain-fingerprint.v1"
             or captured_identity.get("chainId") != manifest["chainId"]
             or not isinstance(captured_identity.get("genesisBlockHash"), str)
@@ -373,7 +374,7 @@ def verify_live_chain_context(raw: Path, rpc_url: str, min_confirmations: int | 
         checked_contracts += 1
 
     return {
-        "schema": "prf.forensic-live-chain-check.v1",
+        "schema": "prf.forensic-live-chain-check.v2",
         "status": "passed",
         "classification": "localOnly provider-relative canonicality check; not public-chain finality or independent consensus proof",
         "environmentId": capture["captureId"],
@@ -742,13 +743,13 @@ def reconstruct(raw: Path) -> dict[str, Any]:
     capture_path = raw / "capture-metadata.json"
     capture = _json(capture_path) if capture_path.exists() else None
     if capture is not None:
-        if capture.get("schema") != "eae.pro-28-capture-metadata.v1" or capture.get("chainId") != 31337:
+        if capture.get("schema") not in {"eae.pro-28-capture-metadata.v1", "eae.pro-28-capture-metadata.v2"} or capture.get("chainId") != 31337:
             raise EvidenceError("capture metadata schema or chain identity is invalid")
         if capture.get("deploymentManifestDigest") != manifest_digest:
             raise EvidenceError("capture metadata does not bind the retained deployment manifest")
         artifact_paths.append(capture_path)
     return {
-        "schema": "eae.pro-28-authentic-local-execution.v1",
+        "schema": "eae.pro-28-authentic-local-execution.v2",
         "classification": "local Anvil observation on chain 31337; not public-chain execution or chain-state proof",
         "source": {
             "repository": "protocol-robustness/prf-evm",

@@ -36,6 +36,7 @@ def save(path: Path, payload: dict) -> None:
 
 def test_fresh_replay_reconstructs_receipts_runtime_and_accounting(bundle: Path) -> None:
     report = pro28_receipts.reconstruct(bundle)
+    assert report["schema"] == "eae.pro-28-authentic-local-execution.v2"
     assert report["successfulReceiptCount"] == 41
     assert report["runtimeCodeIdentity"]["status"] == "captured and content-hash verified from local Anvil RPC"
     assert len(report["runtimeCodeIdentity"]["contracts"]) == 12
@@ -300,6 +301,7 @@ def _bind_test_chain_identity(bundle: Path) -> None:
     """Bind this copied test fixture to the mock RPC's deterministic genesis."""
     capture_path = bundle / "capture-metadata.json"
     capture = load(capture_path)
+    capture["schema"] = "eae.pro-28-capture-metadata.v2"
     genesis_hash = "0x" + f"{1:064x}"
     capture["localChainIdentity"] = {
         "schema": "prf.local-chain-fingerprint.v1",
@@ -320,6 +322,7 @@ def test_live_check_revalidates_block_receipts_and_runtime_against_rpc(bundle: P
     assert report["finalityClaimed"] is False
     assert report["environmentId"] == "pro-28-fresh-local-replay-20261017"
     assert report["localChainIdentity"]["scope"].startswith("chain lineage fingerprint")
+    assert report["schema"] == "prf.forensic-live-chain-check.v2"
 
 
 def test_live_check_rejects_replaced_canonical_block(bundle: Path, monkeypatch) -> None:
