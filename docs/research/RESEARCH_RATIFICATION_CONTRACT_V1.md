@@ -38,7 +38,10 @@ their original target.
 Positions, signed decisions, policy ratification, and operational authority
 are separate artifacts. A contribution records its principal, signing-key
 identity, exact target root, outcome, content root, signature reference, and
-optional dissent/challenge/reproduction references. Contribution outcomes are
+optional dissent/challenge/reproduction references. The signed
+`researcher-decision.v2` outcome root commits to the exact target, principal,
+contribution kind, and evidence root, so challenge evidence cannot be swapped
+after signing. Contribution outcomes are
 `approve`, `dissent`, `challenge`, and `reproduction`. Challenges are admitted
 as evidence of an objection; admission does not establish scientific
 correctness.
