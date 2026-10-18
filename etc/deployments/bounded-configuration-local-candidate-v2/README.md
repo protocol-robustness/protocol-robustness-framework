@@ -28,10 +28,12 @@ policy candidate and are recomputed in `candidate-derivation.edn`.
 ## Review identity
 
 The current source-bound manifest binds source parent
-`be8a5f04d7366cd81a3cf048e9f40b434bd0ed84` and the independently locked source
-tree `4f7b8b97deeb4b85af7003d9216d679571b9c963927b1a0fb3155a79b6fd6d96`.
+`d282a5fa6f2224c71f510353ca6758cedcb635e4` and the independently locked source
+tree `d1b819e37633db8af181bf6b637ba5c615cc69f96ab51bad69003eb599218c68`.
 Its canonical manifest root is
-`sha256:f4a01e8a8f66c24fb6bba17417a532ccbb6928de046b5af72757ca538cf073a4`.
+`sha256:7662a1a217f2077fb63554c46d28d799eb9c0c8f37aeaf6507aaf66d54721d79`;
+the raw manifest file digest is
+`sha256:7e9109321b2c58926c8ba1f41fdd945cc3ae37088973f5de6060875cd6073be1`.
 The scope is chain ID 31337 and `local-only`; the required initial-input
 approval action is `approve-initial-inputs`. The manifest's
 `approval-authority` field is a proposed EVM principal for review, not an
@@ -42,8 +44,8 @@ C0 has an empty verifier registry at
 `sha256:2099fabf2cca563f8d183749d1a842946286e8704a96c51ec801eff4e834a240`.
 Its seven component roots are recorded in `review-manifest.v3.edn` and
 `candidate-derivation.edn`; approval covers the complete manifest, not only
-the aggregate C0 root. The exact manifest digest is recorded in
-`baselines/bounded-configuration-release-baseline.v1.json`.
+the aggregate C0 root. The raw manifest digest and source-tree identity are
+recorded in `baselines/bounded-configuration-release-baseline.v1.json`.
 
 Before signing, the input owner should review all four package artifacts, the
 derived roots, policy-v3 validator address and source identities. The signer

@@ -9,9 +9,10 @@ transition approval.
 - Package set: `candidate-package-set.edn`
 - Derived roots: `candidate-derivation.edn`
 - Source-bound manifest: `review-manifest.v3.edn`
-- Manifest root: `sha256:f4a01e8a8f66c24fb6bba17417a532ccbb6928de046b5af72757ca538cf073a4`
-- Source parent: `be8a5f04d7366cd81a3cf048e9f40b434bd0ed84`
-- Source tree: `4f7b8b97deeb4b85af7003d9216d679571b9c963927b1a0fb3155a79b6fd6d96`
+- Canonical manifest root: `sha256:7662a1a217f2077fb63554c46d28d799eb9c0c8f37aeaf6507aaf66d54721d79`
+- Raw manifest file digest: `sha256:7e9109321b2c58926c8ba1f41fdd945cc3ae37088973f5de6060875cd6073be1`
+- Source parent: `d282a5fa6f2224c71f510353ca6758cedcb635e4`
+- Source tree: `d1b819e37633db8af181bf6b637ba5c615cc69f96ab51bad69003eb599218c68`
 - Scope: local Anvil, chain ID 31337, action `approve-initial-inputs`
 - C0: `sha256:131ff6b74047de747bd9ace93413b6b793d677749095f0dadf5dcc173e120f95`
 - Empty verifier registry: `sha256:2099fabf2cca563f8d183749d1a842946286e8704a96c51ec801eff4e834a240`
@@ -47,8 +48,8 @@ If the principal changes, regenerate the manifest with:
 ```sh
 clojure -M:test -m scripts.deployment.configuration-review manifest-v3 \
   etc/deployments/bounded-configuration-local-candidate-v2/candidate-package-set.edn \
-  be8a5f04d7366cd81a3cf048e9f40b434bd0ed84 \
-  4f7b8b97deeb4b85af7003d9216d679571b9c963927b1a0fb3155a79b6fd6d96 \
+  d282a5fa6f2224c71f510353ca6758cedcb635e4 \
+  d1b819e37633db8af181bf6b637ba5c615cc69f96ab51bad69003eb599218c68 \
   <owner-principal>
 ```
 

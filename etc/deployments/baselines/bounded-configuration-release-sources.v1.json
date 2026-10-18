@@ -2,7 +2,7 @@
   "schema": "prf-bounded-configuration-source-identities.v1",
   "scope": "local-anvil-bounded-configuration-only",
   "prf": {
-    "sourceParent": "be8a5f04d7366cd81a3cf048e9f40b434bd0ed84"
+    "sourceParent": "d282a5fa6f2224c71f510353ca6758cedcb635e4"
   },
   "prfEvm": {
     "baselineRevision": "4b6b6ed159762c88099c96d4dafd635ab99470ea",
@@ -20,6 +20,15 @@
       "prf-evm-w6-capital-replay": {
         "path": "etc/deployments/baselines/prf-evm-w6-capital-replay-followup.patch",
         "sha256": "0c0800d8ddfef153766a8afcce42ed41bf561f59caa591275dce75a9b4921ae3"
+      },
+      "prf-evm-bounded-combined-overlay": {
+        "path": "etc/deployments/baselines/prf-evm-bounded-combined-overlay.patch.gz",
+        "sha256": "de072d677eff58f01a3fdef22d17c2f73ae549c848ee12b2b0f22cc77e1cc6f9",
+        "baseRevision": "4b6b6ed159762c88099c96d4dafd635ab99470ea",
+        "resultTree": "98e2ced7c0c61f146f7da902ed027780cee0f8b9",
+        "purpose": "reproducible composition of configuration hardening, authority transition and capital replay",
+        "encoding": "gzip (deterministic mtime=0; decompress before git apply)",
+        "coverageNote": "Includes explicit authority-state revocation and legacy proof-mode/revocation bypass regressions."
       }
     },
     "cleanRelease": {
@@ -54,7 +63,8 @@
         "allArtifactAbiCreationRuntimeAndFileDigestsMatch": true,
         "cleanProvenance": true
       }
-    }
+    },
+    "reproducibilityNote": "The historical integration/release commits are unavailable in the current Git mirror; the clean pinned base plus combined overlay reproduces the qualified tree without rejected patch artifacts."
   },
   "protocolDeployments": {
     "baselineRevision": "98659ce01e7e1d1bf1a3c6c84dc7ebb665ac5036",
