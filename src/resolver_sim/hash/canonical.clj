@@ -216,6 +216,8 @@
    :researcher-reward-proposal "RESEARCHER_REWARD_PROPOSAL_V1"
    :researcher-reward-obligation "RESEARCHER_REWARD_OBLIGATION_V1"
    :researcher-reward-key "RESEARCHER_REWARD_KEY_V1"
+   :sew-research-ratification-round-v1 "SEW_RESEARCH_RATIFICATION_ROUND_V1"
+   :sew-research-ratification-consumption-v1 "SEW_RESEARCH_RATIFICATION_CONSUMPTION_V1"
    :research-claim-acceptance-policy "RESEARCH_CLAIM_ACCEPTANCE_POLICY_V1"
    :research-claim-acceptance "RESEARCH_CLAIM_ACCEPTANCE_V1"
    :research-claim-lifecycle-transition "RESEARCH_CLAIM_LIFECYCLE_TRANSITION_V1"

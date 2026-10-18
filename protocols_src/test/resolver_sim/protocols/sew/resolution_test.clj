@@ -14,10 +14,13 @@
             [resolver-sim.protocols.sew.adjudication-case :as adjudication-case]
             [resolver-sim.protocols.sew.adjudication-instance :as adjudication-instance]
             [resolver-sim.protocols.sew.adjudication-snapshot :as adjudication-snapshot]
+            [resolver-sim.protocols.sew.research-ratification :as sew-ratification]
             [resolver-sim.protocols.sew :as sew]
             [resolver-sim.contract-model.replay :as replay]
             [resolver-sim.time.context :as time-ctx]
-            [resolver-sim.hash.canonical :as hc]))
+            [resolver-sim.hash.canonical :as hc]
+            [resolver-sim.research.ratification :as researcher-ratification]
+            [resolver-sim.benchmark.researcher-force-authorisation :as researcher-decisions]))
 
 (def alice "0xAlice")
 (def bob "0xBob")
@@ -125,6 +128,45 @@
      :artifact artifact
      :verification verification
      :finality (ruling-finality/derive-finality world 0 artifact verification)}))
+
+(defn- sew-research-ratification-inputs [world basis]
+  (let [policy (researcher-ratification/build-policy
+                {:id :policy/sew-research
+                 :authority-root (ruling-root :research-policy-authority)
+                 :eligible-principals [:principal/a :principal/b]
+                 :threshold 2 :allow-dissent? true :challenges-block? true})
+        snapshot-root (get-in world [:adjudication-current-snapshot-root 0])
+        current-snapshot (some #(when (= snapshot-root (:sew/adjudication-snapshot-root %)) %)
+                               (get-in world [:adjudication-snapshots 0]))
+        target (sew-ratification/build-target basis current-snapshot (:policy/root policy))
+        key-path "test-keys/test-researcher-signing-key"
+        public-path "test-keys/test-researcher-signing-key.pub"
+        contributions
+        (mapv (fn [[researcher principal]]
+                (let [subject-root
+                      (researcher-ratification/contribution-subject-root
+                       {:target-root (:target/root target) :principal-id principal
+                        :kind :approve :evidence-root nil})
+                      decision (researcher-decisions/build-signed-decision-v2
+                                researcher (:target/root target) (:target/root target)
+                                (:target/round-root target) subject-root :approve key-path
+                                :signing-key-id (str "key/" researcher))]
+                  (researcher-ratification/build-contribution
+                   {:target target :principal-id principal :kind :approve
+                    :decision decision})))
+              [["researcher-a" :principal/a] ["researcher-b" :principal/b]])
+        key-bindings {"researcher-a" {:researcher/id "researcher-a"
+                                      :principal/id :principal/a
+                                      :public-key-path public-path}
+                      "researcher-b" {:researcher/id "researcher-b"
+                                      :principal/id :principal/b
+                                      :public-key-path public-path}}
+        result (researcher-ratification/reconstruct-ratification
+                {:target target :policy policy :contributions contributions
+                 :key-bindings key-bindings})]
+    {:policy policy :target target :contributions contributions
+     :key-bindings key-bindings :ratification-result result
+     :current-snapshot current-snapshot}))
 
 (defn- authentication-verification [ruling instance-root]
   (authentication/build-authentication-verification
@@ -1164,3 +1206,101 @@
               r-exec (res/execute-pending-settlement w1 0)]
           (is (= expect-escalate-ok? (:ok r-esc)))
           (is (= expect-exec-ok? (:ok r-exec))))))))
+
+(deftest sew-research-ratification-is-bound-to-frozen-snapshot-and-round
+  (let [{:keys [world basis]} (high-assurance-inputs :release)
+        {:keys [policy target contributions key-bindings ratification-result current-snapshot] :as package}
+        (sew-research-ratification-inputs world basis)
+        verified (sew-ratification/verify-ratification
+                  (assoc package :sew-basis basis :adjudication-snapshot current-snapshot))]
+    (is (:valid? verified))
+    (is (= (:sew-resolution-basis/root basis) (:sew/basis-root target)))
+    (is (= (:adjudication/round-id current-snapshot) (:sew/adjudication-round target)))
+    (is (= (:sew/adjudication-snapshot-root current-snapshot)
+           (:sew/adjudication-snapshot-root target)))
+    (is (= :ratified (:ratification/status ratification-result)))
+    (is (= :policy/sew-research (:policy/id policy)))
+    (is (= 2 (count contributions)))
+    (is (= 2 (count key-bindings)))))
+
+(deftest fenced-ratification-and-settlement-use-one-authoritative-state-fence
+  (let [{:keys [world basis artifact verification finality]} (high-assurance-inputs :release)
+        package (sew-research-ratification-inputs world basis)
+        fence-calls (atom 0)
+        state-fence (fn [current-world workflow-id expected-root]
+                      (swap! fence-calls inc)
+                      (is (= 0 workflow-id))
+                      (is (= (:state-before/root basis) expected-root))
+                      {:fenced? true :world current-world
+                       :fence/root (ruling-root :one-state-fence)
+                       :research-ratification/current-root
+                       (get-in package [:ratification-result :ratification/root])
+                       :research-ratification/policy-root
+                       (get-in package [:policy :policy/root])})
+        result (sew-ratification/execute-resolution-with-ratification
+                world 0 carol basis artifact finality committed-resolution-roots
+                (fn [_ _ _ _] {:authentication-verification verification})
+                direct-resolver-fn state-fence (:policy package) (:contributions package)
+                (:ratification-result package) (:key-bindings package))]
+    (is (:ok result))
+    (is (= 1 @fence-calls))
+    (is (= :released (t/escrow-state (:world result) 0)))
+    (is (:valid? (sew-ratification/validate-consumption
+                  (:research-ratification/consumption result)))
+        (pr-str {:validation (sew-ratification/validate-consumption
+                              (:research-ratification/consumption result))
+                 :receipt (:research-ratification/consumption result)}))
+    (is (= (get-in package [:ratification-result :ratification/root])
+           (get-in result [:research-ratification/consumption :ratification/root])))))
+
+(deftest fenced-ratification-fails-closed-on-pointer-policy-or-state-replacement
+  (let [{:keys [world basis artifact verification finality]} (high-assurance-inputs :release)
+        package (sew-research-ratification-inputs world basis)
+        fenced (fn [fenced-world overrides]
+                 (fn [_world _workflow-id _expected-root]
+                   (merge {:fenced? true :world fenced-world
+                           :fence/root (ruling-root :fence)
+                           :research-ratification/current-root
+                           (get-in package [:ratification-result :ratification/root])
+                           :research-ratification/policy-root
+                           (get-in package [:policy :policy/root])}
+                          overrides)))
+        run (fn [state-fence ratification-result]
+              (sew-ratification/execute-resolution-with-ratification
+               world 0 carol basis artifact finality committed-resolution-roots
+               (fn [_ _ _ _] {:authentication-verification verification})
+               direct-resolver-fn state-fence (:policy package) (:contributions package)
+               ratification-result (:key-bindings package)))
+        changed-world (assoc-in world [:adjudication-current-snapshot-root 0]
+                                (ruling-root :replaced-snapshot))
+        contested (assoc (:ratification-result package)
+                         :ratification/status :contested-unresolved)]
+    (is (= :ratification-not-current
+           (:error (run (fenced world {:research-ratification/current-root (ruling-root :stale)})
+                        (:ratification-result package)))))
+    (is (= :ratification-policy-not-current
+           (:error (run (fenced world {:research-ratification/policy-root (ruling-root :other-policy)})
+                        (:ratification-result package)))))
+    (is (= :live-resolution-basis-unavailable
+           (:error (run (fenced changed-world {}) (:ratification-result package)))))
+    (is (= :invalid-sew-research-ratification
+           (:error (run (fenced world {}) contested))))))
+
+(deftest researcher-ratification-alone-cannot-settle-sew-escrow
+  (let [{:keys [world basis artifact verification]} (high-assurance-inputs :release)
+        package (sew-research-ratification-inputs world basis)
+        state-fence (fn [current-world _workflow-id _expected-root]
+                      {:fenced? true :world current-world
+                       :fence/root (ruling-root :fence)
+                       :research-ratification/current-root
+                       (get-in package [:ratification-result :ratification/root])
+                       :research-ratification/policy-root
+                       (get-in package [:policy :policy/root])})
+        result (sew-ratification/execute-resolution-with-ratification
+                world 0 carol basis artifact nil committed-resolution-roots
+                (fn [_ _ _ _] {:authentication-verification verification})
+                direct-resolver-fn state-fence (:policy package) (:contributions package)
+                (:ratification-result package) (:key-bindings package))]
+    (is (false? (:ok result)))
+    (is (= :finality-missing (:error result)))
+    (is (= :disputed (t/escrow-state (:world result) 0)))))
