@@ -10,6 +10,11 @@
 
 ## Unreleased
 
+- Added `resolver-sim.evidence.graph-producer/produce` to deterministically
+  compose domain-adapted PRF evidence nodes through the existing forensic DAG
+  validator. Producer metadata does not change node identity or authenticate
+  declared evidence roles.
+
 - Added a versioned, read-only claim qualification composer over independently
   executed verification results. It binds exact claim subjects, cutpoints,
   source roots,

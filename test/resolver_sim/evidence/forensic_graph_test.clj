@@ -1,6 +1,10 @@
 (ns resolver-sim.evidence.forensic-graph-test
   (:require [clojure.test :refer [deftest is]]
-            [resolver-sim.evidence.forensic-graph :as forensic]))
+            [clojure.data.json :as json]
+            [clojure.java.io :as io]
+            [clojure.string :as str]
+            [resolver-sim.evidence.forensic-graph :as forensic]
+            [resolver-sim.evidence.graph-producer :as producer]))
 
 (defn root [n] (str "sha256:" (format "%064x" n)))
 
@@ -134,3 +138,136 @@
                {:nodes [cyclic-a b] :artifact-roots [(root 90)]})]
     (is (false? (:valid? graph)))
     (is (some #(= :node/cycle (:error %)) (get-in graph [:dag :errors])))))
+
+(deftest generic-producer-is-deterministic-and-fails-closed
+  (let [parent (evidence job-subject :verified :causal-parent-roots [])
+        child (evidence result-subject :derived
+                        :parent-nodes [(:node-hash parent)]
+                        :causal-parent-roots [(:subject/root job-subject)])
+        roots [(root 1) (root 90)]
+        input {:adapter-id :test/pro-rata :adapter-version 1
+               :artifact-roots roots :nodes [parent child]}
+        forward (producer/produce input)
+        reversed (producer/produce (assoc input :nodes [child parent]))
+        replayed-parent (evidence job-subject :verified :causal-parent-roots [])
+        replayed-child (evidence result-subject :derived
+                                 :parent-nodes [(:node-hash replayed-parent)]
+                                 :causal-parent-roots [(:subject/root job-subject)])
+        replayed (producer/produce (assoc input :nodes [replayed-child replayed-parent]))
+        tampered (assoc-in input [:nodes 0 :evidence :inputs-hash] "tampered")
+        missing-root (producer/produce
+                      {:adapter-id :test/missing-source
+                       :adapter-version 1
+                       :artifact-roots []
+                       :nodes [(evidence job-subject :declared)]})
+        cyclic-parent (assoc parent :parent-hashes [(:node-hash child)])
+        cycle (producer/produce (assoc input :nodes [cyclic-parent child]))]
+    (is (= (mapv :node-hash (:nodes forward))
+           (mapv :node-hash (:nodes replayed))))
+    (is (= (:graph forward) (:graph replayed)))
+    (is (= (:nodes forward) (:nodes reversed)))
+    (is (= (:graph forward) (:graph reversed)))
+    (is (:valid? (:graph forward)))
+    (is (some #(= :verified (get-in % [:extensions :forensic/role]))
+              (:nodes forward)))
+    (is (= :test/pro-rata (:adapter/id forward)))
+    (is (= 1 (:producer/version forward)))
+    (is (false? (get-in forward [:provenance :source-authenticated?]))
+        "A self-declared verified role is not source authentication.")
+    (is (false? (:integrity-valid? (:graph (producer/produce tampered)))))
+    (is (false? (:integrity-valid? (:graph missing-root))))
+    (is (some #(= :node/cycle (:error %))
+              (get-in cycle [:graph :dag :errors])))
+    (is (thrown? clojure.lang.ExceptionInfo
+                 (producer/produce (assoc input :artifact-roots [(root 90) (root 1)]))))
+    (is (thrown? clojure.lang.ExceptionInfo
+                 (producer/produce (assoc input :nodes [parent parent]))))
+    (is (thrown? clojure.lang.ExceptionInfo
+                 (producer/produce (assoc input :adapter-id :unqualified))))))
+(deftest generic-producer-preserves-conflicts-and-coverage-gaps
+  (let [left (evidence job-subject :observed
+                       :observation-key :environment/runtime-root
+                       :observed-root (root 20))
+        right (evidence job-subject :observed
+                        :observation-key :environment/runtime-root
+                        :observed-root (root 21))
+        production (producer/produce
+                    {:adapter-id :test/deployment
+                     :adapter-version 1
+                     :artifact-roots [(root 90)]
+                     :nodes [left right]
+                     :profile {:forensic-profile/requirements
+                               [{:subject result-subject
+                                 :roles #{:validated}
+                                 :required? true}]}})]
+    (is (false? (get-in production [:graph :valid?])))
+    (is (= 1 (get-in production [:graph :summary :conflict-count])))
+    (is (= 1 (get-in production [:graph :summary :required-gap-count])))
+    (is (some #(= :forensic/conflicting-observations (:error %))
+              (get-in production [:graph :errors])))
+    (is (some #(= :forensic/required-evidence-missing (:error %))
+              (get-in production [:graph :errors])))))
+(deftest sew-simulator-trace-is-a-portability-fixture-not-chain-evidence
+  (let [trace-path "suites/sew-domain-reference-v1/expected/traces/sew-002-pending-settlement-expiry.trace.json"
+        sidecar-path (str/replace trace-path ".trace.json" ".trace.sha256")
+        bytes (java.nio.file.Files/readAllBytes (.toPath (io/file trace-path)))
+        digest (apply str (map #(format "%02x" (bit-and (int %) 0xff))
+                               (.digest (java.security.MessageDigest/getInstance "SHA-256") bytes)))
+        pinned "203acbb6695bf68979862d6616ce4be09b95ca62ba517bc52f96ed10e254ba6d"
+        trace (json/read-str (String. bytes "UTF-8"))
+        sidecar (str/trim (slurp sidecar-path))
+        trace-root (str "sha256:" digest)
+        subject {:subject/root trace-root :subject/kind :sew/simulator-trace}
+        first-node (evidence subject :declared :causal-parent-roots [])
+        steps (get trace "steps")
+        step-nodes (second
+                    (reduce (fn [[parent-hash nodes] step]
+                              (let [cutpoint-kind (keyword
+                                                   (str "sew-step-" (get step "seq") "-"
+                                                        (-> (get step "event_type")
+                                                            str/lower-case
+                                                            (str/replace #"[^a-z0-9]+" "-"))))
+                                    entry (evidence subject :declared
+                                                    :parent-nodes [parent-hash]
+                                                    :causal-parent-roots [trace-root]
+                                                    :actor {:actor/root trace-root
+                                                            :actor/role :system}
+                                                    :cutpoint {:cutpoint/root trace-root
+                                                               :cutpoint/kind cutpoint-kind})]
+                                [(:node-hash entry) (conj nodes entry)]))
+                            [(:node-hash first-node) []]
+                            steps))
+        gap-node (evidence subject :declared
+                           :parent-nodes [(-> step-nodes last :node-hash)]
+                           :causal-parent-roots [trace-root]
+                           :gap {:gap/status :not-verifiable
+                                 :gap/reason :simulator-only-no-chain-observation})
+        nodes (into [first-node] (conj step-nodes gap-node))
+        production (producer/produce
+                    {:adapter-id :sew/reference-trace
+                     :adapter-version 1
+                     :artifact-roots [trace-root]
+                     :nodes nodes})]
+    (is (= pinned digest))
+    (is (= pinned sidecar))
+    (is (= 6 (count steps)))
+    (is (:valid? (get-in production [:graph])))
+    (is (= (+ 2 (count steps)) (get-in production [:graph :summary :node-count])))
+    (is (= :sew/reference-trace (:adapter/id production)))
+    (is (every? #(= :sew/simulator-trace
+                    (get-in % [:extensions :forensic/subject :subject/kind]))
+                (:nodes production)))
+    (is (= (set (map #(keyword
+                       (str "sew-step-" (get % "seq") "-"
+                            (-> (get % "event_type")
+                                str/lower-case
+                                (str/replace #"[^a-z0-9]+" "-"))))
+                     steps))
+           (set (keep #(get-in % [:extensions :forensic/cutpoint :cutpoint/kind])
+                      (:nodes production))))
+        "Cutpoints identify the ordered source trace steps.")
+    (is (= :not-verifiable
+           (->> (:nodes production)
+                (keep #(get-in % [:extensions :forensic/gap :gap/status]))
+                first))
+        "The graph does not promote simulator steps to chain observations.")))

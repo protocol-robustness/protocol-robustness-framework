@@ -24,6 +24,7 @@ Relevant implementation paths:
 
 - `src/resolver_sim/evidence/node.clj`
 - `src/resolver_sim/evidence/forensic_graph.clj`
+- `src/resolver_sim/evidence/graph_producer.clj`
 - `src/resolver_sim/evidence/forensic_adapter.clj`
 - `src/resolver_sim/evidence/deployment_bound.clj`
 - `src/resolver_sim/evidence/investigation_dispatcher.clj`
@@ -34,10 +35,14 @@ Relevant implementation paths:
 
 An adapter starts from retained artifact bodies and produces typed subjects,
 source roots, proposed relationships, and domain-specific validation results.
-The generic producer may order collections deterministically and build ordinary
-PRF evidence nodes through `build-forensic-evidence-node`. It must not alter
-source artifacts, invent parent links, resolve conflicting observations by
-arrival order, or create a parallel canonical graph identity.
+`resolver-sim.evidence.graph-producer/produce` deterministically orders
+domain-adapted canonical nodes and invokes the existing forensic graph
+validator. The adapter remains responsible for building ordinary PRF evidence
+nodes through `build-forensic-evidence-node` and for proposing parent links.
+The producer must not alter source artifacts, invent parent links, resolve
+conflicting observations by arrival order, or create a parallel canonical graph
+identity. Its adapter and producer versions are reconstruction metadata and do
+not enter canonical node identity.
 
 The adapter must load and validate referenced bodies. Caller-provided
 `verified`, `valid`, `complete`, or equivalent fields are claims to check, not
