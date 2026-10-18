@@ -46,7 +46,16 @@
                               (not= (:case/current-pointer-root bundle)
                                     (current-pointer-root pointer))))
         frames (:case/frames bundle)
-        frame-check (when frames (frames/validate-frame-lineage frames))
+        frame-head (:case/frame-head-root bundle)
+        frame-start (:case/frame-start-state-root bundle)
+        frame-final (:case/frame-final-state-root bundle)
+        frame-check (when (and (seq (:frames frames))
+                               (every? ref/valid-sha256-ref?
+                                       [frame-head frame-start frame-final]))
+                      (frames/validate-frame-lineage
+                       frames {:expected-head-frame-root frame-head
+                               :expected-state-before-root frame-start
+                               :expected-final-state-root frame-final}))
         errors (cond-> []
                  (not= schema (:bundle/schema bundle)) (conj :invalid-schema)
                  (not (and (string? (:case/alias bundle))
@@ -78,24 +87,38 @@
                        (research-history-root research-history))
                  (conj :research-history-anchor-mismatch)
                  bad-pointer? (conj :invalid-current-pointer)
-                 (and frames (not (:valid? frame-check)))
+                 (and (seq (:frames frames)) (not (:valid? frame-check)))
                  (conj :invalid-frame-lineage)
                  (not= (:bundle/root bundle) (bundle-root bundle))
                  (conj :bundle-root-mismatch))
         incentive-links (:case/incentive-links bundle)
+        incentive-state (:case/incentive-state bundle)
         invalid-incentive-links (when incentive-links
                                   (seq (for [[_ root] incentive-links
                                              :when (not (ref/valid-sha256-ref? root))]
                                          root)))
         errors (cond-> errors invalid-incentive-links
-                 (conj :invalid-incentive-link))]
+                 (conj :invalid-incentive-link)
+                 (and incentive-links
+                      (not (every? #{:unverified :verified}
+                                   (map incentive-state
+                                        [:eligibility :obligation :funding :allocation]))))
+                 (conj :invalid-incentive-state)
+                 (and incentive-links
+                      (= :paid (:payment incentive-state))
+                      (not (ref/valid-sha256-ref? (:payment/root incentive-state))))
+                 (conj :payment-claim-without-payment-evidence))]
     {:valid? (empty? errors)
      :errors errors
-     :verification/status (if (empty? errors) :verified :invalid)
+     :verification/status (if (empty? errors) :structurally-valid :invalid)
+     :verification/completeness (if (and frame-check
+                                         (= :verified (:research/signature-status bundle))
+                                         (= :verified (:protocol/consumption-status bundle)))
+                                  :complete :partial)
      :verification/frames (cond
-                             (nil? frames) :unverified
-                             (:valid? frame-check) :verified
-                             :else :invalid)
+                            (nil? frame-check) :unverified
+                            (:valid? frame-check) :verified
+                            :else :invalid)
      :verification/live-execution :unverified
      :verification/authority :unverified
      :verification/incentives (if (seq incentive-links) :linked-unverified :absent)}))
@@ -121,11 +144,17 @@
 
 (defn resolve-bundle [store root]
   (let [artifact (cas/resolve-artifact store root)
-        check (when artifact (verify-bundle artifact))]
+        check (when artifact (verify-bundle artifact))
+        root-matches? (= root (:bundle/root artifact))
+        errors (cond-> (:errors check)
+                 (and artifact (not root-matches?)) (conj :requested-root-mismatch))]
     {:present? (some? artifact)
-     :valid? (boolean (:valid? check))
-     :verification (or check {:verification/status :unresolved})
-     :bundle (when (:valid? check) artifact)}))
+     :valid? (boolean (and (:valid? check) root-matches?))
+     :verification (if check
+                     (assoc check :valid? (and (:valid? check) root-matches?)
+                                  :errors errors)
+                     {:verification/status :unresolved})
+     :bundle (when (and (:valid? check) root-matches?) artifact)}))
 
 (defn case-view
   "Human-readable projection. The alias is a label; roots remain the identity."
@@ -141,4 +170,5 @@
      :bundle/root (:bundle/root bundle)
      :protocol/history (:case/protocol-history bundle)
      :research/history (:case/research-history bundle)
+     :incentive/state (:case/incentive-state bundle)
      :verification (dissoc check :valid? :errors)}))

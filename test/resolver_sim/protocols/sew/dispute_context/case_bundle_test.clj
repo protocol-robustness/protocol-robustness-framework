@@ -24,6 +24,9 @@
         :economic-effects/status :unverified}]
       :case/research-history research-history
       :case/research-history-anchor (bundle/research-history-root research-history)
+      :case/incentive-state {:eligibility :unverified :obligation :unverified
+                             :funding :unverified :allocation :unverified
+                             :payment :unpaid}
       :case/incentive-links {:policy/root (root :policy)
                              :eligibility/root (root :eligibility)
                              :obligation/root (root :obligation)}})))
@@ -33,13 +36,19 @@
         artifact (fixture)
         stored (bundle/persist-bundle! store artifact)
         resolved (bundle/resolve-bundle store (:bundle/root artifact))
-        view (bundle/case-view (:bundle resolved))]
+        view (bundle/case-view (:bundle resolved))
+        wrong-key (root :wrong-cas-key)]
     (is (= (:bundle/root artifact) (:hash stored)))
     (is (:valid? resolved))
     (is (= "dispute-0042" (:case/alias view)))
     (is (= :unverified (get-in view [:verification :verification/live-execution])))
     (is (= :unverified (get-in view [:verification :verification/frames])))
-    (is (= :linked-unverified (get-in view [:verification :verification/incentives])))))
+    (is (= :partial (get-in view [:verification :verification/completeness])))
+    (is (= :linked-unverified (get-in view [:verification :verification/incentives])))
+    (is (= :unpaid (get-in view [:incentive/state :payment])))
+    (cas/put-if-absent! store {:hash-reference wrong-key :artifact artifact
+                               :verify #(-> (bundle/verify-bundle %) :valid?)})
+    (is (false? (:valid? (bundle/resolve-bundle store wrong-key))))))
 
 (deftest case-bundle-rejects-altered-and-cross-case-history
   (let [artifact (fixture)
@@ -48,6 +57,7 @@
         tampered (assoc-in artifact [:case/protocol-history 0 :basis/root] second-basis)
         omitted-dissent (assoc-in artifact [:case/research-history] [])
         swapped-alias (assoc artifact :case/alias "dispute-9999")
+        forged-payment (assoc-in artifact [:case/incentive-state :payment] :paid)
         forged-pointer (assoc artifact :case/current-pointer
                               {:round/id "round-x" :round/root (root :round-x)
                                :basis/root (root :basis-x)})]
@@ -56,4 +66,5 @@
     (is (false? (:valid? (bundle/verify-bundle tampered))))
     (is (false? (:valid? (bundle/verify-bundle omitted-dissent))))
     (is (false? (:valid? (bundle/verify-bundle swapped-alias))))
+    (is (false? (:valid? (bundle/verify-bundle forged-payment))))
     (is (false? (:valid? (bundle/verify-bundle forged-pointer))))))
