@@ -35,6 +35,18 @@ class EvidenceError(ValueError):
     """Raised when retained evidence is incomplete or internally inconsistent."""
 
 
+class VerificationUnavailable(EvidenceError):
+    """Raised when the pinned proof check cannot run in this environment."""
+
+
+class RpcUnavailable(EvidenceError):
+    """Raised when the local JSON-RPC endpoint cannot be reached or decoded."""
+
+
+class RpcMethodError(EvidenceError):
+    """Raised when JSON-RPC returns a method/execution error."""
+
+
 def _json(path: Path) -> Any:
     try:
         return json.loads(path.read_text())
@@ -200,9 +212,9 @@ def _rpc(rpc_url: str, method: str, params: list[Any]) -> Any:
         with urllib.request.urlopen(request, timeout=10) as response:
             payload = json.loads(response.read())
     except (OSError, urllib.error.URLError, json.JSONDecodeError) as exc:
-        raise EvidenceError(f"live RPC failed for {method}") from exc
+        raise RpcUnavailable(f"live RPC failed for {method}") from exc
     if payload.get("error") or "result" not in payload:
-        raise EvidenceError(f"live RPC returned an error for {method}: {payload.get('error')}")
+        raise RpcMethodError(f"live RPC returned an error for {method}: {payload.get('error')}")
     return payload["result"]
 
 
@@ -309,47 +321,70 @@ def verify_groth16_reference(raw: Path) -> dict[str, Any]:
     except (KeyError, ValueError) as exc:
         raise EvidenceError("proof or verifier runtime bytes are missing or malformed") from exc
     if not shutil.which("cast"):
-        raise EvidenceError("unsupported: cast is required to verify the pinned verifier runtime hash")
-    verifier_keccak = subprocess.run(["cast", "keccak", verifier_code], capture_output=True, text=True, check=False)
-    if verifier_keccak.returncode != 0 or verifier_keccak.stdout.strip().lower() != SP1_GROTH16_VERIFIER_V6_1_0_KECCAK:
+        raise VerificationUnavailable("cast is required to verify the pinned verifier runtime hash")
+    try:
+        verifier_keccak = subprocess.run(["cast", "keccak", verifier_code], capture_output=True, text=True, check=False)
+    except OSError as exc:
+        raise VerificationUnavailable(f"cast cannot be started in this environment ({type(exc).__name__})") from exc
+    if verifier_keccak.returncode != 0:
+        raise VerificationUnavailable("cast could not compute the pinned verifier runtime hash")
+    if verifier_keccak.stdout.strip().lower() != SP1_GROTH16_VERIFIER_V6_1_0_KECCAK:
         raise EvidenceError("reference verifier runtime does not match the pinned v6.1.0 code hash")
     if len(public_values) != 288 or len(proof_bytes) != 356:
         raise EvidenceError("pinned successor reference check requires 288 public bytes and a 356-byte Groth16 proof")
 
     if not shutil.which("anvil"):
-        raise EvidenceError("unsupported: anvil is required for direct Groth16 reference verification")
-    with socket.socket() as sock:
-        sock.bind(("127.0.0.1", 0))
-        port = sock.getsockname()[1]
-    process = subprocess.Popen(
-        ["anvil", "--silent", "--chain-id", "31337", "--host", "127.0.0.1", "--port", str(port)],
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
-    )
+        raise VerificationUnavailable("anvil is required for direct Groth16 reference verification")
+    try:
+        with socket.socket() as sock:
+            sock.bind(("127.0.0.1", 0))
+            port = sock.getsockname()[1]
+        process = subprocess.Popen(
+            ["anvil", "--silent", "--chain-id", "31337", "--host", "127.0.0.1", "--port", str(port)],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+    except OSError as exc:
+        raise VerificationUnavailable(f"local Anvil cannot be started in this environment ({type(exc).__name__})") from exc
     rpc_url = f"http://127.0.0.1:{port}"
+    proof_status = "verified"
+    proof_failure = None
     try:
         for _ in range(100):
             if process.poll() is not None:
-                raise EvidenceError("local Anvil exited before reference verification")
+                raise VerificationUnavailable("local Anvil exited before reference verification")
             try:
                 chain_id = _int(_rpc(rpc_url, "eth_chainId", []))
                 break
             except EvidenceError:
                 time.sleep(0.05)
         else:
-            raise EvidenceError("local Anvil did not become ready for reference verification")
+            raise VerificationUnavailable("local Anvil did not become ready for reference verification")
         if chain_id != 31337:
             raise EvidenceError("reference verifier must run on disposable local chain 31337")
-        _rpc(rpc_url, "anvil_setCode", [verifier_address, verifier_code])
-        if _norm(_rpc(rpc_url, "eth_getCode", [verifier_address, "latest"])) != _norm(verifier_code):
+        try:
+            _rpc(rpc_url, "anvil_setCode", [verifier_address, verifier_code])
+            installed_code = _rpc(rpc_url, "eth_getCode", [verifier_address, "latest"])
+        except (RpcUnavailable, RpcMethodError) as exc:
+            raise VerificationUnavailable("local Anvil cannot install or read the pinned verifier runtime") from exc
+        if _norm(installed_code) != _norm(verifier_code):
             raise EvidenceError("local reference verifier runtime differs from the pinned artifact")
-        result = _rpc(
-            rpc_url,
-            "eth_call",
-            [{"to": verifier_address, "data": _sp1_verify_calldata(fixture["vkey"], public_values, proof_bytes)}, "latest"],
-        )
-        if result != "0x":
-            raise EvidenceError("SP1 Groth16 verifier returned unexpected data")
+        try:
+            result = _rpc(
+                rpc_url,
+                "eth_call",
+                [{"to": verifier_address, "data": _sp1_verify_calldata(fixture["vkey"], public_values, proof_bytes)}, "latest"],
+            )
+        except RpcUnavailable as exc:
+            raise VerificationUnavailable("local Anvil RPC became unavailable during Groth16 reference verification") from exc
+        except RpcMethodError as exc:
+            if process.poll() is not None:
+                raise VerificationUnavailable("local Anvil stopped during Groth16 reference verification") from exc
+            proof_status = "not_verified"
+            proof_failure = "pinned verifier rejected the exact proof/public-values call"
+        else:
+            if result != "0x":
+                raise EvidenceError("SP1 Groth16 verifier returned unexpected data")
     finally:
         process.terminate()
         try:
@@ -361,7 +396,7 @@ def verify_groth16_reference(raw: Path) -> dict[str, Any]:
     words = _words(fixture["public_values"])
     return {
         "schema": "prf.source-bound-entitlement-groth16-reference.v1",
-        "status": "verified",
+        "status": proof_status,
         "method": "direct eth_call to pinned SP1VerifierGroth16 v6.1.0 on disposable local Anvil",
         "providerScope": "local-only; this check establishes proof validity, not public-chain execution or finality",
         "chainId": 31337,
@@ -388,6 +423,51 @@ def verify_groth16_reference(raw: Path) -> dict[str, Any]:
         "statementRoot": words[3],
         "configurationRoot": manifest["configurationRoot"],
         "referenceCheckExecuted": True,
+        "failure": proof_failure,
+    }
+
+
+def unsupported_groth16_reference(raw: Path, reason: str) -> dict[str, Any]:
+    """Build an identity-bound unavailable result without claiming verification."""
+    raw = Path(raw)
+    reconstruct(raw)
+    manifest = _json(raw / "deployment-manifest.json")
+    capture = _json(raw / "capture-metadata.json")
+    fixture_path = raw / "proof-fixture.json"
+    fixture = _json(fixture_path)
+    proof_bytes = bytes.fromhex(fixture["proof"].removeprefix("0x"))
+    public_values = bytes.fromhex(fixture["public_values"].removeprefix("0x"))
+    words = _words(fixture["public_values"])
+    return {
+        "schema": "prf.source-bound-entitlement-groth16-reference.v1",
+        "status": "unsupported",
+        "reason": reason,
+        "method": "direct eth_call to pinned SP1VerifierGroth16 v6.1.0 on disposable local Anvil",
+        "providerScope": "local-only; no proof verdict was established",
+        "chainId": manifest["chainId"],
+        "verifier": {"address": _norm(manifest["contracts"]["verifier"]),
+                     "runtimeKeccak256": SP1_GROTH16_VERIFIER_V6_1_0_KECCAK},
+        "source": {
+            "repository": capture.get("source", {}).get("repository"),
+            "revision": capture.get("source", {}).get("revision"),
+            "captureId": capture.get("captureId"),
+            "deploymentManifestDigest": manifest["manifestDigest"],
+        },
+        "programId": fixture["program_id"],
+        "proofSystem": fixture["proof_system"],
+        "vkey": fixture["vkey"],
+        "elfSha256": fixture["elf_sha256"],
+        "publicValuesSchema": fixture["public_values_schema"],
+        "proofSha256": "0x" + _sha256(proof_bytes),
+        "publicValuesSha256": "0x" + _sha256(public_values),
+        "fixtureSha256": "0x" + _sha256(fixture_path.read_bytes()),
+        "witnessSha256": fixture["gate_e"]["witness_sha256"],
+        "operationId": manifest["operationId"],
+        "preparedOperationRoot": words[1],
+        "reserveStateCommitment": words[2],
+        "statementRoot": words[3],
+        "configurationRoot": manifest["configurationRoot"],
+        "referenceCheckExecuted": False,
     }
 
 
@@ -1434,7 +1514,11 @@ def verification_result(
             "chainState": "provider_relative_only" if isinstance(report.get("accounting", {}).get("finalStateObservation"), dict) and str(report["accounting"]["finalStateObservation"].get("status", "")).startswith("validated provider-relative") else "not_authenticated_by_this_profile",
         },
         "optionalChecks": {
-            key: {"status": value.get("status", "unknown"), "scope": value.get("classification", value.get("scope", "check-specific"))}
+            key: {
+                "status": value.get("status", "unknown"),
+                "scope": value.get("classification", value.get("scope", "check-specific")),
+                "reportSha256": "0x" + _sha256((json.dumps(value, sort_keys=True, separators=(",", ":")) + "\n").encode()),
+            }
             for key, value in (optional_checks or {}).items()
         },
         "limitations": [
@@ -1468,6 +1552,7 @@ def main() -> int:
         parser.error("--trusted-report-sha256 requires --mode verify")
     if args.write_proof_check and not args.verify_groth16:
         parser.error("--write-proof-check requires --verify-groth16")
+    exit_status = 0
     try:
         report = verify(
             args.bundle,
@@ -1476,7 +1561,13 @@ def main() -> int:
             args.terminal_state_observation,
         )
         chain_report = verify_live_chain_context(args.bundle, args.rpc_url, args.min_confirmations) if args.rpc_url else None
-        proof_report = verify_groth16_reference(args.bundle) if args.verify_groth16 else None
+        proof_report = None
+        if args.verify_groth16:
+            try:
+                proof_report = verify_groth16_reference(args.bundle)
+            except VerificationUnavailable as exc:
+                proof_report = unsupported_groth16_reference(args.bundle, str(exc))
+                exit_status = 2
     except EvidenceError as exc:
         parser.exit(1, f"FAIL: {exc}\n")
     try:
@@ -1524,11 +1615,17 @@ def main() -> int:
         proof_rendered = json.dumps(proof_report, sort_keys=True, indent=2) + "\n"
         if args.write_proof_check:
             args.write_proof_check.write_text(proof_rendered)
-        print("PASS: pinned SP1 Groth16 reference verifier accepted the exact retained proof and public values")
+        if proof_report["status"] == "verified":
+            print("PASS: pinned SP1 Groth16 reference verifier accepted the exact retained proof and public values")
+        elif proof_report["status"] == "not_verified":
+            print("NOT_VERIFIED: pinned verifier did not accept the exact retained proof and public values")
+            exit_status = 1
+        else:
+            print(f"UNSUPPORTED: direct Groth16 reference check unavailable: {proof_report.get('reason', 'unknown reason')}")
         print(f"proof-reference: {proof_report['proofSha256']} / {proof_report['publicValuesSha256']}")
         if args.write_proof_check:
             print(f"proof check report: {args.write_proof_check}")
-    return 0
+    return exit_status
 
 
 if __name__ == "__main__":
