@@ -1,9 +1,18 @@
 (ns resolver-sim.protocols.sew.dispute-context.disagree
   "Small fail-closed checks for model-only dispute-context/disagree fixtures."
   (:require [clojure.java.io :as io]
-            [clojure.edn :as edn]))
+            [clojure.edn :as edn]
+            [resolver-sim.hash.canonical :as canonical]
+            [resolver-sim.hash.reference :as ref]
+            [resolver-sim.research.ratification :as ratification]))
 
 (def fixture-schema :prf/dispute-context-disagree-fixtures.v1)
+
+(defn- case-subject-root [case]
+  (ref/sha256-ref
+   (canonical/domain-hash
+    :prf-dispute-resolution-closure-v1
+    (select-keys case [:case/id :workflow/id :round/id :basis/root]))))
 
 (defn- case-errors [case]
   (let [{:keys [posted posting-fee custodied] :as bond} (:bond case)
@@ -73,6 +82,52 @@
                                 (when (not= (get expected key) (get supplied key)) key))
                               keys))]
     {:valid? (empty? mismatches) :mismatches mismatches}))
+
+(defn verify-research-dissent
+  "Verify a case-bound signed researcher dissent through PRF's generic
+   ratification verifier. This records/reconstructs research disagreement; it
+   does not authorize a Sew ruling or change settlement. The caller supplies
+   the canonical target, policy, signed contributions and trusted key
+   bindings, all of which are checked by the generic verifier."
+  [{:keys [case target policy contributions key-bindings]}]
+  (let [research (:research case)
+        scope-errors (cond-> []
+                       (not= :dissent (:position research))
+                       (conj :case-position-is-not-dissent)
+                       (not= (:basis/root case) (:basis/root research))
+                       (conj :case-basis-subject-mismatch)
+                       (not= (case-subject-root case) (:target/subject-root target))
+                       (conj :target-subject-not-bound-to-case)
+                       (not= (:target/root target) (:target/root research))
+                       (conj :case-target-root-mismatch)
+                       (not= (:target/subject-root target) (:subject/root research))
+                       (conj :target-subject-mismatch)
+                       (not= (:target/round-root target) (:round/root research))
+                       (conj :target-round-mismatch)
+                       (not= (:policy/root policy) (:policy/root research))
+                       (conj :case-policy-root-mismatch)
+                       (not= (:target/policy-root target) (:policy/root policy))
+                       (conj :target-policy-mismatch)
+                       (not= (get-in case [:settlement :before-root])
+                             (get-in case [:settlement :after-root]))
+                       (conj :researcher-dissent-changed-settlement)
+                       (not-any? #(= :dissent (get-in % [:contribution/decision :decision]))
+                                 contributions)
+                       (conj :signed-dissent-missing))]
+    (if (seq scope-errors)
+      {:valid? false :errors scope-errors}
+      (try
+        (let [result (ratification/reconstruct-ratification
+                      {:target target :policy policy :contributions contributions
+                       :key-bindings key-bindings})]
+          {:valid? true
+           :signature/status :verified
+           :ratification/root (:ratification/root result)
+           :ratification/status (:ratification/status result)
+           :operational-authority? false})
+        (catch clojure.lang.ExceptionInfo error
+          {:valid? false
+           :errors (or (:errors (ex-data error)) [:invalid-ratification-inputs])})))))
 
 (defn load-fixtures
   ([] (load-fixtures "data/fixtures/dispute-context/disagree.edn"))
