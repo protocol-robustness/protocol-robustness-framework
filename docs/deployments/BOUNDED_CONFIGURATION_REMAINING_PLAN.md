@@ -607,7 +607,10 @@ cases and resulting authority state are independently observed.
 The preserved v2 candidate package roots still reproduce from the four retained
 artifacts, and the genesis seal-gate suite passes (2 tests, 27 assertions).
 However, the source-lock regression test fails against the current checkout:
-`src/resolver_sim/cli/dispatch.clj` has digest
+9 of the 926 locked source entries have changed, with none missing. The drift
+includes `src/resolver_sim/hash/canonical.clj`, CLI dispatch/registry, several
+command handlers, and the scenario runner. For example,
+`src/resolver_sim/cli/dispatch.clj` now has digest
 `44b4ab41765943bc8c745ca520518f738f478f2ece125f048a4ecb5f80054316`, while
 the frozen release lock expects
 `4c95a6c16d9bfb5ea3f33434361f4211f7f2a385b2d81a783aecb2490555fcaf`.
