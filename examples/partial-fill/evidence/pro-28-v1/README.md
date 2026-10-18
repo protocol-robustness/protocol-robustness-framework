@@ -181,3 +181,61 @@ each observed account and supply delta to its transaction logs. These are
 provider-relative local observations; they do not establish public-chain
 consensus or finality. The profile applies only to the pinned local token
 runtime and does not qualify fee-on-transfer, rebasing, or arbitrary tokens.
+
+## Allocator claim-state observations (PRO-30)
+
+On a fresh local replay, `scripts/forensic/pro30_allocator_state.py` records
+the successor allocator's public ABI state immediately before activation,
+after activation/before Alice, after each successful Alice/Bob/Carol claim,
+and at close. Each snapshot is tied to one block hash, its sole transaction,
+the operation and prepared-operation roots, and the deployed allocator runtime
+identity. It reads `claimedAmount`, `claimedCount`, `outstandingLiability`,
+`consumed(operationId,index)`, `consumedClaimIdentity`, and the 12-word
+`entitlementOperation` ABI. It uses these public getters instead of guessing
+private packed-storage slots.
+
+Start a **fresh** loopback Anvil on a port not used by another replay, then
+replay the retained signed transactions into a new output directory. Keep the
+Anvil process running through both observation commands:
+
+```bash
+anvil --host 127.0.0.1 --port 18550 --chain-id 31337
+```
+
+```bash
+python3 scripts/forensic/replay_pro28_local_capture.py \
+  examples/partial-fill/evidence/pro-28-v1/raw/fresh-replay-pro56-20261018 \
+  examples/partial-fill/evidence/pro-28-v1/raw/fresh-replay-pro30-20261018 \
+  --rpc-url http://127.0.0.1:18550
+
+python3 scripts/forensic/pro29_token_accounting.py \
+  examples/partial-fill/evidence/pro-28-v1/raw/fresh-replay-pro30-20261018 \
+  --rpc-url http://127.0.0.1:18550 \
+  --write examples/partial-fill/evidence/pro-28-v1/raw/fresh-replay-pro30-20261018/token-accounting-observations.json
+
+python3 scripts/forensic/pro30_allocator_state.py \
+  examples/partial-fill/evidence/pro-28-v1/raw/fresh-replay-pro30-20261018 \
+  --rpc-url http://127.0.0.1:18550 \
+  --write examples/partial-fill/evidence/pro-28-v1/raw/fresh-replay-pro30-20261018/allocator-state-observations.json
+```
+
+Independently regenerate the allocator snapshots against the same running
+local chain:
+
+```bash
+python3 scripts/forensic/pro30_allocator_state.py \
+  examples/partial-fill/evidence/pro-28-v1/raw/fresh-replay-pro30-20261018 \
+  --rpc-url http://127.0.0.1:18550 \
+  --verify examples/partial-fill/evidence/pro-28-v1/raw/fresh-replay-pro30-20261018/allocator-state-observations.json
+```
+
+The verifier rejects reordered or stale blocks, ambiguous multi-transaction
+blocks, operation-root substitution, inconsistent consumed-index and claim-ID
+state, incorrect liability transitions, and any mismatch with a fresh read of
+the RPC. It also issues a non-persisting `eth_call` replay of Alice's already
+consumed claim and requires contract rejection. The replay probe is not a
+submitted transaction. The captured states establish local provider-relative
+observations, not state proofs, public-chain consensus or finality. The
+reproduction bundle distinguishes calculated claims, successful claim
+receipts, queried allocator state and token balance reconciliation; it does
+not make a public deployment or production qualification claim.

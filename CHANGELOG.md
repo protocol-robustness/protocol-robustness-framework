@@ -45,6 +45,10 @@
   transaction-bound token balance snapshots and complete Transfer-log
   reconciliation. Same-block intermediate states fail closed.
 
+- Added `scripts/forensic/pro30_allocator_state.py` and the
+  `eae.pro-30-allocator-state-observations.v1` local evidence format for
+  block-bound allocator claim, consumed-index, liability, and closure state.
+
 - Clarified that the 2026-09-28 V2 audit is a historical baseline and documented the separately implemented 288-byte successor-entitlement lifecycle with pinned local evidence; the legacy 192-byte profile remains unchanged.
 
 - Fixed the real V2/SP1 runner source inventory to cover crate-local Rust sources; added an ARTIFACT_DIR override so retries preserve failed-run evidence.
