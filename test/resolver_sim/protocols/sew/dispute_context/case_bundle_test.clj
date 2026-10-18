@@ -1,5 +1,5 @@
 (ns resolver-sim.protocols.sew.dispute-context.case-bundle-test
-  (:require [clojure.test :refer [deftest is testing]]
+  (:require [clojure.test :refer [deftest is]]
             [resolver-sim.hash.canonical :as canonical]
             [resolver-sim.hash.reference :as ref]
             [resolver-sim.io.content-addressed-store :as cas]
@@ -38,6 +38,7 @@
     (is (:valid? resolved))
     (is (= "dispute-0042" (:case/alias view)))
     (is (= :unverified (get-in view [:verification :verification/live-execution])))
+    (is (= :unverified (get-in view [:verification :verification/frames])))
     (is (= :linked-unverified (get-in view [:verification :verification/incentives])))))
 
 (deftest case-bundle-rejects-altered-and-cross-case-history
