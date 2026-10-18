@@ -186,7 +186,7 @@
   "preparedOperationRoot": "0xe0c2dc5821ca3b6ec330d8af7bcb407400b19bff4d8ee08f727970494dd85eb2",
   "proof": {
     "allocationSpecificOutput": "deployment-bound roots are checked against the manifest and witness; portable source-vector roots are not substituted for deployment-specific roots",
-    "cryptographicVerification": "passed by the pinned SP1 Groth16 verifier in the retained fresh-fork test run",
+    "cryptographicVerification": "not independently verified; historical Foundry output is not cryptographic verification",
     "elfSha256": "0x636330de8e7af3485aba50bd3ca4b5e024cc4f977a2bf0f2c005f711e5ffacf8",
     "programId": "source-bound-entitlement-sp1-program.v1",
     "proofSha256": "0xe05b68dbeeae20194c0664946c304ed006c42a818e371b1d6466c7a1d57d725b",
@@ -216,6 +216,12 @@
     "funding": 6,
     "withdrawals": 9
   },
+  "reportCorrection": {
+    "previousReportSha256": "7a13c85cdc6eed37ee737c2b31be46a156bd2968b0132bdecb5cbd2523b766a7",
+    "reason": "The prior report inferred cryptographic verification from mutable Foundry output text. The current verifier does not independently verify SP1 proofs.",
+    "replacementReport": "fresh-replay-20261017-reconstruction.json"
+  },
+  "reportStatus": "historical_report_superseded_for_cryptographic_claims",
   "runtimeCodeIdentity": {
     "binding": "source revision, compiler settings and deployment transaction inputs are retained; runtime code hashes were not captured",
     "status": "not present in retained replay package"
@@ -231,8 +237,8 @@
     "cryptographicVerification": {
       "programId": "source-bound-entitlement-sp1-program.v1",
       "proofSystem": "groth16",
-      "status": "passed by local Foundry execution",
-      "testOutputSha256": "0x6302e8fdab3d22d9baef24bc5ff1eb5433032238225834f2e1dcfbf58f1cbcb9",
+      "reason": "historical report relied on mutable test-log text; no independent SP1 verification was run by this report",
+      "status": "not_independently_verified",
       "vkey": "0x00d90efa52d17e54670a4248f001e4da443a938f12c55d0d414c125ba68087b9"
     },
     "economicReconciliation": {

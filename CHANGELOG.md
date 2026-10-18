@@ -13,6 +13,7 @@
 ### PRO-28 receipt-level local execution evidence
 
 - Strengthened `scripts/forensic/pro28_receipts.py` to bind the sponsor deposit, allocator funding, and each payout to the matching transaction call data as well as receipt, log, contract, and block identities. Added a corrected RPC-captured local replay; the earlier 2026-10-13 capture is retained but rejected because its transaction payload metadata did not match the receipt effects. Local Anvil evidence remains explicitly non-public and non-canonical.
+- Foundry log text no longer counts as cryptographic proof verification. Live-chain checks now require and compare a captured chain-ID/genesis-hash fingerprint; older captures without it fail closed pending recapture.
 
 ### PRO-31 live chain-context revalidation
 

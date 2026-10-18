@@ -186,7 +186,15 @@ def test_forged_verification_labels_do_not_replace_validators(bundle: Path) -> N
     (bundle / "caller-verification.json").write_text('{"verified":true,"claim":"all evidence authentic"}\n')
     report = pro28_receipts.reconstruct(bundle)
     assert report["successfulReceiptCount"] == 41
-    assert report["proof"]["cryptographicVerification"].startswith("passed by the pinned SP1")
+    assert report["verificationResults"]["cryptographicVerification"]["status"] == "not_independently_verified"
+    assert report["proof"]["cryptographicVerification"].startswith("not independently verified")
+
+
+def test_mutated_success_log_cannot_upgrade_cryptographic_status(bundle: Path) -> None:
+    (bundle / "fork-test.log").write_text("Suite result: ok. 4 passed; 0 failed; 0 skipped\n")
+    report = pro28_receipts.reconstruct(bundle)
+    assert report["verificationResults"]["proofTestRunObservation"]["status"] == "success_string_observed"
+    assert report["verificationResults"]["cryptographicVerification"]["status"] == "not_independently_verified"
 
 
 def test_incomplete_and_conflicting_observations_reject(bundle: Path) -> None:
@@ -212,7 +220,7 @@ def test_tampered_runtime_observation_rejects(bundle: Path) -> None:
 
 def _mock_rpc(bundle: Path, *, replace_anchor: bool = False, wrong_parent: bool = False,
               wrong_code: bool = False, wrong_latest_code: bool = False, wrong_chain: bool = False,
-              wrong_input: bool = False):
+              wrong_input: bool = False, wrong_genesis: bool = False):
     runtime = load(bundle / "runtime-code-observations.json")
     manifest = load(bundle / "deployment-manifest.json")
     transactions, _ = pro28_receipts._load_receipts(bundle)
@@ -263,6 +271,8 @@ def _mock_rpc(bundle: Path, *, replace_anchor: bool = False, wrong_parent: bool 
         if method == "eth_getBlockByNumber":
             number = int(params[0], 16)
             block = dict(headers[number])
+            if wrong_genesis and number == 0:
+                block["hash"] = "0x" + "ef" * 32
             if replace_anchor and number == runtime["blockNumber"]:
                 block["hash"] = "0x" + "ee" * 32
             if wrong_parent and number == runtime["blockNumber"]:
@@ -286,7 +296,22 @@ def _mock_rpc(bundle: Path, *, replace_anchor: bool = False, wrong_parent: bool 
     return rpc
 
 
+def _bind_test_chain_identity(bundle: Path) -> None:
+    """Bind this copied test fixture to the mock RPC's deterministic genesis."""
+    capture_path = bundle / "capture-metadata.json"
+    capture = load(capture_path)
+    genesis_hash = "0x" + f"{1:064x}"
+    capture["localChainIdentity"] = {
+        "schema": "prf.local-chain-fingerprint.v1",
+        "chainId": capture["chainId"],
+        "genesisBlockHash": genesis_hash,
+        "fingerprint": pro28_receipts.local_chain_fingerprint(capture["chainId"], genesis_hash),
+    }
+    save(capture_path, capture)
+
+
 def test_live_check_revalidates_block_receipts_and_runtime_against_rpc(bundle: Path, monkeypatch) -> None:
+    _bind_test_chain_identity(bundle)
     monkeypatch.setattr(pro28_receipts, "_rpc", _mock_rpc(bundle))
     report = pro28_receipts.verify_live_chain_context(bundle, "http://unused.local")
     assert report["transactionsChecked"] == 41
@@ -294,21 +319,25 @@ def test_live_check_revalidates_block_receipts_and_runtime_against_rpc(bundle: P
     assert report["runtimeCodeCurrentAtLatest"] is True
     assert report["finalityClaimed"] is False
     assert report["environmentId"] == "pro-28-fresh-local-replay-20261017"
+    assert report["localChainIdentity"]["scope"].startswith("chain lineage fingerprint")
 
 
 def test_live_check_rejects_replaced_canonical_block(bundle: Path, monkeypatch) -> None:
+    _bind_test_chain_identity(bundle)
     monkeypatch.setattr(pro28_receipts, "_rpc", _mock_rpc(bundle, replace_anchor=True))
     with pytest.raises(pro28_receipts.EvidenceError, match="orphaned or replaced"):
         pro28_receipts.verify_live_chain_context(bundle, "http://unused.local")
 
 
 def test_live_check_rejects_replaced_parent_context(bundle: Path, monkeypatch) -> None:
+    _bind_test_chain_identity(bundle)
     monkeypatch.setattr(pro28_receipts, "_rpc", _mock_rpc(bundle, wrong_parent=True))
     with pytest.raises(pro28_receipts.EvidenceError, match="parent link"):
         pro28_receipts.verify_live_chain_context(bundle, "http://unused.local")
 
 
 def test_live_check_rejects_chain_and_runtime_substitution(bundle: Path, monkeypatch) -> None:
+    _bind_test_chain_identity(bundle)
     monkeypatch.setattr(pro28_receipts, "_rpc", _mock_rpc(bundle, wrong_chain=True))
     with pytest.raises(pro28_receipts.EvidenceError, match="chain ID"):
         pro28_receipts.verify_live_chain_context(bundle, "http://unused.local")
@@ -321,6 +350,7 @@ def test_live_check_rejects_chain_and_runtime_substitution(bundle: Path, monkeyp
 
 
 def test_live_check_rejects_transaction_call_payload_substitution(bundle: Path, monkeypatch) -> None:
+    _bind_test_chain_identity(bundle)
     monkeypatch.setattr(pro28_receipts, "_rpc", _mock_rpc(bundle, wrong_input=True))
     with pytest.raises(pro28_receipts.EvidenceError, match="differs from retained input"):
         pro28_receipts.verify_live_chain_context(bundle, "http://unused.local")
@@ -333,4 +363,17 @@ def test_live_check_rejects_nonlocal_evidence_profile(bundle: Path, monkeypatch)
     save(capture_path, capture)
     monkeypatch.setattr(pro28_receipts, "_rpc", _mock_rpc(bundle))
     with pytest.raises(pro28_receipts.EvidenceError, match="explicitly local-only evidence"):
+        pro28_receipts.verify_live_chain_context(bundle, "http://unused.local")
+
+
+def test_live_check_requires_captured_chain_identity(bundle: Path, monkeypatch) -> None:
+    monkeypatch.setattr(pro28_receipts, "_rpc", _mock_rpc(bundle))
+    with pytest.raises(pro28_receipts.EvidenceError, match="lacks an observed local-chain fingerprint"):
+        pro28_receipts.verify_live_chain_context(bundle, "http://unused.local")
+
+
+def test_live_check_rejects_different_genesis_chain(bundle: Path, monkeypatch) -> None:
+    _bind_test_chain_identity(bundle)
+    monkeypatch.setattr(pro28_receipts, "_rpc", _mock_rpc(bundle, wrong_genesis=True))
+    with pytest.raises(pro28_receipts.EvidenceError, match="fingerprint differs"):
         pro28_receipts.verify_live_chain_context(bundle, "http://unused.local")

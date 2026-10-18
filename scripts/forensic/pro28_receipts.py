@@ -175,6 +175,20 @@ def _quantity(value: int) -> str:
     return hex(value)
 
 
+def local_chain_fingerprint(chain_id: int, genesis_block_hash: str) -> str:
+    """Fingerprint the observed local chain lineage, not a unique RPC process."""
+    normalized_hash = _norm(genesis_block_hash)
+    if len(normalized_hash) != 66 or not normalized_hash.startswith("0x"):
+        raise EvidenceError("local chain identity has an invalid genesis block hash")
+    try:
+        bytes.fromhex(normalized_hash[2:])
+    except ValueError as exc:
+        raise EvidenceError("local chain identity has an invalid genesis block hash") from exc
+    return "sha256:" + _sha256(
+        f"prf.local-chain-fingerprint.v1\n{chain_id}\n{normalized_hash}\n".encode()
+    )
+
+
 def _block_by_number(rpc_url: str, number: int) -> dict[str, Any]:
     block = _rpc(rpc_url, "eth_getBlockByNumber", [_quantity(number), False])
     if not isinstance(block, dict) or _int(block.get("number", "-1")) != number:
@@ -227,9 +241,24 @@ def verify_live_chain_context(raw: Path, rpc_url: str, min_confirmations: int | 
     if (capture.get("runtimeObservation", {}).get("codeFetchedAtBlock") != runtime.get("blockNumber")
             or capture.get("runtimeObservation", {}).get("contractsObserved") != len(runtime.get("contracts", {}))):
         raise EvidenceError("capture metadata does not bind the runtime observation block and contract count")
+    captured_identity = capture.get("localChainIdentity")
+    if (not isinstance(captured_identity, dict)
+            or captured_identity.get("schema") != "prf.local-chain-fingerprint.v1"
+            or captured_identity.get("chainId") != manifest["chainId"]
+            or not isinstance(captured_identity.get("genesisBlockHash"), str)
+            or not isinstance(captured_identity.get("fingerprint"), str)):
+        raise EvidenceError("capture metadata lacks an observed local-chain fingerprint; fresh capture required")
     chain_id = _int(_rpc(rpc_url, "eth_chainId", []))
     if chain_id != manifest["chainId"]:
         raise EvidenceError(f"live RPC chain ID {chain_id} differs from evidence chain ID {manifest['chainId']}")
+    if captured_identity["chainId"] != chain_id:
+        raise EvidenceError("captured local-chain identity has a different chain ID")
+    genesis = _block_by_number(rpc_url, 0)
+    live_genesis_hash = _norm(genesis.get("hash", ""))
+    expected_fingerprint = local_chain_fingerprint(chain_id, captured_identity["genesisBlockHash"])
+    if (live_genesis_hash != _norm(captured_identity["genesisBlockHash"])
+            or captured_identity["fingerprint"] != expected_fingerprint):
+        raise EvidenceError("live RPC local-chain fingerprint differs from captured identity")
 
     threshold = max(0, min_confirmations or 0)
     latest_number = _int(_rpc(rpc_url, "eth_blockNumber", []))
@@ -348,6 +377,13 @@ def verify_live_chain_context(raw: Path, rpc_url: str, min_confirmations: int | 
         "status": "passed",
         "classification": "localOnly provider-relative canonicality check; not public-chain finality or independent consensus proof",
         "environmentId": capture["captureId"],
+        "localChainIdentity": {
+            "schema": "prf.local-chain-fingerprint.v1",
+            "chainId": chain_id,
+            "genesisBlockHash": live_genesis_hash,
+            "fingerprint": expected_fingerprint,
+            "scope": "chain lineage fingerprint; does not uniquely identify an RPC provider or Anvil process",
+        },
         "chainId": chain_id,
         "deploymentManifestDigest": manifest["manifestDigest"],
         "operationId": manifest["operationId"],
@@ -726,10 +762,15 @@ def reconstruct(raw: Path) -> dict[str, Any]:
                 "checkedArtifacts": [str(path.relative_to(raw)) for path in artifact_paths],
             },
             "cryptographicVerification": {
-                "status": "passed by local Foundry execution" if "Suite result: ok. 4 passed; 0 failed; 0 skipped" in test_log else "failed or incomplete",
+                "status": "not_independently_verified",
                 "programId": fixture["program_id"],
                 "proofSystem": fixture["proof_system"],
                 "vkey": fixture["vkey"],
+                "reason": "the retained Foundry log is mutable execution output; this verifier does not rerun the pinned SP1 verifier",
+            },
+            "proofTestRunObservation": {
+                "status": "success_string_observed" if "Suite result: ok. 4 passed; 0 failed; 0 skipped" in test_log else "success_string_absent",
+                "scope": "retained Foundry test-log text only; does not establish cryptographic proof validity",
                 "testOutputSha256": "0x" + _sha256((raw / "fork-test.log").read_bytes()),
             },
             "executionObservation": {
@@ -771,7 +812,7 @@ def reconstruct(raw: Path) -> dict[str, Any]:
             "witnessSha256": fixture["gate_e"]["witness_sha256"],
             "words": public_values,
             "allocationSpecificOutput": "deployment-bound roots are checked against the manifest and witness; portable source-vector roots are not substituted for deployment-specific roots",
-            "cryptographicVerification": "passed by the pinned SP1 Groth16 verifier in the retained fresh-fork test run",
+            "cryptographicVerification": "not independently verified; retained Foundry output is not treated as cryptographic verification",
         },
         "contractAddresses": manifest["contracts"],
         "runtimeCodeIdentity": (
@@ -855,6 +896,7 @@ def main() -> int:
     print(f"PASS: {report['successfulReceiptCount']} successful receipts cross-linked")
     print("PASS: sponsor deposit 80, allocator funding 70, claims 35/21/14 bound to receipt and log identities")
     print(f"classification: {report['classification']}")
+    print("cryptographic proof: NOT_INDEPENDENTLY_VERIFIED (retained test-log text is not proof verification)")
     if args.write_report:
         print(f"report: {args.write_report}")
     if chain_report is not None:
