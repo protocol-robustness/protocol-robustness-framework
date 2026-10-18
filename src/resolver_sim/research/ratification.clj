@@ -68,7 +68,11 @@
   (let [errors (cond-> []
                  (not= policy-schema (:schema/version policy)) (conj :unsupported-policy-schema)
                  (not (keyword? (:policy/id policy))) (conj :invalid-policy-id)
-                 (not (set? (:policy/eligible-principals policy))) (conj :invalid-eligible-principals)
+                 (not (sha256? (:policy/authority-root policy))) (conj :invalid-policy-authority-root)
+                 (not (vector? (:policy/eligible-principals policy))) (conj :invalid-eligible-principals)
+                 (not= (count (:policy/eligible-principals policy))
+                       (count (set (:policy/eligible-principals policy))))
+                 (conj :duplicate-eligible-principal)
                  (empty? (:policy/eligible-principals policy)) (conj :empty-eligible-principals)
                  (not (and (integer? (:policy/threshold policy))
                            (pos? (:policy/threshold policy)))) (conj :invalid-threshold)
@@ -83,10 +87,11 @@
     {:valid? (empty? errors) :errors errors}))
 
 (defn build-policy
-  [{:keys [id eligible-principals threshold allow-dissent? challenges-block?]}]
+  [{:keys [id authority-root eligible-principals threshold allow-dissent? challenges-block?]}]
   (let [policy {:schema/version policy-schema
                 :policy/id id
-                :policy/eligible-principals (set eligible-principals)
+                :policy/authority-root authority-root
+                :policy/eligible-principals (vec (sort (set eligible-principals)))
                 :policy/threshold threshold
                 :policy/allow-dissent? (boolean allow-dissent?)
                 :policy/challenges-block? (boolean challenges-block?)}
@@ -161,7 +166,7 @@
     (cond-> []
       (not= (:target/root target) (:contribution/target-root contribution))
       (conj :foreign-target)
-      (not (contains? (:policy/eligible-principals policy) principal))
+      (not (some #{principal} (:policy/eligible-principals policy)))
       (conj :ineligible-principal)
       (not= principal (:principal/id binding)) (conj :principal-binding-mismatch)
       (not= (:researcher/id decision) (:researcher/id binding))

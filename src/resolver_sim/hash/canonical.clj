@@ -196,6 +196,7 @@
    :research-contribution-subject-v1 "RESEARCH_CONTRIBUTION_SUBJECT_V1"
    :research-contribution-v1 "RESEARCH_CONTRIBUTION_V1"
    :research-ratification-v1 "RESEARCH_RATIFICATION_V1"
+   :research-ratification-artifact-v1 "RESEARCH_RATIFICATION_ARTIFACT_V1"
    :three-member-certificate "THREE_MEMBER_CERTIFICATE_V1"
    :evidence-collection "EVIDENCE_COLLECTION_V1"
    :state-projection "STATE_PROJECTION_V1"

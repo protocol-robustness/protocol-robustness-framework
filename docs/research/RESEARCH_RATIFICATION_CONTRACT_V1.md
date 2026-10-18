@@ -73,6 +73,18 @@ canonical hashes fail; when equivocation or a material challenge violates
 policy; or when dissent/challenge history is omitted. Never infer approval from
 absence of dissent or from a stored `ratified` flag.
 
+## Retained artifact
+
+`prf/research-ratification-artifact.v1` retains the analytical claim and its
+analysis inputs, exact target, policy, signed contributions, reconstructed
+result, trust-root references, and optional incentive-policy, eligibility,
+and obligation roots. The artifact is stored by semantic root in PRF's
+immutable content-addressed store. A fresh verifier replays analysis
+verification and policy evaluation from these inputs and reports claim,
+ratification, and external trust-root verification separately. Incentive roots
+are references to separate PRF obligation machinery; they neither change the
+ratification result nor create or mutate reward obligations.
+
 ## Reuse boundary
 
 | Existing mechanism | Reuse | Does not supply |

@@ -15,6 +15,7 @@
      :or {allow-dissent? true challenges-block? true}}]
    (let [policy (ratification/build-policy
                  {:id :research/policy
+                  :authority-root subject-root
                   :eligible-principals #{:principal/a :principal/b :principal/c :principal/d}
                   :threshold 2
                   :allow-dissent? allow-dissent?
