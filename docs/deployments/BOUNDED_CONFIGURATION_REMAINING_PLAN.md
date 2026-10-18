@@ -602,6 +602,23 @@ evidence only: no trusted owner approval or live deployment has been supplied.
 W1 remains open until the approved transition path is executed and its failure
 cases and resulting authority state are independently observed.
 
+### Current candidate audit (2026-10-18)
+
+The preserved v2 candidate package roots still reproduce from the four retained
+artifacts, and the genesis seal-gate suite passes (2 tests, 27 assertions).
+However, the source-lock regression test fails against the current checkout:
+`src/resolver_sim/cli/dispatch.clj` has digest
+`44b4ab41765943bc8c745ca520518f738f478f2ece125f048a4ecb5f80054316`, while
+the frozen release lock expects
+`4c95a6c16d9bfb5ea3f33434361f4211f7f2a385b2d81a783aecb2490555fcaf`.
+Therefore the retained manifest remains historical review material and cannot
+be signed or used for deployment against the current source tree. Preserve it
+unchanged; before seeking initial-input approval for this checkout, create a
+new source-bound candidate derivation and manifest from a reviewed source lock,
+then obtain approval for that exact new manifest. The source drift does not
+alter the separately reproduced canonical package roots. No approval or live
+deployment evidence is present.
+
 | Order | Work | Concrete output | Gate / dependency |
 | --- | --- | --- | --- |
 | 1 | W0 source and artifact reproducibility is established from the pinned base plus content-addressed overlay. The rebuilt 31 artifact records match the retained v0.4.1 manifest; the historical package root remains unreproduced because its commit object is unavailable. | Reproducible source tree, artifact records, toolchain and refreshed source-lock digests. | This fixes source identity for W2 review; owner approval is still required before deployment. |
