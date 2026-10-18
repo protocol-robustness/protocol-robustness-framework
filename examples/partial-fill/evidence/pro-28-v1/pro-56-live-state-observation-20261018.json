@@ -1,0 +1,179 @@
+{
+  "chainId": 31337,
+  "classification": "localOnly provider-relative eth_call observation; no public-chain or consensus claim",
+  "decodedState": {
+    "allocatorTokenBalance": 0,
+    "claimedAmount": 70,
+    "claimedCount": 3,
+    "entitlementOperation": {
+      "allocationBindingRoot": "0xfe94e946ddaf58eca00c3231672536bf3c01199925c25ec8e2a0d60a325384e5",
+      "allocationClaimRoot": "0xfab874034cf34f9d88e8382aa9c2473c0fd3f36ee9b5a0b358e4a86ae75b7fac",
+      "amount": 70,
+      "beneficiaryProfileWord": "0x88bbb03a2adbbc73f946dc5a1901f1f659b76280869deb4f65c140f361e955fa",
+      "descriptorRoot": "0x0e8b6d0eb8a46279fee6697366b2bdfa0b4aa514dacf17e9e264744d90d91c1f",
+      "entitlementCount": 3,
+      "entitlementTotal": 70,
+      "evmEntitlementTableRoot": "0x52618a7e6f8ea56baf760682b64b12860f56bef7980593f4099c8c5e65783d8d",
+      "representation": "0xc96304e3c037f81da488ed9dea1d8f2a48278a75",
+      "residualRecipient": "0x2222222222222222222222222222222222222222",
+      "stateEnum": 5,
+      "stateName": "Closed",
+      "token": "0x367761085bf3c12e5da2df99ac6e1a824612b8fb"
+    },
+    "outstandingLiability": 0,
+    "recipientTokenBalances": {
+      "alice": 35,
+      "bob": 21,
+      "carol": 14
+    },
+    "reserveTokenBalance": 10,
+    "reserveTotalReserved": 0
+  },
+  "deploymentManifestDigest": "sha256:e9ab2ed1ba0494d9e457ace966b789fcae9332cc42a2dd6c62f3339eeee356f8",
+  "environmentId": "pro-28-local-replay-2ff5f6d429b838c2",
+  "limitations": [
+    "Each eth_call result came from the same local Anvil RPC and is unsigned.",
+    "The captured block hash and chain fingerprint bind this observation to the replayed local chain lineage, not to an independent consensus source.",
+    "No public finality or independent provider authentication is claimed."
+  ],
+  "localChainIdentity": {
+    "chainId": 31337,
+    "fingerprint": "sha256:2ff5f6d429b838c2a44eb463988cfbdfbccd5e9f81c2ec246f7778dc62cb2203",
+    "genesisBlockHash": "0x3cef00afdd096ec6cd3d5f0f018081fad6b149712aaddf75b6669c36b4e78a00",
+    "schema": "prf.local-chain-fingerprint.v1",
+    "scope": "chain lineage fingerprint observed before replay; not a unique RPC provider or Anvil process"
+  },
+  "observationBlock": {
+    "hash": "0x2e8da5053c47eb350941a64278f99c74f40279df83df39255bb9a5bcdaceea7b",
+    "number": 41,
+    "parentHash": "0x24f0bee0edbe8bc251d2808a3e0a5e2d0dcce5be31e3c7cdb5078eb4b4a1b09c"
+  },
+  "operationId": "0x809b4fbdb632eba4671e5d5f35a37ff12aa4ae28e1ec84aece40972b1138755d",
+  "preparedOperationRoot": "0xe0c2dc5821ca3b6ec330d8af7bcb407400b19bff4d8ee08f727970494dd85eb2",
+  "reads": [
+    {
+      "arguments": [
+        "0x7A9Ec1d04904907De0ED7b6839CcdD59c3716AC9"
+      ],
+      "blockHash": "0x2e8da5053c47eb350941a64278f99c74f40279df83df39255bb9a5bcdaceea7b",
+      "blockNumber": 41,
+      "name": "reserveTokenBalance",
+      "rawResult": "10",
+      "signature": "balanceOf(address)(uint256)",
+      "to": "0x367761085BF3C12e5DA2Df99AC6E1a824612b8fb"
+    },
+    {
+      "arguments": [
+        "0x4C2F7092C2aE51D986bEFEe378e50BD4dB99C901"
+      ],
+      "blockHash": "0x2e8da5053c47eb350941a64278f99c74f40279df83df39255bb9a5bcdaceea7b",
+      "blockNumber": 41,
+      "name": "allocatorTokenBalance",
+      "rawResult": "0",
+      "signature": "balanceOf(address)(uint256)",
+      "to": "0x367761085BF3C12e5DA2Df99AC6E1a824612b8fb"
+    },
+    {
+      "arguments": [
+        "0x1111111111111111111111111111111111111111"
+      ],
+      "blockHash": "0x2e8da5053c47eb350941a64278f99c74f40279df83df39255bb9a5bcdaceea7b",
+      "blockNumber": 41,
+      "name": "aliceTokenBalance",
+      "rawResult": "35",
+      "signature": "balanceOf(address)(uint256)",
+      "to": "0x367761085BF3C12e5DA2Df99AC6E1a824612b8fb"
+    },
+    {
+      "arguments": [
+        "0x2222222222222222222222222222222222222222"
+      ],
+      "blockHash": "0x2e8da5053c47eb350941a64278f99c74f40279df83df39255bb9a5bcdaceea7b",
+      "blockNumber": 41,
+      "name": "bobTokenBalance",
+      "rawResult": "21",
+      "signature": "balanceOf(address)(uint256)",
+      "to": "0x367761085BF3C12e5DA2Df99AC6E1a824612b8fb"
+    },
+    {
+      "arguments": [
+        "0x3333333333333333333333333333333333333333"
+      ],
+      "blockHash": "0x2e8da5053c47eb350941a64278f99c74f40279df83df39255bb9a5bcdaceea7b",
+      "blockNumber": 41,
+      "name": "carolTokenBalance",
+      "rawResult": "14",
+      "signature": "balanceOf(address)(uint256)",
+      "to": "0x367761085BF3C12e5DA2Df99AC6E1a824612b8fb"
+    },
+    {
+      "arguments": [
+        "0x809b4fbdb632eba4671e5d5f35a37ff12aa4ae28e1ec84aece40972b1138755d"
+      ],
+      "blockHash": "0x2e8da5053c47eb350941a64278f99c74f40279df83df39255bb9a5bcdaceea7b",
+      "blockNumber": 41,
+      "name": "claimedAmount",
+      "rawResult": "70",
+      "signature": "claimedAmount(bytes32)(uint256)",
+      "to": "0x4C2F7092C2aE51D986bEFEe378e50BD4dB99C901"
+    },
+    {
+      "arguments": [
+        "0x809b4fbdb632eba4671e5d5f35a37ff12aa4ae28e1ec84aece40972b1138755d"
+      ],
+      "blockHash": "0x2e8da5053c47eb350941a64278f99c74f40279df83df39255bb9a5bcdaceea7b",
+      "blockNumber": 41,
+      "name": "claimedCount",
+      "rawResult": "3",
+      "signature": "claimedCount(bytes32)(uint256)",
+      "to": "0x4C2F7092C2aE51D986bEFEe378e50BD4dB99C901"
+    },
+    {
+      "arguments": [
+        "0x809b4fbdb632eba4671e5d5f35a37ff12aa4ae28e1ec84aece40972b1138755d"
+      ],
+      "blockHash": "0x2e8da5053c47eb350941a64278f99c74f40279df83df39255bb9a5bcdaceea7b",
+      "blockNumber": 41,
+      "name": "outstandingLiability",
+      "rawResult": "0",
+      "signature": "outstandingLiability(bytes32)(uint256)",
+      "to": "0x4C2F7092C2aE51D986bEFEe378e50BD4dB99C901"
+    },
+    {
+      "arguments": [],
+      "blockHash": "0x2e8da5053c47eb350941a64278f99c74f40279df83df39255bb9a5bcdaceea7b",
+      "blockNumber": 41,
+      "name": "reserveTotalReserved",
+      "rawResult": "0",
+      "signature": "totalReserved()(uint256)",
+      "to": "0x7A9Ec1d04904907De0ED7b6839CcdD59c3716AC9"
+    },
+    {
+      "arguments": [
+        "0x809b4fbdb632eba4671e5d5f35a37ff12aa4ae28e1ec84aece40972b1138755d"
+      ],
+      "blockHash": "0x2e8da5053c47eb350941a64278f99c74f40279df83df39255bb9a5bcdaceea7b",
+      "blockNumber": 41,
+      "name": "entitlementOperation",
+      "rawResult": "0x0000000000000000000000000000000000000000000000000000000000000005fe94e946ddaf58eca00c3231672536bf3c01199925c25ec8e2a0d60a325384e50e8b6d0eb8a46279fee6697366b2bdfa0b4aa514dacf17e9e264744d90d91c1f52618a7e6f8ea56baf760682b64b12860f56bef7980593f4099c8c5e65783d8d00000000000000000000000000000000000000000000000000000000000000030000000000000000000000000000000000000000000000000000000000000046fab874034cf34f9d88e8382aa9c2473c0fd3f36ee9b5a0b358e4a86ae75b7fac88bbb03a2adbbc73f946dc5a1901f1f659b76280869deb4f65c140f361e955fa000000000000000000000000367761085bf3c12e5da2df99ac6e1a824612b8fb00000000000000000000000000000000000000000000000000000000000000460000000000000000000000002222222222222222222222222222222222222222000000000000000000000000c96304e3c037f81da488ed9dea1d8f2a48278a75",
+      "signature": "entitlementOperation(bytes32)",
+      "to": "0x4C2F7092C2aE51D986bEFEe378e50BD4dB99C901"
+    }
+  ],
+  "reconciliation": {
+    "allocatorBalanceExpected": 0,
+    "allocatorFunding": 70,
+    "liabilityExpected": 0,
+    "matches": true,
+    "payouts": {
+      "alice": 35,
+      "bob": 21,
+      "carol": 14
+    },
+    "reserveBalanceExpected": 10,
+    "sourceDeposit": 80
+  },
+  "schema": "eae.pro-56-live-state-observation.v1",
+  "sourceReplayDirectory": "raw/fresh-replay-pro56-20261018",
+  "sourceRevision": "4cfa2f96a4938d23abda609dfff9052b177ef8af"
+}

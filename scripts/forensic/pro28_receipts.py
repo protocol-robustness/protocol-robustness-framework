@@ -870,8 +870,19 @@ def reconstruct(raw: Path) -> dict[str, Any]:
     }
 
 
-def verify(raw: Path, expected_report: Path | None = None) -> dict[str, Any]:
+def verify(
+    raw: Path,
+    expected_report: Path | None = None,
+    expected_report_sha256: str | None = None,
+) -> dict[str, Any]:
     report = reconstruct(raw)
+    rendered = json.dumps(report, sort_keys=True, indent=2) + "\n"
+    if expected_report_sha256 is not None:
+        pinned = expected_report_sha256.removeprefix("sha256:").lower()
+        if len(pinned) != 64 or any(char not in "0123456789abcdef" for char in pinned):
+            raise EvidenceError("trusted report SHA-256 pin is malformed")
+        if _sha256(rendered.encode()) != pinned:
+            raise EvidenceError("reconstructed receipt report differs from trusted SHA-256 pin")
     if expected_report is not None and _json(expected_report) != report:
         raise EvidenceError("reconstructed receipt report differs from retained expected report")
     return report
@@ -881,13 +892,14 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("bundle", type=Path, help="directory containing retained raw artifacts")
     parser.add_argument("--expected-report", type=Path, help="compare with a previously retained reconstruction")
+    parser.add_argument("--expected-report-sha256", help="compare canonical reconstructed report bytes with an independently retained SHA-256 pin")
     parser.add_argument("--write-report", type=Path, help="write the independently reconstructed report")
     parser.add_argument("--rpc-url", help="optionally recheck captured blocks, receipts and code against a live JSON-RPC endpoint")
     parser.add_argument("--min-confirmations", type=int, help="optional observed block-depth threshold for local-only evidence; does not establish finality")
     parser.add_argument("--write-chain-report", type=Path, help="write the provider-relative live chain check separately from canonical receipt reconstruction")
     args = parser.parse_args()
     try:
-        report = verify(args.bundle, args.expected_report)
+        report = verify(args.bundle, args.expected_report, args.expected_report_sha256)
         chain_report = verify_live_chain_context(args.bundle, args.rpc_url, args.min_confirmations) if args.rpc_url else None
     except EvidenceError as exc:
         parser.exit(1, f"FAIL: {exc}\n")

@@ -18,6 +18,9 @@ from forensic import replay_pro28_local_capture
 
 SOURCE = PROJECT / "examples/partial-fill/evidence/pro-28-v1/raw/fresh-replay-20261017"
 LEGACY_SOURCE = PROJECT / "examples/partial-fill/evidence/pro-28-v1/raw/fresh-replay-20261013"
+FRESH_V2_SOURCE = PROJECT / "examples/partial-fill/evidence/pro-28-v1/raw/fresh-replay-20261018"
+FRESH_V2_REPORT = PROJECT / "examples/partial-fill/evidence/pro-28-v1/fresh-replay-20261018-reconstruction.json"
+FRESH_V2_REPORT_SHA256 = "85799c65d4bac87a4ddf888d33e7552a0905bb98919e4b3fed05f99559eeb33c"
 
 
 @pytest.fixture
@@ -42,6 +45,38 @@ def test_fresh_replay_reconstructs_receipts_runtime_and_accounting(bundle: Path)
     assert report["runtimeCodeIdentity"]["status"] == "captured and content-hash verified from local Anvil RPC"
     assert len(report["runtimeCodeIdentity"]["contracts"]) == 12
     assert report["accounting"]["claimPayouts"] == {"claim-a": 35, "claim-b": 21, "claim-c": 14}
+
+
+def test_trusted_report_digest_rejects_a_self_consistently_repinned_bundle(tmp_path: Path) -> None:
+    substituted = tmp_path / "substituted-bundle"
+    shutil.copytree(FRESH_V2_SOURCE, substituted)
+    capture_path = substituted / "capture-metadata.json"
+    capture = load(capture_path)
+    capture["captureId"] = "attacker-repinned-capture"
+    save(capture_path, capture)
+
+    # The raw structure and a newly generated expected report remain internally
+    # consistent. The independently retained report digest still detects the
+    # substitution when compared with the trusted, out-of-bundle pin.
+    attacker_report = pro28_receipts.reconstruct(substituted)
+    attacker_report_path = tmp_path / "attacker-repinned-report.json"
+    save(attacker_report_path, attacker_report)
+    assert pro28_receipts.verify(substituted, attacker_report_path) == attacker_report
+    with pytest.raises(pro28_receipts.EvidenceError, match="trusted SHA-256 pin"):
+        pro28_receipts.verify(
+            substituted,
+            attacker_report_path,
+            expected_report_sha256=FRESH_V2_REPORT_SHA256,
+        )
+
+
+def test_trusted_report_digest_accepts_the_retained_fresh_reconstruction() -> None:
+    report = pro28_receipts.verify(
+        FRESH_V2_SOURCE,
+        FRESH_V2_REPORT,
+        expected_report_sha256=FRESH_V2_REPORT_SHA256,
+    )
+    assert report["successfulReceiptCount"] == 41
 
 
 def test_signed_transaction_reconstruction_matches_retained_identity() -> None:
