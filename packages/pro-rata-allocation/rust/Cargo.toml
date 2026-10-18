@@ -1,6 +1,6 @@
 [package]
 name = "prf-pro-rata-allocation"
-version = "0.1.0"
+version = "0.1.0-rc.1"
 edition = "2021"
 description = "Pro-rata realized-allocation statement identities and projections"
 
@@ -10,4 +10,4 @@ num-integer = "0.1"
 num-traits = "0.2"
 sha2 = "0.10"
 hex = "0.4"
-prf-canonical-codec = { path = "../../canonical/rust" }
+prf-canonical-codec = { version = "0.1.0-rc.1", git = "https://github.com/protocol-robustness/prf-canonical.git", rev = "5e2b520feca812b049ba397b7b3681963c66a48c" }

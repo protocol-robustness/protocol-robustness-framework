@@ -1,0 +1,8 @@
+token=0x367761085BF3C12e5DA2Df99AC6E1a824612b8fb reserve=0x7A9Ec1d04904907De0ED7b6839CcdD59c3716AC9 allocator=0x4C2F7092C2aE51D986bEFEe378e50BD4dB99C901 executor=0xC9a43158891282A2B1475592D5719c001986Aaec
+reserve_balance=10
+allocator_balance=0
+beneficiary_1111_balance=35
+beneficiary_2222_balance=21
+beneficiary_3333_balance=14
+current_entitlement_proof_mode=0
+final_block=15

@@ -1,10 +1,9 @@
 # Pro-rata allocation package boundary
 
-Status: independently loadable **Clojure and Rust source package**, consumed
-locally by PRF. A reproducible `0.1.0-rc.1` source bundle is available under
-`releases/`; it includes the canonical Clojure and Rust source dependencies
-and its conformance fixtures. This is a qualified local candidate, not a
-remote registry release.
+Status: migration record for the independently loadable **Clojure and Rust
+source package** now extracted to `protocol-robustness/prf-pro-rata-allocation`.
+PRF consumes its immutable Git revision; the package pins `prf-canonical`.
+This remains a source-qualified candidate, not a package-registry release.
 Its Rust realized-statement identity layer is also extracted and
 conformance-tested. Rust exposes typed row normalization, full V1 request
 normalization/request-root derivation, an arbitrary-precision allocation
@@ -23,7 +22,7 @@ Current ownership and location:
 
 ```text
 PRF/
-├── packages/canonical/clj/          typed canonical codec + generic domain hashing
+├── prf-canonical (Git dependency)   typed canonical codec + generic domain hashing
 ├── packages/pro-rata-allocation/
 │   ├── ALLOCATION_V1.md             package-owned section 4 profile
 │   └── clj/
@@ -148,14 +147,12 @@ conflict to resolve jointly, not a parallel implementation task.
 All eleven `prf.pro-rata.*` namespaces require only package namespaces or the
 canonical package. `prf.canonical.codec` and `prf.canonical.hash` have no PRF
 host dependencies. The
-package `deps.edn` exposes only `src` and declares its sibling canonical package
-through `:local/root "../../canonical/clj"`. PRF declares this package through a
-local dependency, which brings the canonical package transitively. This proves
-an explicit build dependency boundary; it is not a pinned version or release
-artifact.
+package `deps.edn` exposes only `src` and pins the shared canonical package by
+Git revision. PRF pins this allocation package and declares the same canonical
+revision directly, so all Clojure namespaces resolve from one immutable source.
 
-The Rust crate at `packages/pro-rata-allocation/rust` depends only on
-`packages/canonical/rust`. `allocation-kernel` retains its raw-input
+The Rust crate at `packages/pro-rata-allocation/rust` depends on
+`prf-canonical-codec` from that same immutable Git revision. `allocation-kernel` retains its raw-input
 context/lifecycle builder and delegates statement domains and root assembly
 to that crate. The realized-fill model, deterministic fill calculation, and
 canonical result projection also live in the package; `allocation-kernel`
@@ -292,16 +289,9 @@ against the package API while the effects/transition oracle remains in the PRF
 contract source. This is test material only; the package runtime has no
 dependency on the PRF reference source.
 
-Rebuild the checked-in candidate archive from the PRF root with
-`python3 scripts/package_pro_rata_allocation.py`. The builder emits a stable
-gzip tarball and a SHA-256 sidecar in `packages/pro-rata-allocation/releases/`.
-After extraction, run `clojure -M:conformance` from
-`packages/pro-rata-allocation/clj`; the bundle contains the sibling canonical
-source needed by its local dependency declaration. The extraction qualification
-also runs `cargo test --offline --manifest-path
-packages/pro-rata-allocation/rust/Cargo.toml` from the extracted bundle root;
-both commands pass without referring to the PRF workspace. Verify the archive
-with `sha256sum -c` against its checked-in sidecar before consuming it.
+Independent conformance is run from clean checkouts of the extracted
+repository at its immutable revision. No new RC source bundle was produced as
+part of this migration.
 
 | Current material | Proposed destination and constraint |
 |---|---|

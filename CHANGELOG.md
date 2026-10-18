@@ -10,6 +10,10 @@
 
 ## Unreleased
 
+- Added an optional trusted SHA-256 pin for reconstructed local receipt reports so internally consistent bundle substitutions can be detected when operators supply the pin independently.
+
+- Added a retained local protected-withdrawal receipt verifier and live RPC context check. Cryptographic proof validity remains explicitly unverified by this verifier; live-chain checks require a captured chain-ID/genesis fingerprint, so older captures fail closed until recaptured.
+
 - Clarified that the 2026-09-28 V2 audit is a historical baseline and documented the separately implemented 288-byte successor-entitlement lifecycle with pinned local evidence; the legacy 192-byte profile remains unchanged.
 
 - Fixed the real V2/SP1 runner source inventory to cover crate-local Rust sources; added an ARTIFACT_DIR override so retries preserve failed-run evidence.
@@ -3465,6 +3469,7 @@ runtime mechanism selection or a mechanism registry.
   alter analysis validity or authorize payment.
 # Unreleased
 
+- Add a local-only PRO-31 capture replay command that records V2 chain identity before replaying retained signed transactions, and independently checks resulting receipts and runtime code against the same Anvil instance.
 - Rust allocation context parsing now matches PRF rejection semantics for blank
   identifiers, policy validation, and negative numeric inputs.
 - Rust allocation context parsing now rejects proposed rates for unknown outcomes,

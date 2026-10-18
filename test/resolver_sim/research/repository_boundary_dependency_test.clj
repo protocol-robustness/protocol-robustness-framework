@@ -72,9 +72,13 @@
                     clauses)))))
 
 (defn- repository-source-graph []
-  (let [roots ["src" "packages/canonical/clj/src"
-               "packages/accounting-reductions/clj/src"
+  (let [canonical-source (io/resource "prf/canonical/codec.clj")
+        canonical-root (when canonical-source
+                         (-> canonical-source .toURI io/file .getParentFile
+                             .getParentFile .getParentFile))
+        roots (cond-> ["src" "packages/accounting-reductions/clj/src"
                "packages/pro-rata-allocation/clj/src"]
+                canonical-root (conj canonical-root))
         files (filter #(and (.isFile ^java.io.File %)
                             (str/ends-with? (.getName ^java.io.File %) ".clj"))
                       (mapcat #(file-seq (io/file %)) roots))]
@@ -113,7 +117,7 @@
       (= namespace 'resolver-sim.accounting.reductions)
       (str "packages/accounting-reductions/clj/src/" relative)
       (= "prf" (first segments))
-      (str "packages/canonical/clj/src/" relative)
+      (some-> (io/resource relative) .toURI io/file str)
       :else (str "src/" relative))))
 
 (defn- transitive-dependencies [graph root]

@@ -1,5 +1,7 @@
 {:paths ["src"]
  :deps {org.clojure/clojure {:mvn/version "1.12.0"}
-        prf/canonical {:local/root "../../canonical/clj"}}
+        prf/canonical {:git/url "https://github.com/protocol-robustness/prf-canonical.git"
+                       :git/sha "5e2b520feca812b049ba397b7b3681963c66a48c"
+                       :deps/root "clj"}}
  :aliases {:test {:extra-paths ["test"]
                   :main-opts ["-m" "resolver-sim.accounting.reductions-test-runner"]}}}
