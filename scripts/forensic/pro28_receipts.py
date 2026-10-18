@@ -615,8 +615,12 @@ def _transfer_events(
             topics = log.get("topics", [])
             if _norm(log.get("address", "")) != token or not topics or _norm(topics[0]) != TRANSFER_TOPIC:
                 continue
-            if len(topics) != 3 or len(log.get("data", "")) != 66:
-                raise EvidenceError("ERC-20 Transfer log has malformed ABI fields")
+            if len(topics) != 3:
+                raise EvidenceError("ERC-20 Transfer log has malformed topic count")
+            topic_words = [_hex_bytes(topic, 32, "ERC-20 Transfer topic") for topic in topics]
+            if topic_words[1][:12] != bytes(12) or topic_words[2][:12] != bytes(12):
+                raise EvidenceError("ERC-20 Transfer address topic is not canonically zero-padded")
+            amount_word = _hex_bytes(log.get("data"), 32, "ERC-20 Transfer amount")
             if _norm(log["transactionHash"]) != tx_hash:
                 raise EvidenceError("Transfer log references a different transaction")
             events.append(
@@ -629,9 +633,9 @@ def _transfer_events(
                     "receiptStatus": _int(receipt["status"]),
                     "logIndex": _int(log["logIndex"]),
                     "emitter": _norm(log["address"]),
-                    "from": "0x" + topics[1][-40:].lower(),
-                    "to": "0x" + topics[2][-40:].lower(),
-                    "amount": int(log["data"], 16),
+                    "from": "0x" + topic_words[1][12:].hex(),
+                    "to": "0x" + topic_words[2][12:].hex(),
+                    "amount": int.from_bytes(amount_word, "big"),
                     "group": row["group"],
                 }
             )
@@ -764,13 +768,22 @@ def _verify_economic_transaction_bindings(
         ):
             raise EvidenceError("claim payout is not bound to the matching allocator.withdraw call")
         tuple_offset = _calldata_word(claim_data, 36)
+        if tuple_offset % 32:
+            raise EvidenceError("withdraw source tuple offset is noncanonical")
         tuple_start = 4 + tuple_offset
         claim_index = _calldata_word(claim_data, tuple_start)
         claim_bytes_offset = _calldata_word(claim_data, tuple_start + 32)
-        beneficiary = "0x" + _calldata_word(claim_data, tuple_start + 64).to_bytes(32, "big")[-20:].hex()
+        beneficiary_word = _calldata_word(claim_data, tuple_start + 64).to_bytes(32, "big")
+        if beneficiary_word[:12] != bytes(12):
+            raise EvidenceError("withdraw beneficiary address is not canonically ABI-padded")
+        beneficiary = "0x" + beneficiary_word[12:].hex()
         amount = _calldata_word(claim_data, tuple_start + 96)
+        if claim_bytes_offset % 32:
+            raise EvidenceError("withdraw claim-bytes offset is noncanonical")
         claim_bytes_start = tuple_start + claim_bytes_offset
         claim_bytes_length = _calldata_word(claim_data, claim_bytes_start)
+        if claim_bytes_length > 128 or claim_bytes_start + 32 + claim_bytes_length > len(claim_data):
+            raise EvidenceError("withdraw claim identity bytes are malformed")
         claim_bytes = claim_data[claim_bytes_start + 32 : claim_bytes_start + 32 + claim_bytes_length]
         try:
             claim_id = claim_bytes.decode("utf-8")

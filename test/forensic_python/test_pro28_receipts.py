@@ -293,6 +293,50 @@ def test_claim_payout_must_match_withdrawal_opening(bundle: Path) -> None:
         pro28_receipts.reconstruct(bundle)
 
 
+def test_transfer_log_address_topics_require_canonical_padding(bundle: Path) -> None:
+    path = bundle / "broadcast/withdrawals.json"
+    payload = load(path)
+    token = load(bundle / "deployment-manifest.json")["contracts"]["token"].lower()
+    transfer = next(
+        log for receipt in payload["receipts"] for log in receipt["logs"]
+        if log.get("topics", [""])[0].lower() == pro28_receipts.TRANSFER_TOPIC
+        and log.get("address", "").lower() == token
+    )
+    transfer["topics"][1] = "0x01" + transfer["topics"][1][4:]
+    save(path, payload)
+    with pytest.raises(pro28_receipts.EvidenceError, match="not canonically zero-padded"):
+        pro28_receipts.reconstruct(bundle)
+
+
+def test_transfer_log_amount_requires_exact_hex_word(bundle: Path) -> None:
+    path = bundle / "broadcast/withdrawals.json"
+    payload = load(path)
+    token = load(bundle / "deployment-manifest.json")["contracts"]["token"].lower()
+    transfer = next(
+        log for receipt in payload["receipts"] for log in receipt["logs"]
+        if log.get("topics", [""])[0].lower() == pro28_receipts.TRANSFER_TOPIC
+        and log.get("address", "").lower() == token
+    )
+    transfer["data"] = "0x" + "g" + transfer["data"][3:]
+    save(path, payload)
+    with pytest.raises(pro28_receipts.EvidenceError, match="Transfer amount contains non-hex data"):
+        pro28_receipts.reconstruct(bundle)
+
+
+def test_withdrawal_calldata_rejects_truncated_dynamic_claim(bundle: Path) -> None:
+    path = bundle / "broadcast/withdrawals.json"
+    payload = load(path)
+    claim = next(row for row in payload["transactions"] if row["transaction"].get("input", "").startswith("0x7c365406"))
+    data = bytearray.fromhex(claim["transaction"]["input"][2:])
+    tuple_offset = pro28_receipts._calldata_word(data, 36)
+    tuple_start = 4 + tuple_offset
+    data[tuple_start + 32 : tuple_start + 64] = (0x1000).to_bytes(32, "big")
+    claim["transaction"]["input"] = "0x" + data.hex()
+    save(path, payload)
+    with pytest.raises(pro28_receipts.EvidenceError, match="calldata is truncated"):
+        pro28_receipts.reconstruct(bundle)
+
+
 def test_receipt_block_context_mismatch_rejects(bundle: Path) -> None:
     path = bundle / "broadcast/withdrawals.json"
     payload = load(path)
