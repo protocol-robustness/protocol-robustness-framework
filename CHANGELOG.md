@@ -10,6 +10,8 @@
 
 ## Unreleased
 
+- Added a retained local protected-withdrawal receipt verifier and live RPC context check. Cryptographic proof validity remains explicitly unverified by this verifier; live-chain checks require a captured chain-ID/genesis fingerprint, so older captures fail closed until recaptured.
+
 - Clarified that the 2026-09-28 V2 audit is a historical baseline and documented the separately implemented 288-byte successor-entitlement lifecycle with pinned local evidence; the legacy 192-byte profile remains unchanged.
 
 - Fixed the real V2/SP1 runner source inventory to cover crate-local Rust sources; added an ARTIFACT_DIR override so retries preserve failed-run evidence.
