@@ -4,7 +4,10 @@ from __future__ import annotations
 
 # Ensure scripts/ is importable
 import sys
+import json
+import subprocess
 from pathlib import Path
+import pytest
 _project_root = Path(__file__).resolve().parent.parent.parent
 _scripts_root = _project_root / "scripts"
 if str(_scripts_root) not in sys.path:
@@ -15,6 +18,46 @@ from scripts.forensic.reproduce import (
     classify_field,
     compare_bundle_fields,
 )
+from scripts.forensic import reproduce
+
+
+@pytest.mark.parametrize("execution_exit", [0, 7])
+def test_reproduction_isolates_artifacts_and_requires_execution_success(tmp_path, monkeypatch, execution_exit):
+    checkout = tmp_path / "checkout"
+    checkout.mkdir()
+    original = tmp_path / "original"
+    original.mkdir()
+    output = tmp_path / "reproductions"
+    existing_artifacts = checkout / "results"
+    existing_artifacts.mkdir()
+    sentinel = existing_artifacts / "keep.txt"
+    sentinel.write_text("preserve")
+    bundle = _bundle()
+    (original / "clojure-bundle-root.json").write_text(json.dumps(bundle))
+    monkeypatch.chdir(checkout)
+    monkeypatch.setenv("PRF_ARTIFACT_DIR", str(existing_artifacts))
+    monkeypatch.setattr(reproduce, "current_code_hash", lambda root: ("source-hash", "algorithm", ["src"]))
+
+    def execute(cmd, **kwargs):
+        artifact_root = Path(kwargs["env"]["PRF_ARTIFACT_DIR"])
+        assert artifact_root.name == "workspace"
+        assert artifact_root.is_dir()
+        assert artifact_root.is_relative_to(output)
+        destination = Path(cmd[cmd.index("--output-file") + 1])
+        assert artifact_root.parent == destination.parent
+        destination.write_text(json.dumps(bundle))
+        (artifact_root / "evidence.txt").write_text("new evidence")
+        return subprocess.CompletedProcess(cmd, execution_exit)
+
+    monkeypatch.setattr(reproduce.subprocess, "run", execute)
+    result = reproduce.reproduce_run(original, output)
+    assert result == (0 if execution_exit == 0 else 1)
+    report = json.loads(next(output.rglob("reproduce-report.json")).read_text())
+    assert report["reproduce/exit-code"] == execution_exit
+    if execution_exit:
+        assert report["reproduce/verdict"] == "reproduce-failed"
+    assert sentinel.read_text() == "preserve"
+    assert list(existing_artifacts.iterdir()) == [sentinel]
 
 
 def _bundle(proto: dict | None = None) -> dict:
