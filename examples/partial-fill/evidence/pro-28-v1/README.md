@@ -12,16 +12,39 @@ This bundle separates the earlier V3 summary from receipt-qualified evidence.
 - `groth16-reference-verification-pro56-20261018.json` records the direct pinned-verifier result for that replay's exact proof fixture.
 - The older `receipt-reconstruction.json` and `fresh-replay-reconstruction.json` summaries have correction metadata and no longer claim cryptographic verification; the earlier 2026-10-13 evidence remains rejected by the current strict receipt verifier.
 
-## Independent reconstruction
+## Inspection and pinned verification
 
-From a fresh PRF checkout with Python 3 and Foundry's `cast` available:
+An inspection reconstructs and cross-checks the bundle, but is explicitly
+unanchored. It exits successfully only to report that inspection completed; its
+machine-readable status is `inspection_unanchored`, not verified evidence:
 
 ```bash
 python3 scripts/forensic/pro28_receipts.py \
   examples/partial-fill/evidence/pro-28-v1/raw/fresh-replay-20261017 \
-  --expected-report examples/partial-fill/evidence/pro-28-v1/fresh-replay-20261017-reconstruction.json \
-  --expected-report-sha256 "$(cut -d ' ' -f 1 examples/partial-fill/evidence/pro-28-v1/fresh-replay-20261017-reconstruction.json.sha256)"
+  --mode inspect \
+  --write-verification-result /tmp/pro28-inspection-result.json
 ```
+
+For the supported `pro28-local-reconstruction-pin-v1` profile, obtain the
+reconstruction digest from a trusted source revision or authenticated channel,
+independently of the evidence bundle, and pass it directly to the verifier:
+
+```bash
+python3 scripts/forensic/pro28_receipts.py \
+  examples/partial-fill/evidence/pro-28-v1/raw/fresh-replay-20261017 \
+  --mode verify \
+  --trusted-report-sha256 "$(cut -d ' ' -f 1 examples/partial-fill/evidence/pro-28-v1/fresh-replay-20261017-reconstruction.json.sha256)" \
+  --expected-report examples/partial-fill/evidence/pro-28-v1/fresh-replay-20261017-reconstruction.json \
+  --write-verification-result /tmp/pro28-verification-result.json
+```
+
+`--mode verify` fails closed without the explicit trusted digest or if the
+reconstructed report does not match it. `--expected-report` is only a content
+comparison; it is not a trust anchor. The verification result is separate from
+the canonical reconstruction report. This profile establishes that the
+supported local reconstruction matches the externally pinned report. It does
+not authenticate RPC receipts, prove canonical-chain inclusion or finality, or
+upgrade the proof result to cryptographically verified.
 
 The verifier reloads the manifest, witness, source vector, proof fixture, original runner broadcasts, RPC-bound transaction/receipt records, terminal observation, and runtime bytecode. It recomputes artifact digests and runtime SHA-256/Keccak identities, checks transaction/receipt one-to-one correspondence, binds the 80-unit reserve deposit to `deposit(80)`, the 70-unit transfer to the fixed-operation funding call, and each 35/21/14 payout to its allocator withdrawal opening. The runner broadcast source hashes are retained and checked separately. A success string in `fork-test.log` is reported only as a test-log observation; it does not establish cryptographic proof validity. This verifier does not rerun SP1 proof verification, so `cryptographicVerification` remains `not_independently_verified`.
 
@@ -63,8 +86,9 @@ Independently rerun both checks while that same Anvil process is still running:
 ```bash
 python3 scripts/forensic/pro28_receipts.py \
   examples/partial-fill/evidence/pro-28-v1/raw/fresh-replay-20261018 \
+  --mode verify \
   --expected-report examples/partial-fill/evidence/pro-28-v1/fresh-replay-20261018-reconstruction.json \
-  --expected-report-sha256 "$(cut -d ' ' -f 1 examples/partial-fill/evidence/pro-28-v1/fresh-replay-20261018-reconstruction.json.sha256)"
+  --trusted-report-sha256 "$(cut -d ' ' -f 1 examples/partial-fill/evidence/pro-28-v1/fresh-replay-20261018-reconstruction.json.sha256)"
 
 python3 scripts/forensic/pro28_receipts.py \
   examples/partial-fill/evidence/pro-28-v1/raw/fresh-replay-20261018 \
@@ -79,9 +103,10 @@ The 2026-10-18 reconstruction intentionally does not claim terminal liability cl
 ```bash
 python3 scripts/forensic/pro28_receipts.py \
   examples/partial-fill/evidence/pro-28-v1/raw/fresh-replay-pro56-20261018 \
+  --mode verify \
   --terminal-state-observation examples/partial-fill/evidence/pro-28-v1/pro-56-live-state-observation-20261018.json \
   --expected-report examples/partial-fill/evidence/pro-28-v1/fresh-replay-pro56-20261018-reconstruction.json \
-  --expected-report-sha256 "$(cut -d ' ' -f 1 examples/partial-fill/evidence/pro-28-v1/fresh-replay-pro56-20261018-reconstruction.json.sha256)"
+  --trusted-report-sha256 "$(cut -d ' ' -f 1 examples/partial-fill/evidence/pro-28-v1/fresh-replay-pro56-20261018-reconstruction.json.sha256)"
 ```
 
 This verifies the observation's manifest, operation, chain lineage, read targets/selectors, common block identity, raw ABI results, decoded successor operation, retained transaction anchors and zero-liability accounting. It remains a provider-relative local observation, not consensus evidence or public-chain qualification. The old `final-state.log` is retained and hash-checked as text; it does not establish closure.

@@ -82,6 +82,107 @@ def test_trusted_report_digest_accepts_the_retained_fresh_reconstruction() -> No
     assert report["verificationResults"]["economicReconciliation"]["liabilityClosed"] is None
 
 
+def test_cli_inspection_is_explicitly_unanchored() -> None:
+    report = pro28_receipts.reconstruct(FRESH_V2_SOURCE)
+    result = pro28_receipts.verification_result(report, mode="inspect")
+    assert result["status"] == "inspection_unanchored"
+    assert result["trustContext"] is None
+    assert result["checks"]["trustedReconstructionPin"] == "not_run"
+
+
+def test_verification_profile_requires_and_checks_external_pin() -> None:
+    report = pro28_receipts.reconstruct(FRESH_V2_SOURCE)
+    with pytest.raises(pro28_receipts.EvidenceError, match="requires an independently supplied"):
+        pro28_receipts.verification_result(report, mode="verify")
+    result = pro28_receipts.verification_result(
+        report,
+        mode="verify",
+        trusted_report_sha256=FRESH_V2_REPORT_SHA256,
+    )
+    assert result["status"] == "verified_within_profile"
+    assert result["profile"] == "pro28-local-reconstruction-pin-v1"
+    assert result["checks"]["trustedReconstructionPin"] == "matched"
+    assert result["checks"]["cryptographicProof"] == "not_independently_verified"
+    assert "consensus" in " ".join(result["limitations"])
+
+
+def test_verification_profile_rejects_substituted_pin_and_insufficient_report() -> None:
+    report = pro28_receipts.reconstruct(FRESH_V2_SOURCE)
+    with pytest.raises(pro28_receipts.EvidenceError, match="differs from trusted SHA-256 pin"):
+        pro28_receipts.verification_result(
+            report,
+            mode="verify",
+            trusted_report_sha256="00" * 32,
+        )
+    incomplete = dict(report)
+    incomplete["chainId"] = 1
+    with pytest.raises(pro28_receipts.EvidenceError, match="required structural or receipt checks"):
+        pro28_receipts.verification_result(incomplete, mode="inspect")
+
+
+def test_cli_requires_explicit_trust_context_for_verify_mode(monkeypatch, capsys) -> None:
+    monkeypatch.setattr(sys, "argv", ["pro28_receipts.py", str(FRESH_V2_SOURCE), "--mode", "verify"])
+    with pytest.raises(SystemExit) as exc:
+        pro28_receipts.main()
+    assert exc.value.code == 2
+    assert "requires --trusted-report-sha256" in capsys.readouterr().err
+
+
+def test_cli_inspect_exit_is_labeled_unanchored(monkeypatch, capsys) -> None:
+    monkeypatch.setattr(sys, "argv", ["pro28_receipts.py", str(FRESH_V2_SOURCE), "--mode", "inspect"])
+    assert pro28_receipts.main() == 0
+    output = capsys.readouterr().out
+    assert "INSPECTION_UNANCHORED" in output
+    assert "no authenticity or chain-state claim" in output
+
+
+def test_cli_verify_accepts_only_the_pinned_supported_reconstruction(monkeypatch, capsys, tmp_path: Path) -> None:
+    result_path = tmp_path / "verification-result.json"
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "pro28_receipts.py",
+            str(FRESH_V2_SOURCE),
+            "--mode",
+            "verify",
+            "--trusted-report-sha256",
+            FRESH_V2_REPORT_SHA256,
+            "--write-verification-result",
+            str(result_path),
+        ],
+    )
+    assert pro28_receipts.main() == 0
+    output = capsys.readouterr().out
+    result = load(result_path)
+    assert "VERIFIED_WITHIN_PROFILE" in output
+    assert result["status"] == "verified_within_profile"
+    assert result["checks"]["cryptographicProof"] == "not_independently_verified"
+    assert "not authenticate the receipts" in " ".join(result["limitations"])
+
+
+@pytest.mark.parametrize("field,value", [
+    ("schema", "unsupported.v99"),
+    ("chainId", 1),
+])
+def test_verification_profile_rejects_wrong_chain_or_report_schema(field: str, value: object) -> None:
+    report = pro28_receipts.reconstruct(FRESH_V2_SOURCE)
+    report[field] = value
+    with pytest.raises(pro28_receipts.EvidenceError, match="required structural or receipt checks"):
+        pro28_receipts.verification_result(report, mode="inspect")
+
+
+@pytest.mark.parametrize("field,value", [
+    ("validator", "caller-supplied-verifier"),
+    ("status", "missing"),
+])
+def test_verification_profile_rejects_unsupported_or_missing_required_validator(field: str, value: str) -> None:
+    report = pro28_receipts.reconstruct(FRESH_V2_SOURCE)
+    report["verificationResults"]["structuralIntegrity"][field] = value
+    with pytest.raises(pro28_receipts.EvidenceError, match="required structural or receipt checks"):
+        pro28_receipts.verification_result(report, mode="inspect")
+
+
 def test_terminal_state_observation_binds_receipts_operation_and_block(tmp_path: Path) -> None:
     raw = tmp_path / "raw" / "fresh-replay-pro56-20261018"
     raw.parent.mkdir()

@@ -10,6 +10,8 @@
 
 ## Unreleased
 
+- Split receipt reconstruction inspection from pinned verification: inspection is explicitly unanchored, while verification requires an operator-supplied trusted report digest and reports its limited scope.
+
 - Added an optional trusted SHA-256 pin for reconstructed local receipt reports so internally consistent bundle substitutions can be detected when operators supply the pin independently.
 
 - Added a retained local protected-withdrawal receipt verifier and live RPC context check. Cryptographic proof validity remains explicitly unverified by this verifier; live-chain checks require a captured chain-ID/genesis fingerprint, so older captures fail closed until recaptured.

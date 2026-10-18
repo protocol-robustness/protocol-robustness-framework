@@ -1333,12 +1333,128 @@ def verify(
     return report
 
 
+VERIFICATION_PROFILE = "pro28-local-reconstruction-pin-v1"
+
+
+def verification_result(
+    report: dict[str, Any],
+    *,
+    mode: str,
+    trusted_report_sha256: str | None = None,
+    optional_checks: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Describe what the CLI established without upgrading artifact claims.
+
+    Inspection is intentionally useful without an external trust anchor, but it
+    is never reported as authenticated verification. The bounded verification
+    profile authenticates the deterministic reconstruction against a digest
+    supplied out of band by the operator; it does not authenticate RPC receipts,
+    chain consensus, finality, or the source of that digest.
+    """
+    if mode not in {"inspect", "verify"}:
+        raise EvidenceError("unsupported verification mode")
+    if mode == "verify" and trusted_report_sha256 is None:
+        raise EvidenceError("verification requires an independently supplied trusted report SHA-256 pin")
+    if mode == "inspect" and trusted_report_sha256 is not None:
+        raise EvidenceError("inspection mode cannot consume a trusted verification pin; use --mode verify")
+
+    structural = report.get("verificationResults", {}).get("structuralIntegrity", {})
+    receipt_count = report.get("successfulReceiptCount")
+    if (
+        report.get("schema") != "eae.pro-28-authentic-local-execution.v2"
+        or report.get("chainId") != 31337
+        or structural.get("status") != "passed"
+        or structural.get("validator") != "scripts/forensic/pro28_receipts.py"
+        or report.get("verificationResults", {}).get("executionObservation", {}).get("status") != "receipt cross-links passed"
+        or report.get("verificationResults", {}).get("economicReconciliation", {}).get("status") not in {
+            "receipt transfers cross-linked; terminal balances and liability remain unverified",
+            "passed against receipt transfers and validated provider-relative terminal eth_call observation",
+        }
+        or report.get("accounting", {}).get("sponsorDeposit") != 80
+        or report.get("accounting", {}).get("allocatorFunding") != 70
+        or report.get("accounting", {}).get("claimPayouts") != {"claim-a": 35, "claim-b": 21, "claim-c": 14}
+        or report.get("accounting", {}).get("totalClaimPayouts") != 70
+        or not isinstance(receipt_count, int)
+        or receipt_count != 41
+    ):
+        raise EvidenceError("required structural or receipt checks are missing")
+
+    pin_status = "not_run"
+    overall = "inspection_unanchored"
+    required_checks = ["structuralIntegrity", "receiptCrossLinks", "economicReceiptReconciliation"]
+    if mode == "verify":
+        normalized_pin = trusted_report_sha256.removeprefix("sha256:").lower()
+        if len(normalized_pin) != 64 or any(char not in "0123456789abcdef" for char in normalized_pin):
+            raise EvidenceError("trusted report SHA-256 pin is malformed")
+        canonical_report = json.dumps(report, sort_keys=True, indent=2) + "\n"
+        if _sha256(canonical_report.encode()) != normalized_pin:
+            raise EvidenceError("reconstructed receipt report differs from trusted SHA-256 pin")
+        pin_status = "matched"
+        overall = "verified_within_profile"
+        required_checks.append("trustedReconstructionPin")
+
+    return {
+        "schema": "eae.pro-28-cli-verification-result.v1",
+        "mode": mode,
+        "status": overall,
+        "profile": VERIFICATION_PROFILE if mode == "verify" else None,
+        "trustContext": (
+            {
+                "kind": "operator-supplied-report-sha256",
+                "sha256": trusted_report_sha256.removeprefix("sha256:").lower(),
+                "source": "independent of the evidence bundle; caller must obtain through a trusted revision or authenticated channel",
+            }
+            if trusted_report_sha256 is not None
+            else None
+        ),
+        "requiredChecks": required_checks,
+        "checks": {
+            "structuralIntegrity": structural.get("status"),
+            "receiptCrossLinks": {
+                "status": "passed",
+                "successfulReceiptCount": receipt_count,
+                "meaning": "internal transaction, receipt and log consistency; not external receipt authentication",
+            },
+            "economicReceiptReconciliation": {
+                "status": (
+                    "receipt_transfers_reconciled_terminal_state_unverified"
+                    if report["verificationResults"]["economicReconciliation"]["status"].startswith("receipt transfers cross-linked")
+                    else "receipt_transfers_and_provider_relative_terminal_observation_reconciled"
+                ),
+                "sponsorDeposit": 80,
+                "allocatorFunding": 70,
+                "claimPayouts": {"claim-a": 35, "claim-b": 21, "claim-c": 14},
+                "liabilityClosure": "not established by this profile",
+            },
+            "trustedReconstructionPin": pin_status,
+            "cryptographicProof": (
+                (optional_checks or {}).get("groth16", {}).get("status")
+                or report.get("verificationResults", {}).get("cryptographicVerification", {}).get("status", "not_reported")
+            ),
+            "chainState": "provider_relative_only" if isinstance(report.get("accounting", {}).get("finalStateObservation"), dict) and str(report["accounting"]["finalStateObservation"].get("status", "")).startswith("validated provider-relative") else "not_authenticated_by_this_profile",
+        },
+        "optionalChecks": {
+            key: {"status": value.get("status", "unknown"), "scope": value.get("classification", value.get("scope", "check-specific"))}
+            for key, value in (optional_checks or {}).items()
+        },
+        "limitations": [
+            "A matching report digest binds this reconstruction to the operator-supplied pin; it does not authenticate the receipts or their inclusion in a canonical chain.",
+            "No consensus, finality, RPC-provider honesty, or public-chain claim is made.",
+            "Cryptographic proof verification is independent and remains not verified unless the pinned verifier is actually run.",
+            "The digest is trusted only if the operator obtains it independently of the evidence bundle.",
+        ],
+    }
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("bundle", type=Path, help="directory containing retained raw artifacts")
+    parser.add_argument("--mode", choices=("inspect", "verify"), default="inspect", help="inspect reconstructs without an authenticity claim; verify requires an out-of-band trusted report digest")
     parser.add_argument("--expected-report", type=Path, help="compare with a previously retained reconstruction")
-    parser.add_argument("--expected-report-sha256", help="compare canonical reconstructed report bytes with an independently retained SHA-256 pin")
+    parser.add_argument("--expected-report-sha256", help="legacy comparison only; does not establish verification trust")
+    parser.add_argument("--trusted-report-sha256", help="operator-supplied digest obtained independently of the bundle; required by --mode verify")
     parser.add_argument("--write-report", type=Path, help="write the independently reconstructed report")
+    parser.add_argument("--write-verification-result", type=Path, help="write the CLI's versioned inspection/verification outcome separately from the canonical reconstruction")
     parser.add_argument("--rpc-url", help="optionally recheck captured blocks, receipts and code against a live JSON-RPC endpoint")
     parser.add_argument("--min-confirmations", type=int, help="optional observed block-depth threshold for local-only evidence; does not establish finality")
     parser.add_argument("--write-chain-report", type=Path, help="write the provider-relative live chain check separately from canonical receipt reconstruction")
@@ -1346,32 +1462,56 @@ def main() -> int:
     parser.add_argument("--verify-groth16", action="store_true", help="execute the pinned SP1 Groth16 verifier against this exact fixture using a disposable local Anvil")
     parser.add_argument("--write-proof-check", type=Path, help="write the direct Groth16 reference-check report separately")
     args = parser.parse_args()
+    if args.mode == "verify" and not args.trusted_report_sha256:
+        parser.error("--mode verify requires --trusted-report-sha256 from an independent trusted source")
+    if args.mode == "inspect" and args.trusted_report_sha256:
+        parser.error("--trusted-report-sha256 requires --mode verify")
     if args.write_proof_check and not args.verify_groth16:
         parser.error("--write-proof-check requires --verify-groth16")
     try:
         report = verify(
             args.bundle,
             args.expected_report,
-            args.expected_report_sha256,
+            args.trusted_report_sha256 if args.mode == "verify" else args.expected_report_sha256,
             args.terminal_state_observation,
         )
         chain_report = verify_live_chain_context(args.bundle, args.rpc_url, args.min_confirmations) if args.rpc_url else None
         proof_report = verify_groth16_reference(args.bundle) if args.verify_groth16 else None
     except EvidenceError as exc:
         parser.exit(1, f"FAIL: {exc}\n")
-    if proof_report is not None:
-        report["proof"]["cryptographicVerification"] = proof_report
-        report["verificationResults"]["cryptographicVerification"] = proof_report
+    try:
+        optional_checks = {}
+        if chain_report is not None:
+            optional_checks["liveChainContext"] = chain_report
+        if proof_report is not None:
+            optional_checks["groth16"] = proof_report
+        result = verification_result(
+            report,
+            mode=args.mode,
+            trusted_report_sha256=args.trusted_report_sha256,
+            optional_checks=optional_checks,
+        )
+    except EvidenceError as exc:
+        parser.exit(1, f"FAIL: {exc}\n")
     rendered = json.dumps(report, sort_keys=True, indent=2) + "\n"
     if args.write_report:
         args.write_report.write_text(rendered)
-    print(f"PASS: {report['successfulReceiptCount']} successful receipts cross-linked")
-    print("PASS: sponsor deposit 80, allocator funding 70, claims 35/21/14 bound to receipt and log identities")
+    if args.write_verification_result:
+        args.write_verification_result.write_text(json.dumps(result, sort_keys=True, indent=2) + "\n")
+    print(f"{result['status'].upper()}: {report['successfulReceiptCount']} successful receipts cross-linked")
+    print(f"mode: {result['mode']}")
+    if args.mode == "verify":
+        print(f"profile: {result['profile']}")
+        print("PASS: canonical reconstruction matches the independently supplied report digest")
+    else:
+        print("UNANCHORED: structural reconstruction only; no authenticity or chain-state claim")
     print(f"classification: {report['classification']}")
     if proof_report is None:
         print("cryptographic proof: NOT_INDEPENDENTLY_VERIFIED (retained test-log text is not proof verification)")
     if args.write_report:
         print(f"report: {args.write_report}")
+    if args.write_verification_result:
+        print(f"verification result: {args.write_verification_result}")
     if chain_report is not None:
         chain_rendered = json.dumps(chain_report, sort_keys=True, indent=2) + "\n"
         if args.write_chain_report:
