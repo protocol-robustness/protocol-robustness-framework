@@ -1,5 +1,6 @@
 (ns resolver-sim.benchmark.packs.partial-fill.pro-rata-evidence-test
   (:require [clojure.test :refer [deftest is testing]]
+            [resolver-sim.benchmark.claim-qualification :as claim-qualification]
             [resolver-sim.benchmark.packs.partial-fill.pro-rata-allocation-evidence :as alloc-ev]
             [resolver-sim.benchmark.packs.partial-fill.pro-rata-application-evidence :as app-ev]
             [resolver-sim.benchmark.packs.partial-fill.evidence :as pf-ev]
@@ -694,3 +695,62 @@
     (is (contains? (:producer-assertions result) :verification-checks))
     (is (contains? (:independent-findings result) :check-results))
     (is (:valid? (verification-result/validate-result result)))))
+
+(deftest claim-qualification-composes-live-allocation-validators
+  (let [args (alloc-args (real-alloc))
+        allocation-profile (alloc-ev/build-pro-rata-allocation-evidence args)
+        integrity (alloc-ev/validate-pro-rata-allocation-evidence allocation-profile)
+        semantic (alloc-ev/verify-pro-rata-allocation-evidence allocation-profile args)
+        integrity-result (:verification-result integrity)
+        semantic-result (:verification-result semantic)
+        claim-subject (:subject semantic-result)
+        claim-roots (:source-roots semantic-result)
+        root-keys (vec (sort (keys claim-roots)))
+        qualification-profile
+        {:qualification-profile/schema "prf-claim-qualification-profile.v1"
+         :qualification-profile/id :profile/allocation-claim
+         :qualification-profile/checks
+         [{:check/id :allocation/profile-integrity
+           :check/dimension :integrity
+           :check/validator-id :prf/pro-rata-allocation-profile-validator
+           :check/validator-revision "allocation-profile-validator.v1"
+           :check/required? true
+           :check/required-level :integrity
+           :check/source-root-keys root-keys}
+          {:check/id :allocation/semantic-rederivation
+           :check/dimension :semantic-accounting
+           :check/validator-id :prf/pro-rata-allocation-profile-verifier
+           :check/validator-revision "allocation-profile-verifier.v1"
+           :check/required? true
+           :check/required-level :semantic
+           :check/source-root-keys root-keys}]}
+        claim {:claim/id :claim/allocation-correct
+               :claim/subject claim-subject
+               :claim/cutpoint {:cutpoint/id :cutpoint/allocation-profile
+                                :cutpoint/source-root (val (first (sort-by key claim-roots)))}
+               :claim/source-roots claim-roots}
+        result (claim-qualification/qualify
+                {:profile qualification-profile
+                 :subject claim
+                 :evidence {:allocation-profile allocation-profile :allocation-args args}
+                 :trusted-validators
+                 {:prf/pro-rata-allocation-profile-validator "allocation-profile-validator.v1"
+                  :prf/pro-rata-allocation-profile-verifier "allocation-profile-verifier.v1"}
+                 :validators
+                 {:prf/pro-rata-allocation-profile-validator
+                  {:revision "allocation-profile-validator.v1"
+                   :run (fn [{:keys [allocation-profile]} _]
+                          (let [checked (alloc-ev/validate-pro-rata-allocation-evidence allocation-profile)
+                                verification-result (:verification-result checked)]
+                            {:verification-result verification-result
+                             :observed-subject (:subject verification-result)
+                             :source-roots (:source-roots verification-result)
+                             :findings (:independent-findings verification-result)}))}
+                  :prf/pro-rata-allocation-profile-verifier
+                  {:revision "allocation-profile-verifier.v1"
+                   :run (fn [{:keys [allocation-profile allocation-args]} _] (let [checked (alloc-ev/verify-pro-rata-allocation-evidence allocation-profile allocation-args) verification-result (:verification-result checked)] {:verification-result verification-result :observed-subject (:subject verification-result) :source-roots (:source-roots verification-result) :findings (:independent-findings verification-result)}))}}})]
+    (is (= :verified (:status result)))
+    (is (= :verified (get-in result [:dimensions :integrity :status])))
+    (is (= :verified (get-in result [:dimensions :semantic-accounting :status])))
+    (is (= 2 (count (:checks result))))
+    (is (:valid? (claim-qualification/validate-qualification result)))))

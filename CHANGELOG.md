@@ -10,6 +10,12 @@
 
 ## Unreleased
 
+- Added a versioned, read-only claim qualification composer over independently
+  executed verification results. It binds exact claim subjects, cutpoints,
+  source roots,
+  trusted validator revisions and per-dimension outcomes; conflicting
+  observations remain explicit and fail required checks.
+
 - Added a versioned, derived verification-result response for partial-fill
   allocation, application, and execution evidence checks. Results distinguish
   producer assertions from recomputed findings and report requested versus
