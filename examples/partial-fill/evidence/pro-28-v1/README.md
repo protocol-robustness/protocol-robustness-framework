@@ -29,11 +29,17 @@ For the supported `pro28-local-reconstruction-pin-v1` profile, obtain the
 reconstruction digest from a trusted source revision or authenticated channel,
 independently of the evidence bundle, and pass it directly to the verifier:
 
+For example, after checking out the reviewed source revision through an
+authenticated channel, copy the digest from that revision into this variable.
+Do not populate it from a sidecar distributed with the bundle being checked.
+
 ```bash
+export PRO28_TRUSTED_FRESH_20261017_SHA256='<digest obtained from trusted source>'
+
 python3 scripts/forensic/pro28_receipts.py \
   examples/partial-fill/evidence/pro-28-v1/raw/fresh-replay-20261017 \
   --mode verify \
-  --trusted-report-sha256 "$(cut -d ' ' -f 1 examples/partial-fill/evidence/pro-28-v1/fresh-replay-20261017-reconstruction.json.sha256)" \
+  --trusted-report-sha256 "$PRO28_TRUSTED_FRESH_20261017_SHA256" \
   --expected-report examples/partial-fill/evidence/pro-28-v1/fresh-replay-20261017-reconstruction.json \
   --write-verification-result /tmp/pro28-verification-result.json
 ```
@@ -45,6 +51,11 @@ the canonical reconstruction report. This profile establishes that the
 supported local reconstruction matches the externally pinned report. It does
 not authenticate RPC receipts, prove canonical-chain inclusion or finality, or
 upgrade the proof result to cryptographically verified.
+
+Reading an adjacent `.sha256` sidecar can be useful for an untrusted consistency
+comparison, but it is not an independent trust anchor. To perform only that
+comparison, use `--mode inspect --expected-report-sha256 <sidecar-digest>`; the
+result remains `inspection_unanchored` and must not be described as verification.
 
 The verifier reloads the manifest, witness, source vector, proof fixture, original runner broadcasts, RPC-bound transaction/receipt records, terminal observation, and runtime bytecode. It recomputes artifact digests and runtime SHA-256/Keccak identities, checks transaction/receipt one-to-one correspondence, binds the 80-unit reserve deposit to `deposit(80)`, the 70-unit transfer to the fixed-operation funding call, and each 35/21/14 payout to its allocator withdrawal opening. The runner broadcast source hashes are retained and checked separately. A success string in `fork-test.log` is reported only as a test-log observation; it does not establish cryptographic proof validity. This verifier does not rerun SP1 proof verification, so `cryptographicVerification` remains `not_independently_verified`.
 
@@ -84,11 +95,13 @@ The command accepts only a loopback Anvil endpoint at chain ID 31337 and block z
 Independently rerun both checks while that same Anvil process is still running:
 
 ```bash
+export PRO28_TRUSTED_FRESH_20261018_SHA256='<digest obtained from trusted source>'
+
 python3 scripts/forensic/pro28_receipts.py \
   examples/partial-fill/evidence/pro-28-v1/raw/fresh-replay-20261018 \
   --mode verify \
   --expected-report examples/partial-fill/evidence/pro-28-v1/fresh-replay-20261018-reconstruction.json \
-  --trusted-report-sha256 "$(cut -d ' ' -f 1 examples/partial-fill/evidence/pro-28-v1/fresh-replay-20261018-reconstruction.json.sha256)"
+  --trusted-report-sha256 "$PRO28_TRUSTED_FRESH_20261018_SHA256"
 
 python3 scripts/forensic/pro28_receipts.py \
   examples/partial-fill/evidence/pro-28-v1/raw/fresh-replay-20261018 \
@@ -101,12 +114,14 @@ The second command must pass against the same chain captured by the replay comma
 The 2026-10-18 reconstruction intentionally does not claim terminal liability closure: its retained `final-state.log` says block 12 while the execution receipts extend through block 41, and the log is not treated as an authoritative state read. A separate PRO-56 capture retains same-block `eth_call` results and a live-chain context check for block 41. Reconstruct that evidence with:
 
 ```bash
+export PRO28_TRUSTED_PRO56_20261018_SHA256='<digest obtained from trusted source>'
+
 python3 scripts/forensic/pro28_receipts.py \
   examples/partial-fill/evidence/pro-28-v1/raw/fresh-replay-pro56-20261018 \
   --mode verify \
   --terminal-state-observation examples/partial-fill/evidence/pro-28-v1/pro-56-live-state-observation-20261018.json \
   --expected-report examples/partial-fill/evidence/pro-28-v1/fresh-replay-pro56-20261018-reconstruction.json \
-  --trusted-report-sha256 "$(cut -d ' ' -f 1 examples/partial-fill/evidence/pro-28-v1/fresh-replay-pro56-20261018-reconstruction.json.sha256)"
+  --trusted-report-sha256 "$PRO28_TRUSTED_PRO56_20261018_SHA256"
 ```
 
 This verifies the observation's manifest, operation, chain lineage, read targets/selectors, common block identity, raw ABI results, decoded successor operation, retained transaction anchors and zero-liability accounting. It remains a provider-relative local observation, not consensus evidence or public-chain qualification. The old `final-state.log` is retained and hash-checked as text; it does not establish closure.
