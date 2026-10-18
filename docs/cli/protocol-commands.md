@@ -1,5 +1,8 @@
 # Protocol, forensic and deployment commands
 
+See the [qualification receipt](protocol-command-qualification.md) for exact
+source revisions, passing checks and the remaining forensic/deployment gates.
+
 The PRF source launcher is `bin/prf`. It selects this checkout's normal
 `-Srepro -M:with-sew` dependency closure. You can invoke its absolute path from
 another directory. `--input` and `--trust-context` paths resolve from the caller's
@@ -60,7 +63,8 @@ The existing `bb forensic:*` tasks and Python entry points remain available.
 The registered commands invoke the existing Python modules in an explicit PRF
 checkout. That checkout needs Python dependencies from
 `test/forensic_python/requirements.txt`; run and reproduce also need Clojure.
-There is no checkout creation or package installation during a command.
+Prepare dependencies before running. The adapters do not create PRF checkouts
+or invoke pip/npm installers.
 
 | Command | Required request fields | Optional fields |
 |---|---|---|
@@ -80,9 +84,11 @@ For example, `verify.edn` can contain:
 ```
 
 Flags must be booleans. Run uses the existing shared-filesystem mode; its output
-is written below the explicit output base and hardened unless `:no-harden true`.
+and lock are written below the explicit output base; each run directory is
+hardened unless `:no-harden true`.
 Reproduce executes the selected source checkout and writes a new reproduction
-directory. Validate and verify retain their existing assurance distinctions,
+directory with its own artifact workspace. A failed child process always fails
+reproduction, even if it wrote a matching bundle. Validate and verify retain their existing assurance distinctions,
 including `not-verified` for unavailable protocol validation. The outer result
 contains the selected repo root, subprocess exit code, stdout and stderr. The
 inner report remains unchanged. Scripts execute as argv without a shell.
