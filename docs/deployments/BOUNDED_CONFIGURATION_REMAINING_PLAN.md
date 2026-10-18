@@ -604,23 +604,20 @@ cases and resulting authority state are independently observed.
 
 ### Current candidate audit (2026-10-18)
 
-The preserved v2 candidate package roots still reproduce from the four retained
-artifacts, and the genesis seal-gate suite passes (2 tests, 27 assertions).
-However, the source-lock regression test fails against the current checkout:
-9 of the 926 locked source entries have changed, with none missing. The drift
-includes `src/resolver_sim/hash/canonical.clj`, CLI dispatch/registry, several
-command handlers, and the scenario runner. For example,
-`src/resolver_sim/cli/dispatch.clj` now has digest
-`44b4ab41765943bc8c745ca520518f738f478f2ece125f048a4ecb5f80054316`, while
-the frozen release lock expects
-`4c95a6c16d9bfb5ea3f33434361f4211f7f2a385b2d81a783aecb2490555fcaf`.
-Therefore the retained manifest remains historical review material and cannot
-be signed or used for deployment against the current source tree. Preserve it
-unchanged; before seeking initial-input approval for this checkout, create a
-new source-bound candidate derivation and manifest from a reviewed source lock,
-then obtain approval for that exact new manifest. The source drift does not
-alter the separately reproduced canonical package roots. No approval or live
-deployment evidence is present.
+The preserved v2 candidate remains unchanged as historical review material.
+Its source lock differs from the current checkout in 9 of 926 entries, including
+`src/resolver_sim/hash/canonical.clj`, so its manifest cannot authorize this
+source revision. A separate v3 review candidate now carries the same four
+semantic packages and seven-root C0 with a current-source manifest. Its v2
+source lock verifies all 926 scoped entries against source parent
+`75c5055b23a2f1b27f43af3696eb4be99f51ed7b` and tree
+`ac464875d45654294a43e0fbcdccfa7bb3cd0fb50db2fba098d0f4a89d30ec95`.
+Package-root derivation and manifest content validation match; the canonical
+manifest root is
+`sha256:c68a6ee9bc99dcacf04c28730e9c7b5f5f83e750709679d90c9ba4a570d22c9f`.
+The manifest status remains candidate-only. The owner must review the changed
+sources and exact package before authenticated initial-input approval; no
+approval or live deployment evidence is present.
 
 | Order | Work | Concrete output | Gate / dependency |
 | --- | --- | --- | --- |

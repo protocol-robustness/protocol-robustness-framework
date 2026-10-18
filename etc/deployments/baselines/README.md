@@ -1,12 +1,23 @@
 # Bounded configuration release baseline
 
-`bounded-configuration-release-baseline.v1.json` records the current bounded-configuration release-source
-bundle digest, prf-evm base and integrated revision, the relevant
+The v1 release baseline below is retained as historical evidence for its
+original source parent. It no longer matches the current PRF source checkout.
+The current-source candidate uses
+`bounded-configuration-release-sources.current.v2.json`, whose lock is
+independently verified over the same 926 scoped paths and intentionally remains
+outside that locked path set. Its matching review package is in
+`../bounded-configuration-local-candidate-v3/`. Both identities remain
+unapproved; the v2 package and v1 baseline are preserved unchanged.
+
+`bounded-configuration-release-baseline.v1.json` records its bounded-configuration
+release-source bundle digest, prf-evm base and integrated revision, the relevant
 protocol-deployments worktree overlay, pinned Solidity submodules, tool versions,
 and the focused regression result. The source lock enumerates each included file; its bundle digest is SHA-256 over
 sorted `path NUL file-digest LF` records. It also pins cross-repository source
 patches and identities and is not a Git commit for the live PRF working copy.
-The source lock contains 926 scoped release-source entries, including PRF files, generic local candidate inputs and pinned cross-repository patches. Its current bundle digest is recorded in the baseline manifest and candidate review manifest.
+The historical source lock contains 926 scoped release-source entries,
+including PRF files, generic local candidate inputs and pinned cross-repository
+patches. Its bundle digest is recorded in its baseline and candidate manifest.
 
 The exact protocol-deployments patch is retained in
 `protocol-deployments-worktree.patch`. It preserves the six existing edits and
