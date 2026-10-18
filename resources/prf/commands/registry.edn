@@ -1,7 +1,135 @@
 {:schema-version "prf.commands.registry.v1"
 
  :commands
- [  {:command/id :backstop
+ [
+  {:command/id :protocol-finality-inspect
+   :command/path ["protocol" "finality" "inspect"]
+   :command/title "protocol finality inspect"
+   :command/category :protocol
+   :command/surface :prf
+   :command/backstop-tier :manual
+   :command/jar-availability :native
+   :command/runtime :jvm
+   :command/options [{:name "--input" :type :string :required true :doc "Exactly one EDN request map from FILE or explicit stdin (-)"}
+                      {:name "--json" :type :flag :doc "JSON output; keywords and integers use strings"}]
+   :command/outputs []
+   :command/positional-args {:min 0 :max 0}
+   :command/description "Classify financial finality or derive ruling finality from an explicit SEW world; chain finality remains assumed by replay."}
+
+  {:command/id :protocol-finality-verify
+   :command/path ["protocol" "finality" "verify"]
+   :command/title "protocol finality verify"
+   :command/category :protocol
+   :command/surface :prf
+   :command/backstop-tier :manual
+   :command/jar-availability :native
+   :command/runtime :jvm
+   :command/options [{:name "--input" :type :string :required true :doc "Exactly one EDN request map from FILE or explicit stdin (-)"}
+                      {:name "--json" :type :flag :doc "JSON output; keywords and integers use strings"}]
+   :command/outputs []
+   :command/positional-args {:min 0 :max 0}
+   :command/description "Recompute finality against the supplied SEW world and reject mismatched artifacts; does not authenticate the supplied world."}
+
+  {:command/id :forensic-run
+   :command/path ["forensic" "run"]
+   :command/title "forensic run"
+   :command/category :evidence
+   :command/surface :prf
+   :command/backstop-tier :manual
+   :command/jar-availability :native
+   :command/runtime :jvm
+   :command/options [{:name "--input" :type :string :required true :doc "Exactly one EDN request map from FILE or explicit stdin (-)"}
+                      {:name "--json" :type :flag :doc "JSON output; keywords and integers use strings"}]
+   :command/outputs []
+   :command/positional-args {:min 0 :max 0}
+   :command/description "Run the existing forensic workflow using explicit PRF and output roots; requires Python and the source checkout."}
+
+  {:command/id :forensic-validate
+   :command/path ["forensic" "validate"]
+   :command/title "forensic validate"
+   :command/category :evidence
+   :command/surface :prf
+   :command/backstop-tier :manual
+   :command/jar-availability :native
+   :command/runtime :jvm
+   :command/options [{:name "--input" :type :string :required true :doc "Exactly one EDN request map from FILE or explicit stdin (-)"}
+                      {:name "--json" :type :flag :doc "JSON output; keywords and integers use strings"}]
+   :command/outputs []
+   :command/positional-args {:min 0 :max 0}
+   :command/description "Run existing protocol-semantic forensic validation over retained evidence."}
+
+  {:command/id :forensic-verify
+   :command/path ["forensic" "verify"]
+   :command/title "forensic verify"
+   :command/category :evidence
+   :command/surface :prf
+   :command/backstop-tier :manual
+   :command/jar-availability :native
+   :command/runtime :jvm
+   :command/options [{:name "--input" :type :string :required true :doc "Exactly one EDN request map from FILE or explicit stdin (-)"}
+                      {:name "--json" :type :flag :doc "JSON output; keywords and integers use strings"}]
+   :command/outputs []
+   :command/positional-args {:min 0 :max 0}
+   :command/description "Run existing forensic integrity and optional signature/semantic verification."}
+
+  {:command/id :forensic-reproduce
+   :command/path ["forensic" "reproduce"]
+   :command/title "forensic reproduce"
+   :command/category :evidence
+   :command/surface :prf
+   :command/backstop-tier :manual
+   :command/jar-availability :native
+   :command/runtime :jvm
+   :command/options [{:name "--input" :type :string :required true :doc "Exactly one EDN request map from FILE or explicit stdin (-)"}
+                      {:name "--json" :type :flag :doc "JSON output; keywords and integers use strings"}]
+   :command/outputs []
+   :command/positional-args {:min 0 :max 0}
+   :command/description "Execute the existing forensic reproduction workflow in an explicitly selected PRF source checkout."}
+
+  {:command/id :protocol-pro-rata-derive-operation
+   :command/path ["protocol" "pro-rata" "derive-operation"]
+   :command/title "protocol pro-rata derive-operation"
+   :command/category :protocol
+   :command/surface :prf
+   :command/backstop-tier :manual
+   :command/jar-availability :native
+   :command/runtime :jvm
+   :command/options [{:name "--input" :type :string :required true :doc "Exactly one EDN request map from FILE or explicit stdin (-)"}
+                      {:name "--json" :type :flag :doc "JSON output; keywords and integers use strings"}]
+   :command/outputs []
+   :command/positional-args {:min 0 :max 0}
+   :command/description "Derive controlled-source operation commitments and entitlements; does not submit a transaction or grant authority."}
+
+  {:command/id :protocol-pro-rata-check-admission
+   :command/path ["protocol" "pro-rata" "check-admission"]
+   :command/title "protocol pro-rata check-admission"
+   :command/category :protocol
+   :command/surface :prf
+   :command/backstop-tier :manual
+   :command/jar-availability :native
+   :command/runtime :jvm
+   :command/options [{:name "--input" :type :string :required true :doc "Exactly one EDN request map from FILE or explicit stdin (-)"}
+                      {:name "--json" :type :flag :doc "JSON output; keywords and integers use strings"}
+                      {:name "--trust-context" :type :string :required true :doc "Independent EDN trust policy and approved program registry"}]
+   :command/outputs []
+   :command/positional-args {:min 0 :max 0}
+   :command/description "Check the existing realized-allocation V1 signed verifier receipt boundary using independent trust policy and proof file integrity."}
+
+  {:command/id :protocol-pro-rata-verify-execution
+   :command/path ["protocol" "pro-rata" "verify-execution"]
+   :command/title "protocol pro-rata verify-execution"
+   :command/category :protocol
+   :command/surface :prf
+   :command/backstop-tier :manual
+   :command/jar-availability :native
+   :command/runtime :jvm
+   :command/options [{:name "--input" :type :string :required true :doc "Exactly one EDN request map from FILE or explicit stdin (-)"}
+                      {:name "--json" :type :flag :doc "JSON output; keywords and integers use strings"}]
+   :command/outputs []
+   :command/positional-args {:min 0 :max 0}
+   :command/description "Reconstruct retained local source-bound entitlement execution evidence and report unresolved assurance gaps; no live observation."}
+
+  {:command/id :backstop
    :command/path ["backstop"]
    :command/title "Default backstop"
    :command/category :validation

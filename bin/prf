@@ -1,0 +1,34 @@
+#!/usr/bin/env bash
+# Source-checkout CLI launcher. Preserve request paths before selecting PRF cwd.
+set -euo pipefail
+PRF_CLI_ROOT="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
+PRF_CLI_ARGS=()
+while (($#)); do
+  case "$1" in
+    --input|--trust-context)
+      PRF_CLI_OPTION="$1"
+      shift
+      if (($# == 0)); then
+        printf '%s requires a path\n' "$PRF_CLI_OPTION" >&2
+        exit 2
+      fi
+      PRF_CLI_PATH="$1"
+      if [[ "$PRF_CLI_PATH" != '-' && "$PRF_CLI_PATH" != /* ]]; then
+        PRF_CLI_PATH="$PWD/$PRF_CLI_PATH"
+      fi
+      PRF_CLI_ARGS+=("$PRF_CLI_OPTION" "$PRF_CLI_PATH")
+      ;;
+    --input=*|--trust-context=*)
+      PRF_CLI_OPTION="${1%%=*}"
+      PRF_CLI_PATH="${1#*=}"
+      if [[ "$PRF_CLI_PATH" != '-' && "$PRF_CLI_PATH" != /* ]]; then
+        PRF_CLI_PATH="$PWD/$PRF_CLI_PATH"
+      fi
+      PRF_CLI_ARGS+=("$PRF_CLI_OPTION" "$PRF_CLI_PATH")
+      ;;
+    *) PRF_CLI_ARGS+=("$1") ;;
+  esac
+  shift
+done
+cd -- "$PRF_CLI_ROOT"
+exec clojure -Srepro -M:with-sew -m resolver-sim.cli.main "${PRF_CLI_ARGS[@]}"

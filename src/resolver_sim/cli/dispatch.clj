@@ -23,7 +23,16 @@
   ;; the gRPC simulation server) from breaking an unrelated CLI invocation.
   ;; Note: :commands-validate is intentionally excluded to avoid circular
   ;; dependency with registry-validate namespace.
-  {:run-scenario 'resolver-sim.commands.scenario/run
+  {:protocol-finality-inspect 'resolver-sim.commands.protocol-finality/inspect
+   :protocol-finality-verify 'resolver-sim.commands.protocol-finality/verify
+   :forensic-run 'resolver-sim.commands.forensic/run
+   :forensic-validate 'resolver-sim.commands.forensic/validate
+   :forensic-verify 'resolver-sim.commands.forensic/verify
+   :forensic-reproduce 'resolver-sim.commands.forensic/reproduce
+   :protocol-pro-rata-derive-operation 'resolver-sim.commands.protocol-pro-rata/derive-operation
+   :protocol-pro-rata-check-admission 'resolver-sim.commands.protocol-pro-rata/check-admission
+   :protocol-pro-rata-verify-execution 'resolver-sim.commands.protocol-pro-rata/verify-execution
+   :run-scenario 'resolver-sim.commands.scenario/run
    :run-invariants 'resolver-sim.commands.invariants/run
    :run-benchmark 'resolver-sim.commands.run-benchmark/run
    :parallel-benchmark-run 'resolver-sim.commands.run-benchmark/run
@@ -100,7 +109,8 @@
    :check-aggregate 'resolver-sim.commands.check-aggregate/run})
 
 (def ^:private sew-command-ids
-  #{:benchmark-validate :benchmark-validate-jar :benchmark-smoke
+  #{:protocol-finality-inspect :protocol-finality-verify
+    :benchmark-validate :benchmark-validate-jar :benchmark-smoke
     :run-scenario :run-invariants :run-benchmark :parallel-benchmark-run :run-simulation
     :scenario-list :scenario-compare :scenario-pick :scenario-run-search
     :benchmark-list :suite-list :invariants-run :verify-run :assure-package})
@@ -193,6 +203,7 @@
    [nil "--key PATH" "Path to private key"]
    [nil "--key-id ID" "Issuer key-id for the certificate signature"]
    [nil "--check FILE" "ref-file: verify a canonical sha256 refs file against file contents"]
+   [nil "--trust-context PATH" "Independent EDN trust-policy/program-registry file for pro-rata receipt admission"]
    [nil "--input PATH" "Input EDN/JSON specification, or - for stdin"]
    [nil "--member-key N" "Researcher: integer review-member/key for identity resolution"]
    [nil "--dissent-reason STR" "Researcher disagree: reason for dissent"]
@@ -261,6 +272,13 @@
   (println "Use: java -jar prf.jar <command> --help for command-specific help.")
   {:exit-code 0, :message "help"})
 
+(defn- print-command-help [cmd]
+  (println (str/join " " (:command/path cmd)))
+  (println (:command/description cmd))
+  (doseq [{:keys [name doc required]} (:command/options cmd)]
+    (println (str "  " name (when required " (required)") "  " doc)))
+  0)
+
 ;; ---------------------------------------------------------------------------
 ;; Command execution (for backstop orchestration)
 ;; ---------------------------------------------------------------------------
@@ -317,7 +335,10 @@
           2)
 
       (:help options)
-      0
+      (if-let [[path _] (command-path arguments)]
+        (print-command-help (registry/get-command
+                             (get (registry/path->command-id-map) path)))
+        (do (print-help) 0))
 
       (empty? arguments)
       (do (println "Usage: java -jar prf.jar <command> [options]")
