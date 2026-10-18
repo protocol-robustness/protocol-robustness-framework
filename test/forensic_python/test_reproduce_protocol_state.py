@@ -82,6 +82,20 @@ def test_forensic_execution_redirects_all_runner_output_roots(tmp_path, monkeypa
     assert forensic_run.run_invoke_scenario_pipeline(None, run_dir, workspace_dir=workspace) == 0
 
 
+def test_forensic_lock_uses_explicit_output_namespace(tmp_path, monkeypatch):
+    checkout = tmp_path / "checkout"
+    checkout.mkdir()
+    monkeypatch.chdir(checkout)
+    path = tmp_path / "output" / ".forensic-run.lock"
+    handle = forensic_run._acquire_lock(path)
+    try:
+        assert Path(handle.name) == path
+        assert path.is_file()
+        assert not (checkout / "results").exists()
+    finally:
+        forensic_run._release_lock(handle)
+
+
 def _bundle(proto: dict | None = None) -> dict:
     """Build a minimal bundle root with optional protocol state hashes."""
     b = {

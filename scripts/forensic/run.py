@@ -61,18 +61,19 @@ def make_run_id(label: str | None = None) -> str:
     return ts
 
 
-def _acquire_lock() -> Any:
-    """Acquire an exclusive file lock on the shared artifact directory.
+def _acquire_lock(lock_path: Path | None = None) -> Any:
+    """Acquire an exclusive file lock on the selected output namespace.
     Blocks until the lock is available.  Auto-releases when the process dies.
     Returns the lock file handle (must be kept alive while locked)."""
-    _LOCK_PATH.parent.mkdir(parents=True, exist_ok=True)
-    lf = open(_LOCK_PATH, "w")
+    lock_path = lock_path if lock_path is not None else _LOCK_PATH
+    lock_path.parent.mkdir(parents=True, exist_ok=True)
+    lf = open(lock_path, "w")
     try:
         fcntl.flock(lf, fcntl.LOCK_EX)
     except Exception:
         lf.close()
         raise
-    print(f"  acquired lock {_LOCK_PATH}", file=sys.stderr)
+    print(f"  acquired lock {lock_path}", file=sys.stderr)
     return lf
 
 
@@ -83,7 +84,7 @@ def _release_lock(lf: Any) -> None:
         lf.close()
     except Exception:
         pass
-    print(f"  released lock {_LOCK_PATH}", file=sys.stderr)
+    print(f"  released lock {lf.name}", file=sys.stderr)
 
 
 def _enforce_retention(output_base: Path, max_runs: int) -> None:
@@ -671,8 +672,8 @@ def run_forensic(run_request_path: str = "examples/forensic-reference-run/run-re
     except Exception:
         pass  # non-critical check, skip on error
 
-    # Step 1c: Acquire exclusive lock on artifact directory
-    lock_file = _acquire_lock()
+    # Step 1c: Serialize users of this output namespace without a checkout write.
+    lock_file = _acquire_lock(output_base / ".forensic-run.lock")
     lock_held = True
     try:
         # Step 2: Create output directory and per-run protected workspace
