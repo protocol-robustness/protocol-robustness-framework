@@ -26,6 +26,11 @@
         baseline (json/read-str (slurp baseline-path) :key-fn keyword)
         prf (:prf baseline)
         tree-root (:sourceTreeSha256 prf)
+        verified-lock (source-identity/verify-source-lock
+                       {:source-root root
+                        :source-lock-path (io/file root "etc/deployments/baselines/bounded-configuration-release-baseline.v1.json")
+                        :expected-tree-sha256 tree-root
+                        :expected-parent (:jjWorkingCopyParent prf)})
         source-identities (get-in baseline [:prf :releaseSourceIdentities])
         source-identities-path (io/file root (:path source-identities))
         sources (json/read-str (slurp source-identities-path) :key-fn keyword)
@@ -36,6 +41,10 @@
     (is (= tree-root (:sourceTreeSha256 source-identities)))
     (is (= tree-root (:manifest/source-tree-sha256 manifest)))
     (is (= (:sourceFileCount prf) (count (:sourceTreeEntries prf))))
+    (is (= {:source-tree-sha256 tree-root
+            :source-parent (:jjWorkingCopyParent prf)
+            :source-file-count (:sourceFileCount prf)}
+           verified-lock))
     (is (= (:sourceBoundManifestSha256 candidate)
            (sha256-file (io/file root (:sourceBoundManifest candidate)))))
     (doseq [patches [(get-in sources [:prfEvm :patches])

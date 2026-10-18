@@ -18,28 +18,28 @@ public governance approval and production readiness are separate milestones.
 | Canonical authority | Generic state v1, local policy v1/v2/v3, atomic transition enforcement, Ed25519 and EIP-191 validator paths, shared commitment vectors; the bounded profile now deploys the immutable EIP-191 validator and enables transition mode before sealing | Execute and independently verify an approved authority-state transition; qualify the approved key/runtime |
 | Initial inputs | Four generic candidate artifacts now derive under local policy v3; source-bound review manifest and seven-root C0 artifact | Review and approve exact semantic content, validator address and source identity |
 | Review manifest | Generic v3 content/root, scope, principal, action and release-source bundle bindings; PRF verifier plus deployment gates for initial inputs, genesis sealing and separate C0→C1 approval | Supply real trusted initial-input and transition approval evidence |
-| Solidity hardening | Clean local release revision `02b7ea507e84054fecb422c5a5b56b02b40d0dcb`; v0.4.1 bundle root `0042d0fee369cd0687ef520ac5a8deb7018a88291655de52bfd24e22d02733c6`; 31 artifact ABI/creation/runtime identities reproduce the retained fixture | Qualify the trusted validator implementation, bind it to approved inputs and retain deployment/runtime evidence |
+| Solidity hardening | Pinned base `4b6b6ed159762c88099c96d4dafd635ab99470ea` plus the source-locked combined overlay reproduces tree `98e2ced7c0c61f146f7da902ed027780cee0f8b9`; the 129-test focused run and updated 10-test authority suite pass (130 cases across runs); the production Solidity source compiled and all 31 artifact records match the retained v0.4.1 fixture | The historical bundle root is not reproduced because its release commit object is absent from this mirror; qualify the trusted validator implementation, bind it to approved inputs and retain deployment/runtime evidence |
 | Registry equivalence | Shared fixtures pass in Clojure and Solidity | Retain fixture/release identities with the approved successor package |
 | Proof and replay | Real-proof and consumer/assurance regression tests pass | Repeat the composed capital flow under the newly approved deployed C1 |
 | Deployment qualification | Independent chain-instance preflight/result gate, pinned observer, signer-bound genesis and empty-registry seals, successor-registry equivalence, C0→C1 derivation, separate transition-approval verifier, and policy-v3 validator enablement are integrated into the resumable partial prefix | Execute approved successor registry/governance changes and later proof/capital stages; then run with real approvals and retain live receipts/readbacks |
 
-The original tested patch has been integrated into a pinned local prf-evm
-commit. A separate authority-transition patch is now based on that integration
-and retained for reproducible application. The requested
-`prf-evm-config-bounded-current` ref was unavailable; the baseline is
-`4b6b6ed159762c88099c96d4dafd635ab99470ea`, and the integration is
-`02dcc7a869b492e8444f25fb9169e9c8061e102a`. A clean local release commit
-`02b7ea507e84054fecb422c5a5b56b02b40d0dcb` now pins the v0.4.1 allow-list
-and source integration. Two clean detached worktrees at the same release commit, each with cleared
-Foundry outputs, completed the repository `npm run compile` script with Solc
-0.8.33 and the default profile. Both exports had the same bundle root and all
-31 ABI, creation-bytecode, runtime-bytecode and artifact-file hashes;
-artifact-file digests and the package root were regenerated as
-`0042d0fee369cd0687ef520ac5a8deb7018a88291655de52bfd24e22d02733c6`. The
-source lock also pins the transitive SP1 submodules required to reproduce
-compiler remappings. This closes W0 local build reproducibility; it does not
-constitute an owner-approved or published release. The reproducible source record and
-protocol-deployments worktree overlay are documented in
+Earlier local validation recorded integrated PRF-EVM revision
+`02dcc7a869b492e8444f25fb9169e9c8061e102a` and release revision
+`02b7ea507e84054fecb422c5a5b56b02b40d0dcb`, but those Git objects are absent
+from the current mirror. The requested `prf-evm-config-bounded-current` ref
+was also unavailable. The current reproducible baseline therefore uses clean
+archive base `4b6b6ed159762c88099c96d4dafd635ab99470ea` plus the combined
+content-addressed overlay retained in the source lock. The reconstructed tree
+is `98e2ced7c0c61f146f7da902ed027780cee0f8b9`; the 129-test focused run passed before the test-only addition; the updated
+authority suite passes 10/10, extending coverage to 130 cases across runs.
+`npm run compile` passed before the test-only W1 addition on the same production Solidity sources; the updated test tree compiled during the Forge run. All 31 ABI,
+creation-bytecode, runtime-bytecode and artifact-file records match the
+retained v0.4.1 manifest. The package root
+`0042d0fee369cd0687ef520ac5a8deb7018a88291655de52bfd24e22d02733c6` is not
+claimed as reproduced because its provenance includes the unavailable
+historical commit. The source lock pins the patch and submodules needed for
+compiler remappings. This establishes reproducible local source and artifact
+identities, not owner approval, publication or deployment. See the
 [release baseline evidence](../../etc/deployments/baselines/README.md).
 
 The protocol-deployments worktree is also integrated in a pinned local revision,
@@ -137,6 +137,8 @@ blocks and reads the transaction, receipt and post-state directly:
 ## Work packages
 
 ### W0 — Establish the integrated baseline
+The historical PRF-EVM integration/release Git objects are unavailable in the current mirror. The pinned base plus `etc/deployments/baselines/prf-evm-bounded-combined-overlay.patch.gz` now provides the reproducible source baseline: its resulting tree is `98e2ced7c0c61f146f7da902ed027780cee0f8b9`, the prior 129-test focused Solidity run passed; after the W1 test-only addition, the authority suite passes 10/10, extending the covered union to 130 cases, and `npm run compile` exports 31 artifact records matching the retained v0.4.1 manifest. The original package root is not claimed because archive provenance differs.
+
 
 Owner: prf-evm and PRF maintainers. Priority: P0. Dependencies: none.
 
@@ -212,7 +214,7 @@ v1/v2 identities retain their original projections. Both policies use
 which binds previous/successor state and policy roots, revisions, adapter,
 instance, derived mutations and canonical configuration-transition preimages.
 The EVM transition path is now implemented in the pinned follow-up patch
-`prf-evm-authority-transition-followup.patch`. The adapter opts into transition
+`prf-evm-authority-transition-followup.patch`. Its regression suite now covers a complete authorized revocation, confirms revoked decisions and their proof mode are no longer effective, and rejects direct legacy proof-mode/revoke calls after transition opt-in; all 10 authority-transition tests pass. The adapter opts into transition
 mode before genesis sealing, rejects opt-in after any legacy mutation, and then
 atomically validates and applies a sorted mutation list before advancing the
 authority-state root and revision. Direct legacy administrative routes are
@@ -602,7 +604,7 @@ cases and resulting authority state are independently observed.
 
 | Order | Work | Concrete output | Gate / dependency |
 | --- | --- | --- | --- |
-| 1 | W0 local release reproducibility is complete. The refreshed overlays pin the clean release commit and v0.4.1 artifact bundle; two cache-cleared full builds reproduced all 31 artifact and file identities. | Clean source commit, reproducible package root and refreshed source-lock digests. | This fixes the source identity for W2 review; the unsigned local commit still requires owner review before approval. |
+| 1 | W0 source and artifact reproducibility is established from the pinned base plus content-addressed overlay. The rebuilt 31 artifact records match the retained v0.4.1 manifest; the historical package root remains unreproduced because its commit object is unavailable. | Reproducible source tree, artifact records, toolchain and refreshed source-lock digests. | This fixes source identity for W2 review; owner approval is still required before deployment. |
 | 2 | Finish W2 semantic review and local approval material. Review policy-v3 and its validator trust assumption, finalize the four candidate artifacts and seven-root C0, then obtain authenticated approval over the exact source-bound manifest and local scope. | Owner-reviewed package plus detached, independently verifiable initial-input approval. | Approval is an external input; absent approval, retain candidate status and stop before deployment transactions. |
 | 3 | Complete W3/W4 execution gates against the approved package. Authenticate deployed verifier and validator runtime identities, perform fresh chain observations, independently derive genesis, and seal only when all bindings match. Retain mined receipt and same-block readbacks. | Verified local genesis seal and deployment evidence bundle. | Requires steps 1–2; changed source or deployment facts require a new derivation and approval as applicable. |
 | 4 | Complete W5. Deploy and bind the executor and empty epoch-0 registry to the sealed instance; deploy/authenticate the successor verifier; derive C1; obtain separate transition approval; execute the approved authority/configuration update and independently check readbacks. | Distinct, reproducible C0/C1 identities and retained approval, transaction and state evidence. | Initial-input approval does not authorize this transition. Stop if parent, epoch, instance, proof mode or registry differs from the approved manifest. |

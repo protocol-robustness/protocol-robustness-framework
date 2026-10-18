@@ -6,7 +6,7 @@ protocol-deployments worktree overlay, pinned Solidity submodules, tool versions
 and the focused regression result. The source lock enumerates each included file; its bundle digest is SHA-256 over
 sorted `path NUL file-digest LF` records. It also pins cross-repository source
 patches and identities and is not a Git commit for the live PRF working copy.
-The source lock contains 925 scoped release-source entries, including PRF files, generic local candidate inputs and pinned cross-repository patches. Its current bundle digest is recorded in the baseline manifest and candidate review manifest.
+The source lock contains 926 scoped release-source entries, including PRF files, generic local candidate inputs and pinned cross-repository patches. Its current bundle digest is recorded in the baseline manifest and candidate review manifest.
 
 The exact protocol-deployments patch is retained in
 `protocol-deployments-worktree.patch`. It preserves the six existing edits and
@@ -168,3 +168,10 @@ A current-head overlay is also pinned at `protocol-deployments-current-head-over
 
 The additive `protocol-deployments-capital-flow-qualification-followup.patch`
 is based on the current-head overlay result tree `666cad1e81742948d3b30a0085466dca0c51d534`. It adds ABI-decoded receipt event/transfer cross-links and requires the independent verifier to load `protocol-capital-flow-expectations/v1` from a relative path inside the separately selected trusted-context root. The package binds expected state reads to manifest, sealed instance, applied C1/epoch and operation identity; its digest is folded into the verification root. The focused replay, trusted-expectation and report suites pass 41 tests and TypeScript typecheck passes. The qualification authority's approval of the expected values remains trusted, and no approved live execution is claimed.
+
+
+## Reconstructed PRF-EVM hardening stack
+
+The historical integration commit `02dcc7a869b492e8444f25fb9169e9c8061e102a` and release commit `02b7ea507e84054fecb422c5a5b56b02b40d0dcb` are not available as Git objects in the current mirror. A clean archive of pinned base `4b6b6ed159762c88099c96d4dafd635ab99470ea` plus the deterministically gzip-compressed overlay file pinned in `bounded-configuration-release-sources.v1.json` reconstructs the hardening, authority-transition and capital-replay stack. The compressed patch SHA-256, resulting source-tree identity and toolchain are pinned in the source/baseline JSON. Run `gzip -dc etc/deployments/baselines/prf-evm-bounded-combined-overlay.patch.gz | git -C <clean-prf-evm-base> apply` to apply it; this reproduces tree `98e2ced7c0c61f146f7da902ed027780cee0f8b9`.
+
+The reconstructed stack passed the 129-test focused Solidity run with no failures; after the test-only W1 addition the updated authority suite passes all 10 tests, extending coverage to 130 across the two runs and `npm run compile` under Foundry 1.7.1 / Solc 0.8.33 before the final test-only W1 addition. The updated test tree compiles in Forge. Export produced 31 v0.4.1 artifacts whose ABI, creation-bytecode, runtime-bytecode and file-digest records match the retained expected manifest exactly. The exported bundle root itself is not claimed as reproduced: its provenance includes the unavailable historical commit identity. These results close source/build reproducibility for the content-addressed reconstruction, not owner approval or live deployment.
