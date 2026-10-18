@@ -1,0 +1,28 @@
+Compiling 1 files with Solc 0.8.33
+Solc 0.8.33 finished in 3.41s
+Compiler run successful!
+Script ran successfully.
+
+## Setting up 1 EVM.
+
+==========================
+
+Chain 31337
+
+Estimated gas price: 1.399643457 gwei
+
+Estimated total gas used for script: 2970033
+
+Estimated amount required: 0.004156987255524081 ETH
+
+==========================
+
+
+==========================
+
+ONCHAIN EXECUTION COMPLETE & SUCCESSFUL.
+
+Transactions saved to: /tmp/prf-evm-pro28-replay-20261017/broadcast/RunGateEEntitlementLocal.s.sol/31337/run-latest.json
+
+Sensitive values saved to: /tmp/prf-evm-pro28-replay-20261017/cache/RunGateEEntitlementLocal.s.sol/31337/run-latest.json
+

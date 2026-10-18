@@ -144,3 +144,40 @@ The expected report digest is kept beside, but outside, the raw receipt bundle. 
 To independently repeat EVM proof verification and settlement, use the retained proof fixture and the matching `prf-evm` source revision recorded in `capture-metadata.json`, on a disposable local Anvil only. Start Anvil with chain ID 31337, set the test deployer's nonce to `0x4e`, deploy using the recorded deployment inputs, and regenerate the witness from the retained source vector. The manifest digest and witness hash must match before the proof fixture is used. Run `GateEEntitlementDeploymentDerivedRealProofTest` before ratification/funding; it expects the pre-funding reserve commitment. Then execute the funding, activation and withdrawal scripts in that order. Do not treat these local results as public-chain qualification.
 
 The runtime-code observation is unsigned local RPC evidence. Offline reconstruction verifies that the retained bytecode matches its recorded hashes and the addresses in the manifest; it does not establish canonical network state. The separate-workspace replay report is operator separation, not organizational independence.
+
+## Transaction-level token accounting (PRO-29)
+
+For a fresh capture, replay the retained signed envelopes onto a new loopback
+Anvil as described above, using a new output directory. For example:
+
+```bash
+python3 scripts/forensic/replay_pro28_local_capture.py \
+  examples/partial-fill/evidence/pro-28-v1/raw/fresh-replay-pro56-20261018 \
+  examples/partial-fill/evidence/pro-28-v1/raw/fresh-replay-pro29-20261018 \
+  --rpc-url http://127.0.0.1:18548
+```
+
+While that replay's local Anvil instance is still running, capture balance and
+`totalSupply` state immediately before and after every transaction, and compare
+receipt Transfer events with an RPC-wide log sweep over the full execution:
+
+```bash
+python3 scripts/forensic/pro29_token_accounting.py \
+  examples/partial-fill/evidence/pro-28-v1/raw/fresh-replay-pro29-20261018 \
+  --rpc-url http://127.0.0.1:18548 \
+  --write examples/partial-fill/evidence/pro-28-v1/raw/fresh-replay-pro29-20261018/token-accounting-observations.json
+
+python3 scripts/forensic/pro29_token_accounting.py \
+  examples/partial-fill/evidence/pro-28-v1/raw/fresh-replay-pro29-20261018 \
+  --rpc-url http://127.0.0.1:18548 \
+  --verify examples/partial-fill/evidence/pro-28-v1/raw/fresh-replay-pro29-20261018/token-accounting-observations.json
+```
+
+The capture refuses transactions sharing a block because block-level
+`eth_call` cannot establish intermediate transaction ordering. Verification
+re-queries the same local RPC, checks captured chain identity and receipts,
+matches every token Transfer log in the execution block range, and reconciles
+each observed account and supply delta to its transaction logs. These are
+provider-relative local observations; they do not establish public-chain
+consensus or finality. The profile applies only to the pinned local token
+runtime and does not qualify fee-on-transfer, rebasing, or arbitrary tokens.
