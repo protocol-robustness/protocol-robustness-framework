@@ -8,6 +8,8 @@ This bundle separates the earlier V3 summary from receipt-qualified evidence.
 - `raw/fresh-replay-20261017/` retains a fresh local replay, the original Foundry broadcast outputs, transaction payloads re-fetched by hash from the live local Anvil RPC, matching receipts, and runtime code bytes for all 12 deployed contracts.
 - `receipt-reconstruction.json` is the deterministic reconstruction of the earlier separate-workspace replay.
 - `fresh-replay-20261017-reconstruction.json` is the deterministic reconstruction of the corrected replay.
+- `fresh-replay-pro56-20261018-reconstruction.json` binds the block-41 terminal state observation to its exact replay and transaction receipts.
+- `groth16-reference-verification-pro56-20261018.json` records the direct pinned-verifier result for that replay's exact proof fixture.
 - The older `receipt-reconstruction.json` and `fresh-replay-reconstruction.json` summaries have correction metadata and no longer claim cryptographic verification; the earlier 2026-10-13 evidence remains rejected by the current strict receipt verifier.
 
 ## Independent reconstruction
@@ -71,6 +73,31 @@ python3 scripts/forensic/pro28_receipts.py \
 ```
 
 The second command must pass against the same chain captured by the replay command. Its fingerprint identifies observed chain lineage, not a unique RPC provider or Anvil process. Results remain provider-relative and do not prove provider honesty, public-chain consensus, or finality. This local replay is not public-chain qualification.
+
+The 2026-10-18 reconstruction intentionally does not claim terminal liability closure: its retained `final-state.log` says block 12 while the execution receipts extend through block 41, and the log is not treated as an authoritative state read. A separate PRO-56 capture retains same-block `eth_call` results and a live-chain context check for block 41. Reconstruct that evidence with:
+
+```bash
+python3 scripts/forensic/pro28_receipts.py \
+  examples/partial-fill/evidence/pro-28-v1/raw/fresh-replay-pro56-20261018 \
+  --terminal-state-observation examples/partial-fill/evidence/pro-28-v1/pro-56-live-state-observation-20261018.json \
+  --expected-report examples/partial-fill/evidence/pro-28-v1/fresh-replay-pro56-20261018-reconstruction.json \
+  --expected-report-sha256 "$(cut -d ' ' -f 1 examples/partial-fill/evidence/pro-28-v1/fresh-replay-pro56-20261018-reconstruction.json.sha256)"
+```
+
+This verifies the observation's manifest, operation, chain lineage, read targets/selectors, common block identity, raw ABI results, decoded successor operation, retained transaction anchors and zero-liability accounting. It remains a provider-relative local observation, not consensus evidence or public-chain qualification. The old `final-state.log` is retained and hash-checked as text; it does not establish closure.
+
+To independently verify the exact Groth16 fixture against the pinned SP1 verifier runtime, run:
+
+```bash
+python3 scripts/forensic/pro28_receipts.py \
+  examples/partial-fill/evidence/pro-28-v1/raw/fresh-replay-pro56-20261018 \
+  --verify-groth16 \
+  --write-proof-check /tmp/pro28-pro56-groth16-check.json
+cmp /tmp/pro28-pro56-groth16-check.json \
+  examples/partial-fill/evidence/pro-28-v1/groth16-reference-verification-pro56-20261018.json
+```
+
+The proof check is separate from offline receipt reconstruction. It validates only the retained proof/public values against the pinned verifier; it does not authenticate the local chain observation.
 
 The expected report digest is kept beside, but outside, the raw receipt bundle. The verifier compares its canonical reconstruction bytes to this digest as well as comparing the full report object. An operator must obtain the digest through a trusted source revision or separate authenticated channel; a digest copied from the same untrusted bundle is not an independent trust anchor. Updating the expected report and digest is a reviewed evidence change, not an automatic re-pin.
 

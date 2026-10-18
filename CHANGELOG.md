@@ -14,6 +14,10 @@
 
 - Added a retained local protected-withdrawal receipt verifier and live RPC context check. Cryptographic proof validity remains explicitly unverified by this verifier; live-chain checks require a captured chain-ID/genesis fingerprint, so older captures fail closed until recaptured.
 
+- Added an opt-in local reference check that executes the exact retained Groth16 proof and public values against the pinned SP1 verifier runtime. Offline receipt reconstruction continues to report proof validity as unverified unless that check runs.
+
+- Receipt reconstruction no longer treats `final-state.log` as proof of terminal balances or liability closure. A supplied block-pinned local state observation is validated against the deployment, operation, proof projection, read targets, raw ABI results and retained live-chain receipt anchors.
+
 - Clarified that the 2026-09-28 V2 audit is a historical baseline and documented the separately implemented 288-byte successor-entitlement lifecycle with pinned local evidence; the legacy 192-byte profile remains unchanged.
 
 - Fixed the real V2/SP1 runner source inventory to cover crate-local Rust sources; added an ARTIFACT_DIR override so retries preserve failed-run evidence.

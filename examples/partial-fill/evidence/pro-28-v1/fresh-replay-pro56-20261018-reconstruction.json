@@ -8,7 +8,50 @@
       "claim-b": 21,
       "claim-c": 14
     },
-    "finalStateObservation": "chain_id=31337\nfinal_block=12\nallocator_operation=5\nclaimed_amount=70\nclaimed_count=3\noutstanding_liability=0\nreserve_balance=10\nallocator_balance=0\nbeneficiary_1111_balance=35\nbeneficiary_2222_balance=21\nbeneficiary_3333_balance=14",
+    "finalStateObservation": {
+      "artifactSha256": "4c722999dd2881382f0b3010605866823faa3d7f690e33aa37d7761920231686",
+      "blockHash": "0x2e8da5053c47eb350941a64278f99c74f40279df83df39255bb9a5bcdaceea7b",
+      "blockNumber": 41,
+      "chainId": 31337,
+      "decodedState": {
+        "allocatorTokenBalance": 0,
+        "claimedAmount": 70,
+        "claimedCount": 3,
+        "entitlementOperation": {
+          "allocationBindingRoot": "0xfe94e946ddaf58eca00c3231672536bf3c01199925c25ec8e2a0d60a325384e5",
+          "allocationClaimRoot": "0xfab874034cf34f9d88e8382aa9c2473c0fd3f36ee9b5a0b358e4a86ae75b7fac",
+          "amount": 70,
+          "beneficiaryProfileWord": "0x88bbb03a2adbbc73f946dc5a1901f1f659b76280869deb4f65c140f361e955fa",
+          "descriptorRoot": "0x0e8b6d0eb8a46279fee6697366b2bdfa0b4aa514dacf17e9e264744d90d91c1f",
+          "entitlementCount": 3,
+          "entitlementTotal": 70,
+          "evmEntitlementTableRoot": "0x52618a7e6f8ea56baf760682b64b12860f56bef7980593f4099c8c5e65783d8d",
+          "representation": "0xc96304e3c037f81da488ed9dea1d8f2a48278a75",
+          "residualRecipient": "0x2222222222222222222222222222222222222222",
+          "stateEnum": 5,
+          "stateName": "Closed",
+          "token": "0x367761085bf3c12e5da2df99ac6e1a824612b8fb"
+        },
+        "outstandingLiability": 0,
+        "recipientTokenBalances": {
+          "alice": 35,
+          "bob": 21,
+          "carol": 14
+        },
+        "reserveTokenBalance": 10,
+        "reserveTotalReserved": 0
+      },
+      "environmentId": "pro-28-local-replay-2ff5f6d429b838c2",
+      "limitations": [
+        "Each eth_call result came from the same local Anvil RPC and is unsigned.",
+        "The captured block hash and chain fingerprint bind this observation to the replayed local chain lineage, not to an independent consensus source.",
+        "No public finality or independent provider authentication is claimed."
+      ],
+      "operationId": "0x809b4fbdb632eba4671e5d5f35a37ff12aa4ae28e1ec84aece40972b1138755d",
+      "preparedOperationRoot": "0xe0c2dc5821ca3b6ec330d8af7bcb407400b19bff4d8ee08f727970494dd85eb2",
+      "schema": "eae.pro-56-live-state-observation.v1",
+      "status": "validated provider-relative local eth_call observation"
+    },
     "note": "Carol's 14-unit entitlement is recorded separately from the 10-unit protected-capital refund described by the superseded V3 Foundry summary.",
     "protectedReserveRemainder": 10,
     "sponsorDeposit": 80,
@@ -55,6 +98,10 @@
       "bytes": 660,
       "sha256": "575e3559e0218f5c62e46043aef8948dab2f4c17f7b508dc8fb877b48a647b62"
     },
+    "live-chain-check.json": {
+      "bytes": 15949,
+      "sha256": "ca133b8c72101f4fe505243645f9869d206202a8d1ac3837f9eafc9e10d06ec6"
+    },
     "proof-fixture.json": {
       "bytes": 2620,
       "sha256": "54129820a960a2edabe23167518a286baa43d2c7902ac9bd1b58884678c1cf67"
@@ -82,6 +129,10 @@
     "source/source-bound-entitlement-v1.json": {
       "bytes": 28519,
       "sha256": "a8a9310fbc439a7d9d21d60078cfce78f714cdaafeebd8d27c2b0a80e2310848"
+    },
+    "terminal-state-observation.json": {
+      "bytes": 7644,
+      "sha256": "4c722999dd2881382f0b3010605866823faa3d7f690e33aa37d7761920231686"
     },
     "withdrawal.log": {
       "bytes": 668,
@@ -362,7 +413,51 @@
       },
       "liabilityClosed": true,
       "sourceDeposit": 80,
-      "status": "passed against retained transfer receipts and terminal state reads"
+      "status": "passed against receipt transfers and validated provider-relative terminal eth_call observation",
+      "terminalStateObservation": {
+        "artifactSha256": "4c722999dd2881382f0b3010605866823faa3d7f690e33aa37d7761920231686",
+        "blockHash": "0x2e8da5053c47eb350941a64278f99c74f40279df83df39255bb9a5bcdaceea7b",
+        "blockNumber": 41,
+        "chainId": 31337,
+        "decodedState": {
+          "allocatorTokenBalance": 0,
+          "claimedAmount": 70,
+          "claimedCount": 3,
+          "entitlementOperation": {
+            "allocationBindingRoot": "0xfe94e946ddaf58eca00c3231672536bf3c01199925c25ec8e2a0d60a325384e5",
+            "allocationClaimRoot": "0xfab874034cf34f9d88e8382aa9c2473c0fd3f36ee9b5a0b358e4a86ae75b7fac",
+            "amount": 70,
+            "beneficiaryProfileWord": "0x88bbb03a2adbbc73f946dc5a1901f1f659b76280869deb4f65c140f361e955fa",
+            "descriptorRoot": "0x0e8b6d0eb8a46279fee6697366b2bdfa0b4aa514dacf17e9e264744d90d91c1f",
+            "entitlementCount": 3,
+            "entitlementTotal": 70,
+            "evmEntitlementTableRoot": "0x52618a7e6f8ea56baf760682b64b12860f56bef7980593f4099c8c5e65783d8d",
+            "representation": "0xc96304e3c037f81da488ed9dea1d8f2a48278a75",
+            "residualRecipient": "0x2222222222222222222222222222222222222222",
+            "stateEnum": 5,
+            "stateName": "Closed",
+            "token": "0x367761085bf3c12e5da2df99ac6e1a824612b8fb"
+          },
+          "outstandingLiability": 0,
+          "recipientTokenBalances": {
+            "alice": 35,
+            "bob": 21,
+            "carol": 14
+          },
+          "reserveTokenBalance": 10,
+          "reserveTotalReserved": 0
+        },
+        "environmentId": "pro-28-local-replay-2ff5f6d429b838c2",
+        "limitations": [
+          "Each eth_call result came from the same local Anvil RPC and is unsigned.",
+          "The captured block hash and chain fingerprint bind this observation to the replayed local chain lineage, not to an independent consensus source.",
+          "No public finality or independent provider authentication is claimed."
+        ],
+        "operationId": "0x809b4fbdb632eba4671e5d5f35a37ff12aa4ae28e1ec84aece40972b1138755d",
+        "preparedOperationRoot": "0xe0c2dc5821ca3b6ec330d8af7bcb407400b19bff4d8ee08f727970494dd85eb2",
+        "schema": "eae.pro-56-live-state-observation.v1",
+        "status": "validated provider-relative local eth_call observation"
+      }
     },
     "executionObservation": {
       "chainId": 31337,
@@ -398,6 +493,7 @@
         "runner-broadcast/withdrawals.json",
         "fork-test.log",
         "final-state.log",
+        "live-chain-check.json",
         "funding.log",
         "activation.log",
         "withdrawal.log",
