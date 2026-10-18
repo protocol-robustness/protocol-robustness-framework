@@ -50,6 +50,14 @@ def _norm(value: str) -> str:
     return value.lower()
 
 
+def _hex_bytes(value: Any, size: int, label: str) -> bytes:
+    if not isinstance(value, str) or not value.startswith("0x") or len(value) != 2 + size * 2:
+        raise EvidenceError(f"{label} must be exactly {size} bytes of 0x-prefixed hex")
+    if any(char not in "0123456789abcdefABCDEF" for char in value[2:]):
+        raise EvidenceError(f"{label} contains non-hex data")
+    return bytes.fromhex(value[2:])
+
+
 def _int(value: str | int) -> int:
     if isinstance(value, int):
         return value
@@ -88,8 +96,15 @@ def _load_receipts(raw: Path) -> tuple[dict[str, dict[str, Any]], dict[str, str]
             source_files[f"runner-broadcast/{group}.json"] = _sha256(runner_path.read_bytes())
         tx_hashes = [_norm(row["hash"]) for row in tx_rows]
         receipt_hashes = [_norm(row["transactionHash"]) for row in receipt_rows]
-        if len(tx_hashes) != len(set(tx_hashes)) or set(tx_hashes) != set(receipt_hashes):
+        if (
+            len(tx_hashes) != len(receipt_hashes)
+            or len(tx_hashes) != len(set(tx_hashes))
+            or len(receipt_hashes) != len(set(receipt_hashes))
+            or set(tx_hashes) != set(receipt_hashes)
+        ):
             raise EvidenceError(f"{group} transaction/receipt identities do not match one-to-one")
+        for tx_hash in tx_hashes:
+            _hex_bytes(tx_hash, 32, "transaction hash")
         source_files[group] = _sha256(path.read_bytes())
         tx_by_hash = {_norm(row["hash"]): row for row in tx_rows}
         for receipt in receipt_rows:
@@ -98,6 +113,8 @@ def _load_receipts(raw: Path) -> tuple[dict[str, dict[str, Any]], dict[str, str]
             tx_context = tx.get("transaction", {})
             if _norm(tx.get("hash", "")) != tx_hash:
                 raise EvidenceError("broadcast transaction hash mismatch")
+            if not isinstance(tx_context, dict) or _norm(tx_context.get("hash", "")) != tx_hash:
+                raise EvidenceError("broadcast transaction envelope hash mismatch")
             if _norm(tx_context.get("chainId", "")) != "0x7a69":
                 raise EvidenceError("broadcast transaction is not on local chain 31337")
             if receipt.get("status") != "0x1":
@@ -105,6 +122,19 @@ def _load_receipts(raw: Path) -> tuple[dict[str, dict[str, Any]], dict[str, str]
             for key in ("transactionIndex", "blockNumber", "blockHash"):
                 if key not in receipt or receipt[key] is None:
                     raise EvidenceError(f"transaction {tx_hash} receipt lacks {key}")
+            _hex_bytes(receipt["blockHash"], 32, "receipt block hash")
+            _hex_bytes(tx_context.get("from"), 20, "broadcast transaction sender")
+            calldata = tx_context.get("input")
+            if (
+                not isinstance(calldata, str)
+                or not calldata.startswith("0x")
+                or len(calldata) % 2 != 0
+                or any(char not in "0123456789abcdefABCDEF" for char in calldata[2:])
+            ):
+                raise EvidenceError("broadcast transaction calldata is malformed")
+            target = tx_context.get("to")
+            if target is not None:
+                _hex_bytes(target, 20, "broadcast transaction target")
             for log in receipt.get("logs", []):
                 if log.get("removed") is True:
                     raise EvidenceError(f"transaction {tx_hash} has a removed log")

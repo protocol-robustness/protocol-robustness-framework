@@ -18,6 +18,8 @@
 
 - Receipt reconstruction no longer treats `final-state.log` as proof of terminal balances or liability closure. A supplied block-pinned local state observation is validated against the deployment, operation, proof projection, read targets, raw ABI results and retained live-chain receipt anchors.
 
+- Receipt reconstruction now rejects duplicate receipt rows and malformed transaction, calldata, sender, target, or block-hash identities before reconciling economic events.
+
 - Clarified that the 2026-09-28 V2 audit is a historical baseline and documented the separately implemented 288-byte successor-entitlement lifecycle with pinned local evidence; the legacy 192-byte profile remains unchanged.
 
 - Fixed the real V2/SP1 runner source inventory to cover crate-local Rust sources; added an ARTIFACT_DIR override so retries preserve failed-run evidence.

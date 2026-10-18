@@ -186,8 +186,49 @@ def test_receipt_transaction_substitution_rejects(bundle: Path) -> None:
         pro28_receipts.reconstruct(bundle)
 
 
+def test_duplicate_receipt_row_rejects(bundle: Path) -> None:
+    path = bundle / "broadcast/withdrawals.json"
+    payload = load(path)
+    payload["receipts"].append(dict(payload["receipts"][0]))
+    save(path, payload)
+    with pytest.raises(pro28_receipts.EvidenceError, match="identities do not match one-to-one"):
+        pro28_receipts.reconstruct(bundle)
+
+
+def test_malformed_transaction_identity_rejects(bundle: Path) -> None:
+    path = bundle / "broadcast/deployment.json"
+    payload = load(path)
+    malformed_hash = "0x1234"
+    payload["transactions"][0]["hash"] = malformed_hash
+    payload["receipts"][0]["transactionHash"] = malformed_hash
+    save(path, payload)
+    with pytest.raises(pro28_receipts.EvidenceError, match="transaction hash must be exactly 32 bytes"):
+        pro28_receipts.reconstruct(bundle)
+
+
+def test_transaction_envelope_hash_must_match_receipt_identity(bundle: Path) -> None:
+    path = bundle / "broadcast/deployment.json"
+    payload = load(path)
+    payload["transactions"][0]["transaction"]["hash"] = "0x" + "ab" * 32
+    save(path, payload)
+    with pytest.raises(pro28_receipts.EvidenceError, match="envelope hash mismatch"):
+        pro28_receipts.reconstruct(bundle)
+
+
+def test_malformed_call_data_rejects(bundle: Path) -> None:
+    path = bundle / "broadcast/deployment.json"
+    payload = load(path)
+    payload["transactions"][0]["transaction"]["input"] = "0x12 34"
+    save(path, payload)
+    with pytest.raises(pro28_receipts.EvidenceError, match="calldata is malformed"):
+        pro28_receipts.reconstruct(bundle)
+
+
 def test_legacy_broadcast_payload_receipt_mismatch_is_rejected() -> None:
-    with pytest.raises(pro28_receipts.EvidenceError, match="not bound to the matching reserve.deposit"):
+    with pytest.raises(
+        pro28_receipts.EvidenceError,
+        match="envelope hash mismatch|not bound to the matching reserve.deposit",
+    ):
         pro28_receipts.reconstruct(LEGACY_SOURCE)
 
 
