@@ -3467,6 +3467,7 @@ runtime mechanism selection or a mechanism registry.
   alter analysis validity or authorize payment.
 # Unreleased
 
+- Add a local-only PRO-31 capture replay command that records V2 chain identity before replaying retained signed transactions, and independently checks resulting receipts and runtime code against the same Anvil instance.
 - Rust allocation context parsing now matches PRF rejection semantics for blank
   identifiers, policy validation, and negative numeric inputs.
 - Rust allocation context parsing now rejects proposed rates for unknown outcomes,

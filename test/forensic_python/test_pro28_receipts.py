@@ -13,6 +13,7 @@ import pytest
 PROJECT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(PROJECT / "scripts"))
 from forensic import pro28_receipts
+from forensic import replay_pro28_local_capture
 
 
 SOURCE = PROJECT / "examples/partial-fill/evidence/pro-28-v1/raw/fresh-replay-20261017"
@@ -41,6 +42,40 @@ def test_fresh_replay_reconstructs_receipts_runtime_and_accounting(bundle: Path)
     assert report["runtimeCodeIdentity"]["status"] == "captured and content-hash verified from local Anvil RPC"
     assert len(report["runtimeCodeIdentity"]["contracts"]) == 12
     assert report["accounting"]["claimPayouts"] == {"claim-a": 35, "claim-b": 21, "claim-c": 14}
+
+
+def test_signed_transaction_reconstruction_matches_retained_identity() -> None:
+    deployment = load(SOURCE / "broadcast/deployment.json")
+    row = deployment["transactions"][0]
+    raw = replay_pro28_local_capture.signed_raw_transaction(row["transaction"])
+    assert replay_pro28_local_capture._keccak(raw) == row["hash"]
+
+
+def test_all_retained_signed_transactions_have_contiguous_local_nonces() -> None:
+    nonces = []
+    for group in pro28_receipts.GROUPS:
+        payload = load(SOURCE / "broadcast" / f"{group}.json")
+        for row in payload["transactions"]:
+            tx = row["transaction"]
+            raw = replay_pro28_local_capture.signed_raw_transaction(tx)
+            assert replay_pro28_local_capture._keccak(raw) == row["hash"]
+            assert int(tx["chainId"], 16) == 31337
+            nonces.append(int(tx["nonce"], 16))
+    assert sorted(nonces) == list(range(0x4E, 0x4E + 41))
+
+
+def test_local_replayer_rejects_non_loopback_endpoint_before_rpc(tmp_path: Path) -> None:
+    output = tmp_path / "capture"
+    with pytest.raises(ValueError, match="restricted to a loopback"):
+        replay_pro28_local_capture.replay(SOURCE, output, "https://example.com")
+    assert not output.exists()
+
+
+def test_local_replayer_refuses_to_overwrite_capture_directory(tmp_path: Path) -> None:
+    output = tmp_path / "capture"
+    output.mkdir()
+    with pytest.raises(ValueError, match="output directory must not exist"):
+        replay_pro28_local_capture.replay(SOURCE, output, "http://127.0.0.1:1")
 
 
 def test_changed_witness_artifact_rejects(bundle: Path) -> None:

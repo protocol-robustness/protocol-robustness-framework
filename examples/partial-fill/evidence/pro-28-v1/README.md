@@ -32,7 +32,43 @@ python3 scripts/forensic/pro28_receipts.py \
 ```
 
 
-The live check requires capture metadata schema `eae.pro-28-capture-metadata.v2` with `localChainIdentity` (schema `prf.local-chain-fingerprint.v1`), containing chain ID, genesis block hash and a recomputable fingerprint. It compares that identity with the live RPC before checking transaction receipts, block ordering and parent links, runtime code at the captured block with EIP-1898 `requireCanonical`, and current runtime/proxy implementation bindings. The retained 2026-10-17 capture is V1 and predates this field, so it fails closed for the strengthened live check and must be freshly captured before claiming this check passed. The fingerprint identifies observed chain lineage, not a unique RPC provider or Anvil process. Results remain provider-relative and do not prove provider honesty, public-chain consensus, or finality. For public-chain evidence, a future verifier must require an explicitly selected chain-specific confirmation policy and report observed depth separately; confirmations alone must not be called finality.
+The live check requires capture metadata schema `eae.pro-28-capture-metadata.v2` with `localChainIdentity` (schema `prf.local-chain-fingerprint.v1`), containing chain ID, genesis block hash and a recomputable fingerprint. It compares that identity with the live RPC before checking transaction receipts, block ordering and parent links, runtime code at the captured block with EIP-1898 `requireCanonical`, and current runtime/proxy implementation bindings. The retained 2026-10-17 capture remains V1; it is not retroactively assigned a chain identity.
+
+## Fresh local V2 capture
+
+Use two terminals and keep Anvil running until the final live check finishes.
+
+Terminal 1:
+
+```bash
+anvil --host 127.0.0.1 --port 18547 --chain-id 31337
+```
+
+Terminal 2, from the PRF repository root:
+
+```bash
+python3 scripts/forensic/replay_pro28_local_capture.py \
+  examples/partial-fill/evidence/pro-28-v1/raw/fresh-replay-20261017 \
+  examples/partial-fill/evidence/pro-28-v1/raw/fresh-replay-20261018 \
+  --rpc-url http://127.0.0.1:18547
+```
+
+The command accepts only a loopback Anvil endpoint at chain ID 31337 and block zero. It records the genesis identity before changing local state, sets the local test deployer's nonce to `0x4e`, reconstructs and hash-checks the 41 retained signed EIP-1559 envelopes, then replays them in nonce order. It writes a new V2 bundle only after transactions and runtime identities have been checked, and refuses to overwrite an existing output directory. The old V1 bundle is unchanged. The replay uses the original signed transaction payloads; its copied Foundry log remains a historical log observation and does not represent a newly run SP1 SDK verification.
+
+Independently rerun both checks while that same Anvil process is still running:
+
+```bash
+python3 scripts/forensic/pro28_receipts.py \
+  examples/partial-fill/evidence/pro-28-v1/raw/fresh-replay-20261018 \
+  --expected-report examples/partial-fill/evidence/pro-28-v1/fresh-replay-20261018-reconstruction.json
+
+python3 scripts/forensic/pro28_receipts.py \
+  examples/partial-fill/evidence/pro-28-v1/raw/fresh-replay-20261018 \
+  --rpc-url http://127.0.0.1:18547 \
+  --write-chain-report /tmp/pro28-live-chain-check-20261018.json
+```
+
+The second command must pass against the same chain captured by the replay command. Its fingerprint identifies observed chain lineage, not a unique RPC provider or Anvil process. Results remain provider-relative and do not prove provider honesty, public-chain consensus, or finality. This local replay is not public-chain qualification.
 
 To independently repeat EVM proof verification and settlement, use the retained proof fixture and the matching `prf-evm` source revision recorded in `capture-metadata.json`, on a disposable local Anvil only. Start Anvil with chain ID 31337, set the test deployer's nonce to `0x4e`, deploy using the recorded deployment inputs, and regenerate the witness from the retained source vector. The manifest digest and witness hash must match before the proof fixture is used. Run `GateEEntitlementDeploymentDerivedRealProofTest` before ratification/funding; it expects the pre-funding reserve commitment. Then execute the funding, activation and withdrawal scripts in that order. Do not treat these local results as public-chain qualification.
 
