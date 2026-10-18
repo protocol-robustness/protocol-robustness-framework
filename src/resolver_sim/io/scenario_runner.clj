@@ -1179,7 +1179,9 @@
                 artifact-dir (or (:artifact-dir dispatch) (:output-dir dispatch)
                                  forensic-artifact-dir
                                  (str (paths/runs-root) "/" run-id))
-                execution-dir (:execution-dir dispatch)
+                execution-dir (or (:execution-dir dispatch)
+                                  (when (and (not structured?) forensic-artifact-dir)
+                                    (str (io/file forensic-artifact-dir "execution"))))
                 _ (when (and structured? (nil? execution-dir))
                     (throw (ex-info "Structured runs require :execution-dir"
                                     {:dispatch (select-keys dispatch [:run-root :scenario-root :artifact-dir])})))
@@ -1188,7 +1190,7 @@
                           pwrite (requiring-resolve 'resolver-sim.forensic.pre-run-commitment/write-commitment!)
                           ctx {:suite-key suite-key :run-id run-id}
                           commitment (prc ctx)
-                          written (if structured?
+                          written (if execution-dir
                                     (pwrite commitment execution-dir)
                                     (pwrite commitment))]
                       (log-event :info :pre-commitment :hash (:hash written))
@@ -1343,7 +1345,7 @@
                                 dag (dag-build nodes [] {:run-id run-id
                                                          :scenario-id scenario-id
                                                          :execution-id execution-id})]
-                            (if structured?
+                            (if execution-dir
                               (dag-write dag run-id execution-dir)
                               (dag-write dag run-id))
                             (log-event :info :dag-write :node-count (:dag/node-count dag)))
@@ -1357,7 +1359,7 @@
                                   exec-hash (some-> execution-node :node-hash)
                                   _bundle-root-hash (some-> execution-node
                                                             :policy-output :visible :outputs :bundle/root-hash)
-                                  dag-path (if structured?
+                                  dag-path (if execution-dir
                                              (str (io/file execution-dir "execution-dag.json"))
                                              (str (paths/runs-root) "/" run-id "/execution-dag.json"))
                                   dag-root-hash (try
@@ -1368,7 +1370,7 @@
                                                                :path dag-path
                                                                :error (.getMessage e))
                                                     nil))
-                                  pre-commit-path (if structured?
+                                  pre-commit-path (if execution-dir
                                                     (str (io/file execution-dir "pre-run-commitment.json"))
                                                     (str (paths/runs-root) "/" run-id "/pre-run-commitment.json"))
                                   pre-commit (try
