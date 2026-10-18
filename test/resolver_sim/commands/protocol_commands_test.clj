@@ -130,6 +130,16 @@
     (is (= 3 (:parallel-ceiling @received)))
     (is (= 4 (:execution-budget @received)))))
 
+(deftest handler-owned-path-options-use-caller-directory-for-long-and-short-forms
+  (let [normalize (ns-resolve 'resolver-sim.cli.dispatch 'normalize-raw-path-args)
+        caller-dir (ns-resolve 'resolver-sim.cli.dispatch 'caller-directory)
+        args (with-redefs-fn {caller-dir (constantly "/tmp/caller")}
+               #(normalize ["-p" "params.edn" "-o=results" "--key" "key.edn"]
+                           #{"-p" "-o"}))]
+    (is (= ["-p" "/tmp/caller/params.edn"
+            "-o=/tmp/caller/results"
+            "--key" "/tmp/caller/key.edn"] args))))
+
 (deftest scenario-comparison-json-has-one-machine-readable-result
   (let [out (java.io.StringWriter.)
         result (binding [*out* out *err* (java.io.StringWriter.)]

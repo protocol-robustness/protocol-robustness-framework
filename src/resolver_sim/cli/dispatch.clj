@@ -411,7 +411,17 @@
     (if (= :handler (:command/options-source (nth raw-command 2 nil)))
       (let [[cmd-path cmd-args _cmd] raw-command]
         (if-let [handler-var (handler-for raw-cmd-id)]
-          (let [extra-path-options (if (= :run-simulation raw-cmd-id) #{"--scenario"} #{})
+          (let [extra-path-options (case raw-cmd-id
+                                     :run-simulation #{"--scenario" "-p" "-o"}
+                                     (#{:community-task-list :community-task-show
+                                        :community-task-register :community-task-run
+                                        :community-task-reproduce :community-task-verify
+                                        :community-task-report :community-graph-export
+                                        :community-mailbox-clear} raw-cmd-id)
+                                     (cond-> #{"-d" "-m"}
+                                       (#{:community-task-run :community-task-reproduce}
+                                        raw-cmd-id) (conj "-k"))
+                                     #{})
                 cmd-args (normalize-raw-path-args cmd-args extra-path-options)]
             (run-command handler-var {} cmd-path cmd-args cmd-args))
           (do (println "Unknown command:" cmd-path)
