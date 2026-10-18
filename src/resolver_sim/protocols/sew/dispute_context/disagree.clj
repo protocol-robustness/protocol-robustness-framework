@@ -6,12 +6,16 @@
 (def fixture-schema :prf/dispute-context-disagree-fixtures.v1)
 
 (defn- case-errors [case]
-  (let [{:keys [posted posting-fee custodied]} (:bond case)
+  (let [{:keys [posted posting-fee custodied] :as bond} (:bond case)
         appeal (:appeal case)
         errors (cond-> []
                  (not (and (:case/id case) (:workflow/id case)
                            (:round/id case) (:basis/root case)))
                  (conj :missing-case-binding)
+                 (not (and (= (:workflow/id case) (:workflow/id bond))
+                           (= (:round/id case) (:round/id bond))
+                           (= (:basis/root case) (:basis/root bond))))
+                 (conj :bond-case-binding-mismatch)
                  (not (and (every? #(and (integer? %) (<= 0 %))
                                    [posted posting-fee custodied])
                            (= posted (+ posting-fee custodied))))
@@ -20,6 +24,12 @@
                       (not (contains? #{:upheld-on-merits :overturned-on-merits}
                                       (:decision appeal))))
                  (conj :accepted-appeal-missing-merits-decision)
+                 (and (= :upheld-on-merits (:decision appeal))
+                      (not= :prior-resolver-per-policy (:disposition (:bond case))))
+                 (conj :upheld-appeal-bond-policy-mismatch)
+                 (and (= :overturned-on-merits (:decision appeal))
+                      (not= :appellant-refund-per-policy (:disposition (:bond case))))
+                 (conj :overturned-appeal-bond-policy-mismatch)
                  (and (= :procedurally-rejected (:status appeal))
                       (or (nil? (:reason appeal)) (:decision appeal)))
                  (conj :procedural-rejection-confused-with-merits)
@@ -31,8 +41,9 @@
                       (not= (:basis/root case) (get-in case [:research :target/root])))
                  (conj :dissent-target-mismatch)
                  (and (= :dissent (:position (:research case)))
-                      (not (true? (get-in case [:research :signed-contribution-required]))))
-                 (conj :dissent-must-be-signed))]
+                      (not (contains? #{:verified :unverified}
+                                      (get-in case [:research :signature/status]))))
+                 (conj :invalid-dissent-signature-status))]
     errors))
 
 (defn validate-fixtures
