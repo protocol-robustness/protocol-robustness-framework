@@ -98,16 +98,16 @@
                                              :when (not (ref/valid-sha256-ref? root))]
                                          root)))
         errors (cond-> errors invalid-incentive-links
-                 (conj :invalid-incentive-link)
-                 (and incentive-links
-                      (not (every? #{:unverified :verified}
-                                   (map incentive-state
-                                        [:eligibility :obligation :funding :allocation]))))
-                 (conj :invalid-incentive-state)
-                 (and incentive-links
-                      (= :paid (:payment incentive-state))
-                      (not (ref/valid-sha256-ref? (:payment/root incentive-state))))
-                 (conj :payment-claim-without-payment-evidence))]
+                       (conj :invalid-incentive-link)
+                       (and incentive-links
+                            (not (every? #{:unverified :verified}
+                                         (map incentive-state
+                                              [:eligibility :obligation :funding :allocation]))))
+                       (conj :invalid-incentive-state)
+                       (and incentive-links
+                            (= :paid (:payment incentive-state))
+                            (not (ref/valid-sha256-ref? (:payment/root incentive-state))))
+                       (conj :payment-claim-without-payment-evidence))]
     {:valid? (empty? errors)
      :errors errors
      :verification/status (if (empty? errors) :structurally-valid :invalid)
@@ -152,7 +152,7 @@
      :valid? (boolean (and (:valid? check) root-matches?))
      :verification (if check
                      (assoc check :valid? (and (:valid? check) root-matches?)
-                                  :errors errors)
+                            :errors errors)
                      {:verification/status :unresolved})
      :bundle (when (and (:valid? check) root-matches?) artifact)}))
 
