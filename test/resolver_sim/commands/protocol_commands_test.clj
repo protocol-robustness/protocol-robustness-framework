@@ -140,6 +140,18 @@
             "-o=/tmp/caller/results"
             "--key" "/tmp/caller/key.edn"] args))))
 
+(deftest registry-parser-preserves-short-aliases-and-top-level-help
+  (let [handler-for (ns-resolve 'resolver-sim.cli.dispatch 'handler-for)
+        received (atom nil)
+        fake-handler (fn [opts] (reset! received opts) {:exit-code 0})]
+    (with-redefs-fn {handler-for (constantly fake-handler)}
+      #(is (zero? (dispatch/run ["run-scenario" "scenario.edn" "-s"]))))
+    (is (true? (:summary @received))))
+  (let [out (java.io.StringWriter.)]
+    (binding [*out* out *err* (java.io.StringWriter.)]
+      (is (zero? (dispatch/run ["--help"]))))
+    (is (clojure.string/includes? (str out) "PRF CLI"))))
+
 (deftest scenario-comparison-json-has-one-machine-readable-result
   (let [out (java.io.StringWriter.)
         result (binding [*out* out *err* (java.io.StringWriter.)]
