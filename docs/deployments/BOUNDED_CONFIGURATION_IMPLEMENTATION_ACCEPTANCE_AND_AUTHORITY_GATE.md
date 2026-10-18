@@ -46,6 +46,23 @@ These results establish implementation acceptance within the tests and local
 scope recorded above. They do not authenticate an approver or authorize
 deployment.
 
+## Work-package status
+
+| Package | Implementation status | Remaining gated evidence or action |
+| --- | --- | --- |
+| W0 — Release baseline | Reproducible pinned base plus content-addressed overlay and artifact records are retained. | Historical package root remains unreproduced because its source object is unavailable; the documented replacement baseline is the accepted local basis. |
+| W1 — Authority transitions | Canonical transition path and regression coverage are implemented. | Execute and independently verify a transition using approved inputs and live deployment state. |
+| W2 — Initial inputs and approval | Four candidate artifacts, C0, source-bound manifest, handoff and approval verifier are ready. | Obtain and verify the authorized initial-input signature and independent trust context. |
+| W3 — Verifier provenance | Runtime identity checks and review paths are implemented and tested. | Authenticate the effective verifier and validator identities from deployed observations. |
+| W4 — Genesis sealing | Independent derivation, preflight and result-verification gates are implemented. | After W2 approval, seal and independently verify the live genesis receipt and readbacks. |
+| W5 — C0→C1 transition | Successor derivation, distinct approval verifier and gated execution path are implemented. | Observe deployment facts, obtain separate transition approval, execute and verify C1 and authority readbacks. |
+| W6 — Capital flow | Proof, replay and protected-operation checks are implemented and tested against fixtures. | Run the composed flow under the approved live C1 and retain receipts and readbacks. |
+| W7 — Qualification evidence | Independent bundle and report verification paths are implemented. | Assemble and independently verify the approved live deployment and capital-flow evidence. |
+
+Accordingly, the remaining work is gated execution and evidence collection,
+not implementation. Do not run automated approval, deployment or qualification
+attempts while the required external approvals are absent.
+
 ## Single external-authority dependency
 
 The outstanding gate is authenticated approval and evidence for this exact
