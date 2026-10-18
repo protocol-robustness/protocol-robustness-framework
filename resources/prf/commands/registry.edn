@@ -86,6 +86,20 @@
    :command/positional-args {:min 0 :max 0}
    :command/description "Execute the existing forensic reproduction workflow in an explicitly selected PRF source checkout."}
 
+  {:command/id :simulation-simplified
+   :command/path ["simulation" "simplified"]
+   :command/title "Run simplified simulation with selection evidence"
+   :command/category :simulation
+   :command/surface :prf
+   :command/backstop-tier :manual
+   :command/jar-availability :native
+   :command/runtime :jvm
+   :command/options [{:name "--params" :type :string :required true :doc "EDN Monte Carlo parameter file; copied into the evidence directory before execution"}
+                     {:name "--output" :type :string :required true :doc "New, nonexistent output directory for results and forensic selection evidence"}]
+   :command/outputs ["selection.edn" "inputs/params.edn" "simulation-results/**"]
+   :command/positional-args {:min 0 :max 0}
+   :command/description "Run the closed-form Monte Carlo simulation and record the selected simulation mode, frozen input and output digests. This is not deterministic replay or invariant evidence."}
+
   {:command/id :protocol-pro-rata-derive-operation
    :command/path ["protocol" "pro-rata" "derive-operation"]
    :command/title "protocol pro-rata derive-operation"

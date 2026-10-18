@@ -94,6 +94,22 @@ including `not-verified` for unavailable protocol validation. The outer result
 contains the selected repo root, subprocess exit code, stdout and stderr. The
 inner report remains unchanged. Scripts execute as argv without a shell.
 
+## Simplified simulation
+
+```sh
+bin/prf simulation simplified --params data/params/baseline.edn --output /tmp/prf-simplified-run
+```
+
+This explicitly selects the closed-form Monte Carlo payoff engine documented
+in the replay architecture. It is useful for directional incentive analysis;
+it does not run step-by-step protocol replay, invariant checks, or produce the
+replay evidence chain. The output path must not already exist. The command
+copies the parameter file to `inputs/params.edn` before execution and writes
+`selection.edn` with the selected mode, input digest, PRF source provenance,
+effective parameters, result, and digests of the emitted files. A failed run
+updates the record to `:failed`. This is inspectable run-selection evidence,
+not a signed forensic bundle or a forensic-release claim.
+
 ## Protected pro-rata boundaries
 
 ```sh

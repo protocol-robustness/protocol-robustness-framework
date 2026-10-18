@@ -29,6 +29,7 @@
    :forensic-validate 'resolver-sim.commands.forensic/validate
    :forensic-verify 'resolver-sim.commands.forensic/verify
    :forensic-reproduce 'resolver-sim.commands.forensic/reproduce
+   :simulation-simplified 'resolver-sim.commands.simulation/simplified
    :protocol-pro-rata-derive-operation 'resolver-sim.commands.protocol-pro-rata/derive-operation
    :protocol-pro-rata-check-admission 'resolver-sim.commands.protocol-pro-rata/check-admission
    :protocol-pro-rata-verify-execution 'resolver-sim.commands.protocol-pro-rata/verify-execution
