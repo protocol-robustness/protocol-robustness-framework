@@ -2,6 +2,7 @@
 
 See the [qualification receipt](protocol-command-qualification.md) for exact
 source revisions, passing checks and the remaining forensic/deployment gates.
+The later interface cleanup has its own [focused receipt](command-cleanup-receipt.md).
 
 The PRF source launcher is `bin/prf`. It selects this checkout's normal
 `-Srepro -M:with-sew` dependency closure. You can invoke its absolute path from
