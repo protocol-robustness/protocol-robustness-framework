@@ -8,7 +8,11 @@
       "claim-b": 21,
       "claim-c": 14
     },
-    "finalStateObservation": "chain_id=31337\nfinal_block=12\nallocator_operation=5\nclaimed_amount=70\nclaimed_count=3\noutstanding_liability=0\nreserve_balance=10\nallocator_balance=0\nbeneficiary_1111_balance=35\nbeneficiary_2222_balance=21\nbeneficiary_3333_balance=14",
+    "finalStateObservation": {
+      "receiptMaxBlock": 41,
+      "status": "unverified log text",
+      "text": "chain_id=31337\nfinal_block=12\nallocator_operation=5\nclaimed_amount=70\nclaimed_count=3\noutstanding_liability=0\nreserve_balance=10\nallocator_balance=0\nbeneficiary_1111_balance=35\nbeneficiary_2222_balance=21\nbeneficiary_3333_balance=14"
+    },
     "note": "Carol's 14-unit entitlement is recorded separately from the 10-unit protected-capital refund described by the superseded V3 Foundry summary.",
     "protectedReserveRemainder": 10,
     "sponsorDeposit": 80,
@@ -360,9 +364,13 @@
         "claim-b": 21,
         "claim-c": 14
       },
-      "liabilityClosed": true,
+      "liabilityClosed": null,
       "sourceDeposit": 80,
-      "status": "passed against retained transfer receipts and terminal state reads"
+      "status": "receipt transfers cross-linked; terminal balances and liability remain unverified",
+      "terminalStateObservation": {
+        "reason": "final-state.log is retained as text and is not accepted as authoritative terminal state",
+        "status": "not independently observed"
+      }
     },
     "executionObservation": {
       "chainId": 31337,

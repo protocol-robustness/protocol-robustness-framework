@@ -50,3 +50,30 @@
                           (identity/verify-source-lock
                            {:source-root (str root) :source-lock-path (str lock)
                             :expected-tree-sha256 tree :expected-parent parent})))))
+
+(deftest source-lock-symlink-escape-is-rejected
+  (let [root (Files/createTempDirectory "prf-source-identity-symlink"
+                                        (make-array java.nio.file.attribute.FileAttribute 0))
+        external-root (Files/createTempDirectory "prf-source-identity-outside"
+                                                 (make-array java.nio.file.attribute.FileAttribute 0))
+        source-dir (.resolve root "src")
+        linked-source (.resolve source-dir "external.clj")
+        external-source (.resolve external-root "external.clj")
+        lock (.resolve root "source-lock.json")
+        parent (apply str (repeat 40 "a"))
+        content "(ns external)\n"
+        _ (Files/createDirectories source-dir (make-array java.nio.file.attribute.FileAttribute 0))
+        _ (Files/write external-source (.getBytes content java.nio.charset.StandardCharsets/UTF_8)
+                       (make-array java.nio.file.OpenOption 0))
+        _ (Files/createSymbolicLink linked-source external-source
+                                    (make-array java.nio.file.attribute.FileAttribute 0))
+        file-digest (sha256-hex (Files/readAllBytes external-source))
+        tree (sha256-hex (.getBytes (str "src/external.clj\u0000" file-digest "\n")
+                                    java.nio.charset.StandardCharsets/UTF_8))
+        _ (spit (.toFile lock)
+                (json/write-str {:prf {:jjWorkingCopyParent parent :sourceTreeSha256 tree
+                                       :sourceTreeEntries [{:path "src/external.clj" :sha256 file-digest}]}}))]
+    (is (thrown-with-msg? clojure.lang.ExceptionInfo #"resolves outside the configured source root"
+                          (identity/verify-source-lock
+                           {:source-root (str root) :source-lock-path (str lock)
+                            :expected-tree-sha256 tree :expected-parent parent})))))

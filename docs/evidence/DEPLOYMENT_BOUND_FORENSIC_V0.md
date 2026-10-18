@@ -77,8 +77,12 @@ python3 scripts/forensic/pro28_receipts.py \
   --expected-report examples/partial-fill/evidence/pro-28-v1/fresh-replay-20261017-reconstruction.json
 ```
 
-The report independently cross-links 41 transaction receipts and transfer
-events. It labels cryptographic proof verification
+The default CLI mode is inspection: it independently cross-links 41 transaction
+receipts and transfer events but labels the result `inspection_unanchored`.
+For pinned verification, use `--mode verify --trusted-report-sha256 <digest>`
+with a digest obtained outside the evidence bundle. The profile pins the
+deterministic reconstruction; it does not authenticate receipt inclusion,
+consensus or finality. It labels cryptographic proof verification
 `not_independently_verified`; the retained Foundry output is only a mutable
 execution-log observation. The optional RPC check requires V2 capture metadata
 with chain identity (chain ID plus genesis block hash) and rechecks it against

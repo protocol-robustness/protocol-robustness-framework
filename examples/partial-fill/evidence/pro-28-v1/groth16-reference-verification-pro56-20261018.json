@@ -1,0 +1,38 @@
+{
+  "chainId": 31337,
+  "configurationRoot": "0x0101010101010101010101010101010101010101010101010101010101010101",
+  "elfSha256": "0x636330de8e7af3485aba50bd3ca4b5e024cc4f977a2bf0f2c005f711e5ffacf8",
+  "fixtureSha256": "0x54129820a960a2edabe23167518a286baa43d2c7902ac9bd1b58884678c1cf67",
+  "method": "direct eth_call to pinned SP1VerifierGroth16 v6.1.0 on disposable local Anvil",
+  "operationId": "0x809b4fbdb632eba4671e5d5f35a37ff12aa4ae28e1ec84aece40972b1138755d",
+  "preparedOperationRoot": "0xe0c2dc5821ca3b6ec330d8af7bcb407400b19bff4d8ee08f727970494dd85eb2",
+  "programId": "source-bound-entitlement-sp1-program.v1",
+  "proofSha256": "0xe05b68dbeeae20194c0664946c304ed006c42a818e371b1d6466c7a1d57d725b",
+  "proofSystem": "groth16",
+  "providerScope": "local-only; this check establishes proof validity, not public-chain execution or finality",
+  "publicValuesSchema": "prf/source-bound-entitlement-public-values.v1",
+  "publicValuesSha256": "0xe271c6e20591109e46e3e44191c007c8f40f0e0ddec9491451f6cb11703e5ae1",
+  "referenceCheckExecuted": true,
+  "reserveStateCommitment": "0xe04f4989c32dfde256d9c2ba9f4187e64910999506bb0528b3fda7c33a8f3aee",
+  "schema": "prf.source-bound-entitlement-groth16-reference.v1",
+  "source": {
+    "captureId": "pro-28-local-replay-2ff5f6d429b838c2",
+    "deploymentManifestDigest": "sha256:e9ab2ed1ba0494d9e457ace966b789fcae9332cc42a2dd6c62f3339eeee356f8",
+    "repository": "protocol-robustness/prf-evm",
+    "revision": "4cfa2f96a4938d23abda609dfff9052b177ef8af"
+  },
+  "statementRoot": "0xfe94e946ddaf58eca00c3231672536bf3c01199925c25ec8e2a0d60a325384e5",
+  "status": "verified",
+  "toolchain": {
+    "chain": "Anvil, chain ID 31337",
+    "foundry": "forge 1.7.1",
+    "foundryCommit": "4072e48705af9d93e3c0f6e29e93b5e9a40caed8",
+    "solidity": "0.8.33"
+  },
+  "verifier": {
+    "address": "0x4ee6ecad1c2dae9f525404de8555724e3c35d07b",
+    "runtimeKeccak256": "0x728b036f7dbc79d6186237350e02c61bcc1cbe4ff0681ba75b8df14546d0fd71"
+  },
+  "vkey": "0x00d90efa52d17e54670a4248f001e4da443a938f12c55d0d414c125ba68087b9",
+  "witnessSha256": "0x4783067b57e5a1e8f6b61d6533269fde8b8c89cf5302ac97648ce8a6769ddb63"
+}

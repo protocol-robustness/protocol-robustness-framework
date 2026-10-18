@@ -10,9 +10,19 @@
 
 ## Unreleased
 
+- Split receipt reconstruction inspection from pinned verification: inspection is explicitly unanchored, while verification requires an operator-supplied trusted report digest and reports its limited scope.
+
 - Added an optional trusted SHA-256 pin for reconstructed local receipt reports so internally consistent bundle substitutions can be detected when operators supply the pin independently.
 
 - Added a retained local protected-withdrawal receipt verifier and live RPC context check. Cryptographic proof validity remains explicitly unverified by this verifier; live-chain checks require a captured chain-ID/genesis fingerprint, so older captures fail closed until recaptured.
+
+- Added an opt-in local reference check that executes the exact retained Groth16 proof and public values against the pinned SP1 verifier runtime. Offline receipt reconstruction continues to report proof validity as unverified unless that check runs.
+
+- Receipt reconstruction no longer treats `final-state.log` as proof of terminal balances or liability closure. A supplied block-pinned local state observation is validated against the deployment, operation, proof projection, read targets, raw ABI results and retained live-chain receipt anchors.
+
+- Receipt reconstruction now rejects duplicate receipt rows and malformed transaction, calldata, sender, target, or block-hash identities before reconciling economic events.
+
+- Receipt reconstruction validates canonical ERC-20 transfer topic padding and bounds-checks dynamic withdrawal claim data before matching payouts to calls.
 
 - Clarified that the 2026-09-28 V2 audit is a historical baseline and documented the separately implemented 288-byte successor-entitlement lifecycle with pinned local evidence; the legacy 192-byte profile remains unchanged.
 

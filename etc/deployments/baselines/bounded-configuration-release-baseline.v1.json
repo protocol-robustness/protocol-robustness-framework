@@ -7,9 +7,9 @@
     "configuration": "C0-empty-registry-epoch-0-to-C1-successor-registry-epoch-1"
   },
   "prf": {
-    "jjWorkingCopyParent": "be8a5f04d7366cd81a3cf048e9f40b434bd0ed84",
-    "sourceFileCount": 925,
-    "sourceTreeSha256": "f4c83eeaf46831543493b609fe257a1c40ab5844e140c32f4233f278e6e08a40",
+    "jjWorkingCopyParent": "d282a5fa6f2224c71f510353ca6758cedcb635e4",
+    "sourceFileCount": 926,
+    "sourceTreeSha256": "d1b819e37633db8af181bf6b637ba5c615cc69f96ab51bad69003eb599218c68",
     "sourceTreeEntries": [
       {
         "path": "data/fixtures/authority/canonical-authority-state.v1.edn",
@@ -25,11 +25,15 @@
       },
       {
         "path": "etc/deployments/baselines/bounded-configuration-release-sources.v1.json",
-        "sha256": "7448a5fd0756edcc2d2e9ee75b07c30a105fffe0c5e6fb2b560b54f481b78631"
+        "sha256": "a8bdc092bf7e32d9837c47b669f885ff9eb58f17981bc93fdada9ae65c537c94"
       },
       {
         "path": "etc/deployments/baselines/prf-evm-authority-transition-followup.patch",
         "sha256": "4d2fdf155f19751492782d59231ceb41bb1cf24810b6bda45a2428547a7a9cca"
+      },
+      {
+        "path": "etc/deployments/baselines/prf-evm-bounded-combined-overlay.patch.gz",
+        "sha256": "de072d677eff58f01a3fdef22d17c2f73ae549c848ee12b2b0f22cc77e1cc6f9"
       },
       {
         "path": "etc/deployments/baselines/prf-evm-w6-capital-replay-followup.patch",
@@ -101,7 +105,7 @@
       },
       {
         "path": "scripts/deployment/genesis_roots.clj",
-        "sha256": "b3c79301a690ce857bad003e652ace54b5e09228e1b62a2b2fa2ac5779af6dfd"
+        "sha256": "cba3c7780d3c07c1e98db54701dcc9a4c39d9613c9b969f786fc9d313d40a9af"
       },
       {
         "path": "scripts/deployment/genesis_seal_gate.clj",
@@ -313,7 +317,7 @@
       },
       {
         "path": "src/resolver_sim/authority_state.clj",
-        "sha256": "c6da6fa79aadda6028e6e68f2c8e19a0cbf048de564bed3f0c52219266f536d1"
+        "sha256": "b5f98048100c2b756a9fce46841ad6cf56d6a5ef8b23cb9bce760107d99d2e1c"
       },
       {
         "path": "src/resolver_sim/benchmark/adapter.clj",
@@ -1945,7 +1949,7 @@
       },
       {
         "path": "src/resolver_sim/genesis.clj",
-        "sha256": "da45ded7362bc9ac7b968a09a452271d0d88a431f32c7349a79aa2f4d2db7405"
+        "sha256": "f4b335bdda6ffecfcf309b5ca0ee6ebce649d99c7d11c62420b873bfb0d3535b"
       },
       {
         "path": "src/resolver_sim/governance/rules.clj",
@@ -1973,7 +1977,7 @@
       },
       {
         "path": "src/resolver_sim/hash/evm.clj",
-        "sha256": "fb94866bf0bbd910753d3e133311413676011879fbb5dd26f039a3507a177867"
+        "sha256": "08971c79e364062ed3aad422af6bd236c3de562b208f35476a7ec4e8197183f0"
       },
       {
         "path": "src/resolver_sim/hash/framing_view.clj",
@@ -2281,7 +2285,7 @@
       },
       {
         "path": "src/resolver_sim/notebook_support/subgame_counterfactual_workbench.clj",
-        "sha256": "cf0ba0ac90a91a9ba675fdbf33d5ded6a039d459c3c62bfbaf1cc5a13f1fc283"
+        "sha256": "dbf9a001fd2ed128452799e2ccce3bf0f31932f60390aa486463d695d350417b"
       },
       {
         "path": "src/resolver_sim/notebook_support/theme.clj",
@@ -2309,7 +2313,7 @@
       },
       {
         "path": "src/resolver_sim/notebook_support/yield_provider_demo.clj",
-        "sha256": "e5699dc3c08f5faccd5ffeb41bdf629e763d187240affb4ebed1bf1fda59550b"
+        "sha256": "437f4afcdeec87f1343e7412cfb7af254abb4f5721f48b8ca0f19c405dcab220"
       },
       {
         "path": "src/resolver_sim/notebook_support/yield_scenarios.clj",
@@ -3669,15 +3673,15 @@
       },
       {
         "path": "test/resolver_sim/authority_transition_review_test.clj",
-        "sha256": "33e866c045217dc30f88ea94d8aadab9c3b0b4f61e75a34cd6e9044a74ebc018"
+        "sha256": "7e1f0b9c23fdf8aa8b4f0a0c7287308a8fd4927095b8a5eaaa628c728062bfc5"
       },
       {
         "path": "test/resolver_sim/configuration_review_test.clj",
-        "sha256": "834e3b3aa5ce026d6e913ddf50402e4d66280fcf9cab71311c908505cfd6e662"
+        "sha256": "ef8382435326d9b0b360b05fe5f6849d8cc0b3ddbfd80ef9761e0f32f8398fee"
       },
       {
         "path": "test/resolver_sim/deployment/source_identity_test.clj",
-        "sha256": "e5bea35ff62a66e1ab57d822dd6a70491c543412c8518f9acca76ac7ad681321"
+        "sha256": "1d6a92217984f6bd0e41ef6237423f6be9b7954f1cf4b263a4cea506238bcc50"
       },
       {
         "path": "test/resolver_sim/deployment_package_set_test.clj",
@@ -3685,7 +3689,7 @@
       },
       {
         "path": "test/resolver_sim/genesis_seal_gate_test.clj",
-        "sha256": "a847240a2e7f55e588cda79e851357dec4f9f95a199b1bb53a48a0b4e9495942"
+        "sha256": "66c9ee584c6e1a43215cc55fe2433edbdb771d463b4cb4ad42eee04ccd0923ba"
       },
       {
         "path": "test/resolver_sim/genesis_seal_observer_test.clj",
@@ -3693,7 +3697,7 @@
       },
       {
         "path": "test/resolver_sim/genesis_test.clj",
-        "sha256": "3cf4419a37bed18f5aabd5ea89b3c78315d70ec75f134e683bbd9e603ad5261b"
+        "sha256": "876d947816599091cefd909c5c5975037272f5e02decb669e0aa824da8dfb333"
       },
       {
         "path": "test/resolver_sim/hash/evm_test.clj",
@@ -3713,9 +3717,9 @@
       }
     ],
     "focusedClojureTests": {
-      "passed": 132,
+      "passed": 138,
       "failed": 0,
-      "assertions": 574,
+      "assertions": 612,
       "namespaces": [
         "resolver-sim.authority-state-test",
         "resolver-sim.deployment-package-set-test",
@@ -3728,7 +3732,8 @@
         "resolver-sim.successor-configuration-test",
         "resolver-sim.deployment.source-identity-test",
         "resolver-sim.signed-external-decision-test"
-      ]
+      ],
+      "runScope": "Current 11-namespace bounded-configuration, authority, genesis, source-identity and approval-focused run"
     },
     "authorityTransitionFocusedTests": {
       "passed": 10,
@@ -3857,7 +3862,7 @@
       "directory": "etc/deployments/bounded-configuration-local-candidate-v2",
       "status": "candidate-owner-approval-required-not-deployable",
       "sourceBoundManifest": "etc/deployments/bounded-configuration-local-candidate-v2/review-manifest.v3.edn",
-      "sourceBoundManifestSha256": "5daf26cc860d0bbb89adc50f4252b0b0d8a219afc2ed7021edde430e4f0e4e41",
+      "sourceBoundManifestSha256": "7e9109321b2c58926c8ba1f41fdd945cc3ae37088973f5de6060875cd6073be1",
       "derivation": "etc/deployments/bounded-configuration-local-candidate-v2/candidate-derivation.edn",
       "derivationSha256": "ab9db3f0d53aacb74ee4f389fef80a3676e45c25862e1012470bf45b31e4a242",
       "validator": "policy v3 proposes a secp256k1 EVM address; corresponding private key not retained; immutable validator source and test-only vector present",
@@ -3870,12 +3875,12 @@
         "initial-configuration": "sha256:131ff6b74047de747bd9ace93413b6b793d677749095f0dadf5dcc173e120f95"
       },
       "emptyVerifierRegistryRoot": "sha256:2099fabf2cca563f8d183749d1a842946286e8704a96c51ec801eff4e834a240",
-      "sourceTreeSha256": "f4c83eeaf46831543493b609fe257a1c40ab5844e140c32f4233f278e6e08a40"
+      "sourceTreeSha256": "d1b819e37633db8af181bf6b637ba5c615cc69f96ab51bad69003eb599218c68"
     },
     "releaseSourceIdentities": {
       "path": "etc/deployments/baselines/bounded-configuration-release-sources.v1.json",
-      "sha256": "7448a5fd0756edcc2d2e9ee75b07c30a105fffe0c5e6fb2b560b54f481b78631",
-      "sourceTreeSha256": "f4c83eeaf46831543493b609fe257a1c40ab5844e140c32f4233f278e6e08a40"
+      "sha256": "a8bdc092bf7e32d9837c47b669f885ff9eb58f17981bc93fdada9ae65c537c94",
+      "sourceTreeSha256": "d1b819e37633db8af181bf6b637ba5c615cc69f96ab51bad69003eb599218c68"
     }
   },
   "prfEvm": {
@@ -3958,6 +3963,31 @@
         "allArtifactAbiCreationRuntimeAndFileDigestsMatch": true,
         "cleanProvenance": true
       }
+    },
+    "combinedReproduction": {
+      "baseRevision": "4b6b6ed159762c88099c96d4dafd635ab99470ea",
+      "overlayPath": "etc/deployments/baselines/prf-evm-bounded-combined-overlay.patch.gz",
+      "overlaySha256": "de072d677eff58f01a3fdef22d17c2f73ae549c848ee12b2b0f22cc77e1cc6f9",
+      "resultTree": "98e2ced7c0c61f146f7da902ed027780cee0f8b9",
+      "focusedSolidityTests": {
+        "passed": 129,
+        "failed": 0,
+        "aggregateEvidence": "The 129-test focused set passed on the same production Solidity source before a test-only revocation/bypass addition. The updated authority suite then passed all 10 tests (replacing its earlier 9); the resulting 130-case union is established across these runs, not by one post-addition aggregate invocation.",
+        "singleAggregateRunAfterTestAddition": false,
+        "aggregateRunCompletedAfterTestOnlyChange": false
+      },
+      "compile": "npm run compile passed on the same production Solidity source before the final W1 test-only addition; the updated test tree compiled successfully during the focused Forge run",
+      "artifactCount": 31,
+      "artifactRecordsMatchRetainedV041Manifest": true,
+      "artifactBundleRootReproduced": false,
+      "bundleRootDifferenceReason": "synthetic archive provenance differs because historical release commit object is unavailable",
+      "authorityTransitionTests": {
+        "passed": 10,
+        "failed": 0,
+        "includesRevocationAndDirectBypassRegressions": true,
+        "command": "forge test --match-contract PrfAuthorityStateTransitionTest -vv"
+      },
+      "totalFocusedCaseCoverageAcrossRuns": 130
     }
   },
   "protocolDeployments": {

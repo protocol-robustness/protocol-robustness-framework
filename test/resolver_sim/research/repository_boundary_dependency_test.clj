@@ -77,7 +77,7 @@
                          (-> canonical-source .toURI io/file .getParentFile
                              .getParentFile .getParentFile))
         roots (cond-> ["src" "packages/accounting-reductions/clj/src"
-               "packages/pro-rata-allocation/clj/src"]
+                       "packages/pro-rata-allocation/clj/src"]
                 canonical-root (conj canonical-root))
         files (filter #(and (.isFile ^java.io.File %)
                             (str/ends-with? (.getName ^java.io.File %) ".clj"))

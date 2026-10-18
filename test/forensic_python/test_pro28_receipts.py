@@ -20,7 +20,9 @@ SOURCE = PROJECT / "examples/partial-fill/evidence/pro-28-v1/raw/fresh-replay-20
 LEGACY_SOURCE = PROJECT / "examples/partial-fill/evidence/pro-28-v1/raw/fresh-replay-20261013"
 FRESH_V2_SOURCE = PROJECT / "examples/partial-fill/evidence/pro-28-v1/raw/fresh-replay-20261018"
 FRESH_V2_REPORT = PROJECT / "examples/partial-fill/evidence/pro-28-v1/fresh-replay-20261018-reconstruction.json"
-FRESH_V2_REPORT_SHA256 = "85799c65d4bac87a4ddf888d33e7552a0905bb98919e4b3fed05f99559eeb33c"
+FRESH_V2_REPORT_SHA256 = "9ba1ffccdc9acb94fe525dde1ea93e78d3fc986448ae0ccdc5884625cdc14982"
+PRO56_SOURCE = PROJECT / "examples/partial-fill/evidence/pro-28-v1/raw/fresh-replay-pro56-20261018"
+PRO56_STATE = PROJECT / "examples/partial-fill/evidence/pro-28-v1/pro-56-live-state-observation-20261018.json"
 
 
 @pytest.fixture
@@ -77,6 +79,153 @@ def test_trusted_report_digest_accepts_the_retained_fresh_reconstruction() -> No
         expected_report_sha256=FRESH_V2_REPORT_SHA256,
     )
     assert report["successfulReceiptCount"] == 41
+    assert report["verificationResults"]["economicReconciliation"]["liabilityClosed"] is None
+
+
+def test_cli_inspection_is_explicitly_unanchored() -> None:
+    report = pro28_receipts.reconstruct(FRESH_V2_SOURCE)
+    result = pro28_receipts.verification_result(report, mode="inspect")
+    assert result["status"] == "inspection_unanchored"
+    assert result["trustContext"] is None
+    assert result["checks"]["trustedReconstructionPin"] == "not_run"
+
+
+def test_verification_profile_requires_and_checks_external_pin() -> None:
+    report = pro28_receipts.reconstruct(FRESH_V2_SOURCE)
+    with pytest.raises(pro28_receipts.EvidenceError, match="requires an independently supplied"):
+        pro28_receipts.verification_result(report, mode="verify")
+    result = pro28_receipts.verification_result(
+        report,
+        mode="verify",
+        trusted_report_sha256=FRESH_V2_REPORT_SHA256,
+    )
+    assert result["status"] == "verified_within_profile"
+    assert result["profile"] == "pro28-local-reconstruction-pin-v1"
+    assert result["checks"]["trustedReconstructionPin"] == "matched"
+    assert result["checks"]["cryptographicProof"] == "not_independently_verified"
+    assert "consensus" in " ".join(result["limitations"])
+
+
+def test_verification_profile_rejects_substituted_pin_and_insufficient_report() -> None:
+    report = pro28_receipts.reconstruct(FRESH_V2_SOURCE)
+    with pytest.raises(pro28_receipts.EvidenceError, match="differs from trusted SHA-256 pin"):
+        pro28_receipts.verification_result(
+            report,
+            mode="verify",
+            trusted_report_sha256="00" * 32,
+        )
+    incomplete = dict(report)
+    incomplete["chainId"] = 1
+    with pytest.raises(pro28_receipts.EvidenceError, match="required structural or receipt checks"):
+        pro28_receipts.verification_result(incomplete, mode="inspect")
+
+
+def test_cli_requires_explicit_trust_context_for_verify_mode(monkeypatch, capsys) -> None:
+    monkeypatch.setattr(sys, "argv", ["pro28_receipts.py", str(FRESH_V2_SOURCE), "--mode", "verify"])
+    with pytest.raises(SystemExit) as exc:
+        pro28_receipts.main()
+    assert exc.value.code == 2
+    assert "requires --trusted-report-sha256" in capsys.readouterr().err
+
+
+def test_cli_inspect_exit_is_labeled_unanchored(monkeypatch, capsys) -> None:
+    monkeypatch.setattr(sys, "argv", ["pro28_receipts.py", str(FRESH_V2_SOURCE), "--mode", "inspect"])
+    assert pro28_receipts.main() == 0
+    output = capsys.readouterr().out
+    assert "INSPECTION_UNANCHORED" in output
+    assert "no authenticity or chain-state claim" in output
+
+
+def test_cli_verify_accepts_only_the_pinned_supported_reconstruction(monkeypatch, capsys, tmp_path: Path) -> None:
+    result_path = tmp_path / "verification-result.json"
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "pro28_receipts.py",
+            str(FRESH_V2_SOURCE),
+            "--mode",
+            "verify",
+            "--trusted-report-sha256",
+            FRESH_V2_REPORT_SHA256,
+            "--write-verification-result",
+            str(result_path),
+        ],
+    )
+    assert pro28_receipts.main() == 0
+    output = capsys.readouterr().out
+    result = load(result_path)
+    assert "VERIFIED_WITHIN_PROFILE" in output
+    assert result["status"] == "verified_within_profile"
+    assert result["checks"]["cryptographicProof"] == "not_independently_verified"
+    assert "not authenticate the receipts" in " ".join(result["limitations"])
+
+
+@pytest.mark.parametrize("field,value", [
+    ("schema", "unsupported.v99"),
+    ("chainId", 1),
+])
+def test_verification_profile_rejects_wrong_chain_or_report_schema(field: str, value: object) -> None:
+    report = pro28_receipts.reconstruct(FRESH_V2_SOURCE)
+    report[field] = value
+    with pytest.raises(pro28_receipts.EvidenceError, match="required structural or receipt checks"):
+        pro28_receipts.verification_result(report, mode="inspect")
+
+
+@pytest.mark.parametrize("field,value", [
+    ("validator", "caller-supplied-verifier"),
+    ("status", "missing"),
+])
+def test_verification_profile_rejects_unsupported_or_missing_required_validator(field: str, value: str) -> None:
+    report = pro28_receipts.reconstruct(FRESH_V2_SOURCE)
+    report["verificationResults"]["structuralIntegrity"][field] = value
+    with pytest.raises(pro28_receipts.EvidenceError, match="required structural or receipt checks"):
+        pro28_receipts.verification_result(report, mode="inspect")
+
+
+def test_terminal_state_observation_binds_receipts_operation_and_block(tmp_path: Path) -> None:
+    raw = tmp_path / "raw" / "fresh-replay-pro56-20261018"
+    raw.parent.mkdir()
+    shutil.copytree(PRO56_SOURCE, raw)
+    report = pro28_receipts.reconstruct(raw, PRO56_STATE)
+    reconciliation = report["verificationResults"]["economicReconciliation"]
+    assert reconciliation["liabilityClosed"] is True
+    assert reconciliation["terminalStateObservation"]["blockNumber"] == 41
+    assert reconciliation["terminalStateObservation"]["decodedState"]["outstandingLiability"] == 0
+    assert report["accounting"]["finalStateObservation"]["blockHash"] == "0x2e8da5053c47eb350941a64278f99c74f40279df83df39255bb9a5bcdaceea7b"
+    assert "terminal-state-observation.json" in report["artifactHashes"]
+
+
+@pytest.mark.parametrize("mutation,match", [
+    (lambda obs: obs.update(chainId=1), "chain identity"),
+    (lambda obs: obs.update(operationId="0x" + "11" * 32), "does not bind the captured deployment and operation"),
+    (lambda obs: obs["reads"][0].update(blockHash="0x" + "00" * 32), "do not share the declared block context"),
+    (lambda obs: obs["decodedState"].update(outstandingLiability=1), "accounting read differs for outstandingLiability"),
+])
+def test_terminal_state_observation_tampering_rejects(tmp_path: Path, mutation, match: str) -> None:
+    raw = tmp_path / "raw" / "fresh-replay-pro56-20261018"
+    raw.parent.mkdir()
+    shutil.copytree(PRO56_SOURCE, raw)
+    observation_path = tmp_path / "observation.json"
+    observation = load(PRO56_STATE)
+    mutation(observation)
+    save(observation_path, observation)
+    with pytest.raises(pro28_receipts.EvidenceError, match=match):
+        pro28_receipts.reconstruct(raw, observation_path)
+
+
+def test_terminal_state_observation_rejects_stale_block_context(tmp_path: Path) -> None:
+    raw = tmp_path / "raw" / "fresh-replay-pro56-20261018"
+    raw.parent.mkdir()
+    shutil.copytree(PRO56_SOURCE, raw)
+    observation_path = tmp_path / "observation.json"
+    observation = load(PRO56_STATE)
+    observation["observationBlock"]["number"] = 12
+    for row in observation["reads"]:
+        row["blockNumber"] = 12
+    save(observation_path, observation)
+    with pytest.raises(pro28_receipts.EvidenceError, match="predates the latest retained execution receipt"):
+        pro28_receipts.reconstruct(raw, observation_path)
 
 
 def test_signed_transaction_reconstruction_matches_retained_identity() -> None:
@@ -138,8 +287,49 @@ def test_receipt_transaction_substitution_rejects(bundle: Path) -> None:
         pro28_receipts.reconstruct(bundle)
 
 
+def test_duplicate_receipt_row_rejects(bundle: Path) -> None:
+    path = bundle / "broadcast/withdrawals.json"
+    payload = load(path)
+    payload["receipts"].append(dict(payload["receipts"][0]))
+    save(path, payload)
+    with pytest.raises(pro28_receipts.EvidenceError, match="identities do not match one-to-one"):
+        pro28_receipts.reconstruct(bundle)
+
+
+def test_malformed_transaction_identity_rejects(bundle: Path) -> None:
+    path = bundle / "broadcast/deployment.json"
+    payload = load(path)
+    malformed_hash = "0x1234"
+    payload["transactions"][0]["hash"] = malformed_hash
+    payload["receipts"][0]["transactionHash"] = malformed_hash
+    save(path, payload)
+    with pytest.raises(pro28_receipts.EvidenceError, match="transaction hash must be exactly 32 bytes"):
+        pro28_receipts.reconstruct(bundle)
+
+
+def test_transaction_envelope_hash_must_match_receipt_identity(bundle: Path) -> None:
+    path = bundle / "broadcast/deployment.json"
+    payload = load(path)
+    payload["transactions"][0]["transaction"]["hash"] = "0x" + "ab" * 32
+    save(path, payload)
+    with pytest.raises(pro28_receipts.EvidenceError, match="envelope hash mismatch"):
+        pro28_receipts.reconstruct(bundle)
+
+
+def test_malformed_call_data_rejects(bundle: Path) -> None:
+    path = bundle / "broadcast/deployment.json"
+    payload = load(path)
+    payload["transactions"][0]["transaction"]["input"] = "0x12 34"
+    save(path, payload)
+    with pytest.raises(pro28_receipts.EvidenceError, match="calldata is malformed"):
+        pro28_receipts.reconstruct(bundle)
+
+
 def test_legacy_broadcast_payload_receipt_mismatch_is_rejected() -> None:
-    with pytest.raises(pro28_receipts.EvidenceError, match="not bound to the matching reserve.deposit"):
+    with pytest.raises(
+        pro28_receipts.EvidenceError,
+        match="envelope hash mismatch|not bound to the matching reserve.deposit",
+    ):
         pro28_receipts.reconstruct(LEGACY_SOURCE)
 
 
@@ -201,6 +391,50 @@ def test_claim_payout_must_match_withdrawal_opening(bundle: Path) -> None:
     claim["transaction"]["input"] = "0x" + corrupted.hex()
     save(path, payload)
     with pytest.raises(pro28_receipts.EvidenceError, match="claim transaction opening differs"):
+        pro28_receipts.reconstruct(bundle)
+
+
+def test_transfer_log_address_topics_require_canonical_padding(bundle: Path) -> None:
+    path = bundle / "broadcast/withdrawals.json"
+    payload = load(path)
+    token = load(bundle / "deployment-manifest.json")["contracts"]["token"].lower()
+    transfer = next(
+        log for receipt in payload["receipts"] for log in receipt["logs"]
+        if log.get("topics", [""])[0].lower() == pro28_receipts.TRANSFER_TOPIC
+        and log.get("address", "").lower() == token
+    )
+    transfer["topics"][1] = "0x01" + transfer["topics"][1][4:]
+    save(path, payload)
+    with pytest.raises(pro28_receipts.EvidenceError, match="not canonically zero-padded"):
+        pro28_receipts.reconstruct(bundle)
+
+
+def test_transfer_log_amount_requires_exact_hex_word(bundle: Path) -> None:
+    path = bundle / "broadcast/withdrawals.json"
+    payload = load(path)
+    token = load(bundle / "deployment-manifest.json")["contracts"]["token"].lower()
+    transfer = next(
+        log for receipt in payload["receipts"] for log in receipt["logs"]
+        if log.get("topics", [""])[0].lower() == pro28_receipts.TRANSFER_TOPIC
+        and log.get("address", "").lower() == token
+    )
+    transfer["data"] = "0x" + "g" + transfer["data"][3:]
+    save(path, payload)
+    with pytest.raises(pro28_receipts.EvidenceError, match="Transfer amount contains non-hex data"):
+        pro28_receipts.reconstruct(bundle)
+
+
+def test_withdrawal_calldata_rejects_truncated_dynamic_claim(bundle: Path) -> None:
+    path = bundle / "broadcast/withdrawals.json"
+    payload = load(path)
+    claim = next(row for row in payload["transactions"] if row["transaction"].get("input", "").startswith("0x7c365406"))
+    data = bytearray.fromhex(claim["transaction"]["input"][2:])
+    tuple_offset = pro28_receipts._calldata_word(data, 36)
+    tuple_start = 4 + tuple_offset
+    data[tuple_start + 32 : tuple_start + 64] = (0x1000).to_bytes(32, "big")
+    claim["transaction"]["input"] = "0x" + data.hex()
+    save(path, payload)
+    with pytest.raises(pro28_receipts.EvidenceError, match="calldata is truncated"):
         pro28_receipts.reconstruct(bundle)
 
 
@@ -266,6 +500,76 @@ def test_mutated_success_log_cannot_upgrade_cryptographic_status(bundle: Path) -
     report = pro28_receipts.reconstruct(bundle)
     assert report["verificationResults"]["proofTestRunObservation"]["status"] == "success_string_observed"
     assert report["verificationResults"]["cryptographicVerification"]["status"] == "not_independently_verified"
+
+
+def test_capture_binds_exact_proof_fixture_identity(bundle: Path) -> None:
+    path = bundle / "capture-metadata.json"
+    capture = load(path)
+    capture["proof"]["fixtureSha256"] = "0x" + "00" * 32
+    save(path, capture)
+    with pytest.raises(pro28_receipts.EvidenceError, match="captured proof identity"):
+        pro28_receipts.reconstruct(bundle)
+
+
+def test_groth16_fixture_proof_byte_mutation_rejects(bundle: Path) -> None:
+    path = bundle / "proof-fixture.json"
+    fixture = load(path)
+    proof = bytearray.fromhex(fixture["proof"].removeprefix("0x"))
+    proof[-1] ^= 1
+    fixture["proof"] = "0x" + proof.hex()
+    save(path, fixture)
+    with pytest.raises(pro28_receipts.EvidenceError, match="proof byte digest"):
+        pro28_receipts.reconstruct(bundle)
+
+
+def test_groth16_fixture_vkey_substitution_rejects(bundle: Path) -> None:
+    path = bundle / "proof-fixture.json"
+    fixture = load(path)
+    fixture["vkey"] = "0x" + "ff" * 32
+    save(path, fixture)
+    with pytest.raises(pro28_receipts.EvidenceError, match="proof/program identity"):
+        pro28_receipts.reconstruct(bundle)
+
+
+def test_reference_calldata_uses_exact_vkey_public_values_and_proof() -> None:
+    vkey = "0x" + "11" * 32
+    public_values = bytes(range(256)) + bytes(range(32))
+    proof = b"proof-bytes"
+    encoded = bytes.fromhex(pro28_receipts._sp1_verify_calldata(vkey, public_values, proof)[2:])
+    assert encoded[:4].hex() == "41493c60"
+    assert encoded[4:36] == bytes.fromhex("11" * 32)
+    assert int.from_bytes(encoded[4 + 32 : 4 + 64], "big") == 96
+    assert int.from_bytes(encoded[4 + 64 : 4 + 96], "big") == 416
+    assert int.from_bytes(encoded[4 + 96 : 4 + 128], "big") == len(public_values)
+
+
+@pytest.mark.skipif(shutil.which("anvil") is None, reason="Anvil required for direct SP1 verifier test")
+def test_pinned_groth16_reference_verifies_exact_execution_fixture(bundle: Path) -> None:
+    report = pro28_receipts.verify_groth16_reference(bundle)
+    fixture = load(bundle / "proof-fixture.json")
+    manifest = load(bundle / "deployment-manifest.json")
+    assert report["status"] == "verified"
+    assert report["proofSystem"] == "groth16"
+    assert report["proofSha256"] == fixture["gate_e"]["proof_sha256"]
+    assert report["operationId"] == manifest["operationId"]
+    assert report["source"]["revision"] == load(bundle / "capture-metadata.json")["source"]["revision"]
+    assert report["referenceCheckExecuted"] is True
+
+
+@pytest.mark.skipif(shutil.which("anvil") is None, reason="Anvil required for direct SP1 verifier test")
+def test_reference_verifier_rejects_changed_statement_public_value(bundle: Path) -> None:
+    fixture_path = bundle / "proof-fixture.json"
+    fixture = load(fixture_path)
+    values = bytearray.fromhex(fixture["public_values"].removeprefix("0x"))
+    values[3 * 32 + 31] ^= 1
+    fixture["public_values"] = "0x" + values.hex()
+    save(fixture_path, fixture)
+    capture_path = bundle / "capture-metadata.json"
+    capture = load(capture_path)
+    capture["proof"]["fixtureSha256"] = "0x" + hashlib.sha256(fixture_path.read_bytes()).hexdigest()
+    save(capture_path, capture)
+    with pytest.raises(pro28_receipts.EvidenceError, match="eth_call"):
+        pro28_receipts.verify_groth16_reference(bundle)
 
 
 def test_incomplete_and_conflicting_observations_reject(bundle: Path) -> None:
