@@ -325,6 +325,26 @@ def test_capture_binds_exact_proof_fixture_identity(bundle: Path) -> None:
         pro28_receipts.reconstruct(bundle)
 
 
+def test_groth16_fixture_proof_byte_mutation_rejects(bundle: Path) -> None:
+    path = bundle / "proof-fixture.json"
+    fixture = load(path)
+    proof = bytearray.fromhex(fixture["proof"].removeprefix("0x"))
+    proof[-1] ^= 1
+    fixture["proof"] = "0x" + proof.hex()
+    save(path, fixture)
+    with pytest.raises(pro28_receipts.EvidenceError, match="proof byte digest"):
+        pro28_receipts.reconstruct(bundle)
+
+
+def test_groth16_fixture_vkey_substitution_rejects(bundle: Path) -> None:
+    path = bundle / "proof-fixture.json"
+    fixture = load(path)
+    fixture["vkey"] = "0x" + "ff" * 32
+    save(path, fixture)
+    with pytest.raises(pro28_receipts.EvidenceError, match="proof/program identity"):
+        pro28_receipts.reconstruct(bundle)
+
+
 def test_reference_calldata_uses_exact_vkey_public_values_and_proof() -> None:
     vkey = "0x" + "11" * 32
     public_values = bytes(range(256)) + bytes(range(32))
