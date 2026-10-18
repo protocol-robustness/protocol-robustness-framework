@@ -74,6 +74,10 @@
     (binding [*out* (java.io.StringWriter.) *err* err]
       (is (= 2 (dispatch/run ["compare-runs" "--package-a" "a"]))))
     (is (clojure.string/includes? (str err) "--package-b")))
+  (let [err (java.io.StringWriter.)]
+    (binding [*out* (java.io.StringWriter.) *err* err]
+      (is (= 2 (dispatch/run ["run-benchmark" "benchmark/demo.edn" "--fast"]))))
+    (is (clojure.string/includes? (str err) "Unsupported option")))
   (let [normalize (ns-resolve 'resolver-sim.cli.dispatch 'normalize-user-paths)
         caller-dir (ns-resolve 'resolver-sim.cli.dispatch 'caller-directory)
         normalized (with-redefs-fn {caller-dir (constantly "/tmp/caller")}
@@ -96,7 +100,15 @@
   (let [out (java.io.StringWriter.)]
     (binding [*out* out *err* (java.io.StringWriter.)]
       (is (= 2 (dispatch/run ["community" "task" "list" "--unknown-option"])))
-      (is (clojure.string/includes? (str out) "Unknown option")))))
+      (is (clojure.string/includes? (str out) "Unknown option"))))
+  (let [out (java.io.StringWriter.)]
+    (binding [*out* out *err* (java.io.StringWriter.)]
+      (is (= 2 (dispatch/run ["community" "task" "list" "extra"])))
+      (is (clojure.string/includes? (str out) "Unexpected positional argument"))))
+  (let [out (java.io.StringWriter.)]
+    (binding [*out* out *err* (java.io.StringWriter.)]
+      (is (= 2 (dispatch/run ["run-simulation" "extra"])))
+      (is (clojure.string/includes? (str out) "Unexpected positional argument")))))
 
 (deftest legacy-command-options-reach-the-registered-handler
   (let [handler-for (ns-resolve 'resolver-sim.cli.dispatch 'handler-for)
@@ -111,7 +123,12 @@
     (is (= "run-7" (:run-id @received)))
     (with-redefs-fn {handler-for (constantly fake-handler)}
       #(is (zero? (dispatch/run ["ownership" "check" "--manifest" "custom.edn"]))))
-    (is (= "custom.edn" (:manifest @received)))))
+    (is (= "custom.edn" (:manifest @received)))
+    (with-redefs-fn {handler-for (constantly fake-handler)}
+      #(is (zero? (dispatch/run ["parallel-benchmark-run" "benchmark/demo.edn"
+                                 "--parallel-ceiling" "3" "--execution-budget" "4"]))))
+    (is (= 3 (:parallel-ceiling @received)))
+    (is (= 4 (:execution-budget @received)))))
 
 (deftest scenario-comparison-json-has-one-machine-readable-result
   (let [out (java.io.StringWriter.)

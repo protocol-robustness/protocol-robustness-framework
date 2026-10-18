@@ -3,6 +3,7 @@
    Replaces the original flag-based CLI (resolver-sim.core/-main).
    Usage: clojure -M:cli run-simulation [options]"
   (:require [clojure.tools.cli :as cli]
+            [clojure.string :as str]
             [resolver-sim.core.cli :as core-cli]
             [resolver-sim.core.phases :as phases]
             [resolver-sim.io.params :as params]
@@ -13,10 +14,15 @@
   "Run a simulation, server, invariants, or diff-traces depending on options.
    Parses :cmd/raw-args with the original core.cli option definitions."
   [{:keys [cmd/raw-args] :as _opts}]
-  (let [{:keys [options errors summary]} (cli/parse-opts raw-args core-cli/cli-options)]
+  (let [{:keys [options errors summary arguments]} (cli/parse-opts raw-args core-cli/cli-options)]
     (cond
       errors
       (do (doseq [e errors] (println e))
+          {:exit-code 2})
+
+      (seq arguments)
+      (do (println (str "Unexpected positional argument(s): "
+                        (str/join " " arguments)))
           {:exit-code 2})
 
       (:help options)

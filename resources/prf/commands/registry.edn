@@ -3,6 +3,7 @@
  :commands
  [
   {:command/id :protocol-finality-inspect
+    :command/option-contract :closed
    :command/path ["protocol" "finality" "inspect"]
    :command/title "protocol finality inspect"
    :command/category :protocol
@@ -17,6 +18,7 @@
    :command/description "Classify financial finality or derive ruling finality from an explicit SEW world; chain finality remains assumed by replay."}
 
   {:command/id :protocol-finality-verify
+    :command/option-contract :closed
    :command/path ["protocol" "finality" "verify"]
    :command/title "protocol finality verify"
    :command/category :protocol
@@ -31,6 +33,7 @@
    :command/description "Recompute finality against the supplied SEW world and reject mismatched artifacts; does not authenticate the supplied world."}
 
   {:command/id :forensic-run
+    :command/option-contract :closed
    :command/path ["forensic" "run"]
    :command/title "forensic run"
    :command/category :evidence
@@ -45,6 +48,7 @@
    :command/description "Run the existing forensic workflow using explicit PRF and output roots; requires Python and the source checkout."}
 
   {:command/id :forensic-validate
+    :command/option-contract :closed
    :command/path ["forensic" "validate"]
    :command/title "forensic validate"
    :command/category :evidence
@@ -59,6 +63,7 @@
    :command/description "Run existing protocol-semantic forensic validation over retained evidence."}
 
   {:command/id :forensic-verify
+    :command/option-contract :closed
    :command/path ["forensic" "verify"]
    :command/title "forensic verify"
    :command/category :evidence
@@ -73,6 +78,7 @@
    :command/description "Run existing forensic integrity and optional signature/semantic verification."}
 
   {:command/id :forensic-reproduce
+    :command/option-contract :closed
    :command/path ["forensic" "reproduce"]
    :command/title "forensic reproduce"
    :command/category :evidence
@@ -87,6 +93,7 @@
    :command/description "Execute the existing forensic reproduction workflow in an explicitly selected PRF source checkout."}
 
   {:command/id :protocol-pro-rata-derive-operation
+    :command/option-contract :closed
    :command/path ["protocol" "pro-rata" "derive-operation"]
    :command/title "protocol pro-rata derive-operation"
    :command/category :protocol
@@ -101,6 +108,7 @@
    :command/description "Derive controlled-source operation commitments and entitlements; does not submit a transaction or grant authority."}
 
   {:command/id :protocol-pro-rata-check-admission
+    :command/option-contract :closed
    :command/path ["protocol" "pro-rata" "check-admission"]
    :command/title "protocol pro-rata check-admission"
    :command/category :protocol
@@ -116,6 +124,7 @@
    :command/description "Check the existing realized-allocation V1 signed verifier receipt boundary using independent trust policy and proof file integrity."}
 
   {:command/id :protocol-pro-rata-verify-execution
+    :command/option-contract :closed
    :command/path ["protocol" "pro-rata" "verify-execution"]
    :command/title "protocol pro-rata verify-execution"
    :command/category :protocol
@@ -130,6 +139,7 @@
    :command/description "Reconstruct retained local source-bound entitlement execution evidence and report unresolved assurance gaps; no live observation."}
 
   {:command/id :backstop
+    :command/option-contract :closed
    :command/path ["backstop"]
    :command/title "Default backstop"
    :command/category :validation
@@ -145,6 +155,7 @@
    :command/description "Run the default review gate (backstop)."}
 
    {:command/id :check-aggregate
+    :command/option-contract :closed
    :command/path ["check-aggregate"]
    :command/title "Check review aggregate invariants"
    :command/category :benchmark
@@ -159,6 +170,7 @@
    :command/description "Run the review-aggregate check surface (three-member standard, member bit-width/key-density, and the three-member-classifications checks when an authority report is supplied) over a review round and emit the complete machine-readable result."}
 
    {:command/id :backstop-fast
+    :command/option-contract :closed
     :command/path ["backstop" "fast"]
    :command/title "Fast backstop"
    :command/category :validation
@@ -187,6 +199,7 @@
     :command/description "Run the extended review gate: yield + CLI default + notebooks + forensic-python + community + portability."}
 
   {:command/id :commands-validate
+    :command/option-contract :closed
    :command/path ["commands" "validate"]
    :command/title "Validate command registry"
    :command/category :validation
@@ -200,6 +213,7 @@
    :command/description "Validate the command registry, dispatch table, and bb wrapper parity."}
 
    {:command/id :evidence-make
+    :command/option-contract :closed
     :command/path ["evidence" "make"]
     :command/title "Construct evidence"
     :command/category :evidence
@@ -214,6 +228,7 @@
     :command/description "Construct one canonical evidence record from one explicit specification."}
 
    {:command/id :evidence-verify-chain
+    :command/option-contract :closed
      :command/path ["evidence" "verify-chain"]
      :command/title "Verify evidence chain"
      :command/category :evidence
@@ -229,6 +244,7 @@
    :command/description "Verify evidence chain hashes and links for an artifact directory."}
 
   {:command/id :evidence-validate
+    :command/option-contract :closed
      :command/path ["evidence" "validate"]
      :command/title "Validate evidence"
      :command/category :evidence
@@ -243,6 +259,7 @@
    :command/description "Validate evidence artifacts in a run directory."}
 
   {:command/id :evidence-coverage
+    :command/option-contract :closed
      :command/path ["evidence" "coverage"]
      :command/title "Evidence coverage"
      :command/category :evidence
@@ -257,6 +274,7 @@
    :command/description "Check evidence coverage completeness."}
 
   {:command/id :evidence-backstop
+    :command/option-contract :closed
    :command/path ["evidence" "backstop"]
    :command/title "Evidence backstop"
    :command/category :evidence
@@ -273,6 +291,7 @@
    :command/description "Run the evidence forensic review gate."}
 
   {:command/id :validate
+    :command/option-contract :closed
    :command/path ["validate"]
    :command/title "Structural validate"
    :command/category :validation
@@ -287,6 +306,7 @@
    :command/description "Run the structural validation pipeline (lint + notebook checks)."}
 
    {:command/id :concepts-validate
+    :command/option-contract :closed
     :command/path ["concepts" "validate"]
     :command/title "Validate concepts"
     :command/category :concept
@@ -300,6 +320,7 @@
     :command/description "Validate concept data files and the concept registry."}
 
    {:command/id :check-ownership
+    :command/option-contract :closed
     :command/path ["ownership" "check"]
     :command/title "Check content authority"
     :command/category :validation
@@ -315,6 +336,7 @@
 
 
    {:command/id :benchmark-list
+    :command/option-contract :closed
     :command/path ["benchmark" "list"]
     :command/title "List benchmarks"
     :command/category :benchmark
@@ -328,6 +350,7 @@
     :command/description "List available benchmarks from the benchmark registry."}
 
    {:command/id :suite-list
+    :command/option-contract :closed
     :command/path ["suite" "list"]
     :command/title "List suites"
     :command/category :scenario
@@ -341,6 +364,7 @@
     :command/description "List registered scenario suites with scenario counts and protocols."}
 
    {:command/id :benchmark-validate
+    :command/option-contract :closed
     :command/path ["benchmark" "validate"]
     :command/title "Validate benchmarks"
     :command/category :benchmark
@@ -354,6 +378,7 @@
     :command/description "Validate benchmark pack definitions and referenced resources."}
 
    {:command/id :scenario-list
+    :command/option-contract :closed
     :command/path ["scenario" "list"]
     :command/title "List scenarios"
     :command/category :scenario
@@ -369,6 +394,7 @@
     :command/description "List available scenarios from the scenario catalog."}
 
    {:command/id :scenario-pick
+    :command/option-contract :closed
     :command/path ["scenario" "pick"]
     :command/title "Interactive scenario picker"
     :command/category :scenario
@@ -383,6 +409,7 @@
     :command/description "Interactively select and run scenarios from a numbered menu."}
 
    {:command/id :scenario-run-search
+    :command/option-contract :closed
     :command/path ["scenario" "run-search"]
     :command/title "Run scenarios by search"
     :command/category :scenario
@@ -398,6 +425,7 @@
     :command/description "Find scenarios matching text and run each in an isolated run root."}
 
    {:command/id :scenario-compare
+    :command/option-contract :closed
     :command/path ["scenario" "compare"]
     :command/title "Compare two scenarios"
     :command/category :scenario
@@ -413,6 +441,7 @@
     :command/description "Execute both scenarios in separate output directories, then compare their replay traces and report the first structural divergence."}
 
    {:command/id :run-scenario
+    :command/option-contract :closed
    :command/path ["run-scenario"]
    :command/title "Run a scenario bundle"
    :command/category :scenario
@@ -420,7 +449,16 @@
    :command/backstop-tier :manual
    :command/jar-availability :native
    :command/runtime :jvm
-    :command/options [{:name "--run-root" :type :string :doc "Fresh authoritative root for the completed scenario bundle"}
+    :command/options [
+                      {:name "--scenario" :type :string :doc "Scenario ID or source reference"}
+                      {:name "--output-dir" :type :string :doc "Deprecated alias for --run-root"}
+                      {:name "--scenario-output-dir" :type :string :doc "Deprecated alias for --run-root"}
+                      {:name "--save-output" :type :string :doc "Legacy output copy option (rejected for canonical bundles)"}
+                      {:name "--verbose" :type :flag :doc "Verbose report format"}
+                      {:name "--failures" :type :flag :doc "Failures report format"}
+                      {:name "--summary" :type :flag :doc "Summary report format"}
+                      {:name "--audit" :type :flag :doc "Audit report format"}
+                      {:name "--run-root" :type :string :doc "Fresh authoritative root for the completed scenario bundle"}
                       {:name "--suite-root" :type :string :doc "Suite root directory (contains manifest.edn)"}
                       {:name "--sensitivity-profile" :type :string :doc "public or internal (default public)"}
                       {:name "--report-format" :type :string :doc "summary, failures, standard, verbose, or audit"}]
@@ -429,6 +467,7 @@
      :command/description "Run one scenario into a validated, immutable evidence bundle under --run-root. The scenario reference may be a positional path (or classpath: URI) or passed via --scenario. Registered suite execution is a separate future command."}
 
   {:command/id :verify-scenario
+    :command/option-contract :closed
    :command/path ["verify-scenario"]
    :command/title "Verify a scenario bundle"
    :command/category :evidence
@@ -442,6 +481,7 @@
    :command/description "Read-only verification of a completed scenario bundle, including its registry, evidence-chain finalizations, and evidence-set reconciliation."}
 
    {:command/id :invariants-run
+    :command/option-contract :closed
     :command/path ["invariants" "run"]
     :command/title "Run invariant suite (canonical)"
     :command/category :scenario
@@ -456,6 +496,7 @@
     :command/description "Run the full invariant registry suite and persist canonical evidence under --run-root."}
 
    {:command/id :verify-run
+    :command/option-contract :closed
     :command/path ["verify-run"]
     :command/title "Verify run bundle"
     :command/category :validation
@@ -470,6 +511,7 @@
     :command/description "Verify a completed canonical run package for completeness and integrity."}
 
    {:command/id :sentinel-check
+    :command/option-contract :closed
     :command/path ["sentinel" "check"]
     :command/title "Out-of-process sensitivity sentinel authority"
     :command/category :evidence
@@ -483,6 +525,7 @@
     :command/description "Read an EDN sensitivity-check request from stdin, make a hash-verified, signed disclosure decision, and write one EDN response to stdout."}
 
    {:command/id :publish-check
+    :command/option-contract :closed
     :command/path ["publish" "check"]
     :command/title "Out-of-process artifact publisher authority"
     :command/category :evidence
@@ -496,6 +539,7 @@
      :command/description "Read an EDN artifact-publish request from stdin, independently re-verify the artifact set (all-or-nothing), sign a publish certificate, and write one EDN response to stdout."}
 
     {:command/id :publication-trace
+    :command/option-contract :closed
      :command/path ["publication" "trace"]
      :command/title "Trace authoritative publication chain"
      :command/category :evidence
@@ -514,6 +558,7 @@
      :command/description "Trace the authoritative publication chain H -> B -> O -> R -> P -> output -> allocation -> transition -> (V2: compilation) with per-edge resolution status and typed failure reasons."}
 
     {:command/id :resubmission-issue
+    :command/option-contract :closed
     :command/path ["resubmission" "issue"]
     :command/title "Out-of-process resubmission receipt signer authority"
     :command/category :evidence
@@ -527,6 +572,7 @@
     :command/description "Read an EDN resubmission-issue request from stdin, independently re-derive the committed chain transition, verify the transaction-ordering evidence and candidate receipt binding, sign a submission-attempt receipt, and write one EDN response to stdout."}
 
    {:command/id :resubmission-issue-admission-v2
+    :command/option-contract :closed
     :command/path ["resubmission" "issue-admission-v2"]
     :command/title "Sign fenced resubmission admission authorization"
     :command/category :evidence
@@ -540,6 +586,7 @@
     :command/description "Read one reservation-bound admission signing request from stdin and emit content-addressed authorization evidence. This command is stateless and cannot finalize or arbitrate admission."}
 
    {:command/id :assure-package
+    :command/option-contract :closed
     :command/path ["assure-package"]
     :command/title "Evaluate package assurance"
     :command/category :validation
@@ -554,6 +601,7 @@
     :command/description "Evaluate whether a verified canonical run package satisfies release/assurance policy."}
 
    {:command/id :run-invariants
+    :command/option-contract :closed
     :command/path ["run-invariants"]
     :command/title "Run invariant suite"
     :command/category :scenario
@@ -569,6 +617,7 @@
     :command/description "Run the full protocol invariant suite (S01–S100 for sew-v1)."}
 
    {:command/id :benchmark-validate-jar
+    :command/option-contract :closed
     :command/path ["benchmark" "validate-jar"]
     :command/title "Validate benchmark JAR corpus"
     :command/category :benchmark
@@ -582,6 +631,7 @@
     :command/description "Validate that every benchmark resolves through InputSource without filesystem fallback."}
 
    {:command/id :benchmark-smoke
+    :command/option-contract :closed
     :command/path ["benchmark" "smoke"]
     :command/title "Benchmark smoke matrix"
     :command/category :benchmark
@@ -597,6 +647,7 @@
     :command/description "Plan and execute a bounded benchmark smoke matrix (one scenario per benchmark)."}
 
    {:command/id :verify-benchmark
+    :command/option-contract :closed
    :command/path ["verify-benchmark"]
    :command/title "Verify benchmark bundle"
    :command/category :benchmark
@@ -610,6 +661,7 @@
    :command/description "Recalculate and verify benchmark assurance, finalization, input-set, and completion commitments."}
 
    {:command/id :run-benchmark
+    :command/option-contract :closed
    :command/path ["run-benchmark"]
    :command/title "Run a benchmark"
    :command/category :benchmark
@@ -617,13 +669,20 @@
    :command/backstop-tier :full
    :command/jar-availability :native
    :command/runtime :jvm
-   :command/options [{:name "--run-root" :type :string :doc "Fresh canonical benchmark package root"}
+   :command/options [
+                      {:name "--execution-budget" :type :integer :doc "Total concurrent execution bound"}
+                      {:name "--parallel-ceiling" :type :integer :doc "Automatic worker ceiling"}
+                      {:name "--output" :type :string :doc "Legacy standalone evidence output path"}
+                      {:name "--scenario-output-dir" :type :string :doc "Legacy execution output directory"}
+                      {:name "--quiescence-timeout-seconds" :type :integer :doc "Executor shutdown wait timeout"}
+                      {:name "--claimant-parallelism" :type :integer :doc "Runtime claimant worker count"}
+                      {:name "--claimant-parallel-threshold" :type :integer :doc "Runtime claimant parallelism threshold"}
+                      {:name "--run-root" :type :string :doc "Fresh canonical benchmark package root"}
                       {:name "--sensitivity-profile" :type :string :doc "Canonical bundle profile: public or internal"}
                       {:name "--claim-registry" :type :string :doc "External benchmark claim registry (auditor-supplied). Precedence: --claim-registry > PRF_BENCHMARKS_CLAIM_REGISTRY > repository default. Fails closed if the registry is invalid."}
                       {:name "--research-pack" :type :string :doc "Frozen research-benchmark-pack.v1 EDN plan; validated before canonical execution."}
                       {:name "--parallelism" :type :integer :doc "Bounded local worker count; positive integer, default 1"}
                       {:name "--chunk-size" :type :integer :doc "Deterministic work items per local chunk; positive integer, default 1"}
-                      {:name "--output" :type :string :doc "Legacy standalone evidence output path"}
                       {:name "--key" :type :string :doc "Path to private key for signing"}
                       {:name "--json" :type :flag :doc "Output as JSON"}]
    :command/outputs []
@@ -631,6 +690,7 @@
    :command/description "Run a registered or bundled benchmark as a canonical --run-root package, or use --output for a separate legacy export."}
 
   {:command/id :parallel-benchmark-run
+    :command/option-contract :closed
    :command/path ["parallel-benchmark-run"]
    :command/title "Run a benchmark with bounded local parallelism (capability composition)"
    :command/category :benchmark
@@ -638,7 +698,14 @@
    :command/backstop-tier :full
    :command/jar-availability :native
    :command/runtime :jvm
-   :command/options [{:name "--run-root" :type :string :doc "Fresh canonical benchmark package root"}
+   :command/options [
+                      {:name "--parallel-ceiling" :type :integer :doc "Automatic worker ceiling"}
+                      {:name "--output" :type :string :doc "Legacy standalone evidence output path"}
+                      {:name "--scenario-output-dir" :type :string :doc "Legacy execution output directory"}
+                      {:name "--quiescence-timeout-seconds" :type :integer :doc "Executor shutdown wait timeout"}
+                      {:name "--claimant-parallelism" :type :integer :doc "Runtime claimant worker count"}
+                      {:name "--claimant-parallel-threshold" :type :integer :doc "Runtime claimant parallelism threshold"}
+                      {:name "--run-root" :type :string :doc "Fresh canonical benchmark package root"}
                      {:name "--sensitivity-profile" :type :string :doc "Canonical bundle profile: public or internal"}
                      {:name "--claim-registry" :type :string :doc "External benchmark claim registry (auditor-supplied). Precedence: --claim-registry > PRF_BENCHMARKS_CLAIM_REGISTRY > repository default. Fails closed if the registry is invalid."}
                      {:name "--research-pack" :type :string :doc "Frozen research-benchmark-pack.v1 EDN plan; validated before canonical execution."}
@@ -653,6 +720,7 @@
    :command/description "Specialized capability composition: routes through the canonical run-benchmark algorithm (run-with-root! + run->benchmark), adding bounded local parallelism across scenario workers and claimant executors. Not a separate benchmark algorithm. The build is composed with (and therefore includes) the incentive and incentive-compatibility capabilities; that combination is declared here and validated. Canonical output is invariant to parallelism and plan-ordinal (bound-sequence) locality is preserved. The automatic worker pool defaults to min(scenario-count, parallel ceiling) and never exceeds the ceiling; an explicit --parallelism is honored exactly; --execution-budget bounds total concurrency."}
 
   {:command/id :fmt-check
+    :command/option-contract :closed
    :command/path ["fmt" "check"]
    :command/title "Check formatting"
    :command/category :maintenance
@@ -666,6 +734,7 @@
    :command/description "Check code formatting without rewriting files."}
 
    {:command/id :lint
+    :command/option-contract :closed
     :command/path ["lint"]
     :command/title "Lint source"
     :command/category :validation
@@ -679,6 +748,7 @@
     :command/description "Lint source and test code with clj-kondo."}
 
    {:command/id :pre-application-checks
+    :command/option-contract :closed
     :command/path ["pre-application" "checks"]
     :command/title "Pre-application checks"
     :command/category :validation
@@ -693,6 +763,7 @@
     :command/description "Validate that an outcome manifest is ready for benchmark execution."}
 
    {:command/id :run-simulation
+    :command/options-source :handler
    :command/path ["run-simulation"]
    :command/title "Run simulation"
    :command/category :simulation
@@ -710,6 +781,7 @@
    :command/description "Run a simulation, server, invariants, or diff-traces. Replaces the original flag-based CLI."}
 
   {:command/id :community-task-list
+    :command/options-source :handler
    :command/path ["community" "task" "list"]
    :command/title "List community tasks"
    :command/category :community
@@ -724,6 +796,7 @@
    :command/description "List available community tasks."}
 
   {:command/id :community-task-show
+    :command/options-source :handler
    :command/path ["community" "task" "show"]
    :command/title "Show community task"
    :command/category :community
@@ -737,6 +810,7 @@
    :command/description "Show community task details."}
 
   {:command/id :community-task-register
+    :command/options-source :handler
    :command/path ["community" "task" "register"]
    :command/title "Register community task"
    :command/category :community
@@ -753,6 +827,7 @@
    :command/description "Register a new community task."}
 
   {:command/id :community-task-run
+    :command/options-source :handler
    :command/path ["community" "task" "run"]
    :command/title "Run community task"
    :command/category :community
@@ -770,6 +845,7 @@
    :command/description "Execute a community task and publish result."}
 
   {:command/id :community-task-reproduce
+    :command/options-source :handler
    :command/path ["community" "task" "reproduce"]
    :command/title "Reproduce community task"
    :command/category :community
@@ -788,6 +864,7 @@
    :command/description "Reproduce a community task result."}
 
   {:command/id :community-task-verify
+    :command/options-source :handler
    :command/path ["community" "task" "verify"]
    :command/title "Verify community task"
    :command/category :community
@@ -803,6 +880,7 @@
    :command/description "Verify a community task evidence chain."}
 
   {:command/id :community-task-report
+    :command/options-source :handler
    :command/path ["community" "task" "report"]
    :command/title "Report on community task"
    :command/category :community
@@ -818,6 +896,7 @@
    :command/description "Generate a community task evidence report."}
 
   {:command/id :community-graph-export
+    :command/options-source :handler
    :command/path ["community" "graph" "export"]
    :command/title "Export community graph"
    :command/category :community
@@ -834,6 +913,7 @@
    :command/description "Export a community task evidence graph."}
 
   {:command/id :community-mailbox-clear
+    :command/options-source :handler
     :command/path ["community" "mailbox" "clear"]
     :command/title "Clear community mailbox"
     :command/category :community
@@ -847,6 +927,7 @@
     :command/description "Clear all community mailbox messages."}
 
   {:command/id :compare-runs
+    :command/option-contract :closed
    :command/path ["compare-runs"]
    :command/title "Compare completed run packages"
    :command/category :validation
@@ -863,6 +944,7 @@
    :command/description "Compare two retained completion-sealed packages and report their protocol submission classification; does not execute either package."}
 
   {:command/id :compare
+    :command/option-contract :closed
    :command/path ["compare"]
    :command/title "Canonically compare two artifacts"
    :command/category :comparison
@@ -877,6 +959,7 @@
    :command/description "Compare two EDN/JSON artifacts by canonical hash equivalence; reports the first divergence."}
 
   {:command/id :root-hash
+    :command/option-contract :closed
    :command/path ["root-hash"]
    :command/title "Report run package root hashes"
    :command/category :comparison
@@ -890,6 +973,7 @@
    :command/description "Report the package-index, bundle-root, and completion-seal hashes of a run package."}
 
   {:command/id :result-root
+    :command/option-contract :closed
    :command/path ["result-root"]
    :command/title "Report run result roots"
    :command/category :comparison
@@ -903,6 +987,7 @@
    :command/description "Report the result-defining roots (bundle root, stable-result hash, scenario evidence roots) of a run package."}
 
   {:command/id :semantic-equivalent
+    :command/option-contract :closed
    :command/path ["semantic-equivalent"]
    :command/title "Compare run packages semantically"
    :command/category :comparison
@@ -918,6 +1003,7 @@
    :command/description "Compare two completed packages by stable-result projection and semantic outcome; does not compare all artifact bytes or execute either package."}
 
   {:command/id :declared-dependencies
+    :command/option-contract :closed
    :command/path ["declared-dependencies"]
    :command/title "List declared dependencies of a run package"
    :command/category :comparison
@@ -1164,6 +1250,7 @@
     :command/description "Run extended horizon scenarios (100/200/500/1000 epochs)."}
 
    {:command/id :notebook-focus
+    :command/option-contract :closed
     :command/path ["notebook" "focus"]
     :command/title "Focus notebook on a run"
     :command/category :notebook
@@ -1177,6 +1264,7 @@
     :command/description "Pin the notebook to a specific run-id."}
 
    {:command/id :notebook-latest
+    :command/option-contract :closed
     :command/path ["notebook" "latest"]
     :command/title "Reset notebook to latest run"
     :command/category :notebook
@@ -1190,6 +1278,7 @@
     :command/description "Reset the notebook to always show the latest run."}
 
    {:command/id :notebook-runs
+    :command/option-contract :closed
     :command/path ["notebook" "runs"]
     :command/title "List available runs"
     :command/category :notebook
@@ -1203,6 +1292,7 @@
     :command/description "List all available run-ids."}
 
    {:command/id :ref-file
+    :command/option-contract :closed
     :command/path ["ref-file"]
     :command/title "Compute canonical file references"
     :command/category :validation
@@ -1217,6 +1307,7 @@
     :command/description "Compute canonical sha256:<hex> file references (sha256-ref-file) or verify a refs file."}
 
    {:command/id :allocation-build-context
+    :command/option-contract :closed
     :command/path ["allocation" "build-context"]
     :command/title "Build allocation context"
     :command/category :allocation
@@ -1230,6 +1321,7 @@
     :command/description "Build and print the canonical allocation-context.v1 with its hash and roots."}
 
    {:command/id :allocation-verify-proposal
+    :command/option-contract :closed
     :command/path ["allocation" "verify-proposal"]
     :command/title "Verify allocation proposal"
     :command/category :allocation
@@ -1243,6 +1335,7 @@
     :command/description "Run the reference allocation kernel and print the public-value projection."}
 
    {:command/id :allocation-vectors
+    :command/option-contract :closed
     :command/path ["allocation" "vectors"]
     :command/title "Generate allocation conformance vectors"
     :command/category :allocation
@@ -1256,6 +1349,7 @@
     :command/description "Generate and print the allocation kernel conformance vector suite as JSON."}
 
    {:command/id :allocation-issue-certificate
+    :command/option-contract :closed
     :command/path ["allocation" "issue-certificate"]
     :command/title "Issue allocation assurance certificate"
     :command/category :allocation
@@ -1263,68 +1357,83 @@
     :command/backstop-tier :manual
     :command/jar-availability :native
     :command/runtime :jvm
-    :command/options [{:name "--input" :type :string :doc "Input JSON file; use '-' for stdin"}]
+    :command/options [
+                      {:name "--key" :type :string :doc "Private key path for certificate signing"}
+                      {:name "--key-id" :type :string :doc "Issuer key ID for the signature"}
+                      {:name "--input" :type :string :doc "Input JSON file; use '-' for stdin"}]
     :command/outputs []
     :command/positional-args {:min 0 :max 1}
      :command/description "Compose allocation-assurance-certificate.v1 from a kernel run."}
 
-   {:command/id :research-create :command/path ["research" "create"] :command/title "Create research command"
+   {:command/id :research-create
+    :command/option-contract :closed :command/path ["research" "create"] :command/title "Create research command"
     :command/category :research :command/surface :prf :command/backstop-tier :manual :command/jar-availability :native :command/runtime :jvm
     :command/options [{:name "--input" :type :string :required true} {:name "--output" :type :string :required true}]
     :command/outputs [] :command/positional-args {:min 0 :max 0}
     :command/description "Build and persist an authoritative research-command.v2 from EDN."}
-   {:command/id :research-assign :command/path ["research" "assign"] :command/title "Create research assignment"
+   {:command/id :research-assign
+    :command/option-contract :closed :command/path ["research" "assign"] :command/title "Create research assignment"
     :command/category :research :command/surface :prf :command/backstop-tier :manual :command/jar-availability :native :command/runtime :jvm
     :command/options [{:name "--input" :type :string :required true} {:name "--output" :type :string :required true}]
     :command/outputs [] :command/positional-args {:min 0 :max 0}
     :command/description "Build and persist a hash-bound research assignment from EDN."}
-   {:command/id :research-run :command/path ["research" "run"] :command/title "Record research execution"
+   {:command/id :research-run
+    :command/option-contract :closed :command/path ["research" "run"] :command/title "Record research execution"
     :command/category :research :command/surface :prf :command/backstop-tier :manual :command/jar-availability :native :command/runtime :jvm
     :command/options [{:name "--input" :type :string :required true} {:name "--output" :type :string :required true}]
     :command/outputs [] :command/positional-args {:min 0 :max 0}
     :command/description "Record a verified research execution over an existing canonical benchmark outcome."}
-   {:command/id :research-submit :command/path ["research" "submit"] :command/title "Submit research execution"
+   {:command/id :research-submit
+    :command/option-contract :closed :command/path ["research" "submit"] :command/title "Submit research execution"
     :command/category :research :command/surface :prf :command/backstop-tier :manual :command/jar-availability :native :command/runtime :jvm
     :command/options [{:name "--input" :type :string :required true}]
     :command/outputs [] :command/positional-args {:min 0 :max 0}
     :command/description "Verify and admit an in-band or out-of-band research execution."}
-   {:command/id :research-verify :command/path ["research" "verify"] :command/title "Verify research closure"
+   {:command/id :research-verify
+    :command/option-contract :closed :command/path ["research" "verify"] :command/title "Verify research closure"
     :command/category :research :command/surface :prf :command/backstop-tier :manual :command/jar-availability :native :command/runtime :jvm
     :command/options [{:name "--input" :type :string :required true}]
     :command/outputs [] :command/positional-args {:min 0 :max 0}
     :command/description "Verify execution bindings and research-analysis closure."}
-   {:command/id :research-reproduce :command/path ["research" "reproduce"] :command/title "Reproduce research execution"
+   {:command/id :research-reproduce
+    :command/option-contract :closed :command/path ["research" "reproduce"] :command/title "Reproduce research execution"
     :command/category :research :command/surface :prf :command/backstop-tier :manual :command/jar-availability :native :command/runtime :jvm
     :command/options [{:name "--input" :type :string :required true}]
     :command/outputs [] :command/positional-args {:min 0 :max 0}
     :command/description "Compare exact-environment or independent-conforming reproduction contexts."}
-   {:command/id :research-diff :command/path ["research" "diff"] :command/title "Differential research analysis"
+   {:command/id :research-diff
+    :command/option-contract :closed :command/path ["research" "diff"] :command/title "Differential research analysis"
     :command/category :research :command/surface :prf :command/backstop-tier :manual :command/jar-availability :native :command/runtime :jvm
     :command/options [{:name "--input" :type :string :required true}]
     :command/outputs [] :command/positional-args {:min 0 :max 0}
     :command/description "Compare canonical research semantics while excluding runtime-only variation."}
-    {:command/id :research-inspect :command/path ["research" "inspect"] :command/title "Inspect research roots"
+    {:command/id :research-inspect
+    :command/option-contract :closed :command/path ["research" "inspect"] :command/title "Inspect research roots"
     :command/category :research :command/surface :prf :command/backstop-tier :manual :command/jar-availability :native :command/runtime :jvm
     :command/options [{:name "--input" :type :string :required true}]
     :command/outputs [] :command/positional-args {:min 0 :max 0}
     :command/description "Read-only validation and root-oriented inspection of a research execution."}
-    {:command/id :research-reward-check :command/path ["research" "reward-check"] :command/title "Check researcher reward eligibility"
+    {:command/id :research-reward-check
+    :command/option-contract :closed :command/path ["research" "reward-check"] :command/title "Check researcher reward eligibility"
      :command/category :research :command/surface :prf :command/backstop-tier :manual :command/jar-availability :native :command/runtime :jvm
      :command/options [{:name "--input" :type :string :required true}]
      :command/outputs [] :command/positional-args {:min 0 :max 0}
     :command/description "Determine researcher reward eligibility from a frozen policy and supplied evidence without creating an obligation or moving funds."}
-    {:command/id :research-reward-propose :command/path ["research" "reward-propose"] :command/title "Propose researcher reward"
+    {:command/id :research-reward-propose
+    :command/option-contract :closed :command/path ["research" "reward-propose"] :command/title "Propose researcher reward"
      :command/category :research :command/surface :prf :command/backstop-tier :manual :command/jar-availability :native :command/runtime :jvm
      :command/options [{:name "--input" :type :string :required true}]
      :command/outputs [] :command/positional-args {:min 0 :max 0}
      :command/description "Create an immutable researcher reward proposal from eligible evidence and its frozen policy."}
-    {:command/id :research-reward-approve :command/path ["research" "reward-approve"] :command/title "Approve researcher reward obligation"
+    {:command/id :research-reward-approve
+    :command/option-contract :closed :command/path ["research" "reward-approve"] :command/title "Approve researcher reward obligation"
      :command/category :research :command/surface :prf :command/backstop-tier :manual :command/jar-availability :native :command/runtime :jvm
      :command/options [{:name "--input" :type :string :required true}]
      :command/outputs [] :command/positional-args {:min 0 :max 0}
      :command/description "Create an immutable researcher reward obligation from an exact eligible proposal and authorized approval authority; does not authorize or record payment."}
 
    {:command/id :researcher-disagree
+    :command/option-contract :closed
     :command/path ["researcher" "disagree"]
     :command/title "Sign a dissenting researcher decision"
     :command/category :researcher
@@ -1343,6 +1452,7 @@
     :command/description "Sign a dissenting (:dissent) decision as a researcher, identified by integer review-member/key, targeting a force-authorisation."}
 
    {:command/id :researcher-approve
+    :command/option-contract :closed
     :command/path ["researcher" "approve"]
     :command/title "Sign an approving researcher decision"
     :command/category :researcher
@@ -1360,6 +1470,7 @@
     :command/description "Sign an approving (:approve) decision as a researcher, identified by integer review-member/key, targeting a force-authorisation."}
 
    {:command/id :researcher-check
+    :command/option-contract :closed
     :command/path ["researcher" "check"]
     :command/title "Check force-authorisation usability"
     :command/category :researcher

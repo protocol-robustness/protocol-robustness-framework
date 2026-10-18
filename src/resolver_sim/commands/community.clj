@@ -4,6 +4,7 @@
    command handlers for the PRF command dispatch.
    Usage: clojure -M:cli community task list"
   (:require [clojure.tools.cli :as cli]
+            [clojure.string :as str]
             [resolver-sim.community.cli :as ccli]))
 
 (def community-cli-options
@@ -28,10 +29,14 @@
   "Parse raw args with community options, then call f with parsed options.
    f is one of the resolver-sim.community.cli handler functions."
   [f raw-args]
-  (let [{:keys [options errors summary]} (cli/parse-opts raw-args community-cli-options)]
+  (let [{:keys [options errors summary arguments]} (cli/parse-opts raw-args community-cli-options)]
     (cond
       errors
       (do (doseq [e errors] (println e))
+          {:exit-code 2})
+      (seq arguments)
+      (do (println (str "Unexpected positional argument(s): "
+                        (str/join " " arguments)))
           {:exit-code 2})
       (:help options)
       (do (println "Available community subcommand options:")

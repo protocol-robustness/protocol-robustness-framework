@@ -164,7 +164,6 @@
    ["-j" "--json" "Output results as JSON"]
    [nil "--artifact-dir DIR" "Legacy evidence artifact directory (must be explicit)"]
    [nil "--scenario ID" "Scenario ID to run"]
-   [nil "--scenario-file PATH" "Scenario file path"]
    [nil "--run-root DIR" "Authoritative root directory for a complete scenario bundle"]
    [nil "--suite-root DIR" "Suite root directory (directory containing manifest.edn)"]
    [nil "--output-dir DIR" "Deprecated scenario alias for --run-root"]
@@ -185,8 +184,6 @@
    ["-f" "--failures" "Scenario report format: failures"]
    ["-s" "--summary" "Scenario report format: summary"]
    ["-a" "--audit" "Scenario report format: audit"]
-   [nil "--suite NAME" "Suite name"]
-   [nil "--pack NAME" "Benchmark pack name"]
    [nil "--research-pack FILE" "Frozen research-benchmark-pack.v1 EDN plan for canonical benchmark execution"]
    [nil "--fast" "Run fast tier only"]
    [nil "--full" "Run full tier"]
@@ -290,24 +287,8 @@
     (println (str "  " name (when required " (required)") "  " doc)))
   0)
 
-(def ^:private strict-option-contracts
-  "Commands whose registry option lists are complete and are enforced at dispatch."
-  #{:protocol-finality-inspect :protocol-finality-verify
-    :forensic-run :forensic-validate :forensic-verify :forensic-reproduce
-    :protocol-pro-rata-derive-operation :protocol-pro-rata-check-admission
-    :protocol-pro-rata-verify-execution
-    :compare :compare-runs :semantic-equivalent :scenario-compare})
-
-(def ^:private handler-parsed-commands
-  "Commands with complete command-specific parsers. The dispatcher must not
-   reject their flags with its broader legacy option list first."
-  #{:run-simulation
-    :community-task-list :community-task-show :community-task-register
-    :community-task-run :community-task-reproduce :community-task-verify
-    :community-task-report :community-graph-export :community-mailbox-clear})
-
 (def ^:private path-option-names
-  #{"--artifact-dir" "--scenario-file" "--run-root" "--suite-root"
+  #{"--artifact-dir" "--run-root" "--suite-root"
     "--output-dir" "--scenario-output-dir" "--save-output" "--claim-registry"
     "--out" "--output" "--package-a" "--package-b" "--key" "--check"
     "--trust-context" "--input" "--cas-dir" "--params" "--output-file"
@@ -353,11 +334,16 @@
       opts)))
 
 (defn- command-option-error [cmd args]
-  (when (contains? strict-option-contracts (:command/id cmd))
-    (let [allowed (into #{"--help" "--json"} (map :name (:command/options cmd)))
+  (when (= :closed (:command/option-contract cmd))
+    (let [allowed (into #{"--help" "--json" "--explain"}
+                        (map :name (:command/options cmd)))
+          aliases {"-h" "--help" "-j" "--json" "-v" "--verbose"
+                   "-f" "--failures" "-s" "--summary" "-a" "--audit"}
           supplied (set (keep (fn [arg]
-                                (when (str/starts-with? arg "--")
-                                  (first (str/split arg #"=" 2)))) args))
+                                (let [option (first (str/split arg #"=" 2))]
+                                  (cond
+                                    (str/starts-with? option "--") option
+                                    (contains? aliases option) (get aliases option)))) args))
           missing (sort (keep (fn [{:keys [name required]}]
                                 (when (and required (not (contains? supplied name))) name))
                               (:command/options cmd)))
@@ -422,7 +408,7 @@
         raw-cmd-id (some-> raw-command (nth 2) :command/id)]
     ;; These commands own complete parsers. Resolve them before invoking the
     ;; dispatcher's legacy parser, which otherwise rejects their valid flags.
-    (if (contains? handler-parsed-commands raw-cmd-id)
+    (if (= :handler (:command/options-source (nth raw-command 2 nil)))
       (let [[cmd-path cmd-args _cmd] raw-command]
         (if-let [handler-var (handler-for raw-cmd-id)]
           (let [extra-path-options (if (= :run-simulation raw-cmd-id) #{"--scenario"} #{})
