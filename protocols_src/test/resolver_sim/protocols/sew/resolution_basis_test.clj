@@ -75,7 +75,8 @@
         (assoc-in [:dispute-timestamps 0] 1000))))
 
 (defn- reconstructed-root [world roots]
-  (get-in (basis/reconstruct-live-resolution-basis world 0 roots)
+  (get-in (basis/reconstruct-live-resolution-basis world 0 roots
+                                                   {:mode :legacy-non-authoritative})
           [:basis :sew-resolution-basis/root]))
 
 (deftest live-reconstruction-binds-world-and-frozen-external-inputs
@@ -98,7 +99,8 @@
           (str label " must change the reconstructed basis root")))))
 
 (deftest live-reconstruction-reports-missing-external-frozen-inputs
-  (let [result (basis/reconstruct-live-resolution-basis (disputed-world) 0 {})]
+  (let [result (basis/reconstruct-live-resolution-basis (disputed-world) 0 {}
+                                                         {:mode :legacy-non-authoritative})]
     (is (false? (:valid? result)))
     (is (= [:missing-external-live-root] (:errors result)))
     (is (= #{:dispute/question-root :dispute/evidence-set-root

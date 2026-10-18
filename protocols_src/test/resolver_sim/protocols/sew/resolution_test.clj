@@ -79,9 +79,15 @@
    :authority/context-root (ruling-root :authority)
    :configuration/root (ruling-root :policy)})
 
+(defn- committed-resolution-roots [world _workflow-id]
+  (select-keys (last (get-in world [:adjudication-snapshots 0]))
+               [:dispute/question-root :dispute/evidence-set-root
+                :authority/resolution-basis-root :authority/context-root
+                :configuration/root]))
+
 (defn- adjudication-basis [world]
   (:basis (resolution-basis/reconstruct-live-resolution-basis
-           world 0 (external-resolution-roots))))
+           world 0 nil)))
 
 (defn- authenticated-ruling [basis outcome instance-root case-root round]
   (let [generic (resolution-basis/project-adjudication-basis basis)]
@@ -149,14 +155,84 @@
         fence (adjudication-case/adjudication-round-fence-root prepared 0 0)
         published (adjudication-case/publish-adjudication-case! prepared 0 0 fence)
         instance-world (:world (adjudication-instance/freeze-instance! (:world published) 0))
+        case-data (adjudication-case/reconstruct-authoritative-case (:world published) 0 0)
+        frozen-roots (assoc (external-resolution-roots)
+                            :dispute/question-root (get-in case-data [:question :sew/dispute-question-root])
+                            :dispute/evidence-set-root (get-in case-data
+                                                               [:evidence-set (keyword "sew" "dispute-evidence-set/root")]))
         state-root (:state-before/root
                     (:basis (resolution-basis/reconstruct-live-resolution-basis
-                             instance-world 0 (external-resolution-roots))))
+                             instance-world 0 frozen-roots {:mode :legacy-non-authoritative})))
         frozen-snapshot (adjudication-snapshot/freeze-adjudication!
                          instance-world 0 state-root
-                         (assoc (external-resolution-roots)
+                         (assoc frozen-roots
                                 :created-from-state-root state-root))]
     (:world frozen-snapshot)))
+
+(deftest authoritative-resolution-reconstruction-fails-closed-on-disagreement
+  (let [world (authoritative-adjudication-world (base-world 0))
+        roots (let [snapshot (last (get-in world [:adjudication-snapshots 0]))]
+                (select-keys snapshot [:dispute/question-root :dispute/evidence-set-root
+                                       :authority/resolution-basis-root :authority/context-root
+                                       :configuration/root]))
+        reconstruct #(resolution-basis/reconstruct-live-resolution-basis % 0 roots)
+        good (reconstruct world)]
+    (is (:valid? good))
+    (is (:authoritative? good))
+    (testing "each overlapping external root must agree with the persisted snapshot"
+      (doseq [k (keys roots)]
+        (let [r (reconstruct world)
+              bad (resolution-basis/reconstruct-live-resolution-basis
+                   world 0 (assoc roots k (ruling-root [:conflict k])))]
+          (is (:valid? r))
+          (is (false? (:valid? bad)))
+          (is (= :sew-resolution-reconstruction/conflicting-supplied-root (:error/type bad))))))
+    (testing "dangling and ambiguous current pointers fail"
+      (is (= :sew-resolution-reconstruction/dangling-current-snapshot-pointer
+             (:error/type (reconstruct (assoc-in world [:adjudication-current-snapshot-root 0]
+                                                  (ruling-root :missing-snapshot))))))
+      (is (= :sew-resolution-reconstruction/duplicate-snapshot-root
+             (:error/type (reconstruct (update-in world [:adjudication-snapshots 0] conj
+                                                   (last (get-in world [:adjudication-snapshots 0]))))))))
+    (testing "tampering with snapshot identity, its predecessor, round, or subject inputs fails"
+      (is (false? (:valid? (reconstruct (assoc-in world [:adjudication-snapshots 0 0 :workflow/id] 99)))))
+      (is (false? (:valid? (reconstruct (assoc-in world [:adjudication-snapshots 0 0 :adjudication/round-id] 3)))))
+      (is (false? (:valid? (reconstruct (assoc-in world [:adjudication-snapshots 0 0 :adjudication/parent-snapshot-root]
+                                                   (ruling-root :foreign-parent))))))
+      (is (false? (:valid? (reconstruct (assoc-in world [:adjudication-snapshots 0 0 :dispute/question-root]
+                                                   (ruling-root :foreign-subject-question))))))
+      (is (false? (:valid? (reconstruct (assoc-in world [:escrow-transfers 0 :to]
+                                                   "0xtransplanted-subject"))))))
+    (testing "a canonically rebuilt foreign workflow or broken predecessor still fails history checks"
+      (let [snapshot (first (get-in world [:adjudication-snapshots 0]))
+            rebind (fn [field value]
+                     (let [replacement (adjudication-snapshot/build-adjudication-snapshot
+                                        (assoc (dissoc snapshot :sew/adjudication-snapshot-root)
+                                               field value))
+                           root (:sew/adjudication-snapshot-root replacement)]
+                       (-> world
+                           (assoc-in [:adjudication-snapshots 0] [replacement])
+                           (assoc-in [:adjudication-current-snapshot-root 0] root))))]
+        (is (= :sew-resolution-reconstruction/snapshot-workflow-mismatch
+               (:error/type (reconstruct (rebind :workflow/id 7)))))
+        (is (= :sew-resolution-reconstruction/snapshot-predecessor-mismatch
+               (:error/type (reconstruct (rebind :adjudication/parent-snapshot-root
+                                                  (ruling-root :missing-parent))))))))))
+
+(deftest historical-resolution-reconstruction-is-explicit-and-non-authoritative
+  (let [world (base-world 0)
+        roots (external-resolution-roots)
+        strict (resolution-basis/reconstruct-live-resolution-basis world 0 roots)
+        legacy (resolution-basis/reconstruct-live-resolution-basis
+                world 0 roots {:mode :legacy-non-authoritative})]
+    (is (false? (:valid? strict)))
+    (is (= :sew-resolution-reconstruction/authoritative-snapshot-required (:error/type strict)))
+    (is (:valid? legacy))
+    (is (false? (:authoritative? legacy)))
+    (is (false? (:valid? (resolution-basis/reconstruct-live-resolution-basis
+                          (assoc-in world [:adjudication-current-snapshot-root 0]
+                                    (ruling-root :dangling))
+                          0 roots {:mode :legacy-non-authoritative}))))))
 
 ;; ---------------------------------------------------------------------------
 ;; execute-resolution: with appeal window
@@ -285,7 +361,7 @@
                           {:authentication-verification
                            (authentication-verification artifact instance-root)})
         result (res/execute-resolution-with-adjudicated-ruling
-                world 0 carol basis artifact nil (fn [_ _] (external-resolution-roots))
+                world 0 carol basis artifact nil committed-resolution-roots
                 ruling-verifier direct-resolver-fn)]
     (is (= :finality-missing (:error result)))
     (is (= :finality-missing
@@ -301,7 +377,7 @@
         artifact (authenticated-ruling basis :release instance-root case-root 0)
         self-valid (authentication-verification artifact instance-root)
         result (res/execute-resolution-with-adjudicated-ruling
-                world 0 carol basis artifact nil (fn [_ _] (external-resolution-roots))
+                world 0 carol basis artifact nil committed-resolution-roots
                 (fn [& _] nil) direct-resolver-fn)]
     (is (authentication/valid-authentication-verification? self-valid))
     (is (= :invalid-adjudicated-ruling (:error result)))
@@ -328,18 +404,18 @@
     (is (= :finality-missing
            (:error (res/execute-resolution-with-adjudicated-ruling
                     world 0 carol basis with-instance nil
-                    (fn [_ _] (external-resolution-roots)) verifier direct-resolver-fn))))
+                    committed-resolution-roots verifier direct-resolver-fn))))
     (is (= :finality-missing
            (:error (res/execute-resolution-with-adjudicated-ruling
                     world 0 carol basis with-case nil
-                    (fn [_ _] (external-resolution-roots)) verifier direct-resolver-fn))))))
+                    committed-resolution-roots verifier direct-resolver-fn))))))
 
 (deftest high-assurance-settlement-requires-derived-finality
   (let [{:keys [world basis artifact verification finality] :as inputs}
         (high-assurance-inputs :release)
         verifier (fn [_ _ _ _] {:authentication-verification verification})
         execute #(res/execute-resolution-with-adjudicated-ruling
-                  world 0 carol basis artifact % (fn [_ _] (external-resolution-roots))
+                  world 0 carol basis artifact % committed-resolution-roots
                   verifier direct-resolver-fn)]
     (is (some? finality))
     (let [result (execute finality)]
@@ -355,7 +431,7 @@
         (high-assurance-inputs :refund)
         result (res/execute-resolution-with-adjudicated-ruling
                 world 0 carol basis artifact finality
-                (fn [_ _] (external-resolution-roots))
+                committed-resolution-roots
                 (fn [_ _ _ _] {:authentication-verification verification})
                 direct-resolver-fn)]
     (is (:ok result))
