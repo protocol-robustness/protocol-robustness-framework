@@ -16,6 +16,8 @@ unchanged as historical review material.
 - Canonical manifest root: `sha256:c68a6ee9bc99dcacf04c28730e9c7b5f5f83e750709679d90c9ba4a570d22c9f`
 - Raw manifest digest: `sha256:ef1ec44816ef5d3bae1a40cd4a564a64ce3e4546359784d67b3292a45ca8a78e`
 - C0: `sha256:131ff6b74047de747bd9ace93413b6b793d677749095f0dadf5dcc173e120f95`
+- Transition-validator key ID: `bounded-local-transition-validator-v1`
+- Transition-validator EVM signer: `0xc78884593859e84524e41ce94cce38fbcb58c5f8`
 - Scope: local Anvil, chain ID 31337, action `approve-initial-inputs`
 - Principal in the proposed manifest: `0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266`
 
@@ -30,8 +32,14 @@ revision, source-tree digest, source root and lock path.
 The four package artifacts and seven C0 roots are unchanged from candidate v2.
 Their status remains `candidate-owner-approval-required`. The validator key
 address and local governor are proposed candidate values, not authenticated
-identities. Do not use test keys, the candidate Anvil governor, or this handoff
-as owner approval material.
+identities. No private key for the transition-validator address is retained in
+this repository, and external key custody has not been demonstrated. Before
+approving this policy, the owner must confirm that an owner-controlled signer
+can produce the required EIP-191 attestation for that exact address and that
+the independent trust policy binds the stated key ID and address. Otherwise,
+replace the validator address with an owner-controlled signer, rederive the
+policy and package roots, and issue a new manifest. Do not use test keys, the
+candidate Anvil governor, or this handoff as owner approval material.
 
 ## Initial-input approval
 

@@ -616,8 +616,11 @@ Package-root derivation and manifest content validation match; the canonical
 manifest root is
 `sha256:c68a6ee9bc99dcacf04c28730e9c7b5f5f83e750709679d90c9ba4a570d22c9f`.
 The manifest status remains candidate-only. The owner must review the changed
-sources and exact package before authenticated initial-input approval; no
-approval or live deployment evidence is present.
+sources and exact package before authenticated initial-input approval. The
+policy's transition-validator EVM signer has no private key retained in this
+repository, and external custody is unverified; the owner must confirm custody
+or replace the signer and rederive the manifest. No approval or live deployment
+evidence is present.
 
 | Order | Work | Concrete output | Gate / dependency |
 | --- | --- | --- | --- |
