@@ -1304,68 +1304,57 @@
     :command/positional-args {:min 0 :max 1}
      :command/description "Compose allocation-assurance-certificate.v1 from a kernel run."}
 
-   {:command/id :research-create
-    :command/option-contract :closed :command/path ["research" "create"] :command/title "Create research command"
+   {:command/id :research-create :command/path ["research" "create"] :command/title "Create research command"
     :command/category :research :command/surface :prf :command/backstop-tier :manual :command/jar-availability :native :command/runtime :jvm
     :command/options [{:name "--input" :type :string :required true} {:name "--output" :type :string :required true}]
     :command/outputs [] :command/positional-args {:min 0 :max 0}
     :command/description "Build and persist an authoritative research-command.v2 from EDN."}
-   {:command/id :research-assign
-    :command/option-contract :closed :command/path ["research" "assign"] :command/title "Create research assignment"
+   {:command/id :research-assign :command/path ["research" "assign"] :command/title "Create research assignment"
     :command/category :research :command/surface :prf :command/backstop-tier :manual :command/jar-availability :native :command/runtime :jvm
     :command/options [{:name "--input" :type :string :required true} {:name "--output" :type :string :required true}]
     :command/outputs [] :command/positional-args {:min 0 :max 0}
     :command/description "Build and persist a hash-bound research assignment from EDN."}
-   {:command/id :research-run
-    :command/option-contract :closed :command/path ["research" "run"] :command/title "Record research execution"
+   {:command/id :research-run :command/path ["research" "run"] :command/title "Record research execution"
     :command/category :research :command/surface :prf :command/backstop-tier :manual :command/jar-availability :native :command/runtime :jvm
     :command/options [{:name "--input" :type :string :required true} {:name "--output" :type :string :required true}]
     :command/outputs [] :command/positional-args {:min 0 :max 0}
     :command/description "Record a verified research execution over an existing canonical benchmark outcome."}
-   {:command/id :research-submit
-    :command/option-contract :closed :command/path ["research" "submit"] :command/title "Submit research execution"
+   {:command/id :research-submit :command/path ["research" "submit"] :command/title "Submit research execution"
     :command/category :research :command/surface :prf :command/backstop-tier :manual :command/jar-availability :native :command/runtime :jvm
     :command/options [{:name "--input" :type :string :required true}]
     :command/outputs [] :command/positional-args {:min 0 :max 0}
     :command/description "Verify and admit an in-band or out-of-band research execution."}
-   {:command/id :research-verify
-    :command/option-contract :closed :command/path ["research" "verify"] :command/title "Verify research closure"
+   {:command/id :research-verify :command/path ["research" "verify"] :command/title "Verify research closure"
     :command/category :research :command/surface :prf :command/backstop-tier :manual :command/jar-availability :native :command/runtime :jvm
     :command/options [{:name "--input" :type :string :required true}]
     :command/outputs [] :command/positional-args {:min 0 :max 0}
     :command/description "Verify execution bindings and research-analysis closure."}
-   {:command/id :research-reproduce
-    :command/option-contract :closed :command/path ["research" "reproduce"] :command/title "Reproduce research execution"
+   {:command/id :research-reproduce :command/path ["research" "reproduce"] :command/title "Reproduce research execution"
     :command/category :research :command/surface :prf :command/backstop-tier :manual :command/jar-availability :native :command/runtime :jvm
     :command/options [{:name "--input" :type :string :required true}]
     :command/outputs [] :command/positional-args {:min 0 :max 0}
     :command/description "Compare exact-environment or independent-conforming reproduction contexts."}
-   {:command/id :research-diff
-    :command/option-contract :closed :command/path ["research" "diff"] :command/title "Differential research analysis"
+   {:command/id :research-diff :command/path ["research" "diff"] :command/title "Differential research analysis"
     :command/category :research :command/surface :prf :command/backstop-tier :manual :command/jar-availability :native :command/runtime :jvm
     :command/options [{:name "--input" :type :string :required true}]
     :command/outputs [] :command/positional-args {:min 0 :max 0}
     :command/description "Compare canonical research semantics while excluding runtime-only variation."}
-    {:command/id :research-inspect
-    :command/option-contract :closed :command/path ["research" "inspect"] :command/title "Inspect research roots"
+    {:command/id :research-inspect :command/path ["research" "inspect"] :command/title "Inspect research roots"
     :command/category :research :command/surface :prf :command/backstop-tier :manual :command/jar-availability :native :command/runtime :jvm
     :command/options [{:name "--input" :type :string :required true}]
     :command/outputs [] :command/positional-args {:min 0 :max 0}
     :command/description "Read-only validation and root-oriented inspection of a research execution."}
-    {:command/id :research-reward-check
-    :command/option-contract :closed :command/path ["research" "reward-check"] :command/title "Check researcher reward eligibility"
+    {:command/id :research-reward-check :command/path ["research" "reward-check"] :command/title "Check researcher reward eligibility"
      :command/category :research :command/surface :prf :command/backstop-tier :manual :command/jar-availability :native :command/runtime :jvm
      :command/options [{:name "--input" :type :string :required true}]
      :command/outputs [] :command/positional-args {:min 0 :max 0}
     :command/description "Determine researcher reward eligibility from a frozen policy and supplied evidence without creating an obligation or moving funds."}
-    {:command/id :research-reward-propose
-    :command/option-contract :closed :command/path ["research" "reward-propose"] :command/title "Propose researcher reward"
+    {:command/id :research-reward-propose :command/path ["research" "reward-propose"] :command/title "Propose researcher reward"
      :command/category :research :command/surface :prf :command/backstop-tier :manual :command/jar-availability :native :command/runtime :jvm
      :command/options [{:name "--input" :type :string :required true}]
      :command/outputs [] :command/positional-args {:min 0 :max 0}
      :command/description "Create an immutable researcher reward proposal from eligible evidence and its frozen policy."}
-    {:command/id :research-reward-approve
-    :command/option-contract :closed :command/path ["research" "reward-approve"] :command/title "Approve researcher reward obligation"
+    {:command/id :research-reward-approve :command/path ["research" "reward-approve"] :command/title "Approve researcher reward obligation"
      :command/category :research :command/surface :prf :command/backstop-tier :manual :command/jar-availability :native :command/runtime :jvm
      :command/options [{:name "--input" :type :string :required true}]
      :command/outputs [] :command/positional-args {:min 0 :max 0}
