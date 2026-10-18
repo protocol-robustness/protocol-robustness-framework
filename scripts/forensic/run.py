@@ -590,6 +590,18 @@ def _bundle_scenario_files(run_dir: Path, suite_key: str) -> None:
 
 # ── Main run orchestrator ──────────────────────────────────────────────────
 
+def _emit_command_result(output_dir: Path, status: str, exit_code: int,
+                         **extra: Any) -> None:
+    """Emit a machine result only when called by the registered PRF adapter."""
+    if os.environ.get("PRF_FORENSIC_COMMAND_JSON") == "1":
+        print(json.dumps({
+            "schema-version": "forensic-run-command-result.v1",
+            "status": status,
+            "exit-code": exit_code,
+            "output-dir": str(output_dir),
+            **extra,
+        }, sort_keys=True))
+
 def run_forensic(run_request_path: str = "examples/forensic-reference-run/run-request.example.edn",
                  label: str | None = None,
                  registry_snapshot_path: str = "examples/forensic-reference-run/registry-snapshot.example.edn",
@@ -613,6 +625,9 @@ def run_forensic(run_request_path: str = "examples/forensic-reference-run/run-re
     # Determine output directory
     run_id = make_run_id(label)
     run_dir = output_base / run_id
+
+    def emit_command_result(status: str, exit_code: int, **extra: Any) -> None:
+        _emit_command_result(run_dir, status, exit_code, **extra)
 
     print(f"=== Forensic Run ===", file=sys.stderr)
     print(f"  run-id:    {run_id}", file=sys.stderr)
@@ -653,12 +668,17 @@ def run_forensic(run_request_path: str = "examples/forensic-reference-run/run-re
             write_sealed_json(tmp_dir / "preflight-report.json", report.to_dict())
             print(f"  Preflight report: {tmp_dir / 'preflight-report.json'}",
                   file=sys.stderr)
+            emit_command_result("preflight-failed", 1,
+                                preflight_report=str(tmp_dir / "preflight-report.json"))
+        else:
+            emit_command_result("preflight-failed", 1)
         return 1
 
     if dry_run:
         print(f"\n  DRY RUN — stopping before execution", file=sys.stderr)
         print(f"  Preflight would pass. Output would go to: {run_dir}",
               file=sys.stderr)
+        emit_command_result("preflight-passed", 0, dry_run=True)
         return 0
 
     # Step 1b: Disk space check (warning only)
@@ -957,6 +977,7 @@ def run_forensic(run_request_path: str = "examples/forensic-reference-run/run-re
 
     # Step 13: Enforce retention policy (outside lock — doesn't need it)
     _enforce_retention(output_base, PRF_MAX_RUNS)
+    emit_command_result("pass" if exit_code == 0 else "failed", exit_code)
     return exit_code
 
 

@@ -25,54 +25,79 @@
          :run/root (:run/root result)
          :exit-code (:exit-code result)}))))
 
+(defn- emit-json! [stdout value]
+  (binding [*out* stdout]
+    (println (json/write-str value :indent true))))
+
 (defn compare-scenarios
   [{:keys [out json? cmd/args]}]
-  (let [[scenario-a scenario-b] args]
-    (cond
-      (or (nil? scenario-a) (nil? scenario-b))
-      (do (println "Usage: prf.jar scenario compare <scenario-a> <scenario-b> [--out <dir>]")
-          {:exit-code 2 :message "Two scenario references required"})
+  (let [stdout *out*]
+    (binding [*out* (if json? *err* *out*)]
+      (let [[scenario-a scenario-b] args]
+        (cond
+          (or (nil? scenario-a) (nil? scenario-b))
+          (do (if json?
+                (emit-json! stdout {:schema-version "scenario-trace-comparison.v1"
+                                    :status "error" :error "Two scenario references required"})
+                (println "Usage: bin/prf scenario compare REF-A REF-B [--out DIR]"))
+              {:exit-code 2 :message "Two scenario references required"})
 
-      (= scenario-a scenario-b)
-      (do (println "Error: scenario-a and scenario-b must be different")
-          {:exit-code 2 :message "Identical scenarios"})
+          (= scenario-a scenario-b)
+          (do (if json?
+                (emit-json! stdout {:schema-version "scenario-trace-comparison.v1"
+                                    :status "error" :error "Scenario references must differ"})
+                (println "Error: scenario references must differ"))
+              {:exit-code 2 :message "Identical scenarios"})
 
-      :else
-      (let [base-dir (or out (paths/trace-compare-dir))
-            run-a-dir (str base-dir "/scenario-a")
-            run-b-dir (str base-dir "/scenario-b")]
-        (println (str "Comparing:\n  A: " scenario-a "\n  B: " scenario-b "\n"))
-        (try
-          (let [result-a (run-and-capture scenario-a run-a-dir)
-                result-b (run-and-capture scenario-b run-b-dir)
-                exit-a (:exit-code result-a)
-                exit-b (:exit-code result-b)]
-            (println)
-            (cond
-              (or (not (zero? exit-a)) (not (zero? exit-b)))
-              (do (println "Cannot compare - one or both scenarios failed:")
-                  (println (str "  " scenario-a ": exit " exit-a))
-                  (println (str "  " scenario-b ": exit " exit-b))
-                  {:exit-code 1 :message "Scenario execution failed"})
+          :else
+          (let [base-dir (or out (paths/trace-compare-dir))
+                run-a-dir (str base-dir "/scenario-a")
+                run-b-dir (str base-dir "/scenario-b")]
+            (println (str "Comparing:\n  A: " scenario-a "\n  B: " scenario-b "\n"))
+            (try
+              (let [result-a (run-and-capture scenario-a run-a-dir)
+                    result-b (run-and-capture scenario-b run-b-dir)
+                    exit-a (:exit-code result-a)
+                    exit-b (:exit-code result-b)]
+                (println)
+                (cond
+                  (or (not (zero? exit-a)) (not (zero? exit-b)))
+                  (do (println "Cannot compare - one or both scenarios failed:")
+                      (println (str "  " scenario-a ": exit " exit-a))
+                      (println (str "  " scenario-b ": exit " exit-b))
+                      (when json?
+                        (emit-json! stdout {:schema-version "scenario-trace-comparison.v1"
+                                            :status "execution-failed"
+                                            :run-a run-a-dir :run-b run-b-dir
+                                            :exit-a exit-a :exit-b exit-b}))
+                      {:exit-code 1 :message "Scenario execution failed"})
 
-              (or (nil? (:replay-path result-a)) (nil? (:replay-path result-b)))
-              (do (println "Cannot compare - replay output not found for one or both scenarios")
-                  {:exit-code 1 :message "Replay output missing"})
+                  (or (nil? (:replay-path result-a)) (nil? (:replay-path result-b)))
+                  (do (println "Cannot compare - replay output not found for one or both scenarios")
+                      (when json?
+                        (emit-json! stdout {:schema-version "scenario-trace-comparison.v1"
+                                            :status "replay-missing"
+                                            :run-a run-a-dir :run-b run-b-dir}))
+                      {:exit-code 1 :message "Replay output missing"})
 
-              :else
-              (let [trace-a (diff-runner/trace-from-replay-json (:replay-path result-a))
-                    trace-b (diff-runner/trace-from-replay-json (:replay-path result-b))
-                    divergence (diff/diff-traces trace-a trace-b)]
-                (if json?
-                  (println (json/write-str {:divergence? (some? divergence)
-                                            :divergence divergence
-                                            :run-a run-a-dir
-                                            :run-b run-b-dir}
-                                           :indent true))
-                  (diff/print-diff-report divergence))
-                (if divergence
-                  {:exit-code 1 :message "Traces diverged"}
-                  {:exit-code 0 :message "Traces match"}))))
-          (catch Exception e
-            (println "Comparison failed:" (.getMessage e))
-            {:exit-code 1 :message (.getMessage e)}))))))
+                  :else
+                  (let [trace-a (diff-runner/trace-from-replay-json (:replay-path result-a))
+                        trace-b (diff-runner/trace-from-replay-json (:replay-path result-b))
+                        divergence (diff/diff-traces trace-a trace-b)]
+                    (if json?
+                      (emit-json! stdout {:schema-version "scenario-trace-comparison.v1"
+                                          :status (if divergence "diverged" "equal")
+                                          :divergence? (some? divergence)
+                                          :divergence divergence
+                                          :run-a run-a-dir
+                                          :run-b run-b-dir})
+                      (diff/print-diff-report divergence))
+                    (if divergence
+                      {:exit-code 1 :message "Traces diverged"}
+                      {:exit-code 0 :message "Traces match"}))))
+              (catch Exception e
+                (println "Comparison failed:" (.getMessage e))
+                (when json?
+                  (emit-json! stdout {:schema-version "scenario-trace-comparison.v1"
+                                      :status "error" :error (.getMessage e)}))
+                {:exit-code 1 :message (.getMessage e)}))))))))

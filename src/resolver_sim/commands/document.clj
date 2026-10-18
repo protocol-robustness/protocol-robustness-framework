@@ -11,9 +11,10 @@
 
 (defn closed! [value required optional]
   (require! (map? value) "Request must be an EDN map")
-  (require! (empty? (set/difference (set (keys value)) (set/union required optional)))
-            "Unknown request fields")
-  (require! (every? #(some? (get value %)) required) "Missing required request fields")
+  (let [unknown (sort (set/difference (set (keys value)) (set/union required optional)))
+        missing (sort (filter #(nil? (get value %)) required))]
+    (require! (empty? unknown) (str "Unknown request field(s): " (pr-str (vec unknown))))
+    (require! (empty? missing) (str "Missing required field(s): " (pr-str (vec missing)))))
   value)
 
 (defn read-request [path]
@@ -41,8 +42,9 @@
   (cond
     (keyword? x) (subs (str x) 1)
     (integer? x) (str x)
-    (map? x) (into {} (map (fn [[k v]] [(if (keyword? k) (subs (str k) 1) (str k))
-                                       (json-value v)])) x)
+    (map? x) (into {} (map (fn [[k v]]
+                             [(if (keyword? k) (subs (str k) 1) (str k))
+                              (if (= :exit-code k) v (json-value v))])) x)
     (coll? x) (mapv json-value x)
     :else x))
 
@@ -51,9 +53,16 @@
   {:exit-code exit-code})
 
 (defn execute [opts f]
-  (try
-    (f (read-request (:input opts)))
-    (catch Exception e
-      (binding [*out* *err*] (println (.getMessage e)))
-      (emit opts {:status :error :message (.getMessage e)}
-            (or (:exit-code (ex-data e)) 2)))))
+  (let [request (try
+                  (read-request (:input opts))
+                  (catch Exception e
+                    (binding [*out* *err*] (println (.getMessage e)))
+                    ::invalid-request))]
+    (if (= ::invalid-request request)
+      (emit opts {:status :error :message "Invalid request"} 2)
+      (try
+        (f request)
+        (catch Exception e
+          (binding [*out* *err*] (println "Command failed:" (.getMessage e)))
+          (emit opts {:status :error :message (.getMessage e)}
+                (or (:exit-code (ex-data e)) 1)))))))

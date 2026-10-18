@@ -409,8 +409,8 @@
                        :default "results/trace-compare"}
                       {:name "--json" :type :flag :doc "Output as JSON"}]
     :command/outputs []
-    :command/positional-args {:min 0 :max 0}
-    :command/description "Run two scenarios and compare their replay traces. Reports the first structural divergence."}
+    :command/positional-args {:min 2 :max 2}
+    :command/description "Execute both scenarios in separate output directories, then compare their replay traces and report the first structural divergence."}
 
    {:command/id :run-scenario
    :command/path ["run-scenario"]
@@ -854,12 +854,13 @@
    :command/backstop-tier :manual
    :command/jar-availability :native
    :command/runtime :jvm
-   :command/options [{:name "--package-a" :type :string :required true}
-                     {:name "--package-b" :type :string :required true}
-                     {:name "--output" :type :string}]
+   :command/options [{:name "--package-a" :type :string :required true :doc "First completion-sealed package directory"}
+                     {:name "--package-b" :type :string :required true :doc "Second completion-sealed package directory"}
+                     {:name "--output" :type :string :doc "Directory for the comparison report and normalized submissions"}
+                     {:name "--json" :type :flag :doc "Emit the comparison report as JSON"}]
    :command/outputs ["run-comparison.json"]
    :command/positional-args {:min 0 :max 0}
-   :command/description "Compare two completion-sealed run packages."}
+   :command/description "Compare two retained completion-sealed packages and report their protocol submission classification; does not execute either package."}
 
   {:command/id :compare
    :command/path ["compare"]
@@ -869,7 +870,8 @@
    :command/backstop-tier :manual
    :command/jar-availability :native
    :command/runtime :jvm
-   :command/options [{:name "--format" :type :string :doc "Artifact format: edn or json"}]
+   :command/options [{:name "--format" :type :string :doc "Artifact format: edn or json"}
+                     {:name "--json" :type :flag :doc "Emit the canonical comparison report as JSON"}]
    :command/outputs []
    :command/positional-args {:min 2 :max 2}
    :command/description "Compare two EDN/JSON artifacts by canonical hash equivalence; reports the first divergence."}
@@ -908,11 +910,12 @@
    :command/backstop-tier :manual
    :command/jar-availability :native
    :command/runtime :jvm
-   :command/options [{:name "--package-a" :type :string :required true}
-                     {:name "--package-b" :type :string :required true}]
+   :command/options [{:name "--package-a" :type :string :required true :doc "First completed package directory"}
+                     {:name "--package-b" :type :string :required true :doc "Second completed package directory"}
+                     {:name "--json" :type :flag :doc "Emit the semantic-equivalence report as JSON"}]
    :command/outputs []
    :command/positional-args {:min 0 :max 0}
-   :command/description "Compare two run packages for semantic equivalence via stable-result projection."}
+   :command/description "Compare two completed packages by stable-result projection and semantic outcome; does not compare all artifact bytes or execute either package."}
 
   {:command/id :declared-dependencies
    :command/path ["declared-dependencies"]

@@ -2,6 +2,7 @@
   "Registered adapters for the existing Python forensic workflows."
   (:require [clojure.java.io :as io]
             [clojure.java.shell :as shell]
+            [clojure.data.json :as json]
             [resolver-sim.commands.document :as doc]))
 
 (def ^:private contracts
@@ -47,18 +48,24 @@
                         (when positional [(resolve (get request positional))])
                         (when (= operation :run) ["--repo-root" root])
                         path-args string-args flag-args))
-     :env (assoc (into {} (System/getenv))
-                 "PYTHONPATH" (str root java.io.File/pathSeparator (io/file root "scripts")))}))
+     :env (cond-> (assoc (into {} (System/getenv))
+                         "PYTHONPATH" (str root java.io.File/pathSeparator (io/file root "scripts")))
+            (= operation :run) (assoc "PRF_FORENSIC_COMMAND_JSON" "1"))}))
 
 (defn- execute [operation opts]
   (doc/execute opts
     (fn [request]
       (let [{:keys [root argv env]} (invocation operation (:input opts) request)
-            result (apply shell/sh (concat argv [:dir root :env env]))]
-        (doc/emit opts {:schema-version "forensic-command-result.v1"
-                        :operation operation :repo-root root
-                        :exit-code (:exit result) :stdout (:out result) :stderr (:err result)}
-                  (:exit result))))))
+            result (apply shell/sh (concat argv [:dir root :env env]))
+            report (try (json/read-str (:out result) :key-fn keyword)
+                        (catch Exception _ nil))
+            output {:schema-version "forensic-command-result.v2"
+                    :operation operation :repo-root root
+                    :exit-code (:exit result) :stderr (:err result)}
+            output (if report
+                     (assoc output :report report)
+                     (cond-> output (seq (:out result)) (assoc :stdout (:out result))))]
+        (doc/emit opts output (:exit result))))))
 
 (defn run [opts] (execute :run opts))
 (defn validate [opts] (execute :validate opts))

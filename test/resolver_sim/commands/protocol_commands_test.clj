@@ -8,6 +8,7 @@
             [resolver-sim.cli.registry :as registry]
             [resolver-sim.commands.document :as document]
             [resolver-sim.commands.forensic :as forensic]
+            [resolver-sim.commands.scenario-compare :as scenario-compare]
             [resolver-sim.allocation.source-bound-entitlement :as source]
             [resolver-sim.allocation.persisted-statement-admission :as persisted]
             [resolver-sim.allocation.proof-admission :as admission]
@@ -55,7 +56,53 @@
         output (with-out-str (document/emit {:json? true} {:artifact/root root :amount 9007199254740993N} 0))
         projected (json/read-str output)]
     (is (= root (get projected "artifact/root")))
-    (is (= "9007199254740993" (get projected "amount")))))
+    (is (= "9007199254740993" (get projected "amount")))
+    (is (= 2 (get (json/read-str
+                   (with-out-str (document/emit {:json? true} {:exit-code 2} 2)))
+                  "exit-code")))))
+
+(deftest dispatch-rejects-irrelevant-options-and-normalizes-user-paths
+  (let [out (java.io.StringWriter.) err (java.io.StringWriter.)]
+    (binding [*out* out *err* err]
+      (is (= 2 (dispatch/run ["protocol" "finality" "inspect" "--input" "-" "--parallelism" "2"]))))
+    (is (clojure.string/includes? (str err) "Unsupported option")))
+  (let [err (java.io.StringWriter.)]
+    (binding [*out* (java.io.StringWriter.) *err* err]
+      (is (= 2 (dispatch/run ["compare-runs" "--package-a" "a" "--package-b" "b" "--fast"]))))
+    (is (clojure.string/includes? (str err) "--fast")))
+  (let [err (java.io.StringWriter.)]
+    (binding [*out* (java.io.StringWriter.) *err* err]
+      (is (= 2 (dispatch/run ["compare-runs" "--package-a" "a"]))))
+    (is (clojure.string/includes? (str err) "--package-b")))
+  (let [normalize (ns-resolve 'resolver-sim.cli.dispatch 'normalize-user-paths)
+        caller-dir (ns-resolve 'resolver-sim.cli.dispatch 'caller-directory)
+        normalized (with-redefs-fn {caller-dir (constantly "/tmp/caller")}
+                     #(normalize {:package-a "left package" :cmd/path "compare"
+                                  :cmd/args ["left file.json" "right file.json"]}
+                                 ["--package-a" "left package"]))]
+    (is (= "/tmp/caller/left package" (:package-a normalized)))
+    (is (= ["/tmp/caller/left file.json" "/tmp/caller/right file.json"]
+           (:cmd/args normalized)))))
+
+(deftest scenario-comparison-json-has-one-machine-readable-result
+  (let [out (java.io.StringWriter.)
+        result (binding [*out* out *err* (java.io.StringWriter.)]
+                 (scenario-compare/compare-scenarios {:json? true :cmd/args []}))
+        report (json/read-str (str out))]
+    (is (= 2 (:exit-code result)))
+    (is (= "scenario-trace-comparison.v1" (get report "schema-version")))
+    (is (= "error" (get report "status")))))
+
+(deftest request-errors-and-unexpected-command-failures-have-distinct-exits
+  (let [out (java.io.StringWriter.) err (java.io.StringWriter.)]
+    (binding [*in* (java.io.StringReader. "[]") *out* out *err* err]
+      (is (= 2 (:exit-code (document/execute {:input "-"} identity)))))
+    (is (clojure.string/includes? (str err) "Request must be an EDN map")))
+  (let [out (java.io.StringWriter.) err (java.io.StringWriter.)]
+    (binding [*in* (java.io.StringReader. "{}") *out* out *err* err]
+      (is (= 1 (:exit-code (document/execute {:input "-"}
+                                             #(throw (IllegalStateException. "unexpected bug")))))))
+    (is (clojure.string/includes? (str err) "Command failed"))))
 
 (deftest financial-finality-recomputes-and-preserves-replay-assumption
   (let [world (-> (types/empty-world 1000)
@@ -98,7 +145,7 @@
         result (invoke ["protocol" "pro-rata" "derive-operation"] bound)]
     (is (= 0 (:exit result)))
     (is (= (source/fixture-projection (source/derive-controlled-source bound)) (get-in result [:output :operation])))
-    (is (= 2 (:exit (invoke ["protocol" "pro-rata" "derive-operation"]
+    (is (= 1 (:exit (invoke ["protocol" "pro-rata" "derive-operation"]
                             (assoc-in bound [:prepared-operation :policy-root] (str "0x" (apply str (repeat 64 "0"))))))))))
 
 (deftest admission-requires-independent-trust-and-exact-input-and-proof-bytes
@@ -132,7 +179,7 @@
         (spit input-file (json/write-str raw))
         (spit (io/file root (:proof/file artifact)) "changed")
         (is (= 1 (:exit (check request))))
-        (is (= 2 (:exit (invoke ["protocol" "pro-rata" "verify-execution"] {:bundle-dir (str root)})))))
+        (is (= 1 (:exit (invoke ["protocol" "pro-rata" "verify-execution"] {:bundle-dir (str root)})))))
       (finally (remove-tree! root)))))
 
 (deftest retained-execution-check-reconstructs-and-rejects-mutated-evidence
@@ -159,11 +206,11 @@
             result (invoke ["forensic" "verify"] request)]
         (is (zero? (:exit unpack)))
         (is (= 0 (:exit result)) (:output result))
-        (is (= "pass" (get (json/read-str (get-in result [:output :stdout])) "verify/status")))
+        (is (= "pass" (get-in result [:output :report :verify/status])))
         (let [validation (invoke ["forensic" "validate"]
                                  {:repo-root repo :bundle (:run-dir request)})]
           (is (= 1 (:exit validation)))
-          (is (= "not-verified" (get (json/read-str (get-in validation [:output :stdout])) "validate/status"))))
+          (is (= "not-verified" (get-in validation [:output :report :validate/status]))))
         (spit (io/file root "golden-bundle/run-bundle-root.json") "{}")
         (is (= 1 (:exit (invoke ["forensic" "verify"] request)))))
       (finally (remove-tree! root)))))

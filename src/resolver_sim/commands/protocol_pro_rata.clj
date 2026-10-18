@@ -10,6 +10,9 @@
 (defn derive-operation [opts]
   (doc/execute opts
     (fn [request]
+      (doc/closed! request #{:realized-statement-input :reserve-binding-root
+                             :prepared-operation :economic-reserve-state
+                             :beneficiary-mapping :openings} #{})
       (doc/emit opts {:schema-version "protocol-pro-rata-operation.v1"
                       :scope :controlled-source-conformance
                       :transaction-submitted? false

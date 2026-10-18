@@ -47,19 +47,17 @@
   "Validate that all registry command paths are unique and resolvable.
    Returns {:ok? true} or {:ok? false :errors [...]}."
   []
-  (let [errors (volatile! [])]
-    (when-not (path->command-id-map)
-      (doseq [cmd (:commands (load-registry))]
-        (let [path-str (str/join " " (:command/path cmd))
-              dups (filter #(= path-str (str/join " " (:command/path %)))
-                           (:commands (load-registry)))]
-          (when (and (< 1 (count dups))
-                     (= (:command/id cmd) (:command/id (first dups))))
-            (vswap! errors conj (str "Duplicate path \"" path-str "\" for commands: "
-                                     (pr-str (map :command/id dups))))))))
-    (if (empty? @errors)
+  (let [duplicates (->> (:commands (load-registry))
+                        (group-by #(str/join " " (:command/path %)))
+                        (filter (fn [[_ commands]] (> (count commands) 1)))
+                        (sort-by key))
+        errors (mapv (fn [[path commands]]
+                       (str "Duplicate path \"" path "\" for commands: "
+                            (pr-str (mapv :command/id commands))))
+                     duplicates)]
+    (if (empty? errors)
       {:ok? true}
-      {:ok? false :errors @errors})))
+      {:ok? false :errors errors})))
 
 (defn list-commands
   "Return a seq of {:path [...] :description str} for all registered commands."

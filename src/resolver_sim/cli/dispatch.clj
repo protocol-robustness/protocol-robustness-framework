@@ -273,11 +273,74 @@
   {:exit-code 0, :message "help"})
 
 (defn- print-command-help [cmd]
-  (println (str/join " " (:command/path cmd)))
+  (let [{:keys [min max mode]} (:command/positional-args cmd)
+        positional (cond
+                     (= mode :arbitrary) " [ARGS...]"
+                     (pos? (or min 0)) (str " " (str/join " " (repeat min "ARG"))
+                                             (when (and max (> max min))
+                                               (str " [ARG" (when (> max (inc min)) "...") "]")))
+                     :else "")]
+    (println (str "Usage: bin/prf " (str/join " " (:command/path cmd)) positional " [OPTIONS]")))
   (println (:command/description cmd))
   (doseq [{:keys [name doc required]} (:command/options cmd)]
     (println (str "  " name (when required " (required)") "  " doc)))
   0)
+
+(def ^:private strict-option-contracts
+  "Commands whose registry option lists are complete and are enforced at dispatch."
+  #{:protocol-finality-inspect :protocol-finality-verify
+    :forensic-run :forensic-validate :forensic-verify :forensic-reproduce
+    :protocol-pro-rata-derive-operation :protocol-pro-rata-check-admission
+    :protocol-pro-rata-verify-execution
+    :compare :compare-runs :semantic-equivalent :scenario-compare})
+
+(def ^:private path-option-names
+  #{"--artifact-dir" "--scenario-file" "--run-root" "--suite-root"
+    "--output-dir" "--scenario-output-dir" "--save-output" "--claim-registry"
+    "--out" "--output" "--package-a" "--package-b" "--key" "--check"
+    "--trust-context" "--input" "--cas-dir"})
+
+(defn- caller-directory []
+  (or (System/getenv "PRF_CLI_CALLER_DIR") (System/getProperty "user.dir")))
+
+(defn- caller-path [path]
+  (when (and (string? path) (seq path) (not= "-" path))
+    (let [expanded (if (str/starts-with? path "~/")
+                     (str (System/getProperty "user.home") (subs path 1)) path)
+          file (io/file expanded)]
+      (.getCanonicalPath (if (.isAbsolute file) file (io/file (caller-directory) expanded))))))
+
+(defn- normalize-user-paths [opts args]
+  (let [specified (set (filter path-option-names
+                               (map #(first (str/split % #"=" 2)) args)))
+        option-keys (into {} (map (fn [name] [(keyword (subs name 2)) name]) specified))
+        opts (reduce-kv (fn [m k v]
+                          (if-let [name (get option-keys k)]
+                            (assoc m k (or (caller-path v) v)) m))
+                        opts opts)]
+    (if (= :compare (:command/id (registry/get-command
+                                  (get (registry/path->command-id-map)
+                                       (:cmd/path opts)))))
+      (update opts :cmd/args #(mapv (fn [p] (or (caller-path p) p)) %))
+      opts)))
+
+(defn- command-option-error [cmd args]
+  (when (contains? strict-option-contracts (:command/id cmd))
+    (let [allowed (into #{"--help" "--json"} (map :name (:command/options cmd)))
+          supplied (set (keep (fn [arg]
+                                (when (str/starts-with? arg "--")
+                                  (first (str/split arg #"=" 2)))) args))
+          missing (sort (keep (fn [{:keys [name required]}]
+                                (when (and required (not (contains? supplied name))) name))
+                              (:command/options cmd)))
+          irrelevant (sort (distinct (remove allowed supplied)))
+          problems (cond-> []
+                     (seq missing) (conj (str "Missing required option(s): "
+                                              (str/join ", " missing)))
+                     (seq irrelevant) (conj (str "Unsupported option(s): "
+                                                 (str/join ", " irrelevant))))]
+      (when (seq problems)
+        (str/join "; " problems)))))
 
 ;; ---------------------------------------------------------------------------
 ;; Command execution (for backstop orchestration)
@@ -308,10 +371,12 @@
    so handlers can do their own option parsing if needed."
   [handler-var opts cmd-path cmd-args raw-args]
   (try
-    (let [result (handler-var (assoc opts
-                                     :cmd/path cmd-path
-                                     :cmd/args cmd-args
-                                     :cmd/raw-args raw-args))]
+    (let [opts (normalize-user-paths (assoc opts
+                                           :cmd/path cmd-path
+                                           :cmd/args cmd-args
+                                           :cmd/raw-args raw-args)
+                                    raw-args)
+          result (handler-var opts)]
       (or (:exit-code result) 0))
     (catch Exception e
       (println "Error executing command:" (.getMessage e))
@@ -356,11 +421,14 @@
             (if-let [argument-error (registry/positional-args-error cmd cmd-args)]
               (do (println argument-error)
                   2)
-              (if-let [handler-var (handler-for cmd-id)]
-                (run-command handler-var options cmd-path cmd-args args)
-                (do (println "Unknown command:" cmd-path)
-                    (println "Run 'java -jar prf.jar help' for available commands.")
-                    2))))
+              (if-let [option-error (command-option-error cmd args)]
+                (do (binding [*out* *err*] (println option-error)) 2)
+                (if-let [handler-var (handler-for cmd-id)]
+                  (run-command handler-var
+                               options cmd-path cmd-args args)
+                  (do (println "Unknown command:" cmd-path)
+                      (println "Run 'java -jar prf.jar help' for available commands.")
+                      2)))))
           (do (println "Unknown command:" cmd-path)
               (println "Run 'java -jar prf.jar help' for available commands.")
               2))
