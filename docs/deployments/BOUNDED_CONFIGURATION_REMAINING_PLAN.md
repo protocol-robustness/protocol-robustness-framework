@@ -139,6 +139,15 @@ blocks and reads the transaction, receipt and post-state directly:
 ### W0 — Establish the integrated baseline
 The historical PRF-EVM integration/release Git objects are unavailable in the current mirror. The pinned base plus `etc/deployments/baselines/prf-evm-bounded-combined-overlay.patch.gz` now provides the reproducible source baseline: its resulting tree is `98e2ced7c0c61f146f7da902ed027780cee0f8b9`, the prior 129-test focused Solidity run passed; after the W1 test-only addition, the authority suite passes 10/10, extending the covered union to 130 cases, and `npm run compile` exports 31 artifact records matching the retained v0.4.1 manifest. The original package root is not claimed because archive provenance differs.
 
+On 2026-10-18, an independent scratch reconstruction reapplied the pinned
+overlay to the pinned base and reproduced tree
+`98e2ced7c0c61f146f7da902ed027780cee0f8b9`. With the pinned submodule commits
+checked out, the seven focused Forge suites passed again (85 tests), followed
+by the authority-transition and ECDSA-validator suites (14 tests). This
+revalidates the source overlay and those contract behaviors in the current
+environment; it does not reproduce the historical artifact-bundle root or
+provide owner approval, live deployment evidence, or W4–W7 qualification.
+
 
 Owner: prf-evm and PRF maintainers. Priority: P0. Dependencies: none.
 
