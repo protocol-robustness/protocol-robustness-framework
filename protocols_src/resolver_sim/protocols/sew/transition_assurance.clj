@@ -2,7 +2,10 @@
   "Canonical model-state commitments and invariant-backed Sew replay assurance.
 
    This is a model replay claim. It does not establish live-chain execution,
-   external signatures, or custody."
+   external signatures, or custody. Replay clock fields are committed through
+   event roots rather than state roots so consecutive action frames join.
+   Runtime callback markers name a defining function class; they do not commit
+   executable bytecode or closure captures."
   (:require [resolver-sim.hash.canonical :as canonical]
             [clojure.string :as str]
             [resolver-sim.hash.reference :as ref])
@@ -11,6 +14,8 @@
            [java.util Date]))
 
 (def schema :prf/sew-transition-assurance-basis.v1)
+
+(declare canonical-compare)
 
 (defn- project-value [value]
   (cond
@@ -24,13 +29,17 @@
     (instance? TemporalAccessor value) (.toString ^TemporalAccessor value)
     (instance? Date value) (.toString (.toInstant ^Date value))
     (map? value) (into {} (map (fn [[key item]] [(project-value key) (project-value item)])) value)
-    (set? value) (->> value (map project-value) (sort-by pr-str) vec)
+    (set? value) (->> value (map project-value) (sort canonical-compare) vec)
     (vector? value) (mapv project-value value)
     (sequential? value) (mapv project-value value)
     :else value))
 
 (defn- sha256-ref [domain value]
   (ref/sha256-ref (canonical/domain-hash domain (project-value value))))
+
+(defn- canonical-compare [left right]
+  (java.util.Arrays/compareUnsigned (canonical/canonical-bytes left)
+                                    (canonical/canonical-bytes right)))
 
 (defn- transition-root [basis]
   (sha256-ref :sew-dispute-transition-basis-v1
@@ -65,5 +74,5 @@
                             :violations (:violations transition-check)}))]
     {:ok? (empty? violations)
      :violations violations
-     :not-evaluated {:state-before :validated-by-preceding-transition
+     :not-evaluated {:state-before :bound-only
                      :state-after (:not-evaluated-invariants after-check)}}))
