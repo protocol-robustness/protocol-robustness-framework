@@ -77,8 +77,9 @@
       (nth ids (.nextInt rng (count ids))))))
 
 (defn smoke
-  [{:keys [all? seed]}]
-  (let [rng (java.util.Random. (or seed (System/currentTimeMillis)))
+  [{all? :all? all :all :keys [seed]}]
+  (let [all? (or all? all)
+        rng (java.util.Random. (or seed (System/currentTimeMillis)))
         output-root (allocate-smoke-output-root)
         plans (enumerate-plans)
         filtered (filter #(or (= :active (:status %))

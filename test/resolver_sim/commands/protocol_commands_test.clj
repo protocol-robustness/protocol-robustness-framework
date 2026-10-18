@@ -84,6 +84,35 @@
     (is (= ["/tmp/caller/left file.json" "/tmp/caller/right file.json"]
            (:cmd/args normalized)))))
 
+(deftest specialized-command-parsers-receive-their-own-options
+  (let [out (java.io.StringWriter.) err (java.io.StringWriter.)]
+    (binding [*out* out *err* err]
+      (is (= 0 (dispatch/run ["community" "task" "list" "--benchmark-filter" "demo"])))
+      (is (clojure.string/includes? (str out) "No community tasks found"))))
+  (let [out (java.io.StringWriter.)]
+    (binding [*out* out *err* (java.io.StringWriter.)]
+      (is (= 0 (dispatch/run ["run-simulation" "--help"])))
+      (is (clojure.string/includes? (str out) "--fixture-suite SUITE"))))
+  (let [out (java.io.StringWriter.)]
+    (binding [*out* out *err* (java.io.StringWriter.)]
+      (is (= 2 (dispatch/run ["community" "task" "list" "--unknown-option"])))
+      (is (clojure.string/includes? (str out) "Unknown option")))))
+
+(deftest legacy-command-options-reach-the-registered-handler
+  (let [handler-for (ns-resolve 'resolver-sim.cli.dispatch 'handler-for)
+        received (atom nil)
+        fake-handler (fn [opts] (reset! received opts) {:exit-code 0})]
+    (with-redefs-fn {handler-for (constantly fake-handler)}
+      #(is (zero? (dispatch/run ["benchmark" "smoke" "--all" "--seed" "42"]))))
+    (is (true? (:all @received)))
+    (is (= 42 (:seed @received)))
+    (with-redefs-fn {handler-for (constantly fake-handler)}
+      #(is (zero? (dispatch/run ["notebook" "focus" "--run-id" "run-7"]))))
+    (is (= "run-7" (:run-id @received)))
+    (with-redefs-fn {handler-for (constantly fake-handler)}
+      #(is (zero? (dispatch/run ["ownership" "check" "--manifest" "custom.edn"]))))
+    (is (= "custom.edn" (:manifest @received)))))
+
 (deftest scenario-comparison-json-has-one-machine-readable-result
   (let [out (java.io.StringWriter.)
         result (binding [*out* out *err* (java.io.StringWriter.)]

@@ -192,6 +192,10 @@
    [nil "--full" "Run full tier"]
    [nil "--strict" "Strict validation mode"]
    [nil "--explain" "Explain results in detail"]
+   [nil "--manifest FILE" "Path to command-specific manifest"]
+   [nil "--all" "Include experimental benchmarks in smoke matrix"]
+   [nil "--seed N" "Deterministic benchmark smoke selection seed" :parse-fn #(Long/parseLong %)]
+   [nil "--run-id ID" "Notebook run ID to focus on"]
    [nil "--out DIR" "Output directory"
     :default "target/report"]
    [nil "--output PATH" "Output path for evidence bundle"]
@@ -294,11 +298,20 @@
     :protocol-pro-rata-verify-execution
     :compare :compare-runs :semantic-equivalent :scenario-compare})
 
+(def ^:private handler-parsed-commands
+  "Commands with complete command-specific parsers. The dispatcher must not
+   reject their flags with its broader legacy option list first."
+  #{:run-simulation
+    :community-task-list :community-task-show :community-task-register
+    :community-task-run :community-task-reproduce :community-task-verify
+    :community-task-report :community-graph-export :community-mailbox-clear})
+
 (def ^:private path-option-names
   #{"--artifact-dir" "--scenario-file" "--run-root" "--suite-root"
     "--output-dir" "--scenario-output-dir" "--save-output" "--claim-registry"
     "--out" "--output" "--package-a" "--package-b" "--key" "--check"
-    "--trust-context" "--input" "--cas-dir"})
+    "--trust-context" "--input" "--cas-dir" "--params" "--output-file"
+    "--baseline" "--candidate" "--dir" "--mailbox-dir"})
 
 (defn- caller-directory []
   (or (System/getenv "PRF_CLI_CALLER_DIR") (System/getProperty "user.dir")))
@@ -309,6 +322,21 @@
                      (str (System/getProperty "user.home") (subs path 1)) path)
           file (io/file expanded)]
       (.getCanonicalPath (if (.isAbsolute file) file (io/file (caller-directory) expanded))))))
+
+(defn- normalize-raw-path-args [args extra-path-options]
+  (loop [remaining (seq args) result []]
+    (if-let [arg (first remaining)]
+      (let [[option inline] (str/split arg #"=" 2)]
+        (if (or (contains? path-option-names option)
+                (contains? extra-path-options option))
+          (if inline
+            (recur (next remaining)
+                   (conj result (str option "=" (or (caller-path inline) inline))))
+            (if-let [value (second remaining)]
+              (recur (nnext remaining) (conj result option (or (caller-path value) value)))
+              (recur (next remaining) (conj result arg))))
+          (recur (next remaining) (conj result arg))))
+      result)))
 
 (defn- normalize-user-paths [opts args]
   (let [specified (set (filter path-option-names
@@ -388,50 +416,64 @@
   "Parse args, resolve command, and execute handler.
    Returns an exit code for System/exit."
   [args]
-  (let [parsed (cli/parse-opts args cli-options)
-        {:keys [options arguments summary errors]} parsed
-        options (cond-> options
-                  (:json options) (assoc :json? true))]
-    (cond
-      errors
-      (do (doseq [e errors] (println e))
-          (println)
-          (println summary)
-          2)
-
-      (:help options)
-      (if-let [[path _] (command-path arguments)]
-        (print-command-help (registry/get-command
-                             (get (registry/path->command-id-map) path)))
-        (do (print-help) 0))
-
-      (empty? arguments)
-      (do (println "Usage: java -jar prf.jar <command> [options]")
-          (println "Run 'java -jar prf.jar help' for available commands.")
-          2)
-
-      (= "help" (first arguments))
-      (let [h (print-help)]
-        (:exit-code h))
-
-      :else
-      (if-let [[cmd-path cmd-args] (command-path arguments)]
-        (if-let [[cmd-id _] (resolve-command cmd-path)]
-          (let [cmd (registry/get-command cmd-id)]
-            (if-let [argument-error (registry/positional-args-error cmd cmd-args)]
-              (do (println argument-error)
-                  2)
-              (if-let [option-error (command-option-error cmd args)]
-                (do (binding [*out* *err*] (println option-error)) 2)
-                (if-let [handler-var (handler-for cmd-id)]
-                  (run-command handler-var
-                               options cmd-path cmd-args args)
-                  (do (println "Unknown command:" cmd-path)
-                      (println "Run 'java -jar prf.jar help' for available commands.")
-                      2)))))
+  (let [raw-command (when-let [[path cmd-args] (command-path args)]
+                      (when-let [cmd-id (get (registry/path->command-id-map) path)]
+                        [path cmd-args (registry/get-command cmd-id)]))
+        raw-cmd-id (some-> raw-command (nth 2) :command/id)]
+    ;; These commands own complete parsers. Resolve them before invoking the
+    ;; dispatcher's legacy parser, which otherwise rejects their valid flags.
+    (if (contains? handler-parsed-commands raw-cmd-id)
+      (let [[cmd-path cmd-args _cmd] raw-command]
+        (if-let [handler-var (handler-for raw-cmd-id)]
+          (let [extra-path-options (if (= :run-simulation raw-cmd-id) #{"--scenario"} #{})
+                cmd-args (normalize-raw-path-args cmd-args extra-path-options)]
+            (run-command handler-var {} cmd-path cmd-args cmd-args))
           (do (println "Unknown command:" cmd-path)
               (println "Run 'java -jar prf.jar help' for available commands.")
-              2))
-        (do (println "Unknown command:" (str/join " " arguments))
-            (println "Run 'java -jar prf.jar help' for available commands.")
-            2)))))
+              2)))
+      (let [parsed (cli/parse-opts args cli-options)
+            {:keys [options arguments summary errors]} parsed
+            options (cond-> options
+                      (:json options) (assoc :json? true))]
+        (cond
+          errors
+          (do (doseq [e errors] (println e))
+              (println)
+              (println summary)
+              2)
+
+          (:help options)
+          (if-let [[path _] (command-path arguments)]
+            (print-command-help (registry/get-command
+                                 (get (registry/path->command-id-map) path)))
+            (do (print-help) 0))
+
+          (empty? arguments)
+          (do (println "Usage: java -jar prf.jar <command> [options]")
+              (println "Run 'java -jar prf.jar help' for available commands.")
+              2)
+
+          (= "help" (first arguments))
+          (let [h (print-help)]
+            (:exit-code h))
+
+          :else
+          (if-let [[cmd-path cmd-args] (command-path arguments)]
+            (if-let [[cmd-id _] (resolve-command cmd-path)]
+              (let [cmd (registry/get-command cmd-id)]
+                (if-let [argument-error (registry/positional-args-error cmd cmd-args)]
+                  (do (println argument-error)
+                      2)
+                  (if-let [option-error (command-option-error cmd args)]
+                    (do (binding [*out* *err*] (println option-error)) 2)
+                    (if-let [handler-var (handler-for cmd-id)]
+                      (run-command handler-var options cmd-path cmd-args args)
+                      (do (println "Unknown command:" cmd-path)
+                          (println "Run 'java -jar prf.jar help' for available commands.")
+                          2)))))
+              (do (println "Unknown command:" cmd-path)
+                  (println "Run 'java -jar prf.jar help' for available commands.")
+                  2))
+            (do (println "Unknown command:" (str/join " " arguments))
+                (println "Run 'java -jar prf.jar help' for available commands.")
+                2)))))))
