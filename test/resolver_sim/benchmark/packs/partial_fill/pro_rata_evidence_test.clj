@@ -15,6 +15,13 @@
 (defn- test-ref [x]
   (hash-ref/sha256-ref (hc/domain-hash :evidence-content x)))
 
+(defn- rehash-application-v2
+  [profile]
+  (assoc profile :evidence-profile/hash
+         (hash-ref/sha256-ref
+          (hc/domain-hash :pro-rata-application-evidence-v2
+                          (dissoc profile :evidence-profile/hash)))))
+
 (defn- real-alloc []
   (alloc/allocate {:schema-version "pro-rata-allocation-request.v1"
                    :mechanism/version 1
@@ -719,7 +726,9 @@
                            :authoritative-state-write-back-verified? true
                            :deferred-current-amount-verified? true
                            :current-amount-continuous? nil
-                           :next-precondition-continuity {:status :not-verifiable}}
+                           :next-precondition-continuity {:status :not-verifiable
+                                                          :reason-code :successor-state-source-not-supplied
+                                                          :detail "successor-state source not supplied"}}
                           :evidence-profile/unverified-evidence
                           [:authoritative-source-body-not-supplied]}
         application-profile
@@ -771,6 +780,70 @@
     (is (= [:semantic-profile-rederivation-not-run] (:blocking-reasons result)))
     (is (= :blocked (get-in result [:verification-result :status])))
     (is (= :integrity (get-in result [:verification-result :achieved-level])))))
+
+(deftest application-v2-integrity-validates-finding-types-and-shapes
+  (let [profile
+        (rehash-application-v2
+         {:schema-version app-ev/schema-version
+          :evidence-profile/id app-ev/profile-id
+          :evidence-profile/allocation-evidence-hash (test-ref :allocation)
+          :evidence-profile/propagation-hash (test-ref :propagation)
+          :evidence-profile/application-hash (test-ref :application)
+          :evidence-profile/verification-level :semantic
+          :evidence-profile/verification-status :blocked
+          :evidence-profile/verification-checks
+          {:allocation-evidence-binding :pass
+           :propagation-integrity :pass
+           :propagation-allocation-binding :not-run
+           :application-integrity :pass
+           :application-propagation-binding :pass
+           :application-accounting-binding :pass
+           :accounting-reconciliation :pass
+           :state-write-back :pass
+           :deferred-position-write-back :pass
+           :current-amount-continuity :not-applicable
+           :successor-continuity :not-applicable}
+          :evidence-profile/verification
+          {:allocation-evidence-binding-valid? true
+           :propagation-valid? true
+           :propagation-allocation-binding-status :not-run
+           :propagation-allocation-binding-violations nil
+           :application-binding-valid? true
+           :application-hash-valid? true
+           :application-propagation-binding-valid? true
+           :application-accounting-binding-valid? true
+           :apparent-application-recorded? false
+           :accounting-reconciled? true
+           :propagation-complete? true
+           :authoritative-state-write-back-verified? true
+           :deferred-current-amount-verified? true
+           :current-amount-continuous? nil
+           :next-precondition-continuity
+           {:status :not-verifiable
+            :reason-code :successor-state-source-not-supplied
+            :detail "successor-state source not supplied"}}})
+        tamper
+        (fn [f]
+          (rehash-application-v2 (f profile)))
+        invalid-profiles
+        [(tamper #(assoc-in % [:evidence-profile/verification
+                               :application-binding-valid?] "true"))
+         (tamper #(assoc-in % [:evidence-profile/verification
+                               :propagation-allocation-binding-violations] "none"))
+         (tamper #(assoc-in % [:evidence-profile/verification
+                               :propagation-allocation-binding-violations] [{:reason "bad"}]))
+         (tamper #(assoc-in % [:evidence-profile/verification
+                               :current-amount-continuous?] "unknown"))
+         (tamper #(assoc-in % [:evidence-profile/verification
+                               :next-precondition-continuity :detail] 42))
+         (tamper #(assoc-in % [:evidence-profile/verification
+                               :next-precondition-continuity :status] :pass))
+         (tamper #(update-in % [:evidence-profile/verification
+                                :next-precondition-continuity] dissoc :reason-code))]]
+    (is (:valid? (app-ev/validate-pro-rata-application-evidence profile)))
+    (doseq [malformed invalid-profiles]
+      (is (not (:valid? (app-ev/validate-pro-rata-application-evidence malformed)))
+          "a self-hashed profile with malformed findings must fail integrity validation"))))
 
 (deftest allocation-verifier-emits-shared-result-with-separated-assertions
   (let [args (alloc-args (real-alloc))

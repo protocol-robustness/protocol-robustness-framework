@@ -294,7 +294,7 @@
   (let [errors (atom [])
         v2? (= schema-version (:schema-version profile))]
     (when-not (contains? #{schema-version-v1 schema-version} (:schema-version profile))
-      (swap! errors conj (str "unsupported schema-version " (:schema-version profile))))
+      (swap! errors conj (str "unsupported schema-version " (pr-str (:schema-version profile)))))
     (when-not (= profile-id (:evidence-profile/id profile))
       (swap! errors conj (str "expected profile/id " (pr-str profile-id)
                               " got " (pr-str (:evidence-profile/id profile)))))
@@ -302,7 +302,19 @@
       (let [checks (:evidence-profile/verification-checks profile)
             status (:evidence-profile/verification-status profile)
             verification (:evidence-profile/verification profile)
-            values (when (map? checks) (vals checks))]
+            values (when (map? checks) (vals checks))
+            boolean-finding-keys
+            #{:allocation-evidence-binding-valid? :propagation-valid?
+              :application-binding-valid? :application-hash-valid?
+              :application-propagation-binding-valid?
+              :application-accounting-binding-valid?
+              :apparent-application-recorded? :accounting-reconciled?
+              :propagation-complete?
+              :authoritative-state-write-back-verified?
+              :deferred-current-amount-verified?}
+            continuity (:next-precondition-continuity verification)
+            continuity-keys #{:status :reason-code :detail}
+            violations (:propagation-allocation-binding-violations verification)]
         (when-not (= :semantic (:evidence-profile/verification-level profile))
           (swap! errors conj "v2 profile must declare semantic verification level"))
         (when-not (= v2-required-check-ids (set (keys checks)))
@@ -320,11 +332,29 @@
         (when-not (and (map? verification)
                        (= v2-required-finding-keys (set (keys verification))))
           (swap! errors conj "v2 verification findings must contain the complete required finding set"))
+        (when (and (map? verification)
+                   (some #(not (boolean? (get verification %))) boolean-finding-keys))
+          (swap! errors conj "v2 boolean findings must contain boolean values"))
+        (when (and (map? verification)
+                   (not (or (boolean? (:current-amount-continuous? verification))
+                            (nil? (:current-amount-continuous? verification)))))
+          (swap! errors conj "current-amount-continuous? must be boolean or nil"))
         (when-not (contains? #{:pass :fail :not-run}
                              (:propagation-allocation-binding-status verification))
           (swap! errors conj "unsupported propagation-allocation-binding-status"))
-        (when-not (map? (:next-precondition-continuity verification))
-          (swap! errors conj "missing next-precondition-continuity finding"))))
+        (when-not (or (nil? violations)
+                      (and (vector? violations)
+                           (every? #(and (map? %)
+                                         (keyword? (:reason %)))
+                                   violations)))
+          (swap! errors conj "propagation-allocation-binding-violations must be nil or a vector of reason maps"))
+        (when-not (and (map? continuity)
+                       (= continuity-keys (set (keys continuity)))
+                       (contains? #{:not-observed :not-verifiable} (:status continuity))
+                       (keyword? (:reason-code continuity))
+                       (string? (:detail continuity))
+                       (seq (:detail continuity)))
+          (swap! errors conj "next-precondition-continuity must contain status, reason-code, and non-empty detail"))))
     (doseq [f [:evidence-profile/allocation-evidence-hash
                :evidence-profile/propagation-hash
                :evidence-profile/application-hash
