@@ -28,6 +28,10 @@
   producer assertions from recomputed findings and report requested versus
   achieved check levels without changing canonical profile hashes.
 
+- Required partial-fill package checks now report `blocked` when semantic
+  source rederivation has not run; integrity success is exposed separately and
+  no longer appears as an unqualified valid result.
+
 - Split receipt reconstruction inspection from pinned verification: inspection is explicitly unanchored, while verification requires an operator-supplied trusted report digest and reports its limited scope.
 
 - Added an optional trusted SHA-256 pin for reconstructed local receipt reports so internally consistent bundle substitutions can be detected when operators supply the pin independently.

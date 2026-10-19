@@ -681,6 +681,97 @@
     (is (false? (:valid? (verification-result/validate-result forged)))
         "a modified status must disagree with its performed and skipped checks")))
 
+(deftest required-package-verification-does-not-overstate-integrity-as-valid
+  (let [allocation-args (alloc-args (real-alloc))
+        allocation-profile (alloc-ev/build-pro-rata-allocation-evidence allocation-args)
+        allocation-hash (:evidence-profile/hash allocation-profile)
+        application-base {:schema-version app-ev/schema-version
+                          :evidence-profile/id app-ev/profile-id
+                          :evidence-profile/allocation-evidence-hash allocation-hash
+                          :evidence-profile/propagation-hash (test-ref :propagation)
+                          :evidence-profile/application-hash (test-ref :application)
+                          :evidence-profile/verification-level :semantic
+                          :evidence-profile/verification-status :blocked
+                          :evidence-profile/verification-checks
+                          {:allocation-evidence-binding :pass
+                           :propagation-integrity :pass
+                           :propagation-allocation-binding :not-run
+                           :application-integrity :pass
+                           :application-propagation-binding :pass
+                           :application-accounting-binding :pass
+                           :accounting-reconciliation :pass
+                           :state-write-back :pass
+                           :deferred-position-write-back :pass
+                           :current-amount-continuity :not-applicable
+                           :successor-continuity :not-applicable}
+                          :evidence-profile/verification
+                          {:allocation-evidence-binding-valid? true
+                           :propagation-valid? true
+                           :propagation-allocation-binding-status :not-run
+                           :propagation-allocation-binding-violations nil
+                           :application-binding-valid? true
+                           :application-hash-valid? true
+                           :application-propagation-binding-valid? true
+                           :application-accounting-binding-valid? true
+                           :apparent-application-recorded? true
+                           :accounting-reconciled? true
+                           :propagation-complete? true
+                           :authoritative-state-write-back-verified? true
+                           :deferred-current-amount-verified? true
+                           :current-amount-continuous? nil
+                           :next-precondition-continuity {:status :not-verifiable}}
+                          :evidence-profile/unverified-evidence
+                          [:authoritative-source-body-not-supplied]}
+        application-profile
+        (assoc application-base :evidence-profile/hash
+               (hash-ref/sha256-ref
+                (hc/domain-hash :pro-rata-application-evidence-v2
+                                application-base)))
+        application-hash (:evidence-profile/hash application-profile)
+        outcome-manifest (assoc (base-manifest)
+                                :outcomes/pro-rata-evidence-required true)
+        execution-profile
+        (exec-ev/build-pro-rata-execution-evidence
+         (exec-args :manifest outcome-manifest
+                    :alloc-hash allocation-hash
+                    :app-hash application-hash))
+        profiles {allocation-hash allocation-profile
+                  application-hash application-profile}
+        result (exec-ev/verify-package-pro-rata-evidence
+                profiles execution-profile outcome-manifest)
+        allocation-missing-check
+        (let [changed (update allocation-profile :evidence-profile/verification-checks
+                              dissoc :capacity)]
+          (assoc changed :evidence-profile/hash
+                 (hash-ref/sha256-ref
+                  (hc/domain-hash :pro-rata-allocation-evidence-v2
+                                  (dissoc changed :evidence-profile/hash)))))
+        application-missing-finding
+        (let [changed (update application-profile :evidence-profile/verification
+                              dissoc :application-binding-valid?)]
+          (assoc changed :evidence-profile/hash
+                 (hash-ref/sha256-ref
+                  (hc/domain-hash :pro-rata-application-evidence-v2
+                                  (dissoc changed :evidence-profile/hash)))))]
+    (is (:valid? (alloc-ev/validate-pro-rata-allocation-evidence allocation-profile)))
+    (is (:valid? (app-ev/validate-pro-rata-application-evidence application-profile)))
+    (is (not (:valid? (alloc-ev/validate-pro-rata-allocation-evidence
+                       allocation-missing-check)))
+        "a self-hashed profile cannot omit a mandatory allocation finding")
+    (is (not (:valid? (app-ev/validate-pro-rata-application-evidence
+                       application-missing-finding)))
+        "a self-hashed profile cannot omit a mandatory application finding")
+    (is (:valid? (exec-ev/validate-pro-rata-execution-evidence-any execution-profile)))
+    (is (:integrity-valid? result)
+        "the retained package references and profile hashes pass integrity checks")
+    (is (false? (:valid? result))
+        "a required semantic claim is not valid when its source rederivation was not run")
+    (is (= :blocked (:status result)))
+    (is (= :not-run (:semantic-status result)))
+    (is (= [:semantic-profile-rederivation-not-run] (:blocking-reasons result)))
+    (is (= :blocked (get-in result [:verification-result :status])))
+    (is (= :integrity (get-in result [:verification-result :achieved-level])))))
+
 (deftest allocation-verifier-emits-shared-result-with-separated-assertions
   (let [args (alloc-args (real-alloc))
         profile (alloc-ev/build-pro-rata-allocation-evidence args)

@@ -517,24 +517,33 @@
 
 (defn- with-package-verification-result [result outcome-manifest]
   (let [required? (:required? result)
-        valid? (:valid? result)
+        integrity-valid? (:valid? result)
         checks (if required?
                  [{:check/id :package-profile-integrity
-                   :check/status (if valid? :pass :fail)
+                   :check/status (if integrity-valid? :pass :fail)
                    :required? true}
                   {:check/id :semantic-profile-rederivation
                    :check/status :not-run :required? true
                    :check/reason "package verifier does not receive authoritative semantic source bodies"}]
                  [{:check/id :pro-rata-profile
                    :check/status :not-applicable :required? false
-                   :check/reason "pro-rata evidence is not required by this package"}])]
+                   :check/reason "pro-rata evidence is not required by this package"}])
+        result (if required?
+                 (assoc result
+                        :integrity-valid? integrity-valid?
+                        :valid? false
+                        :status (if integrity-valid? :blocked :invalid)
+                        :blocking-reasons (if integrity-valid?
+                                            [:semantic-profile-rederivation-not-run]
+                                            []))
+                 (assoc result :integrity-valid? true))]
     (assoc result :verification-result
            (vr/build-result
             {:subject {:profile/id profile-id
                        :benchmark/outcome-hash
                        (:benchmark-outcome/hash outcome-manifest)}
              :requested-level :semantic
-             :achieved-level (when (and required? valid?) :integrity)
+             :achieved-level (when (and required? integrity-valid?) :integrity)
              :checks checks
              :source-roots {:benchmark/content-root
                             (:benchmark/content-root outcome-manifest)

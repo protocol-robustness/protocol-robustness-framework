@@ -265,34 +265,66 @@
 ;; Standalone validator
 ;; ═══════════════════════════════════════════════════════════════════════════
 
+(def ^:private v2-required-check-ids
+  #{:allocation-evidence-binding :propagation-integrity
+    :propagation-allocation-binding :application-integrity
+    :application-propagation-binding :application-accounting-binding
+    :accounting-reconciliation :state-write-back
+    :deferred-position-write-back :current-amount-continuity
+    :successor-continuity})
+
+(def ^:private v2-required-finding-keys
+  #{:allocation-evidence-binding-valid? :propagation-valid?
+    :propagation-allocation-binding-status
+    :propagation-allocation-binding-violations
+    :application-binding-valid? :application-hash-valid?
+    :application-propagation-binding-valid?
+    :application-accounting-binding-valid?
+    :apparent-application-recorded? :accounting-reconciled?
+    :propagation-complete? :authoritative-state-write-back-verified?
+    :deferred-current-amount-verified? :current-amount-continuous?
+    :next-precondition-continuity})
+
 (defn validate-pro-rata-application-evidence
   "Integrity-only validator for a loaded application evidence profile.
 
-   A passing result verifies the profile schema and self-hash only. It does not
-   rederive application or write-back semantics without source artifacts."
+   A passing result verifies required profile structure and self-hash only. It
+   does not rederive application or write-back semantics without source artifacts."
   [profile]
-  (let [errors (atom [])]
+  (let [errors (atom [])
+        v2? (= schema-version (:schema-version profile))]
     (when-not (contains? #{schema-version-v1 schema-version} (:schema-version profile))
       (swap! errors conj (str "unsupported schema-version " (:schema-version profile))))
     (when-not (= profile-id (:evidence-profile/id profile))
       (swap! errors conj (str "expected profile/id " (pr-str profile-id)
                               " got " (pr-str (:evidence-profile/id profile)))))
-    (when (= schema-version (:schema-version profile))
+    (when v2?
       (let [checks (:evidence-profile/verification-checks profile)
             status (:evidence-profile/verification-status profile)
+            verification (:evidence-profile/verification profile)
             values (when (map? checks) (vals checks))]
         (when-not (= :semantic (:evidence-profile/verification-level profile))
           (swap! errors conj "v2 profile must declare semantic verification level"))
-        (when-not (map? checks)
-          (swap! errors conj "missing verification-checks map"))
+        (when-not (= v2-required-check-ids (set (keys checks)))
+          (swap! errors conj "v2 verification-checks must contain the complete required check set"))
         (when (some #(not (contains? #{:pass :fail :not-run :not-applicable} %)) values)
           (swap! errors conj "verification-checks contains an unsupported status"))
+        (when-not (contains? #{:verified :invalid :blocked} status)
+          (swap! errors conj "v2 verification-status is unsupported"))
         (when (and (= :verified status) (some #{:fail :not-run} values))
           (swap! errors conj "verified status conflicts with failed/unrun checks"))
         (when (and (= :invalid status) (not (some #{:fail} values)))
           (swap! errors conj "invalid status has no failed check"))
         (when (and (= :blocked status) (not (some #{:not-run} values)))
-          (swap! errors conj "blocked status has no unrun check"))))
+          (swap! errors conj "blocked status has no unrun check"))
+        (when-not (and (map? verification)
+                       (= v2-required-finding-keys (set (keys verification))))
+          (swap! errors conj "v2 verification findings must contain the complete required finding set"))
+        (when-not (contains? #{:pass :fail :not-run}
+                             (:propagation-allocation-binding-status verification))
+          (swap! errors conj "unsupported propagation-allocation-binding-status"))
+        (when-not (map? (:next-precondition-continuity verification))
+          (swap! errors conj "missing next-precondition-continuity finding"))))
     (doseq [f [:evidence-profile/allocation-evidence-hash
                :evidence-profile/propagation-hash
                :evidence-profile/application-hash
@@ -321,8 +353,7 @@
                      :pro-rata-application-evidence
                      :pro-rata-application-evidence-v2)
             computed (hash-ref/sha256-ref
-                      (hc/domain-hash domain
-                                      without-hash))]
+                      (hc/domain-hash domain without-hash))]
         (when-not (= computed (:evidence-profile/hash profile))
           (swap! errors conj (str "profile/hash mismatch: declared "
                                   (:evidence-profile/hash profile)
