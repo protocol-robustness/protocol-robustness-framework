@@ -13,6 +13,36 @@ public governance approval and production readiness are separate milestones.
 
 ## Starting position
 
+### Current verified execution state (2026-10-19)
+
+The older status notes below describe the candidate before the approved local
+execution and are historical. The retained protocol-deployments receipt now
+records verified stages through C1 application on Anvil chain 31337. Its
+independent report is explicitly `verification-evidence-only-not-approval`,
+has six replayed PRF assertions, and remains `partial` with no capital-flow
+evidence. The live run is local-only and does not qualify W6 or W7.
+
+| Work | Current evidence | Status |
+| --- | --- | --- |
+| W0 release baseline | Pinned base plus content-addressed overlay reproduces the source tree and 31 artifact records; the historical package root is still unreproduced and upstream integration is not recorded here. | Partial; retain the limitation. |
+| W1 authority enforcement | Validator/transition enforcement and focused tests are retained; the approved authority-state transition was applied at block 14 and has a verified receipt. | Executed locally; source/release integration remains bounded by W0. |
+| W2 canonical input approval | Initial-input approval and separate successor-transition approval are retained and verified against their exact manifests and local-only scope. | Approved for this local candidate only. |
+| W3 verifier identity | Deployment receipt records verifier/adapter identities and independent live checks; six PRF assertions replay in the independent report. | Verified for this local run. |
+| W4 genesis | Chain-instance genesis and approved empty registry seals are recorded as verified, with observed contract identities and readbacks. | Verified locally. |
+| W5 C0→C1 | Separate transition approval, authenticated authority transition and configuration application are recorded. C1 is `0xfab68d6327ec91449a8b2755b0b45f9587d93c58a9357d3bf41359c31f990ecd`, epoch 1. | Verified locally. |
+| W6 capital flow | No proof-admission/capital-flow actions or state assertions are retained. The report's `capitalFlowEvidenceRoot` is null. | Open. |
+| W7 evidence package | Independent report and partial execution receipt exist, but there is no approved expectation package or complete flow bundle. | Open. |
+
+The current deployment manifest root is
+`0x9e41374c74e541b8d2a32536ad1f2f0768aa8116659096a9f810516ec74d171c`,
+execution root
+`0x20234a8f341f82e40c750f3dc55d8d9146718171fd4d50eab53518dd5af117c4`, and
+independent report root
+`5fdc9108e06fcd56aaf9a74eff5a071d93ffa9f7d5b4368026dcbd61bc06bc6b`.
+The current Anvil endpoint responds on chain 31337. These identifiers are
+local evidence only and must be rechecked against retained inputs before any
+later transaction.
+
 | Area | Available now | Remaining obligation |
 | --- | --- | --- |
 | Canonical authority | Generic state v1, local policy v1/v2/v3, atomic transition enforcement, Ed25519 and EIP-191 validator paths, shared commitment vectors; the bounded profile now deploys the immutable EIP-191 validator and enables transition mode before sealing | Execute and independently verify an approved authority-state transition; qualify the approved key/runtime |
@@ -621,7 +651,21 @@ operation identity, getter calls and expected before/after values. Replay
 rejects evidence whose state assertions differ and includes the expectation
 digest in the independent verification root. This makes expectation review an
 explicit qualification input; approval of those values remains a trust
-assumption, and no approved expectation package or live execution exists.
+assumption. The 2026-10-19 C0→C1 execution is live and independently reported,
+but it contains no W6 capital-flow actions, and no approved expectation package
+or complete capital-flow bundle exists.
+
+The current deployment uses `OnchainShortfallReserveV2`, while the existing
+PRF source-bound reserve path only reconstructed the V1 snapshot hash. PRF now
+has additive `prf/onchain-shortfall-reserve-observation.v2` and
+`prf/onchain-shortfall-reserve-binding.v2` implementations. They recompute the
+Solidity V2 economic-state and authoritative-observation commitments, then bind
+the source facts to the sealed chain instance, C1/epoch and prepared operation.
+The focused tests pin an ABI/Keccak vector independently reproduced with
+viem and reject altered commitments, availability and context. V1 identities
+remain unchanged. This closes a semantic-input gap for W6, but does not by
+itself authenticate RPC observations, produce a proof or qualify a capital
+transaction; live deployment binding and complete W6/W7 evidence remain open.
 
 Latest cross-repository regression evidence: `bb test:unit` passed 891 tests and
 3,556 assertions; the pinned prf-evm checkout passed `PrfGenesisTest` (11) and
