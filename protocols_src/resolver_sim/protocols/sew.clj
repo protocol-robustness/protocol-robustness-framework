@@ -22,6 +22,7 @@
             [resolver-sim.protocols.sew.projection :as sew-proj]
             [resolver-sim.protocols.sew.equilibrium :as sew-eq]
             [resolver-sim.protocols.sew.validator-registry :as sew-vreg]
+            [resolver-sim.protocols.sew.transition-assurance :as sew-transition]
             [resolver-sim.protocols.sew.advisory :as sew-adv]
             [resolver-sim.db.sew :as sew-db]
             [resolver-sim.db.temporal :as temporal]
@@ -2769,6 +2770,17 @@
                                 (get wf actor 0)))]
         (+ hold claim))
       nil))
+
+  proto/TransitionAssurance
+
+  (transition-basis [_ world-before world-after event]
+    (sew-transition/build world-before world-after event))
+
+  (check-transition-assurance [_ world-before world-after event basis]
+    (sew-transition/validate world-before world-after event basis
+                             (run-single-invariants world-before)
+                             (run-single-invariants world-after)
+                             (run-transition-invariants world-before world-after)))
 
   proto/TemporalDeadlines
 

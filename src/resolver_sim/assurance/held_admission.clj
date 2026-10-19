@@ -65,6 +65,7 @@
    :sew/deferred-yield-reserved      :ordinary
    :sew/yield-accrued                :ordinary
    :sew/bounty-custody-reserve       :ordinary
+   :sew/bounty-direct-payout         :ordinary
    :sew/pro-rata-held-credit         :ordinary
    :sew/ordinary-release            :ordinary
    :sew/ordinary-refund             :ordinary

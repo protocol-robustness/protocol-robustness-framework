@@ -14,10 +14,13 @@
             [resolver-sim.protocols.sew.adjudication-case :as adjudication-case]
             [resolver-sim.protocols.sew.adjudication-instance :as adjudication-instance]
             [resolver-sim.protocols.sew.adjudication-snapshot :as adjudication-snapshot]
+            [resolver-sim.protocols.sew.research-ratification :as sew-ratification]
             [resolver-sim.protocols.sew :as sew]
             [resolver-sim.contract-model.replay :as replay]
             [resolver-sim.time.context :as time-ctx]
-            [resolver-sim.hash.canonical :as hc]))
+            [resolver-sim.hash.canonical :as hc]
+            [resolver-sim.research.ratification :as researcher-ratification]
+            [resolver-sim.benchmark.researcher-force-authorisation :as researcher-decisions]))
 
 (def alice "0xAlice")
 (def bob "0xBob")
@@ -79,9 +82,15 @@
    :authority/context-root (ruling-root :authority)
    :configuration/root (ruling-root :policy)})
 
+(defn- committed-resolution-roots [world _workflow-id]
+  (select-keys (last (get-in world [:adjudication-snapshots 0]))
+               [:dispute/question-root :dispute/evidence-set-root
+                :authority/resolution-basis-root :authority/context-root
+                :configuration/root]))
+
 (defn- adjudication-basis [world]
   (:basis (resolution-basis/reconstruct-live-resolution-basis
-           world 0 (external-resolution-roots))))
+           world 0 nil)))
 
 (defn- authenticated-ruling [basis outcome instance-root case-root round]
   (let [generic (resolution-basis/project-adjudication-basis basis)]
@@ -120,6 +129,45 @@
      :verification verification
      :finality (ruling-finality/derive-finality world 0 artifact verification)}))
 
+(defn- sew-research-ratification-inputs [world basis]
+  (let [policy (researcher-ratification/build-policy
+                {:id :policy/sew-research
+                 :authority-root (ruling-root :research-policy-authority)
+                 :eligible-principals [:principal/a :principal/b]
+                 :threshold 2 :allow-dissent? true :challenges-block? true})
+        snapshot-root (get-in world [:adjudication-current-snapshot-root 0])
+        current-snapshot (some #(when (= snapshot-root (:sew/adjudication-snapshot-root %)) %)
+                               (get-in world [:adjudication-snapshots 0]))
+        target (sew-ratification/build-target basis current-snapshot (:policy/root policy))
+        key-path "test-keys/test-researcher-signing-key"
+        public-path "test-keys/test-researcher-signing-key.pub"
+        contributions
+        (mapv (fn [[researcher principal]]
+                (let [subject-root
+                      (researcher-ratification/contribution-subject-root
+                       {:target-root (:target/root target) :principal-id principal
+                        :kind :approve :evidence-root nil})
+                      decision (researcher-decisions/build-signed-decision-v2
+                                researcher (:target/root target) (:target/root target)
+                                (:target/round-root target) subject-root :approve key-path
+                                :signing-key-id (str "key/" researcher))]
+                  (researcher-ratification/build-contribution
+                   {:target target :principal-id principal :kind :approve
+                    :decision decision})))
+              [["researcher-a" :principal/a] ["researcher-b" :principal/b]])
+        key-bindings {"researcher-a" {:researcher/id "researcher-a"
+                                      :principal/id :principal/a
+                                      :public-key-path public-path}
+                      "researcher-b" {:researcher/id "researcher-b"
+                                      :principal/id :principal/b
+                                      :public-key-path public-path}}
+        result (researcher-ratification/reconstruct-ratification
+                {:target target :policy policy :contributions contributions
+                 :key-bindings key-bindings})]
+    {:policy policy :target target :contributions contributions
+     :key-bindings key-bindings :ratification-result result
+     :current-snapshot current-snapshot}))
+
 (defn- authentication-verification [ruling instance-root]
   (authentication/build-authentication-verification
    {:authentication-verification/ruling-root (:ruling/root ruling)
@@ -149,14 +197,84 @@
         fence (adjudication-case/adjudication-round-fence-root prepared 0 0)
         published (adjudication-case/publish-adjudication-case! prepared 0 0 fence)
         instance-world (:world (adjudication-instance/freeze-instance! (:world published) 0))
+        case-data (adjudication-case/reconstruct-authoritative-case (:world published) 0 0)
+        frozen-roots (assoc (external-resolution-roots)
+                            :dispute/question-root (get-in case-data [:question :sew/dispute-question-root])
+                            :dispute/evidence-set-root (get-in case-data
+                                                               [:evidence-set (keyword "sew" "dispute-evidence-set/root")]))
         state-root (:state-before/root
                     (:basis (resolution-basis/reconstruct-live-resolution-basis
-                             instance-world 0 (external-resolution-roots))))
+                             instance-world 0 frozen-roots {:mode :legacy-non-authoritative})))
         frozen-snapshot (adjudication-snapshot/freeze-adjudication!
                          instance-world 0 state-root
-                         (assoc (external-resolution-roots)
+                         (assoc frozen-roots
                                 :created-from-state-root state-root))]
     (:world frozen-snapshot)))
+
+(deftest authoritative-resolution-reconstruction-fails-closed-on-disagreement
+  (let [world (authoritative-adjudication-world (base-world 0))
+        roots (let [snapshot (last (get-in world [:adjudication-snapshots 0]))]
+                (select-keys snapshot [:dispute/question-root :dispute/evidence-set-root
+                                       :authority/resolution-basis-root :authority/context-root
+                                       :configuration/root]))
+        reconstruct #(resolution-basis/reconstruct-live-resolution-basis % 0 roots)
+        good (reconstruct world)]
+    (is (:valid? good))
+    (is (:authoritative? good))
+    (testing "each overlapping external root must agree with the persisted snapshot"
+      (doseq [k (keys roots)]
+        (let [r (reconstruct world)
+              bad (resolution-basis/reconstruct-live-resolution-basis
+                   world 0 (assoc roots k (ruling-root [:conflict k])))]
+          (is (:valid? r))
+          (is (false? (:valid? bad)))
+          (is (= :sew-resolution-reconstruction/conflicting-supplied-root (:error/type bad))))))
+    (testing "dangling and ambiguous current pointers fail"
+      (is (= :sew-resolution-reconstruction/dangling-current-snapshot-pointer
+             (:error/type (reconstruct (assoc-in world [:adjudication-current-snapshot-root 0]
+                                                  (ruling-root :missing-snapshot))))))
+      (is (= :sew-resolution-reconstruction/duplicate-snapshot-root
+             (:error/type (reconstruct (update-in world [:adjudication-snapshots 0] conj
+                                                   (last (get-in world [:adjudication-snapshots 0]))))))))
+    (testing "tampering with snapshot identity, its predecessor, round, or subject inputs fails"
+      (is (false? (:valid? (reconstruct (assoc-in world [:adjudication-snapshots 0 0 :workflow/id] 99)))))
+      (is (false? (:valid? (reconstruct (assoc-in world [:adjudication-snapshots 0 0 :adjudication/round-id] 3)))))
+      (is (false? (:valid? (reconstruct (assoc-in world [:adjudication-snapshots 0 0 :adjudication/parent-snapshot-root]
+                                                   (ruling-root :foreign-parent))))))
+      (is (false? (:valid? (reconstruct (assoc-in world [:adjudication-snapshots 0 0 :dispute/question-root]
+                                                   (ruling-root :foreign-subject-question))))))
+      (is (false? (:valid? (reconstruct (assoc-in world [:escrow-transfers 0 :to]
+                                                   "0xtransplanted-subject"))))))
+    (testing "a canonically rebuilt foreign workflow or broken predecessor still fails history checks"
+      (let [snapshot (first (get-in world [:adjudication-snapshots 0]))
+            rebind (fn [field value]
+                     (let [replacement (adjudication-snapshot/build-adjudication-snapshot
+                                        (assoc (dissoc snapshot :sew/adjudication-snapshot-root)
+                                               field value))
+                           root (:sew/adjudication-snapshot-root replacement)]
+                       (-> world
+                           (assoc-in [:adjudication-snapshots 0] [replacement])
+                           (assoc-in [:adjudication-current-snapshot-root 0] root))))]
+        (is (= :sew-resolution-reconstruction/snapshot-workflow-mismatch
+               (:error/type (reconstruct (rebind :workflow/id 7)))))
+        (is (= :sew-resolution-reconstruction/snapshot-predecessor-mismatch
+               (:error/type (reconstruct (rebind :adjudication/parent-snapshot-root
+                                                  (ruling-root :missing-parent))))))))))
+
+(deftest historical-resolution-reconstruction-is-explicit-and-non-authoritative
+  (let [world (base-world 0)
+        roots (external-resolution-roots)
+        strict (resolution-basis/reconstruct-live-resolution-basis world 0 roots)
+        legacy (resolution-basis/reconstruct-live-resolution-basis
+                world 0 roots {:mode :legacy-non-authoritative})]
+    (is (false? (:valid? strict)))
+    (is (= :sew-resolution-reconstruction/authoritative-snapshot-required (:error/type strict)))
+    (is (:valid? legacy))
+    (is (false? (:authoritative? legacy)))
+    (is (false? (:valid? (resolution-basis/reconstruct-live-resolution-basis
+                          (assoc-in world [:adjudication-current-snapshot-root 0]
+                                    (ruling-root :dangling))
+                          0 roots {:mode :legacy-non-authoritative}))))))
 
 ;; ---------------------------------------------------------------------------
 ;; execute-resolution: with appeal window
@@ -285,7 +403,7 @@
                           {:authentication-verification
                            (authentication-verification artifact instance-root)})
         result (res/execute-resolution-with-adjudicated-ruling
-                world 0 carol basis artifact nil (fn [_ _] (external-resolution-roots))
+                world 0 carol basis artifact nil committed-resolution-roots
                 ruling-verifier direct-resolver-fn)]
     (is (= :finality-missing (:error result)))
     (is (= :finality-missing
@@ -301,7 +419,7 @@
         artifact (authenticated-ruling basis :release instance-root case-root 0)
         self-valid (authentication-verification artifact instance-root)
         result (res/execute-resolution-with-adjudicated-ruling
-                world 0 carol basis artifact nil (fn [_ _] (external-resolution-roots))
+                world 0 carol basis artifact nil committed-resolution-roots
                 (fn [& _] nil) direct-resolver-fn)]
     (is (authentication/valid-authentication-verification? self-valid))
     (is (= :invalid-adjudicated-ruling (:error result)))
@@ -328,18 +446,18 @@
     (is (= :finality-missing
            (:error (res/execute-resolution-with-adjudicated-ruling
                     world 0 carol basis with-instance nil
-                    (fn [_ _] (external-resolution-roots)) verifier direct-resolver-fn))))
+                    committed-resolution-roots verifier direct-resolver-fn))))
     (is (= :finality-missing
            (:error (res/execute-resolution-with-adjudicated-ruling
                     world 0 carol basis with-case nil
-                    (fn [_ _] (external-resolution-roots)) verifier direct-resolver-fn))))))
+                    committed-resolution-roots verifier direct-resolver-fn))))))
 
 (deftest high-assurance-settlement-requires-derived-finality
   (let [{:keys [world basis artifact verification finality] :as inputs}
         (high-assurance-inputs :release)
         verifier (fn [_ _ _ _] {:authentication-verification verification})
         execute #(res/execute-resolution-with-adjudicated-ruling
-                  world 0 carol basis artifact % (fn [_ _] (external-resolution-roots))
+                  world 0 carol basis artifact % committed-resolution-roots
                   verifier direct-resolver-fn)]
     (is (some? finality))
     (let [result (execute finality)]
@@ -355,7 +473,7 @@
         (high-assurance-inputs :refund)
         result (res/execute-resolution-with-adjudicated-ruling
                 world 0 carol basis artifact finality
-                (fn [_ _] (external-resolution-roots))
+                committed-resolution-roots
                 (fn [_ _ _ _] {:authentication-verification verification})
                 direct-resolver-fn)]
     (is (:ok result))
@@ -1088,3 +1206,101 @@
               r-exec (res/execute-pending-settlement w1 0)]
           (is (= expect-escalate-ok? (:ok r-esc)))
           (is (= expect-exec-ok? (:ok r-exec))))))))
+
+(deftest sew-research-ratification-is-bound-to-frozen-snapshot-and-round
+  (let [{:keys [world basis]} (high-assurance-inputs :release)
+        {:keys [policy target contributions key-bindings ratification-result current-snapshot] :as package}
+        (sew-research-ratification-inputs world basis)
+        verified (sew-ratification/verify-ratification
+                  (assoc package :sew-basis basis :adjudication-snapshot current-snapshot))]
+    (is (:valid? verified))
+    (is (= (:sew-resolution-basis/root basis) (:sew/basis-root target)))
+    (is (= (:adjudication/round-id current-snapshot) (:sew/adjudication-round target)))
+    (is (= (:sew/adjudication-snapshot-root current-snapshot)
+           (:sew/adjudication-snapshot-root target)))
+    (is (= :ratified (:ratification/status ratification-result)))
+    (is (= :policy/sew-research (:policy/id policy)))
+    (is (= 2 (count contributions)))
+    (is (= 2 (count key-bindings)))))
+
+(deftest fenced-ratification-and-settlement-use-one-authoritative-state-fence
+  (let [{:keys [world basis artifact verification finality]} (high-assurance-inputs :release)
+        package (sew-research-ratification-inputs world basis)
+        fence-calls (atom 0)
+        state-fence (fn [current-world workflow-id expected-root]
+                      (swap! fence-calls inc)
+                      (is (= 0 workflow-id))
+                      (is (= (:state-before/root basis) expected-root))
+                      {:fenced? true :world current-world
+                       :fence/root (ruling-root :one-state-fence)
+                       :research-ratification/current-root
+                       (get-in package [:ratification-result :ratification/root])
+                       :research-ratification/policy-root
+                       (get-in package [:policy :policy/root])})
+        result (sew-ratification/execute-resolution-with-ratification
+                world 0 carol basis artifact finality committed-resolution-roots
+                (fn [_ _ _ _] {:authentication-verification verification})
+                direct-resolver-fn state-fence (:policy package) (:contributions package)
+                (:ratification-result package) (:key-bindings package))]
+    (is (:ok result))
+    (is (= 1 @fence-calls))
+    (is (= :released (t/escrow-state (:world result) 0)))
+    (is (:valid? (sew-ratification/validate-consumption
+                  (:research-ratification/consumption result)))
+        (pr-str {:validation (sew-ratification/validate-consumption
+                              (:research-ratification/consumption result))
+                 :receipt (:research-ratification/consumption result)}))
+    (is (= (get-in package [:ratification-result :ratification/root])
+           (get-in result [:research-ratification/consumption :ratification/root])))))
+
+(deftest fenced-ratification-fails-closed-on-pointer-policy-or-state-replacement
+  (let [{:keys [world basis artifact verification finality]} (high-assurance-inputs :release)
+        package (sew-research-ratification-inputs world basis)
+        fenced (fn [fenced-world overrides]
+                 (fn [_world _workflow-id _expected-root]
+                   (merge {:fenced? true :world fenced-world
+                           :fence/root (ruling-root :fence)
+                           :research-ratification/current-root
+                           (get-in package [:ratification-result :ratification/root])
+                           :research-ratification/policy-root
+                           (get-in package [:policy :policy/root])}
+                          overrides)))
+        run (fn [state-fence ratification-result]
+              (sew-ratification/execute-resolution-with-ratification
+               world 0 carol basis artifact finality committed-resolution-roots
+               (fn [_ _ _ _] {:authentication-verification verification})
+               direct-resolver-fn state-fence (:policy package) (:contributions package)
+               ratification-result (:key-bindings package)))
+        changed-world (assoc-in world [:adjudication-current-snapshot-root 0]
+                                (ruling-root :replaced-snapshot))
+        contested (assoc (:ratification-result package)
+                         :ratification/status :contested-unresolved)]
+    (is (= :ratification-not-current
+           (:error (run (fenced world {:research-ratification/current-root (ruling-root :stale)})
+                        (:ratification-result package)))))
+    (is (= :ratification-policy-not-current
+           (:error (run (fenced world {:research-ratification/policy-root (ruling-root :other-policy)})
+                        (:ratification-result package)))))
+    (is (= :live-resolution-basis-unavailable
+           (:error (run (fenced changed-world {}) (:ratification-result package)))))
+    (is (= :invalid-sew-research-ratification
+           (:error (run (fenced world {}) contested))))))
+
+(deftest researcher-ratification-alone-cannot-settle-sew-escrow
+  (let [{:keys [world basis artifact verification]} (high-assurance-inputs :release)
+        package (sew-research-ratification-inputs world basis)
+        state-fence (fn [current-world _workflow-id _expected-root]
+                      {:fenced? true :world current-world
+                       :fence/root (ruling-root :fence)
+                       :research-ratification/current-root
+                       (get-in package [:ratification-result :ratification/root])
+                       :research-ratification/policy-root
+                       (get-in package [:policy :policy/root])})
+        result (sew-ratification/execute-resolution-with-ratification
+                world 0 carol basis artifact nil committed-resolution-roots
+                (fn [_ _ _ _] {:authentication-verification verification})
+                direct-resolver-fn state-fence (:policy package) (:contributions package)
+                (:ratification-result package) (:key-bindings package))]
+    (is (false? (:ok result)))
+    (is (= :finality-missing (:error result)))
+    (is (= :disputed (t/escrow-state (:world result) 0)))))

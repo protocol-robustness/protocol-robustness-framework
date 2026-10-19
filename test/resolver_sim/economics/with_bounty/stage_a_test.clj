@@ -176,6 +176,25 @@
     (is (nil? (:bounty/application-plan-root receipt)))
     (is (:valid? (verification/verify-composition-receipt receipt)))))
 
+(deftest evaluation-requires-trusted-source-bound-reserve-evidence
+  (let [base {:event/context {:review/finalised? true
+                              :event/actor :researcher/alice}
+              :base/result {:resolved-amount 10000}}
+        missing (proof/evaluate-bounty (assoc base :funding-source-evidence nil))
+        trusted (proof/evaluate-bounty base)
+        tampered (proof/evaluate-bounty
+                  (assoc base :funding-source-evidence
+                         (assoc (get-in trusted [:plan :plan/context :funding/source-evidence])
+                                :funding/available 9000)))
+        wrong-trust (proof/evaluate-bounty
+                     (assoc base :funding-trust-policy {:trusted-keys []}))]
+    (is (= :failed (:status missing)))
+    (is (= :failed (:status tampered)))
+    (is (= :failed (:status wrong-trust)))
+    (is (= :applied (:status trusted)))
+    (is (string? (get-in trusted [:plan :plan/context :funding/source-evidence
+                                  :funding/source-root])))))
+
 ;; ── obligation identity ───────────────────────────────────────────────────
 
 (deftest obligation-id-deterministic-and-sensitive

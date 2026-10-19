@@ -1,8 +1,15 @@
 (ns scripts.scenarios.speds-consistency-check
-  (:require [resolver-sim.notebook-support.speds.data :as data]
+  (:require [clojure.java.io :as io]
+            [resolver-sim.notebook-support.speds.data :as data]
             [resolver-sim.notebook-support.speds.findings :as findings]
             [resolver-sim.notebook-support.speds.issues :as issues]
             [resolver-sim.notebook-support.speds.validation :as validation]))
+
+(defn- notebook-source-path [resource-name]
+  (if-let [resource (io/resource resource-name)]
+    (str (io/file (.toURI resource)))
+    (throw (ex-info "Pinned notebook source is missing from classpath"
+                    {:resource resource-name}))))
 
 (defn -main
   "Run SPEDS consistency checks and exit with code 0 on success, 1 on failure."
@@ -21,9 +28,8 @@
                                        :source-artifact "script"
                                        :source-path [:sample :path]}]}]
                     :files ["src/resolver_sim/notebook_support/speds/story.clj"
-                           "notebooks/dispute_resolution.clj"
-                           "notebooks/report.clj"
-                           "notebooks/workbench_v2.clj"]
+                           (notebook-source-path "notebooks/dispute_resolution.clj")
+                           (notebook-source-path "notebooks/workbench_v2.clj")]
                    :artifacts artifacts
                    :findings (:findings findings-bundle)
                    :issues (:issues issues-bundle)

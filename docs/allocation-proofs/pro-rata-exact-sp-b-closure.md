@@ -139,7 +139,7 @@ over the allocation result, replacing the former not-evaluated stub.
   supported-domain-covers-evaluator-path, unsupported-never-narrower,
   accept/tamper, agreement-with-allocator, redistribution-chain reconstruction,
   supplemental independent edge cases, and fixed spec/corpus roots.
-- `packages/pro-rata-allocation/rust` — 52 tests pass, including independent
+- [`prf-pro-rata-allocation` Rust crate](https://github.com/protocol-robustness/prf-pro-rata-allocation/tree/48e0b362748cd39d09994a8aa1496c668199aa74/rust) — 52 tests pass, including independent
   exact reconstruction and independently constructed canonical spec/corpus
   root parity.
 - `coprocessor/exact-verifier-sp1-program` — guest ELF compilation and positive

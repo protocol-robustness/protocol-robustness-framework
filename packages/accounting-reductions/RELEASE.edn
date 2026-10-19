@@ -16,16 +16,17 @@
  :release/dependency-identities
  {:clojure [{:lib org.clojure/clojure :version "1.12.0"}]
   :canonical {:package prf/canonical
-              :source :in-tree-candidate
-              :path "../canonical/clj"
-              :immutable-pin nil
+              :source :git
+              :git/url "https://github.com/protocol-robustness/prf-canonical.git"
+              :git/sha "5e2b520feca812b049ba397b7b3681963c66a48c"
               :qualified-source-revision "92b2198442d2840c85be9074582cabbedde5cba1"
               :qualified-bundle-sha256 "692d68d5e0f99450ae8da1bc857eb477f0d64e25550eeadff9646bf988d92aa6"
               :resolution :in-tree-package-source-content-verified}}
  :release/runtime-dependencies [{:lib org.clojure/clojure :version "1.12.0"}
                                 {:lib prf/canonical
-                                 :version :in-tree-source-candidate
-                                 :path "../canonical/clj"
+                                 :version "0.1.0-rc.1"
+                                 :git/url "https://github.com/protocol-robustness/prf-canonical.git"
+                                 :git/sha "5e2b520feca812b049ba397b7b3681963c66a48c"
                                  :qualified-source-revision "92b2198442d2840c85be9074582cabbedde5cba1"
                                  :qualified-bundle-sha256 "692d68d5e0f99450ae8da1bc857eb477f0d64e25550eeadff9646bf988d92aa6"}]
  :release/conformance
@@ -35,9 +36,9 @@
   {:command "clojure -M:test -e <repository-boundary-golden-suite>"
    :status :passed
    :accounting-root-compatibility :passed}}
- :release/provenance {:immutable-source-revision nil
+ :release/provenance {:immutable-source-revision "5e2b520feca812b049ba397b7b3681963c66a48c"
                       :source-content-identity "sha256:6a04fe97e7d7e0662c81e0658559dce5b856a9fbda09f1c870d5a2f8cbedd9cf"
                       :clean-room-source-dependencies :passed
-                      :note "Isolated package and canonical source closure were staged and tested without monorepo source paths; canonical remains an unpublished in-tree dependency, not an externally fetchable immutable pin."}
+                      :note "Canonical codec resolves from its externally fetchable immutable Git revision; accounting source remains an unpublished in-tree candidate."}
  :release/publication {:status :unpublished
                        :dependency-coordinate nil}}

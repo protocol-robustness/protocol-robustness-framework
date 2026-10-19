@@ -26,11 +26,50 @@
             [resolver-sim.benchmark.outcome-manifest :as om]
             [resolver-sim.hash.reference :as hash-ref]
             [resolver-sim.benchmark.packs.partial-fill.pro-rata-allocation-evidence :as alloc-ev]
-            [resolver-sim.benchmark.packs.partial-fill.pro-rata-application-evidence :as app-ev]))
+            [resolver-sim.benchmark.packs.partial-fill.pro-rata-application-evidence :as app-ev]
+            [resolver-sim.benchmark.verification-result :as vr]))
 
 (def ^:const schema-version "pro-rata-execution-evidence.v1")
 (def ^:const schema-version-v2 "pro-rata-execution-evidence.v2")
 (def ^:const profile-id :evidence-profile/pro-rata-execution)
+
+(defn- with-integrity-result [profile result]
+  (let [valid? (:valid? result)]
+    (assoc result :verification-result
+           (vr/from-profile
+            {:profile profile
+             :verifier-id :prf/pro-rata-execution-profile-validator
+             :requested-level :integrity
+             :achieved-level (when valid? :integrity)
+             :check-statuses {:profile-integrity (if valid? :pass :fail)}
+             :source-roots (select-keys profile
+                                        [:evidence-profile/benchmark-content-root
+                                         :evidence-profile/model-root
+                                         :evidence-profile/outcome-manifest-hash
+                                         :evidence-profile/allocation-evidence-hash
+                                         :evidence-profile/application-evidence-hash])
+             :independent-findings {:errors (:errors result)}
+             :limitations [:execution-profile-does-not-rederive-constituent-semantics]}))))
+
+(defn- with-binding-result [profile result recomputed]
+  (let [valid? (:valid? result)]
+    (assoc result :verification-result
+           (vr/from-profile
+            {:profile profile
+             :verifier-id :prf/pro-rata-execution-profile-verifier
+             :requested-level :binding
+             :achieved-level (when valid? :binding)
+             :check-statuses {:profile-recomputation (if valid? :pass :fail)}
+             :source-roots (select-keys profile
+                                        [:evidence-profile/benchmark-content-root
+                                         :evidence-profile/model-root
+                                         :evidence-profile/outcome-manifest-hash
+                                         :evidence-profile/allocation-evidence-hash
+                                         :evidence-profile/application-evidence-hash])
+             :independent-findings {:recomputed-profile-hash
+                                    (:evidence-profile/hash recomputed)
+                                    :mismatches (:mismatches result)}
+             :limitations [:constituent-allocation-and-application-semantics-not-rederived]}))))
 
 ;; ═══════════════════════════════════════════════════════════════════════════
 ;; Builder
@@ -312,7 +351,8 @@
           (swap! errors conj (str "profile/hash mismatch: declared "
                                   (:evidence-profile/hash profile)
                                   " computed " computed)))))
-    {:valid? (empty? @errors) :errors @errors}))
+    (with-integrity-result profile
+      {:valid? (empty? @errors) :errors @errors})))
 
 ;; ── v2 validator + version dispatch ─────────────────────────────────────────
 
@@ -328,23 +368,8 @@
    :evidence-profile/verification])
 
 (defn validate-pro-rata-execution-evidence-v2
-  "Standalone structural validator for a pro-rata-execution-evidence.v2 profile.
-
-     v2 requires the operational write-back fact
-     :current-write-back-operational-pass? in :evidence-profile/execution-result
-     and rejects the overclaiming v1 key :current-amount-write-back-verified? under
-     the v2 schema. Recomputes the hash under the v2 domain tag.
-
-     Execution-result semantics enforced:
-       - :current-write-back-operational-pass? must be present and exactly boolean;
-       - the factual settlement keys :positive-amount-applied?, :fully-satisfied?,
-         and :deferred-residual-created? must be ABSENT (the aggregate profile
-         cannot establish them — they are represented by their unevaluated markers);
-       - the three :...-unevaluated? markers must each be present and exactly true;
-       - the remaining execution-result predicates (:allocation-calculated?,
-         :application-write-back-verified?, :allocation-sound?) must be boolean.
-
-     Returns {:valid? bool :errors [string]}."
+  "Standalone structural validator for a pro-rata-execution-evidence.v2
+   profile. Returns compatibility fields and the common integrity result."
   [profile]
   (let [errors (atom [])]
     (when-not (= schema-version-v2 (:schema-version profile))
@@ -357,27 +382,18 @@
       (when-not (contains? profile f)
         (swap! errors conj (str "missing " (name f)))))
     (let [er (:evidence-profile/execution-result profile)]
-      ;; Required v2 operational fact: present and exactly boolean.
       (when (and er (not (contains? er :current-write-back-operational-pass?)))
-        (swap! errors conj (str "v2 execution-result missing "
-                                ":current-write-back-operational-pass?")))
+        (swap! errors conj "v2 execution-result missing :current-write-back-operational-pass?"))
       (when (and er (contains? er :current-write-back-operational-pass?)
                  (not (boolean? (:current-write-back-operational-pass? er))))
-        (swap! errors conj (str "v2 execution-result :current-write-back-operational-pass? "
-                                "must be boolean")))
-      ;; v1 overclaiming key rejected under the v2 schema.
+        (swap! errors conj "v2 execution-result :current-write-back-operational-pass? must be boolean"))
       (when (and er (contains? er :current-amount-write-back-verified?))
-        (swap! errors conj (str "v2 execution-result must not carry the v1 "
-                                "overclaiming :current-amount-write-back-verified?")))
-      ;; The three factual settlement keys are NOT established by this aggregate
-      ;; profile; their presence is a schema error (must be absent).
-      (doseq [factual [:positive-amount-applied?
-                       :fully-satisfied?
+        (swap! errors conj "v2 execution-result must not carry the v1 overclaiming key"))
+      (doseq [factual [:positive-amount-applied? :fully-satisfied?
                        :deferred-residual-created?]]
         (when (and er (contains? er factual))
           (swap! errors conj (str "execution-result must not emit the factual "
                                   (name factual)))))
-      ;; The corresponding unevaluated markers must be present AND exactly true.
       (doseq [unevaluated [:positive-amount-applied-unevaluated?
                            :fully-satisfied-unevaluated?
                            :deferred-residual-created-unevaluated?]]
@@ -388,7 +404,6 @@
                    (not (true? (get er unevaluated))))
           (swap! errors conj (str "execution-result unevaluated marker "
                                   (name unevaluated) " must be exactly true"))))
-      ;; The remaining execution-result predicates are boolean facts.
       (doseq [flag [:allocation-calculated?
                     :application-write-back-verified?
                     :allocation-sound?]]
@@ -398,47 +413,39 @@
     (when (some? (:evidence-profile/hash profile))
       (let [without-hash (dissoc profile :evidence-profile/hash)
             computed (hash-ref/sha256-ref
-                      (hc/domain-hash :pro-rata-execution-evidence-v2
-                                      without-hash))]
+                      (hc/domain-hash :pro-rata-execution-evidence-v2 without-hash))]
         (when-not (= computed (:evidence-profile/hash profile))
           (swap! errors conj (str "profile/hash mismatch: declared "
                                   (:evidence-profile/hash profile)
                                   " computed " computed)))))
-    {:valid? (empty? @errors) :errors @errors}))
+    (with-integrity-result profile
+      {:valid? (empty? @errors) :errors @errors})))
 
 (defn validate-pro-rata-execution-evidence-any
-  "Version-dispatched structural validator. v2 rejects the v1 overclaiming key
-    under the v2 schema; v1 rejects the v2 operational-pass key under the v1 schema.
-
-    Returns {:valid? bool :errors [string]}."
+  "Version-dispatched structural validator returning the shared result interface."
   [profile]
-  (case (:schema-version profile)
-    "pro-rata-execution-evidence.v2"
-    (validate-pro-rata-execution-evidence-v2 profile)
-    "pro-rata-execution-evidence.v1"
-    (let [er (:evidence-profile/execution-result profile)
-          {validation :valid? errors :errors}
-          (validate-pro-rata-execution-evidence profile)]
-      {:valid? (and validation
-                    (not (contains? er :current-write-back-operational-pass?)))
-       :errors (cond-> (vec (or errors []))
-                 (contains? er :current-write-back-operational-pass?)
-                 (conj :v2-field-on-v1))})
-    {:valid? false
-     :errors [(str "unsupported schema-version "
-                   (pr-str (:schema-version profile)))]}))
+  (let [result
+        (case (:schema-version profile)
+          "pro-rata-execution-evidence.v2"
+          (validate-pro-rata-execution-evidence-v2 profile)
+          "pro-rata-execution-evidence.v1"
+          (let [er (:evidence-profile/execution-result profile)
+                {validation :valid? errors :errors}
+                (validate-pro-rata-execution-evidence profile)]
+            {:valid? (and validation
+                          (not (contains? er :current-write-back-operational-pass?)))
+             :errors (cond-> (vec (or errors []))
+                       (contains? er :current-write-back-operational-pass?)
+                       (conj :v2-field-on-v1))})
+          {:valid? false
+           :errors [(str "unsupported schema-version "
+                         (pr-str (:schema-version profile)))]})]
+    (with-integrity-result profile result)))
 ;; ═══════════════════════════════════════════════════════════════════════════
 
 (defn verify-pro-rata-execution-evidence
-  "Independent verification: recompute the evidence profile from resolved
-   artifacts and compare hash and findings.
-
-   Re-extracts :creation/provenance from the stored profile and passes it
-   to the rebuilder, so that an :out-of-band profile reproduces its original
-   hash. The rebuilder's creation-boundary default (:in-band) must not
-   override a stored :out-of-band assertion during verification.
-
-   Returns {:valid? bool :mismatches [...]}"
+  "Recompute the v1 execution profile from resolved artifacts and return
+   compatibility fields plus a binding-level shared verification result."
   [profile & args]
   (let [stored-provenance (get-in profile [:evidence-profile/creation :provenance])
         args-map (if (and (= (count args) 1) (map? (first args)))
@@ -459,20 +466,14 @@
           (swap! mismatches conj {:field k
                                   :stored (get v-s k)
                                   :recomputed (get v-r k)}))))
-    {:valid? (empty? @mismatches)
-     :profile-recomputed recomputed
-     :mismatches @mismatches}))
+    (let [legacy {:valid? (empty? @mismatches)
+                  :profile-recomputed recomputed
+                  :mismatches @mismatches}]
+      (with-binding-result profile legacy recomputed))))
 
 (defn verify-pro-rata-execution-evidence-v2
-  "Independent v2 verification: recompute the evidence profile from resolved
-   artifacts via the v2 builder and compare hash and findings.
-
-   Re-extracts :creation/provenance from the stored profile and passes it
-   to the rebuilder, so that an :out-of-band profile reproduces its original
-   hash. The rebuilder's creation-boundary default (:in-band) must not
-   override a stored :out-of-band assertion during verification.
-
-   Returns {:valid? bool :mismatches [...] :profile-recomputed map}"
+  "Recompute the v2 execution profile from resolved artifacts and return
+   compatibility fields plus a binding-level shared verification result."
   [profile & args]
   (let [stored-provenance (get-in profile [:evidence-profile/creation :provenance])
         args-map (if (and (= (count args) 1) (map? (first args)))
@@ -493,9 +494,10 @@
           (swap! mismatches conj {:field k
                                   :stored (get v-s k)
                                   :recomputed (get v-r k)}))))
-    {:valid? (empty? @mismatches)
-     :profile-recomputed recomputed
-     :mismatches @mismatches}))
+    (let [legacy {:valid? (empty? @mismatches)
+                  :profile-recomputed recomputed
+                  :mismatches @mismatches}]
+      (with-binding-result profile legacy recomputed))))
 
 ;; ═══════════════════════════════════════════════════════════════════════════
 ;; Package-level helpers
@@ -512,6 +514,52 @@
   ([manifest claim-requires?]
    (or (= true (:outcomes/pro-rata-evidence-required manifest))
        (true? claim-requires?))))
+
+(defn- with-package-verification-result [result outcome-manifest]
+  (let [required? (:required? result)
+        integrity-valid? (:valid? result)
+        checks (if required?
+                 [{:check/id :package-profile-integrity
+                   :check/status (if integrity-valid? :pass :fail)
+                   :required? true}
+                  {:check/id :semantic-profile-rederivation
+                   :check/status :not-run :required? true
+                   :check/reason "package verifier does not receive authoritative semantic source bodies"}]
+                 [{:check/id :pro-rata-profile
+                   :check/status :not-applicable :required? false
+                   :check/reason "pro-rata evidence is not required by this package"}])
+        result (if required?
+                 (assoc result
+                        :integrity-valid? integrity-valid?
+                        :valid? false
+                        :status (if integrity-valid? :blocked :invalid)
+                        :blocking-reasons (if integrity-valid?
+                                            [:semantic-profile-rederivation-not-run]
+                                            []))
+                 (assoc result :integrity-valid? true))]
+    (assoc result :verification-result
+           (vr/build-result
+            {:subject {:profile/id profile-id
+                       :benchmark/outcome-hash
+                       (:benchmark-outcome/hash outcome-manifest)}
+             :requested-level :semantic
+             :achieved-level (when (and required? integrity-valid?) :integrity)
+             :checks checks
+             :source-roots {:benchmark/content-root
+                            (:benchmark/content-root outcome-manifest)
+                            :benchmark/model-root
+                            (:benchmark/model-root outcome-manifest)
+                            :benchmark/outcome-hash
+                            (:benchmark-outcome/hash outcome-manifest)}
+             :verifier {:id :prf/pro-rata-package-integrity-verifier
+                        :revision "package-integrity-verifier.v1"}
+             :producer-assertions {:status (:status result)
+                                   :verification-level (:verification-level result)}
+             :independent-findings {:errors (:errors result)
+                                    :checks (:checks result)}
+             :limitations (if required?
+                            [:semantic-profile-rederivation-not-run]
+                            [])}))))
 
 (defn verify-package-pro-rata-evidence
   "Package-level verification for pro-rata execution packages.
@@ -531,10 +579,12 @@
          checks (atom {})]
      (if-not (package-requires-pro-rata-evidence? outcome-manifest
                                                   claim-requires-pro-rata-evidence?)
-       {:valid? true :required? false :status :not-required
-        :verification-level :not-applicable
-        :semantic-status :not-run
-        :errors [] :checks {}}
+       (with-package-verification-result
+         {:valid? true :required? false :status :not-required
+          :verification-level :not-applicable
+          :semantic-status :not-run
+          :errors [] :checks {}}
+         outcome-manifest)
        (let [alloc-hash (:evidence-profile/allocation-evidence-hash profile)
              app-hash (:evidence-profile/application-evidence-hash profile)
              alloc-profile (when alloc-hash (package-resolver alloc-hash))
@@ -580,9 +630,11 @@
          (when (some #{:invalid} (map :evidence-profile/verification-status
                                       [alloc-profile app-profile]))
            (swap! errors conj "a constituent profile records invalid semantic findings"))
-         {:valid? (empty? @errors) :required? true
-          :verification-level :integrity
-          :status (if (empty? @errors) :integrity-verified :invalid)
-          :semantic-status :not-run
-          :errors @errors
-          :checks @checks})))))
+         (with-package-verification-result
+           {:valid? (empty? @errors) :required? true
+            :verification-level :integrity
+            :status (if (empty? @errors) :integrity-verified :invalid)
+            :semantic-status :not-run
+            :errors @errors
+            :checks @checks}
+           outcome-manifest))))))

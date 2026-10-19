@@ -9,7 +9,10 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import shutil
+import socket
 import subprocess
+import time
 import urllib.error
 import urllib.request
 from pathlib import Path
@@ -24,10 +27,24 @@ RECIPIENTS = {
     "0x3333333333333333333333333333333333333333": ("claim-c", 14),
 }
 EIP1967_IMPLEMENTATION_SLOT = "0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc"
+SP1_GROTH16_VERIFY_SELECTOR = "0x41493c60"
+SP1_GROTH16_VERIFIER_V6_1_0_KECCAK = "0x728b036f7dbc79d6186237350e02c61bcc1cbe4ff0681ba75b8df14546d0fd71"
 
 
 class EvidenceError(ValueError):
     """Raised when retained evidence is incomplete or internally inconsistent."""
+
+
+class VerificationUnavailable(EvidenceError):
+    """Raised when the pinned proof check cannot run in this environment."""
+
+
+class RpcUnavailable(EvidenceError):
+    """Raised when the local JSON-RPC endpoint cannot be reached or decoded."""
+
+
+class RpcMethodError(EvidenceError):
+    """Raised when JSON-RPC returns a method/execution error."""
 
 
 def _json(path: Path) -> Any:
@@ -43,6 +60,14 @@ def _sha256(data: bytes) -> str:
 
 def _norm(value: str) -> str:
     return value.lower()
+
+
+def _hex_bytes(value: Any, size: int, label: str) -> bytes:
+    if not isinstance(value, str) or not value.startswith("0x") or len(value) != 2 + size * 2:
+        raise EvidenceError(f"{label} must be exactly {size} bytes of 0x-prefixed hex")
+    if any(char not in "0123456789abcdefABCDEF" for char in value[2:]):
+        raise EvidenceError(f"{label} contains non-hex data")
+    return bytes.fromhex(value[2:])
 
 
 def _int(value: str | int) -> int:
@@ -83,8 +108,15 @@ def _load_receipts(raw: Path) -> tuple[dict[str, dict[str, Any]], dict[str, str]
             source_files[f"runner-broadcast/{group}.json"] = _sha256(runner_path.read_bytes())
         tx_hashes = [_norm(row["hash"]) for row in tx_rows]
         receipt_hashes = [_norm(row["transactionHash"]) for row in receipt_rows]
-        if len(tx_hashes) != len(set(tx_hashes)) or set(tx_hashes) != set(receipt_hashes):
+        if (
+            len(tx_hashes) != len(receipt_hashes)
+            or len(tx_hashes) != len(set(tx_hashes))
+            or len(receipt_hashes) != len(set(receipt_hashes))
+            or set(tx_hashes) != set(receipt_hashes)
+        ):
             raise EvidenceError(f"{group} transaction/receipt identities do not match one-to-one")
+        for tx_hash in tx_hashes:
+            _hex_bytes(tx_hash, 32, "transaction hash")
         source_files[group] = _sha256(path.read_bytes())
         tx_by_hash = {_norm(row["hash"]): row for row in tx_rows}
         for receipt in receipt_rows:
@@ -93,6 +125,8 @@ def _load_receipts(raw: Path) -> tuple[dict[str, dict[str, Any]], dict[str, str]
             tx_context = tx.get("transaction", {})
             if _norm(tx.get("hash", "")) != tx_hash:
                 raise EvidenceError("broadcast transaction hash mismatch")
+            if not isinstance(tx_context, dict) or _norm(tx_context.get("hash", "")) != tx_hash:
+                raise EvidenceError("broadcast transaction envelope hash mismatch")
             if _norm(tx_context.get("chainId", "")) != "0x7a69":
                 raise EvidenceError("broadcast transaction is not on local chain 31337")
             if receipt.get("status") != "0x1":
@@ -100,6 +134,19 @@ def _load_receipts(raw: Path) -> tuple[dict[str, dict[str, Any]], dict[str, str]
             for key in ("transactionIndex", "blockNumber", "blockHash"):
                 if key not in receipt or receipt[key] is None:
                     raise EvidenceError(f"transaction {tx_hash} receipt lacks {key}")
+            _hex_bytes(receipt["blockHash"], 32, "receipt block hash")
+            _hex_bytes(tx_context.get("from"), 20, "broadcast transaction sender")
+            calldata = tx_context.get("input")
+            if (
+                not isinstance(calldata, str)
+                or not calldata.startswith("0x")
+                or len(calldata) % 2 != 0
+                or any(char not in "0123456789abcdefABCDEF" for char in calldata[2:])
+            ):
+                raise EvidenceError("broadcast transaction calldata is malformed")
+            target = tx_context.get("to")
+            if target is not None:
+                _hex_bytes(target, 20, "broadcast transaction target")
             for log in receipt.get("logs", []):
                 if log.get("removed") is True:
                     raise EvidenceError(f"transaction {tx_hash} has a removed log")
@@ -165,9 +212,9 @@ def _rpc(rpc_url: str, method: str, params: list[Any]) -> Any:
         with urllib.request.urlopen(request, timeout=10) as response:
             payload = json.loads(response.read())
     except (OSError, urllib.error.URLError, json.JSONDecodeError) as exc:
-        raise EvidenceError(f"live RPC failed for {method}") from exc
+        raise RpcUnavailable(f"live RPC failed for {method}") from exc
     if payload.get("error") or "result" not in payload:
-        raise EvidenceError(f"live RPC returned an error for {method}: {payload.get('error')}")
+        raise RpcMethodError(f"live RPC returned an error for {method}: {payload.get('error')}")
     return payload["result"]
 
 
@@ -202,6 +249,226 @@ def _block_reference(rpc_url: str, block_hash: str) -> dict[str, str]:
     if not isinstance(block, dict) or _norm(block.get("hash", "")) != _norm(block_hash):
         raise EvidenceError(f"block {block_hash} is unavailable by hash")
     return {"blockHash": block_hash, "requireCanonical": True}
+
+
+def _abi_word(value: int) -> bytes:
+    if value < 0 or value >= 1 << 256:
+        raise EvidenceError("ABI word value is outside uint256 range")
+    return value.to_bytes(32, "big")
+
+
+def _abi_dynamic(value: bytes) -> bytes:
+    padding = (-len(value)) % 32
+    return _abi_word(len(value)) + value + bytes(padding)
+
+
+def _sp1_verify_calldata(vkey: str, public_values: bytes, proof: bytes) -> str:
+    try:
+        key = bytes.fromhex(vkey.removeprefix("0x"))
+    except ValueError as exc:
+        raise EvidenceError("Groth16 VKey is not hexadecimal") from exc
+    if len(key) != 32:
+        raise EvidenceError("Groth16 VKey must be exactly bytes32")
+    values_offset = 96
+    proof_offset = values_offset + len(_abi_dynamic(public_values))
+    return "0x" + (
+        bytes.fromhex(SP1_GROTH16_VERIFY_SELECTOR.removeprefix("0x"))
+        + key
+        + _abi_word(values_offset)
+        + _abi_word(proof_offset)
+        + _abi_dynamic(public_values)
+        + _abi_dynamic(proof)
+    ).hex()
+
+
+def verify_groth16_reference(raw: Path) -> dict[str, Any]:
+    """Verify the exact retained proof against the pinned SP1 verifier runtime.
+
+    Runs a read-only verifyProof eth_call on a fresh disposable local Anvil,
+    after checking the captured verifier code identity and proof provenance.
+    """
+    raw = Path(raw)
+    reconstruct(raw)
+    manifest = _json(raw / "deployment-manifest.json")
+    capture = _json(raw / "capture-metadata.json")
+    fixture_path = raw / "proof-fixture.json"
+    fixture = _json(fixture_path)
+    runtime = _json(raw / "runtime-code-observations.json")
+    capture_proof = capture.get("proof", {})
+    fixture_digest = "0x" + _sha256(fixture_path.read_bytes())
+    if (
+        capture_proof.get("fixtureSha256", "").lower() != fixture_digest
+        or capture_proof.get("proofSystem") != "groth16"
+        or capture_proof.get("programId") != fixture.get("program_id")
+        or capture_proof.get("vkey", "").lower() != fixture.get("vkey", "").lower()
+        or capture_proof.get("elfSha256", "").lower() != fixture.get("elf_sha256", "").lower()
+        or capture_proof.get("witnessSha256", "").lower() != fixture.get("gate_e", {}).get("witness_sha256", "").lower()
+    ):
+        raise EvidenceError("proof fixture differs from the captured qualified execution identity")
+
+    verifier_row = runtime.get("contracts", {}).get("verifier", {})
+    verifier_address = manifest.get("contracts", {}).get("verifier", "")
+    verifier_code = verifier_row.get("runtimeCode", "")
+    if _norm(verifier_row.get("address", "")) != _norm(verifier_address):
+        raise EvidenceError("reference verifier address differs from the deployment manifest")
+    if verifier_row.get("keccak256", "").lower() != SP1_GROTH16_VERIFIER_V6_1_0_KECCAK:
+        raise EvidenceError("reference verifier runtime is not the pinned SP1 Groth16 v6.1.0 identity")
+
+    try:
+        bytes.fromhex(verifier_code.removeprefix("0x"))
+        proof_bytes = bytes.fromhex(fixture["proof"].removeprefix("0x"))
+        public_values = bytes.fromhex(fixture["public_values"].removeprefix("0x"))
+    except (KeyError, ValueError) as exc:
+        raise EvidenceError("proof or verifier runtime bytes are missing or malformed") from exc
+    if not shutil.which("cast"):
+        raise VerificationUnavailable("cast is required to verify the pinned verifier runtime hash")
+    try:
+        verifier_keccak = subprocess.run(["cast", "keccak", verifier_code], capture_output=True, text=True, check=False)
+    except OSError as exc:
+        raise VerificationUnavailable(f"cast cannot be started in this environment ({type(exc).__name__})") from exc
+    if verifier_keccak.returncode != 0:
+        raise VerificationUnavailable("cast could not compute the pinned verifier runtime hash")
+    if verifier_keccak.stdout.strip().lower() != SP1_GROTH16_VERIFIER_V6_1_0_KECCAK:
+        raise EvidenceError("reference verifier runtime does not match the pinned v6.1.0 code hash")
+    if len(public_values) != 288 or len(proof_bytes) != 356:
+        raise EvidenceError("pinned successor reference check requires 288 public bytes and a 356-byte Groth16 proof")
+
+    if not shutil.which("anvil"):
+        raise VerificationUnavailable("anvil is required for direct Groth16 reference verification")
+    try:
+        with socket.socket() as sock:
+            sock.bind(("127.0.0.1", 0))
+            port = sock.getsockname()[1]
+        process = subprocess.Popen(
+            ["anvil", "--silent", "--chain-id", "31337", "--host", "127.0.0.1", "--port", str(port)],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+    except OSError as exc:
+        raise VerificationUnavailable(f"local Anvil cannot be started in this environment ({type(exc).__name__})") from exc
+    rpc_url = f"http://127.0.0.1:{port}"
+    proof_status = "verified"
+    proof_failure = None
+    try:
+        for _ in range(100):
+            if process.poll() is not None:
+                raise VerificationUnavailable("local Anvil exited before reference verification")
+            try:
+                chain_id = _int(_rpc(rpc_url, "eth_chainId", []))
+                break
+            except EvidenceError:
+                time.sleep(0.05)
+        else:
+            raise VerificationUnavailable("local Anvil did not become ready for reference verification")
+        if chain_id != 31337:
+            raise EvidenceError("reference verifier must run on disposable local chain 31337")
+        try:
+            _rpc(rpc_url, "anvil_setCode", [verifier_address, verifier_code])
+            installed_code = _rpc(rpc_url, "eth_getCode", [verifier_address, "latest"])
+        except (RpcUnavailable, RpcMethodError) as exc:
+            raise VerificationUnavailable("local Anvil cannot install or read the pinned verifier runtime") from exc
+        if _norm(installed_code) != _norm(verifier_code):
+            raise EvidenceError("local reference verifier runtime differs from the pinned artifact")
+        try:
+            result = _rpc(
+                rpc_url,
+                "eth_call",
+                [{"to": verifier_address, "data": _sp1_verify_calldata(fixture["vkey"], public_values, proof_bytes)}, "latest"],
+            )
+        except RpcUnavailable as exc:
+            raise VerificationUnavailable("local Anvil RPC became unavailable during Groth16 reference verification") from exc
+        except RpcMethodError as exc:
+            if process.poll() is not None:
+                raise VerificationUnavailable("local Anvil stopped during Groth16 reference verification") from exc
+            proof_status = "not_verified"
+            proof_failure = "eth_call returned a JSON-RPC error; proof validity was not established"
+        else:
+            if result != "0x":
+                raise EvidenceError("SP1 Groth16 verifier returned unexpected data")
+    finally:
+        process.terminate()
+        try:
+            process.wait(timeout=5)
+        except subprocess.TimeoutExpired:
+            process.kill()
+            process.wait(timeout=5)
+
+    words = _words(fixture["public_values"])
+    return {
+        "schema": "prf.source-bound-entitlement-groth16-reference.v1",
+        "status": proof_status,
+        "method": "direct eth_call to pinned SP1VerifierGroth16 v6.1.0 on disposable local Anvil",
+        "providerScope": "local-only; this check establishes proof validity, not public-chain execution or finality",
+        "chainId": 31337,
+        "verifier": {"address": _norm(verifier_address), "runtimeKeccak256": SP1_GROTH16_VERIFIER_V6_1_0_KECCAK},
+        "source": {
+            "repository": capture.get("source", {}).get("repository"),
+            "revision": capture.get("source", {}).get("revision"),
+            "captureId": capture.get("captureId"),
+            "deploymentManifestDigest": manifest.get("manifestDigest"),
+        },
+        "toolchain": capture.get("toolchain", {}),
+        "programId": fixture["program_id"],
+        "proofSystem": fixture["proof_system"],
+        "vkey": fixture["vkey"],
+        "elfSha256": fixture["elf_sha256"],
+        "publicValuesSchema": fixture["public_values_schema"],
+        "proofSha256": "0x" + _sha256(proof_bytes),
+        "publicValuesSha256": "0x" + _sha256(public_values),
+        "fixtureSha256": fixture_digest,
+        "witnessSha256": fixture["gate_e"]["witness_sha256"],
+        "operationId": manifest["operationId"],
+        "preparedOperationRoot": words[1],
+        "reserveStateCommitment": words[2],
+        "statementRoot": words[3],
+        "configurationRoot": manifest["configurationRoot"],
+        "referenceCheckExecuted": True,
+        "failure": proof_failure,
+    }
+
+
+def unsupported_groth16_reference(raw: Path, reason: str) -> dict[str, Any]:
+    """Build an identity-bound unavailable result without claiming verification."""
+    raw = Path(raw)
+    reconstruct(raw)
+    manifest = _json(raw / "deployment-manifest.json")
+    capture = _json(raw / "capture-metadata.json")
+    fixture_path = raw / "proof-fixture.json"
+    fixture = _json(fixture_path)
+    proof_bytes = bytes.fromhex(fixture["proof"].removeprefix("0x"))
+    public_values = bytes.fromhex(fixture["public_values"].removeprefix("0x"))
+    words = _words(fixture["public_values"])
+    return {
+        "schema": "prf.source-bound-entitlement-groth16-reference.v1",
+        "status": "unsupported",
+        "reason": reason,
+        "method": "direct eth_call to pinned SP1VerifierGroth16 v6.1.0 on disposable local Anvil",
+        "providerScope": "local-only; no proof verdict was established",
+        "chainId": manifest["chainId"],
+        "verifier": {"address": _norm(manifest["contracts"]["verifier"]),
+                     "runtimeKeccak256": SP1_GROTH16_VERIFIER_V6_1_0_KECCAK},
+        "source": {
+            "repository": capture.get("source", {}).get("repository"),
+            "revision": capture.get("source", {}).get("revision"),
+            "captureId": capture.get("captureId"),
+            "deploymentManifestDigest": manifest["manifestDigest"],
+        },
+        "programId": fixture["program_id"],
+        "proofSystem": fixture["proof_system"],
+        "vkey": fixture["vkey"],
+        "elfSha256": fixture["elf_sha256"],
+        "publicValuesSchema": fixture["public_values_schema"],
+        "proofSha256": "0x" + _sha256(proof_bytes),
+        "publicValuesSha256": "0x" + _sha256(public_values),
+        "fixtureSha256": "0x" + _sha256(fixture_path.read_bytes()),
+        "witnessSha256": fixture["gate_e"]["witness_sha256"],
+        "operationId": manifest["operationId"],
+        "preparedOperationRoot": words[1],
+        "reserveStateCommitment": words[2],
+        "statementRoot": words[3],
+        "configurationRoot": manifest["configurationRoot"],
+        "referenceCheckExecuted": False,
+    }
 
 
 def _normalize_log(log: dict[str, Any]) -> dict[str, Any]:
@@ -428,8 +695,12 @@ def _transfer_events(
             topics = log.get("topics", [])
             if _norm(log.get("address", "")) != token or not topics or _norm(topics[0]) != TRANSFER_TOPIC:
                 continue
-            if len(topics) != 3 or len(log.get("data", "")) != 66:
-                raise EvidenceError("ERC-20 Transfer log has malformed ABI fields")
+            if len(topics) != 3:
+                raise EvidenceError("ERC-20 Transfer log has malformed topic count")
+            topic_words = [_hex_bytes(topic, 32, "ERC-20 Transfer topic") for topic in topics]
+            if topic_words[1][:12] != bytes(12) or topic_words[2][:12] != bytes(12):
+                raise EvidenceError("ERC-20 Transfer address topic is not canonically zero-padded")
+            amount_word = _hex_bytes(log.get("data"), 32, "ERC-20 Transfer amount")
             if _norm(log["transactionHash"]) != tx_hash:
                 raise EvidenceError("Transfer log references a different transaction")
             events.append(
@@ -442,9 +713,9 @@ def _transfer_events(
                     "receiptStatus": _int(receipt["status"]),
                     "logIndex": _int(log["logIndex"]),
                     "emitter": _norm(log["address"]),
-                    "from": "0x" + topics[1][-40:].lower(),
-                    "to": "0x" + topics[2][-40:].lower(),
-                    "amount": int(log["data"], 16),
+                    "from": "0x" + topic_words[1][12:].hex(),
+                    "to": "0x" + topic_words[2][12:].hex(),
+                    "amount": int.from_bytes(amount_word, "big"),
                     "group": row["group"],
                 }
             )
@@ -577,13 +848,22 @@ def _verify_economic_transaction_bindings(
         ):
             raise EvidenceError("claim payout is not bound to the matching allocator.withdraw call")
         tuple_offset = _calldata_word(claim_data, 36)
+        if tuple_offset % 32:
+            raise EvidenceError("withdraw source tuple offset is noncanonical")
         tuple_start = 4 + tuple_offset
         claim_index = _calldata_word(claim_data, tuple_start)
         claim_bytes_offset = _calldata_word(claim_data, tuple_start + 32)
-        beneficiary = "0x" + _calldata_word(claim_data, tuple_start + 64).to_bytes(32, "big")[-20:].hex()
+        beneficiary_word = _calldata_word(claim_data, tuple_start + 64).to_bytes(32, "big")
+        if beneficiary_word[:12] != bytes(12):
+            raise EvidenceError("withdraw beneficiary address is not canonically ABI-padded")
+        beneficiary = "0x" + beneficiary_word[12:].hex()
         amount = _calldata_word(claim_data, tuple_start + 96)
+        if claim_bytes_offset % 32:
+            raise EvidenceError("withdraw claim-bytes offset is noncanonical")
         claim_bytes_start = tuple_start + claim_bytes_offset
         claim_bytes_length = _calldata_word(claim_data, claim_bytes_start)
+        if claim_bytes_length > 128 or claim_bytes_start + 32 + claim_bytes_length > len(claim_data):
+            raise EvidenceError("withdraw claim identity bytes are malformed")
         claim_bytes = claim_data[claim_bytes_start + 32 : claim_bytes_start + 32 + claim_bytes_length]
         try:
             claim_id = claim_bytes.decode("utf-8")
@@ -601,7 +881,206 @@ def _verify_economic_transaction_bindings(
             raise EvidenceError("claim transaction opening differs from the observed payout identity")
 
 
-def reconstruct(raw: Path) -> dict[str, Any]:
+def _verify_terminal_state_observation(
+    observation_path: Path,
+    raw: Path,
+    manifest: dict[str, Any],
+    manifest_digest: str,
+    capture: dict[str, Any],
+    public_values: list[str],
+    transactions: dict[str, dict[str, Any]],
+) -> dict[str, Any]:
+    """Validate the retained block-pinned eth_call snapshot and its chain check."""
+    observation = _json(observation_path)
+    if observation.get("schema") != "eae.pro-56-live-state-observation.v1":
+        raise EvidenceError("unexpected terminal-state observation schema")
+    if observation.get("chainId") != manifest.get("chainId") or observation.get("chainId") != 31337:
+        raise EvidenceError("terminal-state observation chain identity differs from deployment")
+    if observation.get("classification") != "localOnly provider-relative eth_call observation; no public-chain or consensus claim":
+        raise EvidenceError("terminal-state observation lost its local-only qualification")
+    if (
+        observation.get("deploymentManifestDigest") != manifest_digest
+        or observation.get("environmentId") != capture.get("captureId")
+        or observation.get("sourceRevision") != capture.get("source", {}).get("revision")
+        or observation.get("operationId", "").lower() != manifest.get("operationId", "").lower()
+        or observation.get("preparedOperationRoot", "").lower()
+        != manifest.get("preparedOperationRoot", "").lower()
+    ):
+        raise EvidenceError("terminal-state observation does not bind the captured deployment and operation")
+    expected_source = f"{raw.parent.name}/{raw.name}"
+    if observation.get("sourceReplayDirectory") != expected_source:
+        raise EvidenceError("terminal-state observation names a different source replay")
+
+    block = observation.get("observationBlock", {})
+    block_number = block.get("number")
+    block_hash = _norm(block.get("hash", ""))
+    if not isinstance(block_number, int) or block_number < 0 or len(block_hash) != 66:
+        raise EvidenceError("terminal-state observation lacks a valid block identity")
+    try:
+        bytes.fromhex(block_hash.removeprefix("0x"))
+    except ValueError as exc:
+        raise EvidenceError("terminal-state observation block hash is malformed") from exc
+    latest_receipt_block = max(_int(row["receipt"]["blockNumber"]) for row in transactions.values())
+    if block_number < latest_receipt_block:
+        raise EvidenceError("terminal-state observation predates the latest retained execution receipt")
+
+    live_check_path = raw / "live-chain-check.json"
+    if not live_check_path.is_file():
+        raise EvidenceError("terminal-state observation lacks its retained live-chain context check")
+    live_check = _json(live_check_path)
+    anchor = live_check.get("runtimeAnchor", {})
+    if (
+        live_check.get("schema") != "prf.forensic-live-chain-check.v2"
+        or live_check.get("status") != "passed"
+        or live_check.get("chainId") != manifest["chainId"]
+        or live_check.get("environmentId") != observation.get("environmentId")
+        or live_check.get("deploymentManifestDigest") != manifest_digest
+        or live_check.get("operationId", "").lower() != manifest["operationId"].lower()
+        or live_check.get("preparedOperationRoot", "").lower() != manifest["preparedOperationRoot"].lower()
+        or anchor.get("blockNumber") != block_number
+        or _norm(anchor.get("blockHash", "")) != block_hash
+        or live_check.get("latestBlockNumber", -1) < block_number
+    ):
+        raise EvidenceError("terminal-state block does not match its live-chain context check")
+    receipt_anchors = {
+        (_norm(tx_hash), _int(row["receipt"]["blockNumber"]), _norm(row["receipt"]["blockHash"]))
+        for tx_hash, row in transactions.items()
+    }
+    check_anchors = {
+        (_norm(row.get("transactionHash", "")), row.get("blockNumber"), _norm(row.get("blockHash", "")))
+        for row in live_check.get("transactionAnchors", [])
+    }
+    if not receipt_anchors.issubset(check_anchors):
+        raise EvidenceError("live-chain context check omits or substitutes retained transaction anchors")
+
+    contracts = manifest["contracts"]
+    reads = observation.get("reads")
+    if not isinstance(reads, list):
+        raise EvidenceError("terminal-state observation has no read list")
+    read_by_name = {row.get("name"): row for row in reads if isinstance(row, dict)}
+    expected_names = {
+        "reserveTokenBalance", "allocatorTokenBalance", "aliceTokenBalance", "bobTokenBalance",
+        "carolTokenBalance", "claimedAmount", "claimedCount", "outstandingLiability",
+        "reserveTotalReserved", "entitlementOperation",
+    }
+    if len(read_by_name) != len(reads) or set(read_by_name) != expected_names:
+        raise EvidenceError("terminal-state observation reads are incomplete, duplicated or unexpected")
+    for row in reads:
+        if row.get("blockNumber") != block_number or _norm(row.get("blockHash", "")) != block_hash:
+            raise EvidenceError("terminal-state reads do not share the declared block context")
+
+    addresses = {
+        "reserveTokenBalance": (contracts["token"], [contracts["reserve"]], "balanceOf(address)(uint256)"),
+        "allocatorTokenBalance": (contracts["token"], [contracts["allocator"]], "balanceOf(address)(uint256)"),
+        "aliceTokenBalance": (contracts["token"], ["0x1111111111111111111111111111111111111111"], "balanceOf(address)(uint256)"),
+        "bobTokenBalance": (contracts["token"], ["0x2222222222222222222222222222222222222222"], "balanceOf(address)(uint256)"),
+        "carolTokenBalance": (contracts["token"], ["0x3333333333333333333333333333333333333333"], "balanceOf(address)(uint256)"),
+        "claimedAmount": (contracts["allocator"], [manifest["operationId"]], "claimedAmount(bytes32)(uint256)"),
+        "claimedCount": (contracts["allocator"], [manifest["operationId"]], "claimedCount(bytes32)(uint256)"),
+        "outstandingLiability": (contracts["allocator"], [manifest["operationId"]], "outstandingLiability(bytes32)(uint256)"),
+        "reserveTotalReserved": (contracts["reserve"], [], "totalReserved()(uint256)"),
+        "entitlementOperation": (contracts["allocator"], [manifest["operationId"]], "entitlementOperation(bytes32)"),
+    }
+    for name, row in read_by_name.items():
+        target, arguments, signature = addresses[name]
+        if (
+            _norm(row.get("to", "")) != _norm(target)
+            or [_norm(value) for value in row.get("arguments", [])] != [_norm(value) for value in arguments]
+            or row.get("signature") != signature
+        ):
+            raise EvidenceError(f"terminal-state read target or selector differs for {name}")
+
+    state = observation.get("decodedState", {})
+    operation = state.get("entitlementOperation", {})
+    expected_scalars = {
+        "reserveTokenBalance": ("reserveTokenBalance", 10),
+        "allocatorTokenBalance": ("allocatorTokenBalance", 0),
+        "aliceTokenBalance": ("recipientTokenBalances.alice", 35),
+        "bobTokenBalance": ("recipientTokenBalances.bob", 21),
+        "carolTokenBalance": ("recipientTokenBalances.carol", 14),
+        "claimedAmount": ("claimedAmount", 70),
+        "claimedCount": ("claimedCount", 3),
+        "outstandingLiability": ("outstandingLiability", 0),
+        "reserveTotalReserved": ("reserveTotalReserved", 0),
+    }
+    for name, (decoded_key, expected_value) in expected_scalars.items():
+        row = read_by_name[name]
+        decoded = state
+        for key in decoded_key.split("."):
+            decoded = decoded.get(key, {}) if isinstance(decoded, dict) else {}
+        if _int(row.get("rawResult", "-1")) != expected_value or decoded != expected_value:
+            raise EvidenceError(f"terminal-state accounting read differs for {name}")
+
+    raw_result = read_by_name["entitlementOperation"].get("rawResult", "")
+    encoded = raw_result.removeprefix("0x")
+    if len(encoded) != 12 * 64:
+        raise EvidenceError("terminal-state entitlement operation has an unexpected ABI shape")
+    try:
+        words = ["0x" + encoded[i : i + 64].lower() for i in range(0, len(encoded), 64)]
+        bytes.fromhex(encoded)
+    except ValueError as exc:
+        raise EvidenceError("terminal-state entitlement operation is malformed ABI data") from exc
+    expected_operation = {
+        "stateEnum": 5,
+        "allocationBindingRoot": public_values[3],
+        "descriptorRoot": public_values[4],
+        "evmEntitlementTableRoot": public_values[5],
+        "entitlementCount": 3,
+        "entitlementTotal": 70,
+        "allocationClaimRoot": public_values[8],
+        "beneficiaryProfileWord": words[7],
+        "token": contracts["token"],
+        "amount": 70,
+        "residualRecipient": manifest["localOnly"]["residualRecipient"],
+        "representation": operation.get("representation"),
+    }
+    for key, expected_value in expected_operation.items():
+        actual = operation.get(key)
+        if key in {"allocationBindingRoot", "descriptorRoot", "evmEntitlementTableRoot", "allocationClaimRoot", "beneficiaryProfileWord", "token", "residualRecipient", "representation"}:
+            if not isinstance(actual, str) or not isinstance(expected_value, str) or _norm(actual) != _norm(expected_value):
+                raise EvidenceError(f"terminal-state entitlement operation differs for {key}")
+        elif actual != expected_value:
+            raise EvidenceError(f"terminal-state entitlement operation differs for {key}")
+    word_expectations = [
+        (0, 5), (1, int(public_values[3], 16)), (2, int(public_values[4], 16)),
+        (3, int(public_values[5], 16)), (4, 3), (5, 70), (6, int(public_values[8], 16)),
+        (7, int(operation["beneficiaryProfileWord"], 16)),
+        (8, int(contracts["token"], 16)), (9, 70),
+        (10, int(manifest["localOnly"]["residualRecipient"], 16)),
+        (11, int(operation["representation"], 16)),
+    ]
+    if any(int(words[index], 16) != value for index, value in word_expectations):
+        raise EvidenceError("terminal-state entitlement ABI words differ from the decoded operation")
+    if operation.get("stateName") != "Closed":
+        raise EvidenceError("terminal-state entitlement operation is not Closed")
+    reconciliation = observation.get("reconciliation", {})
+    if (
+        reconciliation.get("matches") is not True
+        or reconciliation.get("allocatorFunding") != 70
+        or reconciliation.get("sourceDeposit") != 80
+        or reconciliation.get("liabilityExpected") != 0
+        or reconciliation.get("allocatorBalanceExpected") != 0
+        or reconciliation.get("reserveBalanceExpected") != 10
+        or reconciliation.get("payouts") != {"alice": 35, "bob": 21, "carol": 14}
+    ):
+        raise EvidenceError("terminal-state observation's declared reconciliation does not match the validated state")
+
+    return {
+        "schema": observation["schema"],
+        "status": "validated provider-relative local eth_call observation",
+        "chainId": 31337,
+        "environmentId": observation["environmentId"],
+        "operationId": observation["operationId"],
+        "preparedOperationRoot": observation["preparedOperationRoot"],
+        "blockNumber": block_number,
+        "blockHash": block_hash,
+        "artifactSha256": _sha256(observation_path.read_bytes()),
+        "decodedState": state,
+        "limitations": observation.get("limitations", []),
+    }
+
+
+def reconstruct(raw: Path, terminal_state_observation: Path | None = None) -> dict[str, Any]:
     """Validate raw cross-links and reconstruct the funding and claim journal."""
     raw = Path(raw)
     manifest_path = raw / "deployment-manifest.json"
@@ -652,6 +1131,21 @@ def reconstruct(raw: Path) -> dict[str, Any]:
     proof_bytes = bytes.fromhex(fixture["proof"].removeprefix("0x"))
     if fixture.get("gate_e", {}).get("proof_sha256", "").lower() != "0x" + _sha256(proof_bytes):
         raise EvidenceError("proof byte digest mismatch")
+    capture_path = raw / "capture-metadata.json"
+    capture = _json(capture_path) if capture_path.exists() else None
+    if capture is not None and isinstance(capture.get("proof"), dict):
+        captured_proof = capture.get("proof", {})
+        expected_fixture_sha256 = "0x" + _sha256(fixture_path.read_bytes())
+        if (
+            captured_proof.get("fixtureSha256", "").lower() != expected_fixture_sha256
+            or captured_proof.get("proofSystem") != fixture.get("proof_system")
+            or captured_proof.get("programId") != fixture.get("program_id")
+            or captured_proof.get("vkey", "").lower() != fixture.get("vkey", "").lower()
+            or captured_proof.get("elfSha256", "").lower() != fixture.get("elf_sha256", "").lower()
+            or captured_proof.get("witnessSha256", "").lower()
+            != fixture.get("gate_e", {}).get("witness_sha256", "").lower()
+        ):
+            raise EvidenceError("captured proof identity does not bind the retained fixture and operation")
     public_values = _words(fixture["public_values"])
     expected_vector = vector["expected"][fixture["gate_e"]["vector_id"]]
     if fixture["gate_e"]["vector_id"] != "A-minimum-realistic":
@@ -684,6 +1178,13 @@ def reconstruct(raw: Path) -> dict[str, Any]:
 
     transactions, source_files = _load_receipts(raw)
     runtime_observations = _verify_runtime_observations(raw, manifest)
+    terminal_observation = None
+    if terminal_state_observation is not None:
+        if capture is None:
+            raise EvidenceError("terminal-state verification requires capture metadata")
+        terminal_observation = _verify_terminal_state_observation(
+            Path(terminal_state_observation), raw, manifest, manifest_digest, capture, public_values, transactions
+        )
     token = _norm(manifest["contracts"]["token"])
     reserve = _norm(manifest["contracts"]["reserve"])
     allocator = _norm(manifest["contracts"]["allocator"])
@@ -733,6 +1234,8 @@ def reconstruct(raw: Path) -> dict[str, Any]:
         if (raw / "runner-broadcast" / f"{group}.json").is_file()
     ]
     artifact_paths += [raw / "fork-test.log", raw / "final-state.log"]
+    if terminal_observation is not None:
+        artifact_paths.append(raw / "live-chain-check.json")
     artifact_paths += [
         raw / name
         for name in ("funding.log", "activation.log", "withdrawal.log")
@@ -740,8 +1243,6 @@ def reconstruct(raw: Path) -> dict[str, Any]:
     ]
     if runtime_observations is not None:
         artifact_paths.append(raw / "runtime-code-observations.json")
-    capture_path = raw / "capture-metadata.json"
-    capture = _json(capture_path) if capture_path.exists() else None
     if capture is not None:
         if capture.get("schema") not in {"eae.pro-28-capture-metadata.v1", "eae.pro-28-capture-metadata.v2"} or capture.get("chainId") != 31337:
             raise EvidenceError("capture metadata schema or chain identity is invalid")
@@ -782,11 +1283,22 @@ def reconstruct(raw: Path) -> dict[str, Any]:
                 "finalObservedBlock": max(_int(row["receipt"]["blockNumber"]) for row in transactions.values()),
             },
             "economicReconciliation": {
-                "status": "passed against retained transfer receipts and terminal state reads",
+                "status": (
+                    "passed against receipt transfers and validated provider-relative terminal eth_call observation"
+                    if terminal_observation is not None
+                    else "receipt transfers cross-linked; terminal balances and liability remain unverified"
+                ),
                 "sourceDeposit": 80,
                 "allocatorFunding": 70,
                 "claimPayouts": {item["claimId"]: item["amount"] for item in claimant_events},
-                "liabilityClosed": "outstanding_liability=0" in final_state,
+                "liabilityClosed": (
+                    terminal_observation["decodedState"]["outstandingLiability"] == 0
+                    if terminal_observation is not None else None
+                ),
+                "terminalStateObservation": terminal_observation or {
+                    "status": "not independently observed",
+                    "reason": "final-state.log is retained as text and is not accepted as authoritative terminal state",
+                },
             },
             "provenanceLimitations": [
                 "Local Anvil observations are not public-chain evidence or proof of canonical chain state.",
@@ -856,12 +1368,24 @@ def reconstruct(raw: Path) -> dict[str, Any]:
             "allocatorFunding": 70,
             "claimPayouts": {item["claimId"]: item["amount"] for item in claimant_events},
             "totalClaimPayouts": sum(item["amount"] for item in claimant_events),
-            "finalStateObservation": final_state,
+            "finalStateObservation": (
+                terminal_observation or {
+                    "status": "unverified log text",
+                    "text": final_state,
+                    "receiptMaxBlock": max(_int(row["receipt"]["blockNumber"]) for row in transactions.values()),
+                }
+            ),
             "carolEntitlement": 14,
             "carolProtectedRefundInThisExecution": 0,
             "note": "Carol's 14-unit entitlement is recorded separately from the 10-unit protected-capital refund described by the superseded V3 Foundry summary.",
         },
-        "artifactHashes": {str(path.relative_to(raw)): file_hash(path) for path in artifact_paths},
+        "artifactHashes": {
+            **{str(path.relative_to(raw)): file_hash(path) for path in artifact_paths},
+            **(
+                {"terminal-state-observation.json": file_hash(Path(terminal_state_observation))}
+                if terminal_state_observation is not None else {}
+            ),
+        },
         "runnerBroadcastSourceHashes": {
             key: "sha256:" + value
             for key, value in sorted(source_files.items())
@@ -870,36 +1394,215 @@ def reconstruct(raw: Path) -> dict[str, Any]:
     }
 
 
-def verify(raw: Path, expected_report: Path | None = None) -> dict[str, Any]:
-    report = reconstruct(raw)
+def verify(
+    raw: Path,
+    expected_report: Path | None = None,
+    expected_report_sha256: str | None = None,
+    terminal_state_observation: Path | None = None,
+) -> dict[str, Any]:
+    report = reconstruct(raw, terminal_state_observation)
+    rendered = json.dumps(report, sort_keys=True, indent=2) + "\n"
+    if expected_report_sha256 is not None:
+        pinned = expected_report_sha256.removeprefix("sha256:").lower()
+        if len(pinned) != 64 or any(char not in "0123456789abcdef" for char in pinned):
+            raise EvidenceError("trusted report SHA-256 pin is malformed")
+        if _sha256(rendered.encode()) != pinned:
+            raise EvidenceError("reconstructed receipt report differs from trusted SHA-256 pin")
     if expected_report is not None and _json(expected_report) != report:
         raise EvidenceError("reconstructed receipt report differs from retained expected report")
     return report
 
 
+VERIFICATION_PROFILE = "pro28-local-reconstruction-pin-v1"
+
+
+def verification_result(
+    report: dict[str, Any],
+    *,
+    mode: str,
+    trusted_report_sha256: str | None = None,
+    optional_checks: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Describe what the CLI established without upgrading artifact claims.
+
+    Inspection is intentionally useful without an external trust anchor, but it
+    is never reported as authenticated verification. The bounded verification
+    profile authenticates the deterministic reconstruction against a digest
+    supplied out of band by the operator; it does not authenticate RPC receipts,
+    chain consensus, finality, or the source of that digest.
+    """
+    if mode not in {"inspect", "verify"}:
+        raise EvidenceError("unsupported verification mode")
+    if mode == "verify" and trusted_report_sha256 is None:
+        raise EvidenceError("verification requires an independently supplied trusted report SHA-256 pin")
+    if mode == "inspect" and trusted_report_sha256 is not None:
+        raise EvidenceError("inspection mode cannot consume a trusted verification pin; use --mode verify")
+
+    structural = report.get("verificationResults", {}).get("structuralIntegrity", {})
+    receipt_count = report.get("successfulReceiptCount")
+    if (
+        report.get("schema") != "eae.pro-28-authentic-local-execution.v2"
+        or report.get("chainId") != 31337
+        or structural.get("status") != "passed"
+        or structural.get("validator") != "scripts/forensic/pro28_receipts.py"
+        or report.get("verificationResults", {}).get("executionObservation", {}).get("status") != "receipt cross-links passed"
+        or report.get("verificationResults", {}).get("economicReconciliation", {}).get("status") not in {
+            "receipt transfers cross-linked; terminal balances and liability remain unverified",
+            "passed against receipt transfers and validated provider-relative terminal eth_call observation",
+        }
+        or report.get("accounting", {}).get("sponsorDeposit") != 80
+        or report.get("accounting", {}).get("allocatorFunding") != 70
+        or report.get("accounting", {}).get("claimPayouts") != {"claim-a": 35, "claim-b": 21, "claim-c": 14}
+        or report.get("accounting", {}).get("totalClaimPayouts") != 70
+        or not isinstance(receipt_count, int)
+        or receipt_count != 41
+    ):
+        raise EvidenceError("required structural or receipt checks are missing")
+
+    pin_status = "not_run"
+    overall = "inspection_unanchored"
+    required_checks = ["structuralIntegrity", "receiptCrossLinks", "economicReceiptReconciliation"]
+    if mode == "verify":
+        normalized_pin = trusted_report_sha256.removeprefix("sha256:").lower()
+        if len(normalized_pin) != 64 or any(char not in "0123456789abcdef" for char in normalized_pin):
+            raise EvidenceError("trusted report SHA-256 pin is malformed")
+        canonical_report = json.dumps(report, sort_keys=True, indent=2) + "\n"
+        if _sha256(canonical_report.encode()) != normalized_pin:
+            raise EvidenceError("reconstructed receipt report differs from trusted SHA-256 pin")
+        pin_status = "matched"
+        overall = "verified_within_profile"
+        required_checks.append("trustedReconstructionPin")
+
+    return {
+        "schema": "eae.pro-28-cli-verification-result.v1",
+        "mode": mode,
+        "status": overall,
+        "profile": VERIFICATION_PROFILE if mode == "verify" else None,
+        "trustContext": (
+            {
+                "kind": "operator-supplied-report-sha256",
+                "sha256": trusted_report_sha256.removeprefix("sha256:").lower(),
+                "source": "independent of the evidence bundle; caller must obtain through a trusted revision or authenticated channel",
+            }
+            if trusted_report_sha256 is not None
+            else None
+        ),
+        "requiredChecks": required_checks,
+        "checks": {
+            "structuralIntegrity": structural.get("status"),
+            "receiptCrossLinks": {
+                "status": "passed",
+                "successfulReceiptCount": receipt_count,
+                "meaning": "internal transaction, receipt and log consistency; not external receipt authentication",
+            },
+            "economicReceiptReconciliation": {
+                "status": (
+                    "receipt_transfers_reconciled_terminal_state_unverified"
+                    if report["verificationResults"]["economicReconciliation"]["status"].startswith("receipt transfers cross-linked")
+                    else "receipt_transfers_and_provider_relative_terminal_observation_reconciled"
+                ),
+                "sponsorDeposit": 80,
+                "allocatorFunding": 70,
+                "claimPayouts": {"claim-a": 35, "claim-b": 21, "claim-c": 14},
+                "liabilityClosure": "not established by this profile",
+            },
+            "trustedReconstructionPin": pin_status,
+            "cryptographicProof": (
+                (optional_checks or {}).get("groth16", {}).get("status")
+                or report.get("verificationResults", {}).get("cryptographicVerification", {}).get("status", "not_reported")
+            ),
+            "chainState": "provider_relative_only" if isinstance(report.get("accounting", {}).get("finalStateObservation"), dict) and str(report["accounting"]["finalStateObservation"].get("status", "")).startswith("validated provider-relative") else "not_authenticated_by_this_profile",
+        },
+        "optionalChecks": {
+            key: {
+                "status": value.get("status", "unknown"),
+                "scope": value.get("classification", value.get("scope", "check-specific")),
+                "reportSha256": "0x" + _sha256((json.dumps(value, sort_keys=True, separators=(",", ":")) + "\n").encode()),
+            }
+            for key, value in (optional_checks or {}).items()
+        },
+        "limitations": [
+            "A matching report digest binds this reconstruction to the operator-supplied pin; it does not authenticate the receipts or their inclusion in a canonical chain.",
+            "No consensus, finality, RPC-provider honesty, or public-chain claim is made.",
+            "Cryptographic proof verification is independent and remains not verified unless the pinned verifier is actually run.",
+            "The digest is trusted only if the operator obtains it independently of the evidence bundle.",
+        ],
+    }
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("bundle", type=Path, help="directory containing retained raw artifacts")
+    parser.add_argument("--mode", choices=("inspect", "verify"), default="inspect", help="inspect reconstructs without an authenticity claim; verify requires an out-of-band trusted report digest")
     parser.add_argument("--expected-report", type=Path, help="compare with a previously retained reconstruction")
+    parser.add_argument("--expected-report-sha256", help="legacy comparison only; does not establish verification trust")
+    parser.add_argument("--trusted-report-sha256", help="operator-supplied digest obtained independently of the bundle; required by --mode verify")
     parser.add_argument("--write-report", type=Path, help="write the independently reconstructed report")
+    parser.add_argument("--write-verification-result", type=Path, help="write the CLI's versioned inspection/verification outcome separately from the canonical reconstruction")
     parser.add_argument("--rpc-url", help="optionally recheck captured blocks, receipts and code against a live JSON-RPC endpoint")
     parser.add_argument("--min-confirmations", type=int, help="optional observed block-depth threshold for local-only evidence; does not establish finality")
     parser.add_argument("--write-chain-report", type=Path, help="write the provider-relative live chain check separately from canonical receipt reconstruction")
+    parser.add_argument("--terminal-state-observation", type=Path, help="validate and bind an external block-pinned terminal eth_call observation")
+    parser.add_argument("--verify-groth16", action="store_true", help="execute the pinned SP1 Groth16 verifier against this exact fixture using a disposable local Anvil")
+    parser.add_argument("--write-proof-check", type=Path, help="write the direct Groth16 reference-check report separately")
     args = parser.parse_args()
+    if args.mode == "verify" and not args.trusted_report_sha256:
+        parser.error("--mode verify requires --trusted-report-sha256 from an independent trusted source")
+    if args.mode == "inspect" and args.trusted_report_sha256:
+        parser.error("--trusted-report-sha256 requires --mode verify")
+    if args.write_proof_check and not args.verify_groth16:
+        parser.error("--write-proof-check requires --verify-groth16")
+    exit_status = 0
     try:
-        report = verify(args.bundle, args.expected_report)
+        report = verify(
+            args.bundle,
+            args.expected_report,
+            args.trusted_report_sha256 if args.mode == "verify" else args.expected_report_sha256,
+            args.terminal_state_observation,
+        )
         chain_report = verify_live_chain_context(args.bundle, args.rpc_url, args.min_confirmations) if args.rpc_url else None
+        proof_report = None
+        if args.verify_groth16:
+            try:
+                proof_report = verify_groth16_reference(args.bundle)
+            except VerificationUnavailable as exc:
+                proof_report = unsupported_groth16_reference(args.bundle, str(exc))
+                exit_status = 2
+    except EvidenceError as exc:
+        parser.exit(1, f"FAIL: {exc}\n")
+    try:
+        optional_checks = {}
+        if chain_report is not None:
+            optional_checks["liveChainContext"] = chain_report
+        if proof_report is not None:
+            optional_checks["groth16"] = proof_report
+        result = verification_result(
+            report,
+            mode=args.mode,
+            trusted_report_sha256=args.trusted_report_sha256,
+            optional_checks=optional_checks,
+        )
     except EvidenceError as exc:
         parser.exit(1, f"FAIL: {exc}\n")
     rendered = json.dumps(report, sort_keys=True, indent=2) + "\n"
     if args.write_report:
         args.write_report.write_text(rendered)
-    print(f"PASS: {report['successfulReceiptCount']} successful receipts cross-linked")
-    print("PASS: sponsor deposit 80, allocator funding 70, claims 35/21/14 bound to receipt and log identities")
+    if args.write_verification_result:
+        args.write_verification_result.write_text(json.dumps(result, sort_keys=True, indent=2) + "\n")
+    print(f"{result['status'].upper()}: {report['successfulReceiptCount']} successful receipts cross-linked")
+    print(f"mode: {result['mode']}")
+    if args.mode == "verify":
+        print(f"profile: {result['profile']}")
+        print("PASS: canonical reconstruction matches the independently supplied report digest")
+    else:
+        print("UNANCHORED: structural reconstruction only; no authenticity or chain-state claim")
     print(f"classification: {report['classification']}")
-    print("cryptographic proof: NOT_INDEPENDENTLY_VERIFIED (retained test-log text is not proof verification)")
+    if proof_report is None:
+        print("cryptographic proof: NOT_INDEPENDENTLY_VERIFIED (retained test-log text is not proof verification)")
     if args.write_report:
         print(f"report: {args.write_report}")
+    if args.write_verification_result:
+        print(f"verification result: {args.write_verification_result}")
     if chain_report is not None:
         chain_rendered = json.dumps(chain_report, sort_keys=True, indent=2) + "\n"
         if args.write_chain_report:
@@ -908,7 +1611,21 @@ def main() -> int:
         print(f"chain-context: {chain_report['classification']}")
         if args.write_chain_report:
             print(f"chain report: {args.write_chain_report}")
-    return 0
+    if proof_report is not None:
+        proof_rendered = json.dumps(proof_report, sort_keys=True, indent=2) + "\n"
+        if args.write_proof_check:
+            args.write_proof_check.write_text(proof_rendered)
+        if proof_report["status"] == "verified":
+            print("PASS: pinned SP1 Groth16 reference verifier accepted the exact retained proof and public values")
+        elif proof_report["status"] == "not_verified":
+            print("NOT_VERIFIED: the reference call did not establish validity of the retained proof and public values")
+            exit_status = 1
+        else:
+            print(f"UNSUPPORTED: direct Groth16 reference check unavailable: {proof_report.get('reason', 'unknown reason')}")
+        print(f"proof-reference: {proof_report['proofSha256']} / {proof_report['publicValuesSha256']}")
+        if args.write_proof_check:
+            print(f"proof check report: {args.write_proof_check}")
+    return exit_status
 
 
 if __name__ == "__main__":

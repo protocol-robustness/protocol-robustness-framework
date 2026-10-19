@@ -218,7 +218,7 @@ stale handwritten consumer graph.
 
 The current closure is **38 namespaces**, not 34. It includes the canonical
 candidate namespaces `prf.canonical.codec` and `prf.canonical.reference`
-under `packages/canonical/clj/src`; the latter is now the implementation
+from the pinned `prf-canonical` Git package; the latter is the implementation
 behind the legacy root-reference facade. The closure also includes shared support
 (`config.*`, `io.edn`, logging, VCS) and generic evidence-bundle integrity.
 Those are real current source dependencies; they are not researcher-network

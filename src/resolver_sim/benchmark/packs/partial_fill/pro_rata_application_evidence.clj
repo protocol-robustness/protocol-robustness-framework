@@ -4,8 +4,8 @@
    Verifies that the allocation outcome was propagated, reconciled with
    accounting, and written into authoritative position state.
 
-   Builds upon the existing six-level partial-fill evidence ladder
-   rather than replacing it.
+   Builds upon the existing six-level partial-fill evidence ladder rather
+   than replacing it.
 
    Uses existing validators from:
      resolver-sim.yield.partial-fill          — propagation/allocation binding
@@ -15,8 +15,8 @@
   (:require [resolver-sim.hash.canonical :as hc]
             [resolver-sim.yield.partial-fill :as pf]
             [resolver-sim.yield.invariants :as yield-inv]
-
-            [resolver-sim.hash.reference :as hash-ref]))
+            [resolver-sim.hash.reference :as hash-ref]
+            [resolver-sim.benchmark.verification-result :as vr]))
 
 (def ^:const schema-version-v1 "pro-rata-application-evidence.v1")
 (def ^:const schema-version "pro-rata-application-evidence.v2")
@@ -265,34 +265,96 @@
 ;; Standalone validator
 ;; ═══════════════════════════════════════════════════════════════════════════
 
+(def ^:private v2-required-check-ids
+  #{:allocation-evidence-binding :propagation-integrity
+    :propagation-allocation-binding :application-integrity
+    :application-propagation-binding :application-accounting-binding
+    :accounting-reconciliation :state-write-back
+    :deferred-position-write-back :current-amount-continuity
+    :successor-continuity})
+
+(def ^:private v2-required-finding-keys
+  #{:allocation-evidence-binding-valid? :propagation-valid?
+    :propagation-allocation-binding-status
+    :propagation-allocation-binding-violations
+    :application-binding-valid? :application-hash-valid?
+    :application-propagation-binding-valid?
+    :application-accounting-binding-valid?
+    :apparent-application-recorded? :accounting-reconciled?
+    :propagation-complete? :authoritative-state-write-back-verified?
+    :deferred-current-amount-verified? :current-amount-continuous?
+    :next-precondition-continuity})
+
 (defn validate-pro-rata-application-evidence
   "Integrity-only validator for a loaded application evidence profile.
 
-   A passing result verifies the profile schema and self-hash only. It does not
-   rederive application or write-back semantics without source artifacts."
+   A passing result verifies required profile structure and self-hash only. It
+   does not rederive application or write-back semantics without source artifacts."
   [profile]
-  (let [errors (atom [])]
+  (let [errors (atom [])
+        v2? (= schema-version (:schema-version profile))]
     (when-not (contains? #{schema-version-v1 schema-version} (:schema-version profile))
-      (swap! errors conj (str "unsupported schema-version " (:schema-version profile))))
+      (swap! errors conj (str "unsupported schema-version " (pr-str (:schema-version profile)))))
     (when-not (= profile-id (:evidence-profile/id profile))
       (swap! errors conj (str "expected profile/id " (pr-str profile-id)
                               " got " (pr-str (:evidence-profile/id profile)))))
-    (when (= schema-version (:schema-version profile))
+    (when v2?
       (let [checks (:evidence-profile/verification-checks profile)
             status (:evidence-profile/verification-status profile)
-            values (when (map? checks) (vals checks))]
+            verification (:evidence-profile/verification profile)
+            values (when (map? checks) (vals checks))
+            boolean-finding-keys
+            #{:allocation-evidence-binding-valid? :propagation-valid?
+              :application-binding-valid? :application-hash-valid?
+              :application-propagation-binding-valid?
+              :application-accounting-binding-valid?
+              :apparent-application-recorded? :accounting-reconciled?
+              :propagation-complete?
+              :authoritative-state-write-back-verified?
+              :deferred-current-amount-verified?}
+            continuity (:next-precondition-continuity verification)
+            continuity-keys #{:status :reason-code :detail}
+            violations (:propagation-allocation-binding-violations verification)]
         (when-not (= :semantic (:evidence-profile/verification-level profile))
           (swap! errors conj "v2 profile must declare semantic verification level"))
-        (when-not (map? checks)
-          (swap! errors conj "missing verification-checks map"))
+        (when-not (= v2-required-check-ids (set (keys checks)))
+          (swap! errors conj "v2 verification-checks must contain the complete required check set"))
         (when (some #(not (contains? #{:pass :fail :not-run :not-applicable} %)) values)
           (swap! errors conj "verification-checks contains an unsupported status"))
+        (when-not (contains? #{:verified :invalid :blocked} status)
+          (swap! errors conj "v2 verification-status is unsupported"))
         (when (and (= :verified status) (some #{:fail :not-run} values))
           (swap! errors conj "verified status conflicts with failed/unrun checks"))
         (when (and (= :invalid status) (not (some #{:fail} values)))
           (swap! errors conj "invalid status has no failed check"))
         (when (and (= :blocked status) (not (some #{:not-run} values)))
-          (swap! errors conj "blocked status has no unrun check"))))
+          (swap! errors conj "blocked status has no unrun check"))
+        (when-not (and (map? verification)
+                       (= v2-required-finding-keys (set (keys verification))))
+          (swap! errors conj "v2 verification findings must contain the complete required finding set"))
+        (when (and (map? verification)
+                   (some #(not (boolean? (get verification %))) boolean-finding-keys))
+          (swap! errors conj "v2 boolean findings must contain boolean values"))
+        (when (and (map? verification)
+                   (not (or (boolean? (:current-amount-continuous? verification))
+                            (nil? (:current-amount-continuous? verification)))))
+          (swap! errors conj "current-amount-continuous? must be boolean or nil"))
+        (when-not (contains? #{:pass :fail :not-run}
+                             (:propagation-allocation-binding-status verification))
+          (swap! errors conj "unsupported propagation-allocation-binding-status"))
+        (when-not (or (nil? violations)
+                      (and (vector? violations)
+                           (every? #(and (map? %)
+                                         (keyword? (:reason %)))
+                                   violations)))
+          (swap! errors conj "propagation-allocation-binding-violations must be nil or a vector of reason maps"))
+        (when-not (and (map? continuity)
+                       (= continuity-keys (set (keys continuity)))
+                       (contains? #{:not-observed :not-verifiable} (:status continuity))
+                       (keyword? (:reason-code continuity))
+                       (string? (:detail continuity))
+                       (seq (:detail continuity)))
+          (swap! errors conj "next-precondition-continuity must contain status, reason-code, and non-empty detail"))))
     (doseq [f [:evidence-profile/allocation-evidence-hash
                :evidence-profile/propagation-hash
                :evidence-profile/application-hash
@@ -321,32 +383,60 @@
                      :pro-rata-application-evidence
                      :pro-rata-application-evidence-v2)
             computed (hash-ref/sha256-ref
-                      (hc/domain-hash domain
-                                      without-hash))]
+                      (hc/domain-hash domain without-hash))]
         (when-not (= computed (:evidence-profile/hash profile))
           (swap! errors conj (str "profile/hash mismatch: declared "
                                   (:evidence-profile/hash profile)
                                   " computed " computed)))))
-    {:valid? (empty? @errors)
-     :verification-level :integrity
-     :status (if (empty? @errors) :integrity-verified :invalid)
-     :semantic-status :not-run
-     :errors @errors}))
+    (let [valid? (empty? @errors)
+          legacy {:valid? valid?
+                  :verification-level :integrity
+                  :status (if valid? :integrity-verified :invalid)
+                  :semantic-status :not-run
+                  :errors @errors}]
+      (assoc legacy :verification-result
+             (vr/from-profile
+              {:profile profile
+               :verifier-id :prf/pro-rata-application-profile-validator
+               :verifier-revision "application-profile-validator.v1"
+               :requested-level :integrity
+               :achieved-level (when valid? :integrity)
+               :check-statuses {:profile-integrity (if valid? :pass :fail)}
+               :source-roots (select-keys profile
+                                          [:evidence-profile/allocation-evidence-hash
+                                           :evidence-profile/propagation-hash
+                                           :evidence-profile/partial-fill-decision-root
+                                           :evidence-profile/application-hash
+                                           :evidence-profile/accounting-evidence-hash
+                                           :evidence-profile/state-write-back-evidence-hash
+                                           :evidence-profile/current-amount-evidence-hash
+                                           :evidence-profile/continuity-evidence-hash])
+               :independent-findings {:errors @errors}
+               :limitations [:semantic-findings-not-rederived]})))))
 
 ;; ═══════════════════════════════════════════════════════════════════════════
 ;; Independent verifier
 ;; ═══════════════════════════════════════════════════════════════════════════
 
 (defn verify-pro-rata-application-evidence
-  "Independent verification: recompute the evidence profile from resolved
-   artifacts and compare hash and findings.
-
-   Returns {:valid? bool :mismatches [...]}"
+  "Independently recompute an application profile from resolved source
+   artifacts and return both compatibility fields and the shared result."
   [profile & args]
   (if-not (= schema-version (:schema-version profile))
-    {:valid? false :verification-level :semantic :status :blocked
-     :semantic-status :not-run
-     :errors [:legacy-profile-has-no-source-bound-semantic-verification]}
+    (let [legacy {:valid? false :verification-level :semantic :status :blocked
+                  :semantic-status :not-run
+                  :errors [:legacy-profile-has-no-source-bound-semantic-verification]}]
+      (assoc legacy :verification-result
+             (vr/from-profile
+              {:profile profile
+               :verifier-id :prf/pro-rata-application-profile-verifier
+               :verifier-revision "application-profile-verifier.v1"
+               :requested-level :semantic
+               :check-statuses {:source-bound-semantic-check :not-run}
+               :source-roots {}
+               :independent-findings {:errors (:errors legacy)}
+               :limitations [:legacy-profile-has-no-source-bound-semantic-verification]
+               :reason :legacy-profile-has-no-source-bound-semantic-verification})))
     (let [integrity (validate-pro-rata-application-evidence profile)
           recomputed (apply build-pro-rata-application-evidence args)
           mismatches (atom [])]
@@ -364,14 +454,46 @@
             (swap! mismatches conj {:field k
                                     :stored (get v-s k)
                                     :recomputed (get v-r k)}))))
-      {:valid? (and (empty? @mismatches)
-                    (= :verified (:evidence-profile/verification-status recomputed)))
-       :verification-level :semantic
-       :status (cond
-                 (seq @mismatches) :invalid
-                 (= :verified (:evidence-profile/verification-status recomputed)) :verified
-                 (= :blocked (:evidence-profile/verification-status recomputed)) :blocked
-                 :else :invalid)
-       :semantic-status (:evidence-profile/verification-status recomputed)
-       :profile-recomputed recomputed
-       :mismatches @mismatches})))
+      (let [semantic-checks (:evidence-profile/verification-checks recomputed)
+            result-checks (merge semantic-checks
+                                 {:profile-integrity (if (:valid? integrity) :pass :fail)
+                                  :profile-recomputation (if (empty? @mismatches) :pass :fail)})
+            semantic-complete? (not-any? #{:not-run :blocked} (vals semantic-checks))
+            valid? (and (empty? @mismatches)
+                        (= :verified (:evidence-profile/verification-status recomputed)))
+            legacy {:valid? valid?
+                    :verification-level :semantic
+                    :status (cond
+                              (seq @mismatches) :invalid
+                              (= :verified (:evidence-profile/verification-status recomputed)) :verified
+                              (= :blocked (:evidence-profile/verification-status recomputed)) :blocked
+                              :else :invalid)
+                    :semantic-status (:evidence-profile/verification-status recomputed)
+                    :profile-recomputed recomputed
+                    :mismatches @mismatches}]
+        (assoc legacy :verification-result
+               (vr/from-profile
+                {:profile profile
+                 :verifier-id :prf/pro-rata-application-profile-verifier
+                 :verifier-revision "application-profile-verifier.v1"
+                 :requested-level :semantic
+                 :achieved-level (when (:valid? integrity)
+                                   (if semantic-complete? :semantic :integrity))
+                 :check-statuses result-checks
+                 :source-roots (select-keys profile
+                                            [:evidence-profile/allocation-evidence-hash
+                                             :evidence-profile/propagation-hash
+                                             :evidence-profile/partial-fill-decision-root
+                                             :evidence-profile/application-hash
+                                             :evidence-profile/accounting-evidence-hash
+                                             :evidence-profile/state-write-back-evidence-hash
+                                             :evidence-profile/current-amount-evidence-hash
+                                             :evidence-profile/continuity-evidence-hash])
+                 :independent-findings {:check-results semantic-checks
+                                        :verification (:evidence-profile/verification
+                                                       recomputed)
+                                        :mismatches @mismatches}
+                 :limitations (vec (concat
+                                    (:evidence-profile/unverified-evidence profile)
+                                    (when (seq (:evidence-profile/unverified-evidence profile))
+                                      [:unverified-source-evidence])))}))))))

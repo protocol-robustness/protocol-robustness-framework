@@ -63,7 +63,7 @@
         second (admission/admit-workflow-evidence! successor-world {:workflow-id 7 :caller "bob" :role :respondent :evidence-ref {:evidence/root evidence-b}})
         closed-second (admission/close-evidence-admission! (:world second) 7 1 "resolver")]
     (is (:ok second))
-    (is (= (:sew/dispute-evidence-set/root (:evidence-set closed))
+    (is (= (get (:evidence-set closed) (keyword "sew" "dispute-evidence-set/root"))
            (get-in (:world second) [:dispute-evidence-admissions 7 1 :parent-evidence-set/root])))
     (is (= [evidence-a evidence-b]
            (mapv :evidence/root (:members (:evidence-set closed-second)))))))

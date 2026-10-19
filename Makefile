@@ -4,7 +4,7 @@ reference-validation-v1:
 
 .PHONY: speds-check
 speds-check:
-	clojure scripts/scenarios/speds_consistency_check.clj
+	clojure -M:notebooks:check -m scripts.scenarios.speds-consistency-check
 
 .PHONY: speds-issues
 speds-issues:

@@ -10,6 +10,8 @@
 (def ^:const schema :prf/dispute-resolution-closure.v1)
 (def ^:const domain :prf-dispute-resolution-closure-v1)
 (def ^:private root-key :closure/root)
+(def ^:private adjudication-instance-root-key
+  (keyword "sew" "adjudication-instance/root"))
 (def ^:private required-fields
   #{:artifact/schema :workflow/id :workflow/round :state-before/root
     :adjudication-snapshot/root :case/root :instance/root :resolution-basis/root
@@ -71,7 +73,7 @@
               :state-before/root (:state-before/root resolution-basis)
               :adjudication-snapshot/root (:sew/adjudication-snapshot-root adjudication-snapshot)
               :case/root (:case/root adjudication-case)
-               :instance/root (:sew/adjudication-instance/root adjudication-instance)
+               :instance/root (get adjudication-instance adjudication-instance-root-key)
               :resolution-basis/root (:sew-resolution-basis/root resolution-basis)
               :ruling/root (:ruling/root dispute-ruling)
               :authentication-verification/root (:authentication-verification/root authentication-verification)

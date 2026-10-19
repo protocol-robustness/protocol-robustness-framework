@@ -1,6 +1,6 @@
 # WITH-BOUNTY: Generic Bounty Composition for Framework Extensions
 
-Status: **Proposed design note** (not an implementation commitment)
+Status: **Design note; implementation status qualified below**
 Date: 2026-08-04
 Review status: Pre-review revision incorporating boundary and sequencing corrections.
 Decisions are locked in `docs/architecture/ADR-0006-with-bounty-composition.md`.
@@ -144,6 +144,22 @@ who may earn
 ≠ who verifies it
 ```
 
+For `:declared-reserve`, evaluation and the Sew adapter both require a signed
+`bounty-funding-source.v1` statement verified against an out-of-band trust
+policy. It binds source root, reserve account, token, available amount,
+operation, beneficiary and parameter context. `:base/gross` and
+`:external-sponsor` remain unsupported until they have their own authenticated
+source adapters. A funding authority signature authenticates that authority's
+assertion; it does not by itself prove live on-chain reserves or token custody.
+
+A direct payout is accepted only with a full-amount, signed
+`bounty-direct-payout.v1` receipt from a trusted payout authority. The receipt
+binds predecessor and successor payable roots, backing root, beneficiary,
+token, operation, amount, sequence and payment reference. The adapter records
+the externally executed payout; it does not implement a transfer rail. Partial
+payouts, stale receipts, replays and unauthenticated settlement labels fail
+closed.
+
 ## 6. Effect contract: obligation-create.v2
 
 `:prf.effect/obligation-create.v1` keeps its committed meaning for historical
@@ -222,10 +238,41 @@ A generic obligation / bounty-payable lifecycle owns the rest:
 - release of backing;
 - terminal settlement conservation.
 
-The existing `bounty_payable` (`:pending-backing :backed :settled :cancelled`)
-and `bounty_payable_backing` (`:committed :consumed :released`) artifacts already
-provide this lifecycle; Sew enforces it through that machinery. Broader lifecycle
-work is a separate roadmap item unless already fully provided by those artifacts.
+The payable artifact defines lifecycle labels and permitted transition edges.
+The current Sew path records a locally modelled reserve adjustment and a backed
+claimable. It does not authenticate external custody or payment, persist a
+complete transition history, or provide bounty-specific payout reconciliation.
+Those gaps are tracked in PRO-80 and PRO-81; do not read lifecycle labels as
+evidence that settlement is complete.
+
+The controlled direct-payout path now has a separate
+`obligation-settlement.v1` record. It canonically binds the payable and backing
+roots, payout receipt, parsed chain observation, chain/transaction/log location,
+asset, recipient, fees, paid amount and residual liability. Replay verifies the
+payout signer and a distinct chain-observer signer, reconstructs the full
+payment deltas and recomputes the settlement root. A retained observation
+signature is still an attestation by its configured observer: this verifier
+does not by itself query a node or establish consensus inclusion/finality. An
+optional JSON-RPC verifier now independently fetches the transaction receipt,
+checks the exact `BountyPaid` event and canonical block identity, and can require
+that the configured endpoint's `finalized` head covers the receipt. Its result is
+explicitly an RPC endpoint attestation, not a consensus proof or light client.
+The retained settlement binds chain-instance root, genesis hash, contract
+runtime-code digest and observation-source identifier. Local qualification also
+walks parent links from the payout block to the configured genesis and replays
+the canonical signed settlement in a fresh Clojure process. The ancestry walk is
+bounded and is intended for local qualification; public-chain qualification is
+tracked separately.
+Application-world reconciliation can be configured to require that live check;
+without it, replay remains based on retained signed evidence. Observation classes
+distinguish controlled execution, inclusion and finalized claims.
+The caller supplies the expected chain ID, contract, asset and on-chain funding
+source root; replay rejects substitutions. Because framework and EVM reserve
+roots can use different hash schemes, the signed observation explicitly binds
+the on-chain source root to the PRF funding-source root.
+Sew can require and retain this artifact for an observed direct payout; its
+existing receipt-only entry point remains an authority-attested local
+accounting path and is not chain-settlement evidence.
 
 ## 9. Verification
 

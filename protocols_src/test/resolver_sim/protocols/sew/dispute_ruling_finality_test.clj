@@ -47,7 +47,8 @@
 
 (defn- inputs [outcome]
   (let [world (world)
-        basis (:basis (resolution-basis/reconstruct-live-resolution-basis world 0 (external-roots)))
+        basis (:basis (resolution-basis/reconstruct-live-resolution-basis
+                       world 0 (external-roots) {:mode :legacy-non-authoritative}))
         generic (resolution-basis/project-adjudication-basis basis)
         instance-root (get-in world [:adjudication-current-instance-root 0])
         case-root (get-in world [:adjudication-published-cases 0 0 :case/root])

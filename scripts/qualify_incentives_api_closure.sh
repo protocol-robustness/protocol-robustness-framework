@@ -9,7 +9,7 @@ cd "$repo_root"
 while IFS= read -r namespace; do
   relative_path=$(printf '%s' "$namespace" | tr '.' '/' | tr '-' '_').clj
   if [[ "$namespace" == prf.* ]]; then
-    source_path="packages/canonical/clj/src/$relative_path"
+    continue # resolved from the immutable prf/canonical Git dependency
   else
     source_path="src/$relative_path"
   fi
@@ -41,7 +41,10 @@ printf 'isolated-source-content-set=sha256:%s\n' "$content_hash"
 
 cd "$probe_dir"
 clojure -Srepro -Sdeps '{:paths ["src" "test" "resources"]
- :deps {org.clojure/clojure {:mvn/version "1.12.0"}}}' -M -e '
+ :deps {org.clojure/clojure {:mvn/version "1.12.0"}
+        prf/canonical {:git/url "https://github.com/protocol-robustness/prf-canonical.git"
+                       :git/sha "5e2b520feca812b049ba397b7b3681963c66a48c"
+                       :deps/root "clj"}}}' -M -e '
   (require (quote clojure.test)
            (quote resolver-sim.incentives.api)
            (quote resolver-sim.research.api)

@@ -191,6 +191,18 @@
    :researcher-run-report "RESEARCHER_RUN_REPORT_V1"
    :replication-observation-set "REPLICATION_OBSERVATION_SET_V1"
    :researcher-position "RESEARCHER_POSITION_V1"
+   :research-ratification-target-v1 "RESEARCH_RATIFICATION_TARGET_V1"
+   :research-ratification-policy-v1 "RESEARCH_RATIFICATION_POLICY_V1"
+   :research-contribution-subject-v1 "RESEARCH_CONTRIBUTION_SUBJECT_V1"
+   :research-contribution-v1 "RESEARCH_CONTRIBUTION_V1"
+   :research-ratification-v1 "RESEARCH_RATIFICATION_V1"
+   :research-ratification-artifact-v1 "RESEARCH_RATIFICATION_ARTIFACT_V1"
+   :sew-dispute-case-bundle-v1 "SEW_DISPUTE_CASE_BUNDLE_V1"
+   :sew-dispute-case-research-history-v1 "SEW_DISPUTE_CASE_RESEARCH_HISTORY_V1"
+   :sew-dispute-case-current-pointer-v1 "SEW_DISPUTE_CASE_CURRENT_POINTER_V1"
+   :sew-dispute-transition-state-v1 "SEW_DISPUTE_TRANSITION_STATE_V1"
+   :sew-dispute-transition-event-v1 "SEW_DISPUTE_TRANSITION_EVENT_V1"
+   :sew-dispute-transition-basis-v1 "SEW_DISPUTE_TRANSITION_BASIS_V1"
    :three-member-certificate "THREE_MEMBER_CERTIFICATE_V1"
    :evidence-collection "EVIDENCE_COLLECTION_V1"
    :state-projection "STATE_PROJECTION_V1"
@@ -210,6 +222,8 @@
    :researcher-reward-proposal "RESEARCHER_REWARD_PROPOSAL_V1"
    :researcher-reward-obligation "RESEARCHER_REWARD_OBLIGATION_V1"
    :researcher-reward-key "RESEARCHER_REWARD_KEY_V1"
+   :sew-research-ratification-round-v1 "SEW_RESEARCH_RATIFICATION_ROUND_V1"
+   :sew-research-ratification-consumption-v1 "SEW_RESEARCH_RATIFICATION_CONSUMPTION_V1"
    :research-claim-acceptance-policy "RESEARCH_CLAIM_ACCEPTANCE_POLICY_V1"
    :research-claim-acceptance "RESEARCH_CLAIM_ACCEPTANCE_V1"
    :research-claim-lifecycle-transition "RESEARCH_CLAIM_LIFECYCLE_TRANSITION_V1"
@@ -434,6 +448,8 @@
    :prf-effect-contract-v1 "PRF_EFFECT_CONTRACT_V1"
    :bounty-payable-v1 "BOUNTY_PAYABLE_V1"
    :bounty-payable-backing-v1 "BOUNTY_PAYABLE_BACKING_V1"
+   :bounty-funding-source-v1 "BOUNTY_FUNDING_SOURCE_V1"
+   :obligation-settlement-v1 "PRF_OBLIGATION_SETTLEMENT_V1"
    :review-member-canonical-indices "REVIEW_MEMBER_CANONICAL_INDICES_V1"
    :review-member-canonical-indices-entries "REVIEW_MEMBER_CANONICAL_INDICES_ENTRIES_V1"
    :pool-availability-v2 "POOL_AVAILABILITY_V2"
@@ -2924,6 +2940,19 @@ name (an alias)."
                        :backing/kind :backing/lifecycle :backing/context}
     :intent/excludes #{:backing/hash :runtime-values :functions}
     :intent/projection-fn project-bounty-payable-backing
+    :intent/version 1}
+
+   :bounty-funding-source-v1
+   {:intent/name :bounty-funding-source-v1
+    :intent/domain-tag "BOUNTY_FUNDING_SOURCE_V1"
+    :intent/description "Authority-signed source statement binding a bounty reserve balance to asset, account, operation, beneficiary and parameter context"
+    :intent/includes #{:funding/schema-version :funding/source-id :funding/source-kind
+                       :funding/account :funding/token :funding/available
+                       :funding/operation-root :funding/beneficiary
+                       :funding/parameter-context-root :funding/parameter-address
+                       :funding/evidence-class}
+    :intent/excludes #{:funding/source-root :signature :runtime-values :functions}
+    :intent/projection-fn project-identity
     :intent/version 1}
 
    :with-bounty-policy-v1

@@ -89,6 +89,13 @@
       (is (= :backed (:payable/lifecycle backed)))
       (is (not= (:payable/hash p) (:payable/hash backed))
           "lifecycle transition changes hash"))
-    (let [settled (bp/transition-payable-lifecycle p :settled)]
-      (is (= :settled (:payable/lifecycle settled))))
+    (is (nil? (bp/transition-payable-lifecycle p :settled))
+        "pending backing cannot skip directly to settlement")
+    (is (nil? (bp/transition-payable-lifecycle p :cancelled))
+        "cancellation cannot be stated without release evidence")
+    (let [backed (bp/transition-payable-lifecycle p :backed)]
+      (is (nil? (bp/transition-payable-lifecycle backed :settled))
+          "settlement requires a separately verified payout transition")
+      (is (nil? (bp/transition-payable-lifecycle backed :cancelled))
+          "backed funds require separately verified release evidence"))
     (is (nil? (bp/transition-payable-lifecycle p :invalid-state)))))

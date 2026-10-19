@@ -14,6 +14,7 @@
             [resolver-sim.economics.schemas :as schemas]
             [resolver-sim.economics.with-bounty.application-plan :as wb-plan]
             [resolver-sim.economics.with-bounty.composition :as wb-composition]
+            [resolver-sim.economics.with-bounty.funding-evidence :as funding-evidence]
             [resolver-sim.economics.with-bounty.identity :as identity]
             [resolver-sim.economics.with-bounty.policy :as policy]
             [resolver-sim.extensions.core :as ext-core]
@@ -145,7 +146,8 @@
   [{:keys [policy base-result base-operation-root base-plan-root
            event-context parameter-context parameter-context-root
            extension-map schema-registry effect-schema-registry
-           sealed? token declared-maximum funding-available adapter-support]}]
+           sealed? token declared-maximum funding-available adapter-support
+           funding-source-evidence funding-trust-policy]}]
   (let [extension-map (or extension-map (default-extension-map))
         schema-registry (or schema-registry schemas/core-schemas)
         effect-schema-registry (or effect-schema-registry effects/effect-schema-roots)
@@ -167,6 +169,8 @@
                           :token token
                           :declared-maximum declared-maximum
                           :funding-available funding-available
+                          :funding-source-evidence funding-source-evidence
+                          :funding-trust-policy funding-trust-policy
                           :adapter-support adapter-support}]
     (if-not (:valid? policy-result)
       {:status :invalid-policy :violations (:violations policy-result)}
@@ -221,8 +225,21 @@
                                                                amt-ref resolution-root
                                                                amt-result)
                                           :result/amount amount)
-                      funding-ok? (wb-plan/funding-available? (:source funding)
-                                                              amount funding-available)]
+                      funding-verification
+                      (funding-evidence/verify-source
+                       funding-source-evidence funding-trust-policy
+                       {:funding/source-kind :declared-reserve
+                        :funding/account (or (:account funding) :bounty-reserve)
+                        :funding/token token
+                        :funding/operation-root operation-root
+                        :funding/beneficiary (canonical-address recipient)
+                        :funding/parameter-context-root parameter-context-root
+                        :funding/parameter-address (:parameter/address funding)})
+                      funding-ok? (and (= :declared-reserve (:source funding))
+                                       (:valid? funding-verification)
+                                       (= funding-available (:available funding-verification))
+                                       (wb-plan/funding-available? (:source funding)
+                                                                   amount funding-available))]
                   (cond
                     (or (nil? amount) (not (integer? amount)) (neg? amount))
                     {:status :failed :reason :invalid-amount
@@ -233,7 +250,8 @@
                     {:status :failed :reason :insufficient-funding
                      :violations [{:violation/id :violation/insufficient-bounty-funding
                                    :details {:available funding-available
-                                             :required amount}}]}
+                                             :required amount
+                                             :evidence-reason (:reason funding-verification)}}]}
 
                     :else
                     (let [elig-inv-id (get-in elig-evidence
@@ -272,7 +290,8 @@
                                         :effects effects
                                         :effect-schema-roots effect-schema-registry
                                         :declared-maximum declared-maximum
-                                        :funding-available funding-available})
+                                        :funding-available funding-available
+                                        :funding-evidence funding-source-evidence})
                           effect-root (wb-plan/effect-root obligation-effect)]
                       (cond
                         (not (:valid? effect-validation))

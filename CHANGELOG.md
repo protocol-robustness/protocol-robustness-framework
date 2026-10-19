@@ -10,14 +10,54 @@
 
 ## Unreleased
 
-### PRO-28 receipt-level local execution evidence
+- V2 partial-fill application profiles now fail integrity validation when verification findings have invalid boolean, violation-list, or continuity-field shapes, even when the profile hash is recomputed.
 
-- Strengthened `scripts/forensic/pro28_receipts.py` to bind the sponsor deposit, allocator funding, and each payout to the matching transaction call data as well as receipt, log, contract, and block identities. Added a corrected RPC-captured local replay; the earlier 2026-10-13 capture is retained but rejected because its transaction payload metadata did not match the receipt effects. Local Anvil evidence remains explicitly non-public and non-canonical.
-- Foundry log text no longer counts as cryptographic proof verification. Versioned V2 live-chain checks require and compare a captured chain-ID/genesis-hash fingerprint; V1 captures remain readable offline but fail closed for live identity checks pending recapture.
+- The PRO-28 Groth16 reference-check CLI now emits identity-bound `unsupported` or `not_verified` results when a check cannot run or establish proof validity, while preserving a nonzero exit status.
 
-### PRO-31 live chain-context revalidation
+- Added `resolver-sim.evidence.graph-producer/produce` to deterministically
+  compose domain-adapted PRF evidence nodes through the existing forensic DAG
+  validator. Producer metadata does not change node identity or authenticate
+  declared evidence roles.
 
-- Added an optional `--rpc-url` verification path for retained local execution evidence. It rechecks transaction receipts, canonical block/parent context, runtime code at the captured block and current code, and declared proxy implementation bindings. The report is provider-relative and makes no public-chain finality claim.
+- Added a versioned, read-only claim qualification composer over independently
+  executed verification results. It binds exact claim subjects, cutpoints,
+  source roots,
+  trusted validator revisions and per-dimension outcomes; conflicting
+  observations remain explicit and fail required checks.
+
+- Added a versioned, derived verification-result response for partial-fill
+  allocation, application, and execution evidence checks. Results distinguish
+  producer assertions from recomputed findings and report requested versus
+  achieved check levels without changing canonical profile hashes.
+
+- Required partial-fill package checks now report `blocked` when semantic
+  source rederivation has not run; integrity success is exposed separately and
+  no longer appears as an unqualified valid result.
+
+- Split receipt reconstruction inspection from pinned verification: inspection is explicitly unanchored, while verification requires an operator-supplied trusted report digest and reports its limited scope.
+
+- Added an optional trusted SHA-256 pin for reconstructed local receipt reports so internally consistent bundle substitutions can be detected when operators supply the pin independently.
+
+- Receipt reconstruction now binds the reserve deposit, allocator funding, and each recipient payout to the matching transaction call data as well as receipt, log, contract, and block identities. The corrected local RPC capture supersedes the earlier capture whose transaction metadata did not match receipt effects; local Anvil evidence remains non-public and non-canonical. A Foundry success log is only an observation, not proof verification.
+
+- Optional `--rpc-url` checks revalidate transaction receipts, block/parent context, runtime code at the captured block and current state, and declared proxy implementation bindings. They require a captured chain-ID/genesis fingerprint; older captures remain offline-readable but fail closed for live checks. Results are provider-relative and make no public-chain finality claim.
+
+- Added an opt-in local reference check that executes the exact retained Groth16 proof and public values against the pinned SP1 verifier runtime. Offline receipt reconstruction continues to report proof validity as unverified unless that check runs.
+
+- Receipt reconstruction no longer treats `final-state.log` as proof of terminal balances or liability closure. A supplied block-pinned local state observation is validated against the deployment, operation, proof projection, read targets, raw ABI results and retained live-chain receipt anchors.
+
+- Receipt reconstruction now rejects duplicate receipt rows and malformed transaction, calldata, sender, target, or block-hash identities before reconciling economic events.
+
+- Receipt reconstruction validates canonical ERC-20 transfer topic padding and bounds-checks dynamic withdrawal claim data before matching payouts to calls.
+
+- Added `scripts/forensic/pro29_token_accounting.py` and the
+  `eae.pro-29-token-accounting-observations.v1` local evidence format for
+  transaction-bound token balance snapshots and complete Transfer-log
+  reconciliation. Same-block intermediate states fail closed.
+
+- Added `scripts/forensic/pro30_allocator_state.py` and the
+  `eae.pro-30-allocator-state-observations.v1` local evidence format for
+  block-bound allocator claim, consumed-index, liability, and closure state.
 
 - Clarified that the 2026-09-28 V2 audit is a historical baseline and documented the separately implemented 288-byte successor-entitlement lifecycle with pinned local evidence; the legacy 192-byte profile remains unchanged.
 
@@ -3474,6 +3514,7 @@ runtime mechanism selection or a mechanism registry.
   alter analysis validity or authorize payment.
 # Unreleased
 
+- Add a local-only PRO-31 capture replay command that records V2 chain identity before replaying retained signed transactions, and independently checks resulting receipts and runtime code against the same Anvil instance.
 - Rust allocation context parsing now matches PRF rejection semantics for blank
   identifiers, policy validation, and negative numeric inputs.
 - Rust allocation context parsing now rejects proposed rates for unknown outcomes,

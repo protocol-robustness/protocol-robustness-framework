@@ -321,6 +321,44 @@ proof/public values and configuration substitutions, rejects stale projections
 and direct ratification, and checks the resulting V2 funding and observation.
 The runtime experiment remains pending until this runner completes successfully.
 
+## Authenticated bounty funding and direct payout
+
+`src/BountySettlement.sol` is a separate controlled native-asset example for
+the bounty lifecycle. The configured funder deposits actual native currency;
+the contract records a unique source root, sequence and available balance.
+Only the award authority can create a payable, and only against that recorded
+reserve. The beneficiary address can be pseudonymous; no civil identity is
+required. A claim is one-time and pays the full amount directly to that
+beneficiary. The contract checks exact reserve and beneficiary balance deltas,
+and a rejected transfer rolls back the settlement state.
+
+`test/BountySettlement.t.sol` retains executable checks for funded backing,
+unauthorized and overdrawn award rejection, exact payout deltas, replay
+rejection, and failed-transfer rollback. Run it from the repository root:
+
+```sh
+forge test --root examples/assured-operations --use "$(command -v solc)" --offline --match-contract BountySettlementTest -vv
+python3 examples/assured-operations/scripts/verify_bounty_rpc.py
+```
+
+The second command deploys the contract to a fresh local Anvil instance, funds
+and approves a pseudonymous beneficiary, executes a claim, compares the payout
+event's payable roots with contract readbacks, and invokes the Clojure JSON-RPC
+receipt verifier. The verifier binds chain ID, derived local chain-instance root,
+genesis hash, contract runtime digest and observer source, then walks parent links
+to genesis. The script writes the signed payout and observation into a canonical
+settlement and replays it in a separate Clojure process while checking the live
+receipt. It demonstrates local inclusion and execution consistency; Anvil's head
+report is not independent consensus finality or evidence about a public deployment.
+
+This example authenticates on-chain funding through actual deposit execution
+and a configured funding authority. It does not prove the authority's external
+source of funds or qualify a production bounty service. The Clojure verifier can
+optionally query JSON-RPC for receipt, event and endpoint-reported finality checks;
+the Sew adapter does not configure that live RPC check by default. The Clojure
+path uses separately signed funding and payout attestations and local custody
+accounting; those artifacts are not on-chain transfer proofs.
+
 ## Governance upgrade conformance result
 
 `GovernanceConformance.t.sol` runs a third, non-capital consumer through the same

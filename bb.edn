@@ -49,14 +49,14 @@ Example: bb cli scenario list --search yield"
  artifacts:refresh
   {:doc "Refresh results/test-artifacts and golden reports by running all canonical fixture suites in :save mode.
          Outputs new .report.edn files to data/fixtures/golden/ and emits test artifacts.
-         Also touches notebooks/report.clj to trigger Clerk re-evaluation if the server is running."
+         Clerk watches the fixture and artifact data directories for updates."
    :task (shell "scripts/with-test-artifact-lock.sh" "./scripts/test.sh" "suites")}
 
   regenerate-goldens
   {:doc "Regenerate golden report files (data/fixtures/golden/*.report.edn) by running all fixture suites in :save mode.
          The golden reports are the pinned per-scenario replay outcomes that the report notebook loads.
          Run this after fixing a failing scenario to update its golden artifact.
-         Touches notebooks/report.clj afterward so a running Clerk server re-evaluates the report notebook.
+         A running Clerk server watches the updated data directories.
          See also: scripts/scenarios/regenerate_goldens.clj, deps.edn :regenerate-goldens alias."
     :task (shell "scripts/with-test-artifact-lock.sh" "clojure" "-M:regenerate-goldens:with-sew")}
 
@@ -80,7 +80,7 @@ Example: bb cli scenario list --search yield"
   {:doc "Generate .trace.json files for golden reports that lack matching trace metadata.
          Scans data/fixtures/golden/*.report.edn, finds orphans (no matching trace),
          replays the matching scenario from scenarios/edn/*.edn, and writes the trace file.
-         After completion, touches notebooks/report.clj to notify Clerk."
+         A running Clerk server watches the updated data directories."
    :task (clojure {:dir "."} "-M:generate-missing-traces")}
 
   docs:scenarios {:doc "Regenerate S01–S23 table in docs/scenarios.md from doc-summaries.clj"
@@ -281,7 +281,7 @@ check:ownership
                    "-M" "-m" "resolver-sim.validation.scenario-registry")}
 
   canonical-artifacts:validate
-   {:doc "Validate the proposed canonical artifact baseline. Usage: bb canonical-artifacts:validate <manifest.edn> <prf-root> <prf-evm-root>"
+   {:doc "Validate the proposed canonical artifact baseline. Usage: bb canonical-artifacts:validate <manifest.edn> <prf-root> <prf-evm-root> <pinned-prf-canonical-root> <pinned-prf-pro-rata-allocation-root>"
     :task (apply shell "bb" "scripts/validate/canonical_artifacts.clj" *command-line-args*)}
 
   assurance:verify-checkpoint
@@ -416,7 +416,7 @@ test:invariants {:doc "Run canonical deterministic invariant target (S01–S41)"
                 :task (shell "scripts/with-test-artifact-lock.sh" "./scripts/test.sh" "triage")}
 
    test:notebooks {:doc "Load every notebook namespace to verify it compiles"
-                    :task (shell "clojure" "-M:with-sew" "-m" "scripts.test-notebooks")}
+                    :task (shell "clojure" "-M:notebooks:with-sew" "-m" "scripts.test-notebooks")}
 
 
    demo:reorder-chain
@@ -452,27 +452,20 @@ test:invariants {:doc "Run canonical deterministic invariant target (S01–S41)"
     :task (apply clojure "-M:test" "-m" "scripts.demos.export-public-demo" "--check" *command-line-args*)}
 
    demo:public-lab
-   {:doc "Build the static Clerk notebooks behind the public demos into
-         site/out/lab/notebooks/<name>/ (composed with the site at publish
-         time). These are the executable surfaces the demo pages deep-link to.
-         Usage: bb demo:public-lab [--out <path>] [--nb <notebook.clj>]"
-    :task (do
-            (let [args (vec *command-line-args*)
-                  out-idx (.indexOf args "--out")
-                  nb-idx (.indexOf args "--nb")
-                  out (if (and (not= -1 out-idx) (seq (drop (inc out-idx) args)))
-                        (nth args (inc out-idx))
-                        "site/out/lab")
-                  nbs (if (and (not= -1 nb-idx) (seq (drop (inc nb-idx) args)))
-                        [(nth args (inc nb-idx))]
-                        ["notebooks/demo_reorder_chain.clj"
-                         "notebooks/resubmission_chain.clj"
-                         "notebooks/pro_rata_allocation_result.clj"])
-                  expr (str "(require '[nextjournal.clerk :as clerk]) "
-                            "(clerk/build! {:paths " (pr-str nbs)
-                            " :out-path " (pr-str out)
-                            " :package :directory}) (println :lab-built)")]
-              (shell "clojure" "-M:with-sew" "-e" expr)))}
+   {:doc "Build static Clerk notebooks from prf-notebooks into site/out/lab/notebooks/<name>/."
+    :task (let [args (vec *command-line-args*)
+                out-idx (.indexOf args "--out")
+                nb-idx (.indexOf args "--nb")
+                out (if (and (not= -1 out-idx) (seq (drop (inc out-idx) args)))
+                      (nth args (inc out-idx)) "site/out/lab")
+                nbs (if (and (not= -1 nb-idx) (seq (drop (inc nb-idx) args)))
+                      [(nth args (inc nb-idx))]
+                      ["notebooks/demo_reorder_chain.clj"
+                       "notebooks/resubmission_chain.clj"
+                       "notebooks/pro_rata_allocation_result.clj"])
+                build-args (mapcat (fn [nb] ["--nb" nb]) nbs)]
+            (apply clojure "-M:notebooks:with-sew" "-m" "scripts.build-notebooks"
+                   "--out" out build-args))}
 
    test:quick-sew
    {:doc "Fast Sew confidence check in a single JVM with noop capture.
@@ -582,8 +575,8 @@ test:quick
   lint {:doc "Lint source and test code with clj-kondo (excludes notebooks/archive/)"
         :task (shell "clj -M:lint/core")}
 
-  lint:full {:doc "Lint all code including notebooks/ and dev/"
-            :task (shell "clj -M:lint" "--lint" "src:notebooks:test:dev")}
+  lint:full {:doc "Lint source, tests, dev, and extracted notebooks"
+            :task (do (shell "clj -M:lint" "--lint" "src:test:dev") (shell "bb" "notebook:lint"))}
 
   fmt {:doc "Format code with cljfmt"
        :task (shell "clojure -M:fmt")}
@@ -742,7 +735,7 @@ test:quick
                       (println "Docs: docs/README.md  |  docs/quickstart/README.md"))}
 
    notebook {:doc "Start Clerk notebook server (or reuse existing) at http://localhost:7777/notebooks/report"
-             :task (shell "bash" "-lc" "if ss -ltn '( sport = :7777 )' | grep -q 7777; then echo 'Notebook server already running at http://localhost:7777/notebooks/report'; else clojure -M:with-sew -m notebooks.serve; fi")}
+             :task (shell "bash" "-lc" "if ss -ltn '( sport = :7777 )' | grep -q 7777; then echo 'Notebook server already running at http://localhost:7777/notebooks/report'; else clojure -M:notebooks:with-sew -m notebooks.serve; fi")}
 
   slash:calc {:doc "Calculate waterfall slash amount. Usage: bb slash:calc <bond-amount> <slash-rate-bps>"
               :task (let [bond (or (first *command-line-args*) "0")
@@ -846,13 +839,13 @@ test:community {:doc "Run community participation tests"
            (clojure {:dir "." :extra-deps {}}
                     "-M" "-m" "resolver-sim.scripts.evidence" "registry" (or dir "")))}
 
-  evidence:snapshot {:doc "Generate high-resolution social card for a scenario. Usage: bb evidence:snapshot <scenario-id>"
-                     :task (shell "python3 scripts/evidence/snapshot_evidence.py" (first *command-line-args*))}
+  evidence:snapshot {:doc "Generate a high-resolution social card. Usage: bb evidence:snapshot <scenario-id> [output-path]"
+                     :task (apply shell "python3" "scripts/evidence/snapshot_evidence.py" *command-line-args*)}
 
   clerk-build {:doc "Build static Clerk notebooks"
-               :task (clojure "-M:build-clerk")}
-  clerk-watch {:doc "Watch notebooks and rebuild"
-               :task (shell "find src notebooks -name '*.clj' | entr -r bb clerk-build")}
+               :task (clojure "-M:notebooks:with-sew" "-m" "scripts.build-notebooks" "--nb" "notebooks/report.clj")}
+  clerk-watch {:doc "Start Clerk with the extracted notebook tree watched"
+               :task (shell "bb notebook")}
 
   eastwood {:doc "eastwood"
             :task (shell "clj -M:eastwood")}
@@ -894,7 +887,7 @@ explorer:seed
   explorer:demo
    {:doc "One-command XTDB Temporal Explorer demo: start XTDB, wait until healthy,
          seed the curated dataset, then serve the notebook via Clerk. DESTRUCTIVE."
-    :task (shell "bash" "-c" "test \"$PRF_EXPLORER_DEMO\" = 1 || { echo 'explorer:demo reseeds XTDB — set PRF_EXPLORER_DEMO=1 to confirm demo mode'; exit 1; }; make xtdb && until [ \"$(docker inspect -f '{{.State.Health.Status}}' config-xtdb-1 2>/dev/null)\" = healthy ]; do sleep 2; done && bb explorer:seed && clojure -X:clerk :paths '[\"notebooks/xtdb_temporal_explorer.clj\"]'")}
+    :task (shell "bash" "-c" "test \"$PRF_EXPLORER_DEMO\" = 1 || { echo 'explorer:demo reseeds XTDB — set PRF_EXPLORER_DEMO=1 to confirm demo mode'; exit 1; }; make xtdb && until [ \"$(docker inspect -f '{{.State.Health.Status}}' config-xtdb-1 2>/dev/null)\" = healthy ]; do sleep 2; done && bb explorer:seed && clojure -M:notebooks:with-sew -m notebooks.serve")}
 
   explorer:metabase
    {:doc "Idempotent Metabase provisioning for the PRF / XTDB Explorer external demo:
@@ -1002,7 +995,7 @@ test:integration:postgres {:doc "Run PostgreSQL resubmission admission and durab
 
   notebook:validate-registry
   {:doc "Validate data/notebooks.edn: all paths resolve, no duplicate IDs, no archived entries."
-   :task (shell "clojure" "-M" "-m" "scripts.validate-notebook-registry")}
+   :task (shell "clojure" "-M:notebooks" "-m" "scripts.validate-notebook-registry")}
 
   notebook:inspect
   {:doc "Inspect the return shape of a function. Calls the function with optional EDN args
@@ -1014,15 +1007,15 @@ test:integration:postgres {:doc "Run PostgreSQL resubmission admission and durab
 
   notebook:check
   {:doc "Load notebook namespaces and validate data shapes."
-   :task (shell "scripts/with-test-artifact-lock.sh" "clojure" "-M:with-sew" "-e" "(require (quote [resolver-sim.notebook-support.checks])) (require (quote [notebooks.report])) (println (str \"Notebook namespaces loaded. Shape checks passed.\"))")}
+   :task (shell "scripts/with-test-artifact-lock.sh" "clojure" "-M:notebooks:with-sew" "-e" "(require (quote [resolver-sim.notebook-support.checks])) (require (quote [notebooks.report])) (println (str \"Notebook namespaces loaded. Shape checks passed.\")) (shutdown-agents)")}
 
   notebook:lint
   {:doc "Lint notebook and notebook support code with clj-kondo"
-   :task (clojure {:dir "."} "-M:lint/notebooks")}
+   :task (clojure {:dir "."} "-M:notebooks:test:lint/notebooks" "-m" "scripts.lint-notebooks")}
 
   notebook:visibility
   {:doc "Enforce collapsed-by-default visibility policy across notebooks/*.clj"
-   :task (clojure {:dir "."} "-M" "-m" "scripts.check-notebook-visibility")}
+   :task (clojure {:dir "."} "-M:notebooks" "-m" "scripts.check-notebook-visibility")}
 
   notebook:ci
   {:doc "Full notebook validation: lint + visibility policy + load/check"
@@ -1476,7 +1469,7 @@ sign
         (let [expected {:test        ["test" "scripts" "protocols_src" "protocols_src/test"]
                         :with-sew    ["protocols_src" "protocols_src/test"]
                         :mcp         ["src" "dev" "test" "protocols_src" "protocols_src/test"]
-                        :dev/full    ["dev" "test" "notebooks"]}]
+                        :dev/full    ["dev" "test"]}]
           (doseq [[k want] expected]
             (let [ep (:extra-paths (get aliases k))
                   got (when ep (expand ep #{}))]

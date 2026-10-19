@@ -444,3 +444,20 @@ by D1–D7:
 - whether particular high-risk governance actions require an additional 3-of-3
   profile;
 - the sequence in which settlement, escalation, and governance are migrated.
+
+## Researcher ratification extension (PRO-57)
+
+The preceding three-member ADR defines the benchmark's canonical contested
+decision profile. It does not by itself define the broader researcher
+agreement and ratification contract. The proposed, domain-neutral minimum
+contract is recorded in
+[`docs/research/RESEARCH_RATIFICATION_CONTRACT_V1.md`](../research/RESEARCH_RATIFICATION_CONTRACT_V1.md).
+That contract binds contributions to an immutable target, preserves dissent
+and challenges, separates research ratification from operational authority,
+and requires reconstruction from retained inputs.
+
+**Approval state: unapproved.** No policy owner, authenticated approval, or
+external trust-root reference has been recorded for this extension. It must
+not be treated as normative or as deployment authority until that approval is
+provided. Existing `researcher-decision.v2` and claim-lifecycle schemas are
+reused without changing their canonical identities.

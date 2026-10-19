@@ -1,9 +1,11 @@
 (ns resolver-sim.benchmark.packs.partial-fill.pro-rata-evidence-test
   (:require [clojure.test :refer [deftest is testing]]
+            [resolver-sim.benchmark.claim-qualification :as claim-qualification]
             [resolver-sim.benchmark.packs.partial-fill.pro-rata-allocation-evidence :as alloc-ev]
             [resolver-sim.benchmark.packs.partial-fill.pro-rata-application-evidence :as app-ev]
             [resolver-sim.benchmark.packs.partial-fill.evidence :as pf-ev]
             [resolver-sim.benchmark.packs.partial-fill.pro-rata-execution-evidence :as exec-ev]
+            [resolver-sim.benchmark.verification-result :as verification-result]
             [resolver-sim.pro-rata.allocation :as alloc]
             [resolver-sim.yield.partial-fill :as pf]
             [resolver-sim.hash.canonical :as hc]
@@ -12,6 +14,13 @@
 
 (defn- test-ref [x]
   (hash-ref/sha256-ref (hc/domain-hash :evidence-content x)))
+
+(defn- rehash-application-v2
+  [profile]
+  (assoc profile :evidence-profile/hash
+         (hash-ref/sha256-ref
+          (hc/domain-hash :pro-rata-application-evidence-v2
+                          (dissoc profile :evidence-profile/hash)))))
 
 (defn- real-alloc []
   (alloc/allocate {:schema-version "pro-rata-allocation-request.v1"
@@ -363,6 +372,26 @@
     (is (= :not-observed (:status cont))
         "terminal scenario: continuity status must be :not-observed, not failure")))
 
+(deftest application-verifier-emits-shared-result
+  (let [args {:allocation-evidence-hash (test-ref :alloc-ev)
+              :propagation shared-propag
+              :application app-with-accounting
+              :world-before world-before
+              :world-after positive-world-after
+              :state-write-back-evidence wb-verified-deferred
+              :continuity-evidence cont-evidence-terminal
+              :evidence-ladder evidence-ladder-full
+              :operational-outcome op-pos-partial}
+        profile (app-ev/build-pro-rata-application-evidence args)
+        result (:verification-result
+                (app-ev/verify-pro-rata-application-evidence profile args))]
+    (is (= :semantic (:requested-level result)))
+    (is (= :invalid (:status result))
+        "the recomputed profile reports its failed propagation check")
+    (is (contains? (:producer-assertions result) :verification-checks))
+    (is (contains? (:independent-findings result) :check-results))
+    (is (:valid? (verification-result/validate-result result)))))
+
 (deftest application-profile-accepts-matching-producer-write-back
   (let [position {:position/id :pos-p1
                   :position/current-amount 40
@@ -634,3 +663,258 @@
         v (:evidence-profile/verification p)]
     (is (= true (:theorem-binding-valid? v)))
     (is (= true (:conclusion-binding-valid? v)))))
+
+(deftest shared-verification-result-is-versioned-and-fail-closed
+  (let [blocked (verification-result/build-result
+                 {:subject {:claim/id :allocation}
+                  :requested-level :semantic
+                  :achieved-level :integrity
+                  :checks [{:check/id :profile-integrity
+                            :check/status :pass :required? true}
+                           {:check/id :source-rederivation
+                            :check/status :not-run :required? true
+                            :check/reason "authoritative source body unavailable"}]
+                  :source-roots {:request "sha256:request"}
+                  :verifier {:id :test/verifier :revision "v1"}
+                  :producer-assertions {:status :verified}
+                  :independent-findings {:profile-integrity :pass}
+                  :limitations [:semantic-source-not-rederived]})
+        forged (assoc blocked :status :verified)]
+    (is (= "prf-verification-result.v1" (:schema-version blocked)))
+    (is (= :blocked (:status blocked))
+        "producer assertions cannot promote an unrun required check")
+    (is (= :integrity (:achieved-level blocked)))
+    (is (false? (:authenticated? (verification-result/validate-result blocked))))
+    (is (false? (:valid? (verification-result/validate-result forged)))
+        "a modified status must disagree with its performed and skipped checks")))
+
+(deftest required-package-verification-does-not-overstate-integrity-as-valid
+  (let [allocation-args (alloc-args (real-alloc))
+        allocation-profile (alloc-ev/build-pro-rata-allocation-evidence allocation-args)
+        allocation-hash (:evidence-profile/hash allocation-profile)
+        application-base {:schema-version app-ev/schema-version
+                          :evidence-profile/id app-ev/profile-id
+                          :evidence-profile/allocation-evidence-hash allocation-hash
+                          :evidence-profile/propagation-hash (test-ref :propagation)
+                          :evidence-profile/application-hash (test-ref :application)
+                          :evidence-profile/verification-level :semantic
+                          :evidence-profile/verification-status :blocked
+                          :evidence-profile/verification-checks
+                          {:allocation-evidence-binding :pass
+                           :propagation-integrity :pass
+                           :propagation-allocation-binding :not-run
+                           :application-integrity :pass
+                           :application-propagation-binding :pass
+                           :application-accounting-binding :pass
+                           :accounting-reconciliation :pass
+                           :state-write-back :pass
+                           :deferred-position-write-back :pass
+                           :current-amount-continuity :not-applicable
+                           :successor-continuity :not-applicable}
+                          :evidence-profile/verification
+                          {:allocation-evidence-binding-valid? true
+                           :propagation-valid? true
+                           :propagation-allocation-binding-status :not-run
+                           :propagation-allocation-binding-violations nil
+                           :application-binding-valid? true
+                           :application-hash-valid? true
+                           :application-propagation-binding-valid? true
+                           :application-accounting-binding-valid? true
+                           :apparent-application-recorded? true
+                           :accounting-reconciled? true
+                           :propagation-complete? true
+                           :authoritative-state-write-back-verified? true
+                           :deferred-current-amount-verified? true
+                           :current-amount-continuous? nil
+                           :next-precondition-continuity {:status :not-verifiable
+                                                          :reason-code :successor-state-source-not-supplied
+                                                          :detail "successor-state source not supplied"}}
+                          :evidence-profile/unverified-evidence
+                          [:authoritative-source-body-not-supplied]}
+        application-profile
+        (assoc application-base :evidence-profile/hash
+               (hash-ref/sha256-ref
+                (hc/domain-hash :pro-rata-application-evidence-v2
+                                application-base)))
+        application-hash (:evidence-profile/hash application-profile)
+        outcome-manifest (assoc (base-manifest)
+                                :outcomes/pro-rata-evidence-required true)
+        execution-profile
+        (exec-ev/build-pro-rata-execution-evidence
+         (exec-args :manifest outcome-manifest
+                    :alloc-hash allocation-hash
+                    :app-hash application-hash))
+        profiles {allocation-hash allocation-profile
+                  application-hash application-profile}
+        result (exec-ev/verify-package-pro-rata-evidence
+                profiles execution-profile outcome-manifest)
+        allocation-missing-check
+        (let [changed (update allocation-profile :evidence-profile/verification-checks
+                              dissoc :capacity)]
+          (assoc changed :evidence-profile/hash
+                 (hash-ref/sha256-ref
+                  (hc/domain-hash :pro-rata-allocation-evidence-v2
+                                  (dissoc changed :evidence-profile/hash)))))
+        application-missing-finding
+        (let [changed (update application-profile :evidence-profile/verification
+                              dissoc :application-binding-valid?)]
+          (assoc changed :evidence-profile/hash
+                 (hash-ref/sha256-ref
+                  (hc/domain-hash :pro-rata-application-evidence-v2
+                                  (dissoc changed :evidence-profile/hash)))))]
+    (is (:valid? (alloc-ev/validate-pro-rata-allocation-evidence allocation-profile)))
+    (is (:valid? (app-ev/validate-pro-rata-application-evidence application-profile)))
+    (is (not (:valid? (alloc-ev/validate-pro-rata-allocation-evidence
+                       allocation-missing-check)))
+        "a self-hashed profile cannot omit a mandatory allocation finding")
+    (is (not (:valid? (app-ev/validate-pro-rata-application-evidence
+                       application-missing-finding)))
+        "a self-hashed profile cannot omit a mandatory application finding")
+    (is (:valid? (exec-ev/validate-pro-rata-execution-evidence-any execution-profile)))
+    (is (:integrity-valid? result)
+        "the retained package references and profile hashes pass integrity checks")
+    (is (false? (:valid? result))
+        "a required semantic claim is not valid when its source rederivation was not run")
+    (is (= :blocked (:status result)))
+    (is (= :not-run (:semantic-status result)))
+    (is (= [:semantic-profile-rederivation-not-run] (:blocking-reasons result)))
+    (is (= :blocked (get-in result [:verification-result :status])))
+    (is (= :integrity (get-in result [:verification-result :achieved-level])))))
+
+(deftest application-v2-integrity-validates-finding-types-and-shapes
+  (let [profile
+        (rehash-application-v2
+         {:schema-version app-ev/schema-version
+          :evidence-profile/id app-ev/profile-id
+          :evidence-profile/allocation-evidence-hash (test-ref :allocation)
+          :evidence-profile/propagation-hash (test-ref :propagation)
+          :evidence-profile/application-hash (test-ref :application)
+          :evidence-profile/verification-level :semantic
+          :evidence-profile/verification-status :blocked
+          :evidence-profile/verification-checks
+          {:allocation-evidence-binding :pass
+           :propagation-integrity :pass
+           :propagation-allocation-binding :not-run
+           :application-integrity :pass
+           :application-propagation-binding :pass
+           :application-accounting-binding :pass
+           :accounting-reconciliation :pass
+           :state-write-back :pass
+           :deferred-position-write-back :pass
+           :current-amount-continuity :not-applicable
+           :successor-continuity :not-applicable}
+          :evidence-profile/verification
+          {:allocation-evidence-binding-valid? true
+           :propagation-valid? true
+           :propagation-allocation-binding-status :not-run
+           :propagation-allocation-binding-violations nil
+           :application-binding-valid? true
+           :application-hash-valid? true
+           :application-propagation-binding-valid? true
+           :application-accounting-binding-valid? true
+           :apparent-application-recorded? false
+           :accounting-reconciled? true
+           :propagation-complete? true
+           :authoritative-state-write-back-verified? true
+           :deferred-current-amount-verified? true
+           :current-amount-continuous? nil
+           :next-precondition-continuity
+           {:status :not-verifiable
+            :reason-code :successor-state-source-not-supplied
+            :detail "successor-state source not supplied"}}})
+        tamper
+        (fn [f]
+          (rehash-application-v2 (f profile)))
+        invalid-profiles
+        [(tamper #(assoc-in % [:evidence-profile/verification
+                               :application-binding-valid?] "true"))
+         (tamper #(assoc-in % [:evidence-profile/verification
+                               :propagation-allocation-binding-violations] "none"))
+         (tamper #(assoc-in % [:evidence-profile/verification
+                               :propagation-allocation-binding-violations] [{:reason "bad"}]))
+         (tamper #(assoc-in % [:evidence-profile/verification
+                               :current-amount-continuous?] "unknown"))
+         (tamper #(assoc-in % [:evidence-profile/verification
+                               :next-precondition-continuity :detail] 42))
+         (tamper #(assoc-in % [:evidence-profile/verification
+                               :next-precondition-continuity :status] :pass))
+         (tamper #(update-in % [:evidence-profile/verification
+                                :next-precondition-continuity] dissoc :reason-code))]]
+    (is (:valid? (app-ev/validate-pro-rata-application-evidence profile)))
+    (doseq [malformed invalid-profiles]
+      (is (not (:valid? (app-ev/validate-pro-rata-application-evidence malformed)))
+          "a self-hashed profile with malformed findings must fail integrity validation"))))
+
+(deftest allocation-verifier-emits-shared-result-with-separated-assertions
+  (let [args (alloc-args (real-alloc))
+        profile (alloc-ev/build-pro-rata-allocation-evidence args)
+        integrity (alloc-ev/validate-pro-rata-allocation-evidence profile)
+        semantic (alloc-ev/verify-pro-rata-allocation-evidence profile args)
+        result (:verification-result semantic)]
+    (is (= :integrity (get-in integrity [:verification-result :requested-level])))
+    (is (= :not-run (:semantic-status integrity)))
+    (is (= :semantic (:requested-level result)))
+    (is (= :semantic (:achieved-level result)))
+    (is (= :verified (:status result)))
+    (is (contains? (:producer-assertions result) :verification-checks))
+    (is (contains? (:independent-findings result) :check-results))
+    (is (:valid? (verification-result/validate-result result)))))
+
+(deftest claim-qualification-composes-live-allocation-validators
+  (let [args (alloc-args (real-alloc))
+        allocation-profile (alloc-ev/build-pro-rata-allocation-evidence args)
+        integrity (alloc-ev/validate-pro-rata-allocation-evidence allocation-profile)
+        semantic (alloc-ev/verify-pro-rata-allocation-evidence allocation-profile args)
+        integrity-result (:verification-result integrity)
+        semantic-result (:verification-result semantic)
+        claim-subject (:subject semantic-result)
+        claim-roots (:source-roots semantic-result)
+        root-keys (vec (sort (keys claim-roots)))
+        qualification-profile
+        {:qualification-profile/schema "prf-claim-qualification-profile.v1"
+         :qualification-profile/id :profile/allocation-claim
+         :qualification-profile/checks
+         [{:check/id :allocation/profile-integrity
+           :check/dimension :integrity
+           :check/validator-id :prf/pro-rata-allocation-profile-validator
+           :check/validator-revision "allocation-profile-validator.v1"
+           :check/required? true
+           :check/required-level :integrity
+           :check/source-root-keys root-keys}
+          {:check/id :allocation/semantic-rederivation
+           :check/dimension :semantic-accounting
+           :check/validator-id :prf/pro-rata-allocation-profile-verifier
+           :check/validator-revision "allocation-profile-verifier.v1"
+           :check/required? true
+           :check/required-level :semantic
+           :check/source-root-keys root-keys}]}
+        claim {:claim/id :claim/allocation-correct
+               :claim/subject claim-subject
+               :claim/cutpoint {:cutpoint/id :cutpoint/allocation-profile
+                                :cutpoint/source-root (val (first (sort-by key claim-roots)))}
+               :claim/source-roots claim-roots}
+        result (claim-qualification/qualify
+                {:profile qualification-profile
+                 :subject claim
+                 :evidence {:allocation-profile allocation-profile :allocation-args args}
+                 :trusted-validators
+                 {:prf/pro-rata-allocation-profile-validator "allocation-profile-validator.v1"
+                  :prf/pro-rata-allocation-profile-verifier "allocation-profile-verifier.v1"}
+                 :validators
+                 {:prf/pro-rata-allocation-profile-validator
+                  {:revision "allocation-profile-validator.v1"
+                   :run (fn [{:keys [allocation-profile]} _]
+                          (let [checked (alloc-ev/validate-pro-rata-allocation-evidence allocation-profile)
+                                verification-result (:verification-result checked)]
+                            {:verification-result verification-result
+                             :observed-subject (:subject verification-result)
+                             :source-roots (:source-roots verification-result)
+                             :findings (:independent-findings verification-result)}))}
+                  :prf/pro-rata-allocation-profile-verifier
+                  {:revision "allocation-profile-verifier.v1"
+                   :run (fn [{:keys [allocation-profile allocation-args]} _] (let [checked (alloc-ev/verify-pro-rata-allocation-evidence allocation-profile allocation-args) verification-result (:verification-result checked)] {:verification-result verification-result :observed-subject (:subject verification-result) :source-roots (:source-roots verification-result) :findings (:independent-findings verification-result)}))}}})]
+    (is (= :verified (:status result)))
+    (is (= :verified (get-in result [:dimensions :integrity :status])))
+    (is (= :verified (get-in result [:dimensions :semantic-accounting :status])))
+    (is (= 2 (count (:checks result))))
+    (is (:valid? (claim-qualification/validate-qualification result)))))

@@ -306,6 +306,13 @@ def reproduce_run(run_dir: str | Path,
     env["PRF_SOURCE_TREE_HASH_ALGORITHM"] = current_algo
     env["PRF_ORCHESTRATION_RUNNER_ID"] = "forensic-reproduce.py"
     env["PRF_BUNDLE_ID"] = repro_id
+    # Keep evidence, claims and cursors local to this reproduction. Never
+    # inherit a caller's artifact root or use the checkout's default results/.
+    artifact_dir = repro_dir / "workspace"
+    artifact_dir.mkdir()
+    env["PRF_ARTIFACT_DIR"] = str(artifact_dir)
+    env["PRF_RESULTS_ROOT"] = str(repro_dir / "results")
+    env["PRF_RUNS_ROOT"] = str(repro_dir / "runs")
 
     run_expr = ("(require '[resolver-sim.core]) "
                 "(->> *command-line-args* (map str) (apply resolver-sim.core/-main))")
@@ -362,6 +369,9 @@ def reproduce_run(run_dir: str | Path,
     # Step 6: Compute verdict
     verdict, verdict_notes = compute_verdict(
         checks, True, bundle_b_ok)
+    if r.returncode != 0:
+        verdict = "reproduce-failed"
+        verdict_notes = [f"Reproduce execution exited {r.returncode}", *verdict_notes]
 
     # Step 7: Write report
     repro_summary = {

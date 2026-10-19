@@ -1,6 +1,8 @@
 # Interactive Workbenches (Clerk Notebooks)
 
-The repository ships 31 interactive workbenches built with
+Notebook sources are maintained in the separately versioned
+[`prf-notebooks` repository](https://github.com/protocol-robustness/prf-notebooks/tree/10a81790037103356f0ea31119c4ca7f1aeddc69).
+PRF keeps host-side simulation helpers and a mirrored registry. The workbenches are built with
 [Clerk](https://clerk.vision). They are evidence-oriented, not dashboards —
 each one shows raw data, artifact provenance, and honest confidence levels
 rather than status indicators alone.
@@ -8,16 +10,16 @@ rather than status indicators alone.
 See `data/notebooks.edn` for the full registry with descriptions, maturity
 levels, and per-notebook notes.
 
-Key workbenches include:
+Common examples include:
 
-| File | Purpose | Audience |
+| Notebook ID | Purpose | Audience |
 |------|---------|----------|
-| `notebooks/report.clj` | Evidence dashboard — suite-level pass/fail statistics, parameter sweeps, confidence tiers | Project leads, grant reviewers |
-| `notebooks/dispute_resolution.clj` | Dispute resolution validation workbench — lifecycle, state machine, adversarial coverage, invariants, escalation, Kleros integration, open gaps | Protocol reviewers, integrators, security researchers |
-| `notebooks/invariant_failures.clj` | Invariant failure inspector — per-scenario violation drilldown, trace replay, failure classification | Engineers debugging invariant regressions |
-| `notebooks/game_theory_artifact.clj` | Game theory — validation story with equilibrium analysis | Protocol researchers |
-| `notebooks/workbench_v2.clj` | Adversarial validation workbench (v2) — generalized scenario exploration | Engineers, security researchers |
-| `notebooks/xtdb_temporal_explorer.clj` | XTDB Temporal Explorer — bitemporal “effective then” vs “known then” queries, immutable correction history, replay failure archaeology, explicit-scope execution convergence | Engineers, operators, adopters |
+| `report` | Evidence dashboard — suite-level pass/fail statistics and confidence tiers | Project leads, reviewers |
+| `dispute-resolution` | Dispute lifecycle, adversarial coverage, invariants, escalation, and open gaps | Protocol reviewers, integrators |
+| `invariant-failures` | Per-scenario violation drilldown and trace replay | Engineers debugging regressions |
+| `game-theory-artifact` | Game theory and equilibrium analysis | Protocol researchers |
+| `workbench-v2` | Adversarial scenario exploration | Engineers, security researchers |
+| `xtdb-temporal-explorer` | Bitemporal indexing, replay failure archaeology, and explicit-scope execution comparison | Engineers, operators |
 
 ---
 
@@ -25,22 +27,23 @@ Key workbenches include:
 
 ### Via nREPL / REPL (recommended for development)
 
-```clojure
-;; In a Clojure REPL with Clerk on the classpath:
-(require '[nextjournal.clerk :as clerk])
-(clerk/show! "notebooks/dispute_resolution.clj")
+```bash
+bb notebook
 ```
 
 ### Via CLI
 
 ```bash
-clojure -M:clerk notebooks/dispute_resolution.clj
+bb notebook:check
+bb notebook:ci
 ```
 
 ### Static export (for sharing)
 
 ```bash
-clojure -M:clerk-build notebooks/dispute_resolution.clj
+bb clerk-build
+# Build the public demo subset instead:
+bb demo:public-lab
 ```
 
 This writes a self-contained HTML artifact to `public/build/`.
@@ -62,7 +65,7 @@ dataset, and serves the notebook in your browser. For manual steps instead:
 ```bash
 make xtdb          # or: bb xtdb:up
 bb explorer:seed
-clojure -X:clerk :paths '["notebooks/xtdb_temporal_explorer.clj"]'
+clojure -M:notebooks:with-sew -m notebooks.serve
 ```
 
 `bb explorer:seed` truncates and repopulates the explorer `sim_*` tables; it is
@@ -139,7 +142,7 @@ Each workbench section links to the backing artifact where available.
 
 ## Architecture
 
-Workbenches are pure Clojure files that:
+Workbenches are Clojure files that:
 1. Require the same `protocols/sew/` and `contract_model/` namespaces used by the
    production simulation — there is no separate "notebook data model."
 2. Call `clerk/html` and `clerk/md` to render results as rich HTML inside the Clerk
@@ -147,5 +150,17 @@ Workbenches are pure Clojure files that:
 3. Are evaluated top-to-bottom in Clerk's dependency-aware incremental evaluation
    engine; cells are memoized.
 
-No notebook has side effects (no file writes, no XTDB writes). The `telemetry.clj`
-workbench reads from XTDB but does not write to it.
+Some notebooks read or write host-owned files or databases as part of explicit
+workflows. In particular, the explorer demo reseeds its demo tables; use the
+documented `bb explorer:demo` opt-in and inspect its warning before running it.
+Evaluation results are workload-specific evidence and do not establish general
+correctness or release qualification.
+# Extracted notebook source
+
+Notebook sources and their runner are maintained in
+[`prf-notebooks` at commit `10a817900371`](https://github.com/protocol-robustness/prf-notebooks/tree/10a81790037103356f0ea31119c4ca7f1aeddc69).
+PRF pins this exact revision under the optional `:notebooks` dependency alias in
+`deps.edn`. Use `bb notebook` or the `bb notebook:*` validation/build tasks to
+resolve it. PRF-owned support namespaces and the PRF registry projection remain
+in this repository; `bb notebook:validate-registry` checks that the projection
+matches the pinned package registry.

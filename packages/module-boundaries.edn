@@ -1,7 +1,7 @@
 {:schema "prf-module-boundaries.v1"
  :status :in-tree-enforced
  :source-location-convention {:resolver-sim "src/resolver_sim/<namespace path>.clj"
-                              :prf-canonical "packages/canonical/clj/src/prf/canonical/<namespace path>.clj"
+                              :prf-canonical "https://github.com/protocol-robustness/prf-canonical.git at immutable :git/sha; deps root clj"
                               :accounting-reductions "packages/accounting-reductions/clj/src/resolver_sim/accounting/<namespace path>.clj"}
  :consumer-index {:direct :computed-from-namespace-requires
                   :transitive :computed-by-graph-closure
@@ -9,7 +9,9 @@
  :package-contracts
  {:prf-canonical
   {:owner :prf-foundation
-   :status :qualified-source-candidate-unpublished
+   :status :source-qualified-public-git-candidate-unpublished-to-package-registry
+   :git/url "https://github.com/protocol-robustness/prf-canonical.git"
+   :git/sha "5e2b520feca812b049ba397b7b3681963c66a48c"
    :api [:canonical-hash-scheme.v1 :root-reference.v1]
    :depends-on #{}}
   :prf-research-contracts
@@ -18,7 +20,7 @@
    :dependency-manifest "packages/prf-research-contracts/DEPENDENCIES.edn"
    :qualification {:isolated-source-closure-load? true
                   :released-artifact? false
-                  :immutable-coordinate? false}
+                  :immutable-coordinate? true}
    :public-namespace resolver-sim.research.api
    :api ["research-analysis-output.v1" "research-analysis-verification.v1"
          "research-analytical-claim.v2" "research-claim-acceptance.v1"
@@ -30,7 +32,7 @@
    :dependency-manifest "packages/prf-incentives/DEPENDENCIES.edn"
    :qualification {:isolated-source-closure-load? true
                   :released-artifact? false
-                  :immutable-coordinate? false}
+                  :immutable-coordinate? true}
    :public-namespace resolver-sim.incentives.api
    :api ["researcher-reward-policy.v1" "researcher-reward-eligibility.v1"
          "researcher-reward-proposal.v1" "researcher-reward-obligation.v1"]
@@ -59,15 +61,15 @@
                         :researcher-network :support}}
  :researcher-network-source-closure
  [{:namespace prf.canonical.codec :owner :prf-canonical :kind :public-contract
-   :required? true :blocker :canonical-package-unpublished}
+   :required? true :blocker :none}
   {:namespace prf.canonical.decode :owner :prf-canonical :kind :internal-implementation
-   :required? true :blocker :canonical-package-unpublished}
+   :required? true :blocker :none}
   {:namespace prf.canonical.hash :owner :prf-canonical :kind :public-contract
-   :required? true :blocker :canonical-package-unpublished}
+   :required? true :blocker :none}
   {:namespace prf.canonical.reference :owner :prf-canonical :kind :public-contract
-   :required? true :blocker :canonical-package-unpublished}
+   :required? true :blocker :none}
   {:namespace prf.canonical.sequence :owner :prf-canonical :kind :public-contract
-   :required? true :blocker :canonical-package-unpublished}
+   :required? true :blocker :none}
   {:namespace resolver-sim.benchmark.incentive-deviation-domain :owner :prf-research :kind :internal-implementation
    :required? true :blocker :research-package-not-extracted}
   {:namespace resolver-sim.benchmark.incentive-model :owner :prf-research :kind :public-input-contract
@@ -119,15 +121,15 @@
   {:namespace resolver-sim.forensic.source-hash :owner :prf-canonical :kind :internal-implementation
    :required? true :blocker :canonical-evidence-contract-unpublished}
   {:namespace resolver-sim.hash.algorithm :owner :prf-canonical :kind :public-contract
-   :required? true :blocker :canonical-package-unpublished}
+   :required? true :blocker :none}
   {:namespace resolver-sim.hash.canonical :owner :prf-canonical :kind :compatibility-facade
-   :required? true :blocker :canonical-package-unpublished}
+   :required? true :blocker :none}
   {:namespace resolver-sim.hash.framing-view :owner :prf-canonical :kind :internal-implementation
-   :required? true :blocker :canonical-package-unpublished}
+   :required? true :blocker :none}
   {:namespace resolver-sim.hash.reference :owner :prf-canonical :kind :public-contract
-   :required? true :blocker :canonical-package-unpublished}
+   :required? true :blocker :none}
   {:namespace resolver-sim.hash.sequence :owner :prf-canonical :kind :internal-implementation
-   :required? true :blocker :canonical-package-unpublished}
+   :required? true :blocker :none}
   {:namespace resolver-sim.io.edn :owner :support :kind :operational-support
    :required? true :blocker :shared-support-source-not-packaged}
   {:namespace resolver-sim.logging :owner :support :kind :operational-support
