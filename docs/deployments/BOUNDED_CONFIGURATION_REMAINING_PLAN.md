@@ -722,13 +722,17 @@ remain unchanged. This closes a semantic-input gap for W6, but does not by
 itself authenticate RPC observations, produce a proof or qualify a capital
 transaction; live deployment binding and complete W6/W7 evidence remain open.
 
-Latest cross-repository regression evidence: `bb test:unit` passed 891 tests and
-3,556 assertions; the pinned prf-evm checkout passed `PrfGenesisTest` (10) and
-`PrfStatementAdmissionTest` (19). The protocol-deployments typecheck and all
-270 non-Anvil tests across 36 files pass. Anvil-dependent runtime suites remain
-unverified because this execution environment denies socket creation. These
-results validate code and replay logic only; they do not substitute for the
-approved live deployment bundle required by W7.
+Current regression evidence: the prf-evm working tree builds successfully;
+`PrfGenesisTest` passes 10 tests, `PrfStatementAdmissionTest` 19, and
+`PrfConfigurationAuthorizationConformanceTest` 30. The complete unscoped
+`forge test` invocation exits nonzero: 284 tests pass and 41 phase-dependent
+tests fail because Gate E proof-manifest environment inputs are absent and the
+accounting/partial-fill suites require `PARTIAL_FILL_STAGE=2`. With that stage
+selected, the documented composed-flow subset passes 14 tests; bootstrap and
+genesis-export tests belong to other stages. In protocol-deployments, the
+focused replay/expectation/report suites pass 47 tests and `npm run typecheck`
+passes. These results validate code and replay logic only; they do not
+substitute for the approved live deployment bundle required by W7.
 
 Acceptance: a separate invocation can verify all bindings and reproduce the
 qualification decision inputs. The report states remaining trust assumptions
