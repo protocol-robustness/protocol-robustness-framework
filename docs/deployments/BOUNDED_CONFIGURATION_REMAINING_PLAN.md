@@ -643,15 +643,24 @@ pass 41 tests, and TypeScript typecheck passes. These are fixture results;
 W7 still needs approved operation expectations and a real approved flow with
 retained receipts and readbacks.
 
-The verifier now requires a separate `protocol-capital-flow-expectations/v1`
+The verifier now requires a separate `protocol-capital-flow-expectations/v2`
 package from the producer's execution evidence. The CLI loads it only from a
 relative path inside the independently selected trusted-context root. The
 package binds the exact manifest root, sealed instance, applied C1/epoch,
-operation identity, getter calls and expected before/after values. Replay
-rejects evidence whose state assertions differ and includes the expectation
-digest in the independent verification root. This makes expectation review an
-explicit qualification input; approval of those values remains a trust
-assumption. The 2026-10-19 C0→C1 execution is live and independently reported,
+operation identity, getter calls and expected before/after values. It also
+binds the local operation-scoped caller and entitlement representation to
+their approved source/artifact digests and constructor-specific runtime code
+identities. Replay routes ratification and activation through that caller and,
+at each action, checks its immutable operator/operation/controller getters,
+the controller's caller binding, and the representation runtime before
+accepting activation. The focused verifier/report suites pass 45 tests and
+TypeScript typecheck passes. Replay rejects evidence whose state assertions
+differ and includes the expectation digest in the independent verification
+root. This makes expectation review an explicit qualification input; approval
+of those values remains a trust assumption. It does not yet verify the setup
+transaction receipts for caller deployment/binding, representation deployment,
+or reserve funding; those actions must be retained and replayed before W6 can
+qualify. The 2026-10-19 C0→C1 execution is live and independently reported,
 but it contains no W6 capital-flow actions, and no approved expectation package
 or complete capital-flow bundle exists.
 
@@ -660,10 +669,11 @@ existing v5 action sequence can be replayed. The deployed
 `SourceBoundProRataEntitlementRatificationControllerV1` rejects ratification
 and activation calls unless `bindExecutionCaller` has set a contract address;
 the observed controller is currently unbound. The v5 action map instead names
-`ratifyAndFund` and `activateEntitlement` directly on the controller. A
-qualified run therefore needs a source- and runtime-pinned, operation-scoped
-caller contract, a recorded binding transaction, and replay rules that verify
-the routed operation calls and their targets. The reserve is currently empty,
+`ratifyAndFund` and `activateEntitlement` directly on the controller. The
+protocol-deployments verifier now replays the routed `fund` and `activate`
+calls through the source-pinned local operator and checks the controller
+binding at those action blocks. It still needs to verify the caller deployment
+and binding transactions themselves. The reserve is currently empty,
 so any reserve seed transfer/deposit must also be part of the approved setup
 and retained evidence. These are additional action/evidence requirements, not
 permission to execute them: the expected operation, seed amount, proof inputs,
