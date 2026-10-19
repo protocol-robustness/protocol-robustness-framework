@@ -98,7 +98,7 @@
   (artifact case-schema :sew-adjudication-case-v1 :sew/adjudication-case-root
             {:workflow/id (:workflow/id definition) :adjudication/round-id (:adjudication/round-id definition)
              :case-definition/root (:sew/adjudication-case-definition-root definition)
-             :evidence-set/root (:sew/dispute-evidence-set/root evidence-set)}))
+             :evidence-set/root (get evidence-set (keyword "sew" "dispute-evidence-set/root"))}))
 
 (defn valid-adjudication-case?
   "Reconstruct a case from the exact definition, question, and closed evidence

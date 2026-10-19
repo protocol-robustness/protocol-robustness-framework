@@ -14,7 +14,7 @@
 (def ^:const schema "sew/dispute-evidence-set.v1")
 (def ^:const domain :sew-dispute-evidence-set-v1)
 (def roles #{:claimant :respondent :protocol-observation})
-(def ^:private root-key :sew/dispute-evidence-set/root)
+(def ^:private root-key (keyword "sew" "dispute-evidence-set/root"))
 
 (defn- member-order [member]
   [(:evidence/root member) (name (:evidence/role member))])
@@ -103,7 +103,7 @@
              :admission {:status :open
                          :resolver (get-in world [:escrow-transfers workflow-id :dispute-resolver])
                          :parent-round (when (pos? round-id) (dec round-id))
-                         :parent-evidence-set/root (:sew/dispute-evidence-set/root previous)
+                         :parent-evidence-set/root (get previous root-key)
                          :members []}})))
 
 (defn admit-workflow-evidence!

@@ -44,6 +44,14 @@
 
 (def capacity-policy-id-default "overflow-policy.v1")
 (def capacity-policy-version-default "v1")
+(def ^:private execution-overflow-capability-id-key
+  (keyword "execution" "overflow-capability/id"))
+(def ^:private execution-overflow-capability-hash-key
+  (keyword "execution" "overflow-capability/hash"))
+(def ^:private execution-authorization-id-key
+  (keyword "execution" "authorization/id"))
+(def ^:private execution-authorization-hash-key
+  (keyword "execution" "authorization/hash"))
 
 ;; ---------------------------------------------------------------------------
 ;; Capacity derivation (shared with the interactive-override path)
@@ -412,10 +420,10 @@
   {:execution/schema-version "execution-provenance.v1"
    :execution/type :forced-capacity-failover
    :execution/basis :overflow-capability
-   :execution/overflow-capability/id (:overflow-capability/id record)
-   :execution/overflow-capability/hash (:overflow-capability/hash record)
-   :execution/authorization/id (:authorization/id record)
-   :execution/authorization/hash (:authorization/hash record)
+   execution-overflow-capability-id-key (:overflow-capability/id record)
+   execution-overflow-capability-hash-key (:overflow-capability/hash record)
+   execution-authorization-id-key (:authorization/id record)
+   execution-authorization-hash-key (:authorization/hash record)
    :execution/resolver (:resolver record)
    :execution/executed-by caller
    :execution/workflow-id workflow-id
