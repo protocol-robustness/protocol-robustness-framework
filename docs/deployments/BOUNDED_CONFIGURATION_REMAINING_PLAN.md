@@ -167,9 +167,11 @@ not an accepted release revision.
 That exact tree also passes `npm run compile` and `npm run deployables:export`
 under Foundry 1.7.1 / Solc 0.8.33. Export validates 31 artifacts and reports
 bundle root `10cc6f300a2f8d9b25a18d353b34eaa8b2cc7e58f2b1ccb53a7034612b11911f`.
+An independent second temporary clone reproduced the same tree and bundle
+root from fresh Foundry outputs.
 The bundle records source commit `d8aee74e9652f44f68e345aff30090325df2ae54`
 as dirty because the overlay is applied in the temporary clone. This is a
-successful compatibility build, not a clean release identity or an artifact
+reproducible compatibility build, not a clean release identity or an artifact
 equivalence claim against the unavailable historical bundle.
 
 On 2026-10-19, the PRF-side registry-equivalence, source-lock, genesis-seal
