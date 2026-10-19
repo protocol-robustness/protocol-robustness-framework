@@ -629,8 +629,8 @@ root so replay can recompute the stale root. Repeated admission must replay the
 same calldata and preserve capital-bound state. These checks validate
 evidence shape and transaction bindings; they do not establish proof validity
 or approval of historical state values. Those remain W6 checks, so W7 remains
-open. Replay tests load the retained v0.4.1 artifact ABIs to exercise the
-deployed action and getter selectors. Every observed action call must also
+open. Replay tests now load the source-bound v0.4.2 local-candidate artifact
+ABIs to exercise the deployed action and getter selectors. Every observed action call must also
 decode and re-encode byte-for-byte against its pinned function ABI.
 Evidence retention does not itself grant admission; the complete verifier
 still needs a real execution bundle and capital-flow evidence.
