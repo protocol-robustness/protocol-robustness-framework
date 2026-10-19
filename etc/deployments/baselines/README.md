@@ -3,14 +3,15 @@
 The v1 release baseline below is retained as historical evidence for its
 original source parent. It no longer matches the current PRF source checkout.
 The current candidate uses
-`bounded-configuration-release-sources.current.v5.json` and
-`../bounded-configuration-local-candidate-v6/`. The 932-entry lock refreshes
-the current reserve-binding source digest and pins both the authority-continuity
-and artifact-export-normalization follow-up patches. The latter resolves
-project-local absolute Foundry artifact paths before allow-list validation. Both
-patches are pinned by file digest; the source lock itself remains outside the
-locked path set. Candidate v6 retains the earlier semantic package roots but
-has a new source-bound approval root. The v0.4.2 30-artifact local deployables
+`bounded-configuration-release-sources.current.v6.json` and
+`../bounded-configuration-local-candidate-v7/`. The 933-entry lock refreshes
+the current reserve-binding source digest and pins the authority-continuity,
+artifact-export-normalization, and v0.4.2 capital-flow replay follow-up patches.
+The exporter patch resolves project-local absolute Foundry artifact paths
+before allow-list validation. Each patch is pinned by file digest; the source
+lock itself remains outside the locked path set. Candidate v7 retains the
+earlier semantic package roots but has a new source-bound approval root. The
+v0.4.2 30-artifact local deployables
 bundle is retained by protocol-deployments with its bundle root and manifest
 digest. The earlier candidate v2–v5 packages and v1 baseline remain unchanged
 as historical records. No approval or public release is implied by the

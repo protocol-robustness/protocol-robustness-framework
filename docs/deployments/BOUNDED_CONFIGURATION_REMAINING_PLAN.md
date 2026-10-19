@@ -24,12 +24,12 @@ evidence. The live run is local-only and does not qualify W6 or W7.
 
 | Work | Current evidence | Status |
 | --- | --- | --- |
-| W0 release baseline | Candidate v6 pins 932 source identities, including the authority-continuity and Foundry-path normalization patches. A clean Foundry compile and three v0.4.2 exports (one after that clean build) reproduce the same bundle byte-for-byte; the retained fixture validates. The historical v0.4.1 package root remains unreproduced. | Local candidate baseline; release-maintainer integration and historical equivalence remain open. |
-| W1 authority enforcement | Authority transition enforcement and focused tests are retained. The prior approved transition was applied at block 14 on the earlier candidate's deployment. | Code verified; old deployment evidence does not qualify candidate v6. |
-| W2 canonical input approval | The earlier initial-input and successor approvals remain valid only for their exact prior manifests and scope. Candidate v6 has a different source-bound manifest and is unapproved. | Open for candidate v6; the newly supplied ECDSA signature is not bound until its exact signed request and digest are identified. |
-| W3 verifier identity | The earlier deployment receipt records verifier/adapter identities and independent live checks; six PRF assertions replay in its independent report. | Verified for the earlier run only; candidate v6 artifact identities require fresh deployment observation. |
-| W4 genesis | The earlier chain-instance genesis and empty-registry seals have verified observations and readbacks. | Verified for the earlier run only; they do not bind candidate v6 runtime artifacts. |
-| W5 C0→C1 | The earlier approved transition and configuration application are recorded as verified. C1 was `0xfab68d6327ec91449a8b2755b0b45f9587d93c58a9357d3bf41359c31f990ecd`, epoch 1. | Verified for the earlier candidate only; a fresh transition review follows candidate v6 input approval and deployment. |
+| W0 release baseline | Candidate v7 pins 933 source identities, including the authority-continuity, Foundry-path normalization and v0.4.2 capital-flow replay patches. A clean Foundry compile and three v0.4.2 exports (one after that clean build) reproduce the same bundle byte-for-byte; the retained fixture validates. The historical v0.4.1 package root remains unreproduced. | Local candidate baseline; release-maintainer integration and historical equivalence remain open. |
+| W1 authority enforcement | Authority transition enforcement and focused tests are retained. The prior approved transition was applied at block 14 on the earlier candidate's deployment. | Code verified; old deployment evidence does not qualify candidate v7. |
+| W2 canonical input approval | The earlier initial-input and successor approvals remain valid only for their exact prior manifests and scope. Candidate v7 has a different source-bound manifest and is unapproved. | Open for candidate v7; the supplied ECDSA signature remains unbound without its exact signed request and digest. |
+| W3 verifier identity | The earlier deployment receipt records verifier/adapter identities and independent live checks; six PRF assertions replay in its independent report. | Verified for the earlier run only; candidate v7 artifact identities require fresh deployment observation. |
+| W4 genesis | The earlier chain-instance genesis and empty-registry seals have verified observations and readbacks. | Verified for the earlier run only; they do not bind candidate v7 runtime artifacts. |
+| W5 C0→C1 | The earlier approved transition and configuration application are recorded as verified. C1 was `0xfab68d6327ec91449a8b2755b0b45f9587d93c58a9357d3bf41359c31f990ecd`, epoch 1. | Verified for the earlier candidate only; a fresh transition review follows candidate v7 input approval and deployment. |
 | W6 capital flow | Replay support now covers setup and capital-flow transactions, but no real proof-admission/capital-flow evidence is retained. The report's `capitalFlowEvidenceRoot` is null. At the last live Anvil observation (chain 31337, block 25), the reserve had no funds and the ratification controller had no bound execution caller. | Open; operation and setup evidence must be separately approved before transactions. |
 | W7 evidence package | Independent report and partial execution receipt exist, but there is no approved expectation package or complete flow bundle. Setup replay is implemented; live evidence remains absent. | Open. |
 
@@ -725,7 +725,9 @@ itself authenticate RPC observations, produce a proof or qualify a capital
 transaction; live deployment binding and complete W6/W7 evidence remain open.
 
 Current regression evidence: `bb test:unit` passes 897 tests and 3,609
-assertions, including the new candidate-v5 source and manifest binding test.
+assertions, including the candidate-v5 source and manifest binding test.
+Candidate-v6/v7 source-lock and manifest-binding tests pass separately
+(2 tests, 20 assertions); the W6 v0.4.2 ABI replay suite passes 34 tests.
 The prf-evm working tree builds successfully;
 `PrfGenesisTest` passes 10 tests, `PrfStatementAdmissionTest` 19, and
 `PrfConfigurationAuthorizationConformanceTest` 30. The complete unscoped
@@ -757,29 +759,31 @@ and resulting authority state are independently observed.
 
 ### Current candidate audit (2026-10-19)
 
-The preserved v2–v5 candidates remain unchanged as historical review
-material. Candidate v6 uses
-`bounded-configuration-release-sources.current.v5.json`, with 932 sorted
-source entries, parent `eb6da5102d14ca4080fe08df7b6c349311ea943c`, and tree
-`1ce2108ce7c2cda3e1ff7cdcfea351b4b2f5a689622aae0fa05b3a950f429523`. It adds
-the PRF-EVM Foundry-path normalization patch to the previously pinned
-authority-continuity patch. The four semantic artifacts and seven C0 roots
-remain unchanged; the source-bound initial-input manifest root is
-`sha256:01d108c28db1d40d64f0de67cdab8e2e05f5cb6a745e38e9069b55061de4b63c`.
+The preserved v2–v6 candidates remain unchanged as historical review
+material. Candidate v7 uses
+`bounded-configuration-release-sources.current.v6.json`, with 933 sorted
+source entries, parent `896ab2ca29d178d9b3993750d4fb774deaf984c4`, and tree
+`6ffee509341fb888235d4bb3f0ef2cee466f29fb8ac4433fb3c892f077f2ae89`. It adds
+the protocol-deployments W6 replay-fixture patch to the previously pinned
+authority-continuity and PRF-EVM Foundry-path normalization patches. The four
+semantic artifacts and seven C0 roots remain unchanged; the source-bound
+initial-input manifest root is
+`sha256:4a58d73213ff165e9e34fbfcd2694c029e681dbccdc0420bc0c0b3ea0c519f27`.
 The 30-artifact v0.4.2 local bundle has root
 `5b9da0dfc6b1a2864d0ae174faef3ddf0095dab21b4a158de25aef677235b7ba`; three
 exports have matched byte-for-byte, including one after a clean Foundry build,
 and the protocol-deployments bundle consumer validates
-the manifest and the three modified core artifacts. The v6 source-lock and
-manifest-binding test passes. Candidate v6 remains unapproved and undeployed.
+the manifest and the three modified core artifacts. Capital-flow replay now
+uses the v0.4.2 ABIs and passes 34 tests. The v7 source-lock and
+manifest-binding test passes. Candidate v7 remains unapproved and undeployed.
 Fresh W2 approval, W3/W4 observations and W5 transition approval/execution
 are required; predecessor approvals and live readbacks remain valid only for
 their exact earlier candidate and instance.
 
 | Order | Work | Concrete output | Gate / dependency |
 | --- | --- | --- | --- |
-| 1 | Preserve the historical v0.4.1 baseline, and pin the candidate-v6 source lock plus v0.4.2 local artifact bundle. A clean Foundry rebuild and two exports must reproduce the bundle root; retain all artifact records and tool versions. | 932-entry source lock, source-bound v6 manifest, exact v0.4.2 bundle root and deployables validation evidence. | Do not overwrite v0.4.1. The historical v0.4.1 root remains unreproduced; local candidate provenance is not a public release. |
-| 2 | Finish W2 semantic review and local approval material against candidate v5. Review policy-v3 and its validator trust assumption, finalize the four candidate artifacts and seven-root C0, then obtain authenticated approval over candidate v5's exact source-bound manifest and local scope. | Owner-reviewed package plus detached, independently verifiable initial-input approval. | Prior candidate approval does not cover the new manifest; absent renewed approval, stop before deployment transactions. |
+| 1 | Preserve the historical v0.4.1 baseline, and pin the candidate-v7 source lock plus v0.4.2 local artifact bundle. A clean Foundry rebuild and three exports reproduce the bundle byte-for-byte; retain all artifact records and tool versions. | 933-entry source lock, source-bound v7 manifest, exact v0.4.2 bundle root and deployables validation evidence. | Do not overwrite v0.4.1. The historical v0.4.1 root remains unreproduced; local candidate provenance is not a public release. |
+| 2 | Finish W2 semantic review and local approval material against candidate v7. Review policy-v3 and its validator trust assumption, finalize the four candidate artifacts and seven-root C0, then obtain authenticated approval over candidate v7's exact source-bound manifest and local scope. | Owner-reviewed package plus detached, independently verifiable initial-input approval. | Prior candidate approvals do not cover the new manifest; absent renewed approval, stop before deployment transactions. |
 | 3 | Complete W3/W4 execution gates against the approved package. Authenticate deployed verifier and validator runtime identities, perform fresh chain observations, independently derive genesis, and seal only when all bindings match. Retain mined receipt and same-block readbacks. | Verified local genesis seal and deployment evidence bundle. | Requires steps 1–2; changed source or deployment facts require a new derivation and approval as applicable. |
 | 4 | Complete W5. Deploy and bind the executor and empty epoch-0 registry to the sealed instance; deploy/authenticate the successor verifier; derive C1; obtain separate transition approval; execute the approved authority/configuration update and independently check readbacks. | Distinct, reproducible C0/C1 identities and retained approval, transaction and state evidence. | Initial-input approval does not authorize this transition. Stop if parent, epoch, instance, proof mode or registry differs from the approved manifest. |
 | 5 | Run W6, then package W7. Exercise the real proof and protected capital path, run negative and replay cases at the capital-consumer boundary, and create a verifier command that rechecks the complete retained bundle. | Local qualification bundle and independent verification result, scoped to the approved local deployment. | Requires successful W5. Public-chain evidence, public approval and production readiness remain out of scope. |
