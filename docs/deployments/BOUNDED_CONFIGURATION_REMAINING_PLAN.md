@@ -368,6 +368,9 @@ admission authority evaluates. Priority: P1. Dependencies: W0; informs W4/W5.
 - Implement independent code/readback checks against those artifacts. Define
   how an upgrade is prohibited or requalified, and when identities are rechecked
   before a proof can create usable authorization.
+- Bind statement admission's configuration executor to the same sealed chain
+  instance at construction and recheck the binding immediately before proof
+  verification; mismatched-instance deployments fail closed.
 - Implemented in the pinned protocol-deployments integration for the local
   entitlement verifier: adapter getters and effective `sp1Verifier()` are read
   at deployment and current state, and the verifier runtime is checked against
@@ -425,13 +428,16 @@ root and initial bindings. Restart/retry behavior cannot bypass checks. The
 signer gates and executable prefix through the seal stage are implemented.
 This acceptance remains open until the prefix runs with approved inputs and a
 real local seal is independently observed.
-The pinned prf-evm release currently passes `PrfGenesisTest` (11 tests),
-including pre-seal authority-state drift rejection and preservation of the
-immutable genesis identity after a later authority update. Its
-`PrfStatementAdmissionTest` also passes (20 tests), including constructor and
-admission-time configuration-executor instance binding. These tests verify
-the contract boundaries; they do not replace the independently derived live
-seal preflight and receipt/readback required for W4 qualification.
+The current prf-evm working tree now rechecks the initial authority-state root
+immediately before genesis sealing and rejects drift after construction. It
+also binds statement admission to the same chain-instance root at construction
+and again before every proof verification. `PrfGenesisTest` passes (10 tests),
+including the new drift regression; `PrfStatementAdmissionTest` passes (19
+tests), including both instance-binding regressions. This implementation is a
+prospective source change: it is not in the frozen source lock or the already
+deployed admission runtime, so a deployment using it requires a rebuilt,
+re-identified candidate and renewed approval. These tests do not replace the
+independently derived live seal preflight and receipt/readback required for W4.
 
 ### W5 — Derive and execute the approved C0 → C1 transition
 
@@ -717,8 +723,8 @@ itself authenticate RPC observations, produce a proof or qualify a capital
 transaction; live deployment binding and complete W6/W7 evidence remain open.
 
 Latest cross-repository regression evidence: `bb test:unit` passed 891 tests and
-3,556 assertions; the pinned prf-evm checkout passed `PrfGenesisTest` (11) and
-`PrfStatementAdmissionTest` (20). The protocol-deployments typecheck and all
+3,556 assertions; the pinned prf-evm checkout passed `PrfGenesisTest` (10) and
+`PrfStatementAdmissionTest` (19). The protocol-deployments typecheck and all
 270 non-Anvil tests across 36 files pass. Anvil-dependent runtime suites remain
 unverified because this execution environment denies socket creation. These
 results validate code and replay logic only; they do not substitute for the
