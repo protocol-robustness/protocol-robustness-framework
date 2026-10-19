@@ -125,7 +125,7 @@ core/cli.clj          Option parsing
 core/phases.clj       Phase registry + per-mode runners
 server/grpc.clj       gRPC server + session management
 benchmark/            8 files — signed benchmark sharing
-notebooks/           27 files — Clerk interactive notebooks (SPEDS, yield, manifest)
+notebooks/              Clerk interactive notebooks (SPEDS, yield, manifest; see registry)
 scripts/              3 files — evidence signing, manifest tools
 ```
 

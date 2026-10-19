@@ -487,19 +487,6 @@
     :presentation   {:theme :failures-attacks :kind :report
                      :audience-level :deep-dive}}
 
-  {:id             :component-gallery
-    :path           "examples/speds/component_gallery.clj"
-    :title          "SPEDS v1.1 — Component Gallery"
-    :summary        "Visual gallery of all SPEDS v1.1 UI components used across notebooks. Developer reference."
-    :categories     [:tooling]
-    :audience       [:developer]
-    :status         :draft
-    :risk           :informational
-    :protocol-areas []
-    :tags           ["components" "UI" "gallery" "SPEDS" "reference"]
-    :presentation   {:theme :simulation-scenarios :kind :tool
-                     :audience-level :intermediate}}
-
    {:id             :appeal-analysis
     :path           "notebooks/appeal_analysis.clj"
     :title          "Appeal Subsystem Analysis"
@@ -796,18 +783,11 @@
     :tags           ["xtdb" "bitemporal" "valid-time" "system-time" "index" "explorer"]
     :presentation   {:theme :evidence-reproducibility :kind :tool
                      :audience-level :intermediate
-                     :question "What did the execution index know, when, without mutating authoritative artifacts?"}}
-
-  ;; ── archived / migrated notebooks ──────────────────────────────────────────────
-  {:id             :workbench-production
-   :notebook/status :archived
-   :notebook/replaced-by :workbench-v2
-   :path           "notebooks/workbench_production.clj"
-   :title          "Evidence Workbench (v1, archived)"
-   :summary        "Replaced by workbench-v2. Retained for migration metadata and historical reference."
-   :categories     [:tooling]
-   :audience       [:researcher]
-   :status         :archived
-   :risk           :informational
-   :protocol-areas []
-   :tags           ["workbench" "archived"]}]}
+                     :question "What did the execution index know, when, without mutating authoritative artifacts?"}}]
+ :archived-notebooks
+ [{:id :workbench-production
+   :replaced-by :workbench-v2
+   :title "Evidence Workbench (v1, archived)"
+   :summary "Replaced by workbench-v2. Retained as archive metadata; no executable source is maintained."
+   :status :archived
+   :tags ["workbench" "archived"]}]}

@@ -20,11 +20,10 @@
     :not-appealed})
 
 (defn registry []
-  (let [parsed (common/read-edn data-file)]
-    (:notebooks parsed)))
+  (common/read-edn data-file))
 
 (defn- archived? [entry]
-  (= :archived (:notebook/status entry)))
+  (= :archived (:status entry)))
 
 (defn- active-entries [entries]
   (remove archived? entries))
@@ -33,16 +32,18 @@
   (set (map :id (active-entries entries))))
 
 (defn -main [& args]
-  (let [entries (registry)
+  (let [registry-data (registry)
+        entries (:notebooks registry-data)
+        archived (filter archived? (:archived-notebooks registry-data))
         active (active-entries entries)
-        archived (filter archived? entries)
         ids (map :id entries)
+        all-ids (concat ids (map :id archived))
         active-ids-set (active-ids entries)
         active-paths (map :path active)
         errors (atom [])]
 
     ;; 1. Unique IDs (across all entries including archived)
-    (let [dupes (keys (filter #(> (val %) 1) (frequencies ids)))]
+    (let [dupes (keys (filter #(> (val %) 1) (frequencies all-ids)))]
       (when (seq dupes)
         (swap! errors conj (str "Duplicate notebook IDs: " dupes))))
 
@@ -51,14 +52,14 @@
       (when-not (.exists (io/file p))
         (swap! errors conj (str "Active notebook path does not exist: " p))))
 
-    ;; 3. Archived entries must have :notebook/replaced-by pointing to an active ID
+    ;; 3. Archived metadata must point to an active replacement ID
     (doseq [entry archived]
       (let [id (:id entry)
-            replaced-by (:notebook/replaced-by entry)]
+            replaced-by (:replaced-by entry)]
         (when-not replaced-by
-          (swap! errors conj (str "Archived entry " id " is missing :notebook/replaced-by")))
+          (swap! errors conj (str "Archived entry " id " is missing :replaced-by")))
         (when (and replaced-by (not (contains? active-ids-set replaced-by)))
-          (swap! errors conj (str "Archived entry " id " has :notebook/replaced-by " replaced-by
+          (swap! errors conj (str "Archived entry " id " has :replaced-by " replaced-by
                                   " which is not an active notebook ID")))))
 
     ;; 4. No active entry uses an archived ID
@@ -135,13 +136,13 @@
         (swap! errors conj (str "Duplicate :start-here-rank values: " (vec (sort ranks))))))
 
     ;; Report
-    (println (str "Notebook registry validation: " (count entries) " entries"
+    (println (str "Notebook registry validation: " (count all-ids) " entries"
                   " (" (count active) " active, " (count archived) " archived)"))
     (if (seq @errors)
       (do (doseq [e @errors] (println "  FAIL:" e))
           (System/exit 1))
       (do (println "  All checks passed.")
-          (println (str "  " (count ids) " unique IDs"))
+          (println (str "  " (count all-ids) " unique IDs"))
           (println (str "  " (count active-paths) " active paths resolve"))
           (println (str "  " (count archived) " archived entries with replacement metadata"))
           (println (str "  All active notebooks registered."))
