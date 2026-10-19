@@ -30,8 +30,8 @@ evidence. The live run is local-only and does not qualify W6 or W7.
 | W3 verifier identity | Deployment receipt records verifier/adapter identities and independent live checks; six PRF assertions replay in the independent report. | Verified for this local run. |
 | W4 genesis | Chain-instance genesis and approved empty registry seals are recorded as verified, with observed contract identities and readbacks. | Verified locally. |
 | W5 C0→C1 | Separate transition approval, authenticated authority transition and configuration application are recorded. C1 is `0xfab68d6327ec91449a8b2755b0b45f9587d93c58a9357d3bf41359c31f990ecd`, epoch 1. | Verified locally. |
-| W6 capital flow | No proof-admission/capital-flow actions or state assertions are retained. The report's `capitalFlowEvidenceRoot` is null. At the live Anvil observation (chain 31337, block 25), the C1 executor reports epoch 1, the reserve has no funds, and the ratification controller has no bound execution caller. | Open; operation and setup evidence must be separately approved before transactions. |
-| W7 evidence package | Independent report and partial execution receipt exist, but there is no approved expectation package or complete flow bundle. | Open. |
+| W6 capital flow | Replay support now covers setup and capital-flow transactions, but no real proof-admission/capital-flow evidence is retained. The report's `capitalFlowEvidenceRoot` is null. At the last live Anvil observation (chain 31337, block 25), the reserve had no funds and the ratification controller had no bound execution caller. | Open; operation and setup evidence must be separately approved before transactions. |
+| W7 evidence package | Independent report and partial execution receipt exist, but there is no approved expectation package or complete flow bundle. Setup replay is implemented; live evidence remains absent. | Open. |
 
 The current deployment manifest root is
 `0x9e41374c74e541b8d2a32536ad1f2f0768aa8116659096a9f810516ec74d171c`,
@@ -579,7 +579,7 @@ source/artifact selection, approval-key custody and proof/toolchain assumptions.
 `verify:plan-report` independently checks the report schema, fixed trust list
 and digest; `verify:plan-execution` remains the command that replays deployment
 evidence. The verifier now accepts an optional
-`protocol-capital-flow-execution/v5` bundle and replays the complete ordered
+`protocol-capital-flow-execution/v6` bundle and replays the complete ordered
 action set, including prepared-operation creation before admission, against RPC
 transaction identities, receipt statuses and canonical
 block hashes. It checks required state-domain reads immediately before and
@@ -615,7 +615,7 @@ intended single-variable substitutions: wrong proof, verifier substitution,
 stale-C0 operation root, and wrong-instance chain ID. The stale-C0 case models
 the actual contract boundary: statement admission under C1 may accept a valid
 proof whose public values commit to a C0-prepared operation; assurance
-preparation must then reject that root against the active operation. The v5
+preparation must then reject that root against the active operation. The v6
 bundle retains the complete stale operation tuple and independently derived C0
 root so replay can recompute the stale root. Repeated admission must replay the
 same calldata and preserve capital-bound state. These checks validate
@@ -643,7 +643,7 @@ pass 41 tests, and TypeScript typecheck passes. These are fixture results;
 W7 still needs approved operation expectations and a real approved flow with
 retained receipts and readbacks.
 
-The verifier now requires a separate `protocol-capital-flow-expectations/v2`
+The verifier now requires a separate `protocol-capital-flow-expectations/v3`
 package from the producer's execution evidence. The CLI loads it only from a
 relative path inside the independently selected trusted-context root. The
 package binds the exact manifest root, sealed instance, applied C1/epoch,
@@ -657,27 +657,29 @@ accepting activation. The focused verifier/report suites pass 45 tests and
 TypeScript typecheck passes. Replay rejects evidence whose state assertions
 differ and includes the expectation digest in the independent verification
 root. This makes expectation review an explicit qualification input; approval
-of those values remains a trust assumption. It does not yet verify the setup
-transaction receipts for caller deployment/binding, representation deployment,
-or reserve funding; those actions must be retained and replayed before W6 can
-qualify. The 2026-10-19 C0→C1 execution is live and independently reported,
+of those values remains a trust assumption. The 2026-10-19 C0→C1 execution is live and independently reported,
 but it contains no W6 capital-flow actions, and no approved expectation package
 or complete capital-flow bundle exists.
 
-The current W6 execution topology needs an explicit setup stage before its
-existing v5 action sequence can be replayed. The deployed
+The W6 replay requires an explicit setup stage before its capital-flow action
+sequence. The deployed
 `SourceBoundProRataEntitlementRatificationControllerV1` rejects ratification
 and activation calls unless `bindExecutionCaller` has set a contract address;
-the observed controller is currently unbound. The v5 action map instead names
+the observed controller is currently unbound. The earlier action map named
 `ratifyAndFund` and `activateEntitlement` directly on the controller. The
 protocol-deployments verifier now replays the routed `fund` and `activate`
-calls through the source-pinned local operator and checks the controller
-binding at those action blocks. It still needs to verify the caller deployment
-and binding transactions themselves. The reserve is currently empty,
-so any reserve seed transfer/deposit must also be part of the approved setup
-and retained evidence. These are additional action/evidence requirements, not
-permission to execute them: the expected operation, seed amount, proof inputs,
-and before/after state assertions must be reviewed and approved first.
+calls through the source-pinned local operator and verifies setup receipts for
+operator deployment, controller binding, reserve approval/deposit, and
+representation deployment. It checks canonical setup calldata and approved
+principals, creation-input hashes, receipt addresses and runtime code hashes,
+operator constructor getters, historical caller-binding state, reserve/deployer
+balances and allowance, and the seed transfer event. All setup transactions
+participate in the isolated-block chronology. The evidence and expectation
+schemas are now v6 and v3 respectively. The focused verifier/report suites pass
+45 tests and TypeScript typecheck passes. This is fixture coverage, not live
+qualification: the expected operation, seed amount, proof inputs and historical
+state assertions still require separate review and approval, and no W6 setup or
+capital-flow transactions have been executed or retained.
 
 An existing local-only implementation is available in the PRF-EVM checkout at
 `script/RunGateEEntitlementLocal.s.sol`. Its `GateEEntitlementLocalOperator`
