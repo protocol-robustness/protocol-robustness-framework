@@ -1,0 +1,135 @@
+diff --git a/src/core/PrfChainInstanceGenesis.sol b/src/core/PrfChainInstanceGenesis.sol
+index a618f714d4..50ce22444c 100644
+--- a/src/core/PrfChainInstanceGenesis.sol
++++ b/src/core/PrfChainInstanceGenesis.sol
+@@ -116,6 +116,11 @@
+         if (isSealedState) revert AlreadySealed();
+         if (canonicalChainInstanceGenesisRoot == bytes32(0)) revert ZeroRoot();
+ 
++        bytes32 currentAuthorityStateRoot = IPrfAuthority(authorityAdapter).authorityStateRoot();
++        if (currentAuthorityStateRoot != initialAuthorityStateRoot) {
++            revert AuthorityStateMismatch(initialAuthorityStateRoot, currentAuthorityStateRoot);
++        }
++
+         bytes32 actualGenesisCodeHash = address(this).codehash;
+         bytes32 actualAuthorityCodeHash = authorityAdapter.codehash;
+ 
+diff --git a/src/core/PrfStatementAdmission.sol b/src/core/PrfStatementAdmission.sol
+index 9e7f6891fb..efbd6817a8 100644
+--- a/src/core/PrfStatementAdmission.sol
++++ b/src/core/PrfStatementAdmission.sol
+@@ -51,6 +51,7 @@
+     error GenesisNotSealed();
+     error WrongExecutionChain(uint256 expected, uint256 actual);
+     error ConfigurationMismatch(bytes32 expected, bytes32 actual);
++    error ConfigurationInstanceMismatch(bytes32 expected, bytes32 actual);
+     error EpochMismatch(uint64 expected, uint64 actual);
+     error RegistryRootMismatch(bytes32 committed, bytes32 computed);
+     error NotSealedRegistry(bytes32 registryRoot);
+@@ -76,6 +77,10 @@
+ 
+         protocolGenesisRoot = genesis_.protocolGenesisRoot();
+         chainInstanceGenesisRoot = genesis_.chainInstanceGenesisRoot();
++        bytes32 executorInstanceRoot = configurationExecutor_.chainInstanceGenesisRoot();
++        if (executorInstanceRoot != chainInstanceGenesisRoot) {
++            revert ConfigurationInstanceMismatch(chainInstanceGenesisRoot, executorInstanceRoot);
++        }
+         genesis = genesis_;
+         configurationExecutor = configurationExecutor_;
+         verifierRegistry = verifierRegistry_;
+@@ -155,6 +160,11 @@
+     }
+ 
+     function _checkConfigurationBinding() private view {
++        bytes32 executorInstanceRoot = configurationExecutor.chainInstanceGenesisRoot();
++        if (executorInstanceRoot != chainInstanceGenesisRoot) {
++            revert ConfigurationInstanceMismatch(chainInstanceGenesisRoot, executorInstanceRoot);
++        }
++
+         if (configurationExecutor.currentConfigurationRoot() != expectedConfigurationRoot)
+             revert ConfigurationMismatch(
+                 expectedConfigurationRoot,
+diff --git a/test/PrfGenesis.t.sol b/test/PrfGenesis.t.sol
+index b1dc5dd483..e7dec8b2d3 100644
+--- a/test/PrfGenesis.t.sol
++++ b/test/PrfGenesis.t.sol
+@@ -106,6 +106,33 @@
+         assertTrue(genesis.localProjectionHash() != bytes32(0));
+     }
+ 
++    function testSealGenesis_RejectsAuthorityStateDriftAfterConstruction() public {
++        PrfChainInstanceGenesis pendingGenesis = new PrfChainInstanceGenesis(
++            PROTOCOL_ROOT,
++            block.chainid,
++            1,
++            address(authority),
++            AUTHORITY_STATE_ROOT,
++            CONFIG_ROOT_0,
++            address(this)
++        );
++        bytes32 changedAuthorityState = keccak256("authority-state-changed-before-seal");
++        authority.updateAuthorityStateRoot(changedAuthorityState);
++
++        vm.expectRevert(abi.encodeWithSelector(
++            PrfChainInstanceGenesis.AuthorityStateMismatch.selector,
++            AUTHORITY_STATE_ROOT,
++            changedAuthorityState
++        ));
++        pendingGenesis.sealGenesis(
++            CHAIN_ROOT,
++            address(pendingGenesis).codehash,
++            address(authority).codehash
++        );
++        assertFalse(pendingGenesis.isSealedState());
++        assertEq(pendingGenesis.chainInstanceGenesisRoot(), bytes32(0));
++    }
++
+     function testInitialExecutorState() public {
+         assertEq(executor.currentConfigurationRoot(), CONFIG_ROOT_0);
+         assertEq(executor.currentVerifierRegistryRoot(), VERIFIER_REGISTRY_ROOT_0);
+diff --git a/test/PrfStatementAdmission.t.sol b/test/PrfStatementAdmission.t.sol
+index 7c024227fd..d242e13f68 100644
+--- a/test/PrfStatementAdmission.t.sol
++++ b/test/PrfStatementAdmission.t.sol
+@@ -168,6 +168,41 @@
+         assertEq(admission.admittedCount(), 1);
+     }
+ 
++    function test_Constructor_RejectsConfigurationExecutorFromAnotherInstance() public {
++        bytes32 otherInstance = keccak256("other-chain-instance");
++        vm.mockCall(
++            address(executor),
++            abi.encodeWithSelector(bytes4(keccak256("chainInstanceGenesisRoot()"))),
++            abi.encode(otherInstance)
++        );
++        vm.expectRevert(abi.encodeWithSelector(
++            PrfStatementAdmission.ConfigurationInstanceMismatch.selector,
++            CHAIN_INSTANCE_ROOT,
++            otherInstance
++        ));
++        new PrfStatementAdmission(genesis, executor, registry, CONFIG_ROOT_0, 0);
++    }
++
++    function test_Admission_RechecksConfigurationExecutorInstanceBinding() public {
++        bytes32 otherInstance = keccak256("other-chain-instance");
++        vm.mockCall(
++            address(executor),
++            abi.encodeWithSelector(bytes4(keccak256("chainInstanceGenesisRoot()"))),
++            abi.encode(otherInstance)
++        );
++        vm.expectRevert(abi.encodeWithSelector(
++            PrfStatementAdmission.ConfigurationInstanceMismatch.selector,
++            CHAIN_INSTANCE_ROOT,
++            otherInstance
++        ));
++        admission.admitStatement(
++            REALIZED_ALLOC_VERIFIER_ID,
++            FIXTURE_STATEMENT_ROOT,
++            "",
++            FIXTURE_PUBLIC_VALUES
++        );
++    }
++
+     function test_ExtractStatementRoot_RealFixture() public {
+         bytes32 root = adapter.extractStatementRoot(FIXTURE_PUBLIC_VALUES);
+         assertEq(root, FIXTURE_STATEMENT_ROOT);
