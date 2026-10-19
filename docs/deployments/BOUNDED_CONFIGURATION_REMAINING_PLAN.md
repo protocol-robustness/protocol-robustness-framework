@@ -148,6 +148,15 @@ revalidates the source overlay and those contract behaviors in the current
 environment; it does not reproduce the historical artifact-bundle root or
 provide owner approval, live deployment evidence, or W4–W7 qualification.
 
+On 2026-10-19, the overlay was also applied in a disposable source copy of the
+clean PRF-EVM checkout at parent `d8aee74e9652f44f68e345aff30090325df2ae54`
+(working-copy parent of the empty `4b8441ae` change). It applied without
+conflicts. The seven focused suites passed again (85 tests), and the two
+authority-transition/ECDSA suites passed (14 tests), using Solc 0.8.33. This
+shows compatibility with the current shared checkout's source; the checkout
+itself was not modified and the release baseline is still an overlay pending
+maintainer integration and source/artifact pinning.
+
 On 2026-10-19, the PRF-side registry-equivalence, source-lock, genesis-seal
 preflight, successor-configuration, and transition-approval review suites
 passed 16 tests and 93 assertions. These confirm the derivation and gate
