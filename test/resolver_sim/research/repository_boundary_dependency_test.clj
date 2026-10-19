@@ -72,9 +72,15 @@
                     clauses)))))
 
 (defn- repository-source-graph []
-  (let [roots ["src" "packages/canonical/clj/src"
-               "packages/accounting-reductions/clj/src"
-               "packages/pro-rata-allocation/clj/src"]
+  (let [resource-root (fn [resource]
+                        (when resource
+                          (-> resource .toURI io/file .getParentFile
+                              .getParentFile .getParentFile)))
+        canonical-root (resource-root (io/resource "prf/canonical/codec.clj"))
+        allocation-root (resource-root (io/resource "prf/pro_rata/api.clj"))
+        roots (cond-> ["src" "packages/accounting-reductions/clj/src"]
+                canonical-root (conj canonical-root)
+                allocation-root (conj allocation-root))
         files (filter #(and (.isFile ^java.io.File %)
                             (str/ends-with? (.getName ^java.io.File %) ".clj"))
                       (mapcat #(file-seq (io/file %)) roots))]
@@ -89,6 +95,15 @@
                 files))))
 
 (defonce ^:private cached-repository-source-graph (delay (repository-source-graph)))
+
+(deftest extracted-pro-rata-dependencies-resolve-exactly-once
+  (let [classloader (.getContextClassLoader (Thread/currentThread))]
+    (doseq [resource-path ["prf/pro_rata/api.clj" "prf/canonical/hash.clj"]]
+      (let [resources (vec (enumeration-seq (.getResources classloader resource-path)))]
+        (is (= 1 (count resources))
+            (str "Expected one pinned source for " resource-path "; found " resources))
+        (is (not (str/includes? (str (first resources)) "/packages/pro-rata-allocation/"))
+            (str "PRF resolved an in-tree allocation copy for " resource-path))))))
 
 (defn- module-contract []
   (with-open [reader (java.io.PushbackReader.
@@ -113,7 +128,7 @@
       (= namespace 'resolver-sim.accounting.reductions)
       (str "packages/accounting-reductions/clj/src/" relative)
       (= "prf" (first segments))
-      (str "packages/canonical/clj/src/" relative)
+      (some-> (io/resource relative) .toURI io/file str)
       :else (str "src/" relative))))
 
 (defn- transitive-dependencies [graph root]

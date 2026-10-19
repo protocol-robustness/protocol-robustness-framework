@@ -1,9 +1,0 @@
-# id<TAB>canonical-bytes-hex<TAB>domain-tag<TAB>domain-hash-hex
-null	00	-	-
-false	01	-	-
-true	02	-	-
-negative-one	1001	-	-
-utf8-e-acute	2002c3a9	-	-
-keyword-x	220178	-	-
-array-int-one-string-x	30021002200178	-	-
-sorted-keyword-map	3102220161100222016201	fixture.v1	dda743ae9d6cd346eb3a7997635229d9eb9591ba197e8a47f1c75b9a72dd6f71

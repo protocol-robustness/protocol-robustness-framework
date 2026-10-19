@@ -63,7 +63,36 @@ acceptance, or authorize a reward/payment. The bundle is local-only. Missing
 evidence is reported as typed gaps. Conflicts cause validation failure and
 remain visible in the graph/report rather than being normalized away.
 
-The current retained replay contains a conflict: Carol's 14-unit transfer is
+## Retained Gate E receipt and live-chain check
+
+The receipt-level Gate E evidence has a dedicated verifier in
+`scripts/forensic/pro28_receipts.py`. It is part of the current refactored tree
+and is intentionally a separate raw-receipt validator; it does not replace the
+canonical evidence DAG or turn a test-log string into proof verification.
+Reconstruct the retained 2026-10-17 bundle with:
+
+```bash
+python3 scripts/forensic/pro28_receipts.py \
+  examples/partial-fill/evidence/pro-28-v1/raw/fresh-replay-20261017 \
+  --expected-report examples/partial-fill/evidence/pro-28-v1/fresh-replay-20261017-reconstruction.json
+```
+
+The default CLI mode is inspection: it independently cross-links 41 transaction
+receipts and transfer events but labels the result `inspection_unanchored`.
+For pinned verification, use `--mode verify --trusted-report-sha256 <digest>`
+with a digest obtained outside the evidence bundle. The profile pins the
+deterministic reconstruction; it does not authenticate receipt inclusion,
+consensus or finality. It labels cryptographic proof verification
+`not_independently_verified`; the retained Foundry output is only a mutable
+execution-log observation. The optional RPC check requires V2 capture metadata
+with chain identity (chain ID plus genesis block hash) and rechecks it against
+the live endpoint. The retained 2026-10-17 capture uses V1 metadata and
+predates that identity field, so it fails closed for the strengthened live
+check. A fresh local replay must capture it before a live-chain identity match
+can be reported. The
+fingerprint describes chain lineage, not a unique RPC provider or Anvil process.
+
+The earlier separate-workspace replay consumed by this V0 adapter contains a conflict: Carol's 14-unit transfer is
 logged in a transaction whose calldata selects
 `applyConfigurationWithEntitlementProofMode`, not the allocator `withdraw`
 entry point. V0 therefore reports the amounts and final balances but does not

@@ -189,7 +189,7 @@
     (is (= 2 (:exit (invoke ["protocol" "finality" "inspect"] (assoc request :workflow-id 99)))))
     (testing "An open gate remains visible and blocks financial finality"
       (let [recovering (assoc-in request [:world :pending-fraud-slashes "s"]
-                                {:workflow-id 0 :status :pending})
+                                 {:workflow-id 0 :status :pending})
             result (:output (invoke ["protocol" "finality" "inspect"] recovering))]
         (is (false? (get-in result [:finality :financial :financially-final?])))
         (is (= [:slash-appeal] (get-in result [:finality :financial :open-gates])))))))
@@ -236,7 +236,7 @@
                         (admission/sign-verifier-receipt (:private-key kp) (:key/id kp)))
             trust-file (io/file root "trust.edn")
             _ (spit trust-file (pr-str {:trust-policy (signing/trust-policy kp :allocation-proof-verifier :active)
-                                       :program-registry (#'proof-fixture/program-registry artifact)}))
+                                        :program-registry (#'proof-fixture/program-registry artifact)}))
             request {:artifact artifact :receipt receipt :realized-input (str input-file) :proof-dir (str root)}
             check #(invoke ["protocol" "pro-rata" "check-admission"] % "--trust-context" (str trust-file))]
         (is (= 0 (:exit (check request))))
@@ -252,15 +252,15 @@
 
 (deftest retained-execution-check-reconstructs-and-rejects-mutated-evidence
   (#'investigation-fixture/with-bundle (deployment-fixture/fixture-input)
-    (fn [root]
-      (let [request {:bundle-dir (str root)}
-            result (invoke ["protocol" "pro-rata" "verify-execution"] request)]
-        (is (= 0 (:exit result)))
-        (is (= :retained-local-execution-evidence (get-in result [:output :scope])))
-        (is (false? (get-in result [:output :live-observation?])))
-        (is (seq (get-in result [:output :validation :gaps])) "Successful retained checks preserve assurance gaps")
-        (spit (io/file root "artifacts/fixture.json") "{}")
-        (is (not (zero? (:exit (invoke ["protocol" "pro-rata" "verify-execution"] request)))))))))
+                                       (fn [root]
+                                         (let [request {:bundle-dir (str root)}
+                                               result (invoke ["protocol" "pro-rata" "verify-execution"] request)]
+                                           (is (= 0 (:exit result)))
+                                           (is (= :retained-local-execution-evidence (get-in result [:output :scope])))
+                                           (is (false? (get-in result [:output :live-observation?])))
+                                           (is (seq (get-in result [:output :validation :gaps])) "Successful retained checks preserve assurance gaps")
+                                           (spit (io/file root "artifacts/fixture.json") "{}")
+                                           (is (not (zero? (:exit (invoke ["protocol" "pro-rata" "verify-execution"] request)))))))))
 
 (deftest forensic-adapter-verifies-real-golden-bundle-and-rejects-substitution
   (let [root (temp-dir)

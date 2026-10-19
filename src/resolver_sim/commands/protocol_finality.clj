@@ -11,7 +11,7 @@
                    verify? (conj :finality)
                    (= kind :ruling) (conj :ruling :authentication-verification))]
     (doc/closed! request required (cond-> #{:kind}
-                                   (not verify?) (conj :ruling :authentication-verification)))
+                                    (not verify?) (conj :ruling :authentication-verification)))
     (doc/require! (= :sew (:protocol request)) "Only :protocol :sew is supported")
     (doc/require! (contains? #{:financial :ruling} kind) "Unsupported finality kind")
     (doc/require! (and (map? (:world request))
@@ -31,26 +31,26 @@
 
 (defn inspect [opts]
   (doc/execute opts
-    (fn [request]
-      (let [kind (validate-request! request false)
-            finality (derive-result request kind)]
-        (doc/emit opts {:schema-version "protocol-finality-inspection.v1"
-                        :protocol :sew :kind kind :workflow-id (:workflow-id request)
-                        :authority :supplied-world
-                        :chain-evidence :assumed-by-replay
-                        :eligible? (some? finality) :finality finality}
-                  (if (some? finality) 0 1))))))
+               (fn [request]
+                 (let [kind (validate-request! request false)
+                       finality (derive-result request kind)]
+                   (doc/emit opts {:schema-version "protocol-finality-inspection.v1"
+                                   :protocol :sew :kind kind :workflow-id (:workflow-id request)
+                                   :authority :supplied-world
+                                   :chain-evidence :assumed-by-replay
+                                   :eligible? (some? finality) :finality finality}
+                             (if (some? finality) 0 1))))))
 
 (defn verify [opts]
   (doc/execute opts
-    (fn [{:keys [world workflow-id authentication-verification finality] :as request}]
-      (let [kind (validate-request! request true)
-            result (if (= kind :financial)
-                     (let [expected (derive-result request kind)]
-                       {:valid? (= expected finality) :expected expected
-                        :errors (if (= expected finality) [] [:finality-reconstruction-mismatch])})
-                     (ruling/validate-finality-against-context
-                      finality world workflow-id (:ruling request) authentication-verification))]
-        (doc/emit opts (assoc result :schema-version "protocol-finality-verification.v1"
-                              :authority :supplied-world :chain-evidence :assumed-by-replay)
-                  (if (:valid? result) 0 1))))))
+               (fn [{:keys [world workflow-id authentication-verification finality] :as request}]
+                 (let [kind (validate-request! request true)
+                       result (if (= kind :financial)
+                                (let [expected (derive-result request kind)]
+                                  {:valid? (= expected finality) :expected expected
+                                   :errors (if (= expected finality) [] [:finality-reconstruction-mismatch])})
+                                (ruling/validate-finality-against-context
+                                 finality world workflow-id (:ruling request) authentication-verification))]
+                   (doc/emit opts (assoc result :schema-version "protocol-finality-verification.v1"
+                                         :authority :supplied-world :chain-evidence :assumed-by-replay)
+                             (if (:valid? result) 0 1))))))

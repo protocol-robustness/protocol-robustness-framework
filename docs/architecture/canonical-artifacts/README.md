@@ -25,10 +25,10 @@ alongside the retained PRF entry points and portable reference implementation.
 Its 34 identity definitions, owners, domains, baseline pin, and proposed status
 are unchanged.
 
-See [the package boundary review](../../../packages/pro-rata-allocation/README.md)
-for current/target trees, adapter contracts, conformance ownership, remaining
-release gates, and estimates in coding passes. This is a source package boundary;
-separate repositories and a production-qualified package release remain pending.
+See the [pinned allocation repository](https://github.com/protocol-robustness/prf-pro-rata-allocation/tree/48e0b362748cd39d09994a8aa1496c668199aa74)
+for the portable package boundary, adapter contracts, conformance ownership,
+and remaining release gates. Its source qualification does not promote release,
+SP1, or Solidity proof qualification.
 
 ## Decisions and extraction blockers
 
@@ -361,16 +361,18 @@ ownership.
 
 ## Repo-separation impact
 
-The current tree remains authoritative while manifests identify contracts:
+The PRF integration tree and its immutable library dependencies are distinct:
 
 ```text
 PRF checkout
 ├── src/resolver_sim/hash/canonical.clj         codec + many domain declarations
 ├── src/resolver_sim/pro_rata/                  primitive and evaluation surfaces
+├── deps.edn                                    pinned prf-canonical + allocator Git revisions
+├── packages/pro-rata-allocation/README.md      external repository linkage only
 ├── src/resolver_sim/allocation/                statement, context, lifecycle,
 │                                             execution, proof, entitlement blend
 ├── src/resolver_sim/shortfall/                 scarcity and reserve/application bindings
-├── pro_rata_contract_src/                     portable codec + primitive reference
+├── pro_rata_contract_src/                     independent aggregate contract reference
 ├── coprocessor/core/                         Rust codec, selection/fill/lifecycle,
 │                                             Shortfall, entitlement and execution blend
 ├── coprocessor/*-sp1-program/                 distinct guest/profile identities
@@ -489,13 +491,15 @@ parent relationships. The manifest records current capital-lifecycle links to
 pro-rata and Shortfall explicitly as extraction adapter work. The validator
 does not prove implementations or replace conformance tests.
 
-Run it with both repository roots supplied:
+Run it with the PRF, EVM, and pinned allocation repository roots supplied:
 
 ```bash
 bb canonical-artifacts:validate \
   docs/architecture/canonical-artifacts/canonical-artifacts.v1.edn \
   /path/to/prf \
-  /path/to/prf-evm
+  /path/to/prf-evm \
+  /path/to/pinned-prf-canonical \
+  /path/to/prf-pro-rata-allocation-at-the-deps.edn-pin
 ```
 
 The validator pins the baseline identity tuple digest

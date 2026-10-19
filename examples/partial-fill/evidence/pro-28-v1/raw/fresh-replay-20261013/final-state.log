@@ -1,0 +1,11 @@
+chain_id=31337
+final_block=13
+allocator_operation=5
+claimed_amount=70
+claimed_count=3
+outstanding_liability=0
+reserve_balance=10
+allocator_balance=0
+beneficiary_1111_balance=35
+beneficiary_2222_balance=21
+beneficiary_3333_balance=14

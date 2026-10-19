@@ -247,8 +247,8 @@
         positional (cond
                      (= mode :arbitrary) " [ARGS...]"
                      (pos? (or min 0)) (str " " (str/join " " (repeat min "ARG"))
-                                             (when (and max (> max min))
-                                               (str " [ARG" (when (> max (inc min)) "...") "]")))
+                                            (when (and max (> max min))
+                                              (str " [ARG" (when (> max (inc min)) "...") "]")))
                      :else "")]
     (println (str "Usage: bin/prf " (str/join " " (:command/path cmd)) positional " [OPTIONS]")))
   (println (:command/description cmd))
@@ -343,10 +343,10 @@
   [handler-var opts cmd-path cmd-args raw-args]
   (try
     (let [opts (normalize-user-paths (assoc opts
-                                           :cmd/path cmd-path
-                                           :cmd/args cmd-args
-                                           :cmd/raw-args raw-args)
-                                    raw-args)
+                                            :cmd/path cmd-path
+                                            :cmd/args cmd-args
+                                            :cmd/raw-args raw-args)
+                                     raw-args)
           result (handler-var opts)]
       (or (:exit-code result) 0))
     (catch Exception e

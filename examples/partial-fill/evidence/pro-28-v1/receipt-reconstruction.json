@@ -1,0 +1,288 @@
+{
+  "accounting": {
+    "allocatorFunding": 70,
+    "carolEntitlement": 14,
+    "carolProtectedRefundInThisExecution": 0,
+    "claimPayouts": {
+      "claim-a": 35,
+      "claim-b": 21,
+      "claim-c": 14
+    },
+    "finalStateObservation": "token=0x367761085BF3C12e5DA2Df99AC6E1a824612b8fb reserve=0x7A9Ec1d04904907De0ED7b6839CcdD59c3716AC9 allocator=0x4C2F7092C2aE51D986bEFEe378e50BD4dB99C901 executor=0xC9a43158891282A2B1475592D5719c001986Aaec\nreserve_balance=10\nallocator_balance=0\nbeneficiary_1111_balance=35\nbeneficiary_2222_balance=21\nbeneficiary_3333_balance=14\ncurrent_entitlement_proof_mode=0\nfinal_block=15",
+    "note": "Carol's 14-unit entitlement is recorded separately from the 10-unit protected-capital refund described by the superseded V3 Foundry summary.",
+    "protectedReserveRemainder": 10,
+    "sponsorDeposit": 80,
+    "totalClaimPayouts": 70
+  },
+  "artifactHashes": {
+    "broadcast/activation.json": {
+      "bytes": 12022,
+      "sha256": "7759a0a33c633ecf8dce2044108d042bf209aff0953d0ec410923bf55c97bf82"
+    },
+    "broadcast/deployment.json": {
+      "bytes": 214316,
+      "sha256": "0f137b696525a197bc987d8dba4544127bb15c543281525fd85b0cf975057bd6"
+    },
+    "broadcast/funding.json": {
+      "bytes": 27157,
+      "sha256": "af46cb7c3b38add3c807f8285a2398bd3d561376e6861664642530e93a14266c"
+    },
+    "broadcast/withdrawals.json": {
+      "bytes": 38892,
+      "sha256": "28ff325bff8962e98aa7191c2e570117818b6f0109333ec6932114d7968f590b"
+    },
+    "deployment-manifest.json": {
+      "bytes": 2609,
+      "sha256": "a550b4897d801e865120b67437776b89a4985f93ae716203ecaa1e1c46bba380"
+    },
+    "final-state.log": {
+      "bytes": 376,
+      "sha256": "058e28c0986097d7abe22b5e1af7043c655a03e5f61e2b8af33d8d116644110b"
+    },
+    "fork-test.log": {
+      "bytes": 670,
+      "sha256": "6302e8fdab3d22d9baef24bc5ff1eb5433032238225834f2e1dcfbf58f1cbcb9"
+    },
+    "proof-fixture.json": {
+      "bytes": 2620,
+      "sha256": "54129820a960a2edabe23167518a286baa43d2c7902ac9bd1b58884678c1cf67"
+    },
+    "source/source-bound-entitlement-v1.json": {
+      "bytes": 28519,
+      "sha256": "a8a9310fbc439a7d9d21d60078cfce78f714cdaafeebd8d27c2b0a80e2310848"
+    },
+    "witness-provenance.json": {
+      "bytes": 390,
+      "sha256": "aaa2adaf3f16ae07137831b90b38c306a15dd0a7a7c48a87801c27a2ebf13c80"
+    },
+    "witness.json": {
+      "bytes": 3674,
+      "sha256": "4783067b57e5a1e8f6b61d6533269fde8b8c89cf5302ac97648ce8a6769ddb63"
+    }
+  },
+  "chainId": 31337,
+  "classification": "local Anvil observation on chain 31337; not public-chain execution or chain-state proof",
+  "contractAddresses": {
+    "admission": "0x1c85638e118b37167e9298c2268758e058DdfDA0",
+    "allocator": "0x4C2F7092C2aE51D986bEFEe378e50BD4dB99C901",
+    "assurance": "0x4631BCAbD6dF18D94796344963cB60d44a4136b6",
+    "executor": "0xC9a43158891282A2B1475592D5719c001986Aaec",
+    "genesis": "0xf4B146FbA71F41E0592668ffbF264F1D186b2Ca8",
+    "preparedController": "0x49fd2BE640DB2910c2fAb69bB8531Ab6E76127ff",
+    "ratificationController": "0x86A2EE8FAf9A840F7a2c64CA3d51209F9A02081D",
+    "registry": "0xD84379CEae14AA33C123Af12424A37803F885889",
+    "reserve": "0x7A9Ec1d04904907De0ED7b6839CcdD59c3716AC9",
+    "sourceAdapter": "0xBEc49fA140aCaA83533fB00A2BB19bDdd0290f25",
+    "token": "0x367761085BF3C12e5DA2Df99AC6E1a824612b8fb",
+    "verifier": "0x4EE6eCAD1c2Dae9f525404De8555724e3c35d07B"
+  },
+  "deploymentManifestDigest": "sha256:e9ab2ed1ba0494d9e457ace966b789fcae9332cc42a2dd6c62f3339eeee356f8",
+  "economicEvents": [
+    {
+      "amount": 80,
+      "from": "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266",
+      "kind": "sponsorDeposit",
+      "receipt": {
+        "amount": 80,
+        "blockHash": "0x2a983a58ad238e593a0009de65c1af6ae89f8278ba5fd522f361c693cd04b882",
+        "blockNumber": 7,
+        "chainId": 31337,
+        "emitter": "0x367761085bf3c12e5da2df99ac6e1a824612b8fb",
+        "from": "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266",
+        "group": "deployment",
+        "logIndex": 6,
+        "receiptStatus": 1,
+        "to": "0x7a9ec1d04904907de0ed7b6839ccdd59c3716ac9",
+        "transactionHash": "0x994ae65846fbe0686d38ebc83904b51c4f8ea288827479cccb13d0773815fb36",
+        "transactionIndex": 7
+      },
+      "to": "0x7a9ec1d04904907de0ed7b6839ccdd59c3716ac9"
+    },
+    {
+      "amount": 70,
+      "from": "0x7a9ec1d04904907de0ed7b6839ccdd59c3716ac9",
+      "kind": "allocatorFunding",
+      "receipt": {
+        "amount": 70,
+        "blockHash": "0x7e2eb53d2d85d39b6a2be1fc896c867cf4b78f0cd7c4e87fb31693b4a3a4658e",
+        "blockNumber": 9,
+        "chainId": 31337,
+        "emitter": "0x367761085bf3c12e5da2df99ac6e1a824612b8fb",
+        "from": "0x7a9ec1d04904907de0ed7b6839ccdd59c3716ac9",
+        "group": "funding",
+        "logIndex": 6,
+        "receiptStatus": 1,
+        "to": "0x4c2f7092c2ae51d986befee378e50bd4db99c901",
+        "transactionHash": "0x6c3329b65a6ad960480acf1cf983b263a2d53396f32416d23a94e83ca14b3fc4",
+        "transactionIndex": 4
+      },
+      "to": "0x4c2f7092c2ae51d986befee378e50bd4db99c901"
+    },
+    {
+      "amount": 35,
+      "claimId": "claim-a",
+      "from": "0x4c2f7092c2ae51d986befee378e50bd4db99c901",
+      "kind": "entitlementClaim",
+      "receipt": {
+        "amount": 35,
+        "blockHash": "0x9a513223db42f35eef533b03b725a30b01ca4e2149eec8186abc3e7d65565f0f",
+        "blockNumber": 12,
+        "chainId": 31337,
+        "emitter": "0x367761085bf3c12e5da2df99ac6e1a824612b8fb",
+        "from": "0x4c2f7092c2ae51d986befee378e50bd4db99c901",
+        "group": "withdrawals",
+        "logIndex": 0,
+        "receiptStatus": 1,
+        "to": "0x1111111111111111111111111111111111111111",
+        "transactionHash": "0x58403d818524daa2707f1c6a0b4b3a0a0b882535e02a2f5135a82bbef64aafdb",
+        "transactionIndex": 0
+      },
+      "to": "0x1111111111111111111111111111111111111111"
+    },
+    {
+      "amount": 21,
+      "claimId": "claim-b",
+      "from": "0x4c2f7092c2ae51d986befee378e50bd4db99c901",
+      "kind": "entitlementClaim",
+      "receipt": {
+        "amount": 21,
+        "blockHash": "0x344fc8b510af09cf8e15615c3b35bae8e441974d784797127cfa5375ec768b6a",
+        "blockNumber": 15,
+        "chainId": 31337,
+        "emitter": "0x367761085bf3c12e5da2df99ac6e1a824612b8fb",
+        "from": "0x4c2f7092c2ae51d986befee378e50bd4db99c901",
+        "group": "withdrawals",
+        "logIndex": 0,
+        "receiptStatus": 1,
+        "to": "0x2222222222222222222222222222222222222222",
+        "transactionHash": "0x34befeaf175a6858b341e10217426808c3f0f3b82f5704fc8de4d34f653e633b",
+        "transactionIndex": 0
+      },
+      "to": "0x2222222222222222222222222222222222222222"
+    },
+    {
+      "amount": 14,
+      "claimId": "claim-c",
+      "from": "0x4c2f7092c2ae51d986befee378e50bd4db99c901",
+      "kind": "entitlementClaim",
+      "receipt": {
+        "amount": 14,
+        "blockHash": "0x344fc8b510af09cf8e15615c3b35bae8e441974d784797127cfa5375ec768b6a",
+        "blockNumber": 15,
+        "chainId": 31337,
+        "emitter": "0x367761085bf3c12e5da2df99ac6e1a824612b8fb",
+        "from": "0x4c2f7092c2ae51d986befee378e50bd4db99c901",
+        "group": "withdrawals",
+        "logIndex": 5,
+        "receiptStatus": 1,
+        "to": "0x3333333333333333333333333333333333333333",
+        "transactionHash": "0x4e1dbb0dbabf84fa5dce96e21eb2f0a5599e4cfd6b6414645bbc656e16a6691f",
+        "transactionIndex": 4
+      },
+      "to": "0x3333333333333333333333333333333333333333"
+    }
+  ],
+  "operationId": "0x809b4fbdb632eba4671e5d5f35a37ff12aa4ae28e1ec84aece40972b1138755d",
+  "preparedOperationRoot": "0xe0c2dc5821ca3b6ec330d8af7bcb407400b19bff4d8ee08f727970494dd85eb2",
+  "proof": {
+    "allocationSpecificOutput": "deployment-bound roots are checked against the manifest and witness; portable source-vector roots are not substituted for deployment-specific roots",
+    "cryptographicVerification": "not independently verified; historical Foundry output is not cryptographic verification",
+    "elfSha256": "0x636330de8e7af3485aba50bd3ca4b5e024cc4f977a2bf0f2c005f711e5ffacf8",
+    "programId": "source-bound-entitlement-sp1-program.v1",
+    "proofSha256": "0xe05b68dbeeae20194c0664946c304ed006c42a818e371b1d6466c7a1d57d725b",
+    "proofSystem": "groth16",
+    "publicValuesBytes": 288,
+    "publicValuesSha256": "0xe271c6e20591109e46e3e44191c007c8f40f0e0ddec9491451f6cb11703e5ae1",
+    "schema": "prf/source-bound-entitlement-public-values.v1",
+    "sourceBundleSha256": "0xa8a9310fbc439a7d9d21d60078cfce78f714cdaafeebd8d27c2b0a80e2310848",
+    "vectorId": "A-minimum-realistic",
+    "vkey": "0x00d90efa52d17e54670a4248f001e4da443a938f12c55d0d414c125ba68087b9",
+    "witnessSha256": "0x4783067b57e5a1e8f6b61d6533269fde8b8c89cf5302ac97648ce8a6769ddb63",
+    "words": [
+      "0x876f2aea9124d79f41dbdd389d498430987fa33bbb34408989849c478a7c2bde",
+      "0xe0c2dc5821ca3b6ec330d8af7bcb407400b19bff4d8ee08f727970494dd85eb2",
+      "0xe04f4989c32dfde256d9c2ba9f4187e64910999506bb0528b3fda7c33a8f3aee",
+      "0xfe94e946ddaf58eca00c3231672536bf3c01199925c25ec8e2a0d60a325384e5",
+      "0x0e8b6d0eb8a46279fee6697366b2bdfa0b4aa514dacf17e9e264744d90d91c1f",
+      "0x52618a7e6f8ea56baf760682b64b12860f56bef7980593f4099c8c5e65783d8d",
+      "0x0000000000000000000000000000000000000000000000000000000000000003",
+      "0x0000000000000000000000000000000000000000000000000000000000000046",
+      "0xfab874034cf34f9d88e8382aa9c2473c0fd3f36ee9b5a0b358e4a86ae75b7fac"
+    ]
+  },
+  "receiptCounts": {
+    "activation": 2,
+    "deployment": 24,
+    "funding": 6,
+    "withdrawals": 9
+  },
+  "reportCorrection": {
+    "previousReportSha256": "7a13c85cdc6eed37ee737c2b31be46a156bd2968b0132bdecb5cbd2523b766a7",
+    "reason": "The prior report inferred cryptographic verification from mutable Foundry output text. The current verifier does not independently verify SP1 proofs.",
+    "replacementReport": "fresh-replay-20261017-reconstruction.json"
+  },
+  "reportStatus": "historical_report_superseded_for_cryptographic_claims",
+  "runtimeCodeIdentity": {
+    "binding": "source revision, compiler settings and deployment transaction inputs are retained; runtime code hashes were not captured",
+    "status": "not present in retained replay package"
+  },
+  "schema": "eae.pro-28-authentic-local-execution.v1",
+  "source": {
+    "replay": "fresh Anvil replay by a separate agent/workspace; see issue evidence provenance",
+    "repository": "protocol-robustness/prf-evm",
+    "revision": "4cfa2f96a4938d23abda609dfff9052b177ef8af"
+  },
+  "successfulReceiptCount": 41,
+  "verificationResults": {
+    "cryptographicVerification": {
+      "programId": "source-bound-entitlement-sp1-program.v1",
+      "proofSystem": "groth16",
+      "reason": "historical report relied on mutable test-log text; no independent SP1 verification was run by this report",
+      "status": "not_independently_verified",
+      "vkey": "0x00d90efa52d17e54670a4248f001e4da443a938f12c55d0d414c125ba68087b9"
+    },
+    "economicReconciliation": {
+      "allocatorFunding": 70,
+      "claimPayouts": {
+        "claim-a": 35,
+        "claim-b": 21,
+        "claim-c": 14
+      },
+      "liabilityClosed": false,
+      "sourceDeposit": 80,
+      "status": "passed against retained transfer receipts and terminal state reads"
+    },
+    "executionObservation": {
+      "chainId": 31337,
+      "finalObservedBlock": 15,
+      "localOnly": true,
+      "status": "receipt cross-links passed",
+      "successfulReceiptCount": 41
+    },
+    "provenanceLimitations": [
+      "Local Anvil observations are not public-chain evidence or proof of canonical chain state.",
+      "Runtime code bytes are retained and their hashes recomputed; the local RPC observation is unsigned.",
+      "The superseded V3 summary lacks receipt and log indexes and is not receipt-level payout evidence."
+    ],
+    "structuralIntegrity": {
+      "checkedArtifacts": [
+        "deployment-manifest.json",
+        "witness.json",
+        "witness-provenance.json",
+        "proof-fixture.json",
+        "source/source-bound-entitlement-v1.json",
+        "broadcast/deployment.json",
+        "broadcast/funding.json",
+        "broadcast/activation.json",
+        "broadcast/withdrawals.json",
+        "fork-test.log",
+        "final-state.log"
+      ],
+      "status": "passed",
+      "validator": "scripts/forensic/pro28_receipts.py"
+    },
+    "unverifiedClaims": [
+      "No Base Sepolia execution, public deployment qualification, or organizationally independent verification is claimed."
+    ]
+  }
+}

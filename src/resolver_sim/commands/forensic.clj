@@ -35,14 +35,14 @@
                               [(str "--" (name k)) (resolve (get request k))]))
                           (sort paths))
         string-args (mapcat (fn [k]
-                             (when (contains? request k)
-                               (doc/require! (and (string? (get request k)) (seq (get request k)))
-                                             "Expected a nonempty forensic option string")
-                               [(str "--" (name k)) (get request k)])) (sort strings))
+                              (when (contains? request k)
+                                (doc/require! (and (string? (get request k)) (seq (get request k)))
+                                              "Expected a nonempty forensic option string")
+                                [(str "--" (name k)) (get request k)])) (sort strings))
         flag-args (keep (fn [k]
-                         (when (contains? request k)
-                           (doc/require! (boolean? (get request k)) "Forensic flags must be booleans")
-                           (when (get request k) (str "--" (name k))))) (sort flags))]
+                          (when (contains? request k)
+                            (doc/require! (boolean? (get request k)) "Forensic flags must be booleans")
+                            (when (get request k) (str "--" (name k))))) (sort flags))]
     {:root root
      :argv (vec (concat ["python3" "-m" (str "scripts.forensic." (name operation))]
                         (when positional [(resolve (get request positional))])
@@ -54,18 +54,18 @@
 
 (defn- execute [operation opts]
   (doc/execute opts
-    (fn [request]
-      (let [{:keys [root argv env]} (invocation operation (:input opts) request)
-            result (apply shell/sh (concat argv [:dir root :env env]))
-            report (try (json/read-str (:out result) :key-fn keyword)
-                        (catch Exception _ nil))
-            output {:schema-version "forensic-command-result.v2"
-                    :operation operation :repo-root root
-                    :exit-code (:exit result) :stderr (:err result)}
-            output (if report
-                     (assoc output :report report)
-                     (cond-> output (seq (:out result)) (assoc :stdout (:out result))))]
-        (doc/emit opts output (:exit result))))))
+               (fn [request]
+                 (let [{:keys [root argv env]} (invocation operation (:input opts) request)
+                       result (apply shell/sh (concat argv [:dir root :env env]))
+                       report (try (json/read-str (:out result) :key-fn keyword)
+                                   (catch Exception _ nil))
+                       output {:schema-version "forensic-command-result.v2"
+                               :operation operation :repo-root root
+                               :exit-code (:exit result) :stderr (:err result)}
+                       output (if report
+                                (assoc output :report report)
+                                (cond-> output (seq (:out result)) (assoc :stdout (:out result))))]
+                   (doc/emit opts output (:exit result))))))
 
 (defn run [opts] (execute :run opts))
 (defn validate [opts] (execute :validate opts))

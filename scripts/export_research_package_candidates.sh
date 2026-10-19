@@ -47,7 +47,7 @@ copy_namespace_closure() {
     [[ -n "$namespace" ]] || continue
     relative=$(namespace_path "$namespace")
     if [[ "$namespace" == prf.* ]]; then
-      source="$repo_root/packages/canonical/clj/src/$relative"
+      continue # canonical namespace is supplied by the pinned Git dependency
     else
       source="$repo_root/src/$relative"
     fi
@@ -79,21 +79,26 @@ make_export() {
 }
 
 accounting="$stage/accounting-reductions"
-mkdir -p "$accounting/packages/accounting-reductions" "$accounting/packages/canonical"
+mkdir -p "$accounting/packages/accounting-reductions"
 cp -R "$repo_root/packages/accounting-reductions/clj" \
       "$accounting/packages/accounting-reductions/clj"
 cp "$repo_root/packages/accounting-reductions/README.md" \
    "$accounting/packages/accounting-reductions/README.md"
 cp "$repo_root/packages/accounting-reductions/RELEASE.edn" \
    "$accounting/packages/accounting-reductions/RELEASE.edn"
-cp -R "$repo_root/packages/canonical/clj" "$accounting/packages/canonical/clj"
-cp "$repo_root/packages/canonical/RELEASE.edn" "$accounting/packages/canonical/RELEASE.edn"
 make_export accounting-reductions "$accounting"
 
 research="$stage/prf-research-contracts"
 mkdir -p "$research/resources/config" \
          "$research/test/resolver_sim/research" \
          "$research/test/resolver_sim/benchmark"
+cat > "$research/deps.edn" <<'EOF'
+{:paths ["src" "test" "resources"]
+ :deps {org.clojure/clojure {:mvn/version "1.12.0"}
+        prf/canonical {:git/url "https://github.com/protocol-robustness/prf-canonical.git"
+                       :git/sha "5e2b520feca812b049ba397b7b3681963c66a48c"
+                       :deps/root "clj"}}}
+EOF
 copy_namespace_closure "$repo_root/packages/prf-research-contracts/DEPENDENCIES.edn" "$research"
 cp "$repo_root/config/defaults.edn" "$research/resources/config/defaults.edn"
 cp "$repo_root/test/resolver_sim/research/research_contract_api_test.clj" \
@@ -110,6 +115,13 @@ incentives="$stage/prf-incentives"
 mkdir -p "$incentives/resources/config" \
          "$incentives/test/resolver_sim/research" \
          "$incentives/test/resolver_sim/benchmark"
+cat > "$incentives/deps.edn" <<'EOF'
+{:paths ["src" "test" "resources"]
+ :deps {org.clojure/clojure {:mvn/version "1.12.0"}
+        prf/canonical {:git/url "https://github.com/protocol-robustness/prf-canonical.git"
+                       :git/sha "5e2b520feca812b049ba397b7b3681963c66a48c"
+                       :deps/root "clj"}}}
+EOF
 copy_namespace_closure "$repo_root/packages/prf-incentives/DEPENDENCIES.edn" "$incentives"
 cp "$repo_root/config/defaults.edn" "$incentives/resources/config/defaults.edn"
 cp "$repo_root/test/resolver_sim/research/research_api_boundary_test.clj" \

@@ -5,22 +5,46 @@ for name in ['README.md','protected-capital-release.md','materialize.clj','run-l
     shutil.copyfile(root/'examples/partial-fill'/name,out/name)
 shutil.copyfile(evm/'test/PartialFillControlled.t.sol',out/'PartialFillControlled.t.sol')
 if pathlib.Path('/tmp/partial-fill-regression.json').exists() and not (out/'regression-tests.json').exists():shutil.copyfile('/tmp/partial-fill-regression.json',out/'regression-tests.json')
-def archive(name,base,paths):
+def pinned_git_dependencies():
+    text=(root/'deps.edn').read_text()
+    dependencies={}
+    for alias in ['prf/pro-rata-allocation','prf/canonical']:
+        match=re.search(rf'{re.escape(alias)}\s+\{{\s*:git/url\s+"([^"]+)"\s+:git/sha\s+"([0-9a-f]{{40}})"',text)
+        if not match: raise SystemExit(f'Missing immutable Git pin for {alias} in deps.edn')
+        url,revision=match.groups(); group,artifact=alias.split('/')
+        checkout=pathlib.Path.home()/'.gitlibs'/'libs'/group/artifact/revision
+        if not checkout.is_dir(): raise SystemExit(f'Missing cached checkout for {alias} at {revision}; resolve deps.edn first')
+        actual=subprocess.run(['git','-C',str(checkout),'rev-parse','HEAD'],capture_output=True,text=True,check=True).stdout.strip()
+        dirty=subprocess.run(['git','-C',str(checkout),'status','--porcelain'],capture_output=True,text=True,check=True).stdout.strip()
+        if actual!=revision or dirty: raise SystemExit(f'Pinned checkout is not clean/exact for {alias}: {actual}; dirty={bool(dirty)}')
+        dependencies[alias]={'url':url,'revision':revision,'checkout':checkout}
+    return dependencies
+
+def archive(name,base,paths,external_sources=()):
     with tarfile.open(out/name,'w:gz') as tf:
+        def include(info):
+            excluded={'.git','.jj','target','.cpcache','node_modules','__pycache__'}
+            return None if any(x in pathlib.PurePosixPath(info.name).parts for x in excluded) else info
         for relative in paths:
             path=base/relative
-            if path.exists(): tf.add(path,arcname=relative,filter=lambda info:None if any(x in pathlib.PurePosixPath(info.name).parts for x in ['target','.cpcache','node_modules','__pycache__']) else info)
+            if path.exists(): tf.add(path,arcname=relative,filter=include)
+        for archive_root,source_root in external_sources:
+            for path in source_root.rglob('*'):
+                if path.is_file():
+                    arcname=(pathlib.Path(archive_root)/path.relative_to(source_root)).as_posix()
+                    tf.add(path,arcname=arcname,recursive=False,filter=include)
 pending=['resolver-sim.genesis','resolver-sim.allocation.source-bound-entitlement','resolver-sim.allocation.persisted-statement-admission','resolver-sim.hash.canonical']; source_paths=set()
 while pending:
     ns=pending.pop(); relative='src/'+ns.replace('.','/').replace('-','_')+'.clj'; file=root/relative
     if relative in source_paths or not file.exists():continue
     source_paths.add(relative)
     pending.extend(re.findall(r'\bresolver-sim\.[a-zA-Z0-9_.-]+',file.read_text()))
-archive('prf-source.tar.gz',root,sorted(source_paths)+['test/resolver_sim/allocation/source_bound_entitlement_test.clj','deps.edn','config/defaults.edn','config/evidence.json','resources','packages/pro-rata-allocation','packages/accounting-reductions','packages/canonical','coprocessor','etc/conformance','etc/deployments/eae-controlled-entitlement-demo/protocol-genesis-package.edn','examples/partial-fill/README.md','examples/partial-fill/protected-capital-release.md','examples/partial-fill/run-local.sh','examples/partial-fill/materialize.clj','examples/partial-fill/report.py','examples/partial-fill/accounting-journal.py','examples/partial-fill/qualify-source.py','examples/partial-fill/package-evidence.py'])
+git_dependencies=pinned_git_dependencies()
+archive('prf-source.tar.gz',root,sorted(source_paths)+['test/resolver_sim/allocation/source_bound_entitlement_test.clj','deps.edn','config/defaults.edn','config/evidence.json','resources','packages/accounting-reductions','coprocessor','etc/conformance','etc/deployments/eae-controlled-entitlement-demo/protocol-genesis-package.edn','examples/partial-fill/README.md','examples/partial-fill/protected-capital-release.md','examples/partial-fill/run-local.sh','examples/partial-fill/materialize.clj','examples/partial-fill/report.py','examples/partial-fill/accounting-journal.py','examples/partial-fill/qualify-source.py','examples/partial-fill/package-evidence.py'],[(f'packages/{alias.split("/")[1]}',dependency['checkout']) for alias,dependency in git_dependencies.items()])
 archive('evm-source.tar.gz',evm,['src','test/PartialFillControlled.t.sol','test/fixtures/partial-fill','foundry.toml','remappings.txt','.gitmodules'])
 def command(args,cwd=None):
     r=subprocess.run(args,cwd=cwd,capture_output=True,text=True);return r.stdout.strip() or r.stderr.strip()
-toolchain={'scope':'local Foundry EVM execution; official SP1 Groth16 verifier; no public-chain transaction','proof_runtime':{'SP1_PROVER':'cpu','RAYON_NUM_THREADS':'8','GOMAXPROCS':'8','GOMEMLIMIT':'20GiB','SP1_WORKER_NUM_CORE_WORKERS':'1','SP1_WORKER_NUM_RECURSION_PROVER_WORKERS':'1','pipeline':'checkpointed SDK compressed/shrink/wrap; fresh native Groth16 FFI process; SDK cryptographic verification'},'rust':command(['rustc','--version']),'cargo':command(['cargo','--version']),'sp1_sdk':next(p['version'] for p in tomllib.loads((root/'coprocessor/Cargo.lock').read_text())['package'] if p['name']=='sp1-sdk'),'solc':command(['solc','--version']),'forge':command(['forge','--version']),'evm_base_revision':command(['git','rev-parse','HEAD'],evm),'prf_revision_status':'workspace snapshot; SHA-256 source archives, no usable git revision','dependencies':{name:command(['git','rev-parse','HEAD'],evm/'lib'/name) for name in ['forge-std','openzeppelin-contracts','sp1-contracts']}}
+toolchain={'scope':'local Foundry EVM execution; official SP1 Groth16 verifier; no public-chain transaction','proof_runtime':{'SP1_PROVER':'cpu','RAYON_NUM_THREADS':'8','GOMAXPROCS':'8','GOMEMLIMIT':'20GiB','SP1_WORKER_NUM_CORE_WORKERS':'1','SP1_WORKER_NUM_RECURSION_PROVER_WORKERS':'1','pipeline':'checkpointed SDK compressed/shrink/wrap; fresh native Groth16 FFI process; SDK cryptographic verification'},'rust':command(['rustc','--version']),'cargo':command(['cargo','--version']),'sp1_sdk':next(p['version'] for p in tomllib.loads((root/'coprocessor/Cargo.lock').read_text())['package'] if p['name']=='sp1-sdk'),'solc':command(['solc','--version']),'forge':command(['forge','--version']),'evm_base_revision':command(['git','rev-parse','HEAD'],evm),'prf_revision_status':'workspace snapshot; SHA-256 source archives, no usable git revision','git_dependencies':{name:{'url':dependency['url'],'revision':dependency['revision']} for name,dependency in git_dependencies.items()},'dependencies':{name:command(['git','rev-parse','HEAD'],evm/'lib'/name) for name in ['forge-std','openzeppelin-contracts','sp1-contracts']}}
 (out/'toolchain.json').write_text(json.dumps(toolchain,indent=2)+'\n')
 q=json.loads((out/'qualification.json').read_text());journal=json.loads((out/'accounting-journal.json').read_text());active=set() if q['qualified'] else {'prove.log','recovery-prove.log'};q['availableFiles']=sorted(str(f.relative_to(out)) for f in out.rglob('*') if f.is_file() and f.name not in active and f.name!='manifest.json')+['manifest.json'];(out/'qualification.json').write_text(json.dumps(q,indent=2)+'\n');inputs=[];records=[]
 for f in sorted(out.rglob('*')):
