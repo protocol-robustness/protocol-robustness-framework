@@ -669,6 +669,22 @@ and retained evidence. These are additional action/evidence requirements, not
 permission to execute them: the expected operation, seed amount, proof inputs,
 and before/after state assertions must be reviewed and approved first.
 
+An existing local-only implementation is available in the PRF-EVM checkout at
+`script/RunGateEEntitlementLocal.s.sol`. Its `GateEEntitlementLocalOperator`
+has immutable operator, operation ID and controller bindings and exposes only
+fund, activate and refund calls; its runner checks chain 31337, governance-key
+identity, proof/witness provenance, prepared-operation identity and current
+reserve commitment before binding the caller and admitting/funding. The source
+file SHA-256 is
+`49b2278666afca559d8690a47b39456fa38a5282b581a825ceab7981c2007a5c`. Reuse
+and pin this helper for the local flow rather than creating a second operator
+implementation. Its existing deployment script initializes a separate
+topology with reserve capital; that setup cannot be copied as current-chain
+evidence because the approved C1 deployment's reserve is empty. The current
+flow still needs a separately approved and evidenced reserve seed operation,
+representation deployment, and operator binding against the retained C1
+contracts.
+
 The current deployment uses `OnchainShortfallReserveV2`, while the existing
 PRF source-bound reserve path only reconstructed the V1 snapshot hash. PRF now
 has additive `prf/onchain-shortfall-reserve-observation.v2` and
