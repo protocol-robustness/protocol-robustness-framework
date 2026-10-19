@@ -67,7 +67,7 @@
 
 ^{:nextjournal.clerk/visibility {:code :fold :result :show}}
 (clerk/table
- {:head ["Notebook output A" "Notebook output B" "Roots compared" "Production result"]
+ {:head ["Notebook output A" "Notebook output B" "Roots compared" "Comparison result"]
   :rows (mapv (fn [[left right _]]
                 [(:notebook/var left)
                  (:notebook/var right)

@@ -14,7 +14,7 @@
 ;; ## Interactive D3 Force-Directed Graph
 
 ;; Load graph evidence artifact from the focused run or latest results.
-;; Uses the same conventions as the production workbench.
+;; Uses the same conventions as the evidence workbench.
 
 ^{:nextjournal.clerk/visibility {:code :hide :result :show}}
 (defonce !graph-data (atom nil))

@@ -15,7 +15,7 @@
             [resolver-sim.protocols.sew.types :as sew-types]
             [resolver-sim.protocols.sew.projection :as sew-proj]))
 
-;; # Sew Protocol — Production Evidence Workbench
+;; # Sew Protocol — Evidence Workbench
 ;; ## High-Assurance Protocol Robustness & Adversarial Telemetry
 
 ^{:nextjournal.clerk/visibility {:code :hide :result :show}}

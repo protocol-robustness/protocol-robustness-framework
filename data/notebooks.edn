@@ -277,13 +277,13 @@
   {:id             :workbench-v2
    :path           "notebooks/workbench_v2.clj"
    :title          "Adversarial Validation Workbench (v2)"
-   :summary        "Production evidence workbench: aggregate results across all simulation phases, adversarial metrics, phase summaries."
+   :summary        "Evidence workbench: aggregate results across simulation phases, adversarial metrics, and phase summaries."
    :categories     [:tooling :security-validation]
    :audience       [:researcher :auditor]
    :status         :verified
    :risk           :medium
    :protocol-areas [:all]
-    :tags           ["workbench" "phases" "aggregate" "production"]
+    :tags           ["workbench" "phases" "aggregate"]
     :presentation   {:theme :simulation-scenarios :kind :tool
                      :audience-level :intermediate}}
 
@@ -803,7 +803,7 @@
    :notebook/status :archived
    :notebook/replaced-by :workbench-v2
    :path           "notebooks/workbench_production.clj"
-   :title          "Production Evidence Workbench (v1, archived)"
+   :title          "Evidence Workbench (v1, archived)"
    :summary        "Replaced by workbench-v2. Retained for migration metadata and historical reference."
    :categories     [:tooling]
    :audience       [:researcher]

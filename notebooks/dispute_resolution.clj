@@ -6,8 +6,8 @@
 ;; **Audience:** Kleros integrations / protocol team · Protocol reviewers · Security researchers ·
 ;; Sew contributors · Mechanism design / dispute resolution researchers.
 ;;
-;; **Purpose:** Production-quality validation workbench for the Sew Protocol dispute resolution
-;; subsystem. Every status indicator is paired with:
+;; **Purpose:** Exploratory validation workbench, complete for its current Sew
+;; Protocol dispute-resolution workload. Every status indicator is paired with:
 ;; - what it means,
 ;; - what it does **not** mean,
 ;; - the source artifact backing it,
