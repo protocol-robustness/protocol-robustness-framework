@@ -157,6 +157,21 @@ shows compatibility with the current shared checkout's source; the checkout
 itself was not modified and the release baseline is still an overlay pending
 maintainer integration and source/artifact pinning.
 
+The exact PRF-EVM base tree is `181cb24a13dd634bca95dad8981b49e61e983393`;
+applying the pinned overlay (`de072d677eff58f01a3fdef22d17c2f73ae549c848ee12b2b0f22cc77e1cc6f9`)
+produces Git tree `b377fbc44495ec05a27fe584078ebbd5fe8c9233`. This tree identity
+was independently materialized in a temporary shared-object clone. Its 22
+changed paths and test results identify a reproducible compatibility build,
+not an accepted release revision.
+
+That exact tree also passes `npm run compile` and `npm run deployables:export`
+under Foundry 1.7.1 / Solc 0.8.33. Export validates 31 artifacts and reports
+bundle root `10cc6f300a2f8d9b25a18d353b34eaa8b2cc7e58f2b1ccb53a7034612b11911f`.
+The bundle records source commit `d8aee74e9652f44f68e345aff30090325df2ae54`
+as dirty because the overlay is applied in the temporary clone. This is a
+successful compatibility build, not a clean release identity or an artifact
+equivalence claim against the unavailable historical bundle.
+
 On 2026-10-19, the PRF-side registry-equivalence, source-lock, genesis-seal
 preflight, successor-configuration, and transition-approval review suites
 passed 16 tests and 93 assertions. These confirm the derivation and gate

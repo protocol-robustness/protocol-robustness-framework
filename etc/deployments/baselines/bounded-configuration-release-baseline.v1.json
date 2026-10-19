@@ -3988,6 +3988,36 @@
         "command": "forge test --match-contract PrfAuthorityStateTransitionTest -vv"
       },
       "totalFocusedCaseCoverageAcrossRuns": 130
+    },
+    "currentCheckoutCompatibility": {
+      "baseRevision": "d8aee74e9652f44f68e345aff30090325df2ae54",
+      "baseTree": "181cb24a13dd634bca95dad8981b49e61e983393",
+      "overlayPath": "etc/deployments/baselines/prf-evm-bounded-combined-overlay.patch.gz",
+      "overlaySha256": "de072d677eff58f01a3fdef22d17c2f73ae549c848ee12b2b0f22cc77e1cc6f9",
+      "resultTree": "b377fbc44495ec05a27fe584078ebbd5fe8c9233",
+      "focusedTests": {
+        "passed": 85,
+        "suites": 7,
+        "command": "forge test --match-contract 'PrfGenesisTest|PrfStatementAdmissionTest|PrfRegistryEquivalenceTest|PrfAssuredOperationConsumerTest|SourceBoundProRataAssuranceV2Test|PrfStatementAdmissionRealProofTest|PrfSourceBoundEntitlementAdmissionRealProofTest'"
+      },
+      "authorityTransitionTests": {
+        "passed": 14,
+        "suites": 2,
+        "command": "forge test --match-contract 'PrfAuthorityStateTransitionTest|PrfEcdsaAuthorityTransitionValidatorTest'"
+      },
+      "toolchain": {
+        "foundry": "1.7.1+4072e48705af9d93e3c0f6e29e93b5e9a40caed8",
+        "solc": "0.8.33+commit.64118f21"
+      },
+      "build": {
+        "compile": "npm run compile passed",
+        "artifactExport": "npm run deployables:export passed",
+        "artifactCount": 31,
+        "bundleRoot": "10cc6f300a2f8d9b25a18d353b34eaa8b2cc7e58f2b1ccb53a7034612b11911f",
+        "sourceCommit": "d8aee74e9652f44f68e345aff30090325df2ae54",
+        "sourceDirty": true
+      },
+      "qualification": "current-source compatibility build; not maintainer-integrated or a clean release artifact identity"
     }
   },
   "protocolDeployments": {
