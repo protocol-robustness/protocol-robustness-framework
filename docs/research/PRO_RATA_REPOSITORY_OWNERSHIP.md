@@ -129,16 +129,16 @@ file digest, and its allocation-vector tests reconstruct the frozen roots.
 
 An unpublished exploratory repository now holds the effect-transition
 candidate: `prf-effect-transition-contract` at Git revision
-`3333696ff99eb69d8bb364abb4906f2f69069917`, with draft package root
-`fafbdc6eef59296245c6664faf4f17d0d7faaa50b74a37e9eec72e453c25b493`. Its
-contract and fixtures are exposed under a versioned classpath resource root. It pins
-`prf-canonical` revision
-`5e2b520feca812b049ba397b7b3681963c66a48c` and carries the exact source
-sections 5–7, transition vectors, and canonical bytes. Its clean-checkout
-conformance suite passed 5 tests / 56 assertions, including verification of
-the original combined bundle's root and listed file digests. The repository has
-no remote and PRF does not depend on this candidate; it is not authoritative or
-release-qualified.
+`36e519bd3f4f54a1da61778fba337abe00c9d3ac`, with draft package root
+`3ea923228909f4af38052e3942318cf6d9ed42812b873339ba7d4d07b61388bc`. Its
+contract and fixtures are exposed under a versioned classpath resource root. It
+pins `prf-canonical` revision
+`5e2b520feca812b049ba397b7b3681963c66a48c` from both Clojure and Rust, and
+carries source sections 5–7, transition vectors, and canonical bytes. Clean
+checkout conformance passed in Clojure (8 tests / 91 assertions) and Rust (3
+tests), including all frozen transition mutation rejections. The repository has
+no remote and PRF does not depend on this candidate; it remains exploratory,
+unreviewed, and release-unqualified.
 
 The independent `pro_rata_contract_src/` implementation remains PRF-owned as a
 conformance oracle for now. Before replacing or relocating it, consumers need
