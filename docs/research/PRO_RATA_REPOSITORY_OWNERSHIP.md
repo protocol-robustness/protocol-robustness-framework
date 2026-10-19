@@ -121,6 +121,18 @@ pass as a whole. On this extraction revision,
 release-manifest test verifies the recorded release root and every listed
 file digest, and its allocation-vector tests reconstruct the frozen roots.
 
+An unpublished exploratory repository now holds the effect-transition
+candidate: `prf-effect-transition-contract` at Git revision
+`00c25be6f39301ca333f1197fffd3759015ccbda`, with draft package root
+`013839396bc178895955f0346cab8bd5185d014c6904e20be0c4a219d50599a9`. It pins
+`prf-canonical` revision
+`5e2b520feca812b049ba397b7b3681963c66a48c` and carries the exact source
+sections 5–7, transition vectors, and canonical bytes. Its clean-checkout
+conformance suite passed 5 tests / 54 assertions, including verification of
+the original combined bundle's root and listed file digests. The repository has
+no remote and PRF does not depend on this candidate; it is not authoritative or
+release-qualified.
+
 The independent `pro_rata_contract_src/` implementation remains PRF-owned as a
 conformance oracle for now. Before replacing or relocating it, consumers need
 to validate both new package pins against the same frozen allocation and
