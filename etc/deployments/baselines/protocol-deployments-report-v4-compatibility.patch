@@ -1,0 +1,158 @@
+diff --git a/docs/deployment-units-and-successor-plan.md b/docs/deployment-units-and-successor-plan.md
+index 72fa4c0b26..8ba4f11998 100644
+--- a/docs/deployment-units-and-successor-plan.md
++++ b/docs/deployment-units-and-successor-plan.md
+@@ -136,13 +136,15 @@
+ The plan verifier also invokes live verification against `--resolved`, the
+ caller-selected pinned `--fixtures` bundle and `--rpc-url`; it does not accept
+ a producer-supplied live-verification success flag. It can persist a deterministic, immutable
+-`protocol-deployment-independent-verification/v3` report with `--out`; the report
++`protocol-deployment-independent-verification/v4` report with `--out`; the report
+ binds the plan receipt, its complete/partial status, manifest, final
+ resolved-spec digest, replay count and recomputed live-verification root, and
+ states the remaining trust assumptions. A verified partial prefix remains
+ explicitly marked partial. The report labels itself as local verification
+-evidence rather than approval. The
+-optional `--capital-flow-evidence` input supplies a `protocol-capital-flow-execution/v6`
++evidence rather than approval. Its verifier continues to accept retained v3 reports using their original
++fixed trust-assumption list and digest, so a later trust-list update cannot
++invalidate historical evidence. The optional `--capital-flow-evidence` input
++supplies a `protocol-capital-flow-execution/v6`
+ bundle. The verifier checks the complete ordered set of six positive actions,
+ including prepared-operation creation before admission,
+ and nine negative cases against RPC transaction targets, selectors, receipt
+diff --git a/src/deployment/plan-verification-report.ts b/src/deployment/plan-verification-report.ts
+index 7f9b53c852..098a5cb090 100644
+--- a/src/deployment/plan-verification-report.ts
++++ b/src/deployment/plan-verification-report.ts
+@@ -16,7 +16,16 @@
+   replayedCapitalFlowStateAssertions: number;
+ }
+ 
+-export const PLAN_VERIFICATION_TRUST_ASSUMPTIONS = [
++export const PLAN_VERIFICATION_TRUST_ASSUMPTIONS_V3 = [
++  'The caller supplies the trusted-context root independently and verifies that its approval keys and source pins are controlled by the intended local authority.',
++  'The selected RPC endpoint reports authentic chain identity, historical block hashes, transaction receipts, and contract state for the local Anvil instance.',
++  'The pinned PRF checkout, deployment source bundle, compiler artifacts, and fixture bundle are the reviewed inputs selected by the qualification authority.',
++  'The human approval decision and custody of the configured approval keys are trusted; cryptographic verification proves key use and scope, not the legitimacy of that decision.',
++  'Capital-flow getter targets and arguments are checked against the pinned topology and transaction bindings; producer-supplied expected historical values still require qualification review against the approved operation.',
++  'Proof-system soundness and external toolchain supply-chain integrity remain assumptions outside this deployment-evidence verifier.',
++] as const;
++
++export const PLAN_VERIFICATION_TRUST_ASSUMPTIONS_V4 = [
+   'The caller supplies the trusted-context root independently and verifies that its approval keys and source pins are controlled by the intended local authority.',
+   'The selected RPC endpoint reports authentic chain identity, historical block hashes, transaction receipts, and contract state for the local Anvil instance.',
+   'The pinned PRF checkout, deployment source bundle, compiler artifacts, and fixture bundle are the reviewed inputs selected by the qualification authority.',
+@@ -25,6 +34,9 @@
+   'Proof-system soundness and external toolchain supply-chain integrity remain assumptions outside this deployment-evidence verifier.',
+ ] as const;
+ 
++/** Current report assumptions. Keep v3's exact list above for immutable replay. */
++export const PLAN_VERIFICATION_TRUST_ASSUMPTIONS = PLAN_VERIFICATION_TRUST_ASSUMPTIONS_V4;
++
+ export interface PlanVerificationReportV3 extends PlanVerificationReportInput {
+   schema: 'protocol-deployment-independent-verification/v3';
+   status: 'verified';
+@@ -34,6 +46,17 @@
+   reportRoot: string;
+ }
+ 
++export interface PlanVerificationReportV4 extends PlanVerificationReportInput {
++  schema: 'protocol-deployment-independent-verification/v4';
++  status: 'verified';
++  scope: 'local-anvil-only';
++  qualification: 'verification-evidence-only-not-approval';
++  trustAssumptions: readonly string[];
++  reportRoot: string;
++}
++
++export type PlanVerificationReport = PlanVerificationReportV3 | PlanVerificationReportV4;
++
+ function validInput(input: PlanVerificationReportInput): boolean {
+   return typeof input.planId === 'string' && input.planId.length > 0 &&
+       (input.executionStatus === 'complete' || input.executionStatus === 'partial') &&
+@@ -49,12 +72,12 @@
+       ((input.capitalFlowEvidenceRoot === null) === (input.replayedCapitalFlowStateAssertions === 0));
+ }
+ 
+-export function buildPlanVerificationReport(input: PlanVerificationReportInput): PlanVerificationReportV3 {
++export function buildPlanVerificationReport(input: PlanVerificationReportInput): PlanVerificationReportV4 {
+   if (!validInput(input)) {
+     throw new ConfigError('CONFIG_SCHEMA', 'Independent verification report input is incomplete or malformed');
+   }
+   const body = {
+-    schema: 'protocol-deployment-independent-verification/v3' as const,
++    schema: 'protocol-deployment-independent-verification/v4' as const,
+     status: 'verified' as const,
+     scope: 'local-anvil-only' as const,
+     qualification: 'verification-evidence-only-not-approval' as const,
+@@ -67,11 +90,11 @@
+   };
+ }
+ 
+-export function verifyPlanVerificationReport(value: unknown): PlanVerificationReportV3 {
++export function verifyPlanVerificationReport(value: unknown): PlanVerificationReport {
+   if (!value || typeof value !== 'object' || Array.isArray(value)) {
+     throw new ConfigError('PLAN_VERIFICATION_REPORT_INVALID', 'Independent verification report must be a JSON object');
+   }
+-  const report = value as Partial<PlanVerificationReportV3>;
++  const report = value as Partial<PlanVerificationReport>;
+   const { reportRoot, ...body } = report;
+   const input: PlanVerificationReportInput = {
+     planId: report.planId ?? '',
+@@ -88,19 +111,24 @@
+   const expectedKeys = ['planId', 'executionStatus', 'planExecutionRoot', 'manifestRoot', 'resolvedSpecSha256',
+     'replayedPrfAssertions', 'liveVerificationRoot', 'capitalFlowEvidenceRoot', 'replayedCapitalFlowTransactions', 'replayedCapitalFlowStateAssertions', 'schema', 'status', 'scope',
+     'qualification', 'trustAssumptions', 'reportRoot'].sort();
++  const expectedTrustAssumptions = report.schema === 'protocol-deployment-independent-verification/v3'
++    ? PLAN_VERIFICATION_TRUST_ASSUMPTIONS_V3
++    : report.schema === 'protocol-deployment-independent-verification/v4'
++      ? PLAN_VERIFICATION_TRUST_ASSUMPTIONS_V4
++      : undefined;
+   if (canonicalJson(Object.keys(report).sort()) !== canonicalJson(expectedKeys) ||
+-      report.schema !== 'protocol-deployment-independent-verification/v3' || report.status !== 'verified' ||
++      expectedTrustAssumptions === undefined || report.status !== 'verified' ||
+       report.scope !== 'local-anvil-only' || report.qualification !== 'verification-evidence-only-not-approval' ||
+       !validInput(input) || !Array.isArray(report.trustAssumptions) ||
+-      canonicalJson(report.trustAssumptions) !== canonicalJson(PLAN_VERIFICATION_TRUST_ASSUMPTIONS) ||
++      canonicalJson(report.trustAssumptions) !== canonicalJson(expectedTrustAssumptions) ||
+       typeof reportRoot !== 'string' || !/^[0-9a-f]{64}$/.test(reportRoot) ||
+       createHash('sha256').update(canonicalJson(body), 'utf8').digest('hex') !== reportRoot) {
+     throw new ConfigError('PLAN_VERIFICATION_REPORT_INVALID', 'Independent verification report fields, trust assumptions, or digest are invalid');
+   }
+-  return report as PlanVerificationReportV3;
++  return report as PlanVerificationReport;
+ }
+ 
+-export function persistPlanVerificationReport(report: PlanVerificationReportV3, file: string): void {
++export function persistPlanVerificationReport(report: PlanVerificationReport, file: string): void {
+   const verified = verifyPlanVerificationReport(report);
+   const content = `${JSON.stringify(verified, null, 2)}\n`;
+   try { fs.writeFileSync(file, content, { flag: 'wx' }); }
+diff --git a/test/plan-verification-report.test.ts b/test/plan-verification-report.test.ts
+index e7eaeaeb7d..a30771b053 100644
+--- a/test/plan-verification-report.test.ts
++++ b/test/plan-verification-report.test.ts
+@@ -28,7 +28,7 @@
+   it('is deterministic and scoped as verification evidence only', () => {
+     const report = buildPlanVerificationReport(input);
+     expect(buildPlanVerificationReport({ ...input })).toEqual(report);
+-    expect(report.schema).toBe('protocol-deployment-independent-verification/v3');
++    expect(report.schema).toBe('protocol-deployment-independent-verification/v4');
+     expect(report.status).toBe('verified');
+     expect(report.scope).toBe('local-anvil-only');
+     expect(report.qualification).toBe('verification-evidence-only-not-approval');
+@@ -38,6 +38,13 @@
+     expect(report.reportRoot).toMatch(/^[0-9a-f]{64}$/);
+   });
+ 
++  it('verifies retained v3 reports against their original immutable trust list', () => {
++    const retained = JSON.parse(fs.readFileSync(path.resolve('deployments/pro-rata-v2-entitlement-local-revised-hist.9e41374c74e5.verification-report.json'), 'utf8')) as unknown;
++    const verified = verifyPlanVerificationReport(retained);
++    expect(verified.schema).toBe('protocol-deployment-independent-verification/v3');
++    expect(verified.reportRoot).toBe('5fdc9108e06fcd56aaf9a74eff5a071d93ffa9f7d5b4368026dcbd61bc06bc6b');
++  });
++
+   it('rejects altered trust assumptions even if the report root is recomputed', () => {
+     const report = buildPlanVerificationReport(input);
+     const altered = { ...report, trustAssumptions: ['there are no trust assumptions'] };
