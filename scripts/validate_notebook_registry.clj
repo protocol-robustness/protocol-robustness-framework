@@ -1,12 +1,19 @@
 (ns scripts.validate-notebook-registry
   "Validate data/notebooks.edn: all paths resolve, no duplicate IDs, no archived paths,
    and every source-level reference to a notebook file resolves."
-  (:require [clojure.java.io :as io]
+  (:require [clojure.edn :as edn]
+            [clojure.java.io :as io]
             [clojure.set :as set]
             [clojure.string :as str]
-            [resolver-sim.notebook-support.common :as common]))
+            [resolver-sim.notebook-support.common :as common])
+  (:import [java.nio.file Files Paths LinkOption]))
 
-(def notebooks-dir (io/file "notebooks"))
+(def ^:private notebook-index-resource (io/resource "notebooks/index.clj"))
+(def ^:private package-root
+  (when notebook-index-resource
+    (.getParent (.getParent (Paths/get (.toURI notebook-index-resource))))))
+(def notebooks-dir
+  (when package-root (.toFile (.resolve package-root "notebooks"))))
 (def data-file "data/notebooks.edn")
 (def scan-dirs
   "Source directories to scan for notebook file references."
@@ -20,11 +27,10 @@
     :not-appealed})
 
 (defn registry []
-  (let [parsed (common/read-edn data-file)]
-    (:notebooks parsed)))
+  (common/read-edn data-file))
 
 (defn- archived? [entry]
-  (= :archived (:notebook/status entry)))
+  (= :archived (:status entry)))
 
 (defn- active-entries [entries]
   (remove archived? entries))
@@ -33,32 +39,43 @@
   (set (map :id (active-entries entries))))
 
 (defn -main [& args]
-  (let [entries (registry)
+  (let [registry-data (registry)
+        package-registry (when package-root
+                           (edn/read-string
+                            (slurp (.toFile (.resolve package-root "data/notebooks.edn")))))
+        entries (:notebooks registry-data)
+        archived (filter archived? (:archived-notebooks registry-data))
         active (active-entries entries)
-        archived (filter archived? entries)
         ids (map :id entries)
+        all-ids (concat ids (map :id archived))
         active-ids-set (active-ids entries)
         active-paths (map :path active)
         errors (atom [])]
 
+    (when-not package-root
+      (swap! errors conj "Extracted notebook package is unavailable; select the :notebooks alias."))
+    (when (and package-registry (not= registry-data package-registry))
+      (swap! errors conj "data/notebooks.edn differs from the pinned prf-notebooks registry."))
+
     ;; 1. Unique IDs (across all entries including archived)
-    (let [dupes (keys (filter #(> (val %) 1) (frequencies ids)))]
+    (let [dupes (keys (filter #(> (val %) 1) (frequencies all-ids)))]
       (when (seq dupes)
         (swap! errors conj (str "Duplicate notebook IDs: " dupes))))
 
     ;; 2. Active entry paths must resolve; archived paths are expected missing
     (doseq [p active-paths]
-      (when-not (.exists (io/file p))
+      (when-not (and package-root
+                    (Files/isRegularFile (.resolve package-root p) (make-array LinkOption 0)))
         (swap! errors conj (str "Active notebook path does not exist: " p))))
 
-    ;; 3. Archived entries must have :notebook/replaced-by pointing to an active ID
+    ;; 3. Archived metadata must point to an active replacement ID
     (doseq [entry archived]
       (let [id (:id entry)
-            replaced-by (:notebook/replaced-by entry)]
+            replaced-by (:replaced-by entry)]
         (when-not replaced-by
-          (swap! errors conj (str "Archived entry " id " is missing :notebook/replaced-by")))
+          (swap! errors conj (str "Archived entry " id " is missing :replaced-by")))
         (when (and replaced-by (not (contains? active-ids-set replaced-by)))
-          (swap! errors conj (str "Archived entry " id " has :notebook/replaced-by " replaced-by
+          (swap! errors conj (str "Archived entry " id " has :replaced-by " replaced-by
                                   " which is not an active notebook ID")))))
 
     ;; 4. No active entry uses an archived ID
@@ -93,7 +110,8 @@
         (let [content (slurp f)
               rel-path (.getPath f)]
           (doseq [m (re-seq notebook-ref-pat content)]
-            (when-not (.exists (io/file m))
+            (when-not (and package-root
+                          (Files/isRegularFile (.resolve package-root m) (make-array LinkOption 0)))
               (swap! refs assoc m (conj (get @refs m []) rel-path))))))
       (doseq [[notebook-file sources] (sort @refs)]
         (swap! errors conj (str "Notebook file not found: " notebook-file
@@ -135,13 +153,13 @@
         (swap! errors conj (str "Duplicate :start-here-rank values: " (vec (sort ranks))))))
 
     ;; Report
-    (println (str "Notebook registry validation: " (count entries) " entries"
+    (println (str "Notebook registry validation: " (count all-ids) " entries"
                   " (" (count active) " active, " (count archived) " archived)"))
     (if (seq @errors)
       (do (doseq [e @errors] (println "  FAIL:" e))
           (System/exit 1))
       (do (println "  All checks passed.")
-          (println (str "  " (count ids) " unique IDs"))
+          (println (str "  " (count all-ids) " unique IDs"))
           (println (str "  " (count active-paths) " active paths resolve"))
           (println (str "  " (count archived) " archived entries with replacement metadata"))
           (println (str "  All active notebooks registered."))

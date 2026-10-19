@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -u
 
-ROOTS=(src test scripts notebooks)
+ROOTS=(src test scripts)
 BASE="${1:-@-}"
 failed=0
 

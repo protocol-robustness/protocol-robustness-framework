@@ -795,8 +795,6 @@ run_suites() {
 
    # Extract suite failures into risk digest format for test-summary.json visibility
    python3 scripts/evidence/suite_failures_to_risk.py --artifact-dir "$ARTIFACT_DIR" --run-id "$RUN_ID"
-   # Touch notebooks/report.clj so Clerk's file watcher triggers re-evaluation
-   touch -m "notebooks/report.clj" 2>/dev/null || true
 
    return $suites_failed
 }
@@ -1119,8 +1117,6 @@ collect_artifacts() {
     return 0
   fi
   echo "  [$(date +%H:%M:%S)] ✓ $ARTIFACT_REGISTRY_FILE"
-  # Touch notebooks/report.clj so Clerk re-evaluates on the new registry.
-  touch -m "notebooks/report.clj" 2>/dev/null || true
   return 0
 }
 

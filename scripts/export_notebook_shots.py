@@ -60,7 +60,7 @@ from notebook_shots_util import (
 HERE = os.path.dirname(os.path.abspath(__file__))
 DEFAULT_CONFIG = os.path.join(os.path.dirname(HERE), "data", "notebook-shots.edn")
 DEFAULT_REGISTRY = os.path.join(os.path.dirname(HERE), "data", "notebooks.edn")
-NOTEBOOKS_DIR = os.path.join(os.path.dirname(HERE), "notebooks")
+NOTEBOOKS_DIR = os.environ.get("PRF_NOTEBOOKS_DIR") or os.path.join(os.path.dirname(HERE), "notebooks")
 
 # Playwright / Chromium cap on viewport height (CSS px). A section taller than
 # this cannot be captured in one shot without stitching; we clip to this height
@@ -389,6 +389,12 @@ def main(argv=None):
         print("%d run(s) indexed -> %s/index.html (guided site: %d file(s))"
               % (len(collect_runs(out_dir)), out_dir, len(written)))
         return 0
+
+    if not os.path.isdir(NOTEBOOKS_DIR):
+        ap.error("extracted notebook sources are unavailable; run via scripts/export_notebook_shots.sh or set PRF_NOTEBOOKS_DIR")
+
+    if not os.path.isdir(NOTEBOOKS_DIR):
+        ap.error("extracted notebook sources are unavailable; run via scripts/export_notebook_shots.sh or set PRF_NOTEBOOKS_DIR")
 
     # Resolve the target run dir. --only-failures completes the newest run that
     # still has failures (unless --run-id pins one), instead of a fresh run.

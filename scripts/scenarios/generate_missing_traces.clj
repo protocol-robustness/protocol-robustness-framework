@@ -109,7 +109,6 @@
           (println (str "  - " trace-id " SKIPPED: no matching scenario file"))
           (swap! skipped inc))))
     (println (format "Generated %d traces. %d skipped." @generated @skipped))
-    (let [nb (io/file "notebooks/report.clj")]
-      (when (.exists nb)
-        (.setLastModified nb (System/currentTimeMillis))
-        (println "Touched notebooks/report.clj for Clerk re-evaluation")))))
+    ;; The extracted Clerk server watches data directories for generated traces.
+
+    nil))

@@ -3,7 +3,8 @@
    Usage: clojure -M scripts/search-docs-sentinel/run.clj"
   (:require [clojure.java.io :as io]
             [clojure.string :as str]
-            [clojure.edn :as edn]))
+            [clojure.edn :as edn])
+  (:import [java.nio.file Paths]))
 
 ;; ---
 ;; Configuration
@@ -11,7 +12,7 @@
 
 (def scan-paths
   "Directories to scan for term occurrences."
-  ["docs" "notebooks" "protocols_src" "src" "scenarios" "scripts" "schemas" "data" "suites"])
+  ["docs" "protocols_src" "src" "scenarios" "scripts" "schemas" "data" "suites"])
 
 (def queries-path
   "scripts/search_docs_sentinel/queries.edn")
@@ -20,8 +21,15 @@
 ;; Helpers
 ;; ---
 
+(declare extracted-notebooks-dir)
+
 (defn- file-exists? [path]
   (.exists (io/file path)))
+
+(defn- repo-or-notebook-path-exists? [root-dir path]
+  (if (str/starts-with? path "notebooks/")
+    (.exists (io/file (extracted-notebooks-dir) (subs path (count "notebooks/"))))
+    (file-exists? (str root-dir "/" path))))
 
 (defn- scan-file
   "Search a single text file for any of the given terms.
@@ -47,6 +55,12 @@
            (filter #(contains? ext-filter (file-ext %))))
       [(io/file root-dir)])))
 
+(defn- extracted-notebooks-dir []
+  (let [resource (io/resource "notebooks/index.clj")]
+    (when-not resource
+      (throw (ex-info "Extracted notebook package is unavailable; select :notebooks." {})))
+    (.toFile (.resolve (.getParent (.getParent (Paths/get (.toURI resource)))) "notebooks")))
+
 (def scan-extensions
   "All file extensions to scan."
   #{:clj :md :json :edn :yaml :py :sh})
@@ -63,7 +77,8 @@
         deprecated-refs  (:deprecated-paths query [])
 
         ;; 1. Scan all relevant files for search terms
-        all-files         (mapcat #(find-files (str root-dir "/" %) scan-extensions) scan-paths)
+        all-files         (concat (mapcat #(find-files (str root-dir "/" %) scan-extensions) scan-paths)
+                                   (find-files (extracted-notebooks-dir) scan-extensions))
         term-hits         (mapcat (fn [f]
                                     (let [found (scan-file (.getPath f) terms)]
                                       (for [t found] [t (.getPath f)])))
@@ -72,11 +87,11 @@
         terms-not-found   (remove terms-found-set terms)
 
         ;; 2. Check expected paths exist
-        expected-found    (filter #(file-exists? (str root-dir "/" %)) expected)
-        expected-missing  (remove #(file-exists? (str root-dir "/" %)) expected)
+        expected-found    (filter #(repo-or-notebook-path-exists? root-dir %) expected)
+        expected-missing  (remove #(repo-or-notebook-path-exists? root-dir %) expected)
 
         ;; 3. Check deprecated paths
-        deprecated-hits   (filter #(file-exists? (str root-dir "/" %)) deprecated-refs)
+        deprecated-hits   (filter #(repo-or-notebook-path-exists? root-dir %) deprecated-refs)
 
         ;; 4. Derive status
         all-terms-found?  (empty? terms-not-found)
@@ -222,7 +237,7 @@
                        (->> (.listFiles golden-dir)
                             (filter #(str/ends-with? (.getName %) ".report.edn"))
                             (map #(-> (.getName %) (str/replace #"\.report\.edn$" "") normalize-name)))))
-        notebooks-dir (io/file root-dir "notebooks")
+        notebooks-dir (extracted-notebooks-dir)
         notebook-files (filter #(str/ends-with? (.getName %) ".clj") (.listFiles notebooks-dir))
         notebook-refs (mapcat
                        (fn [nf]
@@ -326,7 +341,7 @@
      (println (str "Queries file: " queries-path))
      summary)))
 
-;; When run via clojure -M:search-docs, -main is called by -m
+;; When run via clojure -M:notebooks:search-docs, -main is called by -m
 ;; When run directly via clojure -M scripts/search_docs_sentinel/run.clj
 (when (= *file* (System/getProperty "cli.script"))
   (-main))

@@ -44,14 +44,13 @@
     :paths/protocols-src ["protocols_src"]
     :paths/protocols     ["protocols_src" "protocols_src/test"]
     :paths/dev           ["dev" "test"]              ;; = dev + test
-    :paths/notebooks     ["notebooks"]
      :paths/src           ["src"]
      :paths/pro-rata-contract ["pro_rata_contract_src"]
 :paths/held-custody          ["extensions/held-custody/src" "extensions/held-custody/test"]
     :paths/held-custody-rt       ["extensions/held-custody/src"]
     :paths/force-authorisation   ["extensions/force-authorisation/src" "extensions/force-authorisation/test"]
     :paths/force-authorisation-rt ["extensions/force-authorisation/src"]
-    :paths/all           ["src" "test" "protocols_src" "protocols_src/test" "notebooks" "dev" "scripts"
+    :paths/all           ["src" "test" "protocols_src" "protocols_src/test" "dev" "scripts"
                           :paths/held-custody :paths/force-authorisation]
     ;; Researchers: opt-in local paths (defined in ~/.clojure/deps.edn as
     ;; :researcher/paths, e.g. {:aliases {:researcher/paths [".researcher/src"]}}).
@@ -79,6 +78,11 @@
 
    :with-sew
    {:extra-paths [:paths/protocols]}
+
+   ;; Optional extracted notebook source; only notebook commands select this.
+   :notebooks
+   {:extra-deps {prf/notebooks {:git/url "https://github.com/protocol-robustness/prf-notebooks.git"
+                                :git/sha "10a81790037103356f0ea31119c4ca7f1aeddc69"}}}
 
    ;; Corruption guard: load-all / def-inventory integrity checks.
    :check
@@ -126,7 +130,7 @@
     ["-m" "rebel-readline.main"]}
 
    :dev/full
-   {:extra-paths [:paths/dev :paths/notebooks]
+   {:extra-paths [:paths/dev]
     :extra-deps {nrepl/nrepl             {:mvn/version "1.3.1"}
                  cider/cider-nrepl       {:mvn/version "0.57.0"}
                  djblue/portal            {:mvn/version "0.59.1"}
@@ -170,7 +174,7 @@
 
    ;; Fully loaded terminal REPL.
    :repl/terminal
-   {:extra-paths [:paths/dev :paths/notebooks]
+   {:extra-paths [:paths/dev]
     :extra-deps
     {org.clojure/tools.namespace {:mvn/version "1.5.0"}
      djblue/portal               {:mvn/version "0.59.1"}
@@ -195,14 +199,11 @@
    {:extra-deps {clj-kondo/clj-kondo {:mvn/version "2026.04.15"}
                  org.clojure/test.check {:mvn/version "1.1.1"}}
     :main-opts ["-m" "clj-kondo.main"
-                "--lint" "src:notebooks:test:dev"
+                "--lint" "src:test:dev"
                 "--fail-level" "error"]}
 
    :lint/notebooks
-   {:extra-deps {clj-kondo/clj-kondo {:mvn/version "2026.04.15"}}
-    :main-opts ["-m" "clj-kondo.main"
-                "--lint" "notebooks:src/resolver_sim/notebook_support"
-                "--fail-level" "error"]}
+   {:extra-deps {clj-kondo/clj-kondo {:mvn/version "2026.04.15"}}}
 
    :lint/core
    {:extra-deps {clj-kondo/clj-kondo {:mvn/version "2026.04.15"}
@@ -234,7 +235,7 @@
    :eastwood
    {:extra-deps {jonase/eastwood {:mvn/version "1.4.3"}}
     :main-opts ["-m" "eastwood.lint"
-                "{:source-paths [\"src\" \"notebooks\" \"test\"]}"]}
+                "{:source-paths [\"src\" \"test\"]}"]}
 
    :ci
    {:extra-paths [:paths/test]
@@ -305,19 +306,22 @@
     :main-opts ["-m" "resolver-sim.io.phase-z-persist"]}
 
    :clerk
-   {:exec-fn nextjournal.clerk/serve!
-    :exec-args {:browse true
-                :watch-paths ["src" "notebooks"]}}
+   {:extra-deps {prf/notebooks {:git/url "https://github.com/protocol-robustness/prf-notebooks.git"
+                                :git/sha "10a81790037103356f0ea31119c4ca7f1aeddc69"}}
+    :main-opts ["-m" "notebooks.serve"]}
 
    :build-clerk
-   {:exec-fn nextjournal.clerk/build!
-    :exec-args {:paths ["notebooks/report.clj"]}}
+   {:extra-deps {prf/notebooks {:git/url "https://github.com/protocol-robustness/prf-notebooks.git"
+                                :git/sha "10a81790037103356f0ea31119c4ca7f1aeddc69"}}
+    :main-opts ["-m" "scripts.build-notebooks"]}
 
    :observability
    {:override-deps
     {io.github.nextjournal/clerk
      {:git/url "https://github.com/nextjournal/clerk"
       :git/sha "8772a0889218274384a30e79165b4c194b59560f"}}
+    :extra-deps {prf/notebooks {:git/url "https://github.com/protocol-robustness/prf-notebooks.git"
+                                :git/sha "10a81790037103356f0ea31119c4ca7f1aeddc69"}}
     :main-opts ["-m" "notebooks.serve"]}
 
    :telemetry-seed
@@ -377,6 +381,8 @@
 
    :search-docs
    {:extra-paths [:paths/scripts]
+    :extra-deps {prf/notebooks {:git/url "https://github.com/protocol-robustness/prf-notebooks.git"
+                                :git/sha "10a81790037103356f0ea31119c4ca7f1aeddc69"}}
     :main-opts ["-m" "scripts.search_docs_sentinel.run"]}
 
 }}

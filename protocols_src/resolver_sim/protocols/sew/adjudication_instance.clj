@@ -7,7 +7,7 @@
 
 (def schema "sew/adjudication-instance.v1")
 (def domain :sew-adjudication-instance-v1)
-(def ^:private root-key :sew/adjudication-instance/root)
+(def ^:private root-key (keyword "sew" "adjudication-instance/root"))
 (def ^:private fields #{:artifact/schema :workflow/id :adjudication/round-id :case/root
                         :adjudicator/type :adjudicator/principal :protocol-instance/root
                         :temporal-basis/root :adjudication/parent-root})
@@ -39,6 +39,6 @@
                                                                  (hc/project-canonical-safe {:workflow/id workflow-id})))
                         :temporal-basis/root (ref/sha256-ref (hc/domain-hash :sew-adjudication-temporal-basis-v1 (hc/project-canonical-safe {:block-ts (time-ctx/block-ts world)})))
                         :adjudication/parent-root prior-root}
-                  instance (assoc base root-key (root base)) existing (get-in world [:adjudication-instances workflow-id (:sew/adjudication-instance/root instance)])]
+                  instance (assoc base root-key (root base)) existing (get-in world [:adjudication-instances workflow-id (get instance root-key)])]
               (if existing {:ok true :world world :instance existing :idempotent? true}
-                  {:ok true :instance instance :world (-> world (assoc-in [:adjudication-instances workflow-id (:sew/adjudication-instance/root instance)] instance) (assoc-in [:adjudication-current-instance-root workflow-id] (:sew/adjudication-instance/root instance)))})))))
+                  {:ok true :instance instance :world (-> world (assoc-in [:adjudication-instances workflow-id (get instance root-key)] instance) (assoc-in [:adjudication-current-instance-root workflow-id] (get instance root-key)))})))))

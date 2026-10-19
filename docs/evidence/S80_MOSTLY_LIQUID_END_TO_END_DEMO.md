@@ -178,7 +178,7 @@ Then open:
 ### 6.2 Generate a scenario snapshot card
 
 ```bash
-python3 scripts/snapshot_evidence.py scenarios/S80_yield-mostly-liquid-partial-liquidity evidence/s80-mostly-liquid.png
+bb evidence:snapshot scenarios/S80_yield-mostly-liquid-partial-liquidity evidence/s80-mostly-liquid.png
 ```
 
 Output:
@@ -256,5 +256,5 @@ bb benchmark:share-summary evidence/s80-demo-signed.edn
 
 # 6) Visual narrative artifact
 bb notebook
-python3 scripts/snapshot_evidence.py scenarios/S80_yield-mostly-liquid-partial-liquidity evidence/s80-mostly-liquid.png
+bb evidence:snapshot scenarios/S80_yield-mostly-liquid-partial-liquidity evidence/s80-mostly-liquid.png
 ```

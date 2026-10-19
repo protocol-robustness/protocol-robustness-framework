@@ -16,7 +16,7 @@ ensure_server() {
     return
   fi
   echo "[shots] Starting Clerk server (pre-evaluates all notebooks; this can take a few minutes)..."
-  setsid nohup clojure -M:with-sew -m notebooks.serve >"$ROOT/target/notebook-server.log" 2>&1 </dev/null &
+  setsid nohup clojure -M:notebooks:with-sew -m notebooks.serve >"$ROOT/target/notebook-server.log" 2>&1 </dev/null &
   for _ in $(seq 1 120); do
     if is_up; then
       echo "[shots] Clerk server is up at $URL"
@@ -35,5 +35,9 @@ if [[ " $* " == *" --index-only "* ]]; then
   exec python3 "$ROOT/scripts/export_notebook_shots.py" --base-url "$URL" "$@"
 fi
 
+NOTEBOOKS_DIR="$(clojure -M:notebooks -e '(require (quote prf.notebooks.runner)) (print (.resolve prf.notebooks.runner/repo-root "notebooks")) (shutdown-agents)')"
+export PRF_NOTEBOOKS_DIR="$NOTEBOOKS_DIR"
+NOTEBOOKS_DIR="$(clojure -M:notebooks -e '(require (quote prf.notebooks.runner)) (print (.resolve prf.notebooks.runner/repo-root "notebooks")) (shutdown-agents)')"
+export PRF_NOTEBOOKS_DIR="$NOTEBOOKS_DIR"
 ensure_server
 exec python3 "$ROOT/scripts/export_notebook_shots.py" --base-url "$URL" "$@"

@@ -71,12 +71,7 @@
                         :theory (theory-fail-reason r)})))))
         (catch Exception e
           (swap! failures conj {:suite suite-id :error (.getMessage e)}))))
-    ;; Touch notebooks/report.clj so Clerk's file watcher triggers re-evaluation
-    ;; (Clerk tracks .clj source deps but not .report.edn data file deps)
-    (let [nb (java.io.File. "notebooks/report.clj")]
-      (when (.exists nb)
-        (.setLastModified nb (System/currentTimeMillis))
-        (println (str "Touched notebooks/report.clj to notify Clerk of data change"))))
+    ;; Clerk watches the updated golden-data directory for report changes.
     (println (format "Regenerated golden reports for %d trace runs across %d suites."
                      @saved (count all-suites)))
     (if (seq @failures)

@@ -3,6 +3,7 @@
 ;; It does not load the manifest from application/runtime namespaces.
 (require '[clojure.edn :as edn]
          '[clojure.java.io :as io]
+         '[clojure.java.shell :as shell]
          '[clojure.set :as set]
          '[clojure.string :as str])
 
@@ -25,7 +26,7 @@
 (defn source-ref? [value]
   (and (vector? value)
        (#{2 3} (count value))
-       (#{:prf :prf-evm} (first value))))
+       (#{:prf :prf-evm :prf-canonical :prf-pro-rata-allocation} (first value))))
 
 (defn source-refs [data]
   (->> (tree-seq coll? seq data)
@@ -37,11 +38,13 @@
        (or (#{:canonical :pro-rata-allocation :capital-lifecycle :Shortfall} owner)
            (= "other" (namespace owner)))))
 
-(defn validate! [manifest prf-root evm-root]
+(defn validate! [manifest prf-root evm-root canonical-root pro-rata-root]
   (let [issues (atom [])
         entries (:registry/entries manifest)
         by-id (into {} (map (juxt :artifact/id identity) entries))
-        roots {:prf prf-root :prf-evm evm-root}
+        roots {:prf prf-root :prf-evm evm-root
+               :prf-canonical canonical-root
+               :prf-pro-rata-allocation pro-rata-root}
         identity-tuples
         (->> entries
              (sort-by (comp str :artifact/id))
@@ -81,6 +84,17 @@
                             #{:registry/schema :registry/status :registry/encoding
                               :registry/shared-domains :registry/entries})
       (fail! issues "registry fields must match the closed v1 shape"))
+    (let [deps (edn/read-string (slurp (io/file prf-root "deps.edn")))]
+      (doseq [[repo root alias] [[:prf-canonical canonical-root 'prf/canonical]
+                                 [:prf-pro-rata-allocation pro-rata-root 'prf/pro-rata-allocation]]]
+        (let [expected (get-in deps [:deps alias :git/sha])
+              actual-result (shell/sh "git" "-C" (.getPath (io/file root)) "rev-parse" "HEAD")
+              actual (when (zero? (:exit actual-result)) (str/trim (:out actual-result)))
+              status-result (shell/sh "git" "-C" (.getPath (io/file root)) "status" "--porcelain")]
+          (when-not (and (string? expected) (= expected actual)
+                         (zero? (:exit status-result)) (str/blank? (:out status-result)))
+            (fail! issues (str (name repo) " source root must be clean at deps.edn pin "
+                                (pr-str expected) "; found " (pr-str actual)))))))
     (when-not (keys-equal? (:registry/encoding manifest)
                             #{:scheme :definition :normative})
       (fail! issues "encoding fields must match the closed v1 shape"))
@@ -232,12 +246,13 @@
                          (count entries) (count (source-refs manifest)) identity-digest))))))
 
 (defn -main [& args]
-  (when-not (= 3 (count args))
+  (when-not (= 5 (count args))
     (binding [*out* *err*]
-      (println "Usage: bb scripts/validate/canonical_artifacts.clj <manifest.edn> <prf-root> <prf-evm-root>"))
+      (println "Usage: bb scripts/validate/canonical_artifacts.clj <manifest.edn> <prf-root> <prf-evm-root> <prf-canonical-root> <prf-pro-rata-allocation-root>"))
     (System/exit 2))
-  (let [[manifest-path prf-root evm-root] args]
+  (let [[manifest-path prf-root evm-root canonical-root pro-rata-root] args]
     (validate! (edn/read-string (slurp manifest-path))
-               (io/file prf-root) (io/file evm-root))))
+               (io/file prf-root) (io/file evm-root)
+               (io/file canonical-root) (io/file pro-rata-root))))
 
 (apply -main *command-line-args*)
