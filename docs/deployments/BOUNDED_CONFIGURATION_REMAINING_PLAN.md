@@ -30,7 +30,7 @@ evidence. The live run is local-only and does not qualify W6 or W7.
 | W3 verifier identity | Deployment receipt records verifier/adapter identities and independent live checks; six PRF assertions replay in the independent report. | Verified for this local run. |
 | W4 genesis | Chain-instance genesis and approved empty registry seals are recorded as verified, with observed contract identities and readbacks. | Verified locally. |
 | W5 C0→C1 | Separate transition approval, authenticated authority transition and configuration application are recorded. C1 is `0xfab68d6327ec91449a8b2755b0b45f9587d93c58a9357d3bf41359c31f990ecd`, epoch 1. | Verified locally. |
-| W6 capital flow | No proof-admission/capital-flow actions or state assertions are retained. The report's `capitalFlowEvidenceRoot` is null. | Open. |
+| W6 capital flow | No proof-admission/capital-flow actions or state assertions are retained. The report's `capitalFlowEvidenceRoot` is null. At the live Anvil observation (chain 31337, block 25), the C1 executor reports epoch 1, the reserve has no funds, and the ratification controller has no bound execution caller. | Open; operation and setup evidence must be separately approved before transactions. |
 | W7 evidence package | Independent report and partial execution receipt exist, but there is no approved expectation package or complete flow bundle. | Open. |
 
 The current deployment manifest root is
@@ -654,6 +654,20 @@ explicit qualification input; approval of those values remains a trust
 assumption. The 2026-10-19 C0→C1 execution is live and independently reported,
 but it contains no W6 capital-flow actions, and no approved expectation package
 or complete capital-flow bundle exists.
+
+The current W6 execution topology needs an explicit setup stage before its
+existing v5 action sequence can be replayed. The deployed
+`SourceBoundProRataEntitlementRatificationControllerV1` rejects ratification
+and activation calls unless `bindExecutionCaller` has set a contract address;
+the observed controller is currently unbound. The v5 action map instead names
+`ratifyAndFund` and `activateEntitlement` directly on the controller. A
+qualified run therefore needs a source- and runtime-pinned, operation-scoped
+caller contract, a recorded binding transaction, and replay rules that verify
+the routed operation calls and their targets. The reserve is currently empty,
+so any reserve seed transfer/deposit must also be part of the approved setup
+and retained evidence. These are additional action/evidence requirements, not
+permission to execute them: the expected operation, seed amount, proof inputs,
+and before/after state assertions must be reviewed and approved first.
 
 The current deployment uses `OnchainShortfallReserveV2`, while the existing
 PRF source-bound reserve path only reconstructed the V1 snapshot hash. PRF now
