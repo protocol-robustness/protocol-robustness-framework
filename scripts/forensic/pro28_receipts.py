@@ -381,7 +381,7 @@ def verify_groth16_reference(raw: Path) -> dict[str, Any]:
             if process.poll() is not None:
                 raise VerificationUnavailable("local Anvil stopped during Groth16 reference verification") from exc
             proof_status = "not_verified"
-            proof_failure = "pinned verifier rejected the exact proof/public-values call"
+            proof_failure = "eth_call returned a JSON-RPC error; proof validity was not established"
         else:
             if result != "0x":
                 raise EvidenceError("SP1 Groth16 verifier returned unexpected data")
@@ -1618,7 +1618,7 @@ def main() -> int:
         if proof_report["status"] == "verified":
             print("PASS: pinned SP1 Groth16 reference verifier accepted the exact retained proof and public values")
         elif proof_report["status"] == "not_verified":
-            print("NOT_VERIFIED: pinned verifier did not accept the exact retained proof and public values")
+            print("NOT_VERIFIED: the reference call did not establish validity of the retained proof and public values")
             exit_status = 1
         else:
             print(f"UNSUPPORTED: direct Groth16 reference check unavailable: {proof_report.get('reason', 'unknown reason')}")

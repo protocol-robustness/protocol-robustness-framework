@@ -230,6 +230,47 @@ def test_socket_binding_denial_is_an_unsupported_reference_check(bundle: Path, m
         pro28_receipts.verify_groth16_reference(bundle)
 
 
+def test_eth_call_json_rpc_error_is_not_described_as_proof_rejection(bundle: Path, monkeypatch) -> None:
+    runtime = load(bundle / "runtime-code-observations.json")
+    verifier_code = runtime["contracts"]["verifier"]["runtimeCode"]
+
+    class RunningProcess:
+        def poll(self):
+            return None
+
+        def terminate(self):
+            pass
+
+        def wait(self, timeout=None):
+            return 0
+
+    def rpc(_url, method, _params):
+        if method == "eth_chainId":
+            return "0x7a69"
+        if method == "anvil_setCode":
+            return None
+        if method == "eth_getCode":
+            return verifier_code
+        if method == "eth_call":
+            raise pro28_receipts.RpcMethodError("invalid request or execution resource error")
+        raise AssertionError(f"unexpected RPC method: {method}")
+
+    monkeypatch.setattr(pro28_receipts, "_rpc", rpc)
+    original_popen = pro28_receipts.subprocess.Popen
+
+    def mock_anvil(args, *positional, **options):
+        if args and args[0] == "anvil":
+            return RunningProcess()
+        return original_popen(args, *positional, **options)
+
+    monkeypatch.setattr(pro28_receipts.subprocess, "Popen", mock_anvil)
+
+    report = pro28_receipts.verify_groth16_reference(bundle)
+    assert report["status"] == "not_verified"
+    assert report["referenceCheckExecuted"] is True
+    assert report["failure"] == "eth_call returned a JSON-RPC error; proof validity was not established"
+
+
 @pytest.mark.parametrize("field,value", [
     ("schema", "unsupported.v99"),
     ("chainId", 1),
@@ -640,7 +681,7 @@ def test_reference_verifier_rejects_changed_statement_public_value(bundle: Path)
     report = pro28_receipts.verify_groth16_reference(bundle)
     assert report["status"] == "not_verified"
     assert report["referenceCheckExecuted"] is True
-    assert report["failure"] == "pinned verifier rejected the exact proof/public-values call"
+    assert report["failure"] == "eth_call returned a JSON-RPC error; proof validity was not established"
 
 
 def test_incomplete_and_conflicting_observations_reject(bundle: Path) -> None:

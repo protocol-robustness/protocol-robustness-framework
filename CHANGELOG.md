@@ -10,7 +10,7 @@
 
 ## Unreleased
 
-- The PRO-28 Groth16 reference-check CLI now emits an identity-bound `unsupported` or `not_verified` result when the requested check cannot run or the verifier rejects the proof, while preserving a nonzero exit status.
+- The PRO-28 Groth16 reference-check CLI now emits identity-bound `unsupported` or `not_verified` results when a check cannot run or establish proof validity, while preserving a nonzero exit status.
 
 - Added `resolver-sim.evidence.graph-producer/produce` to deterministically
   compose domain-adapted PRF evidence nodes through the existing forensic DAG
