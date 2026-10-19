@@ -1,0 +1,68 @@
+diff --git a/scripts/_lib/deployables/forge-artifact.ts b/scripts/_lib/deployables/forge-artifact.ts
+index 23a81fc872..d62cba7b3b 100644
+--- a/scripts/_lib/deployables/forge-artifact.ts
++++ b/scripts/_lib/deployables/forge-artifact.ts
+@@ -75,7 +75,10 @@
+     }
+   }
+ 
+-  const sourcePath: string = raw.ast?.absolutePath ?? metadataCompilationTarget(metadata) ?? 'unknown';
++  const sourcePath = normalizeForgeSourcePath(
++    raw.ast?.absolutePath ?? metadataCompilationTarget(metadata) ?? 'unknown',
++    process.cwd(),
++  );
+ 
+   return {
+     contractName,
+@@ -95,6 +98,14 @@
+   };
+ }
+ 
++/** Return project-relative POSIX paths for Foundry's absolute source paths. */
++export function normalizeForgeSourcePath(sourcePath: string, projectRoot: string): string {
++  if (sourcePath === 'unknown' || !path.isAbsolute(sourcePath)) return sourcePath.replaceAll('\\', '/');
++  const relative = path.relative(path.resolve(projectRoot), path.resolve(sourcePath));
++  if (relative === '..' || relative.startsWith(`..${path.sep}`) || path.isAbsolute(relative)) return sourcePath;
++  return relative.split(path.sep).join('/');
++}
++
+ function metadataCompilationTarget(metadata: unknown): string | null {
+   try {
+     const m = metadata as Record<string, any>;
+diff --git a/scripts/test-deployables.ts b/scripts/test-deployables.ts
+index e50ea28ac7..7fe7cb9f69 100644
+--- a/scripts/test-deployables.ts
++++ b/scripts/test-deployables.ts
+@@ -12,6 +12,7 @@
+ import { validateDeployables, readManifest } from './_lib/deployables/validate';
+ import { loadAllowlist } from './_lib/deployables/allowlist';
+ import { ConfigError } from './_lib/deployables/errors';
++import { normalizeForgeSourcePath } from './_lib/deployables/forge-artifact';
+ import { sha256HexOfBuffer } from './_lib/hash';
+ 
+ const OUT_DIR = path.resolve(process.cwd(), 'out');
+@@ -56,6 +57,24 @@
+ 
+   const expectedCount = ALLOWLIST.entries.length;
+ 
++  test('normalizes project-local absolute Foundry source paths', () => {
++    const absolute = path.join(process.cwd(), 'src', 'core', 'PrfStatementAdmission.sol');
++    const normalized = normalizeForgeSourcePath(absolute, process.cwd());
++    if (normalized !== 'src/core/PrfStatementAdmission.sol') {
++      throw new Error(`expected project-relative source path, got '${normalized}'`);
++    }
++    if (normalizeForgeSourcePath('src\\core\\PrfStatementAdmission.sol', process.cwd()) !== 'src/core/PrfStatementAdmission.sol') {
++      throw new Error('relative source path separators were not normalized');
++    }
++  });
++
++  test('does not normalize source paths outside the project root', () => {
++    const external = path.resolve(process.cwd(), '..', 'external', 'Contract.sol');
++    if (normalizeForgeSourcePath(external, process.cwd()) !== external) {
++      throw new Error('external absolute source path was incorrectly accepted as project-local');
++    }
++  });
++
+   test('exports all allow-listed artifacts', () => {
+     const dir = tmpdir();
+     const r = exportDeployables({ exportDir: dir });
