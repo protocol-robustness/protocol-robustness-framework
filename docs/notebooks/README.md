@@ -1,6 +1,6 @@
 # Interactive Workbenches (Clerk Notebooks)
 
-The repository ships 31 interactive workbenches built with
+The repository ships interactive workbenches built with
 [Clerk](https://clerk.vision). They are evidence-oriented, not dashboards —
 each one shows raw data, artifact provenance, and honest confidence levels
 rather than status indicators alone.
@@ -149,3 +149,11 @@ Workbenches are pure Clojure files that:
 
 No notebook has side effects (no file writes, no XTDB writes). The `telemetry.clj`
 workbench reads from XTDB but does not write to it.
+# Extracted notebook source
+
+The notebook source and runner are maintained in
+[`prf-notebooks` at commit `2dd0ebf86f1b`](https://github.com/protocol-robustness/prf-notebooks/tree/2dd0ebf86f1b).
+PRF runtime integration is still pending: this workspace's Clerk and Babashka
+commands continue to use the local `notebooks/` and `src/resolver_sim/notebook_support/`
+trees until their paths and consumers are migrated together.
+
