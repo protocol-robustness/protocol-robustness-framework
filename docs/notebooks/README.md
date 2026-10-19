@@ -1,7 +1,7 @@
 # Interactive Workbenches (Clerk Notebooks)
 
 Notebook sources are maintained in the separately versioned
-[`prf-notebooks` repository](https://github.com/protocol-robustness/prf-notebooks/tree/b06ab61b819e5a1212ffa04988822fa865dbea86).
+[`prf-notebooks` repository](https://github.com/protocol-robustness/prf-notebooks/tree/10a81790037103356f0ea31119c4ca7f1aeddc69).
 PRF keeps host-side simulation helpers and a mirrored registry. The workbenches are built with
 [Clerk](https://clerk.vision). They are evidence-oriented, not dashboards —
 each one shows raw data, artifact provenance, and honest confidence levels
@@ -158,7 +158,7 @@ correctness or release qualification.
 # Extracted notebook source
 
 Notebook sources and their runner are maintained in
-[`prf-notebooks` at commit `b06ab61b819e`](https://github.com/protocol-robustness/prf-notebooks/tree/b06ab61b819e5a1212ffa04988822fa865dbea86).
+[`prf-notebooks` at commit `10a817900371`](https://github.com/protocol-robustness/prf-notebooks/tree/10a81790037103356f0ea31119c4ca7f1aeddc69).
 PRF pins this exact revision under the optional `:notebooks` dependency alias in
 `deps.edn`. Use `bb notebook` or the `bb notebook:*` validation/build tasks to
 resolve it. PRF-owned support namespaces and the PRF registry projection remain

@@ -125,7 +125,7 @@ core/cli.clj          Option parsing
 core/phases.clj       Phase registry + per-mode runners
 server/grpc.clj       gRPC server + session management
 benchmark/            8 files — signed benchmark sharing
-notebooks/              Clerk interactive notebooks (SPEDS, yield, manifest; see registry)
+data/notebooks.edn     Mirrored registry for the pinned prf-notebooks source package
 scripts/              3 files — evidence signing, manifest tools
 ```
 
@@ -241,7 +241,7 @@ Tier 3 — Active development (lower confidence)
   financial/* (new, untracked)
   research/sew/* (Monte Carlo phases)
   stochastic equilibrium claims
-  notebooks/* (Clerk interactive analysis)
+  PRF-hosted notebooks (Clerk interactive analysis; sources pinned from prf-notebooks)
 ```
 
 ### Bottom line

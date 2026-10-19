@@ -241,8 +241,11 @@ Primary project framing and status live in the root `../README.md`.
 
 ## Notebooks
 
-The repository ships interactive Clerk notebooks under `notebooks/`.
-See `data/notebooks.edn` for the full registry with descriptions and maturity levels.
+Interactive Clerk notebook sources are maintained in the separately versioned
+[`prf-notebooks` repository](https://github.com/protocol-robustness/prf-notebooks).
+PRF pins that source under its optional `:notebooks` dependency alias. See
+[`docs/notebooks/README.md`](notebooks/README.md) and the mirrored
+`data/notebooks.edn` registry for descriptions and maturity levels.
 
 ## Framework invariants
 
