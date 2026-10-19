@@ -13,10 +13,17 @@
             [clojure.java.shell :as shell]
             [clojure.set :as set]
             [clojure.string :as str])
-  (:import [java.util.concurrent Callable Executors LinkedBlockingQueue TimeUnit]))
+  (:import [java.nio.file Paths]
+           [java.util.concurrent Callable Executors LinkedBlockingQueue TimeUnit]))
 
-(def notebooks-dir (io/file "notebooks"))
-(def expected-files-path (io/file "notebooks/load-set-v1.edn"))
+(def ^:private notebook-resource (io/resource "notebooks/index.clj"))
+(def ^:private package-root
+  (when notebook-resource
+    (.getParent (.getParent (Paths/get (.toURI notebook-resource))))))
+(def notebooks-dir
+  (when package-root (.toFile (.resolve package-root "notebooks"))))
+(def expected-files-path
+  (when notebooks-dir (io/file notebooks-dir "load-set-v1.edn")))
 (def ^:private validation-report-name
   (str (System/currentTimeMillis) "-" (.pid (java.lang.ProcessHandle/current)) ".json"))
 (def ^:private max-parallel-notebooks 4)
@@ -32,7 +39,7 @@
 (def ^:const classpath-alias
   "Alias used to launch each notebook subprocess. Must include every path a
    notebook requires (see deps.edn); matches the way the server is run."
-  "-M:with-sew")
+  "-M:notebooks:with-sew")
 
 (defn read-ns-form [^java.io.File f]
   (with-open [rdr (io/reader f)]
@@ -59,7 +66,7 @@
 
 (defn notebook-inventory-differences [files]
   (let [expected (expected-notebook-files)
-        actual (set (map #(str (.relativize (.toPath (io/file ".")) (.toPath ^java.io.File %)))
+        actual (set (map #(str (.relativize package-root (.toPath ^java.io.File %)))
                          files))]
     {:missing (vec (sort (set/difference expected actual)))
      :unexpected (vec (sort (set/difference actual expected)))}))
@@ -222,7 +229,7 @@
 (defn -main [& _args]
   (let [files (notebook-files)
         inventory (notebook-inventory-differences files)
-        entries (mapv (fn [f] {:path (str (.relativize (.toPath (io/file ".")) (.toPath f)))
+        entries (mapv (fn [f] {:path (str (.relativize package-root (.toPath f)))
                                :file f :namespace (read-ns-form f)}) files)
         start (str (java.time.Instant/now))
         results (atom (vec (repeat (count entries) nil)))

@@ -783,7 +783,22 @@
     :tags           ["xtdb" "bitemporal" "valid-time" "system-time" "index" "explorer"]
     :presentation   {:theme :evidence-reproducibility :kind :tool
                      :audience-level :intermediate
-                     :question "What did the execution index know, when, without mutating authoritative artifacts?"}}]
+                     :question "What did the execution index know, when, without mutating authoritative artifacts?"}}
+
+  {:id             :portable-canonical-package
+   :path           "notebooks/portable_canonical_package.clj"
+   :title          "Portable Canonical Package"
+   :summary        "Runs the pinned prf-canonical Clojure package directly and displays its canonical bytes and a domain-separated example root."
+   :categories     [:tooling :evidence-artifacts]
+   :audience       [:reviewer :auditor :developer]
+   :status         :verified
+   :risk           :informational
+   :protocol-areas [:evidence]
+   :tags           ["canonical" "portable-package" "encoding" "hash"]
+   :presentation   {:theme :evidence-reproducibility :kind :demo
+                    :audience-level :intermediate}}
+
+  ]
  :archived-notebooks
  [{:id :workbench-production
    :replaced-by :workbench-v2

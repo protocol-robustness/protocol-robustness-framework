@@ -1,12 +1,19 @@
 (ns scripts.validate-notebook-registry
   "Validate data/notebooks.edn: all paths resolve, no duplicate IDs, no archived paths,
    and every source-level reference to a notebook file resolves."
-  (:require [clojure.java.io :as io]
+  (:require [clojure.edn :as edn]
+            [clojure.java.io :as io]
             [clojure.set :as set]
             [clojure.string :as str]
-            [resolver-sim.notebook-support.common :as common]))
+            [resolver-sim.notebook-support.common :as common])
+  (:import [java.nio.file Files Paths LinkOption]))
 
-(def notebooks-dir (io/file "notebooks"))
+(def ^:private notebook-index-resource (io/resource "notebooks/index.clj"))
+(def ^:private package-root
+  (when notebook-index-resource
+    (.getParent (.getParent (Paths/get (.toURI notebook-index-resource))))))
+(def notebooks-dir
+  (when package-root (.toFile (.resolve package-root "notebooks"))))
 (def data-file "data/notebooks.edn")
 (def scan-dirs
   "Source directories to scan for notebook file references."
@@ -33,6 +40,9 @@
 
 (defn -main [& args]
   (let [registry-data (registry)
+        package-registry (when package-root
+                           (edn/read-string
+                            (slurp (.toFile (.resolve package-root "data/notebooks.edn")))))
         entries (:notebooks registry-data)
         archived (filter archived? (:archived-notebooks registry-data))
         active (active-entries entries)
@@ -42,6 +52,11 @@
         active-paths (map :path active)
         errors (atom [])]
 
+    (when-not package-root
+      (swap! errors conj "Extracted notebook package is unavailable; select the :notebooks alias."))
+    (when (and package-registry (not= registry-data package-registry))
+      (swap! errors conj "data/notebooks.edn differs from the pinned prf-notebooks registry."))
+
     ;; 1. Unique IDs (across all entries including archived)
     (let [dupes (keys (filter #(> (val %) 1) (frequencies all-ids)))]
       (when (seq dupes)
@@ -49,7 +64,8 @@
 
     ;; 2. Active entry paths must resolve; archived paths are expected missing
     (doseq [p active-paths]
-      (when-not (.exists (io/file p))
+      (when-not (and package-root
+                    (Files/isRegularFile (.resolve package-root p) (make-array LinkOption 0)))
         (swap! errors conj (str "Active notebook path does not exist: " p))))
 
     ;; 3. Archived metadata must point to an active replacement ID
@@ -94,7 +110,8 @@
         (let [content (slurp f)
               rel-path (.getPath f)]
           (doseq [m (re-seq notebook-ref-pat content)]
-            (when-not (.exists (io/file m))
+            (when-not (and package-root
+                          (Files/isRegularFile (.resolve package-root m) (make-array LinkOption 0)))
               (swap! refs assoc m (conj (get @refs m []) rel-path))))))
       (doseq [[notebook-file sources] (sort @refs)]
         (swap! errors conj (str "Notebook file not found: " notebook-file

@@ -35,7 +35,7 @@ to *serve* them.
 
 - **Driver**: `scripts/export_notebook_shots.py` (Python Playwright). Pure CLI, no repo
   deps — matches the existing `scripts/evidence/*.py` convention.
-- **Target**: the Clerk server started by `bb notebook` (`src/notebooks/serve.clj`, port
+- **Target**: the Clerk server started by `bb notebook` (the pinned `prf-notebooks` server entrypoint, port
   7777), which already pre-evaluates every notebook so each is reachable by URL.
   The task reuses a running server if present, else starts one.
 - **Config**: `data/notebook-shots.edn` (see §5). Notebook set defaults to the non-archived

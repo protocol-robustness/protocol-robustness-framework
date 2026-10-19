@@ -1,17 +1,19 @@
 import sys
 import os
 import time
+import re
 from playwright.sync_api import sync_playwright
+
+
+def normalized_scenario_id(value):
+    value = os.path.splitext(os.path.basename(value))[0].lower()
+    return re.sub(r"[^a-z0-9]", "", value)
 
 def snapshot_scenario(scenario_id, output_path="evidence/snapshot.png"):
     """
-    Captures a high-resolution screenshot of a specific scenario from the 
-    Production Evidence Workbench.
+    Captures a high-resolution screenshot of a scenario card in workbench-v2.
     """
-    # 1. Update selection file for Clerk to re-evaluate
     print(f"📝 Selecting scenario: {scenario_id}")
-    with open("notebooks/snapshot_selection.edn", "w") as f:
-        f.write(f'{{:selected-scenario "{scenario_id}"}}')
     
     # Standard 1:1 Aspect Ratio for Social (Farcaster/X)
     viewport = {"width": 1200, "height": 1200}
@@ -29,29 +31,30 @@ def snapshot_scenario(scenario_id, output_path="evidence/snapshot.png"):
         # Navigate to the Clerk notebook
         page.goto(clerk_url)
         
-        # Wait for the SPEDS components to render and verify the ID matches
-        print("⏳ Waiting for SPEDS primitives and Proof Footer (max 60s)...")
-        
-        # Wait for the specific scenario to be rendered in the header
-        page.wait_for_selector(f"text={scenario_id}", timeout=60000)
-        page.wait_for_selector(".golden-frame")
+        print("⏳ Waiting for the requested scenario card (max 60s)...")
+        page.wait_for_selector("details.scenario-details", timeout=60000)
+        wanted = normalized_scenario_id(scenario_id)
+        deadline = time.monotonic() + 60
+        card = None
+        while card is None and time.monotonic() < deadline:
+            card = next(
+                (candidate for candidate in page.locator("details.scenario-details").all()
+                 if normalized_scenario_id(candidate.locator("summary").inner_text()).find(wanted) >= 0),
+                None,
+            )
+            if card is None:
+                time.sleep(0.5)
+        if card is None:
+            raise RuntimeError(f"Scenario {scenario_id!r} is not present in the workbench")
+        if not card.evaluate("element => element.open"):
+            card.locator("summary").click()
         
         # Allow time for data-binding and animations to settle
         time.sleep(2)
         
-        # Locate the specific frame or carousel
-        # For a full 4-frame carousel capture
-        element = page.query_selector(".frame-carousel")
-        if not element:
-            # Fallback to the full container if no carousel found
-            element = page.query_selector(".workbench-container")
-            
-        if element:
-            print(f"✅ Capture point located. Exporting to: {output_path}")
-            element.screenshot(path=output_path)
-        else:
-            print("❌ ERROR: Could not locate evidence frame.")
-            sys.exit(1)
+        print(f"✅ Capture point located. Exporting to: {output_path}")
+        os.makedirs(os.path.dirname(os.path.abspath(output_path)), exist_ok=True)
+        card.screenshot(path=output_path)
             
         browser.close()
     

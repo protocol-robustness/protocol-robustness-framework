@@ -12,9 +12,14 @@
    Exits non-zero if any hard violation is found."
   (:require [clojure.string :as str]
             [clojure.java.io :as io])
+  (:import [java.nio.file Paths])
   (:gen-class))
 
-(def notebooks-dir "notebooks")
+(def notebooks-dir
+  (let [resource (io/resource "notebooks/index.clj")]
+    (when-not resource
+      (throw (ex-info "Extracted notebook sources are missing; run with :notebooks" {})))
+    (str (.resolve (.getParent (.getParent (Paths/get (.toURI resource)))) "notebooks"))))
 
 (defn- ns-form-block
   "Return the ns form plus any ^{...} metadata block immediately preceding it."
@@ -80,6 +85,7 @@
                    (filter #(str/ends-with? % ".clj"))
                    ;; only top-level notebooks; skip support subdirectories (util/ etc.)
                    (filter #(= (.getParent (io/file %)) dir))
+                   (remove #(= (.getName (io/file %)) "_template.clj"))
                    sort)
         results (keep #(when-not (= :ok (:level %)) %) (map check-notebook files))
         errors (filter #(= :error (:level %)) results)
