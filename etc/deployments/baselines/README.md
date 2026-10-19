@@ -2,14 +2,16 @@
 
 The v1 release baseline below is retained as historical evidence for its
 original source parent. It no longer matches the current PRF source checkout.
-The v3 current-source candidate remains preserved as historical review material.
-The latest candidate uses
-`bounded-configuration-release-sources.current.v3.json`, whose 930-entry lock
-adds the Clojure dependency declarations and local accounting dependency source
-to the deployment source closure. The lock itself remains outside its locked
-path set. Its matching review package is in
-`../bounded-configuration-local-candidate-v4/`. All candidates remain
-unapproved; the v2/v3 packages and v1 baseline are preserved unchanged.
+The current candidate uses
+`bounded-configuration-release-sources.current.v4.json` and
+`../bounded-configuration-local-candidate-v5/`. The 931-entry lock refreshes
+the current reserve-binding source digest and adds the authority-continuity
+follow-up patch for genesis sealing and statement admission. The new patch is
+pinned by its file digest; the source lock itself remains outside the locked
+path set. Candidate v5 retains the same semantic package roots as candidate v4
+but has a different source-bound approval root. The earlier candidate v2/v3/v4
+packages and v1 baseline remain unchanged as historical review records. No
+approval is implied by the refreshed candidate.
 
 `bounded-configuration-release-baseline.v1.json` records its bounded-configuration
 release-source bundle digest, prf-evm base and integrated revision, the relevant

@@ -24,7 +24,7 @@ evidence. The live run is local-only and does not qualify W6 or W7.
 
 | Work | Current evidence | Status |
 | --- | --- | --- |
-| W0 release baseline | Pinned base plus content-addressed overlay reproduces the source tree and 31 artifact records; the historical package root is still unreproduced and upstream integration is not recorded here. | Partial; retain the limitation. |
+| W0 release baseline | Refreshed candidate v5 pins the current reserve-binding source digest and the authority-continuity patch in a 931-entry source lock; its source identity and manifest binding tests pass. The historical package root remains unreproduced, and the new Solidity runtime artifacts have not yet been exported into a successor deployables bundle. | Partial; retain both limitations. |
 | W1 authority enforcement | Validator/transition enforcement and focused tests are retained; the approved authority-state transition was applied at block 14 and has a verified receipt. | Executed locally; source/release integration remains bounded by W0. |
 | W2 canonical input approval | Initial-input approval and separate successor-transition approval are retained and verified against their exact manifests and local-only scope. | Approved for this local candidate only. |
 | W3 verifier identity | Deployment receipt records verifier/adapter identities and independent live checks; six PRF assertions replay in the independent report. | Verified for this local run. |
@@ -722,7 +722,9 @@ remain unchanged. This closes a semantic-input gap for W6, but does not by
 itself authenticate RPC observations, produce a proof or qualify a capital
 transaction; live deployment binding and complete W6/W7 evidence remain open.
 
-Current regression evidence: the prf-evm working tree builds successfully;
+Current regression evidence: `bb test:unit` passes 897 tests and 3,609
+assertions, including the new candidate-v5 source and manifest binding test.
+The prf-evm working tree builds successfully;
 `PrfGenesisTest` passes 10 tests, `PrfStatementAdmissionTest` 19, and
 `PrfConfigurationAuthorizationConformanceTest` 30. The complete unscoped
 `forge test` invocation exits nonzero: 284 tests pass and 41 phase-dependent
@@ -745,41 +747,35 @@ profile. Authenticated approval output supplies the policy root and signer;
 the plan deploys the validator; the CLI checks its immutable getters, adapter
 governor and genesis bindings, unchanged initial authority root and unsealed
 state before enabling transitions, then checks the resulting adapter bindings.
-Resolver, approval-gate and plan tests cover this path. This is implementation
-evidence only: no trusted owner approval or live deployment has been supplied.
-W1 remains open until the approved transition path is executed and its failure
-cases and resulting authority state are independently observed.
+Resolver, approval-gate and plan tests cover this path. The prior local
+approval and execution apply to candidate v4; they do not authorize candidate
+v5's changed source identity or the new runtime code. W1 remains open for v5
+until the newly approved transition path is executed and its failure cases
+and resulting authority state are independently observed.
 
 ### Current candidate audit (2026-10-19)
 
-The preserved v2 candidate remains unchanged as historical review material.
-Its source lock differs from the current checkout in 9 of 926 entries, including
-`src/resolver_sim/hash/canonical.clj`, so its manifest cannot authorize this
-source revision. A separate v3 review candidate carries the same four
-semantic packages and seven-root C0 with a current-source manifest. Its v2
-source lock verifies all 926 scoped entries against source parent
-`75c5055b23a2f1b27f43af3696eb4be99f51ed7b` and tree
-`ac464875d45654294a43e0fbcdccfa7bb3cd0fb50db2fba098d0f4a89d30ec95`.
-Package-root derivation and manifest content validation match; its canonical
-manifest root is
-`sha256:c68a6ee9bc99dcacf04c28730e9c7b5f5f83e750709679d90c9ba4a570d22c9f`.
-That candidate remains unchanged as historical review material. A v4 candidate
-now adds the root and local-package dependency files required to reproduce the
-deployment classpath. Its 930-entry source lock derives tree
-`c39f3aa7a96304d038c5263e811e46f1012831f5a702a2d7f38f332f45701527`; package
-roots remain unchanged and its manifest root is
-`sha256:b25d89eecf2c245c03e49ddd5f78080c183c9c44e66d7a8b9eac0193d953ac56`.
-The v4 manifest remains candidate-only. The owner must review the expanded
-source closure and exact package before authenticated initial-input approval.
-The policy's transition-validator EVM signer has no private key retained in
-this repository, and external custody is unverified; the owner must confirm
-custody or replace the signer and rederive the manifest. No approval or live
-deployment evidence is present.
+The preserved v2, v3 and v4 candidates remain unchanged as historical review
+material. Candidate v4's 930-entry source lock was stale for the current
+checkout: `src/resolver_sim/shortfall/allocation_binding.clj` had changed, and
+the new PRF authority-continuity patch was not represented. Candidate v5 now
+uses the refreshed 931-entry `bounded-configuration-release-sources.current.v4.json`
+lock, source parent `01837e6237c625a3d23bdeafc8075232a2dfabd0`, source tree
+`708569f9856817c155ad04ab947609cd63dabf659bbe1f4c54bd1404f1d2488d`, and
+manifest root
+`sha256:a0905e8b132a5e6b260e27f7d9188b6fb8afb7d56a7b6ae0e2d93627fd1f678d`.
+The four semantic artifacts and seven C0 roots remain unchanged; the changed
+source identity changes the approval root. The candidate-v5 source-lock and
+manifest-binding test passes. Candidate v5 is unapproved. Its changed genesis
+and admission runtime identities require regenerated deployable artifacts,
+fresh W4/W5 deployment evidence, and new approvals bound to the regenerated
+candidate and instance. Previous approvals and live readbacks remain evidence
+for the older source candidate only.
 
 | Order | Work | Concrete output | Gate / dependency |
 | --- | --- | --- | --- |
-| 1 | W0 source and artifact reproducibility is established from the pinned base plus content-addressed overlay. The rebuilt 31 artifact records match the retained v0.4.1 manifest; the historical package root remains unreproduced because its commit object is unavailable. | Reproducible source tree, artifact records, toolchain and refreshed source-lock digests. | This fixes source identity for W2 review; owner approval is still required before deployment. |
-| 2 | Finish W2 semantic review and local approval material. Review policy-v3 and its validator trust assumption, finalize the four candidate artifacts and seven-root C0, then obtain authenticated approval over the exact source-bound manifest and local scope. | Owner-reviewed package plus detached, independently verifiable initial-input approval. | Approval is an external input; absent approval, retain candidate status and stop before deployment transactions. |
+| 1 | Preserve the historical reproducible v0.4.1 baseline, then build and pin new artifacts for candidate v5's changed genesis and admission runtimes. The historical package root remains unreproduced because its commit object is unavailable. | Reproducible source patch, regenerated deployable bundle and artifact identities, toolchain, and refreshed source-lock digests. | The new build must not overwrite the retained v0.4.1 artifacts. |
+| 2 | Finish W2 semantic review and local approval material against candidate v5. Review policy-v3 and its validator trust assumption, finalize the four candidate artifacts and seven-root C0, then obtain authenticated approval over candidate v5's exact source-bound manifest and local scope. | Owner-reviewed package plus detached, independently verifiable initial-input approval. | Prior candidate approval does not cover the new manifest; absent renewed approval, stop before deployment transactions. |
 | 3 | Complete W3/W4 execution gates against the approved package. Authenticate deployed verifier and validator runtime identities, perform fresh chain observations, independently derive genesis, and seal only when all bindings match. Retain mined receipt and same-block readbacks. | Verified local genesis seal and deployment evidence bundle. | Requires steps 1–2; changed source or deployment facts require a new derivation and approval as applicable. |
 | 4 | Complete W5. Deploy and bind the executor and empty epoch-0 registry to the sealed instance; deploy/authenticate the successor verifier; derive C1; obtain separate transition approval; execute the approved authority/configuration update and independently check readbacks. | Distinct, reproducible C0/C1 identities and retained approval, transaction and state evidence. | Initial-input approval does not authorize this transition. Stop if parent, epoch, instance, proof mode or registry differs from the approved manifest. |
 | 5 | Run W6, then package W7. Exercise the real proof and protected capital path, run negative and replay cases at the capital-consumer boundary, and create a verifier command that rechecks the complete retained bundle. | Local qualification bundle and independent verification result, scoped to the approved local deployment. | Requires successful W5. Public-chain evidence, public approval and production readiness remain out of scope. |
