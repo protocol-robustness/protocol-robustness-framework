@@ -621,25 +621,31 @@ evidence only: no trusted owner approval or live deployment has been supplied.
 W1 remains open until the approved transition path is executed and its failure
 cases and resulting authority state are independently observed.
 
-### Current candidate audit (2026-10-18)
+### Current candidate audit (2026-10-19)
 
 The preserved v2 candidate remains unchanged as historical review material.
 Its source lock differs from the current checkout in 9 of 926 entries, including
 `src/resolver_sim/hash/canonical.clj`, so its manifest cannot authorize this
-source revision. A separate v3 review candidate now carries the same four
+source revision. A separate v3 review candidate carries the same four
 semantic packages and seven-root C0 with a current-source manifest. Its v2
 source lock verifies all 926 scoped entries against source parent
 `75c5055b23a2f1b27f43af3696eb4be99f51ed7b` and tree
 `ac464875d45654294a43e0fbcdccfa7bb3cd0fb50db2fba098d0f4a89d30ec95`.
-Package-root derivation and manifest content validation match; the canonical
+Package-root derivation and manifest content validation match; its canonical
 manifest root is
 `sha256:c68a6ee9bc99dcacf04c28730e9c7b5f5f83e750709679d90c9ba4a570d22c9f`.
-The manifest status remains candidate-only. The owner must review the changed
-sources and exact package before authenticated initial-input approval. The
-policy's transition-validator EVM signer has no private key retained in this
-repository, and external custody is unverified; the owner must confirm custody
-or replace the signer and rederive the manifest. No approval or live deployment
-evidence is present.
+That candidate remains unchanged as historical review material. A v4 candidate
+now adds the root and local-package dependency files required to reproduce the
+deployment classpath. Its 930-entry source lock derives tree
+`c39f3aa7a96304d038c5263e811e46f1012831f5a702a2d7f38f332f45701527`; package
+roots remain unchanged and its manifest root is
+`sha256:b25d89eecf2c245c03e49ddd5f78080c183c9c44e66d7a8b9eac0193d953ac56`.
+The v4 manifest remains candidate-only. The owner must review the expanded
+source closure and exact package before authenticated initial-input approval.
+The policy's transition-validator EVM signer has no private key retained in
+this repository, and external custody is unverified; the owner must confirm
+custody or replace the signer and rederive the manifest. No approval or live
+deployment evidence is present.
 
 | Order | Work | Concrete output | Gate / dependency |
 | --- | --- | --- | --- |
