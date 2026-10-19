@@ -115,6 +115,12 @@ result byte fixtures are separate from the four state/effect/transition byte
 fixtures. The current `contract.edn` and release manifest mix declarations for
 both groups, so they cannot be assigned wholesale to either package.
 
+Before any split, the existing independent-reference suite must continue to
+pass as a whole. On this extraction revision,
+`clojure -M:pro-rata-contract/test` passed 7 tests and 80 assertions; its
+release-manifest test verifies the recorded release root and every listed
+file digest, and its allocation-vector tests reconstruct the frozen roots.
+
 The independent `pro_rata_contract_src/` implementation remains PRF-owned as a
 conformance oracle for now. Before replacing or relocating it, consumers need
 to validate both new package pins against the same frozen allocation and
