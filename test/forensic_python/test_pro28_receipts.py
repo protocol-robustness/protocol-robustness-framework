@@ -161,6 +161,116 @@ def test_cli_verify_accepts_only_the_pinned_supported_reconstruction(monkeypatch
     assert "not authenticate the receipts" in " ".join(result["limitations"])
 
 
+def test_cli_writes_bound_unsupported_proof_result_and_exits_nonzero(monkeypatch, capsys, tmp_path: Path) -> None:
+    verification_path = tmp_path / "verification.json"
+    proof_path = tmp_path / "proof-check.json"
+
+    def unavailable(_bundle: Path) -> dict:
+        raise pro28_receipts.VerificationUnavailable("local socket binding is unavailable")
+
+    monkeypatch.setattr(pro28_receipts, "verify_groth16_reference", unavailable)
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "pro28_receipts.py", str(FRESH_V2_SOURCE), "--verify-groth16",
+            "--write-proof-check", str(proof_path),
+            "--write-verification-result", str(verification_path),
+        ],
+    )
+
+    assert pro28_receipts.main() == 2
+    proof = load(proof_path)
+    result = load(verification_path)
+    assert proof["status"] == "unsupported"
+    assert proof["reason"] == "local socket binding is unavailable"
+    assert proof["referenceCheckExecuted"] is False
+    assert result["status"] == "inspection_unanchored"
+    assert result["checks"]["cryptographicProof"] == "unsupported"
+    assert result["optionalChecks"]["groth16"]["status"] == "unsupported"
+    assert len(result["optionalChecks"]["groth16"]["reportSha256"]) == 66
+    assert "UNSUPPORTED:" in capsys.readouterr().out
+
+
+def test_missing_cast_is_an_unsupported_reference_check(bundle: Path, monkeypatch) -> None:
+    original_which = pro28_receipts.shutil.which
+    monkeypatch.setattr(
+        pro28_receipts.shutil,
+        "which",
+        lambda name: None if name == "cast" else original_which(name),
+    )
+    with pytest.raises(pro28_receipts.VerificationUnavailable, match="cast is required"):
+        pro28_receipts.verify_groth16_reference(bundle)
+
+
+def test_missing_anvil_is_an_unsupported_reference_check(bundle: Path, monkeypatch) -> None:
+    original_which = pro28_receipts.shutil.which
+    monkeypatch.setattr(
+        pro28_receipts.shutil,
+        "which",
+        lambda name: None if name == "anvil" else original_which(name),
+    )
+    with pytest.raises(pro28_receipts.VerificationUnavailable, match="anvil is required"):
+        pro28_receipts.verify_groth16_reference(bundle)
+
+
+def test_socket_binding_denial_is_an_unsupported_reference_check(bundle: Path, monkeypatch) -> None:
+    class DeniedSocket:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            return False
+
+        def bind(self, _address):
+            raise PermissionError("socket binding denied")
+
+    monkeypatch.setattr(pro28_receipts.socket, "socket", DeniedSocket)
+    with pytest.raises(pro28_receipts.VerificationUnavailable, match="Anvil cannot be started"):
+        pro28_receipts.verify_groth16_reference(bundle)
+
+
+def test_eth_call_json_rpc_error_is_not_described_as_proof_rejection(bundle: Path, monkeypatch) -> None:
+    runtime = load(bundle / "runtime-code-observations.json")
+    verifier_code = runtime["contracts"]["verifier"]["runtimeCode"]
+
+    class RunningProcess:
+        def poll(self):
+            return None
+
+        def terminate(self):
+            pass
+
+        def wait(self, timeout=None):
+            return 0
+
+    def rpc(_url, method, _params):
+        if method == "eth_chainId":
+            return "0x7a69"
+        if method == "anvil_setCode":
+            return None
+        if method == "eth_getCode":
+            return verifier_code
+        if method == "eth_call":
+            raise pro28_receipts.RpcMethodError("invalid request or execution resource error")
+        raise AssertionError(f"unexpected RPC method: {method}")
+
+    monkeypatch.setattr(pro28_receipts, "_rpc", rpc)
+    original_popen = pro28_receipts.subprocess.Popen
+
+    def mock_anvil(args, *positional, **options):
+        if args and args[0] == "anvil":
+            return RunningProcess()
+        return original_popen(args, *positional, **options)
+
+    monkeypatch.setattr(pro28_receipts.subprocess, "Popen", mock_anvil)
+
+    report = pro28_receipts.verify_groth16_reference(bundle)
+    assert report["status"] == "not_verified"
+    assert report["referenceCheckExecuted"] is True
+    assert report["failure"] == "eth_call returned a JSON-RPC error; proof validity was not established"
+
+
 @pytest.mark.parametrize("field,value", [
     ("schema", "unsupported.v99"),
     ("chainId", 1),
@@ -568,8 +678,10 @@ def test_reference_verifier_rejects_changed_statement_public_value(bundle: Path)
     capture = load(capture_path)
     capture["proof"]["fixtureSha256"] = "0x" + hashlib.sha256(fixture_path.read_bytes()).hexdigest()
     save(capture_path, capture)
-    with pytest.raises(pro28_receipts.EvidenceError, match="eth_call"):
-        pro28_receipts.verify_groth16_reference(bundle)
+    report = pro28_receipts.verify_groth16_reference(bundle)
+    assert report["status"] == "not_verified"
+    assert report["referenceCheckExecuted"] is True
+    assert report["failure"] == "eth_call returned a JSON-RPC error; proof validity was not established"
 
 
 def test_incomplete_and_conflicting_observations_reject(bundle: Path) -> None:

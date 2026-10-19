@@ -1,0 +1,827 @@
+{
+  "accounting": {
+    "claimsMatchConsumedBitmapAndIdentityMapping": true,
+    "finalAllocatorTokenBalance": 0,
+    "finalClaimedAmount": 70,
+    "finalRemainingFundedLiability": 0,
+    "fundedEntitlement": 70,
+    "sumClaimedAndRemaining": 70
+  },
+  "captureId": "pro-28-local-replay-49d70d9ac18f31bd",
+  "chainId": 31337,
+  "claimIdentities": [
+    {
+      "amount": 35,
+      "beneficiary": "0x1111111111111111111111111111111111111111",
+      "canonicalHash": "0x8cf848e36296772b88c8a72941350bbccbd157fc19a9a4ac9eaa4557262eab88",
+      "claimId": "claim-a",
+      "index": 0
+    },
+    {
+      "amount": 21,
+      "beneficiary": "0x2222222222222222222222222222222222222222",
+      "canonicalHash": "0x53e73c2ead3aa8da4c9aeff45cae85da91627499fc586cd2efa50e299b8ea84d",
+      "claimId": "claim-b",
+      "index": 1
+    },
+    {
+      "amount": 14,
+      "beneficiary": "0x3333333333333333333333333333333333333333",
+      "canonicalHash": "0x1d45922891140031bbdbabe1c2a933d174ea1feadef867bc29333473e00fd0c9",
+      "claimId": "claim-c",
+      "index": 2
+    }
+  ],
+  "claimIdentityRule": "keccak256(0x20 || minimal-unsigned-varint(UTF8-byte-length) || UTF8 claim ID), matching pinned ProductionProRataAllocatorV2 source",
+  "classification": "localOnly provider-relative block-hash-pinned eth_call observations; no state proof, public-chain consensus or finality claim",
+  "deploymentManifestDigest": "sha256:e9ab2ed1ba0494d9e457ace966b789fcae9332cc42a2dd6c62f3339eeee356f8",
+  "limitations": [
+    "The RPC provider supplies block headers, receipts, runtime identity, and historical eth_call results; this is provider-relative evidence.",
+    "Private packed bitmap storage is not decoded. The public consumed(operationId,index) getter and public consumedClaimIdentity mapping are queried instead.",
+    "The replay probe is an eth_call rejection and is not a submitted replay transaction.",
+    "No public-chain qualification, consensus proof, or finality claim is made."
+  ],
+  "localChainIdentity": {
+    "chainId": 31337,
+    "fingerprint": "sha256:49d70d9ac18f31bd23cb36b3b306ffb78d91f71a0cb10c47392bb2cd3823bb93",
+    "genesisBlockHash": "0xf861bf6e7356d38145170f44fc6aa3d96b4e0a639be13567792af737c3fc34d0",
+    "schema": "prf.local-chain-fingerprint.v1",
+    "scope": "chain lineage fingerprint; does not uniquely identify an RPC provider or Anvil process"
+  },
+  "operation": {
+    "allocator": "0x4C2F7092C2aE51D986bEFEe378e50BD4dB99C901",
+    "allocatorRuntimeCodeKeccak256": "0xf2dcfdc1ab1f9095db257b1abd8bd521513adaab46f252b53c247973f256d8b8",
+    "allocatorRuntimeCodeSha256": "0x84434f2e1a3bba7aadea48402e2e8df944c0877ee9e31e0236b5f4692c2cbbe0",
+    "operationId": "0x809b4fbdb632eba4671e5d5f35a37ff12aa4ae28e1ec84aece40972b1138755d",
+    "operationRoots": {
+      "allocationBindingRoot": "0xfe94e946ddaf58eca00c3231672536bf3c01199925c25ec8e2a0d60a325384e5",
+      "allocationClaimRoot": "0xfab874034cf34f9d88e8382aa9c2473c0fd3f36ee9b5a0b358e4a86ae75b7fac",
+      "descriptorRoot": "0x0e8b6d0eb8a46279fee6697366b2bdfa0b4aa514dacf17e9e264744d90d91c1f",
+      "evmEntitlementTableRoot": "0x52618a7e6f8ea56baf760682b64b12860f56bef7980593f4099c8c5e65783d8d"
+    },
+    "preparedOperationRoot": "0xe0c2dc5821ca3b6ec330d8af7bcb407400b19bff4d8ee08f727970494dd85eb2"
+  },
+  "replayProbe": {
+    "blockNumber": 33,
+    "claimId": "claim-a",
+    "errorCode": 3,
+    "kind": "eth_call",
+    "reasonClass": "EntitlementAlreadyConsumed(0)",
+    "result": "rejected",
+    "revertData": "0xa3be65820000000000000000000000000000000000000000000000000000000000000000",
+    "transactionHash": "0x9acb21e6f3d9313913c530c1c115064c7b927625ecea08820a2c5275405fed17"
+  },
+  "schema": "eae.pro-30-allocator-state-observations.v1",
+  "snapshots": [
+    {
+      "block": {
+        "hash": "0x80a0920acee9a4eba5e8e1316cf88f384b089bf870e6f3f13c223c558ba2f399",
+        "number": 31,
+        "parentHash": "0xc03d73e4cb61da7738e436af7dc1c7b4630c45864f1aef8c602b9f1e2aaf24ca"
+      },
+      "boundaryAnchor": {
+        "blockHash": "0x55706ad6e5b99ad4e217ebba33c67e917bdee075f9654b32e28d3bab6970fed5",
+        "blockNumber": 32,
+        "relation": "before",
+        "transactionHash": "0xce194d2f05e4d956aa8c2f892ca49c7165ae3698fe5c954b6b486348e7ffffac"
+      },
+      "id": "beforeActivation",
+      "reads": {
+        "allocatorTokenBalance": {
+          "calldata": "0x70a082310000000000000000000000004c2f7092c2ae51d986befee378e50bd4db99c901",
+          "rawResult": "0000000000000000000000000000000000000000000000000000000000000046",
+          "to": "0x367761085bf3c12e5da2df99ac6e1a824612b8fb"
+        },
+        "claimedAmount": {
+          "calldata": "0xafa718ac809b4fbdb632eba4671e5d5f35a37ff12aa4ae28e1ec84aece40972b1138755d",
+          "rawResult": "0000000000000000000000000000000000000000000000000000000000000000",
+          "to": "0x4c2f7092c2ae51d986befee378e50bd4db99c901"
+        },
+        "claimedCount": {
+          "calldata": "0x7f6d64ce809b4fbdb632eba4671e5d5f35a37ff12aa4ae28e1ec84aece40972b1138755d",
+          "rawResult": "0000000000000000000000000000000000000000000000000000000000000000",
+          "to": "0x4c2f7092c2ae51d986befee378e50bd4db99c901"
+        },
+        "consumed:claim-a": {
+          "calldata": "0xbb8f2054809b4fbdb632eba4671e5d5f35a37ff12aa4ae28e1ec84aece40972b1138755d0000000000000000000000000000000000000000000000000000000000000000",
+          "rawResult": "0000000000000000000000000000000000000000000000000000000000000000",
+          "to": "0x4c2f7092c2ae51d986befee378e50bd4db99c901"
+        },
+        "consumed:claim-b": {
+          "calldata": "0xbb8f2054809b4fbdb632eba4671e5d5f35a37ff12aa4ae28e1ec84aece40972b1138755d0000000000000000000000000000000000000000000000000000000000000001",
+          "rawResult": "0000000000000000000000000000000000000000000000000000000000000000",
+          "to": "0x4c2f7092c2ae51d986befee378e50bd4db99c901"
+        },
+        "consumed:claim-c": {
+          "calldata": "0xbb8f2054809b4fbdb632eba4671e5d5f35a37ff12aa4ae28e1ec84aece40972b1138755d0000000000000000000000000000000000000000000000000000000000000002",
+          "rawResult": "0000000000000000000000000000000000000000000000000000000000000000",
+          "to": "0x4c2f7092c2ae51d986befee378e50bd4db99c901"
+        },
+        "consumedClaimIdentity:claim-a": {
+          "calldata": "0x8cb0da26809b4fbdb632eba4671e5d5f35a37ff12aa4ae28e1ec84aece40972b1138755d8cf848e36296772b88c8a72941350bbccbd157fc19a9a4ac9eaa4557262eab88",
+          "rawResult": "0000000000000000000000000000000000000000000000000000000000000000",
+          "to": "0x4c2f7092c2ae51d986befee378e50bd4db99c901"
+        },
+        "consumedClaimIdentity:claim-b": {
+          "calldata": "0x8cb0da26809b4fbdb632eba4671e5d5f35a37ff12aa4ae28e1ec84aece40972b1138755d53e73c2ead3aa8da4c9aeff45cae85da91627499fc586cd2efa50e299b8ea84d",
+          "rawResult": "0000000000000000000000000000000000000000000000000000000000000000",
+          "to": "0x4c2f7092c2ae51d986befee378e50bd4db99c901"
+        },
+        "consumedClaimIdentity:claim-c": {
+          "calldata": "0x8cb0da26809b4fbdb632eba4671e5d5f35a37ff12aa4ae28e1ec84aece40972b1138755d1d45922891140031bbdbabe1c2a933d174ea1feadef867bc29333473e00fd0c9",
+          "rawResult": "0000000000000000000000000000000000000000000000000000000000000000",
+          "to": "0x4c2f7092c2ae51d986befee378e50bd4db99c901"
+        },
+        "entitlementOperation": {
+          "calldata": "0xfa6efec5809b4fbdb632eba4671e5d5f35a37ff12aa4ae28e1ec84aece40972b1138755d",
+          "rawResult": "0x0000000000000000000000000000000000000000000000000000000000000002fe94e946ddaf58eca00c3231672536bf3c01199925c25ec8e2a0d60a325384e50e8b6d0eb8a46279fee6697366b2bdfa0b4aa514dacf17e9e264744d90d91c1f52618a7e6f8ea56baf760682b64b12860f56bef7980593f4099c8c5e65783d8d00000000000000000000000000000000000000000000000000000000000000030000000000000000000000000000000000000000000000000000000000000046fab874034cf34f9d88e8382aa9c2473c0fd3f36ee9b5a0b358e4a86ae75b7fac88bbb03a2adbbc73f946dc5a1901f1f659b76280869deb4f65c140f361e955fa000000000000000000000000367761085bf3c12e5da2df99ac6e1a824612b8fb000000000000000000000000000000000000000000000000000000000000004600000000000000000000000022222222222222222222222222222222222222220000000000000000000000000000000000000000000000000000000000000000",
+          "to": "0x4c2f7092c2ae51d986befee378e50bd4db99c901"
+        },
+        "outstandingLiability": {
+          "calldata": "0x665a61ca809b4fbdb632eba4671e5d5f35a37ff12aa4ae28e1ec84aece40972b1138755d",
+          "rawResult": "0000000000000000000000000000000000000000000000000000000000000000",
+          "to": "0x4c2f7092c2ae51d986befee378e50bd4db99c901"
+        }
+      },
+      "state": {
+        "allocationBindingRoot": "0xfe94e946ddaf58eca00c3231672536bf3c01199925c25ec8e2a0d60a325384e5",
+        "allocationClaimRoot": "0xfab874034cf34f9d88e8382aa9c2473c0fd3f36ee9b5a0b358e4a86ae75b7fac",
+        "allocatorTokenBalance": 70,
+        "beneficiaryProfileWord": "0x88bbb03a2adbbc73f946dc5a1901f1f659b76280869deb4f65c140f361e955fa",
+        "claimedAmount": 0,
+        "claimedCount": 0,
+        "consumedByIndex": [
+          false,
+          false,
+          false
+        ],
+        "consumedClaimIdentity": [
+          false,
+          false,
+          false
+        ],
+        "consumedClaimIds": [],
+        "descriptorRoot": "0x0e8b6d0eb8a46279fee6697366b2bdfa0b4aa514dacf17e9e264744d90d91c1f",
+        "entitlementCount": 3,
+        "entitlementTotal": 70,
+        "evmEntitlementTableRoot": "0x52618a7e6f8ea56baf760682b64b12860f56bef7980593f4099c8c5e65783d8d",
+        "fundedAmount": 70,
+        "operationState": 2,
+        "operationStateName": "Funded",
+        "outstandingLiability": 0,
+        "token": "0x367761085bf3c12e5da2df99ac6e1a824612b8fb"
+      },
+      "transactionBoundary": {
+        "transactionCount": 1,
+        "transactionHash": "0xbb54263ee432a8661505d8f2e8454e56658e832aea11ff72670ba51b45c8edbe",
+        "transactionIndex": 0
+      }
+    },
+    {
+      "block": {
+        "hash": "0x55706ad6e5b99ad4e217ebba33c67e917bdee075f9654b32e28d3bab6970fed5",
+        "number": 32,
+        "parentHash": "0x80a0920acee9a4eba5e8e1316cf88f384b089bf870e6f3f13c223c558ba2f399"
+      },
+      "boundaryAnchor": {
+        "blockHash": "0x7e010b041b724999ecc6d9b83423767b693a2e9493c2cc2e9bd497aea6519506",
+        "blockNumber": 33,
+        "relation": "before",
+        "transactionHash": "0x9acb21e6f3d9313913c530c1c115064c7b927625ecea08820a2c5275405fed17"
+      },
+      "id": "beforeAlice",
+      "reads": {
+        "allocatorTokenBalance": {
+          "calldata": "0x70a082310000000000000000000000004c2f7092c2ae51d986befee378e50bd4db99c901",
+          "rawResult": "0000000000000000000000000000000000000000000000000000000000000046",
+          "to": "0x367761085bf3c12e5da2df99ac6e1a824612b8fb"
+        },
+        "claimedAmount": {
+          "calldata": "0xafa718ac809b4fbdb632eba4671e5d5f35a37ff12aa4ae28e1ec84aece40972b1138755d",
+          "rawResult": "0000000000000000000000000000000000000000000000000000000000000000",
+          "to": "0x4c2f7092c2ae51d986befee378e50bd4db99c901"
+        },
+        "claimedCount": {
+          "calldata": "0x7f6d64ce809b4fbdb632eba4671e5d5f35a37ff12aa4ae28e1ec84aece40972b1138755d",
+          "rawResult": "0000000000000000000000000000000000000000000000000000000000000000",
+          "to": "0x4c2f7092c2ae51d986befee378e50bd4db99c901"
+        },
+        "consumed:claim-a": {
+          "calldata": "0xbb8f2054809b4fbdb632eba4671e5d5f35a37ff12aa4ae28e1ec84aece40972b1138755d0000000000000000000000000000000000000000000000000000000000000000",
+          "rawResult": "0000000000000000000000000000000000000000000000000000000000000000",
+          "to": "0x4c2f7092c2ae51d986befee378e50bd4db99c901"
+        },
+        "consumed:claim-b": {
+          "calldata": "0xbb8f2054809b4fbdb632eba4671e5d5f35a37ff12aa4ae28e1ec84aece40972b1138755d0000000000000000000000000000000000000000000000000000000000000001",
+          "rawResult": "0000000000000000000000000000000000000000000000000000000000000000",
+          "to": "0x4c2f7092c2ae51d986befee378e50bd4db99c901"
+        },
+        "consumed:claim-c": {
+          "calldata": "0xbb8f2054809b4fbdb632eba4671e5d5f35a37ff12aa4ae28e1ec84aece40972b1138755d0000000000000000000000000000000000000000000000000000000000000002",
+          "rawResult": "0000000000000000000000000000000000000000000000000000000000000000",
+          "to": "0x4c2f7092c2ae51d986befee378e50bd4db99c901"
+        },
+        "consumedClaimIdentity:claim-a": {
+          "calldata": "0x8cb0da26809b4fbdb632eba4671e5d5f35a37ff12aa4ae28e1ec84aece40972b1138755d8cf848e36296772b88c8a72941350bbccbd157fc19a9a4ac9eaa4557262eab88",
+          "rawResult": "0000000000000000000000000000000000000000000000000000000000000000",
+          "to": "0x4c2f7092c2ae51d986befee378e50bd4db99c901"
+        },
+        "consumedClaimIdentity:claim-b": {
+          "calldata": "0x8cb0da26809b4fbdb632eba4671e5d5f35a37ff12aa4ae28e1ec84aece40972b1138755d53e73c2ead3aa8da4c9aeff45cae85da91627499fc586cd2efa50e299b8ea84d",
+          "rawResult": "0000000000000000000000000000000000000000000000000000000000000000",
+          "to": "0x4c2f7092c2ae51d986befee378e50bd4db99c901"
+        },
+        "consumedClaimIdentity:claim-c": {
+          "calldata": "0x8cb0da26809b4fbdb632eba4671e5d5f35a37ff12aa4ae28e1ec84aece40972b1138755d1d45922891140031bbdbabe1c2a933d174ea1feadef867bc29333473e00fd0c9",
+          "rawResult": "0000000000000000000000000000000000000000000000000000000000000000",
+          "to": "0x4c2f7092c2ae51d986befee378e50bd4db99c901"
+        },
+        "entitlementOperation": {
+          "calldata": "0xfa6efec5809b4fbdb632eba4671e5d5f35a37ff12aa4ae28e1ec84aece40972b1138755d",
+          "rawResult": "0x0000000000000000000000000000000000000000000000000000000000000003fe94e946ddaf58eca00c3231672536bf3c01199925c25ec8e2a0d60a325384e50e8b6d0eb8a46279fee6697366b2bdfa0b4aa514dacf17e9e264744d90d91c1f52618a7e6f8ea56baf760682b64b12860f56bef7980593f4099c8c5e65783d8d00000000000000000000000000000000000000000000000000000000000000030000000000000000000000000000000000000000000000000000000000000046fab874034cf34f9d88e8382aa9c2473c0fd3f36ee9b5a0b358e4a86ae75b7fac88bbb03a2adbbc73f946dc5a1901f1f659b76280869deb4f65c140f361e955fa000000000000000000000000367761085bf3c12e5da2df99ac6e1a824612b8fb00000000000000000000000000000000000000000000000000000000000000460000000000000000000000002222222222222222222222222222222222222222000000000000000000000000c96304e3c037f81da488ed9dea1d8f2a48278a75",
+          "to": "0x4c2f7092c2ae51d986befee378e50bd4db99c901"
+        },
+        "outstandingLiability": {
+          "calldata": "0x665a61ca809b4fbdb632eba4671e5d5f35a37ff12aa4ae28e1ec84aece40972b1138755d",
+          "rawResult": "0000000000000000000000000000000000000000000000000000000000000046",
+          "to": "0x4c2f7092c2ae51d986befee378e50bd4db99c901"
+        }
+      },
+      "state": {
+        "allocationBindingRoot": "0xfe94e946ddaf58eca00c3231672536bf3c01199925c25ec8e2a0d60a325384e5",
+        "allocationClaimRoot": "0xfab874034cf34f9d88e8382aa9c2473c0fd3f36ee9b5a0b358e4a86ae75b7fac",
+        "allocatorTokenBalance": 70,
+        "beneficiaryProfileWord": "0x88bbb03a2adbbc73f946dc5a1901f1f659b76280869deb4f65c140f361e955fa",
+        "claimedAmount": 0,
+        "claimedCount": 0,
+        "consumedByIndex": [
+          false,
+          false,
+          false
+        ],
+        "consumedClaimIdentity": [
+          false,
+          false,
+          false
+        ],
+        "consumedClaimIds": [],
+        "descriptorRoot": "0x0e8b6d0eb8a46279fee6697366b2bdfa0b4aa514dacf17e9e264744d90d91c1f",
+        "entitlementCount": 3,
+        "entitlementTotal": 70,
+        "evmEntitlementTableRoot": "0x52618a7e6f8ea56baf760682b64b12860f56bef7980593f4099c8c5e65783d8d",
+        "fundedAmount": 70,
+        "operationState": 3,
+        "operationStateName": "Activated",
+        "outstandingLiability": 70,
+        "token": "0x367761085bf3c12e5da2df99ac6e1a824612b8fb"
+      },
+      "transactionBoundary": {
+        "transactionCount": 1,
+        "transactionHash": "0xce194d2f05e4d956aa8c2f892ca49c7165ae3698fe5c954b6b486348e7ffffac",
+        "transactionIndex": 0
+      }
+    },
+    {
+      "block": {
+        "hash": "0x7e010b041b724999ecc6d9b83423767b693a2e9493c2cc2e9bd497aea6519506",
+        "number": 33,
+        "parentHash": "0x55706ad6e5b99ad4e217ebba33c67e917bdee075f9654b32e28d3bab6970fed5"
+      },
+      "boundaryAnchor": {
+        "blockHash": "0x7e010b041b724999ecc6d9b83423767b693a2e9493c2cc2e9bd497aea6519506",
+        "blockNumber": 33,
+        "relation": "after",
+        "transactionHash": "0x9acb21e6f3d9313913c530c1c115064c7b927625ecea08820a2c5275405fed17"
+      },
+      "id": "afterAlice",
+      "reads": {
+        "allocatorTokenBalance": {
+          "calldata": "0x70a082310000000000000000000000004c2f7092c2ae51d986befee378e50bd4db99c901",
+          "rawResult": "0000000000000000000000000000000000000000000000000000000000000023",
+          "to": "0x367761085bf3c12e5da2df99ac6e1a824612b8fb"
+        },
+        "claimedAmount": {
+          "calldata": "0xafa718ac809b4fbdb632eba4671e5d5f35a37ff12aa4ae28e1ec84aece40972b1138755d",
+          "rawResult": "0000000000000000000000000000000000000000000000000000000000000023",
+          "to": "0x4c2f7092c2ae51d986befee378e50bd4db99c901"
+        },
+        "claimedCount": {
+          "calldata": "0x7f6d64ce809b4fbdb632eba4671e5d5f35a37ff12aa4ae28e1ec84aece40972b1138755d",
+          "rawResult": "0000000000000000000000000000000000000000000000000000000000000001",
+          "to": "0x4c2f7092c2ae51d986befee378e50bd4db99c901"
+        },
+        "consumed:claim-a": {
+          "calldata": "0xbb8f2054809b4fbdb632eba4671e5d5f35a37ff12aa4ae28e1ec84aece40972b1138755d0000000000000000000000000000000000000000000000000000000000000000",
+          "rawResult": "0000000000000000000000000000000000000000000000000000000000000001",
+          "to": "0x4c2f7092c2ae51d986befee378e50bd4db99c901"
+        },
+        "consumed:claim-b": {
+          "calldata": "0xbb8f2054809b4fbdb632eba4671e5d5f35a37ff12aa4ae28e1ec84aece40972b1138755d0000000000000000000000000000000000000000000000000000000000000001",
+          "rawResult": "0000000000000000000000000000000000000000000000000000000000000000",
+          "to": "0x4c2f7092c2ae51d986befee378e50bd4db99c901"
+        },
+        "consumed:claim-c": {
+          "calldata": "0xbb8f2054809b4fbdb632eba4671e5d5f35a37ff12aa4ae28e1ec84aece40972b1138755d0000000000000000000000000000000000000000000000000000000000000002",
+          "rawResult": "0000000000000000000000000000000000000000000000000000000000000000",
+          "to": "0x4c2f7092c2ae51d986befee378e50bd4db99c901"
+        },
+        "consumedClaimIdentity:claim-a": {
+          "calldata": "0x8cb0da26809b4fbdb632eba4671e5d5f35a37ff12aa4ae28e1ec84aece40972b1138755d8cf848e36296772b88c8a72941350bbccbd157fc19a9a4ac9eaa4557262eab88",
+          "rawResult": "0000000000000000000000000000000000000000000000000000000000000001",
+          "to": "0x4c2f7092c2ae51d986befee378e50bd4db99c901"
+        },
+        "consumedClaimIdentity:claim-b": {
+          "calldata": "0x8cb0da26809b4fbdb632eba4671e5d5f35a37ff12aa4ae28e1ec84aece40972b1138755d53e73c2ead3aa8da4c9aeff45cae85da91627499fc586cd2efa50e299b8ea84d",
+          "rawResult": "0000000000000000000000000000000000000000000000000000000000000000",
+          "to": "0x4c2f7092c2ae51d986befee378e50bd4db99c901"
+        },
+        "consumedClaimIdentity:claim-c": {
+          "calldata": "0x8cb0da26809b4fbdb632eba4671e5d5f35a37ff12aa4ae28e1ec84aece40972b1138755d1d45922891140031bbdbabe1c2a933d174ea1feadef867bc29333473e00fd0c9",
+          "rawResult": "0000000000000000000000000000000000000000000000000000000000000000",
+          "to": "0x4c2f7092c2ae51d986befee378e50bd4db99c901"
+        },
+        "entitlementOperation": {
+          "calldata": "0xfa6efec5809b4fbdb632eba4671e5d5f35a37ff12aa4ae28e1ec84aece40972b1138755d",
+          "rawResult": "0x0000000000000000000000000000000000000000000000000000000000000004fe94e946ddaf58eca00c3231672536bf3c01199925c25ec8e2a0d60a325384e50e8b6d0eb8a46279fee6697366b2bdfa0b4aa514dacf17e9e264744d90d91c1f52618a7e6f8ea56baf760682b64b12860f56bef7980593f4099c8c5e65783d8d00000000000000000000000000000000000000000000000000000000000000030000000000000000000000000000000000000000000000000000000000000046fab874034cf34f9d88e8382aa9c2473c0fd3f36ee9b5a0b358e4a86ae75b7fac88bbb03a2adbbc73f946dc5a1901f1f659b76280869deb4f65c140f361e955fa000000000000000000000000367761085bf3c12e5da2df99ac6e1a824612b8fb00000000000000000000000000000000000000000000000000000000000000460000000000000000000000002222222222222222222222222222222222222222000000000000000000000000c96304e3c037f81da488ed9dea1d8f2a48278a75",
+          "to": "0x4c2f7092c2ae51d986befee378e50bd4db99c901"
+        },
+        "outstandingLiability": {
+          "calldata": "0x665a61ca809b4fbdb632eba4671e5d5f35a37ff12aa4ae28e1ec84aece40972b1138755d",
+          "rawResult": "0000000000000000000000000000000000000000000000000000000000000023",
+          "to": "0x4c2f7092c2ae51d986befee378e50bd4db99c901"
+        }
+      },
+      "state": {
+        "allocationBindingRoot": "0xfe94e946ddaf58eca00c3231672536bf3c01199925c25ec8e2a0d60a325384e5",
+        "allocationClaimRoot": "0xfab874034cf34f9d88e8382aa9c2473c0fd3f36ee9b5a0b358e4a86ae75b7fac",
+        "allocatorTokenBalance": 35,
+        "beneficiaryProfileWord": "0x88bbb03a2adbbc73f946dc5a1901f1f659b76280869deb4f65c140f361e955fa",
+        "claimedAmount": 35,
+        "claimedCount": 1,
+        "consumedByIndex": [
+          true,
+          false,
+          false
+        ],
+        "consumedClaimIdentity": [
+          true,
+          false,
+          false
+        ],
+        "consumedClaimIds": [
+          "claim-a"
+        ],
+        "descriptorRoot": "0x0e8b6d0eb8a46279fee6697366b2bdfa0b4aa514dacf17e9e264744d90d91c1f",
+        "entitlementCount": 3,
+        "entitlementTotal": 70,
+        "evmEntitlementTableRoot": "0x52618a7e6f8ea56baf760682b64b12860f56bef7980593f4099c8c5e65783d8d",
+        "fundedAmount": 70,
+        "operationState": 4,
+        "operationStateName": "Claims",
+        "outstandingLiability": 35,
+        "token": "0x367761085bf3c12e5da2df99ac6e1a824612b8fb"
+      },
+      "transactionBoundary": {
+        "transactionCount": 1,
+        "transactionHash": "0x9acb21e6f3d9313913c530c1c115064c7b927625ecea08820a2c5275405fed17",
+        "transactionIndex": 0
+      }
+    },
+    {
+      "block": {
+        "hash": "0x589594bcd560e191419d9e3a6cd88c7f8c519f380306fce6e4e1d8b26b8e4532",
+        "number": 36,
+        "parentHash": "0x785b673de44cbcb26153e9afcbd4090546d492796ac8e2aefa5cb1bc65422316"
+      },
+      "boundaryAnchor": {
+        "blockHash": "0x906aac71765ab4ee43ef876889a021018609163cdfc8351e0c99cfc312ccd9ef",
+        "blockNumber": 37,
+        "relation": "before",
+        "transactionHash": "0x74d86ba7fda19be8db46292e66b07692ee45ea689d54d3d719f5cfbed4e3fd98"
+      },
+      "id": "beforeBob",
+      "reads": {
+        "allocatorTokenBalance": {
+          "calldata": "0x70a082310000000000000000000000004c2f7092c2ae51d986befee378e50bd4db99c901",
+          "rawResult": "0000000000000000000000000000000000000000000000000000000000000023",
+          "to": "0x367761085bf3c12e5da2df99ac6e1a824612b8fb"
+        },
+        "claimedAmount": {
+          "calldata": "0xafa718ac809b4fbdb632eba4671e5d5f35a37ff12aa4ae28e1ec84aece40972b1138755d",
+          "rawResult": "0000000000000000000000000000000000000000000000000000000000000023",
+          "to": "0x4c2f7092c2ae51d986befee378e50bd4db99c901"
+        },
+        "claimedCount": {
+          "calldata": "0x7f6d64ce809b4fbdb632eba4671e5d5f35a37ff12aa4ae28e1ec84aece40972b1138755d",
+          "rawResult": "0000000000000000000000000000000000000000000000000000000000000001",
+          "to": "0x4c2f7092c2ae51d986befee378e50bd4db99c901"
+        },
+        "consumed:claim-a": {
+          "calldata": "0xbb8f2054809b4fbdb632eba4671e5d5f35a37ff12aa4ae28e1ec84aece40972b1138755d0000000000000000000000000000000000000000000000000000000000000000",
+          "rawResult": "0000000000000000000000000000000000000000000000000000000000000001",
+          "to": "0x4c2f7092c2ae51d986befee378e50bd4db99c901"
+        },
+        "consumed:claim-b": {
+          "calldata": "0xbb8f2054809b4fbdb632eba4671e5d5f35a37ff12aa4ae28e1ec84aece40972b1138755d0000000000000000000000000000000000000000000000000000000000000001",
+          "rawResult": "0000000000000000000000000000000000000000000000000000000000000000",
+          "to": "0x4c2f7092c2ae51d986befee378e50bd4db99c901"
+        },
+        "consumed:claim-c": {
+          "calldata": "0xbb8f2054809b4fbdb632eba4671e5d5f35a37ff12aa4ae28e1ec84aece40972b1138755d0000000000000000000000000000000000000000000000000000000000000002",
+          "rawResult": "0000000000000000000000000000000000000000000000000000000000000000",
+          "to": "0x4c2f7092c2ae51d986befee378e50bd4db99c901"
+        },
+        "consumedClaimIdentity:claim-a": {
+          "calldata": "0x8cb0da26809b4fbdb632eba4671e5d5f35a37ff12aa4ae28e1ec84aece40972b1138755d8cf848e36296772b88c8a72941350bbccbd157fc19a9a4ac9eaa4557262eab88",
+          "rawResult": "0000000000000000000000000000000000000000000000000000000000000001",
+          "to": "0x4c2f7092c2ae51d986befee378e50bd4db99c901"
+        },
+        "consumedClaimIdentity:claim-b": {
+          "calldata": "0x8cb0da26809b4fbdb632eba4671e5d5f35a37ff12aa4ae28e1ec84aece40972b1138755d53e73c2ead3aa8da4c9aeff45cae85da91627499fc586cd2efa50e299b8ea84d",
+          "rawResult": "0000000000000000000000000000000000000000000000000000000000000000",
+          "to": "0x4c2f7092c2ae51d986befee378e50bd4db99c901"
+        },
+        "consumedClaimIdentity:claim-c": {
+          "calldata": "0x8cb0da26809b4fbdb632eba4671e5d5f35a37ff12aa4ae28e1ec84aece40972b1138755d1d45922891140031bbdbabe1c2a933d174ea1feadef867bc29333473e00fd0c9",
+          "rawResult": "0000000000000000000000000000000000000000000000000000000000000000",
+          "to": "0x4c2f7092c2ae51d986befee378e50bd4db99c901"
+        },
+        "entitlementOperation": {
+          "calldata": "0xfa6efec5809b4fbdb632eba4671e5d5f35a37ff12aa4ae28e1ec84aece40972b1138755d",
+          "rawResult": "0x0000000000000000000000000000000000000000000000000000000000000004fe94e946ddaf58eca00c3231672536bf3c01199925c25ec8e2a0d60a325384e50e8b6d0eb8a46279fee6697366b2bdfa0b4aa514dacf17e9e264744d90d91c1f52618a7e6f8ea56baf760682b64b12860f56bef7980593f4099c8c5e65783d8d00000000000000000000000000000000000000000000000000000000000000030000000000000000000000000000000000000000000000000000000000000046fab874034cf34f9d88e8382aa9c2473c0fd3f36ee9b5a0b358e4a86ae75b7fac88bbb03a2adbbc73f946dc5a1901f1f659b76280869deb4f65c140f361e955fa000000000000000000000000367761085bf3c12e5da2df99ac6e1a824612b8fb00000000000000000000000000000000000000000000000000000000000000460000000000000000000000002222222222222222222222222222222222222222000000000000000000000000c96304e3c037f81da488ed9dea1d8f2a48278a75",
+          "to": "0x4c2f7092c2ae51d986befee378e50bd4db99c901"
+        },
+        "outstandingLiability": {
+          "calldata": "0x665a61ca809b4fbdb632eba4671e5d5f35a37ff12aa4ae28e1ec84aece40972b1138755d",
+          "rawResult": "0000000000000000000000000000000000000000000000000000000000000023",
+          "to": "0x4c2f7092c2ae51d986befee378e50bd4db99c901"
+        }
+      },
+      "state": {
+        "allocationBindingRoot": "0xfe94e946ddaf58eca00c3231672536bf3c01199925c25ec8e2a0d60a325384e5",
+        "allocationClaimRoot": "0xfab874034cf34f9d88e8382aa9c2473c0fd3f36ee9b5a0b358e4a86ae75b7fac",
+        "allocatorTokenBalance": 35,
+        "beneficiaryProfileWord": "0x88bbb03a2adbbc73f946dc5a1901f1f659b76280869deb4f65c140f361e955fa",
+        "claimedAmount": 35,
+        "claimedCount": 1,
+        "consumedByIndex": [
+          true,
+          false,
+          false
+        ],
+        "consumedClaimIdentity": [
+          true,
+          false,
+          false
+        ],
+        "consumedClaimIds": [
+          "claim-a"
+        ],
+        "descriptorRoot": "0x0e8b6d0eb8a46279fee6697366b2bdfa0b4aa514dacf17e9e264744d90d91c1f",
+        "entitlementCount": 3,
+        "entitlementTotal": 70,
+        "evmEntitlementTableRoot": "0x52618a7e6f8ea56baf760682b64b12860f56bef7980593f4099c8c5e65783d8d",
+        "fundedAmount": 70,
+        "operationState": 4,
+        "operationStateName": "Claims",
+        "outstandingLiability": 35,
+        "token": "0x367761085bf3c12e5da2df99ac6e1a824612b8fb"
+      },
+      "transactionBoundary": {
+        "transactionCount": 1,
+        "transactionHash": "0x76220d7ef19d7a825b4203cd93068226b8e9fff711332a177b44120fa27db445",
+        "transactionIndex": 0
+      }
+    },
+    {
+      "block": {
+        "hash": "0x906aac71765ab4ee43ef876889a021018609163cdfc8351e0c99cfc312ccd9ef",
+        "number": 37,
+        "parentHash": "0x589594bcd560e191419d9e3a6cd88c7f8c519f380306fce6e4e1d8b26b8e4532"
+      },
+      "boundaryAnchor": {
+        "blockHash": "0x906aac71765ab4ee43ef876889a021018609163cdfc8351e0c99cfc312ccd9ef",
+        "blockNumber": 37,
+        "relation": "after",
+        "transactionHash": "0x74d86ba7fda19be8db46292e66b07692ee45ea689d54d3d719f5cfbed4e3fd98"
+      },
+      "id": "afterBob",
+      "reads": {
+        "allocatorTokenBalance": {
+          "calldata": "0x70a082310000000000000000000000004c2f7092c2ae51d986befee378e50bd4db99c901",
+          "rawResult": "000000000000000000000000000000000000000000000000000000000000000e",
+          "to": "0x367761085bf3c12e5da2df99ac6e1a824612b8fb"
+        },
+        "claimedAmount": {
+          "calldata": "0xafa718ac809b4fbdb632eba4671e5d5f35a37ff12aa4ae28e1ec84aece40972b1138755d",
+          "rawResult": "0000000000000000000000000000000000000000000000000000000000000038",
+          "to": "0x4c2f7092c2ae51d986befee378e50bd4db99c901"
+        },
+        "claimedCount": {
+          "calldata": "0x7f6d64ce809b4fbdb632eba4671e5d5f35a37ff12aa4ae28e1ec84aece40972b1138755d",
+          "rawResult": "0000000000000000000000000000000000000000000000000000000000000002",
+          "to": "0x4c2f7092c2ae51d986befee378e50bd4db99c901"
+        },
+        "consumed:claim-a": {
+          "calldata": "0xbb8f2054809b4fbdb632eba4671e5d5f35a37ff12aa4ae28e1ec84aece40972b1138755d0000000000000000000000000000000000000000000000000000000000000000",
+          "rawResult": "0000000000000000000000000000000000000000000000000000000000000001",
+          "to": "0x4c2f7092c2ae51d986befee378e50bd4db99c901"
+        },
+        "consumed:claim-b": {
+          "calldata": "0xbb8f2054809b4fbdb632eba4671e5d5f35a37ff12aa4ae28e1ec84aece40972b1138755d0000000000000000000000000000000000000000000000000000000000000001",
+          "rawResult": "0000000000000000000000000000000000000000000000000000000000000001",
+          "to": "0x4c2f7092c2ae51d986befee378e50bd4db99c901"
+        },
+        "consumed:claim-c": {
+          "calldata": "0xbb8f2054809b4fbdb632eba4671e5d5f35a37ff12aa4ae28e1ec84aece40972b1138755d0000000000000000000000000000000000000000000000000000000000000002",
+          "rawResult": "0000000000000000000000000000000000000000000000000000000000000000",
+          "to": "0x4c2f7092c2ae51d986befee378e50bd4db99c901"
+        },
+        "consumedClaimIdentity:claim-a": {
+          "calldata": "0x8cb0da26809b4fbdb632eba4671e5d5f35a37ff12aa4ae28e1ec84aece40972b1138755d8cf848e36296772b88c8a72941350bbccbd157fc19a9a4ac9eaa4557262eab88",
+          "rawResult": "0000000000000000000000000000000000000000000000000000000000000001",
+          "to": "0x4c2f7092c2ae51d986befee378e50bd4db99c901"
+        },
+        "consumedClaimIdentity:claim-b": {
+          "calldata": "0x8cb0da26809b4fbdb632eba4671e5d5f35a37ff12aa4ae28e1ec84aece40972b1138755d53e73c2ead3aa8da4c9aeff45cae85da91627499fc586cd2efa50e299b8ea84d",
+          "rawResult": "0000000000000000000000000000000000000000000000000000000000000001",
+          "to": "0x4c2f7092c2ae51d986befee378e50bd4db99c901"
+        },
+        "consumedClaimIdentity:claim-c": {
+          "calldata": "0x8cb0da26809b4fbdb632eba4671e5d5f35a37ff12aa4ae28e1ec84aece40972b1138755d1d45922891140031bbdbabe1c2a933d174ea1feadef867bc29333473e00fd0c9",
+          "rawResult": "0000000000000000000000000000000000000000000000000000000000000000",
+          "to": "0x4c2f7092c2ae51d986befee378e50bd4db99c901"
+        },
+        "entitlementOperation": {
+          "calldata": "0xfa6efec5809b4fbdb632eba4671e5d5f35a37ff12aa4ae28e1ec84aece40972b1138755d",
+          "rawResult": "0x0000000000000000000000000000000000000000000000000000000000000004fe94e946ddaf58eca00c3231672536bf3c01199925c25ec8e2a0d60a325384e50e8b6d0eb8a46279fee6697366b2bdfa0b4aa514dacf17e9e264744d90d91c1f52618a7e6f8ea56baf760682b64b12860f56bef7980593f4099c8c5e65783d8d00000000000000000000000000000000000000000000000000000000000000030000000000000000000000000000000000000000000000000000000000000046fab874034cf34f9d88e8382aa9c2473c0fd3f36ee9b5a0b358e4a86ae75b7fac88bbb03a2adbbc73f946dc5a1901f1f659b76280869deb4f65c140f361e955fa000000000000000000000000367761085bf3c12e5da2df99ac6e1a824612b8fb00000000000000000000000000000000000000000000000000000000000000460000000000000000000000002222222222222222222222222222222222222222000000000000000000000000c96304e3c037f81da488ed9dea1d8f2a48278a75",
+          "to": "0x4c2f7092c2ae51d986befee378e50bd4db99c901"
+        },
+        "outstandingLiability": {
+          "calldata": "0x665a61ca809b4fbdb632eba4671e5d5f35a37ff12aa4ae28e1ec84aece40972b1138755d",
+          "rawResult": "000000000000000000000000000000000000000000000000000000000000000e",
+          "to": "0x4c2f7092c2ae51d986befee378e50bd4db99c901"
+        }
+      },
+      "state": {
+        "allocationBindingRoot": "0xfe94e946ddaf58eca00c3231672536bf3c01199925c25ec8e2a0d60a325384e5",
+        "allocationClaimRoot": "0xfab874034cf34f9d88e8382aa9c2473c0fd3f36ee9b5a0b358e4a86ae75b7fac",
+        "allocatorTokenBalance": 14,
+        "beneficiaryProfileWord": "0x88bbb03a2adbbc73f946dc5a1901f1f659b76280869deb4f65c140f361e955fa",
+        "claimedAmount": 56,
+        "claimedCount": 2,
+        "consumedByIndex": [
+          true,
+          true,
+          false
+        ],
+        "consumedClaimIdentity": [
+          true,
+          true,
+          false
+        ],
+        "consumedClaimIds": [
+          "claim-a",
+          "claim-b"
+        ],
+        "descriptorRoot": "0x0e8b6d0eb8a46279fee6697366b2bdfa0b4aa514dacf17e9e264744d90d91c1f",
+        "entitlementCount": 3,
+        "entitlementTotal": 70,
+        "evmEntitlementTableRoot": "0x52618a7e6f8ea56baf760682b64b12860f56bef7980593f4099c8c5e65783d8d",
+        "fundedAmount": 70,
+        "operationState": 4,
+        "operationStateName": "Claims",
+        "outstandingLiability": 14,
+        "token": "0x367761085bf3c12e5da2df99ac6e1a824612b8fb"
+      },
+      "transactionBoundary": {
+        "transactionCount": 1,
+        "transactionHash": "0x74d86ba7fda19be8db46292e66b07692ee45ea689d54d3d719f5cfbed4e3fd98",
+        "transactionIndex": 0
+      }
+    },
+    {
+      "block": {
+        "hash": "0xd72cf255c2d65f269b1bb04db2509ec77183db0006d1ed7bc6f5cf4448f49a4a",
+        "number": 40,
+        "parentHash": "0xcbf0e422d459c67ee5035c20fdbbea099e422074bdc7f49b7294a45ab534fe5d"
+      },
+      "boundaryAnchor": {
+        "blockHash": "0x47a3f34c7652e9e953ed739923e8675fff02d3b8d6e003f19790a8fa198e1799",
+        "blockNumber": 41,
+        "relation": "before",
+        "transactionHash": "0x0ca53677c660905fc1240c2be02e5570678799b46d21748d70d38eb6c611acc1"
+      },
+      "id": "beforeCarol",
+      "reads": {
+        "allocatorTokenBalance": {
+          "calldata": "0x70a082310000000000000000000000004c2f7092c2ae51d986befee378e50bd4db99c901",
+          "rawResult": "000000000000000000000000000000000000000000000000000000000000000e",
+          "to": "0x367761085bf3c12e5da2df99ac6e1a824612b8fb"
+        },
+        "claimedAmount": {
+          "calldata": "0xafa718ac809b4fbdb632eba4671e5d5f35a37ff12aa4ae28e1ec84aece40972b1138755d",
+          "rawResult": "0000000000000000000000000000000000000000000000000000000000000038",
+          "to": "0x4c2f7092c2ae51d986befee378e50bd4db99c901"
+        },
+        "claimedCount": {
+          "calldata": "0x7f6d64ce809b4fbdb632eba4671e5d5f35a37ff12aa4ae28e1ec84aece40972b1138755d",
+          "rawResult": "0000000000000000000000000000000000000000000000000000000000000002",
+          "to": "0x4c2f7092c2ae51d986befee378e50bd4db99c901"
+        },
+        "consumed:claim-a": {
+          "calldata": "0xbb8f2054809b4fbdb632eba4671e5d5f35a37ff12aa4ae28e1ec84aece40972b1138755d0000000000000000000000000000000000000000000000000000000000000000",
+          "rawResult": "0000000000000000000000000000000000000000000000000000000000000001",
+          "to": "0x4c2f7092c2ae51d986befee378e50bd4db99c901"
+        },
+        "consumed:claim-b": {
+          "calldata": "0xbb8f2054809b4fbdb632eba4671e5d5f35a37ff12aa4ae28e1ec84aece40972b1138755d0000000000000000000000000000000000000000000000000000000000000001",
+          "rawResult": "0000000000000000000000000000000000000000000000000000000000000001",
+          "to": "0x4c2f7092c2ae51d986befee378e50bd4db99c901"
+        },
+        "consumed:claim-c": {
+          "calldata": "0xbb8f2054809b4fbdb632eba4671e5d5f35a37ff12aa4ae28e1ec84aece40972b1138755d0000000000000000000000000000000000000000000000000000000000000002",
+          "rawResult": "0000000000000000000000000000000000000000000000000000000000000000",
+          "to": "0x4c2f7092c2ae51d986befee378e50bd4db99c901"
+        },
+        "consumedClaimIdentity:claim-a": {
+          "calldata": "0x8cb0da26809b4fbdb632eba4671e5d5f35a37ff12aa4ae28e1ec84aece40972b1138755d8cf848e36296772b88c8a72941350bbccbd157fc19a9a4ac9eaa4557262eab88",
+          "rawResult": "0000000000000000000000000000000000000000000000000000000000000001",
+          "to": "0x4c2f7092c2ae51d986befee378e50bd4db99c901"
+        },
+        "consumedClaimIdentity:claim-b": {
+          "calldata": "0x8cb0da26809b4fbdb632eba4671e5d5f35a37ff12aa4ae28e1ec84aece40972b1138755d53e73c2ead3aa8da4c9aeff45cae85da91627499fc586cd2efa50e299b8ea84d",
+          "rawResult": "0000000000000000000000000000000000000000000000000000000000000001",
+          "to": "0x4c2f7092c2ae51d986befee378e50bd4db99c901"
+        },
+        "consumedClaimIdentity:claim-c": {
+          "calldata": "0x8cb0da26809b4fbdb632eba4671e5d5f35a37ff12aa4ae28e1ec84aece40972b1138755d1d45922891140031bbdbabe1c2a933d174ea1feadef867bc29333473e00fd0c9",
+          "rawResult": "0000000000000000000000000000000000000000000000000000000000000000",
+          "to": "0x4c2f7092c2ae51d986befee378e50bd4db99c901"
+        },
+        "entitlementOperation": {
+          "calldata": "0xfa6efec5809b4fbdb632eba4671e5d5f35a37ff12aa4ae28e1ec84aece40972b1138755d",
+          "rawResult": "0x0000000000000000000000000000000000000000000000000000000000000004fe94e946ddaf58eca00c3231672536bf3c01199925c25ec8e2a0d60a325384e50e8b6d0eb8a46279fee6697366b2bdfa0b4aa514dacf17e9e264744d90d91c1f52618a7e6f8ea56baf760682b64b12860f56bef7980593f4099c8c5e65783d8d00000000000000000000000000000000000000000000000000000000000000030000000000000000000000000000000000000000000000000000000000000046fab874034cf34f9d88e8382aa9c2473c0fd3f36ee9b5a0b358e4a86ae75b7fac88bbb03a2adbbc73f946dc5a1901f1f659b76280869deb4f65c140f361e955fa000000000000000000000000367761085bf3c12e5da2df99ac6e1a824612b8fb00000000000000000000000000000000000000000000000000000000000000460000000000000000000000002222222222222222222222222222222222222222000000000000000000000000c96304e3c037f81da488ed9dea1d8f2a48278a75",
+          "to": "0x4c2f7092c2ae51d986befee378e50bd4db99c901"
+        },
+        "outstandingLiability": {
+          "calldata": "0x665a61ca809b4fbdb632eba4671e5d5f35a37ff12aa4ae28e1ec84aece40972b1138755d",
+          "rawResult": "000000000000000000000000000000000000000000000000000000000000000e",
+          "to": "0x4c2f7092c2ae51d986befee378e50bd4db99c901"
+        }
+      },
+      "state": {
+        "allocationBindingRoot": "0xfe94e946ddaf58eca00c3231672536bf3c01199925c25ec8e2a0d60a325384e5",
+        "allocationClaimRoot": "0xfab874034cf34f9d88e8382aa9c2473c0fd3f36ee9b5a0b358e4a86ae75b7fac",
+        "allocatorTokenBalance": 14,
+        "beneficiaryProfileWord": "0x88bbb03a2adbbc73f946dc5a1901f1f659b76280869deb4f65c140f361e955fa",
+        "claimedAmount": 56,
+        "claimedCount": 2,
+        "consumedByIndex": [
+          true,
+          true,
+          false
+        ],
+        "consumedClaimIdentity": [
+          true,
+          true,
+          false
+        ],
+        "consumedClaimIds": [
+          "claim-a",
+          "claim-b"
+        ],
+        "descriptorRoot": "0x0e8b6d0eb8a46279fee6697366b2bdfa0b4aa514dacf17e9e264744d90d91c1f",
+        "entitlementCount": 3,
+        "entitlementTotal": 70,
+        "evmEntitlementTableRoot": "0x52618a7e6f8ea56baf760682b64b12860f56bef7980593f4099c8c5e65783d8d",
+        "fundedAmount": 70,
+        "operationState": 4,
+        "operationStateName": "Claims",
+        "outstandingLiability": 14,
+        "token": "0x367761085bf3c12e5da2df99ac6e1a824612b8fb"
+      },
+      "transactionBoundary": {
+        "transactionCount": 1,
+        "transactionHash": "0x5549561253e64fadc0697174cb30f4be7af3ae6f8ef561f056a5ffbcf5bca3de",
+        "transactionIndex": 0
+      }
+    },
+    {
+      "block": {
+        "hash": "0x47a3f34c7652e9e953ed739923e8675fff02d3b8d6e003f19790a8fa198e1799",
+        "number": 41,
+        "parentHash": "0xd72cf255c2d65f269b1bb04db2509ec77183db0006d1ed7bc6f5cf4448f49a4a"
+      },
+      "boundaryAnchor": {
+        "blockHash": "0x47a3f34c7652e9e953ed739923e8675fff02d3b8d6e003f19790a8fa198e1799",
+        "blockNumber": 41,
+        "relation": "after",
+        "transactionHash": "0x0ca53677c660905fc1240c2be02e5570678799b46d21748d70d38eb6c611acc1"
+      },
+      "id": "afterCarolAndClose",
+      "reads": {
+        "allocatorTokenBalance": {
+          "calldata": "0x70a082310000000000000000000000004c2f7092c2ae51d986befee378e50bd4db99c901",
+          "rawResult": "0000000000000000000000000000000000000000000000000000000000000000",
+          "to": "0x367761085bf3c12e5da2df99ac6e1a824612b8fb"
+        },
+        "claimedAmount": {
+          "calldata": "0xafa718ac809b4fbdb632eba4671e5d5f35a37ff12aa4ae28e1ec84aece40972b1138755d",
+          "rawResult": "0000000000000000000000000000000000000000000000000000000000000046",
+          "to": "0x4c2f7092c2ae51d986befee378e50bd4db99c901"
+        },
+        "claimedCount": {
+          "calldata": "0x7f6d64ce809b4fbdb632eba4671e5d5f35a37ff12aa4ae28e1ec84aece40972b1138755d",
+          "rawResult": "0000000000000000000000000000000000000000000000000000000000000003",
+          "to": "0x4c2f7092c2ae51d986befee378e50bd4db99c901"
+        },
+        "consumed:claim-a": {
+          "calldata": "0xbb8f2054809b4fbdb632eba4671e5d5f35a37ff12aa4ae28e1ec84aece40972b1138755d0000000000000000000000000000000000000000000000000000000000000000",
+          "rawResult": "0000000000000000000000000000000000000000000000000000000000000001",
+          "to": "0x4c2f7092c2ae51d986befee378e50bd4db99c901"
+        },
+        "consumed:claim-b": {
+          "calldata": "0xbb8f2054809b4fbdb632eba4671e5d5f35a37ff12aa4ae28e1ec84aece40972b1138755d0000000000000000000000000000000000000000000000000000000000000001",
+          "rawResult": "0000000000000000000000000000000000000000000000000000000000000001",
+          "to": "0x4c2f7092c2ae51d986befee378e50bd4db99c901"
+        },
+        "consumed:claim-c": {
+          "calldata": "0xbb8f2054809b4fbdb632eba4671e5d5f35a37ff12aa4ae28e1ec84aece40972b1138755d0000000000000000000000000000000000000000000000000000000000000002",
+          "rawResult": "0000000000000000000000000000000000000000000000000000000000000001",
+          "to": "0x4c2f7092c2ae51d986befee378e50bd4db99c901"
+        },
+        "consumedClaimIdentity:claim-a": {
+          "calldata": "0x8cb0da26809b4fbdb632eba4671e5d5f35a37ff12aa4ae28e1ec84aece40972b1138755d8cf848e36296772b88c8a72941350bbccbd157fc19a9a4ac9eaa4557262eab88",
+          "rawResult": "0000000000000000000000000000000000000000000000000000000000000001",
+          "to": "0x4c2f7092c2ae51d986befee378e50bd4db99c901"
+        },
+        "consumedClaimIdentity:claim-b": {
+          "calldata": "0x8cb0da26809b4fbdb632eba4671e5d5f35a37ff12aa4ae28e1ec84aece40972b1138755d53e73c2ead3aa8da4c9aeff45cae85da91627499fc586cd2efa50e299b8ea84d",
+          "rawResult": "0000000000000000000000000000000000000000000000000000000000000001",
+          "to": "0x4c2f7092c2ae51d986befee378e50bd4db99c901"
+        },
+        "consumedClaimIdentity:claim-c": {
+          "calldata": "0x8cb0da26809b4fbdb632eba4671e5d5f35a37ff12aa4ae28e1ec84aece40972b1138755d1d45922891140031bbdbabe1c2a933d174ea1feadef867bc29333473e00fd0c9",
+          "rawResult": "0000000000000000000000000000000000000000000000000000000000000001",
+          "to": "0x4c2f7092c2ae51d986befee378e50bd4db99c901"
+        },
+        "entitlementOperation": {
+          "calldata": "0xfa6efec5809b4fbdb632eba4671e5d5f35a37ff12aa4ae28e1ec84aece40972b1138755d",
+          "rawResult": "0x0000000000000000000000000000000000000000000000000000000000000005fe94e946ddaf58eca00c3231672536bf3c01199925c25ec8e2a0d60a325384e50e8b6d0eb8a46279fee6697366b2bdfa0b4aa514dacf17e9e264744d90d91c1f52618a7e6f8ea56baf760682b64b12860f56bef7980593f4099c8c5e65783d8d00000000000000000000000000000000000000000000000000000000000000030000000000000000000000000000000000000000000000000000000000000046fab874034cf34f9d88e8382aa9c2473c0fd3f36ee9b5a0b358e4a86ae75b7fac88bbb03a2adbbc73f946dc5a1901f1f659b76280869deb4f65c140f361e955fa000000000000000000000000367761085bf3c12e5da2df99ac6e1a824612b8fb00000000000000000000000000000000000000000000000000000000000000460000000000000000000000002222222222222222222222222222222222222222000000000000000000000000c96304e3c037f81da488ed9dea1d8f2a48278a75",
+          "to": "0x4c2f7092c2ae51d986befee378e50bd4db99c901"
+        },
+        "outstandingLiability": {
+          "calldata": "0x665a61ca809b4fbdb632eba4671e5d5f35a37ff12aa4ae28e1ec84aece40972b1138755d",
+          "rawResult": "0000000000000000000000000000000000000000000000000000000000000000",
+          "to": "0x4c2f7092c2ae51d986befee378e50bd4db99c901"
+        }
+      },
+      "state": {
+        "allocationBindingRoot": "0xfe94e946ddaf58eca00c3231672536bf3c01199925c25ec8e2a0d60a325384e5",
+        "allocationClaimRoot": "0xfab874034cf34f9d88e8382aa9c2473c0fd3f36ee9b5a0b358e4a86ae75b7fac",
+        "allocatorTokenBalance": 0,
+        "beneficiaryProfileWord": "0x88bbb03a2adbbc73f946dc5a1901f1f659b76280869deb4f65c140f361e955fa",
+        "claimedAmount": 70,
+        "claimedCount": 3,
+        "consumedByIndex": [
+          true,
+          true,
+          true
+        ],
+        "consumedClaimIdentity": [
+          true,
+          true,
+          true
+        ],
+        "consumedClaimIds": [
+          "claim-a",
+          "claim-b",
+          "claim-c"
+        ],
+        "descriptorRoot": "0x0e8b6d0eb8a46279fee6697366b2bdfa0b4aa514dacf17e9e264744d90d91c1f",
+        "entitlementCount": 3,
+        "entitlementTotal": 70,
+        "evmEntitlementTableRoot": "0x52618a7e6f8ea56baf760682b64b12860f56bef7980593f4099c8c5e65783d8d",
+        "fundedAmount": 70,
+        "operationState": 5,
+        "operationStateName": "Closed",
+        "outstandingLiability": 0,
+        "token": "0x367761085bf3c12e5da2df99ac6e1a824612b8fb"
+      },
+      "transactionBoundary": {
+        "transactionCount": 1,
+        "transactionHash": "0x0ca53677c660905fc1240c2be02e5570678799b46d21748d70d38eb6c611acc1",
+        "transactionIndex": 0
+      }
+    }
+  ],
+  "sourceReplayDirectory": "raw/fresh-replay-pro30-20261018",
+  "sourceRevision": "4cfa2f96a4938d23abda609dfff9052b177ef8af",
+  "verification": {
+    "historicalReadsUseEip1898RequireCanonical": true,
+    "liveReceiptAndRuntimeContext": "rechecked through PRO-28 live-chain verifier",
+    "stateProof": "not provided; observations are read from the same local RPC",
+    "transactionBoundaryRule": "each sampled block contains exactly one transaction; same-block intermediate states reject"
+  }
+}

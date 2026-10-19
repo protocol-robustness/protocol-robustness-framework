@@ -11,6 +11,7 @@
             [resolver-sim.conformance.canonical :as canonical-json]
             [resolver-sim.evidence.accounting-reconciliation :as accounting]
             [resolver-sim.evidence.forensic-graph :as forensic]
+            [resolver-sim.evidence.graph-producer :as graph-producer]
             [resolver-sim.hash.canonical :as hc]))
 
 (def ^:private public-values-schema
@@ -506,11 +507,14 @@
                               :status :pass}))) (:gaps validation))
         nodes (into (into (into (into (:nodes built) derived-nodes) relationship-nodes)
                           [declared-operation validated-operation]) gap-nodes)
-        graph (forensic/validate-forensic-evidence-graph
-               {:nodes nodes
-                :artifact-roots (into (mapv (comp artifact-ref val) artifact-hashes)
-                                      (map #(get-in % [:extensions :forensic/subject :subject/root]) derived-nodes))
-                :profile {:forensic-profile/requirements []}})]
+        graph (-> (graph-producer/produce
+                   {:adapter-id :prf/deployment-bound-gate-e
+                    :adapter-version 1
+                    :nodes nodes
+                    :artifact-roots (vec (sort (into (mapv (comp artifact-ref val) artifact-hashes)
+                                                     (map #(get-in % [:extensions :forensic/subject :subject/root]) derived-nodes))))
+                    :profile {:forensic-profile/requirements []}})
+                  :graph)]
     {:nodes nodes :graph graph
      :relationships [{:kind :declared-reference :from :proof/declared-manifest-reference
                       :to :deployment/manifest :node-hash (:node-hash declared-binding)}

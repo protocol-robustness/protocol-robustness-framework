@@ -1,0 +1,1940 @@
+{
+  "captureId": "pro-28-local-replay-49d70d9ac18f31bd",
+  "chainId": 31337,
+  "classification": "localOnly provider-relative Anvil observation; not public-chain finality or consensus proof",
+  "coverage": {
+    "allBalanceDeltasMatchTransferLogs": true,
+    "checkedAccounts": [
+      "0x1111111111111111111111111111111111111111",
+      "0x2222222222222222222222222222222222222222",
+      "0x3333333333333333333333333333333333333333",
+      "0x4c2f7092c2ae51d986befee378e50bd4db99c901",
+      "0x7a9ec1d04904907de0ed7b6839ccdd59c3716ac9",
+      "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266"
+    ],
+    "executionTransactions": 41,
+    "fromBlock": 1,
+    "supplyDeltasMatchMintBurnLogs": true,
+    "toBlock": 41,
+    "transactionsWithUniqueBlockBoundary": 41,
+    "transferLogsFromRpcSweep": 6,
+    "transferLogsInReceipts": 6,
+    "transferReceiptCoverage": "complete within captured blocks for this RPC"
+  },
+  "deploymentManifestDigest": "sha256:e9ab2ed1ba0494d9e457ace966b789fcae9332cc42a2dd6c62f3339eeee356f8",
+  "finalBalances": {
+    "0x1111111111111111111111111111111111111111": 35,
+    "0x2222222222222222222222222222222222222222": 21,
+    "0x3333333333333333333333333333333333333333": 14,
+    "0x4c2f7092c2ae51d986befee378e50bd4db99c901": 0,
+    "0x7a9ec1d04904907de0ed7b6839ccdd59c3716ac9": 10,
+    "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266": 0
+  },
+  "finalTotalSupply": 80,
+  "limitations": [
+    "The RPC provider supplies both historical state reads and eth_getLogs; this is provider-relative evidence.",
+    "Intermediate same-block states are unsupported and cause rejection rather than inferred ordering.",
+    "Only the pinned local token implementation is covered; fee-on-transfer, rebasing and arbitrary token behavior are excluded.",
+    "This is not a public-chain finality or consensus proof."
+  ],
+  "localChainIdentity": {
+    "chainId": 31337,
+    "fingerprint": "sha256:49d70d9ac18f31bd23cb36b3b306ffb78d91f71a0cb10c47392bb2cd3823bb93",
+    "genesisBlockHash": "0xf861bf6e7356d38145170f44fc6aa3d96b4e0a639be13567792af737c3fc34d0",
+    "schema": "prf.local-chain-fingerprint.v1",
+    "scope": "chain lineage fingerprint; does not uniquely identify an RPC provider or Anvil process"
+  },
+  "schema": "eae.pro-29-token-accounting-observations.v1",
+  "sourceRevision": "4cfa2f96a4938d23abda609dfff9052b177ef8af",
+  "token": {
+    "address": "0x367761085bf3c12e5da2df99ac6e1a824612b8fb",
+    "behaviorScope": "Pinned local token runtime only; no fee-on-transfer, rebasing, native-value, or arbitrary-token claim.",
+    "decimals": 18,
+    "runtimeCodeKeccak256": "0xf8c8f223a691f9d2eeba5be51bdf5f06efeeee7c48734bfcbee16eddf5e923ec",
+    "runtimeCodeSha256": "0x24249b2e76ccf9dee61cf1274b4ed3f5150c5463ab8a7794631e929a12b33b68"
+  },
+  "transactions": [
+    {
+      "afterBlock": {
+        "hash": "0x027b2c31eff7f1fca5c3e0509ccee118fb3080a486cd5b105e34446c7e2b2a1a",
+        "number": 1
+      },
+      "balanceDeltas": {
+        "0x1111111111111111111111111111111111111111": 0,
+        "0x2222222222222222222222222222222222222222": 0,
+        "0x3333333333333333333333333333333333333333": 0,
+        "0x4c2f7092c2ae51d986befee378e50bd4db99c901": 0,
+        "0x7a9ec1d04904907de0ed7b6839ccdd59c3716ac9": 0,
+        "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266": 0
+      },
+      "balancesAfter": {
+        "0x1111111111111111111111111111111111111111": 0,
+        "0x2222222222222222222222222222222222222222": 0,
+        "0x3333333333333333333333333333333333333333": 0,
+        "0x4c2f7092c2ae51d986befee378e50bd4db99c901": 0,
+        "0x7a9ec1d04904907de0ed7b6839ccdd59c3716ac9": 0,
+        "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266": 0
+      },
+      "balancesBefore": {
+        "0x1111111111111111111111111111111111111111": 0,
+        "0x2222222222222222222222222222222222222222": 0,
+        "0x3333333333333333333333333333333333333333": 0,
+        "0x4c2f7092c2ae51d986befee378e50bd4db99c901": 0,
+        "0x7a9ec1d04904907de0ed7b6839ccdd59c3716ac9": 0,
+        "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266": 0
+      },
+      "beforeBlock": {
+        "hash": "0xf861bf6e7356d38145170f44fc6aa3d96b4e0a639be13567792af737c3fc34d0",
+        "number": 0
+      },
+      "blockHash": "0x027b2c31eff7f1fca5c3e0509ccee118fb3080a486cd5b105e34446c7e2b2a1a",
+      "blockNumber": 1,
+      "parentHash": "0xf861bf6e7356d38145170f44fc6aa3d96b4e0a639be13567792af737c3fc34d0",
+      "tokenCodePresentAfter": false,
+      "tokenCodePresentBefore": false,
+      "totalSupplyAfter": 0,
+      "totalSupplyBefore": 0,
+      "transactionHash": "0x23b60e3fef65dcc9c9e21400ead3704733ec5f4f14cf88f6ee1dd6e75099bc8e",
+      "transactionIndex": 0,
+      "transferEvents": []
+    },
+    {
+      "afterBlock": {
+        "hash": "0x33f4a1a8142c342b3c44e64765996cc3136491d9492a0789dcf43b819c77e2cc",
+        "number": 2
+      },
+      "balanceDeltas": {
+        "0x1111111111111111111111111111111111111111": 0,
+        "0x2222222222222222222222222222222222222222": 0,
+        "0x3333333333333333333333333333333333333333": 0,
+        "0x4c2f7092c2ae51d986befee378e50bd4db99c901": 0,
+        "0x7a9ec1d04904907de0ed7b6839ccdd59c3716ac9": 0,
+        "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266": 0
+      },
+      "balancesAfter": {
+        "0x1111111111111111111111111111111111111111": 0,
+        "0x2222222222222222222222222222222222222222": 0,
+        "0x3333333333333333333333333333333333333333": 0,
+        "0x4c2f7092c2ae51d986befee378e50bd4db99c901": 0,
+        "0x7a9ec1d04904907de0ed7b6839ccdd59c3716ac9": 0,
+        "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266": 0
+      },
+      "balancesBefore": {
+        "0x1111111111111111111111111111111111111111": 0,
+        "0x2222222222222222222222222222222222222222": 0,
+        "0x3333333333333333333333333333333333333333": 0,
+        "0x4c2f7092c2ae51d986befee378e50bd4db99c901": 0,
+        "0x7a9ec1d04904907de0ed7b6839ccdd59c3716ac9": 0,
+        "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266": 0
+      },
+      "beforeBlock": {
+        "hash": "0x027b2c31eff7f1fca5c3e0509ccee118fb3080a486cd5b105e34446c7e2b2a1a",
+        "number": 1
+      },
+      "blockHash": "0x33f4a1a8142c342b3c44e64765996cc3136491d9492a0789dcf43b819c77e2cc",
+      "blockNumber": 2,
+      "parentHash": "0x027b2c31eff7f1fca5c3e0509ccee118fb3080a486cd5b105e34446c7e2b2a1a",
+      "tokenCodePresentAfter": false,
+      "tokenCodePresentBefore": false,
+      "totalSupplyAfter": 0,
+      "totalSupplyBefore": 0,
+      "transactionHash": "0xa34d167b7801e5e6f1e963bd6a8d8b3a259f13c2771331bf761b66b4bcb2fb60",
+      "transactionIndex": 0,
+      "transferEvents": []
+    },
+    {
+      "afterBlock": {
+        "hash": "0xbb4eddcdcf84b57f3cc7c1e061185a334184a07d4c0984e1f070bdafa1c7ec02",
+        "number": 3
+      },
+      "balanceDeltas": {
+        "0x1111111111111111111111111111111111111111": 0,
+        "0x2222222222222222222222222222222222222222": 0,
+        "0x3333333333333333333333333333333333333333": 0,
+        "0x4c2f7092c2ae51d986befee378e50bd4db99c901": 0,
+        "0x7a9ec1d04904907de0ed7b6839ccdd59c3716ac9": 0,
+        "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266": 0
+      },
+      "balancesAfter": {
+        "0x1111111111111111111111111111111111111111": 0,
+        "0x2222222222222222222222222222222222222222": 0,
+        "0x3333333333333333333333333333333333333333": 0,
+        "0x4c2f7092c2ae51d986befee378e50bd4db99c901": 0,
+        "0x7a9ec1d04904907de0ed7b6839ccdd59c3716ac9": 0,
+        "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266": 0
+      },
+      "balancesBefore": {
+        "0x1111111111111111111111111111111111111111": 0,
+        "0x2222222222222222222222222222222222222222": 0,
+        "0x3333333333333333333333333333333333333333": 0,
+        "0x4c2f7092c2ae51d986befee378e50bd4db99c901": 0,
+        "0x7a9ec1d04904907de0ed7b6839ccdd59c3716ac9": 0,
+        "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266": 0
+      },
+      "beforeBlock": {
+        "hash": "0x33f4a1a8142c342b3c44e64765996cc3136491d9492a0789dcf43b819c77e2cc",
+        "number": 2
+      },
+      "blockHash": "0xbb4eddcdcf84b57f3cc7c1e061185a334184a07d4c0984e1f070bdafa1c7ec02",
+      "blockNumber": 3,
+      "parentHash": "0x33f4a1a8142c342b3c44e64765996cc3136491d9492a0789dcf43b819c77e2cc",
+      "tokenCodePresentAfter": false,
+      "tokenCodePresentBefore": false,
+      "totalSupplyAfter": 0,
+      "totalSupplyBefore": 0,
+      "transactionHash": "0x1e9304bbb55c8c26272a87271f2b2fdea5dea4bfeea185e534d830cde6aafcf9",
+      "transactionIndex": 0,
+      "transferEvents": []
+    },
+    {
+      "afterBlock": {
+        "hash": "0xf7c85b467b160b7b448df0ffd2b604bf095100f880191287a608e621e3a9ec97",
+        "number": 4
+      },
+      "balanceDeltas": {
+        "0x1111111111111111111111111111111111111111": 0,
+        "0x2222222222222222222222222222222222222222": 0,
+        "0x3333333333333333333333333333333333333333": 0,
+        "0x4c2f7092c2ae51d986befee378e50bd4db99c901": 0,
+        "0x7a9ec1d04904907de0ed7b6839ccdd59c3716ac9": 0,
+        "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266": 0
+      },
+      "balancesAfter": {
+        "0x1111111111111111111111111111111111111111": 0,
+        "0x2222222222222222222222222222222222222222": 0,
+        "0x3333333333333333333333333333333333333333": 0,
+        "0x4c2f7092c2ae51d986befee378e50bd4db99c901": 0,
+        "0x7a9ec1d04904907de0ed7b6839ccdd59c3716ac9": 0,
+        "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266": 0
+      },
+      "balancesBefore": {
+        "0x1111111111111111111111111111111111111111": 0,
+        "0x2222222222222222222222222222222222222222": 0,
+        "0x3333333333333333333333333333333333333333": 0,
+        "0x4c2f7092c2ae51d986befee378e50bd4db99c901": 0,
+        "0x7a9ec1d04904907de0ed7b6839ccdd59c3716ac9": 0,
+        "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266": 0
+      },
+      "beforeBlock": {
+        "hash": "0xbb4eddcdcf84b57f3cc7c1e061185a334184a07d4c0984e1f070bdafa1c7ec02",
+        "number": 3
+      },
+      "blockHash": "0xf7c85b467b160b7b448df0ffd2b604bf095100f880191287a608e621e3a9ec97",
+      "blockNumber": 4,
+      "parentHash": "0xbb4eddcdcf84b57f3cc7c1e061185a334184a07d4c0984e1f070bdafa1c7ec02",
+      "tokenCodePresentAfter": false,
+      "tokenCodePresentBefore": false,
+      "totalSupplyAfter": 0,
+      "totalSupplyBefore": 0,
+      "transactionHash": "0x77dd9af54ea98dcec11fa53f0b4d6dac611662d25f36c43b5e100b759c96484e",
+      "transactionIndex": 0,
+      "transferEvents": []
+    },
+    {
+      "afterBlock": {
+        "hash": "0xee995e14af25c20291ee95dc1ea95be6337bab0106bbeb5372742c555f333979",
+        "number": 5
+      },
+      "balanceDeltas": {
+        "0x1111111111111111111111111111111111111111": 0,
+        "0x2222222222222222222222222222222222222222": 0,
+        "0x3333333333333333333333333333333333333333": 0,
+        "0x4c2f7092c2ae51d986befee378e50bd4db99c901": 0,
+        "0x7a9ec1d04904907de0ed7b6839ccdd59c3716ac9": 0,
+        "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266": 0
+      },
+      "balancesAfter": {
+        "0x1111111111111111111111111111111111111111": 0,
+        "0x2222222222222222222222222222222222222222": 0,
+        "0x3333333333333333333333333333333333333333": 0,
+        "0x4c2f7092c2ae51d986befee378e50bd4db99c901": 0,
+        "0x7a9ec1d04904907de0ed7b6839ccdd59c3716ac9": 0,
+        "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266": 0
+      },
+      "balancesBefore": {
+        "0x1111111111111111111111111111111111111111": 0,
+        "0x2222222222222222222222222222222222222222": 0,
+        "0x3333333333333333333333333333333333333333": 0,
+        "0x4c2f7092c2ae51d986befee378e50bd4db99c901": 0,
+        "0x7a9ec1d04904907de0ed7b6839ccdd59c3716ac9": 0,
+        "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266": 0
+      },
+      "beforeBlock": {
+        "hash": "0xf7c85b467b160b7b448df0ffd2b604bf095100f880191287a608e621e3a9ec97",
+        "number": 4
+      },
+      "blockHash": "0xee995e14af25c20291ee95dc1ea95be6337bab0106bbeb5372742c555f333979",
+      "blockNumber": 5,
+      "parentHash": "0xf7c85b467b160b7b448df0ffd2b604bf095100f880191287a608e621e3a9ec97",
+      "tokenCodePresentAfter": false,
+      "tokenCodePresentBefore": false,
+      "totalSupplyAfter": 0,
+      "totalSupplyBefore": 0,
+      "transactionHash": "0xa72209e2f58f409300b46f6415571e55d2f57fd86b2f914dc50a7dcec6788fb1",
+      "transactionIndex": 0,
+      "transferEvents": []
+    },
+    {
+      "afterBlock": {
+        "hash": "0xd87e4aa958cfab6cecd7f6639239998527fd85318af18d0a107b56d971294f76",
+        "number": 6
+      },
+      "balanceDeltas": {
+        "0x1111111111111111111111111111111111111111": 0,
+        "0x2222222222222222222222222222222222222222": 0,
+        "0x3333333333333333333333333333333333333333": 0,
+        "0x4c2f7092c2ae51d986befee378e50bd4db99c901": 0,
+        "0x7a9ec1d04904907de0ed7b6839ccdd59c3716ac9": 0,
+        "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266": 0
+      },
+      "balancesAfter": {
+        "0x1111111111111111111111111111111111111111": 0,
+        "0x2222222222222222222222222222222222222222": 0,
+        "0x3333333333333333333333333333333333333333": 0,
+        "0x4c2f7092c2ae51d986befee378e50bd4db99c901": 0,
+        "0x7a9ec1d04904907de0ed7b6839ccdd59c3716ac9": 0,
+        "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266": 0
+      },
+      "balancesBefore": {
+        "0x1111111111111111111111111111111111111111": 0,
+        "0x2222222222222222222222222222222222222222": 0,
+        "0x3333333333333333333333333333333333333333": 0,
+        "0x4c2f7092c2ae51d986befee378e50bd4db99c901": 0,
+        "0x7a9ec1d04904907de0ed7b6839ccdd59c3716ac9": 0,
+        "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266": 0
+      },
+      "beforeBlock": {
+        "hash": "0xee995e14af25c20291ee95dc1ea95be6337bab0106bbeb5372742c555f333979",
+        "number": 5
+      },
+      "blockHash": "0xd87e4aa958cfab6cecd7f6639239998527fd85318af18d0a107b56d971294f76",
+      "blockNumber": 6,
+      "parentHash": "0xee995e14af25c20291ee95dc1ea95be6337bab0106bbeb5372742c555f333979",
+      "tokenCodePresentAfter": false,
+      "tokenCodePresentBefore": false,
+      "totalSupplyAfter": 0,
+      "totalSupplyBefore": 0,
+      "transactionHash": "0x27c84c8ef107ed03b36256c2cc4189fd08a7585c63742d4e9a80b039b615f6f7",
+      "transactionIndex": 0,
+      "transferEvents": []
+    },
+    {
+      "afterBlock": {
+        "hash": "0xb22bef6b53e144b2a90fea8f270ee3e6b5e535a7b5a13cdcb2fb9992b05acab1",
+        "number": 7
+      },
+      "balanceDeltas": {
+        "0x1111111111111111111111111111111111111111": 0,
+        "0x2222222222222222222222222222222222222222": 0,
+        "0x3333333333333333333333333333333333333333": 0,
+        "0x4c2f7092c2ae51d986befee378e50bd4db99c901": 0,
+        "0x7a9ec1d04904907de0ed7b6839ccdd59c3716ac9": 0,
+        "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266": 0
+      },
+      "balancesAfter": {
+        "0x1111111111111111111111111111111111111111": 0,
+        "0x2222222222222222222222222222222222222222": 0,
+        "0x3333333333333333333333333333333333333333": 0,
+        "0x4c2f7092c2ae51d986befee378e50bd4db99c901": 0,
+        "0x7a9ec1d04904907de0ed7b6839ccdd59c3716ac9": 0,
+        "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266": 0
+      },
+      "balancesBefore": {
+        "0x1111111111111111111111111111111111111111": 0,
+        "0x2222222222222222222222222222222222222222": 0,
+        "0x3333333333333333333333333333333333333333": 0,
+        "0x4c2f7092c2ae51d986befee378e50bd4db99c901": 0,
+        "0x7a9ec1d04904907de0ed7b6839ccdd59c3716ac9": 0,
+        "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266": 0
+      },
+      "beforeBlock": {
+        "hash": "0xd87e4aa958cfab6cecd7f6639239998527fd85318af18d0a107b56d971294f76",
+        "number": 6
+      },
+      "blockHash": "0xb22bef6b53e144b2a90fea8f270ee3e6b5e535a7b5a13cdcb2fb9992b05acab1",
+      "blockNumber": 7,
+      "parentHash": "0xd87e4aa958cfab6cecd7f6639239998527fd85318af18d0a107b56d971294f76",
+      "tokenCodePresentAfter": false,
+      "tokenCodePresentBefore": false,
+      "totalSupplyAfter": 0,
+      "totalSupplyBefore": 0,
+      "transactionHash": "0xb98836336fd90f9d81f3431b652c5b3978e6d026b171cedc7a6e657ade153198",
+      "transactionIndex": 0,
+      "transferEvents": []
+    },
+    {
+      "afterBlock": {
+        "hash": "0x21747bb482151cf6b5cf6bbb3bf2ec2444153d8518210569d87a0c6edb59ebae",
+        "number": 8
+      },
+      "balanceDeltas": {
+        "0x1111111111111111111111111111111111111111": 0,
+        "0x2222222222222222222222222222222222222222": 0,
+        "0x3333333333333333333333333333333333333333": 0,
+        "0x4c2f7092c2ae51d986befee378e50bd4db99c901": 0,
+        "0x7a9ec1d04904907de0ed7b6839ccdd59c3716ac9": 0,
+        "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266": 0
+      },
+      "balancesAfter": {
+        "0x1111111111111111111111111111111111111111": 0,
+        "0x2222222222222222222222222222222222222222": 0,
+        "0x3333333333333333333333333333333333333333": 0,
+        "0x4c2f7092c2ae51d986befee378e50bd4db99c901": 0,
+        "0x7a9ec1d04904907de0ed7b6839ccdd59c3716ac9": 0,
+        "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266": 0
+      },
+      "balancesBefore": {
+        "0x1111111111111111111111111111111111111111": 0,
+        "0x2222222222222222222222222222222222222222": 0,
+        "0x3333333333333333333333333333333333333333": 0,
+        "0x4c2f7092c2ae51d986befee378e50bd4db99c901": 0,
+        "0x7a9ec1d04904907de0ed7b6839ccdd59c3716ac9": 0,
+        "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266": 0
+      },
+      "beforeBlock": {
+        "hash": "0xb22bef6b53e144b2a90fea8f270ee3e6b5e535a7b5a13cdcb2fb9992b05acab1",
+        "number": 7
+      },
+      "blockHash": "0x21747bb482151cf6b5cf6bbb3bf2ec2444153d8518210569d87a0c6edb59ebae",
+      "blockNumber": 8,
+      "parentHash": "0xb22bef6b53e144b2a90fea8f270ee3e6b5e535a7b5a13cdcb2fb9992b05acab1",
+      "tokenCodePresentAfter": false,
+      "tokenCodePresentBefore": false,
+      "totalSupplyAfter": 0,
+      "totalSupplyBefore": 0,
+      "transactionHash": "0x18633eed6b6b1157c786e3980abbd36bb305b65a0124ee51b3a3424e30116d18",
+      "transactionIndex": 0,
+      "transferEvents": []
+    },
+    {
+      "afterBlock": {
+        "hash": "0x25a9807abf961c6a12491a30ddbc511ada408aab0f4a353cb55f093d80e6e026",
+        "number": 9
+      },
+      "balanceDeltas": {
+        "0x1111111111111111111111111111111111111111": 0,
+        "0x2222222222222222222222222222222222222222": 0,
+        "0x3333333333333333333333333333333333333333": 0,
+        "0x4c2f7092c2ae51d986befee378e50bd4db99c901": 0,
+        "0x7a9ec1d04904907de0ed7b6839ccdd59c3716ac9": 0,
+        "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266": 0
+      },
+      "balancesAfter": {
+        "0x1111111111111111111111111111111111111111": 0,
+        "0x2222222222222222222222222222222222222222": 0,
+        "0x3333333333333333333333333333333333333333": 0,
+        "0x4c2f7092c2ae51d986befee378e50bd4db99c901": 0,
+        "0x7a9ec1d04904907de0ed7b6839ccdd59c3716ac9": 0,
+        "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266": 0
+      },
+      "balancesBefore": {
+        "0x1111111111111111111111111111111111111111": 0,
+        "0x2222222222222222222222222222222222222222": 0,
+        "0x3333333333333333333333333333333333333333": 0,
+        "0x4c2f7092c2ae51d986befee378e50bd4db99c901": 0,
+        "0x7a9ec1d04904907de0ed7b6839ccdd59c3716ac9": 0,
+        "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266": 0
+      },
+      "beforeBlock": {
+        "hash": "0x21747bb482151cf6b5cf6bbb3bf2ec2444153d8518210569d87a0c6edb59ebae",
+        "number": 8
+      },
+      "blockHash": "0x25a9807abf961c6a12491a30ddbc511ada408aab0f4a353cb55f093d80e6e026",
+      "blockNumber": 9,
+      "parentHash": "0x21747bb482151cf6b5cf6bbb3bf2ec2444153d8518210569d87a0c6edb59ebae",
+      "tokenCodePresentAfter": false,
+      "tokenCodePresentBefore": false,
+      "totalSupplyAfter": 0,
+      "totalSupplyBefore": 0,
+      "transactionHash": "0x4902a7fde54cefa75234c7fe497e688b85529a9bca2174f493a483fdc77d9ffc",
+      "transactionIndex": 0,
+      "transferEvents": []
+    },
+    {
+      "afterBlock": {
+        "hash": "0x95ee7603206a916b6cbcf3540c2c51014146ef90e94e5b1ad047db0c0497d2a8",
+        "number": 10
+      },
+      "balanceDeltas": {
+        "0x1111111111111111111111111111111111111111": 0,
+        "0x2222222222222222222222222222222222222222": 0,
+        "0x3333333333333333333333333333333333333333": 0,
+        "0x4c2f7092c2ae51d986befee378e50bd4db99c901": 0,
+        "0x7a9ec1d04904907de0ed7b6839ccdd59c3716ac9": 0,
+        "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266": 0
+      },
+      "balancesAfter": {
+        "0x1111111111111111111111111111111111111111": 0,
+        "0x2222222222222222222222222222222222222222": 0,
+        "0x3333333333333333333333333333333333333333": 0,
+        "0x4c2f7092c2ae51d986befee378e50bd4db99c901": 0,
+        "0x7a9ec1d04904907de0ed7b6839ccdd59c3716ac9": 0,
+        "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266": 0
+      },
+      "balancesBefore": {
+        "0x1111111111111111111111111111111111111111": 0,
+        "0x2222222222222222222222222222222222222222": 0,
+        "0x3333333333333333333333333333333333333333": 0,
+        "0x4c2f7092c2ae51d986befee378e50bd4db99c901": 0,
+        "0x7a9ec1d04904907de0ed7b6839ccdd59c3716ac9": 0,
+        "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266": 0
+      },
+      "beforeBlock": {
+        "hash": "0x25a9807abf961c6a12491a30ddbc511ada408aab0f4a353cb55f093d80e6e026",
+        "number": 9
+      },
+      "blockHash": "0x95ee7603206a916b6cbcf3540c2c51014146ef90e94e5b1ad047db0c0497d2a8",
+      "blockNumber": 10,
+      "parentHash": "0x25a9807abf961c6a12491a30ddbc511ada408aab0f4a353cb55f093d80e6e026",
+      "tokenCodePresentAfter": false,
+      "tokenCodePresentBefore": false,
+      "totalSupplyAfter": 0,
+      "totalSupplyBefore": 0,
+      "transactionHash": "0xb2a4a0d682e3901fc068d151903717048396f87a896323e290e5162d823da59c",
+      "transactionIndex": 0,
+      "transferEvents": []
+    },
+    {
+      "afterBlock": {
+        "hash": "0xff4c434b2173d63ff92483a80db62606285e2656e154e5f6dd2709e884365ce8",
+        "number": 11
+      },
+      "balanceDeltas": {
+        "0x1111111111111111111111111111111111111111": 0,
+        "0x2222222222222222222222222222222222222222": 0,
+        "0x3333333333333333333333333333333333333333": 0,
+        "0x4c2f7092c2ae51d986befee378e50bd4db99c901": 0,
+        "0x7a9ec1d04904907de0ed7b6839ccdd59c3716ac9": 0,
+        "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266": 0
+      },
+      "balancesAfter": {
+        "0x1111111111111111111111111111111111111111": 0,
+        "0x2222222222222222222222222222222222222222": 0,
+        "0x3333333333333333333333333333333333333333": 0,
+        "0x4c2f7092c2ae51d986befee378e50bd4db99c901": 0,
+        "0x7a9ec1d04904907de0ed7b6839ccdd59c3716ac9": 0,
+        "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266": 0
+      },
+      "balancesBefore": {
+        "0x1111111111111111111111111111111111111111": 0,
+        "0x2222222222222222222222222222222222222222": 0,
+        "0x3333333333333333333333333333333333333333": 0,
+        "0x4c2f7092c2ae51d986befee378e50bd4db99c901": 0,
+        "0x7a9ec1d04904907de0ed7b6839ccdd59c3716ac9": 0,
+        "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266": 0
+      },
+      "beforeBlock": {
+        "hash": "0x95ee7603206a916b6cbcf3540c2c51014146ef90e94e5b1ad047db0c0497d2a8",
+        "number": 10
+      },
+      "blockHash": "0xff4c434b2173d63ff92483a80db62606285e2656e154e5f6dd2709e884365ce8",
+      "blockNumber": 11,
+      "parentHash": "0x95ee7603206a916b6cbcf3540c2c51014146ef90e94e5b1ad047db0c0497d2a8",
+      "tokenCodePresentAfter": false,
+      "tokenCodePresentBefore": false,
+      "totalSupplyAfter": 0,
+      "totalSupplyBefore": 0,
+      "transactionHash": "0x79f6eee4046bd8d873e0eea6612038f810be7c08abb9a378c3feb46bf878a0eb",
+      "transactionIndex": 0,
+      "transferEvents": []
+    },
+    {
+      "afterBlock": {
+        "hash": "0xc201909eef5795868664c0d2f403e6d0e3683ee093bc25027e5e7288ac5cab4e",
+        "number": 12
+      },
+      "balanceDeltas": {
+        "0x1111111111111111111111111111111111111111": 0,
+        "0x2222222222222222222222222222222222222222": 0,
+        "0x3333333333333333333333333333333333333333": 0,
+        "0x4c2f7092c2ae51d986befee378e50bd4db99c901": 0,
+        "0x7a9ec1d04904907de0ed7b6839ccdd59c3716ac9": 0,
+        "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266": 80
+      },
+      "balancesAfter": {
+        "0x1111111111111111111111111111111111111111": 0,
+        "0x2222222222222222222222222222222222222222": 0,
+        "0x3333333333333333333333333333333333333333": 0,
+        "0x4c2f7092c2ae51d986befee378e50bd4db99c901": 0,
+        "0x7a9ec1d04904907de0ed7b6839ccdd59c3716ac9": 0,
+        "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266": 80
+      },
+      "balancesBefore": {
+        "0x1111111111111111111111111111111111111111": 0,
+        "0x2222222222222222222222222222222222222222": 0,
+        "0x3333333333333333333333333333333333333333": 0,
+        "0x4c2f7092c2ae51d986befee378e50bd4db99c901": 0,
+        "0x7a9ec1d04904907de0ed7b6839ccdd59c3716ac9": 0,
+        "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266": 0
+      },
+      "beforeBlock": {
+        "hash": "0xff4c434b2173d63ff92483a80db62606285e2656e154e5f6dd2709e884365ce8",
+        "number": 11
+      },
+      "blockHash": "0xc201909eef5795868664c0d2f403e6d0e3683ee093bc25027e5e7288ac5cab4e",
+      "blockNumber": 12,
+      "parentHash": "0xff4c434b2173d63ff92483a80db62606285e2656e154e5f6dd2709e884365ce8",
+      "tokenCodePresentAfter": true,
+      "tokenCodePresentBefore": false,
+      "totalSupplyAfter": 80,
+      "totalSupplyBefore": 0,
+      "transactionHash": "0xf28301036d9c405507c957f79d13e8c82336cde7f5b656628f6b075f21e13602",
+      "transactionIndex": 0,
+      "transferEvents": [
+        {
+          "amount": 80,
+          "blockHash": "0xc201909eef5795868664c0d2f403e6d0e3683ee093bc25027e5e7288ac5cab4e",
+          "blockNumber": 12,
+          "chainId": 31337,
+          "from": "0x0000000000000000000000000000000000000000",
+          "logIndex": 0,
+          "to": "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266",
+          "token": "0x367761085bf3c12e5da2df99ac6e1a824612b8fb",
+          "transactionHash": "0xf28301036d9c405507c957f79d13e8c82336cde7f5b656628f6b075f21e13602",
+          "transactionIndex": 0
+        }
+      ]
+    },
+    {
+      "afterBlock": {
+        "hash": "0xe2cc81bae06c445385ecb37338c66fdd6aa3761fd151b873d2315f4080bd1d94",
+        "number": 13
+      },
+      "balanceDeltas": {
+        "0x1111111111111111111111111111111111111111": 0,
+        "0x2222222222222222222222222222222222222222": 0,
+        "0x3333333333333333333333333333333333333333": 0,
+        "0x4c2f7092c2ae51d986befee378e50bd4db99c901": 0,
+        "0x7a9ec1d04904907de0ed7b6839ccdd59c3716ac9": 0,
+        "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266": 0
+      },
+      "balancesAfter": {
+        "0x1111111111111111111111111111111111111111": 0,
+        "0x2222222222222222222222222222222222222222": 0,
+        "0x3333333333333333333333333333333333333333": 0,
+        "0x4c2f7092c2ae51d986befee378e50bd4db99c901": 0,
+        "0x7a9ec1d04904907de0ed7b6839ccdd59c3716ac9": 0,
+        "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266": 80
+      },
+      "balancesBefore": {
+        "0x1111111111111111111111111111111111111111": 0,
+        "0x2222222222222222222222222222222222222222": 0,
+        "0x3333333333333333333333333333333333333333": 0,
+        "0x4c2f7092c2ae51d986befee378e50bd4db99c901": 0,
+        "0x7a9ec1d04904907de0ed7b6839ccdd59c3716ac9": 0,
+        "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266": 80
+      },
+      "beforeBlock": {
+        "hash": "0xc201909eef5795868664c0d2f403e6d0e3683ee093bc25027e5e7288ac5cab4e",
+        "number": 12
+      },
+      "blockHash": "0xe2cc81bae06c445385ecb37338c66fdd6aa3761fd151b873d2315f4080bd1d94",
+      "blockNumber": 13,
+      "parentHash": "0xc201909eef5795868664c0d2f403e6d0e3683ee093bc25027e5e7288ac5cab4e",
+      "tokenCodePresentAfter": true,
+      "tokenCodePresentBefore": true,
+      "totalSupplyAfter": 80,
+      "totalSupplyBefore": 80,
+      "transactionHash": "0x78be1e9dfa8f73701e9b897c07bac585ee94e7277f2b7b05d687ca9dbd22952e",
+      "transactionIndex": 0,
+      "transferEvents": []
+    },
+    {
+      "afterBlock": {
+        "hash": "0xdf5fdc52d67da68b4517f59a89bb4a288bc4f64b0b082eb37921d0e325a6ae80",
+        "number": 14
+      },
+      "balanceDeltas": {
+        "0x1111111111111111111111111111111111111111": 0,
+        "0x2222222222222222222222222222222222222222": 0,
+        "0x3333333333333333333333333333333333333333": 0,
+        "0x4c2f7092c2ae51d986befee378e50bd4db99c901": 0,
+        "0x7a9ec1d04904907de0ed7b6839ccdd59c3716ac9": 0,
+        "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266": 0
+      },
+      "balancesAfter": {
+        "0x1111111111111111111111111111111111111111": 0,
+        "0x2222222222222222222222222222222222222222": 0,
+        "0x3333333333333333333333333333333333333333": 0,
+        "0x4c2f7092c2ae51d986befee378e50bd4db99c901": 0,
+        "0x7a9ec1d04904907de0ed7b6839ccdd59c3716ac9": 0,
+        "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266": 80
+      },
+      "balancesBefore": {
+        "0x1111111111111111111111111111111111111111": 0,
+        "0x2222222222222222222222222222222222222222": 0,
+        "0x3333333333333333333333333333333333333333": 0,
+        "0x4c2f7092c2ae51d986befee378e50bd4db99c901": 0,
+        "0x7a9ec1d04904907de0ed7b6839ccdd59c3716ac9": 0,
+        "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266": 80
+      },
+      "beforeBlock": {
+        "hash": "0xe2cc81bae06c445385ecb37338c66fdd6aa3761fd151b873d2315f4080bd1d94",
+        "number": 13
+      },
+      "blockHash": "0xdf5fdc52d67da68b4517f59a89bb4a288bc4f64b0b082eb37921d0e325a6ae80",
+      "blockNumber": 14,
+      "parentHash": "0xe2cc81bae06c445385ecb37338c66fdd6aa3761fd151b873d2315f4080bd1d94",
+      "tokenCodePresentAfter": true,
+      "tokenCodePresentBefore": true,
+      "totalSupplyAfter": 80,
+      "totalSupplyBefore": 80,
+      "transactionHash": "0x26207084e56e777b49921f15b873b3d7deca90020e8ffe940648b5979fc1f2dd",
+      "transactionIndex": 0,
+      "transferEvents": []
+    },
+    {
+      "afterBlock": {
+        "hash": "0x5816b2f6ea128c1706978aca15f2ed18eec7429bb06b8ae21cf53f5d275cd44d",
+        "number": 15
+      },
+      "balanceDeltas": {
+        "0x1111111111111111111111111111111111111111": 0,
+        "0x2222222222222222222222222222222222222222": 0,
+        "0x3333333333333333333333333333333333333333": 0,
+        "0x4c2f7092c2ae51d986befee378e50bd4db99c901": 0,
+        "0x7a9ec1d04904907de0ed7b6839ccdd59c3716ac9": 0,
+        "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266": 0
+      },
+      "balancesAfter": {
+        "0x1111111111111111111111111111111111111111": 0,
+        "0x2222222222222222222222222222222222222222": 0,
+        "0x3333333333333333333333333333333333333333": 0,
+        "0x4c2f7092c2ae51d986befee378e50bd4db99c901": 0,
+        "0x7a9ec1d04904907de0ed7b6839ccdd59c3716ac9": 0,
+        "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266": 80
+      },
+      "balancesBefore": {
+        "0x1111111111111111111111111111111111111111": 0,
+        "0x2222222222222222222222222222222222222222": 0,
+        "0x3333333333333333333333333333333333333333": 0,
+        "0x4c2f7092c2ae51d986befee378e50bd4db99c901": 0,
+        "0x7a9ec1d04904907de0ed7b6839ccdd59c3716ac9": 0,
+        "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266": 80
+      },
+      "beforeBlock": {
+        "hash": "0xdf5fdc52d67da68b4517f59a89bb4a288bc4f64b0b082eb37921d0e325a6ae80",
+        "number": 14
+      },
+      "blockHash": "0x5816b2f6ea128c1706978aca15f2ed18eec7429bb06b8ae21cf53f5d275cd44d",
+      "blockNumber": 15,
+      "parentHash": "0xdf5fdc52d67da68b4517f59a89bb4a288bc4f64b0b082eb37921d0e325a6ae80",
+      "tokenCodePresentAfter": true,
+      "tokenCodePresentBefore": true,
+      "totalSupplyAfter": 80,
+      "totalSupplyBefore": 80,
+      "transactionHash": "0x81ef6473f245912bfc0b5d0c77bbc5b6eacdf2a2cc56c63650ceecb73917084d",
+      "transactionIndex": 0,
+      "transferEvents": []
+    },
+    {
+      "afterBlock": {
+        "hash": "0xa6ca3e49942572419343adf59a0cc73f0d3fa7c62e9f45917e30495068333d7d",
+        "number": 16
+      },
+      "balanceDeltas": {
+        "0x1111111111111111111111111111111111111111": 0,
+        "0x2222222222222222222222222222222222222222": 0,
+        "0x3333333333333333333333333333333333333333": 0,
+        "0x4c2f7092c2ae51d986befee378e50bd4db99c901": 0,
+        "0x7a9ec1d04904907de0ed7b6839ccdd59c3716ac9": 0,
+        "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266": 0
+      },
+      "balancesAfter": {
+        "0x1111111111111111111111111111111111111111": 0,
+        "0x2222222222222222222222222222222222222222": 0,
+        "0x3333333333333333333333333333333333333333": 0,
+        "0x4c2f7092c2ae51d986befee378e50bd4db99c901": 0,
+        "0x7a9ec1d04904907de0ed7b6839ccdd59c3716ac9": 0,
+        "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266": 80
+      },
+      "balancesBefore": {
+        "0x1111111111111111111111111111111111111111": 0,
+        "0x2222222222222222222222222222222222222222": 0,
+        "0x3333333333333333333333333333333333333333": 0,
+        "0x4c2f7092c2ae51d986befee378e50bd4db99c901": 0,
+        "0x7a9ec1d04904907de0ed7b6839ccdd59c3716ac9": 0,
+        "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266": 80
+      },
+      "beforeBlock": {
+        "hash": "0x5816b2f6ea128c1706978aca15f2ed18eec7429bb06b8ae21cf53f5d275cd44d",
+        "number": 15
+      },
+      "blockHash": "0xa6ca3e49942572419343adf59a0cc73f0d3fa7c62e9f45917e30495068333d7d",
+      "blockNumber": 16,
+      "parentHash": "0x5816b2f6ea128c1706978aca15f2ed18eec7429bb06b8ae21cf53f5d275cd44d",
+      "tokenCodePresentAfter": true,
+      "tokenCodePresentBefore": true,
+      "totalSupplyAfter": 80,
+      "totalSupplyBefore": 80,
+      "transactionHash": "0xc42d4dad08d5ad9131dc1a1d19495ef7865021874a8e6789cb7e4a2603a049df",
+      "transactionIndex": 0,
+      "transferEvents": []
+    },
+    {
+      "afterBlock": {
+        "hash": "0x64060b6f72a6cf8ad8c02eb2b7f5b4efc92fbe3aa22a2ac4c58219b6a40884a3",
+        "number": 17
+      },
+      "balanceDeltas": {
+        "0x1111111111111111111111111111111111111111": 0,
+        "0x2222222222222222222222222222222222222222": 0,
+        "0x3333333333333333333333333333333333333333": 0,
+        "0x4c2f7092c2ae51d986befee378e50bd4db99c901": 0,
+        "0x7a9ec1d04904907de0ed7b6839ccdd59c3716ac9": 0,
+        "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266": 0
+      },
+      "balancesAfter": {
+        "0x1111111111111111111111111111111111111111": 0,
+        "0x2222222222222222222222222222222222222222": 0,
+        "0x3333333333333333333333333333333333333333": 0,
+        "0x4c2f7092c2ae51d986befee378e50bd4db99c901": 0,
+        "0x7a9ec1d04904907de0ed7b6839ccdd59c3716ac9": 0,
+        "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266": 80
+      },
+      "balancesBefore": {
+        "0x1111111111111111111111111111111111111111": 0,
+        "0x2222222222222222222222222222222222222222": 0,
+        "0x3333333333333333333333333333333333333333": 0,
+        "0x4c2f7092c2ae51d986befee378e50bd4db99c901": 0,
+        "0x7a9ec1d04904907de0ed7b6839ccdd59c3716ac9": 0,
+        "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266": 80
+      },
+      "beforeBlock": {
+        "hash": "0xa6ca3e49942572419343adf59a0cc73f0d3fa7c62e9f45917e30495068333d7d",
+        "number": 16
+      },
+      "blockHash": "0x64060b6f72a6cf8ad8c02eb2b7f5b4efc92fbe3aa22a2ac4c58219b6a40884a3",
+      "blockNumber": 17,
+      "parentHash": "0xa6ca3e49942572419343adf59a0cc73f0d3fa7c62e9f45917e30495068333d7d",
+      "tokenCodePresentAfter": true,
+      "tokenCodePresentBefore": true,
+      "totalSupplyAfter": 80,
+      "totalSupplyBefore": 80,
+      "transactionHash": "0x2832e4e1dd30f1b8385b00a01f13276649ea9e61350139aee5d65d6fe2103119",
+      "transactionIndex": 0,
+      "transferEvents": []
+    },
+    {
+      "afterBlock": {
+        "hash": "0xf354d5843124c9a5ee4ecc2e0f9205b1d646318ae47158c0de5de915efdf7426",
+        "number": 18
+      },
+      "balanceDeltas": {
+        "0x1111111111111111111111111111111111111111": 0,
+        "0x2222222222222222222222222222222222222222": 0,
+        "0x3333333333333333333333333333333333333333": 0,
+        "0x4c2f7092c2ae51d986befee378e50bd4db99c901": 0,
+        "0x7a9ec1d04904907de0ed7b6839ccdd59c3716ac9": 0,
+        "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266": 0
+      },
+      "balancesAfter": {
+        "0x1111111111111111111111111111111111111111": 0,
+        "0x2222222222222222222222222222222222222222": 0,
+        "0x3333333333333333333333333333333333333333": 0,
+        "0x4c2f7092c2ae51d986befee378e50bd4db99c901": 0,
+        "0x7a9ec1d04904907de0ed7b6839ccdd59c3716ac9": 0,
+        "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266": 80
+      },
+      "balancesBefore": {
+        "0x1111111111111111111111111111111111111111": 0,
+        "0x2222222222222222222222222222222222222222": 0,
+        "0x3333333333333333333333333333333333333333": 0,
+        "0x4c2f7092c2ae51d986befee378e50bd4db99c901": 0,
+        "0x7a9ec1d04904907de0ed7b6839ccdd59c3716ac9": 0,
+        "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266": 80
+      },
+      "beforeBlock": {
+        "hash": "0x64060b6f72a6cf8ad8c02eb2b7f5b4efc92fbe3aa22a2ac4c58219b6a40884a3",
+        "number": 17
+      },
+      "blockHash": "0xf354d5843124c9a5ee4ecc2e0f9205b1d646318ae47158c0de5de915efdf7426",
+      "blockNumber": 18,
+      "parentHash": "0x64060b6f72a6cf8ad8c02eb2b7f5b4efc92fbe3aa22a2ac4c58219b6a40884a3",
+      "tokenCodePresentAfter": true,
+      "tokenCodePresentBefore": true,
+      "totalSupplyAfter": 80,
+      "totalSupplyBefore": 80,
+      "transactionHash": "0x23e86bfbfa016e5b9a1ba3011eab19b6e95b4803a62807becaf31f9519b94e93",
+      "transactionIndex": 0,
+      "transferEvents": []
+    },
+    {
+      "afterBlock": {
+        "hash": "0xef25ff47976fedb248158820413ab47a79da117a6e0113ad14d0f4c7470c8335",
+        "number": 19
+      },
+      "balanceDeltas": {
+        "0x1111111111111111111111111111111111111111": 0,
+        "0x2222222222222222222222222222222222222222": 0,
+        "0x3333333333333333333333333333333333333333": 0,
+        "0x4c2f7092c2ae51d986befee378e50bd4db99c901": 0,
+        "0x7a9ec1d04904907de0ed7b6839ccdd59c3716ac9": 0,
+        "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266": 0
+      },
+      "balancesAfter": {
+        "0x1111111111111111111111111111111111111111": 0,
+        "0x2222222222222222222222222222222222222222": 0,
+        "0x3333333333333333333333333333333333333333": 0,
+        "0x4c2f7092c2ae51d986befee378e50bd4db99c901": 0,
+        "0x7a9ec1d04904907de0ed7b6839ccdd59c3716ac9": 0,
+        "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266": 80
+      },
+      "balancesBefore": {
+        "0x1111111111111111111111111111111111111111": 0,
+        "0x2222222222222222222222222222222222222222": 0,
+        "0x3333333333333333333333333333333333333333": 0,
+        "0x4c2f7092c2ae51d986befee378e50bd4db99c901": 0,
+        "0x7a9ec1d04904907de0ed7b6839ccdd59c3716ac9": 0,
+        "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266": 80
+      },
+      "beforeBlock": {
+        "hash": "0xf354d5843124c9a5ee4ecc2e0f9205b1d646318ae47158c0de5de915efdf7426",
+        "number": 18
+      },
+      "blockHash": "0xef25ff47976fedb248158820413ab47a79da117a6e0113ad14d0f4c7470c8335",
+      "blockNumber": 19,
+      "parentHash": "0xf354d5843124c9a5ee4ecc2e0f9205b1d646318ae47158c0de5de915efdf7426",
+      "tokenCodePresentAfter": true,
+      "tokenCodePresentBefore": true,
+      "totalSupplyAfter": 80,
+      "totalSupplyBefore": 80,
+      "transactionHash": "0xa3c3882c3a36a41444f63a7a469dca5c8aba77a3901bb7f163184003b5d6d50e",
+      "transactionIndex": 0,
+      "transferEvents": []
+    },
+    {
+      "afterBlock": {
+        "hash": "0xd457baed4dad5dc3934c8c4bd337805bcf8628b0849a88a9e61efb35f755f711",
+        "number": 20
+      },
+      "balanceDeltas": {
+        "0x1111111111111111111111111111111111111111": 0,
+        "0x2222222222222222222222222222222222222222": 0,
+        "0x3333333333333333333333333333333333333333": 0,
+        "0x4c2f7092c2ae51d986befee378e50bd4db99c901": 0,
+        "0x7a9ec1d04904907de0ed7b6839ccdd59c3716ac9": 0,
+        "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266": 0
+      },
+      "balancesAfter": {
+        "0x1111111111111111111111111111111111111111": 0,
+        "0x2222222222222222222222222222222222222222": 0,
+        "0x3333333333333333333333333333333333333333": 0,
+        "0x4c2f7092c2ae51d986befee378e50bd4db99c901": 0,
+        "0x7a9ec1d04904907de0ed7b6839ccdd59c3716ac9": 0,
+        "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266": 80
+      },
+      "balancesBefore": {
+        "0x1111111111111111111111111111111111111111": 0,
+        "0x2222222222222222222222222222222222222222": 0,
+        "0x3333333333333333333333333333333333333333": 0,
+        "0x4c2f7092c2ae51d986befee378e50bd4db99c901": 0,
+        "0x7a9ec1d04904907de0ed7b6839ccdd59c3716ac9": 0,
+        "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266": 80
+      },
+      "beforeBlock": {
+        "hash": "0xef25ff47976fedb248158820413ab47a79da117a6e0113ad14d0f4c7470c8335",
+        "number": 19
+      },
+      "blockHash": "0xd457baed4dad5dc3934c8c4bd337805bcf8628b0849a88a9e61efb35f755f711",
+      "blockNumber": 20,
+      "parentHash": "0xef25ff47976fedb248158820413ab47a79da117a6e0113ad14d0f4c7470c8335",
+      "tokenCodePresentAfter": true,
+      "tokenCodePresentBefore": true,
+      "totalSupplyAfter": 80,
+      "totalSupplyBefore": 80,
+      "transactionHash": "0x9e03e2c4af8efa5ba75f0d3cb021f4601f69b2974fcde1de7b661df79862577c",
+      "transactionIndex": 0,
+      "transferEvents": []
+    },
+    {
+      "afterBlock": {
+        "hash": "0xca8d866121a356a3bf92915d17a1af92aed9e2a798b66412c74b72481e7f689d",
+        "number": 21
+      },
+      "balanceDeltas": {
+        "0x1111111111111111111111111111111111111111": 0,
+        "0x2222222222222222222222222222222222222222": 0,
+        "0x3333333333333333333333333333333333333333": 0,
+        "0x4c2f7092c2ae51d986befee378e50bd4db99c901": 0,
+        "0x7a9ec1d04904907de0ed7b6839ccdd59c3716ac9": 0,
+        "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266": 0
+      },
+      "balancesAfter": {
+        "0x1111111111111111111111111111111111111111": 0,
+        "0x2222222222222222222222222222222222222222": 0,
+        "0x3333333333333333333333333333333333333333": 0,
+        "0x4c2f7092c2ae51d986befee378e50bd4db99c901": 0,
+        "0x7a9ec1d04904907de0ed7b6839ccdd59c3716ac9": 0,
+        "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266": 80
+      },
+      "balancesBefore": {
+        "0x1111111111111111111111111111111111111111": 0,
+        "0x2222222222222222222222222222222222222222": 0,
+        "0x3333333333333333333333333333333333333333": 0,
+        "0x4c2f7092c2ae51d986befee378e50bd4db99c901": 0,
+        "0x7a9ec1d04904907de0ed7b6839ccdd59c3716ac9": 0,
+        "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266": 80
+      },
+      "beforeBlock": {
+        "hash": "0xd457baed4dad5dc3934c8c4bd337805bcf8628b0849a88a9e61efb35f755f711",
+        "number": 20
+      },
+      "blockHash": "0xca8d866121a356a3bf92915d17a1af92aed9e2a798b66412c74b72481e7f689d",
+      "blockNumber": 21,
+      "parentHash": "0xd457baed4dad5dc3934c8c4bd337805bcf8628b0849a88a9e61efb35f755f711",
+      "tokenCodePresentAfter": true,
+      "tokenCodePresentBefore": true,
+      "totalSupplyAfter": 80,
+      "totalSupplyBefore": 80,
+      "transactionHash": "0x40e5975cad4588d3674aca509705fb07fdb9fe033d946bd4af31891580a61ba0",
+      "transactionIndex": 0,
+      "transferEvents": []
+    },
+    {
+      "afterBlock": {
+        "hash": "0x244348ec34b190494e6d446487fde338c17e04950ebb6d94bd8be531e8fd11dc",
+        "number": 22
+      },
+      "balanceDeltas": {
+        "0x1111111111111111111111111111111111111111": 0,
+        "0x2222222222222222222222222222222222222222": 0,
+        "0x3333333333333333333333333333333333333333": 0,
+        "0x4c2f7092c2ae51d986befee378e50bd4db99c901": 0,
+        "0x7a9ec1d04904907de0ed7b6839ccdd59c3716ac9": 0,
+        "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266": 0
+      },
+      "balancesAfter": {
+        "0x1111111111111111111111111111111111111111": 0,
+        "0x2222222222222222222222222222222222222222": 0,
+        "0x3333333333333333333333333333333333333333": 0,
+        "0x4c2f7092c2ae51d986befee378e50bd4db99c901": 0,
+        "0x7a9ec1d04904907de0ed7b6839ccdd59c3716ac9": 0,
+        "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266": 80
+      },
+      "balancesBefore": {
+        "0x1111111111111111111111111111111111111111": 0,
+        "0x2222222222222222222222222222222222222222": 0,
+        "0x3333333333333333333333333333333333333333": 0,
+        "0x4c2f7092c2ae51d986befee378e50bd4db99c901": 0,
+        "0x7a9ec1d04904907de0ed7b6839ccdd59c3716ac9": 0,
+        "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266": 80
+      },
+      "beforeBlock": {
+        "hash": "0xca8d866121a356a3bf92915d17a1af92aed9e2a798b66412c74b72481e7f689d",
+        "number": 21
+      },
+      "blockHash": "0x244348ec34b190494e6d446487fde338c17e04950ebb6d94bd8be531e8fd11dc",
+      "blockNumber": 22,
+      "parentHash": "0xca8d866121a356a3bf92915d17a1af92aed9e2a798b66412c74b72481e7f689d",
+      "tokenCodePresentAfter": true,
+      "tokenCodePresentBefore": true,
+      "totalSupplyAfter": 80,
+      "totalSupplyBefore": 80,
+      "transactionHash": "0x044c2c1d9d5482faffe5f6fb041a0c60f537b753e0121ac1789c073e7d45be9c",
+      "transactionIndex": 0,
+      "transferEvents": []
+    },
+    {
+      "afterBlock": {
+        "hash": "0x70c0f22b14b2804e451f3a385b7d0677a98f33c22420a2a991c38ac0737f3e19",
+        "number": 23
+      },
+      "balanceDeltas": {
+        "0x1111111111111111111111111111111111111111": 0,
+        "0x2222222222222222222222222222222222222222": 0,
+        "0x3333333333333333333333333333333333333333": 0,
+        "0x4c2f7092c2ae51d986befee378e50bd4db99c901": 0,
+        "0x7a9ec1d04904907de0ed7b6839ccdd59c3716ac9": 0,
+        "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266": 0
+      },
+      "balancesAfter": {
+        "0x1111111111111111111111111111111111111111": 0,
+        "0x2222222222222222222222222222222222222222": 0,
+        "0x3333333333333333333333333333333333333333": 0,
+        "0x4c2f7092c2ae51d986befee378e50bd4db99c901": 0,
+        "0x7a9ec1d04904907de0ed7b6839ccdd59c3716ac9": 0,
+        "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266": 80
+      },
+      "balancesBefore": {
+        "0x1111111111111111111111111111111111111111": 0,
+        "0x2222222222222222222222222222222222222222": 0,
+        "0x3333333333333333333333333333333333333333": 0,
+        "0x4c2f7092c2ae51d986befee378e50bd4db99c901": 0,
+        "0x7a9ec1d04904907de0ed7b6839ccdd59c3716ac9": 0,
+        "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266": 80
+      },
+      "beforeBlock": {
+        "hash": "0x244348ec34b190494e6d446487fde338c17e04950ebb6d94bd8be531e8fd11dc",
+        "number": 22
+      },
+      "blockHash": "0x70c0f22b14b2804e451f3a385b7d0677a98f33c22420a2a991c38ac0737f3e19",
+      "blockNumber": 23,
+      "parentHash": "0x244348ec34b190494e6d446487fde338c17e04950ebb6d94bd8be531e8fd11dc",
+      "tokenCodePresentAfter": true,
+      "tokenCodePresentBefore": true,
+      "totalSupplyAfter": 80,
+      "totalSupplyBefore": 80,
+      "transactionHash": "0x3aa3e98202d75fe3658fbb016eed3f55a4076f34259032619879e3ff4646cf82",
+      "transactionIndex": 0,
+      "transferEvents": []
+    },
+    {
+      "afterBlock": {
+        "hash": "0x0b0efccc23bb52fc6a51918c862a2d10b9ef9a5231d5aed93b289fab5d155bed",
+        "number": 24
+      },
+      "balanceDeltas": {
+        "0x1111111111111111111111111111111111111111": 0,
+        "0x2222222222222222222222222222222222222222": 0,
+        "0x3333333333333333333333333333333333333333": 0,
+        "0x4c2f7092c2ae51d986befee378e50bd4db99c901": 0,
+        "0x7a9ec1d04904907de0ed7b6839ccdd59c3716ac9": 80,
+        "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266": -80
+      },
+      "balancesAfter": {
+        "0x1111111111111111111111111111111111111111": 0,
+        "0x2222222222222222222222222222222222222222": 0,
+        "0x3333333333333333333333333333333333333333": 0,
+        "0x4c2f7092c2ae51d986befee378e50bd4db99c901": 0,
+        "0x7a9ec1d04904907de0ed7b6839ccdd59c3716ac9": 80,
+        "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266": 0
+      },
+      "balancesBefore": {
+        "0x1111111111111111111111111111111111111111": 0,
+        "0x2222222222222222222222222222222222222222": 0,
+        "0x3333333333333333333333333333333333333333": 0,
+        "0x4c2f7092c2ae51d986befee378e50bd4db99c901": 0,
+        "0x7a9ec1d04904907de0ed7b6839ccdd59c3716ac9": 0,
+        "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266": 80
+      },
+      "beforeBlock": {
+        "hash": "0x70c0f22b14b2804e451f3a385b7d0677a98f33c22420a2a991c38ac0737f3e19",
+        "number": 23
+      },
+      "blockHash": "0x0b0efccc23bb52fc6a51918c862a2d10b9ef9a5231d5aed93b289fab5d155bed",
+      "blockNumber": 24,
+      "parentHash": "0x70c0f22b14b2804e451f3a385b7d0677a98f33c22420a2a991c38ac0737f3e19",
+      "tokenCodePresentAfter": true,
+      "tokenCodePresentBefore": true,
+      "totalSupplyAfter": 80,
+      "totalSupplyBefore": 80,
+      "transactionHash": "0x994ae65846fbe0686d38ebc83904b51c4f8ea288827479cccb13d0773815fb36",
+      "transactionIndex": 0,
+      "transferEvents": [
+        {
+          "amount": 80,
+          "blockHash": "0x0b0efccc23bb52fc6a51918c862a2d10b9ef9a5231d5aed93b289fab5d155bed",
+          "blockNumber": 24,
+          "chainId": 31337,
+          "from": "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266",
+          "logIndex": 0,
+          "to": "0x7a9ec1d04904907de0ed7b6839ccdd59c3716ac9",
+          "token": "0x367761085bf3c12e5da2df99ac6e1a824612b8fb",
+          "transactionHash": "0x994ae65846fbe0686d38ebc83904b51c4f8ea288827479cccb13d0773815fb36",
+          "transactionIndex": 0
+        }
+      ]
+    },
+    {
+      "afterBlock": {
+        "hash": "0x63ee2fc2e9fa73c35dec1479d55e3168504ef67ce2c1f871c7869c616a21ac9f",
+        "number": 25
+      },
+      "balanceDeltas": {
+        "0x1111111111111111111111111111111111111111": 0,
+        "0x2222222222222222222222222222222222222222": 0,
+        "0x3333333333333333333333333333333333333333": 0,
+        "0x4c2f7092c2ae51d986befee378e50bd4db99c901": 0,
+        "0x7a9ec1d04904907de0ed7b6839ccdd59c3716ac9": 0,
+        "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266": 0
+      },
+      "balancesAfter": {
+        "0x1111111111111111111111111111111111111111": 0,
+        "0x2222222222222222222222222222222222222222": 0,
+        "0x3333333333333333333333333333333333333333": 0,
+        "0x4c2f7092c2ae51d986befee378e50bd4db99c901": 0,
+        "0x7a9ec1d04904907de0ed7b6839ccdd59c3716ac9": 80,
+        "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266": 0
+      },
+      "balancesBefore": {
+        "0x1111111111111111111111111111111111111111": 0,
+        "0x2222222222222222222222222222222222222222": 0,
+        "0x3333333333333333333333333333333333333333": 0,
+        "0x4c2f7092c2ae51d986befee378e50bd4db99c901": 0,
+        "0x7a9ec1d04904907de0ed7b6839ccdd59c3716ac9": 80,
+        "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266": 0
+      },
+      "beforeBlock": {
+        "hash": "0x0b0efccc23bb52fc6a51918c862a2d10b9ef9a5231d5aed93b289fab5d155bed",
+        "number": 24
+      },
+      "blockHash": "0x63ee2fc2e9fa73c35dec1479d55e3168504ef67ce2c1f871c7869c616a21ac9f",
+      "blockNumber": 25,
+      "parentHash": "0x0b0efccc23bb52fc6a51918c862a2d10b9ef9a5231d5aed93b289fab5d155bed",
+      "tokenCodePresentAfter": true,
+      "tokenCodePresentBefore": true,
+      "totalSupplyAfter": 80,
+      "totalSupplyBefore": 80,
+      "transactionHash": "0xc851eca1999c1b58cd7b2e6a052c9fe68e6696365af1dc349a34271ab63489bd",
+      "transactionIndex": 0,
+      "transferEvents": []
+    },
+    {
+      "afterBlock": {
+        "hash": "0x12929c00584e9259cd20c4288741d5307879a53fa051a87929ce167768b2ad18",
+        "number": 26
+      },
+      "balanceDeltas": {
+        "0x1111111111111111111111111111111111111111": 0,
+        "0x2222222222222222222222222222222222222222": 0,
+        "0x3333333333333333333333333333333333333333": 0,
+        "0x4c2f7092c2ae51d986befee378e50bd4db99c901": 0,
+        "0x7a9ec1d04904907de0ed7b6839ccdd59c3716ac9": 0,
+        "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266": 0
+      },
+      "balancesAfter": {
+        "0x1111111111111111111111111111111111111111": 0,
+        "0x2222222222222222222222222222222222222222": 0,
+        "0x3333333333333333333333333333333333333333": 0,
+        "0x4c2f7092c2ae51d986befee378e50bd4db99c901": 0,
+        "0x7a9ec1d04904907de0ed7b6839ccdd59c3716ac9": 80,
+        "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266": 0
+      },
+      "balancesBefore": {
+        "0x1111111111111111111111111111111111111111": 0,
+        "0x2222222222222222222222222222222222222222": 0,
+        "0x3333333333333333333333333333333333333333": 0,
+        "0x4c2f7092c2ae51d986befee378e50bd4db99c901": 0,
+        "0x7a9ec1d04904907de0ed7b6839ccdd59c3716ac9": 80,
+        "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266": 0
+      },
+      "beforeBlock": {
+        "hash": "0x63ee2fc2e9fa73c35dec1479d55e3168504ef67ce2c1f871c7869c616a21ac9f",
+        "number": 25
+      },
+      "blockHash": "0x12929c00584e9259cd20c4288741d5307879a53fa051a87929ce167768b2ad18",
+      "blockNumber": 26,
+      "parentHash": "0x63ee2fc2e9fa73c35dec1479d55e3168504ef67ce2c1f871c7869c616a21ac9f",
+      "tokenCodePresentAfter": true,
+      "tokenCodePresentBefore": true,
+      "totalSupplyAfter": 80,
+      "totalSupplyBefore": 80,
+      "transactionHash": "0x027b8e6f08532fd452f939864ef35f3f104af4ccfddcab33da1211b5cfb94f3e",
+      "transactionIndex": 0,
+      "transferEvents": []
+    },
+    {
+      "afterBlock": {
+        "hash": "0x5d7f9a2b1c66b8108394815deabc84794f0bbf050517e72ee6df2f815d920e6d",
+        "number": 27
+      },
+      "balanceDeltas": {
+        "0x1111111111111111111111111111111111111111": 0,
+        "0x2222222222222222222222222222222222222222": 0,
+        "0x3333333333333333333333333333333333333333": 0,
+        "0x4c2f7092c2ae51d986befee378e50bd4db99c901": 0,
+        "0x7a9ec1d04904907de0ed7b6839ccdd59c3716ac9": 0,
+        "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266": 0
+      },
+      "balancesAfter": {
+        "0x1111111111111111111111111111111111111111": 0,
+        "0x2222222222222222222222222222222222222222": 0,
+        "0x3333333333333333333333333333333333333333": 0,
+        "0x4c2f7092c2ae51d986befee378e50bd4db99c901": 0,
+        "0x7a9ec1d04904907de0ed7b6839ccdd59c3716ac9": 80,
+        "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266": 0
+      },
+      "balancesBefore": {
+        "0x1111111111111111111111111111111111111111": 0,
+        "0x2222222222222222222222222222222222222222": 0,
+        "0x3333333333333333333333333333333333333333": 0,
+        "0x4c2f7092c2ae51d986befee378e50bd4db99c901": 0,
+        "0x7a9ec1d04904907de0ed7b6839ccdd59c3716ac9": 80,
+        "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266": 0
+      },
+      "beforeBlock": {
+        "hash": "0x12929c00584e9259cd20c4288741d5307879a53fa051a87929ce167768b2ad18",
+        "number": 26
+      },
+      "blockHash": "0x5d7f9a2b1c66b8108394815deabc84794f0bbf050517e72ee6df2f815d920e6d",
+      "blockNumber": 27,
+      "parentHash": "0x12929c00584e9259cd20c4288741d5307879a53fa051a87929ce167768b2ad18",
+      "tokenCodePresentAfter": true,
+      "tokenCodePresentBefore": true,
+      "totalSupplyAfter": 80,
+      "totalSupplyBefore": 80,
+      "transactionHash": "0x04a9716dc2206bb81a5231a74b9b05a37339a87c43775e16bc9275e1ec625145",
+      "transactionIndex": 0,
+      "transferEvents": []
+    },
+    {
+      "afterBlock": {
+        "hash": "0xf29ab993468d979b013e151ae973de238659ef7d7c558df9f1e0b5baf70e3b1e",
+        "number": 28
+      },
+      "balanceDeltas": {
+        "0x1111111111111111111111111111111111111111": 0,
+        "0x2222222222222222222222222222222222222222": 0,
+        "0x3333333333333333333333333333333333333333": 0,
+        "0x4c2f7092c2ae51d986befee378e50bd4db99c901": 0,
+        "0x7a9ec1d04904907de0ed7b6839ccdd59c3716ac9": 0,
+        "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266": 0
+      },
+      "balancesAfter": {
+        "0x1111111111111111111111111111111111111111": 0,
+        "0x2222222222222222222222222222222222222222": 0,
+        "0x3333333333333333333333333333333333333333": 0,
+        "0x4c2f7092c2ae51d986befee378e50bd4db99c901": 0,
+        "0x7a9ec1d04904907de0ed7b6839ccdd59c3716ac9": 80,
+        "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266": 0
+      },
+      "balancesBefore": {
+        "0x1111111111111111111111111111111111111111": 0,
+        "0x2222222222222222222222222222222222222222": 0,
+        "0x3333333333333333333333333333333333333333": 0,
+        "0x4c2f7092c2ae51d986befee378e50bd4db99c901": 0,
+        "0x7a9ec1d04904907de0ed7b6839ccdd59c3716ac9": 80,
+        "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266": 0
+      },
+      "beforeBlock": {
+        "hash": "0x5d7f9a2b1c66b8108394815deabc84794f0bbf050517e72ee6df2f815d920e6d",
+        "number": 27
+      },
+      "blockHash": "0xf29ab993468d979b013e151ae973de238659ef7d7c558df9f1e0b5baf70e3b1e",
+      "blockNumber": 28,
+      "parentHash": "0x5d7f9a2b1c66b8108394815deabc84794f0bbf050517e72ee6df2f815d920e6d",
+      "tokenCodePresentAfter": true,
+      "tokenCodePresentBefore": true,
+      "totalSupplyAfter": 80,
+      "totalSupplyBefore": 80,
+      "transactionHash": "0xa7a43db52703585ec30430206322233b50c67afccae590c5ad4d05bdd8b6f0f4",
+      "transactionIndex": 0,
+      "transferEvents": []
+    },
+    {
+      "afterBlock": {
+        "hash": "0xcd9c19846c644a1e371fc5bae4bd598a9aa51b072d83ceb3b1d1785c6f06b9c9",
+        "number": 29
+      },
+      "balanceDeltas": {
+        "0x1111111111111111111111111111111111111111": 0,
+        "0x2222222222222222222222222222222222222222": 0,
+        "0x3333333333333333333333333333333333333333": 0,
+        "0x4c2f7092c2ae51d986befee378e50bd4db99c901": 0,
+        "0x7a9ec1d04904907de0ed7b6839ccdd59c3716ac9": 0,
+        "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266": 0
+      },
+      "balancesAfter": {
+        "0x1111111111111111111111111111111111111111": 0,
+        "0x2222222222222222222222222222222222222222": 0,
+        "0x3333333333333333333333333333333333333333": 0,
+        "0x4c2f7092c2ae51d986befee378e50bd4db99c901": 0,
+        "0x7a9ec1d04904907de0ed7b6839ccdd59c3716ac9": 80,
+        "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266": 0
+      },
+      "balancesBefore": {
+        "0x1111111111111111111111111111111111111111": 0,
+        "0x2222222222222222222222222222222222222222": 0,
+        "0x3333333333333333333333333333333333333333": 0,
+        "0x4c2f7092c2ae51d986befee378e50bd4db99c901": 0,
+        "0x7a9ec1d04904907de0ed7b6839ccdd59c3716ac9": 80,
+        "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266": 0
+      },
+      "beforeBlock": {
+        "hash": "0xf29ab993468d979b013e151ae973de238659ef7d7c558df9f1e0b5baf70e3b1e",
+        "number": 28
+      },
+      "blockHash": "0xcd9c19846c644a1e371fc5bae4bd598a9aa51b072d83ceb3b1d1785c6f06b9c9",
+      "blockNumber": 29,
+      "parentHash": "0xf29ab993468d979b013e151ae973de238659ef7d7c558df9f1e0b5baf70e3b1e",
+      "tokenCodePresentAfter": true,
+      "tokenCodePresentBefore": true,
+      "totalSupplyAfter": 80,
+      "totalSupplyBefore": 80,
+      "transactionHash": "0x8f8b9bfb0d7afe838624c2bbc3badd21e7ace2cf549338466707023497de7fca",
+      "transactionIndex": 0,
+      "transferEvents": []
+    },
+    {
+      "afterBlock": {
+        "hash": "0xc03d73e4cb61da7738e436af7dc1c7b4630c45864f1aef8c602b9f1e2aaf24ca",
+        "number": 30
+      },
+      "balanceDeltas": {
+        "0x1111111111111111111111111111111111111111": 0,
+        "0x2222222222222222222222222222222222222222": 0,
+        "0x3333333333333333333333333333333333333333": 0,
+        "0x4c2f7092c2ae51d986befee378e50bd4db99c901": 70,
+        "0x7a9ec1d04904907de0ed7b6839ccdd59c3716ac9": -70,
+        "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266": 0
+      },
+      "balancesAfter": {
+        "0x1111111111111111111111111111111111111111": 0,
+        "0x2222222222222222222222222222222222222222": 0,
+        "0x3333333333333333333333333333333333333333": 0,
+        "0x4c2f7092c2ae51d986befee378e50bd4db99c901": 70,
+        "0x7a9ec1d04904907de0ed7b6839ccdd59c3716ac9": 10,
+        "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266": 0
+      },
+      "balancesBefore": {
+        "0x1111111111111111111111111111111111111111": 0,
+        "0x2222222222222222222222222222222222222222": 0,
+        "0x3333333333333333333333333333333333333333": 0,
+        "0x4c2f7092c2ae51d986befee378e50bd4db99c901": 0,
+        "0x7a9ec1d04904907de0ed7b6839ccdd59c3716ac9": 80,
+        "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266": 0
+      },
+      "beforeBlock": {
+        "hash": "0xcd9c19846c644a1e371fc5bae4bd598a9aa51b072d83ceb3b1d1785c6f06b9c9",
+        "number": 29
+      },
+      "blockHash": "0xc03d73e4cb61da7738e436af7dc1c7b4630c45864f1aef8c602b9f1e2aaf24ca",
+      "blockNumber": 30,
+      "parentHash": "0xcd9c19846c644a1e371fc5bae4bd598a9aa51b072d83ceb3b1d1785c6f06b9c9",
+      "tokenCodePresentAfter": true,
+      "tokenCodePresentBefore": true,
+      "totalSupplyAfter": 80,
+      "totalSupplyBefore": 80,
+      "transactionHash": "0x28f42fbe15f8e983cbbcf7021e8a77143a01495d9f513f9e373ddc46c5be6421",
+      "transactionIndex": 0,
+      "transferEvents": [
+        {
+          "amount": 70,
+          "blockHash": "0xc03d73e4cb61da7738e436af7dc1c7b4630c45864f1aef8c602b9f1e2aaf24ca",
+          "blockNumber": 30,
+          "chainId": 31337,
+          "from": "0x7a9ec1d04904907de0ed7b6839ccdd59c3716ac9",
+          "logIndex": 3,
+          "to": "0x4c2f7092c2ae51d986befee378e50bd4db99c901",
+          "token": "0x367761085bf3c12e5da2df99ac6e1a824612b8fb",
+          "transactionHash": "0x28f42fbe15f8e983cbbcf7021e8a77143a01495d9f513f9e373ddc46c5be6421",
+          "transactionIndex": 0
+        }
+      ]
+    },
+    {
+      "afterBlock": {
+        "hash": "0x80a0920acee9a4eba5e8e1316cf88f384b089bf870e6f3f13c223c558ba2f399",
+        "number": 31
+      },
+      "balanceDeltas": {
+        "0x1111111111111111111111111111111111111111": 0,
+        "0x2222222222222222222222222222222222222222": 0,
+        "0x3333333333333333333333333333333333333333": 0,
+        "0x4c2f7092c2ae51d986befee378e50bd4db99c901": 0,
+        "0x7a9ec1d04904907de0ed7b6839ccdd59c3716ac9": 0,
+        "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266": 0
+      },
+      "balancesAfter": {
+        "0x1111111111111111111111111111111111111111": 0,
+        "0x2222222222222222222222222222222222222222": 0,
+        "0x3333333333333333333333333333333333333333": 0,
+        "0x4c2f7092c2ae51d986befee378e50bd4db99c901": 70,
+        "0x7a9ec1d04904907de0ed7b6839ccdd59c3716ac9": 10,
+        "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266": 0
+      },
+      "balancesBefore": {
+        "0x1111111111111111111111111111111111111111": 0,
+        "0x2222222222222222222222222222222222222222": 0,
+        "0x3333333333333333333333333333333333333333": 0,
+        "0x4c2f7092c2ae51d986befee378e50bd4db99c901": 70,
+        "0x7a9ec1d04904907de0ed7b6839ccdd59c3716ac9": 10,
+        "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266": 0
+      },
+      "beforeBlock": {
+        "hash": "0xc03d73e4cb61da7738e436af7dc1c7b4630c45864f1aef8c602b9f1e2aaf24ca",
+        "number": 30
+      },
+      "blockHash": "0x80a0920acee9a4eba5e8e1316cf88f384b089bf870e6f3f13c223c558ba2f399",
+      "blockNumber": 31,
+      "parentHash": "0xc03d73e4cb61da7738e436af7dc1c7b4630c45864f1aef8c602b9f1e2aaf24ca",
+      "tokenCodePresentAfter": true,
+      "tokenCodePresentBefore": true,
+      "totalSupplyAfter": 80,
+      "totalSupplyBefore": 80,
+      "transactionHash": "0xbb54263ee432a8661505d8f2e8454e56658e832aea11ff72670ba51b45c8edbe",
+      "transactionIndex": 0,
+      "transferEvents": []
+    },
+    {
+      "afterBlock": {
+        "hash": "0x55706ad6e5b99ad4e217ebba33c67e917bdee075f9654b32e28d3bab6970fed5",
+        "number": 32
+      },
+      "balanceDeltas": {
+        "0x1111111111111111111111111111111111111111": 0,
+        "0x2222222222222222222222222222222222222222": 0,
+        "0x3333333333333333333333333333333333333333": 0,
+        "0x4c2f7092c2ae51d986befee378e50bd4db99c901": 0,
+        "0x7a9ec1d04904907de0ed7b6839ccdd59c3716ac9": 0,
+        "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266": 0
+      },
+      "balancesAfter": {
+        "0x1111111111111111111111111111111111111111": 0,
+        "0x2222222222222222222222222222222222222222": 0,
+        "0x3333333333333333333333333333333333333333": 0,
+        "0x4c2f7092c2ae51d986befee378e50bd4db99c901": 70,
+        "0x7a9ec1d04904907de0ed7b6839ccdd59c3716ac9": 10,
+        "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266": 0
+      },
+      "balancesBefore": {
+        "0x1111111111111111111111111111111111111111": 0,
+        "0x2222222222222222222222222222222222222222": 0,
+        "0x3333333333333333333333333333333333333333": 0,
+        "0x4c2f7092c2ae51d986befee378e50bd4db99c901": 70,
+        "0x7a9ec1d04904907de0ed7b6839ccdd59c3716ac9": 10,
+        "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266": 0
+      },
+      "beforeBlock": {
+        "hash": "0x80a0920acee9a4eba5e8e1316cf88f384b089bf870e6f3f13c223c558ba2f399",
+        "number": 31
+      },
+      "blockHash": "0x55706ad6e5b99ad4e217ebba33c67e917bdee075f9654b32e28d3bab6970fed5",
+      "blockNumber": 32,
+      "parentHash": "0x80a0920acee9a4eba5e8e1316cf88f384b089bf870e6f3f13c223c558ba2f399",
+      "tokenCodePresentAfter": true,
+      "tokenCodePresentBefore": true,
+      "totalSupplyAfter": 80,
+      "totalSupplyBefore": 80,
+      "transactionHash": "0xce194d2f05e4d956aa8c2f892ca49c7165ae3698fe5c954b6b486348e7ffffac",
+      "transactionIndex": 0,
+      "transferEvents": []
+    },
+    {
+      "afterBlock": {
+        "hash": "0x7e010b041b724999ecc6d9b83423767b693a2e9493c2cc2e9bd497aea6519506",
+        "number": 33
+      },
+      "balanceDeltas": {
+        "0x1111111111111111111111111111111111111111": 35,
+        "0x2222222222222222222222222222222222222222": 0,
+        "0x3333333333333333333333333333333333333333": 0,
+        "0x4c2f7092c2ae51d986befee378e50bd4db99c901": -35,
+        "0x7a9ec1d04904907de0ed7b6839ccdd59c3716ac9": 0,
+        "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266": 0
+      },
+      "balancesAfter": {
+        "0x1111111111111111111111111111111111111111": 35,
+        "0x2222222222222222222222222222222222222222": 0,
+        "0x3333333333333333333333333333333333333333": 0,
+        "0x4c2f7092c2ae51d986befee378e50bd4db99c901": 35,
+        "0x7a9ec1d04904907de0ed7b6839ccdd59c3716ac9": 10,
+        "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266": 0
+      },
+      "balancesBefore": {
+        "0x1111111111111111111111111111111111111111": 0,
+        "0x2222222222222222222222222222222222222222": 0,
+        "0x3333333333333333333333333333333333333333": 0,
+        "0x4c2f7092c2ae51d986befee378e50bd4db99c901": 70,
+        "0x7a9ec1d04904907de0ed7b6839ccdd59c3716ac9": 10,
+        "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266": 0
+      },
+      "beforeBlock": {
+        "hash": "0x55706ad6e5b99ad4e217ebba33c67e917bdee075f9654b32e28d3bab6970fed5",
+        "number": 32
+      },
+      "blockHash": "0x7e010b041b724999ecc6d9b83423767b693a2e9493c2cc2e9bd497aea6519506",
+      "blockNumber": 33,
+      "parentHash": "0x55706ad6e5b99ad4e217ebba33c67e917bdee075f9654b32e28d3bab6970fed5",
+      "tokenCodePresentAfter": true,
+      "tokenCodePresentBefore": true,
+      "totalSupplyAfter": 80,
+      "totalSupplyBefore": 80,
+      "transactionHash": "0x9acb21e6f3d9313913c530c1c115064c7b927625ecea08820a2c5275405fed17",
+      "transactionIndex": 0,
+      "transferEvents": [
+        {
+          "amount": 35,
+          "blockHash": "0x7e010b041b724999ecc6d9b83423767b693a2e9493c2cc2e9bd497aea6519506",
+          "blockNumber": 33,
+          "chainId": 31337,
+          "from": "0x4c2f7092c2ae51d986befee378e50bd4db99c901",
+          "logIndex": 0,
+          "to": "0x1111111111111111111111111111111111111111",
+          "token": "0x367761085bf3c12e5da2df99ac6e1a824612b8fb",
+          "transactionHash": "0x9acb21e6f3d9313913c530c1c115064c7b927625ecea08820a2c5275405fed17",
+          "transactionIndex": 0
+        }
+      ]
+    },
+    {
+      "afterBlock": {
+        "hash": "0xf848502909b5ad66a298352a6531287772e81d3c1be61f992e2f23143f1477c0",
+        "number": 34
+      },
+      "balanceDeltas": {
+        "0x1111111111111111111111111111111111111111": 0,
+        "0x2222222222222222222222222222222222222222": 0,
+        "0x3333333333333333333333333333333333333333": 0,
+        "0x4c2f7092c2ae51d986befee378e50bd4db99c901": 0,
+        "0x7a9ec1d04904907de0ed7b6839ccdd59c3716ac9": 0,
+        "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266": 0
+      },
+      "balancesAfter": {
+        "0x1111111111111111111111111111111111111111": 35,
+        "0x2222222222222222222222222222222222222222": 0,
+        "0x3333333333333333333333333333333333333333": 0,
+        "0x4c2f7092c2ae51d986befee378e50bd4db99c901": 35,
+        "0x7a9ec1d04904907de0ed7b6839ccdd59c3716ac9": 10,
+        "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266": 0
+      },
+      "balancesBefore": {
+        "0x1111111111111111111111111111111111111111": 35,
+        "0x2222222222222222222222222222222222222222": 0,
+        "0x3333333333333333333333333333333333333333": 0,
+        "0x4c2f7092c2ae51d986befee378e50bd4db99c901": 35,
+        "0x7a9ec1d04904907de0ed7b6839ccdd59c3716ac9": 10,
+        "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266": 0
+      },
+      "beforeBlock": {
+        "hash": "0x7e010b041b724999ecc6d9b83423767b693a2e9493c2cc2e9bd497aea6519506",
+        "number": 33
+      },
+      "blockHash": "0xf848502909b5ad66a298352a6531287772e81d3c1be61f992e2f23143f1477c0",
+      "blockNumber": 34,
+      "parentHash": "0x7e010b041b724999ecc6d9b83423767b693a2e9493c2cc2e9bd497aea6519506",
+      "tokenCodePresentAfter": true,
+      "tokenCodePresentBefore": true,
+      "totalSupplyAfter": 80,
+      "totalSupplyBefore": 80,
+      "transactionHash": "0x889836f1545013379cec780825a04e6c588aa87714d4e76164f0c36f4818f74a",
+      "transactionIndex": 0,
+      "transferEvents": []
+    },
+    {
+      "afterBlock": {
+        "hash": "0x785b673de44cbcb26153e9afcbd4090546d492796ac8e2aefa5cb1bc65422316",
+        "number": 35
+      },
+      "balanceDeltas": {
+        "0x1111111111111111111111111111111111111111": 0,
+        "0x2222222222222222222222222222222222222222": 0,
+        "0x3333333333333333333333333333333333333333": 0,
+        "0x4c2f7092c2ae51d986befee378e50bd4db99c901": 0,
+        "0x7a9ec1d04904907de0ed7b6839ccdd59c3716ac9": 0,
+        "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266": 0
+      },
+      "balancesAfter": {
+        "0x1111111111111111111111111111111111111111": 35,
+        "0x2222222222222222222222222222222222222222": 0,
+        "0x3333333333333333333333333333333333333333": 0,
+        "0x4c2f7092c2ae51d986befee378e50bd4db99c901": 35,
+        "0x7a9ec1d04904907de0ed7b6839ccdd59c3716ac9": 10,
+        "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266": 0
+      },
+      "balancesBefore": {
+        "0x1111111111111111111111111111111111111111": 35,
+        "0x2222222222222222222222222222222222222222": 0,
+        "0x3333333333333333333333333333333333333333": 0,
+        "0x4c2f7092c2ae51d986befee378e50bd4db99c901": 35,
+        "0x7a9ec1d04904907de0ed7b6839ccdd59c3716ac9": 10,
+        "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266": 0
+      },
+      "beforeBlock": {
+        "hash": "0xf848502909b5ad66a298352a6531287772e81d3c1be61f992e2f23143f1477c0",
+        "number": 34
+      },
+      "blockHash": "0x785b673de44cbcb26153e9afcbd4090546d492796ac8e2aefa5cb1bc65422316",
+      "blockNumber": 35,
+      "parentHash": "0xf848502909b5ad66a298352a6531287772e81d3c1be61f992e2f23143f1477c0",
+      "tokenCodePresentAfter": true,
+      "tokenCodePresentBefore": true,
+      "totalSupplyAfter": 80,
+      "totalSupplyBefore": 80,
+      "transactionHash": "0xef1eab8352d6d5636a43a4cc2d4243a5483c4a2f0fd70edb26b8553691c7f769",
+      "transactionIndex": 0,
+      "transferEvents": []
+    },
+    {
+      "afterBlock": {
+        "hash": "0x589594bcd560e191419d9e3a6cd88c7f8c519f380306fce6e4e1d8b26b8e4532",
+        "number": 36
+      },
+      "balanceDeltas": {
+        "0x1111111111111111111111111111111111111111": 0,
+        "0x2222222222222222222222222222222222222222": 0,
+        "0x3333333333333333333333333333333333333333": 0,
+        "0x4c2f7092c2ae51d986befee378e50bd4db99c901": 0,
+        "0x7a9ec1d04904907de0ed7b6839ccdd59c3716ac9": 0,
+        "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266": 0
+      },
+      "balancesAfter": {
+        "0x1111111111111111111111111111111111111111": 35,
+        "0x2222222222222222222222222222222222222222": 0,
+        "0x3333333333333333333333333333333333333333": 0,
+        "0x4c2f7092c2ae51d986befee378e50bd4db99c901": 35,
+        "0x7a9ec1d04904907de0ed7b6839ccdd59c3716ac9": 10,
+        "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266": 0
+      },
+      "balancesBefore": {
+        "0x1111111111111111111111111111111111111111": 35,
+        "0x2222222222222222222222222222222222222222": 0,
+        "0x3333333333333333333333333333333333333333": 0,
+        "0x4c2f7092c2ae51d986befee378e50bd4db99c901": 35,
+        "0x7a9ec1d04904907de0ed7b6839ccdd59c3716ac9": 10,
+        "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266": 0
+      },
+      "beforeBlock": {
+        "hash": "0x785b673de44cbcb26153e9afcbd4090546d492796ac8e2aefa5cb1bc65422316",
+        "number": 35
+      },
+      "blockHash": "0x589594bcd560e191419d9e3a6cd88c7f8c519f380306fce6e4e1d8b26b8e4532",
+      "blockNumber": 36,
+      "parentHash": "0x785b673de44cbcb26153e9afcbd4090546d492796ac8e2aefa5cb1bc65422316",
+      "tokenCodePresentAfter": true,
+      "tokenCodePresentBefore": true,
+      "totalSupplyAfter": 80,
+      "totalSupplyBefore": 80,
+      "transactionHash": "0x76220d7ef19d7a825b4203cd93068226b8e9fff711332a177b44120fa27db445",
+      "transactionIndex": 0,
+      "transferEvents": []
+    },
+    {
+      "afterBlock": {
+        "hash": "0x906aac71765ab4ee43ef876889a021018609163cdfc8351e0c99cfc312ccd9ef",
+        "number": 37
+      },
+      "balanceDeltas": {
+        "0x1111111111111111111111111111111111111111": 0,
+        "0x2222222222222222222222222222222222222222": 21,
+        "0x3333333333333333333333333333333333333333": 0,
+        "0x4c2f7092c2ae51d986befee378e50bd4db99c901": -21,
+        "0x7a9ec1d04904907de0ed7b6839ccdd59c3716ac9": 0,
+        "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266": 0
+      },
+      "balancesAfter": {
+        "0x1111111111111111111111111111111111111111": 35,
+        "0x2222222222222222222222222222222222222222": 21,
+        "0x3333333333333333333333333333333333333333": 0,
+        "0x4c2f7092c2ae51d986befee378e50bd4db99c901": 14,
+        "0x7a9ec1d04904907de0ed7b6839ccdd59c3716ac9": 10,
+        "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266": 0
+      },
+      "balancesBefore": {
+        "0x1111111111111111111111111111111111111111": 35,
+        "0x2222222222222222222222222222222222222222": 0,
+        "0x3333333333333333333333333333333333333333": 0,
+        "0x4c2f7092c2ae51d986befee378e50bd4db99c901": 35,
+        "0x7a9ec1d04904907de0ed7b6839ccdd59c3716ac9": 10,
+        "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266": 0
+      },
+      "beforeBlock": {
+        "hash": "0x589594bcd560e191419d9e3a6cd88c7f8c519f380306fce6e4e1d8b26b8e4532",
+        "number": 36
+      },
+      "blockHash": "0x906aac71765ab4ee43ef876889a021018609163cdfc8351e0c99cfc312ccd9ef",
+      "blockNumber": 37,
+      "parentHash": "0x589594bcd560e191419d9e3a6cd88c7f8c519f380306fce6e4e1d8b26b8e4532",
+      "tokenCodePresentAfter": true,
+      "tokenCodePresentBefore": true,
+      "totalSupplyAfter": 80,
+      "totalSupplyBefore": 80,
+      "transactionHash": "0x74d86ba7fda19be8db46292e66b07692ee45ea689d54d3d719f5cfbed4e3fd98",
+      "transactionIndex": 0,
+      "transferEvents": [
+        {
+          "amount": 21,
+          "blockHash": "0x906aac71765ab4ee43ef876889a021018609163cdfc8351e0c99cfc312ccd9ef",
+          "blockNumber": 37,
+          "chainId": 31337,
+          "from": "0x4c2f7092c2ae51d986befee378e50bd4db99c901",
+          "logIndex": 0,
+          "to": "0x2222222222222222222222222222222222222222",
+          "token": "0x367761085bf3c12e5da2df99ac6e1a824612b8fb",
+          "transactionHash": "0x74d86ba7fda19be8db46292e66b07692ee45ea689d54d3d719f5cfbed4e3fd98",
+          "transactionIndex": 0
+        }
+      ]
+    },
+    {
+      "afterBlock": {
+        "hash": "0x28e205edd6b52f3dc898643ecea1fe54ec23098795027701b560f719bedf198f",
+        "number": 38
+      },
+      "balanceDeltas": {
+        "0x1111111111111111111111111111111111111111": 0,
+        "0x2222222222222222222222222222222222222222": 0,
+        "0x3333333333333333333333333333333333333333": 0,
+        "0x4c2f7092c2ae51d986befee378e50bd4db99c901": 0,
+        "0x7a9ec1d04904907de0ed7b6839ccdd59c3716ac9": 0,
+        "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266": 0
+      },
+      "balancesAfter": {
+        "0x1111111111111111111111111111111111111111": 35,
+        "0x2222222222222222222222222222222222222222": 21,
+        "0x3333333333333333333333333333333333333333": 0,
+        "0x4c2f7092c2ae51d986befee378e50bd4db99c901": 14,
+        "0x7a9ec1d04904907de0ed7b6839ccdd59c3716ac9": 10,
+        "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266": 0
+      },
+      "balancesBefore": {
+        "0x1111111111111111111111111111111111111111": 35,
+        "0x2222222222222222222222222222222222222222": 21,
+        "0x3333333333333333333333333333333333333333": 0,
+        "0x4c2f7092c2ae51d986befee378e50bd4db99c901": 14,
+        "0x7a9ec1d04904907de0ed7b6839ccdd59c3716ac9": 10,
+        "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266": 0
+      },
+      "beforeBlock": {
+        "hash": "0x906aac71765ab4ee43ef876889a021018609163cdfc8351e0c99cfc312ccd9ef",
+        "number": 37
+      },
+      "blockHash": "0x28e205edd6b52f3dc898643ecea1fe54ec23098795027701b560f719bedf198f",
+      "blockNumber": 38,
+      "parentHash": "0x906aac71765ab4ee43ef876889a021018609163cdfc8351e0c99cfc312ccd9ef",
+      "tokenCodePresentAfter": true,
+      "tokenCodePresentBefore": true,
+      "totalSupplyAfter": 80,
+      "totalSupplyBefore": 80,
+      "transactionHash": "0x6da023245d95dbd169b78bb065c45574ebb057e2524548a1aaf09d286d45a9ad",
+      "transactionIndex": 0,
+      "transferEvents": []
+    },
+    {
+      "afterBlock": {
+        "hash": "0xcbf0e422d459c67ee5035c20fdbbea099e422074bdc7f49b7294a45ab534fe5d",
+        "number": 39
+      },
+      "balanceDeltas": {
+        "0x1111111111111111111111111111111111111111": 0,
+        "0x2222222222222222222222222222222222222222": 0,
+        "0x3333333333333333333333333333333333333333": 0,
+        "0x4c2f7092c2ae51d986befee378e50bd4db99c901": 0,
+        "0x7a9ec1d04904907de0ed7b6839ccdd59c3716ac9": 0,
+        "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266": 0
+      },
+      "balancesAfter": {
+        "0x1111111111111111111111111111111111111111": 35,
+        "0x2222222222222222222222222222222222222222": 21,
+        "0x3333333333333333333333333333333333333333": 0,
+        "0x4c2f7092c2ae51d986befee378e50bd4db99c901": 14,
+        "0x7a9ec1d04904907de0ed7b6839ccdd59c3716ac9": 10,
+        "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266": 0
+      },
+      "balancesBefore": {
+        "0x1111111111111111111111111111111111111111": 35,
+        "0x2222222222222222222222222222222222222222": 21,
+        "0x3333333333333333333333333333333333333333": 0,
+        "0x4c2f7092c2ae51d986befee378e50bd4db99c901": 14,
+        "0x7a9ec1d04904907de0ed7b6839ccdd59c3716ac9": 10,
+        "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266": 0
+      },
+      "beforeBlock": {
+        "hash": "0x28e205edd6b52f3dc898643ecea1fe54ec23098795027701b560f719bedf198f",
+        "number": 38
+      },
+      "blockHash": "0xcbf0e422d459c67ee5035c20fdbbea099e422074bdc7f49b7294a45ab534fe5d",
+      "blockNumber": 39,
+      "parentHash": "0x28e205edd6b52f3dc898643ecea1fe54ec23098795027701b560f719bedf198f",
+      "tokenCodePresentAfter": true,
+      "tokenCodePresentBefore": true,
+      "totalSupplyAfter": 80,
+      "totalSupplyBefore": 80,
+      "transactionHash": "0x5cfdc16afc901fa05951a22de37a3507458734d66230cb0f9671a1bf86b8a77d",
+      "transactionIndex": 0,
+      "transferEvents": []
+    },
+    {
+      "afterBlock": {
+        "hash": "0xd72cf255c2d65f269b1bb04db2509ec77183db0006d1ed7bc6f5cf4448f49a4a",
+        "number": 40
+      },
+      "balanceDeltas": {
+        "0x1111111111111111111111111111111111111111": 0,
+        "0x2222222222222222222222222222222222222222": 0,
+        "0x3333333333333333333333333333333333333333": 0,
+        "0x4c2f7092c2ae51d986befee378e50bd4db99c901": 0,
+        "0x7a9ec1d04904907de0ed7b6839ccdd59c3716ac9": 0,
+        "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266": 0
+      },
+      "balancesAfter": {
+        "0x1111111111111111111111111111111111111111": 35,
+        "0x2222222222222222222222222222222222222222": 21,
+        "0x3333333333333333333333333333333333333333": 0,
+        "0x4c2f7092c2ae51d986befee378e50bd4db99c901": 14,
+        "0x7a9ec1d04904907de0ed7b6839ccdd59c3716ac9": 10,
+        "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266": 0
+      },
+      "balancesBefore": {
+        "0x1111111111111111111111111111111111111111": 35,
+        "0x2222222222222222222222222222222222222222": 21,
+        "0x3333333333333333333333333333333333333333": 0,
+        "0x4c2f7092c2ae51d986befee378e50bd4db99c901": 14,
+        "0x7a9ec1d04904907de0ed7b6839ccdd59c3716ac9": 10,
+        "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266": 0
+      },
+      "beforeBlock": {
+        "hash": "0xcbf0e422d459c67ee5035c20fdbbea099e422074bdc7f49b7294a45ab534fe5d",
+        "number": 39
+      },
+      "blockHash": "0xd72cf255c2d65f269b1bb04db2509ec77183db0006d1ed7bc6f5cf4448f49a4a",
+      "blockNumber": 40,
+      "parentHash": "0xcbf0e422d459c67ee5035c20fdbbea099e422074bdc7f49b7294a45ab534fe5d",
+      "tokenCodePresentAfter": true,
+      "tokenCodePresentBefore": true,
+      "totalSupplyAfter": 80,
+      "totalSupplyBefore": 80,
+      "transactionHash": "0x5549561253e64fadc0697174cb30f4be7af3ae6f8ef561f056a5ffbcf5bca3de",
+      "transactionIndex": 0,
+      "transferEvents": []
+    },
+    {
+      "afterBlock": {
+        "hash": "0x47a3f34c7652e9e953ed739923e8675fff02d3b8d6e003f19790a8fa198e1799",
+        "number": 41
+      },
+      "balanceDeltas": {
+        "0x1111111111111111111111111111111111111111": 0,
+        "0x2222222222222222222222222222222222222222": 0,
+        "0x3333333333333333333333333333333333333333": 14,
+        "0x4c2f7092c2ae51d986befee378e50bd4db99c901": -14,
+        "0x7a9ec1d04904907de0ed7b6839ccdd59c3716ac9": 0,
+        "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266": 0
+      },
+      "balancesAfter": {
+        "0x1111111111111111111111111111111111111111": 35,
+        "0x2222222222222222222222222222222222222222": 21,
+        "0x3333333333333333333333333333333333333333": 14,
+        "0x4c2f7092c2ae51d986befee378e50bd4db99c901": 0,
+        "0x7a9ec1d04904907de0ed7b6839ccdd59c3716ac9": 10,
+        "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266": 0
+      },
+      "balancesBefore": {
+        "0x1111111111111111111111111111111111111111": 35,
+        "0x2222222222222222222222222222222222222222": 21,
+        "0x3333333333333333333333333333333333333333": 0,
+        "0x4c2f7092c2ae51d986befee378e50bd4db99c901": 14,
+        "0x7a9ec1d04904907de0ed7b6839ccdd59c3716ac9": 10,
+        "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266": 0
+      },
+      "beforeBlock": {
+        "hash": "0xd72cf255c2d65f269b1bb04db2509ec77183db0006d1ed7bc6f5cf4448f49a4a",
+        "number": 40
+      },
+      "blockHash": "0x47a3f34c7652e9e953ed739923e8675fff02d3b8d6e003f19790a8fa198e1799",
+      "blockNumber": 41,
+      "parentHash": "0xd72cf255c2d65f269b1bb04db2509ec77183db0006d1ed7bc6f5cf4448f49a4a",
+      "tokenCodePresentAfter": true,
+      "tokenCodePresentBefore": true,
+      "totalSupplyAfter": 80,
+      "totalSupplyBefore": 80,
+      "transactionHash": "0x0ca53677c660905fc1240c2be02e5570678799b46d21748d70d38eb6c611acc1",
+      "transactionIndex": 0,
+      "transferEvents": [
+        {
+          "amount": 14,
+          "blockHash": "0x47a3f34c7652e9e953ed739923e8675fff02d3b8d6e003f19790a8fa198e1799",
+          "blockNumber": 41,
+          "chainId": 31337,
+          "from": "0x4c2f7092c2ae51d986befee378e50bd4db99c901",
+          "logIndex": 0,
+          "to": "0x3333333333333333333333333333333333333333",
+          "token": "0x367761085bf3c12e5da2df99ac6e1a824612b8fb",
+          "transactionHash": "0x0ca53677c660905fc1240c2be02e5570678799b46d21748d70d38eb6c611acc1",
+          "transactionIndex": 0
+        }
+      ]
+    }
+  ]
+}
