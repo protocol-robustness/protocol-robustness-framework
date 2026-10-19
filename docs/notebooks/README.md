@@ -152,7 +152,7 @@ workbench reads from XTDB but does not write to it.
 # Extracted notebook source
 
 The notebook source and runner are maintained in
-[`prf-notebooks` at commit `2dd0ebf86f1b`](https://github.com/protocol-robustness/prf-notebooks/tree/2dd0ebf86f1b).
+[`prf-notebooks` at commit `3b465b944a1f`](https://github.com/protocol-robustness/prf-notebooks/tree/3b465b944a1f7e7755b0151ea566d88275b86976).
 PRF runtime integration is still pending: this workspace's Clerk and Babashka
 commands continue to use the local `notebooks/` and `src/resolver_sim/notebook_support/`
 trees until their paths and consumers are migrated together.
