@@ -430,7 +430,8 @@ run_framework() {
          'resolver-sim.deferral-test
          'resolver-sim.claim-outcome-test
          'resolver-sim.grounded-amount-test
-         'resolver-sim.commands.simulation-test)
+         'resolver-sim.commands.simulation-test
+         'resolver-sim.forensic.source-hash-test)
 (binding [resolver-sim.evidence.chain/*allow-dirty* true]
   (let [results (t/run-tests
                 'resolver-sim.core-tests
@@ -445,7 +446,8 @@ run_framework() {
                 'resolver-sim.deferral-test
                 'resolver-sim.claim-outcome-test
                 'resolver-sim.grounded-amount-test
-                'resolver-sim.commands.simulation-test)]
+                'resolver-sim.commands.simulation-test
+                'resolver-sim.forensic.source-hash-test)]
               (when (pos? (+ (:error results) (:fail results)))
                 (System/exit 1))))"
   return $?

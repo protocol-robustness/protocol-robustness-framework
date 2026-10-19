@@ -125,7 +125,7 @@
     (Files/copy (.toPath input) (.toPath frozen-input)
                 (into-array java.nio.file.CopyOption []))
     (let [raw-hash (sha256-file frozen-input)
-          base {:schema/version "simulation-selection.v1"
+          base {:schema/version "simulation-selection.v2"
                 :run/id run-id
                 :selection/status :selected
                 :command/path ["simulation" "simplified"]

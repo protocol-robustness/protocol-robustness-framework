@@ -43,6 +43,7 @@
                                        :output (.getPath output)})))
         (let [record (edn/read-string (slurp (io/file output "selection.edn")))
               artifacts (:artifacts/sha256 record)]
+          (is (= "simulation-selection.v2" (:schema/version record)))
           (is (= :completed (:selection/status record)))
           (is (= ["simulation" "simplified"] (:command/path record)))
           (is (= ["simulation" "simplified" "--params" (.getPath input)
@@ -81,6 +82,7 @@
                (simulation/simplified {:params (.getPath input)
                                        :output (.getPath output)})))
         (let [record (edn/read-string (slurp (io/file output "selection.edn")))]
+          (is (= "simulation-selection.v2" (:schema/version record)))
           (is (= :failed (:selection/status record)))
           (is (= "clojure.lang.ExceptionInfo" (:failure/class record)))
           (is (= "invalid parameters" (:failure/message record)))

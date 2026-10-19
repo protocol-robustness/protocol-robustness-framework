@@ -111,6 +111,7 @@ the normalized command path and arguments, resolved input/output paths, source
 tree hash and VCS state, Java/Clojure/OS identity, classpath entries, and a
 content digest for every resolved classpath file or directory. It also records
 SHA-256 digests for the dependency configuration files used by the checkout.
+A completed or failed record uses the `simulation-selection.v2` schema.
 A failed run updates the record to `:failed`, including the exception class,
 message, runtime identity, and digests of any partial outputs. This is
 inspectable run-selection evidence, not a signed forensic bundle or a
