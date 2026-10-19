@@ -653,7 +653,7 @@ their approved source/artifact digests and constructor-specific runtime code
 identities. Replay routes ratification and activation through that caller and,
 at each action, checks its immutable operator/operation/controller getters,
 the controller's caller binding, and the representation runtime before
-accepting activation. The focused verifier/report suites pass 45 tests and
+accepting activation. The focused verifier/report suites pass 47 tests and
 TypeScript typecheck passes. Replay rejects evidence whose state assertions
 differ and includes the expectation digest in the independent verification
 root. This makes expectation review an explicit qualification input; approval
@@ -676,7 +676,7 @@ operator constructor getters, historical caller-binding state, reserve/deployer
 balances and allowance, and the seed transfer event. All setup transactions
 participate in the isolated-block chronology. The evidence and expectation
 schemas are now v6 and v3 respectively. The focused verifier/report suites pass
-45 tests and TypeScript typecheck passes. This is fixture coverage, not live
+47 tests and TypeScript typecheck passes. This is fixture coverage, not live
 qualification: the expected operation, seed amount, proof inputs and historical
 state assertions still require separate review and approval, and no W6 setup or
 capital-flow transactions have been executed or retained.
