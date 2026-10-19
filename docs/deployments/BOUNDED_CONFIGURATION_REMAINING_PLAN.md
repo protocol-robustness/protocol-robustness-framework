@@ -148,6 +148,12 @@ revalidates the source overlay and those contract behaviors in the current
 environment; it does not reproduce the historical artifact-bundle root or
 provide owner approval, live deployment evidence, or W4–W7 qualification.
 
+On 2026-10-19, the PRF-side registry-equivalence, source-lock, genesis-seal
+preflight, successor-configuration, and transition-approval review suites
+passed 16 tests and 93 assertions. These confirm the derivation and gate
+checks against retained fixtures; they do not satisfy live deployment
+acceptance.
+
 
 Owner: prf-evm and PRF maintainers. Priority: P0. Dependencies: none.
 
@@ -318,9 +324,13 @@ admission authority evaluates. Priority: P1. Dependencies: W0; informs W4/W5.
   receipts, historical/current adapter and verifier runtimes, effective
   `sp1Verifier()` readbacks and immutable metadata. It includes the replayed
   closure assertion in the independent live-verification root. Substituted
-  retained closure evidence fails closed. Remaining work is to bind this
-  profile to an authenticated approved package and ensure a real proof stage
-  consumes only after this check.
+  retained closure evidence fails closed. The executor verifies this closure
+  before deriving the successor registry root; the approved C0→C1 transition
+  binds that registry before admission contracts are deployed. The selected
+  adapter's verifier pointer and proof metadata are immutable. This makes the
+  verifier check a prerequisite to the on-chain admission configuration.
+  Remaining W3/W6 qualification is to bind the profile to the approved package
+  and exercise real proof admission under the resulting C1 deployment.
 - Keep registry v1 encoding unchanged. If on-chain runtime enforcement requires
   new commitments, introduce an explicit versioned contract/schema decision.
 
