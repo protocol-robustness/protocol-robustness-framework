@@ -678,7 +678,14 @@ reserve commitment before binding the caller and admitting/funding. The source
 file SHA-256 is
 `49b2278666afca559d8690a47b39456fa38a5282b581a825ceab7981c2007a5c`. Reuse
 and pin this helper for the local flow rather than creating a second operator
-implementation. Its existing deployment script initializes a separate
+implementation. Its retained Forge artifact
+`out/RunGateEEntitlementLocal.s.sol/GateEEntitlementLocalOperator.json` has
+SHA-256
+`2bd343ba5a78e886cce8945202bb10bdadcd60bcf4f38750ffd76e8d4d0088fc`; it was
+compiled with Forge 1.7.1 and Solc 0.8.33. Its deployed bytecode contains
+immutable references for the operator, operation ID, and controller, so the
+runtime identity must be recomputed for the exact constructor arguments and
+checked against both observed code and those getters. Its existing deployment script initializes a separate
 topology with reserve capital; that setup cannot be copied as current-chain
 evidence because the approved C1 deployment's reserve is empty. The current
 flow still needs a separately approved and evidenced reserve seed operation,
