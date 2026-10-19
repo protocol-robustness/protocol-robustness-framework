@@ -88,10 +88,6 @@
    :authority :prf :content-kind :benchmark :support-status :normative
    :reason "PRF's own benchmark-infrastructure pack"}
 
-  {:path "notebooks/**"
-   :authority :prf :content-kind :demo :support-status :illustrative
-   :reason "PRF-authored demonstrations of PRF; user/research-owned notebooks get overrides"}
-
   {:path "examples/**"
    :authority :prf :content-kind :example :support-status :illustrative
    :reason "PRF-authored illustrative examples; non-normative, user-replaceable"}]

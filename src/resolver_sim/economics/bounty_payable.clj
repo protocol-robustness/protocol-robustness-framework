@@ -16,6 +16,15 @@
 (def payable-lifecycle-states
   #{:pending-backing :backed :settled :cancelled})
 
+(def payable-lifecycle-transitions
+  "Explicit locally supported lifecycle edges. Settlement is a full-payment
+   edge and must be accompanied by replayable payout evidence. Cancellation is
+   still unsupported until a release evidence path exists."
+  {:pending-backing #{:backed}
+   :backed #{:settled}
+   :settled #{}
+   :cancelled #{}})
+
 ;; ── hash projection ─────────────────────────────────────────────────────────
 
 (defn payable-hash
@@ -108,8 +117,10 @@
 
 (defn transition-payable-lifecycle
   "Produce a new payable map with the given lifecycle state and updated hash.
-   Returns nil if the transition is invalid."
+   Returns nil if the transition is invalid. This helper enforces the local
+   edge table only; it is not by itself authenticated transition evidence."
   [payable new-state]
-  (when (contains? payable-lifecycle-states new-state)
+  (when (contains? (get payable-lifecycle-transitions
+                        (:payable/lifecycle payable) #{}) new-state)
     (let [updated (assoc payable :payable/lifecycle new-state)]
       (assoc updated :payable/hash (payable-hash updated)))))

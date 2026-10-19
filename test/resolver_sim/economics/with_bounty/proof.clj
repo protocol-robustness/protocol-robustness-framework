@@ -80,19 +80,27 @@
    context through the generic evaluator (src), using the fixture extension
    map. Returns the evaluation result map (:status :applied | :skipped | ...)."
   [input]
-  (evaluation/evaluate-with-bounty
-   (merge {:policy review-policy
-           :base-result (:base/result input {})
-           :base-operation-root (:base/result-root input "sha256:stage-a-base")
-           :event-context (:event/context input {})
-           :parameter-context {:fixture/review-bounty-rate 500}
-           :parameter-context-root parameter-context-root
-           :extension-map (fixtures/extension-map)
-           :sealed? true
-           :token :token/usdc
-           :funding-available 1000
-           :adapter-support adapter-support}
-          input)))
+  (let [operation-root (:base/result-root input "sha256:stage-a-base")
+        actor (get-in input [:event/context :event/actor] :recipient/unspecified)
+        token (:token input :token/usdc)]
+    (evaluation/evaluate-with-bounty
+     (merge {:policy review-policy
+             :base-result (:base/result input {})
+             :base-operation-root operation-root
+             :event-context (:event/context input {})
+             :parameter-context {:fixture/review-bounty-rate 500}
+             :parameter-context-root parameter-context-root
+             :extension-map (fixtures/extension-map)
+             :sealed? true
+             :token :token/usdc
+             :funding-available 1000
+             :funding-source-evidence (fixtures/funding-source
+                                       {:operation-root operation-root
+                                        :beneficiary (if (keyword? actor) (subs (str actor) 1) (str actor))
+                                        :token token})
+             :funding-trust-policy fixtures/funding-trust-policy
+             :adapter-support adapter-support}
+            input))))
 
 ;; ── runnable proof ────────────────────────────────────────────────────────
 

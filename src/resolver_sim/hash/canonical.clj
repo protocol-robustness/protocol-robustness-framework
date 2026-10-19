@@ -448,6 +448,8 @@
    :prf-effect-contract-v1 "PRF_EFFECT_CONTRACT_V1"
    :bounty-payable-v1 "BOUNTY_PAYABLE_V1"
    :bounty-payable-backing-v1 "BOUNTY_PAYABLE_BACKING_V1"
+   :bounty-funding-source-v1 "BOUNTY_FUNDING_SOURCE_V1"
+   :obligation-settlement-v1 "PRF_OBLIGATION_SETTLEMENT_V1"
    :review-member-canonical-indices "REVIEW_MEMBER_CANONICAL_INDICES_V1"
    :review-member-canonical-indices-entries "REVIEW_MEMBER_CANONICAL_INDICES_ENTRIES_V1"
    :pool-availability-v2 "POOL_AVAILABILITY_V2"
@@ -2938,6 +2940,19 @@ name (an alias)."
                        :backing/kind :backing/lifecycle :backing/context}
     :intent/excludes #{:backing/hash :runtime-values :functions}
     :intent/projection-fn project-bounty-payable-backing
+    :intent/version 1}
+
+   :bounty-funding-source-v1
+   {:intent/name :bounty-funding-source-v1
+    :intent/domain-tag "BOUNTY_FUNDING_SOURCE_V1"
+    :intent/description "Authority-signed source statement binding a bounty reserve balance to asset, account, operation, beneficiary and parameter context"
+    :intent/includes #{:funding/schema-version :funding/source-id :funding/source-kind
+                       :funding/account :funding/token :funding/available
+                       :funding/operation-root :funding/beneficiary
+                       :funding/parameter-context-root :funding/parameter-address
+                       :funding/evidence-class}
+    :intent/excludes #{:funding/source-root :signature :runtime-values :functions}
+    :intent/projection-fn project-identity
     :intent/version 1}
 
    :with-bounty-policy-v1

@@ -83,6 +83,7 @@
     :effect/schema-valid? :violation/effect-schema-invalid
     :amount/bounded? :violation/bounty-amount-out-of-bounds
     :funding/available? :violation/insufficient-bounty-funding
+    :funding/reservation-matches? :violation/bounty-funding-reservation-mismatch
     :obligation-id/consistent? :violation/obligation-id-mismatch))
 
 ;; ── recomputable creation preconditions (verifier-independent of builder) ─
@@ -95,13 +96,60 @@
        (or (nil? declared-maximum) (<= amount declared-maximum))))
 
 (defn funding-available?
-  "Recomputable funding precondition. :declared-reserve requires a committed
-   available amount >= the bounty amount; other funding sources are not
-   balance-gated in v1."
+  "Fail-closed funding precondition. V1 can only model a declared reserve, and
+   only when a non-negative committed available balance covers the award.
+   :base/gross and :external-sponsor have no authenticated funding adapter and
+   therefore cannot be treated as available or backed. This amount is a model
+   input; it is not proof of external custody."
   [funding-source amount funding-available]
   (case funding-source
-    :declared-reserve (and (some? funding-available) (>= funding-available amount))
-    true))
+    :declared-reserve (and (integer? amount) (not (neg? amount))
+                           (integer? funding-available)
+                           (not (neg? funding-available))
+                           (>= funding-available amount))
+    false))
+
+(defn funding-reservation-matches?
+  "Require one and only one locally executable reservation for an obligation.
+   Reservation must bind token, amount and declared reserve account. External
+   custody or sponsor admission is intentionally unsupported in v1."
+  [effects obligation]
+  (let [funding (:obligation/funding obligation)
+        source (:source funding)
+        obligation-token (:obligation/token obligation)
+        obligation-amount (:obligation/amount obligation)
+        expected-account (or (:account funding) :bounty-reserve)
+        address-string (fn [v] (if (keyword? v) (subs (str v) 1) (str v)))
+        owner-address (address-string (:obligation/owner obligation))
+        obligation-index (first (keep-indexed
+                                 (fn [i effect]
+                                   (when (= :prf.effect/obligation-create.v2
+                                            (:effect/contract effect)) i)) effects))
+        reservation-index (first (keep-indexed
+                                  (fn [i effect]
+                                    (when (contains? #{:prf.effect/custody-held-adjustment.v1
+                                                       :prf.effect/custody-held-adjustment.v2}
+                                                     (:effect/contract effect)) i)) effects))
+        reservations (filter #(contains? #{:prf.effect/custody-held-adjustment.v1
+                                           :prf.effect/custody-held-adjustment.v2}
+                                         (:effect/contract %)) effects)]
+    (and (= :declared-reserve source)
+         (= 1 (count reservations))
+         (some? obligation-index)
+         (some? reservation-index)
+         (< obligation-index reservation-index)
+         (let [reservation (first reservations)]
+           (and (= "add-held" (or (:effect/action reservation)
+                                  (when (= :add (:effect/direction reservation)) "add-held")))
+                (= expected-account (:effect/account reservation))
+                (= obligation-token (:effect/token reservation))
+                (= obligation-amount (:effect/amount reservation))
+                (= owner-address (address-string (:owner/address reservation)))
+                (= (:parameter-address funding)
+                   (let [address (:parameter/address reservation)]
+                     (if (map? address) (:parameter/path address) address)))
+                (= (:parameter-context-root funding)
+                   (get-in reservation [:parameter/context :parameter-context/root])))))))
 
 (defn obligation-id-consistent?
   "Recomputable obligation-id precondition: the committed obligation id matches
@@ -117,6 +165,7 @@
     {:effect/schema-valid? (:valid? (effects/validate-effects effects))
      :amount/bounded? (amount-bounded? amount declared-maximum)
      :funding/available? (boolean (funding-available? funding-source amount funding-available))
+     :funding/reservation-matches? (boolean (funding-reservation-matches? effects obligation))
      :obligation-id/consistent? (boolean (obligation-id-consistent? obligation))}))
 
 ;; ── plan identity ─────────────────────────────────────────────────────────
@@ -155,7 +204,7 @@
      :effect-schema-roots       — effect vocabulary roots in force
      :declared-maximum          — optional amount cap (committed)
      :funding-available         — declared funding available for the funding
-                                  source (committed; recomputable precondition)
+                                  source (must match authenticated source evidence)
 
    Fails closed (no mutation) when any creation precondition is false:
    effect schema validity, amount bounds, funding availability, and
@@ -164,7 +213,7 @@
   [{:keys [policy-root base-operation-root base-result-root base-plan-root
            extensions-resolution-root adapter
            effects effect-schema-roots
-           declared-maximum funding-available context]}]
+           declared-maximum funding-available funding-evidence context]}]
   (let [obligation (obligation-effect effects)
         amount (obligation-amount effects)
         obligation-id (when obligation (:obligation/id obligation))
@@ -195,7 +244,8 @@
                                                 (no-duplicate-creation-key obligation))
               :plan/preconditions preconditions
               :plan/idempotency-key [:with-bounty/obligations obligation-id]
-              :plan/context (or context {})}]
+              :plan/context (assoc (or context {})
+                                   :funding/source-evidence funding-evidence)}]
     (if (seq failures)
       {:status :invalid :violations (vec failures)}
       (let [plan (assoc base :plan/hash (plan-hash base))]
@@ -236,6 +286,9 @@
 
                    (nil? (:plan/obligation-id plan))
                    (conj :missing-obligation-id)
+
+                   (not (map? (get-in plan [:plan/context :funding/source-evidence])))
+                   (conj :missing-authenticated-funding-evidence)
 
                    (not (map? (:plan/preconditions plan)))
                    (conj :missing-preconditions)

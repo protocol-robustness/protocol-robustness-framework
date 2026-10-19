@@ -30,10 +30,15 @@
           :extension-map (fixtures/extension-map)
           :sealed? true
           :token :token/usdc
-          :funding-available 1000
+                          :funding-available 1000
+                          :funding-source-evidence (fixtures/funding-source {})
+                          :funding-trust-policy fixtures/funding-trust-policy
           :adapter-support sew-wb/adapter-support})]
     (is (= :applied status) (pr-str violations))
     plan))
+
+(defn- apply-plan [plan world]
+  (sew-wb/apply-with-bounty-plan plan world fixtures/funding-trust-policy))
 
 (defn- obligation-id
   [plan]
@@ -41,7 +46,7 @@
 
 (deftest preflight-passes-on-valid-plan
   (let [plan (evaluated-plan)]
-    (is (:valid? (sew-wb/preflight plan)))))
+    (is (:valid? (sew-wb/preflight plan fixtures/funding-trust-policy)))))
 
 (deftest preflight-fails-on-unsupported-effect-before-mutation
   (let [plan (evaluated-plan)
@@ -55,17 +60,17 @@
                                                                  (conj (:plan/effects plan)
                                                                        unsupported)))))
         world-before {}]
-    (is (not (:valid? (sew-wb/preflight tampered))))
+    (is (not (:valid? (sew-wb/preflight tampered fixtures/funding-trust-policy))))
     (is (thrown-with-msg?
          clojure.lang.ExceptionInfo
          #"preflight failed"
-         (sew-wb/apply-with-bounty-plan tampered world-before)))
-    (is (= world-before (try (sew-wb/apply-with-bounty-plan tampered world-before)
+         (apply-plan tampered world-before)))
+    (is (= world-before (try (apply-plan tampered world-before)
                              (catch clojure.lang.ExceptionInfo _ world-before))))))
 
 (deftest apply-creates-payable-backing-claimable-and-custody
   (let [plan (evaluated-plan)
-        result (sew-wb/apply-with-bounty-plan plan {})
+        result (apply-plan plan {})
         world (:world result)]
     (is (false? (:idempotent? result)))
     ;; reserve custody via the canonical held path
@@ -76,7 +81,7 @@
     ;; payable + backing
     (is (= 1 (count (:with-bounty/payables world))))
     (is (= 1 (count (:with-bounty/backings world))))
-    (is (= :pending-backing (get-in (first (vals (:with-bounty/payables world)))
+    (is (= :backed (get-in (first (vals (:with-bounty/payables world)))
                                     [:payable/lifecycle])))
     (is (= 64 (count (get-in (first (vals (:with-bounty/payables world)))
                              [:payable/hash]))))
@@ -91,10 +96,86 @@
     (is (= (first (:plan/effect-roots plan)) (:effect-root (:transition result))))
     (is (:valid? (verification/verify-transition-evidence (:transition result))))))
 
+(deftest observed-direct-payout-retains-and-replays-canonical-settlement
+  (let [plan (evaluated-plan)
+        world (:world (apply-plan plan {}))
+        payable (get-in world [:with-bounty/payables (:plan/obligation-id plan)])
+        backing (some #(when (= (:payable/hash payable) (:backing/payable-root %)) %)
+                      (vals (:with-bounty/backings world)))
+        amount (:payable/amount payable)
+        receipt (fixtures/payout-receipt payable backing)
+        observation (fixtures/chain-observation
+                     {:observation/payable-id (:payable/id payable)
+                      :observation/transaction-hash
+                      (str "tx:fixture:" (:payable/id payable))
+                      :observation/asset (get-in backing [:backing/context :funding/token])
+                      :observation/operation-root
+                      (get-in backing [:backing/context :funding/operation-root])
+                      :observation/funding-source-root
+                      (get-in backing [:backing/context :funding/source-root])
+                      :observation/prf-funding-source-root
+                      (get-in backing [:backing/context :funding/source-root])
+                      :observation/beneficiary (:payable/beneficiary payable)
+                      :observation/amount amount
+                      :observation/reserve-before 1000
+                      :observation/reserve-after (- 1000 amount)
+                      :observation/beneficiary-before 5
+                      :observation/beneficiary-after (+ 5 amount)})
+        result (sew-wb/apply-observed-direct-payout
+                world (:payable/id payable) receipt fixtures/payout-trust-policy
+                observation fixtures/chain-observer-trust-policy
+                {:chain-id 31337
+                 :contract "0x000000000000000000000000000000000000b017"
+                 :chain-instance-root (str "sha256:" (apply str (repeat 64 "b")))
+                 :genesis-hash (str "0x" (apply str (repeat 64 "0")))
+                 :contract-code-sha256 (str "sha256:" (apply str (repeat 64 "a")))
+                 :observation-source-id "test-rpc-observer"
+                 :asset :token/usdc
+                 :funding-source-root
+                 (get-in backing [:backing/context :funding/source-root])})
+        settled-world (:world result)]
+    (is (= "obligation-settlement.v1"
+           (get-in settled-world [:with-bounty/settlements (:payable/id payable)
+                                  :settlement :settlement/schema])))
+    (is (:valid? (verification/verify-application-world
+                  settled-world
+                  {:funding-trust-policy fixtures/funding-trust-policy
+                   :payout-trust-policy fixtures/payout-trust-policy
+                   :observation-trust-policy fixtures/chain-observer-trust-policy
+                   :expected-settlement-context
+                   {:chain-id 31337
+                    :contract "0x000000000000000000000000000000000000b017"
+                    :chain-instance-root (str "sha256:" (apply str (repeat 64 "b")))
+                    :genesis-hash (str "0x" (apply str (repeat 64 "0")))
+                    :contract-code-sha256 (str "sha256:" (apply str (repeat 64 "a")))
+                    :observation-source-id "test-rpc-observer"
+                    :asset :token/usdc
+                    :funding-source-root
+                    (get-in backing [:backing/context :funding/source-root])}
+                   :require-settlement-evidence? true})))
+    (is (not (:valid? (verification/verify-application-world
+                       (update-in settled-world
+                                  [:with-bounty/settlements (:payable/id payable)
+                                   :settlement :settlement/paid] dec)
+                       {:funding-trust-policy fixtures/funding-trust-policy
+                        :payout-trust-policy fixtures/payout-trust-policy
+                        :observation-trust-policy fixtures/chain-observer-trust-policy
+                        :expected-settlement-context
+                        {:chain-id 31337
+                         :contract "0x000000000000000000000000000000000000b017"
+                         :chain-instance-root (str "sha256:" (apply str (repeat 64 "b")))
+                         :genesis-hash (str "0x" (apply str (repeat 64 "0")))
+                         :contract-code-sha256 (str "sha256:" (apply str (repeat 64 "a")))
+                         :observation-source-id "test-rpc-observer"
+                         :asset :token/usdc
+                         :funding-source-root
+                         (get-in backing [:backing/context :funding/source-root])}
+                        :require-settlement-evidence? true}))))))
+
 (deftest retry-is-idempotent-without-duplicate-state
   (let [plan (evaluated-plan)
-        first-result (sew-wb/apply-with-bounty-plan plan {})
-        second-result (sew-wb/apply-with-bounty-plan plan (:world first-result))
+        first-result (apply-plan plan {})
+        second-result (apply-plan plan (:world first-result))
         world (:world second-result)]
     (is (true? (:idempotent? second-result)))
     (is (= (:world first-result) (:world second-result)))
@@ -112,12 +193,12 @@
     (is (thrown-with-msg?
          clojure.lang.ExceptionInfo
          #"conflicting application"
-         (sew-wb/apply-with-bounty-plan plan world)))
+         (apply-plan plan world)))
     (is (= "sha256:conflicting" (get-in world (:plan/idempotency-key plan))))))
 
 (deftest reserve-conservation-holds
   (let [plan (evaluated-plan)
-        result (sew-wb/apply-with-bounty-plan plan {})
+        result (apply-plan plan {})
         world (:world result)
         backing (first (vals (:with-bounty/backings world)))
         payable (first (vals (:with-bounty/payables world)))]
@@ -133,15 +214,16 @@
 
 (deftest conflicting-plan-for-same-obligation-fails
   (let [plan (evaluated-plan)
-        tampered (assoc plan :plan/context {:note "tampered"})
+        tampered (assoc plan :plan/context
+                        (assoc (:plan/context plan) :note "tampered"))
         tampered (assoc tampered :plan/hash (wb-plan/plan-hash tampered))
-        world (:world (sew-wb/apply-with-bounty-plan plan {}))]
+        world (:world (apply-plan plan {}))]
     (is (not= (:plan/hash plan) (:plan/hash tampered)))
     (is (= (:plan/obligation-id plan) (:plan/obligation-id tampered)))
     (is (thrown-with-msg?
          clojure.lang.ExceptionInfo
          #"conflicting application"
-         (sew-wb/apply-with-bounty-plan tampered world)))))
+         (apply-plan tampered world)))))
 
 (deftest different-obligation-same-duplicate-key-rejected
   (let [plan (evaluated-plan)
@@ -157,9 +239,12 @@
                 :sealed? true
                 :token :token/eth
                 :funding-available 1000
+                :funding-source-evidence (fixtures/funding-source
+                                          {:token :token/eth})
+                :funding-trust-policy fixtures/funding-trust-policy
                 :adapter-support sew-wb/adapter-support})
         other-plan (:plan other)
-        world (:world (sew-wb/apply-with-bounty-plan plan {}))]
+        world (:world (apply-plan plan {}))]
     (is (= :applied (:status other)))
     (is (not= (:plan/obligation-id plan) (:plan/obligation-id other-plan)))
     (is (= (:plan/no-duplicate-creation-key plan)
@@ -167,29 +252,29 @@
     (is (thrown-with-msg?
          clojure.lang.ExceptionInfo
          #"duplicate obligation"
-         (sew-wb/apply-with-bounty-plan other-plan world)))))
+         (apply-plan other-plan world)))))
 
 (deftest idempotent-replay-with-drifted-state-fails
   (let [plan (evaluated-plan)
-        world (:world (sew-wb/apply-with-bounty-plan plan {}))
+        world (:world (apply-plan plan {}))
         drifted (update world :with-bounty/backings dissoc (str "backing-" (:plan/obligation-id plan)))]
     (is (thrown-with-msg?
          clojure.lang.ExceptionInfo
          #"drifted state"
-         (sew-wb/apply-with-bounty-plan plan drifted)))))
+         (apply-plan plan drifted)))))
 
 (deftest idempotent-replay-requires-exact-custody-reservation
   (let [plan (evaluated-plan)
-        world (:world (sew-wb/apply-with-bounty-plan plan {}))
+        world (:world (apply-plan plan {}))
         drifted (assoc-in world [:held-adjustments 0 :held/reason] :other-reservation)]
     ;; A held-adjustment count alone must not permit a mismatched reservation to
     ;; satisfy a replay of the committed plan.
     (is (thrown-with-msg?
          clojure.lang.ExceptionInfo
          #"drifted state"
-         (sew-wb/apply-with-bounty-plan plan drifted)))))
+         (apply-plan plan drifted)))))
 
-(deftest mid-application-failure-is-atomic
+(deftest duplicate-reservation-fails-before-mutation
   (let [base (evaluated-plan)
         obligation (first (filter #(= :prf.effect/obligation-create.v2 (:effect/contract %))
                                   (:plan/effects base)))
@@ -213,19 +298,20 @@
                       :adapter sew-wb/adapter-support
                       :effects [custody-add obligation custody-sub]
                       :effect-schema-roots (:plan/effect-schema-roots base)
-                      :funding-available 1000})
+                      :funding-available 1000
+                      :funding-evidence (get-in base [:plan/context :funding/source-evidence])})
         tampered (:plan plan-result)
         world-before {}]
-    (is (= :valid (:status plan-result)))
+    (is (= :invalid (:status plan-result)))
     (is (thrown? clojure.lang.ExceptionInfo
-                 (sew-wb/apply-with-bounty-plan tampered world-before)))
+                 (apply-plan tampered world-before)))
     (is (= world-before
-           (try (sew-wb/apply-with-bounty-plan tampered world-before)
+           (try (apply-plan tampered world-before)
                 (catch clojure.lang.ExceptionInfo _ world-before))))))
 
 (deftest transition-binds-exact-artifacts
   (let [plan (evaluated-plan)
-        result (sew-wb/apply-with-bounty-plan plan {})
+        result (apply-plan plan {})
         world (:world result)
         transition (:transition result)
         adjustment-id (get-in transition [:custody/adjustment-roots 0 :held-adjustment/id])]
@@ -242,8 +328,9 @@
 
 (deftest claimable-derives-from-backed-payable
   (let [plan (evaluated-plan)
-        world (:world (sew-wb/apply-with-bounty-plan plan {}))]
-    (is (:valid? (verification/verify-application-world world)))
+        world (:world (apply-plan plan {}))]
+    (is (:valid? (verification/verify-application-world
+                  world {:funding-trust-policy fixtures/funding-trust-policy})))
     (is (not (:valid? (verification/verify-application-world
                        (update world :with-bounty/payables dissoc (:plan/obligation-id plan))))))
     (is (not (:valid? (verification/verify-application-world
@@ -275,13 +362,53 @@
                           :plan/hash (wb-plan/plan-hash
                                       (assoc plan :plan/effects effects)))
           world-before {}
-          result (sew-wb/preflight tampered)]
+          result (sew-wb/preflight tampered fixtures/funding-trust-policy)]
       (is (not (:valid? result)))
       (is (some #(= :violation/unsupported-custody-action-for-adapter (:violation/id %))
                 (:violations result)))
       (is (thrown-with-msg?
            clojure.lang.ExceptionInfo
            #"preflight failed"
-           (sew-wb/apply-with-bounty-plan tampered world-before)))
-      (is (= world-before (try (sew-wb/apply-with-bounty-plan tampered world-before)
+           (apply-plan tampered world-before)))
+      (is (= world-before (try (apply-plan tampered world-before)
                                (catch clojure.lang.ExceptionInfo _ world-before)))))))
+
+(deftest direct-payout-requires-authenticated-full-payment-and-is-replay-safe
+  (let [plan (evaluated-plan)
+        funded-world (:world (apply-plan plan {}))
+        payable (get-in funded-world [:with-bounty/payables (:plan/obligation-id plan)])
+        backing (first (vals (:with-bounty/backings funded-world)))
+        receipt (fixtures/payout-receipt payable backing)
+        settled (sew-wb/apply-verified-direct-payout
+                 funded-world (:payable/id payable) receipt fixtures/payout-trust-policy)
+        world (:world settled)]
+    (is (= :settled (get-in world [:with-bounty/payables (:payable/id payable)
+                                   :payable/lifecycle])))
+    (is (= :consumed (get-in world [:with-bounty/backings (:backing/id backing)
+                                    :backing/lifecycle])))
+    (is (zero? (get-in world [:claimable-v2 (:payable/id payable)
+                              :liability/bounty-payable (:payable/beneficiary payable)])))
+    (is (= 1 (count (get-in world [:with-bounty/payout-events (:payable/id payable)]))))
+    (is (zero? (get-in world [:total-held :token/usdc])))
+    (is (= 2 (count (:held-adjustments world))))
+    (is (:valid? (verification/verify-application-world
+                  world {:funding-trust-policy fixtures/funding-trust-policy
+                         :payout-trust-policy fixtures/payout-trust-policy})))
+    (is (thrown? clojure.lang.ExceptionInfo
+                 (sew-wb/apply-verified-direct-payout
+                  world (:payable/id payable) receipt fixtures/payout-trust-policy)))))
+
+(deftest direct-payout-rejects-forgery-untrusted-authority-and-partial-payment
+  (let [plan (evaluated-plan)
+        world (:world (apply-plan plan {}))
+        payable (get-in world [:with-bounty/payables (:plan/obligation-id plan)])
+        backing (first (vals (:with-bounty/backings world)))
+        receipt (fixtures/payout-receipt payable backing)
+        tampered (assoc receipt :payout/amount (dec (:payout/amount receipt)))
+        partial (fixtures/payout-receipt payable backing {:amount (dec (:payable/amount payable))})]
+    (doseq [[bad bad-trust] [[tampered fixtures/payout-trust-policy]
+                             [receipt {:trusted-keys []}]
+                             [partial fixtures/payout-trust-policy]]]
+      (is (thrown? clojure.lang.ExceptionInfo
+                   (sew-wb/apply-verified-direct-payout
+                    world (:payable/id payable) bad bad-trust))))))

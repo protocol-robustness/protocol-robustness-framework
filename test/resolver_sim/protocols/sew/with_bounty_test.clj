@@ -2,6 +2,8 @@
   "Focused adapter regression tests for with-bounty idempot(ns resolver-sim.protocols.sew.with-bounty-test)ent replay."
   (:require [clojure.test :refer [deftest is]]
             [resolver-sim.economics.with-bounty.proof :as proof]
+            [resolver-sim.economics.with-bounty.fixtures :as fixtures]
+            [resolver-sim.economics.with-bounty.verification :as verification]
             [resolver-sim.protocols.sew.with-bounty :as sut]))
 
 (defn- applied-plan []
@@ -13,18 +15,28 @@
 
 (defn- drift-violation [plan world]
   (try
-    (sut/apply-with-bounty-plan plan world)
+    (sut/apply-with-bounty-plan plan world fixtures/funding-trust-policy)
     nil
     (catch clojure.lang.ExceptionInfo e
       (:violation/id (ex-data e)))))
 
+(defn- plan-for-operation [root]
+  (:plan (proof/evaluate-bounty
+          {:event/context {:review/finalised? true
+                           :event/actor :researcher/alice}
+           :base/result-root root
+           :base/result {:resolved-amount 10000}
+           :adapter-support sut/adapter-support})))
+
 (deftest idempotent-replay-rejects-fabricated-or-mutated-artifacts
   (let [plan (applied-plan)
-        first-application (sut/apply-with-bounty-plan plan {})
+        first-application (sut/apply-with-bounty-plan plan {} fixtures/funding-trust-policy)
         world (:world first-application)
         payable-id (:plan/obligation-id plan)
         backing-id (str "backing-" payable-id)]
-    (is (:idempotent? (sut/apply-with-bounty-plan plan world)))
+    (is (:idempotent? (sut/apply-with-bounty-plan plan world fixtures/funding-trust-policy)))
+    (is (:valid? (verification/verify-application-world
+                  world {:funding-trust-policy fixtures/funding-trust-policy})))
     (is (= :violation/with-bounty-state-drift
            (drift-violation plan
                             (assoc-in world [:with-bounty/payables payable-id
@@ -39,3 +51,25 @@
                             (assoc-in world [:held-artifacts "held-adjustment-0"
                                              :artifact/hash]
                                       "sha256:fabricated"))))))
+
+(deftest declared-reserve-cannot-be-overcommitted-across-plans
+  (let [first-plan (plan-for-operation "sha256:operation-1")
+        second-plan (plan-for-operation "sha256:operation-2")
+        third-plan (plan-for-operation "sha256:operation-3")
+        first-world (:world (sut/apply-with-bounty-plan first-plan {} fixtures/funding-trust-policy))
+        world (:world (sut/apply-with-bounty-plan second-plan first-world fixtures/funding-trust-policy))]
+    (is (= :violation/bounty-reserve-overcommitted
+           (drift-violation third-plan world)))))
+
+(deftest pseudonymous-researcher-can-receive-a-modelled-payable
+  (let [evaluation (proof/evaluate-bounty
+                    {:event/context {:review/finalised? true
+                                     :event/actor :researcher/pseudonym-7}
+                     :base/result {:resolved-amount 10000}
+                     :adapter-support sut/adapter-support})
+        world (:world (sut/apply-with-bounty-plan (:plan evaluation) {} fixtures/funding-trust-policy))
+        payable (first (vals (:with-bounty/payables world)))]
+    (is (= :applied (:status evaluation)))
+    (is (= "researcher/pseudonym-7" (:payable/beneficiary payable)))
+    (is (:valid? (verification/verify-application-world
+                  world {:funding-trust-policy fixtures/funding-trust-policy})))))
