@@ -41,18 +41,23 @@ def snapshot_scenario(scenario_id, output_path="evidence/snapshot.png"):
         if not root.evaluate("element => element.open"):
             root.locator(":scope > summary").click()
         wanted = normalized_scenario_id(scenario_id)
-        matches = [candidate for candidate in page.locator(".scenario-snapshot-item").all()
-                   if normalized_scenario_id(candidate.get_attribute("data-scenario-id")) == wanted]
+        catalogue = page.locator(".scenario-snapshot-item")
+        scenario_ids = catalogue.evaluate_all(
+            "elements => elements.map(element => element.getAttribute('data-scenario-id'))")
+        matches = [(index, scenario_id) for index, scenario_id in enumerate(scenario_ids)
+                   if normalized_scenario_id(scenario_id) == wanted]
         if not matches:
             raise RuntimeError(f"Scenario {scenario_id!r} is not present in the pinned scenario catalogue")
         if len(matches) > 1:
-            ids = [candidate.get_attribute("data-scenario-id") for candidate in matches]
+            ids = [scenario_id for _, scenario_id in matches]
             raise RuntimeError(f"Scenario ID {scenario_id!r} is ambiguous after normalization: {ids}")
-        card = matches[0]
+        card_index, matched_id = matches[0]
+        card = catalogue.nth(card_index)
         if not card.evaluate("element => element.open"):
             card.locator("summary").click()
         card.wait_for(state="visible", timeout=60000)
-        if normalized_scenario_id(card.get_attribute("data-scenario-id")) != wanted:
+        captured_id = card.evaluate("element => element.getAttribute('data-scenario-id')")
+        if captured_id != matched_id or normalized_scenario_id(captured_id) != wanted:
             raise RuntimeError(f"Workbench captured a different scenario than {scenario_id!r}")
         
         # Allow time for data-binding and animations to settle
