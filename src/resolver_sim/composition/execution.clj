@@ -120,9 +120,9 @@
         (if (seq mismatches)
           (reject :violation/descriptor-root-mismatch {:mismatches mismatches})
           (let [initial {:value input-value :effects [] :nodes [] :status :running}
-                {:keys [value effects nodes status]}
+                {:keys [value effects nodes status violation]}
                 (reduce (fn [acc node]
-                          (if (= :short-circuited (:status acc))
+                          (if (contains? #{:short-circuited :rejected} (:status acc))
                             (reduced acc)
                             (let [entry (get extension-map (:capability-key node))
                                   result (ext-exec/invoke-capability
@@ -142,23 +142,32 @@
                                                  :amount amount
                                                  :output value-out
                                                  :effects node-effects}]
-                              (-> acc
-                                  (update :effects into node-effects)
-                                  (update :nodes conj node-evidence)
-                                  (assoc :value value-out)
-                                  (assoc :status (if (:short-circuit? result)
-                                                   :short-circuited
-                                                   :running))))))
+                              (if (and (:short-circuit? result)
+                                       (not (:may-short-circuit? node)))
+                                (assoc acc
+                                       :status :rejected
+                                       :violation {:violation/id
+                                                   :violation/unauthorized-short-circuit
+                                                   :details {:node/id (:node/id node)}})
+                                (-> acc
+                                    (update :effects into node-effects)
+                                    (update :nodes conj node-evidence)
+                                    (assoc :value value-out)
+                                    (assoc :status (if (:short-circuit? result)
+                                                     :short-circuited
+                                                     :running)))))))
                         initial
                         nodes)
                 final-status (if (= :short-circuited status) :short-circuited :completed)]
-            {:execution/status final-status
-             :execution/plan-root (:plan/root plan)
-             :execution/compiler-id (:plan/compiler-id plan)
-             :execution/compiler-version (:plan/compiler-version plan)
-             :execution/value value
-             :execution/effects (vec effects)
-             :execution/nodes (vec nodes)}))))))
+            (if (= :rejected status)
+              (reject (:violation/id violation) (:details violation))
+              {:execution/status final-status
+               :execution/plan-root (:plan/root plan)
+               :execution/compiler-id (:plan/compiler-id plan)
+               :execution/compiler-version (:plan/compiler-version plan)
+               :execution/value value
+               :execution/effects (vec effects)
+               :execution/nodes (vec nodes)})))))))
 
 (defn execute-combination
   "Compile a combination against a compilation context, then execute the
