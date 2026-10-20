@@ -176,6 +176,7 @@
         wrong-claim (assoc-in refund-claims [bond-id "0xappealer" :workflow/id] 99)
         wrong-claim-case (assoc-in refund-claims [bond-id "0xappealer" :dispute/id] "dispute:1")
         wrong-claim-round (assoc-in refund-claims [bond-id "0xappealer" :appeal/ordinal] 1)
+        wrong-claim-escalation (assoc-in refund-claims [bond-id "0xappealer" :escalation/to-level] 2)
         wrong-case-record (assoc open-record :dispute/id "dispute:1")
         disposed (assoc open-record :bond/status :disposed :bond/remaining-custody 0)]
     (is (= :bond-record-id-mismatch
@@ -192,6 +193,10 @@
            (invalid-code {:appeal-bond/records {bond-id disposed}
                           :appeal-bond/dispositions {(:disposition/id refund-disposition) refund-disposition}
                           :appeal-bond/claims wrong-claim-round})))
+    (is (= :claim-identity-mismatch
+           (invalid-code {:appeal-bond/records {bond-id disposed}
+                          :appeal-bond/dispositions {(:disposition/id refund-disposition) refund-disposition}
+                          :appeal-bond/claims wrong-claim-escalation})))
     (is (= :claim-identity-mismatch
            (invalid-code {:appeal-bond/records {bond-id disposed}
                           :appeal-bond/dispositions {(:disposition/id refund-disposition) refund-disposition}
