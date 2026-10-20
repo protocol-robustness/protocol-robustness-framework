@@ -227,7 +227,8 @@
                                       (when-not (contains? records bond-id)
                                         (map (fn [d] {:code :orphan-disposition
                                                       :disposition/id (:disposition/id d)
-                                                      :bond/id bond-id}) ds)))
+                                                      :bond/id bond-id})
+                                             (sort-by (comp pr-str :disposition/id) ds))))
                                     (stable-entries by-bond))
         errors (vec (concat shape-errors identity-errors record-errors orphan-dispositions))]
     (if (seq errors)

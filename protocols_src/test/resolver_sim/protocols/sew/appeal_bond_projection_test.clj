@@ -326,6 +326,20 @@
                  (:errors (projection/project-appeal-bonds {:appeal-bond/records records})))]
     (is (= (errors records-forward) (errors records-reverse)))))
 
+(deftest ap-orphan-disposition-errors-are-stable-across-map-orderings
+  (let [orphan-a {:disposition/id "disposition:orphan-a:refund"
+                  :bond/id "orphan-bond"}
+        orphan-b {:disposition/id "disposition:orphan-b:refund"
+                  :bond/id "orphan-bond"}
+        forward (array-map (:disposition/id orphan-a) orphan-a
+                           (:disposition/id orphan-b) orphan-b)
+        reverse (array-map (:disposition/id orphan-b) orphan-b
+                           (:disposition/id orphan-a) orphan-a)
+        errors (fn [dispositions]
+                 (:errors (projection/project-appeal-bonds
+                           {:appeal-bond/dispositions dispositions})))]
+    (is (= (errors forward) (errors reverse)))))
+
 (deftest ap-ambiguous-open-bond-selector-fails-closed-deterministically
   (let [bond-id-2 "appeal-bond:0:0xappealer:1"
         record-2 (assoc open-record :bond/id bond-id-2 :appeal/ordinal 1)
