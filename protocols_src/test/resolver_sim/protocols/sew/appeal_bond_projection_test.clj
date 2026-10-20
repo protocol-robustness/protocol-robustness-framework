@@ -92,3 +92,90 @@
             :appeal-bond/dispositions {(:disposition/id refund-disposition) refund-disposition}
             :appeal-bond/claims claims})]
     (is (:valid? p))))
+
+(defn invalid-code [world]
+  (-> (projection/project-appeal-bonds world) :errors first :errors first :code))
+
+(deftest ap-missing-remaining-custody-is-typed-invalid
+  (let [p (projection/project-appeal-bonds
+           {:appeal-bond/records {bond-id (dissoc open-record :bond/remaining-custody)}})]
+    (is (false? (:valid? p)))
+    (is (= :missing-bond-fields (invalid-code
+                                 {:appeal-bond/records {bond-id (dissoc open-record :bond/remaining-custody)}})))))
+
+(deftest ap-rejects-orphan-claims-and-dispositions
+  (let [claim-world {:appeal-bond/records {bond-id open-record}
+                     :appeal-bond/claims {"orphan-bond" {"0xappealer"
+                                                          {:allocated 1 :claimable 1 :claimed 0}}}}
+        disposition {:disposition/id "disposition:orphan:refund" :bond/id "orphan-bond"
+                     :kind :refund :allocations {"0xappealer" 1} :total 1
+                     :cause/type :resolution-reversed :cause/root "root"}
+        disposition-world {:appeal-bond/records {bond-id open-record}
+                           :appeal-bond/dispositions {(:disposition/id disposition) disposition}}]
+    (is (= :orphan-claims (invalid-code claim-world)))
+    (is (= :orphan-disposition (invalid-code disposition-world)))))
+
+(deftest ap-rejects-altered-record-and-disposition-identities
+  (let [wrong-record (assoc open-record :bond/id "another-bond")
+        wrong-disposition (assoc refund-disposition :workflow/id 99)
+        wrong-claim (assoc-in refund-claims [bond-id "0xappealer" :workflow/id] 99)
+        disposed (assoc open-record :bond/status :disposed :bond/remaining-custody 0)]
+    (is (= :bond-record-id-mismatch
+           (invalid-code {:appeal-bond/records {bond-id wrong-record}})))
+    (is (= :disposition-identity-mismatch
+           (invalid-code {:appeal-bond/records {bond-id disposed}
+                          :appeal-bond/dispositions {(:disposition/id wrong-disposition) wrong-disposition}
+                          :appeal-bond/claims refund-claims})))
+    (is (= :claim-identity-mismatch
+           (invalid-code {:appeal-bond/records {bond-id disposed}
+                          :appeal-bond/dispositions {(:disposition/id refund-disposition) refund-disposition}
+                          :appeal-bond/claims wrong-claim})))))
+
+(deftest ap-rejects-overconsumed-claims-and-malformed-numbers
+  (let [disposed (assoc open-record :bond/status :disposed :bond/remaining-custody 0)
+        overclaimed {bond-id {"0xappealer" {:allocated 95 :claimable 50 :claimed 46 :asset :USDC}}}
+        bad-number (assoc open-record :bond/posting-fee "5")]
+    (is (= :claim-entitlement-conservation-failure
+           (invalid-code {:appeal-bond/records {bond-id disposed}
+                          :appeal-bond/dispositions {(:disposition/id refund-disposition) refund-disposition}
+                          :appeal-bond/claims overclaimed})))
+    (is (= :invalid-bond-amounts
+           (invalid-code {:appeal-bond/records {bond-id bad-number}})))
+    (is (= :invalid-bond-amounts
+           (invalid-code {:appeal-bond/records
+                          {bond-id (assoc open-record :bond/posting-fee (+ Long/MAX_VALUE 1N))}})))))
+
+(deftest ap-rejects-inconsistent-conservation-and-invalid-root
+  (let [disposed (assoc open-record :bond/status :disposed :bond/remaining-custody 0)
+        bad-disposition (assoc refund-disposition :total 94)
+        world {:appeal-bond/records {bond-id disposed}
+               :appeal-bond/dispositions {(:disposition/id bad-disposition) bad-disposition}
+               :appeal-bond/claims refund-claims}
+        p (projection/project-appeal-bonds world)]
+    (is (false? (:valid? p)))
+    (is (thrown? clojure.lang.ExceptionInfo (projection/appeal-bond-semantic-root p)))
+    (is (thrown? clojure.lang.ExceptionInfo
+                 (projection/appeal-bond-semantic-root
+                  {:valid? true :appeal-bond/records {bond-id (dissoc open-record :bond/remaining-custody)}
+                   :appeal-bond/dispositions {} :appeal-bond/claims {}})))))
+
+(deftest ap-multibond-recipient-consumption-remains-aggregate-only
+  (let [bond-id-2 "appeal-bond:0:0xappealer:1"
+        record-2 (-> open-record (assoc :bond/id bond-id-2 :appeal/ordinal 1))
+        disposition-2 (-> refund-disposition
+                          (assoc :disposition/id (str "disposition:" bond-id-2 ":refund")
+                                 :bond/id bond-id-2))
+        claims {bond-id {"0xappealer" {:allocated 95 :claimable 95 :claimed 0 :asset :USDC}}
+                bond-id-2 {"0xappealer" {:allocated 95 :claimable 95 :claimed 0 :asset :USDC}}}
+        world {:appeal-bond/records {bond-id (assoc open-record :bond/status :disposed
+                                                    :bond/remaining-custody 0)
+                                     bond-id-2 (assoc record-2 :bond/status :disposed
+                                                      :bond/remaining-custody 0)}
+               :appeal-bond/dispositions {(:disposition/id refund-disposition) refund-disposition
+                                          (:disposition/id disposition-2) disposition-2}
+               :appeal-bond/claims claims}
+        p (projection/project-appeal-bonds world)]
+    (is (:valid? p))
+    (is (= {:valid? true :attribution :aggregate-multi-bond
+            :bond/ids [bond-id bond-id-2]}
+           (projection/query-bond-claim-attribution p 0 "0xappealer")))))
