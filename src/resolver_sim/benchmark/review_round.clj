@@ -231,6 +231,10 @@
   (let [ks (map :review-member/key members)]
     (= (count ks) (count (set ks)))))
 
+(defn- unique-researcher-ids? [members]
+  (let [ids (map :researcher/id members)]
+    (= (count ids) (count (set ids)))))
+
 (defn dense-member-key-set?
   "True when member keys form a dense zero-based set: #{0..n-1}."
   [members]
@@ -290,6 +294,14 @@
       ;; This ensures local member shape is consistent without
       ;; duplicating validation logic.
       (review-member (:researcher/id m) (:role m) :review-member-key (:review-member/key m)))
+    ;; Even anonymous or pseudonymous members need distinct round-local IDs.
+    ;; Reusing a generic marker such as "anonymous" merges their identity in
+    ;; position, certificate, and reward joins.
+    (when-not (and (every? :researcher/id members)
+                   (unique-researcher-ids? members))
+      (throw (ex-info "Review-round members require distinct researcher IDs"
+                      {:reason :duplicate-or-missing-researcher-id
+                       :researcher-ids (mapv :researcher/id members)})))
     (let [keyed? (every? :review-member/key members)]
       (when (and keyed? (not (unique-member-keys? members)))
         (throw (ex-info "Duplicate review-member keys"
@@ -362,6 +374,7 @@
          (contains? review-statuses (:review-round/status round :open))
          (= 3 (count members))
          (every? :researcher/id members)
+         (unique-researcher-ids? members)
          (every? (fn [m] (contains? member-roles (:role m))) members)
          (or (not (governed-round? round))
              (and (every? #(contains? round %) governed-round-fields)
@@ -412,6 +425,9 @@
           (swap! errors conj "member missing :researcher/id"))
         (when-not (contains? member-roles (:role m))
           (swap! errors conj (str "invalid role: " (:role m) " in member"))))
+      (when (and (every? :researcher/id members)
+                 (not (unique-researcher-ids? members)))
+        (swap! errors conj "duplicate :researcher/id in review-round members"))
       (when keyed?
         (when-not (every? :review-member/key members)
           (swap! errors conj "mixed keyed and unkeyed members"))

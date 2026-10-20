@@ -6,6 +6,9 @@
             [resolver-sim.hash.canonical :as hc]
             [resolver-sim.shortfall.context-v2 :as context-v2]
             [resolver-sim.shortfall.reserve-observation :as observation]
+            [resolver-sim.shortfall.reserve-binding :as reserve-binding-v1]
+            [resolver-sim.shortfall.reserve-observation-v2 :as observation-v2]
+            [resolver-sim.shortfall.reserve-binding-v2 :as reserve-binding-v2]
             [resolver-sim.shortfall.context :as shortfall]))
 
 (def ^:const schema-version "prf/onchain-shortfall-allocation-binding.v1")
@@ -42,15 +45,40 @@
     (when (seq (set/difference (set (keys input)) allowed))
       (throw (ex-info "unknown Shortfall allocation binding field" {})))
     (sha-root! :reserve-binding/root (:binding/root reserve-binding))
-    (let [validated-observation (observation/build-observation reserve-observation)]
+    (let [validated-binding
+          (case (:schema-version reserve-binding)
+            "prf/onchain-shortfall-reserve-binding.v1"
+            (reserve-binding-v1/build-binding {:reserve-observation reserve-observation
+                                                :shortfall-context (select-keys shortfall-context
+                                                                               [:shortfall/profile :asset/root :allocation-context-root
+                                                                                :candidates :availability/source :availability/root
+                                                                                :available-amount :allocation-policy :temporal-basis-root])
+                                                :operation-id operation-id})
+            "prf/onchain-shortfall-reserve-binding.v2"
+            (reserve-binding-v2/build-binding {:reserve-observation reserve-observation
+                                               :shortfall-context (select-keys shortfall-context
+                                                                              [:shortfall/profile :asset/root :allocation-context-root
+                                                                               :candidates :availability/source :availability/root
+                                                                               :available-amount :allocation-policy :temporal-basis-root])
+                                               :operation-id operation-id})
+            (throw (ex-info "unsupported reserve binding schema"
+                            {:schema-version (:schema-version reserve-binding)})))
+          validated-observation
+          (case (:schema-version reserve-binding)
+            "prf/onchain-shortfall-reserve-binding.v1"
+            (observation/build-observation reserve-observation)
+            "prf/onchain-shortfall-reserve-binding.v2"
+            (observation-v2/build-observation reserve-observation))]
+      (when-not (= (:binding/root reserve-binding) (:binding/root validated-binding))
+        (throw (ex-info "reserve binding root does not match its validated inputs"
+                        {:expected (:binding/root validated-binding)
+                         :actual (:binding/root reserve-binding)})))
       (when-not (= (:reserve-observation/root reserve-binding)
                    (:observation/root validated-observation))
         (throw (ex-info "reserve binding observation witness mismatch" {})))
-      (when-not (= (:asset/root shortfall-context)
-                   (:asset/root validated-observation))
+      (when-not (= (:asset/root shortfall-context) (:asset/root validated-observation))
         (throw (ex-info "Shortfall asset root does not match reserve observation" {})))
-      (when-not (= (:operation-id reserve-binding)
-                   (:operation-id validated-observation))
+      (when-not (= (:operation-id reserve-binding) (:operation-id validated-observation))
         (throw (ex-info "reserve binding operation mismatch" {}))))
     (root! :realized-statement/root (:statement/root realized-statement))
     (when-not (and (string? operation-id)

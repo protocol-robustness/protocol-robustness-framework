@@ -83,3 +83,9 @@
           "suites"
           "resources"]
          sut/default-source-roots)))
+
+(deftest jj-dirty-detection-uses-diff-output-not-status-prose
+  (let [dirty? (ns-resolve 'resolver-sim.forensic.source-hash 'jj-diff-dirty?)]
+    (is (false? (dirty? {:exit 0 :out ""})))
+    (is (true? (dirty? {:exit 0 :out "M src/example.clj\n"})))
+    (is (true? (dirty? {:exit 1 :out ""})))))

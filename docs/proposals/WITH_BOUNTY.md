@@ -254,9 +254,13 @@ payment deltas and recomputes the settlement root. A retained observation
 signature is still an attestation by its configured observer: this verifier
 does not by itself query a node or establish consensus inclusion/finality. An
 optional JSON-RPC verifier now independently fetches the transaction receipt,
-checks the exact `BountyPaid` event and canonical block identity, and can require
-that the configured endpoint's `finalized` head covers the receipt. Its result is
-explicitly an RPC endpoint attestation, not a consensus proof or light client.
+checks the exact `BountyPaid` event and canonical block identity, and verifies
+that the configured endpoint's sampled `latest` or `finalized` head descends
+from the receipt block. It returns the sampled head number and hash as the
+`rpc-included-head-attestation` or `rpc-finalized-head-attestation`, so the
+observation can be retained. Local qualification can require the included-head
+attestation without requiring public-chain consensus finality. Both results are
+RPC endpoint attestations, not consensus proofs or light clients.
 The retained settlement binds chain-instance root, genesis hash, contract
 runtime-code digest and observation-source identifier. Local qualification also
 walks parent links from the payout block to the configured genesis and replays
