@@ -214,6 +214,9 @@
                                         :bond/status :disposed :bond/remaining-custody 0))
         cross-bond (assoc refund-disposition :bond/id bond-id-2)
         cross-round (assoc refund-disposition :appeal/ordinal 1)
+        cross-escalation-round (assoc refund-disposition
+                                      :escalation/from-level 99
+                                      :escalation/to-level 100)
         records {bond-id (assoc open-record :bond/status :disposed :bond/remaining-custody 0)
                  bond-id-2 record-2}]
     (let [p (projection/project-appeal-bonds
@@ -227,6 +230,12 @@
            (invalid-code {:appeal-bond/records {bond-id (assoc open-record :bond/status :disposed
                                                               :bond/remaining-custody 0)}
                           :appeal-bond/dispositions {(:disposition/id cross-round) cross-round}
+                          :appeal-bond/claims refund-claims})))
+    (is (= :disposition-identity-mismatch
+           (invalid-code {:appeal-bond/records {bond-id (assoc open-record :bond/status :disposed
+                                                              :bond/remaining-custody 0)}
+                          :appeal-bond/dispositions
+                          {(:disposition/id cross-escalation-round) cross-escalation-round}
                           :appeal-bond/claims refund-claims})))))
 
 (deftest ap-rejects-overconsumed-claims-and-malformed-numbers

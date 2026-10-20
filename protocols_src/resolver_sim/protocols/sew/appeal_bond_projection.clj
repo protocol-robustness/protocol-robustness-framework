@@ -106,6 +106,12 @@
                (not= (:dispute/id record) (:dispute/id disposition)))
           (and (contains? disposition :appeal/ordinal)
                (not= (:appeal/ordinal record) (:appeal/ordinal disposition)))
+          (and (contains? disposition :escalation/from-level)
+               (not= (:escalation/from-level record)
+                     (:escalation/from-level disposition)))
+          (and (contains? disposition :escalation/to-level)
+               (not= (:escalation/to-level record)
+                     (:escalation/to-level disposition)))
           (and (contains? disposition :asset)
                (not= (:asset record) (:asset disposition))))
       {:code :disposition-identity-mismatch :bond/id (:bond/id record)}
