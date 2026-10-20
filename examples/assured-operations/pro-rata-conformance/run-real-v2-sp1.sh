@@ -6,17 +6,26 @@ set -Eeuo pipefail
 
 AO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 PRF_EVM_ROOT="${PRF_EVM_ROOT:-$(cd "$AO_ROOT/../../prf-evm" && pwd)}"
+COPROCESSOR_ROOT="${PRF_COPROCESSOR_ROOT:-$AO_ROOT/coprocessor}"
 ARTIFACT_DIR="${ARTIFACT_DIR:-$AO_ROOT/examples/assured-operations/pro-rata-conformance/artifacts/real-v2-sp1}"
-IDENTITY="$PRF_EVM_ROOT/fixtures/source-bound-v2-identity.json"
-PROVER="$AO_ROOT/coprocessor/target/release/source-bound-v2-prove"
+IDENTITY_SOURCE="${GATE_E_IDENTITY:-$PRF_EVM_ROOT/fixtures/source-bound-v2-identity.json}"
+IDENTITY_ARTIFACT="$ARTIFACT_DIR/source-bound-v2-identity.json"
+IDENTITY="$IDENTITY_ARTIFACT"
+PROVER="${GATE_E_PROVER:-$COPROCESSOR_ROOT/target/release/source-bound-v2-prove}"
+RUN_ID="$(basename "$ARTIFACT_DIR")"
+EVM_ARTIFACT_DIR="${GATE_E_EVM_ARTIFACT_DIR:-$PRF_EVM_ROOT/fixtures/.ao-real-v2-$RUN_ID}"
+AO_TEST_ARTIFACT_DIR="$AO_ROOT/examples/assured-operations/pro-rata-conformance/artifacts/.real-v2-test-$RUN_ID"
+GATE_E_CAPTURE_MANIFEST="$ARTIFACT_DIR/gate-e-deployment-manifest.json"
+GATE_E_CAPTURE_FIXTURE="$ARTIFACT_DIR/source-bound-v2-proof-fixture.json"
+GATE_E_CAPTURE_ROUTE_MANIFEST="$ARTIFACT_DIR/ao-route-manifest.json"
 
 mkdir -p "$ARTIFACT_DIR"
 export GATE_E_RPC_URL="${GATE_E_RPC_URL:-http://127.0.0.1:8545}"
 export GATE_E_IDENTITY="$IDENTITY"
-export GATE_E_MANIFEST="$ARTIFACT_DIR/gate-e-deployment-manifest.json"
-export GATE_E_FIXTURE="$ARTIFACT_DIR/source-bound-v2-proof-fixture.json"
+export GATE_E_MANIFEST="$EVM_ARTIFACT_DIR/gate-e-deployment-manifest.json"
+export GATE_E_FIXTURE="$EVM_ARTIFACT_DIR/source-bound-v2-proof-fixture.json"
 export GATE_E_INPUT="$ARTIFACT_DIR/source-bound-v2-input.json"
-export GATE_E_AO_ROUTE_MANIFEST="$ARTIFACT_DIR/ao-route-manifest.json"
+export GATE_E_AO_ROUTE_MANIFEST="$AO_TEST_ARTIFACT_DIR/ao-route-manifest.json"
 SOURCE_STATE="$ARTIFACT_DIR/source-state.json"
 RUN_LOG="$ARTIFACT_DIR/run.log"
 AO_INVENTORY="$ARTIFACT_DIR/ao-source-inventory.sha256"
@@ -34,8 +43,8 @@ export GATE_E_PROTOCOL_GENESIS_ROOT=0x111111111111111111111111111111111111111111
 export GATE_E_AUTHORITY_STATE_ROOT=0x2222222222222222222222222222222222222222222222222222222222222222
 export GATE_E_CHAIN_INSTANCE_GENESIS_ROOT=0x5555555555555555555555555555555555555555555555555555555555555555
 export GATE_E_CONFIGURATION_ROOT_0=0x3333333333333333333333333333333333333333333333333333333333333333
-export GATE_E_SOURCE_PROGRAM_VKEY="$(jq -r '.vkey' "$IDENTITY")"
-export GATE_E_SOURCE_PROGRAM_ELF_SHA256="$(jq -r '.elf_sha256' "$IDENTITY")"
+export GATE_E_SOURCE_PROGRAM_VKEY="$(jq -r '.vkey' "$IDENTITY_SOURCE")"
+export GATE_E_SOURCE_PROGRAM_ELF_SHA256="$(jq -r '.elf_sha256' "$IDENTITY_SOURCE")"
 export GATE_E_OPERATION_ID=0x0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a
 export GATE_E_POLICY_ROOT=0x0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f
 export GATE_E_ALLOCATION_BINDING_ROOT=0x1010101010101010101010101010101010101010101010101010101010101010
@@ -43,27 +52,31 @@ export GATE_E_REALIZED_STATEMENT_ROOT=0x1111111111111111111111111111111111111111
 export GATE_E_RESIDUAL_RECIPIENT=0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266
 export GATE_E_SOURCE_VERIFIER_ID="0x$(printf '0b%.0s' {1..32})"
 export GATE_E_EXECUTION_VERIFIER_ID=0x0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c
-export GATE_E_SOURCE_STATEMENT_SCHEMA="$(cast keccak "$(jq -r '.statement_schema' "$IDENTITY")")"
+export GATE_E_SOURCE_STATEMENT_SCHEMA="$(cast keccak "$(jq -r '.statement_schema' "$IDENTITY_SOURCE")")"
 export GATE_E_EXECUTION_STATEMENT_SCHEMA="0x$(printf '0d%.0s' {1..32})"
 export GATE_E_EXECUTION_PUBLIC_VALUES_SCHEMA="0x$(printf '0e%.0s' {1..32})"
 
-test -s "$IDENTITY" || { echo "Missing pinned V2 identity: $IDENTITY" >&2; exit 2; }
+test -s "$IDENTITY_SOURCE" || { echo "Missing pinned V2 identity: $IDENTITY_SOURCE" >&2; exit 2; }
 command -v xxd >/dev/null || { echo "xxd is required for retained-proof consistency checks" >&2; exit 2; }
 test -x "$PROVER" || {
     echo "Missing prover binary. Build it with:" >&2
     echo "cargo build --release --manifest-path '$AO_ROOT/coprocessor/Cargo.toml' -p allocation-sp1-script --bin source-bound-v2-prove" >&2
     exit 2
 }
-for artifact in "$GATE_E_MANIFEST" "$GATE_E_FIXTURE" "$GATE_E_INPUT" "$GATE_E_AO_ROUTE_MANIFEST" "$SOURCE_STATE" "$RUN_LOG" "$AO_INVENTORY" "$PRF_INVENTORY" "$AO_POST_INVENTORY" "$PRF_POST_INVENTORY" "$EVIDENCE_MANIFEST"; do
+for artifact in "$IDENTITY_ARTIFACT" "$GATE_E_MANIFEST" "$GATE_E_FIXTURE" "$GATE_E_INPUT" "$GATE_E_AO_ROUTE_MANIFEST" "$GATE_E_CAPTURE_MANIFEST" "$GATE_E_CAPTURE_FIXTURE" "$GATE_E_CAPTURE_ROUTE_MANIFEST" "$SOURCE_STATE" "$RUN_LOG" "$AO_INVENTORY" "$PRF_INVENTORY" "$AO_POST_INVENTORY" "$PRF_POST_INVENTORY" "$EVIDENCE_MANIFEST"; do
     test ! -e "$artifact" || { echo "Refusing to overwrite retained artifact: $artifact" >&2; exit 2; }
 done
+test ! -e "$EVM_ARTIFACT_DIR" || { echo "Refusing to reuse EVM fixture directory: $EVM_ARTIFACT_DIR" >&2; exit 2; }
+test ! -e "$AO_TEST_ARTIFACT_DIR" || { echo "Refusing to reuse AO test artifact directory: $AO_TEST_ARTIFACT_DIR" >&2; exit 2; }
+mkdir -p "$EVM_ARTIFACT_DIR" "$AO_TEST_ARTIFACT_DIR"
+cp "$IDENTITY_SOURCE" "$IDENTITY_ARTIFACT"
 
 # Preserve source identity even when this JJ workspace cannot snapshot because
 # its shared Git object store is read-only. Revision IDs are recorded where
 # available; the deterministic file inventories also cover dirty/untracked
 # source files that a revision ID alone would miss.
-AO_CHANGE_ID="$(jj log --ignore-working-copy -r @ --no-graph -T 'change_id')"
-AO_PARENT_CHANGE_ID="$(jj log --ignore-working-copy -r @- --no-graph -T 'change_id')"
+AO_CHANGE_ID="$(jj --repository "$AO_ROOT" --ignore-working-copy log -r @ --no-graph -T 'change_id')"
+AO_PARENT_CHANGE_ID="$(jj --repository "$AO_ROOT" --ignore-working-copy log -r @- --no-graph -T 'change_id')"
 PRF_GIT_HEAD="$(git -C "$PRF_EVM_ROOT" rev-parse HEAD)"
 PRF_GIT_STATUS="$(git -C "$PRF_EVM_ROOT" status --porcelain=v1 --untracked-files=all)"
 PRF_DIFF_SHA256="$(git -C "$PRF_EVM_ROOT" diff --binary HEAD | sha256sum | awk '{print $1}')"
@@ -82,8 +95,8 @@ find "$PRF_EVM_ROOT/src" "$PRF_EVM_ROOT/script" "$PRF_EVM_ROOT/scripts" \
      "$PRF_EVM_ROOT/fixtures/source-bound-v2-identity.json" \
      "$PRF_EVM_ROOT/foundry.toml" "$PRF_EVM_ROOT/foundry.lock" \
      -type f -print0 2>/dev/null | sort -z | xargs -0 sha256sum > "$PRF_FILES"
-find "$AO_ROOT/coprocessor" -type f -name '*.rs' ! -path '*/target/*' -print0 | sort -z | xargs -0 sha256sum >> "$AO_FILES"
-sha256sum "$AO_ROOT/coprocessor/Cargo.toml" "$AO_ROOT/coprocessor/Cargo.lock" >> "$AO_FILES"
+find "$COPROCESSOR_ROOT" -type f -name '*.rs' ! -path '*/target/*' ! -path '*/.jj/*' -print0 | sort -z | xargs -0 sha256sum >> "$AO_FILES"
+sha256sum "$COPROCESSOR_ROOT/Cargo.toml" "$COPROCESSOR_ROOT/Cargo.lock" >> "$AO_FILES"
 AO_SOURCE_SHA256="$(sha256sum "$AO_FILES" | awk '{print $1}')"
 PRF_SOURCE_SHA256="$(sha256sum "$PRF_FILES" | awk '{print $1}')"
 jq -n \
@@ -91,6 +104,9 @@ jq -n \
   --arg aoWorkingCopyChangeId "$AO_CHANGE_ID" \
   --arg aoParentChangeId "$AO_PARENT_CHANGE_ID" \
   --arg aoRelevantSourceInventorySha256 "$AO_SOURCE_SHA256" \
+  --arg coprocessorRoot "$COPROCESSOR_ROOT" \
+  --arg identityFixtureSource "$IDENTITY_SOURCE" \
+  --arg identityFixtureSha256 "$(sha256sum "$IDENTITY_ARTIFACT" | awk '{print $1}')" \
   --arg chainInstanceGenesisRoot "$GATE_E_CHAIN_INSTANCE_GENESIS_ROOT" \
   --arg prfGitHead "$PRF_GIT_HEAD" \
   --arg prfGitStatus "$PRF_GIT_STATUS" \
@@ -104,7 +120,8 @@ jq -n \
   '{schema:"ao-real-v2-source-state.v1",capturedAt:$capturedAt,
     assuredOperations:{jjWorkingCopyChangeId:$aoWorkingCopyChangeId,
       jjParentChangeId:$aoParentChangeId,relevantSourceInventorySha256:$aoRelevantSourceInventorySha256,
-      proverSha256:$proverSha256,rustcVersion:$rustcVersion,cargoVersion:$cargoVersion},
+      coprocessorRoot:$coprocessorRoot,proverSha256:$proverSha256,rustcVersion:$rustcVersion,cargoVersion:$cargoVersion,
+      identityFixtureSource:$identityFixtureSource,identityFixtureSha256:$identityFixtureSha256},
     runnerConfiguration:{chainInstanceGenesisRoot:$chainInstanceGenesisRoot},
     prfEvm:{gitHead:$prfGitHead,gitStatusPorcelain:$prfGitStatus,
       gitSubmoduleStatus:$prfSubmoduleStatus,
@@ -119,7 +136,7 @@ export FOUNDRY_CACHE_PATH="$TMP_BUILD/prf-evm-cache"
 export FOUNDRY_BROADCAST="$TMP_BUILD/prf-evm-broadcast"
 
 export GATE_E_DEPLOY_CMD="forge script '$PRF_EVM_ROOT/script/DeployGateEOptionA.s.sol:DeployGateEOptionA' --root '$PRF_EVM_ROOT' --rpc-url \"\$GATE_E_RPC_URL\" --private-key \"\$PRIVATE_KEY\" --broadcast --out \"\$FOUNDRY_OUT\" --cache-path \"\$FOUNDRY_CACHE_PATH\""
-export GATE_E_PROVER_CMD="'$PROVER' --input \"\$GATE_E_INPUT\" --fixture \"\$GATE_E_FIXTURE\" && forge test --root '$AO_ROOT/examples/assured-operations/pro-rata-conformance' --fork-url \"\$GATE_E_RPC_URL\" --match-contract ProRataRealProofConformanceTest --out '$TMP_BUILD/ao-out' --cache-path '$TMP_BUILD/ao-cache' -vv"
+export GATE_E_PROVER_CMD="'$PROVER' --input \"\$GATE_E_INPUT\" --fixture \"\$GATE_E_FIXTURE\" && cp \"\$GATE_E_MANIFEST\" '$GATE_E_CAPTURE_MANIFEST' && cp \"\$GATE_E_FIXTURE\" '$GATE_E_CAPTURE_FIXTURE' && cp '$GATE_E_CAPTURE_MANIFEST' '$AO_TEST_ARTIFACT_DIR/gate-e-deployment-manifest.json' && cp '$GATE_E_CAPTURE_FIXTURE' '$AO_TEST_ARTIFACT_DIR/source-bound-v2-proof-fixture.json' && GATE_E_MANIFEST='$AO_TEST_ARTIFACT_DIR/gate-e-deployment-manifest.json' GATE_E_FIXTURE='$AO_TEST_ARTIFACT_DIR/source-bound-v2-proof-fixture.json' forge test --root '$AO_ROOT/examples/assured-operations/pro-rata-conformance' --fork-url \"\$GATE_E_RPC_URL\" --match-contract ProRataRealProofConformanceTest --out '$TMP_BUILD/ao-out' --cache-path '$TMP_BUILD/ao-cache' -vv"
 
 cd "$PRF_EVM_ROOT"
 RUN_STARTED_AT="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
@@ -129,6 +146,13 @@ set +e
 ./scripts/gate-e-e2e.sh 2>&1 | tee -a "$RUN_LOG"
 GATE_E_RUNNER_EXIT_CODE="${PIPESTATUS[0]}"
 set -e
+cp "$GATE_E_MANIFEST" "$GATE_E_CAPTURE_MANIFEST"
+cp "$GATE_E_FIXTURE" "$GATE_E_CAPTURE_FIXTURE"
+cp "$GATE_E_AO_ROUTE_MANIFEST" "$GATE_E_CAPTURE_ROUTE_MANIFEST"
+GATE_E_MANIFEST="$GATE_E_CAPTURE_MANIFEST"
+GATE_E_FIXTURE="$GATE_E_CAPTURE_FIXTURE"
+GATE_E_AO_ROUTE_MANIFEST="$GATE_E_CAPTURE_ROUTE_MANIFEST"
+export GATE_E_MANIFEST GATE_E_FIXTURE GATE_E_AO_ROUTE_MANIFEST
 printf 'AO_REAL_V2_RUN_COMPLETED_UTC=%s\nAO_REAL_V2_RUN_DURATION_SECONDS=%s\n' \
   "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$SECONDS" | tee -a "$RUN_LOG"
 fail_post() {
@@ -171,8 +195,8 @@ find "$PRF_EVM_ROOT/src" "$PRF_EVM_ROOT/script" "$PRF_EVM_ROOT/scripts" \
      "$PRF_EVM_ROOT/fixtures/source-bound-v2-identity.json" \
      "$PRF_EVM_ROOT/foundry.toml" "$PRF_EVM_ROOT/foundry.lock" \
      -type f -print0 2>/dev/null | sort -z | xargs -0 sha256sum > "$PRF_POST_INVENTORY"
-find "$AO_ROOT/coprocessor/src" -type f -print0 | sort -z | xargs -0 sha256sum >> "$AO_POST_INVENTORY"
-sha256sum "$AO_ROOT/coprocessor/Cargo.toml" "$AO_ROOT/coprocessor/Cargo.lock" >> "$AO_POST_INVENTORY"
+find "$COPROCESSOR_ROOT" -type f -name '*.rs' ! -path '*/target/*' ! -path '*/.jj/*' -print0 | sort -z | xargs -0 sha256sum >> "$AO_POST_INVENTORY"
+sha256sum "$COPROCESSOR_ROOT/Cargo.toml" "$COPROCESSOR_ROOT/Cargo.lock" >> "$AO_POST_INVENTORY"
 if ! cmp -s "$AO_INVENTORY" "$AO_POST_INVENTORY" || ! cmp -s "$PRF_INVENTORY" "$PRF_POST_INVENTORY"; then
     fail_post "Relevant source files changed during the run; pre/post inventories retained for diagnosis"
 fi
@@ -228,6 +252,7 @@ jq -e --slurpfile route "$GATE_E_AO_ROUTE_MANIFEST" --slurpfile source "$SOURCE_
 jq -n --slurpfile route "$GATE_E_AO_ROUTE_MANIFEST" \
   --arg schema "ao-real-v2-sp1-evidence-manifest.v1" \
   --arg deploymentManifestSha256 "$(sha256sum "$GATE_E_MANIFEST" | awk '{print $1}')" \
+  --arg identityFixtureSha256 "$(sha256sum "$IDENTITY_ARTIFACT" | awk '{print $1}')" \
   --arg proverInputSha256 "$(sha256sum "$GATE_E_INPUT" | awk '{print $1}')" \
   --arg proofFixtureSha256 "$(sha256sum "$GATE_E_FIXTURE" | awk '{print $1}')" \
   --arg aoRouteManifestSha256 "$(sha256sum "$GATE_E_AO_ROUTE_MANIFEST" | awk '{print $1}')" \
@@ -256,7 +281,8 @@ jq -n --slurpfile route "$GATE_E_AO_ROUTE_MANIFEST" \
       consumedRegistrationRevision:$route[0].consumedRegistrationRevision,
       consumedProjectionDefinitionRoot:$route[0].consumedProjectionDefinitionRoot,
       consumedProjectionResultRoot:$route[0].consumedProjectionResultRoot},
-    artifacts:{deploymentManifestSha256:$deploymentManifestSha256,proverInputSha256:$proverInputSha256,
+    artifacts:{deploymentManifestSha256:$deploymentManifestSha256,identityFixtureSha256:$identityFixtureSha256,
+      proverInputSha256:$proverInputSha256,
       proofFixtureSha256:$proofFixtureSha256,aoRouteManifestSha256:$aoRouteManifestSha256,
       sourceStateSha256:$sourceStateSha256,aoPreSourceInventorySha256:$aoPreSourceInventorySha256,
       aoPostSourceInventorySha256:$aoPostSourceInventorySha256,prfPreSourceInventorySha256:$prfPreSourceInventorySha256,
