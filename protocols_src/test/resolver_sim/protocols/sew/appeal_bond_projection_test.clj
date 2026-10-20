@@ -131,6 +131,24 @@
                           :appeal-bond/dispositions {(:disposition/id refund-disposition) refund-disposition}
                           :appeal-bond/claims wrong-claim})))))
 
+(deftest ap-rejects-cross-bond-and-cross-round-disposition-substitution
+  (let [bond-id-2 "appeal-bond:0:0xappealer:1"
+        record-2 (-> open-record (assoc :bond/id bond-id-2 :appeal/ordinal 1
+                                        :bond/status :disposed :bond/remaining-custody 0))
+        cross-bond (assoc refund-disposition :bond/id bond-id-2)
+        cross-round (assoc refund-disposition :appeal/ordinal 1)
+        records {bond-id (assoc open-record :bond/status :disposed :bond/remaining-custody 0)
+                 bond-id-2 record-2}]
+    (is (= :disposed-bond-disposition-count
+           (invalid-code {:appeal-bond/records records
+                          :appeal-bond/dispositions {(:disposition/id cross-bond) cross-bond}
+                          :appeal-bond/claims refund-claims})))
+    (is (= :disposition-identity-mismatch
+           (invalid-code {:appeal-bond/records {bond-id (assoc open-record :bond/status :disposed
+                                                              :bond/remaining-custody 0)}
+                          :appeal-bond/dispositions {(:disposition/id cross-round) cross-round}
+                          :appeal-bond/claims refund-claims})))))
+
 (deftest ap-rejects-overconsumed-claims-and-malformed-numbers
   (let [disposed (assoc open-record :bond/status :disposed :bond/remaining-custody 0)
         overclaimed {bond-id {"0xappealer" {:allocated 95 :claimable 50 :claimed 46 :asset :USDC}}}
