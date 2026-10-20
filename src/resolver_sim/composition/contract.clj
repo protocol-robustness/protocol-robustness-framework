@@ -11,7 +11,17 @@
    The contract is content-addressed (:composition-contract-root) and is bound
    into capability descriptor roots and compiled plans. Fields are optional in
    the authored form with documented defaults; the compiler normalises to the
-   canonical form before hashing and comparison."
+   canonical form before hashing and comparison.
+
+   Version 1 nested maps are closed by nested-contract-fields. The input and
+   output schema refs/cardinality, determinism read sets, and per-capability
+   evidence ref are committed declarations; they do not authorize runtime
+   reads, adapters, or evidence resolution. The compiler consumes semantic
+   types, determinism-required, and intermediate-output commitment for graph
+   checks and plan construction. Other declarations remain bound by this
+   contract root and the enclosing descriptor root, both authenticated before
+   execution. Per-capability evidence refs are legacy declaration metadata;
+   only combination-level evidence refs are resolved by the compiler."
   (:require [resolver-sim.hash.canonical :as hc]))
 
 (def ^:const contract-version
@@ -30,7 +40,7 @@
   #{:accumulate :replace :partition})
 
 (def supported-failure-modes
-  "Failure propagation semantics. v1 supports :abort (fail-closed)."
+  "Failure propagation semantics supported by the v1 compiler: :abort and :continue."
   #{:abort :continue})
 
 (def supported-cardinalities
@@ -114,6 +124,44 @@
   "Permitted keys of a :composition/verification map. Unknown keys are
    rejected so typos do not disappear silently."
   #{:intermediate-output-committed? :evidence-contract-ref})
+
+(def ^:private nested-contract-fields
+  "Closed v1 field inventory. Adding an execution control requires a deliberate
+   schema/compiler identity change; unknown keys are never treated as metadata."
+  {:composition/input #{:schema-ref :semantic-type :cardinality}
+   :composition/output #{:schema-ref :semantic-type :cardinality}
+   :composition/effects #{:emits :merge-strategy :exclusive-effects}
+   :composition/custody #{:direction :accounts :exclusive-accounts}
+   :composition/control #{:terminal? :may-short-circuit? :failure-mode}
+   :composition/determinism #{:required? :context-reads :external-reads}
+   :composition/adapters #{:accepted :implicit?}
+   :composition/verification verification-fields})
+
+(defn- check-closed-map
+  [violations field value allowed]
+  (if-not (map? value)
+    (conj violations {:violation/id :violation/invalid-composition-contract-map
+                      :details {:field field :value value}})
+    (let [unknown (vec (remove allowed (keys value)))]
+      (cond-> violations
+        (seq unknown)
+        (conj {:violation/id :violation/unknown-composition-contract-nested-key
+               :details {:field field :unknown (vec (sort-by pr-str unknown))
+                         :supported (vec (sort-by pr-str allowed))}})))))
+
+(defn- check-keyword-set
+  [violations field value]
+  (if (and (set? value) (every? keyword? value))
+    violations
+    (conj violations {:violation/id :violation/invalid-composition-keyword-set
+                      :details {:field field :value value}})))
+
+(defn- check-boolean
+  [violations field value]
+  (if (boolean? value)
+    violations
+    (conj violations {:violation/id :violation/invalid-composition-boolean
+                      :details {:field field :value value}})))
 
 (defn normalize-contract
   "Fill defaults to the canonical contract form."
@@ -215,7 +263,7 @@
                                :supported contract-version}})
               (seq unknown)
               (conj {:violation/id :violation/unknown-composition-contract-key
-                     :details {:unknown (vec (sort unknown))}}))
+                     :details {:unknown (vec (sort-by pr-str unknown))}}))
           v (into v (check-value-contract [] :composition/input (:composition/input contract)))
           v (into v (check-value-contract [] :composition/output (:composition/output contract)))
           roles (:composition/roles contract)
@@ -223,10 +271,16 @@
               (conj v {:violation/id :violation/invalid-composition-roles
                        :details {:roles roles}})
               v)
+          v (if (some? roles)
+              (check-keyword-set v :composition/roles roles)
+              v)
           modes (:composition/modes contract)
           v (if (and (some? modes) (not (set? modes)))
               (conj v {:violation/id :violation/invalid-composition-modes
                        :details {:modes modes}})
+              v)
+          v (if (some? modes)
+              (check-keyword-set v :composition/modes modes)
               v)
           effects (:composition/effects contract)
           v (if (and (some? effects) (not (map? effects)))
@@ -265,15 +319,60 @@
                                    :supported [:add :sub :either]}})
                 v))
           v (if (and (map? custody)
-                     (not (set? (:accounts custody #{}))))
+                     (not (and (set? (:accounts custody #{}))
+                               (every? keyword? (:accounts custody #{})))))
               (conj v {:violation/id :violation/invalid-custody-accounts
                        :details {:accounts (:accounts custody)}})
               v)
           v (if (and (map? custody)
-                     (not (set? (:exclusive-accounts custody #{}))))
+                     (not (and (set? (:exclusive-accounts custody #{}))
+                               (every? keyword? (:exclusive-accounts custody #{})))))
               (conj v {:violation/id :violation/invalid-custody-exclusive-accounts
                        :details {:exclusive-accounts (:exclusive-accounts custody)}})
               v)
-          v (check-verification v :composition/verification (:composition/verification contract))]
+          v (check-verification v :composition/verification (:composition/verification contract))
+          v (reduce-kv (fn [acc field allowed]
+                         (let [value (get contract field)]
+                           (if (nil? value)
+                             acc
+                             (check-closed-map acc field value allowed))))
+                       v nested-contract-fields)
+          v (if (map? effects)
+              (-> v
+                  (check-keyword-set :composition/effects/emits (:emits effects #{}))
+                  (check-keyword-set :composition/effects/exclusive-effects
+                                     (:exclusive-effects effects #{})))
+              v)
+          v (if (map? control)
+              (-> v
+                  (check-boolean :composition/control/terminal? (:terminal? control false))
+                  (check-boolean :composition/control/may-short-circuit?
+                                 (:may-short-circuit? control false)))
+              v)
+          determinism (:composition/determinism contract)
+          v (if (map? determinism)
+              (-> v
+                  (check-boolean :composition/determinism/required? (:required? determinism true))
+                  (check-keyword-set :composition/determinism/context-reads
+                                     (:context-reads determinism #{}))
+                  (check-keyword-set :composition/determinism/external-reads
+                                     (:external-reads determinism #{})))
+              v)
+          v (if (map? adapters)
+              (check-keyword-set v :composition/adapters/accepted (:accepted adapters #{}))
+              v)
+          v (if (and (map? adapters) (seq (:accepted adapters)))
+              (conj v {:violation/id :violation/unsupported-contract-adapters
+                       :details {:accepted (:accepted adapters)}})
+              (if (and (map? adapters) (true? (:implicit? adapters)))
+                (conj v {:violation/id :violation/unsupported-contract-adapters
+                         :details {:implicit? true}})
+                v))
+          v (if (map? custody)
+              (-> v
+                  (check-keyword-set :composition/custody/accounts (:accounts custody #{}))
+                  (check-keyword-set :composition/custody/exclusive-accounts
+                                     (:exclusive-accounts custody #{})))
+              v)]
       {:valid? (empty? v)
        :violations (vec v)})))
