@@ -216,7 +216,7 @@
               :appeal-bond/dispositions {(:disposition/id cross-bond) cross-bond}
               :appeal-bond/claims refund-claims})]
       (is (false? (:valid? p)))
-      (is (some #{:disposition-identity-mismatch}
+      (is (some #{:disposition-id-identity-mismatch}
                 (map :code (get-in p [:errors 0 :errors])))))
     (is (= :disposition-identity-mismatch
            (invalid-code {:appeal-bond/records {bond-id (assoc open-record :bond/status :disposed
