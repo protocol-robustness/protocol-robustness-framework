@@ -106,9 +106,17 @@ it does not run step-by-step protocol replay, invariant checks, or produce the
 replay evidence chain. The output path must not already exist. The command
 copies the parameter file to `inputs/params.edn` before execution and writes
 `selection.edn` with the selected mode, input digest, PRF source provenance,
-effective parameters, result, and digests of the emitted files. A failed run
-updates the record to `:failed`. This is inspectable run-selection evidence,
-not a signed forensic bundle or a forensic-release claim.
+effective parameters, result, and digests of the emitted files. It also records
+the normalized command path and arguments, resolved input/output paths, source
+tree hash and VCS state, Java/Clojure/OS identity, classpath entries, and a
+content digest for every resolved classpath file or directory. It also records
+SHA-256 digests for the dependency configuration files used by the checkout.
+A completed or failed record uses the `simulation-selection.v2` schema.
+A failed run updates the record to `:failed`, including the exception class,
+message, runtime identity, and digests of any partial outputs. This is
+inspectable run-selection evidence, not a signed forensic bundle or a
+forensic-release claim. The classpath paths can contain machine-local locations;
+review them before sharing a run record outside its originating environment.
 
 ## Protected pro-rata boundaries
 
