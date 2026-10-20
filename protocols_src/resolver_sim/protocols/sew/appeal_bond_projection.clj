@@ -22,7 +22,10 @@
   (or (nonblank-string? x) (symbol? x)))
 
 (defn- workflow-id? [x]
-  (or (nonblank-string? x) (non-negative-int? x)))
+  (or (nonblank-string? x)
+      (non-negative-int? x)
+      (and (keyword? x) (re-matches #"\d+" (name x)))
+      (and (record? x) (non-negative-int? (:id x)))))
 
 (defn- asset-id? [x]
   (or (keyword? x) (nonblank-string? x)))

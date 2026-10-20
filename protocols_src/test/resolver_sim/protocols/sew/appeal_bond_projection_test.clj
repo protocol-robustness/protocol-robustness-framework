@@ -132,6 +132,14 @@
                :appeal-bond/claims claims}]
     (is (:valid? (projection/project-appeal-bonds world)))))
 
+(deftest ap-preserves-supported-keyword-workflow-identities
+  (let [workflow-id :0
+        bond-id "appeal-bond::0:0xappealer:0"
+        record (assoc open-record :bond/id bond-id :workflow/id workflow-id
+                      :dispute/id "dispute::0")]
+    (is (:valid? (projection/project-appeal-bonds
+                  {:appeal-bond/records {bond-id record}})))))
+
 (deftest ap-missing-remaining-custody-is-typed-invalid
   (let [p (projection/project-appeal-bonds
            {:appeal-bond/records {bond-id (dissoc open-record :bond/remaining-custody)}})]
