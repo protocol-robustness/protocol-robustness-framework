@@ -148,7 +148,9 @@
                            (and (contains? entitlement :workflow/id)
                                 (not= (:workflow/id record) (:workflow/id entitlement)))
                            (and (contains? entitlement :dispute/id)
-                                (not= (:dispute/id record) (:dispute/id entitlement)))))
+                                (not= (:dispute/id record) (:dispute/id entitlement)))
+                           (and (contains? entitlement :appeal/ordinal)
+                                (not= (:appeal/ordinal record) (:appeal/ordinal entitlement)))))
                   {:code :claim-identity-mismatch :bond/id bond-id :recipient recipient}
                   (not (and (non-negative-int? allocated)
                             (non-negative-int? claimable)
@@ -268,7 +270,7 @@
 
       (not= 1 (count candidates))
       {:valid? false :error :ambiguous-bond-selector
-       :selector selector :bond-ids (mapv :bond/id candidates)}
+       :selector selector :bond-ids (vec (sort (map :bond/id candidates)))}
 
       :else
       (let [record (first candidates)
