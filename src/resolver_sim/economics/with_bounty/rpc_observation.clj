@@ -90,6 +90,30 @@
                      (some? (:parentHash parent)))
             (recur parent (inc depth))))))))
 
+(defn- head-includes-block?
+  "Check that the sampled RPC head descends from the exact receipt block.
+
+   A head height greater than the receipt height is not sufficient: a reorg or
+   inconsistent RPC response can report a competing branch at that height."
+  [rpc head included-hash included-number max-depth]
+  (loop [block head depth 0]
+    (let [number (quantity (:number block))
+          hash (some-> (:hash block) str/lower-case)
+          parent-hash (some-> (:parentHash block) str/lower-case)]
+      (cond
+        (or (nil? number) (nil? hash)) false
+        (= number included-number) (= hash included-hash)
+        (< number included-number) false
+        (>= depth max-depth) false
+        (not (and parent-hash (re-matches #"0x[0-9a-f]{64}" parent-hash))) false
+        :else
+        (let [parent (rpc "eth_getBlockByHash" [parent-hash])]
+          (if (and parent
+                   (= parent-hash (some-> (:hash parent) str/lower-case))
+                   (= (dec number) (quantity (:number parent))))
+            (recur parent (inc depth))
+            false))))))
+
 (defn- exact-payout-log [receipt observation expected]
   (let [target-index (str "0x" (.toString (java.math.BigInteger/valueOf
                                            (:observation/log-index observation)) 16))
@@ -179,25 +203,35 @@
                               (code-sha256 code))
                            (= (normalized-address (:contract expected))
                               (normalized-address (:observation/contract observation))))
-          finality (case (:required-finality expected)
-                     :included (let [head (rpc "eth_getBlockByNumber" ["latest" false])]
-                                 (when (>= (quantity (:number head)) block-number)
-                                   :included))
-                     :finalized (let [head (rpc "eth_getBlockByNumber" ["finalized" false])]
-                                  (when (>= (quantity (:number head)) block-number)
-                                    :finalized))
-                     nil)]
+          required-finality (:required-finality expected)
+          head-tag (case required-finality
+                     :included "latest"
+                     :finalized "finalized"
+                     nil)
+          head (when head-tag (rpc "eth_getBlockByNumber" [head-tag false]))
+          head-number (quantity (:number head))
+          head-hash (some-> (:hash head) str/lower-case)
+          head-at-or-after? (and head-number (>= head-number block-number))
+          head-ancestry? (and head-at-or-after?
+                              (head-includes-block?
+                               rpc head block-hash block-number
+                               (or (:max-ancestry-depth expected) 512)))
+          finality (when head-ancestry? required-finality)]
       (cond
         (not context-ok?) {:valid? false :reason :rpc-chain-context-mismatch}
         (not receipt-ok?) {:valid? false :reason :rpc-receipt-or-block-mismatch}
         (nil? ancestry-count) {:valid? false :reason :rpc-block-ancestry-mismatch}
         (nil? log-check) {:valid? false :reason :rpc-payout-log-mismatch}
-        (nil? finality) {:valid? false :reason :rpc-finality-not-established}
+        (not head-at-or-after?) {:valid? false :reason :rpc-finality-not-established}
+        (not head-ancestry?) {:valid? false :reason :rpc-head-ancestry-mismatch}
         :else {:valid? true
                :trust-class (if (= :finalized finality)
                               :rpc-finalized-head-attestation
                               :rpc-included-head-attestation)
                :finality finality
+               :rpc-head {:kind head-tag
+                          :number head-number
+                          :hash head-hash}
                :chain-id chain-id
                :chain-instance-root (:chain-instance-root expected)
                :genesis-hash (:genesis-hash expected)
