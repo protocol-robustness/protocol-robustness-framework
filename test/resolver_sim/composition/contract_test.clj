@@ -63,7 +63,9 @@
   (doseq [candidate [(assoc (cc) :typo "top-level")
                      (assoc-in (cc) [:composition/effects :typo] true)
                      (assoc-in (cc) [:composition/effects "typo"] true)]]
-    (is (not (:valid? (c/validate-composition-contract candidate))))))
+    (let [result (c/validate-composition-contract candidate)]
+      (is (not (:valid? result)))
+      (is (seq (:violations result)) "invalid fields return typed violations"))))
 
 (deftest v1-contract-fixtures-remain-compatible
   (let [fixture (cc)
