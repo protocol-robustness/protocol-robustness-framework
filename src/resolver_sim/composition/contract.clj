@@ -40,8 +40,8 @@
   #{:accumulate :replace :partition})
 
 (def supported-failure-modes
-  "Failure propagation semantics supported by the v1 compiler: :abort and :continue."
-  #{:abort :continue})
+  "Failure propagation semantics implemented by the v1 executor."
+  #{:abort})
 
 (def supported-cardinalities
   #{:one :many})

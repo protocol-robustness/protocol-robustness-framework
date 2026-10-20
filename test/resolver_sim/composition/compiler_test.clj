@@ -358,7 +358,7 @@
                                                 (fx/node :n2 [:economics/award-amount :fixture/c2])))]
     (is (= :valid status))))
 
-(deftest failure-mode-conflict-rejected
+(deftest unsupported-failure-mode-rejected-before-compilation
   (let [emap (fx/ext-map-with
               (fx/cap :fixture/f1 :failure-mode :abort)
               (fx/cap :fixture/f2 :failure-mode :continue))]
@@ -366,7 +366,7 @@
                  (two-stage emap
                             (fx/node :n1 [:economics/award-amount :fixture/f1])
                             (fx/node :n2 [:economics/award-amount :fixture/f2]))
-                 :violation/failure-mode-conflict))))
+                 :violation/invalid-composition-contract))))
 
 (deftest same-failure-mode-compiles
   (let [emap (fx/ext-map-with
