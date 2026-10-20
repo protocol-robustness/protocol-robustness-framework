@@ -339,6 +339,10 @@
   valid root fields, and valid canonical members."
   [command]
   (and (map? command)
+       (every? #{:command/schema :command/action :command/input-state-root
+                 :command/resulting-state-root :command/built-with-includes
+                 :command/root}
+               (keys command))
        (= command-schema (:command/schema command))
        (keyword? (:command/action command))
        (hash-ref/valid-sha256-ref? (:command/input-state-root command))
@@ -532,6 +536,7 @@
   (select-keys receipt [:termination/schema
                         :termination/action
                         :termination/predecessor-root
+                        :termination/command-root
                         :termination/input-state-root
                         :termination/final-state-root
                         :termination/status]))
@@ -577,6 +582,7 @@
     (let [base {:termination/schema termination-schema
                 :termination/action terminator-action
                 :termination/predecessor-root (:command/root head)
+                :termination/command-root (:command/root cancel-command)
                 :termination/input-state-root cancel-in
                 :termination/final-state-root (:command/resulting-state-root cancel-command)
                 :termination/status :terminated}]
@@ -599,6 +605,16 @@
   [elem]
   (and (map? elem) (= termination-schema (:termination/schema elem))))
 
+(def ^:private termination-receipt-fields
+  #{:termination/schema
+    :termination/action
+    :termination/predecessor-root
+    :termination/command-root
+    :termination/input-state-root
+    :termination/final-state-root
+    :termination/status
+    :termination/root})
+
 (defn terminal?
   "True when elem is a cancel-and-terminate command or its termination receipt."
   [elem]
@@ -610,45 +626,106 @@
   action, predecessor binding, input-state basis, three-way shared-state invariant,
   and final-state correspondence. Returns {:valid? bool :issues [...]}."
   [receipt head cancel-command]
-  (let [issues (atom [])]
-    (when-not (termination-receipt? receipt)
-      (swap! issues conj {:issue :invalid-receipt
-                          :reason :invalid-receipt
-                          :detail "Not a termination receipt"}))
-    (let [root-check (termination-root-valid? receipt)]
-      (when-not (:valid? root-check)
-        (swap! issues conj (assoc root-check :element (:termination/root receipt)))))
-    (when-not (= (:termination/action receipt) terminator-action)
-      (swap! issues conj {:issue :invalid-action
-                          :reason :invalid-action
-                          :expected terminator-action
-                          :actual (:termination/action receipt)}))
-    (when-not (= (:termination/predecessor-root receipt) (:command/root head))
-      (swap! issues conj {:issue :predecessor-root-mismatch
-                          :reason :predecessor-root-mismatch
-                          :expected (:command/root head)
-                          :actual (:termination/predecessor-root receipt)}))
-    (let [head-res (:command/resulting-state-root head)
-          receipt-in (:termination/input-state-root receipt)
-          cancel-shared (shared-state-ref cancel-command)]
-      (when-not (= head-res receipt-in)
-        (swap! issues conj {:issue :stale-termination-basis
-                            :reason :stale-termination-basis
-                            :head-resulting head-res
-                            :receipt-input receipt-in}))
-      (when (some? head-res)
-        (when-not (= head-res cancel-shared)
-          (swap! issues conj {:issue :stale-termination-shared-state
-                              :reason :stale-termination-shared-state
+  (try
+    (let [issues (atom [])]
+      (when-not (termination-receipt? receipt)
+        (swap! issues conj {:issue :invalid-receipt
+                            :reason :invalid-receipt
+                            :detail "Not a termination receipt"}))
+      (when-not (= termination-schema (:termination/schema receipt))
+        (swap! issues conj {:issue :unsupported-receipt-schema
+                            :reason :unsupported-receipt-schema
+                            :expected termination-schema
+                            :actual (:termination/schema receipt)}))
+      (when (map? receipt)
+        (let [missing (->> (disj termination-receipt-fields :termination/root)
+                           (remove #(contains? receipt %))
+                           sort
+                           vec)
+              unexpected (->> (keys receipt)
+                              (remove termination-receipt-fields)
+                              sort
+                              vec)]
+          (when (seq missing)
+            (swap! issues conj {:issue :missing-termination-material
+                                :reason :missing-termination-material
+                                :fields missing}))
+          (when (seq unexpected)
+            (swap! issues conj {:issue :unexpected-termination-material
+                                :reason :unexpected-termination-material
+                                :fields unexpected})))
+        (doseq [field [:termination/predecessor-root
+                       :termination/command-root
+                       :termination/input-state-root
+                       :termination/final-state-root
+                       :termination/root]]
+          (when-not (hash-ref/valid-sha256-ref? (get receipt field))
+            (swap! issues conj {:issue :invalid-termination-root
+                                :reason :invalid-termination-root
+                                :field field
+                                :value (get receipt field)})))
+        (when-not (= :terminated (:termination/status receipt))
+          (swap! issues conj {:issue :invalid-termination-status
+                              :reason :invalid-termination-status
+                              :expected :terminated
+                              :actual (:termination/status receipt)})))
+      (let [root-check (termination-root-valid? receipt)]
+        (when-not (:valid? root-check)
+          (swap! issues conj (assoc root-check :element (:termination/root receipt)))))
+      (when-not (= (:termination/action receipt) terminator-action)
+        (swap! issues conj {:issue :invalid-action
+                            :reason :invalid-action
+                            :expected terminator-action
+                            :actual (:termination/action receipt)}))
+      (let [command-check (verify-command cancel-command)]
+        (when-not (:valid? command-check)
+          (swap! issues into (map #(assoc % :issue :invalid-termination-command)
+                                  (:issues command-check)))))
+      (let [head-check (verify-command head)]
+        (when-not (:valid? head-check)
+          (swap! issues into (map #(assoc % :issue :invalid-termination-predecessor)
+                                  (:issues head-check)))))
+      (when-not (= terminator-action (:command/action cancel-command))
+        (swap! issues conj {:issue :invalid-termination-command-action
+                            :reason :invalid-termination-command-action
+                            :expected terminator-action
+                            :actual (:command/action cancel-command)}))
+      (when-not (= (:termination/command-root receipt) (:command/root cancel-command))
+        (swap! issues conj {:issue :termination-command-root-mismatch
+                            :reason :termination-command-root-mismatch
+                            :expected (:termination/command-root receipt)
+                            :actual (:command/root cancel-command)}))
+      (when-not (= (:termination/predecessor-root receipt) (:command/root head))
+        (swap! issues conj {:issue :predecessor-root-mismatch
+                            :reason :predecessor-root-mismatch
+                            :expected (:command/root head)
+                            :actual (:termination/predecessor-root receipt)}))
+      (let [head-res (:command/resulting-state-root head)
+            receipt-in (:termination/input-state-root receipt)
+            cancel-shared (shared-state-ref cancel-command)]
+        (when-not (= head-res receipt-in)
+          (swap! issues conj {:issue :stale-termination-basis
+                              :reason :stale-termination-basis
                               :head-resulting head-res
-                              :terminator-shared-state cancel-shared}))))
-    (when-not (= (:termination/final-state-root receipt)
-                 (:command/resulting-state-root cancel-command))
-      (swap! issues conj {:issue :final-state-mismatch
-                          :reason :final-state-mismatch
-                          :expected (:command/resulting-state-root cancel-command)
-                          :actual (:termination/final-state-root receipt)}))
-    {:valid? (empty? @issues) :issues (vec @issues)}))
+                              :receipt-input receipt-in}))
+        (when (some? head-res)
+          (when-not (= head-res cancel-shared)
+            (swap! issues conj {:issue :stale-termination-shared-state
+                                :reason :stale-termination-shared-state
+                                :head-resulting head-res
+                                :terminator-shared-state cancel-shared}))))
+      (when-not (= (:termination/final-state-root receipt)
+                   (:command/resulting-state-root cancel-command))
+        (swap! issues conj {:issue :final-state-mismatch
+                            :reason :final-state-mismatch
+                            :expected (:command/resulting-state-root cancel-command)
+                            :actual (:termination/final-state-root receipt)}))
+      {:valid? (empty? @issues) :issues (vec @issues)})
+    (catch Exception e
+      {:valid? false
+       :issues [{:issue :invalid-termination-material
+                 :reason (or (:reason (ex-data e)) :invalid-termination-material)
+                 :detail (.getMessage e)}]})))
 
 ;; ── lineage verification ────────────────────────────────────────────────────────
 

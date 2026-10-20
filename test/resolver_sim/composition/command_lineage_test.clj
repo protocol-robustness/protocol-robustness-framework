@@ -231,6 +231,142 @@
           term (terminator-cmd head)
           receipt (cl/build-termination-receipt term head)]
       (is (:valid? (cl/verify-termination-receipt receipt head term)))))
+  (testing "cancel action substitution with unchanged receipt and root is rejected"
+    (let [head cmd-b
+          term (terminator-cmd head)
+          receipt (cl/build-termination-receipt term head)
+          substituted (assoc term :command/action :noop)
+          result (cl/verify-termination-receipt receipt head substituted)]
+      (is (false? (:valid? result)) (str "Expected action substitution rejection, got: " result))
+      (is (some #(= :command-root-mismatch (:reason %)) (:issues result)))
+      (is (some #(= :invalid-termination-command-action (:reason %)) (:issues result)))))
+  (testing "receipt binds exact cancel command root"
+    (let [head cmd-b
+          term (terminator-cmd head)
+          receipt (cl/build-termination-receipt term head)
+          swapped-base (assoc term :command/resulting-state-root s1)
+          swapped (assoc swapped-base :command/root (cl/command-root swapped-base))
+          result (cl/verify-termination-receipt receipt head swapped)]
+      (is (false? (:valid? result)))
+      (is (some #(= :termination-command-root-mismatch (:reason %)) (:issues result)))))
+  (testing "swapped command root fails even when state roots still match"
+    (let [head cmd-b
+          term (terminator-cmd head)
+          receipt (cl/build-termination-receipt term head)
+          swapped (assoc term :command/root (:command/root cmd-a))
+          result (cl/verify-termination-receipt receipt head swapped)]
+      (is (= (:command/input-state-root term) (:command/input-state-root swapped)))
+      (is (= (:command/resulting-state-root term) (:command/resulting-state-root swapped)))
+      (is (false? (:valid? result)))
+      (is (some #(= :command-root-mismatch (:reason %)) (:issues result)))
+      (is (some #(= :termination-command-root-mismatch (:reason %)) (:issues result)))))
+  (testing "unsupported receipt schema and missing command material fail closed"
+    (let [head cmd-b
+          term (terminator-cmd head)
+          receipt (cl/build-termination-receipt term head)
+          unsupported (assoc receipt :termination/schema :termination.v999
+                             :termination/root (cl/termination-root
+                                                (assoc receipt :termination/schema :termination.v999)))
+          unsupported-result (cl/verify-termination-receipt unsupported head term)
+          missing-result (cl/verify-termination-receipt receipt head nil)]
+      (is (false? (:valid? unsupported-result)))
+      (is (some #(= :unsupported-receipt-schema (:reason %)) (:issues unsupported-result)))
+      (is (false? (:valid? missing-result)))
+      (is (seq (:issues missing-result)))))
+  (testing "unsupported command schema fails closed even with a recomputed root"
+    (let [head cmd-b
+          term (terminator-cmd head)
+          receipt (cl/build-termination-receipt term head)
+          wrong-schema-base (assoc term :command/schema :command/lineage.v999)
+          wrong-schema (assoc wrong-schema-base
+                              :command/root (cl/command-root wrong-schema-base))
+          result (cl/verify-termination-receipt receipt head wrong-schema)]
+      (is (false? (:valid? result)))
+      (is (some #(= :invalid-command (:reason %)) (:issues result)))))
+  (testing "missing committed receipt fields and unsupported chain or subject fields fail closed"
+    (let [head cmd-b
+          term (terminator-cmd head)
+          receipt (cl/build-termination-receipt term head)
+          missing-root-binding (dissoc receipt :termination/command-root)
+          extra-receipt-context (assoc receipt
+                                       :termination/chain-root s0
+                                       :termination/subject-root s1)
+          extra-command-context (assoc term
+                                       :command/chain-root s0
+                                       :command/subject-root s1)
+          missing-result (cl/verify-termination-receipt missing-root-binding head term)
+          receipt-context-result (cl/verify-termination-receipt extra-receipt-context head term)
+          command-context-result (cl/verify-termination-receipt receipt head extra-command-context)
+          missing-predecessor-result (cl/verify-termination-receipt receipt nil term)]
+      (is (false? (:valid? missing-result)))
+      (is (some #(= :missing-termination-material (:reason %)) (:issues missing-result)))
+      (is (false? (:valid? receipt-context-result)))
+      (is (some #(= :unexpected-termination-material (:reason %)) (:issues receipt-context-result)))
+      (is (false? (:valid? command-context-result)))
+      (is (some #(= :invalid-command (:reason %)) (:issues command-context-result)))
+      (is (false? (:valid? missing-predecessor-result)))
+      (is (seq (:issues missing-predecessor-result)))))
+  (testing "receipt status and committed state roots are independently checked"
+    (let [head cmd-b
+          term (terminator-cmd head)
+          receipt (cl/build-termination-receipt term head)
+          wrong-state-base (assoc receipt
+                                  :termination/input-state-root s0
+                                  :termination/final-state-root s1)
+          wrong-state (assoc wrong-state-base
+                             :termination/root (cl/termination-root wrong-state-base))
+          wrong-status-base (assoc receipt :termination/status :cancelled)
+          wrong-status (assoc wrong-status-base
+                              :termination/root (cl/termination-root wrong-status-base))
+          state-result (cl/verify-termination-receipt wrong-state head term)
+          status-result (cl/verify-termination-receipt wrong-status head term)]
+      (is (false? (:valid? state-result)))
+      (is (some #(= :stale-termination-basis (:reason %)) (:issues state-result)))
+      (is (some #(= :final-state-mismatch (:reason %)) (:issues state-result)))
+      (is (false? (:valid? status-result)))
+      (is (some #(= :invalid-termination-status (:reason %)) (:issues status-result)))))
+  (testing "uncommitted command payload is rejected"
+    (let [head cmd-b
+          term (terminator-cmd head)
+          receipt (cl/build-termination-receipt term head)
+          altered (assoc term :command/authority-context {:policy :alternate})
+          result (cl/verify-termination-receipt receipt head altered)]
+      (is (false? (:valid? result)))
+      (is (some #(= :invalid-command (:reason %)) (:issues result)))))
+  (testing "receipt cannot be reused with a different predecessor having the same state root"
+    (let [head cmd-b
+          term (terminator-cmd head)
+          receipt (cl/build-termination-receipt term head)
+          other-head (build-cmd :different-predecessor s1 s2 [s1])
+          other-term (cl/build-command
+                      {:command/action cl/terminator-action
+                       :command/input-state-root s2
+                       :command/resulting-state-root s2
+                       :command/built-with-includes [{:kind :shared-state :ref s2}
+                                                     {:kind :command :ref s0}]})
+          result (cl/verify-termination-receipt receipt other-head other-term)]
+      (is (= (:command/resulting-state-root head)
+             (:command/resulting-state-root other-head)))
+      (is (not= (:command/root head) (:command/root other-head)))
+      (is (not= (:command/root term) (:command/root other-term)))
+      (is (false? (:valid? result)))
+      (is (some #(= :predecessor-root-mismatch (:reason %)) (:issues result)))
+      (is (some #(= :termination-command-root-mismatch (:reason %)) (:issues result)))))
+  (testing "receipt root swap and receipt reuse against another head fail closed"
+    (let [head cmd-b
+          term (terminator-cmd head)
+          receipt (cl/build-termination-receipt term head)
+          bad-receipt (assoc receipt :termination/root s0)
+          other-term (terminator-cmd cmd-a)]
+      (is (false? (:valid? (cl/verify-termination-receipt bad-receipt head term))))
+      (is (false? (:valid? (cl/verify-termination-receipt receipt cmd-a other-term))))))
+  (testing "chained cancel-and-terminate verifies against the exact chain head"
+    (let [term (terminator-cmd cmd-b)
+          receipt (cl/build-termination-receipt term cmd-b)
+          lineage (cl/verify-lineage [cmd-a cmd-b term])]
+      (is (:valid? lineage))
+      (is (= :terminated (:status lineage)))
+      (is (:valid? (cl/verify-termination-receipt receipt cmd-b term)))))
   (testing "receipt with wrong predecessor => reject"
     (let [head cmd-b
           term (terminator-cmd head)
