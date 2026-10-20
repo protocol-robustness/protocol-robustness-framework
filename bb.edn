@@ -416,7 +416,7 @@ test:invariants {:doc "Run canonical deterministic invariant target (S01–S41)"
                 :task (shell "scripts/with-test-artifact-lock.sh" "./scripts/test.sh" "triage")}
 
    test:notebooks {:doc "Load every notebook namespace to verify it compiles"
-                    :task (shell "clojure" "-M:notebooks:with-sew" "-m" "scripts.test-notebooks")}
+                    :task (shell "clojure" "-M:notebooks:with-sew" "-m" "prf.notebooks.host-load-check")}
 
 
    demo:reorder-chain
@@ -464,7 +464,7 @@ test:invariants {:doc "Run canonical deterministic invariant target (S01–S41)"
                        "notebooks/resubmission_chain.clj"
                        "notebooks/pro_rata_allocation_result.clj"])
                 build-args (mapcat (fn [nb] ["--nb" nb]) nbs)]
-            (apply clojure "-M:notebooks:with-sew" "-m" "scripts.build-notebooks"
+            (apply clojure "-M:notebooks:with-sew" "-m" "prf.notebooks.build"
                    "--out" out build-args))}
 
    test:quick-sew
@@ -843,7 +843,7 @@ test:community {:doc "Run community participation tests"
                      :task (apply shell "python3" "scripts/evidence/snapshot_evidence.py" *command-line-args*)}
 
   clerk-build {:doc "Build static Clerk notebooks"
-               :task (clojure "-M:notebooks:with-sew" "-m" "scripts.build-notebooks" "--nb" "notebooks/report.clj")}
+               :task (clojure "-M:notebooks:with-sew" "-m" "prf.notebooks.build" "--nb" "notebooks/report.clj")}
   clerk-watch {:doc "Start Clerk with the extracted notebook tree watched"
                :task (shell "bb notebook")}
 
@@ -1010,12 +1010,12 @@ test:integration:postgres {:doc "Run PostgreSQL resubmission admission and durab
    :task (shell "scripts/with-test-artifact-lock.sh" "clojure" "-M:notebooks:with-sew" "-e" "(require (quote [resolver-sim.notebook-support.checks])) (require (quote [notebooks.report])) (println (str \"Notebook namespaces loaded. Shape checks passed.\")) (shutdown-agents)")}
 
   notebook:lint
-  {:doc "Lint notebook and notebook support code with clj-kondo"
-   :task (clojure {:dir "."} "-M:notebooks:test:lint/notebooks" "-m" "scripts.lint-notebooks")}
+  {:doc "Lint the pinned notebook package sources with clj-kondo"
+   :task (clojure {:dir "."} "-M:notebooks:test:lint/notebooks" "-m" "prf.notebooks.lint")}
 
   notebook:visibility
-  {:doc "Enforce collapsed-by-default visibility policy across notebooks/*.clj"
-   :task (clojure {:dir "."} "-M:notebooks" "-m" "scripts.check-notebook-visibility")}
+  {:doc "Enforce the notebook package collapsed-by-default visibility policy"
+   :task (clojure {:dir "."} "-M:notebooks" "-m" "prf.notebooks.check-visibility")}
 
   notebook:ci
   {:doc "Full notebook validation: lint + visibility policy + load/check"

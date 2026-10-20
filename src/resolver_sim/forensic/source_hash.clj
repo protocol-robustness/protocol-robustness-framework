@@ -97,10 +97,14 @@
 (defn- jj-log [template]
   (sh! "jj" "log" "--ignore-working-copy" "-r" "@" "--no-graph" "-T" template))
 
+(defn- jj-diff-dirty? [{:keys [exit out]}]
+  ;; `jj status` prose differs between releases. `jj diff --summary` is empty
+  ;; when the working copy matches its parents, and lists changed paths
+  ;; otherwise. Treat command failure as dirty so provenance fails closed.
+  (or (not (zero? exit)) (boolean (seq out))))
+
 (defn- jj-dirty? []
-  (let [status (sh! "jj" "status" "--color" "never")]
-    (and status
-         (not (str/includes? status "The working copy is clean")))))
+  (jj-diff-dirty? (sh/sh "jj" "diff" "--summary" "-r" "@")))
 
 (defn source-hash
   "Detect VCS and return source provenance map.

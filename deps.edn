@@ -82,7 +82,7 @@
    ;; Optional extracted notebook source; only notebook commands select this.
    :notebooks
    {:extra-deps {prf/notebooks {:git/url "https://github.com/protocol-robustness/prf-notebooks.git"
-                                :git/sha "10a81790037103356f0ea31119c4ca7f1aeddc69"}}}
+                                :git/sha "66e319399437f2443939e71835a66e7199ed1b67"}}}
 
    ;; Corruption guard: load-all / def-inventory integrity checks.
    :check
@@ -307,13 +307,13 @@
 
    :clerk
    {:extra-deps {prf/notebooks {:git/url "https://github.com/protocol-robustness/prf-notebooks.git"
-                                :git/sha "10a81790037103356f0ea31119c4ca7f1aeddc69"}}
+                                :git/sha "66e319399437f2443939e71835a66e7199ed1b67"}}
     :main-opts ["-m" "notebooks.serve"]}
 
    :build-clerk
    {:extra-deps {prf/notebooks {:git/url "https://github.com/protocol-robustness/prf-notebooks.git"
-                                :git/sha "10a81790037103356f0ea31119c4ca7f1aeddc69"}}
-    :main-opts ["-m" "scripts.build-notebooks"]}
+                                :git/sha "66e319399437f2443939e71835a66e7199ed1b67"}}
+    :main-opts ["-m" "prf.notebooks.build"]}
 
    :observability
    {:override-deps
@@ -321,7 +321,7 @@
      {:git/url "https://github.com/nextjournal/clerk"
       :git/sha "8772a0889218274384a30e79165b4c194b59560f"}}
     :extra-deps {prf/notebooks {:git/url "https://github.com/protocol-robustness/prf-notebooks.git"
-                                :git/sha "10a81790037103356f0ea31119c4ca7f1aeddc69"}}
+                                :git/sha "66e319399437f2443939e71835a66e7199ed1b67"}}
     :main-opts ["-m" "notebooks.serve"]}
 
    :telemetry-seed
@@ -382,7 +382,7 @@
    :search-docs
    {:extra-paths [:paths/scripts]
     :extra-deps {prf/notebooks {:git/url "https://github.com/protocol-robustness/prf-notebooks.git"
-                                :git/sha "10a81790037103356f0ea31119c4ca7f1aeddc69"}}
+                                :git/sha "66e319399437f2443939e71835a66e7199ed1b67"}}
     :main-opts ["-m" "scripts.search_docs_sentinel.run"]}
 
 }}
