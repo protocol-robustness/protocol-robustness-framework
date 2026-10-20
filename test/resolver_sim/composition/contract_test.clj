@@ -109,7 +109,10 @@
                           (cc :mutate #(assoc-in % [:composition/effects :merge-strategy] :weird))))))
   (is (some #(= :violation/unsupported-failure-mode (:violation/id %))
             (:violations (c/validate-composition-contract
-                          (cc :mutate #(assoc-in % [:composition/control :failure-mode] :weird)))))))
+                          (cc :mutate #(assoc-in % [:composition/control :failure-mode] :weird))))))
+  (is (some #(= :violation/unsupported-failure-mode (:violation/id %))
+            (:violations (c/validate-composition-contract
+                          (cc :mutate #(assoc-in % [:composition/control :failure-mode] :continue)))))))
 
 (deftest non-map-contract-rejected
   (is (some #(= :violation/non-map-composition-contract (:violation/id %))
