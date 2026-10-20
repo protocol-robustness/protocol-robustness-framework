@@ -276,14 +276,34 @@
                                                             :details {:node/id (:node/id n)
                                                                       :references (:step-id basis)}})))
                                                      plan-nodes))
-                ;; effect conflicts: an exclusive effect emitted by more than one node
-                exclusive (reduce set/union #{} (map :exclusive-effects plan-nodes))
-                emitted (into {} (map (fn [n] [(:node/id n) (:emits n)])) plan-nodes)
-                emitted-set (reduce set/union #{} (vals emitted))
-                effect-conflicts (when (seq (set/intersection exclusive emitted-set))
-                                   [{:violation/id :violation/effect-conflict
-                                     :details {:exclusive (vec exclusive)
-                                               :emitted (vec (set/intersection exclusive emitted-set))}}])
+                ;; Exclusive declarations belong to their declaring node. A
+                ;; node may emit its own exclusive effect; another node may
+                ;; not. Multiple owners are ambiguous even if no node emits
+                ;; the effect, so reject them closed.
+                exclusive-owners (reduce (fn [owners n]
+                                           (reduce #(update %1 %2 (fnil conj #{}) (:node/id n))
+                                                   owners (:exclusive-effects n)))
+                                         {} plan-nodes)
+                effect-conflicts (into []
+                                        (keep (fn [[effect owners]]
+                                                (let [owners (vec (sort-by pr-str owners))
+                                                      producers (->> plan-nodes
+                                                                     (filter #(and (contains? (:emits %) effect)
+                                                                                   (not (contains? (set owners)
+                                                                                                   (:node/id %)))))
+                                                                     (map :node/id)
+                                                                     (sort-by pr-str)
+                                                                     vec)]
+                                                  (when (or (> (count owners) 1)
+                                                            (seq producers))
+                                                    {:violation/id :violation/effect-conflict
+                                                     :details {:effect effect
+                                                               :owners owners
+                                                               :producers producers
+                                                               :reason (if (> (count owners) 1)
+                                                                         :multiple-exclusive-claimants
+                                                                         :cross-node-exclusive-emission)}})))
+                                        (sort-by (comp pr-str key) exclusive-owners)))
                 ;; failure-mode consensus: consecutive nodes must agree on how
                 ;; the pipeline fails; otherwise one node's :abort stops a
                 ;; :continue node before it runs, contradicting its contract
