@@ -5,6 +5,7 @@
             [resolver-sim.composition.compiler :as comp]
             [resolver-sim.composition.execution :as exec]
             [resolver-sim.composition.fixtures :as fx]
+            [resolver-sim.extensions.execution :as ext-exec]
             [resolver-sim.economics.effects :as effects]))
 
 (deftest executes-valid-plan-with-value-flow
@@ -136,6 +137,51 @@
     (is (= :rejected (:execution/status result)))
     (is (some #(= :violation/uncompiled-combination (:violation/id %))
               (:execution/violations result)))))
+
+(deftest compiled-plan-commitment-is-verified-before-invocation
+  (let [emap (fx/ext-map-with (fx/cap :fixture/a))
+        combo (fx/seq-combination
+               (fx/node :n1 [:economics/award-amount :fixture/a] :spec {:rate 500})
+               (fx/node :n2 [:economics/award-amount :fixture/a] :spec {:rate 500}))
+        {:keys [plan]} (comp/compile-combination {:extensions emap} combo)
+        mutations [(assoc-in plan [:plan/nodes 0 :spec :rate] 10000)
+                   (assoc-in plan [:plan/nodes 0 :basis] {:basis/root "substituted"})
+                   (update plan :plan/nodes #(vec (reverse %)))
+                   (assoc-in plan [:plan/edges 0 :to] :substituted-node)
+                   (assoc-in plan [:plan/nodes 0 :terminal?] true)
+                   (assoc-in plan [:plan/nodes 0 :failure-mode] :continue)
+                   (assoc plan :plan/compiler-id :attacker/compiler)
+                   (assoc plan :plan/compiler-version 2)
+                   (assoc plan :plan/schema-version 2)
+                   (assoc plan :plan/root "malformed")
+                   (dissoc plan :plan/root)
+                   (assoc plan :plan/uncommitted-field :ignored)
+                   (assoc-in plan [:plan/nodes 0 :spec :nested] {:x :substituted})]
+        invocations (atom 0)]
+    (with-redefs [ext-exec/invoke-capability
+                  (fn [_ _] (swap! invocations inc) {:amount 1 :effects [{:effect/type :test}]})]
+      (doseq [candidate mutations]
+        (let [result (exec/execute-compiled-plan candidate emap {} 1000)]
+          (is (= :rejected (:execution/status result)) (pr-str candidate))
+          (is (empty? (:execution/nodes result)))
+          (is (empty? (:execution/effects result)))))
+      (is (zero? @invocations)))))
+
+(deftest altered-descriptor-body-rejected-before-invocation
+  (let [emap (fx/ext-map-with (fx/cap :fixture/a))
+        combo (fx/seq-combination
+               (fx/node :n1 [:economics/award-amount :fixture/a] :spec {:rate 500})
+               (fx/node :n2 [:economics/award-amount :fixture/a] :spec {:rate 500}))
+        {:keys [plan]} (comp/compile-combination {:extensions emap} combo)
+        altered (update-in emap [[:economics/award-amount :fixture/a] :capability]
+                           assoc :output-schema :attacker/schema)
+        invocations (atom 0)]
+    (with-redefs [ext-exec/invoke-capability
+                  (fn [_ _] (swap! invocations inc) {:amount 1 :effects []})]
+      (let [result (exec/execute-compiled-plan plan altered {} 1000)]
+        (is (= :rejected (:execution/status result)))
+        (is (zero? @invocations))
+        (is (empty? (:execution/effects result)))))))
 
 (deftest descriptor-root-mismatch-rejected
   (let [emap (fx/ext-map-with (fx/cap :fixture/a))

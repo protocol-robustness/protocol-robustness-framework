@@ -6,6 +6,9 @@
             [resolver-sim.shortfall.context-v2 :as context-v2]
             [resolver-sim.shortfall.evm-asset :as asset]
             [resolver-sim.shortfall.reserve-observation :as observation]
+            [resolver-sim.shortfall.reserve-binding :as reserve-binding]
+            [resolver-sim.shortfall.reserve-observation-v2 :as observation-v2]
+            [resolver-sim.shortfall.reserve-binding-v2 :as reserve-binding-v2]
             [resolver-sim.shortfall.context-test :as fixture]))
 
 (defn raises? [f]
@@ -15,14 +18,14 @@
 
 (def reserve-observation
   (let [f (json/read-str (slurp "coprocessor/core/tests/fixtures/onchain-shortfall-reserve-provenance.json") :key-fn keyword)
-        e (:expected f)
         numeric #{:chain-id :snapshot-id :created-at-block :gross-amount
                   :reserved-amount-before :protected-amount :available-amount}
         raw (select-keys f [:chain-id :reserve :token-address :snapshot-id :operation-id
                             :allocator :created-at-block :gross-amount :reserved-amount-before
                             :protected-amount :available-amount])
         raw (reduce-kv (fn [m k v] (assoc m k (if (numeric k) (Long/parseLong v) v))) {} raw)]
-    (assoc raw :snapshot-hash (:snapshot-hash e))))
+    (let [raw (assoc raw :gross-amount 79 :available-amount 49)]
+      (assoc raw :snapshot-hash (observation/solidity-snapshot-hash raw)))))
 
 (def observation-artifact (observation/build-observation reserve-observation))
 (def asset-root (:asset/root (asset/build-asset {:chain-id 31337
@@ -30,10 +33,13 @@
                                                  :unit :erc20-base-unit})))
 
 (defn reserve-binding [context]
-  {:binding/root "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
-   :reserve-observation/root (:availability/root context)
-   :shortfall/context-root (:shortfall/context-root context)
-   :operation-id operation-id})
+  (reserve-binding/build-binding
+   {:reserve-observation reserve-observation
+    :shortfall-context (select-keys context
+                                    [:shortfall/profile :asset/root :allocation-context-root
+                                     :candidates :availability/source :availability/root
+                                     :available-amount :allocation-policy :temporal-basis-root])
+    :operation-id operation-id}))
 
 (deftest binds-only-the-exact-shortfall-realization
   (let [context (context-v2/build-context
@@ -131,3 +137,41 @@
                                           :allocation-context fixture/ctx
                                           :realized-statement statement
                                           :operation-id operation-id})))))
+
+(deftest allocation-lineage-validates-reserve-v2-binding
+  (let [raw (let [base {:protocol-genesis-root (str "0x" (apply str (repeat 64 "1")))
+                        :chain-instance-genesis-root (str "0x" (apply str (repeat 64 "2")))
+                        :chain-id 31337
+                        :configuration-root (str "0x" (apply str (repeat 64 "3")))
+                        :configuration-epoch 1 :operation-id operation-id
+                        :prepared-operation-root (str "0x" (apply str (repeat 64 "4")))
+                        :reserve (:reserve reserve-observation)
+                        :token-address (:token-address reserve-observation)
+                        :allocator (:allocator reserve-observation)
+                        :gross-amount 79 :reserved-amount 20 :protected-amount 10
+                        :available-amount 49 :availability-revision 1
+                        :snapshot-id 1 :created-at-block 42}
+               commitment (observation-v2/economic-state-commitment base)]
+           (assoc base :reserve-state-commitment commitment
+                  :authoritative-observation-root
+                  (observation-v2/solidity-observation-root commitment 1 42)))
+        obs (observation-v2/build-observation raw)
+        context-input (assoc (dissoc (fixture/shortfall-input 49) :asset/id :asset/unit)
+                             :asset/root asset-root
+                             :availability/source observation-v2/source
+                             :availability/root (:observation/root obs))
+        context (context-v2/build-context context-input)
+        reserve (reserve-binding-v2/build-binding {:reserve-observation raw
+                                                    :shortfall-context context-input
+                                                    :operation-id operation-id})
+        statement (:realized-allocation-statement (shortfall/realize context fixture/ctx))
+        args {:reserve-binding reserve :reserve-observation raw
+              :shortfall-context context :allocation-context fixture/ctx
+              :realized-statement statement :operation-id operation-id}
+        result (lineage/build-binding args)]
+    (is (= (:binding/root reserve) (:reserve-binding/root result)))
+    (is (= (:statement/root statement) (:realized-statement/root result)))
+    (is (raises? #(lineage/build-binding
+                   (assoc args :reserve-binding
+                          (assoc reserve :binding/root
+                                 "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa")))))))

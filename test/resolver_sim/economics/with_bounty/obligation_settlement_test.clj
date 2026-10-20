@@ -78,6 +78,39 @@
     (is (= :rpc-finalized-head-attestation (:trust-class result)))
     (is (= 70 (get-in result [:event :amount])))))
 
+(deftest rpc-included-head-attestation-is-retained-without-consensus-finality
+  (let [{:keys [rpc observation expected]} (rpc-fixture :included)
+        result (rpc-observation/verify-rpc-observation rpc observation expected)]
+    (is (:valid? result))
+    (is (= :rpc-included-head-attestation (:trust-class result)))
+    (is (= {:kind "latest" :number 11 :hash (format "0x%064x" 12)}
+           (:rpc-head result)))))
+
+(deftest rpc-observation-rejects-a-head-on-a-competing-branch
+  (let [{:keys [rpc observation expected]} (rpc-fixture :included)
+        canonical-block-9 (format "0x%064x" 10)
+        competing-block-10 {:number "0xa"
+                            :hash (format "0x%064x" 99)
+                            :parentHash canonical-block-9}
+        competing-head {:number "0xb"
+                        :hash (format "0x%064x" 100)
+                        :parentHash (:hash competing-block-10)}
+        forked-rpc (fn [method params]
+                     (case method
+                       "eth_getBlockByHash"
+                       (cond
+                         (= (first params) (:hash competing-block-10)) competing-block-10
+                         (= (first params) (:hash competing-head)) competing-head
+                         :else (rpc method params))
+                       "eth_getBlockByNumber"
+                       (if (= "latest" (first params))
+                         competing-head
+                         (rpc method params))
+                       (rpc method params)))]
+    (is (= :rpc-head-ancestry-mismatch
+           (:reason (rpc-observation/verify-rpc-observation
+                     forked-rpc observation expected))))))
+
 (deftest rpc-observation-rejects-chain-mismatch-and-unfinalized-head
   (let [{:keys [rpc observation expected]} (rpc-fixture :finalized)
         wrong-chain (fn [method params]

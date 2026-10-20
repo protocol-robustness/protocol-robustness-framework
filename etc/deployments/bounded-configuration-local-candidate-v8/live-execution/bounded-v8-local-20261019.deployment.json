@@ -1,0 +1,339 @@
+{
+  "schemaVersion": 1,
+  "specHash": "0x644a024104b19a3e39b068927e257403969b27b929cecef4768e1792fd5a1ed0",
+  "environment": "bounded-v8-local-20261019",
+  "chainId": 31337,
+  "status": "partial",
+  "contracts": {
+    "prf/local-token": {
+      "kind": "deployment",
+      "logicalId": "prf/local-token",
+      "artifact": {
+        "source": "prf/deployables",
+        "package": "@protocol-robustness/prf-evm-deployables",
+        "version": "0.4.2",
+        "artifactName": "LocalSnapshotToken",
+        "abiSha256": "d3a735a0c13f1326e9a3e793be86f803b8bfbafb6867b4eaca0fb1a14a5f0f43",
+        "creationBytecodeSha256": "1ddabe86ad88a084001919300e72e6d173eec58c57b9ae678a4317c7313dda00",
+        "runtimeBytecodeSha256": "75dbd2fbacda1ca20c67dfce9c55c39ef85839c99bb4b6cde29e397a163701a2"
+      },
+      "address": "0xb22c255250d74b0add1bfb936676d2a299bf48bd",
+      "transactionHash": "0xf9dd64f491c5ddcd369a4ea0fb1cf788457ad2887a04471342b4df525dea477d",
+      "blockNumber": "110",
+      "mode": "create",
+      "deployedParameters": {}
+    },
+    "prf/authority-transition-validator": {
+      "kind": "deployment",
+      "logicalId": "prf/authority-transition-validator",
+      "artifact": {
+        "source": "prf/deployables",
+        "package": "@protocol-robustness/prf-evm-deployables",
+        "version": "0.4.2",
+        "artifactName": "PrfEcdsaAuthorityTransitionValidator",
+        "abiSha256": "95607266e34482449f5c0f5bc0c24d58bbb1194eb3203129fff2185810c3ea1d",
+        "creationBytecodeSha256": "914dec210220238f64a2bb42009397db20897c24ac5d5db5d051aa9655c94513",
+        "runtimeBytecodeSha256": "cac561b5687050294f0d501c3220a7f86d885241cd4de7265d86dd6d7e6e6f4c"
+      },
+      "address": "0x666d0c3da3dbc946d5128d06115bb4eed4595580",
+      "transactionHash": "0x06812530478dabe9aae5d6dedb7c4d503ecebec5bed0285ee33447cf25870739",
+      "blockNumber": "111",
+      "mode": "create",
+      "deployedParameters": {}
+    },
+    "prf/governance-authority": {
+      "kind": "deployment",
+      "logicalId": "prf/governance-authority",
+      "artifact": {
+        "source": "prf/deployables",
+        "package": "@protocol-robustness/prf-evm-deployables",
+        "version": "0.4.2",
+        "artifactName": "PrfLocalAuthorityAdapter",
+        "abiSha256": "7423aeb69be002ea48eb4cc56166996537c1465b618510681aa3c0b180e98559",
+        "creationBytecodeSha256": "8d7d2d8db458d30816832dfb84b6c97f874c5607d0458c0c2b7743986cc2ab81",
+        "runtimeBytecodeSha256": "834a1f321fdade6e68aec9d72488e1dbc923fc7e61a91f99189cbfeeb9ca21f5"
+      },
+      "address": "0x742489f22807ebb4c36ca6cd95c3e1c044b7b6c8",
+      "transactionHash": "0x76b42af3aecefe62414896b95efa140bfe52b7e92c26a239ba337bb3fd975869",
+      "blockNumber": "112",
+      "mode": "create",
+      "deployedParameters": {}
+    },
+    "prf/verifier-registry": {
+      "kind": "deployment",
+      "logicalId": "prf/verifier-registry",
+      "artifact": {
+        "source": "prf/deployables",
+        "package": "@protocol-robustness/prf-evm-deployables",
+        "version": "0.4.2",
+        "artifactName": "PrfVerifierRegistry",
+        "abiSha256": "05d2c162cf28ff737b0af4a07a97729435b79f6b0aa6e0c0eb06c174c9f38847",
+        "creationBytecodeSha256": "6d2423b711f727b0e51fd0fe6391047d847b4febf63d1af2d35968c9f3c84712",
+        "runtimeBytecodeSha256": "b2f09672b249cc3d35fd50218a33db33a81db0f88331d9b53017253f49281c26"
+      },
+      "address": "0x1d8d70ad07c8e7e442ad78e4ac0a16f958eba7f0",
+      "transactionHash": "0x4499acb76a54ddb5b6eede265e75d4fc6819472659f276739bdda458d8ec1b99",
+      "blockNumber": "113",
+      "mode": "create",
+      "deployedParameters": {}
+    },
+    "prf/sp1-verifier-groth16": {
+      "kind": "deployment",
+      "logicalId": "prf/sp1-verifier-groth16",
+      "artifact": {
+        "source": "prf/deployables",
+        "package": "@protocol-robustness/prf-evm-deployables",
+        "version": "0.4.2",
+        "artifactName": "SP1VerifierGroth16",
+        "abiSha256": "1e244c3c3d2a25d66848fac9ef1ed18dce7fddfec2d032091aa39b2197e61bf4",
+        "creationBytecodeSha256": "a4da273b705f2ddc39a1a8d32436095b144af06f8b7c8e32375eb34a7c94def1",
+        "runtimeBytecodeSha256": "8f6a0b7972eda1a6eee4478002ff4cfa7e0a0adaf84e0fca0a2d53bdd896894b"
+      },
+      "address": "0xa9e6bfa2bf53de88feb19761d9b2ee2e821bf1bf",
+      "transactionHash": "0x3bedf69a560828f1513c998d3a445dd2d345b1d5f961494979b28889742258db",
+      "blockNumber": "114",
+      "mode": "create",
+      "deployedParameters": {}
+    },
+    "prf/source-bound-entitlement-verifier-adapter-v1": {
+      "kind": "deployment",
+      "logicalId": "prf/source-bound-entitlement-verifier-adapter-v1",
+      "artifact": {
+        "source": "prf/deployables",
+        "package": "@protocol-robustness/prf-evm-deployables",
+        "version": "0.4.2",
+        "artifactName": "PrfSourceBoundEntitlementVerifierAdapterV1",
+        "abiSha256": "e3856aa934397a5b8ba474380301e647bbe3d82d4442dad64ef97fd46601a6d5",
+        "creationBytecodeSha256": "1ab03b3d7ae15b61c114b93bb5006cf143c54d07f346597f7f9c62f04390a21a",
+        "runtimeBytecodeSha256": "59e5f11862256f1775cebebce66aacc47f320dba68b55ef31064cd08f7daee84"
+      },
+      "address": "0x1e3b98102e19d3a164d239bdd190913c2f02e756",
+      "transactionHash": "0xaeefe03b5e5a99df31a938c62d93323b8cedffe1b20d750f6952875ff2ae8872",
+      "blockNumber": "115",
+      "mode": "create",
+      "deployedParameters": {}
+    },
+    "prf/genesis": {
+      "kind": "deployment",
+      "logicalId": "prf/genesis",
+      "artifact": {
+        "source": "prf/deployables",
+        "package": "@protocol-robustness/prf-evm-deployables",
+        "version": "0.4.2",
+        "artifactName": "PrfChainInstanceGenesis",
+        "abiSha256": "98c3fcf36afa5c3e0ce605accdbf55280e35f9663419b36405c10bdf062edc16",
+        "creationBytecodeSha256": "1ed941e10848387a24a8df4329638a66df5418a0e6857ac177984a52b5ddc0cd",
+        "runtimeBytecodeSha256": "fdcc19c22d9acea9501390a239581aae4620a27dcfd9970aba11eedc24f31bd6"
+      },
+      "address": "0x3fdc08d815cc4ed3b7f69ee246716f2c8bcd6b07",
+      "transactionHash": "0x8ff84f587450c2711b0aeefed8db54b608daf1bd47a7f7042117b64e7e28f17b",
+      "blockNumber": "116",
+      "mode": "create",
+      "deployedParameters": {}
+    },
+    "prf/configuration-executor": {
+      "kind": "deployment",
+      "logicalId": "prf/configuration-executor",
+      "artifact": {
+        "source": "prf/deployables",
+        "package": "@protocol-robustness/prf-evm-deployables",
+        "version": "0.4.2",
+        "artifactName": "SewConfigurationExecutor",
+        "abiSha256": "cbe7691c9e90cc3721037b0d87fd9e4130c049b1562b6419c804dc873bb815cc",
+        "creationBytecodeSha256": "f685378ecb1c3c8e5121bf8213f049a3ebbfccce0b04a23859ee60a4695094f0",
+        "runtimeBytecodeSha256": "82b4fe2dea1b01dc491c65d0a35644ea3c3a81d11125f513e7cafbf6f7d8b90f"
+      },
+      "address": "0x4000f8820522ac96c4221b299876e3e53bcc8525",
+      "transactionHash": "0x569d7bc27bea77a2e9df92c21d3417e2339dc6e8b154f80ae832bd456031cccd",
+      "blockNumber": "120",
+      "mode": "create",
+      "deployedParameters": {}
+    }
+  },
+  "execution": {
+    "prf/local-token": {
+      "status": "verified",
+      "transactionHash": "0xf9dd64f491c5ddcd369a4ea0fb1cf788457ad2887a04471342b4df525dea477d",
+      "blockNumber": "110",
+      "address": "0xb22c255250d74b0add1bfb936676d2a299bf48bd"
+    },
+    "prf/authority-transition-validator": {
+      "status": "verified",
+      "transactionHash": "0x06812530478dabe9aae5d6dedb7c4d503ecebec5bed0285ee33447cf25870739",
+      "blockNumber": "111",
+      "address": "0x666d0c3da3dbc946d5128d06115bb4eed4595580"
+    },
+    "prf/governance-authority": {
+      "status": "verified",
+      "transactionHash": "0x76b42af3aecefe62414896b95efa140bfe52b7e92c26a239ba337bb3fd975869",
+      "blockNumber": "112",
+      "address": "0x742489f22807ebb4c36ca6cd95c3e1c044b7b6c8"
+    },
+    "prf/verifier-registry": {
+      "status": "verified",
+      "transactionHash": "0x4499acb76a54ddb5b6eede265e75d4fc6819472659f276739bdda458d8ec1b99",
+      "blockNumber": "113",
+      "address": "0x1d8d70ad07c8e7e442ad78e4ac0a16f958eba7f0"
+    },
+    "prf/sp1-verifier-groth16": {
+      "status": "verified",
+      "transactionHash": "0x3bedf69a560828f1513c998d3a445dd2d345b1d5f961494979b28889742258db",
+      "blockNumber": "114",
+      "address": "0xa9e6bfa2bf53de88feb19761d9b2ee2e821bf1bf"
+    },
+    "prf/source-bound-entitlement-verifier-adapter-v1": {
+      "status": "verified",
+      "transactionHash": "0xaeefe03b5e5a99df31a938c62d93323b8cedffe1b20d750f6952875ff2ae8872",
+      "blockNumber": "115",
+      "address": "0x1e3b98102e19d3a164d239bdd190913c2f02e756"
+    },
+    "prf/genesis": {
+      "status": "verified",
+      "transactionHash": "0x8ff84f587450c2711b0aeefed8db54b608daf1bd47a7f7042117b64e7e28f17b",
+      "blockNumber": "116",
+      "address": "0x3fdc08d815cc4ed3b7f69ee246716f2c8bcd6b07"
+    },
+    "prf/configuration-executor": {
+      "status": "verified",
+      "transactionHash": "0x569d7bc27bea77a2e9df92c21d3417e2339dc6e8b154f80ae832bd456031cccd",
+      "blockNumber": "120",
+      "address": "0x4000f8820522ac96c4221b299876e3e53bcc8525"
+    }
+  },
+  "bootstrapActions": [
+    {
+      "id": "prf/enable-authority-transitions",
+      "status": "verified",
+      "transactionHash": "0x9a18e1ea3e926bd0a3e815092b185c1c00492c7fbe76fe8298efb0a21893b330",
+      "blockNumber": "117",
+      "verification": "receipt-success"
+    },
+    {
+      "id": "prf/seal-genesis",
+      "status": "verified",
+      "transactionHash": "0x97da9f698d46e5f20f89d53852a8a45970f54e45da928079f3eb6a92f1180289",
+      "blockNumber": "118",
+      "verification": "receipt-success"
+    },
+    {
+      "id": "prf/seal-empty-verifier-registry",
+      "status": "verified",
+      "transactionHash": "0xa3990c038cd334d1a4adf2639d3f27f43854930790221b36c04f5a01e231cb22",
+      "blockNumber": "119",
+      "verification": "receipt-success-and-sealed-readback"
+    }
+  ],
+  "finalAssertions": [
+    {
+      "id": "prf-initial-input-approval",
+      "status": "passed",
+      "verifiedAt": "2026-10-19T16:23:40.704Z",
+      "detail": "{\"schema\":\"prf-initial-input-approval-verification.v1\",\"verifierCommand\":[\"clojure\",\"-M:test\",\"-m\",\"scripts.deployment.configuration-review\",\"verify-json\",\"etc/deployments/bounded-configuration-local-candidate-v8/review-manifest.v3.edn\",\"etc/deployments/bounded-configuration-local-candidate-v8/candidate-package-set.edn\",\"../../../.config/prf/bounded-v8-trusted-context.edn\",\"etc/deployments/bounded-configuration-local-candidate-v8/initial-input-approval.edn\"],\"inputs\":[{\"role\":\"manifest\",\"path\":\"etc/deployments/bounded-configuration-local-candidate-v8/review-manifest.v3.edn\",\"sha256\":\"a19ef856e57d9c5043741ddc53793a2b13b4048c7e0edb31842015c2f8d437f5\"},{\"role\":\"package-set\",\"path\":\"etc/deployments/bounded-configuration-local-candidate-v8/candidate-package-set.edn\",\"sha256\":\"44894b850d52e91dab2b493d1888dbae363d57e76238ad2f6b44b043fb030a40\"},{\"role\":\"trusted-context\",\"path\":\"bounded-v8-trusted-context.edn\",\"sha256\":\"ff72768747a9cb3e43fe6db239942dc7adf52ad6ccbfb574debad90157927825\"},{\"role\":\"approval-envelope\",\"path\":\"initial-input-approval.edn\",\"sha256\":\"ab5197731327e3a2b112caa9ab7a003c9605bcdd999a75e77e0f83c9bc6015a9\"}],\"output\":\"{\\\"qualification\\\":\\\"authenticated-content-approval\\\",\\\"authentication\\\":{\\\"valid\\\":true,\\\"qualification\\\":\\\"authenticated-local-approval\\\",\\\"errors\\\":[],\\\"key-id\\\":\\\"bounded-v8-local-initial-input-approver-2026-10-19\\\"},\\\"canonical-roots\\\":{\\\"protocol-genesis\\\":\\\"sha256:668bc1d132b8745a3f6db7fa0b2dad2b85a11246e00c39e7b24d266af4724775\\\",\\\"authority-state\\\":\\\"sha256:062aac742a56de1f3d51e1debc4fd8670b1dda8fc1acb68c0bbcd10ae1b8337e\\\",\\\"local-authority-policy\\\":\\\"sha256:0e124c35e9707f03ddb7f0b2972c22715098a23b58804175df02acdd25ded55c\\\",\\\"initial-configuration\\\":\\\"sha256:131ff6b74047de747bd9ace93413b6b793d677749095f0dadf5dcc173e120f95\\\"},\\\"valid\\\":true,\\\"action\\\":\\\"approve-initial-inputs\\\",\\\"content\\\":{\\\"valid\\\":true,\\\"errors\\\":[],\\\"qualification\\\":\\\"content-checked-not-approved\\\"},\\\"source\\\":{\\\"valid\\\":true,\\\"identity\\\":{\\\"source-tree-sha256\\\":\\\"066ee1dcd021ecf8e4d182f17a4ded02095cf3fb51e600ddbe96006f9d87ef09\\\",\\\"source-parent\\\":\\\"e6fe09666adf8092b2023ea1ecdd84fbf24fa98a\\\",\\\"source-file-count\\\":934}},\\\"manifest-root\\\":\\\"sha256:44a5c842a98b59653a4d2ea4c3a7933785d7e8f9fa7919e575a44fbc9589dc9f\\\",\\\"authority-transition-validator-address\\\":\\\"0xc78884593859e84524e41ce94cce38fbcb58c5f8\\\",\\\"initial-configuration\\\":{\\\"configuration\\\\/schema\\\":\\\"chain-configuration.v1\\\",\\\"verifier-registry\\\\/root\\\":\\\"sha256:2099fabf2cca563f8d183749d1a842946286e8704a96c51ec801eff4e834a240\\\",\\\"module-registry\\\\/root\\\":\\\"sha256:edf026fa676e3c840ff8030165ef444094f7fbb75a89a64ac06adb34e1b34e39\\\",\\\"evidence-policy\\\\/root\\\":\\\"sha256:78d0baa6172b157d469845dc44bc2cc326c5b933a983af669ab807114834d086\\\",\\\"escrow-template-registry\\\\/root\\\":\\\"sha256:3889e4cb805c7a2cda83416243fc72e68780109c57e00e17496c553a6d1222fe\\\",\\\"parameter-policy\\\\/root\\\":\\\"sha256:3f09bbbf5c34d1468284dcb21d82a7068248f6fa65f729f0ed646a6b58ea97b1\\\",\\\"governance-policy\\\\/root\\\":\\\"sha256:60a3f0b1a4fcaa9e33181b5d45cacdd28f66204442345bd994e2d56b5375384c\\\",\\\"interoperability-policy\\\\/root\\\":\\\"sha256:882f9fcfbd28fc3ccde19b7fb477039e66098b472dfbc0d365566cf9f2e014d6\\\"}}\\n\",\"outputSha256\":\"6a0af6674dfa91b52f44a6381ae84a479e6d9ba415cbd3a1f907d905626367fb\",\"manifestRoot\":\"sha256:44a5c842a98b59653a4d2ea4c3a7933785d7e8f9fa7919e575a44fbc9589dc9f\",\"approvedRootBindings\":{\"protocolGenesisRoot\":\"0x668bc1d132b8745a3f6db7fa0b2dad2b85a11246e00c39e7b24d266af4724775\",\"authorityStateRoot\":\"0x062aac742a56de1f3d51e1debc4fd8670b1dda8fc1acb68c0bbcd10ae1b8337e\",\"localAuthorityPolicyRoot\":\"0x0e124c35e9707f03ddb7f0b2972c22715098a23b58804175df02acdd25ded55c\",\"initialConfigurationRoot\":\"0x131ff6b74047de747bd9ace93413b6b793d677749095f0dadf5dcc173e120f95\",\"initialVerifierRegistryRoot\":\"0x2099fabf2cca563f8d183749d1a842946286e8704a96c51ec801eff4e834a240\",\"authorityTransitionValidatorAddress\":\"0xc78884593859e84524e41ce94cce38fbcb58c5f8\"}}"
+    },
+    {
+      "id": "prf-authority-transition-enablement",
+      "status": "passed",
+      "verifiedAt": "2026-10-19T16:23:41.112Z",
+      "detail": "{\"schema\":\"prf-authority-transition-enable-preflight.v1\",\"manifestRoot\":\"sha256:44a5c842a98b59653a4d2ea4c3a7933785d7e8f9fa7919e575a44fbc9589dc9f\",\"localAuthorityPolicyRoot\":\"0x0e124c35e9707f03ddb7f0b2972c22715098a23b58804175df02acdd25ded55c\",\"transitionValidatorAddress\":\"0xc78884593859e84524e41ce94cce38fbcb58c5f8\",\"deployedValidatorAddress\":\"0x666d0c3da3dbc946d5128d06115bb4eed4595580\",\"genesisAddress\":\"0x3fdc08d815cc4ed3b7f69ee246716f2c8bcd6b07\",\"initialAuthorityStateRoot\":\"0x062aac742a56de1f3d51e1debc4fd8670b1dda8fc1acb68c0bbcd10ae1b8337e\",\"enabledBefore\":false,\"enabledAfter\":true,\"transactionHash\":\"0x9a18e1ea3e926bd0a3e815092b185c1c00492c7fbe76fe8298efb0a21893b330\",\"blockNumber\":\"117\"}"
+    },
+    {
+      "id": "prf-genesis-seal-preflight",
+      "status": "passed",
+      "verifiedAt": "2026-10-19T16:23:49.974Z",
+      "detail": "{\"schema\":\"prf-chain-instance-seal-preflight.v2\",\"qualification\":\"approved-inputs-and-live-observations-verified\",\"manifestRoot\":\"sha256:44a5c842a98b59653a4d2ea4c3a7933785d7e8f9fa7919e575a44fbc9589dc9f\",\"sourceTreeSha256\":\"066ee1dcd021ecf8e4d182f17a4ded02095cf3fb51e600ddbe96006f9d87ef09\",\"computedRoot\":\"sha256:cddcc621c4f7f0e0d1952203785de6099e4819b2dbc8268b68b28cd76bf2c154\",\"sealCall\":{\"from\":\"0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266\",\"target\":\"0x3fdc08d815cc4ed3b7f69ee246716f2c8bcd6b07\",\"function\":\"sealGenesis\",\"args\":[\"cddcc621c4f7f0e0d1952203785de6099e4819b2dbc8268b68b28cd76bf2c154\",\"d8183061e69c4411ea557a9d7865ec139197e0125f15c81b20414805142ba423\",\"1d682d88280bd93bd329c25c6f1cabece63482ca47cf30e9fafc34d136cef30c\"]},\"derivedArguments\":[\"0xcddcc621c4f7f0e0d1952203785de6099e4819b2dbc8268b68b28cd76bf2c154\",\"0xd8183061e69c4411ea557a9d7865ec139197e0125f15c81b20414805142ba423\",\"0x1d682d88280bd93bd329c25c6f1cabece63482ca47cf30e9fafc34d136cef30c\"],\"observationBlocks\":{\"initial\":{\"number\":117,\"hash\":\"keccak256:839d9f97f8aa1feca72cc40c8d9531f249567ee97968e56b7c4721cf7284e30d\"},\"preseal\":{\"number\":117,\"hash\":\"keccak256:839d9f97f8aa1feca72cc40c8d9531f249567ee97968e56b7c4721cf7284e30d\"}},\"sourceFileCount\":934,\"verifierCommand\":[\"clojure\",\"-M:test\",\"-m\",\"scripts.deployment.genesis-seal-gate\",\"etc/deployments/bounded-configuration-local-candidate-v8/genesis-seal-request.edn\",\"../../../.config/prf/bounded-v8-genesis-seal-trusted-context.proposed.edn\",\"http://127.0.0.1:8545\",\"0x3fdc08d815cc4ed3b7f69ee246716f2c8bcd6b07\",\"0x742489f22807ebb4c36ca6cd95c3e1c044b7b6c8\",\"--json\"],\"inputs\":[{\"role\":\"preflight-request\",\"path\":\"genesis-seal-request.edn\",\"sha256\":\"690dfc06336dd73fb3299da867b2b5a9409b07c3a7670c3dc001ce56b3c4aa9e\"},{\"role\":\"trusted-context\",\"path\":\"bounded-v8-genesis-seal-trusted-context.proposed.edn\",\"sha256\":\"7ab1e08bcaf378e68fd9cc312f3e333a75ef2d5e93acea399deb71d5f9794e3a\"}],\"output\":\"{\\\"source-tree-sha256\\\":\\\"066ee1dcd021ecf8e4d182f17a4ded02095cf3fb51e600ddbe96006f9d87ef09\\\",\\\"qualification\\\":\\\"approved-inputs-and-live-observations-verified\\\",\\\"schema\\\":\\\"prf-chain-instance-seal-preflight.v2\\\",\\\"artifact\\\":{\\\"genesis\\\\/schema\\\":\\\"chain-instance-genesis.v1\\\",\\\"protocol\\\\/genesis-root\\\":\\\"sha256:668bc1d132b8745a3f6db7fa0b2dad2b85a11246e00c39e7b24d266af4724775\\\",\\\"execution\\\\/chain-id\\\":31337,\\\"settlement\\\\/chain-id\\\":31337,\\\"control-plane\\\":{\\\"address\\\":\\\"0x3fdc08d815cc4ed3b7f69ee246716f2c8bcd6b07\\\",\\\"runtime-code-keccak256\\\":\\\"keccak256:d8183061e69c4411ea557a9d7865ec139197e0125f15c81b20414805142ba423\\\"},\\\"governance\\\":{\\\"authority-adapter\\\":\\\"0x742489f22807ebb4c36ca6cd95c3e1c044b7b6c8\\\",\\\"authority-adapter-code-keccak256\\\":\\\"keccak256:1d682d88280bd93bd329c25c6f1cabece63482ca47cf30e9fafc34d136cef30c\\\",\\\"initial-authority-state-root\\\":\\\"sha256:062aac742a56de1f3d51e1debc4fd8670b1dda8fc1acb68c0bbcd10ae1b8337e\\\"},\\\"configuration\\\\/initial-root\\\":\\\"sha256:131ff6b74047de747bd9ace93413b6b793d677749095f0dadf5dcc173e120f95\\\"},\\\"canonical-roots\\\":{\\\"protocol-genesis\\\":\\\"sha256:668bc1d132b8745a3f6db7fa0b2dad2b85a11246e00c39e7b24d266af4724775\\\",\\\"authority-state\\\":\\\"sha256:062aac742a56de1f3d51e1debc4fd8670b1dda8fc1acb68c0bbcd10ae1b8337e\\\",\\\"local-authority-policy\\\":\\\"sha256:0e124c35e9707f03ddb7f0b2972c22715098a23b58804175df02acdd25ded55c\\\",\\\"initial-configuration\\\":\\\"sha256:131ff6b74047de747bd9ace93413b6b793d677749095f0dadf5dcc173e120f95\\\"},\\\"observation-blocks\\\":{\\\"initial\\\":{\\\"number\\\":117,\\\"hash\\\":\\\"keccak256:839d9f97f8aa1feca72cc40c8d9531f249567ee97968e56b7c4721cf7284e30d\\\"},\\\"preseal\\\":{\\\"number\\\":117,\\\"hash\\\":\\\"keccak256:839d9f97f8aa1feca72cc40c8d9531f249567ee97968e56b7c4721cf7284e30d\\\"}},\\\"observations-edn\\\":\\\"{:observation {:genesis\\\\/settlement-chain-id 31337N, :genesis\\\\/execution-chain-id 31337N, :observation\\\\/block-number 117N, :authority\\\\/address \\\\\\\"0x742489f22807ebb4c36ca6cd95c3e1c044b7b6c8\\\\\\\", :genesis\\\\/stored-runtime-code-keccak256 \\\\\\\"keccak256:0000000000000000000000000000000000000000000000000000000000000000\\\\\\\", :authority\\\\/state-root \\\\\\\"sha256:062aac742a56de1f3d51e1debc4fd8670b1dda8fc1acb68c0bbcd10ae1b8337e\\\\\\\", :authority\\\\/constructor-protocol-genesis-root \\\\\\\"sha256:668bc1d132b8745a3f6db7fa0b2dad2b85a11246e00c39e7b24d266af4724775\\\\\\\", :authority\\\\/constructor-initial-state-root \\\\\\\"sha256:062aac742a56de1f3d51e1debc4fd8670b1dda8fc1acb68c0bbcd10ae1b8337e\\\\\\\", :authority\\\\/runtime-code-keccak256 \\\\\\\"keccak256:1d682d88280bd93bd329c25c6f1cabece63482ca47cf30e9fafc34d136cef30c\\\\\\\", :genesis\\\\/initial-configuration-root \\\\\\\"sha256:131ff6b74047de747bd9ace93413b6b793d677749095f0dadf5dcc173e120f95\\\\\\\", :settlement\\\\/chain-id 31337N, :genesis\\\\/protocol-genesis-root \\\\\\\"sha256:668bc1d132b8745a3f6db7fa0b2dad2b85a11246e00c39e7b24d266af4724775\\\\\\\", :genesis\\\\/chain-instance-genesis-root \\\\\\\"sha256:0000000000000000000000000000000000000000000000000000000000000000\\\\\\\", :observation\\\\/block-hash \\\\\\\"keccak256:839d9f97f8aa1feca72cc40c8d9531f249567ee97968e56b7c4721cf7284e30d\\\\\\\", :genesis\\\\/stored-authority-adapter-runtime-code-keccak256 \\\\\\\"keccak256:0000000000000000000000000000000000000000000000000000000000000000\\\\\\\", :genesis\\\\/runtime-code-keccak256 \\\\\\\"keccak256:d8183061e69c4411ea557a9d7865ec139197e0125f15c81b20414805142ba423\\\\\\\", :genesis\\\\/initial-authority-state-root \\\\\\\"sha256:062aac742a56de1f3d51e1debc4fd8670b1dda8fc1acb68c0bbcd10ae1b8337e\\\\\\\", :genesis\\\\/address \\\\\\\"0x3fdc08d815cc4ed3b7f69ee246716f2c8bcd6b07\\\\\\\", :execution\\\\/chain-id 31337N, :genesis\\\\/sealer-address \\\\\\\"0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266\\\\\\\", :genesis\\\\/sealed? false, :genesis\\\\/authority-adapter \\\\\\\"0x742489f22807ebb4c36ca6cd95c3e1c044b7b6c8\\\\\\\", :authority\\\\/protocol-genesis-root \\\\\\\"sha256:668bc1d132b8745a3f6db7fa0b2dad2b85a11246e00c39e7b24d266af4724775\\\\\\\"}, :preseal-observation {:genesis\\\\/settlement-chain-id 31337N, :genesis\\\\/execution-chain-id 31337N, :observation\\\\/block-number 117N, :authority\\\\/address \\\\\\\"0x742489f22807ebb4c36ca6cd95c3e1c044b7b6c8\\\\\\\", :genesis\\\\/stored-runtime-code-keccak256 \\\\\\\"keccak256:0000000000000000000000000000000000000000000000000000000000000000\\\\\\\", :authority\\\\/state-root \\\\\\\"sha256:062aac742a56de1f3d51e1debc4fd8670b1dda8fc1acb68c0bbcd10ae1b8337e\\\\\\\", :authority\\\\/constructor-protocol-genesis-root \\\\\\\"sha256:668bc1d132b8745a3f6db7fa0b2dad2b85a11246e00c39e7b24d266af4724775\\\\\\\", :authority\\\\/constructor-initial-state-root \\\\\\\"sha256:062aac742a56de1f3d51e1debc4fd8670b1dda8fc1acb68c0bbcd10ae1b8337e\\\\\\\", :authority\\\\/runtime-code-keccak256 \\\\\\\"keccak256:1d682d88280bd93bd329c25c6f1cabece63482ca47cf30e9fafc34d136cef30c\\\\\\\", :genesis\\\\/initial-configuration-root \\\\\\\"sha256:131ff6b74047de747bd9ace93413b6b793d677749095f0dadf5dcc173e120f95\\\\\\\", :settlement\\\\/chain-id 31337N, :genesis\\\\/protocol-genesis-root \\\\\\\"sha256:668bc1d132b8745a3f6db7fa0b2dad2b85a11246e00c39e7b24d266af4724775\\\\\\\", :genesis\\\\/chain-instance-genesis-root \\\\\\\"sha256:0000000000000000000000000000000000000000000000000000000000000000\\\\\\\", :observation\\\\/block-hash \\\\\\\"keccak256:839d9f97f8aa1feca72cc40c8d9531f249567ee97968e56b7c4721cf7284e30d\\\\\\\", :genesis\\\\/stored-authority-adapter-runtime-code-keccak256 \\\\\\\"keccak256:0000000000000000000000000000000000000000000000000000000000000000\\\\\\\", :genesis\\\\/runtime-code-keccak256 \\\\\\\"keccak256:d8183061e69c4411ea557a9d7865ec139197e0125f15c81b20414805142ba423\\\\\\\", :genesis\\\\/initial-authority-state-root \\\\\\\"sha256:062aac742a56de1f3d51e1debc4fd8670b1dda8fc1acb68c0bbcd10ae1b8337e\\\\\\\", :genesis\\\\/address \\\\\\\"0x3fdc08d815cc4ed3b7f69ee246716f2c8bcd6b07\\\\\\\", :execution\\\\/chain-id 31337N, :genesis\\\\/sealer-address \\\\\\\"0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266\\\\\\\", :genesis\\\\/sealed? false, :genesis\\\\/authority-adapter \\\\\\\"0x742489f22807ebb4c36ca6cd95c3e1c044b7b6c8\\\\\\\", :authority\\\\/protocol-genesis-root \\\\\\\"sha256:668bc1d132b8745a3f6db7fa0b2dad2b85a11246e00c39e7b24d266af4724775\\\\\\\"}}\\\",\\\"source-file-count\\\":934,\\\"source-parent\\\":\\\"e6fe09666adf8092b2023ea1ecdd84fbf24fa98a\\\",\\\"manifest-root\\\":\\\"sha256:44a5c842a98b59653a4d2ea4c3a7933785d7e8f9fa7919e575a44fbc9589dc9f\\\",\\\"approval-key-id\\\":\\\"bounded-v8-local-initial-input-approver-2026-10-19\\\",\\\"seal-call\\\":{\\\"from\\\":\\\"0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266\\\",\\\"target\\\":\\\"0x3fdc08d815cc4ed3b7f69ee246716f2c8bcd6b07\\\",\\\"function\\\":\\\"sealGenesis\\\",\\\"args\\\":[\\\"cddcc621c4f7f0e0d1952203785de6099e4819b2dbc8268b68b28cd76bf2c154\\\",\\\"d8183061e69c4411ea557a9d7865ec139197e0125f15c81b20414805142ba423\\\",\\\"1d682d88280bd93bd329c25c6f1cabece63482ca47cf30e9fafc34d136cef30c\\\"]},\\\"computed-root\\\":\\\"sha256:cddcc621c4f7f0e0d1952203785de6099e4819b2dbc8268b68b28cd76bf2c154\\\",\\\"initial-configuration\\\":{\\\"configuration\\\\/schema\\\":\\\"chain-configuration.v1\\\",\\\"verifier-registry\\\\/root\\\":\\\"sha256:2099fabf2cca563f8d183749d1a842946286e8704a96c51ec801eff4e834a240\\\",\\\"module-registry\\\\/root\\\":\\\"sha256:edf026fa676e3c840ff8030165ef444094f7fbb75a89a64ac06adb34e1b34e39\\\",\\\"evidence-policy\\\\/root\\\":\\\"sha256:78d0baa6172b157d469845dc44bc2cc326c5b933a983af669ab807114834d086\\\",\\\"escrow-template-registry\\\\/root\\\":\\\"sha256:3889e4cb805c7a2cda83416243fc72e68780109c57e00e17496c553a6d1222fe\\\",\\\"parameter-policy\\\\/root\\\":\\\"sha256:3f09bbbf5c34d1468284dcb21d82a7068248f6fa65f729f0ed646a6b58ea97b1\\\",\\\"governance-policy\\\\/root\\\":\\\"sha256:60a3f0b1a4fcaa9e33181b5d45cacdd28f66204442345bd994e2d56b5375384c\\\",\\\"interoperability-policy\\\\/root\\\":\\\"sha256:882f9fcfbd28fc3ccde19b7fb477039e66098b472dfbc0d365566cf9f2e014d6\\\"}}\\n\",\"outputSha256\":\"4b277553009418f47eb0690eaaa79c030773bae257383ad2ab7bb01714cf7165\"}"
+    },
+    {
+      "id": "prf-genesis-seal-result",
+      "status": "passed",
+      "verifiedAt": "2026-10-19T16:23:59.443Z",
+      "detail": "{\"schema\":\"prf-chain-instance-seal-result.v1\",\"qualification\":\"seal-receipt-and-readback-verified\",\"manifestRoot\":\"sha256:44a5c842a98b59653a4d2ea4c3a7933785d7e8f9fa7919e575a44fbc9589dc9f\",\"chainInstanceGenesisRoot\":\"sha256:cddcc621c4f7f0e0d1952203785de6099e4819b2dbc8268b68b28cd76bf2c154\",\"receipt\":{\"transaction-hash\":\"0x97da9f698d46e5f20f89d53852a8a45970f54e45da928079f3eb6a92f1180289\",\"block-number\":118,\"block-hash\":\"keccak256:2a4d529196c87cefa78989cbf36733cd846f64bd8ac5e1aa30a7981bdb260db2\"},\"preflightOutputSha256\":\"4b277553009418f47eb0690eaaa79c030773bae257383ad2ab7bb01714cf7165\",\"verifierCommand\":[\"clojure\",\"-M:test\",\"-m\",\"scripts.deployment.genesis-seal-gate\",\"verify-seal-result\",\"etc/deployments/bounded-configuration-local-candidate-v8/genesis-seal-request.edn\",\"../../../.config/prf/bounded-v8-genesis-seal-trusted-context.proposed.edn\",\"/tmp/prf-genesis-seal-result-rez89M/preflight.json\",\"http://127.0.0.1:8545\",\"0x97da9f698d46e5f20f89d53852a8a45970f54e45da928079f3eb6a92f1180289\",\"0x3fdc08d815cc4ed3b7f69ee246716f2c8bcd6b07\",\"0x742489f22807ebb4c36ca6cd95c3e1c044b7b6c8\",\"--json\"],\"inputs\":[{\"role\":\"preflight-request\",\"path\":\"etc/deployments/bounded-configuration-local-candidate-v8/genesis-seal-request.edn\",\"sha256\":\"690dfc06336dd73fb3299da867b2b5a9409b07c3a7670c3dc001ce56b3c4aa9e\"},{\"role\":\"trusted-context\",\"path\":\"../../../.config/prf/bounded-v8-genesis-seal-trusted-context.proposed.edn\",\"sha256\":\"7ab1e08bcaf378e68fd9cc312f3e333a75ef2d5e93acea399deb71d5f9794e3a\"},{\"role\":\"preflight-verifier-output\",\"path\":\"captured-before-signing\",\"sha256\":\"4b277553009418f47eb0690eaaa79c030773bae257383ad2ab7bb01714cf7165\"}],\"output\":\"{\\\"schema\\\":\\\"prf-chain-instance-seal-result.v1\\\",\\\"qualification\\\":\\\"seal-receipt-and-readback-verified\\\",\\\"manifest-root\\\":\\\"sha256:44a5c842a98b59653a4d2ea4c3a7933785d7e8f9fa7919e575a44fbc9589dc9f\\\",\\\"chain-instance-genesis-root\\\":\\\"sha256:cddcc621c4f7f0e0d1952203785de6099e4819b2dbc8268b68b28cd76bf2c154\\\",\\\"receipt\\\":{\\\"transaction-hash\\\":\\\"0x97da9f698d46e5f20f89d53852a8a45970f54e45da928079f3eb6a92f1180289\\\",\\\"block-number\\\":118,\\\"block-hash\\\":\\\"keccak256:2a4d529196c87cefa78989cbf36733cd846f64bd8ac5e1aa30a7981bdb260db2\\\"},\\\"artifact\\\":{\\\"genesis\\\\/schema\\\":\\\"chain-instance-genesis.v1\\\",\\\"protocol\\\\/genesis-root\\\":\\\"sha256:668bc1d132b8745a3f6db7fa0b2dad2b85a11246e00c39e7b24d266af4724775\\\",\\\"execution\\\\/chain-id\\\":31337,\\\"settlement\\\\/chain-id\\\":31337,\\\"control-plane\\\":{\\\"address\\\":\\\"0x3fdc08d815cc4ed3b7f69ee246716f2c8bcd6b07\\\",\\\"runtime-code-keccak256\\\":\\\"keccak256:d8183061e69c4411ea557a9d7865ec139197e0125f15c81b20414805142ba423\\\"},\\\"governance\\\":{\\\"authority-adapter\\\":\\\"0x742489f22807ebb4c36ca6cd95c3e1c044b7b6c8\\\",\\\"authority-adapter-code-keccak256\\\":\\\"keccak256:1d682d88280bd93bd329c25c6f1cabece63482ca47cf30e9fafc34d136cef30c\\\",\\\"initial-authority-state-root\\\":\\\"sha256:062aac742a56de1f3d51e1debc4fd8670b1dda8fc1acb68c0bbcd10ae1b8337e\\\"},\\\"configuration\\\\/initial-root\\\":\\\"sha256:131ff6b74047de747bd9ace93413b6b793d677749095f0dadf5dcc173e120f95\\\"}}\\n\",\"outputSha256\":\"357f06d8a599b8538fae87ec0a9066bb3fc8fcedfc86567dde145747e40b2e45\"}"
+    },
+    {
+      "id": "plan-execution-prefix",
+      "status": "passed",
+      "verifiedAt": "2026-10-19T16:23:59.446Z",
+      "detail": "{\"executionStatus\":\"partial\",\"blockedStages\":[\"authorize-successor-configuration\",\"apply-successor-configuration\",\"deploy-statement-admission\",\"deploy-protected-operations\",\"deploy-successor-entitlements\",\"proof-admission-and-operation\",\"entitlement-activation-and-claims\",\"independent-reconcile\"]}"
+    },
+    {
+      "id": "verifier-runtime-closure:prf/source-bound-entitlement-verifier-adapter-v1",
+      "status": "passed",
+      "verifiedAt": "2026-10-19T16:23:59.530Z",
+      "detail": "{\"adapter\":{\"logicalId\":\"prf/source-bound-entitlement-verifier-adapter-v1\",\"address\":\"0x1e3b98102e19d3a164d239bdd190913c2f02e756\",\"transactionHash\":\"0xaeefe03b5e5a99df31a938c62d93323b8cedffe1b20d750f6952875ff2ae8872\",\"blockNumber\":\"115\",\"blockHash\":\"0x16fa69b45d5ee63b6cb0512384dcab623cdc81a1f2878fa438936dfd29e5d0ab\",\"runtimeCodeKeccak256AtDeployment\":\"0x5040a08c71afe4fc8c93af9a5b1c1e8197b38fc98f7ca8cbbcf352486ade4e45\",\"runtimeCodeKeccak256Now\":\"0x5040a08c71afe4fc8c93af9a5b1c1e8197b38fc98f7ca8cbbcf352486ade4e45\"},\"verifier\":{\"logicalId\":\"prf/sp1-verifier-groth16\",\"address\":\"0xa9e6bfa2bf53de88feb19761d9b2ee2e821bf1bf\",\"transactionHash\":\"0x3bedf69a560828f1513c998d3a445dd2d345b1d5f961494979b28889742258db\",\"blockNumber\":\"114\",\"blockHash\":\"0x3340e1be72186bb294ffdee3844bf28ceb3b41ceb9163c33f94421d1ab43d83b\",\"runtimeCodeKeccak256AtDeployment\":\"0xd50f7978fa1b090c48efcacce364a5ff91f4514e5d8886f9533257ba2cf79b4f\",\"runtimeCodeKeccak256Now\":\"0xd50f7978fa1b090c48efcacce364a5ff91f4514e5d8886f9533257ba2cf79b4f\"},\"effectiveVerifier\":{\"atDeployment\":\"0xA9e6Bfa2BF53dE88FEb19761D9b2eE2e821bF1Bf\",\"now\":\"0xA9e6Bfa2BF53dE88FEb19761D9b2eE2e821bF1Bf\"},\"metadata\":{\"programVKey\":{\"atDeployment\":\"0x00d90efa52d17e54670a4248f001e4da443a938f12c55d0d414c125ba68087b9\",\"now\":\"0x00d90efa52d17e54670a4248f001e4da443a938f12c55d0d414c125ba68087b9\"},\"programElfSha256\":{\"atDeployment\":\"0x636330de8e7af3485aba50bd3ca4b5e024cc4f977a2bf0f2c005f711e5ffacf8\",\"now\":\"0x636330de8e7af3485aba50bd3ca4b5e024cc4f977a2bf0f2c005f711e5ffacf8\"},\"statementSchemaVersion\":{\"atDeployment\":\"0x71fc0589dce6888fb7c2da5ddd88275753cf9f9de0aca477f307bd96de8660de\",\"now\":\"0x71fc0589dce6888fb7c2da5ddd88275753cf9f9de0aca477f307bd96de8660de\"},\"publicValuesSchema\":{\"atDeployment\":\"0x876f2aea9124d79f41dbdd389d498430987fa33bbb34408989849c478a7c2bde\",\"now\":\"0x876f2aea9124d79f41dbdd389d498430987fa33bbb34408989849c478a7c2bde\"}}}"
+    },
+    {
+      "id": "prf-successor-registry-derivation",
+      "status": "passed",
+      "verifiedAt": "2026-10-19T16:24:04.488Z",
+      "detail": "{\"schema\":\"prf-verifier-registry-derivation-evidence.v1\",\"qualification\":\"canonical-root-derived-and-solidity-equivalent\",\"root\":\"0xca8198811ed67ad944d7228512ae09dbe1648c2badd677a876c2a3f6790be2bd\",\"entry\":{\"id\":\"0x966cc6eee5072b17efdd6a108941d21ee07fd93d63dd13120f0731f490188bb1\",\"adapter\":\"0x1e3b98102e19d3a164d239bdd190913c2f02e756\",\"programVKey\":\"0x00d90efa52d17e54670a4248f001e4da443a938f12c55d0d414c125ba68087b9\",\"programElfSha256\":\"0x636330de8e7af3485aba50bd3ca4b5e024cc4f977a2bf0f2c005f711e5ffacf8\",\"programId\":\"source-bound-entitlement-sp1-program.v1\",\"statementSchemaVersionHash\":\"0x71fc0589dce6888fb7c2da5ddd88275753cf9f9de0aca477f307bd96de8660de\",\"publicValuesSchema\":\"0x876f2aea9124d79f41dbdd389d498430987fa33bbb34408989849c478a7c2bde\",\"active\":true},\"observationBlock\":{\"number\":\"118\",\"hash\":\"0x2a4d529196c87cefa78989cbf36733cd846f64bd8ac5e1aa30a7981bdb260db2\"},\"solidityRoot\":\"0xca8198811ed67ad944d7228512ae09dbe1648c2badd677a876c2a3f6790be2bd\",\"requestSha256\":\"b44d24ea83c95a9f43340cf4e38d7949530bf1edf802770e9dc1f58b6fa1f159\",\"outputSha256\":\"f924b7965c4fa9cb2dc0ef073cc78c5c6029df217cf28107789ec09b89dda679\",\"output\":\"{\\\"schema\\\":\\\"prf-verifier-registry-derivation-result.v1\\\",\\\"root\\\":\\\"0xca8198811ed67ad944d7228512ae09dbe1648c2badd677a876c2a3f6790be2bd\\\",\\\"entries\\\":[{\\\"id\\\":\\\"0x966cc6eee5072b17efdd6a108941d21ee07fd93d63dd13120f0731f490188bb1\\\",\\\"adapter\\\":\\\"0x1e3b98102e19d3a164d239bdd190913c2f02e756\\\",\\\"programVKey\\\":\\\"0x00d90efa52d17e54670a4248f001e4da443a938f12c55d0d414c125ba68087b9\\\",\\\"programElfSha256\\\":\\\"0x636330de8e7af3485aba50bd3ca4b5e024cc4f977a2bf0f2c005f711e5ffacf8\\\",\\\"programId\\\":\\\"source-bound-entitlement-sp1-program.v1\\\",\\\"statementSchemaVersionHash\\\":\\\"0x71fc0589dce6888fb7c2da5ddd88275753cf9f9de0aca477f307bd96de8660de\\\",\\\"publicValuesSchema\\\":\\\"0x876f2aea9124d79f41dbdd389d498430987fa33bbb34408989849c478a7c2bde\\\",\\\"active\\\":true}]}\\n\",\"verifierCommand\":[\"clojure\",\"-M:test\",\"-m\",\"scripts.deployment.registry-equivalence\",\"derive-json\",\"/tmp/prf-verifier-registry-8wLu04/request.json\"]}"
+    },
+    {
+      "id": "prf-empty-registry-seal-result",
+      "status": "passed",
+      "verifiedAt": "2026-10-19T16:24:04.543Z",
+      "detail": "{\"schema\":\"prf-empty-registry-seal-result.v1\",\"root\":\"0x2099fabf2cca563f8d183749d1a842946286e8704a96c51ec801eff4e834a240\",\"computedEmptyRoot\":\"0x2099fabf2cca563f8d183749d1a842946286e8704a96c51ec801eff4e834a240\",\"transactionHash\":\"0xa3990c038cd334d1a4adf2639d3f27f43854930790221b36c04f5a01e231cb22\",\"blockNumber\":\"119\",\"blockNumberAtDerivation\":\"118\",\"blockHashAtDerivation\":\"0x2a4d529196c87cefa78989cbf36733cd846f64bd8ac5e1aa30a7981bdb260db2\",\"governor\":\"0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266\",\"authorityGovernor\":\"0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266\",\"registryArtifactRuntimeBytecodeSha256\":\"b2f09672b249cc3d35fd50218a33db33a81db0f88331d9b53017253f49281c26\"}"
+    },
+    {
+      "id": "prf-successor-configuration-derivation",
+      "status": "passed",
+      "verifiedAt": "2026-10-19T16:24:09.643Z",
+      "detail": "{\"schema\":\"prf-successor-configuration-evidence.v1\",\"qualification\":\"successor-configuration-independently-derived-not-approved\",\"request\":{\"initial-configuration\":{\"configuration/schema\":\"chain-configuration.v1\",\"verifier-registry/root\":\"sha256:2099fabf2cca563f8d183749d1a842946286e8704a96c51ec801eff4e834a240\",\"module-registry/root\":\"sha256:edf026fa676e3c840ff8030165ef444094f7fbb75a89a64ac06adb34e1b34e39\",\"evidence-policy/root\":\"sha256:78d0baa6172b157d469845dc44bc2cc326c5b933a983af669ab807114834d086\",\"escrow-template-registry/root\":\"sha256:3889e4cb805c7a2cda83416243fc72e68780109c57e00e17496c553a6d1222fe\",\"parameter-policy/root\":\"sha256:3f09bbbf5c34d1468284dcb21d82a7068248f6fa65f729f0ed646a6b58ea97b1\",\"governance-policy/root\":\"sha256:60a3f0b1a4fcaa9e33181b5d45cacdd28f66204442345bd994e2d56b5375384c\",\"interoperability-policy/root\":\"sha256:882f9fcfbd28fc3ccde19b7fb477039e66098b472dfbc0d365566cf9f2e014d6\"},\"protocol-genesis-root\":\"sha256:668bc1d132b8745a3f6db7fa0b2dad2b85a11246e00c39e7b24d266af4724775\",\"chain-instance-genesis\":{\"genesis/schema\":\"chain-instance-genesis.v1\",\"protocol/genesis-root\":\"sha256:668bc1d132b8745a3f6db7fa0b2dad2b85a11246e00c39e7b24d266af4724775\",\"execution/chain-id\":31337,\"settlement/chain-id\":31337,\"control-plane\":{\"address\":\"0x3fdc08d815cc4ed3b7f69ee246716f2c8bcd6b07\",\"runtime-code-keccak256\":\"keccak256:d8183061e69c4411ea557a9d7865ec139197e0125f15c81b20414805142ba423\"},\"governance\":{\"authority-adapter\":\"0x742489f22807ebb4c36ca6cd95c3e1c044b7b6c8\",\"authority-adapter-code-keccak256\":\"keccak256:1d682d88280bd93bd329c25c6f1cabece63482ca47cf30e9fafc34d136cef30c\",\"initial-authority-state-root\":\"sha256:062aac742a56de1f3d51e1debc4fd8670b1dda8fc1acb68c0bbcd10ae1b8337e\"},\"configuration/initial-root\":\"sha256:131ff6b74047de747bd9ace93413b6b793d677749095f0dadf5dcc173e120f95\"},\"expected-chain-instance-genesis-root\":\"sha256:cddcc621c4f7f0e0d1952203785de6099e4819b2dbc8268b68b28cd76bf2c154\",\"expected-initial-configuration-root\":\"sha256:131ff6b74047de747bd9ace93413b6b793d677749095f0dadf5dcc173e120f95\",\"successor-verifier-registry-root\":\"sha256:ca8198811ed67ad944d7228512ae09dbe1648c2badd677a876c2a3f6790be2bd\",\"successor-proof-mode\":1,\"epoch\":1},\"requestSha256\":\"97e8fc6043ba79685438e2703ba1a4587df3c5209eee64e9cbd73823b767f873\",\"outputSha256\":\"cad0deb47ca56913c47cd52b4e08254d1ea6e61e4cad8afc72ff13f2486a6b7f\",\"output\":\"{\\\"qualification\\\":\\\"derived-only-not-approved\\\",\\\"chain-instance-genesis\\\":{\\\"genesis/schema\\\":\\\"chain-instance-genesis.v1\\\",\\\"protocol/genesis-root\\\":\\\"sha256:668bc1d132b8745a3f6db7fa0b2dad2b85a11246e00c39e7b24d266af4724775\\\",\\\"execution/chain-id\\\":31337,\\\"settlement/chain-id\\\":31337,\\\"control-plane\\\":{\\\"address\\\":\\\"0x3fdc08d815cc4ed3b7f69ee246716f2c8bcd6b07\\\",\\\"runtime-code-keccak256\\\":\\\"keccak256:d8183061e69c4411ea557a9d7865ec139197e0125f15c81b20414805142ba423\\\"},\\\"governance\\\":{\\\"authority-adapter\\\":\\\"0x742489f22807ebb4c36ca6cd95c3e1c044b7b6c8\\\",\\\"authority-adapter-code-keccak256\\\":\\\"keccak256:1d682d88280bd93bd329c25c6f1cabece63482ca47cf30e9fafc34d136cef30c\\\",\\\"initial-authority-state-root\\\":\\\"sha256:062aac742a56de1f3d51e1debc4fd8670b1dda8fc1acb68c0bbcd10ae1b8337e\\\"},\\\"configuration/initial-root\\\":\\\"sha256:131ff6b74047de747bd9ace93413b6b793d677749095f0dadf5dcc173e120f95\\\"},\\\"configuration/C1\\\":{\\\"configuration/schema\\\":\\\"chain-configuration.v1\\\",\\\"verifier-registry/root\\\":\\\"sha256:ca8198811ed67ad944d7228512ae09dbe1648c2badd677a876c2a3f6790be2bd\\\",\\\"module-registry/root\\\":\\\"sha256:edf026fa676e3c840ff8030165ef444094f7fbb75a89a64ac06adb34e1b34e39\\\",\\\"evidence-policy/root\\\":\\\"sha256:78d0baa6172b157d469845dc44bc2cc326c5b933a983af669ab807114834d086\\\",\\\"escrow-template-registry/root\\\":\\\"sha256:3889e4cb805c7a2cda83416243fc72e68780109c57e00e17496c553a6d1222fe\\\",\\\"parameter-policy/root\\\":\\\"sha256:3f09bbbf5c34d1468284dcb21d82a7068248f6fa65f729f0ed646a6b58ea97b1\\\",\\\"governance-policy/root\\\":\\\"sha256:60a3f0b1a4fcaa9e33181b5d45cacdd28f66204442345bd994e2d56b5375384c\\\",\\\"interoperability-policy/root\\\":\\\"sha256:882f9fcfbd28fc3ccde19b7fb477039e66098b472dfbc0d365566cf9f2e014d6\\\"},\\\"successor-proof-mode\\\":1,\\\"protocol-genesis-root\\\":\\\"sha256:668bc1d132b8745a3f6db7fa0b2dad2b85a11246e00c39e7b24d266af4724775\\\",\\\"successor-verifier-registry-root\\\":\\\"sha256:ca8198811ed67ad944d7228512ae09dbe1648c2badd677a876c2a3f6790be2bd\\\",\\\"schema\\\":\\\"prf-successor-configuration-derivation.v1\\\",\\\"decision-root\\\":\\\"sha256:d64de70816ff38269d09a3cb3d18feb62a68da5ba05865ada057bbd1a013adc6\\\",\\\"changed-fields\\\":[\\\"verifier-registry/root\\\"],\\\"chain-instance-genesis-root\\\":\\\"sha256:cddcc621c4f7f0e0d1952203785de6099e4819b2dbc8268b68b28cd76bf2c154\\\",\\\"configuration/C0\\\":{\\\"configuration/schema\\\":\\\"chain-configuration.v1\\\",\\\"verifier-registry/root\\\":\\\"sha256:2099fabf2cca563f8d183749d1a842946286e8704a96c51ec801eff4e834a240\\\",\\\"module-registry/root\\\":\\\"sha256:edf026fa676e3c840ff8030165ef444094f7fbb75a89a64ac06adb34e1b34e39\\\",\\\"evidence-policy/root\\\":\\\"sha256:78d0baa6172b157d469845dc44bc2cc326c5b933a983af669ab807114834d086\\\",\\\"escrow-template-registry/root\\\":\\\"sha256:3889e4cb805c7a2cda83416243fc72e68780109c57e00e17496c553a6d1222fe\\\",\\\"parameter-policy/root\\\":\\\"sha256:3f09bbbf5c34d1468284dcb21d82a7068248f6fa65f729f0ed646a6b58ea97b1\\\",\\\"governance-policy/root\\\":\\\"sha256:60a3f0b1a4fcaa9e33181b5d45cacdd28f66204442345bd994e2d56b5375384c\\\",\\\"interoperability-policy/root\\\":\\\"sha256:882f9fcfbd28fc3ccde19b7fb477039e66098b472dfbc0d365566cf9f2e014d6\\\"},\\\"configuration-transition\\\":{\\\"transition/schema\\\":\\\"chain-configuration-transition.v1\\\",\\\"protocol/genesis-root\\\":\\\"sha256:668bc1d132b8745a3f6db7fa0b2dad2b85a11246e00c39e7b24d266af4724775\\\",\\\"target\\\":{\\\"target/type\\\":\\\"chain-instance\\\",\\\"target/root\\\":\\\"sha256:cddcc621c4f7f0e0d1952203785de6099e4819b2dbc8268b68b28cd76bf2c154\\\"},\\\"configuration/parent-root\\\":\\\"sha256:131ff6b74047de747bd9ace93413b6b793d677749095f0dadf5dcc173e120f95\\\",\\\"configuration/new-root\\\":\\\"sha256:c6d7c1e00696a1cca7fc8b0be5ce8581e862a3884d4f3521743fb4a960fee689\\\",\\\"verifier-registry/root\\\":\\\"sha256:ca8198811ed67ad944d7228512ae09dbe1648c2badd677a876c2a3f6790be2bd\\\",\\\"epoch\\\":1},\\\"configuration/C1-root\\\":\\\"sha256:c6d7c1e00696a1cca7fc8b0be5ce8581e862a3884d4f3521743fb4a960fee689\\\",\\\"configuration/C0-root\\\":\\\"sha256:131ff6b74047de747bd9ace93413b6b793d677749095f0dadf5dcc173e120f95\\\"}\\n\",\"verifierCommand\":[\"clojure\",\"-M:test\",\"-m\",\"scripts.deployment.successor-configuration\",\"derive-json\",\"/tmp/prf-successor-configuration-HXTVm2/request.json\"],\"derivation\":{\"qualification\":\"derived-only-not-approved\",\"chain-instance-genesis\":{\"genesis/schema\":\"chain-instance-genesis.v1\",\"protocol/genesis-root\":\"sha256:668bc1d132b8745a3f6db7fa0b2dad2b85a11246e00c39e7b24d266af4724775\",\"execution/chain-id\":31337,\"settlement/chain-id\":31337,\"control-plane\":{\"address\":\"0x3fdc08d815cc4ed3b7f69ee246716f2c8bcd6b07\",\"runtime-code-keccak256\":\"keccak256:d8183061e69c4411ea557a9d7865ec139197e0125f15c81b20414805142ba423\"},\"governance\":{\"authority-adapter\":\"0x742489f22807ebb4c36ca6cd95c3e1c044b7b6c8\",\"authority-adapter-code-keccak256\":\"keccak256:1d682d88280bd93bd329c25c6f1cabece63482ca47cf30e9fafc34d136cef30c\",\"initial-authority-state-root\":\"sha256:062aac742a56de1f3d51e1debc4fd8670b1dda8fc1acb68c0bbcd10ae1b8337e\"},\"configuration/initial-root\":\"sha256:131ff6b74047de747bd9ace93413b6b793d677749095f0dadf5dcc173e120f95\"},\"configuration/C1\":{\"configuration/schema\":\"chain-configuration.v1\",\"verifier-registry/root\":\"sha256:ca8198811ed67ad944d7228512ae09dbe1648c2badd677a876c2a3f6790be2bd\",\"module-registry/root\":\"sha256:edf026fa676e3c840ff8030165ef444094f7fbb75a89a64ac06adb34e1b34e39\",\"evidence-policy/root\":\"sha256:78d0baa6172b157d469845dc44bc2cc326c5b933a983af669ab807114834d086\",\"escrow-template-registry/root\":\"sha256:3889e4cb805c7a2cda83416243fc72e68780109c57e00e17496c553a6d1222fe\",\"parameter-policy/root\":\"sha256:3f09bbbf5c34d1468284dcb21d82a7068248f6fa65f729f0ed646a6b58ea97b1\",\"governance-policy/root\":\"sha256:60a3f0b1a4fcaa9e33181b5d45cacdd28f66204442345bd994e2d56b5375384c\",\"interoperability-policy/root\":\"sha256:882f9fcfbd28fc3ccde19b7fb477039e66098b472dfbc0d365566cf9f2e014d6\"},\"successor-proof-mode\":1,\"protocol-genesis-root\":\"sha256:668bc1d132b8745a3f6db7fa0b2dad2b85a11246e00c39e7b24d266af4724775\",\"successor-verifier-registry-root\":\"sha256:ca8198811ed67ad944d7228512ae09dbe1648c2badd677a876c2a3f6790be2bd\",\"schema\":\"prf-successor-configuration-derivation.v1\",\"decision-root\":\"sha256:d64de70816ff38269d09a3cb3d18feb62a68da5ba05865ada057bbd1a013adc6\",\"changed-fields\":[\"verifier-registry/root\"],\"chain-instance-genesis-root\":\"sha256:cddcc621c4f7f0e0d1952203785de6099e4819b2dbc8268b68b28cd76bf2c154\",\"configuration/C0\":{\"configuration/schema\":\"chain-configuration.v1\",\"verifier-registry/root\":\"sha256:2099fabf2cca563f8d183749d1a842946286e8704a96c51ec801eff4e834a240\",\"module-registry/root\":\"sha256:edf026fa676e3c840ff8030165ef444094f7fbb75a89a64ac06adb34e1b34e39\",\"evidence-policy/root\":\"sha256:78d0baa6172b157d469845dc44bc2cc326c5b933a983af669ab807114834d086\",\"escrow-template-registry/root\":\"sha256:3889e4cb805c7a2cda83416243fc72e68780109c57e00e17496c553a6d1222fe\",\"parameter-policy/root\":\"sha256:3f09bbbf5c34d1468284dcb21d82a7068248f6fa65f729f0ed646a6b58ea97b1\",\"governance-policy/root\":\"sha256:60a3f0b1a4fcaa9e33181b5d45cacdd28f66204442345bd994e2d56b5375384c\",\"interoperability-policy/root\":\"sha256:882f9fcfbd28fc3ccde19b7fb477039e66098b472dfbc0d365566cf9f2e014d6\"},\"configuration-transition\":{\"transition/schema\":\"chain-configuration-transition.v1\",\"protocol/genesis-root\":\"sha256:668bc1d132b8745a3f6db7fa0b2dad2b85a11246e00c39e7b24d266af4724775\",\"target\":{\"target/type\":\"chain-instance\",\"target/root\":\"sha256:cddcc621c4f7f0e0d1952203785de6099e4819b2dbc8268b68b28cd76bf2c154\"},\"configuration/parent-root\":\"sha256:131ff6b74047de747bd9ace93413b6b793d677749095f0dadf5dcc173e120f95\",\"configuration/new-root\":\"sha256:c6d7c1e00696a1cca7fc8b0be5ce8581e862a3884d4f3521743fb4a960fee689\",\"verifier-registry/root\":\"sha256:ca8198811ed67ad944d7228512ae09dbe1648c2badd677a876c2a3f6790be2bd\",\"epoch\":1},\"configuration/C1-root\":\"sha256:c6d7c1e00696a1cca7fc8b0be5ce8581e862a3884d4f3521743fb4a960fee689\",\"configuration/C0-root\":\"sha256:131ff6b74047de747bd9ace93413b6b793d677749095f0dadf5dcc173e120f95\"}}"
+    },
+    {
+      "id": "prf/authority-transitions-enabled",
+      "status": "passed",
+      "verifiedAt": "2026-10-19T16:24:09.653Z"
+    },
+    {
+      "id": "prf/authority-transition-policy-root",
+      "status": "passed",
+      "verifiedAt": "2026-10-19T16:24:09.655Z"
+    },
+    {
+      "id": "prf/authority-transition-validator-bound",
+      "status": "passed",
+      "verifiedAt": "2026-10-19T16:24:09.659Z"
+    },
+    {
+      "id": "prf/genesis-sealed",
+      "status": "passed",
+      "verifiedAt": "2026-10-19T16:24:09.662Z"
+    },
+    {
+      "id": "local/token-is-deployed",
+      "status": "passed",
+      "verifiedAt": "2026-10-19T16:24:09.665Z"
+    },
+    {
+      "id": "shortfall-entitlement/adapter-local-verifier",
+      "status": "passed",
+      "verifiedAt": "2026-10-19T16:24:09.669Z"
+    },
+    {
+      "id": "shortfall-entitlement/adapter-program-vkey",
+      "status": "passed",
+      "verifiedAt": "2026-10-19T16:24:09.673Z"
+    },
+    {
+      "id": "shortfall-entitlement/adapter-program-elf",
+      "status": "passed",
+      "verifiedAt": "2026-10-19T16:24:09.676Z"
+    },
+    {
+      "id": "shortfall-entitlement/adapter-statement-schema",
+      "status": "passed",
+      "verifiedAt": "2026-10-19T16:24:09.680Z"
+    },
+    {
+      "id": "shortfall-entitlement/adapter-public-values-schema",
+      "status": "passed",
+      "verifiedAt": "2026-10-19T16:24:09.684Z"
+    }
+  ],
+  "deploymentId": "99fba40b-06ea-4cd1-a751-6d42c33c292f",
+  "deployer": "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266",
+  "externalContracts": [],
+  "executionSpecHash": "0xad4018b4c210e761ea5c1235d4e373ae4e0eb384a0ee96d6fefcfc53b99e8d43",
+  "blockNumber": "120",
+  "blockHash": "0xd10565f94da0a7e674edf95dd291b87cc19c2308dd4bd3bbbed8e73a9f2a7ebe",
+  "deployedAt": "2026-10-19T16:24:09.687Z"
+}

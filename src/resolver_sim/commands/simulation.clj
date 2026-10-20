@@ -1,6 +1,7 @@
 (ns resolver-sim.commands.simulation
   "Explicit reduced-fidelity Monte Carlo simulation entry points."
   (:require [clojure.java.io :as io]
+            [clojure.string :as str]
             [resolver-sim.core.phases :as phases]
             [resolver-sim.io.params :as params]
             [resolver-sim.forensic.source-hash :as source-hash])
@@ -41,6 +42,55 @@
                (sha256-file file)]))
        (into (sorted-map))))
 
+(defn- sha256-string [^String value]
+  (sha256-bytes (.getBytes value "UTF-8")))
+
+(defn- path-content-sha256 [^File file]
+  (cond
+    (.isFile file) (sha256-file file)
+    (.isDirectory file)
+    (->> (file-seq file)
+         (filter #(.isFile ^File %))
+         (sort-by #(.getPath ^File %))
+         (map (fn [^File child]
+                (str (.relativize (.toPath file) (.toPath child)) ":" (sha256-file child))))
+         (str/join "\n")
+         sha256-string)
+    :else nil))
+
+(defn- runtime-provenance [source]
+  (let [repo-root (io/file (:vcs/root source))
+        config-files (->> ["deps.edn" "bb.edn" "bb.lock" "deps-lock.edn"]
+                          (map (fn [path] [path (io/file repo-root path)]))
+                          (filter (fn [[_ file]] (.isFile ^File file)))
+                          (map (fn [[path file]] [path (sha256-file file)]))
+                          (into (sorted-map)))
+        classpath (or (System/getProperty "java.class.path") "")
+        classpath-entries (->> (str/split classpath
+                                          (re-pattern (java.util.regex.Pattern/quote File/pathSeparator)))
+                               (remove str/blank?)
+                               vec)
+        classpath-identities (mapv (fn [entry]
+                                     (let [file (.getCanonicalFile (io/file entry))]
+                                       {:path (.getPath file)
+                                        :kind (cond (.isFile file) :file
+                                                    (.isDirectory file) :directory
+                                                    :else :missing)
+                                        :content/sha256 (path-content-sha256 file)}))
+                                   classpath-entries)]
+    {:runtime/java {:version (System/getProperty "java.version")
+                    :vendor (System/getProperty "java.vendor")
+                    :vm (System/getProperty "java.vm.name")}
+     :runtime/clojure {:version (clojure-version)}
+     :runtime/os {:name (System/getProperty "os.name")
+                  :version (System/getProperty "os.version")
+                  :architecture (System/getProperty "os.arch")}
+     :runtime/processor-count (.availableProcessors (Runtime/getRuntime))
+     :runtime/classpath {:entries classpath-entries
+                         :sha256 (sha256-string classpath)
+                         :entry-identities classpath-identities}
+     :runtime/dependency-config-sha256 config-files}))
+
 (defn- run-simplified!
   "Run the closed-form Monte Carlo engine with a frozen parameter file and an
    adjacent selection record. This records what was selected and the files
@@ -75,15 +125,21 @@
     (Files/copy (.toPath input) (.toPath frozen-input)
                 (into-array java.nio.file.CopyOption []))
     (let [raw-hash (sha256-file frozen-input)
-          base {:schema/version "simulation-selection.v1"
+          base {:schema/version "simulation-selection.v2"
                 :run/id run-id
                 :selection/status :selected
+                :command/path ["simulation" "simplified"]
+                :command/arguments ["simulation" "simplified"
+                                    "--params" params "--output" output]
+                :command/resolved-paths {:params (.getPath input)
+                                         :output (.getPath root)}
                 :simulation/mode :simplified-monte-carlo
                 :simulation/implementation 'resolver-sim.core.phases/run-simulation
                 :simulation/scope "Closed-form payoff Monte Carlo; no step-by-step replay, invariant checks, or evidence chain."
                 :input/path "inputs/params.edn"
                 :input/sha256 raw-hash
                 :source/provenance source
+                :runtime/provenance (runtime-provenance source)
                 :selected-at (str (Instant/now))}]
       (write-edn-atomically! evidence base)
       (try
@@ -104,7 +160,9 @@
         (catch Exception e
           (write-edn-atomically! evidence
                                  (assoc base :selection/status :failed
+                                        :failure/class (.getName (class e))
                                         :failure/message (.getMessage e)
+                                        :artifacts/sha256 (output-digests root)
                                         :failed-at (str (Instant/now))))
           (throw e))))))
 

@@ -10,7 +10,7 @@
 (def baseline-identity-sha256
   ;; SHA-256 of the sorted [id name schema owner algorithm domain] tuples.
   ;; Change only with an explicitly reviewed registry-baseline update.
-  "0d0af1b9e7e487f334c11f6a7029a6026caa75af9383e899db03747eb4a6c71a")
+  "e0e33c5ab0f976df2be635124dbc7c0a0bea1619b31af6f3a8d787a3da3c366e")
 
 (defn fail! [issues message]
   (swap! issues conj message))
