@@ -172,7 +172,11 @@
 (deftest ap-rejects-altered-record-and-disposition-identities
   (let [wrong-record (assoc open-record :bond/id "another-bond")
         wrong-disposition (assoc refund-disposition :workflow/id 99)
+        wrong-disposition-case (assoc refund-disposition :dispute/id "dispute:1")
         wrong-claim (assoc-in refund-claims [bond-id "0xappealer" :workflow/id] 99)
+        wrong-claim-case (assoc-in refund-claims [bond-id "0xappealer" :dispute/id] "dispute:1")
+        wrong-claim-round (assoc-in refund-claims [bond-id "0xappealer" :appeal/ordinal] 1)
+        wrong-case-record (assoc open-record :dispute/id "dispute:1")
         disposed (assoc open-record :bond/status :disposed :bond/remaining-custody 0)]
     (is (= :bond-record-id-mismatch
            (invalid-code {:appeal-bond/records {bond-id wrong-record}})))
@@ -183,7 +187,21 @@
     (is (= :claim-identity-mismatch
            (invalid-code {:appeal-bond/records {bond-id disposed}
                           :appeal-bond/dispositions {(:disposition/id refund-disposition) refund-disposition}
-                          :appeal-bond/claims wrong-claim})))))
+                          :appeal-bond/claims wrong-claim})))
+    (is (= :claim-identity-mismatch
+           (invalid-code {:appeal-bond/records {bond-id disposed}
+                          :appeal-bond/dispositions {(:disposition/id refund-disposition) refund-disposition}
+                          :appeal-bond/claims wrong-claim-round})))
+    (is (= :claim-identity-mismatch
+           (invalid-code {:appeal-bond/records {bond-id disposed}
+                          :appeal-bond/dispositions {(:disposition/id refund-disposition) refund-disposition}
+                          :appeal-bond/claims wrong-claim-case})))
+    (is (= :disposition-identity-mismatch
+           (invalid-code {:appeal-bond/records {bond-id disposed}
+                          :appeal-bond/dispositions {(:disposition/id wrong-disposition-case) wrong-disposition-case}
+                          :appeal-bond/claims refund-claims})))
+    (is (= :bond-case-or-round-mismatch
+           (invalid-code {:appeal-bond/records {bond-id wrong-case-record}})))))
 
 (deftest ap-rejects-cross-bond-and-cross-round-disposition-substitution
   (let [bond-id-2 "appeal-bond:0:0xappealer:1"
@@ -193,10 +211,13 @@
         cross-round (assoc refund-disposition :appeal/ordinal 1)
         records {bond-id (assoc open-record :bond/status :disposed :bond/remaining-custody 0)
                  bond-id-2 record-2}]
-    (is (= :disposed-bond-disposition-count
-           (invalid-code {:appeal-bond/records records
-                          :appeal-bond/dispositions {(:disposition/id cross-bond) cross-bond}
-                          :appeal-bond/claims refund-claims})))
+    (let [p (projection/project-appeal-bonds
+             {:appeal-bond/records records
+              :appeal-bond/dispositions {(:disposition/id cross-bond) cross-bond}
+              :appeal-bond/claims refund-claims})]
+      (is (false? (:valid? p)))
+      (is (some #{:disposition-identity-mismatch}
+                (map :code (get-in p [:errors 0 :errors])))))
     (is (= :disposition-identity-mismatch
            (invalid-code {:appeal-bond/records {bond-id (assoc open-record :bond/status :disposed
                                                               :bond/remaining-custody 0)}
@@ -282,3 +303,36 @@
     (is (= {:valid? true :attribution :aggregate-multi-bond
             :bond/ids [bond-id bond-id-2]}
            (projection/query-bond-claim-attribution p 0 "0xappealer")))))
+
+(deftest ap-single-bond-recipient-claim-attribution-is-explicit
+  (let [disposed (assoc open-record :bond/status :disposed :bond/remaining-custody 0)
+        claims {bond-id {"0xappealer" {:allocated 95 :claimable 35 :claimed 60 :asset :USDC}}}
+        p (projection/project-appeal-bonds
+           {:appeal-bond/records {bond-id disposed}
+            :appeal-bond/dispositions {(:disposition/id refund-disposition) refund-disposition}
+            :appeal-bond/claims claims})]
+    (is (:valid? p))
+    (is (= {:valid? true :attribution :single-bond :bond/id bond-id}
+           (projection/query-bond-claim-attribution p 0 "0xappealer")))))
+
+(deftest ap-invalid-errors-are-stable-across-map-orderings
+  (let [record-a (assoc open-record :bond/id "appeal-bond:0:a:0"
+                        :bond/funder "a" :bond/payer "a" :bond/posting-fee "bad")
+        record-b (assoc open-record :bond/id "appeal-bond:0:b:0"
+                        :bond/funder "b" :bond/payer "b" :bond/custodied-amount -1)
+        records-forward (array-map (:bond/id record-a) record-a (:bond/id record-b) record-b)
+        records-reverse (array-map (:bond/id record-b) record-b (:bond/id record-a) record-a)
+        errors (fn [records]
+                 (:errors (projection/project-appeal-bonds {:appeal-bond/records records})))]
+    (is (= (errors records-forward) (errors records-reverse)))))
+
+(deftest ap-ambiguous-open-bond-selector-fails-closed-deterministically
+  (let [bond-id-2 "appeal-bond:0:0xappealer:1"
+        record-2 (assoc open-record :bond/id bond-id-2 :appeal/ordinal 1)
+        records (array-map bond-id-2 record-2 bond-id open-record)
+        p (projection/project-appeal-bonds {:appeal-bond/records records})
+        result (projection/query-bond-conservation
+                p {:workflow/id 0 :bond/funder "0xappealer"})]
+    (is (:valid? p))
+    (is (= :ambiguous-bond-selector (:error result)))
+    (is (= [bond-id bond-id-2] (:bond-ids result)))))
