@@ -338,28 +338,25 @@
                              (check-closed-map acc field value allowed))))
                        v nested-contract-fields)
           v (if (map? effects)
-              (-> v
-                  (check-keyword-set :composition/effects/emits (:emits effects #{}))
-                  (check-keyword-set :composition/effects/exclusive-effects
-                                     (:exclusive-effects effects #{})))
+              (check-keyword-set
+               (check-keyword-set v (keyword "composition/effects/emits") (:emits effects #{}))
+               (keyword "composition/effects/exclusive-effects") (:exclusive-effects effects #{}))
               v)
           v (if (map? control)
-              (-> v
-                  (check-boolean :composition/control/terminal? (:terminal? control false))
-                  (check-boolean :composition/control/may-short-circuit?
-                                 (:may-short-circuit? control false)))
+              (check-boolean
+               (check-boolean v (keyword "composition/control/terminal?") (:terminal? control false))
+               (keyword "composition/control/may-short-circuit?") (:may-short-circuit? control false))
               v)
           determinism (:composition/determinism contract)
           v (if (map? determinism)
-              (-> v
-                  (check-boolean :composition/determinism/required? (:required? determinism true))
-                  (check-keyword-set :composition/determinism/context-reads
-                                     (:context-reads determinism #{}))
-                  (check-keyword-set :composition/determinism/external-reads
-                                     (:external-reads determinism #{})))
+              (check-keyword-set
+               (check-keyword-set
+                (check-boolean v (keyword "composition/determinism/required?") (:required? determinism true))
+                (keyword "composition/determinism/context-reads") (:context-reads determinism #{}))
+               (keyword "composition/determinism/external-reads") (:external-reads determinism #{}))
               v)
           v (if (map? adapters)
-              (check-keyword-set v :composition/adapters/accepted (:accepted adapters #{}))
+              (check-keyword-set v (keyword "composition/adapters/accepted") (:accepted adapters #{}))
               v)
           v (if (and (map? adapters) (seq (:accepted adapters)))
               (conj v {:violation/id :violation/unsupported-contract-adapters
@@ -369,10 +366,9 @@
                          :details {:implicit? true}})
                 v))
           v (if (map? custody)
-              (-> v
-                  (check-keyword-set :composition/custody/accounts (:accounts custody #{}))
-                  (check-keyword-set :composition/custody/exclusive-accounts
-                                     (:exclusive-accounts custody #{})))
+              (check-keyword-set
+               (check-keyword-set v (keyword "composition/custody/accounts") (:accounts custody #{}))
+               (keyword "composition/custody/exclusive-accounts") (:exclusive-accounts custody #{}))
               v)]
       {:valid? (empty? v)
        :violations (vec v)})))
