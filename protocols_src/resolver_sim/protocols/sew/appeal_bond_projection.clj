@@ -77,6 +77,8 @@
       :else nil))))
 
 (defn- validate-disposition [record disposition]
+  (if-not (map? disposition)
+    {:code :invalid-disposition-record :bond/id (:bond/id record)}
   (let [alloc (:allocations disposition)
         total (:total disposition)
         custody (:bond/custodied-amount record)]
@@ -110,7 +112,7 @@
       (not= custody total)
       {:code :bond-conservation-failure :bond/id (:bond/id record)
        :custodied custody :allocated total}
-      :else nil)))
+      :else nil))))
 
 
 (defn- validate-claims [record disposition claims]
@@ -168,8 +170,12 @@
                                     :bond/id (:bond/id record)}))
                                (stable-entries records))
                          (keep (fn [[disposition-key disposition]]
-                                 (when (or (not= disposition-key (:disposition/id disposition))
-                                           (not (contains? records (:bond/id disposition))))
+                                 (cond
+                                   (not (map? disposition))
+                                   {:code :invalid-disposition-record
+                                    :disposition/id disposition-key}
+                                   (or (not= disposition-key (:disposition/id disposition))
+                                       (not (contains? records (:bond/id disposition))))
                                    {:code (if (contains? records (:bond/id disposition))
                                             :disposition-id-mismatch :orphan-disposition)
                                     :disposition/id disposition-key

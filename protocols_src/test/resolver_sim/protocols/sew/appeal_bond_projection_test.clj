@@ -115,6 +115,16 @@
     (is (= :orphan-claims (invalid-code claim-world)))
     (is (= :orphan-disposition (invalid-code disposition-world)))))
 
+(deftest ap-malformed-disposition-value-returns-typed-invalid
+  (let [disposed (assoc open-record :bond/status :disposed :bond/remaining-custody 0)
+        p (projection/project-appeal-bonds
+           {:appeal-bond/records {bond-id disposed}
+            :appeal-bond/dispositions {"malformed-disposition" "not-a-map"}
+            :appeal-bond/claims {}})]
+    (is (false? (:valid? p)))
+    (is (some #{:invalid-disposition-record}
+              (map :code (get-in p [:errors 0 :errors]))))))
+
 (deftest ap-rejects-altered-record-and-disposition-identities
   (let [wrong-record (assoc open-record :bond/id "another-bond")
         wrong-disposition (assoc refund-disposition :workflow/id 99)
