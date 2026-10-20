@@ -9,9 +9,12 @@
 
    v1 value semantics: a running value flows through the sequential pipeline.
    Each node consumes it (value' = value − amount) unless the node is
-   terminal, in which case the node's output is the final value. Effects are
-   accumulated from each node result."
+   terminal, in which case the node's output is the final value. Effect
+   output follows the merge strategy committed in the plan: accumulate appends
+   in node order, replace takes the last node's output (including empty output),
+   and partition appends unique explicitly keyed effects in node order."
   (:require [resolver-sim.composition.compiler :as compiler]
+            [resolver-sim.composition.contract :as contract]
             [resolver-sim.composition.plan :as plan]
             [resolver-sim.extensions.manifest :as manifest]
             [resolver-sim.extensions.execution :as ext-exec]))
@@ -65,6 +68,39 @@
          (= (:plan/root candidate) (plan/plan-root candidate)))
     (catch Throwable _ false)))
 
+(defn- merge-plan-violation [compiled-plan]
+  (let [strategy (:plan/effect-merge-strategy compiled-plan)
+        node-strategies (set (map :merge-strategy (:plan/nodes compiled-plan)))]
+    (cond
+      (not (contains? contract/supported-merge-strategies strategy))
+      {:violation/id :violation/unsupported-effect-merge-strategy
+       :details {:merge-strategy strategy}}
+      (not= node-strategies #{strategy})
+      {:violation/id :violation/effect-merge-strategy-mismatch
+       :details {:plan-strategy strategy :node-strategies node-strategies}}
+      :else nil)))
+
+(defn- merge-node-effects [strategy accumulated node-effects node-id]
+  (case strategy
+    :accumulate {:effects (into accumulated node-effects)}
+    :replace {:effects (vec node-effects)}
+    :partition
+    (loop [remaining (seq node-effects)
+           current accumulated
+           seen (set (keep :effect/partition-key accumulated))]
+      (if-let [effect (first remaining)]
+        (let [key (when (map? effect) (:effect/partition-key effect))]
+          (cond
+            (nil? key) {:violation/id :violation/missing-effect-partition-key
+                        :details {:node/id node-id :effect effect}}
+            (contains? seen key)
+            {:violation/id :violation/duplicate-effect-partition-key
+             :details {:node/id node-id :effect/partition-key key}}
+            :else (recur (next remaining) (conj current effect) (conj seen key))))
+        {:effects current}))
+    {:violation/id :violation/unsupported-effect-merge-strategy
+     :details {:merge-strategy strategy}}))
+
 (defn execute-compiled-plan
   "Execute an authenticated compiled composition plan against an extension-map.
 
@@ -101,6 +137,8 @@
     (if-not (authenticated-plan? plan)
       (reject :violation/unauthenticated-plan
               {:reason "plan envelope, compiler identity, schema, or commitment is invalid"})
+      (if-let [violation (merge-plan-violation plan)]
+        {:execution/status :rejected :execution/violations [violation]}
       (let [nodes (:plan/nodes plan [])
             mismatches (keep (fn [n]
                                (let [entry (get extension-map (:capability-key n))]
@@ -120,7 +158,7 @@
         (if (seq mismatches)
           (reject :violation/descriptor-root-mismatch {:mismatches mismatches})
           (let [initial {:value input-value :effects [] :nodes [] :status :running}
-                {:keys [value effects nodes status]}
+                {:keys [value effects nodes status violation]}
                 (reduce (fn [acc node]
                           (if (= :short-circuited (:status acc))
                             (reduced acc)
@@ -134,6 +172,9 @@
                                            :node/id (:node/id node)})
                                   amount (:amount result)
                                   node-effects (or (:effects result) [])
+                                  node-effects (if (vector? node-effects)
+                                                 node-effects
+                                                 ::invalid-effects)
                                   value-out (if (:terminal? node)
                                               (or (:value result) amount (:value acc))
                                               (- (:value acc) (or amount 0)))
@@ -141,24 +182,34 @@
                                                  :input (:value acc)
                                                  :amount amount
                                                  :output value-out
-                                                 :effects node-effects}]
-                              (-> acc
-                                  (update :effects into node-effects)
-                                  (update :nodes conj node-evidence)
-                                  (assoc :value value-out)
-                                  (assoc :status (if (:short-circuit? result)
-                                                   :short-circuited
-                                                   :running))))))
+                                                 :effects node-effects}
+                                  merge-result (if (= ::invalid-effects node-effects)
+                                                 {:violation/id :violation/invalid-node-effects
+                                                  :details {:node/id (:node/id node)}}
+                                                 (merge-node-effects
+                                                  (:plan/effect-merge-strategy plan)
+                                                  (:effects acc) node-effects (:node/id node)))]
+                              (if (:violation/id merge-result)
+                                (reduced (assoc acc :violation merge-result))
+                                (-> acc
+                                    (assoc :effects (:effects merge-result))
+                                    (update :nodes conj node-evidence)
+                                    (assoc :value value-out)
+                                    (assoc :status (if (:short-circuit? result)
+                                                     :short-circuited
+                                                     :running)))))))
                         initial
                         nodes)
                 final-status (if (= :short-circuited status) :short-circuited :completed)]
+            (if violation
+              {:execution/status :rejected :execution/violations [violation]}
             {:execution/status final-status
              :execution/plan-root (:plan/root plan)
              :execution/compiler-id (:plan/compiler-id plan)
              :execution/compiler-version (:plan/compiler-version plan)
              :execution/value value
              :execution/effects (vec effects)
-             :execution/nodes (vec nodes)}))))))
+             :execution/nodes (vec nodes)}))))))))
 
 (defn execute-combination
   "Compile a combination against a compilation context, then execute the
