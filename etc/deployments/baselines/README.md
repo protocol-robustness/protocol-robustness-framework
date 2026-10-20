@@ -1,12 +1,39 @@
 # Bounded configuration release baseline
 
-`bounded-configuration-release-baseline.v1.json` records the current bounded-configuration release-source
-bundle digest, prf-evm base and integrated revision, the relevant
+The v1 release baseline below is retained as historical evidence for its
+original source parent. It no longer matches the current PRF source checkout.
+The current candidate uses
+`bounded-configuration-release-sources.current.v6.json` and
+`../bounded-configuration-local-candidate-v7/`. The 933-entry lock refreshes
+the current reserve-binding source digest and pins the authority-continuity,
+artifact-export-normalization, and v0.4.2 capital-flow replay follow-up patches.
+The exporter patch resolves project-local absolute Foundry artifact paths
+before allow-list validation. Each patch is pinned by file digest; the source
+lock itself remains outside the locked path set. Candidate v7 retains the
+earlier semantic package roots but has a new source-bound approval root. The
+v0.4.2 30-artifact local deployables
+bundle is retained by protocol-deployments with its bundle root and manifest
+digest. The earlier candidate v2–v5 packages and v1 baseline remain unchanged
+as historical records. No approval or public release is implied by the
+refreshed candidate.
+
+The reproducible v0.4.2 local build evidence, including compiler settings,
+source and bundle identities, clean-build command, and export comparison, is in
+`prf-evm-v0.4.2-export-evidence.json`. The complete bundle fixture and a
+manifest/core-artifact regression test are retained under
+`protocol-deployments/fixtures/releases/0.4.2/`; that fixture explicitly
+remains a local candidate because its provenance is a Jujutsu revision rather
+than a tagged clean Git release.
+
+`bounded-configuration-release-baseline.v1.json` records its bounded-configuration
+release-source bundle digest, prf-evm base and integrated revision, the relevant
 protocol-deployments worktree overlay, pinned Solidity submodules, tool versions,
 and the focused regression result. The source lock enumerates each included file; its bundle digest is SHA-256 over
 sorted `path NUL file-digest LF` records. It also pins cross-repository source
 patches and identities and is not a Git commit for the live PRF working copy.
-The source lock contains 926 scoped release-source entries, including PRF files, generic local candidate inputs and pinned cross-repository patches. Its current bundle digest is recorded in the baseline manifest and candidate review manifest.
+The historical source lock contains 926 scoped release-source entries,
+including PRF files, generic local candidate inputs and pinned cross-repository
+patches. Its bundle digest is recorded in its baseline and candidate manifest.
 
 The exact protocol-deployments patch is retained in
 `protocol-deployments-worktree.patch`. It preserves the six existing edits and
@@ -175,3 +202,5 @@ is based on the current-head overlay result tree `666cad1e81742948d3b30a0085466d
 The historical integration commit `02dcc7a869b492e8444f25fb9169e9c8061e102a` and release commit `02b7ea507e84054fecb422c5a5b56b02b40d0dcb` are not available as Git objects in the current mirror. A clean archive of pinned base `4b6b6ed159762c88099c96d4dafd635ab99470ea` plus the deterministically gzip-compressed overlay file pinned in `bounded-configuration-release-sources.v1.json` reconstructs the hardening, authority-transition and capital-replay stack. The compressed patch SHA-256, resulting source-tree identity and toolchain are pinned in the source/baseline JSON. Run `gzip -dc etc/deployments/baselines/prf-evm-bounded-combined-overlay.patch.gz | git -C <clean-prf-evm-base> apply` to apply it; this reproduces tree `98e2ced7c0c61f146f7da902ed027780cee0f8b9`.
 
 The reconstructed stack passed the 129-test focused Solidity run with no failures; after the test-only W1 addition the updated authority suite passes all 10 tests, extending coverage to 130 across the two runs and `npm run compile` under Foundry 1.7.1 / Solc 0.8.33 before the final test-only W1 addition. The updated test tree compiles in Forge. Export produced 31 v0.4.1 artifacts whose ABI, creation-bytecode, runtime-bytecode and file-digest records match the retained expected manifest exactly. The exported bundle root itself is not claimed as reproduced: its provenance includes the unavailable historical commit identity. These results close source/build reproducibility for the content-addressed reconstruction, not owner approval or live deployment.
+
+On 2026-10-19, the combined overlay also applied cleanly to a disposable copy of the current clean PRF-EVM checkout at parent `d8aee74e9652f44f68e345aff30090325df2ae54` (base tree `181cb24a13dd634bca95dad8981b49e61e983393`). The seven focused suites passed (85 tests), and the authority-transition plus ECDSA-validator suites passed (14 tests), compiling with Solc 0.8.33. The pinned overlay SHA-256 is `de072d677eff58f01a3fdef22d17c2f73ae549c848ee12b2b0f22cc77e1cc6f9`; its resulting Git tree is `b377fbc44495ec05a27fe584078ebbd5fe8c9233` (22 changed paths). `npm run compile` and `npm run deployables:export` pass on that tree; export validates 31 artifacts and reports bundle root `10cc6f300a2f8d9b25a18d353b34eaa8b2cc7e58f2b1ccb53a7034612b11911f`. An independent second temporary clone reproduced the same source tree and bundle root from fresh Foundry outputs. The source commit is marked dirty because the overlay remains an uncommitted change. This is a reproducible compatibility build, not a clean release identity or an artifact-equivalence claim against the unavailable historical bundle. The shared checkout was left unchanged.

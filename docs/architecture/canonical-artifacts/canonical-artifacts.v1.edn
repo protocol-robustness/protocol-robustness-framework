@@ -253,7 +253,7 @@
    :artifact/class :A
    :artifact/status :frozen-current
    :artifact/hash {:algorithm :sha256 :domain "PRF_SHORTFALL_CONTEXT_V2" :registration [:prf "src/resolver_sim/shortfall/context_v2.clj" "build-context"] :derivation [:prf "src/resolver_sim/shortfall/context_v2.clj" "context-preimage"]}
-   :artifact/inputs {:artifacts [:allocation-context :evm-asset :reserve-observation-v1] :related [[:G "candidates, eligibility, available amount, temporal basis and allocation policy fields"]]}
+   :artifact/inputs {:artifacts [:allocation-context :evm-asset :reserve-observation-v1 :reserve-observation-v2] :related [[:G "candidates, eligibility, available amount, temporal basis and allocation policy fields"]]}
    :artifact/implementations
    {:clojure {:status :implemented :sources [[:prf "src/resolver_sim/shortfall/context_v2.clj" "build-context"]]}
     :rust {:status :implemented :sources [[:prf "coprocessor/core/src/shortfall_provenance.rs" "context_root"]]}
@@ -277,6 +277,38 @@
    :artifact/conformance {:status :partial :sources [[:prf "coprocessor/core/tests/fixtures/onchain-shortfall-end-to-end-v1.json"] [:prf "test/resolver_sim/shortfall/provenance_conformance_test.clj"] [:prf "coprocessor/core/src/shortfall_provenance.rs" "tests"]]}
    :artifact/normative [[:prf "docs/architecture/ONCHAIN_SHORTFALL_RESERVE_PROVENANCE_V1.md"] [:prf "docs/architecture/PROTECTED_CAPITAL_PRO_RATA_V2_SEMANTICS.md"]]}
 
+  {:artifact/id :reserve-observation-v2
+   :artifact/name "prf/onchain-shortfall-reserve-observation.v2"
+   :artifact/schema "prf/onchain-shortfall-reserve-observation.v2"
+   :artifact/owner :Shortfall
+   :artifact/class :A
+   :artifact/status :implemented-current
+   :artifact/hash {:algorithm :sha256 :domain "prf.onchain-shortfall-reserve-observation.v2" :registration [:prf "src/resolver_sim/shortfall/reserve_observation_v2.clj" "domain"] :derivation [:prf "src/resolver_sim/shortfall/reserve_observation_v2.clj" "build-observation"]}
+   :artifact/inputs {:artifacts [:evm-asset] :related [[:B "OnchainShortfallReserveV2 economicState and authoritativeObservation projections"] [:G "chain-instance genesis root, C1 configuration root/epoch and prepared-operation identity"]]}
+   :artifact/implementations
+   {:clojure {:status :implemented :sources [[:prf "src/resolver_sim/shortfall/reserve_observation_v2.clj" "economic-state-commitment"] [:prf "src/resolver_sim/shortfall/reserve_observation_v2.clj" "solidity-observation-root"] [:prf "src/resolver_sim/shortfall/reserve_observation_v2.clj" "build-observation"]]}
+    :rust {:status :missing :sources []}
+    :solidity {:status :projection-only :sources [[:prf-evm "src/applications/shortfall/OnchainShortfallReserveV2.sol" "economicState"] [:prf-evm "src/applications/shortfall/OnchainShortfallReserveV2.sol" "authoritativeObservation"]]}}
+   :artifact/conformance {:status :partial :sources [[:prf "test/resolver_sim/shortfall/provenance_v2_test.clj"]]}
+   :artifact/normative [[:prf "docs/architecture/ONCHAIN_SHORTFALL_RESERVE_PROVENANCE_V2.md"]]
+   :artifact/successor-of :reserve-observation-v1}
+
+  {:artifact/id :reserve-binding-v2
+   :artifact/name "prf/onchain-shortfall-reserve-binding.v2"
+   :artifact/schema "prf/onchain-shortfall-reserve-binding.v2"
+   :artifact/owner :Shortfall
+   :artifact/class :A
+   :artifact/status :implemented-current
+   :artifact/hash {:algorithm :sha256 :domain "prf.onchain-shortfall-reserve-binding.v2" :registration [:prf "src/resolver_sim/shortfall/reserve_binding_v2.clj" "domain"] :derivation [:prf "src/resolver_sim/shortfall/reserve_binding_v2.clj" "build-binding"]}
+   :artifact/inputs {:artifacts [:reserve-observation-v2 :shortfall-context-v2] :related [[:B "operation ID"]]}
+   :artifact/implementations
+   {:clojure {:status :implemented :sources [[:prf "src/resolver_sim/shortfall/reserve_binding_v2.clj" "build-binding"]]}
+    :rust {:status :missing :sources []}
+    :solidity {:status :not-required :sources []}}
+   :artifact/conformance {:status :partial :sources [[:prf "test/resolver_sim/shortfall/provenance_v2_test.clj"]]}
+   :artifact/normative [[:prf "docs/architecture/ONCHAIN_SHORTFALL_RESERVE_PROVENANCE_V2.md"]]
+   :artifact/successor-of :reserve-binding-v1}
+
   {:artifact/id :reserve-binding-v1
    :artifact/name "prf/onchain-shortfall-reserve-binding.v1"
    :artifact/schema "prf/onchain-shortfall-reserve-binding.v1"
@@ -299,7 +331,7 @@
    :artifact/class :A
    :artifact/status :frozen-current
    :artifact/hash {:algorithm :sha256 :domain "prf.onchain-shortfall-allocation-binding.v1" :registration [:prf "src/resolver_sim/shortfall/allocation_binding.clj" "domain"] :derivation [:prf "src/resolver_sim/shortfall/allocation_binding.clj" "binding-preimage"]}
-   :artifact/inputs {:artifacts [:reserve-binding-v1 :realized-statement] :related [[:B "operation ID"]]}
+   :artifact/inputs {:artifacts [:reserve-binding-v1 :reserve-binding-v2 :realized-statement] :related [[:B "operation ID"]]}
    :artifact/implementations
    {:clojure {:status :implemented :sources [[:prf "src/resolver_sim/shortfall/allocation_binding.clj" "build-binding"] [:prf "src/resolver_sim/allocation/source_bound_entitlement.clj" "allocation-binding-root"]]}
     :rust {:status :implemented :sources [[:prf "coprocessor/core/src/source_bound.rs" "derive"] [:prf "coprocessor/core/src/source_bound_entitlement.rs" "allocation_binding_root"]]}
