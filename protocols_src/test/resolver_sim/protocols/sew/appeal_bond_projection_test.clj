@@ -161,7 +161,38 @@
            (invalid-code {:appeal-bond/records {bond-id bad-number}})))
     (is (= :invalid-bond-amounts
            (invalid-code {:appeal-bond/records
-                          {bond-id (assoc open-record :bond/posting-fee (+ Long/MAX_VALUE 1N))}})))))
+                          {bond-id (assoc open-record :bond/posting-fee (+ Long/MAX_VALUE 1N))}})))
+    (is (= :posted-fee-custody-mismatch
+           (invalid-code {:appeal-bond/records
+                          {bond-id (assoc open-record :bond/posted-amount Long/MAX_VALUE
+                                          :bond/posting-fee Long/MAX_VALUE
+                                          :bond/custodied-amount 1
+                                          :bond/remaining-custody 1)}})))))
+
+(deftest ap-round-arithmetic-overflow-is-typed-invalid
+  (is (= :bond-case-or-round-mismatch
+         (invalid-code {:appeal-bond/records
+                        {bond-id (assoc open-record :escalation/from-level Long/MAX_VALUE
+                                        :escalation/to-level 1)}}))))
+
+(deftest ap-overflowing-entitlements-and-allocations-return-invalid
+  (let [disposed (assoc open-record :bond/status :disposed :bond/remaining-custody 0)
+        overflowing-claims {bond-id {"0xappealer" {:allocated 95 :claimable Long/MAX_VALUE
+                                                    :claimed 1 :asset :USDC}}}
+        overflowing-disposition (assoc refund-disposition
+                                       :allocations {"recipient-a" Long/MAX_VALUE
+                                                     "recipient-b" 1}
+                                       :total 95)
+        world {:appeal-bond/records {bond-id disposed}
+               :appeal-bond/dispositions
+               {(:disposition/id refund-disposition) overflowing-disposition}
+               :appeal-bond/claims overflowing-claims}]
+    (is (= :allocation-total-mismatch (invalid-code world)))
+    (let [claim-world {:appeal-bond/records {bond-id disposed}
+                       :appeal-bond/dispositions {(:disposition/id refund-disposition)
+                                                  refund-disposition}
+                       :appeal-bond/claims overflowing-claims}]
+      (is (= :claim-entitlement-conservation-failure (invalid-code claim-world))))))
 
 (deftest ap-rejects-inconsistent-conservation-and-invalid-root
   (let [disposed (assoc open-record :bond/status :disposed :bond/remaining-custody 0)
