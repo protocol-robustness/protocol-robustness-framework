@@ -13,6 +13,38 @@ public governance approval and production readiness are separate milestones.
 
 ## Starting position
 
+### Current verified execution state (2026-10-19)
+
+The older status notes below describe the candidate before the approved local
+execution and are historical. The retained protocol-deployments receipt now
+records verified stages through C1 application on Anvil chain 31337. Its
+independent report is explicitly `verification-evidence-only-not-approval`,
+has six replayed PRF assertions, and remains `partial` with no capital-flow
+evidence. The live run is local-only and does not qualify W6 or W7.
+
+| Work | Current evidence | Status |
+| --- | --- | --- |
+| W0 release baseline | Candidate v7 pins 933 source identities, including the authority-continuity, Foundry-path normalization and v0.4.2 capital-flow replay patches. A clean Foundry compile and three v0.4.2 exports (one after that clean build) reproduce the same bundle byte-for-byte; the retained fixture validates. The historical v0.4.1 package root remains unreproduced. | Local candidate baseline; release-maintainer integration and historical equivalence remain open. |
+| W1 authority enforcement | Authority transition enforcement and focused tests are retained. The prior approved transition was applied at block 14 on the earlier candidate's deployment. | Code verified; old deployment evidence does not qualify candidate v7. |
+| W2 canonical input approval | The earlier initial-input and successor approvals remain valid only for their exact prior manifests and scope. Candidate v7 has a different source-bound manifest and is unapproved. | Open for candidate v7; the supplied ECDSA signature remains unbound without its exact signed request and digest. |
+| W3 verifier identity | The earlier deployment receipt records verifier/adapter identities and independent live checks; six PRF assertions replay in its independent report. | Verified for the earlier run only; candidate v7 artifact identities require fresh deployment observation. |
+| W4 genesis | The earlier chain-instance genesis and empty-registry seals have verified observations and readbacks. | Verified for the earlier run only; they do not bind candidate v7 runtime artifacts. |
+| W5 C0→C1 | The earlier approved transition and configuration application are recorded as verified. C1 was `0xfab68d6327ec91449a8b2755b0b45f9587d93c58a9357d3bf41359c31f990ecd`, epoch 1. | Verified for the earlier candidate only; a fresh transition review follows candidate v7 input approval and deployment. |
+| W6 capital flow | Replay support now covers setup and capital-flow transactions, but no real proof-admission/capital-flow evidence is retained. The report's `capitalFlowEvidenceRoot` is null. At the last live Anvil observation (chain 31337, block 25), the reserve had no funds and the ratification controller had no bound execution caller. | Open; operation and setup evidence must be separately approved before transactions. |
+| W7 evidence package | Independent report and partial execution receipt exist, but there is no approved expectation package or complete flow bundle. Setup replay is implemented; live evidence remains absent. | Open. |
+
+The prior deployment manifest root is
+`0x9e41374c74e541b8d2a32536ad1f2f0768aa8116659096a9f810516ec74d171c`,
+execution root
+`0x20234a8f341f82e40c750f3dc55d8d9146718171fd4d50eab53518dd5af117c4`, and
+independent report root
+`5fdc9108e06fcd56aaf9a74eff5a071d93ffa9f7d5b4368026dcbd61bc06bc6b`.
+These identifiers belong to the earlier candidate's local run. They are local
+evidence only and must be rechecked against retained inputs before any later
+transaction. Candidate v6 changes the source and deployable bundle identity;
+it has not been deployed or approved. No existing transaction authorization
+is inferred from its predecessor's receipts.
+
 | Area | Available now | Remaining obligation |
 | --- | --- | --- |
 | Canonical authority | Generic state v1, local policy v1/v2/v3, atomic transition enforcement, Ed25519 and EIP-191 validator paths, shared commitment vectors; the bounded profile now deploys the immutable EIP-191 validator and enables transition mode before sealing | Execute and independently verify an approved authority-state transition; qualify the approved key/runtime |
@@ -138,6 +170,47 @@ blocks and reads the transaction, receipt and post-state directly:
 
 ### W0 — Establish the integrated baseline
 The historical PRF-EVM integration/release Git objects are unavailable in the current mirror. The pinned base plus `etc/deployments/baselines/prf-evm-bounded-combined-overlay.patch.gz` now provides the reproducible source baseline: its resulting tree is `98e2ced7c0c61f146f7da902ed027780cee0f8b9`, the prior 129-test focused Solidity run passed; after the W1 test-only addition, the authority suite passes 10/10, extending the covered union to 130 cases, and `npm run compile` exports 31 artifact records matching the retained v0.4.1 manifest. The original package root is not claimed because archive provenance differs.
+
+On 2026-10-18, an independent scratch reconstruction reapplied the pinned
+overlay to the pinned base and reproduced tree
+`98e2ced7c0c61f146f7da902ed027780cee0f8b9`. With the pinned submodule commits
+checked out, the seven focused Forge suites passed again (85 tests), followed
+by the authority-transition and ECDSA-validator suites (14 tests). This
+revalidates the source overlay and those contract behaviors in the current
+environment; it does not reproduce the historical artifact-bundle root or
+provide owner approval, live deployment evidence, or W4–W7 qualification.
+
+On 2026-10-19, the overlay was also applied in a disposable source copy of the
+clean PRF-EVM checkout at parent `d8aee74e9652f44f68e345aff30090325df2ae54`
+(working-copy parent of the empty `4b8441ae` change). It applied without
+conflicts. The seven focused suites passed again (85 tests), and the two
+authority-transition/ECDSA suites passed (14 tests), using Solc 0.8.33. This
+shows compatibility with the current shared checkout's source; the checkout
+itself was not modified and the release baseline is still an overlay pending
+maintainer integration and source/artifact pinning.
+
+The exact PRF-EVM base tree is `181cb24a13dd634bca95dad8981b49e61e983393`;
+applying the pinned overlay (`de072d677eff58f01a3fdef22d17c2f73ae549c848ee12b2b0f22cc77e1cc6f9`)
+produces Git tree `b377fbc44495ec05a27fe584078ebbd5fe8c9233`. This tree identity
+was independently materialized in a temporary shared-object clone. Its 22
+changed paths and test results identify a reproducible compatibility build,
+not an accepted release revision.
+
+That exact tree also passes `npm run compile` and `npm run deployables:export`
+under Foundry 1.7.1 / Solc 0.8.33. Export validates 31 artifacts and reports
+bundle root `10cc6f300a2f8d9b25a18d353b34eaa8b2cc7e58f2b1ccb53a7034612b11911f`.
+An independent second temporary clone reproduced the same tree and bundle
+root from fresh Foundry outputs.
+The bundle records source commit `d8aee74e9652f44f68e345aff30090325df2ae54`
+as dirty because the overlay is applied in the temporary clone. This is a
+reproducible compatibility build, not a clean release identity or an artifact
+equivalence claim against the unavailable historical bundle.
+
+On 2026-10-19, the PRF-side registry-equivalence, source-lock, genesis-seal
+preflight, successor-configuration, and transition-approval review suites
+passed 16 tests and 93 assertions. These confirm the derivation and gate
+checks against retained fixtures; they do not satisfy live deployment
+acceptance.
 
 
 Owner: prf-evm and PRF maintainers. Priority: P0. Dependencies: none.
@@ -297,6 +370,9 @@ admission authority evaluates. Priority: P1. Dependencies: W0; informs W4/W5.
 - Implement independent code/readback checks against those artifacts. Define
   how an upgrade is prohibited or requalified, and when identities are rechecked
   before a proof can create usable authorization.
+- Bind statement admission's configuration executor to the same sealed chain
+  instance at construction and recheck the binding immediately before proof
+  verification; mismatched-instance deployments fail closed.
 - Implemented in the pinned protocol-deployments integration for the local
   entitlement verifier: adapter getters and effective `sp1Verifier()` are read
   at deployment and current state, and the verifier runtime is checked against
@@ -309,9 +385,13 @@ admission authority evaluates. Priority: P1. Dependencies: W0; informs W4/W5.
   receipts, historical/current adapter and verifier runtimes, effective
   `sp1Verifier()` readbacks and immutable metadata. It includes the replayed
   closure assertion in the independent live-verification root. Substituted
-  retained closure evidence fails closed. Remaining work is to bind this
-  profile to an authenticated approved package and ensure a real proof stage
-  consumes only after this check.
+  retained closure evidence fails closed. The executor verifies this closure
+  before deriving the successor registry root; the approved C0→C1 transition
+  binds that registry before admission contracts are deployed. The selected
+  adapter's verifier pointer and proof metadata are immutable. This makes the
+  verifier check a prerequisite to the on-chain admission configuration.
+  Remaining W3/W6 qualification is to bind the profile to the approved package
+  and exercise real proof admission under the resulting C1 deployment.
 - Keep registry v1 encoding unchanged. If on-chain runtime enforcement requires
   new commitments, introduce an explicit versioned contract/schema decision.
 
@@ -350,13 +430,16 @@ root and initial bindings. Restart/retry behavior cannot bypass checks. The
 signer gates and executable prefix through the seal stage are implemented.
 This acceptance remains open until the prefix runs with approved inputs and a
 real local seal is independently observed.
-The pinned prf-evm release currently passes `PrfGenesisTest` (11 tests),
-including pre-seal authority-state drift rejection and preservation of the
-immutable genesis identity after a later authority update. Its
-`PrfStatementAdmissionTest` also passes (20 tests), including constructor and
-admission-time configuration-executor instance binding. These tests verify
-the contract boundaries; they do not replace the independently derived live
-seal preflight and receipt/readback required for W4 qualification.
+The current prf-evm working tree now rechecks the initial authority-state root
+immediately before genesis sealing and rejects drift after construction. It
+also binds statement admission to the same chain-instance root at construction
+and again before every proof verification. `PrfGenesisTest` passes (10 tests),
+including the new drift regression; `PrfStatementAdmissionTest` passes (19
+tests), including both instance-binding regressions. This implementation is a
+prospective source change: it is not in the frozen source lock or the already
+deployed admission runtime, so a deployment using it requires a rebuilt,
+re-identified candidate and renewed approval. These tests do not replace the
+independently derived live seal preflight and receipt/readback required for W4.
 
 ### W5 — Derive and execute the approved C0 → C1 transition
 
@@ -504,7 +587,7 @@ source/artifact selection, approval-key custody and proof/toolchain assumptions.
 `verify:plan-report` independently checks the report schema, fixed trust list
 and digest; `verify:plan-execution` remains the command that replays deployment
 evidence. The verifier now accepts an optional
-`protocol-capital-flow-execution/v5` bundle and replays the complete ordered
+`protocol-capital-flow-execution/v6` bundle and replays the complete ordered
 action set, including prepared-operation creation before admission, against RPC
 transaction identities, receipt statuses and canonical
 block hashes. It checks required state-domain reads immediately before and
@@ -540,14 +623,14 @@ intended single-variable substitutions: wrong proof, verifier substitution,
 stale-C0 operation root, and wrong-instance chain ID. The stale-C0 case models
 the actual contract boundary: statement admission under C1 may accept a valid
 proof whose public values commit to a C0-prepared operation; assurance
-preparation must then reject that root against the active operation. The v5
+preparation must then reject that root against the active operation. The v6
 bundle retains the complete stale operation tuple and independently derived C0
 root so replay can recompute the stale root. Repeated admission must replay the
 same calldata and preserve capital-bound state. These checks validate
 evidence shape and transaction bindings; they do not establish proof validity
 or approval of historical state values. Those remain W6 checks, so W7 remains
-open. Replay tests load the retained v0.4.1 artifact ABIs to exercise the
-deployed action and getter selectors. Every observed action call must also
+open. Replay tests now load the source-bound v0.4.2 local-candidate artifact
+ABIs to exercise the deployed action and getter selectors. Every observed action call must also
 decode and re-encode byte-for-byte against its pinned function ABI.
 Evidence retention does not itself grant admission; the complete verifier
 still needs a real execution bundle and capital-flow evidence.
@@ -568,23 +651,94 @@ pass 41 tests, and TypeScript typecheck passes. These are fixture results;
 W7 still needs approved operation expectations and a real approved flow with
 retained receipts and readbacks.
 
-The verifier now requires a separate `protocol-capital-flow-expectations/v1`
+The verifier now requires a separate `protocol-capital-flow-expectations/v3`
 package from the producer's execution evidence. The CLI loads it only from a
 relative path inside the independently selected trusted-context root. The
 package binds the exact manifest root, sealed instance, applied C1/epoch,
-operation identity, getter calls and expected before/after values. Replay
-rejects evidence whose state assertions differ and includes the expectation
-digest in the independent verification root. This makes expectation review an
-explicit qualification input; approval of those values remains a trust
-assumption, and no approved expectation package or live execution exists.
+operation identity, getter calls and expected before/after values. It also
+binds the local operation-scoped caller and entitlement representation to
+their approved source/artifact digests and constructor-specific runtime code
+identities. Replay routes ratification and activation through that caller and,
+at each action, checks its immutable operator/operation/controller getters,
+the controller's caller binding, and the representation runtime before
+accepting activation. The focused verifier/report suites pass 47 tests and
+TypeScript typecheck passes. Replay rejects evidence whose state assertions
+differ and includes the expectation digest in the independent verification
+root. This makes expectation review an explicit qualification input; approval
+of those values remains a trust assumption. The 2026-10-19 C0→C1 execution is live and independently reported,
+but it contains no W6 capital-flow actions, and no approved expectation package
+or complete capital-flow bundle exists.
 
-Latest cross-repository regression evidence: `bb test:unit` passed 891 tests and
-3,556 assertions; the pinned prf-evm checkout passed `PrfGenesisTest` (11) and
-`PrfStatementAdmissionTest` (20). The protocol-deployments typecheck and all
-270 non-Anvil tests across 36 files pass. Anvil-dependent runtime suites remain
-unverified because this execution environment denies socket creation. These
-results validate code and replay logic only; they do not substitute for the
-approved live deployment bundle required by W7.
+The W6 replay requires an explicit setup stage before its capital-flow action
+sequence. The deployed
+`SourceBoundProRataEntitlementRatificationControllerV1` rejects ratification
+and activation calls unless `bindExecutionCaller` has set a contract address;
+the observed controller is currently unbound. The earlier action map named
+`ratifyAndFund` and `activateEntitlement` directly on the controller. The
+protocol-deployments verifier now replays the routed `fund` and `activate`
+calls through the source-pinned local operator and verifies setup receipts for
+operator deployment, controller binding, reserve approval/deposit, and
+representation deployment. It checks canonical setup calldata and approved
+principals, creation-input hashes, receipt addresses and runtime code hashes,
+operator constructor getters, historical caller-binding state, reserve/deployer
+balances and allowance, and the seed transfer event. All setup transactions
+participate in the isolated-block chronology. The evidence and expectation
+schemas are now v6 and v3 respectively. The focused verifier/report suites pass
+47 tests and TypeScript typecheck passes. This is fixture coverage, not live
+qualification: the expected operation, seed amount, proof inputs and historical
+state assertions still require separate review and approval, and no W6 setup or
+capital-flow transactions have been executed or retained.
+
+An existing local-only implementation is available in the PRF-EVM checkout at
+`script/RunGateEEntitlementLocal.s.sol`. Its `GateEEntitlementLocalOperator`
+has immutable operator, operation ID and controller bindings and exposes only
+fund, activate and refund calls; its runner checks chain 31337, governance-key
+identity, proof/witness provenance, prepared-operation identity and current
+reserve commitment before binding the caller and admitting/funding. The source
+file SHA-256 is
+`49b2278666afca559d8690a47b39456fa38a5282b581a825ceab7981c2007a5c`. Reuse
+and pin this helper for the local flow rather than creating a second operator
+implementation. Its retained Forge artifact
+`out/RunGateEEntitlementLocal.s.sol/GateEEntitlementLocalOperator.json` has
+SHA-256
+`2bd343ba5a78e886cce8945202bb10bdadcd60bcf4f38750ffd76e8d4d0088fc`; it was
+compiled with Forge 1.7.1 and Solc 0.8.33. Its deployed bytecode contains
+immutable references for the operator, operation ID, and controller, so the
+runtime identity must be recomputed for the exact constructor arguments and
+checked against both observed code and those getters. Its existing deployment script initializes a separate
+topology with reserve capital; that setup cannot be copied as current-chain
+evidence because the approved C1 deployment's reserve is empty. The current
+flow still needs a separately approved and evidenced reserve seed operation,
+representation deployment, and operator binding against the retained C1
+contracts.
+
+The current deployment uses `OnchainShortfallReserveV2`, while the existing
+PRF source-bound reserve path only reconstructed the V1 snapshot hash. PRF now
+has additive `prf/onchain-shortfall-reserve-observation.v2` and
+`prf/onchain-shortfall-reserve-binding.v2` implementations. They recompute the
+Solidity V2 economic-state and authoritative-observation commitments, then bind
+the source facts to the sealed chain instance, C1/epoch and prepared operation.
+The focused tests pin an ABI/Keccak vector independently reproduced with
+viem and reject altered commitments, availability and context. V1 identities
+remain unchanged. This closes a semantic-input gap for W6, but does not by
+itself authenticate RPC observations, produce a proof or qualify a capital
+transaction; live deployment binding and complete W6/W7 evidence remain open.
+
+Current regression evidence: `bb test:unit` passes 897 tests and 3,609
+assertions, including the candidate-v5 source and manifest binding test.
+Candidate-v6/v7 source-lock and manifest-binding tests pass separately
+(2 tests, 20 assertions); the W6 v0.4.2 ABI replay suite passes 34 tests.
+The prf-evm working tree builds successfully;
+`PrfGenesisTest` passes 10 tests, `PrfStatementAdmissionTest` 19, and
+`PrfConfigurationAuthorizationConformanceTest` 30. The complete unscoped
+`forge test` invocation exits nonzero: 284 tests pass and 41 phase-dependent
+tests fail because Gate E proof-manifest environment inputs are absent and the
+accounting/partial-fill suites require `PARTIAL_FILL_STAGE=2`. With that stage
+selected, the documented composed-flow subset passes 14 tests; bootstrap and
+genesis-export tests belong to other stages. In protocol-deployments, the
+focused replay/expectation/report suites pass 47 tests and `npm run typecheck`
+passes. These results validate code and replay logic only; they do not
+substitute for the approved live deployment bundle required by W7.
 
 Acceptance: a separate invocation can verify all bindings and reproduce the
 qualification decision inputs. The report states remaining trust assumptions
@@ -597,15 +751,39 @@ profile. Authenticated approval output supplies the policy root and signer;
 the plan deploys the validator; the CLI checks its immutable getters, adapter
 governor and genesis bindings, unchanged initial authority root and unsealed
 state before enabling transitions, then checks the resulting adapter bindings.
-Resolver, approval-gate and plan tests cover this path. This is implementation
-evidence only: no trusted owner approval or live deployment has been supplied.
-W1 remains open until the approved transition path is executed and its failure
-cases and resulting authority state are independently observed.
+Resolver, approval-gate and plan tests cover this path. The prior local
+approval and execution apply to candidate v4; they do not authorize candidate
+v5's changed source identity or the new runtime code. W1 remains open for v5
+until the newly approved transition path is executed and its failure cases
+and resulting authority state are independently observed.
+
+### Current candidate audit (2026-10-19)
+
+The preserved v2–v6 candidates remain unchanged as historical review
+material. Candidate v7 uses
+`bounded-configuration-release-sources.current.v6.json`, with 933 sorted
+source entries, parent `896ab2ca29d178d9b3993750d4fb774deaf984c4`, and tree
+`6ffee509341fb888235d4bb3f0ef2cee466f29fb8ac4433fb3c892f077f2ae89`. It adds
+the protocol-deployments W6 replay-fixture patch to the previously pinned
+authority-continuity and PRF-EVM Foundry-path normalization patches. The four
+semantic artifacts and seven C0 roots remain unchanged; the source-bound
+initial-input manifest root is
+`sha256:4a58d73213ff165e9e34fbfcd2694c029e681dbccdc0420bc0c0b3ea0c519f27`.
+The 30-artifact v0.4.2 local bundle has root
+`5b9da0dfc6b1a2864d0ae174faef3ddf0095dab21b4a158de25aef677235b7ba`; three
+exports have matched byte-for-byte, including one after a clean Foundry build,
+and the protocol-deployments bundle consumer validates
+the manifest and the three modified core artifacts. Capital-flow replay now
+uses the v0.4.2 ABIs and passes 34 tests. The v7 source-lock and
+manifest-binding test passes. Candidate v7 remains unapproved and undeployed.
+Fresh W2 approval, W3/W4 observations and W5 transition approval/execution
+are required; predecessor approvals and live readbacks remain valid only for
+their exact earlier candidate and instance.
 
 | Order | Work | Concrete output | Gate / dependency |
 | --- | --- | --- | --- |
-| 1 | W0 source and artifact reproducibility is established from the pinned base plus content-addressed overlay. The rebuilt 31 artifact records match the retained v0.4.1 manifest; the historical package root remains unreproduced because its commit object is unavailable. | Reproducible source tree, artifact records, toolchain and refreshed source-lock digests. | This fixes source identity for W2 review; owner approval is still required before deployment. |
-| 2 | Finish W2 semantic review and local approval material. Review policy-v3 and its validator trust assumption, finalize the four candidate artifacts and seven-root C0, then obtain authenticated approval over the exact source-bound manifest and local scope. | Owner-reviewed package plus detached, independently verifiable initial-input approval. | Approval is an external input; absent approval, retain candidate status and stop before deployment transactions. |
+| 1 | Preserve the historical v0.4.1 baseline, and pin the candidate-v7 source lock plus v0.4.2 local artifact bundle. A clean Foundry rebuild and three exports reproduce the bundle byte-for-byte; retain all artifact records and tool versions. | 933-entry source lock, source-bound v7 manifest, exact v0.4.2 bundle root and deployables validation evidence. | Do not overwrite v0.4.1. The historical v0.4.1 root remains unreproduced; local candidate provenance is not a public release. |
+| 2 | Finish W2 semantic review and local approval material against candidate v7. Review policy-v3 and its validator trust assumption, finalize the four candidate artifacts and seven-root C0, then obtain authenticated approval over candidate v7's exact source-bound manifest and local scope. | Owner-reviewed package plus detached, independently verifiable initial-input approval. | Prior candidate approvals do not cover the new manifest; absent renewed approval, stop before deployment transactions. |
 | 3 | Complete W3/W4 execution gates against the approved package. Authenticate deployed verifier and validator runtime identities, perform fresh chain observations, independently derive genesis, and seal only when all bindings match. Retain mined receipt and same-block readbacks. | Verified local genesis seal and deployment evidence bundle. | Requires steps 1–2; changed source or deployment facts require a new derivation and approval as applicable. |
 | 4 | Complete W5. Deploy and bind the executor and empty epoch-0 registry to the sealed instance; deploy/authenticate the successor verifier; derive C1; obtain separate transition approval; execute the approved authority/configuration update and independently check readbacks. | Distinct, reproducible C0/C1 identities and retained approval, transaction and state evidence. | Initial-input approval does not authorize this transition. Stop if parent, epoch, instance, proof mode or registry differs from the approved manifest. |
 | 5 | Run W6, then package W7. Exercise the real proof and protected capital path, run negative and replay cases at the capital-consumer boundary, and create a verifier command that rechecks the complete retained bundle. | Local qualification bundle and independent verification result, scoped to the approved local deployment. | Requires successful W5. Public-chain evidence, public approval and production readiness remain out of scope. |

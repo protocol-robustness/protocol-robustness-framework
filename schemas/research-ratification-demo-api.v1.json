@@ -1,0 +1,287 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "PRF Research Ratification Demonstration API",
+    "version": "1.0.0-draft",
+    "description": "Draft wire contract for a user-owned demonstration client. This API describes research contribution collection and independently reconstructed ratification only. It does not issue governance, dispute-resolution, financial, or operational authority."
+  },
+  "servers": [
+    { "url": "http://localhost:8787", "description": "Local demonstration service" }
+  ],
+  "security": [{ "bearerAuth": [] }],
+  "paths": {
+    "/v1/targets/{targetRoot}": {
+      "get": {
+        "operationId": "getRatificationWorkspace",
+        "summary": "Read one frozen ratification basis and its current contributions",
+        "parameters": [{ "$ref": "#/components/parameters/TargetRoot" }],
+        "responses": {
+          "200": {
+            "description": "Workspace reconstructed for the requested immutable target",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/RatificationWorkspace" } } }
+          },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "409": { "$ref": "#/components/responses/Conflict" }
+        }
+      }
+    },
+    "/v1/targets/{targetRoot}/contribution-intents": {
+      "post": {
+        "operationId": "prepareContributionSignature",
+        "summary": "Prepare the exact PRF decision fields a researcher must sign",
+        "description": "The service derives the contribution outcome root from the target, authenticated principal, contribution kind, and optional evidence root. The client must display these exact fields and have the researcher sign them with an approved key. Preparing an intent does not count as a contribution.",
+        "parameters": [{ "$ref": "#/components/parameters/TargetRoot" }],
+        "requestBody": {
+          "required": true,
+          "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ContributionIntentRequest" } } }
+        },
+        "responses": {
+          "200": {
+            "description": "Signing payload bound to the requested target",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ContributionIntent" } } }
+          },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "409": { "$ref": "#/components/responses/Conflict" },
+          "422": { "$ref": "#/components/responses/InvalidInput" }
+        }
+      }
+    },
+    "/v1/targets/{targetRoot}/contributions": {
+      "post": {
+        "operationId": "submitSignedContribution",
+        "summary": "Submit a signed researcher decision for independent verification",
+        "parameters": [{ "$ref": "#/components/parameters/TargetRoot" }],
+        "requestBody": {
+          "required": true,
+          "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ContributionSubmission" } } }
+        },
+        "responses": {
+          "201": {
+            "description": "Signature, identity, target, and contribution accepted and ratification reconstructed",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ContributionReceipt" } } }
+          },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "409": { "$ref": "#/components/responses/Conflict" },
+          "422": { "$ref": "#/components/responses/InvalidInput" }
+        }
+      }
+    },
+    "/v1/targets/{targetRoot}/ratification": {
+      "get": {
+        "operationId": "getReconstructedRatification",
+        "summary": "Independently recompute ratification from retained inputs",
+        "parameters": [{ "$ref": "#/components/parameters/TargetRoot" }],
+        "responses": {
+          "200": {
+            "description": "Reconstructed status and its retained artifact root",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/RatificationResult" } } }
+          },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "409": { "$ref": "#/components/responses/Conflict" }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": { "type": "http", "scheme": "bearer", "bearerFormat": "JWT", "description": "Demo service identity only. The service must map the authenticated subject to a policy principal; client-supplied principal IDs are never trusted." }
+    },
+    "parameters": {
+      "TargetRoot": {
+        "name": "targetRoot",
+        "in": "path",
+        "required": true,
+        "description": "Canonical PRF target root. The server must compare it with the immutable target before any action.",
+        "schema": { "$ref": "#/components/schemas/Sha256Root" }
+      }
+    },
+    "schemas": {
+      "Sha256Root": {
+        "type": "string",
+        "pattern": "^sha256:[0-9a-f]{64}$",
+        "examples": ["sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"]
+      },
+      "Target": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["schemaVersion", "domain", "subjectRoot", "evidenceRoot", "roundRoot", "policyRoot", "targetSchema", "root"],
+        "properties": {
+          "schemaVersion": { "const": "prf/research-target.v1" },
+          "domain": { "type": "string", "minLength": 1 },
+          "subjectRoot": { "$ref": "#/components/schemas/Sha256Root" },
+          "evidenceRoot": { "$ref": "#/components/schemas/Sha256Root" },
+          "roundRoot": { "$ref": "#/components/schemas/Sha256Root" },
+          "policyRoot": { "$ref": "#/components/schemas/Sha256Root" },
+          "targetSchema": { "type": "string", "minLength": 1 },
+          "predecessorRoot": { "$ref": "#/components/schemas/Sha256Root" },
+          "root": { "$ref": "#/components/schemas/Sha256Root" }
+        }
+      },
+      "Policy": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["schemaVersion", "id", "authorityRoot", "eligiblePrincipals", "threshold", "allowDissent", "challengesBlock", "root"],
+        "properties": {
+          "schemaVersion": { "const": "prf/research-ratification-policy.v1" },
+          "id": { "type": "string", "minLength": 1 },
+          "authorityRoot": { "$ref": "#/components/schemas/Sha256Root" },
+          "eligiblePrincipals": { "type": "array", "minItems": 1, "uniqueItems": true, "items": { "type": "string", "minLength": 1 } },
+          "threshold": { "type": "integer", "minimum": 1 },
+          "allowDissent": { "type": "boolean" },
+          "challengesBlock": { "type": "boolean" },
+          "root": { "$ref": "#/components/schemas/Sha256Root" }
+        }
+      },
+      "SignedDecisionV2": {
+        "type": "object",
+        "description": "JSON projection of the existing researcher-decision.v2 artifact. The server verifies the complete decision hash and Ed25519 signature against its trusted key registry.",
+        "required": ["schemaVersion", "researcherId", "authorisationId", "requestRoot", "reviewRoundRoot", "outcomeRoot", "decision", "decisionHash", "signature"],
+        "properties": {
+          "schemaVersion": { "const": "researcher-decision.v2" },
+          "researcherId": { "type": "string" },
+          "authorisationId": { "type": "string" },
+          "requestRoot": { "$ref": "#/components/schemas/Sha256Root" },
+          "reviewRoundRoot": { "$ref": "#/components/schemas/Sha256Root" },
+          "outcomeRoot": { "$ref": "#/components/schemas/Sha256Root" },
+          "decision": { "enum": ["approve", "dissent"] },
+          "decisionHash": { "$ref": "#/components/schemas/Sha256Root" },
+          "signingKeyId": { "type": "string" },
+          "dissentReason": { "type": "string" },
+          "signature": {
+            "type": "object",
+            "required": ["algorithm", "value", "signedAt"],
+            "properties": {
+              "algorithm": { "const": "ed25519" },
+              "value": { "type": "string", "pattern": "^[0-9a-fA-F]{128}$", "minLength": 128, "maxLength": 128 },
+              "signedAt": { "type": "string", "format": "date-time" }
+            }
+          }
+        },
+        "allOf": [{
+          "if": { "properties": { "decision": { "const": "dissent" } }, "required": ["decision"] },
+          "then": { "required": ["dissentReason"] }
+        }]
+      },
+      "ContributionKind": { "type": "string", "enum": ["approve", "dissent", "challenge", "reproduction"] },
+      "ContributionIntentRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["kind"],
+        "properties": {
+          "kind": { "$ref": "#/components/schemas/ContributionKind" },
+          "evidenceRoot": { "$ref": "#/components/schemas/Sha256Root" }
+        },
+        "allOf": [{
+          "if": { "properties": { "kind": { "enum": ["challenge", "reproduction"] } }, "required": ["kind"] },
+          "then": { "required": ["evidenceRoot"] }
+        }]
+      },
+      "ContributionIntent": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["targetRoot", "principalId", "researcherId", "signingKeyId", "kind", "evidenceRoot", "outcomeRoot", "authorisationId", "requestRoot", "reviewRoundRoot", "decision"],
+        "properties": {
+          "targetRoot": { "$ref": "#/components/schemas/Sha256Root" },
+          "principalId": { "type": "string" },
+          "researcherId": { "type": "string" },
+          "signingKeyId": { "type": "string" },
+          "kind": { "$ref": "#/components/schemas/ContributionKind" },
+          "evidenceRoot": { "$ref": "#/components/schemas/Sha256Root" },
+          "outcomeRoot": { "$ref": "#/components/schemas/Sha256Root" },
+          "authorisationId": { "type": "string" },
+          "requestRoot": { "$ref": "#/components/schemas/Sha256Root" },
+          "reviewRoundRoot": { "$ref": "#/components/schemas/Sha256Root" },
+          "decision": { "enum": ["approve", "dissent"] },
+          "dissentReasonRequired": { "type": "boolean" }
+        },
+        "allOf": [{
+          "if": { "properties": { "kind": { "const": "approve" } }, "required": ["kind"] },
+          "then": { "properties": { "decision": { "const": "approve" } } },
+          "else": { "properties": { "decision": { "const": "dissent" } } }
+        }]
+      },
+      "ContributionSubmission": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["kind", "decision"],
+        "properties": {
+          "kind": { "$ref": "#/components/schemas/ContributionKind" },
+          "evidenceRoot": { "$ref": "#/components/schemas/Sha256Root" },
+          "decision": { "$ref": "#/components/schemas/SignedDecisionV2" }
+        },
+        "allOf": [{
+          "if": { "properties": { "kind": { "enum": ["challenge", "reproduction"] } }, "required": ["kind"] },
+          "then": { "required": ["evidenceRoot"] }
+        }]
+      },
+      "ContributionReceipt": {
+        "type": "object",
+        "required": ["contributionRoot", "targetRoot", "signatureStatus", "ratification"],
+        "properties": {
+          "contributionRoot": { "$ref": "#/components/schemas/Sha256Root" },
+          "targetRoot": { "$ref": "#/components/schemas/Sha256Root" },
+          "signatureStatus": { "const": "verified" },
+          "ratification": { "$ref": "#/components/schemas/RatificationResult" }
+        }
+      },
+      "ContributionView": {
+        "type": "object",
+        "required": ["contributionRoot", "principalId", "kind", "decision", "signatureStatus", "recordedAt"],
+        "properties": {
+          "contributionRoot": { "$ref": "#/components/schemas/Sha256Root" },
+          "principalId": { "type": "string" },
+          "kind": { "$ref": "#/components/schemas/ContributionKind" },
+          "evidenceRoot": { "$ref": "#/components/schemas/Sha256Root" },
+          "decision": { "$ref": "#/components/schemas/SignedDecisionV2" },
+          "signatureStatus": { "enum": ["verified", "invalid", "unverified"] },
+          "recordedAt": { "type": "string", "format": "date-time" }
+        }
+      },
+      "RatificationResult": {
+        "type": "object",
+        "required": ["schemaVersion", "targetRoot", "policyRoot", "contributionRoots", "approvalCount", "dissentCount", "challengeRoots", "status", "operationalAuthority", "root", "verification"],
+        "properties": {
+          "schemaVersion": { "const": "prf/research-ratification.v1" },
+          "targetRoot": { "$ref": "#/components/schemas/Sha256Root" },
+          "policyRoot": { "$ref": "#/components/schemas/Sha256Root" },
+          "contributionRoots": { "type": "array", "items": { "$ref": "#/components/schemas/Sha256Root" } },
+          "approvalCount": { "type": "integer", "minimum": 0 },
+          "dissentCount": { "type": "integer", "minimum": 0 },
+          "challengeRoots": { "type": "array", "items": { "$ref": "#/components/schemas/Sha256Root" } },
+          "status": { "enum": ["ratified", "ratified-with-dissent", "contested-unresolved", "rejected"] },
+          "operationalAuthority": { "const": false },
+          "root": { "$ref": "#/components/schemas/Sha256Root" },
+          "verification": { "enum": ["verified", "invalid", "unavailable"] }
+        }
+      },
+      "RatificationWorkspace": {
+        "type": "object",
+        "required": ["demoOnly", "target", "policy", "contributions", "ratification"],
+        "properties": {
+          "demoOnly": { "const": true },
+          "target": { "$ref": "#/components/schemas/Target" },
+          "policy": { "$ref": "#/components/schemas/Policy" },
+          "contributions": { "type": "array", "items": { "$ref": "#/components/schemas/ContributionView" } },
+          "ratification": { "$ref": "#/components/schemas/RatificationResult" }
+        }
+      },
+      "ApiError": {
+        "type": "object",
+        "required": ["code", "message"],
+        "properties": {
+          "code": { "enum": ["NOT_FOUND", "INELIGIBLE_PRINCIPAL", "DUPLICATE_CONTRIBUTION", "TARGET_MISMATCH", "STALE_TARGET", "INVALID_SIGNATURE", "INVALID_EVIDENCE_ROOT", "INVALID_POLICY", "RECONSTRUCTION_FAILED"] },
+          "message": { "type": "string" },
+          "details": { "type": "object", "additionalProperties": true }
+        }
+      }
+    },
+    "responses": {
+      "NotFound": { "description": "No immutable target exists for this root", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiError" } } } },
+      "Forbidden": { "description": "Authenticated user is not eligible for this action", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiError" } } } },
+      "Conflict": { "description": "Duplicate contribution, stale basis, or inconsistent retained state", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiError" } } } },
+      "InvalidInput": { "description": "Malformed or unverifiable request", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApiError" } } } }
+    }
+  }
+}
