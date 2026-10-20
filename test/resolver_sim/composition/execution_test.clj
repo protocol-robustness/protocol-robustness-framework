@@ -5,6 +5,7 @@
             [resolver-sim.composition.compiler :as comp]
             [resolver-sim.composition.execution :as exec]
             [resolver-sim.composition.fixtures :as fx]
+            [resolver-sim.composition.plan :as plan]
             [resolver-sim.extensions.execution :as ext-exec]
             [resolver-sim.economics.effects :as effects]))
 
@@ -40,7 +41,8 @@
 
 (deftest short-circuit-stops-pipeline
   (let [emap (fx/ext-map-with
-              (fx/cap :fixture/s :entrypoint 'resolver-sim.composition.fixtures/short-circuit-award))
+              (fx/cap :fixture/s :may-short-circuit? true
+                      :entrypoint 'resolver-sim.composition.fixtures/short-circuit-award))
         combo (fx/seq-combination
                (fx/node :n1 [:economics/award-amount :fixture/s] :spec {:amount 10})
                (fx/node :n2 [:economics/award-amount :fixture/s] :spec {:amount 10}))
@@ -49,6 +51,22 @@
     (is (= :short-circuited (:execution/status result)))
     (is (= 1 (count (:execution/nodes result)))
         "later nodes do not execute after short-circuit")))
+
+(deftest undeclared-short-circuit-is-rejected
+  (let [emap (fx/ext-map-with
+              (fx/cap :fixture/s
+                      :entrypoint 'resolver-sim.composition.fixtures/short-circuit-award))
+        combo (fx/seq-combination
+               (fx/node :n1 [:economics/award-amount :fixture/s] :spec {:amount 10})
+               (fx/node :n2 [:economics/award-amount :fixture/s] :spec {:amount 10}))
+        {:keys [plan]} (comp/compile-combination {:extensions emap} combo)
+        result (exec/execute-compiled-plan plan emap {} 1000)]
+    (is (= false (get-in plan [:plan/nodes 0 :may-short-circuit?])))
+    (is (= :rejected (:execution/status result)))
+    (is (some #(= :violation/unauthorized-short-circuit (:violation/id %))
+              (:execution/violations result)))
+    (is (empty? (:execution/nodes result)))
+    (is (empty? (:execution/effects result)))))
 
 (deftest addresses-threaded-to-invocation
   (let [addresses {:owner/address "0xowner" :parameter/address "0xparameter"}
@@ -151,7 +169,7 @@
                    (assoc-in plan [:plan/nodes 0 :terminal?] true)
                    (assoc-in plan [:plan/nodes 0 :failure-mode] :continue)
                    (assoc plan :plan/compiler-id :attacker/compiler)
-                   (assoc plan :plan/compiler-version 2)
+                   (assoc plan :plan/compiler-version 1)
                    (assoc plan :plan/schema-version 2)
                    (assoc plan :plan/root "malformed")
                    (dissoc plan :plan/root)
@@ -166,6 +184,26 @@
           (is (empty? (:execution/nodes result)))
           (is (empty? (:execution/effects result)))))
       (is (zero? @invocations)))))
+
+(deftest previous-compiler-version-plan-is-rejected-before-invocation
+  (let [emap (fx/ext-map-with (fx/cap :fixture/a))
+        combo (fx/seq-combination
+               (fx/node :n1 [:economics/award-amount :fixture/a])
+               (fx/node :n2 [:economics/award-amount :fixture/a]))
+        compiled-plan (:plan (comp/compile-combination {:extensions emap} combo))
+        legacy-plan (-> compiled-plan
+                        (assoc :plan/compiler-version 1)
+                        (assoc :plan/root (plan/plan-root
+                                           (assoc compiled-plan :plan/compiler-version 1))))
+        invocations (atom 0)]
+    (is (= 2 (:plan/compiler-version compiled-plan)))
+    (with-redefs [ext-exec/invoke-capability
+                  (fn [_ _] (swap! invocations inc) {:amount 1 :effects []})]
+      (let [result (exec/execute-compiled-plan legacy-plan emap {} 1000)]
+        (is (= :rejected (:execution/status result)))
+        (is (some #(= :violation/unauthenticated-plan (:violation/id %))
+                  (:execution/violations result)))
+        (is (zero? @invocations))))))
 
 (deftest altered-descriptor-body-rejected-before-invocation
   (let [emap (fx/ext-map-with (fx/cap :fixture/a))
