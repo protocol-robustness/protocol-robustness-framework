@@ -21,6 +21,9 @@
 (defn- stable-entries [m]
   (sort-by (comp pr-str key) m))
 
+(defn- sum-amounts [amounts]
+  (reduce +' 0 amounts))
+
 (defn- validate-record [record]
   (if-not (map? record)
     {:code :invalid-bond-record}
@@ -54,7 +57,7 @@
                  (:bond/funder record) ":" (:appeal/ordinal record)))
       {:code :bond-id-identity-mismatch :bond/id (:bond/id record)}
       (or (not= (:dispute/id record) (str "dispute:" (:workflow/id record)))
-          (not= (:escalation/to-level record) (inc (:escalation/from-level record))))
+          (not= (:escalation/to-level record) (+' (:escalation/from-level record) 1)))
       {:code :bond-case-or-round-mismatch :bond/id (:bond/id record)}
       (not (contains? #{:open :disposed} (:bond/status record)))
       {:code :invalid-bond-lifecycle :bond/id (:bond/id record) :status (:bond/status record)}
@@ -64,7 +67,7 @@
       {:code :invalid-bond-amounts :bond/id (:bond/id record)}
       (> fee gross)
       {:code :invalid-bond-amount-bounds :bond/id (:bond/id record)}
-      (not= gross (+ fee custody))
+      (not= gross (+' fee custody))
       {:code :posted-fee-custody-mismatch :bond/id (:bond/id record)
        :posted gross :fee fee :custodied custody}
       (not= (:bond/remaining-custody record)
@@ -102,7 +105,7 @@
                     (and (identifier? recipient) (non-negative-int? amount)))
                   alloc)
       {:code :invalid-disposition-allocation :bond/id (:bond/id record)}
-      (not= total (reduce + 0 (vals alloc)))
+      (not= total (sum-amounts (vals alloc)))
       {:code :allocation-total-mismatch :bond/id (:bond/id record)}
       (not= custody total)
       {:code :bond-conservation-failure :bond/id (:bond/id record)
@@ -140,7 +143,7 @@
                   {:code :claim-asset-mismatch :bond/id bond-id :recipient recipient}
                   (not= allocated allocation)
                   {:code :claim-allocation-mismatch :bond/id bond-id :recipient recipient}
-                  (not= allocated (+ claimable claimed))
+                  (not= allocated (+' claimable claimed))
                   {:code :claim-entitlement-conservation-failure :bond/id bond-id :recipient recipient})))
             (stable-entries allocations)))))
 
@@ -211,10 +214,10 @@
        :appeal-bond/dispositions dispositions
        :appeal-bond/claims claims
        :appeal-bond/conservation
-       {:posted (reduce + 0 (map :bond/posted-amount (vals records)))
-        :fees (reduce + 0 (map :bond/posting-fee (vals records)))
-        :custodied (reduce + 0 (map :bond/custodied-amount (vals records)))
-        :remaining (reduce + 0 (map :bond/remaining-custody (vals records)))}})))
+       {:posted (sum-amounts (map :bond/posted-amount (vals records)))
+        :fees (sum-amounts (map :bond/posting-fee (vals records)))
+        :custodied (sum-amounts (map :bond/custodied-amount (vals records)))
+        :remaining (sum-amounts (map :bond/remaining-custody (vals records)))}})))
 
 (defn validate-appeal-bond-projection [projection]
   (if-not (:valid? projection)
@@ -273,7 +276,7 @@
          :disposition/kind (:kind disposition)
          :disposition/allocations allocation-map
          :entitlements claims
-         :bond-conservation-holds (= posted (+ fee custody))
+         :bond-conservation-holds (= posted (+' fee custody))
          :remaining-custody-after-disposition remaining
          :remaining-custody-invariant (if (= :disposed (:bond/status record))
                                         (zero? remaining)
@@ -364,11 +367,11 @@
         distributed (filter #(= :distribution (:kind %)) ds)
         forfeited (filter #(= :forfeiture (:kind %)) ds)]
     {:appeal_bond_posted (count (:appeal-bond/records p))
-     :refund_amount (reduce + 0 (map :total refund))
+     :refund_amount (sum-amounts (map :total refund))
      :bond_distributed (boolean (seq ds))
-     :bond_distributed_amount (reduce + 0 (map :total distributed))
+     :bond_distributed_amount (sum-amounts (map :total distributed))
      ;; Legacy scenario adapter: DR-C-004 has one prior-round resolver
      ;; recipient; the normalized projection remains recipient-scoped.
-     :l0resolver_payment (reduce + 0 (map :total distributed))
-     :forfeited_reserve (reduce + 0 (map :total forfeited))
-     :resolver_bond_refunded (reduce + 0 (map :total refund))}))
+     :l0resolver_payment (sum-amounts (map :total distributed))
+     :forfeited_reserve (sum-amounts (map :total forfeited))
+     :resolver_bond_refunded (sum-amounts (map :total refund))}))
