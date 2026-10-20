@@ -96,6 +96,42 @@
 (defn invalid-code [world]
   (-> (projection/project-appeal-bonds world) :errors first :errors first :code))
 
+(deftest ap-rejects-non-map-world
+  (let [p (projection/project-appeal-bonds :malformed-world)]
+    (is (false? (:valid? p)))
+    (is (= :invalid-bond-world (invalid-code :malformed-world)))))
+
+(deftest ap-rejects-malformed-identities-and-lineage-types
+  (let [malformed-record (assoc open-record :bond/funder false)
+        disposed (assoc open-record :bond/status :disposed :bond/remaining-custody 0)
+        malformed-dispositions
+        (map (fn [changes] (merge refund-disposition changes))
+             [{:cause/type ""}
+              {:cause/root false}
+              {:cause/root 17}])]
+    (is (= :invalid-bond-identity
+           (invalid-code {:appeal-bond/records {bond-id malformed-record}})))
+    (doseq [disposition malformed-dispositions]
+      (let [world {:appeal-bond/records {bond-id disposed}
+                   :appeal-bond/dispositions {(:disposition/id disposition) disposition}
+                   :appeal-bond/claims refund-claims}]
+        (is (= :missing-disposition-lineage (invalid-code world)))))))
+
+(deftest ap-preserves-symbol-account-identities-used-by-the-model
+  (let [record (-> open-record
+                   (assoc :bond/id "appeal-bond:0:alice:0"
+                          :bond/payer 'alice :bond/funder 'alice))
+        disposition (-> refund-disposition
+                        (assoc :disposition/id "disposition:appeal-bond:0:alice:0:refund"
+                               :bond/id (:bond/id record)
+                               :allocations {'alice 95}))
+        claims {(:bond/id record) {'alice {:allocated 95 :claimable 95 :claimed 0 :asset :USDC}}}
+        world {:appeal-bond/records {(:bond/id record) (assoc record :bond/status :disposed
+                                                               :bond/remaining-custody 0)}
+               :appeal-bond/dispositions {(:disposition/id disposition) disposition}
+               :appeal-bond/claims claims}]
+    (is (:valid? (projection/project-appeal-bonds world)))))
+
 (deftest ap-missing-remaining-custody-is-typed-invalid
   (let [p (projection/project-appeal-bonds
            {:appeal-bond/records {bond-id (dissoc open-record :bond/remaining-custody)}})]

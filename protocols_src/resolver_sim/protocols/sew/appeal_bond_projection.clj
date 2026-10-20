@@ -15,8 +15,20 @@
 (defn- fail [code data]
   {:valid? false :errors [(merge {:code code} data)]})
 
-(defn- identifier? [x]
-  (and (some? x) (or (not (string? x)) (not (str/blank? x)))))
+(defn- nonblank-string? [x]
+  (and (string? x) (not (str/blank? x))))
+
+(defn- account-id? [x]
+  (or (nonblank-string? x) (symbol? x)))
+
+(defn- workflow-id? [x]
+  (or (nonblank-string? x) (non-negative-int? x)))
+
+(defn- asset-id? [x]
+  (or (keyword? x) (nonblank-string? x)))
+
+(defn- cause-type? [x]
+  (or (keyword? x) (nonblank-string? x)))
 
 (defn- stable-entries [m]
   (sort-by (comp pr-str key) m))
@@ -39,15 +51,15 @@
         custody (:bond/custodied-amount record)]
     (cond
       (seq missing) {:code :missing-bond-fields :bond/id (:bond/id record) :fields missing}
-      (not (and (identifier? (:bond/id record))
-                (identifier? (:workflow/id record))
-                (identifier? (:dispute/id record))
-                (identifier? (:asset record))
-                (identifier? (:bond/payer record))
-                (identifier? (:bond/funder record))
-                (identifier? (:posting-operation/id record))
-                (identifier? (:posting-cause/type record))
-                (identifier? (:posting-cause/root record))
+      (not (and (nonblank-string? (:bond/id record))
+                (workflow-id? (:workflow/id record))
+                (nonblank-string? (:dispute/id record))
+                (asset-id? (:asset record))
+                (account-id? (:bond/payer record))
+                (account-id? (:bond/funder record))
+                (nonblank-string? (:posting-operation/id record))
+                (cause-type? (:posting-cause/type record))
+                (nonblank-string? (:posting-cause/root record))
                 (non-negative-int? (:appeal/ordinal record))
                 (non-negative-int? (:escalation/from-level record))
                 (positive-int? (:escalation/to-level record))))
@@ -98,13 +110,13 @@
           (not= (:disposition/id disposition)
                 (str "disposition:" (:bond/id record) ":" (name (:kind disposition)))))
       {:code :disposition-id-identity-mismatch :bond/id (:bond/id record)}
-      (or (nil? (:cause/type disposition)) (nil? (:cause/root disposition))
-          (= "" (str (:cause/root disposition))))
+      (or (not (cause-type? (:cause/type disposition)))
+          (not (nonblank-string? (:cause/root disposition))))
       {:code :missing-disposition-lineage :bond/id (:bond/id record)}
       (not (and (map? alloc) (positive-int? total)))
       {:code :invalid-disposition :bond/id (:bond/id record)}
       (not-every? (fn [[recipient amount]]
-                    (and (identifier? recipient) (non-negative-int? amount)))
+                    (and (account-id? recipient) (non-negative-int? amount)))
                   alloc)
       {:code :invalid-disposition-allocation :bond/id (:bond/id record)}
       (not= total (sum-amounts (vals alloc)))
@@ -156,6 +168,7 @@
         raw-dispositions (get world :appeal-bond/dispositions {})
         raw-claims (get world :appeal-bond/claims {})
         shape-errors (cond-> []
+                       (not (map? world)) (conj {:code :invalid-bond-world})
                        (not (map? raw-records)) (conj {:code :invalid-bond-records})
                        (not (map? raw-dispositions)) (conj {:code :invalid-bond-dispositions})
                        (not (map? raw-claims)) (conj {:code :invalid-bond-claims}))
