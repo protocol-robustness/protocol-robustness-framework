@@ -98,3 +98,11 @@ payloads, omitted records, sequence gaps, out-of-window events, root
 substitution, and beneficiary-to-allocation coverage. They exercise the
 adapter contract with test keys; they do not qualify an external source or
 production authority.
+
+The focused suite also checks duplicate event IDs and sequence numbers,
+declared count/range mismatches, repeated request opening, amendment after
+cancellation, duplicate beneficiary authorization IDs, individually valid
+signatures with mismatched source/policy roots, and zero funding. The current
+run completed 4 tests and 26 assertions with no failures or errors. These are
+software-level negative checks over generated fixtures; they do not establish
+the truth or completeness of an externally supplied population.

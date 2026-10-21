@@ -32,7 +32,7 @@
         ids (mapv :event/id events)
         sequences (mapv :event/sequence events)
         request-events (filter #(contains? #{:request/open :request/amend :request/cancel}
-                                            (:event/kind %)) events)]
+                                           (:event/kind %)) events)]
     (and (vector? events)
          (every? map? events)
          (every? #(and (string? (:event/id %)) (not-empty (:event/id %))
@@ -124,8 +124,7 @@
     (and (every? some? values) (= (count values) (count (distinct values))))))
 
 (defn validate-beneficiary-binding [binding]
-  (let [rows (:beneficiary/authorizations binding)
-        claim-ids (mapv :claim/id rows)]
+  (let [rows (:beneficiary/authorizations binding)]
     (and (map? binding)
          (string? (:binding/id binding))
          (string? (:binding/source-root binding))
@@ -149,28 +148,28 @@
                             :beneficiary beneficiary-role
                             :funding funding-role} role)
         valid-shape? (and expected-role
-                           (map? binding)
-                           (string? (:binding/id binding))
-                           (= (:binding/root binding) (binding-root binding))
-                           (if (= role :beneficiary)
-                             (validate-beneficiary-binding binding)
-                             (and (string? (:binding/source-root binding))
-                                  (string? (:policy/root binding))
-                                  (map? (:binding/subject binding))
-                                  (if (= role :policy)
-                                    (and (string? (get-in binding [:binding/subject :policy/version]))
-                                         (= (:policy/root binding)
-                                            (get-in binding [:binding/subject :policy/root]))
-                                         (map? (get-in binding [:binding/subject :policy/rules])))
-                                    (let [subject (:binding/subject binding)]
-                                      (and (string? (:operation/id subject))
-                                           (string? (:reserve/root subject))
-                                           (string? (:asset/id subject))
-                                           (string? (:funder/id subject))
-                                           (string? (:chain/instance-id subject))
-                                           (string? (:deployment/code-hash subject))
-                                           (integer? (:amount subject))
-                                           (pos? (:amount subject))))))))
+                          (map? binding)
+                          (string? (:binding/id binding))
+                          (= (:binding/root binding) (binding-root binding))
+                          (if (= role :beneficiary)
+                            (validate-beneficiary-binding binding)
+                            (and (string? (:binding/source-root binding))
+                                 (string? (:policy/root binding))
+                                 (map? (:binding/subject binding))
+                                 (if (= role :policy)
+                                   (and (string? (get-in binding [:binding/subject :policy/version]))
+                                        (= (:policy/root binding)
+                                           (get-in binding [:binding/subject :policy/root]))
+                                        (map? (get-in binding [:binding/subject :policy/rules])))
+                                   (let [subject (:binding/subject binding)]
+                                     (and (string? (:operation/id subject))
+                                          (string? (:reserve/root subject))
+                                          (string? (:asset/id subject))
+                                          (string? (:funder/id subject))
+                                          (string? (:chain/instance-id subject))
+                                          (string? (:deployment/code-hash subject))
+                                          (integer? (:amount subject))
+                                          (pos? (:amount subject))))))))
         signature (when valid-shape?
                     (sed/verify-envelope binding authority-domain trust-policy expected-role))]
     (cond
