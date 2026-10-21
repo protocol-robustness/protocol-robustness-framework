@@ -5,14 +5,16 @@ the Stage B signed-input adapter using synthetic requests and generated demo
 keys. It does not establish production source authenticity or completeness,
 authorize real funding, deploy contracts, or record a Base Sepolia transaction.
 
-The controlled example contains requests of 50, 30, and 20 `DEMO_UNIT`s; an
-illustrative reserve observation of 80 units, of which 10 are restricted and
-70 are available; and a declared largest-remainder allocation of 35, 21, and
-14. The remaining 30 are unmet requests in this fixture, not recognized debt
-or claimant liabilities. The Stage B example uses pseudonymous labels and placeholder destination
-addresses. The owner has approved the separate test-only recipient mapping
-recorded below, but those addresses are not yet bound into a Base Sepolia
-witness/proof. The example uses no USDC or other real token.
+The controlled scenario uses Circle Base Sepolia testnet USDC at
+`0x036CbD53842c5426634e7929541eC2318f3dCF7e` (6 decimals): requests of 50,
+30, and 20 USDC; an 80 USDC deposit, of which 10 is restricted/refundable and
+70 is available; and allocations of 35, 21, and 14 USDC. Corresponding amounts
+are encoded in six-decimal base units in the deployment profile. The remaining
+30 USDC of requests are unmet, not recognized debt or claimant liabilities.
+Stage B remains a synthetic signed-input fixture and does not evidence USDC
+balances or transfers. The selected contract is Circle testnet USDC, not
+mainnet-redeemable USDC. The same address is referenced in the SEW Aave Base
+Sepolia integration sources; this PRO-95 workflow does not use Aave.
 
 The source, policy, beneficiary, and funding envelopes are signed with
 ephemeral Ed25519 demonstration keys. Their public keys are included in the
@@ -55,9 +57,9 @@ the Base Sepolia witness/proof. The approval and its exclusions are recorded in
 [`owner-decisions-20261023.edn`](./owner-decisions-20261023.edn); it does not
 set a transaction count, gas cap, or funding amount. No testnet transaction has
 been signed or broadcast. One test-only EOA is
-approved to act as deployer, funder, configuration authority, and withdrawal
-relayer; this is centralized demonstration control, not independent authority
-separation. A read-only preflight
+approved to act as deployer, USDC payer/funder, configuration authority, and
+withdrawal relayer; this is centralized demonstration control, not independent
+authority separation. A read-only preflight
 from `https://sepolia.base.org` returned chain ID `84532` and head
 `49259922` (`0x49a868fe73ae4775215dd0eef0b8a4a01e9be8d1c61c2c9badf68cf9bae5f37e`); see
 [`rpc-preflight-20261023.json`](./rpc-preflight-20261023.json). This is a
@@ -76,9 +78,9 @@ status remains outside this bounded demo and unverified. No public transaction h
 Any future deployment must remain labelled demonstration only; it does not
 qualify the system for pre-mainnet release.
 
-The approved demo profile now has derived Base Sepolia initial-configuration
-and authority-state roots in `configuration-root-derivation.json`. Both are
-candidate derivations only. The chain-instance genesis root still requires the
+The Base Sepolia initial-configuration root is derived for the USDC-bound
+candidate policy as `sha256:f36913f0fb319e80aee3a1b795bd31a94486d08d51aa27df825277050e4768cb`; the authority-state root is unchanged. Both are
+candidate derivations only and have not been approved for deployment. The chain-instance genesis root still requires the
 deployment addresses and runtime code hashes; the local proof and witness do
 not bind the approved recipients or Base Sepolia state.
 

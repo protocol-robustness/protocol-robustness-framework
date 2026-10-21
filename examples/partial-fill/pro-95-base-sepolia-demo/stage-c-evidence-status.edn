@@ -12,10 +12,18 @@
  {:status :candidate-roots-derived
   :qualification :derived-only-not-approved
   :execution-chain-id 84532
-  :initial-configuration-root "sha256:24c14af8609b0921b1ac35a93390cb2fbfaeda1a672d2378a364c5889d44013e"
+  :initial-configuration-root "sha256:f36913f0fb319e80aee3a1b795bd31a94486d08d51aa27df825277050e4768cb"
   :authority-state-root "sha256:36a912294511057638de9d8a155f0a659413a3e242ca6bc76c877d5e3d6eb1a2"
   :chain-instance-genesis-root :not-derived
   :derivation-artifact "configuration-root-derivation.json"}
+ :asset
+ {:kind :circle-base-sepolia-testnet-usdc
+  :address "0x036cbd53842c5426634e7929541ec2318f3dcf7e"
+  :decimals 6
+  :demo-minting? false
+  :historical-source-parity-artifact "protocol-deployments/config/pro-rata-v2-entitlement/circle-base-sepolia-usdc-source-parity.v1.json"
+  :current-implementation-observation :required-before-run
+  :payer-balance-and-allowance :not-observed}
  :signer
  {:status :generated-test-only-unfunded
   :address "0xdD82cCEB1D515F2e4fb0432fB5d53138813945D4"
@@ -58,6 +66,8 @@
  [:reviewed-base-sepolia-demo-deployment-and-verifier-identities
   :approved-transaction-count-and-numeric-eth-spend-cap
   :funded-base-sepolia-demo-signer
+  :current-usdc-proxy-implementation-and-transfer-observation
+  :usdc-payer-balance-and-exact-allowance
   :base-bound-beneficiary-commitments-and-authorizations
   :base-sepolia-derived-source-witness-and-proof
   :reviewed-base-sepolia-deployment-and-operation-runner
