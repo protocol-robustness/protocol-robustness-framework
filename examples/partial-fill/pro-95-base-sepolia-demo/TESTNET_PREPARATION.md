@@ -26,8 +26,8 @@ Record these in an approved, versioned demo run plan:
 | Demo policy and requests | Owner-approved synthetic requests, allocation rule/version, cutoff, expected allocation, restricted reserve, funding amount, unmet-request meaning, and any refund rule. | Current 50/30/20 fixture is illustrative only. |
 | Beneficiaries | Test-only pseudonyms and controlled recipient addresses, with a dedicated way to sign/observe claims. The existing `0x111…`, `0x222…`, `0x333…` placeholders are not controlled recipients and must not receive funds. | No controlled recipient addresses or signed testnet beneficiary binding. |
 | Authorities | Distinct selected source, policy, beneficiary, and funding authority public keys/roles/statuses; key custody and rotation/revocation rules; approval record binding the exact package digests. These may be test-only authorities, but must be clearly classified as such. | Existing demo keys were ephemeral and their private keys discarded; bundled public keys are not independent authorities. |
-| Deployer and funder | Public address, role, custody type, testnet ETH budget, maximum number of transactions, and maximum gas/ETH spend approved for this run. Use a dedicated test-only signer. | No signer or gas budget configured. |
-| Network trust | Base Sepolia chain ID `84532`; selected RPC endpoint(s); independent source for chain/header checks; exact freshness and reorg policy; selected L2 safe/finalized interpretation and corresponding Ethereum Sepolia L1 evidence requirements. | Public RPC candidate is documented, but not selected or probed; no header/finality trust policy. |
+| Deployer and funder | Public address, role, custody type, testnet ETH budget, maximum number of transactions, and maximum gas/ETH spend approved for this run. Use a dedicated test-only signer. | Generated encrypted test-only signer: `0xdD82cCEB1D515F2e4fb0432fB5d53138813945D4`; unfunded, not yet approved for the run, and no spend budget set. Keystore is outside the repository; passphrase is in the local system keyring. |
+| Network trust | Base Sepolia chain ID `84532`; selected RPC endpoint(s); independent source for chain/header checks; exact freshness and reorg policy; selected L2 safe/finalized interpretation and corresponding Ethereum Sepolia L1 evidence requirements. | `https://sepolia.base.org` was read-only probed; it reported chain ID `84532`, head `49259922`, hash `0x49a868fe73ae4775215dd0eef0b8a4a01e9be8d1c61c2c9badf68cf9bae5f37e`. Raw Foundry result strings are retained in `rpc-preflight-20261023.json`; there is no independent header source or finality policy. The generated signer balance was `0 wei` at block `49260186` according to the same endpoint. |
 | Release boundary | Approved page/report wording for the demonstrated claims and explicit exclusions. | Must continue to say testnet demonstration only; not pre-mainnet release. |
 
 Base documentation lists Base Sepolia as chain ID `84532` (`0x14a34`). The
@@ -97,7 +97,7 @@ Before any signing or write request:
    transaction hash. Set a numeric upper bound for total ETH spend and per-
    transaction gas before use. Testnet ETH is not production value, but
    broadcasts still create public persistent records.
-5. Run read-only preflight calls and retain their raw responses and UTC time:
+5. Run read-only preflight calls and retain the RPC results and UTC time:
 
    ```sh
    cast chain-id --rpc-url "$BASE_SEPOLIA_RPC"
@@ -108,8 +108,10 @@ Before any signing or write request:
    Confirm the chain ID is `84532`. Record RPC client/version and compare
    chain/header identity using the independently selected source. Stop if
    endpoints disagree, the signer address is unexpected, or the spend budget
-   is not sufficient and approved. These checks are preflight only; they do
-   not qualify chain consensus or finality.
+   is not sufficient and approved. The initial read-only observation is
+   retained in `rpc-preflight-20261023.json`; it records Foundry result strings,
+   not raw HTTP envelopes. These checks are preflight only; they do not qualify
+   chain consensus or finality.
 
 ## 4. Build and simulate without broadcasting
 

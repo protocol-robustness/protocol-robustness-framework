@@ -9,12 +9,25 @@
   :reason :no-owner-approved-demo-deployment-package
   :template-status :owner-approval-required}
  :signer
- {:status :unavailable
-  :reason :no-base-sepolia-demo-signer-configured-or-supplied}
+ {:status :generated-test-only-unfunded
+  :address "0xdD82cCEB1D515F2e4fb0432fB5d53138813945D4"
+  :key-storage :encrypted-foundry-keystore-outside-repository
+  :passphrase-storage :local-system-keyring
+  :run-approval? false
+  :eth-funding-status :unfunded
+  :observed-balance-wei 0
+  :balance-observation-block 49260186
+  :balance-observation-source "https://sepolia.base.org"}
  :rpc
  {:candidate-endpoint "https://sepolia.base.org"
-  :status :not-probed
-  :reason :no-live-network-read-performed}
+  :status :single-provider-read-only-observed
+  :chain-id 84532
+  :head-number 49259922
+  :head-hash "0x49a868fe73ae4775215dd0eef0b8a4a01e9be8d1c61c2c9badf68cf9bae5f37e"
+  :client-version "reth/v2.5.2-7134be3/x86_64-unknown-linux-gnu/base/v1.5.0"
+  :capture-artifact "rpc-preflight-20261023.json"
+  :independent-trust? false
+  :finality-established? false}
  :receipt-inclusion
  {:status :not-run
   :reason :no-base-sepolia-demo-transactions-or-receipt-proofs}
@@ -25,8 +38,10 @@
  {:status :unverified
   :reason :no-reviewed-chain-specific-safe-or-finalized-policy}
  :remaining-evidence
- [:owner-approved-demo-contract-and-verifier-identities
+ [:owner-approved-demo-deployment-and-verifier-identities
+  :owner-approved-signer-role-and-spend-budget
   :funded-base-sepolia-demo-signer
+  :controlled-beneficiary-addresses-and-authorizations
   :raw-signed-transactions-and-mined-receipts
   :contract-code-identities-and-operation-state
   :independently-pinned-base-l2-and-l1-header-context
