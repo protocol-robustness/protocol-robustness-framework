@@ -85,6 +85,455 @@
                    :sampling :stratified
                    :max-states 500))
 
+(def recovery-game-schema-version "partial-fill-recovery-game.v2")
+
+(def recovery-game-candidate-actions
+  "Action candidates the model can represent. Inclusion describes model
+   capacity, not protocol permission; protocol adapters must identify which
+   actions are actually feasible."
+  #{:claim-now :defer :split-claim :merge-claims :delay-arrival
+    :reorder-arrival :increase-request :change-cap :withhold-liquidity})
+
+(def recovery-game-utility-parameters
+  "Required integer coefficients for an explicit linear utility profile.
+   Coefficients are assumptions supplied by the fixture author, not protocol
+   facts. Monetary amounts use the fixture's declared base unit."
+  [:amount-value
+   :delay-cost-per-round
+   :fee-cost-per-unit
+   :recovery-risk-cost-per-unit
+   :priority-externality-cost-per-unit
+   :penalty-cost
+   :continuation-value
+   :discount-factor-bps])
+
+(defn- valid-candidate-action-profile? [profile model]
+  (let [entitlement (some #(when (= (:entitlement/id %) (:entitlement/id profile)) %)
+                           (:entitlements model))
+        round-index (:round/index profile)
+        round (when (and (integer? round-index)
+                         (<= 0 round-index (dec (count (:rounds model)))))
+                (nth (:rounds model) round-index))]
+    (case (:action profile)
+      :split-claim
+      (and entitlement
+           (= (:player/id entitlement) (:player/id profile))
+           (vector? (:parts profile))
+           (seq (:parts profile))
+           (every? #(and (integer? %) (pos? %)) (:parts profile))
+           (= (:amount entitlement) (reduce + 0 (:parts profile))))
+
+      :increase-request
+      (and entitlement
+           (= (:player/id entitlement) (:player/id profile))
+           (integer? (:requested-amount profile))
+           (> (:requested-amount profile) (:amount entitlement)))
+
+      :change-cap
+      (and entitlement
+           (= (:player/id entitlement) (:player/id profile))
+           (integer? (:requested-cap profile))
+           (> (:requested-cap profile) (:amount entitlement)))
+
+      :delay-arrival
+      (and (integer? (:delay-rounds profile))
+           (pos? (:delay-rounds profile)))
+
+      :reorder-arrival
+      (and round
+           (= (set (:incoming round)) (set (:arrival-sequence profile)))
+           (= (count (:incoming round)) (count (:arrival-sequence profile))))
+
+      :withhold-liquidity
+      (and (= :liquidity-provider
+              (:role (some #(when (= (:player/id profile) (:player/id %)) %)
+                            (:players model))))
+           (integer? (:amount profile))
+           (pos? (:amount profile)))
+
+      true)))
+
+(defn prepare-recovery-game-model
+  "Validate and prepare an explicit finite recovery-game description.
+
+   This validates model completeness and internal references only. It does not
+   execute a game tree or establish best responses, equilibrium, incentive
+   compatibility, or protocol permission for candidate actions. Missing or
+   inconsistent parameters leave the model inconclusive."
+  [model]
+  (let [players (vec (:players model))
+        player-ids (mapv :player/id players)
+        player-id-set (set player-ids)
+        entitlements (vec (:entitlements model))
+        entitlement-ids (mapv :entitlement/id entitlements)
+        entitlement-id-set (set entitlement-ids)
+        rounds (vec (:rounds model))
+        actions (set (:candidate-deviations model))
+        action-profiles (vec (:candidate-action-profiles model))
+        payoff-by-player (get-in model [:payoff-parameters :by-player])
+        violations (vec
+                    (concat
+                     (when-not (= recovery-game-schema-version (:schema-version model))
+                       [{:path [:schema-version] :reason :unsupported-schema}])
+                     (when-not (and (string? (:game/id model))
+                                    (not-empty (:game/id model)))
+                       [{:path [:game/id] :reason :missing-game-id}])
+                     (when (or (empty? players)
+                               (some nil? player-ids)
+                               (not= (count player-ids) (count player-id-set)))
+                       [{:path [:players] :reason :player-identities-invalid}])
+                     (when (or (empty? entitlements)
+                               (some nil? entitlement-ids)
+                               (not= (count entitlement-ids) (count entitlement-id-set)))
+                       [{:path [:entitlements] :reason :entitlement-identities-invalid}])
+                     (for [[i e] (map-indexed vector entitlements)
+                           :when (or (not (player-id-set (:player/id e)))
+                                     (nil? (:beneficiary e))
+                                     (not (and (integer? (:amount e))
+                                               (not (neg? (:amount e))))))]
+                       {:path [:entitlements i] :reason :entitlement-fields-invalid})
+                     (when (empty? rounds)
+                       [{:path [:rounds] :reason :recovery-rounds-required}])
+                     (for [[i round] (map-indexed vector rounds)
+                           :when (or (not= i (:round/index round))
+                                     (not (and (integer? (:available-liquidity round))
+                                               (not (neg? (:available-liquidity round)))))
+                                     (not= (set (:incoming round))
+                                           (set (keys (:requested-by-entitlement round))))
+                                     (not= (count (:incoming round))
+                                           (count (set (:incoming round))))
+                                     (some #(not (entitlement-id-set %)) (:incoming round))
+                                     (some #(not (and (integer? %)
+                                                      (not (neg? %))))
+                                           (vals (:requested-by-entitlement round)))
+                                     (some #(or (not (integer? (:amount %)))
+                                                    (neg? (:amount %))
+                                                (nil? (:event/id %))
+                                                (nil? (:source %))
+                                                (not= :modeled-assumption
+                                                      (:evidence-class %)))
+                                           (:recovery-events round)))]
+                       {:path [:rounds i] :reason :round-or-recovery-event-invalid})
+                     (when (or (some #(not (recovery-game-candidate-actions %)) actions)
+                               (empty? actions))
+                       [{:path [:candidate-deviations] :reason :candidate-actions-invalid}])
+                     (when (and (contains? actions :withhold-liquidity)
+                                (not-any? #(= :liquidity-provider (:role %)) players))
+                       [{:path [:candidate-deviations :withhold-liquidity]
+                         :reason :liquidity-provider-required}])
+                     (for [player player-ids
+                           :let [params (get payoff-by-player player)]
+                           :when (or (nil? params)
+                                     (some #(not (integer? (get params %)))
+                                           recovery-game-utility-parameters)
+                                     (not (<= 0 (:discount-factor-bps params 0) 10000)))]
+                       {:path [:payoff-parameters :by-player player]
+                        :reason :utility-parameterization-incomplete})
+                     (for [[i profile] (map-indexed vector action-profiles)
+                           :when (or (not (player-id-set (:player/id profile)))
+                                     (not (actions (:action profile)))
+                                     (not (valid-candidate-action-profile? profile model))
+                                     (and (= :withhold-liquidity (:action profile))
+                                          (not= :liquidity-provider
+                                                (:role (first (filter #(= (:player/id profile)
+                                                                          (:player/id %))
+                                                                      players))))))]
+                       {:path [:candidate-action-profiles i]
+                        :reason :candidate-action-profile-invalid})
+                     (when-not (and (keyword? (get-in model [:action-timing :decision-point]))
+                                    (boolean? (get-in model [:action-timing :simultaneous?]))
+                                    (boolean? (get-in model [:action-timing :can-defer?])))
+                       [{:path [:action-timing] :reason :action-timing-required}])
+                     (let [parallelism (get-in model [:execution-model :parallelism])
+                           submissions (:submissions parallelism)
+                           tx-ids (map :transaction/id submissions)
+                           tx-indices (map :transaction/index submissions)
+                           block-ids (map :block/id submissions)
+                           pool-ids (map :liquidity-pool/id submissions)
+                           arrival-times (map :arrival-time submissions)
+                           submission-round-valid?
+                           (every? (fn [submission]
+                                     (let [round-index (:round/index submission)
+                                           round (when (and (integer? round-index)
+                                                            (<= 0 round-index)
+                                                            (< round-index (count rounds)))
+                                                  (nth rounds round-index))]
+                                       (and round
+                                            (some #{(:entitlement/id submission)}
+                                                  (:incoming round)))))
+                                   submissions)]
+                       (when-not (and (contains? #{:independent-transactions
+                                                   :single-transaction-batch}
+                                                 (:submission-boundary parallelism))
+                                      (contains? #{:same-block :multiple-blocks}
+                                                 (:inclusion parallelism))
+                                      (contains? #{:transaction-index :unspecified}
+                                                 (:ordering parallelism))
+                                      (contains? #{:caller-selected :sequencer-determined :unspecified}
+                                                 (:ordering-control parallelism))
+                                      (contains? #{:concurrent-arrival :staggered-arrival}
+                                                 (:submission-time-model parallelism))
+                                      (= :shared-liquidity
+                                                 (:contention parallelism))
+                                      (= :single-settlement-per-entitlement
+                                         (:duplicate-entitlement-policy parallelism))
+                                      (= :per-submission (:submission-atomicity parallelism))
+                                      (= :no-state-change (:failed-submission-effect parallelism))
+                                      (contains? #{:same-entitlement-idempotent :new-transaction}
+                                                 (:retry-policy parallelism))
+                                      (keyword? (:arrival-time-unit parallelism))
+                                      (vector? submissions)
+                                      (seq submissions)
+                                      submission-round-valid?
+                                      (every? #(and (some? (:caller/id %))
+                                                    (entitlement-id-set (:entitlement/id %))
+                                                    (some? (:liquidity-pool/id %))
+                                                    (integer? (:arrival-time %))
+                                                    (not (neg? (:arrival-time %)))) submissions)
+                                      (case (:submission-time-model parallelism)
+                                        :concurrent-arrival
+                                        (= 1 (count (set arrival-times)))
+                                        :staggered-arrival
+                                        (> (count (set arrival-times)) 1)
+                                        false)
+                                      (= 1 (count (set pool-ids)))
+                                      (or (and (= :single-transaction-batch
+                                                  (:submission-boundary parallelism))
+                                               (every? #(and (string? %) (not-empty %)) tx-ids)
+                                               (= 1 (count (set tx-ids))))
+                                          (and (= :independent-transactions
+                                                  (:submission-boundary parallelism))
+                                               (every? #(and (string? %) (not-empty %)) tx-ids)
+                                               (= (count tx-ids) (count (set tx-ids)))))
+                                      (or (not= :independent-transactions
+                                                (:submission-boundary parallelism))
+                                          (every? #(and (string? %) (not-empty %)) block-ids))
+                                      (or (not= :same-block (:inclusion parallelism))
+                                          (and (= :independent-transactions
+                                                  (:submission-boundary parallelism))
+                                               (= 1 (count (set block-ids)))
+                                               (every? #(and (integer? %) (not (neg? %))) tx-indices)
+                                               (= (count tx-indices)
+                                                  (count (set tx-indices))))))
+                         [{:path [:execution-model :parallelism]
+                           :reason :parallel-execution-parameters-incomplete}]))
+                     (when-not (and (contains? #{:public :private :imperfect}
+                                               (get-in model [:information-model :visibility]))
+                                    (keyword? (get-in model [:information-model :known-at-round]))
+                                    (boolean? (get-in model [:information-model
+                                                             :recovery-known-before-action?])))
+                       [{:path [:information-model]
+                         :reason :information-model-incomplete}])
+                     (when-not (and (contains? #{:deterministic-scenario :stochastic-process}
+                                               (get-in model [:recovery-process :kind]))
+                                    (= :modeled-assumption
+                                       (get-in model [:recovery-process :flow-attribution]))
+                                    (case (get-in model [:recovery-process :probability-model])
+                                      :none (= :deterministic-scenario
+                                               (get-in model [:recovery-process :kind]))
+                                      :explicit-probabilities
+                                      (let [process (:recovery-process model)
+                                            outcomes (:outcomes process)
+                                            probabilities (map :probability-bps outcomes)]
+                                        (and (= :stochastic-process (:kind process))
+                                             (seq outcomes)
+                                             (string? (get-in process
+                                                              [:probability-basis :description]))
+                                             (contains? #{:observed-frequency
+                                                          :published-calibration
+                                                          :explicit-scenario-assumption}
+                                                        (get-in process
+                                                                [:probability-basis :source]))
+                                             (every? #(and (integer? %) (<= 0 % 10000))
+                                                     probabilities)
+                                             (= 10000 (reduce + 0 probabilities))
+                                             (every? #(and (integer? (:recovery-amount %))
+                                                           (not (neg? (:recovery-amount %))))
+                                                     outcomes)
+                                             (= (count outcomes)
+                                                (count (set (map :outcome/id outcomes))))
+                                             (every? :outcome/id outcomes)))
+                                      false))
+                       [{:path [:recovery-process]
+                         :reason :recovery-process-assumptions-required}])
+                     (when-not (and (contains? #{:integer-utility-points}
+                                               (get-in model [:payoff-parameters :unit]))
+                                    (keyword? (get-in model [:payoff-parameters :amount-unit]))
+                                    (= :linear-additive-per-round
+                                       (get-in model [:payoff-parameters :aggregation])))
+                       [{:path [:payoff-parameters]
+                         :reason :payoff-units-and-aggregation-required}])
+                     (when-not (and (integer? (get-in model [:terminal :horizon-round]))
+                                    (<= 0 (get-in model [:terminal :horizon-round] -1)
+                                        (dec (count rounds)))
+                                    (= player-id-set
+                                       (set (keys (get-in model [:terminal
+                                                                 :continuation-value-by-player]))))
+                                    (every? integer?
+                                            (vals (get-in model [:terminal
+                                                                 :continuation-value-by-player])))
+                                    (= :fixed-horizon (get-in model [:terminal :condition]))
+                                    (every? (fn [round]
+                                              (or (nil? (:arrival-sequence round))
+                                                  (= (set (:incoming round))
+                                                     (set (:arrival-sequence round)))))
+                                            rounds))
+                       [{:path [:terminal] :reason :terminal-conditions-incomplete}])
+                     (when-not (and (= :pro-rata (get-in model [:mechanism :allocation-mode]))
+                                    (contains? #{:floor :largest-remainder}
+                                               (get-in model [:mechanism :rounding-policy]))
+                                    (= :defer (get-in model [:mechanism :residual-treatment]))
+                                    (= :entitlement-beneficiary-fixed
+                                       (get-in model [:mechanism :identity-binding])))
+                       [{:path [:mechanism] :reason :mechanism-policy-must-be-explicit}])))]
+    {:schema-version recovery-game-schema-version
+     :game/id (:game/id model)
+     :parameterization/status (if (empty? violations) :complete :incomplete)
+     :analysis-status :not-run-inconclusive
+     :equilibrium-claim :none
+     :candidate-actions-are-protocol-permissions? false
+     :model model
+     :violations violations}))
+
+(defn- discount-factor [discount-bps round-index]
+  (let [n (long discount-bps)
+        d 10000
+        exponent (long round-index)]
+    (/ (reduce * 1 (repeat exponent n))
+       (reduce * 1 (repeat exponent d)))))
+
+(defn evaluate-recovery-game-outcome
+  "Apply a prepared fixture's declared linear payoff assumptions to one
+   observed or hypothetical terminal outcome. The outcome contains per-player
+   payments [{:amount N :round/index N}], :delay-rounds, :fees,
+   :expected-unrecovered, :priority-externality, and :penalty-count.
+
+   Returns exact integer/rational utility components. This is payoff
+   bookkeeping only; it does not enumerate deviations or infer equilibrium."
+  [prepared outcome]
+  (let [model (:model prepared)
+        validation (prepare-recovery-game-model model)
+        horizon (get-in model [:terminal :horizon-round])
+        per-player (:by-player (:payoff-parameters model))
+        outcome-by-player (:by-player outcome)
+        players (map :player/id (:players model))
+        missing (vec (for [player players
+                           :let [p (get outcome-by-player player)]
+                           :when (or (nil? p)
+                                     (not (vector? (:payments p)))
+                                     (some (fn [k] (not (and (integer? (get p k))
+                                                              (not (neg? (get p k))))))
+                                           [:delay-rounds :fees :expected-unrecovered
+                                            :priority-externality :penalty-count])
+                                     (some #(or (not (and (integer? (:amount %))
+                                                          (not (neg? (:amount %)))))
+                                                (not (and (integer? (:round/index %))
+                                                          (<= 0 (:round/index %) horizon))))
+                                           (:payments p)))]
+                       player))]
+    (if (or (not= :complete (:parameterization/status validation)) (seq missing))
+      {:status :inconclusive
+       :reason (if (not= :complete (:parameterization/status validation))
+                 :model-parameterization-incomplete
+                 :outcome-incomplete)
+       :missing-players missing
+       :model-violations (:violations validation)
+       :equilibrium-claim :none}
+      {:status :payoffs-evaluated
+       :equilibrium-claim :none
+       :by-player
+       (into (sorted-map)
+             (map
+              (fn [player]
+                (let [params (get per-player player)
+                      result (get outcome-by-player player)
+                      discounted-payments
+                      (reduce + 0
+                              (map (fn [{:keys [amount round/index]}]
+                                     (* amount (:amount-value params)
+                                        (discount-factor (:discount-factor-bps params)
+                                                         index)))
+                                   (:payments result)))
+                      delay-cost (* (:delay-cost-per-round params)
+                                    (:delay-rounds result))
+                      fee-cost (* (:fee-cost-per-unit params) (:fees result))
+                      recovery-risk-cost (* (:recovery-risk-cost-per-unit params)
+                                            (:expected-unrecovered result))
+                      priority-externality-cost (* (:priority-externality-cost-per-unit params)
+                                                   (:priority-externality result))
+                      penalty-cost (* (:penalty-cost params) (:penalty-count result))
+                      continuation-value (* (:continuation-value params)
+                                            (get-in model [:terminal
+                                                           :continuation-value-by-player
+                                                           player])
+                                            (discount-factor (:discount-factor-bps params)
+                                                             horizon))
+                      costs {:delay delay-cost :fees fee-cost
+                             :recovery-risk recovery-risk-cost
+                             :priority-externality priority-externality-cost
+                             :penalties penalty-cost}
+                      utility (+ discounted-payments continuation-value
+                                  (- (reduce + 0 (vals costs))))]
+                  [player {:utility utility
+                           :components {:discounted-payments discounted-payments
+                                        :delay-cost delay-cost
+                                        :fee-cost fee-cost
+                                        :recovery-risk-cost recovery-risk-cost
+                                        :priority-externality-cost priority-externality-cost
+                                        :penalty-cost penalty-cost
+                                        :continuation-value continuation-value}}]))
+              players))})))
+
+(defn evaluate-recovery-game-distribution
+  "Compute exact expected utility over a fixture's explicit recovery outcomes.
+
+   `outcomes-by-id` maps each declared :outcome/id to a terminal outcome accepted
+   by evaluate-recovery-game-outcome. Probability weights are basis points and
+   are used only when the model validates an explicit probability basis whose
+   outcomes sum to 10,000. This computes expected payoffs; it does not solve
+   strategies or establish equilibrium."
+  [prepared outcomes-by-id]
+  (let [model (:model prepared)
+        validation (prepare-recovery-game-model model)
+        process (:recovery-process model)
+        declared-outcomes (:outcomes process)
+        evaluations (mapv (fn [scenario]
+                            (let [id (:outcome/id scenario)
+                                  result (evaluate-recovery-game-outcome
+                                          prepared (get outcomes-by-id id))]
+                              {:scenario/id id
+                               :probability-bps (:probability-bps scenario)
+                               :result result}))
+                          declared-outcomes)]
+    (if (or (not= :complete (:parameterization/status validation))
+            (not= :explicit-probabilities (:probability-model process))
+            (empty? declared-outcomes)
+            (some #(not= :payoffs-evaluated (get-in % [:result :status])) evaluations))
+      {:status :inconclusive
+       :reason :explicit-probability-outcomes-required
+       :scenario-evaluations evaluations
+       :equilibrium-claim :none}
+      {:status :expected-payoffs-evaluated
+       :probability-basis (:probability-basis process)
+       :probability-total-bps (reduce + 0 (map :probability-bps declared-outcomes))
+       :equilibrium-claim :none
+       :by-player
+       (into (sorted-map)
+             (for [player (map :player/id (:players model))]
+               [player {:expected-utility
+                        (reduce + 0
+                                (map (fn [{:keys [probability-bps result]}]
+                                       (* (/ probability-bps 10000)
+                                          (get-in result [:by-player player :utility])))
+                                     evaluations))
+                        :scenario-utilities
+                        (into (sorted-map)
+                              (map (fn [{:keys [scenario/id probability-bps result]}]
+                                     [id {:probability-bps probability-bps
+                                          :utility (get-in result
+                                                           [:by-player player :utility])}])
+                                   evaluations))}]))})))
+
 (defn- enumerate-policies
   "Generate the policy variants to test."
   []
@@ -495,8 +944,38 @@
                                    :merge
                                    :permute
                                    :sybil-split
-                                   :inflate-request]
+                                   :inflate-request
+                                   :claim-now-or-defer
+                                   :delay-arrival
+                                   :reorder-arrival
+                                   :manipulate-priority
+                                   :manipulate-cap
+                                   :withhold-liquidity-across-recovery-rounds]
                          :payoff-model :allocated-amount-only
+                         :recovery-game-support
+                         {:schema-version "partial-fill-recovery-game.v2"
+                          :temporal-model :sequential-recovery-rounds-with-concurrent-arrivals
+                          :execution-parameter-dimensions
+                          [:submission-boundary :same-block-or-multi-block-inclusion
+                           :transaction-ordering :ordering-control :arrival-timing
+                           :shared-liquidity-contention :per-submission-atomicity
+                           :duplicate-entitlement-policy :retry-policy]
+                          :action-dimensions [:claim-timing :claim-splitting-and-merging
+                                              :arrival-order :priority :request-size
+                                              :claim-cap :liquidity-availability]
+                          :payoff-dimensions [:amount :timing-and-time-value
+                                              :recovery-risk :fees-and-costs
+                                              :priority-externalities :penalties
+                                              :continuation-value]
+                          :required-parameterization [:utility-functions
+                                                      :discounting
+                                                      :information-available-to-actors
+                                                      :action-timing
+                                                      :parallel-execution-model
+                                                      :recovery-process]
+                          :readiness :schema-ready-payoffs-unparameterized
+                          :analysis-status :inconclusive
+                          :equilibrium-claim :none}
                          :scope-kind :bounded-enumeration
                          :claims-unmodeled [:fees
                                             :timing
@@ -520,7 +999,8 @@
                                              :bounded-policy-set
                                              :bounded-transformation-set
                                              :no-equilibrium-proof
-                                             :no-concurrency-assurance]}
+                                             :no-concurrency-assurance
+                                             :recovery-payoffs-unparameterized]}
        :properties (->> (mapcat :checks @results)
                         (group-by :property)
                         (mapv (fn [[prop results]]

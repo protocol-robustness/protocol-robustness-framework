@@ -1,6 +1,18 @@
 (ns resolver-sim.yield.strategic-partial-fill-test
-  (:require [clojure.test :refer [deftest is testing]]
+  (:require [clojure.edn :as edn]
+            [clojure.java.io :as io]
+            [clojure.test :refer [deftest is testing]]
             [resolver-sim.yield.strategic-partial-fill :as strategic]))
+
+(def recovery-game-fixture-catalog
+  (edn/read-string
+   (slurp (io/resource "yield/partial-fill-recovery-game-fixtures.edn"))))
+
+(defn- prepared-recovery-game-fixtures []
+  (mapv (fn [case]
+          [case (strategic/prepare-recovery-game-model
+                 (merge (:defaults recovery-game-fixture-catalog) case))])
+        (:cases recovery-game-fixture-catalog)))
 
 (deftest integer-rounding-is-not-exactly-merge-invariant
   (is (= [{:claims [1 2]
@@ -125,6 +137,274 @@
       (is (vector? (:claims-unmodeled model)))
       (is (set (set (:actions model)))
           "actions is a vector of keywords"))))
+
+(deftest recovery-game-model-is-ready-for-later-parameterization
+  (let [artifact (strategic/validate-strategic-properties
+                  :deviations [:split]
+                  :max-states 2)
+        support (get-in artifact [:strategic-model :recovery-game-support])]
+    (is (= "partial-fill-recovery-game.v2" (:schema-version support)))
+    (is (= :sequential-recovery-rounds-with-concurrent-arrivals
+           (:temporal-model support)))
+    (is (contains? (set (:execution-parameter-dimensions support))
+                   :transaction-ordering))
+    (is (contains? (set (:action-dimensions support)) :liquidity-availability))
+    (is (contains? (set (:payoff-dimensions support)) :recovery-risk))
+    (is (= :schema-ready-payoffs-unparameterized (:readiness support)))
+    (is (= :inconclusive (:analysis-status support)))
+    (is (= :none (:equilibrium-claim support)))
+    (is (contains? (set (get-in artifact [:epistemic-scope :scope/limitations]))
+                   :recovery-payoffs-unparameterized))))
+
+(deftest recovery-game-fixture-catalog-is-parameterized-but-not-analyzed
+  (let [prepared (prepared-recovery-game-fixtures)]
+    (is (= 16 (count prepared)))
+    (doseq [[case result] prepared]
+      (is (= (:game/id case) (:game/id result)))
+      (is (= :complete (:parameterization/status result))
+          (str (:game/id case) " parameterization violations: " (:violations result)))
+      (is (= :not-run-inconclusive (:analysis-status result)))
+      (is (= :none (:equilibrium-claim result)))
+      (is (false? (:candidate-actions-are-protocol-permissions? result))))))
+
+(deftest recovery-game-fixtures-cover-partial-recovery-and-parallel-claims
+  (let [cases (into {} (map (fn [[case result]] [(:game/id case) (:model result)])
+                            (prepared-recovery-game-fixtures)))
+        partial (get cases "partial-recovery-concurrent-claims")
+        expected (:expected partial)
+        initial-round (first (:rounds partial))
+        later-round (second (:rounds partial))]
+    (is (= 10000 (:initial-shortfall expected)))
+    (is (= 5000 (:recovered-amount expected)))
+    (is (= [:alice-right :bob-right :carol-right] (:incoming initial-round)))
+    (is (= (:incoming initial-round) (:incoming later-round)))
+    (is (= 30000 (reduce + (vals (:requested-by-entitlement initial-round)))))
+    (is (= 10000 (- (reduce + (vals (:requested-by-entitlement initial-round)))
+                    (:available-liquidity initial-round))))
+    (is (= [:bob-right :carol-right :alice-right]
+           (:arrival-sequence (get-in cases ["arrival-order-permutation" :rounds 1]))))
+    (is (= [10000 5000] (:outstanding-after-round expected)))
+    (is (= 5000 (reduce + (map :amount (:recovery-events later-round)))))
+    (is (= ["same-block-parallel-submissions"
+            "duplicate-entitlement-competing-callers"
+            "incoming-entitlement-during-open-shortfall"
+            "staggered-multi-block-submissions"
+            "no-recovery" "full-recovery" "early-recovery" "late-recovery"
+            "arrival-order-permutation" "claim-splitting-candidate"
+            "request-and-cap-manipulation-candidates"
+            "liquidity-provider-withholding-candidate"
+            "high-delay-cost-sensitivity" "recovery-risk-sensitivity"
+            "recovery-probability-assumption-sensitivity"]
+           (mapv :game/id (rest (:cases recovery-game-fixture-catalog)))))))
+
+(deftest same-block-execution-parameters-require-independent-transaction-identities
+  (let [prepared (into {} (map (fn [[case result]] [(:game/id case) result])
+                               (prepared-recovery-game-fixtures)))
+        parallel (get prepared "same-block-parallel-submissions")
+        duplicate (get prepared "duplicate-entitlement-competing-callers")
+        staggered (get prepared "staggered-multi-block-submissions")
+        model (:model parallel)
+        incoming (get prepared "incoming-entitlement-during-open-shortfall")
+        incoming-model (:model incoming)
+        invalid (assoc-in model [:execution-model :parallelism :submissions 0]
+                          {:transaction/id "tx-no-index"
+                           :block/id "block-2"
+                           :caller/id :alice-caller
+                           :entitlement/id :alice-right})
+        unknown-entitlement (assoc-in model
+                                      [:execution-model :parallelism :submissions 0
+                                       :entitlement/id]
+                                      :unregistered-right)
+        negative-index (assoc-in model
+                                 [:execution-model :parallelism :submissions 0
+                                  :transaction/index]
+                                 -1)
+        empty-submissions (assoc-in model [:execution-model :parallelism :submissions] [])
+        split-blocks (assoc-in model
+                               [:execution-model :parallelism :submissions 0 :block/id]
+                               "different-block")
+        wrong-submission-round (assoc-in incoming-model
+                                         [:execution-model :parallelism :submissions 3 :round/index]
+                                         0)
+        invalid-results (mapv strategic/prepare-recovery-game-model
+                              [invalid unknown-entitlement negative-index
+                               empty-submissions split-blocks wrong-submission-round])]
+    (is (= :complete (:parameterization/status parallel)))
+    (is (= :complete (:parameterization/status duplicate)))
+    (is (= :complete (:parameterization/status staggered)))
+    (is (= [2 0 1] (mapv :transaction/index
+                         (get-in model [:execution-model :parallelism :submissions]))))
+    (is (= [:alice-right :alice-right]
+           (mapv :entitlement/id
+                 (get-in (:model duplicate)
+                         [:execution-model :parallelism :submissions]))))
+    (is (= #{:alice-caller :relayer-caller}
+           (set (map :caller/id
+                     (get-in (:model duplicate)
+                             [:execution-model :parallelism :submissions])))))
+    (is (= [105 100 110]
+           (mapv :arrival-time
+                 (get-in (:model staggered)
+                         [:execution-model :parallelism :submissions]))))
+    (is (= :complete (:parameterization/status incoming)))
+    (is (= [:alice-right :bob-right :carol-right]
+           (get-in incoming-model [:rounds 0 :incoming])))
+    (is (= [:alice-right :bob-right :carol-right :dave-right]
+           (get-in incoming-model [:rounds 1 :incoming])))
+    (is (= [0 1 2 3]
+           (mapv :transaction/index
+                 (get-in incoming-model [:execution-model :parallelism :submissions]))))
+    (is (every? #(= 1 (:round/index %))
+                (get-in incoming-model [:execution-model :parallelism :submissions])))
+    (is (= [10000 15000] (get-in incoming-model [:expected :outstanding-after-round])))
+    (is (= #{"block-4" "block-5"}
+           (set (map :block/id
+                     (get-in (:model staggered)
+                             [:execution-model :parallelism :submissions])))))
+    (doseq [result invalid-results]
+      (is (= :incomplete (:parameterization/status result)))
+      (is (some #(= :parallel-execution-parameters-incomplete (:reason %))
+                (:violations result))))))
+
+(deftest shortfall-fixture-rounds-reconcile-to-deferred-liability
+  (doseq [[case result] (prepared-recovery-game-fixtures)
+          :let [model (:model result)
+                expected (:expected case)]
+          :when (contains? expected :initial-shortfall)]
+    (let [rounds (:rounds model)
+          initial-request (reduce + 0 (vals (:requested-by-entitlement (first rounds))))
+          recovery-before-first-claim (reduce + 0 (map :amount
+                                                       (:recovery-events (first rounds))))
+          initial-shortfall (max 0 (- initial-request
+                                     (- (:available-liquidity (first rounds))
+                                        recovery-before-first-claim)))
+          outstanding-by-round
+          (mapv (fn [round]
+                  (let [requested (reduce + 0 (vals (:requested-by-entitlement round)))]
+                    (- requested (min requested (:available-liquidity round)))))
+                rounds)
+          recovered (reduce + 0 (mapcat (fn [round]
+                                          (map :amount (:recovery-events round)))
+                                        rounds))]
+      (is (= (:initial-shortfall expected) initial-shortfall) (:game/id case))
+      (is (= (:outstanding-after-round expected) outstanding-by-round) (:game/id case))
+      (is (= (:recovered-amount expected) recovered) (:game/id case)))))
+
+(deftest recovery-game-preparation-fails-closed-on-incomplete-utilities
+  (let [[case _] (first (prepared-recovery-game-fixtures))
+        model (merge (:defaults recovery-game-fixture-catalog) case)
+        incomplete (update-in model [:payoff-parameters :by-player :alice]
+                              dissoc :discount-factor-bps)
+        result (strategic/prepare-recovery-game-model incomplete)]
+    (is (= :incomplete (:parameterization/status result)))
+    (is (= :not-run-inconclusive (:analysis-status result)))
+    (is (some #(= :utility-parameterization-incomplete (:reason %))
+              (:violations result)))))
+
+(deftest withholding-candidate-requires-an-explicit-provider-player
+  (let [model (merge (:defaults recovery-game-fixture-catalog)
+                     (first (filter #(= "liquidity-provider-withholding-candidate"
+                                        (:game/id %))
+                                    (:cases recovery-game-fixture-catalog))))
+        invalid (assoc model :players (subvec (vec (:players model)) 0 3))
+        result (strategic/prepare-recovery-game-model invalid)]
+    (is (= :incomplete (:parameterization/status result)))
+    (is (some #(= :liquidity-provider-required (:reason %))
+              (:violations result)))))
+
+(deftest declared-payoff-parameters-change-outcome-payoffs
+  (let [prepared (into {} (map (fn [[case result]] [(:game/id case) result])
+                               (prepared-recovery-game-fixtures)))
+        outcome {:by-player
+                 (into {}
+                       (for [player [:alice :bob :carol]]
+                         [player {:payments [{:amount 5000 :round/index 1}]
+                                  :delay-rounds 1 :fees 0
+                                  :expected-unrecovered 5000
+                                  :priority-externality 0 :penalty-count 0}]))}
+        base (strategic/evaluate-recovery-game-outcome
+              (get prepared "partial-recovery-concurrent-claims") outcome)
+        high-delay (strategic/evaluate-recovery-game-outcome
+                    (get prepared "high-delay-cost-sensitivity") outcome)
+        high-risk (strategic/evaluate-recovery-game-outcome
+                   (get prepared "recovery-risk-sensitivity") outcome)]
+    (is (= :payoffs-evaluated (:status base)))
+    (is (= 4990 (get-in base [:by-player :alice :utility])))
+    (is (= 3500 (get-in high-delay [:by-player :alice :utility])))
+    (is (= -120010 (get-in high-risk [:by-player :alice :utility])))
+    (is (< (get-in high-delay [:by-player :alice :utility])
+           (get-in base [:by-player :alice :utility])))
+    (is (< (get-in high-risk [:by-player :alice :utility])
+           (get-in base [:by-player :alice :utility])))
+    (is (= :none (:equilibrium-claim high-delay)))
+    (is (= :inconclusive
+           (:status (strategic/evaluate-recovery-game-outcome
+                     (get prepared "partial-recovery-concurrent-claims") {}))))))
+
+(deftest candidate-action-profiles-are-typed-and-do-not-authorize-actions
+  (let [prepared (into {} (map (fn [[case result]] [(:game/id case) result])
+                               (prepared-recovery-game-fixtures)))
+        split (get prepared "claim-splitting-candidate")
+        inflated (get prepared "request-and-cap-manipulation-candidates")
+        withholding (get prepared "liquidity-provider-withholding-candidate")
+        invalid-split (update-in (:model split) [:candidate-action-profiles 0 :parts]
+                                 assoc 0 4000)
+        invalid-result (strategic/prepare-recovery-game-model invalid-split)]
+    (is (= :complete (:parameterization/status split)))
+    (is (= :complete (:parameterization/status inflated)))
+    (is (= :complete (:parameterization/status withholding)))
+    (is (= false (:candidate-actions-are-protocol-permissions? withholding)))
+    (is (= :incomplete (:parameterization/status invalid-result)))
+    (is (some #(= :candidate-action-profile-invalid (:reason %))
+              (:violations invalid-result)))))
+
+(deftest explicit-recovery-probabilities-require-a-stated-basis-and-sum-to-one
+  (let [case (first (filter #(= "recovery-probability-assumption-sensitivity"
+                                (:game/id %))
+                            (:cases recovery-game-fixture-catalog)))
+        model (merge (:defaults recovery-game-fixture-catalog) case)
+        process (:recovery-process model)
+        prepared (strategic/prepare-recovery-game-model model)
+        bad (assoc-in model [:recovery-process :outcomes 0 :probability-bps] 4500)
+        invalid (strategic/prepare-recovery-game-model bad)]
+    (is (= :complete (:parameterization/status prepared)))
+    (is (= 10000 (reduce + (map :probability-bps (:outcomes process)))))
+    (is (= :explicit-scenario-assumption
+           (get-in process [:probability-basis :source])))
+    (is (= :incomplete (:parameterization/status invalid)))
+    (is (some #(= :recovery-process-assumptions-required (:reason %))
+              (:violations invalid)))))
+
+(deftest probability-parameterization-produces-exact-expected-payoffs
+  (let [case (first (filter #(= "recovery-probability-assumption-sensitivity"
+                                (:game/id %))
+                            (:cases recovery-game-fixture-catalog)))
+        prepared (strategic/prepare-recovery-game-model
+                  (merge (:defaults recovery-game-fixture-catalog) case))
+        outcomes (into {}
+                       (for [[id amount round delay outstanding]
+                             [[:no-recovery 0 0 2 10000]
+                              [:partial-recovery 5000 1 1 5000]
+                              [:full-recovery 10000 1 0 0]]]
+                         [id {:by-player
+                              (into {}
+                                    (for [player [:alice :bob :carol]]
+                                      [player {:payments (if (pos? amount)
+                                                           [{:amount amount
+                                                             :round/index round}]
+                                                           [])
+                                               :delay-rounds delay
+                                               :fees 0
+                                               :expected-unrecovered outstanding
+                                               :priority-externality 0
+                                               :penalty-count 0}]))}]))
+        result (strategic/evaluate-recovery-game-distribution prepared outcomes)]
+    (is (= :expected-payoffs-evaluated (:status result)))
+    (is (= 10000 (:probability-total-bps result)))
+    (is (= 3487 (get-in result [:by-player :alice :expected-utility])))
+    (is (= :none (:equilibrium-claim result)))
+    (is (= :inconclusive
+           (:status (strategic/evaluate-recovery-game-distribution prepared {}))))))
 
 (deftest diagnostic-transform-is-attached-to-each-property
   (testing "every property carries a diagnostic-transform with role and semantic-purpose"
