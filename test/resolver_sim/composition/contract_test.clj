@@ -112,3 +112,16 @@
                       (update :composition/control (fn [m] (into (sorted-map) m))))]
     (is (= (c/composition-contract-root base) (c/composition-contract-root base)))
     (is (= (c/composition-contract-root base) (c/composition-contract-root reordered)))))
+
+(deftest execution-safety-is-required-and-content-addressed
+  (let [base (dissoc (cc) :composition/execution-safety)
+        safe (assoc base :composition/execution-safety :pure-calculation)
+        irreversible (assoc base :composition/execution-safety :external-irreversible)]
+    (is (some #(= :violation/missing-execution-safety (:violation/id %))
+              (:violations (c/validate-composition-contract base))))
+    (is (:valid? (c/validate-composition-contract safe)))
+    (is (:valid? (c/validate-composition-contract irreversible)))
+    (is (not (:valid? (c/validate-composition-contract
+                       (assoc base :composition/execution-safety :unknown)))))
+    (is (not= (c/composition-contract-root safe)
+              (c/composition-contract-root irreversible)))))

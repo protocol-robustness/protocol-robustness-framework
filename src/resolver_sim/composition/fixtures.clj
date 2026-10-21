@@ -7,6 +7,7 @@
    production protocol capabilities."
   (:require [resolver-sim.economics.slash-distribution :as sd]
             [resolver-sim.extensions.registry :as reg]
+            [resolver-sim.extensions.manifest :as manifest]
             [resolver-sim.composition.contract :as contract]))
 
 ;; ── executable fixture entrypoints ────────────────────────────────────────
@@ -67,7 +68,7 @@
   "Build a composition-capable award-amount capability with the given
    composition contract parameters."
   [id & {:keys [input-semantic output-semantic modes terminal? determinism
-                effects exclusive merge custody failure-mode entrypoint]
+                effects exclusive merge custody failure-mode entrypoint entrypoint-safety]
          :or {input-semantic :amount output-semantic :amount
               modes #{:sequential} entrypoint 'resolver-sim.composition.fixtures/identity-award}}]
   {:capability/kind :economics/award-amount
@@ -103,7 +104,8 @@
                           :composition/adapters {:accepted #{}
                                                  :implicit? false}
                           :composition/verification {:intermediate-output-committed? true
-                                                     :evidence-contract-ref nil}}})
+                                                     :evidence-contract-ref nil}
+                          :composition/execution-safety (or entrypoint-safety :pure-calculation)}})
 
 (def test-pack
   {:extension/id :fixture/composition-pack
@@ -112,11 +114,28 @@
    :extension/manifest-version 1
    :extension/capabilities []})
 
+(defn- pure-core-extension-map
+  "Mark the known pure built-in calculation capabilities in this fixture map.
+
+   Production descriptors remain unannotated and are rejected by composition
+   compilation until their content-addressed contracts declare this property."
+  []
+  (into {}
+        (map (fn [[key entry]]
+               (let [capability (update (:capability entry) :composition-contract
+                                        assoc :composition/execution-safety
+                                        :pure-calculation)]
+                 [key (assoc entry
+                             :capability capability
+                             :descriptor-root
+                             (manifest/capability-descriptor-root capability))])))
+        (sd/core-extension-map)))
+
 (defn ext-map-with
   "Core capabilities plus the given fixture capabilities."
   [& caps]
   (reduce (fn [m c] (reg/register-capability m test-pack c))
-          (sd/core-extension-map)
+          (pure-core-extension-map)
           caps))
 
 (defn seq-combination
