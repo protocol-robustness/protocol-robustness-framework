@@ -2,3 +2,6 @@ pytest>=9.0
 pytest-xdist>=3.6
 pynacl>=1.5
 jsonschema>=4.17
+eth-hash[pycryptodome]==0.8.0
+eth-keys==0.8.0
+rlp==5.0.0
