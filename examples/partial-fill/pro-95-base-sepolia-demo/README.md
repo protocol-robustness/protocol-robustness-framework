@@ -34,6 +34,10 @@ fixture arithmetic. It does not trust the embedded verification summary.
 
 ## Stage C status
 
+See [`TESTNET_PREPARATION.md`](./TESTNET_PREPARATION.md) for the owner inputs,
+configuration fields, safe setup, transaction evidence, Base finality gates,
+and completion checklist required before any testnet run.
+
 `stage-c-evidence-status.edn` records that public-chain qualification has not
 run. The Base Sepolia deployment templates under `etc/deployments/prf-base-sepolia/`
 remain owner-approval-required and contain placeholder verifier and authority
