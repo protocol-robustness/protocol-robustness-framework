@@ -6,7 +6,7 @@
  :transaction-submitted? false
  :deployment
  {:status :not-run
-  :reason :no-owner-approved-demo-deployment-package
+  :reason :no-reviewed-base-sepolia-demo-deployment-package
   :template-status :owner-approval-required}
  :signer
  {:status :generated-test-only-unfunded
@@ -30,7 +30,7 @@
   :second-source-candidate :blockscout-matching-header-not-selected
   :finality-established? false}
  :beneficiaries
- {:status :generated-test-only-pending-owner-approval
+ {:status :owner-approved-test-only-pseudonyms-pending-package-binding
   :addresses {
    :alice "0x8bDd01C7DEad0AbE3e855b458B820D9d727bCCBF"
    :bob "0x867Caab852f942Ff80B6409109F1DB76D4ecB36B"
@@ -41,17 +41,16 @@
  {:status :not-run
   :reason :no-base-sepolia-demo-transactions-or-receipt-proofs}
  :header-trust
- {:status :not-selected
-  :reason :external-header-pin-source-and-freshness-policy-not-selected}
+ {:status :candidate-sources-awaiting-independent-review
+  :reason :source-independence-genesis-ancestry-and-freshness-reorg-policy-unreviewed}
  :finality
  {:status :unverified
   :reason :safe-finalized-claim-out-of-scope-for-demo-and-no-l1-derivation-verifier}
  :remaining-evidence
- [:owner-approval-of-generated-recipient-map
-  :owner-approved-demo-deployment-and-verifier-identities
-  :owner-approved-signer-role-and-spend-budget
+ [:reviewed-base-sepolia-demo-deployment-and-verifier-identities
+  :approved-transaction-count-and-numeric-eth-spend-cap
   :funded-base-sepolia-demo-signer
-  :controlled-beneficiary-addresses-and-authorizations
+  :base-bound-beneficiary-commitments-and-authorizations
   :base-sepolia-derived-source-witness-and-proof
   :reviewed-base-sepolia-deployment-and-operation-runner
   :raw-signed-transactions-and-mined-receipts

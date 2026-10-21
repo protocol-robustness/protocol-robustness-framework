@@ -10,9 +10,9 @@ illustrative reserve observation of 80 units, of which 10 are restricted and
 70 are available; and a declared largest-remainder allocation of 35, 21, and
 14. The remaining 30 are unmet requests in this fixture, not recognized debt
 or claimant liabilities. The Stage B example uses pseudonymous labels and placeholder destination
-addresses. The generated recipient keys listed separately below have not yet
-been bound into a Base Sepolia witness/proof or approved for use. The example
-uses no USDC or other real token.
+addresses. The owner has approved the separate test-only recipient mapping
+recorded below, but those addresses are not yet bound into a Base Sepolia
+witness/proof. The example uses no USDC or other real token.
 
 The source, policy, beneficiary, and funding envelopes are signed with
 ephemeral Ed25519 demonstration keys. Their public keys are included in the
@@ -49,8 +49,14 @@ deployment.
 A dedicated encrypted test-only deployer and three encrypted recipient wallets
 have been generated outside the repository at the owner-approved secure
 location. Their public addresses are recorded in
-[`demo-recipient-wallets.json`](./demo-recipient-wallets.json); they are not
-funded or approved for this run. A read-only preflight
+[`demo-recipient-wallets.json`](./demo-recipient-wallets.json); their mapping is
+approved for this demonstration, but they are unfunded and not yet bound into
+the Base Sepolia witness/proof. The approval and its exclusions are recorded in
+[`owner-decisions-20261023.edn`](./owner-decisions-20261023.edn); it does not
+authorize signing, broadcast, or testnet ETH spend. One test-only EOA is
+approved to act as deployer, funder, configuration authority, and withdrawal
+relayer; this is centralized demonstration control, not independent authority
+separation. A read-only preflight
 from `https://sepolia.base.org` returned chain ID `84532` and head
 `49259922` (`0x49a868fe73ae4775215dd0eef0b8a4a01e9be8d1c61c2c9badf68cf9bae5f37e`); see
 [`rpc-preflight-20261023.json`](./rpc-preflight-20261023.json). This is a
@@ -60,11 +66,11 @@ second observer, not a selected trust anchor. At
 block 49260186, the deployer balance was reported as zero; the raw Foundry
 result is retained with the block-pinned balance query in the preflight artifact.
 
-Stage C still requires an owner-approved demonstration deployment and verifier
-configuration, approved signer role and spend budget, approval of the generated
-recipient mapping, a Base Sepolia-bound source witness/proof, a reviewed
-Base-specific deployment/operation runner, real transaction and receipt
-artifacts, and an independently selected header-pin source. Base safe/finalized
+Stage C still requires a demonstration deployment and verifier configuration,
+a numeric transaction and ETH spend cap, a Base Sepolia-bound source
+witness/proof, a reviewed Base-specific deployment/operation runner, real
+transaction and receipt artifacts, and independent review of the header source
+and freshness/reorg policy. Base safe/finalized
 status remains outside this bounded demo and unverified. No public transaction has been submitted.
 Any future deployment must remain labelled demonstration only; it does not
 qualify the system for pre-mainnet release.
