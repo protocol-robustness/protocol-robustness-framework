@@ -244,3 +244,29 @@ python3 -c 'from pathlib import Path; p=Path("docs/allocation-proofs/pro-rata-pr
 The first two commands both returned `379ea68ae439d6b18ba322edaa92723d76d7a7d6344178473ef1cbd8b56e30bc`; the original candidate recorded `13a9e43fdfdb2989d488a5ec7f3821f46ce75167803f69ee69a6c15ea74a11af`. Stage A package tests were not rerun; the retained commands and pass counts above remain historical package results.
 
 Append the corrected Stage A JJ change ID/commit, its parent staging commit, exact workspace, document digest, reviewer identity and pass/fail findings to PRO-96 in Linear. Do not include unrelated pre-existing qualification artifacts in the Stage A change.
+
+## Follow-up artifact identity check (2026-10-23)
+
+The PRF-EVM composed-settlement package has since advanced beyond the snapshot
+above. Its current `manifest.json` SHA-256 is
+`753ce78c324bc6793366ecc5c868952baedec6bc2727fe096e9be93e03010564`; the
+adjacent `manifest.sha256` agrees. This is a later package identity and does
+not rewrite the captured digest `379ea68a...` above. The current manifest
+declares source base Git commit
+`46a6910a8849b45e63a69c11f1741e837df5f64e`.
+
+A temporary sparse projection of the 34 manifest-listed files, using files
+from that pinned source commit and retained package files matching their
+declared hashes, passed `scripts/verify-composed-pro-rata-v2.py` with status
+`PASS`. The retained result is at
+`/tmp/pro96-composed-pinned-46a6910a/verification.stdout.json`. This checks the
+declared package identity and local fixture reconstruction; it does not
+authenticate external source facts or establish public-chain execution or
+finality.
+
+Running the same verifier against the active `/home/user/Code/prf-evm` tree
+fails because `src/core/PrfChainInstanceGenesis.sol` differs from the hash
+declared for the pinned base revision (`f3a5564a...` in the active tree versus
+`f3659316...` at the pinned revision). The active checkout therefore is not a
+substitute for the package's declared source snapshot. The verifier must run
+against the pinned files when reproducing this retained package.
