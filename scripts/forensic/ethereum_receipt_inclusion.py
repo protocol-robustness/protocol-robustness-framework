@@ -291,7 +291,7 @@ def _recover_transaction(raw: bytes, expected_chain_id: int) -> tuple[str, int]:
     return public_key.to_checksum_address().lower(), tx_type
 
 
-def _header_identity(header_raw: bytes) -> tuple[bytes, int, bytes, bytes]:
+def _header_identity(header_raw: bytes) -> tuple[bytes, int, bytes, bytes, bytes]:
     try:
         fields = rlp.decode(header_raw, strict=True)
     except Exception as exc:
@@ -314,14 +314,15 @@ def _header_identity(header_raw: bytes) -> tuple[bytes, int, bytes, bytes]:
     transactions_root = fields[4]
     receipts_root = fields[5]
     number = _rlp_int(fields[8], "header number")
-    return keccak(header_raw), number, transactions_root, receipts_root
+    return keccak(header_raw), number, fields[0], transactions_root, receipts_root
 
 
 def verify_case(case: dict[str, Any], trust_context_bytes: bytes,
                 expected_trust_context_sha256: str, now: int) -> dict[str, Any]:
     """Verify exact receipt inclusion under a verifier-pinned header context."""
     required = {"schema", "receipt", "transactionRaw", "transactionIndex",
-                "transactionProof", "receiptProof", "blockHeaderRlp", "expectedSender"}
+                "transactionProof", "receiptProof", "blockHeaderRlp", "headerAncestry",
+                "expectedSender"}
     if not isinstance(case, dict) or set(case) != required or case.get("schema") != CASE_SCHEMA:
         raise InclusionError("case schema or fields are invalid")
     if len(trust_context_bytes) > 64 * 1024:
@@ -331,7 +332,7 @@ def verify_case(case: dict[str, Any], trust_context_bytes: bytes,
         raise InclusionError("trusted context digest does not match independent pin")
     trust = _json_no_duplicates(trust_context_bytes, "trusted context")
     trust_required = {"schema", "network", "chainFamily", "chainId", "genesisHash",
-                      "headerHash", "headerNumber", "sourceId", "sourceRevision",
+                      "anchorHeaderHash", "anchorHeaderNumber", "sourceId", "sourceRevision",
                       "observedAt", "validUntil", "finalityStatus"}
     if not isinstance(trust, dict) or set(trust) != trust_required or trust.get("schema") != TRUST_SCHEMA:
         raise InclusionError("trusted context schema or fields are invalid")
@@ -341,7 +342,7 @@ def verify_case(case: dict[str, Any], trust_context_bytes: bytes,
         raise InclusionError("trusted chain ID is invalid")
     if not all(isinstance(trust[key], str) and trust[key] for key in ("network", "sourceId", "sourceRevision")):
         raise InclusionError("trusted network or source identity is missing")
-    if not all(type(trust[key]) is int for key in ("headerNumber", "observedAt", "validUntil")):
+    if not all(type(trust[key]) is int for key in ("anchorHeaderNumber", "observedAt", "validUntil")):
         raise InclusionError("trusted header time or height is invalid")
     if (trust["observedAt"] < 0 or trust["validUntil"] < trust["observedAt"]
             or now < 0 or not trust["observedAt"] <= now <= trust["validUntil"]):
@@ -350,13 +351,28 @@ def verify_case(case: dict[str, Any], trust_context_bytes: bytes,
         raise InclusionError("this verifier cannot establish a finality claim")
 
     genesis_hash = _hex_bytes(trust["genesisHash"], "trusted genesis hash", 32)
-    pinned_header_hash = _hex_bytes(trust["headerHash"], "trusted header hash", 32)
+    pinned_anchor_hash = _hex_bytes(trust["anchorHeaderHash"], "trusted anchor header hash", 32)
     header_raw = _hex_bytes(case["blockHeaderRlp"], "block header RLP")
     if len(header_raw) > 64 * 1024:
         raise InclusionError("block header exceeds size limit")
-    header_hash, header_number, transactions_root, receipts_root = _header_identity(header_raw)
-    if header_hash != pinned_header_hash or header_number != trust["headerNumber"]:
-        raise InclusionError("block header does not match trusted header identity")
+    header_hash, header_number, _parent_hash, transactions_root, receipts_root = _header_identity(header_raw)
+    ancestry = case["headerAncestry"]
+    if not isinstance(ancestry, list) or len(ancestry) > 8192:
+        raise InclusionError("header ancestry must be an array within the header-count limit")
+    current_hash = header_hash
+    current_number = header_number
+    ancestry_bytes = 0
+    for index, encoded_header in enumerate(ancestry):
+        ancestor_raw = _hex_bytes(encoded_header, f"ancestry header {index}")
+        ancestry_bytes += len(ancestor_raw)
+        if ancestry_bytes > 8 * 1024 * 1024:
+            raise InclusionError("header ancestry exceeds byte-size limit")
+        ancestor_hash, ancestor_number, ancestor_parent, _, _ = _header_identity(ancestor_raw)
+        if ancestor_parent != current_hash or ancestor_number != current_number + 1:
+            raise InclusionError("header ancestry parent or height link is invalid")
+        current_hash, current_number = ancestor_hash, ancestor_number
+    if current_hash != pinned_anchor_hash or current_number != trust["anchorHeaderNumber"]:
+        raise InclusionError("receipt block is not an ancestor of the trusted header anchor")
 
     tx_index = case["transactionIndex"]
     if type(tx_index) is not int or tx_index < 0:
@@ -410,6 +426,9 @@ def verify_case(case: dict[str, Any], trust_context_bytes: bytes,
         "genesisHash": "0x" + genesis_hash.hex(),
         "blockHash": "0x" + header_hash.hex(),
         "blockNumber": header_number,
+        "trustedAnchorHash": "0x" + pinned_anchor_hash.hex(),
+        "trustedAnchorNumber": trust["anchorHeaderNumber"],
+        "verifiedAncestryHeaderCount": len(ancestry),
         "transactionHash": transaction_hash,
         "transactionInclusion": "verified-at-receipt-index",
         "transactionIndex": tx_index,

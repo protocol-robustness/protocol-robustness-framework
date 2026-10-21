@@ -27,15 +27,19 @@ pinned trust-context file. This follows EIP-2718's transaction/receipt trie and
 typed receipt encoding. EIP-1186 describes account and storage proofs; this
 verifier does not treat those as transaction or receipt inclusion proofs.
 
-The trust-context file pins the network family, chain ID, genesis hash, exact
-header hash and height, source identity/revision, and freshness window. The
+The trust-context file pins the network family, chain ID, genesis hash, an
+anchor header hash and height, source identity/revision, and freshness window.
+The case may include bounded encoded header ancestry from the transaction's
+block to that independently pinned anchor; every parent hash and consecutive
+height is checked. The
 caller must provide its exact SHA-256 from a verifier-selected source outside
 the case bundle. A hash or signature carried only inside the bundle is not an
 independent trust anchor.
 
 The result status is deliberately scoped to
-`receipt_inclusion_verified_under_external_header_pin`. It does not establish
-header ancestry, canonicality against a consensus client, or finality. The
+`receipt_inclusion_verified_under_external_header_pin`. It checks ancestry to
+the pinned anchor, but does not establish that the anchor is canonical against
+a consensus client or establish finality. The
 trust context must set `finalityStatus` to `unverified`; the verifier fails
 closed if asked to assert finality. The retained result includes the recovered
 sender, transaction type, receipt status, trusted header source and explicit
