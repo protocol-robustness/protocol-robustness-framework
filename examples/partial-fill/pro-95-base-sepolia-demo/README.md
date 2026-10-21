@@ -44,12 +44,22 @@ remain owner-approval-required and contain placeholder verifier and authority
 values. This demo package does not turn those templates into an approved
 deployment.
 
-Stage C still requires a demonstration deployment configuration with approved
-demo contract identities, a funded Base Sepolia demo signer, real transaction
-and receipt artifacts, and an independently selected Base/L1 header and
-finality policy. No public transaction has been submitted as part of preparing
-this package. Any future deployment must remain labelled demonstration only;
-it does not qualify the system for pre-mainnet release.
+A dedicated encrypted test-only signer has now been generated outside the
+repository at the owner-approved secure location. Its public address is
+`0xdD82cCEB1D515F2e4fb0432fB5d53138813945D4`; it is not funded or approved for a run yet. A read-only preflight
+from `https://sepolia.base.org` returned chain ID `84532` and head
+`49259922` (`0x49a868fe73ae4775215dd0eef0b8a4a01e9be8d1c61c2c9badf68cf9bae5f37e`); see
+[`rpc-preflight-20261023.json`](./rpc-preflight-20261023.json). This is a
+single-provider observation, not independent header or finality evidence. At
+block `49260186`, the signer balance was reported as zero; the raw Foundry
+result is retained with the block-pinned balance query in the preflight artifact.
+
+Stage C still requires an owner-approved demonstration deployment and verifier
+configuration, approved signer role and spend budget, controlled beneficiary
+addresses, real transaction and receipt artifacts, and an independently selected
+Base/L1 header and finality policy. No public transaction has been submitted.
+Any future deployment must remain labelled demonstration only; it does not
+qualify the system for pre-mainnet release.
 
 Base documents chain ID `84532` and the public RPC endpoint
 `https://sepolia.base.org` for Base Sepolia. The endpoint has not been queried

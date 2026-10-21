@@ -12,11 +12,11 @@
   "artifacts": {
     "readme": {
       "path": "examples/partial-fill/pro-95-base-sepolia-demo/README.md",
-      "sha256": "b52c6e8346dcaaddda15324014eef9ffde60df5d886a793d9b9fdf208a5a43d9"
+      "sha256": "a8cdeec66ca3e52e58496b88ca99031b44755c6ce328d473bb7d288a1081ec57"
     },
     "testnetPreparation": {
       "path": "examples/partial-fill/pro-95-base-sepolia-demo/TESTNET_PREPARATION.md",
-      "sha256": "79489a1642d063f13dadb709a408faa2ab33580ba5141867858f7313d744c2d7"
+      "sha256": "feca3b641d4fd0aa7b7bd502761a78cc86498c5d6305078c67d1b5833d4ef97a"
     },
     "stageBDemoPackage": {
       "path": "examples/partial-fill/pro-95-base-sepolia-demo/stage-b-demo-package.edn",
@@ -28,11 +28,15 @@
     },
     "stageCStatus": {
       "path": "examples/partial-fill/pro-95-base-sepolia-demo/stage-c-evidence-status.edn",
-      "sha256": "0cdb5214d08aba13e21689968f5f38ea08c2405372ed926c891b5015966e7200"
+      "sha256": "0bdb585fbb090ba5a421e84f55d2ae9dbe0521b22feb89e1c903804c4ac8af79"
     },
     "stageBVerifier": {
       "path": "scripts/forensic/verify-pro95-base-sepolia-demo-package.clj",
       "sha256": "30b50cee381fd798bbb5674c6ecff11bb6cb8d61962e3361cb13d531b0d6ce64"
+    },
+    "rpcPreflight": {
+      "path": "examples/partial-fill/pro-95-base-sepolia-demo/rpc-preflight-20261023.json",
+      "sha256": "e7f784f3820cb5829e527a9ed1b74b349de3c733f669476361ff33b9274f8aaa"
     }
   },
   "scopeLimitations": [

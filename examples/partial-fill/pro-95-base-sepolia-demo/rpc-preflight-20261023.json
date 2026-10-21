@@ -1,0 +1,88 @@
+{
+  "balanceObservation": {
+    "address": "0xdD82cCEB1D515F2e4fb0432fB5d53138813945D4",
+    "balanceWei": "0",
+    "blockNumber": 49260186,
+    "blockNumberHex": "0x2efa69a",
+    "calls": [
+      {
+        "completedAt": "2026-10-23T16:45:06Z",
+        "exitCode": 0,
+        "method": "eth_blockNumber",
+        "params": [],
+        "resultText": "\"0x2efa69a\"",
+        "startedAt": "2026-10-23T16:45:05Z",
+        "tool": "Foundry cast rpc"
+      },
+      {
+        "completedAt": "2026-10-23T16:45:06Z",
+        "exitCode": 0,
+        "method": "eth_getBalance",
+        "params": [
+          "0xdD82cCEB1D515F2e4fb0432fB5d53138813945D4",
+          "0x2efa69a"
+        ],
+        "resultText": "\"0x0\"",
+        "startedAt": "2026-10-23T16:45:06Z",
+        "tool": "Foundry cast rpc"
+      }
+    ],
+    "interpretation": "Single-provider read-only observation at the stated block; no independent header authentication."
+  },
+  "calls": [
+    {
+      "completedAt": "2026-10-23T16:44:13Z",
+      "exitCode": 0,
+      "method": "eth_chainId",
+      "params": [],
+      "resultText": "\"0x14a34\"",
+      "startedAt": "2026-10-23T16:44:12Z",
+      "tool": "Foundry cast rpc"
+    },
+    {
+      "completedAt": "2026-10-23T16:44:13Z",
+      "exitCode": 0,
+      "method": "eth_blockNumber",
+      "params": [],
+      "resultText": "\"0x2efa592\"",
+      "startedAt": "2026-10-23T16:44:13Z",
+      "tool": "Foundry cast rpc"
+    },
+    {
+      "completedAt": "2026-10-23T16:44:13Z",
+      "exitCode": 0,
+      "method": "web3_clientVersion",
+      "params": [],
+      "resultText": "\"reth/v2.5.2-7134be3/x86_64-unknown-linux-gnu/base/v1.5.0\"",
+      "startedAt": "2026-10-23T16:44:13Z",
+      "tool": "Foundry cast rpc"
+    },
+    {
+      "completedAt": "2026-10-23T16:44:13Z",
+      "exitCode": 0,
+      "method": "eth_getBlockByNumber",
+      "params": [
+        "0x2efa592",
+        "false"
+      ],
+      "resultText": "{\"baseFeePerGas\":\"0x4c4b40\",\"blobGasUsed\":\"0xbb80c\",\"difficulty\":\"0x0\",\"excessBlobGas\":\"0x0\",\"extraData\":\"0x01000003e80000000f00000000004c4b40\",\"gasLimit\":\"0x7270e00\",\"gasUsed\":\"0x1cd529\",\"hash\":\"0x49a868fe73ae4775215dd0eef0b8a4a01e9be8d1c61c2c9badf68cf9bae5f37e\",\"logsBloom\":\"0x00000000004000080000000400000002000000010000000000000000102000800018000000080110800000901000000000100000400020000020000008a00008820000200000000c048000080000220000000000004000000002002002000000000000000200001005200000808008000020000000000100002000100008400080000040000818008008000000000000080100040420a000000810000000000002a000002041400040101000100000000000001000140001800600100200040000000002030800000000400c08000000000008001004800020000090002022040010000000002000040020002020008012000101082000000480002009408204\",\"miner\":\"0x4200000000000000000000000000000000000011\",\"mixHash\":\"0xc1fcb578362bd3fdb0592bf2279c9810df62d2cc39328a55cad2c6faaa7d4632\",\"nonce\":\"0x0000000000000000\",\"number\":\"0x2efa592\",\"parentBeaconBlockRoot\":\"0x00c1bda01f54bba7f183c9aad755575e7abf0c65a3cd6ffc8504898e9a6d6a59\",\"parentHash\":\"0x54fdfad8dde14541defcf38108e2811edb7054123cfff54c11c3c56cd44d9278\",\"receiptsRoot\":\"0x6d8074167243173626fb9984fcdd7a55340a42f98f0b20c2ae073c0007f4935d\",\"requestsHash\":\"0xe3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855\",\"sha3Uncles\":\"0x1dcc4de8dec75d7aab85b567b6ccd41ad312451b948a7413f0a142fd40d49347\",\"size\":\"0x14d2\",\"stateRoot\":\"0xa368de786a5cb2636f5e28e08612123cf9d24a8308c63cf7e6aa4ba33ba378d6\",\"timestamp\":\"0x6adb8edd\",\"timestampMs\":\"0x1a169a61010\",\"transactions\":[\"0x348feb40c2e890d7118a3be8a5bc9769c89c120f7ae078e20a67cee0fda5c39a\",\"0x663b3285e9fa17ff3191e7a9a54d206e8597ae08a4270b66526a229bdc9348d1\",\"0xc29940c85dc23514352d1fe9c14720dc579d962ad7b76b270ca182948c61f88c\",\"0x607f07dc436bc89aaac34bb345aba63f34de238e2a2be9152d986693d2d41c8d\",\"0x148a42842e40cec5a62ec510068fbdec2cef118dc669ab4327a29910b0f2771f\",\"0x521ef22474fb7a831210bf3fb8dc28e3d660d7f4ef00e86654efd4e51d0b615a\",\"0x1b1a075140319e97a142f4a7573888863dc0eef86b599203677a7475940ee380\",\"0x76d859a910f90982f680b74616239d32e619a73010c1a371957b60fdb2c07986\",\"0x8f9a992ea0a8d46d3b40552d12879d0993a5cd1e2e23271a3eaf5c23bd82b89b\",\"0x0aadb31b65f34f281eb543ead0758a4d22436a54432cd461f3ff813c53f9e273\",\"0x14e59798bf3abfce190e5d0d44807dedc55c474e9a52b0b28e332e91202bf456\",\"0xbe3fce331db8a604129ef2a68028a98790cbe0f0cc9967d4a9a848fe7a9404b2\",\"0x8112f02ba4afacd57bdc50336e54be18cc43ae77376f26ce16898b5af331a725\",\"0x168dabc7adbd2ed8ff27af8f53086dc4af3e0416cc02f68cd2fe52501fb356de\",\"0x01fab2a99d918283b63629d0c8d00bc81f3869ac9cbaaf3500183b17a78d32a3\",\"0x25b0eeca5056830ec27263fd081dd734f94239a2505af30cd3f07daeada54b27\"],\"transactionsRoot\":\"0x1b9e4fb8e66897acfd1af719037715e51e692191956a1e6e7aabba8a017fd11d\",\"uncles\":[],\"withdrawals\":[],\"withdrawalsRoot\":\"0x9e071825ad4731c9e4c062742e5d709740337fcd14a825e9db44d4417515da80\"}",
+      "startedAt": "2026-10-23T16:44:13Z",
+      "tool": "Foundry cast rpc"
+    }
+  ],
+  "captureNote": "Exact Foundry cast stdout results are retained. The HTTP JSON-RPC envelopes and headers were not captured. One provider response does not independently authenticate chain identity, ancestry, Base consensus, or safe/finalized status.",
+  "classification": "single-provider-read-only-observation-not-independent-chain-evidence",
+  "endpoint": "https://sepolia.base.org",
+  "network": {
+    "expectedChainId": 84532,
+    "name": "Base Sepolia",
+    "observedChainId": 84532
+  },
+  "observedHead": {
+    "hash": "0x49a868fe73ae4775215dd0eef0b8a4a01e9be8d1c61c2c9badf68cf9bae5f37e",
+    "hexNumber": "0x2efa592",
+    "number": 49259922,
+    "parentHash": "0x54fdfad8dde14541defcf38108e2811edb7054123cfff54c11c3c56cd44d9278"
+  },
+  "schema": "prf-base-sepolia-read-only-rpc-preflight.v1"
+}
