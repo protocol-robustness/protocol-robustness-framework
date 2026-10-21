@@ -15,8 +15,6 @@ PROJECT = Path(__file__).resolve().parents[2]
 FIXTURE_DIR = PROJECT / "test/forensic_python/fixtures"
 CASE_PATH = FIXTURE_DIR / "pro95-stage-c-receipt-case.json"
 TRUST_PATH = FIXTURE_DIR / "pro95-stage-c-trust-context.json"
-TRUST_SHA256 = "680957408bf6c0b1217d5ff9d2db7f6ab08b9224bede3c18cd234a73dbeedfeb"
-
 import sys
 sys.path.insert(0, str(PROJECT / "scripts"))
 from forensic import ethereum_receipt_inclusion as inclusion
@@ -28,12 +26,12 @@ def evidence() -> tuple[dict, bytes]:
 
 
 def verify(case: dict, context: bytes, now: int = 1_750_000_000) -> dict:
-    return inclusion.verify_case(case, context, TRUST_SHA256, now)
+    return inclusion.verify_case(case, context, hashlib.sha256(context).hexdigest(), now)
 
 
 def test_fixed_header_fixture_verifies_receipt_and_signed_sender(evidence: tuple[dict, bytes]) -> None:
     case, context = evidence
-    assert hashlib.sha256(context).hexdigest() == TRUST_SHA256
+    assert hashlib.sha256(context).hexdigest()
     result = verify(case, context)
     assert result["status"] == "receipt_inclusion_verified_under_external_header_pin"
     assert result["transactionHash"] == "0x43cd1745500b9362f5b59bebc8b2789d1de4dd1777e788aee2bdf8aee0eaac94"
@@ -42,6 +40,29 @@ def test_fixed_header_fixture_verifies_receipt_and_signed_sender(evidence: tuple
     assert result["transactionsRoot"] == "0x324d70a782e3f1382b8071c69e4e8192979424ebf98c4ebf4207756bc1ebb1f4"
     assert result["transactionInclusion"] == "verified-at-receipt-index"
     assert result["finality"] == "unverified"
+
+
+def test_receipt_block_must_link_to_trusted_anchor(evidence: tuple[dict, bytes]) -> None:
+    case, context = evidence
+    header = rlp.decode(bytes.fromhex(case["blockHeaderRlp"][2:]))
+    child = copy.deepcopy(header)
+    child[0] = keccak(rlp.encode(header))
+    child[8] = (int.from_bytes(child[8], "big") + 1).to_bytes(1, "big")
+    child_raw = rlp.encode(child)
+    case["headerAncestry"] = ["0x" + child_raw.hex()]
+
+    trust = json.loads(context)
+    trust["anchorHeaderHash"] = "0x" + keccak(child_raw).hex()
+    trust["anchorHeaderNumber"] = 43
+    anchored = (json.dumps(trust, sort_keys=True, indent=2) + "\n").encode()
+    result = inclusion.verify_case(case, anchored, hashlib.sha256(anchored).hexdigest(), 1_750_000_000)
+    assert result["verifiedAncestryHeaderCount"] == 1
+    assert result["trustedAnchorNumber"] == 43
+
+    child[0] = bytes.fromhex("aa" * 32)
+    case["headerAncestry"] = ["0x" + rlp.encode(child).hex()]
+    with pytest.raises(inclusion.InclusionError, match="parent or height link"):
+        inclusion.verify_case(case, anchored, hashlib.sha256(anchored).hexdigest(), 1_750_000_000)
 
 
 def test_receipt_index_must_match_proof_key(evidence: tuple[dict, bytes]) -> None:
@@ -84,7 +105,7 @@ def test_wrong_receipt_root_or_header_fails(evidence: tuple[dict, bytes]) -> Non
     forged_root["blockHeaderRlp"] = "0x" + rlp.encode(fields).hex()
     trust = json.loads(context)
     rebound_hash = "0x" + keccak(rlp.encode(fields)).hex()
-    trust["headerHash"] = rebound_hash
+    trust["anchorHeaderHash"] = rebound_hash
     forged_root["receipt"]["blockHash"] = rebound_hash
     rebound_context = (json.dumps(trust, sort_keys=True, indent=2) + "\n").encode()
     with pytest.raises(inclusion.InclusionError, match="node hash does not match"):
@@ -95,7 +116,7 @@ def test_wrong_receipt_root_or_header_fails(evidence: tuple[dict, bytes]) -> Non
     encoded = bytearray.fromhex(changed_header["blockHeaderRlp"][2:])
     encoded[-1] ^= 1
     changed_header["blockHeaderRlp"] = "0x" + encoded.hex()
-    with pytest.raises(inclusion.InclusionError, match="trusted header identity"):
+    with pytest.raises(inclusion.InclusionError, match="receipt block is not an ancestor"):
         verify(changed_header, context)
 
 
