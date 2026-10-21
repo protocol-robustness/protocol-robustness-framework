@@ -9,23 +9,36 @@
    :carol "0xA57F019D83d1fbbc48500047bA27d21523fE55A8"}
   :recipient-purpose :controlled-pseudonymous-test-only
   :profile
-  {:requests {"claim-a" 50 "claim-b" 30 "claim-c" 20}
-   :deposit 80
-   :restricted-refundable 10
-   :available-for-allocation 70
-   :allocation {"claim-a" 35 "claim-b" 21 "claim-c" 14}
-   :unmet-requested 30
-  :asset {:kind :synthetic-test-token
-           :name "PRF PRO-95 Demo Unit"
-           :symbol "DEMO_UNIT"
-           :decimals 0
-           :total-supply-cap 80
-           :mint-authority :demo-deployer
-           :real-token? false}}
+  {:unit "USDC base units (6 decimals)"
+   :requests {"claim-a" 50000000 "claim-b" 30000000 "claim-c" 20000000}
+   :deposit 80000000
+   :restricted-refundable 10000000
+   :available-for-allocation 70000000
+   :allocation {"claim-a" 35000000 "claim-b" 21000000 "claim-c" 14000000}
+   :unmet-requested 30000000
+   :display-usdc {"claim-a-request" "50" "claim-b-request" "30" "claim-c-request" "20"
+                  :deposit "80" :restricted-refundable "10" :available-for-allocation "70"
+                  :alice-allocation "35" :bob-allocation "21" :carol-allocation "14"}}
+  :asset {:kind :circle-base-sepolia-testnet-usdc
+          :address "0x036cbd53842c5426634e7929541ec2318f3dcf7e"
+          :chain-id 84532
+          :name "USDC"
+          :symbol "USDC"
+          :decimals 6
+          :minting-by-demo? false
+          :mainnet-redeemable? false
+          :source-parity-artifact "protocol-deployments/config/pro-rata-v2-entitlement/circle-base-sepolia-usdc-source-parity.v1.json"}
   :withdrawal-submitter :deployer-relayer
   :authority-model :single-test-only-deployer-funder-configuration-authority-and-relayer
   :evidence-class :receipt-inclusion-verified-under-external-header-pin
   :finality-claim :none}
+ :amendments
+ [{:approved-at "2026-10-25"
+   :approval-source :project-owner-instruction
+   :change :replace-synthetic-demo-token-with-circle-base-sepolia-testnet-usdc
+   :asset-address "0x036cbd53842c5426634e7929541ec2318f3dcf7e"
+   :reason "Use the same six-decimal Base Sepolia USDC address referenced by the existing SEW Aave integration; this PRO-95 workflow does not itself use Aave."
+   :scope :testnet-demonstration-only-no-mainnet-redemption-or-production-funds}]
  :execution-status
  {:transaction-signing :not-performed
   :transaction-broadcast :not-performed

@@ -12,11 +12,11 @@
   "artifacts": {
     "readme": {
       "path": "examples/partial-fill/pro-95-base-sepolia-demo/README.md",
-      "sha256": "63d47012b85346450f6c428d74e850fde67cc8d3d43d04ed32575e19bd510550"
+      "sha256": "aa4d3ecb325ca6610a076e5a8e9fce597bda424fd3cdacf876dac5f6bb91aa40"
     },
     "testnetPreparation": {
       "path": "examples/partial-fill/pro-95-base-sepolia-demo/TESTNET_PREPARATION.md",
-      "sha256": "c20a21cda3af2e6e62566ebf676ef6c0f356d561451b1d08ef1333945fd8a63c"
+      "sha256": "91411da3bf54da7ebada8262becae1c2cd58696561a3d34a1c217478e0ffe1bf"
     },
     "stageBDemoPackage": {
       "path": "examples/partial-fill/pro-95-base-sepolia-demo/stage-b-demo-package.edn",
@@ -28,7 +28,7 @@
     },
     "stageCStatus": {
       "path": "examples/partial-fill/pro-95-base-sepolia-demo/stage-c-evidence-status.edn",
-      "sha256": "a61c0e3423682ed431de551336034bed50a9ba66d043b8d86ee9b254ec0cf8b1"
+      "sha256": "e8d1d492e447a1fc07aef8a362dd379a3374d195c7622163f56e07ff9a327f24"
     },
     "stageBVerifier": {
       "path": "scripts/forensic/verify-pro95-base-sepolia-demo-package.clj",
@@ -44,11 +44,11 @@
     },
     "ownerDecisions": {
       "path": "examples/partial-fill/pro-95-base-sepolia-demo/owner-decisions-20261023.edn",
-      "sha256": "46e7b311a218e22bd6dc801afd412c0fe027f6798262ee493b656185e56bb9f8"
+      "sha256": "f41e7feb2f38e6917a100a80c6a758fdf8dc339bcf8f967faabde6317171aaa4"
     },
     "initialConfigurationPackage": {
       "path": "examples/partial-fill/pro-95-base-sepolia-demo/initial-configuration-package.edn",
-      "sha256": "0bef25560b67b9a16f826628a1c761b499ffe25b7ecb7828680da276a4f9c113"
+      "sha256": "b40b17c28d5aba21ceb3c51e197a38729663edacbe7e62ff663b7d34b4afdf52"
     },
     "authorityStatePackage": {
       "path": "examples/partial-fill/pro-95-base-sepolia-demo/authority-state-package.edn",
@@ -56,13 +56,14 @@
     },
     "canonicalRootDerivation": {
       "path": "examples/partial-fill/pro-95-base-sepolia-demo/configuration-root-derivation.json",
-      "sha256": "f2514031b92b72f46b12f6cbdce7e990f0233d3205d34df5cafbbfb987ba54a1"
+      "sha256": "895316624eb7fc7f9470097c72ee99b742fb46b1d16b12ffffbddc10bca128ea"
     }
   },
   "scopeLimitations": [
-    "synthetic source, reserve, policy, beneficiary, and funding data",
+    "synthetic source, reserve, policy, beneficiary, and funding data in the Stage B fixture",
     "generated demo signing keys and bundled trust policy",
-    "no real token, no funding execution, no contract deployment, no public transaction",
+    "Circle Base Sepolia testnet USDC is selected as the intended external asset, but no current token query, funding, allowance, transfer, or deployment is evidenced",
+    "no public transaction; Stage B does not establish external USDC balance or transfer behavior",
     "no independently selected header trust context or freshness/reorg policy; no Base finality evidence",
     "not a pre-mainnet release qualification"
   ]
