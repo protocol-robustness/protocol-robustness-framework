@@ -12,12 +12,17 @@ must be supplied or approved by the project owner; the repository does not
 infer them from placeholders, locally generated demo keys, or a passing local
 test.
 
-## Actions still needed from the owner
+## Owner decisions recorded; actions still needed
 
-The following are the remaining decisions and actions for the bounded demo.
-The generated addresses are test-only and are not yet approved for the settlement.
+The owner approved the proposed test-only recipient map, synthetic fixture,
+deployer-relayed withdrawals, and bounded receipt-inclusion evidence class on
+2026-10-23. See [`owner-decisions-20261023.edn`](./owner-decisions-20261023.edn).
+That record reflects conversation approval; it is not a cryptographic owner
+signature or independent authority attestation. The wallets remain pseudonymous
+test recipients.
 
-1. **Approve or replace the recipient map.** Proposed fixture recipients are
+1. **Bind the approved recipient map into a Base-specific package.** Approved
+   fixture recipients are
    listed in [`demo-recipient-wallets.json`](./demo-recipient-wallets.json):
    Alice `0x8bDd01C7DEad0AbE3e855b458B820D9d727bCCBF`, Bob `0x867Caab852f942Ff80B6409109F1DB76D4ecB36B`, and Carol
    `0xA57F019D83d1fbbc48500047bA27d21523fE55A8`. These addresses are backed by locally generated
@@ -27,24 +32,22 @@ The generated addresses are test-only and are not yet approved for the settlemen
    chain ID `31337`; replacing them with these Base Sepolia addresses requires
    deriving new roots and regenerating the source witness/proof. Do not edit the
    old proof or substitute the addresses after proof generation.
-2. **Choose who submits the three withdrawals.** The V3 allocator's `withdraw`
+2. **Use the approved relayer model.** The V3 allocator's `withdraw`
    entry point verifies the committed beneficiary opening and transfers to that
    beneficiary; it does not require `msg.sender` to be the beneficiary. A
-   relayer can submit all three claims using the deployer key. Alternatively,
-   each beneficiary can submit their own claim, which requires separate testnet
-   ETH for gas in each recipient wallet. The three recipient balances and the
-   deployer balance are currently zero according to the read-only RPC
-   observations retained in `demo-recipient-wallets.json` and
-   `rpc-preflight-20261023.json`.
-3. **Approve the exact demo profile and authority model.** Proposed economics
-   reuse the controlled fixture: 50/30/20 requests; 80 synthetic token units
+   deployer will submit all three claims. Beneficiary gas funding is not
+   planned. The recipient and deployer balances were zero in the retained
+   read-only RPC observations.
+3. **Use the approved synthetic demo profile.** It specifies 50/30/20 requests;
+   80 synthetic token units
    deposited; 10 restricted and refundable to Carol; 70 allocatable and paid
    35/21/14; 30 unmet requests remain neither funded entitlements nor
-   recognized liabilities. Approve this fixture, token metadata/mint cap,
-   pseudonymous recipient mapping, and whether the generated deployer is the
-   single test-only deployer/funder/authority or provide replacements. The
-   retained local fixture's `address(this)` authority is not an external
-   authority approval.
+   recognized liabilities. Token metadata, mint cap, and exact deployment
+   composition still need to be set in the reviewed run package. The owner
+   approved one dedicated test-only EOA for deployer, funder, configuration
+   authority, and relayer roles. This is a deliberately centralized demo setup,
+   not independent or production authority separation. The retained local
+   fixture's `address(this)` authority is not an external authority approval.
 4. **Approve the transaction and gas caps, then fund the deployer.** Deployer
    `0xdD82cCEB1D515F2e4fb0432fB5d53138813945D4` currently has zero Base Sepolia
    ETH. No safe exact amount can be set yet: there is no Base Sepolia deployment
@@ -54,21 +57,18 @@ The generated addresses are test-only and are not yet approved for the settlemen
    testnet source and record its funding transaction. The Coinbase Developer
    Platform currently lists Base Sepolia among supported faucet networks
    ([faucet](https://www.coinbase.com/developer-platform/products/faucet)).
-   If direct beneficiary
-   submissions are chosen, fund their gas separately; otherwise the deployer
-   relayer can pay their transaction gas.
-5. **Approve the demo evidence class.** Recommended bounded claim:
-   `receipt_inclusion_verified_under_external_header_pin`, with Base safe/finalized
-   status explicitly unverified. Base RPC and Blockscout returned the same hash for block 49259922; both
-   observations are retained in rpc-preflight-20261023.json. Blockscout is a
-   candidate second observer, not an approved trust anchor. Approve these
-   sources subject to independent review, or provide alternatives. The
-   recommended demo grade does not claim Base safe/finalized status, but still
-   requires a freshness/reorg policy for the pinned header. A safe/finalized
-   claim would also require an independently sourced Ethereum Sepolia L1 path
-   and a qualified Base derivation/finality verifier, outside this bounded
-   demo.
-6. **Approve the implementation boundary.** The retained V3 run is a local
+   The approved relayer model means the beneficiary wallets do not need gas.
+5. **Review selected header observations and policy.** The approved bounded
+   claim is `receipt_inclusion_verified_under_external_header_pin`, with Base
+   safe/finalized status explicitly unclaimed. Base RPC and Blockscout returned
+   the same hash for block 49259922; both observations are retained in
+   `rpc-preflight-20261023.json`. Blockscout is a second-observation candidate,
+   not yet established as an independent trust anchor. Independent review must
+   assess source independence, ancestry/genesis binding, and freshness/reorg
+   policy before any receipt claim is made. A safe/finalized claim would require
+   an independently sourced Ethereum Sepolia L1 path and a qualified Base
+   derivation/finality verifier, outside this bounded demo.
+6. **Implement and review within the approved boundary.** The retained V3 run is a local
    Foundry test whose harness sets chain ID `31337` and uses test-only addresses.
    The related `prf-evm/script/DeployGateEEntitlementOptionA.s.sol` is explicitly
    local-only and uses a different fixed proof identity. Its program VKey/ELF
@@ -81,7 +81,7 @@ The generated addresses are test-only and are not yet approved for the settlemen
 These are approval inputs, not implied authorization to deploy. Any approved
 transaction plan must state a numeric maximum transaction count and ETH spend.
 
-## 1. Owner decisions required before deployment preparation
+## 1. Remaining configuration and qualification inputs
 
 Record these in an approved, versioned demo run plan:
 
@@ -91,16 +91,13 @@ Record these in an approved, versioned demo run plan:
 | Source revision | PRF, PRF-EVM, coprocessor/prover, dependencies, Solidity compiler, optimizer and `via_ir` settings; clean/dirty state and content inventories. | Local candidate revisions exist; no testnet run source-state package exists. |
 | Contract composition | Exact contracts to deploy and their constructor/configuration values: demo token, reserve, allocator, controller, assurance, ratification/admission, verifier adapter, verifier implementation, and any protected execution target. Mark omitted components and resulting claim limits. | No approved deployment composition. |
 | Proof identity | Proof system, program ID, VKey, ELF digest, public-values schema and length, real verifier address/runtime identity, and a retained proof fixture. Do not substitute an accepting/mock verifier while claiming proof verification. | The Base Sepolia config has `TBD` values; not approved. |
-| Demo asset | New synthetic test token only; owner-approved token name/symbol, decimals, mint authority, total mint cap, and the exact units used in the run. Do not use a real stablecoin. | No token policy or deployed token. |
-| Demo policy and requests | Owner-approved synthetic requests, allocation rule/version, cutoff, expected allocation, restricted reserve, funding amount, unmet-request meaning, and any refund rule. | Current 50/30/20 fixture is illustrative only. |
-| Beneficiaries | Test-only pseudonyms and controlled recipient addresses, with a dedicated way to sign/observe claims. The existing `0x111…`, `0x222…`, `0x333…` placeholders are not controlled recipients and must not receive funds. | Generated recipient addresses exist in demo-recipient-wallets.json, but remain
-pending owner approval and are not yet bound into a Base Sepolia witness/proof. |
-| Authorities | Distinct selected source, policy, beneficiary, and funding authority public keys/roles/statuses; key custody and rotation/revocation rules; approval record binding the exact package digests. These may be test-only authorities, but must be clearly classified as such. | Existing demo keys were ephemeral and their private keys discarded; bundled public keys are not independent authorities. |
-| Deployer and funder | Public address, role, custody type, testnet ETH budget, maximum number of transactions, and maximum gas/ETH spend approved for this run. Use a dedicated test-only signer. | Generated encrypted test-only signer: `0xdD82cCEB1D515F2e4fb0432fB5d53138813945D4`; unfunded, not yet approved for the run, and no spend budget set. Keystore is outside the repository; passphrase is in the local system keyring. |
-| Network trust | Base Sepolia chain ID `84532`; selected RPC endpoint(s); independent source for chain/header checks; exact freshness and reorg policy; selected L2 safe/finalized interpretation and corresponding Ethereum Sepolia L1 evidence requirements. | `https://sepolia.base.org` was read-only probed; it reported chain ID `84532`, head `49259922`, hash `0x49a868fe73ae4775215dd0eef0b8a4a01e9be8d1c61c2c9badf68cf9bae5f37e`. Raw Foundry result strings are retained in `rpc-preflight-20261023.json`; Blockscout returned the same hash at that height as a second-source candidate, but it is not selected as an external header pin; no freshness/reorg policy is
-   approved, and Base finality remains out of scope for the recommended demo
-   grade. The generated signer balance was `0 wei` at block `49260186` according to the same endpoint. |
-| Release boundary | Approved page/report wording for the demonstrated claims and explicit exclusions. | Must continue to say testnet demonstration only; not pre-mainnet release. |
+| Demo asset | New synthetic test token only; approved symbol/decimals and exact units, with a named mint authority and bounded mint cap. Do not use a real stablecoin. | `DEMO_UNIT`, zero decimals, an 80-unit supply cap and the test-only deployer as mint authority are approved; display name and deployment composition remain to be specified. |
+| Demo policy and requests | Owner-approved synthetic requests, allocation rule/version, cutoff, expected allocation, restricted reserve, funding amount, unmet-request meaning, and any refund rule. | The synthetic 50/30/20 fixture and 35/21/14 allocation are approved in `owner-decisions-20261023.edn`; they are not yet bound to a Base Sepolia deployment. |
+| Beneficiaries | Test-only pseudonyms and controlled recipient addresses, with a dedicated way to sign/observe claims. The existing `0x111…`, `0x222…`, `0x333…` placeholders are not controlled recipients and must not receive funds. | Recipient map approved in `owner-decisions-20261023.edn`; addresses are not yet bound into a Base Sepolia witness/proof. |
+| Authorities | Record each test-only public key/role/status and custody boundary; do not imply independent authority separation. Bind run approvals to exact package digests. | One dedicated test-only EOA is approved for deployment, funding, configuration authority, and relayed withdrawals. Existing bundled Stage B Ed25519 keys are ephemeral demonstration keys and are not independent authorities. |
+| Deployer and funder | Public address, role, custody type, testnet ETH budget, maximum number of transactions, and maximum gas/ETH spend approved for this run. Use a dedicated test-only signer. | Generated encrypted test-only signer: `0xdD82cCEB1D515F2e4fb0432fB5d53138813945D4`; approved for deployer, funder, configuration-authority, and relayer roles; unfunded, with no spend budget set. Keystore is outside the repository; passphrase is in the local system keyring. |
+| Network trust | Base Sepolia chain ID `84532`; selected RPC endpoint(s); independent source for chain/header checks; exact freshness and reorg policy; selected L2 safe/finalized interpretation and corresponding Ethereum Sepolia L1 evidence requirements. | Owner approved receipt-inclusion verification with no finality claim. Base RPC reported chain ID `84532`, head `49259922` and hash `0x49a868fe73ae4775215dd0eef0b8a4a01e9be8d1c61c2c9badf68cf9bae5f37e`; Blockscout returned the same hash. Both observations are retained in `rpc-preflight-20261023.json`, but source independence, ancestry/genesis binding, and freshness/reorg policy require independent review before this header can be a trust pin. The generated signer balance was `0 wei` at block `49260186`; Base finality is out of scope. |
+| Release boundary | Approved page/report wording for the demonstrated claims and explicit exclusions. | Approved scope remains testnet demonstration only; not a pre-mainnet release. |
 
 Base documentation lists Base Sepolia as chain ID `84532` (`0x14a34`). The
 documented public RPC candidate is `https://sepolia.base.org`; a response from

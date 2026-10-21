@@ -1,0 +1,39 @@
+{:schema :prf-pro-95-base-sepolia-demo-owner-decisions.v1
+ :classification :demonstration-only-not-pre-mainnet-release
+ :approval-source :project-owner-conversation
+ :approved-at "2026-10-23"
+ :approved-decisions
+ {:recipient-map
+  {:alice "0x8bDd01C7DEad0AbE3e855b458B820D9d727bCCBF"
+   :bob "0x867Caab852f942Ff80B6409109F1DB76D4ecB36B"
+   :carol "0xA57F019D83d1fbbc48500047bA27d21523fE55A8"}
+  :recipient-purpose :controlled-pseudonymous-test-only
+  :profile
+  {:requests {"claim-a" 50 "claim-b" 30 "claim-c" 20}
+   :deposit 80
+   :restricted-refundable 10
+   :available-for-allocation 70
+   :allocation {"claim-a" 35 "claim-b" 21 "claim-c" 14}
+   :unmet-requested 30
+   :asset {:kind :synthetic-test-token
+           :symbol "DEMO_UNIT"
+           :decimals 0
+           :total-supply-cap 80
+           :mint-authority :demo-deployer
+           :real-token? false}}
+  :withdrawal-submitter :deployer-relayer
+  :authority-model :single-test-only-deployer-funder-configuration-authority-and-relayer
+  :evidence-class :receipt-inclusion-verified-under-external-header-pin
+  :finality-claim :none}
+ :not-authorized
+ [:transaction-signing
+  :transaction-broadcast
+  :testnet-eth-spend
+  :public-chain-qualification
+  :pre-mainnet-release]
+ :conditions-before-broadcast
+ [:reviewed-base-specific-runner-and-proof-package
+  :reviewed-transaction-plan
+  :approved-maximum-transaction-count
+  :approved-numeric-maximum-eth-spend
+  :independent-review-of-header-observation-sources-and-freshness-reorg-policy]}

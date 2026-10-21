@@ -1,5 +1,5 @@
 {
-  "classification": "generated-test-only-wallets-pending-owner-approval",
+  "classification": "generated-test-only-wallets-owner-approved-pending-package-binding",
   "keyMaterial": "Encrypted Foundry keystores are kept outside the repository in the owner-approved secure directory; passphrases are in the local system keyring. This file contains public addresses only.",
   "network": {
     "chainId": 84532,
@@ -14,7 +14,7 @@
       "keyringEntryApp": "prf-pro95-base-sepolia-alice",
       "keystoreAccount": "pro95-demo-alice",
       "label": "Alice",
-      "ownerApproval": "pending",
+      "ownerApproval": "approved-in-conversation-2026-10-23",
       "rpcBalanceObservation": {
         "balanceEther": "0.000000000000000000",
         "blockTag": "latest",
@@ -29,7 +29,7 @@
       "keyringEntryApp": "prf-pro95-base-sepolia-bob",
       "keystoreAccount": "pro95-demo-bob",
       "label": "Bob",
-      "ownerApproval": "pending",
+      "ownerApproval": "approved-in-conversation-2026-10-23",
       "rpcBalanceObservation": {
         "balanceEther": "0.000000000000000000",
         "blockTag": "latest",
@@ -44,7 +44,7 @@
       "keyringEntryApp": "prf-pro95-base-sepolia-carol",
       "keystoreAccount": "pro95-demo-carol",
       "label": "Carol",
-      "ownerApproval": "pending",
+      "ownerApproval": "approved-in-conversation-2026-10-23",
       "rpcBalanceObservation": {
         "balanceEther": "0.000000000000000000",
         "blockTag": "latest",
