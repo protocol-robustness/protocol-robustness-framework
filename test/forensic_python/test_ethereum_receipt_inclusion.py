@@ -11,6 +11,8 @@ import pytest
 from eth_hash.auto import keccak
 import rlp
 
+TRUST_SHA256 = "8e0f9cea44901c36ddff1f53b84b4f7e325cae36ea19f5a8701a87fba8084d0a"
+
 PROJECT = Path(__file__).resolve().parents[2]
 FIXTURE_DIR = PROJECT / "test/forensic_python/fixtures"
 CASE_PATH = FIXTURE_DIR / "pro95-stage-c-receipt-case.json"
@@ -26,12 +28,12 @@ def evidence() -> tuple[dict, bytes]:
 
 
 def verify(case: dict, context: bytes, now: int = 1_750_000_000) -> dict:
-    return inclusion.verify_case(case, context, hashlib.sha256(context).hexdigest(), now)
+    return inclusion.verify_case(case, context, TRUST_SHA256, now)
 
 
 def test_fixed_header_fixture_verifies_receipt_and_signed_sender(evidence: tuple[dict, bytes]) -> None:
     case, context = evidence
-    assert hashlib.sha256(context).hexdigest()
+    assert hashlib.sha256(context).hexdigest() == TRUST_SHA256
     result = verify(case, context)
     assert result["status"] == "receipt_inclusion_verified_under_external_header_pin"
     assert result["transactionHash"] == "0x43cd1745500b9362f5b59bebc8b2789d1de4dd1777e788aee2bdf8aee0eaac94"
