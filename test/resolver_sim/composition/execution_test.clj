@@ -6,6 +6,7 @@
             [resolver-sim.composition.execution :as exec]
             [resolver-sim.composition.fixtures :as fx]
             [resolver-sim.extensions.execution :as ext-exec]
+            [resolver-sim.composition.plan :as plan]
             [resolver-sim.economics.effects :as effects]))
 
 (deftest executes-valid-plan-with-value-flow
@@ -37,6 +38,77 @@
     (is (= :completed (:execution/status result)))
     (is (= 2 (count (:execution/effects result))))
     (is (= 985 (:execution/value result)))))
+
+(deftest replace-effects-use-last-node-output-including-empty-output
+  (let [emap (fx/ext-map-with
+              (fx/cap :fixture/e :merge :replace
+                      :entrypoint 'resolver-sim.composition.fixtures/effect-award))
+        combo (fx/seq-combination
+               (fx/node :n1 [:economics/award-amount :fixture/e]
+                        :spec {:amount 10 :effects [{:id :first}]})
+               (fx/node :n2 [:economics/award-amount :fixture/e]
+                        :spec {:amount 5 :effects [{:id :second}]}))
+        {:keys [plan]} (comp/compile-combination {:extensions emap} combo)
+        result (exec/execute-compiled-plan plan emap {} 100)]
+    (is (= :replace (:plan/effect-merge-strategy plan)))
+    (is (= [{:id :second}] (:execution/effects result))
+        "later nodes replace prior effects in declared node order")
+    (let [empty-combo (assoc-in combo [:combination/nodes 1 :spec :effects] [])
+          {:keys [plan]} (comp/compile-combination {:extensions emap} empty-combo)
+          empty-result (exec/execute-compiled-plan plan emap {} 100)]
+      (is (= [] (:execution/effects empty-result))
+          "an empty replacement clears the effect output"))))
+
+(deftest partition-effects-require-unique-explicit-keys
+  (let [emap (fx/ext-map-with
+              (fx/cap :fixture/e :merge :partition
+                      :entrypoint 'resolver-sim.composition.fixtures/effect-award))
+        combo (fx/seq-combination
+               (fx/node :n1 [:economics/award-amount :fixture/e]
+                        :spec {:amount 10 :effects [{:effect/partition-key :one}]})
+               (fx/node :n2 [:economics/award-amount :fixture/e]
+                        :spec {:amount 5 :effects [{:effect/partition-key :two}]}))
+        {:keys [plan]} (comp/compile-combination {:extensions emap} combo)
+        result (exec/execute-compiled-plan plan emap {} 100)
+        overlapping (assoc-in combo [:combination/nodes 1 :spec :effects]
+                              [{:effect/partition-key :one}])
+        missing (assoc-in combo [:combination/nodes 1 :spec :effects]
+                          [{:id :without-key}])
+        duplicate (assoc-in combo [:combination/nodes 0 :spec :effects]
+                            [{:effect/partition-key :one}
+                             {:effect/partition-key :one}])
+        run (fn [c]
+              (let [{:keys [plan]} (comp/compile-combination {:extensions emap} c)]
+                (exec/execute-compiled-plan plan emap {} 100)))]
+    (is (= [{:effect/partition-key :one} {:effect/partition-key :two}]
+           (:execution/effects result)))
+    (doseq [[case expected-id] [[overlapping :violation/duplicate-effect-partition-key]
+                                [missing :violation/missing-effect-partition-key]
+                                [duplicate :violation/duplicate-effect-partition-key]]]
+      (let [rejected (run case)]
+        (is (= :rejected (:execution/status rejected)))
+        (is (= expected-id (-> rejected :execution/violations first :violation/id)))))
+    (is (= result (run combo)) "replay preserves deterministic ordering and output")))
+
+(deftest execution-rejects-tampered-or-incompatible-merge-plan
+  (let [emap (fx/ext-map-with (fx/cap :fixture/a :merge :accumulate)
+                              (fx/cap :fixture/b :merge :accumulate))
+        combo (fx/seq-combination
+               (fx/node :n1 [:economics/award-amount :fixture/a] :spec {:rate 0})
+               (fx/node :n2 [:economics/award-amount :fixture/b] :spec {:rate 0}))
+        {:keys [plan]} (comp/compile-combination {:extensions emap} combo)
+        tampered (assoc plan :plan/effect-merge-strategy :replace)
+        wrong-contract (assoc tampered :plan/root (plan/plan-root tampered))
+        result (exec/execute-compiled-plan tampered emap {} 100)
+        wrong-result (exec/execute-compiled-plan wrong-contract emap {} 100)]
+    (is (= :rejected (:execution/status result))
+        "a modified plan with a stale root must be rejected")
+    (is (= :violation/unauthenticated-plan
+           (-> result :execution/violations first :violation/id)))
+    (is (= :rejected (:execution/status wrong-result))
+        "a root-valid plan whose merge strategy contradicts node contracts must be rejected")
+    (is (= :violation/effect-merge-strategy-mismatch
+           (-> wrong-result :execution/violations first :violation/id)))))
 
 (deftest short-circuit-stops-pipeline
   (let [emap (fx/ext-map-with
