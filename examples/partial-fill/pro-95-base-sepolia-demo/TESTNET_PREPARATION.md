@@ -78,8 +78,9 @@ test recipients.
    and Base Sepolia-bound proof package must be prepared; the local runner and
    proof cannot be broadcast unchanged.
 
-These are approval inputs, not implied authorization to deploy. Any approved
-transaction plan must state a numeric maximum transaction count and ETH spend.
+The approved profile does not yet set a transaction plan, maximum transaction
+count, or numeric ETH spend cap. No public transaction has been signed or
+broadcast. These limits will be calculated from the reviewed dry-run plan.
 
 ## 1. Remaining configuration and qualification inputs
 

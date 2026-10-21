@@ -25,12 +25,12 @@
   :authority-model :single-test-only-deployer-funder-configuration-authority-and-relayer
   :evidence-class :receipt-inclusion-verified-under-external-header-pin
   :finality-claim :none}
- :not-authorized
- [:transaction-signing
-  :transaction-broadcast
-  :testnet-eth-spend
-  :public-chain-qualification
-  :pre-mainnet-release]
+ :execution-status
+ {:transaction-signing :not-performed
+  :transaction-broadcast :not-performed
+  :testnet-eth-spend :not-performed
+  :public-chain-qualification :not-run
+  :pre-mainnet-release :out-of-scope}
  :conditions-before-broadcast
  [:reviewed-base-specific-runner-and-proof-package
   :reviewed-transaction-plan
