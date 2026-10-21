@@ -12,11 +12,11 @@
   "artifacts": {
     "readme": {
       "path": "examples/partial-fill/pro-95-base-sepolia-demo/README.md",
-      "sha256": "a8cdeec66ca3e52e58496b88ca99031b44755c6ce328d473bb7d288a1081ec57"
+      "sha256": "fcee9edb414b7e0c40cb37bec0d1427ea2fec7637ae7fdc60c38ddfbc7198ba8"
     },
     "testnetPreparation": {
       "path": "examples/partial-fill/pro-95-base-sepolia-demo/TESTNET_PREPARATION.md",
-      "sha256": "feca3b641d4fd0aa7b7bd502761a78cc86498c5d6305078c67d1b5833d4ef97a"
+      "sha256": "7aa701bcf5fd76b44017877f9434d11397847d841e35a8129797e339d8c68b54"
     },
     "stageBDemoPackage": {
       "path": "examples/partial-fill/pro-95-base-sepolia-demo/stage-b-demo-package.edn",
@@ -28,7 +28,7 @@
     },
     "stageCStatus": {
       "path": "examples/partial-fill/pro-95-base-sepolia-demo/stage-c-evidence-status.edn",
-      "sha256": "0bdb585fbb090ba5a421e84f55d2ae9dbe0521b22feb89e1c903804c4ac8af79"
+      "sha256": "6bca3c652e2747689c9382cd6d3d23d8a9119bb04b903dacaa76b5b22353c231"
     },
     "stageBVerifier": {
       "path": "scripts/forensic/verify-pro95-base-sepolia-demo-package.clj",
@@ -36,14 +36,18 @@
     },
     "rpcPreflight": {
       "path": "examples/partial-fill/pro-95-base-sepolia-demo/rpc-preflight-20261023.json",
-      "sha256": "e7f784f3820cb5829e527a9ed1b74b349de3c733f669476361ff33b9274f8aaa"
+      "sha256": "e884a8f996631c7da50cd22f22d986f74732878e59a0551394ec40f93205190b"
+    },
+    "demoRecipients": {
+      "path": "examples/partial-fill/pro-95-base-sepolia-demo/demo-recipient-wallets.json",
+      "sha256": "58fa612da0095df6dd669af9b2781c2d753c170a44ca7dee89d72b2b7ea75262"
     }
   },
   "scopeLimitations": [
     "synthetic source, reserve, policy, beneficiary, and funding data",
     "generated demo signing keys and bundled trust policy",
     "no real token, no funding execution, no contract deployment, no public transaction",
-    "no independently sourced header or finality evidence",
+    "no independently selected header trust context or freshness/reorg policy; no Base finality evidence",
     "not a pre-mainnet release qualification"
   ]
 }

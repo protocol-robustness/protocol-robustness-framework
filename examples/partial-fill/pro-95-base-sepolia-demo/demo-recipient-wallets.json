@@ -1,0 +1,57 @@
+{
+  "classification": "generated-test-only-wallets-pending-owner-approval",
+  "keyMaterial": "Encrypted Foundry keystores are kept outside the repository in the owner-approved secure directory; passphrases are in the local system keyring. This file contains public addresses only.",
+  "network": {
+    "chainId": 84532,
+    "name": "Base Sepolia"
+  },
+  "schema": "prf-pro95-base-sepolia-demo-recipients.v1",
+  "scope": "Pseudonymous controlled demo recipients only. Does not authenticate real-world claimants or prove the source data.",
+  "wallets": [
+    {
+      "address": "0x8bDd01C7DEad0AbE3e855b458B820D9d727bCCBF",
+      "keyControl": "generated encrypted local test-only keystore; no identity beyond key possession established",
+      "keyringEntryApp": "prf-pro95-base-sepolia-alice",
+      "keystoreAccount": "pro95-demo-alice",
+      "label": "Alice",
+      "ownerApproval": "pending",
+      "rpcBalanceObservation": {
+        "balanceEther": "0.000000000000000000",
+        "blockTag": "latest",
+        "endpoint": "https://sepolia.base.org",
+        "queryCompletedAt": "2026-10-23T19:19:50Z",
+        "queryStartedAt": "2026-10-23T19:19:50Z"
+      }
+    },
+    {
+      "address": "0x867Caab852f942Ff80B6409109F1DB76D4ecB36B",
+      "keyControl": "generated encrypted local test-only keystore; no identity beyond key possession established",
+      "keyringEntryApp": "prf-pro95-base-sepolia-bob",
+      "keystoreAccount": "pro95-demo-bob",
+      "label": "Bob",
+      "ownerApproval": "pending",
+      "rpcBalanceObservation": {
+        "balanceEther": "0.000000000000000000",
+        "blockTag": "latest",
+        "endpoint": "https://sepolia.base.org",
+        "queryCompletedAt": "2026-10-23T19:19:50Z",
+        "queryStartedAt": "2026-10-23T19:19:50Z"
+      }
+    },
+    {
+      "address": "0xA57F019D83d1fbbc48500047bA27d21523fE55A8",
+      "keyControl": "generated encrypted local test-only keystore; no identity beyond key possession established",
+      "keyringEntryApp": "prf-pro95-base-sepolia-carol",
+      "keystoreAccount": "pro95-demo-carol",
+      "label": "Carol",
+      "ownerApproval": "pending",
+      "rpcBalanceObservation": {
+        "balanceEther": "0.000000000000000000",
+        "blockTag": "latest",
+        "endpoint": "https://sepolia.base.org",
+        "queryCompletedAt": "2026-10-23T19:19:50Z",
+        "queryStartedAt": "2026-10-23T19:19:50Z"
+      }
+    }
+  ]
+}

@@ -84,5 +84,50 @@
     "number": 49259922,
     "parentHash": "0x54fdfad8dde14541defcf38108e2811edb7054123cfff54c11c3c56cd44d9278"
   },
-  "schema": "prf-base-sepolia-read-only-rpc-preflight.v1"
+  "recipientBalanceObservations": {
+    "balances": [
+      {
+        "address": "0x8bDd01C7DEad0AbE3e855b458B820D9d727bCCBF",
+        "balanceEther": "0.000000000000000000",
+        "name": "Alice",
+        "queryCompletedAt": "2026-10-23T19:19:58Z",
+        "queryStartedAt": "2026-10-23T19:19:58Z"
+      },
+      {
+        "address": "0x867Caab852f942Ff80B6409109F1DB76D4ecB36B",
+        "balanceEther": "0.000000000000000000",
+        "name": "Bob",
+        "queryCompletedAt": "2026-10-23T19:19:58Z",
+        "queryStartedAt": "2026-10-23T19:19:58Z"
+      },
+      {
+        "address": "0xA57F019D83d1fbbc48500047bA27d21523fE55A8",
+        "balanceEther": "0.000000000000000000",
+        "name": "Carol",
+        "queryCompletedAt": "2026-10-23T19:19:58Z",
+        "queryStartedAt": "2026-10-23T19:19:58Z"
+      }
+    ],
+    "blockTag": "latest",
+    "capturedAt": "2026-10-23T19:19:58Z",
+    "endpoint": "https://sepolia.base.org",
+    "interpretation": "Single-provider latest-balance observations; they are not block-pinned or independently authenticated."
+  },
+  "schema": "prf-base-sepolia-read-only-rpc-preflight.v1",
+  "secondaryHeaderSourceCandidate": {
+    "capturedAt": "2026-10-23T19:18:22Z",
+    "classification": "candidate-second-source-observation-not-selected-trust-anchor",
+    "httpStatus": 200,
+    "limitations": "An explorer/indexer response is a second observation candidate, not proof of Base consensus, finality, or independence of underlying node infrastructure. Owner/reviewer selection remains pending.",
+    "matchesPreviouslyObservedBaseRpcHeader": true,
+    "observed": {
+      "hash": "0x49a868fe73ae4775215dd0eef0b8a4a01e9be8d1c61c2c9badf68cf9bae5f37e",
+      "height": 49259922,
+      "parent_hash": "0x54fdfad8dde14541defcf38108e2811edb7054123cfff54c11c3c56cd44d9278",
+      "timestamp": "2026-10-23T16:44:13.000000Z"
+    },
+    "rawResponseBody": "{\"base_fee_per_gas\":\"5000000\",\"burnt_fees\":\"9447885000000\",\"burnt_fees_percentage\":85.71617539169154,\"difficulty\":\"0\",\"gas_limit\":\"120000000\",\"gas_target_percentage\":-76.3802875,\"gas_used\":\"1889577\",\"gas_used_percentage\":1.5746475,\"hash\":\"0x49a868fe73ae4775215dd0eef0b8a4a01e9be8d1c61c2c9badf68cf9bae5f37e\",\"height\":49259922,\"internal_transactions_count\":221,\"is_pending_update\":false,\"miner\":{\"ens_domain_name\":null,\"hash\":\"0x4200000000000000000000000000000000000011\",\"implementations\":[{\"address_hash\":\"0x68f75EA462Ad397918b09267cb7eE53e21A2c31D\",\"name\":null}],\"is_contract\":true,\"is_scam\":false,\"is_verified\":true,\"metadata\":null,\"name\":\"Proxy\",\"private_tags\":[],\"proxy_type\":\"eip1967\",\"public_tags\":[],\"reputation\":\"ok\",\"watchlist_names\":[]},\"nonce\":\"0x0000000000000000\",\"parent_hash\":\"0x54fdfad8dde14541defcf38108e2811edb7054123cfff54c11c3c56cd44d9278\",\"priority_fee\":\"2049219500000\",\"rewards\":[],\"size\":5330,\"timestamp\":\"2026-10-23T16:44:13.000000Z\",\"total_difficulty\":null,\"transaction_fees\":\"11022289500000\",\"transactions_count\":16,\"type\":\"block\",\"uncles_hashes\":[],\"withdrawals_count\":0}",
+    "source": "Base Sepolia Blockscout explorer API",
+    "url": "https://base-sepolia.blockscout.com/api/v2/blocks/49259922"
+  }
 }
