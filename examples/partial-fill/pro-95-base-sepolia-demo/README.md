@@ -76,6 +76,12 @@ status remains outside this bounded demo and unverified. No public transaction h
 Any future deployment must remain labelled demonstration only; it does not
 qualify the system for pre-mainnet release.
 
+The approved demo profile now has derived Base Sepolia initial-configuration
+and authority-state roots in `configuration-root-derivation.json`. Both are
+candidate derivations only. The chain-instance genesis root still requires the
+deployment addresses and runtime code hashes; the local proof and witness do
+not bind the approved recipients or Base Sepolia state.
+
 Base documents chain ID 84532 and the public RPC endpoint
 https://sepolia.base.org for Base Sepolia. The endpoint was queried read-only,
 as recorded above. A single RPC response does not authenticate the header; the

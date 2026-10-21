@@ -8,6 +8,14 @@
  {:status :not-run
   :reason :no-reviewed-base-sepolia-demo-deployment-package
   :template-status :owner-approval-required}
+ :canonical-roots
+ {:status :candidate-roots-derived
+  :qualification :derived-only-not-approved
+  :execution-chain-id 84532
+  :initial-configuration-root "sha256:24c14af8609b0921b1ac35a93390cb2fbfaeda1a672d2378a364c5889d44013e"
+  :authority-state-root "sha256:36a912294511057638de9d8a155f0a659413a3e242ca6bc76c877d5e3d6eb1a2"
+  :chain-instance-genesis-root :not-derived
+  :derivation-artifact "configuration-root-derivation.json"}
  :signer
  {:status :generated-test-only-unfunded
   :address "0xdD82cCEB1D515F2e4fb0432fB5d53138813945D4"

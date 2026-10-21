@@ -1,0 +1,39 @@
+{:package/schema "prf.initial-configuration-package.v1"
+ :package/status :candidate-owner-approval-required
+ :package/notes "PRO-95 Base Sepolia demonstration only. Derived from the approved 2026-10-23 synthetic fixture and the retained controlled-entitlement V3 SP1 identity. Candidate pending independent package review; not a production configuration."
+ :protocol/genesis-root "sha256:668bc1d132b8745a3f6db7fa0b2dad2b85a11246e00c39e7b24d266af4724775"
+ :execution/chain-id 84532
+ :component-material
+ {:module-registry
+  {:artifact/schema "eae-demo.module-registry-candidate.v1"
+   :profile "pro-95-partial-fill-v3-base-sepolia-demo.v1"
+   :capabilities ["verifier-registry" "statement-admission"
+                  "source-bound-entitlement-assurance" "pro-rata-allocation"
+                  "beneficiary-withdrawal" "protected-capital-refund"]}
+  :evidence-policy
+  {:artifact/schema "eae-demo.evidence-policy-candidate.v1"
+   :proof-system "SP1 Groth16"
+   :program-id "source-bound-entitlement-controlled-sp1-program.v1"
+   :program-vkey "0x00691e1cff8e4252731c8fe2bc326e8725ed5f9b92a298cc30a2c5fc40962dd1"
+   :program-elf-sha256 "sha256:705efd1c5b997ae1f2c19eddcf6bb66a147e94b6b3b036393d6dab041c00542d"
+   :public-values-schema "prf/source-bound-entitlement-public-values.v1"
+   :public-values-length 288
+   :admission "real-verifier-required"}
+  :escrow-template-registry
+  {:artifact/schema "eae-demo.escrow-template-registry-candidate.v1"
+   :templates []}
+  :parameter-policy
+  {:artifact/schema "eae-demo.parameter-policy-candidate.v1"
+   :entitlement-descriptor-root "sha256:0e8b6d0eb8a46279fee6697366b2bdfa0b4aa514dacf17e9e264744d90d91c1f"
+   :chain-id 84532
+   :token-policy "PRF-PRO-95-Demo-Unit-DEMO_UNIT-decimals-0-supply-cap-80"}
+  :governance-policy
+  {:artifact/schema "eae-demo.governance-policy-candidate.v1"
+   :authority-profile "pro-95-single-test-only-principal-base-sepolia.v1"
+   :initial-epoch 0
+   :transition-policy "explicit-parent-root-and-monotonic-epoch"}
+  :interoperability-policy
+  {:artifact/schema "eae-demo.interoperability-policy-candidate.v1"
+   :cross-domain-enabled false
+   :bridge-authority nil}}
+ :initial-configuration/root "sha256:24c14af8609b0921b1ac35a93390cb2fbfaeda1a672d2378a364c5889d44013e"}

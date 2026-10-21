@@ -42,8 +42,10 @@ test recipients.
    80 synthetic token units
    deposited; 10 restricted and refundable to Carol; 70 allocatable and paid
    35/21/14; 30 unmet requests remain neither funded entitlements nor
-   recognized liabilities. Token metadata, mint cap, and exact deployment
-   composition still need to be set in the reviewed run package. The owner
+   recognized liabilities. The approved synthetic token is `PRF PRO-95 Demo
+   Unit` (`DEMO_UNIT`), zero decimals, with a total supply cap of 80. The exact
+   deployment composition still needs to be set in the reviewed run package.
+   The owner
    approved one dedicated test-only EOA for deployer, funder, configuration
    authority, and relayer roles. This is a deliberately centralized demo setup,
    not independent or production authority separation. The retained local
@@ -84,15 +86,42 @@ broadcast. These limits will be calculated from the reviewed dry-run plan.
 
 ## 1. Remaining configuration and qualification inputs
 
+### Actions needed from the project owner
+
+The previously approved profile and recipient decisions are recorded, but they
+do not approve a transaction plan or attest the derived package roots. Before
+any transaction is signed, the owner will need to:
+
+1. Review and approve the exact Base-specific deployment composition and its
+   package digest after the runner and proof package are implemented. The
+   current derived configuration root is a candidate; its empty escrow
+   template list and disabled cross-domain behavior must be checked against
+   the selected demo contracts.
+2. Review the dry-run transaction plan and approve a maximum transaction
+   count and numeric ETH spend cap. The zero-balance deployer should only be
+   funded after this amount is known. No request for testnet ETH should be
+   acted on before the cap is approved.
+3. Arrange the approved amount of Base Sepolia ETH for the dedicated deployer
+   and provide or identify the funding transaction so its receipt can be
+   retained. No beneficiary gas is needed under the approved relayer model.
+4. Assign an independent reviewer to select/assess the header observation
+   sources and freshness/reorg policy. A matching RPC and Blockscout hash is
+   not itself an independent trust decision.
+
+No additional owner decision is currently needed for the synthetic token
+profile, recipients, one-deployer authority model, or bounded receipt-inclusion
+claim with no finality claim. The package-level deployment digest, spend cap,
+testnet balance, and independent header policy remain open as stated below.
+
 Record these in an approved, versioned demo run plan:
 
 | Decision | Required value / acceptance | Current state |
 |---|---|---|
-| Demonstration identity | Name, purpose, exact operation scenario, and explicit label `demonstration-only-not-pre-mainnet-release`. | Scope is Base Sepolia; exact owner-approved deployment identity is absent. |
+| Demonstration identity | Name, purpose, exact operation scenario, and explicit label `demonstration-only-not-pre-mainnet-release`. | Scope and demo-only label are approved; exact owner-reviewed deployment composition and package digest are not yet fixed. |
 | Source revision | PRF, PRF-EVM, coprocessor/prover, dependencies, Solidity compiler, optimizer and `via_ir` settings; clean/dirty state and content inventories. | Local candidate revisions exist; no testnet run source-state package exists. |
 | Contract composition | Exact contracts to deploy and their constructor/configuration values: demo token, reserve, allocator, controller, assurance, ratification/admission, verifier adapter, verifier implementation, and any protected execution target. Mark omitted components and resulting claim limits. | No approved deployment composition. |
-| Proof identity | Proof system, program ID, VKey, ELF digest, public-values schema and length, real verifier address/runtime identity, and a retained proof fixture. Do not substitute an accepting/mock verifier while claiming proof verification. | The Base Sepolia config has `TBD` values; not approved. |
-| Demo asset | New synthetic test token only; approved symbol/decimals and exact units, with a named mint authority and bounded mint cap. Do not use a real stablecoin. | `DEMO_UNIT`, zero decimals, an 80-unit supply cap and the test-only deployer as mint authority are approved; display name and deployment composition remain to be specified. |
+| Proof identity | Proof system, program ID, VKey, ELF digest, public-values schema and length, real verifier address/runtime identity, and a retained proof fixture. Do not substitute an accepting/mock verifier while claiming proof verification. | The retained controlled-entitlement identity is recorded in `configuration-root-derivation.json`; it is not yet admitted to a Base verifier registry, and a fresh Base-bound proof must be generated. The production Base configuration template remains unchanged with TBD fields. |
+| Demo asset | New synthetic test token only; approved symbol/decimals and exact units, with a named mint authority and bounded mint cap. Do not use a real stablecoin. | `PRF PRO-95 Demo Unit` (`DEMO_UNIT`), zero decimals, an 80-unit supply cap, and the test-only deployer as mint authority are approved; no token is deployed. |
 | Demo policy and requests | Owner-approved synthetic requests, allocation rule/version, cutoff, expected allocation, restricted reserve, funding amount, unmet-request meaning, and any refund rule. | The synthetic 50/30/20 fixture and 35/21/14 allocation are approved in `owner-decisions-20261023.edn`; they are not yet bound to a Base Sepolia deployment. |
 | Beneficiaries | Test-only pseudonyms and controlled recipient addresses, with a dedicated way to sign/observe claims. The existing `0x111…`, `0x222…`, `0x333…` placeholders are not controlled recipients and must not receive funds. | Recipient map approved in `owner-decisions-20261023.edn`; addresses are not yet bound into a Base Sepolia witness/proof. |
 | Authorities | Record each test-only public key/role/status and custody boundary; do not imply independent authority separation. Bind run approvals to exact package digests. | One dedicated test-only EOA is approved for deployment, funding, configuration authority, and relayed withdrawals. Existing bundled Stage B Ed25519 keys are ephemeral demonstration keys and are not independent authorities. |
@@ -116,9 +145,12 @@ They intentionally contain TBD fields, a placeholder principal, and
 candidate-owner-approval-required status. For this demonstration, use a
 separate owner-approved test-only configuration; do not copy the templates'
 production genesis-root or authority-profile comments. The templates remain
-unchanged. A testnet preparation is not ready until the owner supplies and
-approves the demo-specific values below, with roots recomputed by the existing
-PRF derivation code:
+unchanged. Demo-specific candidate packages are now in this directory:
+`initial-configuration-package.edn` and `authority-state-package.edn`. Their
+roots were recomputed with `scripts/deployment/genesis_roots.clj` and are
+recorded as `derived-only-not-approved`; the chain-instance root still needs
+actual deployment identities. A testnet preparation is not ready until the
+remaining configuration and evidence below are reviewed and fixed:
 
 1. Initial configuration: newly derived demo-only protocol genesis root; module registry
    profile/capabilities; evidence policy with actual proof ID, VKey, ELF
