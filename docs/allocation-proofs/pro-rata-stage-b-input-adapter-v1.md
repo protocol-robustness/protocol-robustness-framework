@@ -102,7 +102,15 @@ production authority.
 The focused suite also checks duplicate event IDs and sequence numbers,
 declared count/range mismatches, repeated request opening, amendment after
 cancellation, duplicate beneficiary authorization IDs, individually valid
-signatures with mismatched source/policy roots, and zero funding. The current
-run completed 4 tests and 26 assertions with no failures or errors. These are
+signatures with mismatched source/policy roots, zero funding, and malformed
+allocation-map values and keys. The current run completed 4 tests and 32
+assertions with no failures or errors. These are
 software-level negative checks over generated fixtures; they do not establish
 the truth or completeness of an externally supplied population.
+
+The synthetic Base Sepolia demonstration fixture and fresh-process verifier
+are in `examples/partial-fill/pro-95-base-sepolia-demo/`. That package is
+explicitly demonstration-only and not a pre-mainnet release. Its generated
+keys and bundled trust policy exercise the adapter; they are not production
+source, policy, beneficiary, or funding authorities and do not close the
+external-source Stage B gate.

@@ -1,0 +1,41 @@
+{
+  "schema": "prf-pro-95-base-sepolia-demo-manifest.v1",
+  "classification": "demonstration-only-not-pre-mainnet-release",
+  "network": {
+    "name": "Base Sepolia",
+    "chainId": 84532
+  },
+  "qualification": {
+    "stageB": "synthetic-envelope-qualification-only",
+    "stageC": "not-run-public-chain-not-qualified"
+  },
+  "artifacts": {
+    "readme": {
+      "path": "examples/partial-fill/pro-95-base-sepolia-demo/README.md",
+      "sha256": "572132d8dad8b11ba9d9b35968fa4e3a6d41cf59e743600c9a68f250a3403e34"
+    },
+    "stageBDemoPackage": {
+      "path": "examples/partial-fill/pro-95-base-sepolia-demo/stage-b-demo-package.edn",
+      "sha256": "4919eaf14531bb279648fa349bea345ad81a8843c1a8ada61e07e0ba9bb31b7e"
+    },
+    "stageBVerificationOutput": {
+      "path": "examples/partial-fill/pro-95-base-sepolia-demo/stage-b-verification-output.edn",
+      "sha256": "5f2a1f399276a02dc464f83962067a18a0e7c2b668dda3adef341a8199736cf6"
+    },
+    "stageCStatus": {
+      "path": "examples/partial-fill/pro-95-base-sepolia-demo/stage-c-evidence-status.edn",
+      "sha256": "0cdb5214d08aba13e21689968f5f38ea08c2405372ed926c891b5015966e7200"
+    },
+    "stageBVerifier": {
+      "path": "scripts/forensic/verify-pro95-base-sepolia-demo-package.clj",
+      "sha256": "30b50cee381fd798bbb5674c6ecff11bb6cb8d61962e3361cb13d531b0d6ce64"
+    }
+  },
+  "scopeLimitations": [
+    "synthetic source, reserve, policy, beneficiary, and funding data",
+    "generated demo signing keys and bundled trust policy",
+    "no real token, no funding execution, no contract deployment, no public transaction",
+    "no independently sourced header or finality evidence",
+    "not a pre-mainnet release qualification"
+  ]
+}
