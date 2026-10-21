@@ -11,12 +11,11 @@ import pytest
 from eth_hash.auto import keccak
 import rlp
 
-TRUST_SHA256 = "8e0f9cea44901c36ddff1f53b84b4f7e325cae36ea19f5a8701a87fba8084d0a"
-
 PROJECT = Path(__file__).resolve().parents[2]
 FIXTURE_DIR = PROJECT / "test/forensic_python/fixtures"
 CASE_PATH = FIXTURE_DIR / "pro95-stage-c-receipt-case.json"
 TRUST_PATH = FIXTURE_DIR / "pro95-stage-c-trust-context.json"
+TRUST_SHA256 = "dc933f375b6d87be3c34d85cb9d0a2bc68aeecebf0e2af511cea991f2be22fd2"
 import sys
 sys.path.insert(0, str(PROJECT / "scripts"))
 from forensic import ethereum_receipt_inclusion as inclusion
@@ -34,14 +33,24 @@ def verify(case: dict, context: bytes, now: int = 1_750_000_000) -> dict:
 def test_fixed_header_fixture_verifies_receipt_and_signed_sender(evidence: tuple[dict, bytes]) -> None:
     case, context = evidence
     assert hashlib.sha256(context).hexdigest() == TRUST_SHA256
-    result = verify(case, context)
+    result = inclusion.verify_case(case, context, TRUST_SHA256, 1_750_000_000)
     assert result["status"] == "receipt_inclusion_verified_under_external_header_pin"
     assert result["transactionHash"] == "0x43cd1745500b9362f5b59bebc8b2789d1de4dd1777e788aee2bdf8aee0eaac94"
     assert result["recoveredSender"] == "0x7e5f4552091a69125d5dfcb7b8c2659029395bdf"
     assert result["receiptsRoot"] == "0x84a464ec96f61d82ef160612da1f2894699d23f126c977509dd597637dc128ca"
     assert result["transactionsRoot"] == "0x324d70a782e3f1382b8071c69e4e8192979424ebf98c4ebf4207756bc1ebb1f4"
     assert result["transactionInclusion"] == "verified-at-receipt-index"
+    assert "genesisHash" not in result
     assert result["finality"] == "unverified"
+
+
+def test_trust_context_does_not_accept_unbound_genesis_identity(evidence: tuple[dict, bytes]) -> None:
+    case, context = evidence
+    trust = json.loads(context)
+    trust["genesisHash"] = "0x" + "ff" * 32
+    changed = (json.dumps(trust, sort_keys=True, indent=2) + "\n").encode()
+    with pytest.raises(inclusion.InclusionError, match="schema or fields are invalid"):
+        inclusion.verify_case(case, changed, hashlib.sha256(changed).hexdigest(), 1_750_000_000)
 
 
 def test_receipt_block_must_link_to_trusted_anchor(evidence: tuple[dict, bytes]) -> None:

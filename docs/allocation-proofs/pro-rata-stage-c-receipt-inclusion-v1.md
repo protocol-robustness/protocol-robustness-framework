@@ -27,8 +27,11 @@ pinned trust-context file. This follows EIP-2718's transaction/receipt trie and
 typed receipt encoding. EIP-1186 describes account and storage proofs; this
 verifier does not treat those as transaction or receipt inclusion proofs.
 
-The trust-context file pins the network family, chain ID, genesis hash, an
-anchor header hash and height, source identity/revision, and freshness window.
+The v2 trust-context file pins the network family, chain ID, an anchor header
+hash and height, source identity/revision, and freshness window. It does not
+claim a genesis identity: ancestry is checked from the receipt block to the
+pinned anchor only, not from that anchor back to genesis. A genesis hash must
+not be inferred from this result.
 The case may include bounded encoded header ancestry from the transaction's
 block to that independently pinned anchor; every parent hash and consecutive
 height is checked. The

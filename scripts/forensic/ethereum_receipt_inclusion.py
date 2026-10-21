@@ -31,7 +31,7 @@ class InclusionError(ValueError):
     """The supplied transaction, receipt, proof, or trusted context is invalid."""
 
 
-TRUST_SCHEMA = "prf-ethereum-header-trust-context.v1"
+TRUST_SCHEMA = "prf-ethereum-header-trust-context.v2"
 CASE_SCHEMA = "prf-ethereum-receipt-inclusion-case.v1"
 ADDRESS_RE = re.compile(r"^0x[0-9a-fA-F]{40}$")
 HEX_RE = re.compile(r"^0x(?:[0-9a-fA-F]{2})*$")
@@ -331,7 +331,7 @@ def verify_case(case: dict[str, Any], trust_context_bytes: bytes,
     if expected_trust_context_sha256 != trust_digest:
         raise InclusionError("trusted context digest does not match independent pin")
     trust = _json_no_duplicates(trust_context_bytes, "trusted context")
-    trust_required = {"schema", "network", "chainFamily", "chainId", "genesisHash",
+    trust_required = {"schema", "network", "chainFamily", "chainId",
                       "anchorHeaderHash", "anchorHeaderNumber", "sourceId", "sourceRevision",
                       "observedAt", "validUntil", "finalityStatus"}
     if not isinstance(trust, dict) or set(trust) != trust_required or trust.get("schema") != TRUST_SCHEMA:
@@ -350,7 +350,6 @@ def verify_case(case: dict[str, Any], trust_context_bytes: bytes,
     if trust["finalityStatus"] != "unverified":
         raise InclusionError("this verifier cannot establish a finality claim")
 
-    genesis_hash = _hex_bytes(trust["genesisHash"], "trusted genesis hash", 32)
     pinned_anchor_hash = _hex_bytes(trust["anchorHeaderHash"], "trusted anchor header hash", 32)
     header_raw = _hex_bytes(case["blockHeaderRlp"], "block header RLP")
     if len(header_raw) > 64 * 1024:
@@ -423,7 +422,6 @@ def verify_case(case: dict[str, Any], trust_context_bytes: bytes,
         "network": trust["network"],
         "chainFamily": trust["chainFamily"],
         "chainId": trust["chainId"],
-        "genesisHash": "0x" + genesis_hash.hex(),
         "blockHash": "0x" + header_hash.hex(),
         "blockNumber": header_number,
         "trustedAnchorHash": "0x" + pinned_anchor_hash.hex(),

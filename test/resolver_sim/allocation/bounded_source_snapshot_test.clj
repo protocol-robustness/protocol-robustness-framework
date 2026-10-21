@@ -119,6 +119,20 @@
     (is (= :beneficiary-coverage-mismatch
            (:reason (bounded/bind-beneficiaries-to-positive-claims
                      {"claim-a" 35 "claim-c" 14} binding))))
+    (doseq [invalid-allocation [nil [] {"claim-a" "35"} {"claim-a" -1}
+                                {nil 35} {"" 35}]]
+      (testing (str "malformed allocation " (pr-str invalid-allocation))
+        (is (= {:valid? false
+                :reason :invalid-allocation-map
+                :missing []
+                :unexpected []
+                :mapping {}
+                :identity-scope :pseudonymous-owner-authorization
+                :limitations [:allocation-claim-ids-must-be-nonempty-strings
+                              :allocation-amounts-must-be-nonnegative-integers
+                              :does-not-establish-legal-identity-from-wallet-address]}
+               (bounded/bind-beneficiaries-to-positive-claims
+                invalid-allocation binding)))))
     (is (false? (:valid? (bounded/verify-authority-binding binding :funding trust))))
     (let [duplicate-authorization
           (re-sign-binding

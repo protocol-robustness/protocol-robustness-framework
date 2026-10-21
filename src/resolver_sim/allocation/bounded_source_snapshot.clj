@@ -219,13 +219,29 @@
   "Require an authorization for every positive allocation claim and no extras.
    The owner field is explicitly pseudonymous; it is not a legal-identity claim."
   [allocation beneficiary-binding]
-  (let [positive (set (keep (fn [[claim amount]] (when (pos? amount) claim)) allocation))
-        rows (:beneficiary/authorizations beneficiary-binding)
-        authorized (set (map :claim/id rows))]
-    {:valid? (and (= positive authorized) (validate-beneficiary-binding beneficiary-binding))
-     :reason (when-not (= positive authorized) :beneficiary-coverage-mismatch)
-     :missing (vec (sort (set/difference positive authorized)))
-     :unexpected (vec (sort (set/difference authorized positive)))
-     :mapping (into (sorted-map) (map (juxt :claim/id :beneficiary/destination) rows))
-     :identity-scope :pseudonymous-owner-authorization
-     :limitations [:does-not-establish-legal-identity-from-wallet-address]}))
+  (let [valid-allocation? (and (map? allocation)
+                               (every? (fn [[claim amount]]
+                                         (and (string? claim) (not-empty claim)
+                                              (integer? amount) (not (neg? amount))))
+                                       allocation))]
+    (if-not valid-allocation?
+      {:valid? false
+       :reason :invalid-allocation-map
+       :missing []
+       :unexpected []
+       :mapping {}
+       :identity-scope :pseudonymous-owner-authorization
+       :limitations [:allocation-claim-ids-must-be-nonempty-strings
+                     :allocation-amounts-must-be-nonnegative-integers
+                     :does-not-establish-legal-identity-from-wallet-address]}
+      (let [positive (set (keep (fn [[claim amount]] (when (pos? amount) claim)) allocation))
+            rows (:beneficiary/authorizations beneficiary-binding)
+            authorized (set (map :claim/id rows))
+            coverage-matches? (= positive authorized)]
+        {:valid? (and coverage-matches? (validate-beneficiary-binding beneficiary-binding))
+         :reason (when-not coverage-matches? :beneficiary-coverage-mismatch)
+         :missing (vec (sort (set/difference positive authorized)))
+         :unexpected (vec (sort (set/difference authorized positive)))
+         :mapping (into (sorted-map) (map (juxt :claim/id :beneficiary/destination) rows))
+         :identity-scope :pseudonymous-owner-authorization
+         :limitations [:does-not-establish-legal-identity-from-wallet-address]}))))
