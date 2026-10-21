@@ -27,24 +27,36 @@
   :client-version "reth/v2.5.2-7134be3/x86_64-unknown-linux-gnu/base/v1.5.0"
   :capture-artifact "rpc-preflight-20261023.json"
   :independent-trust? false
+  :second-source-candidate :blockscout-matching-header-not-selected
   :finality-established? false}
+ :beneficiaries
+ {:status :generated-test-only-pending-owner-approval
+  :addresses {
+   :alice "0x8bDd01C7DEad0AbE3e855b458B820D9d727bCCBF"
+   :bob "0x867Caab852f942Ff80B6409109F1DB76D4ecB36B"
+   :carol "0xA57F019D83d1fbbc48500047bA27d21523fE55A8"}
+  :balances :zero-at-latest-single-provider-query
+  :identity-authentication :not-performed}
  :receipt-inclusion
  {:status :not-run
   :reason :no-base-sepolia-demo-transactions-or-receipt-proofs}
  :header-trust
  {:status :not-selected
-  :reason :independent-base-and-l1-header-source-not-selected}
+  :reason :external-header-pin-source-and-freshness-policy-not-selected}
  :finality
  {:status :unverified
-  :reason :no-reviewed-chain-specific-safe-or-finalized-policy}
+  :reason :safe-finalized-claim-out-of-scope-for-demo-and-no-l1-derivation-verifier}
  :remaining-evidence
- [:owner-approved-demo-deployment-and-verifier-identities
+ [:owner-approval-of-generated-recipient-map
+  :owner-approved-demo-deployment-and-verifier-identities
   :owner-approved-signer-role-and-spend-budget
   :funded-base-sepolia-demo-signer
   :controlled-beneficiary-addresses-and-authorizations
+  :base-sepolia-derived-source-witness-and-proof
+  :reviewed-base-sepolia-deployment-and-operation-runner
   :raw-signed-transactions-and-mined-receipts
   :contract-code-identities-and-operation-state
-  :independently-pinned-base-l2-and-l1-header-context
-  :reviewed-base-sepolia-finality-and-freshness-policy]
+  :independently-selected-base-header-pin-and-freshness-reorg-policy
+  :base-l2-to-l1-finality-path-only-if-safe-finalized-claim-is-requested]
  :release-boundary
  "This is a public testnet demonstration scope only and is not a pre-mainnet release qualification."}

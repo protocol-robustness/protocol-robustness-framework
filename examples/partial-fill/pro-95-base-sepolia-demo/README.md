@@ -9,8 +9,10 @@ The controlled example contains requests of 50, 30, and 20 `DEMO_UNIT`s; an
 illustrative reserve observation of 80 units, of which 10 are restricted and
 70 are available; and a declared largest-remainder allocation of 35, 21, and
 14. The remaining 30 are unmet requests in this fixture, not recognized debt
-or claimant liabilities. The example uses pseudonymous labels and placeholder
-destination addresses. It uses no USDC or other real token.
+or claimant liabilities. The Stage B example uses pseudonymous labels and placeholder destination
+addresses. The generated recipient keys listed separately below have not yet
+been bound into a Base Sepolia witness/proof or approved for use. The example
+uses no USDC or other real token.
 
 The source, policy, beneficiary, and funding envelopes are signed with
 ephemeral Ed25519 demonstration keys. Their public keys are included in the
@@ -44,24 +46,31 @@ remain owner-approval-required and contain placeholder verifier and authority
 values. This demo package does not turn those templates into an approved
 deployment.
 
-A dedicated encrypted test-only signer has now been generated outside the
-repository at the owner-approved secure location. Its public address is
-`0xdD82cCEB1D515F2e4fb0432fB5d53138813945D4`; it is not funded or approved for a run yet. A read-only preflight
+A dedicated encrypted test-only deployer and three encrypted recipient wallets
+have been generated outside the repository at the owner-approved secure
+location. Their public addresses are recorded in
+[`demo-recipient-wallets.json`](./demo-recipient-wallets.json); they are not
+funded or approved for this run. A read-only preflight
 from `https://sepolia.base.org` returned chain ID `84532` and head
 `49259922` (`0x49a868fe73ae4775215dd0eef0b8a4a01e9be8d1c61c2c9badf68cf9bae5f37e`); see
 [`rpc-preflight-20261023.json`](./rpc-preflight-20261023.json). This is a
-single-provider observation, not independent header or finality evidence. At
-block `49260186`, the signer balance was reported as zero; the raw Foundry
+single-provider observation, not independent header or finality evidence.
+Blockscout reports the same hash for this block; it remains only a candidate
+second observer, not a selected trust anchor. At
+block 49260186, the deployer balance was reported as zero; the raw Foundry
 result is retained with the block-pinned balance query in the preflight artifact.
 
 Stage C still requires an owner-approved demonstration deployment and verifier
-configuration, approved signer role and spend budget, controlled beneficiary
-addresses, real transaction and receipt artifacts, and an independently selected
-Base/L1 header and finality policy. No public transaction has been submitted.
+configuration, approved signer role and spend budget, approval of the generated
+recipient mapping, a Base Sepolia-bound source witness/proof, a reviewed
+Base-specific deployment/operation runner, real transaction and receipt
+artifacts, and an independently selected header-pin source. Base safe/finalized
+status remains outside this bounded demo and unverified. No public transaction has been submitted.
 Any future deployment must remain labelled demonstration only; it does not
 qualify the system for pre-mainnet release.
 
-Base documents chain ID `84532` and the public RPC endpoint
-`https://sepolia.base.org` for Base Sepolia. The endpoint has not been queried
-for this package; a public RPC response alone would not provide the independent
-header trust or Base/L1 finality evidence required by Stage C.
+Base documents chain ID 84532 and the public RPC endpoint
+https://sepolia.base.org for Base Sepolia. The endpoint was queried read-only,
+as recorded above. A single RPC response does not authenticate the header; the
+matching Blockscout response is only a candidate second observation. Neither
+observation establishes Base safe/finalized status. Stage C.
