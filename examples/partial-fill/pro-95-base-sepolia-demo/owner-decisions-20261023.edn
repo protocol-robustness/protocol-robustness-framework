@@ -15,7 +15,8 @@
    :available-for-allocation 70
    :allocation {"claim-a" 35 "claim-b" 21 "claim-c" 14}
    :unmet-requested 30
-   :asset {:kind :synthetic-test-token
+  :asset {:kind :synthetic-test-token
+           :name "PRF PRO-95 Demo Unit"
            :symbol "DEMO_UNIT"
            :decimals 0
            :total-supply-cap 80
