@@ -12,11 +12,11 @@
   "artifacts": {
     "readme": {
       "path": "examples/partial-fill/pro-95-base-sepolia-demo/README.md",
-      "sha256": "67d36ba6bb2bc8c202c6a7f2c44c4a70e7b180b05d9d4962b166c344026e2b1d"
+      "sha256": "b152f3f3e635ec772b58bb9b32367a646868839c344f90e927ed192411750d2d"
     },
     "testnetPreparation": {
       "path": "examples/partial-fill/pro-95-base-sepolia-demo/TESTNET_PREPARATION.md",
-      "sha256": "88a588577c5919083efac8c570b3ab7adb528e2b332270950fd9f1e8465a9c9c"
+      "sha256": "25a0c0b2dc33798c7d6e3656a24ccacc9f5a1a88a7e69e0f70675de0af64bba5"
     },
     "stageBDemoPackage": {
       "path": "examples/partial-fill/pro-95-base-sepolia-demo/stage-b-demo-package.edn",
@@ -44,7 +44,7 @@
     },
     "ownerDecisions": {
       "path": "examples/partial-fill/pro-95-base-sepolia-demo/owner-decisions-20261023.edn",
-      "sha256": "7921c6271ca3b1edb32aa9521d753d6802c384fabeb5b45cefd7441e4121eb1a"
+      "sha256": "862d933c61f8c194e3bc2f2a8f58556c144433dae1470452ee5bdeb0ccb0292f"
     }
   },
   "scopeLimitations": [

@@ -53,7 +53,8 @@ location. Their public addresses are recorded in
 approved for this demonstration, but they are unfunded and not yet bound into
 the Base Sepolia witness/proof. The approval and its exclusions are recorded in
 [`owner-decisions-20261023.edn`](./owner-decisions-20261023.edn); it does not
-authorize signing, broadcast, or testnet ETH spend. One test-only EOA is
+set a transaction count, gas cap, or funding amount. No testnet transaction has
+been signed or broadcast. One test-only EOA is
 approved to act as deployer, funder, configuration authority, and withdrawal
 relayer; this is centralized demonstration control, not independent authority
 separation. A read-only preflight
