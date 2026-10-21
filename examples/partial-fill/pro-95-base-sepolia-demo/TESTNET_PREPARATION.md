@@ -151,8 +151,10 @@ performed action, as applicable:
 2. Initialize the approved configuration/authority state and register the
    required proof verifier/program identity.
 3. Mint/transfer only the approved synthetic token amount into the reserve.
-4. Submit and admit the source-bound proof/statement; bind its public values to
-   the exact source, policy, operation and reserve roots.
+4. Submit and admit the source-bound proof/statement. Record which source,
+   policy, operation and reserve roots are directly encoded in its public
+   values, and bind any other roots through their explicit signed or package
+   links. Do not claim a direct binding where the schema does not encode one.
 5. Ratify/fund and activate the operation through the selected protected
    route.
 6. Submit each controlled beneficiary withdrawal; record any separately

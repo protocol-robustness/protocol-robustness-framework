@@ -16,7 +16,7 @@
     },
     "testnetPreparation": {
       "path": "examples/partial-fill/pro-95-base-sepolia-demo/TESTNET_PREPARATION.md",
-      "sha256": "e5aada8ee5a6c22bdd947d8fd5252646c48f77842f09968c98e8e373469761ff"
+      "sha256": "79489a1642d063f13dadb709a408faa2ab33580ba5141867858f7313d744c2d7"
     },
     "stageBDemoPackage": {
       "path": "examples/partial-fill/pro-95-base-sepolia-demo/stage-b-demo-package.edn",
