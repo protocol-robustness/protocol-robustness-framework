@@ -1,0 +1,1 @@
+{:stage-b-envelope-verification :bound, :requested-units 100, :available-demo-units 70, :allocation {"claim-a" 35, "claim-b" 21, "claim-c" 14}, :unmet-requested-units 30, :demo-classification :demonstration-only-not-pre-mainnet-release, :stage-c-status :not-run, :public-chain-qualification :not-qualified}

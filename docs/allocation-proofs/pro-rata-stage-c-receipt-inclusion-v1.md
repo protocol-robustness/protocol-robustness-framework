@@ -82,6 +82,12 @@ authenticated source/authority records from Stage B. Reorg/replacement checks
 must be rerun against that trust source. Stage C remains open until these
 artifacts and a chain-specific finality policy are independently reviewed.
 
+The Base Sepolia demonstration status is recorded at
+`examples/partial-fill/pro-95-base-sepolia-demo/stage-c-evidence-status.edn`.
+It is explicitly demonstration-only, not a pre-mainnet release qualification;
+it records no deployment, public transaction, receipt proof, independent
+header trust selection, or finality result.
+
 References:
 
 - [EIP-2718: Typed Transaction Envelope](https://eips.ethereum.org/EIPS/eip-2718)

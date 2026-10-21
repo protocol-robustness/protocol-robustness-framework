@@ -1,0 +1,35 @@
+{:schema "prf-pro-95-stage-c-demo-status.v1"
+ :classification :demonstration-only-not-pre-mainnet-release
+ :network {:name "Base Sepolia" :chain-id 84532}
+ :status :not-run
+ :public-chain-qualified? false
+ :transaction-submitted? false
+ :deployment
+ {:status :not-run
+  :reason :no-owner-approved-demo-deployment-package
+  :template-status :owner-approval-required}
+ :signer
+ {:status :unavailable
+  :reason :no-base-sepolia-demo-signer-configured-or-supplied}
+ :rpc
+ {:candidate-endpoint "https://sepolia.base.org"
+  :status :not-probed
+  :reason :no-live-network-read-performed}
+ :receipt-inclusion
+ {:status :not-run
+  :reason :no-base-sepolia-demo-transactions-or-receipt-proofs}
+ :header-trust
+ {:status :not-selected
+  :reason :independent-base-and-l1-header-source-not-selected}
+ :finality
+ {:status :unverified
+  :reason :no-reviewed-chain-specific-safe-or-finalized-policy}
+ :remaining-evidence
+ [:owner-approved-demo-contract-and-verifier-identities
+  :funded-base-sepolia-demo-signer
+  :raw-signed-transactions-and-mined-receipts
+  :contract-code-identities-and-operation-state
+  :independently-pinned-base-l2-and-l1-header-context
+  :reviewed-base-sepolia-finality-and-freshness-policy]
+ :release-boundary
+ "This is a public testnet demonstration scope only and is not a pre-mainnet release qualification."}
